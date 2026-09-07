@@ -334,6 +334,12 @@ const recommendRecipeBodySchema = z
   })
   .strict();
 
+const shareShoppingListBodySchema = z
+  .object({
+    recipientUserId: z.string().trim().min(1).max(128),
+  })
+  .strict();
+
 const MAX_RECIPE_BODY_BYTES = 100_000;
 const savedRecipePayloadSchema = SavedRecipePayloadSchema.extend({
   source: z.string().trim().min(1).max(10_000),
@@ -386,6 +392,7 @@ const RECIPE_RECOMMENDATION_RATE_LIMIT = {
   max: 30,
   windowSeconds: 60 * 60,
 };
+const SHOPPING_LIST_SHARE_RATE_LIMIT = { max: 30, windowSeconds: 60 * 60 };
 const RECIPE_URL_IMPORT_RATE_LIMIT = { max: 20, windowSeconds: 60 * 60 };
 const RECIPE_FILE_IMPORT_RATE_LIMIT = { max: 20, windowSeconds: 60 * 60 };
 const RECIPE_PHOTO_IMPORT_RATE_LIMIT = { max: 20, windowSeconds: 60 * 60 };
@@ -566,6 +573,11 @@ const createShoppingListBodySchema = z
   })
   .strict();
 
+const shareShoppingListResponseSchema = z
+  .object({ shared: z.literal(true) })
+  .strict()
+  .openapi("ShoppingListShareResponse");
+
 const updateDietProfileBodySchema = z
   .object({
     presetDietKeys: uniqueDietKeysSchema.default([]),
@@ -684,6 +696,12 @@ export const routeMetadata = {
     requestBodySchema: createShoppingListBodySchema,
     successStatuses: [201],
     successResponseSchema: shoppingListResponseSchema,
+  },
+  "POST /shopping-lists/current/shares": {
+    requestBodySchema: shareShoppingListBodySchema,
+    successStatuses: [201],
+    successResponseSchema: shareShoppingListResponseSchema,
+    rateLimited: true,
   },
   "GET /pantry": {},
   "GET /pantry/realtime": {
@@ -2087,6 +2105,7 @@ const householdNotificationKinds = new Set<HouseholdNotificationKind>([
   "household_invite_accepted",
   "household_invite_declined",
   "household_member_left",
+  "shopping_list_shared",
 ]);
 
 function isHouseholdNotificationKind(
@@ -3680,6 +3699,65 @@ registerRoute("post", "/shopping-lists", async (c) => {
         );
       }
       return c.json(response, 201);
+    },
+  );
+});
+
+registerRoute("post", "/shopping-lists/current/shares", async (c) => {
+  const csrfFailure = validateCsrf(c);
+  if (csrfFailure) return csrfFailure;
+
+  return withRecipeSession(
+    c,
+    "mutation",
+    "POST /shopping-lists/current/shares mutation failed",
+    async ({ db, session }) => {
+      const body = await parseJsonBody(c, shareShoppingListBodySchema);
+      if (!body.success) return body.response;
+      if (body.data.recipientUserId === session.user.id) {
+        return c.json(
+          { error: "You cannot share a shopping list with yourself" },
+          400,
+        );
+      }
+
+      const scope = await resolvePantryScope(db, session.user.id);
+      if (scope.type !== "household") {
+        return c.json(
+          { error: "Join a household before sharing a shopping list" },
+          409,
+        );
+      }
+      const recipientMembership = await findHouseholdMembership(
+        db,
+        scope.householdId,
+        body.data.recipientUserId,
+      );
+      if (!recipientMembership) {
+        return c.json(
+          { error: "Shopping lists can only be shared with household members" },
+          403,
+        );
+      }
+
+      const shareLimit = await enforceRateLimit(
+        db,
+        `shopping-list-share:${session.user.id}`,
+        SHOPPING_LIST_SHARE_RATE_LIMIT,
+      );
+      if (!shareLimit.allowed) {
+        return rateLimitedResponse(c, shareLimit.retryAfter);
+      }
+
+      await db.transaction((tx) =>
+        createHouseholdNotification(tx, {
+          recipientUserIds: [body.data.recipientUserId],
+          kind: "shopping_list_shared",
+          household: { id: scope.householdId, name: scope.householdName },
+          actor: { id: session.user.id, name: session.user.name },
+        }),
+      );
+      return c.json({ shared: true }, 201);
     },
   );
 });

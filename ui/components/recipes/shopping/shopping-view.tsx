@@ -6,9 +6,11 @@ import { DietListNotice } from "@/components/recipes/diet-notice";
 import { useDiet } from "@/components/recipes/diet-provider";
 import { MealPlanner } from "@/components/recipes/shopping/meal-planner";
 import { RecipePicker } from "@/components/recipes/shopping/recipe-picker";
+import { ShareShoppingList } from "@/components/recipes/shopping/share-shopping-list";
 import { ShoppingList } from "@/components/recipes/shopping/shopping-list";
 import {
   ShoppingListBoundary,
+  useShoppingListScope,
   useStartNewShoppingList,
 } from "@/components/recipes/shopping/shopping-list-boundary";
 import { useShoppingList } from "@/hooks/use-shopping-list";
@@ -43,6 +45,7 @@ function ShoppingViewContent({
   const [step, setStep] = useState<Step>("plan");
   const [showHidden, setShowHidden] = useState(false);
   const startNewList = useStartNewShoppingList();
+  const scope = useShoppingListScope();
   const selectedSlugs = useMemo(
     () => new Set(selected.map((entry) => entry.slug)),
     [selected],
@@ -99,16 +102,19 @@ function ShoppingViewContent({
           </h1>
           <p className="rt-body mt-2 text-[var(--ink-2)]">{summary}</p>
         </div>
-        {hasListContent && (
-          <button
-            type="button"
-            onClick={startNewList.start}
-            disabled={startNewList.isPending}
-            className="inline-flex items-center gap-1.5 rt-mono text-[var(--ink-3)] hover:text-[var(--berry)] transition-colors"
-          >
-            <Trash2 className="h-3.5 w-3.5" /> start a new list
-          </button>
-        )}
+        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+          {scope.type === "household" && <ShareShoppingList scope={scope} />}
+          {hasListContent && (
+            <button
+              type="button"
+              onClick={startNewList.start}
+              disabled={startNewList.isPending}
+              className="inline-flex items-center gap-1.5 rt-mono text-[var(--ink-3)] hover:text-[var(--berry)] transition-colors"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> start a new list
+            </button>
+          )}
+        </div>
       </div>
 
       {startNewList.isError && (
