@@ -11,7 +11,8 @@ The exported C ABI has five functions:
 - `satellite_swarm_source_revision()` reports the exact Git revision embedded at configure time.
 - `satellite_swarm_run_demonstration(longitude, latitude, scenario)` runs the deterministic
   three-node trace and returns a pointer to its JSON result. Scenario `0` uses connected links;
-  scenario `1` drops the winning node's assignment.
+  scenario `1` drops the winning node's assignment; scenario `2` completes an accepted safe-state
+  action successfully.
 - `satellite_swarm_run_fair_allocation_evidence()` runs six equal-score missions and returns the
   assignment telemetry and per-node counts.
 - `satellite_swarm_last_error()` returns the last adapter error when a run fails.

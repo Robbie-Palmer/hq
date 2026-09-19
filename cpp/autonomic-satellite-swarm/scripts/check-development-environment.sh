@@ -21,6 +21,16 @@ require_executable() {
   fi
 }
 
+require_cpp20() {
+  local compiler_path=$1
+
+  if ! printf '%s\n' 'static_assert(__cplusplus >= 202002L);' | \
+    "$compiler_path" -std=c++20 -x c++ -fsyntax-only - >/dev/null 2>&1; then
+    printf 'Compiler does not support the required C++20 mode: %s\n' "$compiler_path" >&2
+    return 1
+  fi
+}
+
 mise_install_hint='Run mise install from the project directory.'
 
 require_command git 'Install Git with your operating system package manager.'
@@ -45,6 +55,7 @@ case "$host_system" in
     require_executable "$host_c_compiler"
     require_executable "$host_compiler"
     require_executable "$coverage_tool"
+    require_cpp20 "$host_compiler"
     printf 'Developer environment ready for macOS (%s).\n' "$host_architecture"
     printf 'Host compiler: %s\n' "$host_compiler"
     printf 'Host SDK: %s\n' "$host_sdk"
@@ -52,6 +63,7 @@ case "$host_system" in
     ;;
   Linux)
     require_command c++ 'Install a C++20 compiler with your operating system package manager.'
+    host_compiler=$(command -v c++)
     compiler_root=$(mise where conda:gxx)
     coverage_c_compiler="$compiler_root/bin/gcc"
     coverage_compiler="$compiler_root/bin/g++"
@@ -59,8 +71,10 @@ case "$host_system" in
     require_executable "$coverage_c_compiler"
     require_executable "$coverage_compiler"
     require_executable "$coverage_tool"
+    require_cpp20 "$host_compiler"
+    require_cpp20 "$coverage_compiler"
     printf 'Developer environment ready for Linux (%s).\n' "$host_architecture"
-    printf 'Host compiler: %s\n' "$(command -v c++)"
+    printf 'Host compiler: %s\n' "$host_compiler"
     printf 'Coverage compiler: %s\n' "$coverage_compiler"
     printf 'Coverage reader: %s\n' "$coverage_tool"
     ;;
