@@ -1,0 +1,142 @@
+---
+title: "ADR 000: Use provider-supported authentication for routed sessions"
+date: "2026-09-19"
+status: "Proposed"
+---
+
+## Context
+
+Agent Coordinator can draw from prepaid coding-agent subscriptions and metered
+APIs. Limits, reset periods, models, prices, and available clients change
+frequently. The useful optimisation target is completed valuable work. Raw
+token consumption is only a cost signal. Unused prepaid capacity can influence
+a choice between otherwise suitable workers, but it cannot make unsuitable
+work valuable.
+
+[9Router](https://9router.com/) offers an appealing abstraction: one
+OpenAI-compatible endpoint, OAuth or API-key connections, quota tracking,
+multi-account routing, request translation, and automatic fallback between
+subscription, low-cost, and free providers. Routing below the agent session is
+compatible with getting the work done when the caller supplies a stable session
+ID. Per-request provider and model records can preserve the detail needed for
+evaluation. The unresolved constraint is whether each provider supports the
+authentication path used by the router.
+
+Provider rules are not uniform. Anthropic's current
+[Claude Code authentication guidance](https://code.claude.com/docs/en/legal-and-compliance)
+allows a user to sign in to an unmodified Claude Code binary with their own
+subscription, but says third-party developers may not route requests through
+Free, Pro, or Max credentials or intermediate Claude.ai credentials or session
+tokens. OpenAI's current
+[European terms](https://openai.com/policies/terms-of-use/) prohibit automatic
+or programmatic extraction of service output and circumvention of rate limits
+or restrictions. Those terms do not provide a sufficient basis for treating a
+consumer subscription as a general third-party API. This ADR records the
+engineering controls chosen under that uncertainty. Legal interpretation
+remains with qualified counsel and the providers themselves.
+
+## Decision
+
+Route work to a worker at the agent-session boundary. Require every worker to
+use a provider-supported authentication path. Approved API gateways may route
+requests within API-funded sessions under the provenance and budget controls
+defined below.
+
+Give each supported execution product an adapter. A subscription adapter
+launches the provider's unmodified client under the account owner's own login
+and uses only documented controls. It does not export, collect, translate, or
+intermediate OAuth credentials or session tokens. An API adapter uses a
+customer-owned API key through a documented API. OpenRouter may be used as a
+metered API provider under explicit budgets because its API credentials and
+billing model are intended for programmatic routing.
+
+The coordinator selects a worker only after matching capability, authority,
+context, expected value, budget, and available capacity. Expiring prepaid
+capacity breaks ties between workers that have passed those constraints; it
+never overrides them. The selected worker owns the complete execution session.
+
+An approved API gateway may choose or change providers and models below that
+session. Propagate one stable session ID on every request and record the route
+used for each response. A provider fallback does not require a Work Graph
+handoff while the same worker process, context, and lease continue. Native
+subscription clients remain separate workers because their supported
+authentication and tools belong to the client rather than the gateway.
+
+When a session approaches a limit or must stop, require it to checkpoint its
+state and evidence in Work Graph, then release or expire its lease. A new
+session may claim the remaining work with an explicit handoff. Record the
+session ID, client, provider and model used by each request, account class,
+quota signal, metered cost, outcome, and handoff reason in private operational
+telemetry. Expose only the useful work evidence and non-sensitive provenance
+through Work Graph.
+
+Maintain an allowlist of authentication paths supported by current provider
+documentation or written provider approval. Disable an adapter when that basis
+disappears. Do not infer permission from technical compatibility alone.
+
+## Acceptance criteria
+
+1. One Work Graph item can be routed in separate trials to at least two native
+   subscription clients without extracting or intermediating their
+   credentials.
+2. An API-backed session can change provider or model while retaining its
+   session ID, worker context, and Work Graph lease. Telemetry identifies the
+   route used for every response.
+3. A simulated or real native-client usage limit produces a durable checkpoint
+   and clean lease handoff to a new session.
+4. An API-funded worker can run through OpenRouter with a hard budget and
+   attributable metered cost.
+5. Private telemetry records the selected adapter, session ID, account class,
+   per-request provider and model, quota signal, cost, outcome, and handoff.
+   The public work record contains no credentials or sensitive quota details.
+6. Every enabled authentication path points to current provider documentation
+   or written approval, and an automated or scheduled review can flag changed
+   terms for human attention.
+
+## Consequences
+
+Subscriptions can contribute useful capacity through their native clients.
+Their limits become planned handoff points. API-backed sessions can use gateway
+fallback without interrupting work, while the session ID and per-request route
+keep later evaluation attributable.
+
+The coordinator needs several adapters instead of one universal endpoint. It
+may have only approximate quota information where providers do not expose a
+supported capacity API, and some prepaid capacity will expire unused when no
+suitable work is ready. That is preferable to optimising consumption at the
+expense of outcome quality or account safety.
+
+Provider documentation is operational configuration. Changes can disable a
+route even when the underlying integration still works technically.
+
+## Alternatives considered
+
+### Use 9Router for subscription and API traffic
+
+9Router's common endpoint, quota view, and automatic fallback directly address
+the inconvenience of juggling providers. A stable session ID plus per-request
+route records can make its fallback behaviour observable. The current blocker
+is its subscription routing and credential intermediation. That path conflicts
+with Anthropic's explicit guidance, and OpenAI's consumer terms do not
+establish permission to turn a subscription session into a third-party API.
+
+Using 9Router only with ordinary API keys avoids the clearest subscription
+risk, but overlaps with OpenRouter and the coordinator's own session routing
+while adding another translation, credential, and failure boundary. Do not
+adopt it now. Reconsider it if each affected provider explicitly permits the
+intended subscription integration, or if its API-only routing proves more
+useful than OpenRouter. Any later adoption must preserve the stable session ID,
+per-request route records, and budgets described here.
+
+### Route every request through one API gateway
+
+A single gateway simplifies accounting and fallback for API-backed sessions.
+Native Codex, Claude Code, Grok Build, and OpenCode sessions also include their
+own tools and subscription access. Keep those clients as worker adapters and
+use a gateway inside the API-funded adapter.
+
+### Select native clients manually
+
+Manual selection respects provider boundaries and is a sensible bootstrap
+path. It does not continuously match work to capacity, enforce budgets,
+coordinate leases, or capture enough evidence to improve later routing.
