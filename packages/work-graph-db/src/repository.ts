@@ -1713,6 +1713,9 @@ export class WorkGraphRepository {
         .set({
           schedulingInitiativeId: scheduling.initiativeId,
           schedulingProjectId: scheduling.projectId,
+          ...(previousProjectId === scheduling.projectId
+            ? {}
+            : { rank: null }),
         })
         .where(eq(workItemPriorityContext.workItemId, workItemId));
       if (previousProjectId !== scheduling.projectId) {
