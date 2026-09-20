@@ -38,6 +38,21 @@ export const PULL_REQUEST_ROLES = [
 
 export type PullRequestRole = (typeof PULL_REQUEST_ROLES)[number];
 
+export const WORK_ITEM_CONTEXT_KINDS = [
+  "brief",
+  "acceptance_criteria",
+] as const;
+
+export type WorkItemContextKind = (typeof WORK_ITEM_CONTEXT_KINDS)[number];
+
+export const ARCHITECTURE_DECISION_ROLES = [
+  "governing",
+  "background",
+] as const;
+
+export type ArchitectureDecisionRole =
+  (typeof ARCHITECTURE_DECISION_ROLES)[number];
+
 export const KNOWLEDGE_SCOPE_KINDS = ["initiative", "project"] as const;
 
 export type KnowledgeScopeKind = (typeof KNOWLEDGE_SCOPE_KINDS)[number];

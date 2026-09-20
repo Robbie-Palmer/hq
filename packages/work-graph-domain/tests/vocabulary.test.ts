@@ -1,10 +1,12 @@
 import {
+  ARCHITECTURE_DECISION_ROLES,
   KNOWLEDGE_SCOPE_KINDS,
   LEASE_OUTCOMES,
   PULL_REQUEST_ROLES,
   TERMINAL_WORK_ITEM_STATES,
   WORK_ITEM_LIFECYCLES,
   WORK_STAGES,
+  WORK_ITEM_CONTEXT_KINDS,
 } from "../src/index";
 
 describe("work graph vocabulary", () => {
@@ -41,6 +43,14 @@ describe("work graph vocabulary", () => {
       "implementation",
       "evidence",
       "related",
+    ]);
+  });
+
+  it("uses explicit work-item context vocabularies", () => {
+    expect(WORK_ITEM_CONTEXT_KINDS).toEqual(["brief", "acceptance_criteria"]);
+    expect(ARCHITECTURE_DECISION_ROLES).toEqual([
+      "governing",
+      "background",
     ]);
   });
 });

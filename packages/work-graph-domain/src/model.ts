@@ -1,4 +1,9 @@
-import type { KnowledgeScopeKind, WorkItemLifecycle } from "./vocabulary";
+import type {
+  ArchitectureDecisionRole,
+  KnowledgeScopeKind,
+  WorkItemContextKind,
+  WorkItemLifecycle,
+} from "./vocabulary";
 
 export interface KnowledgeScope {
   readonly id: string;
@@ -58,14 +63,39 @@ export interface WorkItemDependency {
   readonly blockerWorkItemId: string;
 }
 
+export interface WorkItemContext {
+  readonly workItemId: string;
+  readonly kind: WorkItemContextKind;
+  readonly content: string;
+}
+
+export interface WorkItemArchitectureDecision {
+  readonly workItemId: string;
+  readonly title: string;
+  readonly url: string;
+  readonly role: ArchitectureDecisionRole;
+}
+
+export interface WorkItemReference {
+  readonly workItemId: string;
+  readonly title: string;
+  readonly url: string;
+}
+
 export interface WorkGraph {
   readonly workItems: readonly WorkItem[];
   readonly dependencies: readonly WorkItemDependency[];
+  readonly contexts: readonly WorkItemContext[];
+  readonly architectureDecisions: readonly WorkItemArchitectureDecision[];
+  readonly references: readonly WorkItemReference[];
 }
 
 export interface WorkGraphInput {
   readonly workItems?: readonly WorkItemInput[];
   readonly dependencies?: readonly WorkItemDependency[];
+  readonly contexts?: readonly WorkItemContext[];
+  readonly architectureDecisions?: readonly WorkItemArchitectureDecision[];
+  readonly references?: readonly WorkItemReference[];
 }
 
 export interface WorkItemLeaseProjection {

@@ -6,6 +6,7 @@ import {
   projectWorkItemStage,
   reparentWorkItem,
   releaseWorkItem,
+  resolveWorkItemContext,
   WorkGraphError,
 } from "../src/index";
 
@@ -118,7 +119,60 @@ describe("decomposition and hierarchy", () => {
     );
   });
 
-  it.todo("allows child context to override inherited context");
+  it("allows child context to override inherited context", () => {
+    const graph = createWorkGraph({
+      workItems: [
+        { id: "parent", title: "Parent" },
+        { id: "child", title: "Child", parentId: "parent" },
+      ],
+      contexts: [
+        { workItemId: "parent", kind: "brief", content: "Parent brief" },
+        { workItemId: "child", kind: "brief", content: "Child brief" },
+        {
+          workItemId: "parent",
+          kind: "acceptance_criteria",
+          content: "Inherited criteria",
+        },
+      ],
+      architectureDecisions: [
+        {
+          workItemId: "parent",
+          title: "Background decision",
+          url: "https://example.test/adrs/1",
+          role: "background",
+        },
+        {
+          workItemId: "child",
+          title: "Governing decision",
+          url: "https://example.test/adrs/1",
+          role: "governing",
+        },
+      ],
+    });
+
+    expect(resolveWorkItemContext(graph, "child")).toEqual([
+      {
+        kind: "brief",
+        content: "Child brief",
+        sourceWorkItemId: "child",
+        inheritanceDepth: 0,
+      },
+      {
+        kind: "acceptance_criteria",
+        content: "Inherited criteria",
+        sourceWorkItemId: "parent",
+        inheritanceDepth: 1,
+      },
+      {
+        kind: "architecture_decision",
+        title: "Governing decision",
+        url: "https://example.test/adrs/1",
+        role: "governing",
+        sourceWorkItemId: "child",
+        inheritanceDepth: 0,
+      },
+    ]);
+  });
   it("orders children by local rank and retains ancestry for inherited context", () => {
     const graph = createWorkGraph({
       workItems: [

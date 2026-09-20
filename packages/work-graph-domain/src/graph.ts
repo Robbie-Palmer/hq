@@ -12,6 +12,7 @@ import {
   type TerminalWorkItemState,
   type WorkItemLifecycle,
 } from "./vocabulary";
+import { normalizeAndValidateContextRecords } from "./context";
 
 const isWorkItemLifecycle = (value: unknown): value is WorkItemLifecycle =>
   WORK_ITEM_LIFECYCLES.some((lifecycle) => lifecycle === value);
@@ -374,6 +375,7 @@ export const validateWorkGraph = (graph: WorkGraph): void => {
   validateHierarchy(graph.workItems, workItemsById);
   validatePriorityRanks(graph.workItems);
   validateDependencies(graph.dependencies, workItemsById);
+  normalizeAndValidateContextRecords(graph, workItemsById);
 
   if (hasCycle(buildWaitsForGraph(graph))) {
     throw new WorkGraphError(
@@ -384,11 +386,23 @@ export const validateWorkGraph = (graph: WorkGraph): void => {
 };
 
 export const createWorkGraph = (input: WorkGraphInput = {}): WorkGraph => {
-  const graph = {
+  const graphWithoutContext = {
     workItems: (input.workItems ?? []).map(normalizeWorkItem),
     dependencies: (input.dependencies ?? []).map((dependency) => ({
       ...dependency,
     })),
+  };
+  const graph = {
+    ...graphWithoutContext,
+    ...normalizeAndValidateContextRecords(
+      {
+        ...graphWithoutContext,
+        contexts: input.contexts ?? [],
+        architectureDecisions: input.architectureDecisions ?? [],
+        references: input.references ?? [],
+      },
+      indexWorkItems(graphWithoutContext.workItems),
+    ),
   } satisfies WorkGraph;
   validateWorkGraph(graph);
   return graph;
@@ -615,6 +629,7 @@ export const decomposeWorkItem = (
   }
 
   const candidate = {
+    ...graph,
     workItems: [
       ...graph.workItems,
       ...[...input.children]
