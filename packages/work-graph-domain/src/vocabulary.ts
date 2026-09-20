@@ -38,6 +38,39 @@ export const PULL_REQUEST_ROLES = [
 
 export type PullRequestRole = (typeof PULL_REQUEST_ROLES)[number];
 
+export const PULL_REQUEST_STATES = ["open", "closed", "merged"] as const;
+
+export type PullRequestState = (typeof PULL_REQUEST_STATES)[number];
+
+export const PULL_REQUEST_MERGEABILITIES = [
+  "mergeable",
+  "conflicting",
+  "unknown",
+] as const;
+
+export type PullRequestMergeability =
+  (typeof PULL_REQUEST_MERGEABILITIES)[number];
+
+export const PULL_REQUEST_REVIEW_DECISIONS = [
+  "approved",
+  "changes_requested",
+  "review_required",
+] as const;
+
+export type PullRequestReviewDecision =
+  (typeof PULL_REQUEST_REVIEW_DECISIONS)[number];
+
+export const PULL_REQUEST_CHECK_SUMMARIES = [
+  "success",
+  "failure",
+  "pending",
+  "neutral",
+  "unknown",
+] as const;
+
+export type PullRequestCheckSummary =
+  (typeof PULL_REQUEST_CHECK_SUMMARIES)[number];
+
 export const WORK_ITEM_CONTEXT_KINDS = [
   "brief",
   "acceptance_criteria",

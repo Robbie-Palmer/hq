@@ -391,6 +391,81 @@ describe("Given agent-facing Work Graph commands", () => {
     );
   });
 
+  it("refreshes, links, and lists pull requests", async () => {
+    const refresh = harness();
+    const link = harness();
+    const show = harness(() => response({ items: [] }));
+
+    await refresh.run([
+      "pr",
+      "refresh",
+      "--repository",
+      "example/work-graph",
+      "--number",
+      "42",
+      "--url",
+      "https://github.com/example/work-graph/pull/42",
+      "--head-sha",
+      "0123456789abcdef0123456789abcdef01234567",
+      "--state",
+      "open",
+      "--mergeability",
+      "mergeable",
+      "--review-decision",
+      "approved",
+      "--check-summary",
+      "success",
+      "--observed-at",
+      "2026-09-20T10:00:00.000Z",
+    ]);
+    await link.run([
+      "pr",
+      "link",
+      "work/a b",
+      "--repository",
+      "example/work-graph",
+      "--number",
+      "42",
+      "--role",
+      "implementation",
+      "--idempotency-key",
+      UUID,
+    ]);
+    await show.run(["pr", "show", "work/a b"]);
+
+    expect(refresh.requests[0]).toMatchObject({
+      method: "PUT",
+      body: {
+        repository: "example/work-graph",
+        number: 42,
+        url: "https://github.com/example/work-graph/pull/42",
+        headSha: "0123456789abcdef0123456789abcdef01234567",
+        state: "open",
+        draft: false,
+        mergeability: "mergeable",
+        reviewDecision: "approved",
+        checkSummary: "success",
+        observedAt: "2026-09-20T10:00:00.000Z",
+      },
+    });
+    expect(refresh.requests[0]?.url.pathname).toBe("/root/api/pull-requests");
+    expect(link.requests[0]).toMatchObject({
+      method: "PUT",
+      body: {
+        repository: "example/work-graph",
+        number: 42,
+        role: "implementation",
+      },
+    });
+    expect(link.requests[0]?.headers.get("Idempotency-Key")).toBe(UUID);
+    expect(link.requests[0]?.url.pathname).toBe(
+      "/root/api/work-items/work%2Fa%20b/pull-requests",
+    );
+    expect(show.requests[0]?.url.pathname).toBe(
+      "/root/api/work-items/work%2Fa%20b/pull-requests",
+    );
+  });
+
   it("moves contextual priority and manages an expedite", async () => {
     const ticketMove = harness();
     const scopeMove = harness();

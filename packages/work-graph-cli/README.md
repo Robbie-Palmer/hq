@@ -126,6 +126,20 @@ work-graph reference put cli-8 \
   --title "Context design notes" \
   --url https://example.com/context-design
 work-graph context show cli-8
+work-graph pr refresh \
+  --repository example/work-graph \
+  --number 8 \
+  --url https://github.com/example/work-graph/pull/8 \
+  --head-sha 0123456789abcdef0123456789abcdef01234567 \
+  --state open \
+  --mergeability mergeable \
+  --review-decision approved \
+  --check-summary success
+work-graph pr link cli-8 \
+  --repository example/work-graph \
+  --number 8 \
+  --role implementation
+work-graph pr show cli-8
 work-graph priority move cli-8 --above cli-9
 work-graph scope move work-graph --below another-project
 work-graph expedite cli-8 --reason "Production release blocker"
@@ -165,8 +179,15 @@ immutable event log and appends a `dependency.removed` event.
 upserts a governing or background decision by URL, and `reference put` upserts
 a supplemental link by URL. `context show` uses the same deterministic order as
 `claim`: local and nearest inherited text, ADRs, project and initiative mirrors,
-then supplemental references. Every record includes its source ticket and
-inheritance depth. Supplemental references never affect queue eligibility.
+pull requests, then supplemental references. Every record includes its source
+ticket and inheritance depth. Supplemental references never affect queue
+eligibility.
+
+`pr refresh` records the latest observed snapshot independently of any ticket
+claim. Add `--draft` for draft PRs; omit `--review-decision` when GitHub has no
+decision. `pr link` assigns an `implementation`, `evidence`, or `related` role.
+One snapshot can link to many tickets, and `pr show` includes inherited links.
+PR state and checks inform the worker but never change queue eligibility.
 
 The `metadata` commands expose the complete stored history needed to resume or
 audit one work item. Notes include their content, dependency results contain

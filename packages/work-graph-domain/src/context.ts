@@ -2,18 +2,32 @@ import { compareStrings, isNonBlankString } from "ts-base/strings";
 import { WorkGraphError } from "./errors";
 import type {
   KnowledgeScope,
+  PullRequestSnapshot,
   WorkGraph,
   WorkItem,
   WorkItemArchitectureDecision,
   WorkItemContext,
   WorkItemReference,
+  WorkItemPullRequest,
 } from "./model";
 import {
   ARCHITECTURE_DECISION_ROLES,
+  PULL_REQUEST_CHECK_SUMMARIES,
+  PULL_REQUEST_MERGEABILITIES,
+  PULL_REQUEST_REVIEW_DECISIONS,
+  PULL_REQUEST_ROLES,
+  PULL_REQUEST_STATES,
   WORK_ITEM_CONTEXT_KINDS,
   type ArchitectureDecisionRole,
+  type PullRequestRole,
   type WorkItemContextKind,
 } from "./vocabulary";
+
+const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const HEAD_SHA_PATTERN = /^[0-9a-f]{40}$/i;
+
+const pullRequestIdentity = (repository: string, number: number): string =>
+  `${repository.toLowerCase()}\u0000${number}`;
 
 const normalizeUrl = (value: unknown, label: string): string => {
   if (typeof value !== "string") {
@@ -157,23 +171,132 @@ const normalizeReferences = (
   });
 };
 
+const normalizePullRequests = (
+  pullRequests: readonly PullRequestSnapshot[],
+): readonly PullRequestSnapshot[] => {
+  const identities = new Set<string>();
+  return pullRequests.map((pullRequest) => {
+    if (
+      !REPOSITORY_PATTERN.test(pullRequest.repository) ||
+      !Number.isSafeInteger(pullRequest.number) ||
+      pullRequest.number <= 0 ||
+      !HEAD_SHA_PATTERN.test(pullRequest.headSha) ||
+      !(PULL_REQUEST_STATES as readonly unknown[]).includes(
+        pullRequest.state,
+      ) ||
+      typeof pullRequest.draft !== "boolean" ||
+      !(PULL_REQUEST_MERGEABILITIES as readonly unknown[]).includes(
+        pullRequest.mergeability,
+      ) ||
+      (pullRequest.reviewDecision !== null &&
+        !(PULL_REQUEST_REVIEW_DECISIONS as readonly unknown[]).includes(
+          pullRequest.reviewDecision,
+        )) ||
+      !(PULL_REQUEST_CHECK_SUMMARIES as readonly unknown[]).includes(
+        pullRequest.checkSummary,
+      ) ||
+      !Number.isFinite(Date.parse(pullRequest.observedAt))
+    ) {
+      throw new WorkGraphError(
+        "invalid_pull_request",
+        `Pull request ${pullRequest.repository}#${pullRequest.number} has an invalid snapshot.`,
+      );
+    }
+    const normalized = {
+      ...pullRequest,
+      repository: pullRequest.repository.toLowerCase(),
+      url: normalizeUrl(pullRequest.url, "A pull request URL"),
+      headSha: pullRequest.headSha.toLowerCase(),
+      observedAt: new Date(pullRequest.observedAt).toISOString(),
+    };
+    const identity = pullRequestIdentity(
+      normalized.repository,
+      normalized.number,
+    );
+    if (identities.has(identity)) {
+      throw new WorkGraphError(
+        "duplicate_pull_request",
+        `Pull request ${normalized.repository}#${normalized.number} appears more than once.`,
+      );
+    }
+    identities.add(identity);
+    return normalized;
+  });
+};
+
+const normalizeWorkItemPullRequests = (
+  links: readonly WorkItemPullRequest[],
+  pullRequests: readonly PullRequestSnapshot[],
+  workItemsById: ReadonlyMap<string, WorkItem>,
+): readonly WorkItemPullRequest[] => {
+  const pullRequestIdentities = new Set(
+    pullRequests.map(({ repository, number }) =>
+      pullRequestIdentity(repository, number),
+    ),
+  );
+  const identities = new Set<string>();
+  return links.map((link) => {
+    requireWorkItem(workItemsById, link.workItemId);
+    const repository = link.repository.toLowerCase();
+    const pullRequestKey = pullRequestIdentity(repository, link.number);
+    if (!pullRequestIdentities.has(pullRequestKey)) {
+      throw new WorkGraphError(
+        "pull_request_not_found",
+        `Pull request ${repository}#${link.number} does not exist.`,
+      );
+    }
+    if (!(PULL_REQUEST_ROLES as readonly unknown[]).includes(link.role)) {
+      throw new WorkGraphError(
+        "invalid_pull_request_role",
+        `Work item ${link.workItemId} has an invalid pull request role.`,
+      );
+    }
+    const identity = `${link.workItemId}\u0000${pullRequestKey}`;
+    if (identities.has(identity)) {
+      throw new WorkGraphError(
+        "duplicate_work_item_pull_request",
+        `Work item ${link.workItemId} links pull request ${repository}#${link.number} more than once.`,
+      );
+    }
+    identities.add(identity);
+    return { ...link, repository };
+  });
+};
+
 export const normalizeAndValidateContextRecords = (
   graph: Pick<
     WorkGraph,
-    "contexts" | "architectureDecisions" | "references"
+    | "contexts"
+    | "architectureDecisions"
+    | "references"
+    | "pullRequests"
+    | "workItemPullRequests"
   >,
   workItemsById: ReadonlyMap<string, WorkItem>,
 ): Pick<
   WorkGraph,
-  "contexts" | "architectureDecisions" | "references"
-> => ({
-  contexts: normalizeContexts(graph.contexts ?? [], workItemsById),
-  architectureDecisions: normalizeArchitectureDecisions(
-    graph.architectureDecisions ?? [],
-    workItemsById,
-  ),
-  references: normalizeReferences(graph.references ?? [], workItemsById),
-});
+  | "contexts"
+  | "architectureDecisions"
+  | "references"
+  | "pullRequests"
+  | "workItemPullRequests"
+> => {
+  const pullRequests = normalizePullRequests(graph.pullRequests ?? []);
+  return {
+    contexts: normalizeContexts(graph.contexts ?? [], workItemsById),
+    architectureDecisions: normalizeArchitectureDecisions(
+      graph.architectureDecisions ?? [],
+      workItemsById,
+    ),
+    references: normalizeReferences(graph.references ?? [], workItemsById),
+    pullRequests,
+    workItemPullRequests: normalizeWorkItemPullRequests(
+      graph.workItemPullRequests ?? [],
+      pullRequests,
+      workItemsById,
+    ),
+  };
+};
 
 interface ResolvedContextBase {
   readonly sourceWorkItemId: string;
@@ -199,6 +322,11 @@ export type ResolvedWorkItemContext =
       readonly kind: "reference";
       readonly title: string;
       readonly url: string;
+    })
+  | (ResolvedContextBase & {
+      readonly kind: "pull_request";
+      readonly role: PullRequestRole;
+      readonly pullRequest: PullRequestSnapshot;
     });
 
 const lineageFor = (
@@ -348,6 +476,49 @@ const resolveReferences = (
   return resolved;
 };
 
+const pullRequestRoleOrder = (role: PullRequestRole): number =>
+  PULL_REQUEST_ROLES.indexOf(role);
+
+const resolvePullRequests = (
+  graph: WorkGraph,
+  lineage: readonly WorkItem[],
+): readonly ResolvedWorkItemContext[] => {
+  const snapshots = new Map(
+    graph.pullRequests.map((pullRequest) => [
+      pullRequestIdentity(pullRequest.repository, pullRequest.number),
+      pullRequest,
+    ]),
+  );
+  const resolved: ResolvedWorkItemContext[] = [];
+  const seen = new Set<string>();
+
+  for (const [inheritanceDepth, item] of lineage.entries()) {
+    const links = graph.workItemPullRequests
+      .filter((link) => link.workItemId === item.id)
+      .sort(
+        (left, right) =>
+          pullRequestRoleOrder(left.role) - pullRequestRoleOrder(right.role) ||
+          compareStrings(left.repository, right.repository) ||
+          left.number - right.number,
+      );
+    for (const link of links) {
+      const identity = pullRequestIdentity(link.repository, link.number);
+      if (seen.has(identity)) continue;
+      const pullRequest = snapshots.get(identity);
+      if (!pullRequest) continue;
+      seen.add(identity);
+      resolved.push({
+        kind: "pull_request",
+        role: link.role,
+        pullRequest,
+        sourceWorkItemId: item.id,
+        inheritanceDepth,
+      });
+    }
+  }
+  return resolved;
+};
+
 export const resolveWorkItemContext = (
   graph: WorkGraph,
   workItemId: string,
@@ -358,6 +529,7 @@ export const resolveWorkItemContext = (
     ...resolveTextContexts(graph, lineage),
     ...resolveArchitectureDecisions(graph, lineage),
     ...resolveKnowledgeScopes(lineage, knowledgeScopes),
+    ...resolvePullRequests(graph, lineage),
     ...resolveReferences(graph, lineage),
   ];
 };

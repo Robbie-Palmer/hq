@@ -18,6 +18,11 @@ import {
   ARCHITECTURE_DECISION_ROLES,
   KNOWLEDGE_SCOPE_KINDS,
   LEASE_OUTCOMES,
+  PULL_REQUEST_CHECK_SUMMARIES,
+  PULL_REQUEST_MERGEABILITIES,
+  PULL_REQUEST_REVIEW_DECISIONS,
+  PULL_REQUEST_ROLES,
+  PULL_REQUEST_STATES,
   WORK_ITEM_CONTEXT_KINDS,
   WORK_ITEM_LIFECYCLES,
 } from "work-graph-domain";
@@ -30,6 +35,31 @@ export const workItemContextKindEnum = pgEnum(
 export const architectureDecisionRoleEnum = pgEnum(
   "architecture_decision_role",
   ARCHITECTURE_DECISION_ROLES,
+);
+
+export const pullRequestRoleEnum = pgEnum(
+  "pull_request_role",
+  PULL_REQUEST_ROLES,
+);
+
+export const pullRequestStateEnum = pgEnum(
+  "pull_request_state",
+  PULL_REQUEST_STATES,
+);
+
+export const pullRequestMergeabilityEnum = pgEnum(
+  "pull_request_mergeability",
+  PULL_REQUEST_MERGEABILITIES,
+);
+
+export const pullRequestReviewDecisionEnum = pgEnum(
+  "pull_request_review_decision",
+  PULL_REQUEST_REVIEW_DECISIONS,
+);
+
+export const pullRequestCheckSummaryEnum = pgEnum(
+  "pull_request_check_summary",
+  PULL_REQUEST_CHECK_SUMMARIES,
 );
 
 export const knowledgeScopeKindEnum = pgEnum(
@@ -210,6 +240,78 @@ export const workItemReference = pgTable(
     check(
       "work_item_references_title_not_blank_check",
       sql`btrim(${table.title}) <> ''`,
+    ),
+  ],
+);
+
+export const pullRequest = pgTable(
+  "pull_requests",
+  {
+    repository: text().notNull(),
+    number: integer().notNull(),
+    url: text().notNull(),
+    headSha: text().notNull(),
+    state: pullRequestStateEnum().notNull(),
+    draft: boolean().notNull(),
+    mergeability: pullRequestMergeabilityEnum().notNull(),
+    reviewDecision: pullRequestReviewDecisionEnum(),
+    checkSummary: pullRequestCheckSummaryEnum().notNull(),
+    observedAt: timestamp({ withTimezone: true }).notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    primaryKey({
+      name: "pull_requests_pk",
+      columns: [table.repository, table.number],
+    }),
+    check(
+      "pull_requests_repository_not_blank_check",
+      sql`btrim(${table.repository}) <> ''`,
+    ),
+    check("pull_requests_number_positive_check", sql`${table.number} > 0`),
+    check(
+      "pull_requests_url_not_blank_check",
+      sql`btrim(${table.url}) <> ''`,
+    ),
+    check(
+      "pull_requests_head_sha_not_blank_check",
+      sql`btrim(${table.headSha}) <> ''`,
+    ),
+  ],
+);
+
+export const workItemPullRequest = pgTable(
+  "work_item_pull_requests",
+  {
+    workItemId: text()
+      .notNull()
+      .references(() => workItem.id, { onDelete: "restrict" }),
+    repository: text().notNull(),
+    number: integer().notNull(),
+    role: pullRequestRoleEnum().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    primaryKey({
+      name: "work_item_pull_requests_pk",
+      columns: [table.workItemId, table.repository, table.number],
+    }),
+    foreignKey({
+      name: "work_item_pull_requests_pull_request_fk",
+      columns: [table.repository, table.number],
+      foreignColumns: [pullRequest.repository, pullRequest.number],
+    }).onDelete("restrict"),
+    index("work_item_pull_requests_pull_request_idx").on(
+      table.repository,
+      table.number,
     ),
   ],
 );

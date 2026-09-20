@@ -125,6 +125,8 @@ const buildRepository = (): WorkGraphApiRepository => ({
   putWorkItemContext: vi.fn(async (input) => input),
   putWorkItemArchitectureDecision: vi.fn(async (input) => input),
   putWorkItemReference: vi.fn(async (input) => input),
+  refreshPullRequest: vi.fn(async (input) => input),
+  putWorkItemPullRequest: vi.fn(async (input) => input),
   moveWorkItemPriority: vi.fn(async (workItemId) => ({
     ...item(workItemId, "ready"),
   })),
@@ -617,6 +619,81 @@ describe("Given work items with derived readiness", () => {
       {},
     );
     expect(await responseJson(listed)).toEqual({ items: resolved });
+  });
+
+  it("refreshes and links pull requests outside claim operations", async () => {
+    const repository = buildRepository();
+    const snapshot = {
+      repository: "example/work-graph",
+      number: 42,
+      url: "https://github.com/example/work-graph/pull/42",
+      headSha: "0123456789abcdef0123456789abcdef01234567",
+      state: "open" as const,
+      draft: false,
+      mergeability: "mergeable" as const,
+      reviewDecision: "approved" as const,
+      checkSummary: "success" as const,
+      observedAt: "2026-09-20T10:00:00.000Z",
+    };
+    vi.mocked(repository.resolveWorkItemContext).mockResolvedValue([
+      {
+        kind: "brief",
+        content: "Implement it.",
+        sourceWorkItemId: "ticket",
+        inheritanceDepth: 0,
+      },
+      {
+        kind: "pull_request",
+        role: "implementation",
+        pullRequest: snapshot,
+        sourceWorkItemId: "ticket",
+        inheritanceDepth: 0,
+      },
+    ]);
+    const app = createWorkGraphApp(repository);
+
+    const refreshed = await app.request("/api/pull-requests", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(snapshot),
+    });
+    const linked = await app.request("/api/work-items/ticket/pull-requests", {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": idempotencyKey,
+      },
+      body: JSON.stringify({
+        repository: snapshot.repository,
+        number: snapshot.number,
+        role: "implementation",
+      }),
+    });
+    const listed = await app.request(
+      "/api/work-items/ticket/pull-requests",
+    );
+
+    expect(refreshed.status).toBe(200);
+    expect(linked.status).toBe(200);
+    expect(repository.refreshPullRequest).toHaveBeenCalledWith(snapshot, {});
+    expect(repository.putWorkItemPullRequest).toHaveBeenCalledWith(
+      {
+        workItemId: "ticket",
+        repository: snapshot.repository,
+        number: snapshot.number,
+        role: "implementation",
+      },
+      { idempotencyKey },
+    );
+    expect(await responseJson(listed)).toEqual({
+      items: [
+        expect.objectContaining({
+          kind: "pull_request",
+          role: "implementation",
+        }),
+      ],
+    });
+    expect(repository.claimWorkItem).not.toHaveBeenCalled();
   });
 });
 

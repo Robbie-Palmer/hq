@@ -138,7 +138,7 @@ beforeAll(async () => {
     order by enumsortorder
   `);
 
-  expect(migrationCount?.count).toBe(12);
+  expect(migrationCount?.count).toBe(13);
   expect(tables.map(({ table_name }) => table_name)).toEqual([
     "attention_requests",
     "attention_resolutions",
@@ -149,11 +149,13 @@ beforeAll(async () => {
     "knowledge_scopes",
     "leases",
     "notes",
+    "pull_requests",
     "work_item_architecture_decisions",
     "work_item_contexts",
     "work_item_dependencies",
     "work_item_hierarchy",
     "work_item_priority_contexts",
+    "work_item_pull_requests",
     "work_item_references",
     "work_items",
   ]);
@@ -775,6 +777,8 @@ beforeEach(async () => {
     await transaction.delete(schema.workItemArchitectureDecision);
     await transaction.delete(schema.workItemContext);
     await transaction.delete(schema.workItemReference);
+    await transaction.delete(schema.workItemPullRequest);
+    await transaction.delete(schema.pullRequest);
     await transaction.delete(schema.knowledgeScopeRelationship);
     await transaction.delete(schema.workItemPriorityContext);
     await transaction.delete(schema.knowledgeScope);
@@ -885,6 +889,67 @@ describe("work-item context persistence", () => {
       "reference:child",
       "reference:parent",
     ]);
+  });
+
+  it("refreshes one PR snapshot independently from its many work-item links", async () => {
+    await repository.createWorkItem({ id: "first", title: "First" });
+    await repository.createWorkItem({ id: "second", title: "Second" });
+    const snapshot = {
+      repository: "Example/Work-Graph",
+      number: 42,
+      url: "https://github.com/example/work-graph/pull/42",
+      headSha: "0123456789abcdef0123456789abcdef01234567",
+      state: "open" as const,
+      draft: true,
+      mergeability: "unknown" as const,
+      reviewDecision: null,
+      checkSummary: "pending" as const,
+      observedAt: "2026-09-20T10:00:00.000Z",
+    };
+    await repository.refreshPullRequest(snapshot);
+    await repository.putWorkItemPullRequest({
+      workItemId: "first",
+      repository: "example/work-graph",
+      number: 42,
+      role: "implementation",
+    });
+    await repository.putWorkItemPullRequest({
+      workItemId: "second",
+      repository: "example/work-graph",
+      number: 42,
+      role: "evidence",
+    });
+    await repository.refreshPullRequest({
+      ...snapshot,
+      repository: "example/work-graph",
+      headSha: "abcdef0123456789abcdef0123456789abcdef01",
+      draft: false,
+      mergeability: "mergeable",
+      reviewDecision: "approved",
+      checkSummary: "success",
+      observedAt: "2026-09-20T11:00:00.000Z",
+    });
+    await repository.refreshPullRequest(snapshot);
+
+    const graph = await repository.load();
+    expect(graph.pullRequests).toEqual([
+      expect.objectContaining({
+        repository: "example/work-graph",
+        number: 42,
+        draft: false,
+        checkSummary: "success",
+        observedAt: "2026-09-20T11:00:00.000Z",
+      }),
+    ]);
+    expect(graph.workItemPullRequests).toHaveLength(2);
+    expect(await repository.resolveWorkItemContext("first")).toContainEqual(
+      expect.objectContaining({
+        kind: "pull_request",
+        role: "implementation",
+        pullRequest: expect.objectContaining({ headSha: "abcdef0123456789abcdef0123456789abcdef01" }),
+      }),
+    );
+    expect((await repository.getWorkItem("second")).stage).toBe("ready");
   });
 });
 
@@ -2328,6 +2393,8 @@ describe("Work Graph PostgreSQL persistence", () => {
       contexts: [],
       architectureDecisions: [],
       references: [],
+      pullRequests: [],
+      workItemPullRequests: [],
     });
 
     const columns = await db.execute<{ column_name: string }>(sql`

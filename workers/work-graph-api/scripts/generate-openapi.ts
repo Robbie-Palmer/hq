@@ -28,6 +28,8 @@ const repository: WorkGraphApiRepository = {
   putWorkItemContext: unavailable,
   putWorkItemArchitectureDecision: unavailable,
   putWorkItemReference: unavailable,
+  refreshPullRequest: unavailable,
+  putWorkItemPullRequest: unavailable,
   moveWorkItemPriority: unavailable,
   expediteWorkItem: unavailable,
   unexpediteWorkItem: unavailable,
@@ -74,6 +76,10 @@ const document = app.getOpenAPI31Document({
     {
       name: "dependencies",
       description: "Serialized work-item dependency changes.",
+    },
+    {
+      name: "pull-requests",
+      description: "Typed work-item links and refreshable PR snapshots.",
     },
     {
       name: "notes",

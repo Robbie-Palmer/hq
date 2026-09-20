@@ -42,15 +42,20 @@ import {
   zListWorkItemLeasesQuery,
   zListWorkItemNotesPath,
   zListWorkItemNotesQuery,
+  zListWorkItemPullRequestsPath,
   zListWorkItemsQuery,
   zMoveKnowledgeScopePriorityHeaders,
   zMoveWorkItemPriorityHeaders,
   zPutKnowledgeScopeBody,
   zPutKnowledgeScopeHeaders,
+  zPutWorkItemPullRequestBody,
+  zPutWorkItemPullRequestHeaders,
   zPutWorkItemContextBody,
   zPutWorkItemContextHeaders,
   zPutWorkItemReferenceBody,
   zPutWorkItemReferenceHeaders,
+  zRefreshPullRequestBody,
+  zRefreshPullRequestHeaders,
   zUnexpediteWorkItemHeaders,
 } from "./generated/client/zod.gen.js";
 
@@ -309,6 +314,74 @@ const referencePutInput = z.object({
   url: described(zPutWorkItemReferenceBody.shape.url, "Reference URL"),
   idempotencyKey: described(
     zPutWorkItemReferenceHeaders.shape["idempotency-key"],
+    "Client-generated UUID used to replay a mutation safely",
+  ),
+});
+
+const pullRequestShowInput = z.object({
+  workItemId: positional(
+    zListWorkItemPullRequestsPath.shape.workItemId,
+    "Ticket ID",
+  ),
+});
+
+const pullRequestLinkInput = z.object({
+  workItemId: positional(
+    zListWorkItemPullRequestsPath.shape.workItemId,
+    "Ticket ID",
+  ),
+  repository: described(
+    zPutWorkItemPullRequestBody.shape.repository,
+    "Repository in owner/name form",
+  ),
+  number: described(
+    zPutWorkItemPullRequestBody.shape.number,
+    "Pull-request number",
+  ),
+  role: described(zPutWorkItemPullRequestBody.shape.role, "Link role"),
+  idempotencyKey: described(
+    zPutWorkItemPullRequestHeaders.shape["idempotency-key"],
+    "Client-generated UUID used to replay a mutation safely",
+  ),
+});
+
+const pullRequestReviewDecisionSchema =
+  zRefreshPullRequestBody.shape.reviewDecision.unwrap();
+
+const pullRequestRefreshInput = z.object({
+  repository: described(
+    zRefreshPullRequestBody.shape.repository,
+    "Repository in owner/name form",
+  ),
+  number: described(
+    zRefreshPullRequestBody.shape.number,
+    "Pull-request number",
+  ),
+  url: described(zRefreshPullRequestBody.shape.url, "Pull-request URL"),
+  headSha: described(zRefreshPullRequestBody.shape.headSha, "Head commit SHA"),
+  state: described(zRefreshPullRequestBody.shape.state, "Pull-request state"),
+  draft: zRefreshPullRequestBody.shape.draft
+    .optional()
+    .default(false)
+    .describe("Mark the pull request as a draft"),
+  mergeability: described(
+    zRefreshPullRequestBody.shape.mergeability,
+    "Mergeability summary",
+  ),
+  reviewDecision: optional(
+    pullRequestReviewDecisionSchema,
+    "Review decision",
+  ),
+  checkSummary: described(
+    zRefreshPullRequestBody.shape.checkSummary,
+    "Aggregate check result",
+  ),
+  observedAt: optional(
+    zRefreshPullRequestBody.shape.observedAt,
+    "Snapshot observation time",
+  ),
+  idempotencyKey: described(
+    zRefreshPullRequestHeaders.shape["idempotency-key"],
     "Client-generated UUID used to replay a mutation safely",
   ),
 });
@@ -1074,6 +1147,48 @@ export const workGraphRouter = t.router({
         resolveClient(ctx).putWorkItemReference(
           input.workItemId,
           { title: input.title, url: input.url },
+          input.idempotencyKey,
+        ),
+      ),
+  }),
+  pr: t.router({
+    show: command
+      .meta({ description: "Show pull requests in claim-context order" })
+      .input(pullRequestShowInput)
+      .query(({ ctx, input }) =>
+        resolveClient(ctx).listWorkItemPullRequests(input.workItemId),
+      ),
+    link: command
+      .meta({ description: "Link a pull request to a ticket" })
+      .input(pullRequestLinkInput)
+      .mutation(({ ctx, input }) =>
+        resolveClient(ctx).putWorkItemPullRequest(
+          input.workItemId,
+          {
+            repository: input.repository,
+            number: input.number,
+            role: input.role,
+          },
+          input.idempotencyKey,
+        ),
+      ),
+    refresh: command
+      .meta({ description: "Create or refresh a pull-request snapshot" })
+      .input(pullRequestRefreshInput)
+      .mutation(({ ctx, input }) =>
+        resolveClient(ctx).refreshPullRequest(
+          {
+            repository: input.repository,
+            number: input.number,
+            url: input.url,
+            headSha: input.headSha,
+            state: input.state,
+            draft: input.draft,
+            mergeability: input.mergeability,
+            reviewDecision: input.reviewDecision ?? null,
+            checkSummary: input.checkSummary,
+            observedAt: input.observedAt ?? new Date().toISOString(),
+          },
           input.idempotencyKey,
         ),
       ),
