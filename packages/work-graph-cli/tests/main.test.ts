@@ -57,6 +57,10 @@ const harness = (
   responseFactory: (request: CapturedRequest) => Response = () => response(),
   environment: NodeJS.ProcessEnv = { WORK_GRAPH_API_URL: API_URL },
   makeUuid: () => string = () => UUID,
+  selfUpdate = vi.fn((sourceDirectory: string) => ({
+    sourceDirectory,
+    status: "updated" as const,
+  })),
 ) => {
   const requests: CapturedRequest[] = [];
   const stdout: string[] = [];
@@ -82,10 +86,12 @@ const harness = (
       environment,
       fetch,
       makeUuid,
+      selfUpdate,
+      workingDirectory: "/workspace/hq",
       stdout: (text) => stdout.push(text),
       stderr: (text) => stderr.push(text),
     });
-  return { fetch, requests, run, stderr, stdout };
+  return { fetch, requests, run, selfUpdate, stderr, stdout };
 };
 
 describe("Given agent-facing Work Graph commands", () => {
@@ -104,6 +110,31 @@ describe("Given agent-facing Work Graph commands", () => {
         expect.stringContaining("work-graph release"),
       ],
     });
+  });
+
+  it("updates from the current checkout without API configuration", async () => {
+    const test = harness(undefined, {});
+
+    expect(await test.run(["self-update"])).toBe(EXIT_CODES.success);
+    expect(test.selfUpdate).toHaveBeenCalledWith("/workspace/hq");
+    expect(test.requests).toEqual([]);
+    expect(JSON.parse(test.stdout[0] ?? "null")).toEqual({
+      sourceDirectory: "/workspace/hq",
+      status: "updated",
+    });
+  });
+
+  it("updates from an explicitly selected checkout", async () => {
+    const test = harness(undefined, {});
+
+    expect(
+      await test.run([
+        "self-update",
+        "--source-directory",
+        "/workspace/other-hq",
+      ]),
+    ).toBe(EXIT_CODES.success);
+    expect(test.selfUpdate).toHaveBeenCalledWith("/workspace/other-hq");
   });
 
   it("adds and removes dependency edges", async () => {

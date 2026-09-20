@@ -32,6 +32,26 @@ description = "Build the installable Work Graph CLI"
 depends = ["install"]
 run = "pnpm build"
 
+[tasks."install:global"]
+description = "Build, pack, and globally install the Work Graph CLI"
+depends = ["build"]
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+archive_directory="$(mktemp -d)"
+trap 'rm -rf "$archive_directory"' EXIT
+
+pnpm pack --pack-destination "$archive_directory"
+archive_path="$(find "$archive_directory" -maxdepth 1 -name 'work-graph-cli-*.tgz' -print -quit)"
+if [ -z "$archive_path" ]; then
+  echo "Work Graph CLI package archive was not created." >&2
+  exit 1
+fi
+
+npm install --global "$archive_path"
+'''
+
 [tasks."build:check"]
 description = "Build the Work Graph CLI without changing generated files"
 depends = ["install", "openapi:check"]

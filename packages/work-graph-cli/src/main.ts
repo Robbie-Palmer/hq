@@ -8,6 +8,7 @@ import type { Fetch } from "./client.js";
 import {
   createCommandContext,
   globalOptionsSchema,
+  type CommandContext,
   type UuidFactory,
   workGraphRouter,
 } from "./commands.js";
@@ -23,8 +24,10 @@ export interface CliDependencies {
   environment?: NodeJS.ProcessEnv;
   fetch?: Fetch;
   makeUuid?: UuidFactory;
+  selfUpdate?: CommandContext["selfUpdate"];
   stdout?: (text: string) => void;
   stderr?: (text: string) => void;
+  workingDirectory?: string;
 }
 
 const collect = (value: string, previous: string[]): string[] => [
@@ -108,6 +111,8 @@ export const runCli = async (
       environment: dependencies.environment,
       fetch: dependencies.fetch,
       makeUuid: dependencies.makeUuid,
+      selfUpdate: dependencies.selfUpdate,
+      workingDirectory: dependencies.workingDirectory,
     }),
     name: "work-graph",
     version: "0.1.0",

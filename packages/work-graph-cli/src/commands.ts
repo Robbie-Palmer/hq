@@ -5,6 +5,7 @@ import { z } from "zod";
 import { WorkGraphClient, type Fetch } from "./client.js";
 import { resolveClientConfig } from "./config.js";
 import { usageError } from "./errors.js";
+import { updateFromCheckout, type SelfUpdater } from "./self-update.js";
 import {
   zCreateAttentionRequestBody,
   zCreateAttentionRequestHeaders,
@@ -59,6 +60,8 @@ export interface CommandContext {
   environment: NodeJS.ProcessEnv;
   fetch?: Fetch;
   makeUuid: UuidFactory;
+  selfUpdate: SelfUpdater;
+  workingDirectory: string;
 }
 
 const mutationUuid = (
@@ -787,8 +790,22 @@ export const workGraphRouter = t.router({
         "Codex thread identity is automatic; WORK_GRAPH_WORKER_ID overrides it.",
         "Ticket commands find the active lease and fencing epoch automatically.",
         "Use attention request for a blocking decision; use cancel only when the outcome is no longer wanted.",
+        "After pulling a merged CLI change, run work-graph self-update from the checkout.",
       ],
     })),
+  selfUpdate: command
+    .meta({ description: "Build and install the CLI from a source checkout" })
+    .input(
+      z.object({
+        sourceDirectory: optional(
+          z.string().min(1),
+          "Repository checkout; defaults to the current directory",
+        ),
+      }),
+    )
+    .mutation(({ ctx, input }) =>
+      ctx.selfUpdate(input.sourceDirectory ?? ctx.workingDirectory),
+    ),
   ready: command
     .meta({ description: "List ready tickets in priority order" })
     .input(readyInput)
@@ -1340,4 +1357,6 @@ export const createCommandContext = (
   environment: context.environment ?? process.env,
   fetch: context.fetch,
   makeUuid: context.makeUuid ?? randomUUID,
+  selfUpdate: context.selfUpdate ?? updateFromCheckout,
+  workingDirectory: context.workingDirectory ?? process.cwd(),
 });

@@ -40,14 +40,35 @@ export const dopplerSpawnExitCode = (
   return error.exitCode;
 };
 
+const optionConsumesValue = new Set([
+  "--api-url",
+  "--cf-access-allowed-origin",
+]);
+
+const rootCommand = (args: readonly string[]): string | undefined => {
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    if (argument === undefined) return undefined;
+    if (optionConsumesValue.has(argument)) {
+      index += 1;
+      continue;
+    }
+    if (argument.startsWith("--api-url=") || argument.startsWith("--cf-access-allowed-origin=")) {
+      continue;
+    }
+    if (argument.startsWith("-")) return undefined;
+    return argument;
+  }
+  return undefined;
+};
+
 const doesNotNeedApi = (args: readonly string[]): boolean =>
   args.length === 0 ||
   args.includes("--help") ||
   args.includes("-h") ||
   args.includes("--version") ||
   args.includes("-V") ||
-  args[0] === "help" ||
-  args[0] === "prime";
+  ["help", "prime", "self-update"].includes(rootCommand(args) ?? "");
 
 const hasApiUrlOption = (args: readonly string[]): boolean =>
   args.some((arg) => arg === "--api-url" || arg.startsWith("--api-url="));

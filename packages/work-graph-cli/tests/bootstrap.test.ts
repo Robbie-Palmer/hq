@@ -30,6 +30,24 @@ describe("Given Work Graph CLI startup", () => {
   it.each([
     ["offline help", ["--help"], {}],
     ["offline prime", ["prime"], {}],
+    ["offline self-update", ["self-update"], {}],
+    [
+      "offline self-update after a global option",
+      [
+        "--cf-access-allowed-origin",
+        "https://work.example.test",
+        "self-update",
+      ],
+      {},
+    ],
+    [
+      "offline self-update after an inline global option",
+      [
+        "--cf-access-allowed-origin=https://work.example.test",
+        "self-update",
+      ],
+      {},
+    ],
     [
       "configured environment",
       ["ready"],
