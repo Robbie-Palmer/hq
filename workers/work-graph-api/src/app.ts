@@ -643,27 +643,24 @@ const resolveAttentionRequestBodySchema = z
     resolution: z.string().trim().min(1).max(MAX_TITLE_LENGTH),
   })
   .strict();
-const createLeaseBodySchema = z
-  .object({
-    workerId: identifierSchema,
-    leaseDurationSeconds: leaseDurationSchema,
-    workItemId: identifierSchema.optional(),
-    initiativeId: identifierSchema.optional(),
-    projectId: identifierSchema.optional(),
-    parentId: identifierSchema.optional(),
-  })
-  .strict()
-  .refine(
-    ({ initiativeId, parentId, projectId, workItemId }) =>
-      workItemId === undefined ||
-      (initiativeId === undefined &&
-        parentId === undefined &&
-        projectId === undefined),
-    {
-      message: "A specified work item cannot be combined with scope filters.",
-      path: ["workItemId"],
-    },
-  );
+const createLeaseBodySchema = z.union([
+  z
+    .object({
+      workerId: identifierSchema,
+      leaseDurationSeconds: leaseDurationSchema,
+      workItemId: identifierSchema,
+    })
+    .strict(),
+  z
+    .object({
+      workerId: identifierSchema,
+      leaseDurationSeconds: leaseDurationSchema,
+      initiativeId: identifierSchema.optional(),
+      projectId: identifierSchema.optional(),
+      parentId: identifierSchema.optional(),
+    })
+    .strict(),
+]);
 const putWorkItemSchedulingScopeBodySchema = z
   .object({
     schedulingInitiativeId: z.union([identifierSchema, z.null()]),
@@ -2468,23 +2465,28 @@ export const createWorkGraphApp = (
 
   app.openapi(createLeaseRoute, async (context) => {
     const request = context.req.valid("json");
+    const selection =
+      "workItemId" in request
+        ? { workItemId: request.workItemId }
+        : {
+            ...(request.initiativeId
+              ? { initiativeId: request.initiativeId }
+              : {}),
+            ...(request.projectId ? { projectId: request.projectId } : {}),
+            ...(request.parentId ? { parentId: request.parentId } : {}),
+          };
     const claimed = await repository.claimWorkItem({
       leaseId: createLeaseId(),
       workerId: request.workerId,
       leaseDurationSeconds: request.leaseDurationSeconds,
-      ...(request.workItemId ? { workItemId: request.workItemId } : {}),
-      ...(request.initiativeId
-        ? { initiativeId: request.initiativeId }
-        : {}),
-      ...(request.projectId ? { projectId: request.projectId } : {}),
-      ...(request.parentId ? { parentId: request.parentId } : {}),
+      ...selection,
     });
     if (!claimed) {
       return context.json(
         {
           error: {
             code: "work_item_not_claimable",
-            message: request.workItemId
+            message: "workItemId" in request
               ? `Work item ${request.workItemId} is not claimable.`
               : "No work item is currently claimable.",
           },

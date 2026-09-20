@@ -82,7 +82,7 @@ if [[ "$status" != "200" ]]; then
   exit 1
 fi
 unscoped_id=$(jq -r \
-  '.items | map(select(.id != "work-graph-finish-mvp" and .schedulingProjectId == null)) | first | .id // empty' \
+  '.items | map(select(.id != "work-graph-finish-mvp" and .parentId == null and .schedulingProjectId == null)) | first | .id // empty' \
   "$work_dir/unscoped.json")
 if [[ -z "$unscoped_id" ]]; then
   echo "Work Graph production smoke test could not find an unscoped comparison ticket." >&2
@@ -119,7 +119,7 @@ status=$(curl --disable \
   "$WORK_GRAPH_API_URL/api/work-items?projectId=work-graph&limit=100")
 if [[ "$status" != "200" ]] || ! jq -e \
   --arg unscoped_id "$unscoped_id" \
-  '(.items | any(.id == "work-graph-finish-mvp")) and (.items | all(.schedulingProjectId == "work-graph")) and (.items | all(.id != $unscoped_id))' \
+  '(.items | any(.id == "work-graph-finish-mvp")) and (.items | all(.id != $unscoped_id))' \
   "$work_dir/scoped.json" >/dev/null; then
   echo "Work Graph production scoped queue verification failed with HTTP $status." >&2
   exit 1

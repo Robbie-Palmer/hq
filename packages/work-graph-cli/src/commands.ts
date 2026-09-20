@@ -132,8 +132,10 @@ const idempotencyKey = described(
   "Client-generated UUID used to replay a mutation safely",
 );
 
+const [directLeaseBodySchema, scheduledLeaseBodySchema] =
+  zCreateLeaseBody.options;
 const leaseDuration = described(
-  zCreateLeaseBody.shape.leaseDurationSeconds.default(900),
+  directLeaseBodySchema.shape.leaseDurationSeconds.default(900),
   "Lease duration in seconds",
 );
 
@@ -689,21 +691,21 @@ const readyInput = z.object({
 
 const claimInput = z.object({
   workItemId: positional(
-    optional(zCreateLeaseBody.shape.workItemId.unwrap(), "Ticket ID"),
+    optional(directLeaseBodySchema.shape.workItemId, "Ticket ID"),
     "Ticket ID",
   ),
-  workerId: optional(zCreateLeaseBody.shape.workerId, "Worker identity"),
+  workerId: optional(directLeaseBodySchema.shape.workerId, "Worker identity"),
   leaseDurationSeconds: leaseDuration,
   initiativeId: optional(
-    zCreateLeaseBody.shape.initiativeId.unwrap(),
+    scheduledLeaseBodySchema.shape.initiativeId.unwrap(),
     "Claim within this initiative",
   ),
   projectId: optional(
-    zCreateLeaseBody.shape.projectId.unwrap(),
+    scheduledLeaseBodySchema.shape.projectId.unwrap(),
     "Claim within this project",
   ),
   parentId: optional(
-    zCreateLeaseBody.shape.parentId.unwrap(),
+    scheduledLeaseBodySchema.shape.parentId.unwrap(),
     "Claim a direct child of this ticket",
   ),
   fullPrContext: z
@@ -1441,20 +1443,27 @@ export const workGraphRouter = t.router({
       if (!workerId) {
         throw usageError("Set WORK_GRAPH_WORKER_ID or pass --worker-id.");
       }
-      const result = await resolveClient(ctx).claim({
-        workerId,
-        leaseDurationSeconds: input.leaseDurationSeconds,
-        ...(input.workItemId === undefined
-          ? {}
-          : { workItemId: input.workItemId }),
-        ...(input.initiativeId === undefined
-          ? {}
-          : { initiativeId: input.initiativeId }),
-        ...(input.projectId === undefined
-          ? {}
-          : { projectId: input.projectId }),
-        ...(input.parentId === undefined ? {} : { parentId: input.parentId }),
-      });
+      const body =
+        input.workItemId === undefined
+          ? {
+              workerId,
+              leaseDurationSeconds: input.leaseDurationSeconds,
+              ...(input.initiativeId === undefined
+                ? {}
+                : { initiativeId: input.initiativeId }),
+              ...(input.projectId === undefined
+                ? {}
+                : { projectId: input.projectId }),
+              ...(input.parentId === undefined
+                ? {}
+                : { parentId: input.parentId }),
+            }
+          : {
+              workerId,
+              leaseDurationSeconds: input.leaseDurationSeconds,
+              workItemId: input.workItemId,
+            };
+      const result = await resolveClient(ctx).claim(body);
       return input.fullPrContext
         ? result
         : { ...result, context: compactPullRequestsInContext(result.context) };

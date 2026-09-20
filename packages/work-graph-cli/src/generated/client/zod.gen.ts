@@ -536,14 +536,20 @@ export const zMoveKnowledgeScopePriorityPath = z.object({
  */
 export const zMoveKnowledgeScopePriorityResponse = zKnowledgeScope;
 
-export const zCreateLeaseBody = z.object({
-    workerId: z.string().min(1).max(200),
-    leaseDurationSeconds: z.int().gte(1).lte(86400),
-    workItemId: z.string().min(1).max(200).optional(),
-    initiativeId: z.string().min(1).max(200).optional(),
-    projectId: z.string().min(1).max(200).optional(),
-    parentId: z.string().min(1).max(200).optional()
-});
+export const zCreateLeaseBody = z.union([
+    z.object({
+        workerId: z.string().min(1).max(200),
+        leaseDurationSeconds: z.int().gte(1).lte(86400),
+        workItemId: z.string().min(1).max(200)
+    }),
+    z.object({
+        workerId: z.string().min(1).max(200),
+        leaseDurationSeconds: z.int().gte(1).lte(86400),
+        initiativeId: z.string().min(1).max(200).optional(),
+        projectId: z.string().min(1).max(200).optional(),
+        parentId: z.string().min(1).max(200).optional()
+    })
+]);
 
 /**
  * Lease created and work item claimed

@@ -1612,6 +1612,25 @@ describe("Given a worker managing a lease", () => {
 });
 
 describe("Given an invalid REST request", () => {
+  it("rejects a specified work item combined with scheduler scope filters", async () => {
+    const repository = buildRepository();
+    const app = createWorkGraphApp(repository);
+
+    const response = await app.request("/api/leases", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workerId: "worker-a",
+        leaseDurationSeconds: 300,
+        workItemId: "ticket-a",
+        projectId: "work-graph",
+      }),
+    });
+
+    expect(response.status).toBe(422);
+    expect(repository.claimWorkItem).not.toHaveBeenCalled();
+  });
+
   it("rejects unknown fields and out-of-range lease durations", async () => {
     const app = createWorkGraphApp(buildRepository());
 

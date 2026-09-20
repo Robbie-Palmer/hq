@@ -962,7 +962,10 @@ export type CreateLeaseData = {
     body: {
         workerId: string;
         leaseDurationSeconds: number;
-        workItemId?: string;
+        workItemId: string;
+    } | {
+        workerId: string;
+        leaseDurationSeconds: number;
         initiativeId?: string;
         projectId?: string;
         parentId?: string;

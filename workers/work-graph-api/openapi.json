@@ -3312,45 +3312,71 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "workerId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "workerId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "leaseDurationSeconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 86400,
+                        "format": "int32"
+                      },
+                      "workItemId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      }
+                    },
+                    "required": [
+                      "workerId",
+                      "leaseDurationSeconds",
+                      "workItemId"
+                    ],
+                    "additionalProperties": false
                   },
-                  "leaseDurationSeconds": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 86400,
-                    "format": "int32"
-                  },
-                  "workItemId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200
-                  },
-                  "initiativeId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200
-                  },
-                  "projectId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200
-                  },
-                  "parentId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200
+                  {
+                    "type": "object",
+                    "properties": {
+                      "workerId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "leaseDurationSeconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 86400,
+                        "format": "int32"
+                      },
+                      "initiativeId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "projectId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "parentId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      }
+                    },
+                    "required": [
+                      "workerId",
+                      "leaseDurationSeconds"
+                    ],
+                    "additionalProperties": false
                   }
-                },
-                "required": [
-                  "workerId",
-                  "leaseDurationSeconds"
-                ],
-                "additionalProperties": false
+                ]
               }
             }
           }
