@@ -84,6 +84,39 @@ struct Message {
 
 enum class HealthStatus : uint8_t { Nominal, Quiescent, Fatal };
 
+enum class SafeStateReason : uint8_t {
+  InvalidConfiguration,
+  FatalHealth,
+  CommunicationFailureLimit
+};
+
+struct SafeStateRequestId {
+  NodeId node_id = kBroadcastNode;
+  BootEpoch boot_epoch = 0U;
+
+  SafeStateRequestId() = default;
+  SafeStateRequestId(NodeId node, BootEpoch epoch) : node_id(node), boot_epoch(epoch) {}
+
+  friend bool operator==(const SafeStateRequestId& left, const SafeStateRequestId& right) {
+    return left.node_id == right.node_id && left.boot_epoch == right.boot_epoch;
+  }
+};
+
+struct SafeStateRequest {
+  SafeStateRequestId id{};
+  SafeStateReason reason = SafeStateReason::InvalidConfiguration;
+  MissionKey mission_key{};
+
+  SafeStateRequest() = default;
+  SafeStateRequest(SafeStateRequestId request_id, SafeStateReason request_reason,
+                   MissionKey current_mission)
+      : id(request_id), reason(request_reason), mission_key(current_mission) {}
+};
+
+enum class SafeStateResult : uint8_t { Rejected, Accepted };
+
+enum class SafeStateExecutionStatus : uint8_t { Pending, Succeeded, Failed };
+
 enum class ControllerState : uint8_t {
   Idle,
   Leading,

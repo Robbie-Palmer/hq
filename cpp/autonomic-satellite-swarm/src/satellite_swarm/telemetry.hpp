@@ -21,7 +21,10 @@ enum class TelemetryEventType : uint8_t {
   MissionCompleted,
   MissionFailed,
   HealthChanged,
-  TransportFailure
+  TransportFailure,
+  SafeStateRequested,
+  SafeStateResult,
+  SafeStateExecutionResult
 };
 
 enum class TelemetryReason : uint8_t {

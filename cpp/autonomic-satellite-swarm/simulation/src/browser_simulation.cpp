@@ -77,6 +77,12 @@ const char* telemetryEventName(TelemetryEventType type) {
     return "health-changed";
   case TelemetryEventType::TransportFailure:
     return "transport-failure";
+  case TelemetryEventType::SafeStateRequested:
+    return "safe-state-requested";
+  case TelemetryEventType::SafeStateResult:
+    return "safe-state-result";
+  case TelemetryEventType::SafeStateExecutionResult:
+    return "safe-state-execution-result";
   }
   return "unknown";
 }
@@ -137,6 +143,18 @@ const char* messageName(MessageType type) {
     return "acknowledgement";
   case MessageType::MissionAssignment:
     return "mission-assignment";
+  }
+  return "unknown";
+}
+
+const char* scenarioName(BrowserScenario scenario) {
+  switch (scenario) {
+  case BrowserScenario::Nominal:
+    return "three-node-objective-pass";
+  case BrowserScenario::LostAssignment:
+    return "three-node-assignment-loss";
+  case BrowserScenario::SafeStateSuccess:
+    return "three-node-safe-state-success";
   }
   return "unknown";
 }
@@ -273,6 +291,9 @@ BrowserSimulation makeBrowserDemonstration(Coordinate objective, BrowserScenario
       {1U, satelliteAt(0.0F, 10.0F)},
       {2U, satelliteAt(0.5F, 0.0F)},
   };
+  if (scenario == BrowserScenario::SafeStateSuccess) {
+    trace.nodes[1].safe_state_request_result = SafeStateResult::Accepted;
+  }
 
   for (uint32_t now_ms = 0U; now_ms <= 120U; now_ms += 10U) {
     SimulationFrame frame;
@@ -290,6 +311,12 @@ BrowserSimulation makeBrowserDemonstration(Coordinate objective, BrowserScenario
     if (scenario == BrowserScenario::LostAssignment && now_ms == 100U) {
       frame.delivery_faults.push_back(
           {0U, 1U, MessageType::MissionAssignment, DeliveryFaultType::Drop, 0U});
+    }
+    if (scenario == BrowserScenario::SafeStateSuccess && now_ms == 110U) {
+      frame.health_updates.push_back({1U, HealthStatus::Fatal});
+    }
+    if (scenario == BrowserScenario::SafeStateSuccess && now_ms == 120U) {
+      frame.safe_state_status_updates.push_back({1U, SafeStateExecutionStatus::Succeeded});
     }
     trace.frames.push_back(frame);
   }
@@ -317,9 +344,7 @@ std::string serializeBrowserSimulation(const BrowserSimulation& simulation,
   "traceVersion": )"
          << static_cast<unsigned int>(trace.version) << R"(,
   "scenario": ")"
-         << (simulation.scenario == BrowserScenario::LostAssignment ? "three-node-assignment-loss"
-                                                                    : "three-node-objective-pass")
-         << R"(",
+         << scenarioName(simulation.scenario) << R"(",
   "source": "portable C++ SimulationTrace",
   "positionModel": "scripted simulation data; not orbit propagation",
   "objective": )";

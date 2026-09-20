@@ -1,7 +1,7 @@
 import createSatelliteSwarmModule from "./wasm/satellite-swarm.mjs";
 
-const PROTOCOL_VERSION = 4;
-const BROWSER_API_VERSION = 6;
+const PROTOCOL_VERSION = 5;
+const BROWSER_API_VERSION = 7;
 let modulePromise;
 
 function errorMessage(error) {
@@ -26,6 +26,7 @@ function isCoordinate(value) {
 function scenarioCode(value) {
   if (value === "nominal") return 0;
   if (value === "lost-assignment") return 1;
+  if (value === "safe-state-success") return 2;
   return null;
 }
 

@@ -8,12 +8,13 @@
 
 namespace satellite_swarm::simulation {
 
-constexpr uint8_t kSimulationTraceVersion = 4U;
+constexpr uint8_t kSimulationTraceVersion = 5U;
 
 struct NodeConfiguration {
   NodeId node_id = 0U;
   SatelliteSnapshot satellite{};
   BootEpoch boot_epoch = 1U;
+  SafeStateResult safe_state_request_result = SafeStateResult::Rejected;
 };
 
 struct SatelliteUpdate {
@@ -24,6 +25,11 @@ struct SatelliteUpdate {
 struct HealthUpdate {
   NodeId node_id = 0U;
   HealthStatus health = HealthStatus::Nominal;
+};
+
+struct SafeStateStatusUpdate {
+  NodeId node_id = 0U;
+  SafeStateExecutionStatus status = SafeStateExecutionStatus::Pending;
 };
 
 struct MissionCommand {
@@ -62,6 +68,8 @@ struct SimulationFrame {
   uint32_t now_ms = 0U;
   std::vector<SatelliteUpdate> satellite_updates;
   std::vector<HealthUpdate> health_updates;
+  // Status changes take effect before controller updates in the same frame.
+  std::vector<SafeStateStatusUpdate> safe_state_status_updates;
   // Link changes take effect before resets, delayed-message release, and controller updates.
   std::vector<LinkUpdate> link_updates;
   // Link availability takes precedence over a matching directive, which is still consumed.

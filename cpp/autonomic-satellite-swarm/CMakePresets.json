@@ -28,7 +28,7 @@
     {
       "name": "coverage",
       "inherits": "base",
-      "displayName": "GCC coverage",
+      "displayName": "Coverage",
       "cacheVariables": {
         "SATELLITE_SWARM_ENABLE_COVERAGE": "ON"
       }

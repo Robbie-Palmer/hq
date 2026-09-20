@@ -48,6 +48,28 @@ private:
   uint8_t fixed_score_;
 };
 
+class FakeSafeStateActuator : public SafeStateActuator {
+public:
+  SafeStateResult request(const SafeStateRequest& request) override {
+    ++request_count;
+    last_request = request;
+    return result;
+  }
+
+  SafeStateExecutionStatus status(const SafeStateRequestId& request_id) override {
+    ++status_count;
+    last_status_request = request_id;
+    return execution_status;
+  }
+
+  SafeStateResult result = SafeStateResult::Accepted;
+  SafeStateExecutionStatus execution_status = SafeStateExecutionStatus::Pending;
+  uint8_t request_count = 0U;
+  uint8_t status_count = 0U;
+  SafeStateRequest last_request{};
+  SafeStateRequestId last_status_request{};
+};
+
 } // namespace satellite_swarm::test
 
 #endif

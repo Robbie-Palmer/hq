@@ -1,8 +1,9 @@
 # Next research cycle
 
-**Status:** In progress. Bounded controller telemetry, rate-limited serial export, and deterministic
-equal-score rotation are implemented; shared-radio budgets, resource evidence, and durable journals
-remain proposed.
+**Status:** In progress. Bounded controller telemetry, rate-limited serial export, deterministic
+equal-score rotation, and the portable safe-state actuator lifecycle are implemented. Shared-radio
+budgets, resource evidence, durable journals, and validated hardware safe-state actions remain
+proposed.
 
 This document records research directions, not flight-software claims. The next cycle should make
 autonomy observable and governable without making local coordination depend on a continuously
@@ -33,8 +34,8 @@ replay. See [Bounded telemetry](telemetry.md) for the exact admission policy.
 The portable transmitter now limits attempts, waits for platform-granted channel access, and retains
 a record when its sink rejects publication. The reference adapters send one fixed telemetry frame
 per second over a dedicated serial link after controller work. They do not send telemetry over IR or
-ESP-NOW. A shared-radio policy still needs measured capacity and duty-cycle limits. Resource and
-actuator evidence also await platform interfaces. Losing mission control does not stop local behavior
+ESP-NOW. A shared-radio policy still needs measured capacity and duty-cycle limits. Resource
+evidence still awaits a platform interface. Losing mission control does not stop local behavior
 because the controller only enqueues records and never performs telemetry I/O.
 
 ## Mission-control observation and intervention
@@ -83,16 +84,21 @@ trust, and spoofing costs that must be measured rather than assumed away.
 
 ## Physical safe-state action
 
-The portable core should eventually expose a narrow platform hook for entering a physical safe
-state. On the first transition to safe-disabled, it would make one idempotent request containing a
-reason and correlation identifier. A hardware adapter could then inhibit an actuator, isolate a
-payload, reduce power, change radio behavior, or take another platform-specific action.
+The portable core now exposes a narrow platform hook for entering a physical safe state. On the
+first transition to safe-disabled, it makes one idempotent request containing the node-and-boot
+request ID, triggering reason, and current mission key. A hardware adapter could inhibit an
+actuator, isolate a payload, reduce power, change radio behavior, or take another platform-specific
+action.
 
-The core should latch safe-disabled even if the adapter cannot complete the action. Mission control
-should receive intent before execution when possible and a result afterward if a link survives.
-Irreversible actuator behavior needs hardware-specific interlocks, fault injection, and physical
-testing. This hook must never be described as deorbiting unless a separately validated subsystem
-actually provides that capability.
+The core records intent, latches safe-disabled, invokes the adapter once, and records whether the
+adapter accepted or rejected the request. A rejection does not clear the latch. For accepted work,
+the controller polls once per update until the adapter reports success or failure, records that
+terminal result, and stops polling. The request and result records can reach mission control later
+through the bounded telemetry path. A success record contains adapter-reported evidence and does not
+independently prove a physical action. Irreversible behavior still needs hardware-specific
+interlocks, fault injection, independent sensing, and physical testing. The reference firmware
+omits the adapter because it has no validated safe-state hardware. This hook must never be described
+as deorbiting unless a separately validated subsystem actually provides that capability.
 
 ## Adversarial questions
 

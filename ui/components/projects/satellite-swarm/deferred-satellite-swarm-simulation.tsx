@@ -171,11 +171,15 @@ function MissionControls({
         className="space-y-1 text-xs font-medium"
         htmlFor="satellite-swarm-scenario"
       >
-        <span>Network scenario</span>
+        <span>Simulation scenario</span>
         <Select
           value={scenario}
           onValueChange={(value) => {
-            if (value === "nominal" || value === "lost-assignment") {
+            if (
+              value === "nominal" ||
+              value === "lost-assignment" ||
+              value === "safe-state-success"
+            ) {
               onScenarioChange(value);
             }
           }}
@@ -184,9 +188,12 @@ function MissionControls({
             <SelectValue />
           </SelectTrigger>
           <SelectContent position="popper">
-            <SelectItem value="nominal">All deliveries</SelectItem>
+            <SelectItem value="nominal">Nominal mission</SelectItem>
             <SelectItem value="lost-assignment">
               Lose winning assignment
+            </SelectItem>
+            <SelectItem value="safe-state-success">
+              Complete safe-state action
             </SelectItem>
           </SelectContent>
         </Select>

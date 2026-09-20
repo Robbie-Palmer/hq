@@ -78,8 +78,8 @@ vi.mock("@/lib/browser/satellite-swarm-worker-client", () => ({
 }));
 
 const data = parseSatelliteSwarmSimulation({
-  schemaVersion: 4,
-  traceVersion: 4,
+  schemaVersion: 6,
+  traceVersion: 5,
   scenario: "test",
   source: "portable C++ SimulationTrace",
   sourceRevision: "0123456789abcdef0123456789abcdef01234567",
@@ -195,7 +195,7 @@ describe("SatelliteSwarmSimulation", () => {
     render(<DeferredSatelliteSwarmSimulation />);
 
     enterSimulationViewport();
-    expect(await screen.findByText("trace v4 · 0 ms")).toBeVisible();
+    expect(await screen.findByText("trace v5 · 0 ms")).toBeVisible();
     expect(workerClient.run).toHaveBeenCalledWith(
       { latitudeDegrees: -90, longitudeDegrees: 0 },
       { scenario: "nominal", signal: expect.any(AbortSignal) },
@@ -251,7 +251,7 @@ describe("SatelliteSwarmSimulation", () => {
       </StrictMode>,
     );
 
-    expect(await screen.findByText("trace v4 · 0 ms")).toBeVisible();
+    expect(await screen.findByText("trace v5 · 0 ms")).toBeVisible();
     expect(workerClient.run).toHaveBeenCalledOnce();
   });
 
@@ -259,7 +259,7 @@ describe("SatelliteSwarmSimulation", () => {
     const user = userEvent.setup();
     render(<DeferredSatelliteSwarmSimulation />);
     enterSimulationViewport();
-    expect(await screen.findByText("trace v4 · 0 ms")).toBeVisible();
+    expect(await screen.findByText("trace v5 · 0 ms")).toBeVisible();
 
     const longitude = screen.getByRole("spinbutton", { name: "Longitude" });
     const latitude = screen.getByRole("spinbutton", { name: "Latitude" });
@@ -282,10 +282,10 @@ describe("SatelliteSwarmSimulation", () => {
     const user = userEvent.setup();
     render(<DeferredSatelliteSwarmSimulation />);
     enterSimulationViewport();
-    expect(await screen.findByText("trace v4 · 0 ms")).toBeVisible();
+    expect(await screen.findByText("trace v5 · 0 ms")).toBeVisible();
 
     const scenario = screen.getByRole("combobox", {
-      name: "Network scenario",
+      name: "Simulation scenario",
     });
     await user.click(scenario);
     await user.keyboard("{ArrowDown}");
@@ -305,18 +305,44 @@ describe("SatelliteSwarmSimulation", () => {
     );
   });
 
+  it("runs the deterministic safe-state completion scenario", async () => {
+    const user = userEvent.setup();
+    render(<DeferredSatelliteSwarmSimulation />);
+    enterSimulationViewport();
+    expect(await screen.findByText("trace v5 · 0 ms")).toBeVisible();
+
+    const scenario = screen.getByRole("combobox", {
+      name: "Simulation scenario",
+    });
+    await user.click(scenario);
+    await user.click(
+      screen.getByRole("option", { name: "Complete safe-state action" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Run mission" }));
+
+    await waitFor(() =>
+      expect(workerClient.run).toHaveBeenLastCalledWith(
+        { latitudeDegrees: -90, longitudeDegrees: 0 },
+        {
+          scenario: "safe-state-success",
+          signal: expect.any(AbortSignal),
+        },
+      ),
+    );
+  });
+
   it("restarts playback when rerunning the same objective", async () => {
     const user = userEvent.setup();
     render(<DeferredSatelliteSwarmSimulation />);
     enterSimulationViewport();
-    expect(await screen.findByText("trace v4 · 0 ms")).toBeVisible();
+    expect(await screen.findByText("trace v5 · 0 ms")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Next frame" }));
-    expect(screen.getByText("trace v4 · 100 ms")).toBeVisible();
+    expect(screen.getByText("trace v5 · 100 ms")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Run mission" }));
 
-    expect(await screen.findByText("trace v4 · 0 ms")).toBeVisible();
+    expect(await screen.findByText("trace v5 · 0 ms")).toBeVisible();
     expect(screen.getByRole("button", { name: "Pause replay" })).toBeEnabled();
   });
 
@@ -324,7 +350,7 @@ describe("SatelliteSwarmSimulation", () => {
     const user = userEvent.setup();
     render(<DeferredSatelliteSwarmSimulation />);
     enterSimulationViewport();
-    expect(await screen.findByText("trace v4 · 0 ms")).toBeVisible();
+    expect(await screen.findByText("trace v5 · 0 ms")).toBeVisible();
 
     let rejectEarlier: ((error: unknown) => void) | undefined;
     let resolveLatest: ((value: typeof data) => void) | undefined;
@@ -375,7 +401,7 @@ describe("SatelliteSwarmSimulation", () => {
 
     expect(screen.getByText("active")).toBeVisible();
     expect(screen.getByText(/assigned mission 0:1:1 to node 1/i)).toBeVisible();
-    expect(screen.getByText("trace v4 · 100 ms")).toBeVisible();
+    expect(screen.getByText("trace v5 · 100 ms")).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Replay mission" }),
     ).toBeEnabled();

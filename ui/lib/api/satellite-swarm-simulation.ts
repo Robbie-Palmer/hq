@@ -171,6 +171,17 @@ const controllerTelemetryEventFields = {
   value: z.number().int().min(0).max(255),
 };
 
+const safeStateTelemetryEventFields = {
+  ...controllerTelemetryEventFields,
+  priority: z.literal("critical"),
+  reason: z.enum([
+    "health-fatal",
+    "invalid-configuration",
+    "retry-limit-reached",
+  ]),
+  relatedNode: z.number().int().min(0).max(15),
+};
+
 const controllerTelemetryEventSchema = z.discriminatedUnion("event", [
   z.object({
     ...controllerTelemetryEventFields,
@@ -220,6 +231,21 @@ const controllerTelemetryEventSchema = z.discriminatedUnion("event", [
     event: z.literal("transport-failure"),
     missionKey: missionKeySchema,
   }),
+  z.object({
+    ...safeStateTelemetryEventFields,
+    event: z.literal("safe-state-requested"),
+    value: z.literal(0),
+  }),
+  z.object({
+    ...safeStateTelemetryEventFields,
+    event: z.literal("safe-state-result"),
+    value: z.union([z.literal(0), z.literal(1)]),
+  }),
+  z.object({
+    ...safeStateTelemetryEventFields,
+    event: z.literal("safe-state-execution-result"),
+    value: z.union([z.literal(1), z.literal(2)]),
+  }),
 ]);
 
 const simulationSchema = z.object({
@@ -249,10 +275,10 @@ const simulationSchema = z.object({
   objective: coordinateSchema,
   positionModel: z.string().min(1),
   scenario: z.string().min(1),
-  schemaVersion: z.literal(4),
+  schemaVersion: z.literal(6),
   source: z.literal("portable C++ SimulationTrace"),
   sourceRevision: z.string().regex(/^[0-9a-f]{40}$/),
-  traceVersion: z.literal(4),
+  traceVersion: z.literal(5),
 });
 
 export type SatelliteSwarmSimulation = z.infer<typeof simulationSchema>;
@@ -330,6 +356,16 @@ function describeControllerTelemetryEvent(
       return `${sequence} records health change ${event.reason}.${dropped}`;
     case "transport-failure":
       return `${sequence} records a send failure for${mission}.${dropped}`;
+    case "safe-state-requested":
+      return `${sequence} requests platform safe state because of ${event.reason}.${dropped}`;
+    case "safe-state-result": {
+      const result = event.value === 1 ? "accepted" : "rejected";
+      return `${sequence} records that the platform ${result} its safe-state request.${dropped}`;
+    }
+    case "safe-state-execution-result": {
+      const result = event.value === 1 ? "succeeded" : "failed";
+      return `${sequence} records that the platform safe-state action ${result}.${dropped}`;
+    }
   }
 }
 

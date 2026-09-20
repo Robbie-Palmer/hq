@@ -30,6 +30,17 @@ public:
   virtual uint8_t score(const SatelliteSnapshot& satellite, const Coordinate& objective) const = 0;
 };
 
+class SafeStateActuator {
+public:
+  virtual ~SafeStateActuator() = default;
+
+  // Requests must be idempotent by request ID and must return without blocking controller work.
+  virtual SafeStateResult request(const SafeStateRequest& request) = 0;
+  // Status checks must return without blocking. The controller stops polling after a terminal
+  // result, so implementations must retain that result for the request's lifetime.
+  virtual SafeStateExecutionStatus status(const SafeStateRequestId& request_id) = 0;
+};
+
 class TelemetrySink {
 public:
   virtual ~TelemetrySink() = default;

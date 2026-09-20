@@ -212,7 +212,7 @@ async function auditProfile(browser, profile) {
 
     const frameSamplePromise = sampleAnimationFrames(page, 3_200);
     await page.getByRole("button", { name: "Play replay" }).click();
-    await page.getByText("trace v4 · 120 ms", { exact: true }).waitFor();
+    await page.getByText("trace v5 · 120 ms", { exact: true }).waitFor();
     const rendering = await frameSamplePromise;
 
     await Promise.all(responseTasks);

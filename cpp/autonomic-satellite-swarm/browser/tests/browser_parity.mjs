@@ -6,7 +6,7 @@ import { Worker } from "node:worker_threads";
 import createSatelliteSwarmModule from "../../build/browser/browser/satellite-swarm.mjs";
 
 const module = await createSatelliteSwarmModule();
-assert.equal(module._satellite_swarm_browser_api_version(), 6);
+assert.equal(module._satellite_swarm_browser_api_version(), 7);
 const sourceRevision = module.UTF8ToString(
   module._satellite_swarm_source_revision(),
 );
@@ -26,7 +26,7 @@ function run(longitudeDegrees, latitudeDegrees, scenario = 0) {
 }
 
 const fixtureUrl = new URL(
-  "../../../../ui/public/simulations/autonomic-satellite-swarm/demonstration.v4.json",
+  "../../../../ui/public/simulations/autonomic-satellite-swarm/demonstration.v6.json",
   import.meta.url,
 );
 const nativeFixture = await readFile(fixtureUrl, "utf8");
@@ -51,6 +51,21 @@ assert.ok(
   ),
 );
 assert.equal(faultResult.frames.at(-1).nodes[1].state, "idle");
+
+const safeStateResult = JSON.parse(run(0, -90, 2));
+assert.equal(safeStateResult.scenario, "three-node-safe-state-success");
+assert.ok(
+  safeStateResult.events.some(
+    (event) =>
+      event.type === "controller-telemetry" &&
+      event.event === "safe-state-execution-result" &&
+      event.nodeId === 1 &&
+      event.reason === "health-fatal" &&
+      event.value === 1 &&
+      event.currentState === "safe-disabled",
+  ),
+);
+assert.equal(safeStateResult.frames.at(-1).nodes[1].state, "safe-disabled");
 
 assert.throws(
   () => run(181, 0),
@@ -86,13 +101,13 @@ try {
   const requestId = "browser-parity";
   productionWorker.postMessage({
     objective: { latitudeDegrees: -90, longitudeDegrees: 0 },
-    protocolVersion: 4,
+    protocolVersion: 5,
     requestId,
     scenario: "nominal",
     type: "run",
   });
   const [workerResponse] = await once(productionWorker, "message");
-  assert.equal(workerResponse.protocolVersion, 4);
+  assert.equal(workerResponse.protocolVersion, 5);
   assert.equal(workerResponse.requestId, requestId);
   assert.equal(workerResponse.sourceRevision, sourceRevision);
   assert.equal(workerResponse.type, "result");
@@ -101,7 +116,7 @@ try {
   const faultRequestId = "browser-parity-fault";
   productionWorker.postMessage({
     objective: { latitudeDegrees: -90, longitudeDegrees: 0 },
-    protocolVersion: 4,
+    protocolVersion: 5,
     requestId: faultRequestId,
     scenario: "lost-assignment",
     type: "run",
@@ -111,6 +126,20 @@ try {
   assert.equal(faultWorkerResponse.sourceRevision, sourceRevision);
   assert.equal(faultWorkerResponse.type, "result");
   assert.deepEqual(faultWorkerResponse.result, faultResult);
+
+  const safeStateRequestId = "browser-parity-safe-state";
+  productionWorker.postMessage({
+    objective: { latitudeDegrees: -90, longitudeDegrees: 0 },
+    protocolVersion: 5,
+    requestId: safeStateRequestId,
+    scenario: "safe-state-success",
+    type: "run",
+  });
+  const [safeStateWorkerResponse] = await once(productionWorker, "message");
+  assert.equal(safeStateWorkerResponse.requestId, safeStateRequestId);
+  assert.equal(safeStateWorkerResponse.sourceRevision, sourceRevision);
+  assert.equal(safeStateWorkerResponse.type, "result");
+  assert.deepEqual(safeStateWorkerResponse.result, safeStateResult);
 } finally {
   await productionWorker.terminate();
 }
