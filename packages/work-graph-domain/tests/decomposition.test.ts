@@ -272,8 +272,6 @@ describe("decomposition and hierarchy", () => {
     expect(getWorkItem(childReleased, "parent").lifecycle).toBe("open");
   });
 
-  it.todo("retains identity and history when an item is reparented");
-
   it("reparents an item without replacing its identity or state", () => {
     const graph = createWorkGraph({
       workItems: [

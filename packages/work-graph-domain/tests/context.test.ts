@@ -160,7 +160,37 @@ describe("work-item context", () => {
       ),
     ).toEqual(["parent", "grandparent", "parent", "grandparent"]);
   });
-  it.todo("keeps initiative and project mirrors separate from executable work");
+  it("keeps initiative and project mirrors separate from executable work", () => {
+    const graph = createWorkGraph({
+      workItems: [
+        {
+          id: "delivery",
+          title: "Deliver the project",
+          priorityRank: 1_024,
+          schedulingProjectId: "work-graph",
+        },
+      ],
+    });
+    const project = createKnowledgeScope({
+      id: "work-graph",
+      kind: "project",
+      title: "Work Graph",
+      canonicalUrl: "https://example.test/projects/work-graph",
+      markdownUrl: "https://example.test/projects/work-graph.md",
+    });
+
+    expect(graph.workItems).not.toContainEqual(
+      expect.objectContaining({ id: project.id }),
+    );
+    expect(resolveWorkItemContext(graph, "delivery", [project])).toEqual([
+      {
+        kind: "project",
+        scope: project,
+        sourceWorkItemId: "delivery",
+        inheritanceDepth: 0,
+      },
+    ]);
+  });
   it("treats ADRs as governing or background knowledge context", () => {
     const graph = createWorkGraph({
       workItems: [{ id: "work", title: "Work" }],

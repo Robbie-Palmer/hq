@@ -463,7 +463,7 @@ before the headless workflow is useful.
    decompose, attention, release, and cancel operations.
 9. [x] Provision the Worker, Neon project, Hyperdrive, Access application, service
    token, and secrets through Terraform and Doppler.
-10. [ ] Enter this plan into Work Graph and use it to finish its own MVP.
+10. [x] Enter this plan into Work Graph and use it to finish its own MVP.
 11. [x] Replace public numeric priority weights with contextual relative moves,
     median insertion, fixture-driven rank fusion, and explicit expedites.
 12. [x] Add typed briefs, acceptance criteria, ADRs, and supplemental references
@@ -471,6 +471,11 @@ before the headless workflow is useful.
     and CLI.
 13. [x] Add manual PR links and snapshot refresh. Automate GitHub events only after
    manual use shows which events matter.
+14. [ ] Add initiative, project, and parent filters to queue reads and
+    scheduler-selected claims. Preserve global relative order, then assign the
+    live Work Graph plan to its project and initiative mirrors.
+15. [ ] Expose identity-preserving work-item reparenting through the REST API
+    and CLI, including combined cycle rejection and immutable event history.
 
 ## Deferred
 
