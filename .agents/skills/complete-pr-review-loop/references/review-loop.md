@@ -85,7 +85,7 @@ ready for review.
 
 Wait for ready-only reviewers and the automatic custom AI review, then repeat
 the review cycle. The custom reviewer overwrites the top-level comment marked
-`<!-- ai-code-review -->`, so fetch it again after each run.
+`<!-- stateful-ai-code-review -->`, so fetch it again after each run.
 
 Request another review with exactly `/ai-review` only when the head changed
 after the latest completed custom review. Do not pay for another run when the
