@@ -105,6 +105,7 @@ const buildRepository = (): WorkGraphApiRepository => ({
   removeKnowledgeScopeRelationship: vi.fn(async () => undefined),
   listWorkItems: vi.fn(async () => []),
   getWorkItem: vi.fn(async (workItemId) => item(workItemId, "ready")),
+  resolveWorkItemContext: vi.fn(async () => []),
   listNotes: vi.fn(async () => []),
   listEvents: vi.fn(async () => []),
   listDependencies: vi.fn(async () => []),
@@ -121,6 +122,9 @@ const buildRepository = (): WorkGraphApiRepository => ({
     expedited: false,
     expediteReason: null,
   })),
+  putWorkItemContext: vi.fn(async (input) => input),
+  putWorkItemArchitectureDecision: vi.fn(async (input) => input),
+  putWorkItemReference: vi.fn(async (input) => input),
   moveWorkItemPriority: vi.fn(async (workItemId) => ({
     ...item(workItemId, "ready"),
   })),
@@ -538,6 +542,81 @@ describe("Given work items with derived readiness", () => {
         }),
       }),
     );
+  });
+
+  it("upserts typed context and returns resolved claim ordering", async () => {
+    const repository = buildRepository();
+    const resolved = [
+      {
+        kind: "brief" as const,
+        content: "Implement ordered context.",
+        sourceWorkItemId: "ticket",
+        inheritanceDepth: 0,
+      },
+    ];
+    vi.mocked(repository.resolveWorkItemContext).mockResolvedValue(resolved);
+    const app = createWorkGraphApp(repository);
+
+    const brief = await app.request("/api/work-items/ticket/contexts", {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": idempotencyKey,
+      },
+      body: JSON.stringify({
+        kind: "brief",
+        content: "Implement ordered context.",
+      }),
+    });
+    const decision = await app.request("/api/work-items/ticket/contexts", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "architecture_decision",
+        title: "Context ordering",
+        url: "https://example.test/adrs/context-ordering",
+        role: "governing",
+      }),
+    });
+    const reference = await app.request("/api/work-items/ticket/references", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: "Design notes",
+        url: "https://example.test/design-notes",
+      }),
+    });
+    const listed = await app.request("/api/work-items/ticket/contexts");
+
+    expect(brief.status).toBe(200);
+    expect(decision.status).toBe(200);
+    expect(reference.status).toBe(200);
+    expect(repository.putWorkItemContext).toHaveBeenCalledWith(
+      {
+        workItemId: "ticket",
+        kind: "brief",
+        content: "Implement ordered context.",
+      },
+      { idempotencyKey },
+    );
+    expect(repository.putWorkItemArchitectureDecision).toHaveBeenCalledWith(
+      {
+        workItemId: "ticket",
+        title: "Context ordering",
+        url: "https://example.test/adrs/context-ordering",
+        role: "governing",
+      },
+      {},
+    );
+    expect(repository.putWorkItemReference).toHaveBeenCalledWith(
+      {
+        workItemId: "ticket",
+        title: "Design notes",
+        url: "https://example.test/design-notes",
+      },
+      {},
+    );
+    expect(await responseJson(listed)).toEqual({ items: resolved });
   });
 });
 
@@ -1185,6 +1264,14 @@ describe("Given a worker managing a lease", () => {
         item("ready", "in_progress", "open", lease("ready")),
       )
       .mockResolvedValueOnce(released);
+    vi.mocked(repository.resolveWorkItemContext).mockResolvedValue([
+      {
+        kind: "brief",
+        content: "Start here.",
+        sourceWorkItemId: "ready",
+        inheritanceDepth: 0,
+      },
+    ]);
     const app = createWorkGraphApp(repository, {
       createLeaseId: () => leaseId,
     });
@@ -1244,6 +1331,18 @@ describe("Given a worker managing a lease", () => {
       workerId: "worker-a",
       leaseDurationSeconds: 300,
     });
+    expect(await responseJson(claimResponse)).toEqual(
+      expect.objectContaining({
+        context: [
+          {
+            kind: "brief",
+            content: "Start here.",
+            sourceWorkItemId: "ready",
+            inheritanceDepth: 0,
+          },
+        ],
+      }),
+    );
     expect(repository.renewLease).toHaveBeenCalledWith({
       leaseId,
       epoch: 1,

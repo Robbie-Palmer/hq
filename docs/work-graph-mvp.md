@@ -446,7 +446,7 @@ it.todo(
 Each slice should leave something testable and avoid building the read-only UI
 before the headless workflow is useful.
 
-1. [x] Create a dependency-free Work Graph domain package and add the scenario
+1. [x] Create a Work Graph domain package and add the scenario
    catalogue as `it.todo` tests.
 2. [x] Implement lifecycle and readiness projection, hierarchy checks, and the
    first deterministic priority policy against in-memory fixtures.
@@ -466,7 +466,10 @@ before the headless workflow is useful.
 10. [ ] Enter this plan into Work Graph and use it to finish its own MVP.
 11. [x] Replace public numeric priority weights with contextual relative moves,
     median insertion, fixture-driven rank fusion, and explicit expedites.
-12. [ ] Add manual PR links and snapshot refresh. Automate GitHub events only after
+12. [x] Add typed briefs, acceptance criteria, ADRs, and supplemental references
+    with inherited resolution and ordered claim output across persistence, API,
+    and CLI.
+13. [ ] Add manual PR links and snapshot refresh. Automate GitHub events only after
    manual use shows which events matter.
 
 ## Deferred

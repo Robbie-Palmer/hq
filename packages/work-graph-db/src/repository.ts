@@ -13,9 +13,11 @@ import {
 import {
   createKnowledgeScope,
   createWorkGraph,
+  normalizeAndValidateContextRecords,
   orderWorkItemsByPriority,
   projectWorkItemPriorities,
   projectWorkItemStage,
+  resolveWorkItemContext as resolveDomainWorkItemContext,
   validatePostReleaseNote,
   validateKnowledgeScopeRelationships,
   WorkGraphError,
@@ -23,12 +25,16 @@ import {
   type KnowledgeScopeInput,
   type KnowledgeScopeRelationship,
   type NewWorkItemInput,
+  type ResolvedWorkItemContext,
   type TerminalWorkItemState,
   type WorkGraph,
   type WorkItem,
+  type WorkItemArchitectureDecision,
+  type WorkItemContext,
   type WorkItemDependency,
   type WorkItemPriorityProjection,
   type WorkStage,
+  type WorkItemReference,
 } from "work-graph-domain";
 import type { Db, DbTransaction } from "./connection";
 import { claimableWorkItemWhere } from "./queries/claimable-work-item";
@@ -47,9 +53,12 @@ import {
   lease,
   note,
   workItem,
+  workItemArchitectureDecision,
+  workItemContext,
   workItemDependency,
   workItemHierarchy,
   workItemPriorityContext,
+  workItemReference,
 } from "./schema";
 
 const GRAPH_MUTATION_LOCK_ID = "global";
@@ -63,9 +72,11 @@ export const WORK_GRAPH_EVENT_TYPES = [
   "attention.resolved",
   "dependency.added",
   "dependency.removed",
+  "context.put",
   "knowledge_scope.put",
   "knowledge_scope_relationship.added",
   "knowledge_scope_relationship.removed",
+  "reference.put",
   "lease.claimed",
   "lease.ended",
   "lease.renewed",
@@ -1066,6 +1077,225 @@ export class WorkGraphRepository {
     );
     if (!found) throw workItemNotFound(workItemId);
     return found;
+  }
+
+  async resolveWorkItemContext(
+    workItemId: string,
+  ): Promise<readonly ResolvedWorkItemContext[]> {
+    requireIdentifier(workItemId, "invalid_work_item_id");
+    return this.db.transaction(
+      async (transaction) => {
+        const graph = await this.loadGraph(transaction);
+        return resolveDomainWorkItemContext(
+          graph,
+          workItemId,
+          await this.loadKnowledgeScopes(transaction),
+        );
+      },
+      { isolationLevel: "repeatable read", accessMode: "read only" },
+    );
+  }
+
+  async putWorkItemContext(
+    input: WorkItemContext,
+    options: IdempotentMutationOptions = {},
+  ): Promise<WorkItemContext> {
+    if (options.idempotencyKey !== undefined) {
+      requireIdempotencyKey(options.idempotencyKey);
+    }
+    return this.db.transaction(async (transaction) => {
+      await this.lockEventSequence(transaction);
+      const item = await this.requireGraphWorkItem(transaction, input.workItemId);
+      const [normalized] = normalizeAndValidateContextRecords(
+        { contexts: [input], architectureDecisions: [], references: [] },
+        new Map([[item.id, item]]),
+      ).contexts;
+      if (!normalized) throw new Error("Context validation returned no record.");
+      if (options.idempotencyKey !== undefined) {
+        const replayed = await this.beginIdempotentMutation(
+          transaction,
+          options.idempotencyKey,
+          "put-work-item-context",
+          JSON.stringify(normalized),
+        );
+        if (replayed) {
+          const [stored] = await transaction
+            .select({
+              workItemId: workItemContext.workItemId,
+              kind: workItemContext.kind,
+              content: workItemContext.content,
+            })
+            .from(workItemContext)
+            .where(
+              and(
+                eq(workItemContext.workItemId, normalized.workItemId),
+                eq(workItemContext.kind, normalized.kind),
+              ),
+            )
+            .limit(1);
+          if (!stored) throw workItemNotFound(normalized.workItemId);
+          return stored;
+        }
+      }
+      const [stored] = await transaction
+        .insert(workItemContext)
+        .values(normalized)
+        .onConflictDoUpdate({
+          target: [workItemContext.workItemId, workItemContext.kind],
+          set: { content: normalized.content },
+        })
+        .returning({
+          workItemId: workItemContext.workItemId,
+          kind: workItemContext.kind,
+          content: workItemContext.content,
+        });
+      if (!stored) throw new Error("Context upsert returned no row.");
+      await this.appendEvent(transaction, {
+        type: "context.put",
+        workItemId: stored.workItemId,
+        data: { kind: stored.kind, content: stored.content },
+      });
+      return stored;
+    });
+  }
+
+  async putWorkItemArchitectureDecision(
+    input: WorkItemArchitectureDecision,
+    options: IdempotentMutationOptions = {},
+  ): Promise<WorkItemArchitectureDecision> {
+    if (options.idempotencyKey !== undefined) {
+      requireIdempotencyKey(options.idempotencyKey);
+    }
+    return this.db.transaction(async (transaction) => {
+      await this.lockEventSequence(transaction);
+      const item = await this.requireGraphWorkItem(transaction, input.workItemId);
+      const [normalized] = normalizeAndValidateContextRecords(
+        { contexts: [], architectureDecisions: [input], references: [] },
+        new Map([[item.id, item]]),
+      ).architectureDecisions;
+      if (!normalized) throw new Error("ADR validation returned no record.");
+      if (options.idempotencyKey !== undefined) {
+        const replayed = await this.beginIdempotentMutation(
+          transaction,
+          options.idempotencyKey,
+          "put-work-item-architecture-decision",
+          JSON.stringify(normalized),
+        );
+        if (replayed) {
+          const [stored] = await transaction
+            .select({
+              workItemId: workItemArchitectureDecision.workItemId,
+              title: workItemArchitectureDecision.title,
+              url: workItemArchitectureDecision.url,
+              role: workItemArchitectureDecision.role,
+            })
+            .from(workItemArchitectureDecision)
+            .where(
+              and(
+                eq(
+                  workItemArchitectureDecision.workItemId,
+                  normalized.workItemId,
+                ),
+                eq(workItemArchitectureDecision.url, normalized.url),
+              ),
+            )
+            .limit(1);
+          if (!stored) throw workItemNotFound(normalized.workItemId);
+          return stored;
+        }
+      }
+      const [stored] = await transaction
+        .insert(workItemArchitectureDecision)
+        .values(normalized)
+        .onConflictDoUpdate({
+          target: [
+            workItemArchitectureDecision.workItemId,
+            workItemArchitectureDecision.url,
+          ],
+          set: { title: normalized.title, role: normalized.role },
+        })
+        .returning({
+          workItemId: workItemArchitectureDecision.workItemId,
+          title: workItemArchitectureDecision.title,
+          url: workItemArchitectureDecision.url,
+          role: workItemArchitectureDecision.role,
+        });
+      if (!stored) throw new Error("ADR upsert returned no row.");
+      await this.appendEvent(transaction, {
+        type: "context.put",
+        workItemId: stored.workItemId,
+        data: {
+          kind: "architecture_decision",
+          title: stored.title,
+          url: stored.url,
+          role: stored.role,
+        },
+      });
+      return stored;
+    });
+  }
+
+  async putWorkItemReference(
+    input: WorkItemReference,
+    options: IdempotentMutationOptions = {},
+  ): Promise<WorkItemReference> {
+    if (options.idempotencyKey !== undefined) {
+      requireIdempotencyKey(options.idempotencyKey);
+    }
+    return this.db.transaction(async (transaction) => {
+      await this.lockEventSequence(transaction);
+      const item = await this.requireGraphWorkItem(transaction, input.workItemId);
+      const [normalized] = normalizeAndValidateContextRecords(
+        { contexts: [], architectureDecisions: [], references: [input] },
+        new Map([[item.id, item]]),
+      ).references;
+      if (!normalized) throw new Error("Reference validation returned no record.");
+      if (options.idempotencyKey !== undefined) {
+        const replayed = await this.beginIdempotentMutation(
+          transaction,
+          options.idempotencyKey,
+          "put-work-item-reference",
+          JSON.stringify(normalized),
+        );
+        if (replayed) {
+          const [stored] = await transaction
+            .select({
+              workItemId: workItemReference.workItemId,
+              title: workItemReference.title,
+              url: workItemReference.url,
+            })
+            .from(workItemReference)
+            .where(
+              and(
+                eq(workItemReference.workItemId, normalized.workItemId),
+                eq(workItemReference.url, normalized.url),
+              ),
+            )
+            .limit(1);
+          if (!stored) throw workItemNotFound(normalized.workItemId);
+          return stored;
+        }
+      }
+      const [stored] = await transaction
+        .insert(workItemReference)
+        .values(normalized)
+        .onConflictDoUpdate({
+          target: [workItemReference.workItemId, workItemReference.url],
+          set: { title: normalized.title },
+        })
+        .returning({
+          workItemId: workItemReference.workItemId,
+          title: workItemReference.title,
+          url: workItemReference.url,
+        });
+      if (!stored) throw new Error("Reference upsert returned no row.");
+      await this.appendEvent(transaction, {
+        type: "reference.put",
+        workItemId: stored.workItemId,
+        data: { title: stored.title, url: stored.url },
+      });
+      return stored;
+    });
   }
 
   async createWorkItem(
@@ -3254,7 +3484,42 @@ export class WorkGraphRepository {
         workItemDependency.blockerWorkItemId,
       );
 
-    return createWorkGraph({ workItems, dependencies });
+    const contexts = await transaction
+      .select({
+        workItemId: workItemContext.workItemId,
+        kind: workItemContext.kind,
+        content: workItemContext.content,
+      })
+      .from(workItemContext)
+      .orderBy(workItemContext.workItemId, workItemContext.kind);
+    const architectureDecisions = await transaction
+      .select({
+        workItemId: workItemArchitectureDecision.workItemId,
+        title: workItemArchitectureDecision.title,
+        url: workItemArchitectureDecision.url,
+        role: workItemArchitectureDecision.role,
+      })
+      .from(workItemArchitectureDecision)
+      .orderBy(
+        workItemArchitectureDecision.workItemId,
+        workItemArchitectureDecision.url,
+      );
+    const references = await transaction
+      .select({
+        workItemId: workItemReference.workItemId,
+        title: workItemReference.title,
+        url: workItemReference.url,
+      })
+      .from(workItemReference)
+      .orderBy(workItemReference.workItemId, workItemReference.url);
+
+    return createWorkGraph({
+      workItems,
+      dependencies,
+      contexts,
+      architectureDecisions,
+      references,
+    });
   }
 
   private async requireGraphWorkItem(

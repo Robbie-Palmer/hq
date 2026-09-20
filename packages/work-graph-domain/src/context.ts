@@ -1,3 +1,4 @@
+import { compareStrings, isNonBlankString } from "ts-base/strings";
 import { WorkGraphError } from "./errors";
 import type {
   KnowledgeScope,
@@ -13,15 +14,6 @@ import {
   type ArchitectureDecisionRole,
   type WorkItemContextKind,
 } from "./vocabulary";
-
-const isNonBlank = (value: unknown): value is string =>
-  typeof value === "string" && value.trim().length > 0;
-
-const compareText = (left: string, right: string): number => {
-  if (left < right) return -1;
-  if (left > right) return 1;
-  return 0;
-};
 
 const normalizeUrl = (value: unknown, label: string): string => {
   if (typeof value !== "string") {
@@ -79,7 +71,7 @@ const normalizeContexts = (
         `Work item ${context.workItemId} has an invalid context kind.`,
       );
     }
-    if (!isNonBlank(context.content)) {
+    if (!isNonBlankString(context.content)) {
       throw new WorkGraphError(
         "invalid_context_content",
         `Work item ${context.workItemId} has empty ${context.kind} context.`,
@@ -104,7 +96,7 @@ const normalizeArchitectureDecisions = (
   const identities = new Set<string>();
   return decisions.map((decision) => {
     requireWorkItem(workItemsById, decision.workItemId);
-    if (!isNonBlank(decision.title)) {
+    if (!isNonBlankString(decision.title)) {
       throw new WorkGraphError(
         "invalid_architecture_decision_title",
         `Work item ${decision.workItemId} has an architecture decision without a title.`,
@@ -143,7 +135,7 @@ const normalizeReferences = (
   const identities = new Set<string>();
   return references.map((reference) => {
     requireWorkItem(workItemsById, reference.workItemId);
-    if (!isNonBlank(reference.title)) {
+    if (!isNonBlankString(reference.title)) {
       throw new WorkGraphError(
         "invalid_reference_title",
         `Work item ${reference.workItemId} has a reference without a title.`,
@@ -280,7 +272,7 @@ const resolveArchitectureDecisions = (
       .sort(
         (left, right) =>
           roleOrder(left.role) - roleOrder(right.role) ||
-          compareText(left.url, right.url),
+          compareStrings(left.url, right.url),
       );
     for (const decision of decisions) {
       if (seenUrls.has(decision.url)) continue;
@@ -340,7 +332,7 @@ const resolveReferences = (
   for (const [inheritanceDepth, item] of lineage.entries()) {
     const references = graph.references
       .filter((reference) => reference.workItemId === item.id)
-      .sort((left, right) => compareText(left.url, right.url));
+      .sort((left, right) => compareStrings(left.url, right.url));
     for (const reference of references) {
       if (seenUrls.has(reference.url)) continue;
       seenUrls.add(reference.url);

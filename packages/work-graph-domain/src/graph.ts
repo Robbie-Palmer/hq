@@ -1,3 +1,4 @@
+import { isNonBlankString } from "ts-base/strings";
 import { WorkGraphError } from "./errors";
 import type {
   WorkGraph,
@@ -17,9 +18,6 @@ import { normalizeAndValidateContextRecords } from "./context";
 const isWorkItemLifecycle = (value: unknown): value is WorkItemLifecycle =>
   WORK_ITEM_LIFECYCLES.some((lifecycle) => lifecycle === value);
 
-const validateWorkItemId = (value: unknown): value is string =>
-  typeof value === "string" && value.trim().length > 0;
-
 const validatePriorityFields = (workItem: WorkItem): void => {
   if (
     workItem.priorityRank !== null &&
@@ -34,9 +32,9 @@ const validatePriorityFields = (workItem: WorkItem): void => {
   }
   if (
     (workItem.schedulingInitiativeId !== null &&
-      !validateWorkItemId(workItem.schedulingInitiativeId)) ||
+      !isNonBlankString(workItem.schedulingInitiativeId)) ||
     (workItem.schedulingProjectId !== null &&
-      !validateWorkItemId(workItem.schedulingProjectId))
+      !isNonBlankString(workItem.schedulingProjectId))
   ) {
     throw new WorkGraphError(
       "invalid_scheduling_scope",
@@ -59,8 +57,7 @@ const validatePriorityFields = (workItem: WorkItem): void => {
 const validateExpediteFields = (workItem: WorkItem): void => {
   if (
     workItem.expediteReason !== null &&
-    (typeof workItem.expediteReason !== "string" ||
-      workItem.expediteReason.trim().length === 0)
+    !isNonBlankString(workItem.expediteReason)
   ) {
     throw new WorkGraphError(
       "invalid_expedite_reason",
@@ -76,13 +73,13 @@ const validateExpediteFields = (workItem: WorkItem): void => {
 };
 
 const validateWorkItemFields = (workItem: WorkItem): void => {
-  if (!validateWorkItemId(workItem.id)) {
+  if (!isNonBlankString(workItem.id)) {
     throw new WorkGraphError(
       "invalid_work_item_id",
       "A work item ID cannot be empty.",
     );
   }
-  if (typeof workItem.title !== "string" || workItem.title.trim().length === 0) {
+  if (!isNonBlankString(workItem.title)) {
     throw new WorkGraphError(
       "invalid_work_item_title",
       `Work item ${workItem.id} must have a title.`,
@@ -94,7 +91,7 @@ const validateWorkItemFields = (workItem: WorkItem): void => {
       `Work item ${workItem.id} has an invalid lifecycle.`,
     );
   }
-  if (workItem.parentId !== null && !validateWorkItemId(workItem.parentId)) {
+  if (workItem.parentId !== null && !isNonBlankString(workItem.parentId)) {
     throw new WorkGraphError(
       "invalid_parent_id",
       `Work item ${workItem.id} has an invalid parent ID.`,
@@ -117,14 +114,14 @@ const validateWorkItemFields = (workItem: WorkItem): void => {
 };
 
 const normalizeWorkItem = (input: WorkItemInput): WorkItem => {
-  if (!validateWorkItemId(input.id)) {
+  if (!isNonBlankString(input.id)) {
     throw new WorkGraphError(
       "invalid_work_item_id",
       "A work item ID cannot be empty.",
     );
   }
 
-  if (typeof input.title !== "string" || input.title.trim().length === 0) {
+  if (!isNonBlankString(input.title)) {
     throw new WorkGraphError(
       "invalid_work_item_title",
       `Work item ${input.id} must have a title.`,
@@ -140,7 +137,7 @@ const normalizeWorkItem = (input: WorkItemInput): WorkItem => {
   }
 
   const parentId = input.parentId ?? null;
-  if (parentId !== null && !validateWorkItemId(parentId)) {
+  if (parentId !== null && !isNonBlankString(parentId)) {
     throw new WorkGraphError(
       "invalid_parent_id",
       `Work item ${input.id} has an invalid parent ID.`,

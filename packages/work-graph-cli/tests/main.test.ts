@@ -285,6 +285,81 @@ describe("Given agent-facing Work Graph commands", () => {
     expect(test.stderr).toEqual([]);
   });
 
+  it("writes and reads typed work-item context", async () => {
+    const brief = harness();
+    const decision = harness();
+    const reference = harness();
+    const show = harness(() => response({ items: [] }));
+
+    await brief.run([
+      "context",
+      "put",
+      "work/a b",
+      "--kind",
+      "brief",
+      "--content",
+      "Implement ordered context.",
+      "--idempotency-key",
+      UUID,
+    ]);
+    await decision.run([
+      "context",
+      "adr",
+      "work/a b",
+      "--title",
+      "Context ordering",
+      "--url",
+      "https://example.test/adrs/context-ordering",
+      "--role",
+      "governing",
+    ]);
+    await reference.run([
+      "reference",
+      "put",
+      "work/a b",
+      "--title",
+      "Design notes",
+      "--url",
+      "https://example.test/design-notes",
+    ]);
+    await show.run(["context", "show", "work/a b"]);
+
+    expect(brief.requests[0]).toMatchObject({
+      method: "PUT",
+      body: { kind: "brief", content: "Implement ordered context." },
+    });
+    expect(brief.requests[0]?.headers.get("Idempotency-Key")).toBe(UUID);
+    expect(decision.requests[0]).toMatchObject({
+      method: "PUT",
+      body: {
+        kind: "architecture_decision",
+        title: "Context ordering",
+        url: "https://example.test/adrs/context-ordering",
+        role: "governing",
+      },
+    });
+    expect(reference.requests[0]).toMatchObject({
+      method: "PUT",
+      body: {
+        title: "Design notes",
+        url: "https://example.test/design-notes",
+      },
+    });
+    expect(brief.requests[0]?.url.pathname).toBe(
+      "/root/api/work-items/work%2Fa%20b/contexts",
+    );
+    expect(decision.requests[0]?.url.pathname).toBe(
+      "/root/api/work-items/work%2Fa%20b/contexts",
+    );
+    expect(reference.requests[0]?.url.pathname).toBe(
+      "/root/api/work-items/work%2Fa%20b/references",
+    );
+    expect(show.requests[0]).toMatchObject({ method: "GET" });
+    expect(show.requests[0]?.url.pathname).toBe(
+      "/root/api/work-items/work%2Fa%20b/contexts",
+    );
+  });
+
   it("moves contextual priority and manages an expedite", async () => {
     const ticketMove = harness();
     const scopeMove = harness();
@@ -469,7 +544,18 @@ describe("Given agent-facing Work Graph commands", () => {
   });
 
   it("claims the next item or a specified item", async () => {
-    const next = harness();
+    const next = harness(() =>
+      response({
+        context: [
+          {
+            kind: "brief",
+            content: "Start here.",
+            sourceWorkItemId: "item-1",
+            inheritanceDepth: 0,
+          },
+        ],
+      }),
+    );
     const specified = harness();
     const codex = harness(undefined, {
       WORK_GRAPH_API_URL: API_URL,
@@ -497,6 +583,16 @@ describe("Given agent-facing Work Graph commands", () => {
     expect(codex.requests[0]?.body).toEqual({
       workerId: "codex:thread-123",
       leaseDurationSeconds: 900,
+    });
+    expect(JSON.parse(next.stdout[0] ?? "null")).toEqual({
+      context: [
+        {
+          kind: "brief",
+          content: "Start here.",
+          sourceWorkItemId: "item-1",
+          inheritanceDepth: 0,
+        },
+      ],
     });
   });
 

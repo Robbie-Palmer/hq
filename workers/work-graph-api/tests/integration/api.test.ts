@@ -66,6 +66,9 @@ beforeEach(async () => {
   await db.transaction(async (transaction) => {
     await transaction.delete(schema.lease);
     await transaction.delete(schema.idempotencyKey);
+    await transaction.delete(schema.workItemArchitectureDecision);
+    await transaction.delete(schema.workItemContext);
+    await transaction.delete(schema.workItemReference);
     await transaction.delete(schema.knowledgeScopeRelationship);
     await transaction.delete(schema.workItemPriorityContext);
     await transaction.delete(schema.knowledgeScope);
@@ -154,6 +157,72 @@ describe("Given knowledge scopes mirrored over HTTP", () => {
         error: expect.objectContaining({ code: "knowledge_scope_cycle" }),
       }),
     );
+  });
+});
+
+describe("Given inherited work-item context over HTTP", () => {
+  it("returns the same stable context package from reads and claims", async () => {
+    await requestJson("/api/work-items", "POST", {
+      id: "parent",
+      title: "Parent",
+    });
+    await requestJson("/api/work-items", "POST", {
+      id: "child",
+      title: "Child",
+      parentId: "parent",
+    });
+    await requestJson(
+      "/api/work-items/parent/contexts",
+      "PUT",
+      {
+        kind: "acceptance_criteria",
+        content: "The claim context is stable.",
+      },
+      recordId(451),
+    );
+    await requestJson("/api/work-items/child/contexts", "PUT", {
+      kind: "brief",
+      content: "Implement context delivery.",
+    });
+    await requestJson("/api/work-items/parent/contexts", "PUT", {
+      kind: "architecture_decision",
+      title: "Context ordering",
+      url: "https://example.test/adrs/context-ordering",
+      role: "governing",
+    });
+    await requestJson("/api/work-items/child/references", "PUT", {
+      title: "Design notes",
+      url: "https://example.test/context-design",
+    });
+
+    const contextResponse = await app.request(
+      "/api/work-items/child/contexts",
+    );
+    const context = (await contextResponse.json()) as { items: unknown[] };
+    const claimResponse = await requestJson("/api/leases", "POST", {
+      workItemId: "child",
+      workerId: "worker-a",
+      leaseDurationSeconds: 300,
+    });
+    const claim = (await claimResponse.json()) as { context: unknown[] };
+
+    expect(contextResponse.status).toBe(200);
+    expect(claimResponse.status).toBe(201);
+    expect(
+      context.items.map((record) => {
+        const typed = record as {
+          kind: string;
+          sourceWorkItemId: string;
+        };
+        return `${typed.kind}:${typed.sourceWorkItemId}`;
+      }),
+    ).toEqual([
+      "brief:child",
+      "acceptance_criteria:parent",
+      "architecture_decision:parent",
+      "reference:child",
+    ]);
+    expect(claim.context).toEqual(context.items);
   });
 });
 

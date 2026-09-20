@@ -37,17 +37,23 @@ import type {
 } from "work-graph-db";
 import { WORK_GRAPH_EVENT_TYPES } from "work-graph-db";
 import {
+  ARCHITECTURE_DECISION_ROLES,
   KNOWLEDGE_SCOPE_KINDS,
   LEASE_OUTCOMES,
   WORK_ITEM_LIFECYCLES,
+  WORK_ITEM_CONTEXT_KINDS,
   WORK_STAGES,
   WorkGraphError,
   type KnowledgeScope,
   type KnowledgeScopeInput,
   type KnowledgeScopeRelationship,
   type NewWorkItemInput,
+  type ResolvedWorkItemContext,
   type WorkItem,
+  type WorkItemArchitectureDecision,
+  type WorkItemContext,
   type WorkItemDependency,
+  type WorkItemReference,
 } from "work-graph-domain";
 import { z } from "zod";
 
@@ -66,10 +72,12 @@ const WORK_ITEM_EVENT_TYPES = [
   "attention.resolved",
   "dependency.added",
   "dependency.removed",
+  "context.put",
   "lease.claimed",
   "lease.ended",
   "lease.renewed",
   "note.created",
+  "reference.put",
   "work_item.created",
   "work_item.decomposed",
   "work_item.expedited",
@@ -191,6 +199,71 @@ const knowledgeScopeSchema = z
     rank: z.union([childRankSchema, z.null()]),
   })
   .openapi("KnowledgeScope");
+const contextUrlSchema = z
+  .url()
+  .max(MAX_URL_LENGTH)
+  .regex(CREDENTIAL_FREE_HTTP_URL_PATTERN)
+  .openapi({ format: "uri" });
+const inheritanceDepthSchema = z
+  .number()
+  .int()
+  .min(0)
+  .max(MAX_INT32)
+  .openapi({ format: "int32" });
+const workItemTextContextSchema = z.object({
+  workItemId: identifierSchema,
+  kind: z.enum(WORK_ITEM_CONTEXT_KINDS),
+  content: z.string().trim().min(1).max(MAX_TITLE_LENGTH),
+});
+const workItemArchitectureDecisionSchema = z.object({
+  workItemId: identifierSchema,
+  kind: z.literal("architecture_decision"),
+  title: z.string().trim().min(1).max(MAX_TITLE_LENGTH),
+  url: contextUrlSchema,
+  role: z.enum(ARCHITECTURE_DECISION_ROLES),
+});
+const workItemContextRecordSchema = z
+  .union([workItemTextContextSchema, workItemArchitectureDecisionSchema])
+  .openapi("WorkItemContextRecord");
+const resolvedWorkItemContextSchema = z
+  .union([
+    workItemTextContextSchema
+      .omit({ workItemId: true })
+      .extend({
+        sourceWorkItemId: identifierSchema,
+        inheritanceDepth: inheritanceDepthSchema,
+      }),
+    workItemArchitectureDecisionSchema
+      .omit({ workItemId: true })
+      .extend({
+        sourceWorkItemId: identifierSchema,
+        inheritanceDepth: inheritanceDepthSchema,
+      }),
+    z.object({
+      kind: z.enum(["project", "initiative"]),
+      scope: knowledgeScopeSchema,
+      sourceWorkItemId: identifierSchema,
+      inheritanceDepth: inheritanceDepthSchema,
+    }),
+    z.object({
+      kind: z.literal("reference"),
+      title: z.string().trim().min(1).max(MAX_TITLE_LENGTH),
+      url: contextUrlSchema,
+      sourceWorkItemId: identifierSchema,
+      inheritanceDepth: inheritanceDepthSchema,
+    }),
+  ])
+  .openapi("ResolvedWorkItemContext");
+const resolvedWorkItemContextListSchema = z
+  .object({ items: z.array(resolvedWorkItemContextSchema).max(1_000) })
+  .openapi("ResolvedWorkItemContextList");
+const workItemReferenceSchema = z
+  .object({
+    workItemId: identifierSchema,
+    title: z.string().trim().min(1).max(MAX_TITLE_LENGTH),
+    url: contextUrlSchema,
+  })
+  .openapi("WorkItemReference");
 const knowledgeScopeListSchema = z
   .object({
     items: z.array(knowledgeScopeSchema).max(100),
@@ -324,6 +397,9 @@ const attentionResolutionResponseSchema = z
 const leaseWithWorkItemSchema = z
   .object({ lease: leaseSchema, workItem: workItemSchema })
   .openapi("LeaseWithWorkItem");
+const claimResponseSchema = leaseWithWorkItemSchema
+  .extend({ context: z.array(resolvedWorkItemContextSchema).max(1_000) })
+  .openapi("ClaimResponse");
 const leaseResponseSchema = z
   .object({ lease: leaseSchema })
   .openapi("LeaseResponse");
@@ -442,6 +518,13 @@ const createWorkItemBodySchema = z
       .optional(),
     schedulingProjectId: z.union([identifierSchema, z.null()]).optional(),
   })
+  .strict();
+const putWorkItemContextBodySchema = z.union([
+  workItemTextContextSchema.omit({ workItemId: true }).strict(),
+  workItemArchitectureDecisionSchema.omit({ workItemId: true }).strict(),
+]);
+const putWorkItemReferenceBodySchema = workItemReferenceSchema
+  .omit({ workItemId: true })
   .strict();
 const putKnowledgeScopeBodySchema = knowledgeScopeSchema
   .omit({ id: true, rank: true })
@@ -908,6 +991,79 @@ const unexpediteWorkItemRoute = createRoute({
   },
 });
 
+const listWorkItemContextsRoute = createRoute({
+  method: "get",
+  path: "/api/work-items/{workItemId}/contexts",
+  operationId: "listWorkItemContexts",
+  summary: "Resolve context for a work item",
+  description:
+    "Returns the work item's own and inherited context in deterministic claim order, with source and inheritance depth retained.",
+  tags: ["work-items"],
+  security: accessSecurity,
+  request: { params: workItemParamsSchema },
+  responses: {
+    200: {
+      description: "Resolved context in claim order",
+      content: {
+        "application/json": { schema: resolvedWorkItemContextListSchema },
+      },
+    },
+    ...standardErrors,
+  },
+});
+
+const putWorkItemContextRoute = createRoute({
+  method: "put",
+  path: "/api/work-items/{workItemId}/contexts",
+  operationId: "putWorkItemContext",
+  summary: "Create or replace typed work-item context",
+  description:
+    "Upserts a brief or acceptance criteria by kind, or an architecture decision by URL. Context never changes scheduling eligibility.",
+  tags: ["work-items"],
+  security: accessSecurity,
+  request: {
+    params: workItemParamsSchema,
+    headers: idempotencyHeadersSchema,
+    body: {
+      required: true,
+      content: { "application/json": { schema: putWorkItemContextBodySchema } },
+    },
+  },
+  responses: {
+    200: {
+      description: "Context created, replaced, or replayed",
+      content: { "application/json": { schema: workItemContextRecordSchema } },
+    },
+    ...standardErrors,
+  },
+});
+
+const putWorkItemReferenceRoute = createRoute({
+  method: "put",
+  path: "/api/work-items/{workItemId}/references",
+  operationId: "putWorkItemReference",
+  summary: "Create or replace a supplemental reference",
+  description:
+    "Upserts a supplemental reference by URL. References provide worker context and never affect scheduling eligibility.",
+  tags: ["work-items"],
+  security: accessSecurity,
+  request: {
+    params: workItemParamsSchema,
+    headers: idempotencyHeadersSchema,
+    body: {
+      required: true,
+      content: { "application/json": { schema: putWorkItemReferenceBodySchema } },
+    },
+  },
+  responses: {
+    200: {
+      description: "Reference created, replaced, or replayed",
+      content: { "application/json": { schema: workItemReferenceSchema } },
+    },
+    ...standardErrors,
+  },
+});
+
 const createDependencyRoute = createRoute({
   method: "post",
   path: "/api/dependencies",
@@ -1196,7 +1352,7 @@ const createLeaseRoute = createRoute({
   responses: {
     201: {
       description: "Lease created and work item claimed",
-      content: { "application/json": { schema: leaseWithWorkItemSchema } },
+      content: { "application/json": { schema: claimResponseSchema } },
     },
     ...standardErrors,
   },
@@ -1334,6 +1490,9 @@ export interface WorkGraphApiRepository {
   ): Promise<void>;
   listWorkItems(): Promise<readonly WorkItemReadModel[]>;
   getWorkItem(workItemId: string): Promise<WorkItemReadModel>;
+  resolveWorkItemContext(
+    workItemId: string,
+  ): Promise<readonly ResolvedWorkItemContext[]>;
   listNotes(input: ListWorkItemNotesInput): Promise<readonly StoredNote[]>;
   listEvents(input?: ListEventsInput): Promise<readonly StoredEvent[]>;
   listDependencies(
@@ -1349,6 +1508,18 @@ export interface WorkGraphApiRepository {
     input: NewWorkItemInput,
     options?: IdempotentMutationOptions,
   ): Promise<WorkItem>;
+  putWorkItemContext(
+    input: WorkItemContext,
+    options?: IdempotentMutationOptions,
+  ): Promise<WorkItemContext>;
+  putWorkItemArchitectureDecision(
+    input: WorkItemArchitectureDecision,
+    options?: IdempotentMutationOptions,
+  ): Promise<WorkItemArchitectureDecision>;
+  putWorkItemReference(
+    input: WorkItemReference,
+    options?: IdempotentMutationOptions,
+  ): Promise<WorkItemReference>;
   moveWorkItemPriority(
     workItemId: string,
     input: PriorityMoveInput,
@@ -1745,6 +1916,55 @@ export const createWorkGraphApp = (
     );
   });
 
+  app.openapi(listWorkItemContextsRoute, async (context) => {
+    const { workItemId } = context.req.valid("param");
+    return context.json(
+      { items: [...(await repository.resolveWorkItemContext(workItemId))] },
+      200,
+    );
+  });
+
+  app.openapi(putWorkItemContextRoute, async (context) => {
+    const { workItemId } = context.req.valid("param");
+    const request = context.req.valid("json");
+    const options = idempotencyOptions(
+      context.req.valid("header")["idempotency-key"],
+    );
+    if (request.kind === "architecture_decision") {
+      const stored = await repository.putWorkItemArchitectureDecision(
+        {
+          workItemId,
+          title: request.title,
+          url: request.url,
+          role: request.role,
+        },
+        options,
+      );
+      return context.json(
+        { kind: "architecture_decision" as const, ...stored },
+        200,
+      );
+    }
+    return context.json(
+      await repository.putWorkItemContext({ workItemId, ...request }, options),
+      200,
+    );
+  });
+
+  app.openapi(putWorkItemReferenceRoute, async (context) => {
+    const { workItemId } = context.req.valid("param");
+    const request = context.req.valid("json");
+    return context.json(
+      await repository.putWorkItemReference(
+        { workItemId, ...request },
+        idempotencyOptions(
+          context.req.valid("header")["idempotency-key"],
+        ),
+      ),
+      200,
+    );
+  });
+
   app.openapi(createWorkItemRoute, async (context) => {
     const request = context.req.valid("json");
     const headers = context.req.valid("header");
@@ -2016,7 +2236,13 @@ export const createWorkGraphApp = (
     }
     const item = await repository.getWorkItem(claimed.workItemId);
     return context.json(
-      { lease: serializeLease(claimed), workItem: serializeWorkItem(item) },
+      {
+        lease: serializeLease(claimed),
+        workItem: serializeWorkItem(item),
+        context: [
+          ...(await repository.resolveWorkItemContext(claimed.workItemId)),
+        ],
+      },
       201,
     );
   });

@@ -79,6 +79,53 @@ export type KnowledgeScopeRelationship = {
     childKnowledgeScopeId: string;
 };
 
+export type ResolvedWorkItemContextList = {
+    items: Array<ResolvedWorkItemContext>;
+};
+
+export type ResolvedWorkItemContext = {
+    kind: 'brief' | 'acceptance_criteria';
+    content: string;
+    sourceWorkItemId: string;
+    inheritanceDepth: number;
+} | {
+    kind: 'architecture_decision';
+    title: string;
+    url: string;
+    role: 'governing' | 'background';
+    sourceWorkItemId: string;
+    inheritanceDepth: number;
+} | {
+    kind: 'project' | 'initiative';
+    scope: KnowledgeScope;
+    sourceWorkItemId: string;
+    inheritanceDepth: number;
+} | {
+    kind: 'reference';
+    title: string;
+    url: string;
+    sourceWorkItemId: string;
+    inheritanceDepth: number;
+};
+
+export type WorkItemContextRecord = {
+    workItemId: string;
+    kind: 'brief' | 'acceptance_criteria';
+    content: string;
+} | {
+    workItemId: string;
+    kind: 'architecture_decision';
+    title: string;
+    url: string;
+    role: 'governing' | 'background';
+};
+
+export type WorkItemReference = {
+    workItemId: string;
+    title: string;
+    url: string;
+};
+
 export type WorkItemDependency = {
     dependentWorkItemId: string;
     blockerWorkItemId: string;
@@ -106,7 +153,7 @@ export type WorkItemEventList = {
 
 export type WorkItemEvent = {
     sequence: number;
-    type: 'attention.requested' | 'attention.resolved' | 'dependency.added' | 'dependency.removed' | 'lease.claimed' | 'lease.ended' | 'lease.renewed' | 'note.created' | 'work_item.created' | 'work_item.decomposed' | 'work_item.expedited' | 'work_item.priority_moved' | 'work_item.lifecycle_changed' | 'work_item.reparented' | 'work_item.unexpedited';
+    type: 'attention.requested' | 'attention.resolved' | 'dependency.added' | 'dependency.removed' | 'context.put' | 'lease.claimed' | 'lease.ended' | 'lease.renewed' | 'note.created' | 'reference.put' | 'work_item.created' | 'work_item.decomposed' | 'work_item.expedited' | 'work_item.priority_moved' | 'work_item.lifecycle_changed' | 'work_item.reparented' | 'work_item.unexpedited';
     workItemId: string | null;
     data: {
         [key: string]: unknown;
@@ -160,6 +207,10 @@ export type AttentionRequestResponse = {
 export type AttentionResolutionResponse = {
     resolution: AttentionResolution;
     workItem: WorkItem;
+};
+
+export type ClaimResponse = LeaseWithWorkItem & {
+    context: Array<ResolvedWorkItemContext>;
 };
 
 export type LeaseWithWorkItem = {
@@ -923,7 +974,7 @@ export type CreateLeaseResponses = {
     /**
      * Lease created and work item claimed
      */
-    201: LeaseWithWorkItem;
+    201: ClaimResponse;
 };
 
 export type CreateLeaseResponse = CreateLeaseResponses[keyof CreateLeaseResponses];
@@ -1262,6 +1313,122 @@ export type CreatePostReleaseWorkItemNoteResponses = {
 
 export type CreatePostReleaseWorkItemNoteResponse = CreatePostReleaseWorkItemNoteResponses[keyof CreatePostReleaseWorkItemNoteResponses];
 
+export type ListWorkItemContextsData = {
+    body?: never;
+    path: {
+        workItemId: string;
+    };
+    query?: never;
+    url: '/api/work-items/{workItemId}/contexts';
+};
+
+export type ListWorkItemContextsErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+};
+
+export type ListWorkItemContextsError = ListWorkItemContextsErrors[keyof ListWorkItemContextsErrors];
+
+export type ListWorkItemContextsResponses = {
+    /**
+     * Resolved context in claim order
+     */
+    200: ResolvedWorkItemContextList;
+};
+
+export type ListWorkItemContextsResponse = ListWorkItemContextsResponses[keyof ListWorkItemContextsResponses];
+
+export type PutWorkItemContextData = {
+    body: {
+        kind: 'brief' | 'acceptance_criteria';
+        content: string;
+    } | {
+        kind: 'architecture_decision';
+        title: string;
+        url: string;
+        role: 'governing' | 'background';
+    };
+    headers?: {
+        /**
+         * Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.
+         */
+        'idempotency-key'?: string;
+    };
+    path: {
+        workItemId: string;
+    };
+    query?: never;
+    url: '/api/work-items/{workItemId}/contexts';
+};
+
+export type PutWorkItemContextErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+};
+
+export type PutWorkItemContextError = PutWorkItemContextErrors[keyof PutWorkItemContextErrors];
+
+export type PutWorkItemContextResponses = {
+    /**
+     * Context created, replaced, or replayed
+     */
+    200: WorkItemContextRecord;
+};
+
+export type PutWorkItemContextResponse = PutWorkItemContextResponses[keyof PutWorkItemContextResponses];
+
 export type CreateWorkItemDecompositionData = {
     body: {
         leaseId: string;
@@ -1396,7 +1563,7 @@ export type ListWorkItemEventsData = {
         workItemId: string;
     };
     query?: {
-        type?: 'attention.requested' | 'attention.resolved' | 'dependency.added' | 'dependency.removed' | 'lease.claimed' | 'lease.ended' | 'lease.renewed' | 'note.created' | 'work_item.created' | 'work_item.decomposed' | 'work_item.expedited' | 'work_item.priority_moved' | 'work_item.lifecycle_changed' | 'work_item.reparented' | 'work_item.unexpedited';
+        type?: 'attention.requested' | 'attention.resolved' | 'dependency.added' | 'dependency.removed' | 'context.put' | 'lease.claimed' | 'lease.ended' | 'lease.renewed' | 'note.created' | 'reference.put' | 'work_item.created' | 'work_item.decomposed' | 'work_item.expedited' | 'work_item.priority_moved' | 'work_item.lifecycle_changed' | 'work_item.reparented' | 'work_item.unexpedited';
         lifecycle?: 'released' | 'cancelled';
         limit?: number;
         afterSequence?: number;
@@ -1794,6 +1961,66 @@ export type MoveWorkItemPriorityResponses = {
 };
 
 export type MoveWorkItemPriorityResponse = MoveWorkItemPriorityResponses[keyof MoveWorkItemPriorityResponses];
+
+export type PutWorkItemReferenceData = {
+    body: {
+        title: string;
+        url: string;
+    };
+    headers?: {
+        /**
+         * Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.
+         */
+        'idempotency-key'?: string;
+    };
+    path: {
+        workItemId: string;
+    };
+    query?: never;
+    url: '/api/work-items/{workItemId}/references';
+};
+
+export type PutWorkItemReferenceErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+};
+
+export type PutWorkItemReferenceError = PutWorkItemReferenceErrors[keyof PutWorkItemReferenceErrors];
+
+export type PutWorkItemReferenceResponses = {
+    /**
+     * Reference created, replaced, or replayed
+     */
+    200: WorkItemReference;
+};
+
+export type PutWorkItemReferenceResponse = PutWorkItemReferenceResponses[keyof PutWorkItemReferenceResponses];
 
 export type CreateWorkItemReleaseData = {
     body: {

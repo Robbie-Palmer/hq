@@ -1,3 +1,4 @@
+import { isNonBlankString } from "ts-base/strings";
 import { WorkGraphError } from "./errors";
 import type {
   KnowledgeScope,
@@ -10,9 +11,6 @@ import {
 } from "./vocabulary";
 
 const MAX_INT32 = 2_147_483_647;
-
-const isIdentifier = (value: unknown): value is string =>
-  typeof value === "string" && value.trim().length > 0;
 
 const isKnowledgeScopeKind = (value: unknown): value is KnowledgeScopeKind =>
   typeof value === "string" &&
@@ -51,7 +49,7 @@ const requireHttpUrl = (value: unknown, field: string): string => {
 export const createKnowledgeScope = (
   input: KnowledgeScopeInput,
 ): KnowledgeScope => {
-  if (!isIdentifier(input.id)) {
+  if (!isNonBlankString(input.id)) {
     throw new WorkGraphError(
       "invalid_knowledge_scope_id",
       "A knowledge scope ID cannot be empty.",
@@ -63,7 +61,7 @@ export const createKnowledgeScope = (
       `Knowledge scope ${input.id} has an invalid kind.`,
     );
   }
-  if (typeof input.title !== "string" || input.title.trim().length === 0) {
+  if (!isNonBlankString(input.title)) {
     throw new WorkGraphError(
       "invalid_knowledge_scope_title",
       `Knowledge scope ${input.id} must have a title.`,
@@ -72,8 +70,7 @@ export const createKnowledgeScope = (
   if (
     input.sourceRevision !== undefined &&
     input.sourceRevision !== null &&
-    (typeof input.sourceRevision !== "string" ||
-      input.sourceRevision.trim().length === 0)
+    !isNonBlankString(input.sourceRevision)
   ) {
     throw new WorkGraphError(
       "invalid_knowledge_scope_source_revision",
@@ -120,7 +117,7 @@ const indexKnowledgeScopeRelationships = (
     const { childKnowledgeScopeId: childId, parentKnowledgeScopeId: parentId } =
       relationship;
     for (const id of [parentId, childId]) {
-      if (!isIdentifier(id) || !knowledgeScopeIds.has(id)) {
+      if (!isNonBlankString(id) || !knowledgeScopeIds.has(id)) {
         throw new WorkGraphError(
           "knowledge_scope_not_found",
           `Knowledge scope ${id} does not exist.`,

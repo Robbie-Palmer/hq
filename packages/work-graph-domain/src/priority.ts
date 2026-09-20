@@ -1,3 +1,4 @@
+import { compareStrings } from "ts-base/strings";
 import { getAncestors, getUnsatisfiedDependencies } from "./graph";
 import type { KnowledgeScope, WorkGraph, WorkItem } from "./model";
 
@@ -35,12 +36,6 @@ export interface WorkItemPriorityProjection {
   readonly ticketRank: number;
 }
 
-const compareText = (left: string, right: string): number => {
-  if (left < right) return -1;
-  if (left > right) return 1;
-  return 0;
-};
-
 const comparePathSegment = (
   left: PriorityPathSegment,
   right: PriorityPathSegment,
@@ -50,7 +45,7 @@ const comparePathSegment = (
     if (right.rank === null) return -1;
     return left.rank - right.rank;
   }
-  return compareText(left.id, right.id);
+  return compareStrings(left.id, right.id);
 };
 
 const comparePriorityKey = (left: PriorityKey, right: PriorityKey): number => {
@@ -73,10 +68,10 @@ const compareRanked = (
   right: { readonly id: string; readonly rank: number | null },
 ): number => {
   if (left.rank === null) {
-    return right.rank === null ? compareText(left.id, right.id) : 1;
+    return right.rank === null ? compareStrings(left.id, right.id) : 1;
   }
   if (right.rank === null) return -1;
-  return left.rank - right.rank || compareText(left.id, right.id);
+  return left.rank - right.rank || compareStrings(left.id, right.id);
 };
 
 const ordinalRanks = <
@@ -294,6 +289,6 @@ export const orderWorkItemsByPriority = (
     );
     return baseComparison !== 0
       ? baseComparison
-      : compareText(left.id, right.id);
+      : compareStrings(left.id, right.id);
   });
 };

@@ -121,8 +121,24 @@ beforeAll(async () => {
     where pg_type.typname = 'knowledge_scope_kind'
     order by enumsortorder
   `);
+  const contextKindValues = await db.execute<{ enumlabel: string }>(sql`
+    select enumlabel
+    from pg_enum
+    join pg_type on pg_type.oid = pg_enum.enumtypid
+    where pg_type.typname = 'work_item_context_kind'
+    order by enumsortorder
+  `);
+  const architectureDecisionRoleValues = await db.execute<{
+    enumlabel: string;
+  }>(sql`
+    select enumlabel
+    from pg_enum
+    join pg_type on pg_type.oid = pg_enum.enumtypid
+    where pg_type.typname = 'architecture_decision_role'
+    order by enumsortorder
+  `);
 
-  expect(migrationCount?.count).toBe(11);
+  expect(migrationCount?.count).toBe(12);
   expect(tables.map(({ table_name }) => table_name)).toEqual([
     "attention_requests",
     "attention_resolutions",
@@ -133,9 +149,12 @@ beforeAll(async () => {
     "knowledge_scopes",
     "leases",
     "notes",
+    "work_item_architecture_decisions",
+    "work_item_contexts",
     "work_item_dependencies",
     "work_item_hierarchy",
     "work_item_priority_contexts",
+    "work_item_references",
     "work_items",
   ]);
   expect(locks).toEqual([{ id: "event-sequence" }, { id: "global" }]);
@@ -155,6 +174,13 @@ beforeAll(async () => {
     "initiative",
     "project",
   ]);
+  expect(contextKindValues.map(({ enumlabel }) => enumlabel)).toEqual([
+    "brief",
+    "acceptance_criteria",
+  ]);
+  expect(
+    architectureDecisionRoleValues.map(({ enumlabel }) => enumlabel),
+  ).toEqual(["governing", "background"]);
 });
 
 describe("transactional decomposition", () => {
@@ -746,12 +772,119 @@ beforeEach(async () => {
     );
     await transaction.delete(schema.lease);
     await transaction.delete(schema.idempotencyKey);
+    await transaction.delete(schema.workItemArchitectureDecision);
+    await transaction.delete(schema.workItemContext);
+    await transaction.delete(schema.workItemReference);
     await transaction.delete(schema.knowledgeScopeRelationship);
     await transaction.delete(schema.workItemPriorityContext);
     await transaction.delete(schema.knowledgeScope);
     await transaction.delete(schema.workItemDependency);
     await transaction.delete(schema.workItemHierarchy);
     await transaction.delete(schema.workItem);
+  });
+});
+
+describe("work-item context persistence", () => {
+  it("upserts typed records and resolves inherited context in claim order", async () => {
+    await repository.putKnowledgeScope({
+      id: "initiative",
+      kind: "initiative",
+      title: "Initiative",
+      canonicalUrl: "https://example.test/initiatives/one",
+      markdownUrl: "https://example.test/initiatives/one.md",
+    });
+    await repository.putKnowledgeScope({
+      id: "project",
+      kind: "project",
+      title: "Project",
+      canonicalUrl: "https://example.test/projects/one",
+      markdownUrl: "https://example.test/projects/one.md",
+    });
+    await repository.addKnowledgeScopeRelationship({
+      parentKnowledgeScopeId: "initiative",
+      childKnowledgeScopeId: "project",
+    });
+    await repository.createWorkItem({
+      id: "parent",
+      title: "Parent",
+      schedulingInitiativeId: "initiative",
+      schedulingProjectId: "project",
+    });
+    await repository.createWorkItem({
+      id: "child",
+      title: "Child",
+      parentId: "parent",
+    });
+
+    await repository.putWorkItemContext({
+      workItemId: "parent",
+      kind: "brief",
+      content: "Parent brief.",
+    });
+    await repository.putWorkItemContext({
+      workItemId: "parent",
+      kind: "acceptance_criteria",
+      content: "The context is ordered.",
+    });
+    await repository.putWorkItemContext(
+      {
+        workItemId: "child",
+        kind: "brief",
+        content: "Child brief.",
+      },
+      { idempotencyKey: recordId(301) },
+    );
+    await repository.putWorkItemContext(
+      {
+        workItemId: "child",
+        kind: "brief",
+        content: "Child brief.",
+      },
+      { idempotencyKey: recordId(301) },
+    );
+    await repository.putWorkItemArchitectureDecision({
+      workItemId: "parent",
+      title: "Governing decision",
+      url: "https://example.test/adrs/governing",
+      role: "governing",
+    });
+    await repository.putWorkItemArchitectureDecision({
+      workItemId: "child",
+      title: "Background decision",
+      url: "https://example.test/adrs/background",
+      role: "background",
+    });
+    await repository.putWorkItemReference({
+      workItemId: "parent",
+      title: "Parent reference",
+      url: "https://example.test/references/parent",
+    });
+    await repository.putWorkItemReference({
+      workItemId: "child",
+      title: "Child reference",
+      url: "https://example.test/references/child",
+    });
+
+    const graph = await repository.load();
+    expect(graph.contexts).toHaveLength(3);
+    expect(graph.architectureDecisions).toHaveLength(2);
+    expect(graph.references).toHaveLength(2);
+    expect(
+      (await repository.resolveWorkItemContext("child")).map((record) =>
+        record.kind === "architecture_decision"
+          ? `${record.kind}:${record.role}:${record.sourceWorkItemId}`
+          : `${record.kind}:${record.sourceWorkItemId}`,
+      ),
+    ).toEqual([
+      "brief:child",
+      "acceptance_criteria:parent",
+      "architecture_decision:background:child",
+      "architecture_decision:governing:parent",
+      "project:parent",
+      "initiative:parent",
+      "reference:child",
+      "reference:parent",
+    ]);
   });
 });
 
