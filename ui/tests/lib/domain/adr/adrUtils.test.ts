@@ -17,7 +17,12 @@ describe("ADR utilities", () => {
   it("formats the stable numeric prefix from an ADR slug", () => {
     expect(formatADRSlugIndex("067-versioned-density-catalog")).toBe("067");
     expect(formatADRSlugIndex("7-short-slug")).toBe("007");
+    expect(formatADRSlugIndex("000-all-zero-prefix")).toBe("000");
     expect(formatADRSlugIndex("adr-without-number")).toBe("---");
+  });
+
+  it("rejects numeric prefixes that cannot be represented exactly", () => {
+    expect(formatADRSlugIndex("999999999999999999999999-my-adr")).toBe("---");
   });
 
   it("normalizes ADR title by removing prefixed ADR number", () => {

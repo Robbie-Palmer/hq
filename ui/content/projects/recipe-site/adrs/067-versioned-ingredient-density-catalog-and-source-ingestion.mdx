@@ -65,10 +65,17 @@ Start a catalog sync in either of two ways:
 * an operator or protected administration endpoint requests a source and release; or
 * a schedule attached directly to the Workflow binding checks for a new upstream release.
 
-Cloudflare Workflows orchestrates extract, snapshot, transform, stage, and validation steps. Each
-upstream call and database batch is an independently retriable step with an idempotency key derived
-from the source, release identifier, and checksum. Postgres stores the authoritative import status.
-Workflow state is orchestration state and may expire after Cloudflare's retention period.
+Cloudflare Workflows orchestrates extract, snapshot, transform, stage, and validation steps. Once a
+source and release identifier are known, but before fetching the release payload, both entry points
+atomically create or attach to one Postgres import record protected by a unique source-and-release
+constraint. Only the run that creates or transactionally claims that record may acquire the payload;
+an attached run returns the existing import ID and does not duplicate the fetch or staging work.
+
+After acquisition, calculate the checksum and deduplicate the immutable R2 snapshot by its
+content-addressed key. Transformation and staging batches remain independently retriable, with
+idempotency keys derived from the import ID, checksum, step, and batch. Postgres stores the
+authoritative import status. Workflow state is orchestration state and may expire after Cloudflare's
+retention period.
 
 Write the untouched upstream response or release file to R2 before transformation, using a
 content-addressed key. Workflow steps pass its R2 key and checksum rather than carrying the source
