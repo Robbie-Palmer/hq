@@ -393,6 +393,7 @@ describe("Given agent-facing Work Graph commands", () => {
 
   it("refreshes, links, and lists pull requests", async () => {
     const refresh = harness();
+    const draftRefresh = harness();
     const link = harness();
     const show = harness(() => response({ items: [] }));
 
@@ -417,6 +418,25 @@ describe("Given agent-facing Work Graph commands", () => {
       "success",
       "--observed-at",
       "2026-09-20T10:00:00.000Z",
+    ]);
+    await draftRefresh.run([
+      "pr",
+      "refresh",
+      "--repository",
+      "example/work-graph",
+      "--number",
+      "43",
+      "--url",
+      "https://github.com/example/work-graph/pull/43",
+      "--head-sha",
+      "abcdef0123456789abcdef0123456789abcdef01",
+      "--state",
+      "open",
+      "--draft",
+      "--mergeability",
+      "unknown",
+      "--check-summary",
+      "pending",
     ]);
     await link.run([
       "pr",
@@ -449,6 +469,16 @@ describe("Given agent-facing Work Graph commands", () => {
       },
     });
     expect(refresh.requests[0]?.url.pathname).toBe("/root/api/pull-requests");
+    expect(draftRefresh.requests[0]).toMatchObject({
+      method: "PUT",
+      body: {
+        repository: "example/work-graph",
+        number: 43,
+        draft: true,
+        reviewDecision: null,
+        observedAt: expect.any(String),
+      },
+    });
     expect(link.requests[0]).toMatchObject({
       method: "PUT",
       body: {

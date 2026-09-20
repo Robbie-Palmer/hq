@@ -894,6 +894,18 @@ describe("work-item context persistence", () => {
   it("refreshes one PR snapshot independently from its many work-item links", async () => {
     await repository.createWorkItem({ id: "first", title: "First" });
     await repository.createWorkItem({ id: "second", title: "Second" });
+    await expect(
+      repository.putWorkItemPullRequest({
+        workItemId: "first",
+        repository: "example/missing",
+        number: 1,
+        role: "related",
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "pull_request_not_found",
+      }),
+    );
     const snapshot = {
       repository: "Example/Work-Graph",
       number: 42,
@@ -906,12 +918,23 @@ describe("work-item context persistence", () => {
       checkSummary: "pending" as const,
       observedAt: "2026-09-20T10:00:00.000Z",
     };
-    await repository.refreshPullRequest(snapshot);
-    await repository.putWorkItemPullRequest({
+    await repository.refreshPullRequest(snapshot, {
+      idempotencyKey: recordId(302),
+    });
+    await repository.refreshPullRequest(snapshot, {
+      idempotencyKey: recordId(302),
+    });
+    const firstLink = {
       workItemId: "first",
       repository: "example/work-graph",
       number: 42,
-      role: "implementation",
+      role: "implementation" as const,
+    };
+    await repository.putWorkItemPullRequest(firstLink, {
+      idempotencyKey: recordId(303),
+    });
+    await repository.putWorkItemPullRequest(firstLink, {
+      idempotencyKey: recordId(303),
     });
     await repository.putWorkItemPullRequest({
       workItemId: "second",

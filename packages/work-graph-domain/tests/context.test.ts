@@ -310,6 +310,126 @@ describe("work-item context", () => {
       projectWorkItemStage(withoutPullRequest, "work"),
     );
   });
+
+  it.each([
+    { repository: "missing-slash" },
+    { number: 0 },
+    { headSha: "short" },
+    { state: "unknown" },
+    { draft: "no" },
+    { mergeability: "maybe" },
+    { reviewDecision: "pending" },
+    { checkSummary: "broken" },
+    { observedAt: "not-a-date" },
+  ])("rejects an invalid pull-request snapshot: %s", (override) => {
+    expect(() =>
+      createWorkGraph({
+        pullRequests: [
+          {
+            repository: "example/work-graph",
+            number: 42,
+            url: "https://github.com/example/work-graph/pull/42",
+            headSha: "0123456789abcdef0123456789abcdef01234567",
+            state: "open",
+            draft: false,
+            mergeability: "unknown",
+            reviewDecision: null,
+            checkSummary: "pending",
+            observedAt: "2026-09-20T10:00:00.000Z",
+            ...override,
+          },
+        ],
+      } as unknown as WorkGraphInput),
+    ).toThrowError(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "invalid_pull_request",
+      }),
+    );
+  });
+
+  it.each([
+    [
+      {
+        workItemId: "work",
+        repository: "example/missing",
+        number: 42,
+        role: "related",
+      },
+      "pull_request_not_found",
+    ],
+    [
+      {
+        workItemId: "work",
+        repository: "example/work-graph",
+        number: 42,
+        role: "invalid",
+      },
+      "invalid_pull_request_role",
+    ],
+  ] as const)("rejects an invalid pull-request link with %s", (link, code) => {
+    expect(() =>
+      createWorkGraph({
+        workItems: [{ id: "work", title: "Work" }],
+        pullRequests: [
+          {
+            repository: "example/work-graph",
+            number: 42,
+            url: "https://github.com/example/work-graph/pull/42",
+            headSha: "0123456789abcdef0123456789abcdef01234567",
+            state: "open",
+            draft: false,
+            mergeability: "unknown",
+            reviewDecision: null,
+            checkSummary: "pending",
+            observedAt: "2026-09-20T10:00:00.000Z",
+          },
+        ],
+        workItemPullRequests: [link],
+      } as unknown as WorkGraphInput),
+    ).toThrowError(
+      expect.objectContaining<Partial<WorkGraphError>>({ code }),
+    );
+  });
+
+  it("rejects duplicate pull-request snapshots and links", () => {
+    const snapshot = {
+      repository: "example/work-graph",
+      number: 42,
+      url: "https://github.com/example/work-graph/pull/42",
+      headSha: "0123456789abcdef0123456789abcdef01234567",
+      state: "open" as const,
+      draft: false,
+      mergeability: "unknown" as const,
+      reviewDecision: null,
+      checkSummary: "pending" as const,
+      observedAt: "2026-09-20T10:00:00.000Z",
+    };
+    expect(() =>
+      createWorkGraph({ pullRequests: [snapshot, snapshot] }),
+    ).toThrowError(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "duplicate_pull_request",
+      }),
+    );
+
+    const link = {
+      workItemId: "work",
+      repository: snapshot.repository,
+      number: snapshot.number,
+      role: "related" as const,
+    };
+    expect(() =>
+      createWorkGraph({
+        workItems: [{ id: "work", title: "Work" }],
+        pullRequests: [snapshot],
+        workItemPullRequests: [link, link],
+      }),
+    ).toThrowError(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "duplicate_work_item_pull_request",
+      }),
+    );
+  });
   it("keeps supplemental references free of scheduling semantics", () => {
     const withoutReference = createWorkGraph({
       workItems: [{ id: "work", title: "Work" }],
