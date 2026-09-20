@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { EXIT_CODES } from "../src/errors.js";
-import { findRepositoryRoot, updateFromCheckout } from "../src/self-update.js";
+import {
+  findRepositoryRoot,
+  resolveMiseExecutable,
+  updateFromCheckout,
+} from "../src/self-update.js";
 
 describe("Given a Work Graph CLI source checkout", () => {
   const repositoryFiles = new Set([
@@ -14,6 +18,13 @@ describe("Given a Work Graph CLI source checkout", () => {
     expect(
       findRepositoryRoot("/workspace/hq/packages/work-graph-cli", pathExists),
     ).toBe("/workspace/hq");
+  });
+
+  it("finds mise only in a trusted system directory", () => {
+    expect(
+      resolveMiseExecutable((path) => path === "/usr/local/bin/mise"),
+    ).toBe("/usr/local/bin/mise");
+    expect(resolveMiseExecutable(() => false)).toBeUndefined();
   });
 
   it("rejects a directory outside the repository", () => {

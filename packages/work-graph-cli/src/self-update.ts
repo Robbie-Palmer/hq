@@ -9,6 +9,12 @@ const repositoryMarkers = [
   "packages/work-graph-cli/mise.toml",
 ] as const;
 
+const miseExecutableCandidates = [
+  "/opt/homebrew/bin/mise",
+  "/usr/local/bin/mise",
+  "/usr/bin/mise",
+] as const;
+
 export interface SelfUpdateResult {
   sourceDirectory: string;
   status: "updated";
@@ -44,6 +50,10 @@ export const findRepositoryRoot = (
   }
 };
 
+export const resolveMiseExecutable = (
+  pathExists: (path: string) => boolean = existsSync,
+): string | undefined => miseExecutableCandidates.find(pathExists);
+
 export const updateFromCheckout = (
   sourceDirectory: string,
   dependencies: SelfUpdateDependencies = {},
@@ -58,12 +68,27 @@ export const updateFromCheckout = (
     );
   }
 
-  const child =
-    dependencies.runInstaller?.(repositoryRoot) ??
-    spawnSync("mise", ["//packages/work-graph-cli:install:global"], {
-      cwd: repositoryRoot,
-      encoding: "utf8",
+  const runInstaller =
+    dependencies.runInstaller ??
+    ((root: string): InstallerResult => {
+      const miseExecutable = resolveMiseExecutable();
+      if (miseExecutable === undefined) {
+        throw new CliError(
+          "SELF_UPDATE_FAILED",
+          "Failed to install the Work Graph CLI: mise was not found in a trusted system directory.",
+          EXIT_CODES.transport,
+        );
+      }
+      return spawnSync(
+        miseExecutable,
+        ["//packages/work-graph-cli:install:global"],
+        {
+          cwd: root,
+          encoding: "utf8",
+        },
+      );
     });
+  const child = runInstaller(repositoryRoot);
 
   if (child.error !== undefined || child.status !== 0) {
     const detail =
