@@ -1,6 +1,11 @@
 import type {
   ArchitectureDecisionRole,
   KnowledgeScopeKind,
+  PullRequestCheckSummary,
+  PullRequestMergeability,
+  PullRequestReviewDecision,
+  PullRequestRole,
+  PullRequestState,
   WorkItemContextKind,
   WorkItemLifecycle,
 } from "./vocabulary";
@@ -82,12 +87,34 @@ export interface WorkItemReference {
   readonly url: string;
 }
 
+export interface PullRequestSnapshot {
+  readonly repository: string;
+  readonly number: number;
+  readonly url: string;
+  readonly headSha: string;
+  readonly state: PullRequestState;
+  readonly draft: boolean;
+  readonly mergeability: PullRequestMergeability;
+  readonly reviewDecision: PullRequestReviewDecision | null;
+  readonly checkSummary: PullRequestCheckSummary;
+  readonly observedAt: string;
+}
+
+export interface WorkItemPullRequest {
+  readonly workItemId: string;
+  readonly repository: string;
+  readonly number: number;
+  readonly role: PullRequestRole;
+}
+
 export interface WorkGraph {
   readonly workItems: readonly WorkItem[];
   readonly dependencies: readonly WorkItemDependency[];
   readonly contexts: readonly WorkItemContext[];
   readonly architectureDecisions: readonly WorkItemArchitectureDecision[];
   readonly references: readonly WorkItemReference[];
+  readonly pullRequests: readonly PullRequestSnapshot[];
+  readonly workItemPullRequests: readonly WorkItemPullRequest[];
 }
 
 export interface WorkGraphInput {
@@ -96,6 +123,8 @@ export interface WorkGraphInput {
   readonly contexts?: readonly WorkItemContext[];
   readonly architectureDecisions?: readonly WorkItemArchitectureDecision[];
   readonly references?: readonly WorkItemReference[];
+  readonly pullRequests?: readonly PullRequestSnapshot[];
+  readonly workItemPullRequests?: readonly WorkItemPullRequest[];
 }
 
 export interface WorkItemLeaseProjection {

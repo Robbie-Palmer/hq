@@ -25,6 +25,7 @@ import {
   type KnowledgeScopeInput,
   type KnowledgeScopeRelationship,
   type NewWorkItemInput,
+  type PullRequestSnapshot,
   type ResolvedWorkItemContext,
   type TerminalWorkItemState,
   type WorkGraph,
@@ -33,6 +34,7 @@ import {
   type WorkItemContext,
   type WorkItemDependency,
   type WorkItemPriorityProjection,
+  type WorkItemPullRequest,
   type WorkStage,
   type WorkItemReference,
 } from "work-graph-domain";
@@ -52,12 +54,14 @@ import {
   knowledgeScopeRelationship,
   lease,
   note,
+  pullRequest,
   workItem,
   workItemArchitectureDecision,
   workItemContext,
   workItemDependency,
   workItemHierarchy,
   workItemPriorityContext,
+  workItemPullRequest,
   workItemReference,
 } from "./schema";
 
@@ -77,6 +81,8 @@ export const WORK_GRAPH_EVENT_TYPES = [
   "knowledge_scope_relationship.added",
   "knowledge_scope_relationship.removed",
   "reference.put",
+  "pull_request.linked",
+  "pull_request.refreshed",
   "lease.claimed",
   "lease.ended",
   "lease.renewed",
@@ -1107,7 +1113,13 @@ export class WorkGraphRepository {
       await this.lockEventSequence(transaction);
       const item = await this.requireGraphWorkItem(transaction, input.workItemId);
       const [normalized] = normalizeAndValidateContextRecords(
-        { contexts: [input], architectureDecisions: [], references: [] },
+        {
+          contexts: [input],
+          architectureDecisions: [],
+          references: [],
+          pullRequests: [],
+          workItemPullRequests: [],
+        },
         new Map([[item.id, item]]),
       ).contexts;
       if (!normalized) throw new Error("Context validation returned no record.");
@@ -1170,7 +1182,13 @@ export class WorkGraphRepository {
       await this.lockEventSequence(transaction);
       const item = await this.requireGraphWorkItem(transaction, input.workItemId);
       const [normalized] = normalizeAndValidateContextRecords(
-        { contexts: [], architectureDecisions: [input], references: [] },
+        {
+          contexts: [],
+          architectureDecisions: [input],
+          references: [],
+          pullRequests: [],
+          workItemPullRequests: [],
+        },
         new Map([[item.id, item]]),
       ).architectureDecisions;
       if (!normalized) throw new Error("ADR validation returned no record.");
@@ -1246,7 +1264,13 @@ export class WorkGraphRepository {
       await this.lockEventSequence(transaction);
       const item = await this.requireGraphWorkItem(transaction, input.workItemId);
       const [normalized] = normalizeAndValidateContextRecords(
-        { contexts: [], architectureDecisions: [], references: [input] },
+        {
+          contexts: [],
+          architectureDecisions: [],
+          references: [input],
+          pullRequests: [],
+          workItemPullRequests: [],
+        },
         new Map([[item.id, item]]),
       ).references;
       if (!normalized) throw new Error("Reference validation returned no record.");
@@ -1295,6 +1319,138 @@ export class WorkGraphRepository {
         data: { title: stored.title, url: stored.url },
       });
       return stored;
+    });
+  }
+
+  async refreshPullRequest(
+    input: PullRequestSnapshot,
+    options: IdempotentMutationOptions = {},
+  ): Promise<PullRequestSnapshot> {
+    const [normalized] = createWorkGraph({
+      pullRequests: [input],
+    }).pullRequests;
+    if (!normalized) {
+      throw new Error("Pull request validation returned no snapshot.");
+    }
+    if (options.idempotencyKey !== undefined) {
+      requireIdempotencyKey(options.idempotencyKey);
+    }
+
+    return this.db.transaction(async (transaction) => {
+      await this.lockEventSequence(transaction);
+      if (options.idempotencyKey !== undefined) {
+        const replayed = await this.beginIdempotentMutation(
+          transaction,
+          options.idempotencyKey,
+          "refresh-pull-request",
+          JSON.stringify(normalized),
+        );
+        if (replayed) {
+          return this.requireStoredPullRequest(
+            transaction,
+            normalized.repository,
+            normalized.number,
+          );
+        }
+      }
+
+      const refreshed = await transaction
+        .insert(pullRequest)
+        .values({
+          ...normalized,
+          observedAt: new Date(normalized.observedAt),
+        })
+        .onConflictDoUpdate({
+          target: [pullRequest.repository, pullRequest.number],
+          set: {
+            url: normalized.url,
+            headSha: normalized.headSha,
+            state: normalized.state,
+            draft: normalized.draft,
+            mergeability: normalized.mergeability,
+            reviewDecision: normalized.reviewDecision,
+            checkSummary: normalized.checkSummary,
+            observedAt: new Date(normalized.observedAt),
+          },
+          setWhere: lte(
+            pullRequest.observedAt,
+            new Date(normalized.observedAt),
+          ),
+        })
+        .returning({ repository: pullRequest.repository });
+      if (refreshed.length > 0) {
+        await this.appendEvent(transaction, {
+          type: "pull_request.refreshed",
+          data: { ...normalized },
+        });
+      }
+      return this.requireStoredPullRequest(
+        transaction,
+        normalized.repository,
+        normalized.number,
+      );
+    });
+  }
+
+  async putWorkItemPullRequest(
+    input: WorkItemPullRequest,
+    options: IdempotentMutationOptions = {},
+  ): Promise<WorkItemPullRequest> {
+    if (options.idempotencyKey !== undefined) {
+      requireIdempotencyKey(options.idempotencyKey);
+    }
+    return this.db.transaction(async (transaction) => {
+      await this.lockEventSequence(transaction);
+      const item = await this.requireGraphWorkItem(transaction, input.workItemId);
+      const snapshot = await this.requireStoredPullRequest(
+        transaction,
+        input.repository.toLowerCase(),
+        input.number,
+      );
+      const [normalized] = normalizeAndValidateContextRecords(
+        {
+          contexts: [],
+          architectureDecisions: [],
+          references: [],
+          pullRequests: [snapshot],
+          workItemPullRequests: [input],
+        },
+        new Map([[item.id, item]]),
+      ).workItemPullRequests;
+      if (!normalized) {
+        throw new Error("Pull request link validation returned no record.");
+      }
+      if (options.idempotencyKey !== undefined) {
+        const replayed = await this.beginIdempotentMutation(
+          transaction,
+          options.idempotencyKey,
+          "put-work-item-pull-request",
+          JSON.stringify(normalized),
+        );
+        if (replayed) return normalized;
+      }
+
+      await transaction
+        .insert(workItemPullRequest)
+        .values(normalized)
+        .onConflictDoUpdate({
+          target: [
+            workItemPullRequest.workItemId,
+            workItemPullRequest.repository,
+            workItemPullRequest.number,
+          ],
+          set: { role: normalized.role },
+        });
+      await this.appendEvent(transaction, {
+        type: "pull_request.linked",
+        workItemId: normalized.workItemId,
+        data: {
+          repository: normalized.repository,
+          number: normalized.number,
+          role: normalized.role,
+        },
+      });
+      return normalized;
     });
   }
 
@@ -3512,6 +3668,39 @@ export class WorkGraphRepository {
       })
       .from(workItemReference)
       .orderBy(workItemReference.workItemId, workItemReference.url);
+    const pullRequests = (
+      await transaction
+        .select({
+          repository: pullRequest.repository,
+          number: pullRequest.number,
+          url: pullRequest.url,
+          headSha: pullRequest.headSha,
+          state: pullRequest.state,
+          draft: pullRequest.draft,
+          mergeability: pullRequest.mergeability,
+          reviewDecision: pullRequest.reviewDecision,
+          checkSummary: pullRequest.checkSummary,
+          observedAt: pullRequest.observedAt,
+        })
+        .from(pullRequest)
+        .orderBy(pullRequest.repository, pullRequest.number)
+    ).map(({ observedAt, ...snapshot }) => ({
+      ...snapshot,
+      observedAt: observedAt.toISOString(),
+    }));
+    const workItemPullRequests = await transaction
+      .select({
+        workItemId: workItemPullRequest.workItemId,
+        repository: workItemPullRequest.repository,
+        number: workItemPullRequest.number,
+        role: workItemPullRequest.role,
+      })
+      .from(workItemPullRequest)
+      .orderBy(
+        workItemPullRequest.workItemId,
+        workItemPullRequest.repository,
+        workItemPullRequest.number,
+      );
 
     return createWorkGraph({
       workItems,
@@ -3519,7 +3708,44 @@ export class WorkGraphRepository {
       contexts,
       architectureDecisions,
       references,
+      pullRequests,
+      workItemPullRequests,
     });
+  }
+
+  private async requireStoredPullRequest(
+    transaction: DbTransaction,
+    repository: string,
+    number: number,
+  ): Promise<PullRequestSnapshot> {
+    const [stored] = await transaction
+      .select({
+        repository: pullRequest.repository,
+        number: pullRequest.number,
+        url: pullRequest.url,
+        headSha: pullRequest.headSha,
+        state: pullRequest.state,
+        draft: pullRequest.draft,
+        mergeability: pullRequest.mergeability,
+        reviewDecision: pullRequest.reviewDecision,
+        checkSummary: pullRequest.checkSummary,
+        observedAt: pullRequest.observedAt,
+      })
+      .from(pullRequest)
+      .where(
+        and(
+          eq(pullRequest.repository, repository),
+          eq(pullRequest.number, number),
+        ),
+      )
+      .limit(1);
+    if (!stored) {
+      throw new WorkGraphError(
+        "pull_request_not_found",
+        `Pull request ${repository}#${number} does not exist.`,
+      );
+    }
+    return { ...stored, observedAt: stored.observedAt.toISOString() };
   }
 
   private async requireGraphWorkItem(

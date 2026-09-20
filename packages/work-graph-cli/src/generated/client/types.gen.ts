@@ -106,6 +106,27 @@ export type ResolvedWorkItemContext = {
     url: string;
     sourceWorkItemId: string;
     inheritanceDepth: number;
+} | ResolvedPullRequest;
+
+export type ResolvedPullRequest = {
+    kind: 'pull_request';
+    role: 'implementation' | 'evidence' | 'related';
+    pullRequest: PullRequestSnapshot;
+    sourceWorkItemId: string;
+    inheritanceDepth: number;
+};
+
+export type PullRequestSnapshot = {
+    repository: string;
+    number: number;
+    url: string;
+    headSha: string;
+    state: 'open' | 'closed' | 'merged';
+    draft: boolean;
+    mergeability: 'mergeable' | 'conflicting' | 'unknown';
+    reviewDecision: 'approved' | 'changes_requested' | 'review_required' | null;
+    checkSummary: 'success' | 'failure' | 'pending' | 'neutral' | 'unknown';
+    observedAt: string;
 };
 
 export type WorkItemContextRecord = {
@@ -124,6 +145,17 @@ export type WorkItemReference = {
     workItemId: string;
     title: string;
     url: string;
+};
+
+export type ResolvedPullRequestList = {
+    items: Array<ResolvedPullRequest>;
+};
+
+export type WorkItemPullRequest = {
+    workItemId: string;
+    repository: string;
+    number: number;
+    role: 'implementation' | 'evidence' | 'related';
 };
 
 export type WorkItemDependency = {
@@ -153,7 +185,7 @@ export type WorkItemEventList = {
 
 export type WorkItemEvent = {
     sequence: number;
-    type: 'attention.requested' | 'attention.resolved' | 'dependency.added' | 'dependency.removed' | 'context.put' | 'lease.claimed' | 'lease.ended' | 'lease.renewed' | 'note.created' | 'reference.put' | 'work_item.created' | 'work_item.decomposed' | 'work_item.expedited' | 'work_item.priority_moved' | 'work_item.lifecycle_changed' | 'work_item.reparented' | 'work_item.unexpedited';
+    type: 'attention.requested' | 'attention.resolved' | 'dependency.added' | 'dependency.removed' | 'context.put' | 'lease.claimed' | 'lease.ended' | 'lease.renewed' | 'note.created' | 'pull_request.linked' | 'reference.put' | 'work_item.created' | 'work_item.decomposed' | 'work_item.expedited' | 'work_item.priority_moved' | 'work_item.lifecycle_changed' | 'work_item.reparented' | 'work_item.unexpedited';
     workItemId: string | null;
     data: {
         [key: string]: unknown;
@@ -1033,6 +1065,72 @@ export type CreateLeaseRenewalResponses = {
 
 export type CreateLeaseRenewalResponse = CreateLeaseRenewalResponses[keyof CreateLeaseRenewalResponses];
 
+export type RefreshPullRequestData = {
+    body: {
+        repository: string;
+        number: number;
+        url: string;
+        headSha: string;
+        state: 'open' | 'closed' | 'merged';
+        draft: boolean;
+        mergeability: 'mergeable' | 'conflicting' | 'unknown';
+        reviewDecision: 'approved' | 'changes_requested' | 'review_required' | null;
+        checkSummary: 'success' | 'failure' | 'pending' | 'neutral' | 'unknown';
+        observedAt: string;
+    };
+    headers?: {
+        /**
+         * Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.
+         */
+        'idempotency-key'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/pull-requests';
+};
+
+export type RefreshPullRequestErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+};
+
+export type RefreshPullRequestError = RefreshPullRequestErrors[keyof RefreshPullRequestErrors];
+
+export type RefreshPullRequestResponses = {
+    /**
+     * Pull-request snapshot created, refreshed, or replayed
+     */
+    200: PullRequestSnapshot;
+};
+
+export type RefreshPullRequestResponse = RefreshPullRequestResponses[keyof RefreshPullRequestResponses];
+
 export type ListWorkItemsData = {
     body?: never;
     path?: never;
@@ -1563,7 +1661,7 @@ export type ListWorkItemEventsData = {
         workItemId: string;
     };
     query?: {
-        type?: 'attention.requested' | 'attention.resolved' | 'dependency.added' | 'dependency.removed' | 'context.put' | 'lease.claimed' | 'lease.ended' | 'lease.renewed' | 'note.created' | 'reference.put' | 'work_item.created' | 'work_item.decomposed' | 'work_item.expedited' | 'work_item.priority_moved' | 'work_item.lifecycle_changed' | 'work_item.reparented' | 'work_item.unexpedited';
+        type?: 'attention.requested' | 'attention.resolved' | 'dependency.added' | 'dependency.removed' | 'context.put' | 'lease.claimed' | 'lease.ended' | 'lease.renewed' | 'note.created' | 'pull_request.linked' | 'reference.put' | 'work_item.created' | 'work_item.decomposed' | 'work_item.expedited' | 'work_item.priority_moved' | 'work_item.lifecycle_changed' | 'work_item.reparented' | 'work_item.unexpedited';
         lifecycle?: 'released' | 'cancelled';
         limit?: number;
         afterSequence?: number;
@@ -1961,6 +2059,118 @@ export type MoveWorkItemPriorityResponses = {
 };
 
 export type MoveWorkItemPriorityResponse = MoveWorkItemPriorityResponses[keyof MoveWorkItemPriorityResponses];
+
+export type ListWorkItemPullRequestsData = {
+    body?: never;
+    path: {
+        workItemId: string;
+    };
+    query?: never;
+    url: '/api/work-items/{workItemId}/pull-requests';
+};
+
+export type ListWorkItemPullRequestsErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+};
+
+export type ListWorkItemPullRequestsError = ListWorkItemPullRequestsErrors[keyof ListWorkItemPullRequestsErrors];
+
+export type ListWorkItemPullRequestsResponses = {
+    /**
+     * Resolved pull requests in claim-context order
+     */
+    200: ResolvedPullRequestList;
+};
+
+export type ListWorkItemPullRequestsResponse = ListWorkItemPullRequestsResponses[keyof ListWorkItemPullRequestsResponses];
+
+export type PutWorkItemPullRequestData = {
+    body: {
+        repository: string;
+        number: number;
+        role: 'implementation' | 'evidence' | 'related';
+    };
+    headers?: {
+        /**
+         * Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.
+         */
+        'idempotency-key'?: string;
+    };
+    path: {
+        workItemId: string;
+    };
+    query?: never;
+    url: '/api/work-items/{workItemId}/pull-requests';
+};
+
+export type PutWorkItemPullRequestErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+};
+
+export type PutWorkItemPullRequestError = PutWorkItemPullRequestErrors[keyof PutWorkItemPullRequestErrors];
+
+export type PutWorkItemPullRequestResponses = {
+    /**
+     * Pull-request link created, replaced, or replayed
+     */
+    200: WorkItemPullRequest;
+};
+
+export type PutWorkItemPullRequestResponse = PutWorkItemPullRequestResponses[keyof PutWorkItemPullRequestResponses];
 
 export type PutWorkItemReferenceData = {
     body: {

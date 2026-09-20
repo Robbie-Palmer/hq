@@ -388,6 +388,12 @@ export const createWorkGraph = (input: WorkGraphInput = {}): WorkGraph => {
     dependencies: (input.dependencies ?? []).map((dependency) => ({
       ...dependency,
     })),
+    pullRequests: (input.pullRequests ?? []).map((pullRequest) => ({
+      ...pullRequest,
+    })),
+    workItemPullRequests: (input.workItemPullRequests ?? []).map((link) => ({
+      ...link,
+    })),
   };
   const graph = {
     ...graphWithoutContext,
@@ -397,6 +403,8 @@ export const createWorkGraph = (input: WorkGraphInput = {}): WorkGraph => {
         contexts: input.contexts ?? [],
         architectureDecisions: input.architectureDecisions ?? [],
         references: input.references ?? [],
+        pullRequests: graphWithoutContext.pullRequests,
+        workItemPullRequests: graphWithoutContext.workItemPullRequests,
       },
       indexWorkItems(graphWithoutContext.workItems),
     ),

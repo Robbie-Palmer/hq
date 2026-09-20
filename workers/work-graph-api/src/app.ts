@@ -40,6 +40,11 @@ import {
   ARCHITECTURE_DECISION_ROLES,
   KNOWLEDGE_SCOPE_KINDS,
   LEASE_OUTCOMES,
+  PULL_REQUEST_CHECK_SUMMARIES,
+  PULL_REQUEST_MERGEABILITIES,
+  PULL_REQUEST_REVIEW_DECISIONS,
+  PULL_REQUEST_ROLES,
+  PULL_REQUEST_STATES,
   WORK_ITEM_LIFECYCLES,
   WORK_ITEM_CONTEXT_KINDS,
   WORK_STAGES,
@@ -48,12 +53,14 @@ import {
   type KnowledgeScopeInput,
   type KnowledgeScopeRelationship,
   type NewWorkItemInput,
+  type PullRequestSnapshot,
   type ResolvedWorkItemContext,
   type WorkItem,
   type WorkItemArchitectureDecision,
   type WorkItemContext,
   type WorkItemDependency,
   type WorkItemReference,
+  type WorkItemPullRequest,
 } from "work-graph-domain";
 import { z } from "zod";
 
@@ -77,6 +84,7 @@ const WORK_ITEM_EVENT_TYPES = [
   "lease.ended",
   "lease.renewed",
   "note.created",
+  "pull_request.linked",
   "reference.put",
   "work_item.created",
   "work_item.decomposed",
@@ -222,6 +230,32 @@ const workItemArchitectureDecisionSchema = z.object({
   url: contextUrlSchema,
   role: z.enum(ARCHITECTURE_DECISION_ROLES),
 });
+const pullRequestSnapshotSchema = z
+  .object({
+    repository: identifierSchema,
+    number: z.number().int().min(1).max(MAX_INT32).openapi({ format: "int32" }),
+    url: contextUrlSchema,
+    headSha: z.string().max(40).regex(/^[0-9a-f]{40}$/),
+    state: z.enum(PULL_REQUEST_STATES),
+    draft: z.boolean(),
+    mergeability: z.enum(PULL_REQUEST_MERGEABILITIES),
+    reviewDecision: z.union([
+      z.enum(PULL_REQUEST_REVIEW_DECISIONS),
+      z.null(),
+    ]),
+    checkSummary: z.enum(PULL_REQUEST_CHECK_SUMMARIES),
+    observedAt: timestampSchema,
+  })
+  .openapi("PullRequestSnapshot");
+const resolvedPullRequestSchema = z
+  .object({
+    kind: z.literal("pull_request"),
+    role: z.enum(PULL_REQUEST_ROLES),
+    pullRequest: pullRequestSnapshotSchema,
+    sourceWorkItemId: identifierSchema,
+    inheritanceDepth: inheritanceDepthSchema,
+  })
+  .openapi("ResolvedPullRequest");
 const workItemContextRecordSchema = z
   .union([workItemTextContextSchema, workItemArchitectureDecisionSchema])
   .openapi("WorkItemContextRecord");
@@ -252,6 +286,7 @@ const resolvedWorkItemContextSchema = z
       sourceWorkItemId: identifierSchema,
       inheritanceDepth: inheritanceDepthSchema,
     }),
+    resolvedPullRequestSchema,
   ])
   .openapi("ResolvedWorkItemContext");
 const resolvedWorkItemContextListSchema = z
@@ -264,6 +299,17 @@ const workItemReferenceSchema = z
     url: contextUrlSchema,
   })
   .openapi("WorkItemReference");
+const workItemPullRequestSchema = z
+  .object({
+    workItemId: identifierSchema,
+    repository: identifierSchema,
+    number: z.number().int().min(1).max(MAX_INT32).openapi({ format: "int32" }),
+    role: z.enum(PULL_REQUEST_ROLES),
+  })
+  .openapi("WorkItemPullRequest");
+const resolvedPullRequestListSchema = z
+  .object({ items: z.array(resolvedPullRequestSchema).max(1_000) })
+  .openapi("ResolvedPullRequestList");
 const knowledgeScopeListSchema = z
   .object({
     items: z.array(knowledgeScopeSchema).max(100),
@@ -524,6 +570,10 @@ const putWorkItemContextBodySchema = z.union([
   workItemArchitectureDecisionSchema.omit({ workItemId: true }).strict(),
 ]);
 const putWorkItemReferenceBodySchema = workItemReferenceSchema
+  .omit({ workItemId: true })
+  .strict();
+const refreshPullRequestBodySchema = pullRequestSnapshotSchema.strict();
+const putWorkItemPullRequestBodySchema = workItemPullRequestSchema
   .omit({ workItemId: true })
   .strict();
 const putKnowledgeScopeBodySchema = knowledgeScopeSchema
@@ -1064,6 +1114,78 @@ const putWorkItemReferenceRoute = createRoute({
   },
 });
 
+const refreshPullRequestRoute = createRoute({
+  method: "put",
+  path: "/api/pull-requests",
+  operationId: "refreshPullRequest",
+  summary: "Create or refresh a pull-request snapshot",
+  description:
+    "Upserts informational pull-request state by repository and number. This mutation is separate from claim transactions.",
+  tags: ["pull-requests"],
+  security: accessSecurity,
+  request: {
+    headers: idempotencyHeadersSchema,
+    body: {
+      required: true,
+      content: { "application/json": { schema: refreshPullRequestBodySchema } },
+    },
+  },
+  responses: {
+    200: {
+      description: "Pull-request snapshot created, refreshed, or replayed",
+      content: { "application/json": { schema: pullRequestSnapshotSchema } },
+    },
+    ...standardErrors,
+  },
+});
+
+const listWorkItemPullRequestsRoute = createRoute({
+  method: "get",
+  path: "/api/work-items/{workItemId}/pull-requests",
+  operationId: "listWorkItemPullRequests",
+  summary: "List pull requests for a work item",
+  description:
+    "Returns direct and inherited pull-request links in claim-context order. Snapshot state is informational and does not affect scheduling.",
+  tags: ["work-items", "pull-requests"],
+  security: accessSecurity,
+  request: { params: workItemParamsSchema },
+  responses: {
+    200: {
+      description: "Resolved pull requests in claim-context order",
+      content: { "application/json": { schema: resolvedPullRequestListSchema } },
+    },
+    ...standardErrors,
+  },
+});
+
+const putWorkItemPullRequestRoute = createRoute({
+  method: "put",
+  path: "/api/work-items/{workItemId}/pull-requests",
+  operationId: "putWorkItemPullRequest",
+  summary: "Link a pull request to a work item",
+  description:
+    "Upserts a typed implementation, evidence, or related link to an existing pull-request snapshot. Links never create dependency edges.",
+  tags: ["work-items", "pull-requests"],
+  security: accessSecurity,
+  request: {
+    params: workItemParamsSchema,
+    headers: idempotencyHeadersSchema,
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: putWorkItemPullRequestBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Pull-request link created, replaced, or replayed",
+      content: { "application/json": { schema: workItemPullRequestSchema } },
+    },
+    ...standardErrors,
+  },
+});
+
 const createDependencyRoute = createRoute({
   method: "post",
   path: "/api/dependencies",
@@ -1520,6 +1642,14 @@ export interface WorkGraphApiRepository {
     input: WorkItemReference,
     options?: IdempotentMutationOptions,
   ): Promise<WorkItemReference>;
+  refreshPullRequest(
+    input: PullRequestSnapshot,
+    options?: IdempotentMutationOptions,
+  ): Promise<PullRequestSnapshot>;
+  putWorkItemPullRequest(
+    input: WorkItemPullRequest,
+    options?: IdempotentMutationOptions,
+  ): Promise<WorkItemPullRequest>;
   moveWorkItemPriority(
     workItemId: string,
     input: PriorityMoveInput,
@@ -1721,7 +1851,8 @@ const statusForWorkGraphError = (error: WorkGraphError): 400 | 404 | 409 => {
   if (
     error.code === "work_item_not_found" ||
     error.code === "attention_request_not_found" ||
-    error.code === "knowledge_scope_not_found"
+    error.code === "knowledge_scope_not_found" ||
+    error.code === "pull_request_not_found"
   ) {
     return 404;
   }
@@ -1957,6 +2088,47 @@ export const createWorkGraphApp = (
     return context.json(
       await repository.putWorkItemReference(
         { workItemId, ...request },
+        idempotencyOptions(
+          context.req.valid("header")["idempotency-key"],
+        ),
+      ),
+      200,
+    );
+  });
+
+  app.openapi(refreshPullRequestRoute, async (context) => {
+    return context.json(
+      await repository.refreshPullRequest(
+        context.req.valid("json"),
+        idempotencyOptions(
+          context.req.valid("header")["idempotency-key"],
+        ),
+      ),
+      200,
+    );
+  });
+
+  app.openapi(listWorkItemPullRequestsRoute, async (context) => {
+    const { workItemId } = context.req.valid("param");
+    const resolved = await repository.resolveWorkItemContext(workItemId);
+    return context.json(
+      {
+        items: resolved.filter(
+          (item): item is Extract<
+            ResolvedWorkItemContext,
+            { kind: "pull_request" }
+          > => item.kind === "pull_request",
+        ),
+      },
+      200,
+    );
+  });
+
+  app.openapi(putWorkItemPullRequestRoute, async (context) => {
+    const { workItemId } = context.req.valid("param");
+    return context.json(
+      await repository.putWorkItemPullRequest(
+        { workItemId, ...context.req.valid("json") },
         idempotencyOptions(
           context.req.valid("header")["idempotency-key"],
         ),

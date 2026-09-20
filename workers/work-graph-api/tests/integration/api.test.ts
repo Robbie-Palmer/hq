@@ -69,6 +69,8 @@ beforeEach(async () => {
     await transaction.delete(schema.workItemArchitectureDecision);
     await transaction.delete(schema.workItemContext);
     await transaction.delete(schema.workItemReference);
+    await transaction.delete(schema.workItemPullRequest);
+    await transaction.delete(schema.pullRequest);
     await transaction.delete(schema.knowledgeScopeRelationship);
     await transaction.delete(schema.workItemPriorityContext);
     await transaction.delete(schema.knowledgeScope);
@@ -190,6 +192,23 @@ describe("Given inherited work-item context over HTTP", () => {
       url: "https://example.test/adrs/context-ordering",
       role: "governing",
     });
+    await requestJson("/api/pull-requests", "PUT", {
+      repository: "example/work-graph",
+      number: 42,
+      url: "https://github.com/example/work-graph/pull/42",
+      headSha: "0123456789abcdef0123456789abcdef01234567",
+      state: "open",
+      draft: false,
+      mergeability: "mergeable",
+      reviewDecision: "approved",
+      checkSummary: "success",
+      observedAt: "2026-09-20T10:00:00.000Z",
+    });
+    await requestJson("/api/work-items/parent/pull-requests", "PUT", {
+      repository: "example/work-graph",
+      number: 42,
+      role: "evidence",
+    });
     await requestJson("/api/work-items/child/references", "PUT", {
       title: "Design notes",
       url: "https://example.test/context-design",
@@ -199,6 +218,9 @@ describe("Given inherited work-item context over HTTP", () => {
       "/api/work-items/child/contexts",
     );
     const context = (await contextResponse.json()) as { items: unknown[] };
+    const pullRequestsResponse = await app.request(
+      "/api/work-items/child/pull-requests",
+    );
     const claimResponse = await requestJson("/api/leases", "POST", {
       workItemId: "child",
       workerId: "worker-a",
@@ -220,8 +242,24 @@ describe("Given inherited work-item context over HTTP", () => {
       "brief:child",
       "acceptance_criteria:parent",
       "architecture_decision:parent",
+      "pull_request:parent",
       "reference:child",
     ]);
+    expect(await pullRequestsResponse.json()).toEqual({
+      items: [
+        expect.objectContaining({
+          kind: "pull_request",
+          role: "evidence",
+          sourceWorkItemId: "parent",
+          inheritanceDepth: 1,
+          pullRequest: expect.objectContaining({
+            repository: "example/work-graph",
+            number: 42,
+            observedAt: "2026-09-20T10:00:00.000Z",
+          }),
+        }),
+      ],
+    });
     expect(claim.context).toEqual(context.items);
   });
 });

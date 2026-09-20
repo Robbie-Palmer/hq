@@ -30,6 +30,10 @@
       "description": "Serialized work-item dependency changes."
     },
     {
+      "name": "pull-requests",
+      "description": "Typed work-item links and refreshable PR snapshots."
+    },
+    {
       "name": "notes",
       "description": "Lease-fenced work notes and append-only discussion on released work."
     },
@@ -719,7 +723,138 @@
               "sourceWorkItemId",
               "inheritanceDepth"
             ]
+          },
+          {
+            "$ref": "#/components/schemas/ResolvedPullRequest"
           }
+        ]
+      },
+      "ResolvedPullRequest": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "pull_request"
+            ]
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "implementation",
+              "evidence",
+              "related"
+            ]
+          },
+          "pullRequest": {
+            "$ref": "#/components/schemas/PullRequestSnapshot"
+          },
+          "sourceWorkItemId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "inheritanceDepth": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647,
+            "format": "int32"
+          }
+        },
+        "required": [
+          "kind",
+          "role",
+          "pullRequest",
+          "sourceWorkItemId",
+          "inheritanceDepth"
+        ]
+      },
+      "PullRequestSnapshot": {
+        "type": "object",
+        "properties": {
+          "repository": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "format": "int32"
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 2048,
+            "format": "uri",
+            "pattern": "^[hH][tT][tT][pP][sS]?:\\/\\/(?![^/?#]*@)"
+          },
+          "headSha": {
+            "type": "string",
+            "maxLength": 40,
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed",
+              "merged"
+            ]
+          },
+          "draft": {
+            "type": "boolean"
+          },
+          "mergeability": {
+            "type": "string",
+            "enum": [
+              "mergeable",
+              "conflicting",
+              "unknown"
+            ]
+          },
+          "reviewDecision": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "approved",
+                  "changes_requested",
+                  "review_required"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "checkSummary": {
+            "type": "string",
+            "enum": [
+              "success",
+              "failure",
+              "pending",
+              "neutral",
+              "unknown"
+            ]
+          },
+          "observedAt": {
+            "type": "string",
+            "maxLength": 30,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "repository",
+          "number",
+          "url",
+          "headSha",
+          "state",
+          "draft",
+          "mergeability",
+          "reviewDecision",
+          "checkSummary",
+          "observedAt"
         ]
       },
       "WorkItemContextRecord": {
@@ -818,6 +953,56 @@
           "workItemId",
           "title",
           "url"
+        ]
+      },
+      "ResolvedPullRequestList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResolvedPullRequest"
+            },
+            "maxItems": 1000
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "WorkItemPullRequest": {
+        "type": "object",
+        "properties": {
+          "workItemId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "repository": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "format": "int32"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "implementation",
+              "evidence",
+              "related"
+            ]
+          }
+        },
+        "required": [
+          "workItemId",
+          "repository",
+          "number",
+          "role"
         ]
       },
       "WorkItemDependency": {
@@ -975,6 +1160,7 @@
               "lease.ended",
               "lease.renewed",
               "note.created",
+              "pull_request.linked",
               "reference.put",
               "work_item.created",
               "work_item.decomposed",
@@ -3376,6 +3562,214 @@
         }
       }
     },
+    "/api/pull-requests": {
+      "put": {
+        "operationId": "refreshPullRequest",
+        "summary": "Create or refresh a pull-request snapshot",
+        "description": "Upserts informational pull-request state by repository and number. This mutation is separate from claim transactions.",
+        "tags": [
+          "pull-requests"
+        ],
+        "security": [
+          {
+            "cloudflareAccessClientId": [],
+            "cloudflareAccessClientSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 36,
+              "format": "uuid",
+              "description": "Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict."
+            },
+            "required": false,
+            "description": "Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.",
+            "name": "idempotency-key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "repository": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "number": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2147483647,
+                    "format": "int32"
+                  },
+                  "url": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "format": "uri",
+                    "pattern": "^[hH][tT][tT][pP][sS]?:\\/\\/(?![^/?#]*@)"
+                  },
+                  "headSha": {
+                    "type": "string",
+                    "maxLength": 40,
+                    "pattern": "^[0-9a-f]{40}$"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "open",
+                      "closed",
+                      "merged"
+                    ]
+                  },
+                  "draft": {
+                    "type": "boolean"
+                  },
+                  "mergeability": {
+                    "type": "string",
+                    "enum": [
+                      "mergeable",
+                      "conflicting",
+                      "unknown"
+                    ]
+                  },
+                  "reviewDecision": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "approved",
+                          "changes_requested",
+                          "review_required"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "checkSummary": {
+                    "type": "string",
+                    "enum": [
+                      "success",
+                      "failure",
+                      "pending",
+                      "neutral",
+                      "unknown"
+                    ]
+                  },
+                  "observedAt": {
+                    "type": "string",
+                    "maxLength": 30,
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "repository",
+                  "number",
+                  "url",
+                  "headSha",
+                  "state",
+                  "draft",
+                  "mergeability",
+                  "reviewDecision",
+                  "checkSummary",
+                  "observedAt"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Pull-request snapshot created, refreshed, or replayed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PullRequestSnapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Cloudflare Access authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cloudflare Access denied the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current Work Graph state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/work-items": {
       "get": {
         "operationId": "listWorkItems",
@@ -4794,6 +5188,7 @@
                 "lease.ended",
                 "lease.renewed",
                 "note.created",
+                "pull_request.linked",
                 "reference.put",
                 "work_item.created",
                 "work_item.decomposed",
@@ -5710,6 +6105,275 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WorkItem"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Cloudflare Access authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cloudflare Access denied the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current Work Graph state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/work-items/{workItemId}/pull-requests": {
+      "get": {
+        "operationId": "listWorkItemPullRequests",
+        "summary": "List pull requests for a work item",
+        "description": "Returns direct and inherited pull-request links in claim-context order. Snapshot state is informational and does not affect scheduling.",
+        "tags": [
+          "work-items",
+          "pull-requests"
+        ],
+        "security": [
+          {
+            "cloudflareAccessClientId": [],
+            "cloudflareAccessClientSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": true,
+            "name": "workItemId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resolved pull requests in claim-context order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedPullRequestList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Cloudflare Access authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cloudflare Access denied the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current Work Graph state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putWorkItemPullRequest",
+        "summary": "Link a pull request to a work item",
+        "description": "Upserts a typed implementation, evidence, or related link to an existing pull-request snapshot. Links never create dependency edges.",
+        "tags": [
+          "work-items",
+          "pull-requests"
+        ],
+        "security": [
+          {
+            "cloudflareAccessClientId": [],
+            "cloudflareAccessClientSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": true,
+            "name": "workItemId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 36,
+              "format": "uuid",
+              "description": "Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict."
+            },
+            "required": false,
+            "description": "Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.",
+            "name": "idempotency-key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "repository": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "number": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2147483647,
+                    "format": "int32"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "implementation",
+                      "evidence",
+                      "related"
+                    ]
+                  }
+                },
+                "required": [
+                  "repository",
+                  "number",
+                  "role"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Pull-request link created, replaced, or replayed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkItemPullRequest"
                 }
               }
             }

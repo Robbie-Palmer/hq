@@ -23,6 +23,7 @@ import {
 export interface CliDependencies {
   environment?: NodeJS.ProcessEnv;
   fetch?: Fetch;
+  inspectPullRequest?: CommandContext["inspectPullRequest"];
   makeUuid?: UuidFactory;
   selfUpdate?: CommandContext["selfUpdate"];
   stdout?: (text: string) => void;
@@ -110,6 +111,7 @@ export const runCli = async (
     context: createCommandContext({
       environment: dependencies.environment,
       fetch: dependencies.fetch,
+      inspectPullRequest: dependencies.inspectPullRequest,
       makeUuid: dependencies.makeUuid,
       selfUpdate: dependencies.selfUpdate,
       workingDirectory: dependencies.workingDirectory,

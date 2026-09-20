@@ -126,6 +126,26 @@ work-graph reference put cli-8 \
   --title "Context design notes" \
   --url https://example.com/context-design
 work-graph context show cli-8
+work-graph pr attach cli-8 \
+  https://github.com/example/work-graph/pull/8 \
+  --role implementation
+work-graph pr show cli-8
+work-graph pr show cli-8 --full
+
+# Low-level snapshot and link commands for automation
+work-graph pr refresh \
+  --repository example/work-graph \
+  --number 8 \
+  --url https://github.com/example/work-graph/pull/8 \
+  --head-sha 0123456789abcdef0123456789abcdef01234567 \
+  --state open \
+  --mergeability mergeable \
+  --review-decision approved \
+  --check-summary success
+work-graph pr link cli-8 \
+  --repository example/work-graph \
+  --number 8 \
+  --role implementation
 work-graph priority move cli-8 --above cli-9
 work-graph scope move work-graph --below another-project
 work-graph expedite cli-8 --reason "Production release blocker"
@@ -165,8 +185,26 @@ immutable event log and appends a `dependency.removed` event.
 upserts a governing or background decision by URL, and `reference put` upserts
 a supplemental link by URL. `context show` uses the same deterministic order as
 `claim`: local and nearest inherited text, ADRs, project and initiative mirrors,
-then supplemental references. Every record includes its source ticket and
-inheritance depth. Supplemental references never affect queue eligibility.
+pull requests, then supplemental references. Full records include their source
+ticket and inheritance depth. Compact pull-request records omit the numeric
+depth and omit the source ticket for local links. Supplemental references never
+affect queue eligibility.
+
+`pr attach` is the normal agent command. Give it a ticket, a GitHub PR URL, and
+an `implementation`, `evidence`, or `related` role. It uses the authenticated
+`gh` CLI to collect the current snapshot, then refreshes and links the PR in two
+separate API calls. Install and authenticate `gh` before using it.
+
+`claim`, `context show`, and `pr show` return compact PR context by default. Use
+`claim --full-pr-context`, `context show --full-pr-context`, or `pr show --full`
+when an audit or integration needs the stored SHA, mergeability, review
+decision, source ticket, and inheritance depth.
+
+`pr refresh` and `pr link` remain available as low-level automation commands.
+`pr refresh` records the latest observed snapshot independently of any ticket
+claim. Add `--draft` for draft PRs; omit `--review-decision` when GitHub has no
+decision. One snapshot can link to many tickets, and `pr show` includes inherited
+links. PR state and checks inform the worker but never change queue eligibility.
 
 The `metadata` commands expose the complete stored history needed to resume or
 audit one work item. Notes include their content, dependency results contain

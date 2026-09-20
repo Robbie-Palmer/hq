@@ -469,7 +469,7 @@ before the headless workflow is useful.
 12. [x] Add typed briefs, acceptance criteria, ADRs, and supplemental references
     with inherited resolution and ordered claim output across persistence, API,
     and CLI.
-13. [ ] Add manual PR links and snapshot refresh. Automate GitHub events only after
+13. [x] Add manual PR links and snapshot refresh. Automate GitHub events only after
    manual use shows which events matter.
 
 ## Deferred

@@ -95,6 +95,49 @@ export const zKnowledgeScopeRelationshipList = z.object({
     nextCursor: z.string().min(1).max(4096).nullable()
 });
 
+export const zPullRequestSnapshot = z.object({
+    repository: z.string().min(1).max(200),
+    number: z.int().gte(1).lte(2147483647),
+    url: z.url().max(2048).regex(/^[hH][tT][tT][pP][sS]?:\/\/(?![^\/?#]*@)/),
+    headSha: z.string().max(40).regex(/^[0-9a-f]{40}$/),
+    state: z.enum([
+        'open',
+        'closed',
+        'merged'
+    ]),
+    draft: z.boolean(),
+    mergeability: z.enum([
+        'mergeable',
+        'conflicting',
+        'unknown'
+    ]),
+    reviewDecision: z.enum([
+        'approved',
+        'changes_requested',
+        'review_required'
+    ]).nullable(),
+    checkSummary: z.enum([
+        'success',
+        'failure',
+        'pending',
+        'neutral',
+        'unknown'
+    ]),
+    observedAt: z.iso.datetime().max(30)
+});
+
+export const zResolvedPullRequest = z.object({
+    kind: z.enum(['pull_request']),
+    role: z.enum([
+        'implementation',
+        'evidence',
+        'related'
+    ]),
+    pullRequest: zPullRequestSnapshot,
+    sourceWorkItemId: z.string().min(1).max(200),
+    inheritanceDepth: z.int().gte(0).lte(2147483647)
+});
+
 export const zResolvedWorkItemContext = z.union([
     z.object({
         kind: z.enum(['brief', 'acceptance_criteria']),
@@ -122,7 +165,8 @@ export const zResolvedWorkItemContext = z.union([
         url: z.url().max(2048).regex(/^[hH][tT][tT][pP][sS]?:\/\/(?![^\/?#]*@)/),
         sourceWorkItemId: z.string().min(1).max(200),
         inheritanceDepth: z.int().gte(0).lte(2147483647)
-    })
+    }),
+    zResolvedPullRequest
 ]);
 
 export const zResolvedWorkItemContextList = z.object({
@@ -148,6 +192,21 @@ export const zWorkItemReference = z.object({
     workItemId: z.string().min(1).max(200),
     title: z.string().min(1).max(10000),
     url: z.url().max(2048).regex(/^[hH][tT][tT][pP][sS]?:\/\/(?![^\/?#]*@)/)
+});
+
+export const zResolvedPullRequestList = z.object({
+    items: z.array(zResolvedPullRequest).max(1000)
+});
+
+export const zWorkItemPullRequest = z.object({
+    workItemId: z.string().min(1).max(200),
+    repository: z.string().min(1).max(200),
+    number: z.int().gte(1).lte(2147483647),
+    role: z.enum([
+        'implementation',
+        'evidence',
+        'related'
+    ])
 });
 
 export const zWorkItemDependency = z.object({
@@ -182,6 +241,7 @@ export const zWorkItemEvent = z.object({
         'lease.ended',
         'lease.renewed',
         'note.created',
+        'pull_request.linked',
         'reference.put',
         'work_item.created',
         'work_item.decomposed',
@@ -500,6 +560,48 @@ export const zCreateLeaseRenewalPath = z.object({
  */
 export const zCreateLeaseRenewalResponse = zLeaseResponse;
 
+export const zRefreshPullRequestBody = z.object({
+    repository: z.string().min(1).max(200),
+    number: z.int().gte(1).lte(2147483647),
+    url: z.url().max(2048).regex(/^[hH][tT][tT][pP][sS]?:\/\/(?![^\/?#]*@)/),
+    headSha: z.string().max(40).regex(/^[0-9a-f]{40}$/),
+    state: z.enum([
+        'open',
+        'closed',
+        'merged'
+    ]),
+    draft: z.boolean(),
+    mergeability: z.enum([
+        'mergeable',
+        'conflicting',
+        'unknown'
+    ]),
+    reviewDecision: z.enum([
+        'approved',
+        'changes_requested',
+        'review_required'
+    ]).nullable(),
+    checkSummary: z.enum([
+        'success',
+        'failure',
+        'pending',
+        'neutral',
+        'unknown'
+    ]),
+    observedAt: z.iso.datetime().max(30)
+});
+
+export const zRefreshPullRequestHeaders = z.object({
+    'idempotency-key': z.uuid().max(36).register(z.globalRegistry, {
+        description: 'Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.'
+    }).optional()
+});
+
+/**
+ * Pull-request snapshot created, refreshed, or replayed
+ */
+export const zRefreshPullRequestResponse = zPullRequestSnapshot;
+
 export const zListWorkItemsQuery = z.object({
     stage: z.enum([
         'blocked',
@@ -682,6 +784,7 @@ export const zListWorkItemEventsQuery = z.object({
         'lease.ended',
         'lease.renewed',
         'note.created',
+        'pull_request.linked',
         'reference.put',
         'work_item.created',
         'work_item.decomposed',
@@ -810,6 +913,40 @@ export const zMoveWorkItemPriorityPath = z.object({
  * Ticket moved or matching mutation replayed
  */
 export const zMoveWorkItemPriorityResponse = zWorkItem;
+
+export const zListWorkItemPullRequestsPath = z.object({
+    workItemId: z.string().min(1).max(200)
+});
+
+/**
+ * Resolved pull requests in claim-context order
+ */
+export const zListWorkItemPullRequestsResponse = zResolvedPullRequestList;
+
+export const zPutWorkItemPullRequestBody = z.object({
+    repository: z.string().min(1).max(200),
+    number: z.int().gte(1).lte(2147483647),
+    role: z.enum([
+        'implementation',
+        'evidence',
+        'related'
+    ])
+});
+
+export const zPutWorkItemPullRequestHeaders = z.object({
+    'idempotency-key': z.uuid().max(36).register(z.globalRegistry, {
+        description: 'Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.'
+    }).optional()
+});
+
+export const zPutWorkItemPullRequestPath = z.object({
+    workItemId: z.string().min(1).max(200)
+});
+
+/**
+ * Pull-request link created, replaced, or replayed
+ */
+export const zPutWorkItemPullRequestResponse = zWorkItemPullRequest;
 
 export const zPutWorkItemReferenceBody = z.object({
     title: z.string().min(1).max(10000),
