@@ -27,6 +27,12 @@ interface EffectivePriority {
   readonly key: PriorityKey;
 }
 
+export interface WorkItemSelectionScope {
+  readonly initiativeId?: string;
+  readonly parentId?: string;
+  readonly projectId?: string;
+}
+
 export interface WorkItemPriorityProjection {
   readonly donatedFromWorkItemId: string | null;
   readonly effectiveExpedited: boolean;
@@ -87,9 +93,29 @@ const ordinalRanks = <
 
 const medianRank = (count: number): number => Math.floor(count / 2) + 1;
 
-const schedulingOwnerFor = (graph: WorkGraph, item: WorkItem): WorkItem => {
+export const getWorkItemSchedulingOwner = (
+  graph: WorkGraph,
+  item: WorkItem,
+): WorkItem => {
   const lineage = [item, ...getAncestors(graph, item.id)];
   return lineage.find(({ priorityRank }) => priorityRank !== null) ?? item;
+};
+
+export const isWorkItemInSelectionScope = (
+  graph: WorkGraph,
+  item: WorkItem,
+  scope: WorkItemSelectionScope,
+): boolean => {
+  if (scope.parentId !== undefined && item.parentId !== scope.parentId) {
+    return false;
+  }
+  const owner = getWorkItemSchedulingOwner(graph, item);
+  return (
+    (scope.initiativeId === undefined ||
+      owner.schedulingInitiativeId === scope.initiativeId) &&
+    (scope.projectId === undefined ||
+      owner.schedulingProjectId === scope.projectId)
+  );
 };
 
 const scopeRanks = (
@@ -138,7 +164,7 @@ const basePriorities = (
     graph.workItems.map((item) => {
       const lineage = [...getAncestors(graph, item.id)].reverse();
       lineage.push(item);
-      const owner = schedulingOwnerFor(graph, item);
+      const owner = getWorkItemSchedulingOwner(graph, item);
       const projectId = owner.schedulingProjectId ?? "";
       const initiativeRank =
         (owner.schedulingInitiativeId

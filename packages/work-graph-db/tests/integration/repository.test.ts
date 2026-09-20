@@ -1484,6 +1484,125 @@ describe("lease-backed claiming", () => {
     ).resolves.toEqual(expect.objectContaining({ workItemId: "database" }));
   });
 
+  it("filters ordered queue reads and scheduler claims by inherited scopes", async () => {
+    await repository.putKnowledgeScope({
+      id: "initiative",
+      kind: "initiative",
+      title: "Initiative",
+      canonicalUrl: "https://example.test/initiatives/initiative",
+      markdownUrl: "https://example.test/initiatives/initiative.md",
+    });
+    await repository.putKnowledgeScope({
+      id: "work-graph",
+      kind: "project",
+      title: "Work Graph",
+      canonicalUrl: "https://example.test/projects/work-graph",
+      markdownUrl: "https://example.test/projects/work-graph.md",
+    });
+    await repository.addKnowledgeScopeRelationship({
+      parentKnowledgeScopeId: "initiative",
+      childKnowledgeScopeId: "work-graph",
+    });
+    await repository.createWorkItem({ id: "unscoped", title: "Unscoped" });
+    await repository.createWorkItem({ id: "plan", title: "Plan" });
+    await repository.setWorkItemSchedulingScope("plan", {
+      schedulingInitiativeId: null,
+      schedulingProjectId: "work-graph",
+    });
+    await expect(repository.getWorkItem("plan")).resolves.toEqual(
+      expect.objectContaining({
+        schedulingInitiativeId: "initiative",
+        schedulingProjectId: "work-graph",
+      }),
+    );
+    await expect(
+      repository.listEvents({ workItemId: "plan" }),
+    ).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "work_item.scheduling_scope_changed",
+          data: expect.objectContaining({
+            schedulingInitiativeId: "initiative",
+            schedulingProjectId: "work-graph",
+          }),
+        }),
+      ]),
+    );
+    const eventCount = (
+      await repository.listEvents({ workItemId: "plan" })
+    ).length;
+    await repository.setWorkItemSchedulingScope("plan", {
+      schedulingInitiativeId: "initiative",
+      schedulingProjectId: "work-graph",
+    });
+    expect(
+      await repository.listEvents({ workItemId: "plan" }),
+    ).toHaveLength(eventCount);
+    await repository.createWorkItem({
+      id: "child-a",
+      title: "First child",
+      parentId: "plan",
+    });
+    await repository.createWorkItem({
+      id: "child-b",
+      title: "Second child",
+      parentId: "plan",
+    });
+
+    const allIds = (await repository.listWorkItems()).map(({ id }) => id);
+    const projectIds = (
+      await repository.listWorkItems({ projectId: "work-graph" })
+    ).map(({ id }) => id);
+    expect(projectIds).toEqual(
+      allIds.filter((id) => ["plan", "child-a", "child-b"].includes(id)),
+    );
+    await expect(
+      repository.listWorkItems({ initiativeId: "initiative" }),
+    ).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "plan" }),
+        expect.objectContaining({ id: "child-a" }),
+        expect.objectContaining({ id: "child-b" }),
+      ]),
+    );
+    await expect(
+      repository.listWorkItems({ parentId: "plan" }),
+    ).resolves.toEqual([
+      expect.objectContaining({ id: "child-a" }),
+      expect.objectContaining({ id: "child-b" }),
+    ]);
+
+    await expect(
+      repository.claimWorkItem({
+        leaseId: leaseId(24),
+        workerId: "worker-a",
+        leaseDurationSeconds: 300,
+        projectId: "work-graph",
+      }),
+    ).resolves.toEqual(expect.objectContaining({ workItemId: "child-a" }));
+    await expect(
+      repository.claimWorkItem({
+        leaseId: leaseId(25),
+        workerId: "worker-b",
+        leaseDurationSeconds: 300,
+        parentId: "plan",
+      }),
+    ).resolves.toEqual(expect.objectContaining({ workItemId: "child-b" }));
+    await expect(
+      repository.claimWorkItem({
+        leaseId: leaseId(26),
+        workerId: "worker-c",
+        leaseDurationSeconds: 300,
+        workItemId: "unscoped",
+        projectId: "work-graph",
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "invalid_claim_scope",
+      }),
+    );
+  });
+
   it("donates an explicit expedite to unresolved blockers", async () => {
     await repository.createWorkItem({ id: "normal", title: "Normal work" });
     await repository.createWorkItem({ id: "shared", title: "Shared blocker" });
@@ -2450,6 +2569,22 @@ describe("Work Graph PostgreSQL persistence", () => {
     ).rejects.toEqual(
       expect.objectContaining<Partial<WorkGraphError>>({
         code: "invalid_scheduling_scope",
+      }),
+    );
+
+    await repository.createWorkItem({
+      id: "valid-child",
+      title: "Valid child",
+      parentId: "parent",
+    });
+    await expect(
+      repository.setWorkItemSchedulingScope("valid-child", {
+        schedulingInitiativeId: null,
+        schedulingProjectId: null,
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "invalid_priority_move",
       }),
     );
   });

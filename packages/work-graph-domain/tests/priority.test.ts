@@ -1,6 +1,7 @@
 import {
   createKnowledgeScope,
   createWorkGraph,
+  isWorkItemInSelectionScope,
   orderWorkItemsByPriority,
   projectWorkItemPriorities,
   projectWorkItemPriority,
@@ -63,6 +64,38 @@ describe("priority projection", () => {
       "release-ui",
       "chores",
     ]);
+  });
+
+  it("matches inherited initiative and project scopes plus direct parents", () => {
+    const graph = createWorkGraph({
+      workItems: [
+        {
+          id: "ticket",
+          title: "Ticket",
+          priorityRank: 1_024,
+          schedulingInitiativeId: "initiative-a",
+          schedulingProjectId: "project-a",
+        },
+        { id: "child", title: "Child", parentId: "ticket", rank: 1 },
+        { id: "grandchild", title: "Grandchild", parentId: "child", rank: 1 },
+      ],
+    });
+    const child = graph.workItems.find(({ id }) => id === "child")!;
+    const grandchild = graph.workItems.find(({ id }) => id === "grandchild")!;
+
+    expect(
+      isWorkItemInSelectionScope(graph, child, {
+        initiativeId: "initiative-a",
+        projectId: "project-a",
+        parentId: "ticket",
+      }),
+    ).toBe(true);
+    expect(
+      isWorkItemInSelectionScope(graph, grandchild, {
+        projectId: "project-a",
+        parentId: "ticket",
+      }),
+    ).toBe(false);
   });
 
   it("does not reorder existing work when a ticket is added at the bottom", () => {

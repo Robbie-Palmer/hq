@@ -30,6 +30,7 @@ const app = createWorkGraphApp({
   refreshPullRequest: unavailable,
   putWorkItemPullRequest: unavailable,
   moveWorkItemPriority: unavailable,
+  setWorkItemSchedulingScope: unavailable,
   expediteWorkItem: unavailable,
   unexpediteWorkItem: unavailable,
   addDependency: unavailable,
@@ -127,6 +128,7 @@ describe("Given the Work Graph route registry", () => {
         "PUT /api/work-items/:workItemId/contexts",
         "PUT /api/work-items/:workItemId/pull-requests",
         "PUT /api/work-items/:workItemId/references",
+        "PUT /api/work-items/:workItemId/scheduling-scope",
       ].sort(),
     );
   });

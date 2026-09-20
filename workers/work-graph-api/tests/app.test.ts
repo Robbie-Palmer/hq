@@ -130,6 +130,9 @@ const buildRepository = (): WorkGraphApiRepository => ({
   moveWorkItemPriority: vi.fn(async (workItemId) => ({
     ...item(workItemId, "ready"),
   })),
+  setWorkItemSchedulingScope: vi.fn(async (workItemId) => ({
+    ...item(workItemId, "ready"),
+  })),
   expediteWorkItem: vi.fn(async (workItemId, reason) => ({
     ...item(workItemId, "ready"),
     expedited: true,
@@ -491,6 +494,22 @@ describe("Given work items with derived readiness", () => {
     expect(body.items.map(({ id }) => id)).toEqual(["z-high", "a-low"]);
   });
 
+  it("passes initiative, project, and parent filters to the ordered read", async () => {
+    const repository = buildRepository();
+    const app = createWorkGraphApp(repository);
+
+    const response = await app.request(
+      "/api/work-items?stage=ready&initiativeId=initiative&projectId=project&parentId=parent",
+    );
+
+    expect(response.status).toBe(200);
+    expect(repository.listWorkItems).toHaveBeenCalledWith({
+      initiativeId: "initiative",
+      projectId: "project",
+      parentId: "parent",
+    });
+  });
+
   it("lists a stage with a cursor that survives readiness changes", async () => {
     const repository = buildRepository();
     vi.mocked(repository.listWorkItems)
@@ -771,6 +790,33 @@ describe("Given idempotent graph mutation requests", () => {
     );
     expect(repository.unexpediteWorkItem).toHaveBeenCalledWith(
       "ticket-a",
+      {},
+    );
+  });
+
+  it("assigns a root ticket to scheduling scopes", async () => {
+    const repository = buildRepository();
+    const app = createWorkGraphApp(repository);
+
+    const response = await app.request(
+      "/api/work-items/plan/scheduling-scope",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          schedulingInitiativeId: "initiative",
+          schedulingProjectId: "project",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(repository.setWorkItemSchedulingScope).toHaveBeenCalledWith(
+      "plan",
+      {
+        schedulingInitiativeId: "initiative",
+        schedulingProjectId: "project",
+      },
       {},
     );
   });
@@ -1241,6 +1287,35 @@ describe("Given a worker recording progress and requesting attention", () => {
 });
 
 describe("Given a worker managing a lease", () => {
+  it("passes scope filters to scheduler-selected claims", async () => {
+    const repository = buildRepository();
+    const app = createWorkGraphApp(repository, {
+      createLeaseId: () => leaseId,
+    });
+
+    const response = await app.request("/api/leases", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workerId: "worker-a",
+        leaseDurationSeconds: 300,
+        initiativeId: "initiative",
+        projectId: "project",
+        parentId: "parent",
+      }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(repository.claimWorkItem).toHaveBeenCalledWith({
+      leaseId,
+      workerId: "worker-a",
+      leaseDurationSeconds: 300,
+      initiativeId: "initiative",
+      projectId: "project",
+      parentId: "parent",
+    });
+  });
+
   it("decomposes into ranked children and claims one for the same worker", async () => {
     const repository = buildRepository();
     vi.mocked(repository.listWorkItems).mockResolvedValue(

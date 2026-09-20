@@ -115,6 +115,9 @@ work-graph scope show work-graph
 work-graph scope link semi-autonomous-software-development work-graph
 work-graph scope links
 work-graph scope unlink semi-autonomous-software-development work-graph
+work-graph scope assign work-graph-finish-mvp \
+  --initiative-id semi-autonomous-software-development \
+  --project-id work-graph
 work-graph create cli-8 --title "Build the TypeScript CLI" --scheduling-project-id work-graph
 work-graph context put cli-8 --kind brief --content "Add typed context records"
 work-graph context put cli-8 --kind acceptance_criteria --content "Claim returns stable context"
@@ -154,8 +157,12 @@ work-graph dependency add cli-8 api-7
 work-graph dependency remove cli-8 api-7
 work-graph queue
 work-graph ready
+work-graph ready --project-id work-graph
+work-graph queue --stage blocked --initiative-id semi-autonomous-software-development
 work-graph queue --all --limit 100
 work-graph claim --worker-id agent-a
+work-graph claim --project-id work-graph --worker-id agent-a
+work-graph claim --parent-id work-graph-finish-mvp --worker-id agent-a
 work-graph claim cli-8 --worker-id agent-a
 work-graph show cli-8
 work-graph metadata notes cli-8
@@ -236,6 +243,13 @@ evidence for both. It does not return unfinished work to the queue.
 replaces the title, URLs, and source revision while preserving relationships
 and scheduling position for that ID. `scope link` adds a directed
 parent-to-child relationship and rejects cycles.
+
+`scope assign` moves an existing root ticket into a scheduling initiative and
+project. Children inherit that assignment. Omit both scope flags to return the
+ticket to the unscoped queue. Queue and scheduler-selected claim commands accept
+`--initiative-id`, `--project-id`, and `--parent-id`; combined filters must all
+match. Filtering preserves the relative global priority order. A claim that
+names a ticket directly cannot also use scope filters.
 
 Priority commands use relative anchors. `scope move` compares initiatives only
 with initiatives and projects only with projects. `priority move` compares a

@@ -44,6 +44,7 @@ trap cleanup EXIT INT TERM
 printf 'header = "CF-Access-Client-Id: %s"\nheader = "CF-Access-Client-Secret: %s"\n' \
   "$CF_ACCESS_CLIENT_ID" "$CF_ACCESS_CLIENT_SECRET" >"$work_dir/access.curl"
 status="000"
+healthy=false
 for attempt in 1 2 3 4 5; do
   status=$(curl --disable \
     --config "$work_dir/access.curl" \
@@ -55,11 +56,72 @@ for attempt in 1 2 3 4 5; do
     --write-out '%{http_code}' \
     "$WORK_GRAPH_API_URL/api/work-items?limit=1") || status="000"
   if [[ "$status" == "200" ]] && jq -e '.items | type == "array"' "$work_dir/response.json" >/dev/null; then
-    echo "Work Graph production queue is reachable through Cloudflare Access."
-    exit 0
+    healthy=true
+    break
   fi
   sleep "$attempt"
 done
 
-echo "Work Graph production smoke test failed with HTTP $status." >&2
-exit 1
+if [[ "$healthy" != true ]]; then
+  echo "Work Graph production smoke test failed with HTTP $status." >&2
+  exit 1
+fi
+
+status=$(curl --disable \
+  --config "$work_dir/access.curl" \
+  --connect-timeout 10 \
+  --max-time 30 \
+  --silent \
+  --show-error \
+  --output "$work_dir/unscoped.json" \
+  --write-out '%{http_code}' \
+  "$WORK_GRAPH_API_URL/api/work-items?limit=100")
+if [[ "$status" != "200" ]]; then
+  echo "Work Graph production unscoped queue check failed with HTTP $status." >&2
+  exit 1
+fi
+unscoped_id=$(jq -r \
+  '.items | map(select(.id != "work-graph-finish-mvp" and .schedulingProjectId == null)) | first | .id // empty' \
+  "$work_dir/unscoped.json")
+if [[ -z "$unscoped_id" ]]; then
+  echo "Work Graph production smoke test could not find an unscoped comparison ticket." >&2
+  exit 1
+fi
+
+status=$(curl --disable \
+  --config "$work_dir/access.curl" \
+  --connect-timeout 10 \
+  --max-time 30 \
+  --silent \
+  --show-error \
+  --request PUT \
+  --header "Content-Type: application/json" \
+  --data '{"schedulingInitiativeId":"semi-autonomous-software-development","schedulingProjectId":"work-graph"}' \
+  --output "$work_dir/assignment.json" \
+  --write-out '%{http_code}' \
+  "$WORK_GRAPH_API_URL/api/work-items/work-graph-finish-mvp/scheduling-scope")
+if [[ "$status" != "200" ]] || ! jq -e \
+  '.id == "work-graph-finish-mvp" and .schedulingInitiativeId == "semi-autonomous-software-development" and .schedulingProjectId == "work-graph"' \
+  "$work_dir/assignment.json" >/dev/null; then
+  echo "Work Graph production plan assignment failed with HTTP $status." >&2
+  exit 1
+fi
+
+status=$(curl --disable \
+  --config "$work_dir/access.curl" \
+  --connect-timeout 10 \
+  --max-time 30 \
+  --silent \
+  --show-error \
+  --output "$work_dir/scoped.json" \
+  --write-out '%{http_code}' \
+  "$WORK_GRAPH_API_URL/api/work-items?projectId=work-graph&limit=100")
+if [[ "$status" != "200" ]] || ! jq -e \
+  --arg unscoped_id "$unscoped_id" \
+  '(.items | any(.id == "work-graph-finish-mvp")) and (.items | all(.schedulingProjectId == "work-graph")) and (.items | all(.id != $unscoped_id))' \
+  "$work_dir/scoped.json" >/dev/null; then
+  echo "Work Graph production scoped queue verification failed with HTTP $status." >&2
+  exit 1
+fi
+
+echo "Work Graph production queue and Work Graph project scope are healthy."

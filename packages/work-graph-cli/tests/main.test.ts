@@ -675,6 +675,7 @@ describe("Given agent-facing Work Graph commands", () => {
   it("moves contextual priority and manages an expedite", async () => {
     const ticketMove = harness();
     const scopeMove = harness();
+    const scopeAssign = harness();
     const expedite = harness();
     const unexpedite = harness();
 
@@ -693,6 +694,15 @@ describe("Given agent-facing Work Graph commands", () => {
       "project-a",
       "--below",
       "project-b",
+    ]);
+    await scopeAssign.run([
+      "scope",
+      "assign",
+      "ticket-a",
+      "--initiative-id",
+      "initiative-a",
+      "--project-id",
+      "project-a",
     ]);
     await expedite.run([
       "expedite",
@@ -716,6 +726,16 @@ describe("Given agent-facing Work Graph commands", () => {
     expect(scopeMove.requests[0]?.url.pathname).toBe(
       "/root/api/knowledge-scopes/project-a/priority-moves",
     );
+    expect(scopeAssign.requests[0]).toMatchObject({
+      method: "PUT",
+      body: {
+        schedulingInitiativeId: "initiative-a",
+        schedulingProjectId: "project-a",
+      },
+    });
+    expect(scopeAssign.requests[0]?.url.pathname).toBe(
+      "/root/api/work-items/ticket-a/scheduling-scope",
+    );
     expect(expedite.requests[0]).toMatchObject({
       method: "POST",
       body: { reason: "Production release blocker" },
@@ -728,7 +748,19 @@ describe("Given agent-facing Work Graph commands", () => {
     const familiarReady = harness();
     const all = harness();
     await ready.run(["queue", "--limit", "7", "--cursor", "item-1"]);
-    await familiarReady.run(["ready", "--limit", "7", "--cursor", "item-1"]);
+    await familiarReady.run([
+      "ready",
+      "--limit",
+      "7",
+      "--cursor",
+      "item-1",
+      "--initiative-id",
+      "initiative-a",
+      "--project-id",
+      "project-a",
+      "--parent-id",
+      "parent-a",
+    ]);
     await all.run(["queue", "--all"]);
     expect(ready.requests[0]?.url.href).toBe(
       "https://work.example.test/root/api/work-items?stage=ready&limit=7&cursor=item-1",
@@ -737,7 +769,7 @@ describe("Given agent-facing Work Graph commands", () => {
       "https://work.example.test/root/api/work-items",
     );
     expect(familiarReady.requests[0]?.url.href).toBe(
-      "https://work.example.test/root/api/work-items?stage=ready&limit=7&cursor=item-1",
+      "https://work.example.test/root/api/work-items?stage=ready&limit=7&cursor=item-1&initiativeId=initiative-a&projectId=project-a&parentId=parent-a",
     );
   });
 
@@ -876,6 +908,7 @@ describe("Given agent-facing Work Graph commands", () => {
     const next = harness(() => response(claimResponse));
     const full = harness(() => response(claimResponse));
     const specified = harness();
+    const scoped = harness(() => response(claimResponse));
     const codex = harness(undefined, {
       WORK_GRAPH_API_URL: API_URL,
       CODEX_THREAD_ID: "thread-123",
@@ -890,6 +923,17 @@ describe("Given agent-facing Work Graph commands", () => {
       "120",
     ]);
     await codex.run(["claim"]);
+    await scoped.run([
+      "claim",
+      "--worker-id",
+      "agent-a",
+      "--initiative-id",
+      "initiative-a",
+      "--project-id",
+      "project-a",
+      "--parent-id",
+      "parent-a",
+    ]);
     await full.run([
       "claim",
       "--worker-id",
@@ -908,6 +952,13 @@ describe("Given agent-facing Work Graph commands", () => {
     expect(codex.requests[0]?.body).toEqual({
       workerId: "codex:thread-123",
       leaseDurationSeconds: 900,
+    });
+    expect(scoped.requests[0]?.body).toEqual({
+      workerId: "agent-a",
+      leaseDurationSeconds: 900,
+      initiativeId: "initiative-a",
+      projectId: "project-a",
+      parentId: "parent-a",
     });
     expect(JSON.parse(next.stdout[0] ?? "null")).toEqual({
       context: [

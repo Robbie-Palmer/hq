@@ -1061,6 +1061,82 @@ describe("Given lease-backed work over HTTP", () => {
     expect(claim.workItem.id).toBe("z-high");
   });
 
+  it("assigns an existing plan and claims within its project scope", async () => {
+    await requestJson(
+      "/api/knowledge-scopes/initiative",
+      "PUT",
+      {
+        kind: "initiative",
+        title: "Initiative",
+        canonicalUrl: "https://example.test/initiatives/initiative",
+        markdownUrl: "https://example.test/initiatives/initiative.md",
+      },
+      recordId(491),
+    );
+    await requestJson(
+      "/api/knowledge-scopes/work-graph",
+      "PUT",
+      {
+        kind: "project",
+        title: "Work Graph",
+        canonicalUrl: "https://example.test/projects/work-graph",
+        markdownUrl: "https://example.test/projects/work-graph.md",
+      },
+      recordId(492),
+    );
+    await requestJson(
+      "/api/knowledge-scope-relationships",
+      "POST",
+      {
+        parentKnowledgeScopeId: "initiative",
+        childKnowledgeScopeId: "work-graph",
+      },
+      recordId(493),
+    );
+    await requestJson("/api/work-items", "POST", {
+      id: "unscoped",
+      title: "Unscoped",
+    });
+    await requestJson("/api/work-items", "POST", {
+      id: "plan",
+      title: "Plan",
+    });
+    const assigned = await requestJson(
+      "/api/work-items/plan/scheduling-scope",
+      "PUT",
+      {
+        schedulingInitiativeId: null,
+        schedulingProjectId: "work-graph",
+      },
+      recordId(494),
+    );
+    expect(assigned.status).toBe(200);
+    await requestJson("/api/work-items", "POST", {
+      id: "child",
+      title: "Child",
+      parentId: "plan",
+    });
+
+    const queueResponse = await app.request(
+      "/api/work-items?stage=ready&projectId=work-graph",
+    );
+    const queue = (await queueResponse.json()) as {
+      items: Array<{ id: string }>;
+    };
+    const claimResponse = await requestJson("/api/leases", "POST", {
+      workerId: "worker-a",
+      leaseDurationSeconds: 300,
+      projectId: "work-graph",
+      parentId: "plan",
+    });
+    const claim = (await claimResponse.json()) as {
+      workItem: { id: string };
+    };
+
+    expect(queue.items.map(({ id }) => id)).toEqual(["child"]);
+    expect(claim.workItem.id).toBe("child");
+  });
+
   it("distinguishes a missing specified item from ineligible work", async () => {
     const response = await requestJson("/api/leases", "POST", {
       workItemId: "missing",
