@@ -1,0 +1,280 @@
+---
+title: "ADR 067: Versioned Ingredient-Density Catalog and Source Ingestion"
+date: "2026-09-20"
+status: "Proposed"
+---
+
+# Summary
+
+Store ingredient-density reference data in Postgres and populate it through a dedicated Cloudflare
+Workflow with source-specific, versioned connectors. Runtime recipe features read only promoted
+catalog rows and never call an upstream data source.
+
+Keep the formulas and typed conversion contract in `recipe-domain`, but keep the growing dataset,
+source mappings, review state, and import history out of that package. Every accepted
+volume-to-weight conversion records the input, result, and density observation that produced it, so
+later catalog updates cannot silently change a saved recipe.
+
+# Context
+
+[ADR 030](/projects/recipe-site/adrs/030-cooklang) made this project responsible for unit
+conversion. The current conversion module handles deterministic conversions within one dimension,
+such as millilitres to US fluid ounces or grams to pounds. Converting a cup of cashews to grams is a
+different problem. It needs an ingredient-specific bulk density, and that value may also depend on
+form and preparation. Whole raw cashews, cashew pieces, and cashew butter are not interchangeable
+records.
+
+Bundling those observations into `recipe-domain` would turn a small domain package into a growing
+data release. Updating one source record would require an application release, provenance would be
+awkward to query, and historical source versions would either bloat the package or disappear.
+
+The application already has the better storage boundary. [ADR 033](/projects/recipe-site/adrs/033-backend-platform-for-authenticated-features)
+made Postgres the canonical store for recipe data, and its `ingredient` table provides the identity
+to which a reviewed density mapping can attach. [ADR 053](/projects/recipe-site/adrs/053-fresh-migration-baseline-and-isolated-preview-database-project)
+keeps database schema and required bootstrap catalogs in committed migrations. Density observations
+are different: they are externally sourced operational data, they can grow independently of the
+application, and the site still works when none are loaded. Migrations should create their schema,
+not contain each upstream release.
+
+The likely sources do not share one access model. USDA FoodData Central offers a documented API and
+versioned JSON or CSV downloads. FAO/INFOODS publishes its density database as a spreadsheet and
+static document. FAO's database terms also warn that some records may have third-party conditions,
+so a source cannot be admitted merely because a connector can parse it.
+
+Cooking Calculator helped expose this need but is not an upstream source for the catalog. As of this
+decision it has no documented public API, and its data-source page explicitly asks consumers not to
+scrape the site and to consult the original references.
+
+The source sync needs durable execution too. A release import spans unreliable upstream requests,
+an immutable source snapshot, parsing, batched database writes, validation, and promotion. The
+project has already adopted Cloudflare Workflows for this shape of job in
+[ADR 049](/projects/recipe-site/adrs/049-cloudflare-workflows-recipe-ingestion), along with R2 for
+large immutable artifacts and Hyperdrive for access to Neon Postgres.
+
+# Decision
+
+## Execute imports with Cloudflare Workflows
+
+Create a dedicated `ingredient-catalog-sync` Worker containing an
+`IngredientCatalogSyncWorkflow`. Do not add density synchronization to the user-owned
+`recipe-ingest` Workflow. The two jobs share platform components but need independent permissions,
+deployments, schedules, observability, and failure handling.
+
+Start a catalog sync in either of two ways:
+
+* an operator or protected administration endpoint requests a source and release; or
+* a schedule attached directly to the Workflow binding checks for a new upstream release.
+
+Cloudflare Workflows orchestrates extract, snapshot, transform, stage, and validation steps. Each
+upstream call and database batch is an independently retriable step with an idempotency key derived
+from the source, release identifier, and checksum. Postgres stores the authoritative import status.
+Workflow state is orchestration state and may expire after Cloudflare's retention period.
+
+Write the untouched upstream response or release file to R2 before transformation, using a
+content-addressed key. Workflow steps pass its R2 key and checksum rather than carrying the source
+payload between steps. Normalized observations and review state go through Hyperdrive into Neon
+Postgres.
+
+The Workflow finishes after validation with either `failed`, `ready`, or `awaiting_review` recorded
+in Postgres. It does not remain alive while a person reviews mappings. Approval starts an idempotent
+promotion phase from the persisted import ID, and that phase performs the active-catalog switch in
+one Postgres transaction.
+
+This executor fits API calls and source files that can be streamed or processed in bounded chunks
+within Workers limits. A connector must not buffer a large upstream archive in memory. Revisit the
+executor if a useful source can only be imported through CPU-heavy processing or a full release too
+large to stream and batch in a Worker.
+
+## Separate acquisition, selection, and calculation
+
+Use this data flow:
+
+<Mermaid
+  chart={`flowchart LR
+USDA[USDA API or release] --> W[Catalog-sync Workflow]
+FAO[FAO/INFOODS release] --> W
+OTHER[Approved future sources] --> W
+W --> R2[(R2 source snapshot)]
+R2 --> C[Source connector transform]
+C --> S[Staged Postgres import]
+S --> V[Validation and mapping review]
+V --> PG[(Promoted Postgres catalog)]
+PG --> APP[Recipe ingestion and editor]
+APP --> D[Pure recipe-domain conversion]
+`}
+/>
+
+Each source has its own connector behind a shared import contract. A connector fetches or reads one
+identifiable source release, verifies its checksum, retains the original fields needed for audit,
+and normalizes candidate measurements into a staging area. It does not write directly into the
+active catalog.
+
+Validation checks units, positive quantities, duplicate source identifiers, impossible values, and
+changes from the previously imported release. Mapping then associates a source food description
+with a canonical ingredient slug and a specific form or preparation. Exact previously reviewed
+mappings may carry forward. New, ambiguous, or materially changed mappings wait for human review.
+
+Promotion makes one validated import version available to runtime reads in a transaction. A failed
+or partial import leaves the previous promoted version active. Re-importing the same source version
+and checksum is idempotent.
+
+## Keep observations and selections distinct
+
+The Postgres model keeps four concepts separate:
+
+| Concept           | Purpose                                                                                                                               |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Source            | Publisher, dataset, canonical URL, access method, attribution, and applicable terms                                                   |
+| Import            | Source release identifier, retrieval time, checksum, connector version, status, and diagnostics                                       |
+| Observation       | Immutable source food description, form, original mass and volume, normalized density, source record identifier, and import reference |
+| Catalog selection | Canonical ingredient slug and form mapped to the chosen observation, with review state and reviewer metadata                          |
+
+An observation preserves the source measurement rather than only its calculated grams per
+millilitre. This allows a later parser fix to distinguish bad source data from a normalization bug.
+Store normalized numeric values with decimal precision. Round only when presenting or committing a
+human-facing recipe quantity.
+
+The catalog may retain multiple observations for the same ingredient and form. Runtime lookup uses
+only the promoted, reviewed selection. The selection records source priority as an explicit,
+reviewable choice. Application code must not hide that policy in a `COALESCE` order.
+
+Every connector must pass a source-admission check before its data can be promoted. The check records
+whether redistribution and derived use are allowed, what attribution is required, how source
+versions are identified, and whether third-party records need exclusion. Connector code alone is
+not evidence that the data may be used.
+
+## Keep `recipe-domain` data-free
+
+`recipe-domain` owns:
+
+* the typed density input accepted by a conversion;
+* conversion between a supported volume and mass using that density;
+* validation of dimensions and finite positive values;
+* deterministic precision and rounding rules.
+
+It does not own source connectors, database queries, canonical ingredient mappings, catalog rows, or
+a bundled density JSON file. Callers resolve a reviewed density record and pass its normalized value
+to the pure conversion function.
+
+This preserves a useful dependency direction. Postgres and connector code depend on domain types,
+while the domain package knows nothing about Postgres or any publisher.
+
+## Resolve upstream data outside user requests
+
+Upstream APIs and downloads are used only by the import pipeline. Recipe ingestion, editing,
+scaling, and display never wait for USDA, FAO, or another publisher. Scheduled and on-demand runs
+invoke the same idempotent Workflow contract.
+
+This source-import pipeline remains separate from the user-owned recipe workflow selected by
+[ADR 049](/projects/recipe-site/adrs/049-cloudflare-workflows-recipe-ingestion). Both may contribute
+to an editable recipe draft, but source refreshes have different ownership, retry policy, review
+rules, and release cadence.
+
+## Make conversions reproducible
+
+A cross-dimension conversion creates a proposed recipe edit. The display layer must not apply one
+silently. When the ingestion pipeline or editor converts a value, it records:
+
+* the original quantity, unit, ingredient slug, and preparation form;
+* the normalized input volume;
+* the selected observation and import version;
+* the unrounded result and the committed rounded quantity and unit;
+* whether a user accepted or changed the proposal.
+
+Only an exact reviewed ingredient-and-form match may produce an automatic proposal. A missing or
+ambiguous form preserves the authored measurement and asks for review. No LLM may invent or choose a
+density when the catalog lacks a reviewed match.
+
+After acceptance, a newer catalog import does not rewrite the saved recipe. A later explicit edit
+may opt into the newer observation and creates new conversion provenance.
+
+# Alternatives considered
+
+## Bundle a density file in `recipe-domain`
+
+This would make local conversion simple and keep every value in source control. It works for a tiny,
+rarely changing hand-maintained list. It was rejected because external releases, mapping review,
+licensing metadata, and historical observations are data-management concerns rather than domain
+code. The application would also need a deployment to correct one observation.
+
+## Query upstream sources during recipe ingestion
+
+This avoids maintaining a local catalog. It was rejected because upstream latency, credentials,
+rate limits, outages, and schema changes would enter a user-facing workflow. It would also make old
+conversions hard to reproduce after an upstream record changed.
+
+## Scrape Cooking Calculator
+
+This could provide a convenient normalized table. It was rejected because there is no documented
+API and the publisher explicitly asks consumers not to scrape the site. Its cited primary sources
+are more suitable connector targets.
+
+## Maintain all values manually in Postgres
+
+Manual curation remains necessary for canonical ingredient and form mappings, but manual entry is a
+poor acquisition mechanism. It hides upstream release changes, encourages copied values without
+source identifiers, and does not scale beyond occasional corrections. Reviewed connector imports
+retain human control without requiring a person to transcribe every observation.
+
+## Run a scheduled Worker without Workflows
+
+A Worker Cron Trigger could fetch and load each release directly. This has fewer deployed objects,
+but the invocation would own retry bookkeeping, checkpoints, and recovery after a partial database
+load. Direct Workflow schedules now provide the same recurring trigger while retaining durable
+step boundaries, so a separate Cron handler adds no value here.
+
+## Use Cloudflare Pipelines
+
+Cloudflare Pipelines handles streaming events and writes transformed JSON, Parquet, or Iceberg data
+to R2. This import instead reads occasional versioned APIs and files, pauses for mapping review, and
+promotes relational rows in Postgres. Pipelines does not fit that control flow or destination.
+
+## Run the import in CI or a container
+
+A Node.js batch process would have more memory and CPU headroom for large archives. It would also
+introduce another credential path to production Postgres and move an operational data refresh into
+the deployment system. Keep this as the escape hatch if a valuable source cannot be processed in
+bounded Worker steps.
+
+# Consequences
+
+* Runtime conversion is fast and independent of upstream availability.
+* The catalog can grow and receive source updates without enlarging `recipe-domain` or requiring an
+  application release for every data change.
+* Immutable imports and conversion provenance make a result reproducible after source and mapping
+  updates.
+* Source parsing, licensing checks, mapping review, promotion, and monitoring add an operational
+  subsystem that a bundled file would avoid.
+* The dedicated Workflow reuses the current Cloudflare deployment, R2, Hyperdrive, and Neon
+  infrastructure. It still adds a Worker deployment, source credentials, schedules, and alarms.
+* Coverage will be incomplete. Preserving the original measurement is expected behavior when no
+  reviewed density exists.
+* Preparation-aware mappings reduce false precision, but they require the recipe parser and editor
+  to retain form information well enough to select a record.
+* Preview and test databases need small deterministic fixtures. They should not copy the production
+  catalog or call external sources during tests.
+
+# Adoption criteria
+
+Move this ADR to Accepted when the first source connector and schema prove the contract end to end:
+
+1. an import can be staged, validated, reviewed, promoted, and repeated idempotently;
+2. a second source release can be loaded without deleting the first or changing the active catalog
+   before promotion;
+3. ambiguous ingredient or preparation mappings cannot become runtime selections without review;
+4. a conversion remains reproducible after a newer source release is promoted;
+5. repository tests use local fixtures and make no live source request; and
+6. the admitted source's reuse and attribution requirements are recorded and satisfied; and
+7. a scheduled and an operator-triggered Workflow run use the same idempotent import contract.
+
+# References
+
+* [USDA FoodData Central API guide](https://fdc.nal.usda.gov/api-guide/)
+* [USDA FoodData Central downloadable releases](https://fdc.nal.usda.gov/download-datasets/)
+* [FAO/INFOODS Density Database version 2](https://www.fao.org/food-composition/tables-and-databases/detail/%28global--2012%29-fao-infoods-density-database---version-2/en)
+* [FAO statistical database terms of use](https://www.fao.org/contact-us/terms/db-terms-of-use/)
+* [Cooking Calculator data sources and usage request](https://cookingcalculator.app/about/data-sources)
+* [Cloudflare Workflows triggers and direct schedules](https://developers.cloudflare.com/workflows/build/trigger-workflows/)
+* [Cloudflare Workflows limits](https://developers.cloudflare.com/workflows/reference/limits/)
+* [Cloudflare Pipelines](https://developers.cloudflare.com/pipelines/)
+* [Cloudflare Workers limits](https://developers.cloudflare.com/workers/platform/limits/)
