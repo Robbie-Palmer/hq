@@ -17,8 +17,11 @@ import {
 const isNonBlank = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0;
 
-const compareText = (left: string, right: string): number =>
-  left < right ? -1 : left > right ? 1 : 0;
+const compareText = (left: string, right: string): number => {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+};
 
 const normalizeUrl = (value: unknown, label: string): string => {
   if (typeof value !== "string") {
@@ -237,18 +240,16 @@ const lineageFor = (
 const roleOrder = (role: ArchitectureDecisionRole): number =>
   role === "governing" ? 0 : 1;
 
-export const resolveWorkItemContext = (
+const resolveTextContexts = (
   graph: WorkGraph,
-  workItemId: string,
-  knowledgeScopes: readonly KnowledgeScope[] = [],
+  lineage: readonly WorkItem[],
 ): readonly ResolvedWorkItemContext[] => {
-  const lineage = lineageFor(graph, workItemId);
   const resolved: ResolvedWorkItemContext[] = [];
-  const resolvedTextKinds = new Set<WorkItemContextKind>();
+  const resolvedKinds = new Set<WorkItemContextKind>();
 
   for (const [inheritanceDepth, item] of lineage.entries()) {
     for (const kind of WORK_ITEM_CONTEXT_KINDS) {
-      if (resolvedTextKinds.has(kind)) continue;
+      if (resolvedKinds.has(kind)) continue;
       const context = graph.contexts.find(
         (candidate) =>
           candidate.workItemId === item.id && candidate.kind === kind,
@@ -260,11 +261,19 @@ export const resolveWorkItemContext = (
         sourceWorkItemId: item.id,
         inheritanceDepth,
       });
-      resolvedTextKinds.add(kind);
+      resolvedKinds.add(kind);
     }
   }
+  return resolved;
+};
 
-  const seenDecisionUrls = new Set<string>();
+const resolveArchitectureDecisions = (
+  graph: WorkGraph,
+  lineage: readonly WorkItem[],
+): readonly ResolvedWorkItemContext[] => {
+  const resolved: ResolvedWorkItemContext[] = [];
+  const seenUrls = new Set<string>();
+
   for (const [inheritanceDepth, item] of lineage.entries()) {
     const decisions = graph.architectureDecisions
       .filter((decision) => decision.workItemId === item.id)
@@ -274,8 +283,8 @@ export const resolveWorkItemContext = (
           compareText(left.url, right.url),
       );
     for (const decision of decisions) {
-      if (seenDecisionUrls.has(decision.url)) continue;
-      seenDecisionUrls.add(decision.url);
+      if (seenUrls.has(decision.url)) continue;
+      seenUrls.add(decision.url);
       resolved.push({
         kind: "architecture_decision",
         title: decision.title,
@@ -286,43 +295,55 @@ export const resolveWorkItemContext = (
       });
     }
   }
+  return resolved;
+};
 
-  const schedulingOwnerDepth = lineage.findIndex(
+const resolveKnowledgeScopes = (
+  lineage: readonly WorkItem[],
+  knowledgeScopes: readonly KnowledgeScope[],
+): readonly ResolvedWorkItemContext[] => {
+  const ownerDepth = lineage.findIndex(
     (item) =>
       item.schedulingProjectId !== null ||
       item.schedulingInitiativeId !== null,
   );
-  if (schedulingOwnerDepth !== -1) {
-    const owner = lineage[schedulingOwnerDepth];
-    if (owner) {
-      for (const [kind, scopeId] of [
-        ["project", owner.schedulingProjectId],
-        ["initiative", owner.schedulingInitiativeId],
-      ] as const) {
-        if (scopeId === null) continue;
-        const scope = knowledgeScopes.find(
-          (candidate) => candidate.id === scopeId && candidate.kind === kind,
-        );
-        if (scope) {
-          resolved.push({
-            kind,
-            scope,
-            sourceWorkItemId: owner.id,
-            inheritanceDepth: schedulingOwnerDepth,
-          });
-        }
-      }
-    }
-  }
+  const owner = lineage[ownerDepth];
+  if (ownerDepth === -1 || !owner) return [];
 
-  const seenReferenceUrls = new Set<string>();
+  const resolved: ResolvedWorkItemContext[] = [];
+  for (const [kind, scopeId] of [
+    ["project", owner.schedulingProjectId],
+    ["initiative", owner.schedulingInitiativeId],
+  ] as const) {
+    if (scopeId === null) continue;
+    const scope = knowledgeScopes.find(
+      (candidate) => candidate.id === scopeId && candidate.kind === kind,
+    );
+    if (!scope) continue;
+    resolved.push({
+      kind,
+      scope,
+      sourceWorkItemId: owner.id,
+      inheritanceDepth: ownerDepth,
+    });
+  }
+  return resolved;
+};
+
+const resolveReferences = (
+  graph: WorkGraph,
+  lineage: readonly WorkItem[],
+): readonly ResolvedWorkItemContext[] => {
+  const resolved: ResolvedWorkItemContext[] = [];
+  const seenUrls = new Set<string>();
+
   for (const [inheritanceDepth, item] of lineage.entries()) {
     const references = graph.references
       .filter((reference) => reference.workItemId === item.id)
       .sort((left, right) => compareText(left.url, right.url));
     for (const reference of references) {
-      if (seenReferenceUrls.has(reference.url)) continue;
-      seenReferenceUrls.add(reference.url);
+      if (seenUrls.has(reference.url)) continue;
+      seenUrls.add(reference.url);
       resolved.push({
         kind: "reference",
         title: reference.title,
@@ -332,6 +353,19 @@ export const resolveWorkItemContext = (
       });
     }
   }
-
   return resolved;
+};
+
+export const resolveWorkItemContext = (
+  graph: WorkGraph,
+  workItemId: string,
+  knowledgeScopes: readonly KnowledgeScope[] = [],
+): readonly ResolvedWorkItemContext[] => {
+  const lineage = lineageFor(graph, workItemId);
+  return [
+    ...resolveTextContexts(graph, lineage),
+    ...resolveArchitectureDecisions(graph, lineage),
+    ...resolveKnowledgeScopes(lineage, knowledgeScopes),
+    ...resolveReferences(graph, lineage),
+  ];
 };

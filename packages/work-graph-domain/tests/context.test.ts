@@ -3,6 +3,8 @@ import {
   createWorkGraph,
   projectWorkItemStage,
   resolveWorkItemContext,
+  type WorkGraphInput,
+  WorkGraphError,
 } from "../src/index";
 
 describe("work-item context", () => {
@@ -199,6 +201,142 @@ describe("work-item context", () => {
 
     expect(projectWorkItemStage(withReference, "work")).toBe(
       projectWorkItemStage(withoutReference, "work"),
+    );
+  });
+
+  it.each([
+    [
+      {
+        contexts: [
+          { workItemId: "work", kind: "brief", content: " " },
+        ],
+      },
+      "invalid_context_content",
+    ],
+    [
+      {
+        contexts: [
+          { workItemId: "work", kind: "summary", content: "Summary" },
+        ],
+      },
+      "invalid_context_kind",
+    ],
+    [
+      {
+        contexts: [
+          { workItemId: "work", kind: "brief", content: "First" },
+          { workItemId: "work", kind: "brief", content: "Second" },
+        ],
+      },
+      "duplicate_context",
+    ],
+    [
+      {
+        architectureDecisions: [
+          {
+            workItemId: "work",
+            title: " ",
+            url: "https://example.test/adrs/1",
+            role: "governing",
+          },
+        ],
+      },
+      "invalid_architecture_decision_title",
+    ],
+    [
+      {
+        architectureDecisions: [
+          {
+            workItemId: "work",
+            title: "Decision",
+            url: "https://example.test/adrs/1",
+            role: "advisory",
+          },
+        ],
+      },
+      "invalid_architecture_decision_role",
+    ],
+    [
+      {
+        architectureDecisions: [
+          {
+            workItemId: "work",
+            title: "First",
+            url: "https://example.test/adrs/1",
+            role: "governing",
+          },
+          {
+            workItemId: "work",
+            title: "Second",
+            url: "https://example.test/adrs/1",
+            role: "background",
+          },
+        ],
+      },
+      "duplicate_architecture_decision",
+    ],
+    [
+      {
+        references: [
+          {
+            workItemId: "work",
+            title: "Reference",
+            url: "not-a-url",
+          },
+        ],
+      },
+      "invalid_context_url",
+    ],
+    [
+      {
+        references: [
+          {
+            workItemId: "work",
+            title: " ",
+            url: "https://example.test/reference",
+          },
+        ],
+      },
+      "invalid_reference_title",
+    ],
+    [
+      {
+        references: [
+          {
+            workItemId: "work",
+            title: "First",
+            url: "https://example.test/reference",
+          },
+          {
+            workItemId: "work",
+            title: "Second",
+            url: "https://example.test/reference",
+          },
+        ],
+      },
+      "duplicate_reference",
+    ],
+  ] as const)("rejects malformed context records with %s", (records, code) => {
+    expect(() =>
+      createWorkGraph({
+        workItems: [{ id: "work", title: "Work" }],
+        ...(records as unknown as Partial<WorkGraphInput>),
+      }),
+    ).toThrowError(expect.objectContaining<Partial<WorkGraphError>>({ code }));
+  });
+
+  it("rejects context for an unknown work item", () => {
+    expect(() =>
+      createWorkGraph({
+        workItems: [{ id: "work", title: "Work" }],
+        contexts: [
+          { workItemId: "missing", kind: "brief", content: "Missing" },
+        ],
+      }),
+    ).toThrowError(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "work_item_not_found",
+      }),
     );
   });
   it.todo("filters work by semantic fields without arbitrary labels");
