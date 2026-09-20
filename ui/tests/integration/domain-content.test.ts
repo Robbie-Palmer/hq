@@ -39,6 +39,12 @@ describe("Domain Content Validation (Integration)", () => {
     expect(repo.referentialIntegrityErrors).toEqual([]);
   });
 
+  it("should explain every technology page", () => {
+    for (const technology of repo.technologies.values()) {
+      expect(technology.description, technology.name).toMatch(/\S/);
+    }
+  });
+
   it("should connect technologies to the ideas they build on or expose", () => {
     expect(repo.graph.edges.technologyIdeas.get("kafka")).toEqual(
       new Set(["commit-log", "stream-table-duality", "write-ahead-log"]),
