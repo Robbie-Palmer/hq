@@ -18,7 +18,10 @@ import posthog from "posthog-js";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import type {
   FilterOption,
+  PaletteBlogPost,
   PaletteIdea,
+  PaletteInitiative,
+  PaletteProject,
   PaletteTechnology,
 } from "@/components/command-palette-types";
 import { useIsMac } from "@/hooks/use-is-mac";
@@ -113,6 +116,9 @@ interface CommandPaletteDialogProps {
   pageFilters: FilterOption[];
   technologies: PaletteTechnology[];
   ideas: PaletteIdea[];
+  projects: PaletteProject[];
+  initiatives: PaletteInitiative[];
+  blogPosts: PaletteBlogPost[];
 }
 
 export function CommandPaletteDialog({
@@ -121,6 +127,9 @@ export function CommandPaletteDialog({
   pageFilters,
   technologies,
   ideas,
+  projects,
+  initiatives,
+  blogPosts,
 }: Readonly<CommandPaletteDialogProps>) {
   const router = useRouter();
   const pathname = usePathname();
@@ -234,6 +243,42 @@ export function CommandPaletteDialog({
       .slice(0, 10);
   }, [ideas, search]);
 
+  const matchedProjects = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return [];
+    return projects
+      .filter(
+        (project) =>
+          project.title.toLowerCase().includes(query) ||
+          project.slug.toLowerCase().includes(query),
+      )
+      .slice(0, 10);
+  }, [projects, search]);
+
+  const matchedInitiatives = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return [];
+    return initiatives
+      .filter(
+        (initiative) =>
+          initiative.title.toLowerCase().includes(query) ||
+          initiative.slug.toLowerCase().includes(query),
+      )
+      .slice(0, 10);
+  }, [initiatives, search]);
+
+  const matchedBlogPosts = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return [];
+    return blogPosts
+      .filter(
+        (post) =>
+          post.title.toLowerCase().includes(query) ||
+          post.slug.toLowerCase().includes(query),
+      )
+      .slice(0, 10);
+  }, [blogPosts, search]);
+
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
@@ -305,6 +350,67 @@ export function CommandPaletteDialog({
                   </Command.Item>
                 ))}
               </Command.Group>
+
+              {matchedProjects.length > 0 && (
+                <Command.Group
+                  heading="Projects"
+                  className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground"
+                >
+                  {matchedProjects.map((project) => (
+                    <Command.Item
+                      key={project.slug}
+                      value={`${project.title} ${project.slug}`}
+                      onSelect={() =>
+                        handleNavigation(`/projects/${project.slug}`)
+                      }
+                      className="flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm cursor-pointer aria-selected:bg-accent aria-selected:text-accent-foreground"
+                    >
+                      <FolderKanban className="size-4" />
+                      <span>{project.title}</span>
+                    </Command.Item>
+                  ))}
+                </Command.Group>
+              )}
+
+              {matchedInitiatives.length > 0 && (
+                <Command.Group
+                  heading="Initiatives"
+                  className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground"
+                >
+                  {matchedInitiatives.map((initiative) => (
+                    <Command.Item
+                      key={initiative.slug}
+                      value={`${initiative.title} ${initiative.slug}`}
+                      onSelect={() =>
+                        handleNavigation(`/initiatives/${initiative.slug}`)
+                      }
+                      className="flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm cursor-pointer aria-selected:bg-accent aria-selected:text-accent-foreground"
+                    >
+                      <Network className="size-4" />
+                      <span>{initiative.title}</span>
+                    </Command.Item>
+                  ))}
+                </Command.Group>
+              )}
+
+              {matchedBlogPosts.length > 0 && (
+                <Command.Group
+                  heading="Blog posts"
+                  className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground"
+                >
+                  {matchedBlogPosts.map((post) => (
+                    <Command.Item
+                      key={post.slug}
+                      value={`${post.title} ${post.slug}`}
+                      onSelect={() => handleNavigation(`/blog/${post.slug}`)}
+                      className="flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm cursor-pointer aria-selected:bg-accent aria-selected:text-accent-foreground"
+                    >
+                      <BookOpen className="size-4" />
+                      <span>{post.title}</span>
+                    </Command.Item>
+                  ))}
+                </Command.Group>
+              )}
 
               {matchedTechnologies.length > 0 && (
                 <Command.Group
