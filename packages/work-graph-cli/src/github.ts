@@ -110,11 +110,11 @@ export const summarizeChecks = (
   checks: GitHubPullRequest["statusCheckRollup"],
 ): PullRequestSnapshot["checkSummary"] => {
   if (checks.length === 0) return "unknown";
-  const results = checks.map(normalizeCheck);
-  if (results.includes("failure")) return "failure";
-  if (results.includes("pending")) return "pending";
-  if (results.includes("unknown")) return "unknown";
-  if (results.includes("success")) return "success";
+  const results = new Set(checks.map(normalizeCheck));
+  if (results.has("failure")) return "failure";
+  if (results.has("pending")) return "pending";
+  if (results.has("unknown")) return "unknown";
+  if (results.has("success")) return "success";
   return "neutral";
 };
 
