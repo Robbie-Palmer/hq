@@ -65,10 +65,11 @@ authentication and tools belong to the client rather than the gateway.
 When a session approaches a limit or must stop, require it to checkpoint its
 state and evidence in Work Graph, then release or expire its lease. A new
 session may claim the remaining work with an explicit handoff. Record the
-session ID, client, provider and model used by each request, account class,
-quota signal, metered cost, outcome, and handoff reason in private operational
-telemetry. Expose only the useful work evidence and non-sensitive provenance
-through Work Graph.
+session ID, client, adapter, API route, provider and model used by each request,
+account class, quota signal, metered cost, outcome, and handoff reason in
+private operational telemetry. The API route identifies direct access or the
+approved gateway. Expose only the useful work evidence and non-sensitive
+provenance through Work Graph.
 
 Maintain an allowlist of authentication paths supported by current provider
 documentation or written provider approval. Disable an adapter when that basis
@@ -87,8 +88,9 @@ disappears. Do not infer permission from technical compatibility alone.
 4. An API-funded worker can run through OpenRouter with a hard budget and
    attributable metered cost.
 5. Private telemetry records the selected adapter, session ID, account class,
-   per-request provider and model, quota signal, cost, outcome, and handoff.
-   The public work record contains no credentials or sensitive quota details.
+   direct route or gateway identifier, per-request provider and model, quota
+   signal, cost, outcome, and handoff. The public work record contains no
+   credentials or sensitive quota details.
 6. Every enabled authentication path points to current provider documentation
    or written approval, and an automated or scheduled review can flag changed
    terms for human attention.

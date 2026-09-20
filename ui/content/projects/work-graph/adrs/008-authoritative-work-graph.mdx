@@ -63,25 +63,29 @@ sources, projections, or links. They must not become competing places where an
 authoritative work-item state can change. A projection that accepts edits must
 write them through to Work Graph before presenting them as committed.
 
-Keep this ADR proposed, and keep Shortcut authoritative, until the acceptance
-criteria pass. At that point, mark this ADR accepted and record it as
-superseding ADR 007.
+Keep this ADR proposed, and keep Shortcut authoritative outside an explicitly
+bounded Work Graph pilot, until the acceptance criteria pass. Each pilot has
+one authority for its stated scope. At that point, mark this ADR accepted and
+record it as superseding ADR 007.
 
 ## Acceptance criteria
 
-1. The remaining Work Graph minimum viable product is planned and executed
-   through Work Graph itself without a parallel authoritative backlog.
+1. One bounded pilot scope, initially the remaining Work Graph minimum viable
+   product, is planned and executed through Work Graph without a parallel
+   authoritative backlog for that scope. Shortcut remains authoritative for
+   work outside the pilot.
 2. At least two independent workers can claim ready work concurrently, attach
-   evidence, and complete it without double execution. A forced worker expiry
-   demonstrates fenced takeover by another worker.
+   evidence, and complete it without double execution. After a forced worker
+   expiry and takeover, the expired worker attempts a renewal, evidence update,
+   or completion using its old fence. Work Graph rejects the stale operation.
 3. The owner can capture, inspect, and reprioritise work away from the primary
    development machine through a usable mobile interface.
 4. Active Shortcut work can be imported with its relevant descriptions,
    ordering, hierarchy, and links. Reconciled item counts and sampled records
    show that the cutover did not silently lose active work.
-5. GitHub and Shortcut integrations are demonstrably projections or import
-   paths, not second authorities. Recovery documentation covers export and
-   restoration of the central work state.
+5. Within a Work Graph-owned pilot scope, GitHub and Shortcut integrations are
+   demonstrably projections or import paths. Recovery documentation covers
+   export and restoration of the central work state.
 6. At least one change can be followed from source control through CI and
    promotion between environments. Observed system events update its evidence
    and state without requiring the owner to reread and reconcile its tickets.
