@@ -1,0 +1,153 @@
+---
+title: "ADR 008: Make Work Graph the authoritative work system"
+date: "2026-09-19"
+status: "Proposed"
+---
+
+## Context
+
+[Shortcut remains the current tracker](/projects/work-graph/adrs/007-shortcut).
+It solved quick capture, mobile access, hierarchy, and backlog ordering for a
+human-led workflow. The semi-autonomous software development initiative now
+needs a source of truth that workers can also coordinate through continuously.
+
+That source must represent dependencies and decomposition without forcing every
+relationship into a fixed issue hierarchy. It must derive ready work, preserve
+contextual priority, grant fenced leases, record evidence, and surface items
+that need human attention. A board that requires agents to infer or duplicate
+this state cannot be authoritative.
+
+[Beads](https://github.com/gastownhall/beads) is the closest existing
+alternative. It is an agent-oriented, dependency-aware work graph backed by
+Dolt. It supports atomic claims, expiring leases, ready-work queries, server
+mode, and cross-repository coordination. Beads already covers multi-agent
+coordination. The decisive difference is the system boundary. Beads is
+primarily repository-local and offline-first, with Dolt replication between
+project databases. Work Graph is a central service for planning and execution
+across the entire initiative.
+
+Beads allows custom statuses and metadata, but its documented
+[core scope](https://github.com/gastownhall/beads/blob/main/engdocs/PROJECT_CHARTER.md)
+remains issue lifecycle, dependencies, status, priority, and assignment.
+Promotion through development, staging, and production is not a first-class
+model. Neither is observed state from source control, CI, deployment platforms,
+infrastructure, or production telemetry. Encoding all of that in custom issue
+metadata would leave Work Graph's main purpose in an integration layer.
+
+Beads also exposes a static P0 to P4 priority on each issue. It does not compute
+this project's contextual ordering or derive a critical path that accounts for
+initiative rank, project rank, dependencies, and available parallelism. The
+owner would still have to inspect the graph and maintain priorities manually.
+
+## Decision
+
+Make Work Graph the target authoritative source for executable work across the
+initiative and its projects. The knowledge graph remains authoritative for
+vision, architecture, and durable prose; Work Graph owns the changing state of
+what should happen, what is ready, who holds the right to act, and what evidence
+was produced.
+
+Use the central service and the domain decisions already recorded by this
+project: flexible work items and relationships, contextual ordinal stacks,
+dependency-derived readiness, renewable fenced leases, explicit terminal
+states, and evidence-backed attention routing.
+
+Integrate Work Graph with source control, CI, deployment platforms,
+infrastructure, and observability. Those systems report what has actually
+happened. Their signals update linked work, evidence, environment promotion,
+and attention state so the graph increasingly reflects the running system
+without manual ticket review.
+
+Shortcut, GitHub Issues, and repository-local task formats may be import
+sources, projections, or links. They must not become competing places where an
+authoritative work-item state can change. A projection that accepts edits must
+write them through to Work Graph before presenting them as committed.
+
+Keep this ADR proposed, and keep Shortcut authoritative outside an explicitly
+bounded Work Graph pilot, until the acceptance criteria pass. Each pilot has
+one authority for its stated scope. At that point, mark this ADR accepted and
+record it as superseding ADR 007.
+
+## Acceptance criteria
+
+1. One bounded pilot scope, initially the remaining Work Graph minimum viable
+   product, is planned and executed through Work Graph without a parallel
+   authoritative backlog for that scope. Shortcut remains authoritative for
+   work outside the pilot.
+2. At least two independent workers can claim ready work concurrently, attach
+   evidence, and complete it without double execution. After a forced worker
+   expiry and takeover, the expired worker attempts a renewal, evidence update,
+   or completion using its old fence. Work Graph rejects the stale operation.
+3. The owner can capture, inspect, and reprioritise work away from the primary
+   development machine through a usable mobile interface.
+4. Active Shortcut work can be imported with its relevant descriptions,
+   ordering, hierarchy, and links. Reconciled item counts and sampled records
+   show that the cutover did not silently lose active work.
+5. Within a Work Graph-owned pilot scope, GitHub and Shortcut integrations are
+   demonstrably projections or import paths. Recovery documentation covers
+   export and restoration of the central work state.
+6. At least one change can be followed from source control through CI and
+   promotion between environments. Observed system events update its evidence
+   and state without requiring the owner to reread and reconcile its tickets.
+
+## Consequences
+
+Workers and the owner share one scheduling and coordination model. Readiness,
+priority, ownership, evidence, and attention no longer have to be reconstructed
+from several tools before each session. Cross-project work can be ranked and
+claimed without first choosing a repository-local tracker.
+
+Work Graph becomes critical infrastructure. Its availability, backups,
+migrations, mobile experience, and operational maintenance become project
+responsibilities rather than vendor concerns. Integrations need explicit
+directionality so that convenience views do not recreate split authority.
+
+Shortcut remains in service during validation. This avoids a symbolic
+supersession before Work Graph meets the practical requirements that led to
+Shortcut's adoption.
+
+## Alternatives considered
+
+### Continue using Shortcut as the authority
+
+Shortcut remains a strong human interface and already satisfies the mobile
+capture requirement. Expressing a complex dependency graph in it takes too much
+manual maintenance. Its Kanban view does not expose the current critical path
+or the safe parallel starting set. In practice, the owner must repeatedly
+reread tickets, reconstruct those paths, and manually recompute priorities
+before dispatching agents.
+
+Shortcut also does not own worker leases, execution evidence, environment
+promotion, observed system state, or attention routing. Adding those in a
+separate coordinator would leave two systems responsible for one work item's
+lifecycle.
+
+### Adopt Beads
+
+Beads provides many of the right primitives and is a better fit than a
+conventional issue tracker for repository-scoped agent work. Its Dolt-backed,
+offline-first model is valuable when repositories and local workers are the
+natural unit of authority.
+
+This initiative instead needs one server-side authority across initiatives,
+projects, knowledge scopes, and repositories, protected by shared service
+authentication and exposed through stable APIs. Work Graph also deliberately
+uses flexible item semantics, contextual stack ranking, derived critical paths,
+and environment promotion. It can ingest facts from the full technology stack
+and relate them to planned work. Beads' P0 to P4 field and custom metadata would
+still require a separate policy and integration layer to provide those
+behaviours. Adopting Beads now would replace proven local implementation work
+with a second storage and sync model while leaving the distinguishing work to
+custom coordination above it.
+
+Reconsider Beads if the desired boundary becomes repository-local, or if it can
+satisfy Work Graph's central authority, ranking, critical-path, environment,
+evidence, and attention invariants with less ownership cost.
+
+### Return to GitHub Issues, Linear, or Jira
+
+These products reduce infrastructure ownership and provide mature human
+interfaces. They remain issue trackers first. Expressing the required graph,
+lease, evidence, and scheduler semantics through labels, custom fields, and
+automation would move the real authority into an integration layer while the
+visible tracker retained a misleading partial state.
