@@ -185,7 +185,7 @@ export type WorkItemEventList = {
 
 export type WorkItemEvent = {
     sequence: number;
-    type: 'attention.requested' | 'attention.resolved' | 'dependency.added' | 'dependency.removed' | 'context.put' | 'lease.claimed' | 'lease.ended' | 'lease.renewed' | 'note.created' | 'pull_request.linked' | 'reference.put' | 'work_item.created' | 'work_item.decomposed' | 'work_item.expedited' | 'work_item.priority_moved' | 'work_item.lifecycle_changed' | 'work_item.reparented' | 'work_item.unexpedited';
+    type: 'attention.requested' | 'attention.resolved' | 'dependency.added' | 'dependency.removed' | 'context.put' | 'lease.claimed' | 'lease.ended' | 'lease.renewed' | 'note.created' | 'pull_request.linked' | 'reference.put' | 'work_item.created' | 'work_item.decomposed' | 'work_item.expedited' | 'work_item.priority_moved' | 'work_item.lifecycle_changed' | 'work_item.reparented' | 'work_item.scheduling_scope_changed' | 'work_item.unexpedited';
     workItemId: string | null;
     data: {
         [key: string]: unknown;
@@ -962,7 +962,13 @@ export type CreateLeaseData = {
     body: {
         workerId: string;
         leaseDurationSeconds: number;
-        workItemId?: string;
+        workItemId: string;
+    } | {
+        workerId: string;
+        leaseDurationSeconds: number;
+        initiativeId?: string;
+        projectId?: string;
+        parentId?: string;
     };
     path?: never;
     query?: never;
@@ -1136,6 +1142,9 @@ export type ListWorkItemsData = {
     path?: never;
     query?: {
         stage?: 'blocked' | 'ready' | 'in_progress' | 'stale' | 'needs_attention' | 'released' | 'cancelled';
+        initiativeId?: string;
+        projectId?: string;
+        parentId?: string;
         limit?: number;
         cursor?: string;
     };
@@ -1661,7 +1670,7 @@ export type ListWorkItemEventsData = {
         workItemId: string;
     };
     query?: {
-        type?: 'attention.requested' | 'attention.resolved' | 'dependency.added' | 'dependency.removed' | 'context.put' | 'lease.claimed' | 'lease.ended' | 'lease.renewed' | 'note.created' | 'pull_request.linked' | 'reference.put' | 'work_item.created' | 'work_item.decomposed' | 'work_item.expedited' | 'work_item.priority_moved' | 'work_item.lifecycle_changed' | 'work_item.reparented' | 'work_item.unexpedited';
+        type?: 'attention.requested' | 'attention.resolved' | 'dependency.added' | 'dependency.removed' | 'context.put' | 'lease.claimed' | 'lease.ended' | 'lease.renewed' | 'note.created' | 'pull_request.linked' | 'reference.put' | 'work_item.created' | 'work_item.decomposed' | 'work_item.expedited' | 'work_item.priority_moved' | 'work_item.lifecycle_changed' | 'work_item.reparented' | 'work_item.scheduling_scope_changed' | 'work_item.unexpedited';
         lifecycle?: 'released' | 'cancelled';
         limit?: number;
         afterSequence?: number;
@@ -2287,3 +2296,63 @@ export type CreateWorkItemReleaseResponses = {
 };
 
 export type CreateWorkItemReleaseResponse = CreateWorkItemReleaseResponses[keyof CreateWorkItemReleaseResponses];
+
+export type PutWorkItemSchedulingScopeData = {
+    body: {
+        schedulingInitiativeId: string | null;
+        schedulingProjectId: string | null;
+    };
+    headers?: {
+        /**
+         * Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.
+         */
+        'idempotency-key'?: string;
+    };
+    path: {
+        workItemId: string;
+    };
+    query?: never;
+    url: '/api/work-items/{workItemId}/scheduling-scope';
+};
+
+export type PutWorkItemSchedulingScopeErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+};
+
+export type PutWorkItemSchedulingScopeError = PutWorkItemSchedulingScopeErrors[keyof PutWorkItemSchedulingScopeErrors];
+
+export type PutWorkItemSchedulingScopeResponses = {
+    /**
+     * Scheduling scope assigned or matching mutation replayed
+     */
+    200: WorkItem;
+};
+
+export type PutWorkItemSchedulingScopeResponse = PutWorkItemSchedulingScopeResponses[keyof PutWorkItemSchedulingScopeResponses];

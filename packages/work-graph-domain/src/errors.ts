@@ -24,6 +24,7 @@ export type WorkGraphErrorCode =
   | "invalid_architecture_decision_role"
   | "invalid_architecture_decision_title"
   | "invalid_child_rank"
+  | "invalid_claim_scope"
   | "invalid_completion_evidence"
   | "invalid_context_content"
   | "invalid_context_kind"

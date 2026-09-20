@@ -34,6 +34,7 @@ import {
   putWorkItemPullRequest,
   putWorkItemContext,
   putWorkItemReference,
+  putWorkItemSchedulingScope,
   refreshPullRequest,
   unexpediteWorkItem,
 } from "./generated/client/sdk.gen.js";
@@ -67,6 +68,7 @@ import type {
   PutWorkItemPullRequestData,
   PutWorkItemContextData,
   PutWorkItemReferenceData,
+  PutWorkItemSchedulingScopeData,
   RefreshPullRequestData,
 } from "./generated/client/types.gen.js";
 import type { WorkGraphClientConfig } from "./config.js";
@@ -337,6 +339,21 @@ export class WorkGraphClient {
   getWorkItem(workItemId: string) {
     return this.#unwrap(
       getWorkItem({ ...this.#options(), path: { workItemId } }),
+    );
+  }
+
+  putWorkItemSchedulingScope(
+    workItemId: string,
+    body: PutWorkItemSchedulingScopeData["body"],
+    idempotencyKey?: string,
+  ) {
+    return this.#unwrap(
+      putWorkItemSchedulingScope({
+        ...this.#options(),
+        body,
+        headers: idempotencyHeaders(idempotencyKey),
+        path: { workItemId },
+      }),
     );
   }
 

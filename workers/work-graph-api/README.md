@@ -67,6 +67,12 @@ Do not copy the Access pair into shell startup files. The CLI refuses to send
 it to an origin outside `WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS` and refuses HTTP
 redirects.
 
+`GET /api/work-items` accepts `initiativeId`, `projectId`, and `parentId`
+filters. `POST /api/leases` accepts the same filters when it selects the next
+ticket. The service computes global priority first, then filters that order.
+`PUT /api/work-items/{workItemId}/scheduling-scope` assigns an existing root
+ticket to an initiative and project; descendants inherit the assignment.
+
 ## Note history
 
 `POST /api/work-items/{workItemId}/notes` records lease-fenced notes while work

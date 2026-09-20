@@ -19,6 +19,7 @@ import type {
   ListEventsInput,
   ListKnowledgeScopeRelationshipsInput,
   ListKnowledgeScopesInput,
+  ListWorkItemsInput,
   ListWorkItemDependenciesInput,
   ListWorkItemLeasesInput,
   ListWorkItemNotesInput,
@@ -34,6 +35,7 @@ import type {
   TerminateClaimedWorkItemInput,
   WorkItemDependencyCursor,
   WorkItemReadModel,
+  WorkItemSchedulingScopeInput,
 } from "work-graph-db";
 import { WORK_GRAPH_EVENT_TYPES } from "work-graph-db";
 import {
@@ -92,6 +94,7 @@ const WORK_ITEM_EVENT_TYPES = [
   "work_item.priority_moved",
   "work_item.lifecycle_changed",
   "work_item.reparented",
+  "work_item.scheduling_scope_changed",
   "work_item.unexpedited",
 ] as const satisfies readonly (typeof WORK_GRAPH_EVENT_TYPES)[number][];
 const workItemEventTypes = new Set<string>(WORK_ITEM_EVENT_TYPES);
@@ -452,6 +455,9 @@ const leaseResponseSchema = z
 
 const listWorkItemsQuerySchema = z.object({
   stage: z.enum(WORK_STAGES).optional(),
+  initiativeId: identifierSchema.optional(),
+  projectId: identifierSchema.optional(),
+  parentId: identifierSchema.optional(),
   limit: z.coerce
     .number()
     .int()
@@ -637,11 +643,28 @@ const resolveAttentionRequestBodySchema = z
     resolution: z.string().trim().min(1).max(MAX_TITLE_LENGTH),
   })
   .strict();
-const createLeaseBodySchema = z
+const createLeaseBodySchema = z.union([
+  z
+    .object({
+      workerId: identifierSchema,
+      leaseDurationSeconds: leaseDurationSchema,
+      workItemId: identifierSchema,
+    })
+    .strict(),
+  z
+    .object({
+      workerId: identifierSchema,
+      leaseDurationSeconds: leaseDurationSchema,
+      initiativeId: identifierSchema.optional(),
+      projectId: identifierSchema.optional(),
+      parentId: identifierSchema.optional(),
+    })
+    .strict(),
+]);
+const putWorkItemSchedulingScopeBodySchema = z
   .object({
-    workerId: identifierSchema,
-    leaseDurationSeconds: leaseDurationSchema,
-    workItemId: identifierSchema.optional(),
+    schedulingInitiativeId: z.union([identifierSchema, z.null()]),
+    schedulingProjectId: z.union([identifierSchema, z.null()]),
   })
   .strict();
 const renewLeaseBodySchema = z
@@ -741,7 +764,7 @@ const listWorkItemsRoute = createRoute({
   operationId: "listWorkItems",
   summary: "List work items with their derived stage",
   description:
-    "Returns one bounded page in priority order. The optional stage filter keeps the relative global order. Pass nextCursor to continue after the last observed item without offset drift during lease transitions.",
+    "Returns one bounded page in global priority order. Optional stage, initiative, project, and direct-parent filters preserve that relative order. Pass nextCursor to continue after the last observed item without offset drift during lease transitions.",
   tags: ["work-items"],
   security: accessSecurity,
   request: { query: listWorkItemsQuerySchema },
@@ -987,6 +1010,34 @@ const moveWorkItemPriorityRoute = createRoute({
   responses: {
     200: {
       description: "Ticket moved or matching mutation replayed",
+      content: { "application/json": { schema: workItemSchema } },
+    },
+    ...standardErrors,
+  },
+});
+
+const putWorkItemSchedulingScopeRoute = createRoute({
+  method: "put",
+  path: "/api/work-items/{workItemId}/scheduling-scope",
+  operationId: "putWorkItemSchedulingScope",
+  summary: "Set a root ticket's scheduling scope",
+  description:
+    "Assigns a priority-owning root ticket to an initiative and project. Descendants inherit the assignment. Null values move the ticket back to the unscoped queue.",
+  tags: ["work-items"],
+  security: accessSecurity,
+  request: {
+    params: workItemParamsSchema,
+    headers: idempotencyHeadersSchema,
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: putWorkItemSchedulingScopeBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Scheduling scope assigned or matching mutation replayed",
       content: { "application/json": { schema: workItemSchema } },
     },
     ...standardErrors,
@@ -1462,7 +1513,7 @@ const createLeaseRoute = createRoute({
   operationId: "createLease",
   summary: "Claim a specified or first eligible work item",
   description:
-    "Creates a fenced lease for the requested item, or for the highest-priority eligible item when workItemId is absent.",
+    "Creates a fenced lease for the requested item, or for the highest-priority eligible item within optional initiative, project, and direct-parent filters when workItemId is absent.",
   tags: ["leases"],
   security: accessSecurity,
   request: {
@@ -1610,7 +1661,9 @@ export interface WorkGraphApiRepository {
     relationship: KnowledgeScopeRelationship,
     options?: IdempotentMutationOptions,
   ): Promise<void>;
-  listWorkItems(): Promise<readonly WorkItemReadModel[]>;
+  listWorkItems(
+    input?: ListWorkItemsInput,
+  ): Promise<readonly WorkItemReadModel[]>;
   getWorkItem(workItemId: string): Promise<WorkItemReadModel>;
   resolveWorkItemContext(
     workItemId: string,
@@ -1653,6 +1706,11 @@ export interface WorkGraphApiRepository {
   moveWorkItemPriority(
     workItemId: string,
     input: PriorityMoveInput,
+    options?: IdempotentMutationOptions,
+  ): Promise<WorkItem>;
+  setWorkItemSchedulingScope(
+    workItemId: string,
+    input: WorkItemSchedulingScopeInput,
     options?: IdempotentMutationOptions,
   ): Promise<WorkItem>;
   expediteWorkItem(
@@ -1919,8 +1977,13 @@ export const createWorkGraphApp = (
   );
 
   app.openapi(listWorkItemsRoute, async (context) => {
-    const { cursor, limit, stage } = context.req.valid("query");
-    const items = await repository.listWorkItems();
+    const { cursor, initiativeId, limit, parentId, projectId, stage } =
+      context.req.valid("query");
+    const items = await repository.listWorkItems({
+      ...(initiativeId === undefined ? {} : { initiativeId }),
+      ...(projectId === undefined ? {} : { projectId }),
+      ...(parentId === undefined ? {} : { parentId }),
+    });
     const cursorIndex =
       cursor === undefined
         ? -1
@@ -2165,6 +2228,21 @@ export const createWorkGraphApp = (
     );
   });
 
+  app.openapi(putWorkItemSchedulingScopeRoute, async (context) => {
+    const { workItemId } = context.req.valid("param");
+    const request = context.req.valid("json");
+    const headers = context.req.valid("header");
+    await repository.setWorkItemSchedulingScope(
+      workItemId,
+      request,
+      idempotencyOptions(headers["idempotency-key"]),
+    );
+    return context.json(
+      serializeWorkItem(await repository.getWorkItem(workItemId)),
+      200,
+    );
+  });
+
   app.openapi(expediteWorkItemRoute, async (context) => {
     const { workItemId } = context.req.valid("param");
     const { reason } = context.req.valid("json");
@@ -2387,18 +2465,28 @@ export const createWorkGraphApp = (
 
   app.openapi(createLeaseRoute, async (context) => {
     const request = context.req.valid("json");
+    const selection =
+      "workItemId" in request
+        ? { workItemId: request.workItemId }
+        : {
+            ...(request.initiativeId
+              ? { initiativeId: request.initiativeId }
+              : {}),
+            ...(request.projectId ? { projectId: request.projectId } : {}),
+            ...(request.parentId ? { parentId: request.parentId } : {}),
+          };
     const claimed = await repository.claimWorkItem({
       leaseId: createLeaseId(),
       workerId: request.workerId,
       leaseDurationSeconds: request.leaseDurationSeconds,
-      ...(request.workItemId ? { workItemId: request.workItemId } : {}),
+      ...selection,
     });
     if (!claimed) {
       return context.json(
         {
           error: {
             code: "work_item_not_claimable",
-            message: request.workItemId
+            message: "workItemId" in request
               ? `Work item ${request.workItemId} is not claimable.`
               : "No work item is currently claimable.",
           },

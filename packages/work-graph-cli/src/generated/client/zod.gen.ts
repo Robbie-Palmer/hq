@@ -249,6 +249,7 @@ export const zWorkItemEvent = z.object({
         'work_item.priority_moved',
         'work_item.lifecycle_changed',
         'work_item.reparented',
+        'work_item.scheduling_scope_changed',
         'work_item.unexpedited'
     ]),
     workItemId: z.string().min(1).max(200).nullable(),
@@ -535,11 +536,20 @@ export const zMoveKnowledgeScopePriorityPath = z.object({
  */
 export const zMoveKnowledgeScopePriorityResponse = zKnowledgeScope;
 
-export const zCreateLeaseBody = z.object({
-    workerId: z.string().min(1).max(200),
-    leaseDurationSeconds: z.int().gte(1).lte(86400),
-    workItemId: z.string().min(1).max(200).optional()
-});
+export const zCreateLeaseBody = z.union([
+    z.object({
+        workerId: z.string().min(1).max(200),
+        leaseDurationSeconds: z.int().gte(1).lte(86400),
+        workItemId: z.string().min(1).max(200)
+    }),
+    z.object({
+        workerId: z.string().min(1).max(200),
+        leaseDurationSeconds: z.int().gte(1).lte(86400),
+        initiativeId: z.string().min(1).max(200).optional(),
+        projectId: z.string().min(1).max(200).optional(),
+        parentId: z.string().min(1).max(200).optional()
+    })
+]);
 
 /**
  * Lease created and work item claimed
@@ -612,6 +622,9 @@ export const zListWorkItemsQuery = z.object({
         'released',
         'cancelled'
     ]).optional(),
+    initiativeId: z.string().min(1).max(200).optional(),
+    projectId: z.string().min(1).max(200).optional(),
+    parentId: z.string().min(1).max(200).optional(),
     limit: z.int().gte(1).lte(100).optional().default(50),
     cursor: z.string().min(1).max(200).optional()
 });
@@ -792,6 +805,7 @@ export const zListWorkItemEventsQuery = z.object({
         'work_item.priority_moved',
         'work_item.lifecycle_changed',
         'work_item.reparented',
+        'work_item.scheduling_scope_changed',
         'work_item.unexpedited'
     ]).optional(),
     lifecycle: z.enum(['released', 'cancelled']).optional(),
@@ -983,3 +997,23 @@ export const zCreateWorkItemReleasePath = z.object({
  * Completed work released and lease ended
  */
 export const zCreateWorkItemReleaseResponse = zLeaseWithWorkItem;
+
+export const zPutWorkItemSchedulingScopeBody = z.object({
+    schedulingInitiativeId: z.string().min(1).max(200).nullable(),
+    schedulingProjectId: z.string().min(1).max(200).nullable()
+});
+
+export const zPutWorkItemSchedulingScopeHeaders = z.object({
+    'idempotency-key': z.uuid().max(36).register(z.globalRegistry, {
+        description: 'Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.'
+    }).optional()
+});
+
+export const zPutWorkItemSchedulingScopePath = z.object({
+    workItemId: z.string().min(1).max(200)
+});
+
+/**
+ * Scheduling scope assigned or matching mutation replayed
+ */
+export const zPutWorkItemSchedulingScopeResponse = zWorkItem;

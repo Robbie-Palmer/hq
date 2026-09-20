@@ -13,6 +13,7 @@ import {
 import {
   createKnowledgeScope,
   createWorkGraph,
+  isWorkItemInSelectionScope,
   normalizeAndValidateContextRecords,
   orderWorkItemsByPriority,
   projectWorkItemPriorities,
@@ -37,6 +38,7 @@ import {
   type WorkItemPullRequest,
   type WorkStage,
   type WorkItemReference,
+  type WorkItemSelectionScope,
 } from "work-graph-domain";
 import type { Db, DbTransaction } from "./connection";
 import { claimableWorkItemWhere } from "./queries/claimable-work-item";
@@ -93,6 +95,7 @@ export const WORK_GRAPH_EVENT_TYPES = [
   "work_item.priority_moved",
   "work_item.lifecycle_changed",
   "work_item.reparented",
+  "work_item.scheduling_scope_changed",
   "work_item.unexpedited",
   "knowledge_scope.priority_moved",
 ] as const;
@@ -127,6 +130,16 @@ export interface ClaimWorkItemInput {
   readonly workerId: string;
   readonly leaseDurationSeconds: number;
   readonly workItemId?: string;
+  readonly initiativeId?: string;
+  readonly parentId?: string;
+  readonly projectId?: string;
+}
+
+export type ListWorkItemsInput = WorkItemSelectionScope;
+
+export interface WorkItemSchedulingScopeInput {
+  readonly schedulingInitiativeId: string | null;
+  readonly schedulingProjectId: string | null;
 }
 
 export interface RenewLeaseInput {
@@ -1015,7 +1028,9 @@ export class WorkGraphRepository {
     );
   }
 
-  async listWorkItems(): Promise<readonly WorkItemReadModel[]> {
+  async listWorkItems(
+    input: ListWorkItemsInput = {},
+  ): Promise<readonly WorkItemReadModel[]> {
     return this.db.transaction(
       async (transaction) => {
         const graph = await this.loadGraph(transaction);
@@ -1052,22 +1067,24 @@ export class WorkGraphRepository {
         );
         const priorities = projectWorkItemPriorities(graph, scopes);
 
-        return orderWorkItemsByPriority(graph, scopes).map((item) => {
-          const currentLease = leasesByWorkItemId.get(item.id) ?? null;
-          return {
-            ...item,
-            stage: projectWorkItemStage(graph, item.id, {
-              currentLease: currentLease
-                ? { expiresAt: currentLease.expiresAt.getTime() }
-                : null,
-              now: now.getTime(),
-              hasUnresolvedBlockingAttention:
-                workItemIdsNeedingAttention.has(item.id),
-            }),
-            currentLease,
-            priority: priorities.get(item.id)!,
-          };
-        });
+        return orderWorkItemsByPriority(graph, scopes)
+          .filter((item) => isWorkItemInSelectionScope(graph, item, input))
+          .map((item) => {
+            const currentLease = leasesByWorkItemId.get(item.id) ?? null;
+            return {
+              ...item,
+              stage: projectWorkItemStage(graph, item.id, {
+                currentLease: currentLease
+                  ? { expiresAt: currentLease.expiresAt.getTime() }
+                  : null,
+                now: now.getTime(),
+                hasUnresolvedBlockingAttention:
+                  workItemIdsNeedingAttention.has(item.id),
+              }),
+              currentLease,
+              priority: priorities.get(item.id)!,
+            };
+          });
       },
       {
         isolationLevel: "repeatable read",
@@ -1645,6 +1662,79 @@ export class WorkGraphRepository {
           lowerThanId: input.lowerThanId ?? null,
           priorityRank: moved.rank,
           schedulingProjectId: moved.schedulingProjectId,
+        },
+      });
+      return this.requireGraphWorkItem(transaction, workItemId);
+    });
+  }
+
+  async setWorkItemSchedulingScope(
+    workItemId: string,
+    input: WorkItemSchedulingScopeInput,
+    options: IdempotentMutationOptions = {},
+  ): Promise<WorkItem> {
+    requireIdentifier(workItemId, "invalid_work_item_id");
+    if (options.idempotencyKey !== undefined) {
+      requireIdempotencyKey(options.idempotencyKey);
+    }
+
+    return this.db.transaction(async (transaction) => {
+      await this.lockEventSequence(transaction);
+      if (options.idempotencyKey !== undefined) {
+        const replayed = await this.beginIdempotentMutation(
+          transaction,
+          options.idempotencyKey,
+          "set-work-item-scheduling-scope",
+          JSON.stringify([workItemId, input]),
+        );
+        if (replayed) {
+          return this.requireGraphWorkItem(transaction, workItemId);
+        }
+      }
+
+      await this.lockGraphMutation(transaction);
+      const current = await this.requireStoredPriorityContext(
+        transaction,
+        workItemId,
+      );
+      const scheduling = await this.validateSchedulingScopes(transaction, {
+        schedulingInitiativeId: input.schedulingInitiativeId,
+        schedulingProjectId: input.schedulingProjectId,
+      });
+      if (
+        current.schedulingInitiativeId === scheduling.initiativeId &&
+        current.schedulingProjectId === scheduling.projectId
+      ) {
+        return this.requireGraphWorkItem(transaction, workItemId);
+      }
+      const previousProjectId = current.schedulingProjectId;
+      await transaction
+        .update(workItemPriorityContext)
+        .set({
+          schedulingInitiativeId: scheduling.initiativeId,
+          schedulingProjectId: scheduling.projectId,
+        })
+        .where(eq(workItemPriorityContext.workItemId, workItemId));
+      if (previousProjectId !== scheduling.projectId) {
+        await this.placeWorkItemAtMedian(
+          transaction,
+          workItemId,
+          scheduling.projectId,
+        );
+      }
+      const updated = await this.requireStoredPriorityContext(
+        transaction,
+        workItemId,
+      );
+      await this.appendEvent(transaction, {
+        type: "work_item.scheduling_scope_changed",
+        workItemId,
+        data: {
+          previousSchedulingInitiativeId: current.schedulingInitiativeId,
+          previousSchedulingProjectId: previousProjectId,
+          schedulingInitiativeId: updated.schedulingInitiativeId,
+          schedulingProjectId: updated.schedulingProjectId,
+          priorityRank: updated.rank,
         },
       });
       return this.requireGraphWorkItem(transaction, workItemId);
@@ -2276,6 +2366,26 @@ export class WorkGraphRepository {
     if (input.workItemId !== undefined) {
       requireIdentifier(input.workItemId, "invalid_work_item_id");
     }
+    if (input.initiativeId !== undefined) {
+      requireKnowledgeScopeId(input.initiativeId);
+    }
+    if (input.projectId !== undefined) {
+      requireKnowledgeScopeId(input.projectId);
+    }
+    if (input.parentId !== undefined) {
+      requireIdentifier(input.parentId, "invalid_parent_id");
+    }
+    if (
+      input.workItemId !== undefined &&
+      (input.initiativeId !== undefined ||
+        input.projectId !== undefined ||
+        input.parentId !== undefined)
+    ) {
+      throw new WorkGraphError(
+        "invalid_claim_scope",
+        "A specified work item cannot be combined with scope filters.",
+      );
+    }
 
     try {
       return await this.db.transaction(
@@ -2286,6 +2396,17 @@ export class WorkGraphRepository {
           const candidateId = await this.findClaimableWorkItemId(
             transaction,
             input.workItemId,
+            {
+              ...(input.initiativeId === undefined
+                ? {}
+                : { initiativeId: input.initiativeId }),
+              ...(input.projectId === undefined
+                ? {}
+                : { projectId: input.projectId }),
+              ...(input.parentId === undefined
+                ? {}
+                : { parentId: input.parentId }),
+            },
           );
           if (candidateId === null) return null;
 
@@ -3783,6 +3904,7 @@ export class WorkGraphRepository {
   private async findClaimableWorkItemId(
     transaction: DbTransaction,
     requestedWorkItemId?: string,
+    scope: WorkItemSelectionScope = {},
   ): Promise<string | null> {
     let candidateIds: readonly string[];
     if (requestedWorkItemId === undefined) {
@@ -3794,10 +3916,12 @@ export class WorkGraphRepository {
             .where(claimableWorkItemWhere())
         ).map(({ id }) => id),
       );
+      const graph = await this.loadGraph(transaction);
       candidateIds = orderWorkItemsByPriority(
-        await this.loadGraph(transaction),
+        graph,
         await this.loadKnowledgeScopes(transaction),
       )
+        .filter((item) => isWorkItemInSelectionScope(graph, item, scope))
         .map(({ id }) => id)
         .filter((id) => claimableIds.has(id));
     } else {

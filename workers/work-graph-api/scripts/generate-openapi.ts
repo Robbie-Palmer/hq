@@ -31,6 +31,7 @@ const repository: WorkGraphApiRepository = {
   refreshPullRequest: unavailable,
   putWorkItemPullRequest: unavailable,
   moveWorkItemPriority: unavailable,
+  setWorkItemSchedulingScope: unavailable,
   expediteWorkItem: unavailable,
   unexpediteWorkItem: unavailable,
   addDependency: unavailable,

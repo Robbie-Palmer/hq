@@ -63,6 +63,8 @@ import {
   zPutWorkItemContextHeaders,
   zPutWorkItemReferenceBody,
   zPutWorkItemReferenceHeaders,
+  zPutWorkItemSchedulingScopeHeaders,
+  zPutWorkItemSchedulingScopePath,
   zRefreshPullRequestBody,
   zRefreshPullRequestHeaders,
   zUnexpediteWorkItemHeaders,
@@ -130,8 +132,10 @@ const idempotencyKey = described(
   "Client-generated UUID used to replay a mutation safely",
 );
 
+const [directLeaseBodySchema, scheduledLeaseBodySchema] =
+  zCreateLeaseBody.options;
 const leaseDuration = described(
-  zCreateLeaseBody.shape.leaseDurationSeconds.default(900),
+  directLeaseBodySchema.shape.leaseDurationSeconds.default(900),
   "Lease duration in seconds",
 );
 
@@ -595,6 +599,25 @@ const scopeRelationshipListInput = z.object({
   ),
 });
 
+const scopeAssignmentInput = z.object({
+  workItemId: positional(
+    zPutWorkItemSchedulingScopePath.shape.workItemId,
+    "Root ticket ID",
+  ),
+  initiativeId: optional(
+    zListWorkItemsQuery.shape.initiativeId.unwrap(),
+    "Scheduling initiative ID; omit with project to infer its parent",
+  ),
+  projectId: optional(
+    zListWorkItemsQuery.shape.projectId.unwrap(),
+    "Scheduling project ID; omit both scope flags to clear the assignment",
+  ),
+  idempotencyKey: described(
+    zPutWorkItemSchedulingScopeHeaders.shape["idempotency-key"],
+    "Client-generated UUID used to replay a mutation safely",
+  ),
+});
+
 const dependencyInput = z.object({
   dependentWorkItemId: positional(
     zCreateDependencyBody.shape.dependentWorkItemId,
@@ -625,6 +648,18 @@ const queueInput = z
       zListWorkItemsQuery.shape.cursor.unwrap(),
       "Pagination cursor",
     ),
+    initiativeId: optional(
+      zListWorkItemsQuery.shape.initiativeId.unwrap(),
+      "Only tickets scheduled in this initiative",
+    ),
+    projectId: optional(
+      zListWorkItemsQuery.shape.projectId.unwrap(),
+      "Only tickets scheduled in this project",
+    ),
+    parentId: optional(
+      zListWorkItemsQuery.shape.parentId.unwrap(),
+      "Only direct children of this ticket",
+    ),
   })
   .refine((input) => !(input.all && input.stage), {
     message: "--all and --stage cannot be used together",
@@ -640,21 +675,55 @@ const readyInput = z.object({
     zListWorkItemsQuery.shape.cursor.unwrap(),
     "Pagination cursor",
   ),
+  initiativeId: optional(
+    zListWorkItemsQuery.shape.initiativeId.unwrap(),
+    "Only tickets scheduled in this initiative",
+  ),
+  projectId: optional(
+    zListWorkItemsQuery.shape.projectId.unwrap(),
+    "Only tickets scheduled in this project",
+  ),
+  parentId: optional(
+    zListWorkItemsQuery.shape.parentId.unwrap(),
+    "Only direct children of this ticket",
+  ),
 });
 
 const claimInput = z.object({
   workItemId: positional(
-    optional(zCreateLeaseBody.shape.workItemId.unwrap(), "Ticket ID"),
+    optional(directLeaseBodySchema.shape.workItemId, "Ticket ID"),
     "Ticket ID",
   ),
-  workerId: optional(zCreateLeaseBody.shape.workerId, "Worker identity"),
+  workerId: optional(directLeaseBodySchema.shape.workerId, "Worker identity"),
   leaseDurationSeconds: leaseDuration,
+  initiativeId: optional(
+    scheduledLeaseBodySchema.shape.initiativeId.unwrap(),
+    "Claim within this initiative",
+  ),
+  projectId: optional(
+    scheduledLeaseBodySchema.shape.projectId.unwrap(),
+    "Claim within this project",
+  ),
+  parentId: optional(
+    scheduledLeaseBodySchema.shape.parentId.unwrap(),
+    "Claim a direct child of this ticket",
+  ),
   fullPrContext: z
     .boolean()
     .optional()
     .default(false)
     .describe("Include full pull-request snapshots in claim context"),
-});
+}).refine(
+  ({ initiativeId, parentId, projectId, workItemId }) =>
+    workItemId === undefined ||
+    (initiativeId === undefined &&
+      parentId === undefined &&
+      projectId === undefined),
+  {
+    message: "A specified ticket cannot be combined with scope filters.",
+    path: ["workItemId"],
+  },
+);
 
 const noteInput = z.object({
   workItemId: positional(zGetWorkItemPath.shape.workItemId, "Ticket ID"),
@@ -909,6 +978,13 @@ const listQueue = (
     ...(input.all ? {} : { stage: input.stage ?? "ready" }),
     ...(input.limit === undefined ? {} : { limit: input.limit }),
     ...(input.cursor === undefined ? {} : { cursor: input.cursor }),
+    ...(input.initiativeId === undefined
+      ? {}
+      : { initiativeId: input.initiativeId }),
+    ...(input.projectId === undefined
+      ? {}
+      : { projectId: input.projectId }),
+    ...(input.parentId === undefined ? {} : { parentId: input.parentId }),
   });
 
 export const workGraphRouter = t.router({
@@ -1118,6 +1194,19 @@ export const workGraphRouter = t.router({
         resolveClient(ctx).moveKnowledgeScopePriority(
           input.knowledgeScopeId,
           priorityMoveBody(input.above, input.below),
+          input.idempotencyKey,
+        ),
+      ),
+    assign: command
+      .meta({ description: "Assign a root ticket to scheduling scopes" })
+      .input(scopeAssignmentInput)
+      .mutation(({ ctx, input }) =>
+        resolveClient(ctx).putWorkItemSchedulingScope(
+          input.workItemId,
+          {
+            schedulingInitiativeId: input.initiativeId ?? null,
+            schedulingProjectId: input.projectId ?? null,
+          },
           input.idempotencyKey,
         ),
       ),
@@ -1354,13 +1443,27 @@ export const workGraphRouter = t.router({
       if (!workerId) {
         throw usageError("Set WORK_GRAPH_WORKER_ID or pass --worker-id.");
       }
-      const result = await resolveClient(ctx).claim({
-        workerId,
-        leaseDurationSeconds: input.leaseDurationSeconds,
-        ...(input.workItemId === undefined
-          ? {}
-          : { workItemId: input.workItemId }),
-      });
+      const body =
+        input.workItemId === undefined
+          ? {
+              workerId,
+              leaseDurationSeconds: input.leaseDurationSeconds,
+              ...(input.initiativeId === undefined
+                ? {}
+                : { initiativeId: input.initiativeId }),
+              ...(input.projectId === undefined
+                ? {}
+                : { projectId: input.projectId }),
+              ...(input.parentId === undefined
+                ? {}
+                : { parentId: input.parentId }),
+            }
+          : {
+              workerId,
+              leaseDurationSeconds: input.leaseDurationSeconds,
+              workItemId: input.workItemId,
+            };
+      const result = await resolveClient(ctx).claim(body);
       return input.fullPrContext
         ? result
         : { ...result, context: compactPullRequestsInContext(result.context) };
