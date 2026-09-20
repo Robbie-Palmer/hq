@@ -5,7 +5,16 @@ import { z } from "zod";
 import { WorkGraphClient, type Fetch } from "./client.js";
 import { resolveClientConfig } from "./config.js";
 import { usageError } from "./errors.js";
+import {
+  inspectGitHubPullRequest,
+  type PullRequestInspector,
+} from "./github.js";
 import { updateFromCheckout, type SelfUpdater } from "./self-update.js";
+import type {
+  PullRequestSnapshot,
+  ResolvedPullRequest,
+  ResolvedWorkItemContext,
+} from "./generated/client/types.gen.js";
 import {
   zCreateAttentionRequestBody,
   zCreateAttentionRequestHeaders,
@@ -64,6 +73,7 @@ export type UuidFactory = () => string;
 export interface CommandContext {
   environment: NodeJS.ProcessEnv;
   fetch?: Fetch;
+  inspectPullRequest: PullRequestInspector;
   makeUuid: UuidFactory;
   selfUpdate: SelfUpdater;
   workingDirectory: string;
@@ -229,6 +239,36 @@ const workerIdentity = (environment: NodeJS.ProcessEnv): string | undefined => {
   return codexId === undefined ? undefined : `codex:${codexId}`;
 };
 
+const pullRequestStatus = (snapshot: PullRequestSnapshot): string => {
+  const parts: string[] = [snapshot.state];
+  if (snapshot.draft) parts.push("draft");
+  if (snapshot.mergeability === "conflicting") parts.push("conflicting");
+  parts.push(`checks ${snapshot.checkSummary}`);
+  if (snapshot.reviewDecision !== null) {
+    parts.push(snapshot.reviewDecision.replaceAll("_", " "));
+  }
+  return parts.join(", ");
+};
+
+const compactPullRequest = (context: ResolvedPullRequest) => ({
+  kind: context.kind,
+  role: context.role,
+  ref: `${context.pullRequest.repository}#${context.pullRequest.number}`,
+  url: context.pullRequest.url,
+  status: pullRequestStatus(context.pullRequest),
+  observedAt: context.pullRequest.observedAt,
+  ...(context.inheritanceDepth === 0
+    ? {}
+    : { inheritedFrom: context.sourceWorkItemId }),
+});
+
+const compactPullRequestsInContext = (
+  contexts: readonly ResolvedWorkItemContext[],
+) =>
+  contexts.map((context) =>
+    context.kind === "pull_request" ? compactPullRequest(context) : context,
+  );
+
 const t = initTRPC
   .context<CommandContext>()
   .meta<TrpcCliMeta>()
@@ -261,6 +301,11 @@ const contextShowInput = z.object({
     zListWorkItemContextsPath.shape.workItemId,
     "Ticket ID",
   ),
+  fullPrContext: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe("Include full pull-request snapshots"),
 });
 
 const contextPutInput = z.object({
@@ -322,6 +367,24 @@ const pullRequestShowInput = z.object({
   workItemId: positional(
     zListWorkItemPullRequestsPath.shape.workItemId,
     "Ticket ID",
+  ),
+  full: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe("Show the full stored snapshots"),
+});
+
+const pullRequestAttachInput = z.object({
+  workItemId: positional(
+    zListWorkItemPullRequestsPath.shape.workItemId,
+    "Ticket ID",
+  ),
+  url: positional(z.url(), "GitHub pull-request URL"),
+  role: described(zPutWorkItemPullRequestBody.shape.role, "Link role"),
+  idempotencyKey: described(
+    zPutWorkItemPullRequestHeaders.shape["idempotency-key"],
+    "Client-generated UUID used to replay both mutations safely",
   ),
 });
 
@@ -586,6 +649,11 @@ const claimInput = z.object({
   ),
   workerId: optional(zCreateLeaseBody.shape.workerId, "Worker identity"),
   leaseDurationSeconds: leaseDuration,
+  fullPrContext: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe("Include full pull-request snapshots in claim context"),
 });
 
 const noteInput = z.object({
@@ -1110,9 +1178,14 @@ export const workGraphRouter = t.router({
     show: command
       .meta({ description: "Show resolved context in claim order" })
       .input(contextShowInput)
-      .query(({ ctx, input }) =>
-        resolveClient(ctx).listWorkItemContexts(input.workItemId),
-      ),
+      .query(async ({ ctx, input }) => {
+        const result = await resolveClient(ctx).listWorkItemContexts(
+          input.workItemId,
+        );
+        return input.fullPrContext
+          ? result
+          : { ...result, items: compactPullRequestsInContext(result.items) };
+      }),
     put: command
       .meta({ description: "Create or replace a brief or acceptance criteria" })
       .input(contextPutInput)
@@ -1153,13 +1226,55 @@ export const workGraphRouter = t.router({
   }),
   pr: t.router({
     show: command
-      .meta({ description: "Show pull requests in claim-context order" })
+      .meta({ description: "Show compact pull requests in claim-context order" })
       .input(pullRequestShowInput)
-      .query(({ ctx, input }) =>
-        resolveClient(ctx).listWorkItemPullRequests(input.workItemId),
-      ),
+      .query(async ({ ctx, input }) => {
+        const result = await resolveClient(ctx).listWorkItemPullRequests(
+          input.workItemId,
+        );
+        return input.full
+          ? result
+          : { items: result.items.map(compactPullRequest) };
+      }),
+    attach: command
+      .meta({
+        description: "Inspect a GitHub pull request, refresh it, and link it",
+      })
+      .input(pullRequestAttachInput)
+      .mutation(async ({ ctx, input }) => {
+        const client = resolveClient(ctx);
+        const snapshot = await ctx.inspectPullRequest(input.url);
+        const refreshKey =
+          input.idempotencyKey === undefined
+            ? undefined
+            : mutationUuid(ctx, input.idempotencyKey, "pr-attach-refresh");
+        const linkKey =
+          input.idempotencyKey === undefined
+            ? undefined
+            : mutationUuid(ctx, input.idempotencyKey, "pr-attach-link");
+        await client.refreshPullRequest(snapshot, refreshKey);
+        await client.putWorkItemPullRequest(
+          input.workItemId,
+          {
+            repository: snapshot.repository,
+            number: snapshot.number,
+            role: input.role,
+          },
+          linkKey,
+        );
+        return {
+          workItemId: input.workItemId,
+          ...compactPullRequest({
+            kind: "pull_request",
+            role: input.role,
+            pullRequest: snapshot,
+            sourceWorkItemId: input.workItemId,
+            inheritanceDepth: 0,
+          }),
+        };
+      }),
     link: command
-      .meta({ description: "Link a pull request to a ticket" })
+      .meta({ description: "Low-level link of a stored pull request" })
       .input(pullRequestLinkInput)
       .mutation(({ ctx, input }) =>
         resolveClient(ctx).putWorkItemPullRequest(
@@ -1173,7 +1288,7 @@ export const workGraphRouter = t.router({
         ),
       ),
     refresh: command
-      .meta({ description: "Create or refresh a pull-request snapshot" })
+      .meta({ description: "Low-level pull-request snapshot refresh" })
       .input(pullRequestRefreshInput)
       .mutation(({ ctx, input }) =>
         resolveClient(ctx).refreshPullRequest(
@@ -1231,18 +1346,21 @@ export const workGraphRouter = t.router({
   claim: command
     .meta({ description: "Claim the next ready ticket or a specified ticket" })
     .input(claimInput)
-    .mutation(({ ctx, input }) => {
+    .mutation(async ({ ctx, input }) => {
       const workerId = input.workerId ?? workerIdentity(ctx.environment);
       if (!workerId) {
         throw usageError("Set WORK_GRAPH_WORKER_ID or pass --worker-id.");
       }
-      return resolveClient(ctx).claim({
+      const result = await resolveClient(ctx).claim({
         workerId,
         leaseDurationSeconds: input.leaseDurationSeconds,
         ...(input.workItemId === undefined
           ? {}
           : { workItemId: input.workItemId }),
       });
+      return input.fullPrContext
+        ? result
+        : { ...result, context: compactPullRequestsInContext(result.context) };
     }),
   show: command
     .meta({ description: "Show a ticket" })
@@ -1468,10 +1586,16 @@ export const workGraphRouter = t.router({
 
 export const createCommandContext = (
   context: Partial<CommandContext> = {},
-): CommandContext => ({
-  environment: context.environment ?? process.env,
-  fetch: context.fetch,
-  makeUuid: context.makeUuid ?? randomUUID,
-  selfUpdate: context.selfUpdate ?? updateFromCheckout,
-  workingDirectory: context.workingDirectory ?? process.cwd(),
-});
+): CommandContext => {
+  const environment = context.environment ?? process.env;
+  return {
+    environment,
+    fetch: context.fetch,
+    inspectPullRequest:
+      context.inspectPullRequest ??
+      ((url) => inspectGitHubPullRequest(url, { environment })),
+    makeUuid: context.makeUuid ?? randomUUID,
+    selfUpdate: context.selfUpdate ?? updateFromCheckout,
+    workingDirectory: context.workingDirectory ?? process.cwd(),
+  };
+};

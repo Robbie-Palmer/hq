@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Fetch } from "../src/client.js";
 import { EXIT_CODES } from "../src/errors.js";
+import type { PullRequestInspector } from "../src/github.js";
 import { runCli } from "../src/main.js";
 
 interface CapturedRequest {
@@ -14,6 +15,18 @@ const API_URL = "https://work.example.test/root";
 const UUID = "00000000-0000-4000-8000-000000000001";
 const MERGE_EVIDENCE = "https://github.com/example/work-graph/pull/1";
 const DEPLOYMENT_EVIDENCE = "https://work-graph.example.test/health";
+const pullRequestSnapshot = {
+  repository: "example/work-graph",
+  number: 42,
+  url: "https://github.com/example/work-graph/pull/42",
+  headSha: "0123456789abcdef0123456789abcdef01234567",
+  state: "open" as const,
+  draft: false,
+  mergeability: "mergeable" as const,
+  reviewDecision: "approved" as const,
+  checkSummary: "success" as const,
+  observedAt: "2026-09-20T10:00:00.000Z",
+};
 
 const activeWorkItem = (workerId = "agent-a") => ({
   id: "item-1",
@@ -61,6 +74,9 @@ const harness = (
     sourceDirectory,
     status: "updated" as const,
   })),
+  inspectPullRequest: PullRequestInspector = vi.fn(async () =>
+    Promise.resolve(pullRequestSnapshot),
+  ),
 ) => {
   const requests: CapturedRequest[] = [];
   const stdout: string[] = [];
@@ -85,13 +101,22 @@ const harness = (
     runCli(args, {
       environment,
       fetch,
+      inspectPullRequest,
       makeUuid,
       selfUpdate,
       workingDirectory: "/workspace/hq",
       stdout: (text) => stdout.push(text),
       stderr: (text) => stderr.push(text),
     });
-  return { fetch, requests, run, selfUpdate, stderr, stdout };
+  return {
+    fetch,
+    inspectPullRequest,
+    requests,
+    run,
+    selfUpdate,
+    stderr,
+    stdout,
+  };
 };
 
 describe("Given agent-facing Work Graph commands", () => {
@@ -320,7 +345,15 @@ describe("Given agent-facing Work Graph commands", () => {
     const brief = harness();
     const decision = harness();
     const reference = harness();
-    const show = harness(() => response({ items: [] }));
+    const resolvedPullRequest = {
+      kind: "pull_request",
+      role: "evidence",
+      pullRequest: pullRequestSnapshot,
+      sourceWorkItemId: "parent",
+      inheritanceDepth: 1,
+    };
+    const show = harness(() => response({ items: [resolvedPullRequest] }));
+    const full = harness(() => response({ items: [resolvedPullRequest] }));
 
     await brief.run([
       "context",
@@ -354,6 +387,12 @@ describe("Given agent-facing Work Graph commands", () => {
       "https://example.test/design-notes",
     ]);
     await show.run(["context", "show", "work/a b"]);
+    await full.run([
+      "context",
+      "show",
+      "work/a b",
+      "--full-pr-context",
+    ]);
 
     expect(brief.requests[0]).toMatchObject({
       method: "PUT",
@@ -389,13 +428,54 @@ describe("Given agent-facing Work Graph commands", () => {
     expect(show.requests[0]?.url.pathname).toBe(
       "/root/api/work-items/work%2Fa%20b/contexts",
     );
+    expect(JSON.parse(show.stdout[0] ?? "null")).toEqual({
+      items: [
+        {
+          kind: "pull_request",
+          role: "evidence",
+          ref: "example/work-graph#42",
+          url: pullRequestSnapshot.url,
+          status: "open, checks success, approved",
+          observedAt: pullRequestSnapshot.observedAt,
+          inheritedFrom: "parent",
+        },
+      ],
+    });
+    expect(JSON.parse(full.stdout[0] ?? "null")).toEqual({
+      items: [resolvedPullRequest],
+    });
   });
 
   it("refreshes, links, and lists pull requests", async () => {
     const refresh = harness();
     const draftRefresh = harness();
     const link = harness();
-    const show = harness(() => response({ items: [] }));
+    const show = harness(() =>
+      response({
+        items: [
+          {
+            kind: "pull_request",
+            role: "implementation",
+            pullRequest: pullRequestSnapshot,
+            sourceWorkItemId: "work/a b",
+            inheritanceDepth: 0,
+          },
+        ],
+      }),
+    );
+    const full = harness(() =>
+      response({
+        items: [
+          {
+            kind: "pull_request",
+            role: "implementation",
+            pullRequest: pullRequestSnapshot,
+            sourceWorkItemId: "work/a b",
+            inheritanceDepth: 0,
+          },
+        ],
+      }),
+    );
 
     await refresh.run([
       "pr",
@@ -452,6 +532,7 @@ describe("Given agent-facing Work Graph commands", () => {
       UUID,
     ]);
     await show.run(["pr", "show", "work/a b"]);
+    await full.run(["pr", "show", "work/a b", "--full"]);
 
     expect(refresh.requests[0]).toMatchObject({
       method: "PUT",
@@ -494,6 +575,92 @@ describe("Given agent-facing Work Graph commands", () => {
     expect(show.requests[0]?.url.pathname).toBe(
       "/root/api/work-items/work%2Fa%20b/pull-requests",
     );
+    expect(JSON.parse(show.stdout[0] ?? "null")).toEqual({
+      items: [
+        {
+          kind: "pull_request",
+          role: "implementation",
+          ref: "example/work-graph#42",
+          url: pullRequestSnapshot.url,
+          status: "open, checks success, approved",
+          observedAt: pullRequestSnapshot.observedAt,
+        },
+      ],
+    });
+    expect(JSON.parse(full.stdout[0] ?? "null")).toEqual({
+      items: [
+        {
+          kind: "pull_request",
+          role: "implementation",
+          pullRequest: pullRequestSnapshot,
+          sourceWorkItemId: "work/a b",
+          inheritanceDepth: 0,
+        },
+      ],
+    });
+  });
+
+  it("attaches a GitHub pull request from its URL", async () => {
+    const inspectPullRequest = vi.fn(async () =>
+      Promise.resolve(pullRequestSnapshot),
+    );
+    const test = harness(
+      undefined,
+      { WORK_GRAPH_API_URL: API_URL },
+      () => UUID,
+      undefined,
+      inspectPullRequest,
+    );
+
+    expect(
+      await test.run([
+        "pr",
+        "attach",
+        "work/a b",
+        pullRequestSnapshot.url,
+        "--role",
+        "implementation",
+        "--idempotency-key",
+        UUID,
+      ]),
+    ).toBe(EXIT_CODES.success);
+
+    expect(inspectPullRequest).toHaveBeenCalledWith(pullRequestSnapshot.url);
+    expect(test.requests).toHaveLength(2);
+    expect(test.requests[0]).toMatchObject({
+      method: "PUT",
+      body: pullRequestSnapshot,
+    });
+    expect(test.requests[0]?.url.pathname).toBe("/root/api/pull-requests");
+    expect(test.requests[1]).toMatchObject({
+      method: "PUT",
+      body: {
+        repository: "example/work-graph",
+        number: 42,
+        role: "implementation",
+      },
+    });
+    expect(test.requests[1]?.url.pathname).toBe(
+      "/root/api/work-items/work%2Fa%20b/pull-requests",
+    );
+    expect(test.requests[0]?.headers.get("Idempotency-Key")).toMatch(
+      /^[0-9a-f-]{36}$/u,
+    );
+    expect(test.requests[1]?.headers.get("Idempotency-Key")).toMatch(
+      /^[0-9a-f-]{36}$/u,
+    );
+    expect(test.requests[0]?.headers.get("Idempotency-Key")).not.toBe(
+      test.requests[1]?.headers.get("Idempotency-Key"),
+    );
+    expect(JSON.parse(test.stdout[0] ?? "null")).toEqual({
+      workItemId: "work/a b",
+      kind: "pull_request",
+      role: "implementation",
+      ref: "example/work-graph#42",
+      url: pullRequestSnapshot.url,
+      status: "open, checks success, approved",
+      observedAt: pullRequestSnapshot.observedAt,
+    });
   });
 
   it("moves contextual priority and manages an expedite", async () => {
@@ -680,18 +847,25 @@ describe("Given agent-facing Work Graph commands", () => {
   });
 
   it("claims the next item or a specified item", async () => {
-    const next = harness(() =>
-      response({
-        context: [
-          {
-            kind: "brief",
-            content: "Start here.",
-            sourceWorkItemId: "item-1",
-            inheritanceDepth: 0,
-          },
-        ],
-      }),
-    );
+    const claimResponse = {
+      context: [
+        {
+          kind: "brief",
+          content: "Start here.",
+          sourceWorkItemId: "item-1",
+          inheritanceDepth: 0,
+        },
+        {
+          kind: "pull_request",
+          role: "implementation",
+          pullRequest: pullRequestSnapshot,
+          sourceWorkItemId: "parent",
+          inheritanceDepth: 1,
+        },
+      ],
+    };
+    const next = harness(() => response(claimResponse));
+    const full = harness(() => response(claimResponse));
     const specified = harness();
     const codex = harness(undefined, {
       WORK_GRAPH_API_URL: API_URL,
@@ -707,6 +881,12 @@ describe("Given agent-facing Work Graph commands", () => {
       "120",
     ]);
     await codex.run(["claim"]);
+    await full.run([
+      "claim",
+      "--worker-id",
+      "agent-a",
+      "--full-pr-context",
+    ]);
     expect(next.requests[0]?.body).toEqual({
       workerId: "agent-a",
       leaseDurationSeconds: 900,
@@ -728,8 +908,18 @@ describe("Given agent-facing Work Graph commands", () => {
           sourceWorkItemId: "item-1",
           inheritanceDepth: 0,
         },
+        {
+          kind: "pull_request",
+          role: "implementation",
+          ref: "example/work-graph#42",
+          url: pullRequestSnapshot.url,
+          status: "open, checks success, approved",
+          observedAt: pullRequestSnapshot.observedAt,
+          inheritedFrom: "parent",
+        },
       ],
     });
+    expect(JSON.parse(full.stdout[0] ?? "null")).toEqual(claimResponse);
   });
 
   it("shows a work item with an encoded path identifier", async () => {
