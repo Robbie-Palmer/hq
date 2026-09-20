@@ -177,7 +177,17 @@ export const inspectGitHubPullRequest = async (
     );
   }
   const pullRequest = result.data;
-  const returnedIdentity = parseIdentity(pullRequest.url);
+  let returnedIdentity: ReturnType<typeof parseIdentity>;
+  try {
+    returnedIdentity = parseIdentity(pullRequest.url);
+  } catch (cause) {
+    throw new CliError(
+      "INVALID_GITHUB_RESPONSE",
+      "gh returned an invalid pull-request URL.",
+      EXIT_CODES.transport,
+      { cause },
+    );
+  }
   if (
     returnedIdentity.repository !== requestedIdentity.repository ||
     returnedIdentity.number !== requestedIdentity.number ||

@@ -1252,12 +1252,15 @@ export const workGraphRouter = t.router({
           input.idempotencyKey === undefined
             ? undefined
             : mutationUuid(ctx, input.idempotencyKey, "pr-attach-link");
-        await client.refreshPullRequest(snapshot, refreshKey);
+        const refreshedSnapshot = await client.refreshPullRequest(
+          snapshot,
+          refreshKey,
+        );
         await client.putWorkItemPullRequest(
           input.workItemId,
           {
-            repository: snapshot.repository,
-            number: snapshot.number,
+            repository: refreshedSnapshot.repository,
+            number: refreshedSnapshot.number,
             role: input.role,
           },
           linkKey,
@@ -1267,7 +1270,7 @@ export const workGraphRouter = t.router({
           ...compactPullRequest({
             kind: "pull_request",
             role: input.role,
-            pullRequest: snapshot,
+            pullRequest: refreshedSnapshot,
             sourceWorkItemId: input.workItemId,
             inheritanceDepth: 0,
           }),

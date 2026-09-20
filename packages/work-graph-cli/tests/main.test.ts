@@ -604,8 +604,17 @@ describe("Given agent-facing Work Graph commands", () => {
     const inspectPullRequest = vi.fn(async () =>
       Promise.resolve(pullRequestSnapshot),
     );
+    const refreshedSnapshot = {
+      ...pullRequestSnapshot,
+      state: "merged" as const,
+      reviewDecision: null,
+      observedAt: "2026-09-20T10:01:00.000Z",
+    };
     const test = harness(
-      undefined,
+      (request) =>
+        request.url.pathname === "/root/api/pull-requests"
+          ? response(refreshedSnapshot)
+          : response(),
       { WORK_GRAPH_API_URL: API_URL },
       () => UUID,
       undefined,
@@ -658,8 +667,8 @@ describe("Given agent-facing Work Graph commands", () => {
       role: "implementation",
       ref: "example/work-graph#42",
       url: pullRequestSnapshot.url,
-      status: "open, checks success, approved",
-      observedAt: pullRequestSnapshot.observedAt,
+      status: "merged, checks success",
+      observedAt: refreshedSnapshot.observedAt,
     });
   });
 

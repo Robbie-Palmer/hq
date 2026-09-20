@@ -100,7 +100,10 @@ describe("GitHub pull-request inspection", () => {
     await expect(
       inspectGitHubPullRequest(githubResult.url, { runGitHub }),
     ).rejects.toEqual(
-      expect.objectContaining<Partial<CliError>>({ code: "CLI_USAGE" }),
+      expect.objectContaining<Partial<CliError>>({
+        code: "INVALID_GITHUB_RESPONSE",
+        message: "gh returned an invalid pull-request URL.",
+      }),
     );
   });
 

@@ -185,9 +185,10 @@ immutable event log and appends a `dependency.removed` event.
 upserts a governing or background decision by URL, and `reference put` upserts
 a supplemental link by URL. `context show` uses the same deterministic order as
 `claim`: local and nearest inherited text, ADRs, project and initiative mirrors,
-pull requests, then supplemental references. Every record includes its source
-ticket and inheritance depth. Supplemental references never affect queue
-eligibility.
+pull requests, then supplemental references. Full records include their source
+ticket and inheritance depth. Compact pull-request records omit the numeric
+depth and omit the source ticket for local links. Supplemental references never
+affect queue eligibility.
 
 `pr attach` is the normal agent command. Give it a ticket, a GitHub PR URL, and
 an `implementation`, `evidence`, or `related` role. It uses the authenticated
