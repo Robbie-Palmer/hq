@@ -2192,6 +2192,9 @@ describe("Work Graph PostgreSQL persistence", () => {
         },
       ],
       dependencies: [],
+      contexts: [],
+      architectureDecisions: [],
+      references: [],
     });
 
     const columns = await db.execute<{ column_name: string }>(sql`
