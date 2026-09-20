@@ -15,10 +15,22 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import {
+  ARCHITECTURE_DECISION_ROLES,
   KNOWLEDGE_SCOPE_KINDS,
   LEASE_OUTCOMES,
+  WORK_ITEM_CONTEXT_KINDS,
   WORK_ITEM_LIFECYCLES,
 } from "work-graph-domain";
+
+export const workItemContextKindEnum = pgEnum(
+  "work_item_context_kind",
+  WORK_ITEM_CONTEXT_KINDS,
+);
+
+export const architectureDecisionRoleEnum = pgEnum(
+  "architecture_decision_role",
+  ARCHITECTURE_DECISION_ROLES,
+);
 
 export const knowledgeScopeKindEnum = pgEnum(
   "knowledge_scope_kind",
@@ -111,6 +123,93 @@ export const workItemDependency = pgTable(
     check(
       "work_item_dependencies_not_self_check",
       sql`${table.dependentWorkItemId} <> ${table.blockerWorkItemId}`,
+    ),
+  ],
+);
+
+export const workItemContext = pgTable(
+  "work_item_contexts",
+  {
+    workItemId: text()
+      .notNull()
+      .references(() => workItem.id, { onDelete: "restrict" }),
+    kind: workItemContextKindEnum().notNull(),
+    content: text().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    primaryKey({
+      name: "work_item_contexts_pk",
+      columns: [table.workItemId, table.kind],
+    }),
+    check(
+      "work_item_contexts_content_not_blank_check",
+      sql`btrim(${table.content}) <> ''`,
+    ),
+  ],
+);
+
+export const workItemArchitectureDecision = pgTable(
+  "work_item_architecture_decisions",
+  {
+    workItemId: text()
+      .notNull()
+      .references(() => workItem.id, { onDelete: "restrict" }),
+    url: text().notNull(),
+    title: text().notNull(),
+    role: architectureDecisionRoleEnum().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    primaryKey({
+      name: "work_item_architecture_decisions_pk",
+      columns: [table.workItemId, table.url],
+    }),
+    check(
+      "work_item_architecture_decisions_url_not_blank_check",
+      sql`btrim(${table.url}) <> ''`,
+    ),
+    check(
+      "work_item_architecture_decisions_title_not_blank_check",
+      sql`btrim(${table.title}) <> ''`,
+    ),
+  ],
+);
+
+export const workItemReference = pgTable(
+  "work_item_references",
+  {
+    workItemId: text()
+      .notNull()
+      .references(() => workItem.id, { onDelete: "restrict" }),
+    url: text().notNull(),
+    title: text().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    primaryKey({
+      name: "work_item_references_pk",
+      columns: [table.workItemId, table.url],
+    }),
+    check(
+      "work_item_references_url_not_blank_check",
+      sql`btrim(${table.url}) <> ''`,
+    ),
+    check(
+      "work_item_references_title_not_blank_check",
+      sql`btrim(${table.title}) <> ''`,
     ),
   ],
 );

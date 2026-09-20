@@ -22,6 +22,7 @@ import {
   listKnowledgeScopeRelationships,
   listKnowledgeScopes,
   listWorkItemDependencies,
+  listWorkItemContexts,
   listWorkItemEvents,
   listWorkItemLeases,
   listWorkItemNotes,
@@ -29,6 +30,8 @@ import {
   moveKnowledgeScopePriority,
   moveWorkItemPriority,
   putKnowledgeScope,
+  putWorkItemContext,
+  putWorkItemReference,
   unexpediteWorkItem,
 } from "./generated/client/sdk.gen.js";
 import type {
@@ -58,6 +61,8 @@ import type {
   MoveKnowledgeScopePriorityData,
   MoveWorkItemPriorityData,
   PutKnowledgeScopeData,
+  PutWorkItemContextData,
+  PutWorkItemReferenceData,
 } from "./generated/client/types.gen.js";
 import type { WorkGraphClientConfig } from "./config.js";
 import { CliError, EXIT_CODES, exitCodeForStatus } from "./errors.js";
@@ -327,6 +332,45 @@ export class WorkGraphClient {
   getWorkItem(workItemId: string) {
     return this.#unwrap(
       getWorkItem({ ...this.#options(), path: { workItemId } }),
+    );
+  }
+
+  listWorkItemContexts(workItemId: string) {
+    return this.#unwrap(
+      listWorkItemContexts({
+        ...this.#options(),
+        path: { workItemId },
+      }),
+    );
+  }
+
+  putWorkItemContext(
+    workItemId: string,
+    body: PutWorkItemContextData["body"],
+    idempotencyKey?: string,
+  ) {
+    return this.#unwrap(
+      putWorkItemContext({
+        ...this.#options(),
+        body,
+        headers: idempotencyHeaders(idempotencyKey),
+        path: { workItemId },
+      }),
+    );
+  }
+
+  putWorkItemReference(
+    workItemId: string,
+    body: PutWorkItemReferenceData["body"],
+    idempotencyKey?: string,
+  ) {
+    return this.#unwrap(
+      putWorkItemReference({
+        ...this.#options(),
+        body,
+        headers: idempotencyHeaders(idempotencyKey),
+        path: { workItemId },
+      }),
     );
   }
 

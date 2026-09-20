@@ -95,6 +95,61 @@ export const zKnowledgeScopeRelationshipList = z.object({
     nextCursor: z.string().min(1).max(4096).nullable()
 });
 
+export const zResolvedWorkItemContext = z.union([
+    z.object({
+        kind: z.enum(['brief', 'acceptance_criteria']),
+        content: z.string().min(1).max(10000),
+        sourceWorkItemId: z.string().min(1).max(200),
+        inheritanceDepth: z.int().gte(0).lte(2147483647)
+    }),
+    z.object({
+        kind: z.enum(['architecture_decision']),
+        title: z.string().min(1).max(10000),
+        url: z.url().max(2048).regex(/^[hH][tT][tT][pP][sS]?:\/\/(?![^\/?#]*@)/),
+        role: z.enum(['governing', 'background']),
+        sourceWorkItemId: z.string().min(1).max(200),
+        inheritanceDepth: z.int().gte(0).lte(2147483647)
+    }),
+    z.object({
+        kind: z.enum(['project', 'initiative']),
+        scope: zKnowledgeScope,
+        sourceWorkItemId: z.string().min(1).max(200),
+        inheritanceDepth: z.int().gte(0).lte(2147483647)
+    }),
+    z.object({
+        kind: z.enum(['reference']),
+        title: z.string().min(1).max(10000),
+        url: z.url().max(2048).regex(/^[hH][tT][tT][pP][sS]?:\/\/(?![^\/?#]*@)/),
+        sourceWorkItemId: z.string().min(1).max(200),
+        inheritanceDepth: z.int().gte(0).lte(2147483647)
+    })
+]);
+
+export const zResolvedWorkItemContextList = z.object({
+    items: z.array(zResolvedWorkItemContext).max(1000)
+});
+
+export const zWorkItemContextRecord = z.union([
+    z.object({
+        workItemId: z.string().min(1).max(200),
+        kind: z.enum(['brief', 'acceptance_criteria']),
+        content: z.string().min(1).max(10000)
+    }),
+    z.object({
+        workItemId: z.string().min(1).max(200),
+        kind: z.enum(['architecture_decision']),
+        title: z.string().min(1).max(10000),
+        url: z.url().max(2048).regex(/^[hH][tT][tT][pP][sS]?:\/\/(?![^\/?#]*@)/),
+        role: z.enum(['governing', 'background'])
+    })
+]);
+
+export const zWorkItemReference = z.object({
+    workItemId: z.string().min(1).max(200),
+    title: z.string().min(1).max(10000),
+    url: z.url().max(2048).regex(/^[hH][tT][tT][pP][sS]?:\/\/(?![^\/?#]*@)/)
+});
+
 export const zWorkItemDependency = z.object({
     dependentWorkItemId: z.string().min(1).max(200),
     blockerWorkItemId: z.string().min(1).max(200)
@@ -122,10 +177,12 @@ export const zWorkItemEvent = z.object({
         'attention.resolved',
         'dependency.added',
         'dependency.removed',
+        'context.put',
         'lease.claimed',
         'lease.ended',
         'lease.renewed',
         'note.created',
+        'reference.put',
         'work_item.created',
         'work_item.decomposed',
         'work_item.expedited',
@@ -196,6 +253,10 @@ export const zLeaseWithWorkItem = z.object({
     lease: zLease,
     workItem: zWorkItem
 });
+
+export const zClaimResponse = zLeaseWithWorkItem.and(z.object({
+    context: z.array(zResolvedWorkItemContext).max(1000)
+}));
 
 export const zLeaseResponse = z.object({
     lease: zLease
@@ -423,7 +484,7 @@ export const zCreateLeaseBody = z.object({
 /**
  * Lease created and work item claimed
  */
-export const zCreateLeaseResponse = zLeaseWithWorkItem;
+export const zCreateLeaseResponse = zClaimResponse;
 
 export const zCreateLeaseRenewalBody = z.object({
     epoch: z.int().gte(1).lte(2147483647),
@@ -521,6 +582,43 @@ export const zCreatePostReleaseWorkItemNotePath = z.object({
  */
 export const zCreatePostReleaseWorkItemNoteResponse = zWorkItemNote;
 
+export const zListWorkItemContextsPath = z.object({
+    workItemId: z.string().min(1).max(200)
+});
+
+/**
+ * Resolved context in claim order
+ */
+export const zListWorkItemContextsResponse = zResolvedWorkItemContextList;
+
+export const zPutWorkItemContextBody = z.union([
+    z.object({
+        kind: z.enum(['brief', 'acceptance_criteria']),
+        content: z.string().min(1).max(10000)
+    }),
+    z.object({
+        kind: z.enum(['architecture_decision']),
+        title: z.string().min(1).max(10000),
+        url: z.url().max(2048).regex(/^[hH][tT][tT][pP][sS]?:\/\/(?![^\/?#]*@)/),
+        role: z.enum(['governing', 'background'])
+    })
+]);
+
+export const zPutWorkItemContextHeaders = z.object({
+    'idempotency-key': z.uuid().max(36).register(z.globalRegistry, {
+        description: 'Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.'
+    }).optional()
+});
+
+export const zPutWorkItemContextPath = z.object({
+    workItemId: z.string().min(1).max(200)
+});
+
+/**
+ * Context created, replaced, or replayed
+ */
+export const zPutWorkItemContextResponse = zWorkItemContextRecord;
+
 export const zCreateWorkItemDecompositionBody = z.object({
     leaseId: z.uuid().max(36),
     epoch: z.int().gte(1).lte(2147483647),
@@ -579,10 +677,12 @@ export const zListWorkItemEventsQuery = z.object({
         'attention.resolved',
         'dependency.added',
         'dependency.removed',
+        'context.put',
         'lease.claimed',
         'lease.ended',
         'lease.renewed',
         'note.created',
+        'reference.put',
         'work_item.created',
         'work_item.decomposed',
         'work_item.expedited',
@@ -710,6 +810,26 @@ export const zMoveWorkItemPriorityPath = z.object({
  * Ticket moved or matching mutation replayed
  */
 export const zMoveWorkItemPriorityResponse = zWorkItem;
+
+export const zPutWorkItemReferenceBody = z.object({
+    title: z.string().min(1).max(10000),
+    url: z.url().max(2048).regex(/^[hH][tT][tT][pP][sS]?:\/\/(?![^\/?#]*@)/)
+});
+
+export const zPutWorkItemReferenceHeaders = z.object({
+    'idempotency-key': z.uuid().max(36).register(z.globalRegistry, {
+        description: 'Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.'
+    }).optional()
+});
+
+export const zPutWorkItemReferencePath = z.object({
+    workItemId: z.string().min(1).max(200)
+});
+
+/**
+ * Reference created, replaced, or replayed
+ */
+export const zPutWorkItemReferenceResponse = zWorkItemReference;
 
 export const zCreateWorkItemReleaseBody = z.object({
     leaseId: z.uuid().max(36),

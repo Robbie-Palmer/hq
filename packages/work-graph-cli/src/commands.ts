@@ -32,6 +32,7 @@ import {
   zListAttentionRequestsQuery,
   zListKnowledgeScopeRelationshipsQuery,
   zListKnowledgeScopesQuery,
+  zListWorkItemContextsPath,
   zListWorkItemDependenciesPath,
   zListWorkItemDependenciesQuery,
   zListWorkItemEventsPath,
@@ -45,6 +46,10 @@ import {
   zMoveWorkItemPriorityHeaders,
   zPutKnowledgeScopeBody,
   zPutKnowledgeScopeHeaders,
+  zPutWorkItemContextBody,
+  zPutWorkItemContextHeaders,
+  zPutWorkItemReferenceBody,
+  zPutWorkItemReferenceHeaders,
   zUnexpediteWorkItemHeaders,
 } from "./generated/client/zod.gen.js";
 
@@ -238,6 +243,71 @@ const createInput = z.object({
     "Project used for ticket ranking",
   ),
   idempotencyKey,
+});
+
+const [putTextContextBodySchema, putArchitectureDecisionBodySchema] =
+  zPutWorkItemContextBody.options;
+
+const contextShowInput = z.object({
+  workItemId: positional(
+    zListWorkItemContextsPath.shape.workItemId,
+    "Ticket ID",
+  ),
+});
+
+const contextPutInput = z.object({
+  workItemId: positional(
+    zListWorkItemContextsPath.shape.workItemId,
+    "Ticket ID",
+  ),
+  kind: described(
+    putTextContextBodySchema.shape.kind,
+    "Context kind",
+  ),
+  content: described(
+    putTextContextBodySchema.shape.content,
+    "Brief or acceptance criteria",
+  ),
+  idempotencyKey: described(
+    zPutWorkItemContextHeaders.shape["idempotency-key"],
+    "Client-generated UUID used to replay a mutation safely",
+  ),
+});
+
+const contextArchitectureDecisionInput = z.object({
+  workItemId: positional(
+    zListWorkItemContextsPath.shape.workItemId,
+    "Ticket ID",
+  ),
+  title: described(
+    putArchitectureDecisionBodySchema.shape.title,
+    "Architecture decision title",
+  ),
+  url: described(
+    putArchitectureDecisionBodySchema.shape.url,
+    "Architecture decision URL",
+  ),
+  role: described(
+    putArchitectureDecisionBodySchema.shape.role,
+    "Decision role",
+  ),
+  idempotencyKey: described(
+    zPutWorkItemContextHeaders.shape["idempotency-key"],
+    "Client-generated UUID used to replay a mutation safely",
+  ),
+});
+
+const referencePutInput = z.object({
+  workItemId: positional(
+    zListWorkItemContextsPath.shape.workItemId,
+    "Ticket ID",
+  ),
+  title: described(zPutWorkItemReferenceBody.shape.title, "Reference title"),
+  url: described(zPutWorkItemReferenceBody.shape.url, "Reference URL"),
+  idempotencyKey: described(
+    zPutWorkItemReferenceHeaders.shape["idempotency-key"],
+    "Client-generated UUID used to replay a mutation safely",
+  ),
 });
 
 const scopeListInput = z.object({
@@ -946,6 +1016,51 @@ export const workGraphRouter = t.router({
         input.idempotencyKey,
       ),
     ),
+  context: t.router({
+    show: command
+      .meta({ description: "Show resolved context in claim order" })
+      .input(contextShowInput)
+      .query(({ ctx, input }) =>
+        resolveClient(ctx).listWorkItemContexts(input.workItemId),
+      ),
+    put: command
+      .meta({ description: "Create or replace a brief or acceptance criteria" })
+      .input(contextPutInput)
+      .mutation(({ ctx, input }) =>
+        resolveClient(ctx).putWorkItemContext(
+          input.workItemId,
+          { kind: input.kind, content: input.content },
+          input.idempotencyKey,
+        ),
+      ),
+    adr: command
+      .meta({ description: "Create or replace an architecture-decision link" })
+      .input(contextArchitectureDecisionInput)
+      .mutation(({ ctx, input }) =>
+        resolveClient(ctx).putWorkItemContext(
+          input.workItemId,
+          {
+            kind: "architecture_decision",
+            title: input.title,
+            url: input.url,
+            role: input.role,
+          },
+          input.idempotencyKey,
+        ),
+      ),
+  }),
+  reference: t.router({
+    put: command
+      .meta({ description: "Create or replace a supplemental reference" })
+      .input(referencePutInput)
+      .mutation(({ ctx, input }) =>
+        resolveClient(ctx).putWorkItemReference(
+          input.workItemId,
+          { title: input.title, url: input.url },
+          input.idempotencyKey,
+        ),
+      ),
+  }),
   priority: t.router({
     move: command
       .meta({ description: "Move a ticket within its project priority list" })

@@ -107,6 +107,16 @@ work-graph scope link semi-autonomous-software-development work-graph
 work-graph scope links
 work-graph scope unlink semi-autonomous-software-development work-graph
 work-graph create cli-8 --title "Build the TypeScript CLI" --scheduling-project-id work-graph
+work-graph context put cli-8 --kind brief --content "Add typed context records"
+work-graph context put cli-8 --kind acceptance_criteria --content "Claim returns stable context"
+work-graph context adr cli-8 \
+  --title "Use PostgreSQL for durable coordination" \
+  --url https://example.com/adrs/postgresql \
+  --role governing
+work-graph reference put cli-8 \
+  --title "Context design notes" \
+  --url https://example.com/context-design
+work-graph context show cli-8
 work-graph priority move cli-8 --above cli-9
 work-graph scope move work-graph --below another-project
 work-graph expedite cli-8 --reason "Production release blocker"
@@ -141,6 +151,13 @@ work-graph cancel cli-8
 across dependency and hierarchy relationships. Both dependency mutations accept
 `--idempotency-key`. Removing an edge leaves its `dependency.added` event in the
 immutable event log and appends a `dependency.removed` event.
+
+`context put` upserts a brief or acceptance criteria by kind. `context adr`
+upserts a governing or background decision by URL, and `reference put` upserts
+a supplemental link by URL. `context show` uses the same deterministic order as
+`claim`: local and nearest inherited text, ADRs, project and initiative mirrors,
+then supplemental references. Every record includes its source ticket and
+inheritance depth. Supplemental references never affect queue eligibility.
 
 The `metadata` commands expose the complete stored history needed to resume or
 audit one work item. Notes include their content, dependency results contain

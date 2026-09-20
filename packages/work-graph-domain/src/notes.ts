@@ -1,3 +1,4 @@
+import { isNonBlankString } from "ts-base/strings";
 import { WorkGraphError } from "./errors";
 import type { WorkItemLifecycle } from "./vocabulary";
 
@@ -10,7 +11,7 @@ export interface PostReleaseNotePolicyInput {
 export const validatePostReleaseNote = (
   input: PostReleaseNotePolicyInput,
 ): void => {
-  if (input.author.trim().length === 0) {
+  if (!isNonBlankString(input.author)) {
     throw new WorkGraphError(
       "invalid_note_author",
       "A post-release note must identify its author.",
