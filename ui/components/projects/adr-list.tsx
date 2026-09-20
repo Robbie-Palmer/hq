@@ -20,7 +20,7 @@ import { hasTechIcon, TechIcon } from "@/lib/api/tech-icons";
 import {
   ADR_STATUS_CONFIG,
   ADR_STATUSES,
-  formatADRIndex,
+  formatADRSlugIndex,
   normalizeADRTitle,
 } from "@/lib/domain/adr/adr";
 import { ADRBadge } from "./adr-badge";
@@ -121,10 +121,6 @@ export function ADRList({
     const direction = currentSort === "newest" ? -1 : 1;
     return a.slug.localeCompare(b.slug) * direction;
   });
-
-  const contextualIndexByRef = useMemo(() => {
-    return new Map(adrs.map((adr, index) => [adr.adrRef, index]));
-  }, [adrs]);
 
   const activeFilters = useMemo(() => {
     const filters: Array<{
@@ -301,7 +297,6 @@ export function ADRList({
         </div>
       ) : (
         sortedADRs.map((adr) => {
-          const contextualIndex = contextualIndexByRef.get(adr.adrRef);
           return (
             <Card
               key={adr.adrRef}
@@ -316,10 +311,7 @@ export function ADRList({
               <CardHeader className="py-4">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0 pointer-events-none z-10 flex-wrap">
                   <span className="font-mono text-sm text-muted-foreground shrink-0 w-24">
-                    ADR{" "}
-                    {contextualIndex !== undefined
-                      ? formatADRIndex(contextualIndex)
-                      : "---"}
+                    ADR {formatADRSlugIndex(adr.slug)}
                   </span>
                   <span className="font-semibold text-lg group-hover:text-primary transition-colors">
                     {normalizeADRTitle(adr.title)}
