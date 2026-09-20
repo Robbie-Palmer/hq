@@ -180,6 +180,7 @@ const normalizePullRequests = (
       !REPOSITORY_PATTERN.test(pullRequest.repository) ||
       !Number.isSafeInteger(pullRequest.number) ||
       pullRequest.number <= 0 ||
+      pullRequest.number > 2_147_483_647 ||
       !HEAD_SHA_PATTERN.test(pullRequest.headSha) ||
       !(PULL_REQUEST_STATES as readonly unknown[]).includes(
         pullRequest.state,

@@ -314,6 +314,7 @@ describe("work-item context", () => {
   it.each([
     { repository: "missing-slash" },
     { number: 0 },
+    { number: 2_147_483_648 },
     { headSha: "short" },
     { state: "unknown" },
     { draft: "no" },
