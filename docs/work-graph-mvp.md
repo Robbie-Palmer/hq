@@ -463,7 +463,7 @@ before the headless workflow is useful.
    decompose, attention, release, and cancel operations.
 9. [x] Provision the Worker, Neon project, Hyperdrive, Access application, service
    token, and secrets through Terraform and Doppler.
-10. [ ] Enter this plan into Work Graph and use it to finish its own MVP.
+10. [x] Enter this plan into Work Graph and use it to finish its own MVP.
 11. [x] Replace public numeric priority weights with contextual relative moves,
     median insertion, fixture-driven rank fusion, and explicit expedites.
 12. [x] Add typed briefs, acceptance criteria, ADRs, and supplemental references
@@ -471,6 +471,11 @@ before the headless workflow is useful.
     and CLI.
 13. [x] Add manual PR links and snapshot refresh. Automate GitHub events only after
    manual use shows which events matter.
+14. [ ] Add initiative, project, and parent filters to queue reads and
+    scheduler-selected claims. Preserve global relative order, then assign the
+    live Work Graph plan to its project and initiative mirrors.
+15. [ ] Expose identity-preserving work-item reparenting through the REST API
+    and CLI, including combined cycle rejection and immutable event history.
 
 ## Deferred
 
@@ -495,3 +500,36 @@ real plan, two workers cannot claim the same item, stale work can be recovered,
 dependency and hierarchy cycles cannot enter the graph, attention can pause and
 resume work without losing prior context, and the queue identifies the next
 eligible work globally or within a chosen scope.
+
+### Production run on 2026-09-20
+
+The deployed service and installed CLI passed these checks:
+
+- two concurrent workers raced for one ticket and exactly one claim succeeded;
+- a one-second lease became stale, another worker reclaimed it at the next
+  epoch, and the service rejected a delayed mutation from the old epoch;
+- dependency, combined hierarchy and dependency, and knowledge-scope cycles
+  returned conflicts without changing the graph;
+- blocking attention ended the first lease, resolution returned the ticket to
+  `ready`, and a second worker received the original local and inherited
+  context; and
+- global queue order respected a project-local priority move, while a newly
+  higher-priority ticket did not pre-empt claimed work.
+
+The MVP is not complete. The deployed queue and scheduler-selected claim
+contracts have no initiative, project, or parent filter. Supplying
+`schedulingProjectId` through the CLI's JSON input is ignored, so an unscheduled
+ticket remains in the result. Ticket `work-graph-mvp-07-scoped-queues` tracks
+the missing filters and the migration of the live plan into the Work Graph
+scope.
+
+The live plan now contains the Work Graph MVP hierarchy and its canonical
+initiative and project mirrors. Build-order item 10 is complete because this
+plan has driven the remaining implementation and verification work. Ticket
+`work-graph-mvp-08-reparent-cli` records the other uncovered delivery gap: the
+domain and repository can reparent work while preserving history, but the REST
+API and CLI cannot invoke that operation.
+
+The scenario catalogue now leaves only two deliberate pending tests. Semantic
+queue filtering remains pending with build-order item 14. Previous-worker
+continuity remains deferred by policy and does not block this MVP.
