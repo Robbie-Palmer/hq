@@ -15,6 +15,15 @@ const miseExecutableCandidates = [
   "/usr/bin/mise",
 ] as const;
 
+const sensitiveEnvironmentKeys = new Set([
+  "CF_ACCESS_CLIENT_ID",
+  "CF_ACCESS_CLIENT_SECRET",
+  "DOPPLER_TOKEN",
+  "WORK_GRAPH_API_URL",
+  "WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS",
+  "WORK_GRAPH_DOPPLER_BOOTSTRAPPED",
+]);
+
 export interface SelfUpdateResult {
   sourceDirectory: string;
   status: "updated";
@@ -54,6 +63,15 @@ export const resolveMiseExecutable = (
   pathExists: (path: string) => boolean = existsSync,
 ): string | undefined => miseExecutableCandidates.find(pathExists);
 
+export const withoutWorkGraphCredentials = (
+  environment: NodeJS.ProcessEnv,
+): NodeJS.ProcessEnv =>
+  Object.fromEntries(
+    Object.entries(environment).filter(
+      ([key]) => !sensitiveEnvironmentKeys.has(key),
+    ),
+  );
+
 export const updateFromCheckout = (
   sourceDirectory: string,
   dependencies: SelfUpdateDependencies = {},
@@ -85,6 +103,7 @@ export const updateFromCheckout = (
         {
           cwd: root,
           encoding: "utf8",
+          env: withoutWorkGraphCredentials(process.env),
         },
       );
     });

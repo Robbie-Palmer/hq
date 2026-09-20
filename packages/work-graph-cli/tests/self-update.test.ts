@@ -4,6 +4,7 @@ import {
   findRepositoryRoot,
   resolveMiseExecutable,
   updateFromCheckout,
+  withoutWorkGraphCredentials,
 } from "../src/self-update.js";
 
 describe("Given a Work Graph CLI source checkout", () => {
@@ -25,6 +26,21 @@ describe("Given a Work Graph CLI source checkout", () => {
       resolveMiseExecutable((path) => path === "/usr/local/bin/mise"),
     ).toBe("/usr/local/bin/mise");
     expect(resolveMiseExecutable(() => false)).toBeUndefined();
+  });
+
+  it("removes API and secret-bootstrap values from the installer environment", () => {
+    expect(
+      withoutWorkGraphCredentials({
+        PATH: "/usr/bin:/bin",
+        HOME: "/home/agent",
+        CF_ACCESS_CLIENT_ID: "client-id",
+        CF_ACCESS_CLIENT_SECRET: "client-secret",
+        DOPPLER_TOKEN: "token",
+        WORK_GRAPH_API_URL: "https://work.example.test",
+        WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS: "https://work.example.test",
+        WORK_GRAPH_DOPPLER_BOOTSTRAPPED: "1",
+      }),
+    ).toEqual({ PATH: "/usr/bin:/bin", HOME: "/home/agent" });
   });
 
   it("rejects a directory outside the repository", () => {
