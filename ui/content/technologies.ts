@@ -409,6 +409,7 @@ Diff operations can set an edit-distance or time limit. The function returns no 
   {
     name: "Cloudflare Terraform Provider",
     added: "2026-01-04",
+    description: "Terraform provider for managing Cloudflare resources as code",
     website:
       "https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs",
     iconSlug: "cloudflare",
@@ -417,6 +418,7 @@ Diff operations can set an edit-distance or time limit. The function returns no 
   {
     name: "Cloudflare DNS",
     added: "2026-01-04",
+    description: "Authoritative DNS service running on Cloudflare's network",
     website: "https://www.cloudflare.com/dns",
     iconSlug: "cloudflare",
     type: "platform",
@@ -482,6 +484,7 @@ Diff operations can set an edit-distance or time limit. The function returns no 
   {
     name: ".NET",
     added: "2026-01-04",
+    description: "Cross-platform runtime and development platform",
     website: "https://dotnet.microsoft.com",
     type: "platform",
   },
@@ -613,6 +616,8 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
   {
     name: "C++",
     added: "2026-01-04",
+    description:
+      "Compiled language for systems and performance-critical software",
     website: "https://isocpp.org",
     type: "language",
   },
@@ -828,6 +833,7 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
   {
     name: "OpenAI",
     added: "2026-01-04",
+    description: "AI platform providing models, APIs, and developer tools",
     website: "https://openai.com",
     type: "tool",
   },
@@ -990,12 +996,15 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
   {
     name: "R",
     added: "2026-01-04",
+    description:
+      "Language and environment for statistical computing and graphics",
     website: "https://www.r-project.org/",
     type: "language",
   },
   {
     name: "Shiny",
     added: "2026-01-04",
+    description: "R framework for building interactive web applications",
     website: "https://shiny.posit.co/",
     type: "library",
   },
