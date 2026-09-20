@@ -10,17 +10,26 @@ inputs and help do not have separate handwritten definitions.
 
 ## Install
 
-Build and pack the CLI from this repository:
+Build and globally install the CLI from this repository:
 
 ```sh
-mise //packages/work-graph-cli:build
-cd packages/work-graph-cli
-pnpm pack
-npm install --global ./work-graph-cli-0.1.0.tgz
+mise //packages/work-graph-cli:install:global
 ```
 
 Node.js 22.18 or newer is required. The generated Fetch client and Zod schemas
-are included in the package.
+are included in the package. The task uses the mise-managed Node runtime and
+packs through a temporary directory, so it leaves no archive in the checkout.
+
+Once installed, run the same deployment step through the CLI from anywhere
+inside a current source checkout:
+
+```sh
+work-graph self-update
+```
+
+Pass `--source-directory <path>` when the checkout is elsewhere. This command
+installs the code in that checkout; it does not fetch or trust an unversioned
+remote artifact.
 
 ## Agent quick start
 

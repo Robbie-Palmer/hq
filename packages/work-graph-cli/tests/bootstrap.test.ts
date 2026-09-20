@@ -30,6 +30,7 @@ describe("Given Work Graph CLI startup", () => {
   it.each([
     ["offline help", ["--help"], {}],
     ["offline prime", ["prime"], {}],
+    ["offline self-update", ["self-update"], {}],
     [
       "configured environment",
       ["ready"],

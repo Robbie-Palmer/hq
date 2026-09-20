@@ -47,7 +47,8 @@ const doesNotNeedApi = (args: readonly string[]): boolean =>
   args.includes("--version") ||
   args.includes("-V") ||
   args[0] === "help" ||
-  args[0] === "prime";
+  args[0] === "prime" ||
+  args[0] === "self-update";
 
 const hasApiUrlOption = (args: readonly string[]): boolean =>
   args.some((arg) => arg === "--api-url" || arg.startsWith("--api-url="));

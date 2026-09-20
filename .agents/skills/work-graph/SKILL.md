@@ -31,6 +31,12 @@ clients must set that variable to use the implicit active-lease workflow.
 4. Release repository-backed work only after merge and production deployment:
    `work-graph release <ticket> --merge-evidence <url> --deployment-evidence <url>`.
 
+For changes under `packages/work-graph-cli`, installing the merged client is
+part of deployment. Pull the merged revision, run `work-graph self-update` from
+that checkout, and verify the changed command before releasing the ticket. On a
+machine with an older client, bootstrap once with
+`mise //packages/work-graph-cli:install:global`.
+
 `note`, `touch`, `decompose`, `attention request`, `release`, and `cancel` use
 the ticket's active lease. Pass `--lease-id` and `--epoch` together only when a
 script already has both values.
