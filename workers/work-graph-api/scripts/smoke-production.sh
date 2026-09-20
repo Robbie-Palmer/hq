@@ -43,6 +43,7 @@ trap cleanup EXIT INT TERM
 
 printf 'header = "CF-Access-Client-Id: %s"\nheader = "CF-Access-Client-Secret: %s"\n' \
   "$CF_ACCESS_CLIENT_ID" "$CF_ACCESS_CLIENT_SECRET" >"$work_dir/access.curl"
+curl_http_status_format='%{http_code}'
 status="000"
 healthy=false
 for attempt in 1 2 3 4 5; do
@@ -53,7 +54,7 @@ for attempt in 1 2 3 4 5; do
     --silent \
     --show-error \
     --output "$work_dir/response.json" \
-    --write-out '%{http_code}' \
+    --write-out "$curl_http_status_format" \
     "$WORK_GRAPH_API_URL/api/work-items?limit=1") || status="000"
   if [[ "$status" == "200" ]] && jq -e '.items | type == "array"' "$work_dir/response.json" >/dev/null; then
     healthy=true
@@ -74,7 +75,7 @@ status=$(curl --disable \
   --silent \
   --show-error \
   --output "$work_dir/unscoped.json" \
-  --write-out '%{http_code}' \
+  --write-out "$curl_http_status_format" \
   "$WORK_GRAPH_API_URL/api/work-items?limit=100")
 if [[ "$status" != "200" ]]; then
   echo "Work Graph production unscoped queue check failed with HTTP $status." >&2
@@ -98,7 +99,7 @@ status=$(curl --disable \
   --header "Content-Type: application/json" \
   --data '{"schedulingInitiativeId":"semi-autonomous-software-development","schedulingProjectId":"work-graph"}' \
   --output "$work_dir/assignment.json" \
-  --write-out '%{http_code}' \
+  --write-out "$curl_http_status_format" \
   "$WORK_GRAPH_API_URL/api/work-items/work-graph-finish-mvp/scheduling-scope")
 if [[ "$status" != "200" ]] || ! jq -e \
   '.id == "work-graph-finish-mvp" and .schedulingInitiativeId == "semi-autonomous-software-development" and .schedulingProjectId == "work-graph"' \
@@ -114,7 +115,7 @@ status=$(curl --disable \
   --silent \
   --show-error \
   --output "$work_dir/scoped.json" \
-  --write-out '%{http_code}' \
+  --write-out "$curl_http_status_format" \
   "$WORK_GRAPH_API_URL/api/work-items?projectId=work-graph&limit=100")
 if [[ "$status" != "200" ]] || ! jq -e \
   --arg unscoped_id "$unscoped_id" \
