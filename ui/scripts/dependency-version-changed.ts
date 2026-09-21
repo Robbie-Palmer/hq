@@ -10,6 +10,10 @@ const dependencyGroups = [
   "peerDependencies",
 ] as const;
 
+// This detector only runs on GitHub's Ubuntu runner. Use the system binary
+// directly so repository-controlled PATH entries cannot replace Git.
+const gitExecutable = "/usr/bin/git";
+
 type DependencyGroup = (typeof dependencyGroups)[number];
 type DependencyValue = string | { specifier?: string; version?: string };
 type DependencyContainer = Partial<
@@ -60,7 +64,7 @@ export function dependencyState(
 }
 
 function fileAtRevision(revision: string, path: string): string {
-  return execFileSync("git", ["show", `${revision}:${path}`], {
+  return execFileSync(gitExecutable, ["show", `${revision}:${path}`], {
     encoding: "utf8",
   });
 }
@@ -82,7 +86,7 @@ function main(): void {
   validateRevision(headRevision, "head revision");
 
   const repositoryRoot = execFileSync(
-    "git",
+    gitExecutable,
     ["rev-parse", "--show-toplevel"],
     { encoding: "utf8" },
   ).trim();
