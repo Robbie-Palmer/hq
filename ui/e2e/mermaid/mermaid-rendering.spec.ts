@@ -1,5 +1,16 @@
 import { expect, test } from "@playwright/test";
 
+const actorPalette = {
+  dark: {
+    fill: "rgb(30, 58, 95)",
+    stroke: "rgb(96, 165, 250)",
+  },
+  light: {
+    fill: "rgb(219, 234, 254)",
+    stroke: "rgb(59, 130, 246)",
+  },
+} as const;
+
 for (const colorScheme of ["light", "dark"] as const) {
   test(`renders visible SVG diagrams in the ${colorScheme} theme`, async ({
     browser,
@@ -24,6 +35,15 @@ for (const colorScheme of ["light", "dark"] as const) {
 
       const diagrams = containers.locator("svg");
       await expect(diagrams).toHaveCount(3);
+      const sequenceActor = diagrams.nth(1).locator("rect.actor").first();
+      await expect(sequenceActor).toHaveCSS(
+        "fill",
+        actorPalette[colorScheme].fill,
+      );
+      await expect(sequenceActor).toHaveCSS(
+        "stroke",
+        actorPalette[colorScheme].stroke,
+      );
 
       const renderedDiagrams = await diagrams.evaluateAll((elements) =>
         elements.map((svg) => {
