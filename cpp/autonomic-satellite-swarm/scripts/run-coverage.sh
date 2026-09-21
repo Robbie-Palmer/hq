@@ -42,11 +42,11 @@ export CC="$coverage_cc"
 export CXX="$coverage_cxx"
 
 cmake -E rm -rf build/coverage coverage
-cmake_arguments=()
 if [[ -n "${cmake_archiver:-}" ]]; then
-  cmake_arguments+=("-DCMAKE_AR=$cmake_archiver")
+  cmake --preset coverage "-DCMAKE_AR=$cmake_archiver"
+else
+  cmake --preset coverage
 fi
-cmake --preset coverage "${cmake_arguments[@]}"
 cmake --build --preset coverage
 ctest --preset coverage
 cmake -E make_directory coverage
