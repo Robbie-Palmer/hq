@@ -155,6 +155,8 @@ work-graph expedite cli-8 --reason "Production release blocker"
 work-graph unexpedite cli-8
 work-graph dependency add cli-8 api-7
 work-graph dependency remove cli-8 api-7
+work-graph reparent cli-8 work-graph-finish-mvp
+work-graph detach cli-8
 work-graph queue
 work-graph ready
 work-graph ready --project-id work-graph
@@ -187,6 +189,10 @@ work-graph cancel cli-8
 across dependency and hierarchy relationships. Both dependency mutations accept
 `--idempotency-key`. Removing an edge leaves its `dependency.added` event in the
 immutable event log and appends a `dependency.removed` event.
+
+`reparent` moves an existing ticket under another ticket. `detach` moves it to
+the graph root. Both keep the ticket's identity and attached history, reject
+combined waits-for cycles, and accept `--idempotency-key`.
 
 `context put` upserts a brief or acceptance criteria by kind. `context adr`
 upserts a governing or background decision by URL, and `reference put` upserts

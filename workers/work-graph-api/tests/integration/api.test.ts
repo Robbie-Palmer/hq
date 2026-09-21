@@ -733,6 +733,111 @@ describe("Given graph mutations over HTTP", () => {
     expect(await db.select().from(schema.idempotencyKey)).toHaveLength(0);
   });
 
+  it("reparents and detaches one identity with its attached history", async () => {
+    await repository.createWorkItem({
+      id: "old-parent",
+      title: "Old parent",
+    });
+    await repository.createWorkItem({
+      id: "new-parent",
+      title: "New parent",
+    });
+    await repository.createWorkItem({
+      id: "work",
+      title: "Stable work",
+      parentId: "old-parent",
+    });
+    await repository.putWorkItemContext({
+      workItemId: "work",
+      kind: "brief",
+      content: "Keep this context attached.",
+    });
+    const storedLease = await repository.claimWorkItem({
+      leaseId: recordId(197),
+      workerId: "worker-a",
+      leaseDurationSeconds: 300,
+      workItemId: "work",
+    });
+    if (!storedLease) throw new Error("Expected the work item to be claimable.");
+    await repository.createNote({
+      id: recordId(198),
+      workItemId: "work",
+      leaseId: storedLease.id,
+      epoch: storedLease.epoch,
+      content: "Keep this note attached.",
+    });
+
+    const moved = await requestJson(
+      "/api/work-items/work/parent",
+      "PUT",
+      { parentId: "new-parent" },
+      recordId(199),
+    );
+    const replayed = await requestJson(
+      "/api/work-items/work/parent",
+      "PUT",
+      { parentId: "new-parent" },
+      recordId(199),
+    );
+    const detached = await requestJson(
+      "/api/work-items/work/parent",
+      "PUT",
+      { parentId: null },
+      recordId(200),
+    );
+
+    expect(moved.status).toBe(200);
+    expect(replayed.status).toBe(200);
+    expect((await moved.json()) as { parentId: string | null }).toMatchObject({
+      parentId: "new-parent",
+    });
+    expect(
+      (await detached.json()) as { parentId: string | null },
+    ).toMatchObject({ parentId: null });
+    expect(await repository.resolveWorkItemContext("work")).toEqual([
+      expect.objectContaining({
+        kind: "brief",
+        content: "Keep this context attached.",
+      }),
+    ]);
+    expect(await repository.listNotes({ workItemId: "work" })).toEqual([
+      expect.objectContaining({ content: "Keep this note attached." }),
+    ]);
+    expect(await repository.listLeases({ workItemId: "work" })).toEqual([
+      expect.objectContaining({ id: storedLease.id }),
+    ]);
+    expect(
+      (await repository.listEvents({ workItemId: "work" })).filter(
+        ({ type }) => type === "work_item.reparented",
+      ),
+    ).toHaveLength(2);
+  });
+
+  it("rejects a combined waits-for cycle and keeps the previous parent", async () => {
+    await repository.createWorkItem({ id: "parent", title: "Parent" });
+    await repository.createWorkItem({ id: "child", title: "Child" });
+    await repository.addDependency({
+      dependentWorkItemId: "child",
+      blockerWorkItemId: "parent",
+    });
+
+    const response = await requestJson(
+      "/api/work-items/child/parent",
+      "PUT",
+      { parentId: "parent" },
+      recordId(201),
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: {
+        code: "graph_cycle",
+        message: "The change creates a waits-for cycle.",
+      },
+    });
+    expect((await repository.getWorkItem("child")).parentId).toBeNull();
+  });
+
   it("adds and removes a dependency idempotently while readiness stays derived", async () => {
     await repository.createWorkItem({ id: "dependent", title: "Dependent" });
     await repository.createWorkItem({ id: "blocker", title: "Blocker" });

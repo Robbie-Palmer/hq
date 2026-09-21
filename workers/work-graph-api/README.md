@@ -72,6 +72,10 @@ filters. `POST /api/leases` accepts the same filters when it selects the next
 ticket. The service computes global priority first, then filters that order.
 `PUT /api/work-items/{workItemId}/scheduling-scope` assigns an existing root
 ticket to an initiative and project; descendants inherit the assignment.
+`PUT /api/work-items/{workItemId}/parent` replaces the ticket's parent. Send a
+null `parentId` to detach it to the graph root. The operation preserves the
+ticket and its history, and rejects cycles across hierarchy and dependency
+edges.
 
 ## Note history
 

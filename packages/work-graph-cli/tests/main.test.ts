@@ -743,6 +743,36 @@ describe("Given agent-facing Work Graph commands", () => {
     expect(unexpedite.requests[0]?.method).toBe("DELETE");
   });
 
+  it("reparents and detaches a ticket", async () => {
+    const reparent = harness();
+    const detach = harness();
+
+    await reparent.run([
+      "reparent",
+      "child/a",
+      "parent b",
+      "--idempotency-key",
+      UUID,
+    ]);
+    await detach.run(["detach", "child/a"]);
+
+    expect(reparent.requests[0]).toMatchObject({
+      method: "PUT",
+      body: { parentId: "parent b" },
+    });
+    expect(reparent.requests[0]?.url.pathname).toBe(
+      "/root/api/work-items/child%2Fa/parent",
+    );
+    expect(reparent.requests[0]?.headers.get("Idempotency-Key")).toBe(UUID);
+    expect(detach.requests[0]).toMatchObject({
+      method: "PUT",
+      body: { parentId: null },
+    });
+    expect(detach.requests[0]?.url.pathname).toBe(
+      "/root/api/work-items/child%2Fa/parent",
+    );
+  });
+
   it("lists the ready queue by default and supports an unfiltered page", async () => {
     const ready = harness();
     const familiarReady = harness();

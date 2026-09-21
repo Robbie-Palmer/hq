@@ -2948,15 +2948,30 @@ export class WorkGraphRepository {
   async reparentWorkItem(
     workItemId: string,
     parentId: string | null,
+    options: IdempotentMutationOptions = {},
   ): Promise<void> {
     requireIdentifier(workItemId, "invalid_work_item_id");
     if (parentId !== null) {
       requireIdentifier(parentId, "invalid_parent_id");
     }
+    if (options.idempotencyKey !== undefined) {
+      requireIdempotencyKey(options.idempotencyKey);
+    }
 
     try {
       await this.db.transaction(async (transaction) => {
         await this.lockEventSequence(transaction);
+        const replayed =
+          options.idempotencyKey === undefined
+            ? false
+            : await this.beginIdempotentMutation(
+                transaction,
+                options.idempotencyKey,
+                "reparent-work-item",
+                JSON.stringify([workItemId, parentId]),
+              );
+        if (replayed) return;
+
         await this.lockGraphMutation(transaction);
         await this.requireStoredWorkItem(transaction, workItemId);
 

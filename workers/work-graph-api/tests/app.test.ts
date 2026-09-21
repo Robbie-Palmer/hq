@@ -130,6 +130,7 @@ const buildRepository = (): WorkGraphApiRepository => ({
   moveWorkItemPriority: vi.fn(async (workItemId) => ({
     ...item(workItemId, "ready"),
   })),
+  reparentWorkItem: vi.fn(async () => undefined),
   setWorkItemSchedulingScope: vi.fn(async (workItemId) => ({
     ...item(workItemId, "ready"),
   })),
@@ -790,6 +791,58 @@ describe("Given idempotent graph mutation requests", () => {
     );
     expect(repository.unexpediteWorkItem).toHaveBeenCalledWith(
       "ticket-a",
+      {},
+    );
+  });
+
+  it("reparents and detaches a ticket without replacing it", async () => {
+    const repository = buildRepository();
+    vi.mocked(repository.getWorkItem)
+      .mockResolvedValueOnce({
+        ...item("ticket-a", "blocked"),
+        parentId: "parent-a",
+      })
+      .mockResolvedValueOnce(item("ticket-a", "ready"));
+    const app = createWorkGraphApp(repository);
+
+    const reparented = await app.request(
+      "/api/work-items/ticket-a/parent",
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": idempotencyKey,
+        },
+        body: JSON.stringify({ parentId: "parent-a" }),
+      },
+    );
+    const detached = await app.request(
+      "/api/work-items/ticket-a/parent",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ parentId: null }),
+      },
+    );
+
+    expect(reparented.status).toBe(200);
+    expect(detached.status).toBe(200);
+    expect(await responseJson(reparented)).toEqual(
+      expect.objectContaining({ id: "ticket-a", parentId: "parent-a" }),
+    );
+    expect(await responseJson(detached)).toEqual(
+      expect.objectContaining({ id: "ticket-a", parentId: null }),
+    );
+    expect(repository.reparentWorkItem).toHaveBeenNthCalledWith(
+      1,
+      "ticket-a",
+      "parent-a",
+      { idempotencyKey },
+    );
+    expect(repository.reparentWorkItem).toHaveBeenNthCalledWith(
+      2,
+      "ticket-a",
+      null,
       {},
     );
   });
