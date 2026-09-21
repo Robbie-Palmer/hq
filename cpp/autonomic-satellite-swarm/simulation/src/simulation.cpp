@@ -295,6 +295,16 @@ void validateFrame(const SimulationFrame& frame, std::size_t node_count) {
       throw std::invalid_argument("simulation frame has an invalid satellite snapshot");
     }
   }
+  for (const OrbitUpdate& update : frame.orbit_updates) {
+    validateNodeId(update.node_id, node_count);
+    if (!isValid(update.orbit.teme) || !isValid(update.orbit.earth_fixed) ||
+        update.orbit.teme.frame != OrbitalCoordinateFrame::Teme ||
+        update.orbit.earth_fixed.frame != OrbitalCoordinateFrame::EarthFixed ||
+        update.orbit.teme.epoch_unix_milliseconds !=
+            update.orbit.earth_fixed.epoch_unix_milliseconds) {
+      throw std::invalid_argument("simulation frame has an invalid orbit update");
+    }
+  }
   for (const HealthUpdate& update : frame.health_updates) {
     validateNodeId(update.node_id, node_count);
     if (!isKnown(update.health)) {
@@ -395,7 +405,8 @@ void drainTelemetry(std::vector<SimulationEvent>& events, SwarmController& contr
   }
 }
 
-NodeObservation observe(const SwarmController& controller) {
+NodeObservation observe(const SwarmController& controller,
+                        const std::optional<PropagationResult>& orbit) {
   NodeObservation observation;
   observation.node_id = controller.nodeId();
   observation.state = controller.state();
@@ -406,6 +417,7 @@ NodeObservation observe(const SwarmController& controller) {
   observation.candidacy_score = controller.currentCandidacyScore();
   observation.communication_failures = controller.consecutiveCommunicationFailures();
   observation.telemetry_drops = controller.droppedTelemetryEvents();
+  observation.orbit = orbit;
   return observation;
 }
 
@@ -425,11 +437,13 @@ SimulationResult runSimulationTrace(const SimulationTrace& trace) {
   std::vector<std::unique_ptr<SimulationSafeStateActuator>> safe_state_actuators;
   std::vector<std::unique_ptr<SwarmController>> controllers;
   std::vector<BootEpoch> boot_epochs;
+  std::vector<std::optional<PropagationResult>> orbits;
   transports.reserve(trace.nodes.size());
   health_monitors.reserve(trace.nodes.size());
   safe_state_actuators.reserve(trace.nodes.size());
   controllers.reserve(trace.nodes.size());
   boot_epochs.reserve(trace.nodes.size());
+  orbits.resize(trace.nodes.size());
 
   for (const NodeConfiguration& node : trace.nodes) {
     transports.push_back(std::make_unique<SimulationTransport>(node.node_id, bus));
@@ -461,6 +475,14 @@ SimulationResult runSimulationTrace(const SimulationTrace& trace) {
                ->updateSatelliteSnapshot(update.satellite)) {
         throw std::invalid_argument("validated satellite update was rejected");
       }
+    }
+    for (const OrbitUpdate& update : frame.orbit_updates) {
+      const auto index = static_cast<std::size_t>(update.node_id);
+      const SatelliteSnapshot satellite = satelliteSnapshotFrom(update.orbit);
+      if (!controllers.at(index)->updateSatelliteSnapshot(satellite)) {
+        throw std::invalid_argument("validated orbit update was rejected");
+      }
+      orbits[index] = update.orbit;
     }
     for (const NodeReset& reset : frame.node_resets) {
       const auto index = static_cast<std::size_t>(reset.node_id);
@@ -532,7 +554,8 @@ SimulationResult runSimulationTrace(const SimulationTrace& trace) {
     observation.now_ms = frame.now_ms;
     observation.nodes.reserve(controllers.size());
     for (const std::unique_ptr<SwarmController>& controller : controllers) {
-      observation.nodes.push_back(observe(*controller));
+      const auto index = static_cast<std::size_t>(controller->nodeId());
+      observation.nodes.push_back(observe(*controller, orbits[index]));
     }
     result.frames.push_back(std::move(observation));
   }

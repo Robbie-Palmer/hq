@@ -83,6 +83,6 @@ text or a partial read.
 
 The simulation drains every controller after each command or update and adds the records to its
 ordered event stream. It intentionally bypasses the transmitter because the replay captures complete
-internal evidence rather than modelling a downlink. Browser schema version 6 exposes the records and
+internal evidence rather than modelling a downlink. Browser schema version 7 exposes the records and
 each node's cumulative drop count. The replay log can distinguish a state change inferred by the
 simulator from the controller's own reason for that change.

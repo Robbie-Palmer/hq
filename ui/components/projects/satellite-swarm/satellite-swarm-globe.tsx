@@ -39,14 +39,13 @@ function position(
   cesium: CesiumRuntime,
   frame: SatelliteSwarmFrame,
   nodeId: number,
-  earthRadiusMetres: number,
 ): Cartesian3 | null {
   const node = frame.nodes.find((candidate) => candidate.id === nodeId);
   if (!node) return null;
-  return cesium.Cartesian3.fromDegrees(
-    node.position.longitudeDegrees,
-    node.position.latitudeDegrees,
-    altitude(frame, nodeId, earthRadiusMetres),
+  return cesium.Cartesian3.fromElements(
+    node.earthFixedPositionMetres.x,
+    node.earthFixedPositionMetres.y,
+    node.earthFixedPositionMetres.z,
   );
 }
 
@@ -60,7 +59,7 @@ function addMessageLinks(
   const { ArcType, Cartesian3, Color } = cesium;
   for (const event of events) {
     if (event.type !== "message-sent") continue;
-    const sender = position(cesium, frame, event.nodeId, earthRadiusMetres);
+    const sender = position(cesium, frame, event.nodeId);
     if (!sender) continue;
     const targets =
       event.message.target === null
@@ -70,7 +69,7 @@ function addMessageLinks(
         : [event.message.target];
 
     for (const targetId of targets) {
-      const target = position(cesium, frame, targetId, earthRadiusMetres);
+      const target = position(cesium, frame, targetId);
       const targetNode = frame.nodes.find((node) => node.id === targetId);
       const senderNode = frame.nodes.find((node) => node.id === event.nodeId);
       if (!target || !targetNode || !senderNode) continue;
@@ -99,21 +98,48 @@ function addMessageLinks(
 }
 
 function trackPositions(
+  cesium: CesiumRuntime,
   data: SatelliteSwarmSimulation,
   currentFrameIndex: number,
   nodeId: number,
-  earthRadiusMetres: number,
-): number[] {
+): Cartesian3[] {
   return data.frames.slice(0, currentFrameIndex + 1).flatMap((frame) => {
     const node = frame.nodes.find((candidate) => candidate.id === nodeId);
     return node
       ? [
-          node.position.longitudeDegrees,
-          node.position.latitudeDegrees,
-          Math.max(100_000, node.orbitalRadiusMetres - earthRadiusMetres),
+          cesium.Cartesian3.fromElements(
+            node.earthFixedPositionMetres.x,
+            node.earthFixedPositionMetres.y,
+            node.earthFixedPositionMetres.z,
+          ),
         ]
       : [];
   });
+}
+
+function sampledPosition(
+  cesium: CesiumRuntime,
+  data: SatelliteSwarmSimulation,
+  nodeId: number,
+) {
+  const property = new cesium.SampledPositionProperty();
+  for (const frame of data.frames) {
+    const node = frame.nodes.find((candidate) => candidate.id === nodeId);
+    if (!node) continue;
+    property.addSample(
+      cesium.JulianDate.fromDate(new Date(node.epochUnixMilliseconds)),
+      cesium.Cartesian3.fromElements(
+        node.earthFixedPositionMetres.x,
+        node.earthFixedPositionMetres.y,
+        node.earthFixedPositionMetres.z,
+      ),
+    );
+  }
+  property.setInterpolationOptions({
+    interpolationAlgorithm: cesium.LinearApproximation,
+    interpolationDegree: 1,
+  });
+  return property;
 }
 
 interface FrameRenderContext {
@@ -134,14 +160,12 @@ function addFrameNode(
     cesium,
     currentFrameIndex,
     data,
-    earthRadiusMetres,
     selectedNodeId,
     supportsLabels,
     viewer,
   } = context;
   const {
     Cartesian2,
-    Cartesian3,
     Color,
     HorizontalOrigin,
     LabelStyle,
@@ -175,24 +199,15 @@ function addFrameNode(
       outlineWidth: selected ? 3 : 1,
       pixelSize: selected ? 15 : 11,
     },
-    position: Cartesian3.fromDegrees(
-      node.position.longitudeDegrees,
-      node.position.latitudeDegrees,
-      Math.max(100_000, node.orbitalRadiusMetres - earthRadiusMetres),
-    ),
+    position: sampledPosition(cesium, data, node.id),
   });
 
-  const positions = trackPositions(
-    data,
-    currentFrameIndex,
-    node.id,
-    earthRadiusMetres,
-  );
-  if (positions.length < 6) return;
+  const positions = trackPositions(cesium, data, currentFrameIndex, node.id);
+  if (positions.length < 2) return;
   viewer.entities.add({
     polyline: {
       material: nodeColor.withAlpha(0.55),
-      positions: Cartesian3.fromDegreesArrayHeights(positions),
+      positions,
       width: selected ? 3 : 1.5,
     },
   });
@@ -243,6 +258,7 @@ function renderFrame(
   frame: SatelliteSwarmFrame,
   events: readonly SatelliteSwarmEvent[],
   currentFrameIndex: number,
+  playing: boolean,
   selectedNodeId: number,
 ) {
   const earthRadiusMetres = cesium.Ellipsoid.WGS84.maximumRadius;
@@ -258,6 +274,12 @@ function renderFrame(
   };
 
   viewer.entities.removeAll();
+  const epoch = frame.nodes[0]?.epochUnixMilliseconds;
+  if (epoch !== undefined) {
+    viewer.clock.currentTime = cesium.JulianDate.fromDate(new Date(epoch));
+    viewer.clock.multiplier = frame.playbackMultiplier;
+    viewer.clock.shouldAnimate = playing;
+  }
   for (const node of frame.nodes) {
     addFrameNode(context, node);
   }
@@ -271,6 +293,7 @@ export interface SatelliteSwarmGlobeProps {
   data: SatelliteSwarmSimulation;
   events: readonly SatelliteSwarmEvent[];
   onFailure: (error: unknown) => void;
+  playing?: boolean;
   selectedNodeId: number;
 }
 
@@ -279,6 +302,7 @@ export function SatelliteSwarmGlobe({
   data,
   events,
   onFailure,
+  playing = false,
   selectedNodeId,
 }: Readonly<SatelliteSwarmGlobeProps>) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -324,9 +348,10 @@ export function SatelliteSwarmGlobe({
       frame,
       events,
       currentFrameIndex,
+      playing,
       selectedNodeId,
     );
-  }, [currentFrameIndex, data, events, selectedNodeId, viewerReady]);
+  }, [currentFrameIndex, data, events, playing, selectedNodeId, viewerReady]);
 
   return (
     <div ref={containerRef} className="h-full w-full" aria-hidden="true" />

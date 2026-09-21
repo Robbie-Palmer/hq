@@ -17,15 +17,19 @@ vi.mock("@/components/technology/cesium/offline-viewer", () => ({
 }));
 
 const data = parseSatelliteSwarmSimulation({
-  schemaVersion: 6,
+  schemaVersion: 7,
   traceVersion: 5,
   scenario: "test",
   source: "portable C++ SimulationTrace",
   sourceRevision: "0123456789abcdef0123456789abcdef01234567",
   positionModel: "scripted",
+  propagationFrame: "TEME",
+  renderingFrame: "test Earth-fixed frame",
+  scenarioEpochUnixMilliseconds: 962650219734,
   objective: { longitudeDegrees: 4, latitudeDegrees: -90 },
   frames: [
     {
+      playbackMultiplier: 0.1,
       timeMs: 0,
       nodes: [
         {
@@ -35,6 +39,9 @@ const data = parseSatelliteSwarmSimulation({
           position: { longitudeDegrees: 0, latitudeDegrees: 10 },
           orbitalRadiusMetres: 6_750_000,
           candidacyScore: 60,
+          earthFixedPositionMetres: { x: 6_750_000, y: 0, z: 0 },
+          earthFixedVelocityMillimetresPerSecond: { x: 0, y: 7_500_000, z: 0 },
+          epochUnixMilliseconds: 962650219734,
           telemetryDrops: 0,
           missionKey: { bootEpoch: 1, originNode: 0, sequence: 1 },
           assignedNode: null,
@@ -46,6 +53,13 @@ const data = parseSatelliteSwarmSimulation({
           position: { longitudeDegrees: 2, latitudeDegrees: 0 },
           orbitalRadiusMetres: 6_750_000,
           candidacyScore: 81,
+          earthFixedPositionMetres: { x: 6_700_000, y: 500_000, z: 0 },
+          earthFixedVelocityMillimetresPerSecond: {
+            x: -500_000,
+            y: 7_400_000,
+            z: 0,
+          },
+          epochUnixMilliseconds: 962650219734,
           telemetryDrops: 0,
           missionKey: { bootEpoch: 1, originNode: 0, sequence: 1 },
           assignedNode: null,
@@ -53,6 +67,7 @@ const data = parseSatelliteSwarmSimulation({
       ],
     },
     {
+      playbackMultiplier: 100,
       timeMs: 100,
       nodes: [
         {
@@ -62,6 +77,13 @@ const data = parseSatelliteSwarmSimulation({
           position: { longitudeDegrees: 1, latitudeDegrees: 9 },
           orbitalRadiusMetres: 6_750_000,
           candidacyScore: 60,
+          earthFixedPositionMetres: { x: 6_749_000, y: 100_000, z: 0 },
+          earthFixedVelocityMillimetresPerSecond: {
+            x: -100_000,
+            y: 7_500_000,
+            z: 0,
+          },
+          epochUnixMilliseconds: 962650219834,
           telemetryDrops: 0,
           missionKey: { bootEpoch: 1, originNode: 0, sequence: 1 },
           assignedNode: 1,
@@ -73,6 +95,13 @@ const data = parseSatelliteSwarmSimulation({
           position: { longitudeDegrees: 3, latitudeDegrees: -1 },
           orbitalRadiusMetres: 6_750_000,
           candidacyScore: 81,
+          earthFixedPositionMetres: { x: 6_690_000, y: 600_000, z: -100_000 },
+          earthFixedVelocityMillimetresPerSecond: {
+            x: -600_000,
+            y: 7_390_000,
+            z: -100_000,
+          },
+          epochUnixMilliseconds: 962650219834,
           telemetryDrops: 0,
           missionKey: { bootEpoch: 1, originNode: 0, sequence: 1 },
           assignedNode: 1,
@@ -89,9 +118,12 @@ function createHarness(supportsLabels = true) {
   const removeAll = vi.fn();
   const requestRender = vi.fn();
   const fromDegrees = vi.fn((...coordinates: number[]) => coordinates);
-  const fromDegreesArrayHeights = vi.fn((coordinates: number[]) => coordinates);
+  const fromElements = vi.fn((...coordinates: number[]) => coordinates);
+  const addSample = vi.fn();
+  const setInterpolationOptions = vi.fn();
   const color = { withAlpha: vi.fn((alpha: number) => ({ alpha })) };
   const viewer = {
+    clock: { currentTime: null, multiplier: 0, shouldAnimate: false },
     destroy,
     entities: { add, removeAll },
     isDestroyed: vi.fn(() => false),
@@ -105,7 +137,7 @@ function createHarness(supportsLabels = true) {
         readonly y: number,
       ) {}
     },
-    Cartesian3: { fromDegrees, fromDegreesArrayHeights },
+    Cartesian3: { fromDegrees, fromElements },
     Color: {
       BLACK: "black",
       WHITE: { withAlpha: vi.fn((alpha: number) => ({ alpha })) },
@@ -116,6 +148,7 @@ function createHarness(supportsLabels = true) {
     HeightReference: { CLAMP_TO_GROUND: "ground" },
     HorizontalOrigin: { LEFT: "left" },
     LabelStyle: { FILL_AND_OUTLINE: "fill-and-outline" },
+    LinearApproximation: "linear",
     NearFarScalar: class {
       constructor(
         readonly near: number,
@@ -124,6 +157,15 @@ function createHarness(supportsLabels = true) {
         readonly farValue: number,
       ) {}
     },
+    JulianDate: { fromDate: vi.fn((date: Date) => date) },
+    SampledPositionProperty: class {
+      addSample(...arguments_: unknown[]) {
+        addSample(...arguments_);
+      }
+      setInterpolationOptions(...arguments_: unknown[]) {
+        setInterpolationOptions(...arguments_);
+      }
+    },
     VerticalOrigin: { CENTER: "center" },
   };
   runtimeMocks.load.mockResolvedValue(runtime);
@@ -131,7 +173,7 @@ function createHarness(supportsLabels = true) {
   return {
     add,
     destroy,
-    fromDegreesArrayHeights,
+    fromElements,
     removeAll,
     requestRender,
   };
@@ -193,7 +235,7 @@ describe("SatelliteSwarmGlobe", () => {
 
     await waitFor(() => expect(harness.requestRender).toHaveBeenCalledTimes(2));
     expect(harness.removeAll).toHaveBeenCalledTimes(2);
-    expect(harness.fromDegreesArrayHeights).toHaveBeenCalledTimes(2);
+    expect(harness.fromElements).toHaveBeenCalled();
     expect(harness.add).toHaveBeenCalledTimes(9);
 
     unmount();

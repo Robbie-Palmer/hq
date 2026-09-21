@@ -2,7 +2,9 @@
 #define SATELLITE_SWARM_SIMULATION_HPP
 
 #include "satellite_swarm/controller.hpp"
+#include "satellite_swarm/orbit.hpp"
 
+#include <optional>
 #include <stdint.h>
 #include <vector>
 
@@ -20,6 +22,11 @@ struct NodeConfiguration {
 struct SatelliteUpdate {
   NodeId node_id = 0U;
   SatelliteSnapshot satellite{};
+};
+
+struct OrbitUpdate {
+  NodeId node_id = 0U;
+  PropagationResult orbit{};
 };
 
 struct HealthUpdate {
@@ -67,6 +74,7 @@ struct NodeReset {
 struct SimulationFrame {
   uint32_t now_ms = 0U;
   std::vector<SatelliteUpdate> satellite_updates;
+  std::vector<OrbitUpdate> orbit_updates;
   std::vector<HealthUpdate> health_updates;
   // Status changes take effect before controller updates in the same frame.
   std::vector<SafeStateStatusUpdate> safe_state_status_updates;
@@ -130,6 +138,7 @@ struct NodeObservation {
   uint8_t candidacy_score = 0U;
   uint8_t communication_failures = 0U;
   uint32_t telemetry_drops = 0U;
+  std::optional<PropagationResult> orbit;
 };
 
 struct FrameObservation {

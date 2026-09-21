@@ -54,6 +54,17 @@ function getReplayAction(playing: boolean, frameIndex: number, stopAt: number) {
   return { accessibleName: "Play replay", label: "Play" };
 }
 
+function formatSimulationTime(timeMs: number): string {
+  if (timeMs < 1_000) return `${timeMs} ms`;
+  const totalSeconds = Math.floor(timeMs / 1_000);
+  const hours = Math.floor(totalSeconds / 3_600);
+  const minutes = Math.floor((totalSeconds % 3_600) / 60);
+  const seconds = totalSeconds % 60;
+  return hours > 0
+    ? `${hours}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s`
+    : `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+}
+
 export function SatelliteSwarmSimulation({
   data,
   executionMode = "recorded",
@@ -85,17 +96,25 @@ export function SatelliteSwarmSimulation({
       return;
     }
     if (!playing) return;
-    const timer = window.setInterval(() => {
-      setFrameIndex((current) => {
-        if (current >= stopAt) {
-          setPlaying(false);
-          return current;
-        }
-        return current + 1;
-      });
-    }, 900);
-    return () => window.clearInterval(timer);
-  }, [playing, reducedMotion, stopAt]);
+    if (!frame || frameIndex >= stopAt) {
+      setPlaying(false);
+      return;
+    }
+    const nextFrame = data.frames[frameIndex + 1];
+    if (!nextFrame) return;
+    const presentationDelay = Math.max(
+      50,
+      Math.min(
+        2_000,
+        (nextFrame.timeMs - frame.timeMs) / frame.playbackMultiplier,
+      ),
+    );
+    const timer = window.setTimeout(
+      () => setFrameIndex((current) => current + 1),
+      presentationDelay,
+    );
+    return () => window.clearTimeout(timer);
+  }, [data.frames, frame, frameIndex, playing, reducedMotion, stopAt]);
 
   const reportStartupFailure = useCallback((error: unknown) => {
     setStartupFailure(
@@ -117,7 +136,8 @@ export function SatelliteSwarmSimulation({
               : "Three-node mission replay"}
           </h3>
           <span className="rounded-full border bg-muted px-2.5 py-1 font-mono text-xs text-muted-foreground">
-            trace v{data.traceVersion} · {frame.timeMs} ms
+            trace v{data.traceVersion} · {formatSimulationTime(frame.timeMs)} ·{" "}
+            {frame.playbackMultiplier}×
           </span>
         </div>
         <p className="text-sm text-muted-foreground">
@@ -127,7 +147,13 @@ export function SatelliteSwarmSimulation({
           {isSouthPoleMission &&
             " The exact pole is a deliberate coordinate edge case."}
           {hasLostAssignment &&
-            " The fault schedule drops the winning assignment before node 1 receives it."}
+            " The fault schedule drops the winning assignment before the selected node receives it."}
+        </p>
+        <p className="font-mono text-xs text-muted-foreground">
+          Simulation UTC{" "}
+          {new Date(
+            data.scenarioEpochUnixMilliseconds + frame.timeMs,
+          ).toISOString()}
         </p>
         {missionControls}
       </div>
@@ -159,6 +185,7 @@ export function SatelliteSwarmSimulation({
                 data={data}
                 events={currentEvents}
                 onFailure={reportStartupFailure}
+                playing={playing}
                 selectedNodeId={selectedNodeId}
               />
             )}

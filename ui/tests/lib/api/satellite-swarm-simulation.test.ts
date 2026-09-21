@@ -6,15 +6,19 @@ import {
 } from "@/lib/api/satellite-swarm-simulation";
 
 const validRecord = {
-  schemaVersion: 6,
+  schemaVersion: 7,
   traceVersion: 5,
   scenario: "test",
   source: "portable C++ SimulationTrace",
   sourceRevision: "0123456789abcdef0123456789abcdef01234567",
   positionModel: "scripted",
+  propagationFrame: "TEME",
+  renderingFrame: "test Earth-fixed frame",
+  scenarioEpochUnixMilliseconds: 962650219734,
   objective: { longitudeDegrees: 0, latitudeDegrees: -90 },
   frames: [
     {
+      playbackMultiplier: 1,
       timeMs: 0,
       nodes: [
         {
@@ -24,6 +28,9 @@ const validRecord = {
           position: { longitudeDegrees: 0, latitudeDegrees: 10 },
           orbitalRadiusMetres: 6_750_000,
           candidacyScore: 81,
+          earthFixedPositionMetres: { x: 6_750_000, y: 0, z: 0 },
+          earthFixedVelocityMillimetresPerSecond: { x: 0, y: 7_500_000, z: 0 },
+          epochUnixMilliseconds: 962650219734,
           telemetryDrops: 0,
           missionKey: { bootEpoch: 1, originNode: 0, sequence: 1 },
           assignedNode: null,
@@ -51,7 +58,7 @@ describe("satellite swarm simulation records", () => {
   it("accepts the committed native fixture", () => {
     const fixture = JSON.parse(
       readFileSync(
-        "public/simulations/autonomic-satellite-swarm/demonstration.v6.json",
+        "public/simulations/autonomic-satellite-swarm/demonstration.v7.json",
         "utf8",
       ),
     );

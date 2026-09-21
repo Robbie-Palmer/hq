@@ -2,7 +2,7 @@
 title: "Autonomic Satellite Swarm"
 description: "A revived C++ research prototype for fail-safe coordination across hardware-independent satellite-swarm agents"
 date: "2019-07-30"
-updated: "2026-09-20"
+updated: "2026-09-21"
 ideas:
   - "two-generals-problem"
   - "flp-impossibility"
@@ -15,6 +15,7 @@ tech_stack:
   - "CesiumJS"
   - "Emscripten"
   - "WebAssembly"
+  - "SGP4"
   - "GitHub Actions"
 repo_url: "https://github.com/Robbie-Palmer/hq/tree/main/cpp/autonomic-satellite-swarm"
 demo_url: "https://robbiepalmer.me/satellite-swarm"
@@ -114,9 +115,11 @@ The core owns a deterministic state machine and domain messages. Four narrow por
 * `TelemetrySink` accepts diagnostic records after the platform grants output-channel access.
 
 The original orbital-energy calculation survives as `HistoricalOrbitalScorer`. Tests preserve the
-paper examples, but the type and documentation label it as a heuristic rather than validated orbital
-mechanics. Better guidance and maneuver planning can replace it without changing the negotiation
-protocol.
+paper examples, but the type and documentation label it as a heuristic rather than validated
+mission-cost mechanics. A simulation-only SGP4 adapter now propagates checked-in TLEs into the same
+snapshot consumed by that scorer and into the Earth-fixed Cartesian position rendered by Cesium.
+The portable core and firmware do not link SGP4. Better guidance and maneuver planning can replace
+the heuristic without changing the negotiation protocol.
 
 The legacy adapter fragments each validated packet across six NEC infrared frames. The modern
 reference adapter sends the same packet over ESP-NOW. ESP-NOW is useful for a benchtop demonstration;
@@ -191,14 +194,16 @@ mission-success measures.
 
 * Flight qualification, radiation tolerance, or safety certification
 * A physically valid deorbit or self-destruction mechanism
-* Validated orbit propagation, collision avoidance, or guidance/navigation/control
+* Flight-grade orbit determination, collision avoidance, or guidance/navigation/control
 * Secure command and control; the prototype lacks authentication and replay protection
 * Implemented multi-hop topology, consensus, Byzantine fault tolerance, or unbounded swarms
 * Claims that compile-tested adapters have been verified on absent hardware
 
 # Verification
 
-Host tests cover the published score examples, invalid inputs, exact-arrival behavior, message and
+Host tests cover CelesTrak SGP4 reference vectors to a one-metre bound, TLE validation, polar and
+longitude-wrap cases, a bounded 60-second interpolation interval, the published score examples,
+invalid inputs, exact-arrival behavior, message and
 telemetry corruption, mission negotiation, stable keys, retries, telemetry rate limits, cyclic
 equal-score allocation, busy nodes, health transitions, 32-bit clock rollover, explicit delivery
 faults, asymmetric links, and volatile state after a node reset. The invariant suite checks local
@@ -206,8 +211,11 @@ assignment evidence and duplicate transitions, then records reset persistence an
 known failures. A three-node in-memory simulation reconstructs the central demonstration without
 hardware.
 The same runner builds with Emscripten, executes in a browser worker, and has a byte-for-byte parity
-check against the native fixture. A second parity run compares six equal-score assignments and their
-telemetry byte for byte. CI also compiles both firmware targets from pinned profiles.
+check against the native full-orbit fixture. A second parity run compares six equal-score
+assignments and their telemetry byte for byte. A production browser audit checks both desktop and
+CPU-throttled mobile profiles for page errors, failed resources, and external requests. CI also
+compiles both firmware targets from pinned profiles, confirming that orbit propagation remains out
+of the embedded dependency graph.
 
 Physical timing, sensor calibration, radio behavior under load, real propulsion, and orbital
 validity remain outside the current evidence boundary.
@@ -225,9 +233,9 @@ validity remain outside the current evidence boundary.
    groups), event-storm, and biased-telemetry experiments in a richer simulator.
 6. Evaluate policy changes through replay, independent adversarial review, shadow operation,
    limited canaries, authenticated rollout, and explicit rollback instead of live self-modification.
-7. Add deterministic SGP4 orbit propagation to the C++ simulation and replay a full orbit at
-   variable display speeds. Separately define what a defensible mission-cost model would need to
-   prove.
+7. Define what a defensible mission-cost model would need to prove, using the deterministic SGP4
+   replay as an environment input rather than evidence that the historical score is physically
+   valid.
 8. Select physical boards and radios only when there is a concrete experiment to run.
 9. Add hardware-in-the-loop tests, authenticated messages, persistent identity, and reset recovery
    before treating the system as more than a bench prototype.

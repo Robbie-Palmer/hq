@@ -13,9 +13,9 @@ ninja = "1.13.2"
 [tasks.format]
 description = "Format all C++ and Arduino sources"
 dir = "{{config_root}}"
-run = "find . -type f ! -path '*/build/*' \\( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' -o -name '*.ino' \\) -print0 | xargs -0 clang-format -i"
+run = "find . -type f ! -path '*/build/*' ! -path '*/third_party/*' \\( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' -o -name '*.ino' \\) -print0 | xargs -0 clang-format -i"
 
 [tasks."format:check"]
 description = "Check formatting for all C++ and Arduino sources"
 dir = "{{config_root}}"
-run = "find . -type f ! -path '*/build/*' \\( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' -o -name '*.ino' \\) -print0 | xargs -0 clang-format --dry-run --Werror"
+run = "find . -type f ! -path '*/build/*' ! -path '*/third_party/*' \\( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' -o -name '*.ino' \\) -print0 | xargs -0 clang-format --dry-run --Werror"

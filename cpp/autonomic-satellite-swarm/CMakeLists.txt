@@ -55,16 +55,25 @@ if(SATELLITE_SWARM_ENABLE_COVERAGE)
 endif()
 
 if(SATELLITE_SWARM_BUILD_SIMULATION)
+  add_library(sgp4_reference third_party/sgp4/SGP4.cpp)
+  target_include_directories(sgp4_reference PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sgp4)
+  target_compile_features(sgp4_reference PUBLIC cxx_std_20)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    target_compile_options(sgp4_reference PRIVATE -w)
+  endif()
+
   add_library(
     satellite_swarm_simulation
     simulation/src/browser_simulation.cpp
     simulation/src/fair_allocation_simulation.cpp
+    simulation/src/orbit.cpp
     simulation/src/simulation.cpp)
   add_library(satellite_swarm::simulation ALIAS satellite_swarm_simulation)
   target_include_directories(
     satellite_swarm_simulation
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/simulation/include>)
-  target_link_libraries(satellite_swarm_simulation PUBLIC satellite_swarm::coordination)
+  target_link_libraries(satellite_swarm_simulation PUBLIC satellite_swarm::coordination
+                                                   PRIVATE sgp4_reference)
   target_compile_features(satellite_swarm_simulation PUBLIC cxx_std_20)
 
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
@@ -167,6 +176,7 @@ if(BUILD_TESTING)
     tests/controller_test.cpp
     tests/historical_orbital_scorer_test.cpp
     tests/invariant_test.cpp
+    tests/orbit_test.cpp
     tests/telemetry_codec_test.cpp
     tests/telemetry_test.cpp
     tests/telemetry_transmitter_test.cpp

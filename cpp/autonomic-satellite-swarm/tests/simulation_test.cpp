@@ -755,8 +755,21 @@ TEST_CASE("the browser assignment-loss scenario records the dropped delivery") {
   CHECK(simulation.scenario == BrowserScenario::LostAssignment);
   CHECK(json.find(R"("scenario": "three-node-assignment-loss")") != std::string::npos);
   CHECK(json.find(R"("type":"message-dropped")") != std::string::npos);
-  CHECK(json.find(R"("recipientNode":1,"reason":"scripted-drop")") != std::string::npos);
-  CHECK(result.frames.back().nodes[1].state == ControllerState::Idle);
+  REQUIRE(simulation.trace.frames[10].delivery_faults.size() == 1U);
+  const DeliveryFault& fault = simulation.trace.frames[10].delivery_faults.front();
+  CHECK(fault.sender != fault.recipient);
+  CHECK(result.frames[10].nodes[fault.sender].assigned_node == fault.recipient);
+  CHECK(result.frames.back().nodes[fault.recipient].state == ControllerState::Idle);
+
+  bool found_winner_drop = false;
+  for (const SimulationEvent& event : result.events) {
+    if (event.type == SimulationEventType::MessageDropped && event.node_id == fault.sender &&
+        event.recipient_node == fault.recipient && event.message.target == fault.recipient &&
+        event.message.type == MessageType::MissionAssignment) {
+      found_winner_drop = true;
+    }
+  }
+  CHECK(found_winner_drop);
 }
 
 TEST_CASE("the browser safe-state scenario records successful execution") {

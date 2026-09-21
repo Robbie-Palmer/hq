@@ -61,22 +61,23 @@ mise run simulate:json
 mise run simulate:fairness
 ```
 
-The simulation should assign the southern-latitude mission to node 1:
+The simulation should assign the southern-latitude mission to one propagated node:
 
 ```text
-Mission 0:1:1 assigned to node 1
-node 0: idle
-node 1: active
+Mission 0:1:1 assigned to node 0
+node 0: active
+node 1: idle
 node 2: idle
 ```
 
 The [browser demonstration](https://robbiepalmer.me/satellite-swarm) runs the portable controller
 as WebAssembly in a module worker and draws the result on a self-hosted CesiumJS globe.
 
-`simulate:json` prints the versioned state, position, message, controller-telemetry, transition, and
-network-fault record consumed by the CesiumJS view. The paths come from scripted simulation inputs.
-Orbit propagation remains outside this demo. The browser can compare the connected mission with a
-run where node 1's winning assignment is dropped.
+`simulate:json` prints the versioned state, SGP4 position and velocity, message,
+controller-telemetry, transition, and network-fault record consumed by the CesiumJS view. Fixed
+checked-in TLEs and a fixed epoch make the full-orbit replay independent of the wall clock and
+network. The browser can compare the connected mission with a run where the winning assignment is
+dropped.
 
 `simulate:fairness` runs six missions where all three nodes score 100. It prints assignment evidence
 derived from the leader's bounded telemetry. The expected order is `0, 1, 2, 0, 1, 2`, with two
@@ -110,6 +111,7 @@ coverage.
 ```text
 src/satellite_swarm/       portable state machine, policies, types, and wire codec
 simulation/                 deterministic trace runner and observable simulation state
+third_party/sgp4/            pinned CelesTrak SGP4 reference source used by simulation only
 browser/                    C ABI, Emscripten entry point, and native/WASM parity test
 examples/simulation/       deterministic host-side three-node demonstration
 firmware/uno_ir/           legacy Arduino Uno + infrared reference adapter
@@ -174,6 +176,7 @@ the controller records a rejected result and preserves its software latch.
 - [Architecture](docs/architecture.md)
 - [Wire protocol](docs/wire-protocol.md)
 - [Bounded telemetry](docs/telemetry.md)
+- [Deterministic orbit simulation](docs/orbit-simulation.md)
 - [Coordination invariant baseline](docs/invariant-baseline.md)
 - [Revival notes and corrected defects](docs/revival-notes.md)
 - [Next research cycle](docs/next-research-cycle.md)

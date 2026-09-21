@@ -21,6 +21,7 @@ case "$host_system" in
     coverage_cxx="$compiler_root/bin/g++"
     coverage_reader="$compiler_root/bin/gcov"
     gcov_executable="$coverage_reader"
+    cmake_archiver="$compiler_root/bin/x86_64-conda-linux-gnu-ar"
     export PATH="$compiler_root/bin:$PATH"
     ;;
   *)
@@ -41,7 +42,11 @@ export CC="$coverage_cc"
 export CXX="$coverage_cxx"
 
 cmake -E rm -rf build/coverage coverage
-cmake --preset coverage
+cmake_arguments=()
+if [[ -n "${cmake_archiver:-}" ]]; then
+  cmake_arguments+=("-DCMAKE_AR=$cmake_archiver")
+fi
+cmake --preset coverage "${cmake_arguments[@]}"
 cmake --build --preset coverage
 ctest --preset coverage
 cmake -E make_directory coverage
