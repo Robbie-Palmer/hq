@@ -1,0 +1,138 @@
+---
+title: "ADR 017: Deterministic SGP4 Orbit Simulation"
+status: "Proposed"
+date: "2026-09-20"
+tech_stack: ["SGP4"]
+supersedes: "autonomic-satellite-swarm:012-qrptracker-embedded-orbit-propagation"
+---
+
+# Context
+
+[ADR 013](/projects/autonomic-satellite-swarm/adrs/013-browser-simulation-with-cesiumjs-and-webassembly)
+uses scripted positions to prove that the C++ scorer and Cesium receive the same satellite snapshot.
+The shipped trace exposes only four display positions between 0 and 120 milliseconds. Cesium redraws
+each node at those snapshots, but the path is not an orbit and the short controller run cannot show
+a satellite travelling around Earth at its natural rate.
+
+The demonstration does not need to run in real time. Quiet orbital periods can play at 10 or 100
+times their simulated rate. Negotiation and fault events can pause or play slowly enough for a
+reader to follow them. This requires a presentation clock whose rate may change without changing the
+recorded simulation time.
+
+[ADR 012](/projects/autonomic-satellite-swarm/adrs/012-qrptracker-embedded-orbit-propagation)
+proposed qrpTracker because its PLAN-13 implementation had run on the ATmega328 used by the Arduino
+Uno. That constraint does not apply here. The simulation represents the environment around each
+controller and already supplies `SatelliteSnapshot` updates. Putting propagation into the reference
+firmware would add clock, orbital-data, memory, and timing concerns without evidence that the swarm
+experiment needs each board to estimate its own orbit. ADR 012 is therefore rejected.
+
+A two-line element set, or TLE, records a satellite's estimated orbit at a stated epoch. The
+[SGP4 reference work published by CelesTrak](https://celestrak.org/publications/AIAA/2006-6753/)
+provides C++ source, test cases, and results for propagating such element sets. SGP4 predicts
+position and velocity. It does not calculate the maneuver needed to reach a mission objective, and
+its output becomes less reliable as the elements age or the real orbit changes.
+
+# Decision, proposed
+
+Use an SGP4 implementation in the C++ simulation layer to produce deterministic satellite motion
+for native and WebAssembly runs. Do not add the propagator to the portable coordination core or the
+Uno and ESP32 firmware.
+
+Give every scenario a checked-in TLE for each node and one fixed UTC epoch. UTC is the common time
+reference for the calculation, not a local timezone or the computer's wall clock. Derive every
+requested orbital instant from the scenario epoch and the trace's monotonic elapsed time. Do not
+fetch TLEs, clock data, or other orbital inputs at runtime.
+
+Keep the propagation result richer than `SatelliteSnapshot`. It must identify its coordinate frame
+and contain an epoch, position, and velocity. A simulation adapter converts that result once into
+the latitude, longitude, orbital radius, and direction used by the historical scorer. The browser
+serialization exposes positions from the same result for Cesium. The scorer and renderer must not
+calculate separate trajectories.
+
+Extend the demonstration beyond mission assignment so its ephemeris covers at least one complete
+orbit. Sample often enough for bounded interpolation error, then let
+[Cesium's `SampledPositionProperty`](https://cesium.com/learn/cesiumjs/ref-doc/SampledPositionProperty.html)
+interpolate visual positions between those samples. Cesium remains a renderer and does not run
+SGP4 or update controller state.
+
+Keep presentation time separate from simulation time. The player may accelerate quiet flight, slow
+an interval containing negotiation or a fault, pause, or step between recorded events. Changing
+playback speed must not alter controller inputs, propagated positions, event timestamps, candidate
+scores, or the serialized native and WebAssembly evidence. Show the current simulation time and
+playback multiplier so a reader can distinguish display speed from simulated orbital time.
+
+Keep `HistoricalOrbitalScorer` as the default candidacy policy. Propagated position improves one of
+its inputs but does not validate its maneuver-energy heuristic.
+
+# Alternatives
+
+## Run qrpTracker PLAN-13 on each reference board
+
+This would test onboard dead reckoning from orbital elements and a device clock. The current goal is
+to simulate the environment around the coordination algorithm, not prove that an Uno can navigate
+without an external position source. The embedded experiment carries costs and failure modes that
+do not help the browser demonstration.
+
+## Continue with scripted paths
+
+Longer scripted paths could show smooth travel with little new code. They would remain authored
+coordinates rather than output from an orbital model. That is acceptable for testing arbitrary
+movement, but it cannot support a claim that the displayed path comes from TLE propagation.
+
+## Precompute and commit every position
+
+An external tool could generate a fixed ephemeris for the C++ runner to replay. This keeps orbital
+code out of the browser module, but it leaves native and WebAssembly runs unable to propagate a
+different checked-in scenario without regenerating an opaque fixture. Runtime C++ propagation keeps
+the scenario inputs small and makes the relationship between TLE, time, scorer, and display
+testable.
+
+## Propagate in TypeScript
+
+A browser library could feed Cesium directly. The displayed position could then diverge from the
+snapshot scored by C++, and the native runner could not produce the same evidence. Keep orbit
+generation on the C++ side of the existing replay contract.
+
+## Fetch current TLEs when the demo starts
+
+Live elements would make the displayed satellites appear current, but they would make results
+depend on a network service and changing data. The existing demonstration is self-hosted,
+repeatable, and audited for external requests. Pinned scenario inputs fit those properties better.
+
+# Acceptance criteria
+
+Keep this ADR Proposed until the implementation satisfies all of the following:
+
+* Select and pin the exact SGP4 C++ source revision. Record its license, notices, local
+  modifications, and upstream reference.
+* Parse and validate the checked-in TLEs, including their epoch and checksums, and reject malformed
+  inputs.
+* Match published reference vectors within an error bound chosen before implementation. Cover at
+  least near-Earth motion, longitude wrap, a pole crossing, and times on both sides of the TLE
+  epoch.
+* Define the propagated coordinate frame and document the conversion used to obtain the
+  Earth-fixed position rendered by Cesium.
+* Use one propagation result to update both `SatelliteSnapshot` and the serialized browser
+  position at every sampled instant.
+* Cover at least one complete orbit without reading the wall clock or making a network request.
+* Preserve deterministic native fixtures and native-to-WebAssembly parity. Quantize serialized
+  values explicitly if platform math prevents stable byte-for-byte output.
+* Demonstrate accelerated quiet flight and slowed or stepped negotiation. Keep reduced-motion
+  operation usable without automatic animation.
+* Record the added native, WebAssembly, JSON, and browser performance costs and pass the existing
+  satellite-swarm audit.
+* Confirm that the portable core and both firmware targets contain no SGP4 dependency.
+
+# Consequences
+
+The demonstration can show each node completing an orbit while the real coordination code changes
+state at recorded instants. A reader can accelerate routine travel and inspect negotiations without
+mistaking presentation time for simulation time. Fixed orbital inputs keep the result offline and
+repeatable.
+
+The simulation gains TLE parsing, time conversion, coordinate conversion, interpolation, and a new
+third-party source dependency. Reference-vector agreement and native-to-WebAssembly parity become
+release requirements. More position samples also increase the worker response and rendering work.
+
+The result remains a research visualization. SGP4 propagation does not validate the historical
+score, represent propulsion, prove hardware behavior, or make the project flight software.

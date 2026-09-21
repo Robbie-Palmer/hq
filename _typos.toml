@@ -10,6 +10,9 @@ symetry = "symetry" # SymetryML, streaming ML product
 vertica = "vertica" # Vertica analytics database
 sie = "sie" # split from the SIEM(s) acronym
 
+[default.extend-identifiers]
+CelesTrak = "CelesTrak" # orbital-data and reference-software publisher
+
 [files]
 extend-exclude = [
     # Deliberate typo examples demonstrating fuzzy search ("machne" -> "machine")

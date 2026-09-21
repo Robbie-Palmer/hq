@@ -2,7 +2,7 @@
 title: "Autonomic Satellite Swarm"
 description: "A revived C++ research prototype for fail-safe coordination across hardware-independent satellite-swarm agents"
 date: "2019-07-30"
-updated: "2026-09-13"
+updated: "2026-09-20"
 ideas:
   - "two-generals-problem"
   - "flp-impossibility"
@@ -225,8 +225,9 @@ validity remain outside the current evidence boundary.
    groups), event-storm, and biased-telemetry experiments in a richer simulator.
 6. Evaluate policy changes through replay, independent adversarial review, shadow operation,
    limited canaries, authenticated rollout, and explicit rollback instead of live self-modification.
-7. Test the proposed qrpTracker PLAN-13 propagator on the Uno and compare it with GMAT or Orekit.
-   Separately define what a defensible mission-cost model would need to prove.
+7. Add deterministic SGP4 orbit propagation to the C++ simulation and replay a full orbit at
+   variable display speeds. Separately define what a defensible mission-cost model would need to
+   prove.
 8. Select physical boards and radios only when there is a concrete experiment to run.
 9. Add hardware-in-the-loop tests, authenticated messages, persistent identity, and reset recovery
    before treating the system as more than a bench prototype.

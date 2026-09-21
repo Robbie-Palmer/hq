@@ -604,6 +604,14 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     type: "library",
   },
   {
+    name: "SGP4",
+    added: "2026-09-20",
+    description:
+      "Analytical orbit propagation model with reference C++ source and test vectors",
+    website: "https://celestrak.org/publications/AIAA/2006-6753/",
+    type: "library",
+  },
+  {
     name: "Bitbucket Pipelines",
     added: "2026-01-04",
     description: "CI/CD service built into Bitbucket",
