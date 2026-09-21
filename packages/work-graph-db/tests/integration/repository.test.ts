@@ -1603,6 +1603,80 @@ describe("lease-backed claiming", () => {
     );
   });
 
+  it("clears an occupied rank before moving a root into a project queue", async () => {
+    await repository.putKnowledgeScope({
+      id: "initiative",
+      kind: "initiative",
+      title: "Initiative",
+      canonicalUrl: "https://example.test/initiatives/initiative",
+      markdownUrl: "https://example.test/initiatives/initiative.md",
+    });
+    await repository.putKnowledgeScope({
+      id: "work-graph",
+      kind: "project",
+      title: "Work Graph",
+      canonicalUrl: "https://example.test/projects/work-graph",
+      markdownUrl: "https://example.test/projects/work-graph.md",
+    });
+    await repository.addKnowledgeScopeRelationship({
+      parentKnowledgeScopeId: "initiative",
+      childKnowledgeScopeId: "work-graph",
+    });
+    await repository.createWorkItem({
+      id: "project-ticket",
+      title: "Existing project ticket",
+      schedulingProjectId: "work-graph",
+    });
+    await repository.createWorkItem({ id: "plan", title: "Plan" });
+
+    const existing = await repository.getWorkItem("project-ticket");
+    const plan = await repository.getWorkItem("plan");
+    expect(existing.priorityRank).toBe(plan.priorityRank);
+
+    await expect(
+      repository.setWorkItemSchedulingScope("plan", {
+        schedulingInitiativeId: "initiative",
+        schedulingProjectId: "work-graph",
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        id: "plan",
+        schedulingInitiativeId: "initiative",
+        schedulingProjectId: "work-graph",
+      }),
+    );
+    expect(
+      (await repository.listWorkItems({ projectId: "work-graph" })).map(
+        ({ id }) => id,
+      ),
+    ).toEqual(["project-ticket", "plan"]);
+
+    await repository.putKnowledgeScope({
+      id: "other-initiative",
+      kind: "initiative",
+      title: "Other initiative",
+      canonicalUrl: "https://example.test/initiatives/other",
+      markdownUrl: "https://example.test/initiatives/other.md",
+    });
+    await repository.addKnowledgeScopeRelationship({
+      parentKnowledgeScopeId: "other-initiative",
+      childKnowledgeScopeId: "work-graph",
+    });
+    const assigned = await repository.getWorkItem("plan");
+
+    await expect(
+      repository.setWorkItemSchedulingScope("plan", {
+        schedulingInitiativeId: "other-initiative",
+        schedulingProjectId: "work-graph",
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        schedulingInitiativeId: "other-initiative",
+        priorityRank: assigned.priorityRank,
+      }),
+    );
+  });
+
   it("donates an explicit expedite to unresolved blockers", async () => {
     await repository.createWorkItem({ id: "normal", title: "Normal work" });
     await repository.createWorkItem({ id: "shared", title: "Shared blocker" });
