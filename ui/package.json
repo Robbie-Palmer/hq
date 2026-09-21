@@ -15,6 +15,7 @@
     "start": "next start",
     "test": "vitest run --exclude 'tests/integration/**'",
     "test:coverage": "UI_COVERAGE=true vitest run --coverage --exclude 'ui/tests/integration/**'",
+    "test:e2e:mermaid": "playwright test --config playwright.mermaid.config.ts",
     "test:e2e:preview": "playwright test --config playwright.preview.config.ts",
     "test:integration": "vitest run --no-file-parallelism tests/integration",
     "test:watch": "vitest --exclude 'tests/integration/**'",
