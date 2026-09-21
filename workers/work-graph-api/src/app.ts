@@ -667,6 +667,9 @@ const putWorkItemSchedulingScopeBodySchema = z
     schedulingProjectId: z.union([identifierSchema, z.null()]),
   })
   .strict();
+const putWorkItemParentBodySchema = z
+  .object({ parentId: z.union([identifierSchema, z.null()]) })
+  .strict();
 const renewLeaseBodySchema = z
   .object({
     epoch: leaseEpochSchema,
@@ -984,6 +987,32 @@ const createWorkItemRoute = createRoute({
   responses: {
     201: {
       description: "Work item created or matching mutation replayed",
+      content: { "application/json": { schema: workItemSchema } },
+    },
+    ...standardErrors,
+  },
+});
+
+const putWorkItemParentRoute = createRoute({
+  method: "put",
+  path: "/api/work-items/{workItemId}/parent",
+  operationId: "putWorkItemParent",
+  summary: "Replace or remove a work item's parent",
+  description:
+    "Reparents an existing work item without replacing its identity or attached history. A null parent detaches it to the graph root. The service rejects hierarchy, dependency, and combined waits-for cycles atomically.",
+  tags: ["work-items"],
+  security: accessSecurity,
+  request: {
+    params: workItemParamsSchema,
+    headers: idempotencyHeadersSchema,
+    body: {
+      required: true,
+      content: { "application/json": { schema: putWorkItemParentBodySchema } },
+    },
+  },
+  responses: {
+    200: {
+      description: "Work item reparented, detached, unchanged, or replayed",
       content: { "application/json": { schema: workItemSchema } },
     },
     ...standardErrors,
@@ -1708,6 +1737,11 @@ export interface WorkGraphApiRepository {
     input: PriorityMoveInput,
     options?: IdempotentMutationOptions,
   ): Promise<WorkItem>;
+  reparentWorkItem(
+    workItemId: string,
+    parentId: string | null,
+    options?: IdempotentMutationOptions,
+  ): Promise<void>;
   setWorkItemSchedulingScope(
     workItemId: string,
     input: WorkItemSchedulingScopeInput,
@@ -2210,6 +2244,21 @@ export const createWorkGraphApp = (
     return context.json(
       serializeWorkItem(await repository.getWorkItem(request.id)),
       201,
+    );
+  });
+
+  app.openapi(putWorkItemParentRoute, async (context) => {
+    const { workItemId } = context.req.valid("param");
+    const { parentId } = context.req.valid("json");
+    const headers = context.req.valid("header");
+    await repository.reparentWorkItem(
+      workItemId,
+      parentId,
+      idempotencyOptions(headers["idempotency-key"]),
+    );
+    return context.json(
+      serializeWorkItem(await repository.getWorkItem(workItemId)),
+      200,
     );
   });
 

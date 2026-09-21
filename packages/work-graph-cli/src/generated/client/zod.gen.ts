@@ -902,6 +902,25 @@ export const zCreateWorkItemNotePath = z.object({
  */
 export const zCreateWorkItemNoteResponse = zWorkItemNote;
 
+export const zPutWorkItemParentBody = z.object({
+    parentId: z.string().min(1).max(200).nullable()
+});
+
+export const zPutWorkItemParentHeaders = z.object({
+    'idempotency-key': z.uuid().max(36).register(z.globalRegistry, {
+        description: 'Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.'
+    }).optional()
+});
+
+export const zPutWorkItemParentPath = z.object({
+    workItemId: z.string().min(1).max(200)
+});
+
+/**
+ * Work item reparented, detached, unchanged, or replayed
+ */
+export const zPutWorkItemParentResponse = zWorkItem;
+
 export const zMoveWorkItemPriorityBody = z.union([
     z.object({
         higherThanId: z.string().min(1).max(200),

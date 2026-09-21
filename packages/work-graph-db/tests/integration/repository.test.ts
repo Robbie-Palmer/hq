@@ -2948,6 +2948,45 @@ describe("atomic graph mutations", () => {
     ).toBeNull();
   });
 
+  it("replays reparenting with the same mutation key", async () => {
+    await repository.createWorkItem({ id: "parent", title: "Parent" });
+    await repository.createWorkItem({ id: "child", title: "Child" });
+    const options = {
+      idempotencyKey: "00000000-0000-4000-8000-000000000084",
+    };
+
+    await repository.reparentWorkItem("child", "parent", options);
+    await repository.reparentWorkItem("child", "parent", options);
+
+    expect(
+      (await repository.load()).workItems.find(({ id }) => id === "child")
+        ?.parentId,
+    ).toBe("parent");
+    expect(
+      (await repository.listEvents({ workItemId: "child" })).filter(
+        ({ type }) => type === "work_item.reparented",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("rejects reusing a reparent mutation key for a different parent", async () => {
+    await repository.createWorkItem({ id: "first", title: "First" });
+    await repository.createWorkItem({ id: "second", title: "Second" });
+    await repository.createWorkItem({ id: "child", title: "Child" });
+    const options = {
+      idempotencyKey: "00000000-0000-4000-8000-000000000085",
+    };
+
+    await repository.reparentWorkItem("child", "first", options);
+    await expect(
+      repository.reparentWorkItem("child", "second", options),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "idempotency_key_reused",
+      }),
+    );
+  });
+
   it("fails closed when the graph-mutation lock is missing", async () => {
     await repository.createWorkItem({ id: "a", title: "A" });
     await repository.createWorkItem({ id: "b", title: "B" });

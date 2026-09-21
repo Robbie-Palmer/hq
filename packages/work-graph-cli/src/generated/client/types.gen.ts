@@ -2006,6 +2006,65 @@ export type CreateWorkItemNoteResponses = {
 
 export type CreateWorkItemNoteResponse = CreateWorkItemNoteResponses[keyof CreateWorkItemNoteResponses];
 
+export type PutWorkItemParentData = {
+    body: {
+        parentId: string | null;
+    };
+    headers?: {
+        /**
+         * Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.
+         */
+        'idempotency-key'?: string;
+    };
+    path: {
+        workItemId: string;
+    };
+    query?: never;
+    url: '/api/work-items/{workItemId}/parent';
+};
+
+export type PutWorkItemParentErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+};
+
+export type PutWorkItemParentError = PutWorkItemParentErrors[keyof PutWorkItemParentErrors];
+
+export type PutWorkItemParentResponses = {
+    /**
+     * Work item reparented, detached, unchanged, or replayed
+     */
+    200: WorkItem;
+};
+
+export type PutWorkItemParentResponse = PutWorkItemParentResponses[keyof PutWorkItemParentResponses];
+
 export type MoveWorkItemPriorityData = {
     body: {
         higherThanId: string;

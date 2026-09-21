@@ -61,6 +61,8 @@ import {
   zPutWorkItemPullRequestHeaders,
   zPutWorkItemContextBody,
   zPutWorkItemContextHeaders,
+  zPutWorkItemParentBody,
+  zPutWorkItemParentHeaders,
   zPutWorkItemReferenceBody,
   zPutWorkItemReferenceHeaders,
   zPutWorkItemSchedulingScopeHeaders,
@@ -569,6 +571,26 @@ const unexpediteInput = z.object({
   workItemId: positional(zGetWorkItemPath.shape.workItemId, "Ticket ID"),
   idempotencyKey: described(
     zUnexpediteWorkItemHeaders.shape["idempotency-key"],
+    "Client-generated UUID used to replay a mutation safely",
+  ),
+});
+
+const reparentInput = z.object({
+  workItemId: positional(zGetWorkItemPath.shape.workItemId, "Ticket ID"),
+  parentId: positional(
+    zPutWorkItemParentBody.shape.parentId.unwrap(),
+    "New parent ticket ID",
+  ),
+  idempotencyKey: described(
+    zPutWorkItemParentHeaders.shape["idempotency-key"],
+    "Client-generated UUID used to replay a mutation safely",
+  ),
+});
+
+const detachInput = z.object({
+  workItemId: positional(zGetWorkItemPath.shape.workItemId, "Ticket ID"),
+  idempotencyKey: described(
+    zPutWorkItemParentHeaders.shape["idempotency-key"],
     "Client-generated UUID used to replay a mutation safely",
   ),
 });
@@ -1412,6 +1434,26 @@ export const workGraphRouter = t.router({
         ),
       ),
   }),
+  reparent: command
+    .meta({ description: "Move a ticket under a different parent" })
+    .input(reparentInput)
+    .mutation(({ ctx, input }) =>
+      resolveClient(ctx).putWorkItemParent(
+        input.workItemId,
+        { parentId: input.parentId },
+        input.idempotencyKey,
+      ),
+    ),
+  detach: command
+    .meta({ description: "Move a ticket to the graph root" })
+    .input(detachInput)
+    .mutation(({ ctx, input }) =>
+      resolveClient(ctx).putWorkItemParent(
+        input.workItemId,
+        { parentId: null },
+        input.idempotencyKey,
+      ),
+    ),
   expedite: command
     .meta({ description: "Expedite a ticket and donate urgency to blockers" })
     .input(expediteInput)

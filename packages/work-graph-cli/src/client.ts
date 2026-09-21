@@ -33,6 +33,7 @@ import {
   putKnowledgeScope,
   putWorkItemPullRequest,
   putWorkItemContext,
+  putWorkItemParent,
   putWorkItemReference,
   putWorkItemSchedulingScope,
   refreshPullRequest,
@@ -67,6 +68,7 @@ import type {
   PutKnowledgeScopeData,
   PutWorkItemPullRequestData,
   PutWorkItemContextData,
+  PutWorkItemParentData,
   PutWorkItemReferenceData,
   PutWorkItemSchedulingScopeData,
   RefreshPullRequestData,
@@ -339,6 +341,21 @@ export class WorkGraphClient {
   getWorkItem(workItemId: string) {
     return this.#unwrap(
       getWorkItem({ ...this.#options(), path: { workItemId } }),
+    );
+  }
+
+  putWorkItemParent(
+    workItemId: string,
+    body: PutWorkItemParentData["body"],
+    idempotencyKey?: string,
+  ) {
+    return this.#unwrap(
+      putWorkItemParent({
+        ...this.#options(),
+        body,
+        headers: idempotencyHeaders(idempotencyKey),
+        path: { workItemId },
+      }),
     );
   }
 
