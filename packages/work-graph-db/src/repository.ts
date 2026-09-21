@@ -2961,15 +2961,16 @@ export class WorkGraphRepository {
     try {
       await this.db.transaction(async (transaction) => {
         await this.lockEventSequence(transaction);
-        if (options.idempotencyKey !== undefined) {
-          const replayed = await this.beginIdempotentMutation(
-            transaction,
-            options.idempotencyKey,
-            "reparent-work-item",
-            JSON.stringify([workItemId, parentId]),
-          );
-          if (replayed) return;
-        }
+        const replayed =
+          options.idempotencyKey === undefined
+            ? false
+            : await this.beginIdempotentMutation(
+                transaction,
+                options.idempotencyKey,
+                "reparent-work-item",
+                JSON.stringify([workItemId, parentId]),
+              );
+        if (replayed) return;
 
         await this.lockGraphMutation(transaction);
         await this.requireStoredWorkItem(transaction, workItemId);
