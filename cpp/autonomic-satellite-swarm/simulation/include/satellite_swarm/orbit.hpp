@@ -4,6 +4,7 @@
 #include "satellite_swarm/types.hpp"
 
 #include <memory>
+#include <stdexcept>
 #include <stdint.h>
 #include <string>
 
@@ -32,6 +33,11 @@ struct PropagationResult {
 struct TwoLineElementSet {
   std::string line1;
   std::string line2;
+};
+
+class OrbitPropagationError final : public std::runtime_error {
+public:
+  using std::runtime_error::runtime_error;
 };
 
 bool isValid(const OrbitalStateVector& state);

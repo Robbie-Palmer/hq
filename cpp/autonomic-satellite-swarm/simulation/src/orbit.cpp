@@ -42,9 +42,13 @@ void validateTleLine(std::string_view line, char expected_line_number) {
   }
 }
 
-std::array<char, 130> mutableTleLine(const std::string& line) {
+std::array<char, 130> mutableTleLine(std::string_view line) {
   std::array<char, 130> result{};
-  std::copy(line.begin(), line.end(), result.begin());
+  std::size_t index = 0U;
+  for (const char character : line) {
+    result[index] = character;
+    ++index;
+  }
   return result;
 }
 
@@ -158,7 +162,7 @@ PropagationResult Sgp4Orbit::propagate(int64_t epoch_unix_milliseconds) const {
   if (!SGP4Funcs::sgp4(working_record, minutes_since_epoch, position_kilometres,
                        velocity_kilometres_per_second) ||
       working_record.error != 0) {
-    throw std::runtime_error("SGP4 propagation failed");
+    throw OrbitPropagationError("SGP4 propagation failed");
   }
 
   PropagationResult result;
@@ -183,7 +187,7 @@ PropagationResult Sgp4Orbit::propagate(int64_t epoch_unix_milliseconds) const {
       rotated_velocity.z};
 
   if (!isValid(result.teme) || !isValid(result.earth_fixed)) {
-    throw std::runtime_error("SGP4 propagation returned a non-finite state");
+    throw OrbitPropagationError("SGP4 propagation returned a non-finite state");
   }
   return result;
 }

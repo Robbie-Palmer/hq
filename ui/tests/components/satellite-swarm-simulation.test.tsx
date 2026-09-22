@@ -436,6 +436,44 @@ describe("SatelliteSwarmSimulation", () => {
     ).toBeEnabled();
   });
 
+  it("formats minute- and hour-scale orbit replay timestamps", async () => {
+    const user = userEvent.setup();
+    const firstFrame = data.frames[0];
+    const secondFrame = data.frames[1];
+    if (!firstFrame || !secondFrame) {
+      throw new Error("satellite replay fixture requires at least two frames");
+    }
+    const timedData = {
+      ...data,
+      frames: [
+        firstFrame,
+        { ...secondFrame, timeMs: 60_000 },
+        { ...secondFrame, timeMs: 3_661_000 },
+      ],
+    };
+    render(<SatelliteSwarmSimulation data={timedData} />);
+
+    await user.click(screen.getByRole("button", { name: "Next frame" }));
+    expect(screen.getByText(/trace v5 · 1m 00s · 100×/)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Next frame" }));
+    expect(screen.getByText(/trace v5 · 1h 01m 01s · 100×/)).toBeVisible();
+  });
+
+  it("advances and stops autoplay at the final orbit frame", () => {
+    vi.useFakeTimers();
+    render(<SatelliteSwarmSimulation data={data} />);
+
+    act(() => screen.getByRole("button", { name: "Play replay" }).click());
+    act(() => vi.advanceTimersByTime(1_000));
+
+    expect(screen.getByText(/trace v5 · 100 ms · 100×/)).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Replay mission" }),
+    ).toBeEnabled();
+    vi.useRealTimers();
+  });
+
   it("labels a paused trace as resumable", async () => {
     const user = userEvent.setup();
     render(

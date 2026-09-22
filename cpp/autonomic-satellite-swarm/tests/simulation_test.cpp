@@ -40,6 +40,12 @@ SimulationTrace demonstrationTrace() {
   return trace;
 }
 
+OrbitUpdate validOrbitUpdate(NodeId node_id) {
+  const BrowserSimulation simulation =
+      makeBrowserDemonstration(Coordinate(0.0F, -90.0F), BrowserScenario::Nominal);
+  return {node_id, simulation.trace.frames.front().orbit_updates.front().orbit};
+}
+
 } // namespace
 
 TEST_CASE("a versioned trace reproduces the three-node mission in an ordered event log") {
@@ -310,6 +316,52 @@ TEST_CASE("malformed simulation traces fail before a controller runs") {
     CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
   }
 
+  SECTION("unknown orbit update node") {
+    SimulationTrace trace = demonstrationTrace();
+    trace.frames[0].orbit_updates.push_back(validOrbitUpdate(9U));
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+
+  SECTION("invalid TEME orbit state") {
+    SimulationTrace trace = demonstrationTrace();
+    OrbitUpdate update = validOrbitUpdate(1U);
+    update.orbit.teme.position_metres.x = std::numeric_limits<double>::quiet_NaN();
+    trace.frames[0].orbit_updates.push_back(update);
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+
+  SECTION("invalid Earth-fixed orbit state") {
+    SimulationTrace trace = demonstrationTrace();
+    OrbitUpdate update = validOrbitUpdate(1U);
+    update.orbit.earth_fixed.velocity_metres_per_second.y = std::numeric_limits<double>::infinity();
+    trace.frames[0].orbit_updates.push_back(update);
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+
+  SECTION("wrong TEME orbit frame") {
+    SimulationTrace trace = demonstrationTrace();
+    OrbitUpdate update = validOrbitUpdate(1U);
+    update.orbit.teme.frame = OrbitalCoordinateFrame::EarthFixed;
+    trace.frames[0].orbit_updates.push_back(update);
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+
+  SECTION("wrong Earth-fixed orbit frame") {
+    SimulationTrace trace = demonstrationTrace();
+    OrbitUpdate update = validOrbitUpdate(1U);
+    update.orbit.earth_fixed.frame = OrbitalCoordinateFrame::Teme;
+    trace.frames[0].orbit_updates.push_back(update);
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+
+  SECTION("mismatched orbit epochs") {
+    SimulationTrace trace = demonstrationTrace();
+    OrbitUpdate update = validOrbitUpdate(1U);
+    ++update.orbit.earth_fixed.epoch_unix_milliseconds;
+    trace.frames[0].orbit_updates.push_back(update);
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+
   SECTION("invalid health state") {
     SimulationTrace trace = demonstrationTrace();
     trace.frames[0].health_updates.push_back({1U, static_cast<HealthStatus>(3U)});
@@ -467,6 +519,20 @@ TEST_CASE("browser serialization rejects incomplete traces and results") {
   SECTION("missing sampled frame") {
     SimulationResult incomplete_result = complete_result;
     incomplete_result.frames.resize(12U);
+    CHECK_THROWS_AS(serializeBrowserSimulation(simulation, incomplete_result),
+                    std::invalid_argument);
+  }
+
+  SECTION("short replay duration") {
+    SimulationResult incomplete_result = complete_result;
+    incomplete_result.frames.back().now_ms = 1'000U;
+    CHECK_THROWS_AS(serializeBrowserSimulation(simulation, incomplete_result),
+                    std::invalid_argument);
+  }
+
+  SECTION("node without propagated orbit") {
+    SimulationResult incomplete_result = complete_result;
+    incomplete_result.frames.front().nodes.front().orbit.reset();
     CHECK_THROWS_AS(serializeBrowserSimulation(simulation, incomplete_result),
                     std::invalid_argument);
   }

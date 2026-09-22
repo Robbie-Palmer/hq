@@ -66,6 +66,35 @@ TEST_CASE("TLE validation rejects corrupt checksums, mismatched catalogs, and ma
   elements = kNearEarthReference;
   elements.line2.pop_back();
   CHECK_THROWS_AS(Sgp4Orbit(elements), std::invalid_argument);
+
+  elements = kNearEarthReference;
+  elements.line1.front() = '2';
+  CHECK_THROWS_AS(Sgp4Orbit(elements), std::invalid_argument);
+
+  elements = kNearEarthReference;
+  elements.line1[1] = 'X';
+  CHECK_THROWS_AS(Sgp4Orbit(elements), std::invalid_argument);
+
+  elements = kNearEarthReference;
+  elements.line2.front() = '1';
+  CHECK_THROWS_AS(Sgp4Orbit(elements), std::invalid_argument);
+
+  elements = kNearEarthReference;
+  elements.line2.back() = 'X';
+  CHECK_THROWS_AS(Sgp4Orbit(elements), std::invalid_argument);
+
+  elements = kNearEarthReference;
+  elements.line2.back() = '/';
+  CHECK_THROWS_AS(Sgp4Orbit(elements), std::invalid_argument);
+
+  elements = kNearEarthReference;
+  elements.line1[10] = static_cast<char>(0x1f);
+  CHECK_THROWS_AS(Sgp4Orbit(elements), std::invalid_argument);
+
+  elements = kNearEarthReference;
+  elements.line1[62] = '1';
+  elements.line1.back() = '4';
+  CHECK_THROWS_AS(Sgp4Orbit(elements), std::invalid_argument);
 }
 
 TEST_CASE("orbital state validation rejects unknown frames and non-finite vectors") {
@@ -82,6 +111,19 @@ TEST_CASE("orbital state validation rejects unknown frames and non-finite vector
   state.position_metres.y = 0.0;
   state.velocity_metres_per_second.z = std::numeric_limits<double>::infinity();
   CHECK_FALSE(isValid(state));
+
+  state.velocity_metres_per_second.z = 0.0;
+  constexpr std::array<double CartesianVector::*, 3> kComponents = {
+      &CartesianVector::x, &CartesianVector::y, &CartesianVector::z};
+  for (double CartesianVector::* component : kComponents) {
+    state.position_metres.*component = std::numeric_limits<double>::quiet_NaN();
+    CHECK_FALSE(isValid(state));
+    state.position_metres.*component = 0.0;
+
+    state.velocity_metres_per_second.*component = std::numeric_limits<double>::infinity();
+    CHECK_FALSE(isValid(state));
+    state.velocity_metres_per_second.*component = 0.0;
+  }
 }
 
 TEST_CASE("snapshot adaptation rejects invalid and degenerate Earth-fixed results") {
@@ -90,10 +132,29 @@ TEST_CASE("snapshot adaptation rejects invalid and degenerate Earth-fixed result
   CHECK_THROWS_AS(satelliteSnapshotFrom(result), std::invalid_argument);
 
   result.earth_fixed.frame = OrbitalCoordinateFrame::EarthFixed;
+  result.earth_fixed.position_metres.x = std::numeric_limits<double>::quiet_NaN();
+  CHECK_THROWS_AS(satelliteSnapshotFrom(result), std::invalid_argument);
+
+  result.earth_fixed.position_metres.x = 0.0;
   CHECK_THROWS_AS(satelliteSnapshotFrom(result), std::invalid_argument);
 
   result.earth_fixed.position_metres.z = 1.0;
   CHECK_THROWS_AS(satelliteSnapshotFrom(result), std::invalid_argument);
+
+  result.earth_fixed.position_metres = {7'000'000.0, 0.0, 0.0};
+  result.earth_fixed.velocity_metres_per_second = {0.0, 0.0, -1.0};
+  CHECK(satelliteSnapshotFrom(result).travel_direction == TravelDirection::Southbound);
+
+  result.earth_fixed.velocity_metres_per_second.z = 1.0;
+  CHECK(satelliteSnapshotFrom(result).travel_direction == TravelDirection::Northbound);
+
+  result.earth_fixed.position_metres.x = 1.0e100;
+  CHECK_THROWS_AS(satelliteSnapshotFrom(result), std::invalid_argument);
+}
+
+TEST_CASE("SGP4 rejects propagation outside its supported numerical range") {
+  const Sgp4Orbit orbit(kNearEarthReference);
+  CHECK_THROWS_AS(orbit.propagate(std::numeric_limits<int64_t>::max()), OrbitPropagationError);
 }
 
 TEST_CASE(

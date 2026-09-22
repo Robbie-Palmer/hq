@@ -7,6 +7,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string_view>
+#include <utility>
 
 namespace satellite_swarm::simulation {
 namespace {
@@ -24,6 +25,11 @@ constexpr std::array<std::array<std::string_view, 2>, 3> kScenarioElements = {{
     {{"1 00007U 58002D   00179.78495062  .00000023  00000-0  28098-4 0  4755",
       "2 00007  34.2682 348.7242 1859667 331.7664 259.3264 10.82419157413665"}},
 }};
+
+class BrowserScenarioError final : public std::logic_error {
+public:
+  using std::logic_error::logic_error;
+};
 
 Sgp4Orbit makeScenarioOrbit(std::size_t index) {
   return Sgp4Orbit(
@@ -312,6 +318,47 @@ void writeBrowserEvent(std::ostream& output, const SimulationEvent& event) {
   output << '}';
 }
 
+void appendOrbitFrame(SimulationTrace& trace, const std::array<Sgp4Orbit, 3>& orbits,
+                      int64_t scenario_epoch_unix_milliseconds, Coordinate objective,
+                      BrowserScenario scenario, uint32_t now_ms) {
+  SimulationFrame frame;
+  frame.now_ms = now_ms;
+  for (std::size_t index = 0U; index < orbits.size(); ++index) {
+    frame.orbit_updates.emplace_back(
+        OrbitUpdate{static_cast<NodeId>(index),
+                    orbits[index].propagate(scenario_epoch_unix_milliseconds + now_ms)});
+  }
+  if (now_ms == 0U) {
+    frame.mission_commands.emplace_back(MissionCommand{0U, objective});
+  }
+  if (scenario == BrowserScenario::SafeStateSuccess && now_ms == 110U) {
+    frame.health_updates.emplace_back(HealthUpdate{1U, HealthStatus::Fatal});
+  }
+  if (scenario == BrowserScenario::SafeStateSuccess && now_ms == 120U) {
+    frame.safe_state_status_updates.emplace_back(
+        SafeStateStatusUpdate{1U, SafeStateExecutionStatus::Succeeded});
+  }
+  trace.frames.emplace_back(std::move(frame));
+}
+
+void configureAssignmentLoss(SimulationTrace& trace) {
+  constexpr std::size_t kAssignmentFrameIndex = 10U;
+  for (std::size_t leader_index = 0U; leader_index < trace.nodes.size(); ++leader_index) {
+    const NodeId leader = static_cast<NodeId>(leader_index);
+    trace.frames.front().mission_commands.front().leader = leader;
+    const auto trial = runSimulationTrace(trace);
+    const NodeId assignee =
+        trial.frames.at(kAssignmentFrameIndex).nodes.at(leader_index).assigned_node;
+    if (assignee != leader && static_cast<std::size_t>(assignee) < trace.nodes.size()) {
+      trace.frames.at(kAssignmentFrameIndex)
+          .delivery_faults.emplace_back(DeliveryFault{
+              leader, assignee, MessageType::MissionAssignment, DeliveryFaultType::Drop, 0U});
+      return;
+    }
+  }
+  throw BrowserScenarioError("browser assignment-loss scenario has no remote winner");
+}
+
 } // namespace
 
 BrowserSimulation makeBrowserDemonstration(Coordinate objective, BrowserScenario scenario) {
@@ -330,61 +377,26 @@ BrowserSimulation makeBrowserDemonstration(Coordinate objective, BrowserScenario
     if (orbits[index].epochUnixMilliseconds() != simulation.scenario_epoch_unix_milliseconds) {
       throw std::invalid_argument("browser scenario TLE epochs do not match");
     }
-    trace.nodes.push_back(
-        {static_cast<NodeId>(index), satelliteSnapshotFrom(orbits[index].propagate(
-                                         simulation.scenario_epoch_unix_milliseconds))});
+    trace.nodes.emplace_back(NodeConfiguration{static_cast<NodeId>(index),
+                                               satelliteSnapshotFrom(orbits[index].propagate(
+                                                   simulation.scenario_epoch_unix_milliseconds))});
   }
   if (scenario == BrowserScenario::SafeStateSuccess) {
     trace.nodes[1].safe_state_request_result = SafeStateResult::Accepted;
   }
 
-  const auto add_frame = [&](uint32_t now_ms) {
-    SimulationFrame frame;
-    frame.now_ms = now_ms;
-    for (std::size_t index = 0U; index < orbits.size(); ++index) {
-      frame.orbit_updates.push_back(
-          {static_cast<NodeId>(index),
-           orbits[index].propagate(simulation.scenario_epoch_unix_milliseconds + now_ms)});
-    }
-    if (now_ms == 0U) {
-      frame.mission_commands.push_back({0U, objective});
-    }
-    if (scenario == BrowserScenario::SafeStateSuccess && now_ms == 110U) {
-      frame.health_updates.push_back({1U, HealthStatus::Fatal});
-    }
-    if (scenario == BrowserScenario::SafeStateSuccess && now_ms == 120U) {
-      frame.safe_state_status_updates.push_back({1U, SafeStateExecutionStatus::Succeeded});
-    }
-    trace.frames.push_back(frame);
-  };
   for (uint32_t now_ms = 0U; now_ms <= 120U; now_ms += 10U) {
-    add_frame(now_ms);
+    appendOrbitFrame(trace, orbits, simulation.scenario_epoch_unix_milliseconds, objective,
+                     scenario, now_ms);
   }
   for (uint32_t now_ms = kOrbitSampleIntervalMilliseconds;
        now_ms <= kOrbitReplayDurationMilliseconds; now_ms += kOrbitSampleIntervalMilliseconds) {
-    add_frame(now_ms);
+    appendOrbitFrame(trace, orbits, simulation.scenario_epoch_unix_milliseconds, objective,
+                     scenario, now_ms);
   }
 
   if (scenario == BrowserScenario::LostAssignment) {
-    constexpr std::size_t kAssignmentFrameIndex = 10U;
-    bool configured = false;
-    for (std::size_t leader_index = 0U; leader_index < trace.nodes.size(); ++leader_index) {
-      const NodeId leader = static_cast<NodeId>(leader_index);
-      trace.frames.front().mission_commands.front().leader = leader;
-      const SimulationResult trial = runSimulationTrace(trace);
-      const NodeId assignee =
-          trial.frames.at(kAssignmentFrameIndex).nodes.at(leader_index).assigned_node;
-      if (assignee != leader && static_cast<std::size_t>(assignee) < trace.nodes.size()) {
-        trace.frames.at(kAssignmentFrameIndex)
-            .delivery_faults.push_back(
-                {leader, assignee, MessageType::MissionAssignment, DeliveryFaultType::Drop, 0U});
-        configured = true;
-        break;
-      }
-    }
-    if (!configured) {
-      throw std::logic_error("browser assignment-loss scenario has no remote winner");
-    }
+    configureAssignmentLoss(trace);
   }
   return simulation;
 }

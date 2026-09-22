@@ -254,12 +254,21 @@ function addMissionObjective(
 function renderFrame(
   cesium: CesiumRuntime,
   viewer: Viewer,
-  data: SatelliteSwarmSimulation,
-  frame: SatelliteSwarmFrame,
-  events: readonly SatelliteSwarmEvent[],
-  currentFrameIndex: number,
-  playing: boolean,
-  selectedNodeId: number,
+  {
+    currentFrameIndex,
+    data,
+    events,
+    frame,
+    playing,
+    selectedNodeId,
+  }: {
+    currentFrameIndex: number;
+    data: SatelliteSwarmSimulation;
+    events: readonly SatelliteSwarmEvent[];
+    frame: SatelliteSwarmFrame;
+    playing: boolean;
+    selectedNodeId: number;
+  },
 ) {
   const earthRadiusMetres = cesium.Ellipsoid.WGS84.maximumRadius;
   const supportsLabels = cesium.FeatureDetection.supportsWebgl2(viewer.scene);
@@ -341,16 +350,14 @@ export function SatelliteSwarmGlobe({
     const cesium = cesiumRef.current;
     const frame = data.frames[currentFrameIndex];
     if (!viewerReady || !viewer || !cesium || !frame) return;
-    renderFrame(
-      cesium,
-      viewer,
-      data,
-      frame,
-      events,
+    renderFrame(cesium, viewer, {
       currentFrameIndex,
+      data,
+      events,
+      frame,
       playing,
       selectedNodeId,
-    );
+    });
   }, [currentFrameIndex, data, events, playing, selectedNodeId, viewerReady]);
 
   return (

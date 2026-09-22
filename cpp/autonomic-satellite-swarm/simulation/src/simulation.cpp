@@ -405,6 +405,19 @@ void drainTelemetry(std::vector<SimulationEvent>& events, SwarmController& contr
   }
 }
 
+void applyOrbitUpdates(const SimulationFrame& frame,
+                       std::vector<std::unique_ptr<SwarmController>>& controllers,
+                       std::vector<std::optional<PropagationResult>>& orbits) {
+  for (const OrbitUpdate& update : frame.orbit_updates) {
+    const auto index = static_cast<std::size_t>(update.node_id);
+    const SatelliteSnapshot satellite = satelliteSnapshotFrom(update.orbit);
+    if (!controllers.at(index)->updateSatelliteSnapshot(satellite)) {
+      throw std::invalid_argument("validated orbit update was rejected");
+    }
+    orbits[index] = update.orbit;
+  }
+}
+
 NodeObservation observe(const SwarmController& controller,
                         const std::optional<PropagationResult>& orbit) {
   NodeObservation observation;
@@ -476,14 +489,7 @@ SimulationResult runSimulationTrace(const SimulationTrace& trace) {
         throw std::invalid_argument("validated satellite update was rejected");
       }
     }
-    for (const OrbitUpdate& update : frame.orbit_updates) {
-      const auto index = static_cast<std::size_t>(update.node_id);
-      const SatelliteSnapshot satellite = satelliteSnapshotFrom(update.orbit);
-      if (!controllers.at(index)->updateSatelliteSnapshot(satellite)) {
-        throw std::invalid_argument("validated orbit update was rejected");
-      }
-      orbits[index] = update.orbit;
-    }
+    applyOrbitUpdates(frame, controllers, orbits);
     for (const NodeReset& reset : frame.node_resets) {
       const auto index = static_cast<std::size_t>(reset.node_id);
       const ControllerState previous = controllers[index]->state();
