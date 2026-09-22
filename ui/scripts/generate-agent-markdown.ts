@@ -635,9 +635,9 @@ function buildSatelliteSwarmPage(): GeneratedPage {
     content: [
       "## C++ mission simulation",
       "",
-      "Choose a geographic objective and run the portable C++ coordination code as WebAssembly in a module worker. React validates the versioned result, while CesiumJS draws the Earth, scripted node positions, message links, and objective.",
+      "Choose a geographic objective and run the portable C++ coordination code as WebAssembly in a module worker. The C++ simulation propagates each node's fixed TLE with SGP4, while CesiumJS draws the resulting orbit, message links, and objective.",
       "",
-      "The positions are simulation inputs, not propagated or validated orbits. The historical candidacy score is not validated astrodynamics, and the safe-disabled state is software state rather than physical deorbiting.",
+      "Fixed TLEs and simulation time keep the propagated positions deterministic. The historical candidacy score is not validated astrodynamics, and the safe-disabled state is software state rather than physical deorbiting.",
       "",
       "## Execution boundary",
       "",

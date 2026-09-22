@@ -66,8 +66,9 @@ export function SatelliteSwarmApp() {
             <p className="leading-7 text-muted-foreground">
               Choose a geographic objective and simulation scenario, run the
               portable C++ controller, and step through its request, candidate
-              scores, messages, and final assignment. Positions remain scripted
-              inputs, not propagated orbits.
+              scores, messages, and final assignment. The C++ simulation
+              propagates each node&apos;s fixed TLE with SGP4 and supplies the
+              resulting orbit to both the controller and Cesium.
             </p>
           </div>
           <DeferredSatelliteSwarmSimulation />
@@ -92,9 +93,10 @@ export function SatelliteSwarmApp() {
           </p>
           <h2 className="mb-3 text-xl font-semibold">Self-hosted CesiumJS</h2>
           <p className="leading-7 text-muted-foreground">
-            Cesium draws the Earth, scripted node positions, message links, and
-            selected objective. Its imagery, runtime assets, and WebAssembly
-            module are served by this site without a Cesium ion token.
+            Cesium draws the Earth, SGP4-propagated node positions, message
+            links, and selected objective. Its imagery, runtime assets, and
+            WebAssembly module are served by this site without a Cesium ion
+            token.
           </p>
         </div>
       </section>
