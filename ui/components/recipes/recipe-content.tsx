@@ -10,6 +10,7 @@ import {
   Loader2,
   Minus,
   Plus,
+  ShoppingBasket,
   Timer,
   Users,
 } from "lucide-react";
@@ -31,6 +32,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useScaledRecipe } from "@/hooks/use-scaled-recipe";
+import { useShoppingList } from "@/hooks/use-shopping-list";
 import { useUnitPreference } from "@/hooks/use-unit-preference";
 import {
   captureRecipeProductActivity,
@@ -60,6 +62,7 @@ import {
   type MeasurementSystem,
   preferenceForSystem,
 } from "@/lib/domain/recipe/unit";
+import { toggleRecipe } from "@/lib/shopping/shoppingListStore";
 
 function IngredientGroup({
   group,
@@ -217,10 +220,19 @@ function ingredientGroupClassName(index: number, hasName: boolean) {
 export function RecipeContent({
   recipe,
   timersEnabled = true,
-}: Readonly<{ recipe: RecipeDetailView; timersEnabled?: boolean }>) {
+  shoppingListEnabled = true,
+}: Readonly<{
+  recipe: RecipeDetailView;
+  timersEnabled?: boolean;
+  shoppingListEnabled?: boolean;
+}>) {
   const { diet, matchRecipe } = useDiet();
   const { data: authSession, isPending: authSessionPending } =
     authClient.useSession();
+  const shoppingList = useShoppingList();
+  const isOnShoppingList = shoppingList.recipes.some(
+    (entry) => entry.slug === recipe.slug,
+  );
   const dietMatch = useMemo(
     () =>
       matchRecipe({
@@ -507,16 +519,40 @@ export function RecipeContent({
           </p>
         )}
 
-        {cookSteps.length > 0 && (
-          <div className="mb-4">
-            <Button
-              size="lg"
-              onClick={openCookMode}
-              className="w-full sm:w-auto bg-[var(--terracotta)] text-white hover:bg-[var(--terracotta-deep)] text-base"
-            >
-              <Flame className="size-5" />
-              Start cooking
-            </Button>
+        {(cookSteps.length > 0 ||
+          (shoppingListEnabled && Boolean(authSession))) && (
+          <div className="mb-4 flex flex-wrap gap-2">
+            {shoppingListEnabled && authSession && (
+              <Button
+                type="button"
+                size="lg"
+                variant="outline"
+                aria-pressed={isOnShoppingList}
+                onClick={() => toggleRecipe(recipe.slug)}
+                className={
+                  isOnShoppingList
+                    ? "w-full border-[var(--sage)] bg-[var(--sage)]/10 text-[var(--sage)] hover:bg-[var(--sage)]/15 sm:w-auto"
+                    : "w-full border-[var(--line-strong)] text-[var(--ink-2)] hover:border-[var(--terracotta)] hover:text-[var(--terracotta)] sm:w-auto"
+                }
+              >
+                {isOnShoppingList ? (
+                  <Check className="size-5" />
+                ) : (
+                  <ShoppingBasket className="size-5" />
+                )}
+                {isOnShoppingList ? "On shopping list" : "Add to shopping list"}
+              </Button>
+            )}
+            {cookSteps.length > 0 && (
+              <Button
+                size="lg"
+                onClick={openCookMode}
+                className="w-full sm:w-auto bg-[var(--terracotta)] text-white hover:bg-[var(--terracotta-deep)] text-base"
+              >
+                <Flame className="size-5" />
+                Start cooking
+              </Button>
+            )}
           </div>
         )}
 

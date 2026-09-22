@@ -5,6 +5,8 @@ import { RecipeContent } from "@/components/recipes/recipe-content";
 import { CookModeProvider } from "@/contexts/cook-mode-context";
 import type { RecipeDetailView } from "@/lib/domain/recipe/recipeViews";
 import { preferenceForSystem } from "@/lib/domain/recipe/unit";
+import { getShoppingListSnapshot } from "@/lib/shopping/shoppingListStore";
+import { __resetShoppingListForTests } from "@/tests/support/recipe-state";
 
 const mocks = vi.hoisted(() => ({
   captureRecipeProductActivity: vi.fn(),
@@ -83,6 +85,8 @@ const recipe: RecipeDetailView = {
 
 describe("RecipeContent", () => {
   beforeEach(() => {
+    __resetShoppingListForTests();
+    localStorage.clear();
     mocks.captureRecipeProductActivity.mockClear();
     mocks.captureRecipeValue.mockClear();
     mocks.setUnitPreference.mockClear();
@@ -126,12 +130,39 @@ describe("RecipeContent", () => {
   });
 
   it("renders timers as disabled in an unsaved recipe preview", () => {
-    render(<RecipeContent recipe={recipe} timersEnabled={false} />);
+    render(
+      <RecipeContent
+        recipe={recipe}
+        timersEnabled={false}
+        shoppingListEnabled={false}
+      />,
+    );
 
     expect(screen.getByRole("button", { name: "10 minutes" })).toBeDisabled();
     expect(
+      screen.queryByRole("button", { name: "Add to shopping list" }),
+    ).not.toBeInTheDocument();
+    expect(
       screen.queryByRole("button", { name: /start 10 minutes timer/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("adds and removes the recipe from the shopping list", async () => {
+    const user = userEvent.setup();
+    render(<RecipeContent recipe={recipe} />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Add to shopping list" }),
+    );
+
+    expect(getShoppingListSnapshot().recipes).toEqual([{ slug: "weeknight" }]);
+    expect(
+      screen.getByRole("button", { name: "On shopping list" }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(screen.getByRole("button", { name: "On shopping list" }));
+
+    expect(getShoppingListSnapshot().recipes).toEqual([]);
   });
 
   it("retains native list markers for Safari accessibility", () => {

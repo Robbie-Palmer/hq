@@ -945,7 +945,11 @@ export function AddRecipeView({
           </div>
           {preview ? (
             <div className="px-4 py-6 md:px-8">
-              <RecipeContent recipe={preview} timersEnabled={false} />
+              <RecipeContent
+                recipe={preview}
+                timersEnabled={false}
+                shoppingListEnabled={false}
+              />
             </div>
           ) : (
             <div className="flex min-h-[540px] flex-col items-center justify-center px-6 text-center">
