@@ -78,3 +78,5 @@ patchedDependencies:
 minimumReleaseAgeExclude:
   # Exact ADR 065 bridge pin; reviewed as part of the adopting change.
   - '@hono/zod-openapi@1.5.2'
+  # Exact frontend lint pin; reviewed as part of the adopting change.
+  - '@shadcn/lint@0.2.0'
