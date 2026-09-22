@@ -1,0 +1,98 @@
+---
+title: "ADR 010: Observed evidence before automatic release"
+date: "2026-09-22"
+status: "Accepted"
+---
+
+## Context
+
+[ADR 005](/projects/work-graph/adrs/005-explicit-work-item-termination)
+requires an actor to terminate a work item deliberately. Repository-backed work
+also requires merge and deployment evidence. The initial API carries those as
+URLs on a lease-fenced release request.
+
+[ADR 009](/projects/work-graph/adrs/009-github-delivery-evidence-ingestion)
+adds delivery events from a system that observes work but does not own the Work
+Graph lifecycle. A merged pull request, successful CI run, or deployment is a
+fact. None proves by itself that the planned outcome is complete. One work item
+may have several implementation pull requests, a staging deployment may precede
+production, and an active worker may still need to verify or summarise the
+result.
+
+Letting a webhook call the worker release operation would either require the
+integration to impersonate a lease holder or allow it to terminate work under
+an active worker. Both weaken fencing and make redelivery dangerous.
+
+## Decision
+
+Store external observations as immutable evidence records. Each record keeps
+the provider, external identity, repository, commit SHA, evidence kind, state,
+source URL, provider time, ingestion time, and correlation provenance. Preserve
+each observation while projecting the latest state needed by queue and context
+reads.
+
+Link evidence to work through explicit implementation pull-request links and
+an exact commit chain. Preserve the accepted pull-request head, merge commit,
+CI commit, and deployed commit. Do not infer identity from a branch name,
+pull-request title, work-item-like text, or temporal proximity.
+
+Ingestion may refresh a pull-request projection, append evidence, or mark a
+work item as a completion candidate. It must not release or cancel the item,
+end or acquire a worker lease, satisfy dependencies, or automatically block
+unrelated work.
+
+Derive completion candidacy from owner policy. The first policy must require
+all required implementation pull requests to be merged, required CI to pass
+for the accepted revisions, an allowed production environment to report a
+successful deployment of the resulting commit, no unfinished children, and no
+unresolved blocking attention. Record which evidence and policy revision
+produced the candidate state.
+
+Keep worker-initiated release as the first consumer of ingested evidence. Evolve
+its request from unstructured URLs towards references to stored evidence while
+retaining a human-readable snapshot in the immutable lifecycle event.
+
+Automatic release is a later operation with its own owner policy and system
+actor. It must atomically recheck the evidence and work-item invariants. It
+must not mint, steal, or bypass a worker lease. Define what happens when a
+completion candidate has an active lease before enabling that transition.
+
+## Consequences
+
+Work Graph can explain why an item appears complete and can revise a current
+projection without rewriting the facts that produced it. Duplicate and
+out-of-order provider events do not repeat a lifecycle transition.
+
+Evidence ingestion can ship before automatic release. Workers stop copying CI
+and deployment URLs by hand, while the existing authority and fencing rules
+remain intact.
+
+The database and API gain evidence identities, projections, policy revisions,
+and correlation data. A successful deployment may still leave an item open.
+That is intentional when the graph lacks required evidence or a worker still
+owns completion work.
+
+Automatic release will need a new domain operation rather than a privileged
+call to the current lease-fenced endpoint. This costs more work, but it keeps
+external observation separate from lifecycle authority.
+
+## Alternatives considered
+
+### Release directly from the webhook consumer
+
+This is short and appears idempotent once delivery IDs are unique. It still
+confuses one observed event with completion of the planned outcome, and it can
+race an active worker or other required pull requests and environments.
+
+### Let workflows call the release endpoint
+
+A deployment workflow knows that its own job succeeded but does not own the
+work item's children, attention state, linked pull requests, or lease. Giving
+workflow jobs worker credentials would spread lifecycle authority and secrets
+across repositories.
+
+### Keep only mutable snapshots
+
+Overwriting the pull-request and deployment state gives a compact current view.
+It cannot explain which facts justified a completion candidate, distinguish a
+late event from a regression, or audit an incorrect automatic decision.

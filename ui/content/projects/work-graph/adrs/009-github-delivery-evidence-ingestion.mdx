@@ -1,0 +1,115 @@
+---
+title: "ADR 009: Dedicated GitHub App for delivery evidence"
+date: "2026-09-22"
+status: "Accepted"
+tech_stack: ["GitHub", "Cloudflare Queues"]
+---
+
+## Context
+
+[ADR 008](/projects/work-graph/adrs/008-authoritative-work-graph) requires
+source control, CI, and deployment systems to report observed state into Work
+Graph. The first pull-request integration stores a refreshable snapshot and
+relies on a worker to request each refresh. That proves the link and projection
+model, but it leaves evidence stale until somebody asks GitHub again.
+
+GitHub can report pull-request changes, completed Actions workflows, and
+deployment statuses through webhooks. The existing API hostname cannot receive
+them because Cloudflare Access requires a service token on every request.
+Exempting the API hostname would expose unrelated read and mutation routes.
+
+Webhook delivery is also a different workload from the application API.
+GitHub requires a response within ten seconds and recommends asynchronous
+processing. Deliveries may be repeated or arrive after newer observations, so
+the receiver cannot treat arrival order as state order. GitHub identifies a
+delivery with `X-GitHub-Delivery` and signs the unmodified body with
+`X-Hub-Signature-256`.
+
+## Decision
+
+Create a dedicated, private GitHub App for Work Graph observation. Install it
+only on repositories admitted by Work Graph policy. Give it read-only access
+to pull requests, Actions, and deployments, plus GitHub's implicit repository
+metadata access. Subscribe initially to `pull_request`, `workflow_run`, and
+`deployment_status`. Add `check_suite` or commit-status events only when an
+installed CI system cannot be observed through completed workflow runs.
+
+Receive those events on a dedicated public Worker hostname with one accepted
+route, `POST /webhooks/github`. Keep the Work Graph API and its Cloudflare
+Access policy unchanged. The ingress Worker must verify the signature over the
+raw body before parsing it, reject oversized or malformed supported payloads,
+and enforce installation and repository allowlists. It must use the GitHub
+delivery ID as the durable idempotency key.
+
+After verification, enqueue the delivery in Cloudflare Queues and return a
+successful response. A queue consumer normalises supported payloads, records
+their disposition, and updates Work Graph through the existing application and
+database boundaries. Configure bounded retries and a dead-letter queue. Queue
+delivery is at least once, so the database remains responsible for rejecting a
+duplicate delivery ID.
+
+Correlate observations through explicit pull-request links and exact commit
+identities. Record the pull-request head and merge commit, then associate CI
+runs and deployments by repository and SHA. Keep unmatched observations for
+diagnosis without guessing from branch names, titles, or timing.
+
+Use a GitHub App installation token only when a webhook lacks enough detail or
+a reconciliation run needs the current remote state. Add a reconciliation
+operation for initial backfill and missed deliveries. Webhooks provide timely
+updates; they are not the only repair path.
+
+GitHub documents its
+[webhook security and delivery guidance](https://docs.github.com/en/webhooks/using-webhooks/best-practices-for-using-webhooks)
+and the permissions required for each
+[event type](https://docs.github.com/en/webhooks/webhook-events-and-payloads).
+Cloudflare documents Queues'
+[at-least-once delivery](https://developers.cloudflare.com/queues/reference/delivery-guarantees/)
+and
+[dead-letter queues](https://developers.cloudflare.com/queues/configuration/dead-letter-queues/).
+
+## Consequences
+
+GitHub can report delivery facts without receiving a Cloudflare Access
+credential or reaching the normal Work Graph API. The observer App has no
+write permission in installed repositories. A compromise can read the narrow
+delivery data granted to the App but cannot change code, reviews, workflows, or
+deployments.
+
+The public ingress becomes an internet-facing security boundary. Its code,
+secret rotation, body limits, repository policy, delivery audit, retry policy,
+and dead-letter handling require production tests and monitoring.
+
+The queue removes GitHub's response deadline from database and GitHub API
+work. It also permits duplicates and does not preserve global ordering.
+Consumers must compare provider timestamps and external identities rather than
+assuming that the latest delivery is the latest state.
+
+A dedicated App separates Work Graph's read-only observation from the existing
+AI Review App's write permissions and model-spend path. It adds another App
+registration, webhook secret, private key, installation, and rotation procedure.
+
+## Alternatives considered
+
+### Extend the AI Review App
+
+The existing App already verifies GitHub webhooks, which makes it useful prior
+art. Reusing it would mix delivery evidence with review publication and give
+Work Graph an identity that already has pull-request and issue write access.
+GitHub Apps also have one configured webhook URL, so the review receiver would
+need to forward or multiplex Work Graph traffic. The shared failure and
+permission boundary is not worth avoiding one small App.
+
+### Use a repository webhook
+
+A repository webhook needs no App private key and fits one repository. Work
+Graph is intended to coordinate work across repositories, and an App provides
+one installation model with explicit repository selection and read-only API
+access for reconciliation.
+
+### Call Work Graph from each workflow
+
+Workflow steps could send CI and deployment evidence with Cloudflare Access
+credentials. That duplicates integration logic and secrets across workflows,
+misses source-control events outside Actions, and makes each repository
+responsible for Work Graph's evidence contract. GitHub's own event stream is a
+cleaner observation boundary.
