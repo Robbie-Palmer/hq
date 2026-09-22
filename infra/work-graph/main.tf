@@ -8,6 +8,18 @@ locals {
   hyperdrive_name             = "work-graph-db"
 }
 
+# Private, provider-independent Work Graph PostgreSQL backups. The backup
+# runner encrypts each archive before upload and uses a bucket-scoped token.
+resource "cloudflare_r2_bucket" "database_backups" {
+  account_id = var.cloudflare_account_id
+  name       = var.r2_database_backups_bucket_name
+  location   = "ENAM"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
 check "work_graph_hostname_in_zone" {
   assert {
     condition     = var.work_graph_hostname != var.domain_name && endswith(var.work_graph_hostname, ".${var.domain_name}")

@@ -1,13 +1,13 @@
-name: Neon Database Backup
+name: Work Graph Database Backup
 
 on:
   workflow_dispatch:
   schedule:
-    # Weekly while Neon is on the Free plan to stay within its 5 GB egress cap.
+    # Match the recipe database policy chosen for Neon Free plan egress.
     - cron: "17 3 * * 0"
 
 concurrency:
-  group: neon-database-backup
+  group: work-graph-database-backup
   cancel-in-progress: false
 
 permissions: {}
@@ -19,7 +19,7 @@ jobs:
     permissions:
       contents: read
     environment:
-      name: production-database-backup
+      name: production-work-graph-backup
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -35,7 +35,7 @@ jobs:
         env:
           AGE_RECIPIENT: ${{ vars.AGE_RECIPIENT }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          DATABASE_BACKUP_LABEL: recipes
+          DATABASE_BACKUP_LABEL: work-graph
           NEON_DATABASE_URL_UNPOOLED: ${{ secrets.NEON_DATABASE_URL_UNPOOLED }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_DATABASE_BACKUPS_BUCKET_NAME: ${{ vars.R2_DATABASE_BACKUPS_BUCKET_NAME }}
@@ -54,15 +54,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          existing=$(gh issue list --search "Neon database backup failed in:title" --state open --json number --jq '.[0].number // empty')
+          existing=$(gh issue list --search "Work Graph database backup failed in:title" --state open --json number --jq '.[0].number // empty')
           if [[ -n "$existing" ]]; then
             echo "Issue #$existing already exists, skipping"
           else
             gh issue create \
-              --title "Neon database backup failed" \
-              --body "The scheduled encrypted Neon database backup failed.
+              --title "Work Graph database backup failed" \
+              --body "The scheduled encrypted Work Graph database backup failed.
 
           **Workflow run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-          The most recent successful R2 backup may now be stale. Please investigate and rerun the workflow."
+          The most recent successful Work Graph R2 backup may now be stale. Please investigate and rerun the workflow."
           fi
