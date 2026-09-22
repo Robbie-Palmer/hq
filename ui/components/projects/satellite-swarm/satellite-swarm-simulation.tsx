@@ -91,6 +91,9 @@ export function SatelliteSwarmSimulation({
   const replayAction = getReplayAction(playing, frameIndex, stopAt);
   const primaryEvent = currentEvents[0];
   const additionalEventCount = Math.max(0, currentEvents.length - 1);
+  const activeNode = frame?.nodes.find(
+    (node) => node.state === "active" && node.assignedNode === node.id,
+  );
 
   useEffect(() => {
     if (reducedMotion) {
@@ -193,11 +196,11 @@ export function SatelliteSwarmSimulation({
             )}
           </div>
 
-          <div className="space-y-1 border-t bg-zinc-950 px-4 py-2.5 text-xs text-zinc-300">
+          <div className="space-y-2 border-t bg-zinc-950 px-4 py-2.5 text-xs text-zinc-300">
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-              <span>
-                The selected node&apos;s colored line shows its propagated
-                orbit. Messages are not drawn as flight paths.
+              <span className="inline-flex items-center gap-2">
+                <span className="h-0.5 w-7 bg-sky-400" aria-hidden="true" />
+                Current SGP4 orbit · selected Node {selectedNodeId}
               </span>
               <span className="font-mono text-zinc-400">
                 {coordinationPhase
@@ -205,6 +208,12 @@ export function SatelliteSwarmSimulation({
                   : `Orbit coast · ${frame.playbackMultiplier}×`}
               </span>
             </div>
+            <p>
+              <span className="font-medium text-zinc-100">Mission orbit:</span>{" "}
+              {activeNode
+                ? `Node ${activeNode.id} accepted the assignment. Its orbit is unchanged because this simulation does not model maneuvers.`
+                : "Waiting for an accepted assignment. This simulation does not model maneuvers or a target orbit."}
+            </p>
             {primaryEvent && (
               <p aria-live="polite">
                 <span className="font-medium text-zinc-100">Now:</span>{" "}

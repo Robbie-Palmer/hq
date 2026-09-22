@@ -122,6 +122,7 @@ function createHarness(supportsLabels = true) {
   const addSample = vi.fn();
   const setInterpolationOptions = vi.fn();
   const color = { withAlpha: vi.fn((alpha: number) => ({ alpha })) };
+  const fromCssColorString = vi.fn(() => color);
   const viewer = {
     clock: { currentTime: null, multiplier: 0, shouldAnimate: false },
     destroy,
@@ -140,7 +141,7 @@ function createHarness(supportsLabels = true) {
     Color: {
       BLACK: "black",
       WHITE: { withAlpha: vi.fn((alpha: number) => ({ alpha })) },
-      fromCssColorString: vi.fn(() => color),
+      fromCssColorString,
     },
     Ellipsoid: { WGS84: { maximumRadius: 6_378_137 } },
     FeatureDetection: { supportsWebgl2: vi.fn(() => supportsLabels) },
@@ -173,6 +174,7 @@ function createHarness(supportsLabels = true) {
     add,
     destroy,
     fromElements,
+    fromCssColorString,
     removeAll,
     requestRender,
   };
@@ -195,7 +197,7 @@ describe("SatelliteSwarmGlobe", () => {
       />,
     );
 
-    await waitFor(() => expect(harness.requestRender).toHaveBeenCalledOnce());
+    await waitFor(() => expect(harness.requestRender).toHaveBeenCalledTimes(2));
     expect(harness.add).toHaveBeenCalledTimes(4);
     expect(harness.add.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
@@ -218,14 +220,27 @@ describe("SatelliteSwarmGlobe", () => {
         currentFrameIndex={1}
         data={data}
         onFailure={onFailure}
+        selectedNodeId={0}
+      />,
+    );
+
+    await waitFor(() => expect(harness.requestRender).toHaveBeenCalledTimes(3));
+    expect(harness.removeAll).toHaveBeenCalledOnce();
+    expect(harness.fromElements).toHaveBeenCalled();
+    expect(harness.add).toHaveBeenCalledTimes(4);
+
+    rerender(
+      <SatelliteSwarmGlobe
+        currentFrameIndex={1}
+        data={data}
+        onFailure={onFailure}
         selectedNodeId={1}
       />,
     );
 
-    await waitFor(() => expect(harness.requestRender).toHaveBeenCalledTimes(2));
-    expect(harness.removeAll).toHaveBeenCalledTimes(2);
-    expect(harness.fromElements).toHaveBeenCalled();
+    await waitFor(() => expect(harness.removeAll).toHaveBeenCalledTimes(2));
     expect(harness.add).toHaveBeenCalledTimes(8);
+    expect(harness.fromCssColorString).toHaveBeenCalledWith("#38bdf8");
 
     unmount();
     expect(harness.destroy).toHaveBeenCalledOnce();
@@ -243,7 +258,7 @@ describe("SatelliteSwarmGlobe", () => {
       />,
     );
 
-    await waitFor(() => expect(harness.requestRender).toHaveBeenCalledOnce());
+    await waitFor(() => expect(harness.requestRender).toHaveBeenCalledTimes(2));
     expect(harness.add.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({ label: undefined }),
     );

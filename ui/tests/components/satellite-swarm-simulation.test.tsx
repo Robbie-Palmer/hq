@@ -419,7 +419,12 @@ describe("SatelliteSwarmSimulation", () => {
     expect(screen.getByText("South Pole mission replay")).toBeVisible();
     expect(screen.getByText(/deliberate coordinate edge case/i)).toBeVisible();
     expect(screen.getByText("Cesium globe")).toBeVisible();
-    expect(screen.getByText(/selected node's colored line/i)).toBeVisible();
+    expect(
+      screen.getByText(/current SGP4 orbit · selected Node 0/i),
+    ).toBeVisible();
+    expect(
+      screen.getByText(/waiting for an accepted assignment/i),
+    ).toBeVisible();
     expect(screen.getByText(/coordination in slow motion/i)).toBeVisible();
     expect(
       document.querySelector(
@@ -432,6 +437,9 @@ describe("SatelliteSwarmSimulation", () => {
     await user.click(screen.getByRole("button", { name: "Next frame" }));
 
     expect(screen.getByText("active")).toBeVisible();
+    expect(
+      screen.getByText(/Node 1 accepted the assignment.*orbit is unchanged/i),
+    ).toBeVisible();
     expect(
       screen.getAllByText(/assigned mission 0:1:1 to node 1/i),
     ).toHaveLength(2);

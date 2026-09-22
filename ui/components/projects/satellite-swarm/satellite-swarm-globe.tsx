@@ -12,15 +12,8 @@ import type {
   SatelliteSwarmSimulation,
 } from "@/lib/api/satellite-swarm-simulation";
 
-const STATE_COLOR_VALUES: Record<string, string> = {
-  active: "#22c55e",
-  "awaiting acknowledgement": "#f59e0b",
-  "awaiting assignment": "#eab308",
-  idle: "#94a3b8",
-  leading: "#38bdf8",
-  quiescent: "#a78bfa",
-  "safe-disabled": "#ef4444",
-};
+const CURRENT_ORBIT_COLOR = "#38bdf8";
+const NODE_COLOR = "#f8fafc";
 
 function orbitPositions(
   cesium: CesiumRuntime,
@@ -66,7 +59,7 @@ function sampledPosition(
   return property;
 }
 
-interface FrameRenderContext {
+interface SceneRenderContext {
   cesium: CesiumRuntime;
   data: SatelliteSwarmSimulation;
   selectedNodeId: number;
@@ -74,8 +67,8 @@ interface FrameRenderContext {
   viewer: Viewer;
 }
 
-function addFrameNode(
-  context: FrameRenderContext,
+function addSceneNode(
+  context: SceneRenderContext,
   node: SatelliteSwarmFrame["nodes"][number],
 ) {
   const { cesium, data, selectedNodeId, supportsLabels, viewer } = context;
@@ -88,7 +81,7 @@ function addFrameNode(
     VerticalOrigin,
   } = cesium;
   const nodeColor = Color.fromCssColorString(
-    STATE_COLOR_VALUES[node.state] ?? "#ffffff",
+    selectedNodeId === node.id ? CURRENT_ORBIT_COLOR : NODE_COLOR,
   );
   const selected = node.id === selectedNodeId;
   viewer.entities.add({
@@ -121,8 +114,9 @@ function addFrameNode(
   const positions = orbitPositions(cesium, data, node.id);
   if (positions.length < 2) return;
   viewer.entities.add({
+    id: `current-orbit-${node.id}`,
     polyline: {
-      material: nodeColor.withAlpha(0.7),
+      material: Color.fromCssColorString(CURRENT_ORBIT_COLOR).withAlpha(0.85),
       positions,
       width: 2.5,
     },
@@ -167,23 +161,19 @@ function addMissionObjective(
   });
 }
 
-function renderFrame(
+function renderScene(
   cesium: CesiumRuntime,
   viewer: Viewer,
   {
     data,
-    frame,
-    playing,
     selectedNodeId,
   }: {
     data: SatelliteSwarmSimulation;
-    frame: SatelliteSwarmFrame;
-    playing: boolean;
     selectedNodeId: number;
   },
 ) {
   const supportsLabels = cesium.FeatureDetection.supportsWebgl2(viewer.scene);
-  const context = {
+  const context: SceneRenderContext = {
     cesium,
     data,
     selectedNodeId,
@@ -192,16 +182,24 @@ function renderFrame(
   };
 
   viewer.entities.removeAll();
-  const epoch = frame.nodes[0]?.epochUnixMilliseconds;
-  if (epoch !== undefined) {
-    viewer.clock.currentTime = cesium.JulianDate.fromDate(new Date(epoch));
-    viewer.clock.multiplier = frame.playbackMultiplier;
-    viewer.clock.shouldAnimate = playing;
-  }
-  for (const node of frame.nodes) {
-    addFrameNode(context, node);
+  for (const node of data.frames[0]?.nodes ?? []) {
+    addSceneNode(context, node);
   }
   addMissionObjective(cesium, viewer, data, supportsLabels);
+  viewer.scene.requestRender();
+}
+
+function updateClock(
+  cesium: CesiumRuntime,
+  viewer: Viewer,
+  frame: SatelliteSwarmFrame,
+  playing: boolean,
+) {
+  const epoch = frame.nodes[0]?.epochUnixMilliseconds;
+  if (epoch === undefined) return;
+  viewer.clock.currentTime = cesium.JulianDate.fromDate(new Date(epoch));
+  viewer.clock.multiplier = frame.playbackMultiplier;
+  viewer.clock.shouldAnimate = playing;
   viewer.scene.requestRender();
 }
 
@@ -254,15 +252,20 @@ export function SatelliteSwarmGlobe({
   useEffect(() => {
     const viewer = viewerRef.current;
     const cesium = cesiumRef.current;
-    const frame = data.frames[currentFrameIndex];
-    if (!viewerReady || !viewer || !cesium || !frame) return;
-    renderFrame(cesium, viewer, {
+    if (!viewerReady || !viewer || !cesium) return;
+    renderScene(cesium, viewer, {
       data,
-      frame,
-      playing,
       selectedNodeId,
     });
-  }, [currentFrameIndex, data, playing, selectedNodeId, viewerReady]);
+  }, [data, selectedNodeId, viewerReady]);
+
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    const cesium = cesiumRef.current;
+    const frame = data.frames[currentFrameIndex];
+    if (!viewerReady || !viewer || !cesium || !frame) return;
+    updateClock(cesium, viewer, frame, playing);
+  }, [currentFrameIndex, data.frames, playing, viewerReady]);
 
   return (
     <div ref={containerRef} className="h-full w-full" aria-hidden="true" />
