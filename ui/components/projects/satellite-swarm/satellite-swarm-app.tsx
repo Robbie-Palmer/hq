@@ -93,9 +93,9 @@ export function SatelliteSwarmApp() {
           </p>
           <h2 className="mb-3 text-xl font-semibold">Self-hosted CesiumJS</h2>
           <p className="leading-7 text-muted-foreground">
-            Cesium draws the Earth, SGP4-propagated node positions, message
-            links, and selected objective. Its imagery, runtime assets, and
-            WebAssembly module are served by this site without a Cesium ion
+            Cesium draws the Earth, SGP4-propagated node positions, the selected
+            node&apos;s orbit, and the objective. Its imagery, runtime assets,
+            and WebAssembly module are served by this site without a Cesium ion
             token.
           </p>
         </div>
