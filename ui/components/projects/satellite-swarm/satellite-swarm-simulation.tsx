@@ -89,6 +89,8 @@ export function SatelliteSwarmSimulation({
   const isSouthPoleMission = data.objective.latitudeDegrees === -90;
   const hasLostAssignment = data.scenario === "three-node-assignment-loss";
   const replayAction = getReplayAction(playing, frameIndex, stopAt);
+  const primaryEvent = currentEvents[0];
+  const additionalEventCount = Math.max(0, currentEvents.length - 1);
 
   useEffect(() => {
     if (reducedMotion) {
@@ -124,6 +126,7 @@ export function SatelliteSwarmSimulation({
     );
   }, []);
   if (!frame) return null;
+  const coordinationPhase = frame.playbackMultiplier < 1;
 
   return (
     <Card className="not-prose my-8 gap-0 overflow-hidden p-0">
@@ -183,11 +186,32 @@ export function SatelliteSwarmSimulation({
               <LazySatelliteSwarmGlobe
                 currentFrameIndex={frameIndex}
                 data={data}
-                events={currentEvents}
                 onFailure={reportStartupFailure}
                 playing={playing}
                 selectedNodeId={selectedNodeId}
               />
+            )}
+          </div>
+
+          <div className="space-y-1 border-t bg-zinc-950 px-4 py-2.5 text-xs text-zinc-300">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+              <span>
+                The selected node&apos;s colored line shows its propagated
+                orbit. Messages are not drawn as flight paths.
+              </span>
+              <span className="font-mono text-zinc-400">
+                {coordinationPhase
+                  ? "Coordination in slow motion · orbit coast follows"
+                  : `Orbit coast · ${frame.playbackMultiplier}×`}
+              </span>
+            </div>
+            {primaryEvent && (
+              <p aria-live="polite">
+                <span className="font-medium text-zinc-100">Now:</span>{" "}
+                {describeSatelliteSwarmEvent(primaryEvent)}
+                {additionalEventCount > 0 &&
+                  ` · ${additionalEventCount} more ${additionalEventCount === 1 ? "event" : "events"}`}
+              </p>
             )}
           </div>
 

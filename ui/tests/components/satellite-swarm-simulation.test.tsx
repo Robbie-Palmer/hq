@@ -230,6 +230,7 @@ describe("SatelliteSwarmSimulation", () => {
       { scenario: "nominal", signal: expect.any(AbortSignal) },
     );
     expect(screen.getByText(/ran as WebAssembly/i)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Pause replay" })).toBeEnabled();
     expect(screen.getByRole("link", { name: "0123456789ab" })).toHaveAttribute(
       "href",
       "https://github.com/Robbie-Palmer/hq/commit/0123456789abcdef0123456789abcdef01234567",
@@ -418,6 +419,8 @@ describe("SatelliteSwarmSimulation", () => {
     expect(screen.getByText("South Pole mission replay")).toBeVisible();
     expect(screen.getByText(/deliberate coordinate edge case/i)).toBeVisible();
     expect(screen.getByText("Cesium globe")).toBeVisible();
+    expect(screen.getByText(/selected node's colored line/i)).toBeVisible();
+    expect(screen.getByText(/coordination in slow motion/i)).toBeVisible();
     expect(
       document.querySelector(
         'link[href="/cesium/Widgets/widgets.css"][rel="stylesheet"]',
@@ -429,7 +432,9 @@ describe("SatelliteSwarmSimulation", () => {
     await user.click(screen.getByRole("button", { name: "Next frame" }));
 
     expect(screen.getByText("active")).toBeVisible();
-    expect(screen.getByText(/assigned mission 0:1:1 to node 1/i)).toBeVisible();
+    expect(
+      screen.getAllByText(/assigned mission 0:1:1 to node 1/i),
+    ).toHaveLength(2);
     expect(screen.getByText(/trace v5 · 100 ms/)).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Replay mission" }),

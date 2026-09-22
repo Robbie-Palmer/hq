@@ -130,7 +130,6 @@ function createHarness(supportsLabels = true) {
     scene: { requestRender },
   };
   const runtime = {
-    ArcType: { NONE: "none" },
     Cartesian2: class {
       constructor(
         readonly x: number,
@@ -184,50 +183,40 @@ describe("SatelliteSwarmGlobe", () => {
     vi.clearAllMocks();
   });
 
-  it("renders nodes, tracks, the mission objective, and message links", async () => {
+  it("renders nodes, the selected orbit, and the mission objective", async () => {
     const harness = createHarness();
     const onFailure = vi.fn();
     const { rerender, unmount } = render(
       <SatelliteSwarmGlobe
         currentFrameIndex={0}
         data={data}
-        events={[]}
         onFailure={onFailure}
         selectedNodeId={0}
       />,
     );
 
     await waitFor(() => expect(harness.requestRender).toHaveBeenCalledOnce());
-    expect(harness.add).toHaveBeenCalledTimes(3);
+    expect(harness.add).toHaveBeenCalledTimes(4);
     expect(harness.add.mock.calls[0]?.[0]).toEqual(
-      expect.objectContaining({ id: "node-0", label: expect.any(Object) }),
+      expect.objectContaining({
+        id: "node-0",
+        label: expect.objectContaining({ text: "Node 0" }),
+      }),
     );
-    expect(harness.add.mock.calls[2]?.[0]).toEqual(
+    expect(harness.add.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({ polyline: expect.any(Object) }),
+    );
+    expect(harness.add.mock.calls[3]?.[0]).toEqual(
       expect.objectContaining({
         label: expect.objectContaining({ text: "South Pole objective" }),
         position: [4, -90],
       }),
     );
 
-    const events = [
-      {
-        type: "message-sent" as const,
-        timeMs: 100,
-        nodeId: 0,
-        message: {
-          type: "mission-assignment" as const,
-          sender: 0,
-          target: 1,
-          missionKey: { bootEpoch: 1, originNode: 0, sequence: 1 },
-          score: 0,
-        },
-      },
-    ];
     rerender(
       <SatelliteSwarmGlobe
         currentFrameIndex={1}
         data={data}
-        events={events}
         onFailure={onFailure}
         selectedNodeId={1}
       />,
@@ -236,7 +225,7 @@ describe("SatelliteSwarmGlobe", () => {
     await waitFor(() => expect(harness.requestRender).toHaveBeenCalledTimes(2));
     expect(harness.removeAll).toHaveBeenCalledTimes(2);
     expect(harness.fromElements).toHaveBeenCalled();
-    expect(harness.add).toHaveBeenCalledTimes(9);
+    expect(harness.add).toHaveBeenCalledTimes(8);
 
     unmount();
     expect(harness.destroy).toHaveBeenCalledOnce();
@@ -249,7 +238,6 @@ describe("SatelliteSwarmGlobe", () => {
       <SatelliteSwarmGlobe
         currentFrameIndex={0}
         data={data}
-        events={[]}
         onFailure={vi.fn()}
         selectedNodeId={0}
       />,
@@ -270,7 +258,6 @@ describe("SatelliteSwarmGlobe", () => {
       <SatelliteSwarmGlobe
         currentFrameIndex={0}
         data={data}
-        events={[]}
         onFailure={onFailure}
         selectedNodeId={0}
       />,

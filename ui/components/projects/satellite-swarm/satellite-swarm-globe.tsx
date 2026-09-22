@@ -8,7 +8,6 @@ import {
 } from "@/components/technology/cesium/cesium-runtime";
 import { createOfflineCesiumViewer } from "@/components/technology/cesium/offline-viewer";
 import type {
-  SatelliteSwarmEvent,
   SatelliteSwarmFrame,
   SatelliteSwarmSimulation,
 } from "@/lib/api/satellite-swarm-simulation";
@@ -23,87 +22,12 @@ const STATE_COLOR_VALUES: Record<string, string> = {
   "safe-disabled": "#ef4444",
 };
 
-function altitude(
-  frame: SatelliteSwarmFrame,
-  nodeId: number,
-  earthRadiusMetres: number,
-): number {
-  const node = frame.nodes.find((candidate) => candidate.id === nodeId);
-  return Math.max(
-    100_000,
-    (node?.orbitalRadiusMetres ?? 0) - earthRadiusMetres,
-  );
-}
-
-function position(
-  cesium: CesiumRuntime,
-  frame: SatelliteSwarmFrame,
-  nodeId: number,
-): Cartesian3 | null {
-  const node = frame.nodes.find((candidate) => candidate.id === nodeId);
-  if (!node) return null;
-  return cesium.Cartesian3.fromElements(
-    node.earthFixedPositionMetres.x,
-    node.earthFixedPositionMetres.y,
-    node.earthFixedPositionMetres.z,
-  );
-}
-
-function addMessageLinks(
-  cesium: CesiumRuntime,
-  viewer: Viewer,
-  frame: SatelliteSwarmFrame,
-  events: readonly SatelliteSwarmEvent[],
-  earthRadiusMetres: number,
-) {
-  const { ArcType, Cartesian3, Color } = cesium;
-  for (const event of events) {
-    if (event.type !== "message-sent") continue;
-    const sender = position(cesium, frame, event.nodeId);
-    if (!sender) continue;
-    const targets =
-      event.message.target === null
-        ? frame.nodes
-            .filter((node) => node.id !== event.nodeId)
-            .map((node) => node.id)
-        : [event.message.target];
-
-    for (const targetId of targets) {
-      const target = position(cesium, frame, targetId);
-      const targetNode = frame.nodes.find((node) => node.id === targetId);
-      const senderNode = frame.nodes.find((node) => node.id === event.nodeId);
-      if (!target || !targetNode || !senderNode) continue;
-      const middle = Cartesian3.fromDegrees(
-        (senderNode.position.longitudeDegrees +
-          targetNode.position.longitudeDegrees) /
-          2,
-        (senderNode.position.latitudeDegrees +
-          targetNode.position.latitudeDegrees) /
-          2,
-        Math.max(
-          altitude(frame, event.nodeId, earthRadiusMetres),
-          altitude(frame, targetId, earthRadiusMetres),
-        ) + 350_000,
-      );
-      viewer.entities.add({
-        polyline: {
-          arcType: ArcType.NONE,
-          material: Color.WHITE.withAlpha(0.72),
-          positions: [sender, middle, target],
-          width: 2,
-        },
-      });
-    }
-  }
-}
-
-function trackPositions(
+function orbitPositions(
   cesium: CesiumRuntime,
   data: SatelliteSwarmSimulation,
-  currentFrameIndex: number,
   nodeId: number,
 ): Cartesian3[] {
-  return data.frames.slice(0, currentFrameIndex + 1).flatMap((frame) => {
+  return data.frames.flatMap((frame) => {
     const node = frame.nodes.find((candidate) => candidate.id === nodeId);
     return node
       ? [
@@ -144,9 +68,7 @@ function sampledPosition(
 
 interface FrameRenderContext {
   cesium: CesiumRuntime;
-  currentFrameIndex: number;
   data: SatelliteSwarmSimulation;
-  earthRadiusMetres: number;
   selectedNodeId: number;
   supportsLabels: boolean;
   viewer: Viewer;
@@ -156,14 +78,7 @@ function addFrameNode(
   context: FrameRenderContext,
   node: SatelliteSwarmFrame["nodes"][number],
 ) {
-  const {
-    cesium,
-    currentFrameIndex,
-    data,
-    selectedNodeId,
-    supportsLabels,
-    viewer,
-  } = context;
+  const { cesium, data, selectedNodeId, supportsLabels, viewer } = context;
   const {
     Cartesian2,
     Color,
@@ -189,7 +104,7 @@ function addFrameNode(
           pixelOffset: new Cartesian2(14, 0),
           scaleByDistance: new NearFarScalar(1_000_000, 1, 30_000_000, 0.7),
           style: LabelStyle.FILL_AND_OUTLINE,
-          text: `Node ${node.id} · ${node.state}`,
+          text: `Node ${node.id}`,
           verticalOrigin: VerticalOrigin.CENTER,
         }
       : undefined,
@@ -202,13 +117,14 @@ function addFrameNode(
     position: sampledPosition(cesium, data, node.id),
   });
 
-  const positions = trackPositions(cesium, data, currentFrameIndex, node.id);
+  if (!selected) return;
+  const positions = orbitPositions(cesium, data, node.id);
   if (positions.length < 2) return;
   viewer.entities.add({
     polyline: {
-      material: nodeColor.withAlpha(0.55),
+      material: nodeColor.withAlpha(0.7),
       positions,
-      width: selected ? 3 : 1.5,
+      width: 2.5,
     },
   });
 }
@@ -255,28 +171,21 @@ function renderFrame(
   cesium: CesiumRuntime,
   viewer: Viewer,
   {
-    currentFrameIndex,
     data,
-    events,
     frame,
     playing,
     selectedNodeId,
   }: {
-    currentFrameIndex: number;
     data: SatelliteSwarmSimulation;
-    events: readonly SatelliteSwarmEvent[];
     frame: SatelliteSwarmFrame;
     playing: boolean;
     selectedNodeId: number;
   },
 ) {
-  const earthRadiusMetres = cesium.Ellipsoid.WGS84.maximumRadius;
   const supportsLabels = cesium.FeatureDetection.supportsWebgl2(viewer.scene);
   const context = {
     cesium,
-    currentFrameIndex,
     data,
-    earthRadiusMetres,
     selectedNodeId,
     supportsLabels,
     viewer,
@@ -293,14 +202,12 @@ function renderFrame(
     addFrameNode(context, node);
   }
   addMissionObjective(cesium, viewer, data, supportsLabels);
-  addMessageLinks(cesium, viewer, frame, events, earthRadiusMetres);
   viewer.scene.requestRender();
 }
 
 export interface SatelliteSwarmGlobeProps {
   currentFrameIndex: number;
   data: SatelliteSwarmSimulation;
-  events: readonly SatelliteSwarmEvent[];
   onFailure: (error: unknown) => void;
   playing?: boolean;
   selectedNodeId: number;
@@ -309,7 +216,6 @@ export interface SatelliteSwarmGlobeProps {
 export function SatelliteSwarmGlobe({
   currentFrameIndex,
   data,
-  events,
   onFailure,
   playing = false,
   selectedNodeId,
@@ -351,14 +257,12 @@ export function SatelliteSwarmGlobe({
     const frame = data.frames[currentFrameIndex];
     if (!viewerReady || !viewer || !cesium || !frame) return;
     renderFrame(cesium, viewer, {
-      currentFrameIndex,
       data,
-      events,
       frame,
       playing,
       selectedNodeId,
     });
-  }, [currentFrameIndex, data, events, playing, selectedNodeId, viewerReady]);
+  }, [currentFrameIndex, data, playing, selectedNodeId, viewerReady]);
 
   return (
     <div ref={containerRef} className="h-full w-full" aria-hidden="true" />
