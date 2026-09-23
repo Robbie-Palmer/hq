@@ -32,7 +32,11 @@
     "yaml-lint": "^1.7.0"
   },
   "lint-staged": {
-    "ui/**/*.{ts,tsx,js,jsx,json}": [
+    "ui/**/*.{ts,tsx,js,jsx}": [
+      "mise run //ui:format",
+      "mise run //ui:lint:design"
+    ],
+    "ui/**/*.json": [
       "mise run //ui:format"
     ],
     "infra/public-platform/**/*.tf": [
