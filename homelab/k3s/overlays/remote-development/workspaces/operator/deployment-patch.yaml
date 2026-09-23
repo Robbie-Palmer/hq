@@ -93,6 +93,9 @@ spec:
             - secretRef:
                 name: t3-code-runtime
                 optional: true
+            - secretRef:
+                name: t3-code-work-graph
+                optional: false
           resources:
             requests:
               cpu: 500m

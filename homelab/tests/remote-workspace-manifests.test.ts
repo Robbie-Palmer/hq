@@ -237,7 +237,7 @@ test("the pilot overlay renders two distinct workspaces", () => {
 
   assert.deepEqual(kindCounts(resources), {
     Deployment: 2,
-    DopplerSecret: 3,
+    DopplerSecret: 4,
     Namespace: 2,
     NetworkPolicy: 3,
     PersistentVolume: 2,
@@ -525,7 +525,10 @@ test("the pilot overlay renders two distinct workspaces", () => {
       0,
       "envFrom",
     ]),
-    [{ secretRef: { name: "t3-code-runtime", optional: true } }],
+    [
+      { secretRef: { name: "t3-code-runtime", optional: true } },
+      { secretRef: { name: "t3-code-work-graph", optional: false } },
+    ],
   );
   const operatorEnvironment = valueAt(operatorDeployment, [
     "spec",
@@ -780,6 +783,38 @@ test("the pilot overlay renders two distinct workspaces", () => {
     valueAt(previewAccessSecret, ["spec", "managedSecret", "name"]),
     "t3-code-preview-access",
   );
+
+  const workGraphSecret = resource(
+    resources,
+    "DopplerSecret",
+    "t3-code-work-graph",
+    "t3-code",
+  );
+  assert.equal(valueAt(workGraphSecret, ["spec", "project"]), "work-graph");
+  assert.equal(
+    valueAt(workGraphSecret, ["spec", "config"]),
+    "prd_work_graph",
+  );
+  assert.equal(
+    valueAt(workGraphSecret, ["spec", "tokenSecret", "name"]),
+    "doppler-work-graph-token",
+  );
+  assert.deepEqual(valueAt(workGraphSecret, ["spec", "secrets"]), [
+    "WORK_GRAPH_API_URL",
+    "WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS",
+    "CF_ACCESS_CLIENT_ID",
+    "CF_ACCESS_CLIENT_SECRET",
+  ]);
+  assert.deepEqual(valueAt(workGraphSecret, ["spec", "processors"]), {
+    CF_ACCESS_CLIENT_ID: {
+      asName: "WORK_GRAPH_CF_ACCESS_CLIENT_ID",
+      type: "plain",
+    },
+    CF_ACCESS_CLIENT_SECRET: {
+      asName: "WORK_GRAPH_CF_ACCESS_CLIENT_SECRET",
+      type: "plain",
+    },
+  });
 });
 
 test("the default remote overlay contains only the operator workspace", () => {
@@ -787,7 +822,7 @@ test("the default remote overlay contains only the operator workspace", () => {
 
   assert.deepEqual(kindCounts(resources), {
     Deployment: 1,
-    DopplerSecret: 2,
+    DopplerSecret: 3,
     Namespace: 1,
     PersistentVolume: 1,
     PersistentVolumeClaim: 1,
@@ -885,6 +920,9 @@ test("the NixOS host publishes, prepares, and limits both workspace paths", () =
   );
   assert.ok(healthCheck.includes(".CF_ACCESS_CLIENT_ID"));
   assert.ok(healthCheck.includes(".CF_ACCESS_CLIENT_SECRET"));
+  assert.ok(healthCheck.includes('keys == [\n          "WORK_GRAPH_API_URL"'));
+  assert.ok(healthCheck.includes('"WORK_GRAPH_CF_ACCESS_CLIENT_ID"'));
+  assert.ok(healthCheck.includes('"WORK_GRAPH_CF_ACCESS_CLIENT_SECRET"'));
   assert.ok(healthCheck.includes("@base64d"));
 
   const dopplerInstaller = readFileSync(
@@ -894,6 +932,11 @@ test("the NixOS host publishes, prepares, and limits both workspace paths", () =
   assert.ok(
     dopplerInstaller.includes(
       '"t3-code:doppler-agent-token:personal-site:dev_agent"',
+    ),
+  );
+  assert.ok(
+    dopplerInstaller.includes(
+      '"t3-code:doppler-work-graph-token:work-graph:prd_work_graph"',
     ),
   );
   assert.ok(

@@ -30,7 +30,8 @@ kubectl wait \
 if [ "$#" -eq 0 ]; then
   set -- \
     "t3-code:doppler-token:homelab:prd_remote_development" \
-    "t3-code:doppler-agent-token:personal-site:dev_agent"
+    "t3-code:doppler-agent-token:personal-site:dev_agent" \
+    "t3-code:doppler-work-graph-token:work-graph:prd_work_graph"
 fi
 
 for target in "$@"; do
