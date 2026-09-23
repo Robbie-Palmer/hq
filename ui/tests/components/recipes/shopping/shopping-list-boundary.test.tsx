@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { RecipeShoppingListButton } from "@/components/recipes/recipe-shopping-list-button";
 import {
   ShoppingListBoundary,
   useStartNewShoppingList,
@@ -23,9 +24,17 @@ import {
 import { __resetShoppingListForTests } from "@/tests/support/recipe-state";
 
 const mocks = vi.hoisted(() => ({
+  captureRecipeProductActivity: vi.fn(),
   getCurrentShoppingList: vi.fn(),
   saveCurrentShoppingList: vi.fn(),
   startNewShoppingList: vi.fn(),
+  toastError: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({ toast: { error: mocks.toastError } }));
+
+vi.mock("@/lib/analytics/recipe-product", () => ({
+  captureRecipeProductActivity: mocks.captureRecipeProductActivity,
 }));
 
 vi.mock("@/lib/auth-client", () => ({
@@ -166,6 +175,178 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
         "shopping-list",
       ])?.revision,
     ).toBe("1");
+  });
+
+  it("keeps a recipe-page addition and its servings when the shopping route mounts", async () => {
+    const updatedList = {
+      ...storedList,
+      revision: "1",
+      snapshot: {
+        ...emptySnapshot,
+        recipes: [{ slug: "weeknight", servings: 4 }],
+      },
+    };
+    mocks.saveCurrentShoppingList.mockResolvedValue(updatedList);
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    const recipePage = render(
+      <QueryClientProvider client={queryClient}>
+        <RecipeShoppingListButton
+          recipeSlug="weeknight"
+          servings={4}
+          userId="user-1"
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Add to shopping list" }),
+    );
+    expect(
+      await screen.findByRole("button", { name: "On shopping list" }),
+    ).toBeInTheDocument();
+    expect(mocks.saveCurrentShoppingList).toHaveBeenCalledWith(
+      storedList.id,
+      storedList.revision,
+      updatedList.snapshot,
+    );
+    recipePage.unmount();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ShoppingListBoundary>
+          <p>List ready</p>
+        </ShoppingListBoundary>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("List ready")).toBeInTheDocument();
+    expect(getShoppingListSnapshot().recipes).toEqual([
+      { slug: "weeknight", servings: 4 },
+    ]);
+    expect(mocks.captureRecipeProductActivity).toHaveBeenCalledWith(
+      "shopping_recipe_added",
+      {
+        recipe_slug: "weeknight",
+        shopping_recipe_count: 1,
+      },
+    );
+  });
+
+  it("removes a recipe through the same server-backed action", async () => {
+    const selectedList = {
+      ...storedList,
+      snapshot: {
+        ...emptySnapshot,
+        recipes: [{ slug: "weeknight" }],
+      },
+    };
+    const updatedList = {
+      ...selectedList,
+      revision: "1",
+      snapshot: emptySnapshot,
+    };
+    mocks.getCurrentShoppingList.mockResolvedValue(selectedList);
+    mocks.saveCurrentShoppingList.mockResolvedValue(updatedList);
+    renderWithQueryClient(
+      <RecipeShoppingListButton
+        recipeSlug="weeknight"
+        servings={2}
+        userId="user-1"
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "On shopping list" }),
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Add to shopping list" }),
+    ).toBeInTheDocument();
+    expect(mocks.saveCurrentShoppingList).toHaveBeenCalledWith(
+      storedList.id,
+      storedList.revision,
+      emptySnapshot,
+    );
+    expect(mocks.captureRecipeProductActivity).not.toHaveBeenCalled();
+  });
+
+  it("accepts a concurrent add without writing a duplicate", async () => {
+    const remotelyUpdatedList = {
+      ...storedList,
+      revision: "1",
+      snapshot: {
+        ...emptySnapshot,
+        recipes: [{ slug: "weeknight" }],
+      },
+    };
+    mocks.getCurrentShoppingList
+      .mockResolvedValueOnce(storedList)
+      .mockResolvedValue(remotelyUpdatedList);
+    renderWithQueryClient(
+      <RecipeShoppingListButton
+        recipeSlug="weeknight"
+        servings={2}
+        userId="user-1"
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Add to shopping list" }),
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "On shopping list" }),
+    ).toBeInTheDocument();
+    expect(mocks.saveCurrentShoppingList).not.toHaveBeenCalled();
+    expect(mocks.captureRecipeProductActivity).not.toHaveBeenCalled();
+  });
+
+  it("reports a conflicting recipe-page save and refreshes the list", async () => {
+    mocks.saveCurrentShoppingList.mockRejectedValue(
+      new ApiError("Shopping list changed", 409),
+    );
+    renderWithQueryClient(
+      <RecipeShoppingListButton
+        recipeSlug="weeknight"
+        servings={2}
+        userId="user-1"
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Add to shopping list" }),
+    );
+
+    await waitFor(() =>
+      expect(mocks.toastError).toHaveBeenCalledWith(
+        "The recipe could not be added to your shopping list.",
+      ),
+    );
+    expect(mocks.getCurrentShoppingList).toHaveBeenCalledTimes(3);
+    expect(
+      await screen.findByRole("button", { name: "Add to shopping list" }),
+    ).toBeInTheDocument();
+  });
+
+  it("disables the recipe action when the shopping list cannot load", async () => {
+    mocks.getCurrentShoppingList.mockRejectedValue(new Error("offline"));
+    renderWithQueryClient(
+      <RecipeShoppingListButton
+        recipeSlug="weeknight"
+        servings={2}
+        userId="user-1"
+      />,
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Shopping list unavailable" }),
+    ).toBeDisabled();
+    expect(mocks.saveCurrentShoppingList).not.toHaveBeenCalled();
   });
 
   it("saves a rapid check then uncheck against advancing revisions", async () => {
