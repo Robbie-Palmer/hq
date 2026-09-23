@@ -87,6 +87,11 @@ export function RecipeShoppingListButton({
     }
     return isOnShoppingList ? "On shopping list" : "Add to shopping list";
   })();
+  const icon = (() => {
+    if (isLoading) return <Loader2 className="size-5 animate-spin" />;
+    if (isOnShoppingList) return <Check className="size-5" />;
+    return <ShoppingBasket className="size-5" />;
+  })();
 
   return (
     <Button
@@ -102,13 +107,7 @@ export function RecipeShoppingListButton({
           : "w-full border-[var(--line-strong)] text-[var(--ink-2)] hover:border-[var(--terracotta)] hover:text-[var(--terracotta)] sm:w-auto"
       }
     >
-      {isLoading ? (
-        <Loader2 className="size-5 animate-spin" />
-      ) : isOnShoppingList ? (
-        <Check className="size-5" />
-      ) : (
-        <ShoppingBasket className="size-5" />
-      )}
+      {icon}
       {label}
     </Button>
   );
