@@ -859,4 +859,65 @@ describe("temporal platform layers", () => {
     expect(projects).not.toContain("agent-first-writing");
     expect(projects).toContain("recipe-site");
   });
+
+  it("separates preferred-slot adopters from consumers of the containing layer", () => {
+    const repository = loadDomainRepository();
+    const overrideRef =
+      "recipe-site:033-backend-platform-for-authenticated-features";
+    const projectLayerUses = new Map(repository.platform.projectLayerUses);
+    projectLayerUses.set("agent-first-writing", [
+      ...(projectLayerUses.get("agent-first-writing") ?? []),
+      {
+        layer: "backend-api",
+        adopted: "2026-09-12T00:00:00Z",
+        tracking: true,
+        slots: [],
+        rationale:
+          "The project exposes an API without adopting its runtime default.",
+      },
+    ]);
+    const adrOverrides = new Map(repository.platform.adrOverrides);
+    adrOverrides.set(overrideRef, {
+      slot: "backend-api.runtime",
+      kind: "technology",
+      technology: "nextdotjs",
+      adopted: "2026-09-12T00:00:00Z",
+    });
+    const repositoryWithConsumers = {
+      ...repository,
+      platform: {
+        ...repository.platform,
+        projectLayerUses,
+        adrOverrides,
+      },
+    };
+
+    expect(
+      resolveEffectiveProjectStack(
+        repositoryWithConsumers,
+        "recipe-site",
+        "2026-09-23T00:00:00Z",
+      ).technologies,
+    ).toContainEqual(
+      expect.objectContaining({
+        slot: "backend-api.runtime",
+        technology: "nextdotjs",
+        source: "override",
+      }),
+    );
+
+    const platform = getProjectWithADRs(
+      repositoryWithConsumers,
+      "personal-engineering-platform",
+    );
+    const runtime = platform?.platformManifest?.slots.find(
+      (slot) => slot.slug === "backend-api.runtime",
+    );
+
+    expect(runtime?.adopters).toContain("recipe-site");
+    expect(runtime?.adopters).not.toContain("agent-first-writing");
+    expect(runtime?.layerConsumers).toEqual(
+      expect.arrayContaining(["recipe-site", "agent-first-writing"]),
+    );
+  });
 });

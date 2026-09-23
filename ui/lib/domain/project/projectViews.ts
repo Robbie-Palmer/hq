@@ -122,7 +122,8 @@ export type ProjectWithADRsView = {
             lifecycleStatus: DefaultSelection["status"] | "Superseded";
           }
         >;
-        users: string[];
+        adopters: string[];
+        layerConsumers: string[];
         overrides: string[];
       }
     >;

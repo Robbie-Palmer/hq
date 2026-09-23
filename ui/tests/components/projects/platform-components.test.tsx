@@ -6,7 +6,7 @@ import { getProjectWithADRs } from "@/lib/domain/project/projectQueries";
 import { loadDomainRepository } from "@/lib/repository";
 
 describe("project platform components", () => {
-  it("renders the platform's layers, defaults, users, and overrides", () => {
+  it("renders the platform's layers, defaults, adopters, consumers, and overrides", () => {
     const repository = loadDomainRepository();
     const project = getProjectWithADRs(
       repository,
@@ -25,7 +25,8 @@ describe("project platform components", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Backend API" })).toBeVisible();
     expect(screen.getAllByText("preferred").length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Users:/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Adopters:/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Layer consumers:/).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("link", { name: "decision" })).toHaveLength(
       project.platformManifest.slots.flatMap((slot) => slot.selections).length,
     );

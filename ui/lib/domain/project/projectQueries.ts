@@ -270,6 +270,12 @@ export function getProjectWithADRs(
     adoptionDecision: use.adoptionDecision,
     adoptionRationale: use.adoptionRationale,
   }));
+  const projectStacks =
+    manifest?.project === slug
+      ? Array.from(repository.projects.keys()).map((projectSlug) =>
+          resolveEffectiveProjectStack(repository, projectSlug, stack.at),
+        )
+      : [];
   const platformManifest =
     manifest?.project === slug
       ? {
@@ -286,18 +292,22 @@ export function getProjectWithADRs(
                   selection,
                 ),
               })),
-            users: Array.from(
-              new Set(
-                manifest.policies
-                  .filter((policy) => policy.slot === slot.slug)
-                  .flatMap((policy) =>
-                    Array.from(
-                      repository.graph.reverse.layerUsers.get(policy.layer) ??
-                        [],
-                    ),
-                  ),
-              ),
-            ),
+            adopters: projectStacks
+              .filter((projectStack) =>
+                [...projectStack.technologies, ...projectStack.policies].some(
+                  (use) => use.slot === slot.slug,
+                ),
+              )
+              .map((projectStack) => projectStack.project),
+            layerConsumers: projectStacks
+              .filter((projectStack) => {
+                const layers = new Set(projectStack.layers);
+                return manifest.policies.some(
+                  (policy) =>
+                    policy.slot === slot.slug && layers.has(policy.layer),
+                );
+              })
+              .map((projectStack) => projectStack.project),
             overrides: Array.from(
               repository.graph.reverse.slotOverrides.get(slot.slug) ?? [],
             ),

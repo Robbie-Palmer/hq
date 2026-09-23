@@ -329,9 +329,19 @@ function buildPlatformManifestSection(project: ProjectWithADRs): string[] {
             : selection.value;
         return `- ${selectedValue}: ${selection.lifecycleStatus}, ${selection.effectiveFrom} to ${until}; [decision](${decisionUrl})${origins}`;
       }),
-    ...(slot.users.length > 0
+    ...(slot.adopters.length > 0
       ? [
-          `- Users: ${slot.users
+          `- Adopters: ${slot.adopters
+            .map(
+              (slug) =>
+                `[${slug}](${markdownUrl(routePath("projects", slug))})`,
+            )
+            .join(", ")}`,
+        ]
+      : []),
+    ...(slot.layerConsumers.length > 0
+      ? [
+          `- Layer consumers: ${slot.layerConsumers
             .map(
               (slug) =>
                 `[${slug}](${markdownUrl(routePath("projects", slug))})`,

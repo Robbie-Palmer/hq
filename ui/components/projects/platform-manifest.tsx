@@ -167,12 +167,14 @@ export function PlatformManifest({
                     </li>
                   ))}
               </ol>
-              {(slot.users.length > 0 || slot.overrides.length > 0) && (
+              {(slot.adopters.length > 0 ||
+                slot.layerConsumers.length > 0 ||
+                slot.overrides.length > 0) && (
                 <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-                  {slot.users.length > 0 && (
+                  {slot.adopters.length > 0 && (
                     <p>
-                      Users:{" "}
-                      {slot.users.map((project, index) => (
+                      Adopters:{" "}
+                      {slot.adopters.map((project, index) => (
                         <span key={project}>
                           <Link
                             href={`/projects/${project}`}
@@ -180,7 +182,23 @@ export function PlatformManifest({
                           >
                             {project}
                           </Link>
-                          {index < slot.users.length - 1 ? ", " : "."}
+                          {index < slot.adopters.length - 1 ? ", " : "."}
+                        </span>
+                      ))}
+                    </p>
+                  )}
+                  {slot.layerConsumers.length > 0 && (
+                    <p>
+                      Layer consumers:{" "}
+                      {slot.layerConsumers.map((project, index) => (
+                        <span key={project}>
+                          <Link
+                            href={`/projects/${project}`}
+                            className="underline underline-offset-4"
+                          >
+                            {project}
+                          </Link>
+                          {index < slot.layerConsumers.length - 1 ? ", " : "."}
                         </span>
                       ))}
                     </p>
