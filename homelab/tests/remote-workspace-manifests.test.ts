@@ -944,6 +944,8 @@ test("the NixOS host publishes, prepares, and limits both workspace paths", () =
       'remote-development-k3s-${namespace}-${token_secret}-${doppler_config}',
     ),
   );
+  assert.ok(dopplerInstaller.includes("sha256sum -c -"));
+  assert.ok(dopplerInstaller.includes("| tr -d '\\r\\n'"));
   assert.ok(dopplerInstaller.includes("--from-file=serviceToken=/dev/stdin"));
   assert.ok(!dopplerInstaller.includes("token_file"));
 });

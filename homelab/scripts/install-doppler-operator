@@ -19,7 +19,7 @@ operator_file=$(mktemp)
 
 "${script_dir}/require-kube-context" "${expected_context}" cloud
 curl --fail --location --silent --show-error "${operator_url}" --output "${operator_file}"
-echo "${operator_sha256}  ${operator_file}" | sha256sum --check --status
+echo "${operator_sha256}  ${operator_file}" | sha256sum -c - >/dev/null
 kubectl apply --server-side --filename "${operator_file}"
 kubectl wait \
   --namespace doppler-operator-system \
@@ -62,6 +62,7 @@ for target in "$@"; do
     --config "${doppler_config}" \
     --access read \
     --plain \
+    | tr -d '\r\n' \
     | kubectl --namespace "${namespace}" create secret generic "${token_secret}" \
       --from-file=serviceToken=/dev/stdin \
       --dry-run=client \
