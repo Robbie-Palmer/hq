@@ -108,18 +108,20 @@ k3s kubectl --namespace t3-code get secret t3-code-preview-access --output=json 
 echo "operator preview Access credentials are present"
 k3s kubectl --namespace t3-code get secret t3-code-work-graph --output=json \
   | jq --exit-status '
-      .data
-      | keys == [
+      .data as $data
+      | [
           "WORK_GRAPH_API_URL",
           "WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS",
           "WORK_GRAPH_CF_ACCESS_CLIENT_ID",
           "WORK_GRAPH_CF_ACCESS_CLIENT_SECRET"
         ]
-        and all(
+      | all(
           .[];
-          type == "string"
-            and length > 0
-            and ((@base64d | length) > 0)
+          . as $key
+          | ($data[$key] // "")
+            | type == "string"
+              and length > 0
+              and ((@base64d | length) > 0)
         )
     ' >/dev/null
 echo "operator Work Graph credentials are present"

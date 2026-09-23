@@ -525,10 +525,7 @@ test("the pilot overlay renders two distinct workspaces", () => {
       0,
       "envFrom",
     ]),
-    [
-      { secretRef: { name: "t3-code-runtime", optional: true } },
-      { secretRef: { name: "t3-code-work-graph", optional: false } },
-    ],
+    [{ secretRef: { name: "t3-code-runtime", optional: true } }],
   );
   const operatorEnvironment = valueAt(operatorDeployment, [
     "spec",
@@ -555,6 +552,29 @@ test("the pilot overlay renders two distinct workspaces", () => {
           secretKeyRef: {
             key: name,
             name: "t3-code-preview-access",
+            optional: false,
+          },
+        },
+      },
+    );
+  }
+  for (const name of [
+    "WORK_GRAPH_API_URL",
+    "WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS",
+    "WORK_GRAPH_CF_ACCESS_CLIENT_ID",
+    "WORK_GRAPH_CF_ACCESS_CLIENT_SECRET",
+  ]) {
+    assert.deepEqual(
+      operatorEnvironment.find(
+        (entry) =>
+          typeof entry === "object" && entry !== null && entry.name === name,
+      ),
+      {
+        name,
+        valueFrom: {
+          secretKeyRef: {
+            key: name,
+            name: "t3-code-work-graph",
             optional: false,
           },
         },
@@ -920,7 +940,8 @@ test("the NixOS host publishes, prepares, and limits both workspace paths", () =
   );
   assert.ok(healthCheck.includes(".CF_ACCESS_CLIENT_ID"));
   assert.ok(healthCheck.includes(".CF_ACCESS_CLIENT_SECRET"));
-  assert.ok(healthCheck.includes('keys == [\n          "WORK_GRAPH_API_URL"'));
+  assert.ok(healthCheck.includes(".data as $data"));
+  assert.ok(healthCheck.includes('($data[$key] // "")'));
   assert.ok(healthCheck.includes('"WORK_GRAPH_CF_ACCESS_CLIENT_ID"'));
   assert.ok(healthCheck.includes('"WORK_GRAPH_CF_ACCESS_CLIENT_SECRET"'));
   assert.ok(healthCheck.includes("@base64d"));

@@ -88,7 +88,7 @@ export const resolveClientConfig = (
   const sharedClientId = environment.CF_ACCESS_CLIENT_ID;
   const sharedClientSecret = environment.CF_ACCESS_CLIENT_SECRET;
   if (
-    workGraphClientId === undefined &&
+    !workGraphClientId &&
     Boolean(sharedClientId) !== Boolean(sharedClientSecret)
   ) {
     throw usageError(
@@ -96,8 +96,8 @@ export const resolveClientConfig = (
     );
   }
 
-  const clientId = workGraphClientId ?? sharedClientId;
-  const clientSecret = workGraphClientSecret ?? sharedClientSecret;
+  const clientId = workGraphClientId || sharedClientId;
+  const clientSecret = workGraphClientSecret || sharedClientSecret;
 
   const configuredOrigins = [
     ...splitOrigins(environment.WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS),
