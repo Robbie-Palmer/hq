@@ -16,8 +16,9 @@ import {
 
 export function RecipeShoppingListButton({
   recipeSlug,
+  servings,
   userId,
-}: Readonly<{ recipeSlug: string; userId: string }>) {
+}: Readonly<{ recipeSlug: string; servings: number; userId: string }>) {
   const queryClient = useQueryClient();
   const queryKey = recipeQueryKeys.shoppingList(userId);
   const current = useQuery(shoppingListQuery(userId));
@@ -26,7 +27,13 @@ export function RecipeShoppingListButton({
       (recipe) => recipe.slug === recipeSlug,
     ) ?? false;
   const mutation = useMutation({
-    mutationFn: async ({ add }: { add: boolean }) => {
+    mutationFn: async ({
+      add,
+      selectedServings,
+    }: {
+      add: boolean;
+      selectedServings: number;
+    }) => {
       const latest = await queryClient.fetchQuery({
         ...shoppingListQuery(userId),
         staleTime: 0,
@@ -38,7 +45,10 @@ export function RecipeShoppingListButton({
         return { updated: latest, changed: false };
       }
       const recipes = add
-        ? [...latest.snapshot.recipes, { slug: recipeSlug }]
+        ? [
+            ...latest.snapshot.recipes,
+            { slug: recipeSlug, servings: selectedServings },
+          ]
         : latest.snapshot.recipes.filter(
             (recipe) => recipe.slug !== recipeSlug,
           );
@@ -100,7 +110,9 @@ export function RecipeShoppingListButton({
       variant="outline"
       disabled={isLoading || current.isError}
       aria-pressed={isOnShoppingList}
-      onClick={() => mutation.mutate({ add: !isOnShoppingList })}
+      onClick={() =>
+        mutation.mutate({ add: !isOnShoppingList, selectedServings: servings })
+      }
       className={
         isOnShoppingList
           ? "w-full border-[var(--sage)] bg-[var(--sage)]/10 text-[var(--sage)] hover:bg-[var(--sage)]/15 sm:w-auto"

@@ -519,6 +519,7 @@ export function RecipeContent({
             {shoppingListEnabled && authSession && (
               <RecipeShoppingListButton
                 recipeSlug={recipe.slug}
+                servings={portions}
                 userId={authSession.user.id}
               />
             )}

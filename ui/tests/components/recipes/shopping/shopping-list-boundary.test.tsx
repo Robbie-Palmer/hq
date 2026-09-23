@@ -177,13 +177,13 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
     ).toBe("1");
   });
 
-  it("keeps a recipe-page addition when the shopping route mounts", async () => {
+  it("keeps a recipe-page addition and its servings when the shopping route mounts", async () => {
     const updatedList = {
       ...storedList,
       revision: "1",
       snapshot: {
         ...emptySnapshot,
-        recipes: [{ slug: "weeknight" }],
+        recipes: [{ slug: "weeknight", servings: 4 }],
       },
     };
     mocks.saveCurrentShoppingList.mockResolvedValue(updatedList);
@@ -195,7 +195,11 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
     });
     const recipePage = render(
       <QueryClientProvider client={queryClient}>
-        <RecipeShoppingListButton recipeSlug="weeknight" userId="user-1" />
+        <RecipeShoppingListButton
+          recipeSlug="weeknight"
+          servings={4}
+          userId="user-1"
+        />
       </QueryClientProvider>,
     );
 
@@ -221,7 +225,9 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
     );
 
     expect(await screen.findByText("List ready")).toBeInTheDocument();
-    expect(getShoppingListSnapshot().recipes).toEqual([{ slug: "weeknight" }]);
+    expect(getShoppingListSnapshot().recipes).toEqual([
+      { slug: "weeknight", servings: 4 },
+    ]);
     expect(mocks.captureRecipeProductActivity).toHaveBeenCalledWith(
       "shopping_recipe_added",
       {
@@ -247,7 +253,11 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
     mocks.getCurrentShoppingList.mockResolvedValue(selectedList);
     mocks.saveCurrentShoppingList.mockResolvedValue(updatedList);
     renderWithQueryClient(
-      <RecipeShoppingListButton recipeSlug="weeknight" userId="user-1" />,
+      <RecipeShoppingListButton
+        recipeSlug="weeknight"
+        servings={2}
+        userId="user-1"
+      />,
     );
 
     fireEvent.click(
@@ -278,7 +288,11 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
       .mockResolvedValueOnce(storedList)
       .mockResolvedValue(remotelyUpdatedList);
     renderWithQueryClient(
-      <RecipeShoppingListButton recipeSlug="weeknight" userId="user-1" />,
+      <RecipeShoppingListButton
+        recipeSlug="weeknight"
+        servings={2}
+        userId="user-1"
+      />,
     );
 
     fireEvent.click(
@@ -297,7 +311,11 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
       new ApiError("Shopping list changed", 409),
     );
     renderWithQueryClient(
-      <RecipeShoppingListButton recipeSlug="weeknight" userId="user-1" />,
+      <RecipeShoppingListButton
+        recipeSlug="weeknight"
+        servings={2}
+        userId="user-1"
+      />,
     );
 
     fireEvent.click(
@@ -318,7 +336,11 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
   it("disables the recipe action when the shopping list cannot load", async () => {
     mocks.getCurrentShoppingList.mockRejectedValue(new Error("offline"));
     renderWithQueryClient(
-      <RecipeShoppingListButton recipeSlug="weeknight" userId="user-1" />,
+      <RecipeShoppingListButton
+        recipeSlug="weeknight"
+        servings={2}
+        userId="user-1"
+      />,
     );
 
     expect(
