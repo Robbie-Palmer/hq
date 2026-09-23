@@ -19,42 +19,56 @@ platform_layers:
   - layer: "governance"
     adopted: "2026-09-15T00:00:00Z"
     tracking: true
+    rationale: "The public service uses the shared repository's publication and licensing rules."
   - layer: "base"
     adopted: "2026-09-13T00:00:00Z"
     tracking: true
+    rationale: "The service uses the repository-wide development and delivery controls."
     slots:
       - slot: "secrets.runtime-store"
         adopted: "2026-09-15T00:00:00Z"
+        rationale: "The API and CLI need service and database credentials."
       - slot: "secrets.ci-store"
         adopted: "2026-09-15T00:00:00Z"
+        rationale: "Delivery workflows need deployment credentials."
   - layer: "backend-api"
     adopted: "2026-09-13T00:00:00Z"
     tracking: true
+    decision: "work-graph:003-rest-api-and-cli-first"
     slots:
       - slot: "backend-api.runtime"
         adopted: "2026-09-13T00:00:00Z"
+        rationale: "The REST service runs beside the existing Cloudflare-hosted applications."
   - layer: "database"
     adopted: "2026-09-13T00:00:00Z"
     tracking: true
+    decision: "work-graph:001-postgresql-coordination-boundary"
     slots:
       - slot: "database.relational-engine"
         adopted: "2026-09-13T00:00:00Z"
+        decision: "work-graph:001-postgresql-coordination-boundary"
       - slot: "database.relational-host"
         adopted: "2026-09-13T00:00:00Z"
+        rationale: "The coordination database needs a managed PostgreSQL host."
   - layer: "infrastructure"
     adopted: "2026-09-13T00:00:00Z"
     tracking: true
+    rationale: "The service owns managed database, access, and Worker resources."
     slots:
       - slot: "infrastructure.provisioner"
         adopted: "2026-09-13T00:00:00Z"
+        rationale: "Managed service resources are provisioned from checked-in configuration."
       - slot: "infrastructure.state-backend"
         adopted: "2026-09-15T00:00:00Z"
+        rationale: "Automated deployments require protected shared infrastructure state."
   - layer: "observability"
     adopted: "2026-09-13T00:00:00Z"
     tracking: true
+    rationale: "The coordination service needs application-level operational signals."
     slots:
       - slot: "observability.application-telemetry"
         adopted: "2026-09-13T00:00:00Z"
+        rationale: "API errors and work-state transitions need application telemetry."
 initiatives:
   - "semi-autonomous-software-development"
 ideas:

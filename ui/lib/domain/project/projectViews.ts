@@ -84,6 +84,8 @@ export type ProjectWithADRsView = {
     adopted: string;
     until?: string;
     tracking: boolean;
+    decision?: string;
+    rationale?: string;
   }>;
   platformTechnologies?: Array<
     TechnologyBadgeView & {
@@ -91,6 +93,11 @@ export type ProjectWithADRsView = {
       layer?: LayerSlug;
       slot?: string;
       decision?: string;
+      policyDecision?: string;
+      originProjects?: string[];
+      evidenceADRs?: string[];
+      adoptionDecision?: string;
+      adoptionRationale?: string;
     }
   >;
   platformPolicies?: Array<{
@@ -99,6 +106,11 @@ export type ProjectWithADRsView = {
     layer?: LayerSlug;
     slot?: string;
     decision?: string;
+    policyDecision?: string;
+    originProjects?: string[];
+    evidenceADRs?: string[];
+    adoptionDecision?: string;
+    adoptionRationale?: string;
   }>;
   platformManifest?: {
     layers: PlatformLayer[];

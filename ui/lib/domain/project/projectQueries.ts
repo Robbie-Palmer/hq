@@ -209,6 +209,9 @@ export function getProjectWithADRs(
     const explicitUse = layerUses.find(
       (use) => use.layer === layerSlug && isUseEffectiveAt(use, stack.at),
     );
+    const activatedUse = explicitUse
+      ? undefined
+      : getActivatedLayerTechnologyUse(repository, stack, layerSlug);
     return {
       slug: layerSlug,
       title:
@@ -219,6 +222,8 @@ export function getProjectWithADRs(
         getActivatedLayerAdoptionInstant(repository, stack, layerSlug),
       until: explicitUse?.until,
       tracking: explicitUse?.tracking ?? true,
+      decision: explicitUse?.decision ?? activatedUse?.adoptionDecision,
+      rationale: explicitUse?.rationale ?? activatedUse?.adoptionRationale,
     };
   });
   const seenPlatformTechnologies = new Set<string>();
@@ -244,6 +249,11 @@ export function getProjectWithADRs(
               layer: use.layer,
               slot: use.slot,
               decision: use.decision,
+              policyDecision: use.policyDecision,
+              originProjects: use.originProjects,
+              evidenceADRs: use.evidenceADRs,
+              adoptionDecision: use.adoptionDecision,
+              adoptionRationale: use.adoptionRationale,
             },
           ]
         : [];
@@ -254,6 +264,11 @@ export function getProjectWithADRs(
     layer: use.layer,
     slot: use.slot,
     decision: use.decision,
+    policyDecision: use.policyDecision,
+    originProjects: use.originProjects,
+    evidenceADRs: use.evidenceADRs,
+    adoptionDecision: use.adoptionDecision,
+    adoptionRationale: use.adoptionRationale,
   }));
   const platformManifest =
     manifest?.project === slug
@@ -316,11 +331,11 @@ export function getProjectWithADRs(
   };
 }
 
-function getActivatedLayerAdoptionInstant(
+function getActivatedLayerTechnologyUse(
   repository: DomainRepository,
   stack: EffectiveProjectStack,
   layerSlug: LayerSlug,
-): string {
+) {
   const manifest = repository.platform.manifest;
   const activation = manifest?.layers.find(
     (layer) => layer.slug === layerSlug,
@@ -337,6 +352,23 @@ function getActivatedLayerAdoptionInstant(
       `Cannot derive adoption time for platform layer '${layerSlug}'`,
     );
   }
+  return technologyUse;
+}
+
+function getActivatedLayerAdoptionInstant(
+  repository: DomainRepository,
+  stack: EffectiveProjectStack,
+  layerSlug: LayerSlug,
+): string {
+  const manifest = repository.platform.manifest;
+  if (!manifest) {
+    throw new Error("Cannot derive adoption time without a platform manifest");
+  }
+  const technologyUse = getActivatedLayerTechnologyUse(
+    repository,
+    stack,
+    layerSlug,
+  );
   const selection = manifest.selections.find(
     (candidate) => candidate.id === technologyUse.selection,
   );

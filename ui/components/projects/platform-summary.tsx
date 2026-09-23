@@ -8,6 +8,22 @@ type PlatformSummaryProps = Pick<
   "builtOn" | "platformPolicies" | "platformTechnologies"
 >;
 
+function adrHref(adrRef: string): string {
+  const [project, adr] = adrRef.split(":");
+  return `/projects/${project}/adrs/${adr}`;
+}
+
+function ADRLink({
+  adrRef,
+  label,
+}: Readonly<{ adrRef: string; label: string }>) {
+  return (
+    <Link href={adrHref(adrRef)} className="underline underline-offset-4">
+      {label}
+    </Link>
+  );
+}
+
 export function PlatformSummary({
   builtOn = [],
   platformPolicies = [],
@@ -30,40 +46,106 @@ export function PlatformSummary({
           </span>
         ))}
       </div>
+      <details className="mt-1 w-fit">
+        <summary className="cursor-pointer hover:text-foreground">
+          Adoption provenance
+        </summary>
+        <ul className="mt-1.5 space-y-1 pl-4">
+          {builtOn.map((layer) => (
+            <li key={layer.slug}>
+              <Link
+                href={`/projects/personal-engineering-platform#layer-${layer.slug}`}
+                className="text-foreground/80 underline underline-offset-4"
+              >
+                {layer.title}
+              </Link>
+              {layer.decision ? (
+                <>
+                  {": "}
+                  <ADRLink adrRef={layer.decision} label="adoption decision" />
+                </>
+              ) : (
+                `: ${layer.rationale}`
+              )}
+            </li>
+          ))}
+        </ul>
+      </details>
       {platformTechnologies.length > 0 && (
         <details className="mt-1 w-fit">
           <summary className="cursor-pointer hover:text-foreground">
             {platformTechnologies.length} platform technologies
           </summary>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
+          <ul className="mt-1.5 space-y-1.5">
             {platformTechnologies.map((technology) => {
               const hasIcon = hasTechIcon(technology.name, technology.iconSlug);
               return (
-                <Link
-                  key={`${technology.slot}:${technology.slug}`}
-                  href={`/technologies/${technology.slug}`}
-                >
-                  <Badge
-                    variant="secondary"
-                    interactive
-                    className="h-6 gap-1 px-2 text-xs"
-                  >
-                    {hasIcon && (
-                      <TechIcon
-                        name={technology.name}
-                        iconSlug={technology.iconSlug}
-                        className="size-3"
-                      />
+                <li key={`${technology.slot}:${technology.slug}`}>
+                  <Link href={`/technologies/${technology.slug}`}>
+                    <Badge
+                      variant="secondary"
+                      interactive
+                      className="h-6 gap-1 px-2 text-xs"
+                    >
+                      {hasIcon && (
+                        <TechIcon
+                          name={technology.name}
+                          iconSlug={technology.iconSlug}
+                          className="size-3"
+                        />
+                      )}
+                      {technology.name}
+                      <span className="sr-only">
+                        {` from ${technology.layer}, ${technology.source}`}
+                      </span>
+                    </Badge>
+                  </Link>{" "}
+                  <span>
+                    via {technology.slot}
+                    {technology.adoptionDecision ? (
+                      <>
+                        {", "}
+                        <ADRLink
+                          adrRef={technology.adoptionDecision}
+                          label="adoption"
+                        />
+                      </>
+                    ) : technology.adoptionRationale ? (
+                      `, adoption: ${technology.adoptionRationale}`
+                    ) : null}
+                    {technology.policyDecision && (
+                      <>
+                        {", "}
+                        <ADRLink
+                          adrRef={technology.policyDecision}
+                          label="policy"
+                        />
+                      </>
                     )}
-                    {technology.name}
-                    <span className="sr-only">
-                      {` from ${technology.layer}, ${technology.source}`}
-                    </span>
-                  </Badge>
-                </Link>
+                    {technology.decision && (
+                      <>
+                        {", "}
+                        <ADRLink adrRef={technology.decision} label="default" />
+                      </>
+                    )}
+                    {(technology.evidenceADRs?.length ?? 0) > 0 && (
+                      <>
+                        {", evidence "}
+                        {technology.evidenceADRs?.map((adrRef, index) => (
+                          <span key={adrRef}>
+                            <ADRLink adrRef={adrRef} label={adrRef} />
+                            {index < (technology.evidenceADRs?.length ?? 0) - 1
+                              ? ", "
+                              : ""}
+                          </span>
+                        ))}
+                      </>
+                    )}
+                  </span>
+                </li>
               );
             })}
-          </div>
+          </ul>
         </details>
       )}
       {platformPolicies.length > 0 && (
@@ -71,25 +153,65 @@ export function PlatformSummary({
           <summary className="cursor-pointer hover:text-foreground">
             {platformPolicies.length} platform policies
           </summary>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
+          <ul className="mt-1.5 space-y-1.5">
             {platformPolicies.map((policy) => (
-              <Link
-                key={`${policy.slot}:${policy.value}`}
-                href={`/projects/personal-engineering-platform#slot-${policy.slot}`}
-              >
-                <Badge
-                  variant="outline"
-                  interactive
-                  className="h-6 px-2 text-xs"
+              <li key={`${policy.slot}:${policy.value}`}>
+                <Link
+                  href={`/projects/personal-engineering-platform#slot-${policy.slot}`}
                 >
-                  {policy.value}
-                  <span className="sr-only">
-                    {` from ${policy.layer}, ${policy.source}`}
-                  </span>
-                </Badge>
-              </Link>
+                  <Badge
+                    variant="outline"
+                    interactive
+                    className="h-6 px-2 text-xs"
+                  >
+                    {policy.value}
+                    <span className="sr-only">
+                      {` from ${policy.layer}, ${policy.source}`}
+                    </span>
+                  </Badge>
+                </Link>{" "}
+                <span>
+                  via {policy.slot}
+                  {policy.adoptionDecision ? (
+                    <>
+                      {", "}
+                      <ADRLink
+                        adrRef={policy.adoptionDecision}
+                        label="adoption"
+                      />
+                    </>
+                  ) : policy.adoptionRationale ? (
+                    `, adoption: ${policy.adoptionRationale}`
+                  ) : null}
+                  {policy.policyDecision && (
+                    <>
+                      {", "}
+                      <ADRLink adrRef={policy.policyDecision} label="policy" />
+                    </>
+                  )}
+                  {policy.decision && (
+                    <>
+                      {", "}
+                      <ADRLink adrRef={policy.decision} label="default" />
+                    </>
+                  )}
+                  {(policy.evidenceADRs?.length ?? 0) > 0 && (
+                    <>
+                      {", evidence "}
+                      {policy.evidenceADRs?.map((adrRef, index) => (
+                        <span key={adrRef}>
+                          <ADRLink adrRef={adrRef} label={adrRef} />
+                          {index < (policy.evidenceADRs?.length ?? 0) - 1
+                            ? ", "
+                            : ""}
+                        </span>
+                      ))}
+                    </>
+                  )}
+                </span>
+              </li>
             ))}
-          </div>
+          </ul>
         </details>
       )}
     </section>

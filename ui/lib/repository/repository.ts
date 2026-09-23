@@ -602,11 +602,15 @@ export function loadProjects(): ProjectLoadResult {
           adopted: use.adopted,
           until: use.until,
           tracking: use.tracking,
+          decision: use.decision,
+          rationale: use.rationale,
           slots: Array.isArray(use.slots)
             ? use.slots.map((slot: Record<string, unknown>) => ({
                 slot: slot.slot,
                 adopted: slot.adopted,
                 until: slot.until,
+                decision: slot.decision,
+                rationale: slot.rationale,
               }))
             : [],
         })),
@@ -960,6 +964,7 @@ export function loadPlatformManifest(): PlatformManifest | undefined {
               kind: "policy",
               value: selection.value,
               originProjects: selection.origin_projects ?? [],
+              evidenceADRs: selection.evidence_adrs ?? [],
               effectiveFrom: selection.effective_from,
               effectiveUntil: selection.effective_until,
             }
@@ -968,6 +973,7 @@ export function loadPlatformManifest(): PlatformManifest | undefined {
               kind: "technology",
               technology: normalizeSlug(String(selection.technology)),
               originProjects: selection.origin_projects ?? [],
+              evidenceADRs: selection.evidence_adrs ?? [],
               effectiveFrom: selection.effective_from,
               effectiveUntil: selection.effective_until,
             },
@@ -1060,6 +1066,69 @@ function validatePlatformSelections(
         });
       }
     }
+    const evidenceProjects = new Set<ProjectSlug>();
+    for (const adrRef of selection.evidenceADRs) {
+      const adr = input.adrs.get(adrRef);
+      if (!adr) {
+        errors.push({
+          type: "missing_reference",
+          entity: `DefaultSelection[${selection.id}]`,
+          field: "evidenceADRs",
+          value: adrRef,
+          message: `Selection '${selection.id}' references missing evidence ADR '${adrRef}'`,
+        });
+        continue;
+      }
+      evidenceProjects.add(adr.projectSlug);
+      if (!selection.originProjects.includes(adr.projectSlug)) {
+        errors.push({
+          type: "invalid_reference",
+          entity: `DefaultSelection[${selection.id}]`,
+          field: "evidenceADRs",
+          value: adrRef,
+          message: `Selection '${selection.id}' evidence ADR '${adrRef}' does not belong to an origin project`,
+        });
+      }
+    }
+    for (const projectSlug of selection.originProjects) {
+      if (!evidenceProjects.has(projectSlug)) {
+        errors.push({
+          type: "invalid_reference",
+          entity: `DefaultSelection[${selection.id}]`,
+          field: "originProjects",
+          value: projectSlug,
+          message: `Selection '${selection.id}' has no evidence ADR from origin project '${projectSlug}'`,
+        });
+      }
+    }
+  }
+}
+
+function validateAdoptionDecision(
+  input: ValidationInput,
+  projectSlug: ProjectSlug,
+  entity: string,
+  decision: ADRRef | undefined,
+  errors: ReferentialIntegrityError[],
+): void {
+  if (!decision) return;
+  const adr = input.adrs.get(decision);
+  if (!adr) {
+    errors.push({
+      type: "missing_reference",
+      entity,
+      field: "decision",
+      value: decision,
+      message: `${entity} references missing adoption ADR '${decision}'`,
+    });
+  } else if (adr.projectSlug !== projectSlug) {
+    errors.push({
+      type: "invalid_reference",
+      entity,
+      field: "decision",
+      value: decision,
+      message: `${entity} adoption ADR '${decision}' belongs to project '${adr.projectSlug}'`,
+    });
   }
 }
 
@@ -1072,6 +1141,8 @@ function validateProjectLayerUse(
   slotSlugs: ReadonlySet<string>,
   errors: ReferentialIntegrityError[],
 ): void {
+  const entity = `Project[${projectSlug}].platformLayers[${use.layer}]`;
+  validateAdoptionDecision(input, projectSlug, entity, use.decision, errors);
   if (!layerSlugs.has(use.layer)) {
     errors.push({
       type: "missing_reference",
@@ -1091,6 +1162,13 @@ function validateProjectLayerUse(
     });
   }
   for (const slotUse of use.slots) {
+    validateAdoptionDecision(
+      input,
+      projectSlug,
+      `${entity}.slots[${slotUse.slot}]`,
+      slotUse.decision,
+      errors,
+    );
     if (!slotSlugs.has(slotUse.slot)) {
       errors.push({
         type: "missing_reference",

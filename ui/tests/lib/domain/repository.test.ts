@@ -51,6 +51,7 @@ vi.mock("@/content/experience", () => experienceContentMock);
 // Import after mocks are hoisted
 import * as fs from "node:fs";
 import { PlatformManifestSchema } from "@/lib/domain/platform";
+import { ProjectRelationsSchema } from "@/lib/domain/project/project";
 import {
   loadADRs,
   loadBlogPosts,
@@ -371,6 +372,7 @@ selections:
     status: Accepted
     effective_from: 2026-09-15T00:00:00Z
     decision: platform:001-language
+    evidence_adrs: [platform:001-language]
 `);
 
       const manifest = loadPlatformManifest();
@@ -1179,6 +1181,161 @@ Content`;
         expect(errors[0]?.field).toBe("project");
       });
 
+      it("rejects missing selection evidence and foreign adoption decisions", () => {
+        const platformManifest = PlatformManifestSchema.parse({
+          project: "platform",
+          layers: [
+            { slug: "base", title: "Base", description: "Shared defaults" },
+          ],
+          slots: [
+            {
+              slug: "tool.runner",
+              title: "Task runner",
+              description: "Runs project tasks",
+              rationale: "Several task runners can fill this role",
+            },
+          ],
+          policies: [
+            {
+              id: "base-runner",
+              layer: "base",
+              slot: "tool.runner",
+              mode: "required",
+              effectiveFrom: "2026-01-01T00:00:00Z",
+              decision: "platform:001-runner",
+              prerequisites: [],
+            },
+          ],
+          selections: [
+            {
+              id: "runner",
+              slot: "tool.runner",
+              technology: "task-runner",
+              status: "Accepted",
+              effectiveFrom: "2026-01-01T00:00:00Z",
+              decision: "platform:001-runner",
+              originProjects: ["source-project"],
+              evidenceADRs: ["source-project:999-missing"],
+            },
+          ],
+        });
+        const projects = new Map([
+          [
+            "platform",
+            {
+              slug: "platform",
+              title: "Platform",
+              description: "Desc",
+              date: "2026-01-01",
+              status: "live" as const,
+              content: "Content",
+            },
+          ],
+          [
+            "source-project",
+            {
+              slug: "source-project",
+              title: "Source",
+              description: "Desc",
+              date: "2026-01-01",
+              status: "live" as const,
+              content: "Content",
+            },
+          ],
+          [
+            "adopter",
+            {
+              slug: "adopter",
+              title: "Adopter",
+              description: "Desc",
+              date: "2026-01-01",
+              status: "live" as const,
+              content: "Content",
+            },
+          ],
+        ]);
+        const adrs = new Map([
+          [
+            "platform:001-runner",
+            {
+              adrRef: "platform:001-runner",
+              slug: "001-runner",
+              projectSlug: "platform",
+              title: "Choose runner",
+              date: "2026-01-01",
+              status: "Accepted" as const,
+              content: "Content",
+              readingTime: "1 min",
+            },
+          ],
+          [
+            "source-project:001-source",
+            {
+              adrRef: "source-project:001-source",
+              slug: "001-source",
+              projectSlug: "source-project",
+              title: "Source decision",
+              date: "2026-01-01",
+              status: "Accepted" as const,
+              content: "Content",
+              readingTime: "1 min",
+            },
+          ],
+        ]);
+        const projectRelations = new Map([
+          [
+            "adopter",
+            ProjectRelationsSchema.parse({
+              platformLayers: [
+                {
+                  layer: "base",
+                  adopted: "2026-01-01T00:00:00Z",
+                  tracking: true,
+                  decision: "source-project:001-source",
+                },
+              ],
+            }),
+          ],
+        ]);
+
+        const errors = validateReferentialIntegrity({
+          technologies: new Map([
+            [
+              "task-runner",
+              {
+                slug: "task-runner",
+                name: "Task runner",
+                website: "",
+                ideas: [],
+              },
+            ],
+          ]),
+          initiatives: new Map(),
+          adrs,
+          projects,
+          blogRelations: new Map(),
+          projectRelations,
+          adrRelations: new Map(),
+          roleRelations: new Map(),
+          platformManifest,
+        });
+
+        expect(errors).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: "missing_reference",
+              field: "evidenceADRs",
+              value: "source-project:999-missing",
+            }),
+            expect.objectContaining({
+              type: "invalid_reference",
+              field: "decision",
+              value: "source-project:001-source",
+            }),
+          ]),
+        );
+      });
+
       it("rejects a slot use outside its layer policy period", () => {
         const platformManifest = PlatformManifestSchema.parse({
           project: "platform",
@@ -1217,6 +1374,7 @@ Content`;
               effectiveUntil: "2026-01-02T00:00:00Z",
               decision: "platform:001-runner",
               originProjects: [],
+              evidenceADRs: ["platform:001-runner"],
             },
           ],
         });
