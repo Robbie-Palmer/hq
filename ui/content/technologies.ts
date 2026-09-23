@@ -431,6 +431,14 @@ Diff operations can set an edit-distance or time limit. The function returns no 
     type: "platform",
   },
   {
+    name: "Cloudflare Queues",
+    added: "2026-09-22",
+    description: "Managed message queues for asynchronous Worker processing",
+    website: "https://developers.cloudflare.com/queues/",
+    iconSlug: "cloudflare",
+    type: "platform",
+  },
+  {
     name: "Cloudflare Rulesets",
     added: "2026-01-11",
     description: "Rules for transforming and routing HTTP requests at the edge",
