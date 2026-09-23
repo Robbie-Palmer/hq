@@ -24,6 +24,22 @@ function ADRLink({
   );
 }
 
+function AdoptionProvenance({
+  decision,
+  rationale,
+}: Readonly<{ decision?: string; rationale?: string }>) {
+  if (decision) {
+    return (
+      <>
+        {", "}
+        <ADRLink adrRef={decision} label="adoption" />
+      </>
+    );
+  }
+  if (rationale) return <>{`, adoption: ${rationale}`}</>;
+  return null;
+}
+
 export function PlatformSummary({
   builtOn = [],
   platformPolicies = [],
@@ -102,17 +118,10 @@ export function PlatformSummary({
                   </Link>{" "}
                   <span>
                     via {technology.slot}
-                    {technology.adoptionDecision ? (
-                      <>
-                        {", "}
-                        <ADRLink
-                          adrRef={technology.adoptionDecision}
-                          label="adoption"
-                        />
-                      </>
-                    ) : technology.adoptionRationale ? (
-                      `, adoption: ${technology.adoptionRationale}`
-                    ) : null}
+                    <AdoptionProvenance
+                      decision={technology.adoptionDecision}
+                      rationale={technology.adoptionRationale}
+                    />
                     {technology.policyDecision && (
                       <>
                         {", "}
@@ -172,17 +181,10 @@ export function PlatformSummary({
                 </Link>{" "}
                 <span>
                   via {policy.slot}
-                  {policy.adoptionDecision ? (
-                    <>
-                      {", "}
-                      <ADRLink
-                        adrRef={policy.adoptionDecision}
-                        label="adoption"
-                      />
-                    </>
-                  ) : policy.adoptionRationale ? (
-                    `, adoption: ${policy.adoptionRationale}`
-                  ) : null}
+                  <AdoptionProvenance
+                    decision={policy.adoptionDecision}
+                    rationale={policy.adoptionRationale}
+                  />
                   {policy.policyDecision && (
                     <>
                       {", "}

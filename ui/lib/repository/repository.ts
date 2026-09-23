@@ -35,6 +35,7 @@ import {
   compareUtcInstants,
   type DefaultOverride,
   DefaultOverrideSchema,
+  type DefaultSelection,
   type PlatformManifest,
   PlatformManifestSchema,
   type ProjectLayerUse,
@@ -1055,51 +1056,67 @@ function validatePlatformSelections(
         "technology",
       );
     }
-    for (const projectSlug of selection.originProjects) {
-      if (!input.projects.has(projectSlug)) {
-        errors.push({
-          type: "missing_reference",
-          entity: `DefaultSelection[${selection.id}]`,
-          field: "originProjects",
-          value: projectSlug,
-          message: `Selection '${selection.id}' references missing origin project '${projectSlug}'`,
-        });
-      }
+    validateSelectionOrigins(input, selection, errors);
+    validateSelectionEvidence(input, selection, errors);
+  }
+}
+
+function validateSelectionOrigins(
+  input: ValidationInput,
+  selection: DefaultSelection,
+  errors: ReferentialIntegrityError[],
+): void {
+  for (const projectSlug of selection.originProjects) {
+    if (!input.projects.has(projectSlug)) {
+      errors.push({
+        type: "missing_reference",
+        entity: `DefaultSelection[${selection.id}]`,
+        field: "originProjects",
+        value: projectSlug,
+        message: `Selection '${selection.id}' references missing origin project '${projectSlug}'`,
+      });
     }
-    const evidenceProjects = new Set<ProjectSlug>();
-    for (const adrRef of selection.evidenceADRs) {
-      const adr = input.adrs.get(adrRef);
-      if (!adr) {
-        errors.push({
-          type: "missing_reference",
-          entity: `DefaultSelection[${selection.id}]`,
-          field: "evidenceADRs",
-          value: adrRef,
-          message: `Selection '${selection.id}' references missing evidence ADR '${adrRef}'`,
-        });
-        continue;
-      }
-      evidenceProjects.add(adr.projectSlug);
-      if (!selection.originProjects.includes(adr.projectSlug)) {
-        errors.push({
-          type: "invalid_reference",
-          entity: `DefaultSelection[${selection.id}]`,
-          field: "evidenceADRs",
-          value: adrRef,
-          message: `Selection '${selection.id}' evidence ADR '${adrRef}' does not belong to an origin project`,
-        });
-      }
+  }
+}
+
+function validateSelectionEvidence(
+  input: ValidationInput,
+  selection: DefaultSelection,
+  errors: ReferentialIntegrityError[],
+): void {
+  const evidenceProjects = new Set<ProjectSlug>();
+  for (const adrRef of selection.evidenceADRs) {
+    const adr = input.adrs.get(adrRef);
+    if (!adr) {
+      errors.push({
+        type: "missing_reference",
+        entity: `DefaultSelection[${selection.id}]`,
+        field: "evidenceADRs",
+        value: adrRef,
+        message: `Selection '${selection.id}' references missing evidence ADR '${adrRef}'`,
+      });
+      continue;
     }
-    for (const projectSlug of selection.originProjects) {
-      if (!evidenceProjects.has(projectSlug)) {
-        errors.push({
-          type: "invalid_reference",
-          entity: `DefaultSelection[${selection.id}]`,
-          field: "originProjects",
-          value: projectSlug,
-          message: `Selection '${selection.id}' has no evidence ADR from origin project '${projectSlug}'`,
-        });
-      }
+    evidenceProjects.add(adr.projectSlug);
+    if (!selection.originProjects.includes(adr.projectSlug)) {
+      errors.push({
+        type: "invalid_reference",
+        entity: `DefaultSelection[${selection.id}]`,
+        field: "evidenceADRs",
+        value: adrRef,
+        message: `Selection '${selection.id}' evidence ADR '${adrRef}' does not belong to an origin project`,
+      });
+    }
+  }
+  for (const projectSlug of selection.originProjects) {
+    if (!evidenceProjects.has(projectSlug)) {
+      errors.push({
+        type: "invalid_reference",
+        entity: `DefaultSelection[${selection.id}]`,
+        field: "originProjects",
+        value: projectSlug,
+        message: `Selection '${selection.id}' has no evidence ADR from origin project '${projectSlug}'`,
+      });
     }
   }
 }
