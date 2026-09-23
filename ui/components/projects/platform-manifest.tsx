@@ -8,6 +8,11 @@ import type { ProjectWithADRsView } from "@/lib/domain/project/projectViews";
 
 type Manifest = NonNullable<ProjectWithADRsView["platformManifest"]>;
 
+function adrHref(adrRef: string): string {
+  const [project, adr] = adrRef.split(":");
+  return `/projects/${project}/adrs/${adr}`;
+}
+
 export function PlatformManifest({
   manifest,
 }: Readonly<{ manifest: Manifest }>) {
@@ -120,14 +125,14 @@ export function PlatformManifest({
                           : " to present"}
                       </span>{" "}
                       <Link
-                        href={`/projects/${selection.decision.split(":")[0]}/adrs/${selection.decision.split(":")[1]}`}
+                        href={adrHref(selection.decision)}
                         className="underline underline-offset-4"
                       >
                         decision
                       </Link>
                       {selection.originProjects.length > 0 && (
                         <span className="text-muted-foreground">
-                          {" driven by "}
+                          {" originated in "}
                           {selection.originProjects.map((project, index) => (
                             <span key={project}>
                               <Link
@@ -143,6 +148,22 @@ export function PlatformManifest({
                           ))}
                         </span>
                       )}
+                      <span className="text-muted-foreground">
+                        {" with evidence "}
+                        {selection.evidenceADRs.map((adrRef, index) => (
+                          <span key={adrRef}>
+                            <Link
+                              href={adrHref(adrRef)}
+                              className="underline underline-offset-4"
+                            >
+                              {adrRef}
+                            </Link>
+                            {index < selection.evidenceADRs.length - 1
+                              ? ", "
+                              : ""}
+                          </span>
+                        ))}
+                      </span>
                     </li>
                   ))}
               </ol>

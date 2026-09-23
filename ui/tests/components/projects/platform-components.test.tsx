@@ -29,6 +29,12 @@ describe("project platform components", () => {
     expect(screen.getAllByRole("link", { name: "decision" })).toHaveLength(
       project.platformManifest.slots.flatMap((slot) => slot.selections).length,
     );
+    expect(
+      screen.getAllByRole("link", {
+        name: "personal-knowledge-graph:000-github-public-repo",
+      }).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText(/originated in/).length).toBeGreaterThan(0);
   });
 
   it("renders adopted layers and expandable platform technologies", () => {
@@ -47,7 +53,16 @@ describe("project platform components", () => {
     expect(screen.getByLabelText("Platform")).toHaveTextContent("Built on");
     expect(screen.getByText(/platform technologies/)).toBeVisible();
     expect(screen.getByText(/platform policies/)).toBeVisible();
+    expect(screen.getByText("Adoption provenance")).toBeVisible();
     expect(screen.getByText("AGPL-3.0")).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("link", { name: "adoption" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole("link", {
+        name: "recipe-site:033-backend-platform-for-authenticated-features",
+      }).length,
+    ).toBeGreaterThan(0);
     expect(container.querySelectorAll("a").length).toBeGreaterThan(1);
   });
 

@@ -88,6 +88,7 @@ const DefaultSelectionFieldsSchema = TemporalPeriodSchema.extend({
   status: z.enum(["Proposed", "Accepted", "Rejected", "Deprecated"]),
   decision: ADRRefSchema,
   originProjects: z.array(ProjectSlugSchema).default([]),
+  evidenceADRs: z.array(ADRRefSchema).min(1),
   supersedes: z.string().min(1).optional(),
 });
 
@@ -394,16 +395,34 @@ export function getDefaultSelectionValue(selection: DefaultSelection): string {
     : selection.value;
 }
 
+const AdoptionDecisionFieldsSchema = z
+  .object({
+    decision: ADRRefSchema.optional(),
+    rationale: z.string().min(1).optional(),
+  })
+  .refine(
+    ({ decision, rationale }) =>
+      (decision === undefined) !== (rationale === undefined),
+    { message: "Provide exactly one of decision or rationale" },
+  );
+
 export const ProjectSlotUseSchema = z
   .object({
     slot: DefaultSlotSlugSchema,
     adopted: UtcInstantSchema,
     until: UtcInstantSchema.optional(),
+    decision: ADRRefSchema.optional(),
+    rationale: z.string().min(1).optional(),
   })
   .refine(
     ({ adopted, until }) =>
       until === undefined || compareUtcInstants(adopted, until) < 0,
     { message: "until must be later than adopted" },
+  )
+  .refine(
+    ({ decision, rationale }) =>
+      AdoptionDecisionFieldsSchema.safeParse({ decision, rationale }).success,
+    { message: "Provide exactly one of decision or rationale" },
   );
 
 export const ProjectLayerUseSchema = z
@@ -413,6 +432,8 @@ export const ProjectLayerUseSchema = z
     until: UtcInstantSchema.optional(),
     tracking: z.boolean(),
     slots: z.array(ProjectSlotUseSchema).default([]),
+    decision: ADRRefSchema.optional(),
+    rationale: z.string().min(1).optional(),
   })
   .refine(
     ({ adopted, until }) =>
@@ -422,6 +443,11 @@ export const ProjectLayerUseSchema = z
   .refine(({ tracking, until }) => tracking || until !== undefined, {
     message: "A non-tracking layer use must have an until instant",
   })
+  .refine(
+    ({ decision, rationale }) =>
+      AdoptionDecisionFieldsSchema.safeParse({ decision, rationale }).success,
+    { message: "Provide exactly one of decision or rationale" },
+  )
   .superRefine((use, context) => {
     for (const slotUse of use.slots) {
       if (compareUtcInstants(slotUse.adopted, use.adopted) < 0) {
