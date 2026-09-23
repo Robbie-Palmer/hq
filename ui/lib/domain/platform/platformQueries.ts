@@ -35,6 +35,11 @@ interface EffectiveDefaultUseBase {
   policy?: string;
   selection?: string;
   decision?: ADRRef;
+  policyDecision?: ADRRef;
+  originProjects?: ProjectSlug[];
+  evidenceADRs?: ADRRef[];
+  adoptionDecision?: ADRRef;
+  adoptionRationale?: string;
 }
 
 export interface EffectiveTechnologyUse extends EffectiveDefaultUseBase {
@@ -158,6 +163,27 @@ function hasPreferredSlotUse(
     .some((use) => use.slot === policy.slot && isUseEffectiveAt(use, instant));
 }
 
+function getAdoptionProvenance(
+  policy: LayerSlotPolicy,
+  effectiveUses: ProjectLayerUse[],
+  instant: string,
+): Pick<EffectiveDefaultUseBase, "adoptionDecision" | "adoptionRationale"> {
+  const layerUse = effectiveUses.find(
+    (use) => use.layer === policy.layer && isUseEffectiveAt(use, instant),
+  );
+  const slotUse =
+    policy.mode === "preferred"
+      ? layerUse?.slots.find(
+          (use) => use.slot === policy.slot && isUseEffectiveAt(use, instant),
+        )
+      : undefined;
+  const adoption = slotUse ?? layerUse;
+  return {
+    adoptionDecision: adoption?.decision,
+    adoptionRationale: adoption?.rationale,
+  };
+}
+
 function defaultSource(
   policy: LayerSlotPolicy,
   hasOverride: boolean,
@@ -205,16 +231,25 @@ function resolvePolicy(
                   value: selection.technology,
                   decision: selection.decision,
                   selection: selection.id,
+                  originProjects: selection.originProjects,
+                  evidenceADRs: selection.evidenceADRs,
                 }
               : {
                   kind: "policy" as const,
                   value: selection.value,
                   decision: selection.decision,
                   selection: selection.id,
+                  originProjects: selection.originProjects,
+                  evidenceADRs: selection.evidenceADRs,
                 },
         );
   const resolved = state.resolvedSlots.get(policy.slot);
   const candidateValues = new Set<string>();
+  const adoption = getAdoptionProvenance(
+    policy,
+    state.effectiveUses,
+    state.instant,
+  );
   return candidates
     .filter((candidate) => {
       if (
@@ -231,6 +266,8 @@ function resolvePolicy(
       layer: policy.layer,
       slot: policy.slot,
       policy: policy.id,
+      policyDecision: policy.decision,
+      ...adoption,
     }));
 }
 

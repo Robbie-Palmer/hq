@@ -53,6 +53,7 @@ function sameDayManifest(linkReplacement = true): PlatformManifest {
         effectiveUntil: "2026-09-12T12:00:00Z",
         decision: "platform:000-runner",
         originProjects: [],
+        evidenceADRs: ["platform:000-runner"],
       },
       {
         id: "runner-new",
@@ -63,6 +64,7 @@ function sameDayManifest(linkReplacement = true): PlatformManifest {
         effectiveFrom: "2026-09-12T12:00:00Z",
         decision: "platform:001-new-runner",
         originProjects: [],
+        evidenceADRs: ["platform:001-new-runner"],
         ...(linkReplacement ? { supersedes: "runner-old" } : {}),
       },
     ],
@@ -124,6 +126,23 @@ describe("temporal platform layers", () => {
     ).toBe(true);
   });
 
+  it("requires exact evidence ADRs for every default selection", () => {
+    const manifest = sameDayManifest();
+    const selection = manifest.selections[0];
+    expect(selection).toBeDefined();
+    if (!selection) return;
+    manifest.selections[0] = { ...selection, evidenceADRs: [] };
+
+    const result = PlatformManifestSchema.safeParse(manifest);
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual([
+      "selections",
+      0,
+      "evidenceADRs",
+    ]);
+  });
+
   it("rejects prerequisite selections outside the policy period", () => {
     const manifest = sameDayManifest();
     manifest.slots.push({
@@ -145,6 +164,7 @@ describe("temporal platform layers", () => {
       effectiveUntil: "2026-09-12T08:00:00Z",
       decision: "platform:000-database",
       originProjects: [],
+      evidenceADRs: ["platform:000-database"],
     });
     const policy = manifest.policies[0];
     expect(policy).toBeDefined();
@@ -248,6 +268,7 @@ describe("temporal platform layers", () => {
         adopted: "2026-09-12T12:00:00Z",
         until: "2026-09-12T12:00:00.500Z",
         tracking: false,
+        rationale: "Fixture adopts the base layer.",
       }).success,
     ).toBe(true);
     expect(
@@ -268,6 +289,35 @@ describe("temporal platform layers", () => {
     expect(() =>
       compareUtcInstants("not-an-instant", "2026-09-12T12:00:00Z"),
     ).toThrow("Invalid RFC 3339 UTC instant");
+  });
+
+  it("requires one adoption decision or rationale", () => {
+    const baseUse = {
+      layer: "base",
+      adopted: "2026-09-12T12:00:00Z",
+      tracking: true,
+    };
+
+    expect(
+      ProjectLayerUseSchema.safeParse({
+        ...baseUse,
+        decision: "project:001-adopt-platform",
+      }).success,
+    ).toBe(true);
+    expect(
+      ProjectLayerUseSchema.safeParse({
+        ...baseUse,
+        rationale: "The project uses the shared delivery controls.",
+      }).success,
+    ).toBe(true);
+    expect(ProjectLayerUseSchema.safeParse(baseUse).success).toBe(false);
+    expect(
+      ProjectLayerUseSchema.safeParse({
+        ...baseUse,
+        decision: "project:001-adopt-platform",
+        rationale: "Duplicate explanation",
+      }).success,
+    ).toBe(false);
   });
 
   it("resolves required, preferred, and overridden technologies", () => {
@@ -316,6 +366,18 @@ describe("temporal platform layers", () => {
     expect(recipe.technologies.map((use) => use.technology)).not.toContain(
       "duckdb",
     );
+    expect(
+      recipe.technologies.find((use) => use.technology === "postgresql"),
+    ).toMatchObject({
+      adoptionDecision:
+        "recipe-site:033-backend-platform-for-authenticated-features",
+      policyDecision: "personal-engineering-platform:005-database-defaults",
+      decision: "personal-engineering-platform:005-database-defaults",
+      originProjects: ["recipe-site"],
+      evidenceADRs: [
+        "recipe-site:033-backend-platform-for-authenticated-features",
+      ],
+    });
 
     const python = resolveEffectiveProjectStack(
       repository,
@@ -347,6 +409,9 @@ describe("temporal platform layers", () => {
     expect(
       recipe?.builtOn?.find((layer) => layer.slug === "typescript")?.adopted,
     ).toBe("2026-09-12T00:00:00Z");
+    expect(
+      recipe?.builtOn?.find((layer) => layer.slug === "database")?.decision,
+    ).toBe("recipe-site:033-backend-platform-for-authenticated-features");
     expect(
       writing?.builtOn?.find((layer) => layer.slug === "python")?.adopted,
     ).toBe("2026-09-12T00:00:00Z");
@@ -670,6 +735,7 @@ describe("temporal platform layers", () => {
       effectiveFrom: "2026-10-01T00:00:00Z",
       decision: "personal-engineering-platform:001-language-defaults",
       originProjects: [],
+      evidenceADRs: ["personal-engineering-platform:001-language-defaults"],
       supersedes: previousId,
     };
     const repositoryAfterReplacement = {
@@ -749,6 +815,7 @@ describe("temporal platform layers", () => {
       effectiveFrom: "2026-10-01T00:00:00Z",
       decision: "personal-engineering-platform:002-cloudflare-workers",
       originProjects: [],
+      evidenceADRs: ["personal-engineering-platform:002-cloudflare-workers"],
       supersedes: previousId,
     };
     const previous = manifest.selections.find(

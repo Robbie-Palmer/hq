@@ -20,40 +20,53 @@ platform_layers:
   - layer: "governance"
     adopted: "2026-09-15T00:00:00Z"
     tracking: true
+    rationale: "The public service uses the shared repository's publication and licensing rules."
   - layer: "base"
     adopted: "2026-09-12T00:00:00Z"
     tracking: true
+    rationale: "The service uses the repository-wide development and delivery controls."
     slots:
       - slot: "secrets.runtime-store"
         adopted: "2026-09-15T00:00:00Z"
+        rationale: "The deployed service needs model-provider and infrastructure credentials."
       - slot: "secrets.ci-store"
         adopted: "2026-09-15T00:00:00Z"
+        rationale: "Delivery workflows need a bounded route to deployment credentials."
   - layer: "backend-api"
     adopted: "2026-09-12T00:00:00Z"
     tracking: true
+    decision: "agentic-code-review:032-stateful-ai-code-review"
     slots:
       - slot: "backend-api.runtime"
         adopted: "2026-09-12T00:00:00Z"
+        decision: "agentic-code-review:032-stateful-ai-code-review"
   - layer: "database"
     adopted: "2026-09-12T00:00:00Z"
     tracking: true
+    decision: "agentic-code-review:033-duckdb-ai-review-scorecard"
     slots:
       - slot: "database.olap-engine"
         adopted: "2026-09-12T00:00:00Z"
+        decision: "agentic-code-review:033-duckdb-ai-review-scorecard"
   - layer: "infrastructure"
     adopted: "2026-09-12T00:00:00Z"
     tracking: true
+    rationale: "The service owns managed Cloudflare resources that need reviewable provisioning."
     slots:
       - slot: "infrastructure.provisioner"
         adopted: "2026-09-12T00:00:00Z"
+        rationale: "Managed service resources are provisioned from checked-in configuration."
       - slot: "infrastructure.state-backend"
         adopted: "2026-09-15T00:00:00Z"
+        rationale: "CI deployments require protected shared infrastructure state."
   - layer: "observability"
     adopted: "2026-09-12T00:00:00Z"
     tracking: true
+    rationale: "The live review service needs application-level operational signals."
     slots:
       - slot: "observability.application-telemetry"
         adopted: "2026-09-12T00:00:00Z"
+        rationale: "Review requests and failures need application telemetry."
 ---
 
 # Vision
