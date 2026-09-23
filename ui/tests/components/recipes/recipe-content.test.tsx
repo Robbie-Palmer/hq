@@ -5,8 +5,6 @@ import { RecipeContent } from "@/components/recipes/recipe-content";
 import { CookModeProvider } from "@/contexts/cook-mode-context";
 import type { RecipeDetailView } from "@/lib/domain/recipe/recipeViews";
 import { preferenceForSystem } from "@/lib/domain/recipe/unit";
-import { getShoppingListSnapshot } from "@/lib/shopping/shoppingListStore";
-import { __resetShoppingListForTests } from "@/tests/support/recipe-state";
 
 const mocks = vi.hoisted(() => ({
   captureRecipeProductActivity: vi.fn(),
@@ -63,6 +61,12 @@ vi.mock("@/lib/api/cooking-insights", () => ({
   recordCookingSession: mocks.recordCookingSession,
 }));
 
+vi.mock("@/components/recipes/recipe-shopping-list-button", () => ({
+  RecipeShoppingListButton: () => (
+    <button type="button">Add to shopping list</button>
+  ),
+}));
+
 vi.mock("@/lib/analytics/recipe-product", () => ({
   captureRecipeProductActivity: mocks.captureRecipeProductActivity,
   captureRecipeValue: mocks.captureRecipeValue,
@@ -85,8 +89,6 @@ const recipe: RecipeDetailView = {
 
 describe("RecipeContent", () => {
   beforeEach(() => {
-    __resetShoppingListForTests();
-    localStorage.clear();
     mocks.captureRecipeProductActivity.mockClear();
     mocks.captureRecipeValue.mockClear();
     mocks.setUnitPreference.mockClear();
@@ -147,22 +149,12 @@ describe("RecipeContent", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("adds and removes the recipe from the shopping list", async () => {
-    const user = userEvent.setup();
+  it("offers to add a saved recipe to the shopping list", () => {
     render(<RecipeContent recipe={recipe} />);
 
-    await user.click(
-      screen.getByRole("button", { name: "Add to shopping list" }),
-    );
-
-    expect(getShoppingListSnapshot().recipes).toEqual([{ slug: "weeknight" }]);
     expect(
-      screen.getByRole("button", { name: "On shopping list" }),
-    ).toHaveAttribute("aria-pressed", "true");
-
-    await user.click(screen.getByRole("button", { name: "On shopping list" }));
-
-    expect(getShoppingListSnapshot().recipes).toEqual([]);
+      screen.getByRole("button", { name: "Add to shopping list" }),
+    ).toBeInTheDocument();
   });
 
   it("retains native list markers for Safari accessibility", () => {

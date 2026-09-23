@@ -10,7 +10,6 @@ import {
   Loader2,
   Minus,
   Plus,
-  ShoppingBasket,
   Timer,
   Users,
 } from "lucide-react";
@@ -25,6 +24,7 @@ import {
 import { DietWarning } from "@/components/recipes/diet-notice";
 import { useDiet } from "@/components/recipes/diet-provider";
 import { InlineTimer } from "@/components/recipes/inline-timer";
+import { RecipeShoppingListButton } from "@/components/recipes/recipe-shopping-list-button";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -32,7 +32,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useScaledRecipe } from "@/hooks/use-scaled-recipe";
-import { useShoppingList } from "@/hooks/use-shopping-list";
 import { useUnitPreference } from "@/hooks/use-unit-preference";
 import {
   captureRecipeProductActivity,
@@ -62,7 +61,6 @@ import {
   type MeasurementSystem,
   preferenceForSystem,
 } from "@/lib/domain/recipe/unit";
-import { toggleRecipe } from "@/lib/shopping/shoppingListStore";
 
 function IngredientGroup({
   group,
@@ -229,10 +227,6 @@ export function RecipeContent({
   const { diet, matchRecipe } = useDiet();
   const { data: authSession, isPending: authSessionPending } =
     authClient.useSession();
-  const shoppingList = useShoppingList();
-  const isOnShoppingList = shoppingList.recipes.some(
-    (entry) => entry.slug === recipe.slug,
-  );
   const dietMatch = useMemo(
     () =>
       matchRecipe({
@@ -523,25 +517,10 @@ export function RecipeContent({
           (shoppingListEnabled && Boolean(authSession))) && (
           <div className="mb-4 flex flex-wrap gap-2">
             {shoppingListEnabled && authSession && (
-              <Button
-                type="button"
-                size="lg"
-                variant="outline"
-                aria-pressed={isOnShoppingList}
-                onClick={() => toggleRecipe(recipe.slug)}
-                className={
-                  isOnShoppingList
-                    ? "w-full border-[var(--sage)] bg-[var(--sage)]/10 text-[var(--sage)] hover:bg-[var(--sage)]/15 sm:w-auto"
-                    : "w-full border-[var(--line-strong)] text-[var(--ink-2)] hover:border-[var(--terracotta)] hover:text-[var(--terracotta)] sm:w-auto"
-                }
-              >
-                {isOnShoppingList ? (
-                  <Check className="size-5" />
-                ) : (
-                  <ShoppingBasket className="size-5" />
-                )}
-                {isOnShoppingList ? "On shopping list" : "Add to shopping list"}
-              </Button>
+              <RecipeShoppingListButton
+                recipeSlug={recipe.slug}
+                userId={authSession.user.id}
+              />
             )}
             {cookSteps.length > 0 && (
               <Button
