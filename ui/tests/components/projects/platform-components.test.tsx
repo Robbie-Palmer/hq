@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { PlatformManifest } from "@/components/projects/platform-manifest";
 import { PlatformSummary } from "@/components/projects/platform-summary";
@@ -36,6 +36,47 @@ describe("project platform components", () => {
       }).length,
     ).toBeGreaterThan(0);
     expect(screen.getAllByText(/originated in/).length).toBeGreaterThan(0);
+  });
+
+  it("keeps adopters and layer consumers under their labels", () => {
+    const project = getProjectWithADRs(
+      loadDomainRepository(),
+      "personal-engineering-platform",
+    );
+    expect(project?.platformManifest).toBeDefined();
+    if (!project?.platformManifest) return;
+    const slot = project.platformManifest.slots.find(
+      (candidate) => candidate.slug === "backend-api.runtime",
+    );
+    expect(slot).toBeDefined();
+    if (!slot) return;
+
+    render(
+      <PlatformManifest
+        manifest={{
+          ...project.platformManifest,
+          slots: [
+            {
+              ...slot,
+              selections: [],
+              adopters: ["adopter-fixture"],
+              layerConsumers: ["layer-consumer-fixture"],
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(
+      within(screen.getByText(/Adopters:/)).getByRole("link", {
+        name: "adopter-fixture",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByText(/Layer consumers:/)).getByRole("link", {
+        name: "layer-consumer-fixture",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("renders adopted layers and expandable platform technologies", () => {
