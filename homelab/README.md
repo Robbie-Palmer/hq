@@ -55,6 +55,14 @@ read-only Doppler token. Keep only `CF_ACCESS_CLIENT_ID`,
 task stores that token as `t3-code/doppler-agent-token`; the pilot namespace
 does not receive it.
 
+Work Graph access uses another read-only token, scoped to
+`work-graph/prd_work_graph`. The operator selects only the API URL, allowed
+origin, and Access client pair from that config. It renames the Access pair to
+the Work Graph-specific environment variables before injecting them into the
+operator workspace. The workload never receives the Doppler service token or
+the database and infrastructure credentials held in the same config. The
+pilot namespace does not receive Work Graph access.
+
 Build the host, encrypt the empty volume, and install NixOS while Terraform's
 single bootstrap SSH CIDR is active:
 

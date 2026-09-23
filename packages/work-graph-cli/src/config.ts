@@ -77,13 +77,27 @@ export const resolveClientConfig = (
   }
   if (!apiUrl.pathname.endsWith("/")) apiUrl.pathname += "/";
 
-  const clientId = environment.CF_ACCESS_CLIENT_ID;
-  const clientSecret = environment.CF_ACCESS_CLIENT_SECRET;
-  if (Boolean(clientId) !== Boolean(clientSecret)) {
+  const workGraphClientId = environment.WORK_GRAPH_CF_ACCESS_CLIENT_ID;
+  const workGraphClientSecret = environment.WORK_GRAPH_CF_ACCESS_CLIENT_SECRET;
+  if (Boolean(workGraphClientId) !== Boolean(workGraphClientSecret)) {
+    throw usageError(
+      "WORK_GRAPH_CF_ACCESS_CLIENT_ID and WORK_GRAPH_CF_ACCESS_CLIENT_SECRET must be set together.",
+    );
+  }
+
+  const sharedClientId = environment.CF_ACCESS_CLIENT_ID;
+  const sharedClientSecret = environment.CF_ACCESS_CLIENT_SECRET;
+  if (
+    !workGraphClientId &&
+    Boolean(sharedClientId) !== Boolean(sharedClientSecret)
+  ) {
     throw usageError(
       "CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET must be set together.",
     );
   }
+
+  const clientId = workGraphClientId || sharedClientId;
+  const clientSecret = workGraphClientSecret || sharedClientSecret;
 
   const configuredOrigins = [
     ...splitOrigins(environment.WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS),

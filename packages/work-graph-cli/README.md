@@ -83,6 +83,11 @@ export CF_ACCESS_CLIENT_SECRET=secret
 export WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS=https://work-graph.example.com
 ```
 
+Shared runtimes that already use the generic Access variables for another
+service can set `WORK_GRAPH_CF_ACCESS_CLIENT_ID` and
+`WORK_GRAPH_CF_ACCESS_CLIENT_SECRET` instead. The Work Graph-specific pair
+takes precedence when both pairs are present.
+
 The allowlist accepts comma-separated exact origins. You can also repeat
 `--cf-access-allowed-origin <origin>` before the command. When credentials are
 present, the CLI refuses to make a request unless the API origin appears in
