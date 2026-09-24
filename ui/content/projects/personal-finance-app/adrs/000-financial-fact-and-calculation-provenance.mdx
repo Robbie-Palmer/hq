@@ -53,9 +53,18 @@ status. A file import stores or references the exact encrypted source artifact. 
 stores the canonical response artifact or a bounded signed response record when retaining the full
 response is not permitted.
 
-The API scopes command idempotency keys to a household and operation. Retrying the same command
-returns the original import, facts, and result. Within an import, the artifact hash, parser version,
-and source locator identify one parsed input. Replaying that input must not create another fact.
+The API scopes command idempotency keys to a household and operation and stores a SHA-256 fingerprint
+of the canonical command envelope. Reusing a key with the same fingerprint returns the original
+import, facts, and result. Reusing it with a different fingerprint returns HTTP `409 Conflict` with
+the stable error code `IDEMPOTENCY_KEY_REUSED` and the original import ID; it never accepts the new
+content. Within an import, the artifact hash, parser version, and source locator identify one parsed
+input. Replaying that input must not create another fact.
+
+Reprocessing the same artifact and source locator with a new parser version creates a new import run,
+not a duplicate of the earlier run. The run must atomically account for every previously current fact
+from that source location: reuse it when the interpretation is identical, supersede it with the new
+fact when the interpretation changed, or reverse it when the corrected parser no longer emits it.
+The run fails if it would leave both interpretations current.
 
 If a provider reuses a source identifier with different content, record a new source artifact and
 fact, then link the new fact to the earlier one as a supersession. Do not silently replace the old
@@ -73,9 +82,12 @@ Changes create new facts and typed links to earlier facts:
 | Supersession | A later provider version or interpretation replaces the target without claiming that its original capture was erroneous |
 
 A link must stay within one household, target an earlier recorded fact of a compatible type, and
-must not create a cycle. One fact cannot both correct and reverse the same target. A current-state
-projection follows the applicable correction and supersession chain and excludes reversed effects.
-An as-known query applies only links recorded on or before its recorded-time cutoff.
+must not create a cycle. Accept adjustments serially at the active tip of a fact's adjustment chain.
+Each fact can have at most one directly accepted correction, reversal, or supersession; a later
+adjustment targets the resulting tip instead of the original fact. A concurrent request against a
+stale tip fails with a domain conflict. A current-state projection follows the single applicable
+chain and excludes reversed effects. An as-known query applies only links recorded on or before its
+recorded-time cutoff.
 
 ### Record lineage for derived values
 
@@ -136,11 +148,12 @@ or lineage link must not allow a caller to infer another household's records.
 1. A fact effective on 31 January and recorded on 4 February appears in a current query but not in
    an as-known query cut off on 3 February.
 2. Replaying the same command or import with the same idempotency key returns the original IDs and
-   creates no additional facts. Replaying an imported artifact with the same parser version and
-   source locator also creates no additional fact.
+   creates no additional facts. Reusing the key with different content returns the defined conflict.
+   Replaying an imported artifact with the same parser version and source locator creates no
+   additional fact; processing it with a new parser version leaves only one interpretation current.
 3. A correction, reversal, and provider supersession each retain the target fact and produce the
    expected current and as-known projections. Invalid cross-household, forward, and cyclic links are
-   rejected.
+   rejected, as is a competing adjustment that targets a stale tip.
 4. A multi-currency net-worth value can be traced to every balance fact and exact exchange-rate fact,
    including each source identifier, artifact hash, algorithm version, and rounding rule.
 5. A tax estimate identifies the exact rule-set version, jurisdiction, tax period, implementation
