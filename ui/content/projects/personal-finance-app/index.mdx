@@ -3,6 +3,7 @@ title: "Personal Finance App"
 description: "Data-entry-first financial planning, the missing tool between budgeting apps and advisor software"
 date: "2026-01-11"
 status: "idea"
+updated: "2026-09-23"
 initiatives:
   - "digital-twins-for-everyday-life"
 ---
@@ -236,24 +237,34 @@ raised $30M+ for startup FP\&A.
 * **Right intersection of skills:** Deep experience in startups and project management, combined with genuine personal interest in finance and a track record of building products
 * **Runway to commit:** Personal financial position allows full commitment to this, versus 6 years ago when the idea first emerged but the skillset and runway weren't there
 
-# Architectural Focus
+# Architecture
 
-## Cloudflare-native stack
+## Current prototype
 
-Built on Cloudflare's platform to align with the existing personal site infrastructure
-and optimise for edge-first performance:
+The live Asset Tracker is a statically exported Next.js application on Cloudflare Pages. Its domain commands run
+entirely in the browser, and each browser stores its own state in local storage. JSON and CSV import/export provide
+the only persistence boundary beyond that browser. There is no product backend, shared database, user identity, or
+object storage in the current version.
 
-* **Compute:** Cloudflare Workers, serverless, globally distributed, minimal cold starts
-* **Database:** D1 (SQLite-based), relational modelling for entities, accounts, and time-series entries
-* **Static hosting:** Cloudflare Pages for the frontend
-* **Storage:** R2 for any asset/document storage (receipts, statements)
+That constraint keeps the first-user experiment cheap and private, but it cannot support shared households,
+cross-device continuity, account recovery, or server-managed backups.
 
-### Why Cloudflare
+## Target architecture
 
-* Already the stack for this site. Reduces operational surface area
-* Generous free tier aligns with the freemium model economics (low cost to serve free users)
-* D1's SQLite foundation opens a path to future local-first/offline support if desired
-* Edge-first means low latency globally without infrastructure management
+The shared version will use the existing platform defaults while keeping each responsibility explicit:
+
+* **Cloudflare Pages** serves the statically exported, mobile-first Next.js application and its PWA assets. It does
+  not store or authorize access to private financial records
+* **A dedicated Cloudflare Worker** exposes a versioned REST API, authenticates each request, enforces household and
+  ownership permissions, and runs the financial domain commands
+* **PostgreSQL on Neon** is the system of record for people, households, ownership, accounts, balances, transfers,
+  plans, and audit history. The Worker reaches it through a connection path suitable for the Workers runtime
+* **Cloudflare R2** is optional object storage for features that introduce files, such as uploaded statements,
+  receipts, or encrypted export and backup artifacts. It is not the primary store for structured financial state
+
+The existing asynchronous API interface and pure domain commands remain the seam between the browser and the
+backend. Moving persistence to PostgreSQL should preserve those domain rules without treating the browser's current
+JSON document as the server schema.
 
 ## Data model
 
@@ -269,21 +280,28 @@ Optimised for the core query: "what was the value of X on date Y in currency Z?"
 ## Frontend
 
 Mobile-first responsive web app, not a native app. Optimised for the primary use case:
-quickly recording a balance or transaction on a phone. Progressive Web App (PWA) for
-home screen installation and offline data entry queuing.
+quickly recording a balance or transaction on a phone. A Progressive Web App (PWA)
+supports home screen installation; offline writes remain a separate design decision below.
 
 ## API design
 
-REST or tRPC API layer, designed so the same core engine could power a future
-startup-finance product without rewriting the backend. The entity/account/entry
-abstraction maps naturally to both personal and business financial tracking.
+The target is a versioned REST API owned by the Worker. Pages serves the client, while the Worker owns authorization,
+validation, writes, and household-scoped read models. The entity/account/entry abstraction maps naturally to both
+personal and business financial tracking, so a future startup-finance surface can reuse the domain model without
+sharing database access with the browser.
 
-## Privacy and security
+## Identity, privacy, and offline use
 
 * No third-party data sharing in v1 (manual entry means no Open Banking provider dependencies)
-* Encryption at rest via D1/Cloudflare defaults
-* Authentication via Cloudflare Access or a lightweight auth layer (e.g. Lucia, Auth.js)
 * Users own their data, export to CSV/JSON as a first-class feature
+* Cloudflare Access remains infrastructure protection for previews and administrative surfaces; it is not the
+  consumer identity system
+* The consumer identity provider, supported sign-in methods, session model, and account-recovery policy are not yet
+  selected. They must be decided before private data moves to the shared backend
+* Provider encryption at rest and TLS are baseline controls. Application-level encryption, key recovery, retention,
+  deletion, and backup-restore policy remain explicit design work before a multi-user alpha
+* PWA installation remains part of the frontend direction. Offline writes and synchronization are unresolved because
+  household edits need defined conflict, ordering, and recovery semantics before they can be queued safely
 
 # Target Persona
 
@@ -349,9 +367,13 @@ Competing against funded teams (Monarch: $95M raised) and established bootstrapp
 
 ## Platform risk
 
-D1 is Cloudflare's production-ready SQLite database (General Availability on April 1, 2024). Betting the architecture on Cloudflare's platform creates dependency.
+An earlier architecture draft selected Cloudflare D1 for the future database. That direction is historical and has
+been superseded by the platform's PostgreSQL and Neon defaults. The target still depends on Cloudflare Pages,
+Workers, and optionally R2, while Neon supplies the managed relational database.
 
-**Mitigation:** D1 is SQLite-based, which means the data layer is portable. Migration to Turso, LiteFS, or even Postgres is feasible without rewriting the application logic. The architecture should keep the Cloudflare-specific surface area thin.
+**Mitigation:** Keep private data behind a versioned HTTP API, keep the relational model and migrations compatible
+with PostgreSQL, and keep file objects exportable. Pages, the Worker runtime, the PostgreSQL host, and optional object
+storage then remain replaceable boundaries rather than one inseparable data platform.
 
 ## Incumbent ecosystem
 
