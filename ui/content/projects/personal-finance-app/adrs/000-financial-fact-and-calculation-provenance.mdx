@@ -1,0 +1,187 @@
+---
+title: "ADR 000: Preserve financial facts and calculation lineage"
+date: "2026-09-24"
+status: "Proposed"
+---
+
+## Context
+
+Asset Tracker combines values entered by a person, imported statements, future provider feeds,
+exchange rates, tax rules, and calculated outputs. None is permanently final. A user can correct a
+balance, a provider can revise a transaction, an exchange-rate dataset can publish a replacement,
+and a tax calculation can change when its rules or implementation change.
+
+A mutable account or transaction row can answer "what do we believe now?" It cannot reliably
+answer what the application knew when it produced an earlier chart, tax estimate, or forecast.
+Keeping only an audit log beside mutable rows has the same weakness because the log describes
+database writes rather than the financial meaning of each change.
+
+The Personal Engineering Platform records provenance for engineering decisions. Financial facts
+need a separate product-domain contract. It must support household-scoped queries, explain a value
+to a user, reproduce consequential calculations, and trace imported data back to the exact source
+without treating a source artifact as the current truth.
+
+## Decision
+
+### Store immutable financial facts with two times
+
+Represent an accepted observation as an immutable financial fact. Each fact records:
+
+| Field                             | Meaning                                                                                                                   |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Fact ID and household ID          | Stable identity and authorization boundary                                                                                |
+| Fact type and subject ID          | The balance, transaction, income, ownership, liability, or assumption described                                           |
+| Effective time                    | When the fact applies in the financial world, with an optional end for an interval                                        |
+| Recorded time                     | When Asset Tracker accepted the fact; the server assigns this timestamp                                                   |
+| Source type and source identifier | Manual command, file import, provider record, or system process, plus its stable external or local identity               |
+| Artifact hash and source locator  | SHA-256 of the canonical source artifact or accepted command envelope, plus the row, record, or path within it            |
+| Actor and provider                | The user or system principal that submitted the fact and, where applicable, the institution or publisher that supplied it |
+| Import run                        | The import that parsed and accepted the source, when the fact did not originate from a single manual command              |
+
+Effective time and recorded time have different jobs. A balance observed on 31 January but entered
+on 4 February is effective on 31 January and recorded on 4 February. Queries can therefore show
+today's best account history or reconstruct the history as Asset Tracker knew it before 4 February.
+
+Do not update the provenance, value, or effective time of an accepted fact in place. Mutable read
+models may project the current view, but they remain rebuildable from immutable facts and links.
+
+### Make every import replay-safe
+
+Each import run records the household, source type, provider or connection, external release or
+import identifier, artifact SHA-256, parser version, submitted idempotency key, recorded time, and
+status. A file import stores or references the exact encrypted source artifact. A provider import
+stores the canonical response artifact or a bounded signed response record when retaining the full
+response is not permitted.
+
+The API scopes command idempotency keys to a household and operation. Retrying the same command
+returns the original import, facts, and result. Within an import, the artifact hash, parser version,
+and source locator identify one parsed input. Replaying that input must not create another fact.
+
+If a provider reuses a source identifier with different content, record a new source artifact and
+fact, then link the new fact to the earlier one as a supersession. Do not silently replace the old
+payload. An artifact hash proves byte identity, not truth or secrecy, and must never be used as an
+authorization control.
+
+### Link corrections, reversals, and supersessions
+
+Changes create new facts and typed links to earlier facts:
+
+| Link         | Use                                                                                                                     |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| Correction   | The earlier fact was recorded incorrectly; the new fact states the corrected value                                      |
+| Reversal     | A new fact cancels the financial effect of the target while retaining both records                                      |
+| Supersession | A later provider version or interpretation replaces the target without claiming that its original capture was erroneous |
+
+A link must stay within one household, target an earlier recorded fact of a compatible type, and
+must not create a cycle. One fact cannot both correct and reverse the same target. A current-state
+projection follows the applicable correction and supersession chain and excludes reversed effects.
+An as-known query applies only links recorded on or before its recorded-time cutoff.
+
+### Record lineage for derived values
+
+Every derived value exposed to a user carries a calculation lineage record. Durable outputs used in
+an export, saved comparison, forecast, notification, or decision persist that lineage. A transient
+screen calculation may avoid persisting its output only when the API can return and deterministically
+reconstruct the same lineage envelope.
+
+A calculation run records:
+
+* its calculation type, algorithm version, and code revision;
+* its financial as-of time and system recorded time;
+* ordered references to the exact input facts and prior calculation outputs;
+* canonical parameters and their hash;
+* unrounded outputs, displayed outputs, units, currency, and rounding rule; and
+* the actor or system process that requested it.
+
+Lineage references immutable IDs, never a query such as "latest balance" or "current rate". A
+recalculation after a correction creates a new run and may supersede an older output. It does not
+rewrite the old result.
+
+### Pin rates, tax rules, forecasts, and scenarios
+
+Store each exchange-rate observation as a sourced fact. It records the provider, source identifier,
+dataset or release version, artifact hash, currency pair, effective time, recorded time, and rate.
+A currency conversion references the exact rate fact it used. A newer rate does not alter a saved
+historical conversion.
+
+Store each tax rule set with its jurisdiction, tax period and effective interval, publisher source
+identifiers, source artifact hashes, and implementation revision. Every tax calculation references
+one rule-set version and its exact financial inputs. Correcting source guidance or calculation code
+creates a new version.
+
+A scenario has a stable identity and immutable numbered versions. Each version records its
+assumptions, base fact IDs or recorded-time cutoff, forecast horizon, exchange-rate policy, tax-rule
+versions, and forecast-engine version. Editing an assumption creates a new scenario version. A
+forecast run references that scenario version and the exact rate observations, rules, and facts it
+resolved, so later changes do not alter the saved result.
+
+### Require explainable queries
+
+The domain repository and API must support these questions without reading raw database history:
+
+| Question                                        | Required result                                                                                                  |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| What is the current value at an effective time? | The applicable fact and the correction, reversal, or supersession path used by the current projection            |
+| What did Asset Tracker know then?               | The same projection with a recorded-time cutoff that excludes later facts and links                              |
+| Where did this fact come from?                  | Source type, source identifier, actor or provider, artifact hash, source locator, parser version, and import run |
+| How was this value calculated?                  | The calculation version, parameters, rounding rule, and complete input lineage down to source facts              |
+| Which facts changed?                            | The ordered adjustment chain with the actor, recorded time, and reason for every link                            |
+| Can this forecast be reproduced?                | The immutable scenario version, engine version, input facts, rates, tax rules, and stored outputs                |
+
+Household authorization applies before any provenance traversal. A source identifier, artifact hash,
+or lineage link must not allow a caller to infer another household's records.
+
+## Acceptance criteria
+
+1. A fact effective on 31 January and recorded on 4 February appears in a current query but not in
+   an as-known query cut off on 3 February.
+2. Replaying the same command or import with the same idempotency key returns the original IDs and
+   creates no additional facts. Replaying an imported artifact with the same parser version and
+   source locator also creates no additional fact.
+3. A correction, reversal, and provider supersession each retain the target fact and produce the
+   expected current and as-known projections. Invalid cross-household, forward, and cyclic links are
+   rejected.
+4. A multi-currency net-worth value can be traced to every balance fact and exact exchange-rate fact,
+   including each source identifier, artifact hash, algorithm version, and rounding rule.
+5. A tax estimate identifies the exact rule-set version, jurisdiction, tax period, implementation
+   revision, and input facts. A later rule-set version leaves the saved estimate reproducible.
+6. Editing one forecast assumption creates a new scenario version. Both versions remain queryable,
+   and a replay of either version uses the same engine, facts, rates, tax rules, and parameters as
+   its original run.
+7. An authorized audit query can traverse any durable output to its source records. The same query
+   cannot return or reveal provenance belonging to another household.
+
+## Consequences
+
+Users can see why a value changed and what evidence produced a calculation. Imports can retry safely,
+and later corrections do not rewrite the record used for an earlier decision. Forecasts, tax outputs,
+and currency conversions remain reproducible after their dependencies change.
+
+The backend needs immutable fact, source, relationship, calculation, rule-set, scenario-version, and
+import records in addition to convenient current-state projections. Writes and queries become more
+complex, and projections need tests against both effective-time and recorded-time cutoffs.
+
+Source artifacts and lineage can contain sensitive financial data. Their hashes provide integrity,
+not confidentiality. A separate lifecycle and security decision must define encryption, retention,
+redaction, deletion, and backup behavior without pretending that provenance alone solves those
+requirements.
+
+## Alternatives considered
+
+### Update canonical rows and keep a generic audit log
+
+This keeps ordinary reads simple. It was rejected because a database change log does not express
+whether a write corrected, reversed, or superseded a financial fact. Reproducing an old calculation
+would also depend on replaying storage operations rather than following domain relationships.
+
+### Keep source artifacts and recalculate everything on demand
+
+This preserves the original input and avoids storing derived outputs. It was rejected because parser,
+rate, tax, and calculation versions change. The same artifact can produce a different result later,
+and the application would lose the exact result used for an earlier decision.
+
+### Event-source every user interaction
+
+A complete interaction event stream could rebuild application state. It was rejected because clicks,
+form edits, and navigation are not financial evidence. The chosen contract records immutable domain
+facts and calculation lineage while allowing the interface and persistence implementation to evolve.
