@@ -1,0 +1,117 @@
+---
+title: "ADR 001: Make the household the authorization boundary"
+date: "2026-09-24"
+status: "Proposed"
+---
+
+## Context
+
+Asset Tracker models people, partners, businesses, joint assets, and ownership percentages. Those
+relationships describe finances. They do not grant access. Treating an entity owner or account
+holder as an application principal would mix the financial model with the security model and make
+shared access hard to revoke.
+
+A person may belong to more than one household. Each household contains private records that must
+not be visible through identifiers, search, exports, background jobs, logs, or provenance links from
+another household. Support staff and automated jobs need the same explicit boundary as interactive
+requests.
+
+## Decision
+
+### Separate identity, membership, and financial ownership
+
+An authenticated subject represents one person or service identity. A household membership grants
+that subject a role in one household. Financial entities, account ownership, and beneficial
+ownership percentages remain domain facts and never confer application access.
+
+Use three household roles:
+
+| Role   | Permissions                                                                                    |
+| ------ | ---------------------------------------------------------------------------------------------- |
+| Owner  | Read and write financial data, manage members, request exports, and approve household deletion |
+| Editor | Read and write financial data, but cannot manage access or delete the household                |
+| Viewer | Read household financial data and calculations, but cannot create or change them               |
+
+A household must always have at least one owner. Removing the final owner requires transferring
+ownership or deleting the household. Invites grant no data access until the invited subject accepts
+them while authenticated.
+
+### Scope every operation on the server
+
+The server authenticates the caller, loads current household membership, and authorizes the
+requested action before reading or changing domain data. It derives the authorized household set
+from membership records. It does not trust a household ID, role, actor ID, or ownership percentage
+supplied by the client.
+
+Every household-owned record carries a household ID. Repository methods require that ID as an
+explicit argument, and joins must preserve it. Direct object lookup by a globally unique record ID
+is insufficient. A record that exists in another household produces the same not-found response as
+an unknown record so the API does not become an identifier oracle.
+
+Database constraints prevent links between facts, accounts, imports, calculations, scenarios, or
+artifacts from different households. Background jobs and service identities receive a household or
+bounded batch scope before they load data. They do not receive an unrestricted application-wide
+repository by default.
+
+### Recheck access when it can change
+
+Membership is checked on every request that reads or writes private data. A cached session may prove
+identity, but it does not freeze a household role for the session lifetime. Removing a member or
+downgrading a role therefore takes effect on the next request.
+
+Long-running exports, imports, and calculations capture the requesting subject and household. They
+recheck membership before exposing a result. If access was removed, the job may finish internal
+cleanup but cannot return or publish private output to that subject.
+
+### Deny implicit administrative access
+
+Support and operations staff have no standing access to household financial content. A future
+support-access mechanism must use a separate, time-limited grant approved by a household owner or a
+documented emergency process. It must record the operator, household, reason, start time, expiry,
+and actions performed.
+
+Operational dashboards may show service health, counts, latency, and opaque correlation IDs. They
+must not provide a route around household authorization or reveal financial values.
+
+## Acceptance criteria
+
+1. A subject who belongs to two households can select either household, while every returned record
+   belongs to the selected household.
+2. A viewer can read a balance and its calculation lineage but cannot import, correct, reverse, or
+   edit financial data.
+3. Changing an entity's beneficial owner does not change application membership or permissions.
+4. Guessing a record, artifact, job, or export ID from another household returns the same response
+   as an unknown ID and produces no timing-independent metadata leak.
+5. Removing a member blocks their next private-data request and blocks retrieval of results from
+   jobs they started earlier.
+6. A cross-household relationship fails at both the domain boundary and the persistence constraint.
+7. A background job without an explicit household or bounded batch scope cannot load financial
+   records.
+
+## Consequences
+
+Authorization remains understandable even when the financial model contains joint and partial
+ownership. Membership removal works without rewriting domain records, and provenance traversal
+cannot cross a tenant boundary.
+
+Repository calls and tests must carry household context everywhere. Role changes add a read to
+requests unless a short-lived cache is used, and administrative support becomes slower because it
+requires an explicit grant. Those costs are preferable to hidden cross-household access.
+
+## Alternatives considered
+
+### Use financial ownership as authorization
+
+This appears convenient for joint accounts. It was rejected because a percentage in a financial
+model does not prove identity, consent, or current access. It also cannot express read-only partners
+or accountants.
+
+### Give each person a separate tenant
+
+This makes single-user access simple. It was rejected because shared households would need copied
+records or fragile cross-tenant joins, and neither gives one clear owner for joint calculations.
+
+### Allow support staff to impersonate users
+
+This shortens support investigations. It was rejected as a standing capability because it bypasses
+household consent and makes staff activity difficult to distinguish from user activity.

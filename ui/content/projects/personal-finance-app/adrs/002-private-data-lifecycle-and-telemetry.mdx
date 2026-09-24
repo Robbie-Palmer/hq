@@ -1,0 +1,123 @@
+---
+title: "ADR 002: Minimize private data and make its lifecycle user-controlled"
+date: "2026-09-24"
+status: "Proposed"
+---
+
+## Context
+
+Asset Tracker will hold balances, transactions, account labels, tax assumptions, forecasts, and
+household relationships. A harmless-looking log line or analytics property can reveal as much as a
+database row. Imports and generated exports add temporary copies that are easy to forget.
+
+The product needs enough operational data to diagnose failures and enough provenance to explain
+financial results. It does not need financial content in product analytics. Users also need a clear
+way to export and delete their records without an immutable audit model becoming a reason to retain
+the records forever.
+
+## Decision
+
+### Classify data before collecting it
+
+Use these classes:
+
+| Class                        | Examples                                                                      | Handling                                                                   |
+| ---------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Restricted financial content | Amounts, account names, transaction text, tax inputs, forecasts, source files | Household-authorized access only; never product analytics or ordinary logs |
+| Identity and access data     | Sign-in identity, memberships, roles, invitations                             | Restricted to authentication and authorization workflows                   |
+| Operational metadata         | Request ID, route template, duration, status, parser version, opaque job ID   | Allowed in logs when it cannot reconstruct financial content               |
+| Product analytics            | Screen name, feature event, coarse device class                               | Allowlisted properties only; no domain identifiers or user-entered values  |
+
+Telemetry uses route templates rather than raw URLs. It excludes request and response bodies,
+query strings, filenames, account or entity labels, source identifiers, import rows, monetary
+values, tax parameters, and calculation inputs. Error reporting removes these values before an
+event leaves the application process.
+
+Correlation IDs may connect an API request to a job or error for a limited diagnostic period. They
+must not encode a person, household, account, or record ID. Product analytics and operational logs
+do not share a stable identifier that can reconstruct a household's activity over time.
+
+### Retain each copy for a stated purpose
+
+Canonical financial facts, relationships, calculation lineage, and audit links remain while the
+household is active. A correction or reversal keeps the earlier fact because explaining historical
+outputs is part of the product contract.
+
+Temporary and copied data have shorter lifetimes:
+
+| Data                                     | Default retention                                        |
+| ---------------------------------------- | -------------------------------------------------------- |
+| Rejected upload or failed import staging | Delete within 24 hours                                   |
+| Successfully parsed source artifact      | 30 days, unless the owner chooses to retain the original |
+| Generated export package                 | Delete within 24 hours after creation                    |
+| Application and security logs            | 30 days                                                  |
+| Product analytics events                 | 13 months                                                |
+
+When a source artifact expires, retain its hash, source identifier, parser version, import result,
+and derived facts. The UI must show that the original bytes are no longer available. It must not
+claim that the import can be replayed byte for byte.
+
+The initial shared product does not retain receipts or general-purpose documents. A source file may
+exist only as an import artifact under the rules above. Adding durable document management requires
+a later decision covering access, malware handling, search, retention, and deletion.
+
+### Make export complete and deletion explicit
+
+An owner can request a machine-readable household export. The export contains the current domain
+records, historical facts and adjustment links, calculation and scenario versions, membership
+history, and a manifest with schema version, creation time, file hashes, and any omitted expired
+artifacts. CSV views may accompany the canonical JSON package but do not replace it.
+
+Export generation rechecks owner access before making the package available. Download links are
+single-purpose and short-lived. Export creation and download events appear in the household audit
+history without recording the exported values.
+
+Household deletion has a 14-day cancellation window. During that window the household is locked
+against ordinary writes and hidden from members except owners managing deletion. At the end of the
+window, the service removes financial content, memberships, retained import artifacts, and pending
+exports from active systems within 30 days. It keeps only a content-free deletion receipt containing
+the household's opaque deletion ID, request time, completion time, and policy version.
+
+A future statutory retention duty must name the jurisdiction, data category, and expiry rather than
+silently overriding this contract.
+
+## Acceptance criteria
+
+1. Automated telemetry tests reject an event containing an amount, account label, transaction
+   description, source identifier, raw URL, or household record ID.
+2. A failed upload disappears within 24 hours, and a successful import artifact follows the chosen
+   30-day or owner-retained policy.
+3. An export contains a versioned JSON package, hashes, provenance links, and an explicit list of
+   expired source artifacts. Another household cannot fetch the package by guessing its ID or URL.
+4. Cancelling deletion during the 14-day window restores normal access without losing records.
+5. Completing deletion removes active financial content within 30 days and leaves only the
+   content-free deletion receipt.
+6. Log and analytics retention jobs demonstrate deletion at the stated boundaries.
+
+## Consequences
+
+Operational tools remain useful without becoming a second financial database. Users receive a
+portable record and a deletion process with stated timings. Short source-artifact retention reduces
+exposure but means some old imports cannot be replayed from their original bytes.
+
+The application needs allowlisted telemetry schemas, automated redaction tests, retention jobs,
+export versioning, and a deletion ledger. Product analytics will answer fewer ad hoc questions
+because financial values and durable household identifiers are deliberately absent.
+
+## Alternatives considered
+
+### Send domain events to the analytics system
+
+This would make funnels and feature analysis easier. It was rejected because transaction and
+calculation events can expose financial behavior even after obvious text fields are removed.
+
+### Retain every source artifact indefinitely
+
+This maximizes replayability. It was rejected as the default because raw statements and imports are
+high-value copies. Owners may opt to retain an original when that tradeoff matters to them.
+
+### Delete mutable rows but keep immutable facts
+
+This preserves audit history after account deletion. It was rejected because immutable financial
+facts are still personal data. Immutability controls changes during the household lifetime; it does
+not override deletion.

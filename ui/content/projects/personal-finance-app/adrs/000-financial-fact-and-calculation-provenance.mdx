@@ -16,10 +16,9 @@ answer what the application knew when it produced an earlier chart, tax estimate
 Keeping only an audit log beside mutable rows has the same weakness because the log describes
 database writes rather than the financial meaning of each change.
 
-The Personal Engineering Platform records provenance for engineering decisions. Financial facts
-need a separate product-domain contract. It must support household-scoped queries, explain a value
-to a user, reproduce consequential calculations, and trace imported data back to the exact source
-without treating a source artifact as the current truth.
+Financial records need a product-domain provenance contract. It must support household-scoped
+queries, explain a value to a user, reproduce consequential calculations, and trace imported data
+back to the exact source without treating a source artifact as the current truth.
 
 ## Decision
 
@@ -176,8 +175,7 @@ complex, and projections need tests against both effective-time and recorded-tim
 
 Source artifacts and lineage can contain sensitive financial data. Their hashes provide integrity,
 not confidentiality. A separate lifecycle and security decision must define encryption, retention,
-redaction, deletion, and backup behavior without pretending that provenance alone solves those
-requirements.
+redaction, and deletion without pretending that provenance alone solves those requirements.
 
 ## Alternatives considered
 

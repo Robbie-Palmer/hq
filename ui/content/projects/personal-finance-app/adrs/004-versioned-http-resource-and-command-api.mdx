@@ -1,0 +1,139 @@
+---
+title: "ADR 004: Expose a versioned HTTP resource and command API"
+date: "2026-09-24"
+status: "Proposed"
+---
+
+## Context
+
+The browser client needs household-scoped reads, financial commands, imports, exports, and long
+calculations. Some changes are ordinary resource creation. Others have domain meaning that a generic
+row update cannot express, such as correcting a fact, reversing a transaction, superseding a source
+interpretation, or creating a new scenario version.
+
+The initial product has one first-party client and a small team. It needs an interface that is easy
+to inspect and test without adopting a query language or generated RPC framework before the domain
+stabilizes.
+
+## Decision
+
+### Use versioned JSON over HTTPS
+
+Expose the shared service under `/v1`. Use JSON request and response bodies except for direct file
+upload and download streams. Paths name household-scoped resources, for example:
+
+```text
+GET  /v1/households/{householdId}/accounts
+GET  /v1/households/{householdId}/facts?effectiveAt=...
+POST /v1/households/{householdId}/imports
+POST /v1/households/{householdId}/facts/{factId}/corrections
+POST /v1/households/{householdId}/scenarios/{scenarioId}/versions
+POST /v1/households/{householdId}/exports
+```
+
+The server uses the path household ID only to route the request. It resolves the authenticated
+subject and current membership before loading the resource or granting access.
+
+Use nouns and standard methods for resource reads and simple creation. Use explicit command
+subresources for domain transitions. Do not expose a generic endpoint that lets a client patch fact
+values, provenance fields, membership roles, or scenario version numbers in place.
+
+### Define one wire contract
+
+Use ISO 8601 dates and UTC timestamps. Represent monetary and exchange-rate decimal values as JSON
+strings with an explicit currency or unit. Never send them as binary floating-point numbers. Stable
+IDs are opaque strings; clients do not infer type, household, or order from their contents.
+
+List endpoints use cursor pagination with a deterministic secondary ID ordering. A response states
+the effective-time and recorded-time cutoffs used for time-sensitive financial queries. Calculated
+results include their lineage ID and display-rounding metadata.
+
+Every response carries a request ID. Successful mutations return the canonical committed resource,
+its revision, and the operation ID. Long-running imports, exports, and forecasts return
+`202 Accepted` with a household-scoped job resource. Polling that resource is the initial completion
+mechanism; event delivery can be added later without changing job semantics.
+
+### Standardize errors and write preconditions
+
+Errors use this envelope:
+
+```json
+{
+  "error": {
+    "code": "RESOURCE_VERSION_CONFLICT",
+    "message": "The resource changed after it was loaded.",
+    "requestId": "opaque-request-id",
+    "details": {}
+  }
+}
+```
+
+`code` is stable and machine-readable. `message` is safe to display but is not a client control
+signal. `details` follows a schema owned by the error code and contains no unauthorized values.
+Validation failures use `422 Unprocessable Content`; authentication uses `401 Unauthorized`;
+insufficient household permission uses `403 Forbidden`; hidden or absent objects use
+`404 Not Found`; stale revisions and idempotency conflicts use `409 Conflict`.
+
+Mutating requests carry an operation ID. Changes to existing resources also carry an expected
+revision or active fact tip. The server enforces both before committing the command. A client may
+retry transport failures, but it may not automatically retry a domain conflict.
+
+### Evolve additively within a version
+
+Within `/v1`, the server may add optional response fields, new resource types, and new error codes.
+It may not remove a field, change its meaning or type, reinterpret an existing command, or make an
+optional request field mandatory.
+
+A breaking change gets a new major path. The service publishes a migration note and runs both
+versions for a stated overlap period before removing the old one. Stored exports and job results
+record the schema version that produced them.
+
+Generate a machine-readable API description from the same request and response schemas used by the
+server. Contract tests validate example payloads, authorization failures, decimal serialization,
+pagination stability, idempotent replay, and error envelopes against that description.
+
+## Acceptance criteria
+
+1. An API description lists every public `/v1` operation, body schema, response schema, role
+   requirement, error code, and idempotency or revision precondition.
+2. Monetary amounts and exchange rates round-trip as decimal strings without binary floating-point
+   conversion.
+3. Correcting, reversing, and superseding a fact uses explicit commands and cannot be performed by a
+   generic patch to the original fact.
+4. A list remains stable across pages when several rows share the primary sort value.
+5. A long-running job cannot be read through another household's path or by a subject whose access
+   was removed after starting it.
+6. Contract tests distinguish validation, authentication, permission, hidden-resource, stale-write,
+   and idempotency failures by status and stable error code.
+7. An additive field does not break the current client, while a fixture that removes or changes an
+   existing field fails compatibility validation.
+
+## Consequences
+
+The API expresses financial transitions directly, preserves decimal values, and gives clients one
+error and concurrency model. HTTP requests remain easy to inspect, cache where appropriate, and
+exercise in contract tests.
+
+Explicit endpoints create more schemas and handlers than a generic CRUD or query interface. Cursor
+pagination and compatibility checks require discipline. A future public ecosystem may need richer
+field selection or event delivery, but it can build on these resource, command, and job contracts.
+
+## Alternatives considered
+
+### GraphQL
+
+GraphQL would let clients select nested financial data and reduce some round trips. It was deferred
+because there is one first-party client, authorization still has to be enforced below resolvers, and
+the domain's command and provenance rules matter more than flexible field selection.
+
+### Generated RPC
+
+Generated clients can provide excellent end-to-end types. They were deferred because the product
+needs a stable HTTP contract for exports, jobs, external inspection, and possible future clients
+that do not share the implementation language.
+
+### Generic CRUD endpoints
+
+Generic create, update, and delete handlers would reduce route count. They were rejected because a
+patch cannot state whether a financial fact was corrected, reversed, or superseded, and it invites
+clients to bypass domain invariants.

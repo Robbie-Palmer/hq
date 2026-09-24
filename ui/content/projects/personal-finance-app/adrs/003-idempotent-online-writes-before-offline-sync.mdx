@@ -1,0 +1,114 @@
+---
+title: "ADR 003: Use idempotent online writes before offline synchronization"
+date: "2026-09-24"
+status: "Proposed"
+---
+
+## Context
+
+The installable web app can load without a network connection, but a cached interface does not make
+shared financial writes safe. Two household members may correct the same balance, change a scenario,
+or retry an import while one device is disconnected. Silent last-write-wins behavior could discard
+one person's work or produce a calculation from an adjustment chain that never existed on either
+device.
+
+Mobile networks also fail after the server commits but before the client receives a response. Every
+write needs safe retry behavior even before the product supports intentional offline editing.
+
+## Decision
+
+### Keep shared writes online in the first release
+
+Cache the application shell and previously authorized read models for offline viewing. Do not queue
+shared financial mutations while offline. The UI may keep an unsaved form draft on the device, but
+it must label the draft as local and require a successful online submission before showing it as
+part of household state.
+
+Signing out or removing household access deletes cached private read models and drafts for that
+identity. The app does not cache source files, generated exports, or tax documents for offline use.
+
+### Give every write a stable operation identity
+
+The client generates a random operation ID for each user intent and reuses it for retries. The
+server scopes the ID to the authenticated household and operation type. It stores a fingerprint of
+the canonical command plus the terminal response.
+
+If the same operation ID and fingerprint arrive again, the server returns the stored response
+without repeating side effects. If the ID is reused with different content, the server returns
+`409 Conflict` with `IDEMPOTENCY_KEY_REUSED`. A network timeout therefore remains safe to retry.
+
+Bulk imports, corrections, reversals, scenario changes, membership changes, export requests, and
+deletion requests all use this rule. Read requests do not need operation IDs.
+
+### Reject stale conflicting commands
+
+A mutation that changes an existing aggregate includes the revision or active fact tip on which the
+user acted. The server accepts it only while that precondition remains current. A stale command
+returns `409 Conflict` with `RESOURCE_VERSION_CONFLICT`, the current opaque revision, and enough
+field-level conflict metadata to refresh the form. It does not return another household member's
+unsaved input or hidden financial values.
+
+The client keeps the attempted values, fetches the authorized current representation, and asks the
+user to apply, replace, or discard the change. It never retries a stale command automatically and
+never resolves financial conflicts by client timestamp.
+
+Create-only commands that cannot conflict still use an operation ID. Commands affecting several
+records execute in one transaction or fail without partial side effects. The stored idempotent
+response describes the whole result.
+
+### Gate any future offline outbox
+
+A future offline-write feature may queue only command types with all of these properties:
+
+* a stable operation ID and canonical fingerprint;
+* an explicit aggregate revision or active fact tip;
+* a deterministic server-side conflict result;
+* no source file or generated export stored in the outbox; and
+* a UI that exposes pending, accepted, rejected, and conflicted states.
+
+The outbox must encrypt private command data at rest, preserve per-aggregate ordering, and stop a
+dependent command after an earlier conflict. Adding the outbox requires tests across reload,
+sign-out, membership removal, retry after commit, and two-device conflicts. This ADR does not approve
+that implementation yet.
+
+## Acceptance criteria
+
+1. Retrying a timed-out write with the same operation ID and body returns the first terminal result
+   and creates no duplicate fact, job, invitation, export, or deletion request.
+2. Reusing an operation ID with a different body returns `IDEMPOTENCY_KEY_REUSED` and changes no
+   state.
+3. Two clients submitting changes from the same revision produce one accepted result and one
+   `RESOURCE_VERSION_CONFLICT`; the rejected client retains its attempted values for reconciliation.
+4. A multi-record command either commits every record and its audit entry or commits none of them.
+5. Offline mode can read an authorized cached snapshot but cannot present a draft as committed
+   household state.
+6. Signing out or losing membership removes private cached reads and unsaved drafts from the device.
+7. No future command type enters an offline outbox until its conflict and ordering tests pass.
+
+## Consequences
+
+Retries are safe on unreliable networks, and concurrent edits fail visibly instead of overwriting
+each other. The first shared release avoids the hardest synchronization cases while preserving a
+clear route to a limited offline outbox.
+
+Users cannot complete shared writes during an outage. Clients must retain operation IDs until they
+receive a terminal result, and the server needs bounded storage for response replay. Conflict UX
+becomes part of each mutable workflow instead of one generic last-write-wins rule.
+
+## Alternatives considered
+
+### Queue every mutation while offline
+
+This gives the broadest offline capability. It was rejected because membership, corrections,
+reversals, and multi-record changes need different conflict semantics and may depend on state the
+device has never seen.
+
+### Use client timestamps for last write wins
+
+This is easy to implement. It was rejected because device clocks are unreliable and silently losing
+a valid financial change is worse than asking the user to resolve a conflict.
+
+### Make operation IDs optional
+
+This reduces client work. It was rejected because any committed response can be lost in transit,
+making an ordinary online retry capable of duplicating side effects.
