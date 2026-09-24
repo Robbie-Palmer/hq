@@ -24,7 +24,7 @@ upload and download streams. Paths name household-scoped resources, for example:
 
 ```text
 GET  /v1/households/{householdId}/accounts
-GET  /v1/households/{householdId}/facts?effectiveAt=...
+GET  /v1/households/{householdId}/facts?effectiveAt=...&recordedAt=...
 POST /v1/households/{householdId}/imports
 POST /v1/households/{householdId}/facts/{factId}/corrections
 POST /v1/households/{householdId}/scenarios/{scenarioId}/versions
@@ -44,9 +44,10 @@ Use ISO 8601 dates and UTC timestamps. Represent monetary and exchange-rate deci
 strings with an explicit currency or unit. Never send them as binary floating-point numbers. Stable
 IDs are opaque strings; clients do not infer type, household, or order from their contents.
 
-List endpoints use cursor pagination with a deterministic secondary ID ordering. A response states
-the effective-time and recorded-time cutoffs used for time-sensitive financial queries. Calculated
-results include their lineage ID and display-rounding metadata.
+List endpoints use cursor pagination with a deterministic secondary ID ordering. Time-sensitive
+financial reads accept both an inclusive `effectiveAt` financial cutoff and an inclusive
+`recordedAt` knowledge cutoff. A response states both cutoffs used. Calculated results include their
+lineage ID and display-rounding metadata.
 
 Every response carries a request ID. Successful mutations return the canonical committed resource,
 its revision, and the operation ID. Long-running imports, exports, and forecasts return
@@ -101,11 +102,13 @@ pagination stability, idempotent replay, and error envelopes against that descri
 3. Correcting, reversing, and superseding a fact uses explicit commands and cannot be performed by a
    generic patch to the original fact.
 4. A list remains stable across pages when several rows share the primary sort value.
-5. A long-running job cannot be read through another household's path or by a subject whose access
+5. A facts query with `effectiveAt` and `recordedAt` excludes facts and adjustment links outside the
+   respective cutoff, and the response reports both cutoffs applied.
+6. A long-running job cannot be read through another household's path or by a subject whose access
    was removed after starting it.
-6. Contract tests distinguish validation, authentication, permission, hidden-resource, stale-write,
+7. Contract tests distinguish validation, authentication, permission, hidden-resource, stale-write,
    and idempotency failures by status and stable error code.
-7. An additive field does not break the current client, while a fixture that removes or changes an
+8. An additive field does not break the current client, while a fixture that removes or changes an
    existing field fails compatibility validation.
 
 ## Consequences

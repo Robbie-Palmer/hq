@@ -24,18 +24,26 @@ shared financial mutations while offline. The UI may keep an unsaved form draft 
 it must label the draft as local and require a successful online submission before showing it as
 part of household state.
 
-Signing out or removing household access deletes cached private read models and drafts for that
-identity. The app does not cache source files, generated exports, or tax documents for offline use.
+Cached private state is protected by an authorization lease that expires 24 hours after the last
+successful membership check. Once that lease expires, the app cannot decrypt or display cached read
+models or drafts until it reconnects and confirms membership. Signing out deletes them immediately.
+On the next authenticated connection, removed household access deletes the household's cached read
+models and drafts before any private content is displayed. The app does not cache source files,
+generated exports, or tax documents for offline use.
 
 ### Give every write a stable operation identity
 
-The client generates a random operation ID for each user intent and reuses it for retries. The
-server scopes the ID to the authenticated household and operation type. It stores a fingerprint of
-the canonical command plus the terminal response.
+The client generates a UUIDv7 operation ID for each user intent and reuses it for retries. The
+server scopes the ID to the authenticated household and operation type. It accepts an operation ID
+for 30 days from its embedded creation time, allowing at most five minutes of future clock skew, and
+stores a fingerprint of the canonical command plus the terminal response for that whole period.
 
-If the same operation ID and fingerprint arrive again, the server returns the stored response
-without repeating side effects. If the ID is reused with different content, the server returns
-`409 Conflict` with `IDEMPOTENCY_KEY_REUSED`. A network timeout therefore remains safe to retry.
+If the same operation ID and fingerprint arrive again during that period, the server returns the
+stored response without repeating side effects. If the ID is reused with different content, the
+server returns `409 Conflict` with `IDEMPOTENCY_KEY_REUSED`. An operation ID outside its retry
+period returns `409 Conflict` with `IDEMPOTENCY_KEY_EXPIRED` and never executes, even if its replay
+record has already been removed. A network timeout is therefore safe to retry within the stated
+period and cannot become a new write after expiry.
 
 Bulk imports, corrections, reversals, scenario changes, membership changes, export requests, and
 deletion requests all use this rule. Read requests do not need operation IDs.
@@ -73,8 +81,9 @@ that implementation yet.
 
 ## Acceptance criteria
 
-1. Retrying a timed-out write with the same operation ID and body returns the first terminal result
-   and creates no duplicate fact, job, invitation, export, or deletion request.
+1. Retrying a timed-out write with the same operation ID and body within 30 days returns the first
+   terminal result and creates no duplicate fact, job, invitation, export, or deletion request;
+   retrying it after 30 days returns `IDEMPOTENCY_KEY_EXPIRED` and creates no side effect.
 2. Reusing an operation ID with a different body returns `IDEMPOTENCY_KEY_REUSED` and changes no
    state.
 3. Two clients submitting changes from the same revision produce one accepted result and one
@@ -82,7 +91,9 @@ that implementation yet.
 4. A multi-record command either commits every record and its audit entry or commits none of them.
 5. Offline mode can read an authorized cached snapshot but cannot present a draft as committed
    household state.
-6. Signing out or losing membership removes private cached reads and unsaved drafts from the device.
+6. Signing out immediately removes private cached reads and unsaved drafts. Losing membership
+   removes them on the next authenticated connection, while a device that remains offline cannot
+   access them more than 24 hours after its last successful membership check.
 7. No future command type enters an offline outbox until its conflict and ordering tests pass.
 
 ## Consequences
@@ -92,8 +103,9 @@ each other. The first shared release avoids the hardest synchronization cases wh
 clear route to a limited offline outbox.
 
 Users cannot complete shared writes during an outage. Clients must retain operation IDs until they
-receive a terminal result, and the server needs bounded storage for response replay. Conflict UX
-becomes part of each mutable workflow instead of one generic last-write-wins rule.
+receive a terminal result or the 30-day retry period ends, and the server needs bounded storage for
+response replay. Offline access requires an expiring local authorization lease. Conflict UX becomes
+part of each mutable workflow instead of one generic last-write-wins rule.
 
 ## Alternatives considered
 

@@ -56,8 +56,11 @@ repository by default.
 ### Recheck access when it can change
 
 Membership is checked on every request that reads or writes private data. A cached session may prove
-identity, but it does not freeze a household role for the session lifetime. Removing a member or
-downgrading a role therefore takes effect on the next request.
+identity, but it does not freeze a household role for the session lifetime. If membership lookups
+are cached, each membership change must synchronously invalidate every affected subject-household
+entry before the change commits, or every request must compare the cached membership version with
+the authoritative current version. Removing a member or downgrading a role therefore takes effect
+on the next request.
 
 Long-running exports, imports, and calculations capture the requesting subject and household. They
 recheck membership before exposing a result. If access was removed, the job may finish internal
@@ -82,8 +85,8 @@ must not provide a route around household authorization or reveal financial valu
 3. Changing an entity's beneficial owner does not change application membership or permissions.
 4. Guessing a record, artifact, job, or export ID from another household returns the same response
    as an unknown ID and produces no timing-independent metadata leak.
-5. Removing a member blocks their next private-data request and blocks retrieval of results from
-   jobs they started earlier.
+5. Removing a member invalidates any cached authorization before the change commits, blocks their
+   next private-data request, and blocks retrieval of results from jobs they started earlier.
 6. A cross-household relationship fails at both the domain boundary and the persistence constraint.
 7. A background job without an explicit household or bounded batch scope cannot load financial
    records.
