@@ -3,7 +3,7 @@ title: "Personal Finance App"
 description: "Data-entry-first financial planning, the missing tool between budgeting apps and advisor software"
 date: "2026-01-11"
 status: "idea"
-updated: "2026-09-23"
+updated: "2026-09-24"
 initiatives:
   - "digital-twins-for-everyday-life"
 ---
@@ -247,7 +247,7 @@ the only persistence boundary beyond that browser. There is no product backend, 
 object storage in the current version.
 
 That constraint keeps the first-user experiment cheap and private, but it cannot support shared households,
-cross-device continuity, account recovery, or server-managed backups.
+cross-device continuity, or account recovery.
 
 ## Target architecture
 
@@ -260,7 +260,7 @@ The shared version will use the existing platform defaults while keeping each re
 * **PostgreSQL on Neon** is the system of record for people, households, ownership, accounts, balances, transfers,
   plans, and audit history. The Worker reaches it through a connection path suitable for the Workers runtime
 * **Cloudflare R2** is optional object storage for features that introduce files, such as uploaded statements,
-  receipts, or encrypted export and backup artifacts. It is not the primary store for structured financial state
+  receipts, or encrypted export artifacts. It is not the primary store for structured financial state
 
 The existing asynchronous API interface and pure domain commands remain the seam between the browser and the
 backend. Moving persistence to PostgreSQL should preserve those domain rules without treating the browser's current
@@ -299,7 +299,7 @@ sharing database access with the browser.
 * The consumer identity provider, supported sign-in methods, session model, and account-recovery policy are not yet
   selected. They must be decided before private data moves to the shared backend
 * Provider encryption at rest and TLS are baseline controls. Application-level encryption, key recovery, retention,
-  deletion, and backup-restore policy remain explicit design work before a multi-user alpha
+  and deletion remain explicit design work before a multi-user alpha
 * PWA installation remains part of the frontend direction. Offline writes and synchronization are unresolved because
   household edits need defined conflict, ordering, and recovery semantics before they can be queued safely
 
