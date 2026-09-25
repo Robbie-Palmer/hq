@@ -7,9 +7,14 @@ status: "Proposed"
 ## Context
 
 [Shortcut remains the current tracker](/projects/work-graph/adrs/007-shortcut).
-It solved quick capture, mobile access, hierarchy, and backlog ordering for a
-human-led workflow. The semi-autonomous software development initiative now
-needs a source of truth that workers can also coordinate through continuously.
+It solved quick capture, hierarchy, and backlog ordering for a human-led
+workflow. The semi-autonomous software development initiative now needs a
+source of truth that workers can also coordinate through continuously.
+
+The owner already reaches coding agents from mobile devices. Requiring a second
+mobile or desktop interface would duplicate that access without strengthening
+the system of record. The installed CLI must instead expose every planning
+operation and enough structure for agents to explain the current plan.
 
 That source must represent dependencies and decomposition without forcing every
 relationship into a fixed issue hierarchy. It must derive ready work, preserve
@@ -63,6 +68,13 @@ sources, projections, or links. They must not become competing places where an
 authoritative work-item state can change. A projection that accepts edits must
 write them through to Work Graph before presenting them as committed.
 
+Make the installed CLI the minimum complete operator interface. It must expose
+capture, inspection, reprioritisation, and a deterministic projection of the
+dependency chains blocking priority outcomes. The projection identifies ready
+leaves and independent branches without estimating durations or delivery
+dates. Agents may mediate these operations from any device. A graphical mobile
+or desktop client remains optional and does not affect acceptance.
+
 Keep this ADR proposed, and keep Shortcut authoritative outside an explicitly
 bounded Work Graph pilot, until the acceptance criteria pass. Each pilot has
 one authority for its stated scope. At that point, mark this ADR accepted and
@@ -78,8 +90,11 @@ record it as superseding ADR 007.
    evidence, and complete it without double execution. After a forced worker
    expiry and takeover, the expired worker attempts a renewal, evidence update,
    or completion using its old fence. Work Graph rejects the stale operation.
-3. The owner can capture, inspect, and reprioritise work away from the primary
-   development machine through a usable mobile interface.
+3. From an agent session away from the primary development machine, the owner
+   can capture, inspect, and reprioritise work through the deployed CLI. The CLI
+   can also project the highest-priority unresolved outcomes, their blocking
+   dependency chains, ready leaves, independent parallel branches, and blocking
+   attention requests in machine-readable and human-readable forms.
 4. Active Shortcut work can be imported with its relevant descriptions,
    ordering, hierarchy, and links. Reconciled item counts and sampled records
    show that the cutover did not silently lose active work.
@@ -98,9 +113,10 @@ from several tools before each session. Cross-project work can be ranked and
 claimed without first choosing a repository-local tracker.
 
 Work Graph becomes critical infrastructure. Its availability, backups,
-migrations, mobile experience, and operational maintenance become project
-responsibilities rather than vendor concerns. Integrations need explicit
-directionality so that convenience views do not recreate split authority.
+migrations, CLI compatibility, planning projections, and operational
+maintenance become project responsibilities rather than vendor concerns.
+Integrations need explicit directionality so that convenience views do not
+recreate split authority.
 
 Shortcut remains in service during validation. This avoids a symbolic
 supersession before Work Graph meets the practical requirements that led to
@@ -110,12 +126,12 @@ Shortcut's adoption.
 
 ### Continue using Shortcut as the authority
 
-Shortcut remains a strong human interface and already satisfies the mobile
-capture requirement. Expressing a complex dependency graph in it takes too much
-manual maintenance. Its Kanban view does not expose the current critical path
-or the safe parallel starting set. In practice, the owner must repeatedly
-reread tickets, reconstruct those paths, and manually recompute priorities
-before dispatching agents.
+Shortcut remains a strong human interface and already supports capture away
+from a development machine. Expressing a complex dependency graph in it takes
+too much manual maintenance. Its Kanban view does not expose the current
+critical path or the safe parallel starting set. In practice, the owner must
+repeatedly reread tickets, reconstruct those paths, and manually recompute
+priorities before dispatching agents.
 
 Shortcut also does not own worker leases, execution evidence, environment
 promotion, observed system state, or attention routing. Adding those in a
