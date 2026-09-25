@@ -62,35 +62,117 @@
       }
     },
     "schemas": {
-      "WorkItemList": {
+      "CriticalPathProjection": {
         "type": "object",
         "properties": {
-          "items": {
+          "targetOutcomeIds": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/WorkItem"
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
             },
-            "maxItems": 100
+            "maxItems": 1000
           },
-          "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 200
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CriticalPathNode"
+            },
+            "maxItems": 1000
+          },
+          "edges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CriticalPathEdge"
+            },
+            "maxItems": 5000
+          },
+          "blockingPaths": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CriticalPathWorkItemPath"
+            },
+            "maxItems": 5000
+          },
+          "readyLeafIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "maxItems": 1000
+          },
+          "blockingAttentionIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "maxItems": 1000
+          },
+          "parallelBranches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CriticalPathParallelBranch"
+            },
+            "maxItems": 1000
           }
         },
         "required": [
-          "items",
-          "nextCursor"
+          "targetOutcomeIds",
+          "nodes",
+          "edges",
+          "blockingPaths",
+          "readyLeafIds",
+          "blockingAttentionIds",
+          "parallelBranches"
         ]
       },
-      "WorkItem": {
+      "CriticalPathNode": {
+        "type": "object",
+        "properties": {
+          "item": {
+            "$ref": "#/components/schemas/StoredWorkItem"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "blocked",
+              "ready",
+              "in_progress",
+              "stale",
+              "needs_attention",
+              "released",
+              "cancelled"
+            ]
+          },
+          "claimable": {
+            "type": "boolean"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/WorkItemPriority"
+          },
+          "inclusionReasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CriticalPathInclusionReason"
+            },
+            "minItems": 1,
+            "maxItems": 5001
+          }
+        },
+        "required": [
+          "item",
+          "stage",
+          "claimable",
+          "priority",
+          "inclusionReasons"
+        ]
+      },
+      "StoredWorkItem": {
         "type": "object",
         "properties": {
           "id": {
@@ -187,55 +269,213 @@
                 "type": "null"
               }
             ]
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "lifecycle",
+          "parentId",
+          "rank",
+          "priorityRank",
+          "schedulingInitiativeId",
+          "schedulingProjectId",
+          "expedited",
+          "expediteReason"
+        ]
+      },
+      "WorkItemPriority": {
+        "type": "object",
+        "properties": {
+          "initiativeRank": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "format": "int32"
           },
-          "priority": {
+          "projectRank": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "format": "int32"
+          },
+          "ticketRank": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "format": "int32"
+          },
+          "expedited": {
+            "type": "boolean"
+          },
+          "effectiveExpedited": {
+            "type": "boolean"
+          },
+          "donatedFromWorkItemId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "initiativeRank",
+          "projectRank",
+          "ticketRank",
+          "expedited",
+          "effectiveExpedited",
+          "donatedFromWorkItemId"
+        ]
+      },
+      "CriticalPathInclusionReason": {
+        "oneOf": [
+          {
             "type": "object",
             "properties": {
-              "initiativeRank": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 2147483647,
-                "format": "int32"
-              },
-              "projectRank": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 2147483647,
-                "format": "int32"
-              },
-              "ticketRank": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 2147483647,
-                "format": "int32"
-              },
-              "expedited": {
-                "type": "boolean"
-              },
-              "effectiveExpedited": {
-                "type": "boolean"
-              },
-              "donatedFromWorkItemId": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200
-                  },
-                  {
-                    "type": "null"
-                  }
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "target_outcome"
                 ]
               }
             },
             "required": [
-              "initiativeRank",
-              "projectRank",
-              "ticketRank",
-              "expedited",
-              "effectiveExpedited",
-              "donatedFromWorkItemId"
+              "kind"
             ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "decomposition_child"
+                ]
+              },
+              "fromWorkItemId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "required": [
+              "kind",
+              "fromWorkItemId"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "dependency_blocker"
+                ]
+              },
+              "fromWorkItemId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "dependencyDeclaredByWorkItemId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "required": [
+              "kind",
+              "fromWorkItemId",
+              "dependencyDeclaredByWorkItemId"
+            ]
+          }
+        ]
+      },
+      "CriticalPathEdge": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "decomposition"
+                ]
+              },
+              "fromWorkItemId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "toWorkItemId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "required": [
+              "kind",
+              "fromWorkItemId",
+              "toWorkItemId"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "dependency"
+                ]
+              },
+              "fromWorkItemId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "toWorkItemId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "dependencyDeclaredByWorkItemId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "required": [
+              "kind",
+              "fromWorkItemId",
+              "toWorkItemId",
+              "dependencyDeclaredByWorkItemId"
+            ]
+          }
+        ]
+      },
+      "CriticalPathWorkItemPath": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "minItems": 1,
+        "maxItems": 1000
+      },
+      "CriticalPathParallelBranch": {
+        "type": "object",
+        "properties": {
+          "workItemId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
           },
           "stage": {
             "type": "string",
@@ -249,10 +489,109 @@
               "cancelled"
             ]
           },
-          "currentLease": {
+          "claimable": {
+            "type": "boolean"
+          },
+          "targetWorkItemIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "maxItems": 1000
+          },
+          "paths": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CriticalPathWorkItemPath"
+            },
+            "maxItems": 5000
+          }
+        },
+        "required": [
+          "workItemId",
+          "stage",
+          "claimable",
+          "targetWorkItemIds",
+          "paths"
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "details": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 200
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      },
+                      "maxItems": 20
+                    },
+                    "message": {
+                      "type": "string",
+                      "maxLength": 500
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "message"
+                  ]
+                },
+                "maxItems": 100
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "WorkItemList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkItem"
+            },
+            "maxItems": 100
+          },
+          "nextCursor": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Lease"
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
               },
               {
                 "type": "null"
@@ -261,19 +600,50 @@
           }
         },
         "required": [
-          "id",
-          "title",
-          "lifecycle",
-          "parentId",
-          "rank",
-          "priorityRank",
-          "schedulingInitiativeId",
-          "schedulingProjectId",
-          "expedited",
-          "expediteReason",
-          "priority",
-          "stage",
-          "currentLease"
+          "items",
+          "nextCursor"
+        ]
+      },
+      "WorkItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/StoredWorkItem"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "priority": {
+                "$ref": "#/components/schemas/WorkItemPriority"
+              },
+              "stage": {
+                "type": "string",
+                "enum": [
+                  "blocked",
+                  "ready",
+                  "in_progress",
+                  "stale",
+                  "needs_attention",
+                  "released",
+                  "cancelled"
+                ]
+              },
+              "currentLease": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Lease"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "priority",
+              "stage",
+              "currentLease"
+            ]
+          }
         ]
       },
       "Lease": {
@@ -349,65 +719,6 @@
           "expiresAt",
           "endedAt",
           "outcome"
-        ]
-      },
-      "Error": {
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "object",
-            "properties": {
-              "code": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 100
-              },
-              "message": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 500
-              },
-              "details": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "path": {
-                      "type": "array",
-                      "items": {
-                        "anyOf": [
-                          {
-                            "type": "string",
-                            "maxLength": 200
-                          },
-                          {
-                            "type": "number"
-                          }
-                        ]
-                      },
-                      "maxItems": 20
-                    },
-                    "message": {
-                      "type": "string",
-                      "maxLength": 500
-                    }
-                  },
-                  "required": [
-                    "path",
-                    "message"
-                  ]
-                },
-                "maxItems": 100
-              }
-            },
-            "required": [
-              "code",
-              "message"
-            ]
-          }
-        },
-        "required": [
-          "error"
         ]
       },
       "KnowledgeScopeList": {
@@ -1975,6 +2286,136 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AttentionResolutionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Cloudflare Access authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cloudflare Access denied the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current Work Graph state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/critical-path": {
+      "get": {
+        "operationId": "getCriticalPath",
+        "summary": "Project the current delivery-critical path",
+        "description": "Returns one deterministic, bounded projection for global open roots, an initiative, a project, or one explicit root work item. Initiative and project filters may be combined. An explicit root cannot be combined with scope filters. Projections are limited to 1,000 nodes, 5,000 edges, and 5,000 blocking paths; larger projections return a conflict instead of a partial graph.",
+        "tags": [
+          "work-items"
+        ],
+        "security": [
+          {
+            "cloudflareAccessClientId": [],
+            "cloudflareAccessClientSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": false,
+            "name": "initiativeId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": false,
+            "name": "projectId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": false,
+            "name": "rootWorkItemId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Critical-path targets, included nodes and edges, blocking paths, and claimable parallel branches",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CriticalPathProjection"
                 }
               }
             }

@@ -1,6 +1,7 @@
 export type WorkGraphErrorCode =
   | "attention_request_already_resolved"
   | "attention_request_not_found"
+  | "critical_path_projection_too_large"
   | "dependency_already_exists"
   | "decomposition_child_not_claimable"
   | "dependency_not_found"
@@ -29,6 +30,7 @@ export type WorkGraphErrorCode =
   | "invalid_context_content"
   | "invalid_context_kind"
   | "invalid_context_url"
+  | "invalid_critical_path_scope"
   | "invalid_decomposition"
   | "invalid_idempotency_key"
   | "invalid_knowledge_scope_id"

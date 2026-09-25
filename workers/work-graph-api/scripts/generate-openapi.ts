@@ -9,6 +9,7 @@ const unavailable = async (): Promise<never> => {
   throw new Error("The OpenAPI generator cannot execute repository operations.");
 };
 const repository: WorkGraphApiRepository = {
+  projectCriticalPath: unavailable,
   listKnowledgeScopes: unavailable,
   getKnowledgeScope: unavailable,
   putKnowledgeScope: unavailable,
