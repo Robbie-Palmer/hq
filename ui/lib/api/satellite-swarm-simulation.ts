@@ -7,6 +7,11 @@ const coordinateSchema = z.object({
 
 const uint32Schema = z.number().int().min(0).max(4_294_967_295);
 const candidacyScoreSchema = z.number().int().min(0).max(100);
+const cartesianIntegerSchema = z.object({
+  x: z.number().int(),
+  y: z.number().int(),
+  z: z.number().int(),
+});
 
 const controllerStateSchema = z.enum([
   "idle",
@@ -28,6 +33,9 @@ const nodeSchema = z.object({
   assignedNode: z.number().int().min(0).max(15).nullable(),
   bootEpoch: z.number().int().min(1).max(4_294_967_295),
   candidacyScore: candidacyScoreSchema,
+  earthFixedPositionMetres: cartesianIntegerSchema,
+  earthFixedVelocityMillimetresPerSecond: cartesianIntegerSchema,
+  epochUnixMilliseconds: z.number().int(),
   id: z.number().int().min(0).max(15),
   missionKey: missionKeySchema.nullable(),
   orbitalRadiusMetres: z.number().positive(),
@@ -268,14 +276,18 @@ const simulationSchema = z.object({
     .array(
       z.object({
         nodes: z.array(nodeSchema).min(1).max(16),
+        playbackMultiplier: z.number().positive(),
         timeMs: z.number().int().nonnegative(),
       }),
     )
     .min(1),
   objective: coordinateSchema,
   positionModel: z.string().min(1),
+  propagationFrame: z.literal("TEME"),
+  renderingFrame: z.string().min(1),
   scenario: z.string().min(1),
-  schemaVersion: z.literal(6),
+  scenarioEpochUnixMilliseconds: z.number().int(),
+  schemaVersion: z.literal(7),
   source: z.literal("portable C++ SimulationTrace"),
   sourceRevision: z.string().regex(/^[0-9a-f]{40}$/),
   traceVersion: z.literal(5),

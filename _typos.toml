@@ -15,6 +15,9 @@ CelesTrak = "CelesTrak" # orbital-data and reference-software publisher
 
 [files]
 extend-exclude = [
+    # Vendored CelesTrak SGP4 reference code retains upstream identifiers and
+    # comments so local changes remain auditable against the pinned source.
+    "cpp/autonomic-satellite-swarm/third_party/sgp4/",
     # Deliberate typo examples demonstrating fuzzy search ("machne" -> "machine")
     "ui/content/projects/personal-knowledge-graph/adrs/022-fuse-js.mdx",
     # The typos ADR quotes the misspellings it fixed

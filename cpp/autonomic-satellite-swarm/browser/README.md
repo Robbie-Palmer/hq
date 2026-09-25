@@ -7,7 +7,7 @@ C++ runner. The coordination algorithm remains in the portable core.
 
 The exported C ABI has five functions:
 
-- `satellite_swarm_browser_api_version()` reports worker-facing API version 7.
+- `satellite_swarm_browser_api_version()` reports worker-facing API version 8.
 - `satellite_swarm_source_revision()` reports the exact Git revision embedded at configure time.
 - `satellite_swarm_run_demonstration(longitude, latitude, scenario)` runs the deterministic
   three-node trace and returns a pointer to its JSON result. Scenario `0` uses connected links;
@@ -21,11 +21,12 @@ Returned pointers refer to adapter-owned strings and remain valid until the next
 copies each string into JavaScript before making another call. The adapter catches C++ exceptions so
 none cross the C boundary.
 
-The worker protocol is at version `5`, the JSON display record is at version `6`, the C ABI is at
-version `7`, and the simulation trace is at version `5`. These independent version fields prevent a
-change to one boundary from silently reinterpreting another. Display version 6 adds terminal
-safe-state execution telemetry. Trace version 5 adds deterministic safe-state request results and
-status changes. It retains version 4's explicit mission-completion commands for repeated workloads.
+The worker protocol is at version `5`, the JSON display record is at version `7`, the C ABI is at
+version `8`, and the simulation trace is at version `5`. These independent version fields prevent a
+change to one boundary from silently reinterpreting another. Display version 7 adds SGP4 orbit
+samples, Earth-fixed Cartesian positions, and playback multipliers. Trace version 5 adds
+deterministic safe-state request results and status changes. It retains version 4's explicit
+mission-completion commands for repeated workloads.
 
 ## Build and parity check
 
@@ -52,12 +53,13 @@ request, validates the response and embedded source revision, and terminates the
 navigation also terminates it. This keeps Emscripten initialization and simulation work off the
 page's main thread and prevents stale requests from replacing a newer result.
 
-Cesium receives the validated snapshots after the run. It does not calculate candidate scores,
-select an assignee, or update controller state.
+Cesium receives the validated Earth-fixed samples after the run and interpolates between them. It
+does not run SGP4, calculate candidate scores, select an assignee, or update controller state.
 
 ## Deliberate limits
 
-- The three node paths are scripted simulation inputs and provide no orbit propagation.
+- The checked-in TLEs are fixed demonstration inputs. The player never fetches current elements or
+  reads the wall clock.
 - The caller can select the connected baseline, a deterministic lost-assignment fault, or a fatal
   health transition whose accepted safe-state action reports successful completion.
 - The global result buffer assumes one call at a time, which matches the dedicated worker.

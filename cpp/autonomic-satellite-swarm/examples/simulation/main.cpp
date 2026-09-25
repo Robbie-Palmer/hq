@@ -54,7 +54,11 @@ int runSimulation(bool json, bool fairness_json) {
               << '\n';
   }
 
-  return final_frame.nodes[1].state == ControllerState::Active ? 0 : 1;
+  const auto assigned_index = static_cast<std::size_t>(leader.assigned_node);
+  return assigned_index < final_frame.nodes.size() &&
+                 final_frame.nodes[assigned_index].state == ControllerState::Active
+             ? 0
+             : 1;
 }
 
 } // namespace

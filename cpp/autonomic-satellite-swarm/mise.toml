@@ -5,7 +5,15 @@ arduino-cli = "1.5.1"
 
 [tasks.configure]
 description = "Configure the host build"
-run = "cmake --preset dev"
+run = '''
+if [ "$(uname -s)" = Linux ]; then
+  compiler_root=$(mise where conda:gxx)
+  export PATH="$compiler_root/bin:$PATH"
+  cmake --preset dev -DCMAKE_AR="$compiler_root/bin/x86_64-conda-linux-gnu-ar"
+else
+  cmake --preset dev
+fi
+'''
 
 [tasks.doctor]
 description = "Check the Linux or macOS developer environment"
@@ -47,20 +55,35 @@ run = '''
 browser_fixture_check_file=$(mktemp)
 trap 'cmake -E rm -f "$browser_fixture_check_file"' EXIT
 ./build/dev/autonomic-satellite-swarm-simulation --json > "$browser_fixture_check_file"
-diff -u ../../ui/public/simulations/autonomic-satellite-swarm/demonstration.v6.json \
+diff -u ../../ui/public/simulations/autonomic-satellite-swarm/demonstration.v7.json \
   "$browser_fixture_check_file"
 '''
 
 [tasks."browser:toolchain"]
 description = "Install the pinned Emscripten SDK with its Python bootstrap dependency"
 tools = { python = "3.14.7" }
-run = "mise exec python@3.14.6 -- mise install asdf:mise-plugins/mise-emsdk@6.0.9"
+run = '''
+mise install asdf:mise-plugins/mise-emsdk@6.0.9
+emsdk_root=$(mise where asdf:mise-plugins/mise-emsdk@6.0.9)
+if ! command -v xz >/dev/null 2>&1; then
+  export PATH="$PWD/scripts/tool-shims:$PATH"
+fi
+if [ ! -x "$emsdk_root/upstream/emscripten/emcmake" ]; then
+  mise exec python@3.14.7 -- "$emsdk_root/emsdk" install 6.0.9
+fi
+mise exec python@3.14.7 -- "$emsdk_root/emsdk" activate 6.0.9
+'''
 
 [tasks."browser:configure"]
 description = "Configure the Emscripten browser build"
 depends = ["browser:toolchain"]
 tools = { python = "3.14.7" }
 run = '''
+emsdk_root=$(mise where asdf:mise-plugins/mise-emsdk@6.0.9)
+project_root=$PWD
+cd "$emsdk_root"
+. ./emsdk_env.sh >/dev/null
+cd "$project_root"
 source_revision=${SATELLITE_SWARM_SOURCE_REVISION:-${GITHUB_SHA:-$(git rev-parse HEAD)}}
 case "$source_revision" in
   *[!0-9a-f]*|'') echo "SATELLITE_SWARM_SOURCE_REVISION must be a full lowercase Git revision" >&2; exit 2 ;;
@@ -70,8 +93,7 @@ if [ "$revision_length" -ne 40 ]; then
   echo "SATELLITE_SWARM_SOURCE_REVISION must be a full lowercase Git revision" >&2
   exit 2
 fi
-mise exec python@3.14.6 asdf:mise-plugins/mise-emsdk@6.0.9 -- \
-  emcmake cmake -S . -B build/browser -G Ninja -DCMAKE_BUILD_TYPE=Release \
+emcmake cmake -S . -B build/browser -G Ninja -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_TESTING=OFF -DSATELLITE_SWARM_BUILD_BROWSER=ON \
     -DSATELLITE_SWARM_SOURCE_REVISION="$source_revision"
 '''
@@ -81,7 +103,12 @@ description = "Build the WebAssembly adapter and copy its deployable artifacts"
 depends = ["browser:configure"]
 tools = { python = "3.14.7" }
 run = '''
-mise exec python@3.14.6 asdf:mise-plugins/mise-emsdk@6.0.9 -- cmake --build build/browser --target satellite_swarm_browser
+emsdk_root=$(mise where asdf:mise-plugins/mise-emsdk@6.0.9)
+project_root=$PWD
+cd "$emsdk_root"
+. ./emsdk_env.sh >/dev/null
+cd "$project_root"
+cmake --build build/browser --target satellite_swarm_browser
 browser_public_dir=../../ui/public/simulations/autonomic-satellite-swarm/wasm
 cmake -E make_directory "$browser_public_dir"
 cmake -E copy_if_different build/browser/browser/satellite-swarm.mjs "$browser_public_dir/satellite-swarm.mjs"
@@ -100,11 +127,17 @@ run = "bash scripts/run-clang-tidy.sh"
 
 [tasks.sanitize]
 description = "Run tests with AddressSanitizer and UndefinedBehaviorSanitizer"
-run = [
-  "cmake --preset sanitizers",
-  "cmake --build --preset sanitizers",
-  "ctest --preset sanitizers",
-]
+run = '''
+if [ "$(uname -s)" = Linux ]; then
+  compiler_root=$(mise where conda:gxx)
+  export PATH="$compiler_root/bin:$PATH"
+  cmake --preset sanitizers -DCMAKE_AR="$compiler_root/bin/x86_64-conda-linux-gnu-ar"
+else
+  cmake --preset sanitizers
+fi
+cmake --build --preset sanitizers
+ctest --preset sanitizers
+'''
 
 [tasks.coverage]
 description = "Generate SonarQube-compatible C++ coverage and enforce coverage floors"
@@ -140,7 +173,7 @@ depends = ["scripts:typecheck", "scripts:test"]
 
 [tasks."lint:typos"]
 description = "Check spelling in the project"
-run = "typos ."
+run = "typos --exclude third_party ."
 
 [tasks.check]
 description = "Run all project quality gates"

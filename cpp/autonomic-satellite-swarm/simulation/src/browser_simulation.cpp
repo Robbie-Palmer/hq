@@ -1,13 +1,40 @@
 #include "satellite_swarm/browser_simulation.hpp"
 
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <sstream>
 #include <stdexcept>
+#include <string_view>
+#include <utility>
 
 namespace satellite_swarm::simulation {
 namespace {
+
+constexpr uint32_t kOrbitSampleIntervalMilliseconds = 60'000U;
+constexpr uint32_t kOrbitReplayDurationMilliseconds = 8'040'000U;
+constexpr double kNegotiationPlaybackMultiplier = 0.01;
+constexpr double kQuietPlaybackMultiplier = 100.0;
+
+constexpr std::array<std::array<std::string_view, 2>, 3> kScenarioElements = {{
+    {{"1 00005U 58002B   00179.78495062  .00000023  00000-0  28098-4 0  4753",
+      "2 00005  34.2682 348.7242 1859667 331.7664  19.3264 10.82419157413667"}},
+    {{"1 00006U 58002C   00179.78495062  .00000023  00000-0  28098-4 0  4754",
+      "2 00006  34.2682 348.7242 1859667 331.7664 139.3264 10.82419157413661"}},
+    {{"1 00007U 58002D   00179.78495062  .00000023  00000-0  28098-4 0  4755",
+      "2 00007  34.2682 348.7242 1859667 331.7664 259.3264 10.82419157413665"}},
+}};
+
+class BrowserScenarioError final : public std::logic_error {
+public:
+  using std::logic_error::logic_error;
+};
+
+Sgp4Orbit makeScenarioOrbit(std::size_t index) {
+  return Sgp4Orbit(
+      {std::string(kScenarioElements.at(index)[0]), std::string(kScenarioElements.at(index)[1])});
+}
 
 const char* stateName(ControllerState state) {
   switch (state) {
@@ -159,10 +186,15 @@ const char* scenarioName(BrowserScenario scenario) {
   return "unknown";
 }
 
-SatelliteSnapshot satelliteAt(float longitude, float latitude) {
-  SatelliteSnapshot satellite;
-  satellite.coordinate = Coordinate(longitude, latitude);
-  return satellite;
+void writeCartesianMetres(std::ostream& output, const CartesianVector& vector) {
+  output << R"({"x":)" << std::llround(vector.x) << R"(,"y":)" << std::llround(vector.y)
+         << R"(,"z":)" << std::llround(vector.z) << '}';
+}
+
+void writeCartesianMillimetresPerSecond(std::ostream& output, const CartesianVector& vector) {
+  output << R"({"x":)" << std::llround(vector.x * 1'000.0) << R"(,"y":)"
+         << std::llround(vector.y * 1'000.0) << R"(,"z":)" << std::llround(vector.z * 1'000.0)
+         << '}';
 }
 
 void writeCoordinate(std::ostream& output, const Coordinate& coordinate) {
@@ -181,11 +213,20 @@ void writeMissionKey(std::ostream& output, const MissionKey& mission_key) {
 }
 
 void writeBrowserNode(std::ostream& output, const NodeObservation& node) {
+  if (!node.orbit.has_value()) {
+    throw std::invalid_argument("browser simulation node lacks an orbit result");
+  }
+  const OrbitalStateVector& earth_fixed = node.orbit->earth_fixed;
   output << R"({"id":)" << static_cast<unsigned int>(node.node_id) << R"(,"state":")"
          << stateName(node.state) << R"(","position":)";
   writeCoordinate(output, node.satellite.coordinate);
   output << R"(,"orbitalRadiusMetres":)" << node.satellite.orbital_radius_metres
-         << R"(,"candidacyScore":)" << static_cast<unsigned int>(node.candidacy_score)
+         << R"(,"epochUnixMilliseconds":)" << earth_fixed.epoch_unix_milliseconds
+         << R"(,"earthFixedPositionMetres":)";
+  writeCartesianMetres(output, earth_fixed.position_metres);
+  output << R"(,"earthFixedVelocityMillimetresPerSecond":)";
+  writeCartesianMillimetresPerSecond(output, earth_fixed.velocity_metres_per_second);
+  output << R"(,"candidacyScore":)" << static_cast<unsigned int>(node.candidacy_score)
          << R"(,"telemetryDrops":)" << node.telemetry_drops << R"(,"bootEpoch":)" << node.boot_epoch
          << R"(,"missionKey":)";
   writeMissionKey(output, node.mission_key);
@@ -198,8 +239,10 @@ void writeBrowserNode(std::ostream& output, const NodeObservation& node) {
   output << '}';
 }
 
-void writeBrowserFrame(std::ostream& output, const FrameObservation& frame) {
-  output << R"(    {"timeMs":)" << frame.now_ms << R"(,"nodes":[)";
+void writeBrowserFrame(std::ostream& output, const FrameObservation& frame,
+                       double playback_multiplier) {
+  output << R"(    {"timeMs":)" << frame.now_ms << R"(,"playbackMultiplier":)"
+         << playback_multiplier << R"(,"nodes":[)";
   for (std::size_t node_index = 0; node_index < frame.nodes.size(); ++node_index) {
     writeBrowserNode(output, frame.nodes[node_index]);
     if (node_index + 1U != frame.nodes.size()) {
@@ -275,6 +318,47 @@ void writeBrowserEvent(std::ostream& output, const SimulationEvent& event) {
   output << '}';
 }
 
+void appendOrbitFrame(SimulationTrace& trace, const std::array<Sgp4Orbit, 3>& orbits,
+                      int64_t scenario_epoch_unix_milliseconds, Coordinate objective,
+                      BrowserScenario scenario, uint32_t now_ms) {
+  SimulationFrame frame;
+  frame.now_ms = now_ms;
+  for (std::size_t index = 0U; index < orbits.size(); ++index) {
+    frame.orbit_updates.emplace_back(
+        OrbitUpdate{static_cast<NodeId>(index),
+                    orbits[index].propagate(scenario_epoch_unix_milliseconds + now_ms)});
+  }
+  if (now_ms == 0U) {
+    frame.mission_commands.emplace_back(MissionCommand{0U, objective});
+  }
+  if (scenario == BrowserScenario::SafeStateSuccess && now_ms == 110U) {
+    frame.health_updates.emplace_back(HealthUpdate{1U, HealthStatus::Fatal});
+  }
+  if (scenario == BrowserScenario::SafeStateSuccess && now_ms == 120U) {
+    frame.safe_state_status_updates.emplace_back(
+        SafeStateStatusUpdate{1U, SafeStateExecutionStatus::Succeeded});
+  }
+  trace.frames.emplace_back(std::move(frame));
+}
+
+void configureAssignmentLoss(SimulationTrace& trace) {
+  constexpr std::size_t kAssignmentFrameIndex = 10U;
+  for (std::size_t leader_index = 0U; leader_index < trace.nodes.size(); ++leader_index) {
+    const NodeId leader = static_cast<NodeId>(leader_index);
+    trace.frames.front().mission_commands.front().leader = leader;
+    const auto trial = runSimulationTrace(trace);
+    const NodeId assignee =
+        trial.frames.at(kAssignmentFrameIndex).nodes.at(leader_index).assigned_node;
+    if (assignee != leader && static_cast<std::size_t>(assignee) < trace.nodes.size()) {
+      trace.frames.at(kAssignmentFrameIndex)
+          .delivery_faults.emplace_back(DeliveryFault{
+              leader, assignee, MessageType::MissionAssignment, DeliveryFaultType::Drop, 0U});
+      return;
+    }
+  }
+  throw BrowserScenarioError("browser assignment-loss scenario has no remote winner");
+}
+
 } // namespace
 
 BrowserSimulation makeBrowserDemonstration(Coordinate objective, BrowserScenario scenario) {
@@ -286,39 +370,33 @@ BrowserSimulation makeBrowserDemonstration(Coordinate objective, BrowserScenario
   simulation.scenario = scenario;
   SimulationTrace& trace = simulation.trace;
   trace.controller.response_window_ms = 100U;
-  trace.nodes = {
-      {0U, satelliteAt(-0.5F, 60.0F)},
-      {1U, satelliteAt(0.0F, 10.0F)},
-      {2U, satelliteAt(0.5F, 0.0F)},
-  };
+  std::array<Sgp4Orbit, 3> orbits = {makeScenarioOrbit(0U), makeScenarioOrbit(1U),
+                                     makeScenarioOrbit(2U)};
+  simulation.scenario_epoch_unix_milliseconds = orbits.front().epochUnixMilliseconds();
+  for (std::size_t index = 0U; index < orbits.size(); ++index) {
+    if (orbits[index].epochUnixMilliseconds() != simulation.scenario_epoch_unix_milliseconds) {
+      throw std::invalid_argument("browser scenario TLE epochs do not match");
+    }
+    trace.nodes.emplace_back(NodeConfiguration{static_cast<NodeId>(index),
+                                               satelliteSnapshotFrom(orbits[index].propagate(
+                                                   simulation.scenario_epoch_unix_milliseconds))});
+  }
   if (scenario == BrowserScenario::SafeStateSuccess) {
     trace.nodes[1].safe_state_request_result = SafeStateResult::Accepted;
   }
 
   for (uint32_t now_ms = 0U; now_ms <= 120U; now_ms += 10U) {
-    SimulationFrame frame;
-    frame.now_ms = now_ms;
-    const auto step_index = now_ms / 10U;
-    const auto step = static_cast<float>(step_index);
-    frame.satellite_updates = {
-        {0U, satelliteAt(-0.5F + step * 0.06F, 60.0F - step * 0.25F)},
-        {1U, satelliteAt(0.0F + step * 0.08F, 10.0F - step * 0.4F)},
-        {2U, satelliteAt(0.5F + step * 0.1F, 0.0F - step * 0.3F)},
-    };
-    if (now_ms == 0U) {
-      frame.mission_commands.push_back({0U, objective});
-    }
-    if (scenario == BrowserScenario::LostAssignment && now_ms == 100U) {
-      frame.delivery_faults.push_back(
-          {0U, 1U, MessageType::MissionAssignment, DeliveryFaultType::Drop, 0U});
-    }
-    if (scenario == BrowserScenario::SafeStateSuccess && now_ms == 110U) {
-      frame.health_updates.push_back({1U, HealthStatus::Fatal});
-    }
-    if (scenario == BrowserScenario::SafeStateSuccess && now_ms == 120U) {
-      frame.safe_state_status_updates.push_back({1U, SafeStateExecutionStatus::Succeeded});
-    }
-    trace.frames.push_back(frame);
+    appendOrbitFrame(trace, orbits, simulation.scenario_epoch_unix_milliseconds, objective,
+                     scenario, now_ms);
+  }
+  for (uint32_t now_ms = kOrbitSampleIntervalMilliseconds;
+       now_ms <= kOrbitReplayDurationMilliseconds; now_ms += kOrbitSampleIntervalMilliseconds) {
+    appendOrbitFrame(trace, orbits, simulation.scenario_epoch_unix_milliseconds, objective,
+                     scenario, now_ms);
+  }
+
+  if (scenario == BrowserScenario::LostAssignment) {
+    configureAssignmentLoss(trace);
   }
   return simulation;
 }
@@ -329,11 +407,8 @@ std::string serializeBrowserSimulation(const BrowserSimulation& simulation,
   if (trace.frames.empty() || trace.frames.front().mission_commands.empty()) {
     throw std::invalid_argument("browser simulation requires a mission command");
   }
-  constexpr std::array<std::size_t, 4> kBrowserFrameIndices = {0U, 1U, 10U, 12U};
-  for (const std::size_t frame_index : kBrowserFrameIndices) {
-    if (frame_index >= result.frames.size()) {
-      throw std::invalid_argument("browser simulation does not contain the required frames");
-    }
+  if (result.frames.size() != trace.frames.size() || result.frames.back().now_ms < 7'980'000U) {
+    throw std::invalid_argument("browser simulation does not cover one complete reference orbit");
   }
 
   const Coordinate objective = trace.frames.front().mission_commands.front().objective;
@@ -346,16 +421,23 @@ std::string serializeBrowserSimulation(const BrowserSimulation& simulation,
   "scenario": ")"
          << scenarioName(simulation.scenario) << R"(",
   "source": "portable C++ SimulationTrace",
-  "positionModel": "scripted simulation data; not orbit propagation",
+  "positionModel": "SGP4 propagation from checked-in TLEs",
+  "propagationFrame": "TEME",
+  "renderingFrame": "Earth-fixed GMST rotation with UTC treated as UT1 and polar motion set to zero",
+  "scenarioEpochUnixMilliseconds": )"
+         << simulation.scenario_epoch_unix_milliseconds << R"(,
   "objective": )";
   writeCoordinate(output, objective);
   output << R"(,
   "frames": [
 )";
 
-  for (std::size_t output_index = 0; output_index < kBrowserFrameIndices.size(); ++output_index) {
-    writeBrowserFrame(output, result.frames[kBrowserFrameIndices[output_index]]);
-    if (output_index + 1U != kBrowserFrameIndices.size()) {
+  for (std::size_t output_index = 0; output_index < result.frames.size(); ++output_index) {
+    const FrameObservation& frame = result.frames[output_index];
+    const double playback_multiplier =
+        frame.now_ms < 120U ? kNegotiationPlaybackMultiplier : kQuietPlaybackMultiplier;
+    writeBrowserFrame(output, frame, playback_multiplier);
+    if (output_index + 1U != result.frames.size()) {
       output << ',';
     }
     output << '\n';

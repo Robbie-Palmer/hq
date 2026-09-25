@@ -78,15 +78,19 @@ vi.mock("@/lib/browser/satellite-swarm-worker-client", () => ({
 }));
 
 const data = parseSatelliteSwarmSimulation({
-  schemaVersion: 6,
+  schemaVersion: 7,
   traceVersion: 5,
   scenario: "test",
   source: "portable C++ SimulationTrace",
   sourceRevision: "0123456789abcdef0123456789abcdef01234567",
   positionModel: "scripted simulation data; not orbit propagation",
+  propagationFrame: "TEME",
+  renderingFrame: "test Earth-fixed frame",
+  scenarioEpochUnixMilliseconds: 962650219734,
   objective: { longitudeDegrees: 0, latitudeDegrees: -90 },
   frames: [
     {
+      playbackMultiplier: 0.1,
       timeMs: 0,
       nodes: [
         {
@@ -96,6 +100,9 @@ const data = parseSatelliteSwarmSimulation({
           position: { longitudeDegrees: 0, latitudeDegrees: 10 },
           orbitalRadiusMetres: 6_750_000,
           candidacyScore: 60,
+          earthFixedPositionMetres: { x: 6_750_000, y: 0, z: 0 },
+          earthFixedVelocityMillimetresPerSecond: { x: 0, y: 7_500_000, z: 0 },
+          epochUnixMilliseconds: 962650219734,
           telemetryDrops: 0,
           missionKey: { bootEpoch: 1, originNode: 0, sequence: 1 },
           assignedNode: null,
@@ -107,6 +114,13 @@ const data = parseSatelliteSwarmSimulation({
           position: { longitudeDegrees: 1, latitudeDegrees: 0 },
           orbitalRadiusMetres: 6_750_000,
           candidacyScore: 81,
+          earthFixedPositionMetres: { x: 6_700_000, y: 500_000, z: 0 },
+          earthFixedVelocityMillimetresPerSecond: {
+            x: -500_000,
+            y: 7_400_000,
+            z: 0,
+          },
+          epochUnixMilliseconds: 962650219734,
           telemetryDrops: 0,
           missionKey: { bootEpoch: 1, originNode: 0, sequence: 1 },
           assignedNode: null,
@@ -114,6 +128,7 @@ const data = parseSatelliteSwarmSimulation({
       ],
     },
     {
+      playbackMultiplier: 100,
       timeMs: 100,
       nodes: [
         {
@@ -123,6 +138,13 @@ const data = parseSatelliteSwarmSimulation({
           position: { longitudeDegrees: 0, latitudeDegrees: 9 },
           orbitalRadiusMetres: 6_750_000,
           candidacyScore: 60,
+          earthFixedPositionMetres: { x: 6_749_000, y: 100_000, z: 0 },
+          earthFixedVelocityMillimetresPerSecond: {
+            x: -100_000,
+            y: 7_500_000,
+            z: 0,
+          },
+          epochUnixMilliseconds: 962650219834,
           telemetryDrops: 0,
           missionKey: { bootEpoch: 1, originNode: 0, sequence: 1 },
           assignedNode: 1,
@@ -134,6 +156,13 @@ const data = parseSatelliteSwarmSimulation({
           position: { longitudeDegrees: 1, latitudeDegrees: -1 },
           orbitalRadiusMetres: 6_750_000,
           candidacyScore: 81,
+          earthFixedPositionMetres: { x: 6_690_000, y: 600_000, z: -100_000 },
+          earthFixedVelocityMillimetresPerSecond: {
+            x: -600_000,
+            y: 7_390_000,
+            z: -100_000,
+          },
+          epochUnixMilliseconds: 962650219834,
           telemetryDrops: 0,
           missionKey: { bootEpoch: 1, originNode: 0, sequence: 1 },
           assignedNode: 1,
@@ -195,12 +224,13 @@ describe("SatelliteSwarmSimulation", () => {
     render(<DeferredSatelliteSwarmSimulation />);
 
     enterSimulationViewport();
-    expect(await screen.findByText("trace v5 · 0 ms")).toBeVisible();
+    expect(await screen.findByText(/trace v5 · 0 ms/)).toBeVisible();
     expect(workerClient.run).toHaveBeenCalledWith(
       { latitudeDegrees: -90, longitudeDegrees: 0 },
       { scenario: "nominal", signal: expect.any(AbortSignal) },
     );
     expect(screen.getByText(/ran as WebAssembly/i)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Pause replay" })).toBeEnabled();
     expect(screen.getByRole("link", { name: "0123456789ab" })).toHaveAttribute(
       "href",
       "https://github.com/Robbie-Palmer/hq/commit/0123456789abcdef0123456789abcdef01234567",
@@ -251,7 +281,7 @@ describe("SatelliteSwarmSimulation", () => {
       </StrictMode>,
     );
 
-    expect(await screen.findByText("trace v5 · 0 ms")).toBeVisible();
+    expect(await screen.findByText(/trace v5 · 0 ms/)).toBeVisible();
     expect(workerClient.run).toHaveBeenCalledOnce();
   });
 
@@ -259,7 +289,7 @@ describe("SatelliteSwarmSimulation", () => {
     const user = userEvent.setup();
     render(<DeferredSatelliteSwarmSimulation />);
     enterSimulationViewport();
-    expect(await screen.findByText("trace v5 · 0 ms")).toBeVisible();
+    expect(await screen.findByText(/trace v5 · 0 ms/)).toBeVisible();
 
     const longitude = screen.getByRole("spinbutton", { name: "Longitude" });
     const latitude = screen.getByRole("spinbutton", { name: "Latitude" });
@@ -282,7 +312,7 @@ describe("SatelliteSwarmSimulation", () => {
     const user = userEvent.setup();
     render(<DeferredSatelliteSwarmSimulation />);
     enterSimulationViewport();
-    expect(await screen.findByText("trace v5 · 0 ms")).toBeVisible();
+    expect(await screen.findByText(/trace v5 · 0 ms/)).toBeVisible();
 
     const scenario = screen.getByRole("combobox", {
       name: "Simulation scenario",
@@ -309,7 +339,7 @@ describe("SatelliteSwarmSimulation", () => {
     const user = userEvent.setup();
     render(<DeferredSatelliteSwarmSimulation />);
     enterSimulationViewport();
-    expect(await screen.findByText("trace v5 · 0 ms")).toBeVisible();
+    expect(await screen.findByText(/trace v5 · 0 ms/)).toBeVisible();
 
     const scenario = screen.getByRole("combobox", {
       name: "Simulation scenario",
@@ -335,14 +365,14 @@ describe("SatelliteSwarmSimulation", () => {
     const user = userEvent.setup();
     render(<DeferredSatelliteSwarmSimulation />);
     enterSimulationViewport();
-    expect(await screen.findByText("trace v5 · 0 ms")).toBeVisible();
+    expect(await screen.findByText(/trace v5 · 0 ms/)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Next frame" }));
-    expect(screen.getByText("trace v5 · 100 ms")).toBeVisible();
+    expect(screen.getByText(/trace v5 · 100 ms/)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Run mission" }));
 
-    expect(await screen.findByText("trace v5 · 0 ms")).toBeVisible();
+    expect(await screen.findByText(/trace v5 · 0 ms/)).toBeVisible();
     expect(screen.getByRole("button", { name: "Pause replay" })).toBeEnabled();
   });
 
@@ -350,7 +380,7 @@ describe("SatelliteSwarmSimulation", () => {
     const user = userEvent.setup();
     render(<DeferredSatelliteSwarmSimulation />);
     enterSimulationViewport();
-    expect(await screen.findByText("trace v5 · 0 ms")).toBeVisible();
+    expect(await screen.findByText(/trace v5 · 0 ms/)).toBeVisible();
 
     let rejectEarlier: ((error: unknown) => void) | undefined;
     let resolveLatest: ((value: typeof data) => void) | undefined;
@@ -390,6 +420,13 @@ describe("SatelliteSwarmSimulation", () => {
     expect(screen.getByText(/deliberate coordinate edge case/i)).toBeVisible();
     expect(screen.getByText("Cesium globe")).toBeVisible();
     expect(
+      screen.getByText(/current SGP4 orbit · selected Node 0/i),
+    ).toBeVisible();
+    expect(
+      screen.getByText(/waiting for an accepted assignment/i),
+    ).toBeVisible();
+    expect(screen.getByText(/coordination in slow motion/i)).toBeVisible();
+    expect(
       document.querySelector(
         'link[href="/cesium/Widgets/widgets.css"][rel="stylesheet"]',
       ),
@@ -400,11 +437,54 @@ describe("SatelliteSwarmSimulation", () => {
     await user.click(screen.getByRole("button", { name: "Next frame" }));
 
     expect(screen.getByText("active")).toBeVisible();
-    expect(screen.getByText(/assigned mission 0:1:1 to node 1/i)).toBeVisible();
-    expect(screen.getByText("trace v5 · 100 ms")).toBeVisible();
+    expect(
+      screen.getByText(/Node 1 accepted the assignment.*orbit is unchanged/i),
+    ).toBeVisible();
+    expect(
+      screen.getAllByText(/assigned mission 0:1:1 to node 1/i),
+    ).toHaveLength(2);
+    expect(screen.getByText(/trace v5 · 100 ms/)).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Replay mission" }),
     ).toBeEnabled();
+  });
+
+  it("formats minute- and hour-scale orbit replay timestamps", async () => {
+    const user = userEvent.setup();
+    const firstFrame = data.frames[0];
+    const secondFrame = data.frames[1];
+    if (!firstFrame || !secondFrame) {
+      throw new Error("satellite replay fixture requires at least two frames");
+    }
+    const timedData = {
+      ...data,
+      frames: [
+        firstFrame,
+        { ...secondFrame, timeMs: 60_000 },
+        { ...secondFrame, timeMs: 3_661_000 },
+      ],
+    };
+    render(<SatelliteSwarmSimulation data={timedData} />);
+
+    await user.click(screen.getByRole("button", { name: "Next frame" }));
+    expect(screen.getByText(/trace v5 · 1m 00s · 100×/)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Next frame" }));
+    expect(screen.getByText(/trace v5 · 1h 01m 01s · 100×/)).toBeVisible();
+  });
+
+  it("advances and stops autoplay at the final orbit frame", () => {
+    vi.useFakeTimers();
+    render(<SatelliteSwarmSimulation data={data} />);
+
+    act(() => screen.getByRole("button", { name: "Play replay" }).click());
+    act(() => vi.advanceTimersByTime(1_000));
+
+    expect(screen.getByText(/trace v5 · 100 ms · 100×/)).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Replay mission" }),
+    ).toBeEnabled();
+    vi.useRealTimers();
   });
 
   it("labels a paused trace as resumable", async () => {
