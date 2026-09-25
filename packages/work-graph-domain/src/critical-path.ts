@@ -373,13 +373,8 @@ const traverseCriticalPath = (
     includeWorkItem(traversal, target.id, { kind: "target_outcome" });
   }
 
-  for (
-    let index = 0;
-    index < traversal.pendingWorkItemIds.length;
-    index += 1
-  ) {
-    const workItemId = traversal.pendingWorkItemIds[index];
-    if (!workItemId) continue;
+  // Array iteration includes work items appended while the traversal is running.
+  for (const workItemId of traversal.pendingWorkItemIds) {
     addOpenChildren(graph, orderById, workItemId, traversal);
     addOpenDependencies(graph, orderById, workItemId, traversal);
   }
