@@ -16,6 +16,8 @@ import type {
   ResolvedWorkItemContext,
 } from "./generated/client/types.gen.js";
 import {
+  zArchiveKnowledgeScopeBody,
+  zArchiveKnowledgeScopeHeaders,
   zCreateAttentionRequestBody,
   zCreateAttentionRequestHeaders,
   zCreateAttentionResolutionBody,
@@ -69,6 +71,7 @@ import {
   zPutWorkItemSchedulingScopePath,
   zRefreshPullRequestBody,
   zRefreshPullRequestHeaders,
+  zRestoreKnowledgeScopeHeaders,
   zUnexpediteWorkItemHeaders,
 } from "./generated/client/zod.gen.js";
 
@@ -460,6 +463,10 @@ const scopeListInput = z.object({
     zListKnowledgeScopesQuery.shape.kind.unwrap(),
     "Knowledge-scope kind",
   ),
+  all: z
+    .boolean()
+    .optional()
+    .describe("Include archived knowledge scopes"),
   limit: optional(
     zListKnowledgeScopesQuery.shape.limit.unwrap().unwrap(),
     "Maximum number of knowledge scopes",
@@ -467,6 +474,32 @@ const scopeListInput = z.object({
   cursor: optional(
     zListKnowledgeScopesQuery.shape.cursor.unwrap(),
     "Pagination cursor",
+  ),
+});
+
+const scopeArchiveInput = z.object({
+  knowledgeScopeId: positional(
+    zGetKnowledgeScopePath.shape.knowledgeScopeId,
+    "Knowledge-scope ID",
+  ),
+  reason: described(
+    zArchiveKnowledgeScopeBody.shape.reason,
+    "Why this scope is no longer scheduled here",
+  ),
+  idempotencyKey: described(
+    zArchiveKnowledgeScopeHeaders.shape["idempotency-key"],
+    "Client-generated UUID used to replay a mutation safely",
+  ),
+});
+
+const scopeRestoreInput = z.object({
+  knowledgeScopeId: positional(
+    zGetKnowledgeScopePath.shape.knowledgeScopeId,
+    "Knowledge-scope ID",
+  ),
+  idempotencyKey: described(
+    zRestoreKnowledgeScopeHeaders.shape["idempotency-key"],
+    "Client-generated UUID used to replay a mutation safely",
   ),
 });
 
@@ -611,6 +644,10 @@ const scopeRelationshipInput = z.object({
 });
 
 const scopeRelationshipListInput = z.object({
+  all: z
+    .boolean()
+    .optional()
+    .describe("Include relationships to archived scopes"),
   limit: optional(
     zListKnowledgeScopeRelationshipsQuery.shape.limit.unwrap().unwrap(),
     "Maximum number of knowledge-scope relationships",
@@ -1174,6 +1211,7 @@ export const workGraphRouter = t.router({
       .query(({ ctx, input }) =>
         resolveClient(ctx).listKnowledgeScopes({
           ...(input.kind === undefined ? {} : { kind: input.kind }),
+          ...(input.all ? { includeArchived: "true" as const } : {}),
           ...(input.limit === undefined ? {} : { limit: input.limit }),
           ...(input.cursor === undefined ? {} : { cursor: input.cursor }),
         }),
@@ -1209,6 +1247,25 @@ export const workGraphRouter = t.router({
           input.idempotencyKey,
         ),
       ),
+    archive: command
+      .meta({ description: "Archive a scope outside active scheduling" })
+      .input(scopeArchiveInput)
+      .mutation(({ ctx, input }) =>
+        resolveClient(ctx).archiveKnowledgeScope(
+          input.knowledgeScopeId,
+          { reason: input.reason },
+          input.idempotencyKey,
+        ),
+      ),
+    restore: command
+      .meta({ description: "Restore an archived scope to active scheduling" })
+      .input(scopeRestoreInput)
+      .mutation(({ ctx, input }) =>
+        resolveClient(ctx).restoreKnowledgeScope(
+          input.knowledgeScopeId,
+          input.idempotencyKey,
+        ),
+      ),
     move: command
       .meta({ description: "Move a scope within its contextual priority list" })
       .input(scopePriorityMoveInput)
@@ -1237,6 +1294,7 @@ export const workGraphRouter = t.router({
       .input(scopeRelationshipListInput)
       .query(({ ctx, input }) =>
         resolveClient(ctx).listKnowledgeScopeRelationships({
+          ...(input.all ? { includeArchived: "true" as const } : {}),
           ...(input.limit === undefined ? {} : { limit: input.limit }),
           ...(input.cursor === undefined ? {} : { cursor: input.cursor }),
         }),

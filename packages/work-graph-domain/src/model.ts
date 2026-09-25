@@ -1,6 +1,7 @@
 import type {
   ArchitectureDecisionRole,
   KnowledgeScopeKind,
+  KnowledgeScopeLifecycle,
   PullRequestCheckSummary,
   PullRequestMergeability,
   PullRequestReviewDecision,
@@ -17,6 +18,8 @@ export interface KnowledgeScope {
   readonly canonicalUrl: string;
   readonly markdownUrl: string;
   readonly sourceRevision: string | null;
+  readonly lifecycle: KnowledgeScopeLifecycle;
+  readonly archiveReason: string | null;
   readonly rank: number | null;
 }
 

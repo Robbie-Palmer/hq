@@ -482,6 +482,25 @@
               }
             ]
           },
+          "lifecycle": {
+            "type": "string",
+            "enum": [
+              "active",
+              "archived"
+            ]
+          },
+          "archiveReason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "rank": {
             "anyOf": [
               {
@@ -503,6 +522,8 @@
           "canonicalUrl",
           "markdownUrl",
           "sourceRevision",
+          "lifecycle",
+          "archiveReason",
           "rank"
         ]
       },
@@ -2311,7 +2332,7 @@
       "get": {
         "operationId": "listKnowledgeScopeRelationships",
         "summary": "List knowledge-scope relationships",
-        "description": "Returns a bounded page of directed parent-to-child scope edges in stable order. Pass nextCursor unchanged to continue.",
+        "description": "Returns a bounded page of directed parent-to-child edges between active scopes in stable order. Set includeArchived=true for an audit view. Pass nextCursor unchanged to continue.",
         "tags": [
           "knowledge-scopes"
         ],
@@ -2322,6 +2343,17 @@
           }
         ],
         "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            },
+            "required": false,
+            "name": "includeArchived",
+            "in": "query"
+          },
           {
             "schema": {
               "type": "integer",
@@ -2707,7 +2739,7 @@
       "get": {
         "operationId": "listKnowledgeScopes",
         "summary": "List knowledge-scope mirrors",
-        "description": "Returns initiative and project mirrors in stable source-key order. The optional kind filter does not change that order.",
+        "description": "Returns active initiative and project mirrors in stable source-key order. The optional kind filter does not change that order. Set includeArchived=true for an audit view.",
         "tags": [
           "knowledge-scopes"
         ],
@@ -2728,6 +2760,17 @@
             },
             "required": false,
             "name": "kind",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            },
+            "required": false,
+            "name": "includeArchived",
             "in": "query"
           },
           {
@@ -3041,6 +3084,269 @@
         "responses": {
           "200": {
             "description": "Knowledge scope created, replaced, or replayed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeScope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Cloudflare Access authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cloudflare Access denied the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current Work Graph state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/knowledge-scopes/{knowledgeScopeId}/archival": {
+      "post": {
+        "operationId": "archiveKnowledgeScope",
+        "summary": "Archive a knowledge-scope mirror",
+        "description": "Removes a scope from active scheduling and priority order while retaining its source snapshot, relationships, and historical work-item context. Open work must move or terminate first.",
+        "tags": [
+          "knowledge-scopes"
+        ],
+        "security": [
+          {
+            "cloudflareAccessClientId": [],
+            "cloudflareAccessClientSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": true,
+            "name": "knowledgeScopeId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 36,
+              "format": "uuid",
+              "description": "Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict."
+            },
+            "required": false,
+            "description": "Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.",
+            "name": "idempotency-key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 10000
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Knowledge scope archived or matching mutation replayed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeScope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Cloudflare Access authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cloudflare Access denied the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current Work Graph state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "restoreKnowledgeScope",
+        "summary": "Restore an archived knowledge-scope mirror",
+        "description": "Returns an archived scope to active scheduling at the median position for its kind.",
+        "tags": [
+          "knowledge-scopes"
+        ],
+        "security": [
+          {
+            "cloudflareAccessClientId": [],
+            "cloudflareAccessClientSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": true,
+            "name": "knowledgeScopeId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 36,
+              "format": "uuid",
+              "description": "Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict."
+            },
+            "required": false,
+            "description": "Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.",
+            "name": "idempotency-key",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Knowledge scope restored or matching mutation replayed",
             "content": {
               "application/json": {
                 "schema": {

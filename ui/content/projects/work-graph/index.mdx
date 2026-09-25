@@ -2,7 +2,7 @@
 title: "Work Graph"
 description: "A public source of truth for outcomes, dependencies, evidence, leases, and the human decisions that keep work moving"
 date: "2026-09-04"
-updated: "2026-09-22"
+updated: "2026-09-24"
 status: "in_progress"
 repo_url: "https://github.com/Robbie-Palmer/hq"
 tech_stack:
@@ -205,9 +205,10 @@ propose better plans. The Agent Coordinator continues to own actor selection.
 
 The first schema should stay small:
 
-* A **knowledge scope** mirrors an initiative or project and owns an ordinal
-  position among scopes of the same kind while the knowledge graph remains
-  authoritative for its meaning.
+* A **knowledge scope** mirrors an initiative or project. Active scopes own an
+  ordinal position among active scopes of the same kind. Archived scopes keep
+  historical context without participating in personal scheduling. The
+  knowledge graph remains authoritative for the scope's meaning.
 * A **work item** is the only recursive unit of planned work. It may be
   childless, gain children during execution, or become executable again after
   its children terminate. Epic, task, and subtask are presentation labels.
@@ -236,6 +237,24 @@ A passing local build, a commit, or an open pull request does not qualify.
 The system needs a history of changes even if the main interface shows only
 current state. Otherwise an expired lease or rewritten plan can erase the
 context needed by the next actor.
+
+## Knowledge scope lifecycle
+
+Knowledge scopes have an operational lifecycle separate from project prose and
+publication status. An active scope can schedule work and has a rank among
+active scopes of the same kind. An archived scope keeps its source snapshot,
+relationships, events, and historical ticket context, but default listings and
+priority operations exclude it.
+
+Archiving requires a reason and fails while the scope still schedules open
+work. The owner must move, release, or cancel that work first. Archived scopes
+cannot receive new ticket assignments or relationships. Restoring a scope
+places it at the median active rank. Refreshing its title, URLs, or source
+revision does not restore it.
+
+Archive completed personal projects and work managed by an employer. This
+keeps the public knowledge graph complete without mixing every published
+project into the personal execution plan.
 
 # Leases and handoff
 
@@ -313,8 +332,9 @@ more. Those behaviours support a price. A feature comparison does not.
 
 # First useful release
 
-1. Model knowledge scopes, flexible work items, dependencies, leases, notes,
-   attention requests, typed context, and an immutable event history.
+1. Model active and archived knowledge scopes, flexible work items,
+   dependencies, leases, notes, attention requests, typed context, and an
+   immutable event history.
 2. Produce a deterministic ready queue globally and within an initiative,
    project, or parent item. Fuse contextual initiative, project, and ticket
    ranks, and propagate blocked descendant urgency to blockers.

@@ -1,6 +1,7 @@
 import { createClient } from "./generated/client/client/index.js";
 import type { Client } from "./generated/client/client/index.js";
 import {
+  archiveKnowledgeScope,
   createAttentionRequest,
   createAttentionResolution,
   createDependency,
@@ -37,9 +38,11 @@ import {
   putWorkItemReference,
   putWorkItemSchedulingScope,
   refreshPullRequest,
+  restoreKnowledgeScope,
   unexpediteWorkItem,
 } from "./generated/client/sdk.gen.js";
 import type {
+  ArchiveKnowledgeScopeData,
   CreateAttentionRequestData,
   CreateAttentionResolutionData,
   CreateDependencyData,
@@ -210,6 +213,34 @@ export class WorkGraphClient {
       putKnowledgeScope({
         ...this.#options(),
         body,
+        headers: idempotencyHeaders(idempotencyKey),
+        path: { knowledgeScopeId },
+      }),
+    );
+  }
+
+  archiveKnowledgeScope(
+    knowledgeScopeId: string,
+    body: ArchiveKnowledgeScopeData["body"],
+    idempotencyKey?: string,
+  ) {
+    return this.#unwrap(
+      archiveKnowledgeScope({
+        ...this.#options(),
+        body,
+        headers: idempotencyHeaders(idempotencyKey),
+        path: { knowledgeScopeId },
+      }),
+    );
+  }
+
+  restoreKnowledgeScope(
+    knowledgeScopeId: string,
+    idempotencyKey?: string,
+  ) {
+    return this.#unwrap(
+      restoreKnowledgeScope({
+        ...this.#options(),
         headers: idempotencyHeaders(idempotencyKey),
         path: { knowledgeScopeId },
       }),

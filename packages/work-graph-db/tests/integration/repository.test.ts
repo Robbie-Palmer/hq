@@ -121,6 +121,15 @@ beforeAll(async () => {
     where pg_type.typname = 'knowledge_scope_kind'
     order by enumsortorder
   `);
+  const knowledgeScopeLifecycleValues = await db.execute<{
+    enumlabel: string;
+  }>(sql`
+    select enumlabel
+    from pg_enum
+    join pg_type on pg_type.oid = pg_enum.enumtypid
+    where pg_type.typname = 'knowledge_scope_lifecycle'
+    order by enumsortorder
+  `);
   const contextKindValues = await db.execute<{ enumlabel: string }>(sql`
     select enumlabel
     from pg_enum
@@ -138,7 +147,7 @@ beforeAll(async () => {
     order by enumsortorder
   `);
 
-  expect(migrationCount?.count).toBe(13);
+  expect(migrationCount?.count).toBe(14);
   expect(tables.map(({ table_name }) => table_name)).toEqual([
     "attention_requests",
     "attention_resolutions",
@@ -176,6 +185,9 @@ beforeAll(async () => {
     "initiative",
     "project",
   ]);
+  expect(
+    knowledgeScopeLifecycleValues.map(({ enumlabel }) => enumlabel),
+  ).toEqual(["active", "archived"]);
   expect(contextKindValues.map(({ enumlabel }) => enumlabel)).toEqual([
     "brief",
     "acceptance_criteria",
@@ -1017,6 +1029,8 @@ describe("knowledge scope persistence", () => {
       canonicalUrl: "https://example.test/projects/work-graph",
       markdownUrl: "https://example.test/projects/work-graph.md",
       sourceRevision: "def456",
+      lifecycle: "active",
+      archiveReason: null,
       rank: 1024,
     });
     await expect(
@@ -1104,6 +1118,122 @@ describe("knowledge scope persistence", () => {
     ).rejects.toEqual(
       expect.objectContaining<Partial<WorkGraphError>>({
         code: "idempotency_key_reused",
+      }),
+    );
+  });
+
+  it("archives scopes outside active ranking and restores them at the median", async () => {
+    const put = (id: string) =>
+      repository.putKnowledgeScope({
+        id,
+        kind: "project",
+        title: id,
+        canonicalUrl: `https://example.test/projects/${id}`,
+        markdownUrl: `https://example.test/projects/${id}.md`,
+      });
+    await put("alpha");
+    await put("bravo");
+
+    await expect(
+      repository.archiveKnowledgeScope(
+        "alpha",
+        { reason: "Completed project" },
+        { idempotencyKey: recordId(320) },
+      ),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        id: "alpha",
+        lifecycle: "archived",
+        archiveReason: "Completed project",
+        rank: null,
+      }),
+    );
+    await expect(repository.listKnowledgeScopes()).resolves.toEqual([
+      expect.objectContaining({ id: "bravo", rank: 1024 }),
+    ]);
+    await expect(
+      repository.listKnowledgeScopes({ includeArchived: true }),
+    ).resolves.toEqual([
+      expect.objectContaining({ id: "alpha", lifecycle: "archived" }),
+      expect.objectContaining({ id: "bravo", lifecycle: "active" }),
+    ]);
+
+    await repository.putKnowledgeScope({
+      id: "alpha",
+      kind: "project",
+      title: "Alpha renamed",
+      canonicalUrl: "https://example.test/projects/alpha",
+      markdownUrl: "https://example.test/projects/alpha.md",
+    });
+    await expect(repository.getKnowledgeScope("alpha")).resolves.toEqual(
+      expect.objectContaining({
+        title: "Alpha renamed",
+        lifecycle: "archived",
+        archiveReason: "Completed project",
+        rank: null,
+      }),
+    );
+
+    await expect(
+      repository.restoreKnowledgeScope("alpha", {
+        idempotencyKey: recordId(321),
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        id: "alpha",
+        lifecycle: "active",
+        archiveReason: null,
+        rank: 2048,
+      }),
+    );
+  });
+
+  it("keeps scopes active while they schedule open work", async () => {
+    await putProject();
+    await repository.createWorkItem({
+      id: "ticket",
+      title: "Open ticket",
+      schedulingProjectId: "work-graph",
+    });
+
+    await expect(
+      repository.archiveKnowledgeScope("work-graph", {
+        reason: "No longer managed here",
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "knowledge_scope_has_open_work",
+      }),
+    );
+  });
+
+  it("hides archived relationships and rejects new scheduling assignments", async () => {
+    await putInitiative();
+    await putProject();
+    const relationship = {
+      parentKnowledgeScopeId: "semi-autonomous-development",
+      childKnowledgeScopeId: "work-graph",
+    };
+    await repository.addKnowledgeScopeRelationship(relationship);
+    await repository.archiveKnowledgeScope("work-graph", {
+      reason: "Managed outside Work Graph",
+    });
+
+    await expect(repository.listKnowledgeScopeRelationships()).resolves.toEqual(
+      [],
+    );
+    await expect(
+      repository.listKnowledgeScopeRelationships({ includeArchived: true }),
+    ).resolves.toEqual([relationship]);
+    await expect(
+      repository.createWorkItem({
+        id: "ticket",
+        title: "New ticket",
+        schedulingProjectId: "work-graph",
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "invalid_knowledge_scope_lifecycle",
       }),
     );
   });

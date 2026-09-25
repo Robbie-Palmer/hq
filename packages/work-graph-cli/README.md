@@ -117,8 +117,11 @@ work-graph scope put work-graph \
   --markdown-url https://robbiepalmer.me/projects/work-graph.md
 work-graph scope list --kind project
 work-graph scope show work-graph
+work-graph scope archive work-graph --reason "Managed outside Work Graph"
+work-graph scope list --all
+work-graph scope restore work-graph
 work-graph scope link semi-autonomous-software-development work-graph
-work-graph scope links
+work-graph scope links --all
 work-graph scope unlink semi-autonomous-software-development work-graph
 work-graph scope assign work-graph-finish-mvp \
   --initiative-id semi-autonomous-software-development \
@@ -252,8 +255,13 @@ evidence for both. It does not return unfinished work to the queue.
 
 `scope put` uses its positional ID as the stable source key. Repeating it
 replaces the title, URLs, and source revision while preserving relationships
-and scheduling position for that ID. `scope link` adds a directed
-parent-to-child relationship and rejects cycles.
+and Work Graph-owned lifecycle and scheduling position for that ID. `scope
+archive` requires a reason, rejects scopes that still schedule open work, and
+removes the scope from active ranking and default listings. `scope restore`
+returns it to the median active rank. Pass `--all` to `scope list` or `scope
+links` for an audit that includes archived scopes and their relationships.
+`scope link` adds a directed relationship and rejects cycles or archived
+endpoints.
 
 `scope assign` moves an existing root ticket into a scheduling initiative and
 project. Children inherit that assignment. Omit both scope flags to return the
@@ -262,11 +270,11 @@ ticket to the unscoped queue. Queue and scheduler-selected claim commands accept
 match. Filtering preserves the relative global priority order. A claim that
 names a ticket directly cannot also use scope filters.
 
-Priority commands use relative anchors. `scope move` compares initiatives only
-with initiatives and projects only with projects. `priority move` compares a
-ticket only with tickets in the same scheduling project. New entries start at
-the median. Expedites require a reason and temporarily donate their urgency to
-unresolved blockers.
+Priority commands use relative anchors. `scope move` compares active
+initiatives only with active initiatives and active projects only with active
+projects. `priority move` compares a ticket only with tickets in the same
+scheduling project. New and restored scopes start at the median. Expedites
+require a reason and temporarily donate their urgency to unresolved blockers.
 
 Decomposition accepts contract-shaped JSON arrays. The optional child claim
 gets a generated lease ID unless `--claim-lease-id` supplies one.

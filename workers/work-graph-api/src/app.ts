@@ -6,6 +6,7 @@ import {
 import type { Env } from "hono";
 import type {
   AttentionRequestReadModel,
+  ArchiveKnowledgeScopeInput,
   ClaimWorkItemInput,
   CreateAttentionRequestInput,
   CreateAttentionRequestResult,
@@ -41,6 +42,7 @@ import { WORK_GRAPH_EVENT_TYPES } from "work-graph-db";
 import {
   ARCHITECTURE_DECISION_ROLES,
   KNOWLEDGE_SCOPE_KINDS,
+  KNOWLEDGE_SCOPE_LIFECYCLES,
   LEASE_OUTCOMES,
   PULL_REQUEST_CHECK_SUMMARIES,
   PULL_REQUEST_MERGEABILITIES,
@@ -207,6 +209,11 @@ const knowledgeScopeSchema = z
     canonicalUrl: knowledgeScopeUrlSchema,
     markdownUrl: knowledgeScopeUrlSchema,
     sourceRevision: z.union([identifierSchema, z.null()]),
+    lifecycle: z.enum(KNOWLEDGE_SCOPE_LIFECYCLES),
+    archiveReason: z.union([
+      z.string().min(1).max(MAX_TITLE_LENGTH),
+      z.null(),
+    ]),
     rank: z.union([childRankSchema, z.null()]),
   })
   .openapi("KnowledgeScope");
@@ -529,6 +536,7 @@ const listWorkItemLeasesQuerySchema = z.object({
 });
 const listKnowledgeScopesQuerySchema = z.object({
   kind: z.enum(KNOWLEDGE_SCOPE_KINDS).optional(),
+  includeArchived: z.enum(["true"]).optional(),
   limit: z.coerce
     .number()
     .int()
@@ -539,6 +547,7 @@ const listKnowledgeScopesQuerySchema = z.object({
   cursor: identifierSchema.optional(),
 });
 const listKnowledgeScopeRelationshipsQuerySchema = z.object({
+  includeArchived: z.enum(["true"]).optional(),
   limit: z.coerce
     .number()
     .int()
@@ -583,9 +592,19 @@ const putWorkItemPullRequestBodySchema = workItemPullRequestSchema
   .omit({ workItemId: true })
   .strict();
 const putKnowledgeScopeBodySchema = knowledgeScopeSchema
-  .omit({ id: true, rank: true })
+  .omit({
+    id: true,
+    lifecycle: true,
+    archiveReason: true,
+    rank: true,
+  })
   .extend({
     sourceRevision: z.union([identifierSchema, z.null()]).optional(),
+  })
+  .strict();
+const archiveKnowledgeScopeBodySchema = z
+  .object({
+    reason: z.string().min(1).max(MAX_TITLE_LENGTH),
   })
   .strict();
 const priorityMoveBodySchema = z.union([
@@ -786,7 +805,7 @@ const listKnowledgeScopesRoute = createRoute({
   operationId: "listKnowledgeScopes",
   summary: "List knowledge-scope mirrors",
   description:
-    "Returns initiative and project mirrors in stable source-key order. The optional kind filter does not change that order.",
+    "Returns active initiative and project mirrors in stable source-key order. The optional kind filter does not change that order. Set includeArchived=true for an audit view.",
   tags: ["knowledge-scopes"],
   security: accessSecurity,
   request: { query: listKnowledgeScopesQuerySchema },
@@ -844,6 +863,56 @@ const putKnowledgeScopeRoute = createRoute({
   },
 });
 
+const archiveKnowledgeScopeRoute = createRoute({
+  method: "post",
+  path: "/api/knowledge-scopes/{knowledgeScopeId}/archival",
+  operationId: "archiveKnowledgeScope",
+  summary: "Archive a knowledge-scope mirror",
+  description:
+    "Removes a scope from active scheduling and priority order while retaining its source snapshot, relationships, and historical work-item context. Open work must move or terminate first.",
+  tags: ["knowledge-scopes"],
+  security: accessSecurity,
+  request: {
+    params: knowledgeScopeParamsSchema,
+    headers: idempotencyHeadersSchema,
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: archiveKnowledgeScopeBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Knowledge scope archived or matching mutation replayed",
+      content: { "application/json": { schema: knowledgeScopeSchema } },
+    },
+    ...standardErrors,
+  },
+});
+
+const restoreKnowledgeScopeRoute = createRoute({
+  method: "delete",
+  path: "/api/knowledge-scopes/{knowledgeScopeId}/archival",
+  operationId: "restoreKnowledgeScope",
+  summary: "Restore an archived knowledge-scope mirror",
+  description:
+    "Returns an archived scope to active scheduling at the median position for its kind.",
+  tags: ["knowledge-scopes"],
+  security: accessSecurity,
+  request: {
+    params: knowledgeScopeParamsSchema,
+    headers: idempotencyHeadersSchema,
+  },
+  responses: {
+    200: {
+      description: "Knowledge scope restored or matching mutation replayed",
+      content: { "application/json": { schema: knowledgeScopeSchema } },
+    },
+    ...standardErrors,
+  },
+});
+
 const moveKnowledgeScopePriorityRoute = createRoute({
   method: "post",
   path: "/api/knowledge-scopes/{knowledgeScopeId}/priority-moves",
@@ -876,7 +945,7 @@ const listKnowledgeScopeRelationshipsRoute = createRoute({
   operationId: "listKnowledgeScopeRelationships",
   summary: "List knowledge-scope relationships",
   description:
-    "Returns a bounded page of directed parent-to-child scope edges in stable order. Pass nextCursor unchanged to continue.",
+    "Returns a bounded page of directed parent-to-child edges between active scopes in stable order. Set includeArchived=true for an audit view. Pass nextCursor unchanged to continue.",
   tags: ["knowledge-scopes"],
   security: accessSecurity,
   request: { query: listKnowledgeScopeRelationshipsQuerySchema },
@@ -1672,6 +1741,15 @@ export interface WorkGraphApiRepository {
     input: KnowledgeScopeInput,
     options?: IdempotentMutationOptions,
   ): Promise<KnowledgeScope>;
+  archiveKnowledgeScope(
+    id: string,
+    input: ArchiveKnowledgeScopeInput,
+    options?: IdempotentMutationOptions,
+  ): Promise<KnowledgeScope>;
+  restoreKnowledgeScope(
+    id: string,
+    options?: IdempotentMutationOptions,
+  ): Promise<KnowledgeScope>;
   moveKnowledgeScopePriority(
     id: string,
     input: PriorityMoveInput,
@@ -2043,9 +2121,11 @@ export const createWorkGraphApp = (
   });
 
   app.openapi(listKnowledgeScopesRoute, async (context) => {
-    const { cursor, kind, limit } = context.req.valid("query");
+    const { cursor, includeArchived, kind, limit } =
+      context.req.valid("query");
     const scopes = await repository.listKnowledgeScopes({
       ...(kind === undefined ? {} : { kind }),
+      ...(includeArchived === undefined ? {} : { includeArchived: true }),
       ...(cursor === undefined ? {} : { cursor }),
       limit: limit + 1,
     });
@@ -2080,6 +2160,32 @@ export const createWorkGraphApp = (
     );
   });
 
+  app.openapi(archiveKnowledgeScopeRoute, async (context) => {
+    const { knowledgeScopeId } = context.req.valid("param");
+    const request = context.req.valid("json");
+    const headers = context.req.valid("header");
+    return context.json(
+      await repository.archiveKnowledgeScope(
+        knowledgeScopeId,
+        request,
+        idempotencyOptions(headers["idempotency-key"]),
+      ),
+      200,
+    );
+  });
+
+  app.openapi(restoreKnowledgeScopeRoute, async (context) => {
+    const { knowledgeScopeId } = context.req.valid("param");
+    const headers = context.req.valid("header");
+    return context.json(
+      await repository.restoreKnowledgeScope(
+        knowledgeScopeId,
+        idempotencyOptions(headers["idempotency-key"]),
+      ),
+      200,
+    );
+  });
+
   app.openapi(moveKnowledgeScopePriorityRoute, async (context) => {
     const { knowledgeScopeId } = context.req.valid("param");
     const request = context.req.valid("json");
@@ -2095,8 +2201,9 @@ export const createWorkGraphApp = (
   });
 
   app.openapi(listKnowledgeScopeRelationshipsRoute, async (context) => {
-    const { cursor, limit } = context.req.valid("query");
+    const { cursor, includeArchived, limit } = context.req.valid("query");
     const relationships = await repository.listKnowledgeScopeRelationships({
+      ...(includeArchived === undefined ? {} : { includeArchived: true }),
       ...(cursor === undefined
         ? {}
         : { cursor: decodeKnowledgeScopeRelationshipCursor(cursor) }),

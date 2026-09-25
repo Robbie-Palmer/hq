@@ -17,6 +17,7 @@ import {
 import {
   ARCHITECTURE_DECISION_ROLES,
   KNOWLEDGE_SCOPE_KINDS,
+  KNOWLEDGE_SCOPE_LIFECYCLES,
   LEASE_OUTCOMES,
   PULL_REQUEST_CHECK_SUMMARIES,
   PULL_REQUEST_MERGEABILITIES,
@@ -65,6 +66,11 @@ export const pullRequestCheckSummaryEnum = pgEnum(
 export const knowledgeScopeKindEnum = pgEnum(
   "knowledge_scope_kind",
   KNOWLEDGE_SCOPE_KINDS,
+);
+
+export const knowledgeScopeLifecycleEnum = pgEnum(
+  "knowledge_scope_lifecycle",
+  KNOWLEDGE_SCOPE_LIFECYCLES,
 );
 
 export const workItemLifecycleEnum = pgEnum(
@@ -329,6 +335,8 @@ export const knowledgeScope = pgTable(
     canonicalUrl: text().notNull(),
     markdownUrl: text().notNull(),
     sourceRevision: text(),
+    lifecycle: knowledgeScopeLifecycleEnum().notNull().default("active"),
+    archiveReason: text(),
     rank: integer(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp({ withTimezone: true })
@@ -340,6 +348,10 @@ export const knowledgeScope = pgTable(
     uniqueIndex("knowledge_scopes_kind_rank_uidx")
       .on(table.kind, table.rank)
       .where(sql`${table.rank} is not null`),
+    index("knowledge_scopes_lifecycle_kind_idx").on(
+      table.lifecycle,
+      table.kind,
+    ),
     check("knowledge_scopes_id_not_blank_check", sql`btrim(${table.id}) <> ''`),
     check(
       "knowledge_scopes_title_not_blank_check",
@@ -352,6 +364,14 @@ export const knowledgeScope = pgTable(
     check(
       "knowledge_scopes_rank_positive_check",
       sql`${table.rank} is null or ${table.rank} > 0`,
+    ),
+    check(
+      "knowledge_scopes_archive_reason_check",
+      sql`(${table.lifecycle} = 'active' and ${table.archiveReason} is null) or (${table.lifecycle} = 'archived' and ${table.archiveReason} is not null and btrim(${table.archiveReason}) <> '')`,
+    ),
+    check(
+      "knowledge_scopes_archived_rank_check",
+      sql`${table.lifecycle} = 'active' or ${table.rank} is null`,
     ),
   ],
 );

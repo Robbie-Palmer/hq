@@ -12,6 +12,8 @@ const repository: WorkGraphApiRepository = {
   listKnowledgeScopes: unavailable,
   getKnowledgeScope: unavailable,
   putKnowledgeScope: unavailable,
+  archiveKnowledgeScope: unavailable,
+  restoreKnowledgeScope: unavailable,
   moveKnowledgeScopePriority: unavailable,
   listKnowledgeScopeRelationships: unavailable,
   addKnowledgeScopeRelationship: unavailable,

@@ -89,3 +89,8 @@ export type ArchitectureDecisionRole =
 export const KNOWLEDGE_SCOPE_KINDS = ["initiative", "project"] as const;
 
 export type KnowledgeScopeKind = (typeof KNOWLEDGE_SCOPE_KINDS)[number];
+
+export const KNOWLEDGE_SCOPE_LIFECYCLES = ["active", "archived"] as const;
+
+export type KnowledgeScopeLifecycle =
+  (typeof KNOWLEDGE_SCOPE_LIFECYCLES)[number];
