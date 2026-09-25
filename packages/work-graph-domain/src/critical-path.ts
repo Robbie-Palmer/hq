@@ -9,6 +9,7 @@ import type {
   KnowledgeScope,
   WorkGraph,
   WorkItem,
+  WorkItemDependency,
   WorkItemOperationalState,
 } from "./model";
 import {
@@ -89,6 +90,33 @@ export interface CriticalPathProjectionOptions {
   readonly targetWorkItemIds?: readonly string[];
 }
 
+type WorkItemOrder = ReadonlyMap<string, number>;
+
+interface CriticalPathTraversal {
+  readonly includedWorkItemIds: ReadonlySet<string>;
+  readonly reasonsByWorkItemId: ReadonlyMap<
+    string,
+    ReadonlyMap<string, CriticalPathInclusionReason>
+  >;
+  readonly edges: readonly CriticalPathEdge[];
+}
+
+interface MutableCriticalPathTraversal {
+  readonly includedWorkItemIds: Set<string>;
+  readonly reasonsByWorkItemId: Map<
+    string,
+    Map<string, CriticalPathInclusionReason>
+  >;
+  readonly edgesByKey: Map<string, CriticalPathEdge>;
+  readonly pendingWorkItemIds: string[];
+}
+
+interface CriticalPathLeaves {
+  readonly leafIds: readonly string[];
+  readonly nodeById: ReadonlyMap<string, CriticalPathNode>;
+  readonly pathsByLeafId: ReadonlyMap<string, readonly (readonly string[])[]>;
+}
+
 const reasonKey = (reason: CriticalPathInclusionReason): string => {
   switch (reason.kind) {
     case "target_outcome":
@@ -143,7 +171,7 @@ const selectTargetOutcomes = (
 };
 
 const compareByOrder = (
-  orderById: ReadonlyMap<string, number>,
+  orderById: WorkItemOrder,
   leftId: string,
   rightId: string,
 ): number =>
@@ -152,7 +180,7 @@ const compareByOrder = (
   compareStrings(leftId, rightId);
 
 const compareEdges = (
-  orderById: ReadonlyMap<string, number>,
+  orderById: WorkItemOrder,
   left: CriticalPathEdge,
   right: CriticalPathEdge,
 ): number => {
@@ -180,7 +208,7 @@ const compareEdges = (
 };
 
 const compareReasons = (
-  orderById: ReadonlyMap<string, number>,
+  orderById: WorkItemOrder,
   left: CriticalPathInclusionReason,
   right: CriticalPathInclusionReason,
 ): number => {
@@ -211,7 +239,7 @@ const compareReasons = (
 const enumerateBlockingPaths = (
   targetOutcomeIds: readonly string[],
   edges: readonly CriticalPathEdge[],
-  orderById: ReadonlyMap<string, number>,
+  orderById: WorkItemOrder,
 ): readonly (readonly string[])[] => {
   const nextIdsByWorkItemId = new Map<string, Set<string>>();
   for (const edge of edges) {
@@ -239,6 +267,226 @@ const enumerateBlockingPaths = (
   return paths;
 };
 
+const createTraversal = (): MutableCriticalPathTraversal => ({
+  includedWorkItemIds: new Set(),
+  reasonsByWorkItemId: new Map(),
+  edgesByKey: new Map(),
+  pendingWorkItemIds: [],
+});
+
+const includeWorkItem = (
+  traversal: MutableCriticalPathTraversal,
+  workItemId: string,
+  reason: CriticalPathInclusionReason,
+): void => {
+  const reasons =
+    traversal.reasonsByWorkItemId.get(workItemId) ?? new Map();
+  reasons.set(reasonKey(reason), reason);
+  traversal.reasonsByWorkItemId.set(workItemId, reasons);
+
+  if (traversal.includedWorkItemIds.has(workItemId)) return;
+  traversal.includedWorkItemIds.add(workItemId);
+  traversal.pendingWorkItemIds.push(workItemId);
+};
+
+const addEdge = (
+  traversal: MutableCriticalPathTraversal,
+  edge: CriticalPathEdge,
+  reason: CriticalPathInclusionReason,
+): void => {
+  traversal.edgesByKey.set(edgeKey(edge), edge);
+  includeWorkItem(traversal, edge.toWorkItemId, reason);
+};
+
+const addOpenChildren = (
+  graph: WorkGraph,
+  orderById: WorkItemOrder,
+  workItemId: string,
+  traversal: MutableCriticalPathTraversal,
+): void => {
+  const children = [...getDirectChildren(graph, workItemId)].sort(
+    (left, right) => compareByOrder(orderById, left.id, right.id),
+  );
+
+  for (const child of children) {
+    if (child.lifecycle !== "open") continue;
+    addEdge(
+      traversal,
+      {
+        kind: "decomposition",
+        fromWorkItemId: workItemId,
+        toWorkItemId: child.id,
+      },
+      { kind: "decomposition_child", fromWorkItemId: workItemId },
+    );
+  }
+};
+
+const compareDependencies = (
+  orderById: WorkItemOrder,
+  left: WorkItemDependency,
+  right: WorkItemDependency,
+): number =>
+  compareByOrder(
+    orderById,
+    left.blockerWorkItemId,
+    right.blockerWorkItemId,
+  ) || compareStrings(left.dependentWorkItemId, right.dependentWorkItemId);
+
+const addOpenDependencies = (
+  graph: WorkGraph,
+  orderById: WorkItemOrder,
+  workItemId: string,
+  traversal: MutableCriticalPathTraversal,
+): void => {
+  const dependencies = [...getEffectiveDependencies(graph, workItemId)].sort(
+    (left, right) => compareDependencies(orderById, left, right),
+  );
+
+  for (const dependency of dependencies) {
+    const blocker = getWorkItem(graph, dependency.blockerWorkItemId);
+    if (blocker.lifecycle !== "open") continue;
+    addEdge(
+      traversal,
+      {
+        kind: "dependency",
+        fromWorkItemId: workItemId,
+        toWorkItemId: blocker.id,
+        dependencyDeclaredByWorkItemId: dependency.dependentWorkItemId,
+      },
+      {
+        kind: "dependency_blocker",
+        fromWorkItemId: workItemId,
+        dependencyDeclaredByWorkItemId: dependency.dependentWorkItemId,
+      },
+    );
+  }
+};
+
+const traverseCriticalPath = (
+  graph: WorkGraph,
+  targets: readonly WorkItem[],
+  orderById: WorkItemOrder,
+): CriticalPathTraversal => {
+  const traversal = createTraversal();
+  for (const target of targets) {
+    includeWorkItem(traversal, target.id, { kind: "target_outcome" });
+  }
+
+  for (
+    let index = 0;
+    index < traversal.pendingWorkItemIds.length;
+    index += 1
+  ) {
+    const workItemId = traversal.pendingWorkItemIds[index];
+    if (!workItemId) continue;
+    addOpenChildren(graph, orderById, workItemId, traversal);
+    addOpenDependencies(graph, orderById, workItemId, traversal);
+  }
+
+  return {
+    includedWorkItemIds: traversal.includedWorkItemIds,
+    reasonsByWorkItemId: traversal.reasonsByWorkItemId,
+    edges: [...traversal.edgesByKey.values()].sort((left, right) =>
+      compareEdges(orderById, left, right),
+    ),
+  };
+};
+
+const projectCriticalPathNodes = (
+  graph: WorkGraph,
+  options: CriticalPathProjectionOptions,
+  orderedItems: readonly WorkItem[],
+  orderById: WorkItemOrder,
+  priorities: ReadonlyMap<string, WorkItemPriorityProjection>,
+  traversal: CriticalPathTraversal,
+): readonly CriticalPathNode[] =>
+  orderedItems
+    .filter((item) => traversal.includedWorkItemIds.has(item.id))
+    .map((item) => {
+      const operationalState = projectOperationalState(options, item.id);
+      const inclusionReasons = [
+        ...(traversal.reasonsByWorkItemId.get(item.id)?.values() ?? []),
+      ].sort((left, right) => compareReasons(orderById, left, right));
+
+      return {
+        item,
+        stage: projectWorkItemStage(graph, item.id, operationalState),
+        claimable: isWorkItemClaimable(graph, item.id, operationalState),
+        priority: priorities.get(item.id)!,
+        inclusionReasons,
+      };
+    });
+
+const groupPathsByLeaf = (
+  blockingPaths: readonly (readonly string[])[],
+): ReadonlyMap<string, readonly (readonly string[])[]> => {
+  const pathsByLeafId = new Map<string, (readonly string[])[]>();
+  for (const path of blockingPaths) {
+    const leafId = path.at(-1);
+    if (!leafId) continue;
+    const paths = pathsByLeafId.get(leafId) ?? [];
+    paths.push(path);
+    pathsByLeafId.set(leafId, paths);
+  }
+  return pathsByLeafId;
+};
+
+const projectLeaves = (
+  nodes: readonly CriticalPathNode[],
+  blockingPaths: readonly (readonly string[])[],
+  orderById: WorkItemOrder,
+): CriticalPathLeaves => {
+  const nodeById = new Map(nodes.map((node) => [node.item.id, node] as const));
+  const pathsByLeafId = groupPathsByLeaf(blockingPaths);
+  const leafIds = [...pathsByLeafId.keys()].sort((left, right) =>
+    compareByOrder(orderById, left, right),
+  );
+  return { leafIds, nodeById, pathsByLeafId };
+};
+
+const projectParallelBranches = (
+  targetOutcomeIds: readonly string[],
+  leaves: CriticalPathLeaves,
+): readonly CriticalPathParallelBranch[] =>
+  leaves.leafIds
+    .filter(
+      (workItemId) => leaves.nodeById.get(workItemId)?.claimable === true,
+    )
+    .map((workItemId) => {
+      const node = leaves.nodeById.get(workItemId)!;
+      const paths = leaves.pathsByLeafId.get(workItemId) ?? [];
+      return {
+        workItemId,
+        stage: node.stage,
+        claimable: node.claimable,
+        targetWorkItemIds: targetOutcomeIds.filter((targetId) =>
+          paths.some(([pathTargetId]) => pathTargetId === targetId),
+        ),
+        paths,
+      };
+    });
+
+const assembleProjection = (
+  targetOutcomeIds: readonly string[],
+  nodes: readonly CriticalPathNode[],
+  edges: readonly CriticalPathEdge[],
+  blockingPaths: readonly (readonly string[])[],
+  leaves: CriticalPathLeaves,
+): CriticalPathProjection => ({
+  targetOutcomeIds,
+  nodes,
+  edges,
+  blockingPaths,
+  readyLeafIds: leaves.leafIds.filter(
+    (id) => leaves.nodeById.get(id)?.stage === "ready",
+  ),
+  blockingAttentionIds: nodes
+    .filter(({ stage }) => stage === "needs_attention")
+    .map(({ item }) => item.id),
+  parallelBranches: projectParallelBranches(targetOutcomeIds, leaves),
+});
+
 export const projectCriticalPath = (
   graph: WorkGraph,
   options: CriticalPathProjectionOptions,
@@ -253,138 +501,26 @@ export const projectCriticalPath = (
   const priorities = projectWorkItemPriorities(graph, knowledgeScopes);
   const targets = selectTargetOutcomes(graph, orderedItems, options);
   const targetOutcomeIds = targets.map(({ id }) => id);
-  const includedIds = new Set<string>();
-  const reasonsByWorkItemId = new Map<
-    string,
-    Map<string, CriticalPathInclusionReason>
-  >();
-  const edgesByKey = new Map<string, CriticalPathEdge>();
-  const pending = [...targetOutcomeIds];
-  let pendingIndex = 0;
-
-  const include = (
-    workItemId: string,
-    reason: CriticalPathInclusionReason,
-  ): void => {
-    const reasons = reasonsByWorkItemId.get(workItemId) ?? new Map();
-    reasons.set(reasonKey(reason), reason);
-    reasonsByWorkItemId.set(workItemId, reasons);
-    if (includedIds.has(workItemId)) return;
-    includedIds.add(workItemId);
-    pending.push(workItemId);
-  };
-
-  pending.length = 0;
-  for (const target of targets) include(target.id, { kind: "target_outcome" });
-
-  while (pendingIndex < pending.length) {
-    const workItemId = pending[pendingIndex++];
-    if (!workItemId) continue;
-
-    const children = [...getDirectChildren(graph, workItemId)].sort(
-      (left, right) => compareByOrder(orderById, left.id, right.id),
-    );
-    for (const child of children) {
-      if (child.lifecycle !== "open") continue;
-      const edge = {
-        kind: "decomposition",
-        fromWorkItemId: workItemId,
-        toWorkItemId: child.id,
-      } satisfies CriticalPathEdge;
-      edgesByKey.set(edgeKey(edge), edge);
-      include(child.id, {
-        kind: "decomposition_child",
-        fromWorkItemId: workItemId,
-      });
-    }
-
-    const dependencies = [...getEffectiveDependencies(graph, workItemId)].sort(
-      (left, right) =>
-        compareByOrder(
-          orderById,
-          left.blockerWorkItemId,
-          right.blockerWorkItemId,
-        ) ||
-        compareStrings(
-          left.dependentWorkItemId,
-          right.dependentWorkItemId,
-        ),
-    );
-    for (const dependency of dependencies) {
-      const blocker = getWorkItem(graph, dependency.blockerWorkItemId);
-      if (blocker.lifecycle !== "open") continue;
-      const edge = {
-        kind: "dependency",
-        fromWorkItemId: workItemId,
-        toWorkItemId: blocker.id,
-        dependencyDeclaredByWorkItemId: dependency.dependentWorkItemId,
-      } satisfies CriticalPathEdge;
-      edgesByKey.set(edgeKey(edge), edge);
-      include(blocker.id, {
-        kind: "dependency_blocker",
-        fromWorkItemId: workItemId,
-        dependencyDeclaredByWorkItemId: dependency.dependentWorkItemId,
-      });
-    }
-  }
-
-  const includedItems = orderedItems.filter((item) => includedIds.has(item.id));
-  const nodes = includedItems.map((item): CriticalPathNode => {
-    const operationalState = projectOperationalState(options, item.id);
-    return {
-      item,
-      stage: projectWorkItemStage(graph, item.id, operationalState),
-      claimable: isWorkItemClaimable(graph, item.id, operationalState),
-      priority: priorities.get(item.id)!,
-      inclusionReasons: [
-        ...(reasonsByWorkItemId.get(item.id)?.values() ?? []),
-      ].sort((left, right) => compareReasons(orderById, left, right)),
-    };
-  });
-  const edges = [...edgesByKey.values()].sort((left, right) =>
-    compareEdges(orderById, left, right),
+  const traversal = traverseCriticalPath(graph, targets, orderById);
+  const nodes = projectCriticalPathNodes(
+    graph,
+    options,
+    orderedItems,
+    orderById,
+    priorities,
+    traversal,
   );
   const blockingPaths = enumerateBlockingPaths(
     targetOutcomeIds,
-    edges,
+    traversal.edges,
     orderById,
   );
-  const nodeById = new Map(nodes.map((node) => [node.item.id, node] as const));
-  const pathsByLeafId = new Map<string, (readonly string[])[]>();
-  for (const path of blockingPaths) {
-    const leafId = path.at(-1);
-    if (!leafId) continue;
-    const paths = pathsByLeafId.get(leafId) ?? [];
-    paths.push(path);
-    pathsByLeafId.set(leafId, paths);
-  }
-  const leafIds = [...pathsByLeafId.keys()].sort((left, right) =>
-    compareByOrder(orderById, left, right),
-  );
-
-  return {
+  const leaves = projectLeaves(nodes, blockingPaths, orderById);
+  return assembleProjection(
     targetOutcomeIds,
     nodes,
-    edges,
+    traversal.edges,
     blockingPaths,
-    readyLeafIds: leafIds.filter((id) => nodeById.get(id)?.stage === "ready"),
-    blockingAttentionIds: nodes
-      .filter(({ stage }) => stage === "needs_attention")
-      .map(({ item }) => item.id),
-    parallelBranches: leafIds
-      .filter((workItemId) => nodeById.get(workItemId)?.claimable === true)
-      .map((workItemId) => {
-        const node = nodeById.get(workItemId)!;
-        const paths = pathsByLeafId.get(workItemId) ?? [];
-        return {
-          workItemId,
-          stage: node.stage,
-          claimable: node.claimable,
-          targetWorkItemIds: targetOutcomeIds.filter((targetId) =>
-            paths.some(([pathTargetId]) => pathTargetId === targetId),
-          ),
-          paths,
-        };
-      }),
-  };
+    leaves,
+  );
 };
