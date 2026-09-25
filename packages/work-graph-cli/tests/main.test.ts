@@ -213,9 +213,13 @@ describe("Given agent-facing Work Graph commands", () => {
 
   it("manages knowledge-scope mirrors and relationships", async () => {
     const list = harness();
+    const allList = harness();
     const show = harness();
     const put = harness();
+    const archive = harness();
+    const restore = harness();
     const links = harness();
+    const allLinks = harness();
     const link = harness();
     const unlink = harness();
 
@@ -229,6 +233,7 @@ describe("Given agent-facing Work Graph commands", () => {
       "--cursor",
       "first",
     ]);
+    await allList.run(["scope", "list", "--all"]);
     await show.run(["scope", "show", "work/a b"]);
     await put.run([
       "scope",
@@ -247,6 +252,22 @@ describe("Given agent-facing Work Graph commands", () => {
       "--idempotency-key",
       UUID,
     ]);
+    await archive.run([
+      "scope",
+      "archive",
+      "work-graph",
+      "--reason",
+      "Completed project",
+      "--idempotency-key",
+      UUID,
+    ]);
+    await restore.run([
+      "scope",
+      "restore",
+      "work-graph",
+      "--idempotency-key",
+      UUID,
+    ]);
     await links.run([
       "scope",
       "links",
@@ -255,6 +276,7 @@ describe("Given agent-facing Work Graph commands", () => {
       "--cursor",
       '["initiative","work-graph"]',
     ]);
+    await allLinks.run(["scope", "links", "--all"]);
     await link.run([
       "scope",
       "link",
@@ -275,6 +297,9 @@ describe("Given agent-facing Work Graph commands", () => {
     expect(list.requests[0]?.url.href).toBe(
       "https://work.example.test/root/api/knowledge-scopes?kind=project&limit=10&cursor=first",
     );
+    expect(allList.requests[0]?.url.href).toBe(
+      "https://work.example.test/root/api/knowledge-scopes?includeArchived=true",
+    );
     expect(show.requests[0]?.url.pathname).toBe(
       "/root/api/knowledge-scopes/work%2Fa%20b",
     );
@@ -289,8 +314,22 @@ describe("Given agent-facing Work Graph commands", () => {
       },
     });
     expect(put.requests[0]?.headers.get("Idempotency-Key")).toBe(UUID);
+    expect(archive.requests[0]).toMatchObject({
+      method: "POST",
+      body: { reason: "Completed project" },
+    });
+    expect(archive.requests[0]?.url.pathname).toBe(
+      "/root/api/knowledge-scopes/work-graph/archival",
+    );
+    expect(restore.requests[0]?.method).toBe("DELETE");
+    expect(restore.requests[0]?.url.pathname).toBe(
+      "/root/api/knowledge-scopes/work-graph/archival",
+    );
     expect(links.requests[0]?.url.href).toBe(
       "https://work.example.test/root/api/knowledge-scope-relationships?limit=10&cursor=%5B%22initiative%22%2C%22work-graph%22%5D",
+    );
+    expect(allLinks.requests[0]?.url.href).toBe(
+      "https://work.example.test/root/api/knowledge-scope-relationships?includeArchived=true",
     );
     expect(link.requests[0]).toMatchObject({
       method: "POST",

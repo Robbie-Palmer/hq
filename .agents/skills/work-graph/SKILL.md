@@ -45,6 +45,9 @@ script already has both values.
 
 - Reorder a ticket with `work-graph priority move <ticket> --above <ticket>` or
   `--below <ticket>`. Ticket order is local to its scheduling project.
+- Remove a project or initiative from active scheduling with `work-graph scope
+  archive <scope> --reason "..."`. Use `scope restore` to return it at the
+  median active rank and `scope list --all` to audit archived scopes.
 - Add a blocking edge with
   `work-graph dependency add <dependent> <blocker>`.
 - Use `work-graph expedite <ticket> --reason "..."` only for an explicit

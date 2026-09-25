@@ -78,6 +78,8 @@ const knowledgeScope = (id: string, kind: "initiative" | "project") => ({
   canonicalUrl: `https://example.test/${id}`,
   markdownUrl: `https://example.test/${id}.md`,
   sourceRevision: null,
+  lifecycle: "active" as const,
+  archiveReason: null,
   rank: null,
 });
 
@@ -90,13 +92,25 @@ const buildRepository = (): WorkGraphApiRepository => ({
     canonicalUrl: "https://example.test/projects/work-graph",
     markdownUrl: "https://example.test/projects/work-graph.md",
     sourceRevision: null,
+    lifecycle: "active" as const,
+    archiveReason: null,
     rank: null,
   })),
   putKnowledgeScope: vi.fn(async (input) => ({
     ...input,
     sourceRevision: input.sourceRevision ?? null,
+    lifecycle: "active" as const,
+    archiveReason: null,
     rank: input.rank ?? null,
   })),
+  archiveKnowledgeScope: vi.fn(async (id, input) => ({
+    ...knowledgeScope(id, "project"),
+    lifecycle: "archived" as const,
+    archiveReason: input.reason,
+  })),
+  restoreKnowledgeScope: vi.fn(async (id) =>
+    knowledgeScope(id, "project"),
+  ),
   moveKnowledgeScopePriority: vi.fn(async (id) =>
     knowledgeScope(id, "project"),
   ),
@@ -253,6 +267,15 @@ describe("Given knowledge-scope mirrors", () => {
       nextCursor: "initiative-a",
     });
 
+    await app.request(
+      "/api/knowledge-scopes?kind=initiative&includeArchived=true",
+    );
+    expect(repository.listKnowledgeScopes).toHaveBeenLastCalledWith({
+      kind: "initiative",
+      includeArchived: true,
+      limit: 51,
+    });
+
     const get = await app.request("/api/knowledge-scopes/initiative-a");
     expect(get.status).toBe(200);
     expect(await responseJson(get)).toEqual(
@@ -288,8 +311,53 @@ describe("Given knowledge-scope mirrors", () => {
     expect(await responseJson(response)).toEqual({
       id: "work-graph",
       ...body,
+      lifecycle: "active",
+      archiveReason: null,
       rank: null,
     });
+  });
+
+  it("archives and restores a mirror without deleting its identity", async () => {
+    const repository = buildRepository();
+    const app = createWorkGraphApp(repository);
+
+    const archived = await app.request(
+      "/api/knowledge-scopes/work-graph/archival",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": idempotencyKey,
+        },
+        body: JSON.stringify({ reason: "Completed project" }),
+      },
+    );
+    expect(archived.status).toBe(200);
+    expect(repository.archiveKnowledgeScope).toHaveBeenCalledWith(
+      "work-graph",
+      { reason: "Completed project" },
+      { idempotencyKey },
+    );
+    expect(await responseJson(archived)).toEqual(
+      expect.objectContaining({
+        id: "work-graph",
+        lifecycle: "archived",
+        archiveReason: "Completed project",
+      }),
+    );
+
+    const restored = await app.request(
+      "/api/knowledge-scopes/work-graph/archival",
+      {
+        method: "DELETE",
+        headers: { "idempotency-key": removeIdempotencyKey },
+      },
+    );
+    expect(restored.status).toBe(200);
+    expect(repository.restoreKnowledgeScope).toHaveBeenCalledWith(
+      "work-graph",
+      { idempotencyKey: removeIdempotencyKey },
+    );
   });
 
   it("moves a scope with relative priority anchors", async () => {

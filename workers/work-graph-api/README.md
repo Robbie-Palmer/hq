@@ -77,6 +77,13 @@ null `parentId` to detach it to the graph root. The operation preserves the
 ticket and its history, and rejects cycles across hierarchy and dependency
 edges.
 
+Knowledge-scope lists and relationship lists return active scopes by default.
+Pass `includeArchived=true` for an audit view. Send `POST` to
+`/api/knowledge-scopes/{knowledgeScopeId}/archival` to archive a scope with a
+reason after checking that it schedules no open work. `DELETE` on the same URL
+restores it at the median active rank. Source snapshot updates preserve the
+Work Graph-owned lifecycle.
+
 ## Note history
 
 `POST /api/work-items/{workItemId}/notes` records lease-fenced notes while work

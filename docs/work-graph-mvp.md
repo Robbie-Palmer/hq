@@ -79,6 +79,26 @@ scheduling. A mirror may contain:
 Work Graph owns the rank. Updating a title snapshot does not make it the source
 of truth for project prose.
 
+A mirror has its own small operational lifecycle:
+
+- `active` scopes participate in scheduling and rank against active scopes of
+  the same kind;
+- `archived` scopes retain their source snapshot, relationships, event history,
+  and historical ticket context but disappear from default scope and
+  relationship listings.
+
+Archiving requires a reason, clears the scope's rank, and fails while the scope
+still schedules open work. Agents cannot add relationships to an archived
+scope or assign new work to it. Restoring a scope returns it to the median of
+its active kind. Source refreshes preserve this lifecycle, just as they
+preserve rank, because the knowledge graph's publication status and Work
+Graph's scheduling policy answer different questions.
+
+This lifecycle lets the service retain completed personal projects and work
+owned by an employer without placing either in the personal execution plan.
+Default list operations return active scopes. Audit clients can request active
+and archived scopes together.
+
 Initiatives and projects are not executable work items. An explicit work item
 can represent planning or revising one when that is real work.
 
@@ -165,8 +185,9 @@ effect.
 
 People author priority as contextual stack order. The service owns its numeric
 storage.
-Initiatives rank against initiatives, projects against projects, and tickets
-against tickets in the same scheduling project. New entries start at the median.
+Active initiatives rank against active initiatives, active projects against
+active projects, and tickets against tickets in the same scheduling project.
+New and restored scope entries start at the median.
 Clients move them by saying which nearby item they belong above or below; the
 service owns and may renormalise the stored integers.
 
@@ -405,6 +426,7 @@ Pure domain scenarios should cover:
 - stable ordering inside filtered scopes;
 - sparse tickets remaining valid;
 - claim context ordering only the context that exists;
+- scope archiving preserving historical context while removing active rank;
 - attention removal from and readiness recomputation before queue return;
 - retention of the previous worker after attention resolution; and
 - pull requests informing work without becoming dependency edges.
@@ -422,6 +444,7 @@ PostgreSQL integration scenarios should cover:
 - idempotent retry after a lost HTTP response.
 - relative priority moves remaining inside their initiative, project, or
   project-local ticket stack.
+- archived scopes rejecting open work and new scheduling assignments.
 
 API scenarios should cover:
 
@@ -471,11 +494,13 @@ before the headless workflow is useful.
     and CLI.
 13. [x] Add manual PR links and snapshot refresh. Automate GitHub events only after
    manual use shows which events matter.
-14. [ ] Add initiative, project, and parent filters to queue reads and
+14. [x] Add initiative, project, and parent filters to queue reads and
     scheduler-selected claims. Preserve global relative order, then assign the
     live Work Graph plan to its project and initiative mirrors.
-15. [ ] Expose identity-preserving work-item reparenting through the REST API
+15. [x] Expose identity-preserving work-item reparenting through the REST API
     and CLI, including combined cycle rejection and immutable event history.
+16. [x] Add active and archived knowledge-scope lifecycle, reason-bearing
+    archive and restore operations, active-only ranking, and audit listings.
 
 ## Deferred
 

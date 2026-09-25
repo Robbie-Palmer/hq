@@ -66,6 +66,8 @@ export type KnowledgeScope = {
     canonicalUrl: string;
     markdownUrl: string;
     sourceRevision: string | null;
+    lifecycle: 'active' | 'archived';
+    archiveReason: string | null;
     rank: number | null;
 };
 
@@ -622,6 +624,7 @@ export type ListKnowledgeScopeRelationshipsData = {
     body?: never;
     path?: never;
     query?: {
+        includeArchived?: 'true';
         limit?: number;
         cursor?: string;
     };
@@ -733,6 +736,7 @@ export type ListKnowledgeScopesData = {
     path?: never;
     query?: {
         kind?: 'initiative' | 'project';
+        includeArchived?: 'true';
         limit?: number;
         cursor?: string;
     };
@@ -894,6 +898,122 @@ export type PutKnowledgeScopeResponses = {
 };
 
 export type PutKnowledgeScopeResponse = PutKnowledgeScopeResponses[keyof PutKnowledgeScopeResponses];
+
+export type RestoreKnowledgeScopeData = {
+    body?: never;
+    headers?: {
+        /**
+         * Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.
+         */
+        'idempotency-key'?: string;
+    };
+    path: {
+        knowledgeScopeId: string;
+    };
+    query?: never;
+    url: '/api/knowledge-scopes/{knowledgeScopeId}/archival';
+};
+
+export type RestoreKnowledgeScopeErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+};
+
+export type RestoreKnowledgeScopeError = RestoreKnowledgeScopeErrors[keyof RestoreKnowledgeScopeErrors];
+
+export type RestoreKnowledgeScopeResponses = {
+    /**
+     * Knowledge scope restored or matching mutation replayed
+     */
+    200: KnowledgeScope;
+};
+
+export type RestoreKnowledgeScopeResponse = RestoreKnowledgeScopeResponses[keyof RestoreKnowledgeScopeResponses];
+
+export type ArchiveKnowledgeScopeData = {
+    body: {
+        reason: string;
+    };
+    headers?: {
+        /**
+         * Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.
+         */
+        'idempotency-key'?: string;
+    };
+    path: {
+        knowledgeScopeId: string;
+    };
+    query?: never;
+    url: '/api/knowledge-scopes/{knowledgeScopeId}/archival';
+};
+
+export type ArchiveKnowledgeScopeErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+};
+
+export type ArchiveKnowledgeScopeError = ArchiveKnowledgeScopeErrors[keyof ArchiveKnowledgeScopeErrors];
+
+export type ArchiveKnowledgeScopeResponses = {
+    /**
+     * Knowledge scope archived or matching mutation replayed
+     */
+    200: KnowledgeScope;
+};
+
+export type ArchiveKnowledgeScopeResponse = ArchiveKnowledgeScopeResponses[keyof ArchiveKnowledgeScopeResponses];
 
 export type MoveKnowledgeScopePriorityData = {
     body: {

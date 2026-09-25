@@ -132,6 +132,8 @@ describe("Given knowledge scopes mirrored over HTTP", () => {
           id: "work-graph",
           ...project,
           sourceRevision: null,
+          lifecycle: "active",
+          archiveReason: null,
           rank: 1024,
         },
       ],
@@ -157,6 +159,67 @@ describe("Given knowledge scopes mirrored over HTTP", () => {
     expect(await cycle.json()).toEqual(
       expect.objectContaining({
         error: expect.objectContaining({ code: "knowledge_scope_cycle" }),
+      }),
+    );
+  });
+
+  it("archives scopes outside default listings and restores them", async () => {
+    const project = {
+      kind: "project",
+      title: "Completed project",
+      canonicalUrl: "https://example.test/projects/completed",
+      markdownUrl: "https://example.test/projects/completed.md",
+    };
+    await requestJson(
+      "/api/knowledge-scopes/completed",
+      "PUT",
+      project,
+      recordId(404),
+    );
+
+    const archived = await requestJson(
+      "/api/knowledge-scopes/completed/archival",
+      "POST",
+      { reason: "Completed project" },
+      recordId(405),
+    );
+    expect(archived.status).toBe(200);
+    expect(await archived.json()).toEqual(
+      expect.objectContaining({
+        id: "completed",
+        lifecycle: "archived",
+        archiveReason: "Completed project",
+        rank: null,
+      }),
+    );
+    expect(await (await app.request("/api/knowledge-scopes")).json()).toEqual({
+      items: [],
+      nextCursor: null,
+    });
+    expect(
+      await (
+        await app.request("/api/knowledge-scopes?includeArchived=true")
+      ).json(),
+    ).toEqual({
+      items: [
+        expect.objectContaining({ id: "completed", lifecycle: "archived" }),
+      ],
+      nextCursor: null,
+    });
+
+    const restored = await requestJson(
+      "/api/knowledge-scopes/completed/archival",
+      "DELETE",
+      undefined,
+      recordId(406),
+    );
+    expect(restored.status).toBe(200);
+    expect(await restored.json()).toEqual(
+      expect.objectContaining({
+        id: "completed",
+        lifecycle: "active",
+        archiveReason: null,
+        rank: 1024,
       }),
     );
   });

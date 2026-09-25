@@ -11,6 +11,7 @@ import {
 } from "./vocabulary";
 
 const MAX_INT32 = 2_147_483_647;
+const MAX_ARCHIVE_REASON_LENGTH = 10_000;
 
 const isKnowledgeScopeKind = (value: unknown): value is KnowledgeScopeKind =>
   typeof value === "string" &&
@@ -44,6 +45,22 @@ const requireHttpUrl = (value: unknown, field: string): string => {
     );
   }
   return parsed.href;
+};
+
+export const normalizeKnowledgeScopeArchiveReason = (
+  value: unknown,
+): string => {
+  if (
+    typeof value !== "string" ||
+    value.trim() === "" ||
+    value.length > MAX_ARCHIVE_REASON_LENGTH
+  ) {
+    throw new WorkGraphError(
+      "invalid_knowledge_scope_archive_reason",
+      "A knowledge scope archive reason must contain between 1 and 10,000 characters.",
+    );
+  }
+  return value;
 };
 
 export const createKnowledgeScope = (
@@ -95,6 +112,8 @@ export const createKnowledgeScope = (
     canonicalUrl: requireHttpUrl(input.canonicalUrl, "canonical URL"),
     markdownUrl: requireHttpUrl(input.markdownUrl, "Markdown URL"),
     sourceRevision: input.sourceRevision ?? null,
+    lifecycle: "active",
+    archiveReason: null,
     rank,
   };
 };

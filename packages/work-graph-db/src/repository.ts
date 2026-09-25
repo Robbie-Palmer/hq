@@ -10,11 +10,13 @@ import {
   sql,
   type SQL,
 } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import {
   createKnowledgeScope,
   createWorkGraph,
   isWorkItemInSelectionScope,
   normalizeAndValidateContextRecords,
+  normalizeKnowledgeScopeArchiveReason,
   orderWorkItemsByPriority,
   projectWorkItemPriorities,
   projectWorkItemStage,
@@ -72,6 +74,14 @@ const EVENT_SEQUENCE_LOCK_ID = "event-sequence";
 const PRIORITY_RANK_GAP = 1_024;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const parentKnowledgeScope = alias(
+  knowledgeScope,
+  "relationship_parent_knowledge_scope",
+);
+const childKnowledgeScope = alias(
+  knowledgeScope,
+  "relationship_child_knowledge_scope",
+);
 
 export const WORK_GRAPH_EVENT_TYPES = [
   "attention.requested",
@@ -80,6 +90,8 @@ export const WORK_GRAPH_EVENT_TYPES = [
   "dependency.removed",
   "context.put",
   "knowledge_scope.put",
+  "knowledge_scope.archived",
+  "knowledge_scope.restored",
   "knowledge_scope_relationship.added",
   "knowledge_scope_relationship.removed",
   "reference.put",
@@ -111,6 +123,7 @@ export type StoredAttentionResolution =
 
 export interface ListKnowledgeScopesInput {
   readonly kind?: KnowledgeScope["kind"];
+  readonly includeArchived?: boolean;
   readonly cursor?: string;
   readonly limit?: number;
 }
@@ -121,8 +134,13 @@ export interface KnowledgeScopeRelationshipCursor {
 }
 
 export interface ListKnowledgeScopeRelationshipsInput {
+  readonly includeArchived?: boolean;
   readonly cursor?: KnowledgeScopeRelationshipCursor;
   readonly limit?: number;
+}
+
+export interface ArchiveKnowledgeScopeInput {
+  readonly reason: string;
 }
 
 export interface ClaimWorkItemInput {
@@ -389,6 +407,8 @@ const toKnowledgeScope = (
   canonicalUrl: stored.canonicalUrl,
   markdownUrl: stored.markdownUrl,
   sourceRevision: stored.sourceRevision,
+  lifecycle: stored.lifecycle,
+  archiveReason: stored.archiveReason,
   rank: stored.rank,
 });
 
@@ -708,6 +728,9 @@ export class WorkGraphRepository {
           input.kind === undefined
             ? undefined
             : eq(knowledgeScope.kind, input.kind),
+          input.includeArchived === true
+            ? undefined
+            : eq(knowledgeScope.lifecycle, "active"),
           input.cursor === undefined
             ? undefined
             : gt(knowledgeScope.id, input.cursor),
@@ -755,7 +778,12 @@ export class WorkGraphRepository {
 
       await this.lockGraphMutation(transaction);
       const [existing] = await transaction
-        .select({ kind: knowledgeScope.kind, rank: knowledgeScope.rank })
+        .select({
+          kind: knowledgeScope.kind,
+          lifecycle: knowledgeScope.lifecycle,
+          archiveReason: knowledgeScope.archiveReason,
+          rank: knowledgeScope.rank,
+        })
         .from(knowledgeScope)
         .where(eq(knowledgeScope.id, normalized.id))
         .limit(1);
@@ -768,7 +796,12 @@ export class WorkGraphRepository {
 
       const [stored] = await transaction
         .insert(knowledgeScope)
-        .values({ ...normalized, rank: existing?.rank ?? null })
+        .values({
+          ...normalized,
+          lifecycle: existing?.lifecycle ?? "active",
+          archiveReason: existing?.archiveReason ?? null,
+          rank: existing?.rank ?? null,
+        })
         .onConflictDoUpdate({
           target: knowledgeScope.id,
           set: {
@@ -777,6 +810,8 @@ export class WorkGraphRepository {
             canonicalUrl: normalized.canonicalUrl,
             markdownUrl: normalized.markdownUrl,
             sourceRevision: normalized.sourceRevision,
+            lifecycle: existing?.lifecycle ?? "active",
+            archiveReason: existing?.archiveReason ?? null,
             rank: existing?.rank ?? null,
           },
         })
@@ -802,10 +837,135 @@ export class WorkGraphRepository {
           canonicalUrl: normalized.canonicalUrl,
           markdownUrl: normalized.markdownUrl,
           sourceRevision: normalized.sourceRevision,
+          lifecycle: result.lifecycle,
           rank: result.rank,
         },
       });
       return result;
+    });
+  }
+
+  async archiveKnowledgeScope(
+    id: string,
+    input: ArchiveKnowledgeScopeInput,
+    options: IdempotentMutationOptions = {},
+  ): Promise<KnowledgeScope> {
+    requireKnowledgeScopeId(id);
+    const reason = normalizeKnowledgeScopeArchiveReason(input.reason);
+    if (options.idempotencyKey !== undefined) {
+      requireIdempotencyKey(options.idempotencyKey);
+    }
+
+    return this.db.transaction(async (transaction) => {
+      await this.lockEventSequence(transaction);
+      if (options.idempotencyKey !== undefined) {
+        const replayed = await this.beginIdempotentMutation(
+          transaction,
+          options.idempotencyKey,
+          "archive-knowledge-scope",
+          JSON.stringify([id, reason]),
+        );
+        if (replayed) return this.requireStoredKnowledgeScope(transaction, id);
+      }
+
+      await this.lockGraphMutation(transaction);
+      const target = await this.requireStoredKnowledgeScope(transaction, id);
+      if (target.lifecycle !== "active") {
+        throw new WorkGraphError(
+          "invalid_knowledge_scope_lifecycle",
+          `Knowledge scope ${id} is already archived.`,
+        );
+      }
+      const [openWork] = await transaction
+        .select({ id: workItem.id })
+        .from(workItemPriorityContext)
+        .innerJoin(
+          workItem,
+          eq(workItem.id, workItemPriorityContext.workItemId),
+        )
+        .where(
+          and(
+            eq(workItem.lifecycle, "open"),
+            or(
+              eq(workItemPriorityContext.schedulingInitiativeId, id),
+              eq(workItemPriorityContext.schedulingProjectId, id),
+            ),
+          ),
+        )
+        .limit(1);
+      if (openWork) {
+        throw new WorkGraphError(
+          "knowledge_scope_has_open_work",
+          `Knowledge scope ${id} still schedules open work item ${openWork.id}.`,
+        );
+      }
+
+      await transaction
+        .update(knowledgeScope)
+        .set({ lifecycle: "archived", archiveReason: reason, rank: null })
+        .where(eq(knowledgeScope.id, id));
+      const remaining = await transaction
+        .select({ id: knowledgeScope.id, rank: knowledgeScope.rank })
+        .from(knowledgeScope)
+        .where(
+          and(
+            eq(knowledgeScope.kind, target.kind),
+            eq(knowledgeScope.lifecycle, "active"),
+          ),
+        );
+      remaining.sort(compareStoredRanks);
+      await this.writeKnowledgeScopeRanks(
+        transaction,
+        remaining.map(({ id: remainingId }) => remainingId),
+      );
+      await this.appendEvent(transaction, {
+        type: "knowledge_scope.archived",
+        data: { id, kind: target.kind, reason },
+      });
+      return this.requireStoredKnowledgeScope(transaction, id);
+    });
+  }
+
+  async restoreKnowledgeScope(
+    id: string,
+    options: IdempotentMutationOptions = {},
+  ): Promise<KnowledgeScope> {
+    requireKnowledgeScopeId(id);
+    if (options.idempotencyKey !== undefined) {
+      requireIdempotencyKey(options.idempotencyKey);
+    }
+
+    return this.db.transaction(async (transaction) => {
+      await this.lockEventSequence(transaction);
+      if (options.idempotencyKey !== undefined) {
+        const replayed = await this.beginIdempotentMutation(
+          transaction,
+          options.idempotencyKey,
+          "restore-knowledge-scope",
+          id,
+        );
+        if (replayed) return this.requireStoredKnowledgeScope(transaction, id);
+      }
+
+      await this.lockGraphMutation(transaction);
+      const target = await this.requireStoredKnowledgeScope(transaction, id);
+      if (target.lifecycle !== "archived") {
+        throw new WorkGraphError(
+          "invalid_knowledge_scope_lifecycle",
+          `Knowledge scope ${id} is already active.`,
+        );
+      }
+      await transaction
+        .update(knowledgeScope)
+        .set({ lifecycle: "active", archiveReason: null })
+        .where(eq(knowledgeScope.id, id));
+      await this.placeKnowledgeScopeAtMedian(transaction, id, target.kind);
+      const restored = await this.requireStoredKnowledgeScope(transaction, id);
+      await this.appendEvent(transaction, {
+        type: "knowledge_scope.restored",
+        data: { id, kind: target.kind, rank: restored.rank },
+      });
+      return restored;
     });
   }
 
@@ -839,10 +999,21 @@ export class WorkGraphRepository {
 
       await this.lockGraphMutation(transaction);
       const target = await this.requireStoredKnowledgeScope(transaction, id);
+      if (target.lifecycle !== "active") {
+        throw new WorkGraphError(
+          "invalid_knowledge_scope_lifecycle",
+          `Archived knowledge scope ${id} cannot be ranked.`,
+        );
+      }
       const rows = await transaction
         .select({ id: knowledgeScope.id, rank: knowledgeScope.rank })
         .from(knowledgeScope)
-        .where(eq(knowledgeScope.kind, target.kind));
+        .where(
+          and(
+            eq(knowledgeScope.kind, target.kind),
+            eq(knowledgeScope.lifecycle, "active"),
+          ),
+        );
       rows.sort(compareStoredRanks);
       const orderedIds = rows
         .map(({ id: candidateId }) => candidateId)
@@ -877,25 +1048,47 @@ export class WorkGraphRepository {
           knowledgeScopeRelationship.childKnowledgeScopeId,
       })
       .from(knowledgeScopeRelationship)
+      .innerJoin(
+        parentKnowledgeScope,
+        eq(
+          parentKnowledgeScope.id,
+          knowledgeScopeRelationship.parentKnowledgeScopeId,
+        ),
+      )
+      .innerJoin(
+        childKnowledgeScope,
+        eq(
+          childKnowledgeScope.id,
+          knowledgeScopeRelationship.childKnowledgeScopeId,
+        ),
+      )
       .where(
-        input.cursor === undefined
-          ? undefined
-          : or(
-              gt(
-                knowledgeScopeRelationship.parentKnowledgeScopeId,
-                input.cursor.parentKnowledgeScopeId,
+        and(
+          input.includeArchived === true
+            ? undefined
+            : and(
+                eq(parentKnowledgeScope.lifecycle, "active"),
+                eq(childKnowledgeScope.lifecycle, "active"),
               ),
-              and(
-                eq(
+          input.cursor === undefined
+            ? undefined
+            : or(
+                gt(
                   knowledgeScopeRelationship.parentKnowledgeScopeId,
                   input.cursor.parentKnowledgeScopeId,
                 ),
-                gt(
-                  knowledgeScopeRelationship.childKnowledgeScopeId,
-                  input.cursor.childKnowledgeScopeId,
+                and(
+                  eq(
+                    knowledgeScopeRelationship.parentKnowledgeScopeId,
+                    input.cursor.parentKnowledgeScopeId,
+                  ),
+                  gt(
+                    knowledgeScopeRelationship.childKnowledgeScopeId,
+                    input.cursor.childKnowledgeScopeId,
+                  ),
                 ),
               ),
-            ),
+        ),
       )
       .orderBy(
         knowledgeScopeRelationship.parentKnowledgeScopeId,
@@ -925,6 +1118,14 @@ export class WorkGraphRepository {
       }
 
       await this.lockGraphMutation(transaction);
+      await this.requireActiveKnowledgeScope(
+        transaction,
+        relationship.parentKnowledgeScopeId,
+      );
+      await this.requireActiveKnowledgeScope(
+        transaction,
+        relationship.childKnowledgeScopeId,
+      );
       const graph = await this.loadKnowledgeScopeGraph(transaction);
       validateKnowledgeScopeRelationships(graph.ids, [
         ...graph.relationships,
@@ -3523,6 +3724,20 @@ export class WorkGraphRepository {
     return toKnowledgeScope(stored);
   }
 
+  private async requireActiveKnowledgeScope(
+    transaction: DbTransaction,
+    id: string,
+  ): Promise<KnowledgeScope> {
+    const scope = await this.requireStoredKnowledgeScope(transaction, id);
+    if (scope.lifecycle !== "active") {
+      throw new WorkGraphError(
+        "invalid_knowledge_scope_lifecycle",
+        `Knowledge scope ${id} is archived.`,
+      );
+    }
+    return scope;
+  }
+
   private async requireStoredPriorityContext(
     transaction: DbTransaction,
     workItemId: string,
@@ -3555,7 +3770,7 @@ export class WorkGraphRepository {
     const projectId = input.schedulingProjectId;
 
     if (initiativeId !== null) {
-      const initiative = await this.requireStoredKnowledgeScope(
+      const initiative = await this.requireActiveKnowledgeScope(
         transaction,
         initiativeId,
       );
@@ -3567,7 +3782,7 @@ export class WorkGraphRepository {
       }
     }
     if (projectId !== null) {
-      const project = await this.requireStoredKnowledgeScope(
+      const project = await this.requireActiveKnowledgeScope(
         transaction,
         projectId,
       );
@@ -3592,6 +3807,7 @@ export class WorkGraphRepository {
           and(
             eq(knowledgeScopeRelationship.childKnowledgeScopeId, projectId),
             eq(knowledgeScope.kind, "initiative"),
+            eq(knowledgeScope.lifecycle, "active"),
           ),
         )
         .orderBy(knowledgeScope.rank, knowledgeScope.id);
@@ -3682,7 +3898,12 @@ export class WorkGraphRepository {
     const rows = await transaction
       .select({ id: knowledgeScope.id, rank: knowledgeScope.rank })
       .from(knowledgeScope)
-      .where(eq(knowledgeScope.kind, kind));
+      .where(
+        and(
+          eq(knowledgeScope.kind, kind),
+          eq(knowledgeScope.lifecycle, "active"),
+        ),
+      );
     const orderedIds = rows
       .filter((row) => row.id !== id)
       .sort((left, right) =>
