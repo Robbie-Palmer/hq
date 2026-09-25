@@ -137,7 +137,7 @@ const projectOperationalState = (
   options: CriticalPathProjectionOptions,
   workItemId: string,
 ): WorkItemOperationalState => ({
-  ...(options.operationalStateByWorkItemId?.[workItemId] ?? {}),
+  ...options.operationalStateByWorkItemId?.[workItemId],
   now: options.now,
 });
 
