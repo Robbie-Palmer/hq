@@ -2,7 +2,7 @@
 title: "Work Graph"
 description: "A public source of truth for outcomes, dependencies, evidence, leases, and the human decisions that keep work moving"
 date: "2026-09-04"
-updated: "2026-09-24"
+updated: "2026-09-25"
 status: "in_progress"
 repo_url: "https://github.com/Robbie-Palmer/hq"
 tech_stack:
@@ -196,6 +196,13 @@ outside its scope. It does not store estimates or predict delivery dates for
 queued or active work. Workers can report progress and blockers without
 turning either into a forecast.
 
+The installed CLI is the minimum planning interface. It should project the
+highest-priority unresolved outcome, the dependency chains blocking it, ready
+leaves that can start now, and independent branches that can run in parallel.
+The view describes the current plan structure and does not estimate durations
+or forecast delivery. Agents can use that projection to explain the plan and
+propose changes from any device where the owner can reach them.
+
 The Work Graph records those assumptions, commitments, and revisions. The
 [wider initiative](/initiatives/semi-autonomous-software-development#an-adaptive-model-of-the-organisation)
 owns the feedback loop that uses delivery evidence and available capacity to
@@ -267,10 +274,13 @@ A useful handoff should preserve findings, artifacts, attempts, unresolved
 problems, and the recommended next action. The exact contract should emerge
 from personal use rather than demand a long report for every small item.
 
-# Attention inbox
+# Owner control and attention
 
-The human interface should be an attention inbox, probably its own application.
-It should collect:
+The owner can manage the full graph through agents using the installed CLI. A
+dedicated mobile or desktop application is optional and should not gate the
+move away from a conventional tracker.
+
+Attention requests should collect:
 
 * ambiguity that changes the product or plan;
 * missing authority, secrets, or access;
@@ -351,6 +361,14 @@ more. Those behaviours support a price. A feature comparison does not.
 8. Enter the remaining Work Graph plan into the service and use it to complete
    its own MVP.
 
+# Next useful slice
+
+Add a critical-path projection to the REST API and installed CLI. It should
+explain the active blocking chains behind the highest-priority outcomes and
+show which ready leaves and independent branches can proceed in parallel. The
+projection must remain deterministic and machine-readable so agents can use it
+for planning without scraping prose.
+
 # Later work
 
 * Analytics that find recurring waits, failed handoffs, and demands for human
@@ -359,10 +377,11 @@ more. Those behaviours support a price. A feature comparison does not.
   credible systemic fix
 * Team ownership and multiple policy domains
 * Projections into GitHub, Shortcut, or chat where they help people work
-* A public DAG view and dedicated human attention inbox
 * MCP access after the CLI has proved the application operations
 * Automatic merge and deployment when required evidence and owner policy agree
 * Public contributor workflows for Open Collective Development
+* An optional public DAG view and dedicated graphical attention inbox after the
+  agent and CLI workflow proves that either would remove a real constraint
 
 # Success
 
@@ -370,6 +389,10 @@ The Work Graph succeeds when the next useful item is visible without
 reconstructing the plan from tools scattered across the workflow, expired work
 can be resumed by another actor, and human attention goes to decisions rather
 than ticket administration.
+
+The installed CLI should also explain why a priority outcome is blocked and
+which work can proceed in parallel. The owner should not need a separate
+graphical interface to recover that plan.
 
 Learning should change the plan without causing constant disruption. Track
 avoidable interruptions and rework alongside progress towards outcomes, and
@@ -386,3 +409,5 @@ check whether people can keep moving when downstream work is uncertain.
 * Asking owners or agents to calibrate a global numeric priority scale
 * Maximizing task throughput without regard for outcomes
 * Replacing owner judgment with one fixed risk policy
+* Requiring a dedicated graphical interface before Work Graph becomes the
+  authoritative work system

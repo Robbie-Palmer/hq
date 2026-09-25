@@ -506,7 +506,9 @@ before the headless workflow is useful.
 
 - Continuity scoring after attention resolution.
 - MCP exposure.
-- A public DAG view and human attention inbox UI.
+- An optional public DAG view and graphical attention inbox. Neither is an
+  authority-cutover requirement while agents can provide remote access to the
+  full CLI workflow.
 - GitHub webhooks and automatic task release.
 - Formal API versioning.
 - Multiple owners, teams, and policy domains.
