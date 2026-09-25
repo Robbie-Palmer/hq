@@ -1,0 +1,128 @@
+---
+title: "ADR 018: Deterministic Impulsive Maneuver Model"
+status: "Accepted"
+date: "2026-09-23"
+---
+
+# Context
+
+[ADR 017](/projects/autonomic-satellite-swarm/adrs/017-deterministic-sgp4-orbit-simulation)
+defines an offline SGP4 coast from checked-in two-line elements. That produces a useful current
+orbit, but it cannot model a mission changing that orbit. SGP4 propagates a TLE rather than an
+arbitrary Cartesian state after a burn. Its reference implementation returns position and velocity
+in the True Equator, Mean Equinox frame, or TEME. The authors also warn that TEME has no single
+published transform to official reference frames. The
+[CelesTrak SGP4 reference](https://celestrak.org/publications/AIAA/2006-6753/) remains authoritative
+for the unmodified TLE coast.
+
+The coordination protocol also separates selection from delivery. A leader can record an assignee
+even when that node never receives the assignment. Neither event proves that a physical maneuver
+happened. The orbit model needs its own authorization and execution boundary.
+
+A geographic objective does not identify one orbit. Altitude, crossing time, direction, and
+transfer duration are additional policy choices. This project needs a repeatable interpretation of
+those inputs without claiming the fidelity of flight-dynamics software.
+
+# Decision
+
+Model a mission as a planned two-impulse transfer in the C++ simulation. SGP4 owns the current orbit
+until the first burn. A deterministic two-body propagator owns the transfer and target orbit after
+that burn. Cesium renders sampled states from C++ and does not calculate a trajectory.
+
+## Frames and time
+
+SGP4 produces the pre-burn state in TEME. Convert that state through the International Terrestrial
+Reference Frame, or ITRF, into the Geocentric Celestial Reference Frame, or GCRF, using the pinned
+Vallado procedure and
+[IERS Conventions 2010](https://iers-conventions.obspm.fr/conventions/content/tn36.pdf). Initialize
+the maneuver state in GCRF. Each impulse changes velocity without changing position, and the
+simulation must never fit a synthetic post-burn TLE.
+
+Scenarios carry a fixed UTC epoch, leap-second offset, and Earth-orientation inputs. TAI orders
+events, TT supplies the dynamical instant, and UT1 drives Earth rotation. The simulation never reads
+the wall clock or fetches time data. This follows the distinctions documented by the
+[IAU SOFA time-scale tools](https://www.iausofa.org/cookbooks).
+
+Use SI units outside the SGP4 boundary. Native and WebAssembly calculations use the same fixed
+inputs and operation order. Quantize only at input and serialization boundaries so browser parity
+does not alter propagated state.
+
+## Maneuver and target-orbit policy
+
+The scenario fixes the departure time, arrival time, target altitude, and safety limits. At the
+arrival time, the selected geographic objective defines a position above the WGS84 ellipsoid. The
+target is a circular GCRF orbit through that position. Choose the orbital plane closest to the
+pre-burn plane, with a fixed tie-break for degenerate cases.
+
+Solve the zero-revolution Lambert transfer between the departure state and target position. Of the
+valid branches, choose the one with the lowest total delta-v and use a fixed branch tie-break. The
+departure impulse enters the transfer orbit; the arrival impulse matches the target-orbit velocity.
+Record both impulses as GCRF velocity changes. Propagate the transfer and target orbit with the same
+two-body model.
+
+This policy intentionally omits finite thrust, drag, oblateness, third bodies, mass loss, attitude,
+navigation error, and control error. It explains one idealized transfer. It does not predict a real
+spacecraft maneuver.
+
+## Authorization, failure, and display meaning
+
+Accepting a mission command starts negotiation. It does not plan or execute a burn. Receipt of the
+matching assignment authorizes the simulation to plan the maneuver. A separate recorded burn event
+is the only evidence that an impulse changed the simulated orbit. Mission completion follows a
+successful arrival burn, not assignment alone.
+
+The current orbit is visible from the start. A successful plan adds labelled planned-transfer and
+planned-target paths. The departure burn changes the transfer from planned to executed, and the
+arrival burn changes the target orbit from planned to acquired. A lost assignment therefore cannot
+create a transfer.
+
+Planning failures leave an unburned node on its SGP4 coast. After the departure burn, any later
+failure leaves the node on its propagated transfer state. The simulation must not jump back to the
+old TLE or forward to the target orbit.
+
+Render current, transfer, and target paths as GCRF inertial trajectories. Cesium identifies its
+inertial frame as GCRF/ICRF in the
+[transform API](https://cesium.com/learn/cesiumjs/ref-doc/Transforms.html). If the UI also shows a
+ground track, render it as a separate, labelled ITRF series projected onto WGS84. Do not call the
+ground track an orbit or force it to close, because Earth rotates beneath the inertial trajectory.
+
+The maneuver changes the trace contract. Native fixtures, the WebAssembly producer, and the browser
+consumer must migrate together and reject incompatible traces rather than infer missing orbital
+state.
+
+# Alternatives
+
+## Fit a new TLE after the burn
+
+This would keep one propagator, but a synthetic fit adds an estimation problem and can hide a state
+discontinuity. The demonstration has no observations from which to estimate a post-burn TLE.
+
+## Continue SGP4 and move only the drawing
+
+Offsetting a Cesium path could look like a maneuver while the C++ simulation remains on the old
+orbit. The displayed path would no longer be evidence from the simulation.
+
+## Use a finite-burn force model
+
+A finite burn needs thrust, mass, attitude, timing error, and control assumptions that this project
+cannot support with evidence. Two explicit impulses keep the model inspectable without implying
+hardware fidelity.
+
+## Store authored transfer points
+
+Checked-in points would be repeatable, but they would not respond to the selected objective and
+would not establish one continuous dynamical state. A fixed-input solver preserves that continuity
+in both native and WebAssembly runs.
+
+# Consequences
+
+The demonstration will distinguish request admission, assignment delivery, maneuver authorization,
+burn execution, and target-orbit arrival. Lost assignments cannot create phantom transfers, and a
+failure after departure cannot make the satellite jump between unrelated trajectories.
+
+The simulation gains frame conversion, Lambert solving, and a second propagator. Those calculations
+need independent reference tests, and some objectives will have no valid transfer under the fixed
+scenario timing and safety limits.
+
+The resulting paths do not validate the historical candidacy score, model propulsion, provide
+collision avoidance, or qualify the software for flight.
