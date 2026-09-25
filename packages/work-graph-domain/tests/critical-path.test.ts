@@ -194,12 +194,7 @@ describe("delivery-critical path projection", () => {
     expect(projection.readyLeafIds).toEqual([]);
     expect(projection.blockingAttentionIds).toEqual(["attention"]);
     expect(projection.parallelBranches).toEqual([
-      expect.objectContaining({ workItemId: "active", stage: "in_progress" }),
       expect.objectContaining({ workItemId: "stale", stage: "stale" }),
-      expect.objectContaining({
-        workItemId: "attention",
-        stage: "needs_attention",
-      }),
     ]);
   });
 

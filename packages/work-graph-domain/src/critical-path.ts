@@ -371,18 +371,20 @@ export const projectCriticalPath = (
     blockingAttentionIds: nodes
       .filter(({ stage }) => stage === "needs_attention")
       .map(({ item }) => item.id),
-    parallelBranches: leafIds.map((workItemId) => {
-      const node = nodeById.get(workItemId)!;
-      const paths = pathsByLeafId.get(workItemId) ?? [];
-      return {
-        workItemId,
-        stage: node.stage,
-        claimable: node.claimable,
-        targetWorkItemIds: targetOutcomeIds.filter((targetId) =>
-          paths.some(([pathTargetId]) => pathTargetId === targetId),
-        ),
-        paths,
-      };
-    }),
+    parallelBranches: leafIds
+      .filter((workItemId) => nodeById.get(workItemId)?.claimable === true)
+      .map((workItemId) => {
+        const node = nodeById.get(workItemId)!;
+        const paths = pathsByLeafId.get(workItemId) ?? [];
+        return {
+          workItemId,
+          stage: node.stage,
+          claimable: node.claimable,
+          targetWorkItemIds: targetOutcomeIds.filter((targetId) =>
+            paths.some(([pathTargetId]) => pathTargetId === targetId),
+          ),
+          paths,
+        };
+      }),
   };
 };
