@@ -1,4 +1,5 @@
 import { compareStrings } from "ts-base/strings";
+import { WorkGraphError } from "./errors";
 import {
   getDirectChildren,
   getEffectiveDependencies,
@@ -26,6 +27,8 @@ import {
 import type { WorkStage } from "./vocabulary";
 
 export type CriticalPathEdgeKind = "decomposition" | "dependency";
+
+export const MAX_CRITICAL_PATH_BLOCKING_PATHS = 5_000;
 
 export type CriticalPathInclusionReason =
   | { readonly kind: "target_outcome" }
@@ -88,6 +91,8 @@ export interface CriticalPathProjectionOptions {
   readonly selectionScope?: WorkItemSelectionScope;
   /** Select exact outcomes. Without this, open roots in the selection scope apply. */
   readonly targetWorkItemIds?: readonly string[];
+  /** Abort path enumeration at this bound instead of returning a partial graph. */
+  readonly maxBlockingPaths?: number;
 }
 
 type WorkItemOrder = ReadonlyMap<string, number>;
@@ -240,6 +245,7 @@ const enumerateBlockingPaths = (
   targetOutcomeIds: readonly string[],
   edges: readonly CriticalPathEdge[],
   orderById: WorkItemOrder,
+  maxBlockingPaths: number,
 ): readonly (readonly string[])[] => {
   const nextIdsByWorkItemId = new Map<string, Set<string>>();
   for (const edge of edges) {
@@ -255,6 +261,12 @@ const enumerateBlockingPaths = (
       (left, right) => compareByOrder(orderById, left, right),
     );
     if (nextIds.length === 0) {
+      if (paths.length >= maxBlockingPaths) {
+        throw new WorkGraphError(
+          "critical_path_projection_too_large",
+          `The critical-path projection exceeds the limit of ${maxBlockingPaths} blocking paths. Narrow the projection scope.`,
+        );
+      }
       paths.push([...path, workItemId]);
       return;
     }
@@ -509,6 +521,7 @@ export const projectCriticalPath = (
     targetOutcomeIds,
     traversal.edges,
     orderById,
+    options.maxBlockingPaths ?? MAX_CRITICAL_PATH_BLOCKING_PATHS,
   );
   const leaves = projectLeaves(nodes, blockingPaths, orderById);
   return assembleProjection(

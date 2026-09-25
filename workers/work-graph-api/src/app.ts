@@ -45,6 +45,7 @@ import {
   KNOWLEDGE_SCOPE_KINDS,
   KNOWLEDGE_SCOPE_LIFECYCLES,
   LEASE_OUTCOMES,
+  MAX_CRITICAL_PATH_BLOCKING_PATHS,
   PULL_REQUEST_CHECK_SUMMARIES,
   PULL_REQUEST_MERGEABILITIES,
   PULL_REQUEST_REVIEW_DECISIONS,
@@ -82,7 +83,6 @@ const MAX_METADATA_CURSOR_LENGTH = 4_096;
 const MAX_INT32 = 2_147_483_647;
 const MAX_CRITICAL_PATH_NODES = 1_000;
 const MAX_CRITICAL_PATH_EDGES = 5_000;
-const MAX_CRITICAL_PATH_PATHS = 5_000;
 const WORK_ITEM_EVENT_TYPES = [
   "attention.requested",
   "attention.resolved",
@@ -264,7 +264,7 @@ const criticalPathParallelBranchSchema = z
       .max(MAX_CRITICAL_PATH_NODES),
     paths: z
       .array(criticalPathPathSchema)
-      .max(MAX_CRITICAL_PATH_PATHS),
+      .max(MAX_CRITICAL_PATH_BLOCKING_PATHS),
   })
   .openapi("CriticalPathParallelBranch");
 const criticalPathProjectionSchema = z
@@ -274,7 +274,7 @@ const criticalPathProjectionSchema = z
     edges: z.array(criticalPathEdgeSchema).max(MAX_CRITICAL_PATH_EDGES),
     blockingPaths: z
       .array(criticalPathPathSchema)
-      .max(MAX_CRITICAL_PATH_PATHS),
+      .max(MAX_CRITICAL_PATH_BLOCKING_PATHS),
     readyLeafIds: z.array(identifierSchema).max(MAX_CRITICAL_PATH_NODES),
     blockingAttentionIds: z
       .array(identifierSchema)
@@ -2169,19 +2169,19 @@ const requireBoundedCriticalPath = (
   const tooLarge =
     projection.nodes.length > MAX_CRITICAL_PATH_NODES ||
     projection.edges.length > MAX_CRITICAL_PATH_EDGES ||
-    projection.blockingPaths.length > MAX_CRITICAL_PATH_PATHS ||
+    projection.blockingPaths.length > MAX_CRITICAL_PATH_BLOCKING_PATHS ||
     projection.blockingPaths.some(
       (path) => path.length > MAX_CRITICAL_PATH_NODES,
     ) ||
     projection.parallelBranches.length > MAX_CRITICAL_PATH_NODES ||
-    parallelPathCount > MAX_CRITICAL_PATH_PATHS ||
+    parallelPathCount > MAX_CRITICAL_PATH_BLOCKING_PATHS ||
     projection.parallelBranches.some((branch) =>
       branch.paths.some((path) => path.length > MAX_CRITICAL_PATH_NODES),
     );
   if (tooLarge) {
     throw new WorkGraphError(
       "critical_path_projection_too_large",
-      `The critical-path projection exceeds the response limit of ${MAX_CRITICAL_PATH_NODES} nodes, ${MAX_CRITICAL_PATH_EDGES} edges, or ${MAX_CRITICAL_PATH_PATHS} paths. Narrow the request by initiative, project, or root work item.`,
+      `The critical-path projection exceeds the response limit of ${MAX_CRITICAL_PATH_NODES} nodes, ${MAX_CRITICAL_PATH_EDGES} edges, or ${MAX_CRITICAL_PATH_BLOCKING_PATHS} paths. Narrow the request by initiative, project, or root work item.`,
     );
   }
   return projection;
