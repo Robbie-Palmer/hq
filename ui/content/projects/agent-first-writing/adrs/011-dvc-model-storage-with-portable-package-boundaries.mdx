@@ -1,0 +1,82 @@
+---
+title: "ADR 011: DVC model storage with portable package boundaries"
+date: "2026-09-14"
+status: "Accepted"
+---
+
+# Context
+
+[ADR 004](/projects/agent-first-writing/adrs/004-dvc-writing-evaluation-pipeline)
+uses DVC to bind source data, model inputs, generated text, and metrics to the
+stage graph. [ADR 010](/projects/agent-first-writing/adrs/010-modelpack-compatible-model-metadata)
+separately chooses the model metadata contract.
+
+DVC, Hugging Face Xet, and OCI artifacts overlap, but they are not equivalent
+choices. DVC versions files and pipeline results against Git commits and moves
+their contents to a configured remote. Hugging Face hosts Git model
+repositories and uses [Xet for large-file storage](https://huggingface.co/docs/hub/repositories).
+OCI defines a content-addressed package and registry distribution protocol.
+ModelPack assigns ML meaning to an OCI package.
+
+The current evaluation needs local stage invalidation, private generated text,
+and reuse of model outputs. It has no serving platform or external consumer
+that requires a registry reference. Writing the same 1.4 GB checkpoint to DVC
+and an OCI registry now would add a second publication path without testing a
+real integration.
+
+# Decision
+
+Keep DVC as the repository's source of truth for model bytes and generated
+evaluation artifacts. Keep lightweight manifests, DVC pointers, and stage
+locks in Git. Upstream S3 and Hugging Face URLs supply acquisition inputs. The
+verified descriptor digests identify the prepared local model.
+
+Keep storage concerns out of the model-facing interface. Runtime code consumes
+validated model identity, file paths, digests, and provenance. It must not
+depend on DVC cache paths, Xet pointers, or registry repository names.
+
+Add another storage or distribution system only through a digest-preserving
+adapter:
+
+* an OCI export copies the existing descriptor blobs into an OCI image layout
+  or registry without changing model identity;
+* an OCI import verifies descriptors before placing the resolved files under
+  DVC; and
+* a Hugging Face mirror pins a repository revision and verifies the same
+  digests before DVC accepts it.
+
+Do not dual-write by default. Reconsider the storage source of truth when a
+second model source, deployment target, or collaborator needs native Xet or OCI
+operations. Record that change in a later ADR.
+
+# Alternatives
+
+## Make Hugging Face and Xet the source of truth
+
+This would suit collaboration through the Hub and libraries that use
+`from_pretrained`. It would not version private generated text or replace DVC's
+stage graph. The GECToR checkpoint also comes from upstream S3 rather than a
+single complete Hub repository. Rejected for the current pipeline.
+
+## Make an OCI registry the source of truth
+
+This would suit model serving, signing, registry policy, and Kubernetes image
+volumes. None is a current consumer. It would still leave the evaluation corpus
+and generated output under DVC. Deferred until an OCI consumer exists.
+
+## Store every artifact in both DVC and OCI
+
+This keeps both access paths warm but introduces garbage collection, access
+control, and publication ordering in two stores. A digest-preserving exporter
+can add the second copy when needed. Rejected for now.
+
+# Consequences
+
+DVC continues to reproduce the evaluation without a new service. The model
+metadata can move to an OCI registry or a Hugging Face mirror later because
+runtime interfaces use content identity rather than storage-specific names.
+
+The repository must build and test an adapter before claiming compatibility
+with a concrete registry or Hub workflow. DVC remains a required tool even if
+the model bytes later gain an OCI or Xet mirror because the corpus and generated
+evaluation artifacts still need pipeline lineage.

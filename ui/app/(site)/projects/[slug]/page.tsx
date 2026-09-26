@@ -158,6 +158,7 @@ export default async function ProjectPage({ params }: Readonly<PageProps>) {
             </div>
             <PlatformSummary
               builtOn={project.builtOn ?? []}
+              platformPolicies={project.platformPolicies ?? []}
               platformTechnologies={project.platformTechnologies ?? []}
             />
           </div>

@@ -4,7 +4,12 @@ import { CommandPaletteProvider } from "@/components/command-palette-shell";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { siteConfig } from "@/lib/config/site-config";
-import { loadDomainRepository } from "@/lib/domain";
+import {
+  getAllBlogListItems,
+  getAllInitiatives,
+  getAllProjectListItems,
+  loadDomainRepository,
+} from "@/lib/domain";
 import { getAllIdeas } from "@/lib/domain/idea";
 import { getAllTechnologyBadgesSorted } from "@/lib/domain/technology";
 
@@ -68,6 +73,18 @@ export default function RootLayout({
     slug: idea.slug,
     title: idea.title,
   }));
+  const projects = getAllProjectListItems(repository).map((project) => ({
+    slug: project.slug,
+    title: project.title,
+  }));
+  const initiatives = getAllInitiatives(repository).map((initiative) => ({
+    slug: initiative.slug,
+    title: initiative.title,
+  }));
+  const blogPosts = getAllBlogListItems(repository).map((post) => ({
+    slug: post.slug,
+    title: post.title,
+  }));
 
   return (
     <html lang="en-GB" suppressHydrationWarning>
@@ -78,7 +95,13 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange
         >
-          <CommandPaletteProvider technologies={technologies} ideas={ideas}>
+          <CommandPaletteProvider
+            technologies={technologies}
+            ideas={ideas}
+            projects={projects}
+            initiatives={initiatives}
+            blogPosts={blogPosts}
+          >
             {children}
           </CommandPaletteProvider>
           <Toaster />

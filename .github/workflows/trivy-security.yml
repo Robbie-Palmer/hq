@@ -20,6 +20,7 @@ on:
       - "**/kubernetes/**"
       - "**/k8s/**"
       - "**/helm/**"
+      - ".trivyignore.yaml"
       # Dependencies
       - "**/pnpm-lock.yaml"
       - "**/package.json"
@@ -66,11 +67,13 @@ jobs:
           format: "sarif"
           output: "trivy-iac-results.sarif"
           severity: "CRITICAL,HIGH"
+          limit-severities-for-sarif: true
+          trivyignores: ".trivyignore.yaml"
           timeout: "10m"
           skip-dirs: "node_modules,.pnpm-store,.terraform,homelab/k3s"
 
       - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        uses: github/codeql-action/upload-sarif@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
         if: always()
         with:
           sarif_file: "trivy-iac-results.sarif"
@@ -96,10 +99,11 @@ jobs:
           format: "sarif"
           output: "trivy-deps-results.sarif"
           severity: "CRITICAL,HIGH"
+          limit-severities-for-sarif: true
           timeout: "10m"
 
       - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        uses: github/codeql-action/upload-sarif@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
         if: always()
         with:
           sarif_file: "trivy-deps-results.sarif"

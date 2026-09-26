@@ -1,11 +1,15 @@
 [tools]
 arduino-cli = "1.5.1"
-"npm:@types/node" = "24.13.4"
+"npm:@types/node" = "26.5.1"
 "npm:typescript" = "5.9.3"
 
 [tasks.configure]
 description = "Configure the host build"
 run = "cmake --preset dev"
+
+[tasks.doctor]
+description = "Check the Linux or macOS developer environment"
+run = "bash scripts/check-development-environment.sh"
 
 [tasks.clean]
 description = "Remove generated host build directories"
@@ -43,19 +47,19 @@ run = '''
 browser_fixture_check_file=$(mktemp)
 trap 'cmake -E rm -f "$browser_fixture_check_file"' EXIT
 ./build/dev/autonomic-satellite-swarm-simulation --json > "$browser_fixture_check_file"
-diff -u ../../ui/public/simulations/autonomic-satellite-swarm/demonstration.v4.json \
+diff -u ../../ui/public/simulations/autonomic-satellite-swarm/demonstration.v6.json \
   "$browser_fixture_check_file"
 '''
 
 [tasks."browser:toolchain"]
 description = "Install the pinned Emscripten SDK with its Python bootstrap dependency"
-tools = { python = "3.14.6" }
+tools = { python = "3.14.7" }
 run = "mise exec python@3.14.6 -- mise install asdf:mise-plugins/mise-emsdk@6.0.9"
 
 [tasks."browser:configure"]
 description = "Configure the Emscripten browser build"
 depends = ["browser:toolchain"]
-tools = { python = "3.14.6" }
+tools = { python = "3.14.7" }
 run = '''
 source_revision=${SATELLITE_SWARM_SOURCE_REVISION:-${GITHUB_SHA:-$(git rev-parse HEAD)}}
 case "$source_revision" in
@@ -75,7 +79,7 @@ mise exec python@3.14.6 asdf:mise-plugins/mise-emsdk@6.0.9 -- \
 [tasks."browser:build"]
 description = "Build the WebAssembly adapter and copy its deployable artifacts"
 depends = ["browser:configure"]
-tools = { python = "3.14.6" }
+tools = { python = "3.14.7" }
 run = '''
 mise exec python@3.14.6 asdf:mise-plugins/mise-emsdk@6.0.9 -- cmake --build build/browser --target satellite_swarm_browser
 browser_public_dir=../../ui/public/simulations/autonomic-satellite-swarm/wasm
@@ -92,15 +96,7 @@ run = "node browser/tests/browser_parity.mjs"
 [tasks.lint]
 description = "Run clang-tidy with warnings promoted to errors"
 depends = ["configure"]
-run = '''
-gcc_install_dir=$(dirname "$(c++ -print-libgcc-file-name)")
-compiler_root=$(dirname "$(dirname "$(readlink -f "$(command -v c++)")")")
-compiler_sysroot="$compiler_root/$(c++ -dumpmachine)/sysroot"
-find src simulation/src browser/src examples -type f -name '*.cpp' -print0 |
-  xargs -0 clang-tidy -p build/dev \
-    --extra-arg-before="--gcc-install-dir=$gcc_install_dir" \
-    --extra-arg-before="--sysroot=$compiler_sysroot"
-'''
+run = "bash scripts/run-clang-tidy.sh"
 
 [tasks.sanitize]
 description = "Run tests with AddressSanitizer and UndefinedBehaviorSanitizer"
@@ -112,23 +108,7 @@ run = [
 
 [tasks.coverage]
 description = "Generate SonarQube-compatible C++ coverage and enforce coverage floors"
-run = [
-  "cmake -E rm -rf build/coverage coverage",
-  "cmake --preset coverage",
-  "cmake --build --preset coverage",
-  "ctest --preset coverage",
-  "cmake -E make_directory coverage",
-  '''
-  set -eu
-  toolchain_root="$(mise where conda:gxx)"
-  gcov_path="$toolchain_root/bin/gcov"
-  if [ ! -x "$gcov_path" ]; then
-    echo "Matching gcov executable not found: $gcov_path" >&2
-    exit 1
-  fi
-  gcovr --gcov-executable "$gcov_path" --root ../.. --filter 'src/satellite_swarm/' --filter 'simulation/' --filter 'browser/src/' --filter 'examples/simulation/' --sonarqube coverage/sonarqube.xml --print-summary --fail-under-line 80 --fail-under-branch 70 build/coverage
-  ''',
-]
+run = "bash scripts/run-coverage.sh"
 
 [tasks."firmware:uno"]
 description = "Compile the legacy Arduino Uno infrared firmware"
@@ -166,6 +146,7 @@ run = "typos ."
 description = "Run all project quality gates"
 depends = [
   "//cpp:format:check",
+  "doctor",
   "test",
   "lint",
   "sanitize",

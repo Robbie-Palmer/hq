@@ -53,6 +53,8 @@ export const DefaultSlotSchema = z
     title: z.string().min(1),
     description: z.string().min(1),
     rationale: z.string().min(1),
+    kind: z.enum(["technology", "policy"]).default("technology"),
+    cardinality: z.enum(["one", "many"]).default("one"),
     opinionated: z.boolean().default(true),
     effectiveFrom: UtcInstantSchema.optional(),
     effectiveUntil: UtcInstantSchema.optional(),
@@ -80,15 +82,30 @@ export const LayerSlotPolicySchema = TemporalPeriodSchema.extend({
   prerequisites: z.array(SlotPrerequisiteSchema).default([]),
 });
 
-export const DefaultSelectionSchema = TemporalPeriodSchema.extend({
+const DefaultSelectionFieldsSchema = TemporalPeriodSchema.extend({
   id: z.string().min(1),
   slot: DefaultSlotSlugSchema,
-  technology: TechnologySlugSchema,
   status: z.enum(["Proposed", "Accepted", "Rejected", "Deprecated"]),
   decision: ADRRefSchema,
   originProjects: z.array(ProjectSlugSchema).default([]),
+  evidenceADRs: z.array(ADRRefSchema).min(1),
   supersedes: z.string().min(1).optional(),
 });
+
+const TechnologyDefaultSelectionSchema = DefaultSelectionFieldsSchema.extend({
+  kind: z.literal("technology").default("technology"),
+  technology: TechnologySlugSchema,
+});
+
+const PolicyDefaultSelectionSchema = DefaultSelectionFieldsSchema.extend({
+  kind: z.literal("policy"),
+  value: z.string().min(1),
+});
+
+export const DefaultSelectionSchema = z.union([
+  TechnologyDefaultSelectionSchema,
+  PolicyDefaultSelectionSchema,
+]);
 
 const PlatformManifestFieldsSchema = z.object({
   project: ProjectSlugSchema,
@@ -138,6 +155,7 @@ function validatePolicyReferences(
       }
       const hasSelection = manifest.selections.some(
         (selection) =>
+          selection.kind === "technology" &&
           selection.slot === prerequisite.slot &&
           selection.technology === prerequisite.technology &&
           effectivePeriodsOverlap(policy, selection),
@@ -169,15 +187,21 @@ function validateLayerReferences(
 
 function validateSelectionReferences(
   manifest: PlatformManifestInput,
-  slots: ReadonlyMap<string, unknown>,
+  slots: ReadonlyMap<string, PlatformManifestInput["slots"][number]>,
   selections: ReadonlyMap<string, PlatformManifestInput["selections"][number]>,
   context: z.RefinementCtx,
 ): void {
   for (const selection of manifest.selections) {
-    if (!slots.has(selection.slot)) {
+    const slot = slots.get(selection.slot);
+    if (!slot) {
       addManifestIssue(
         context,
         `Selection '${selection.id}' references unknown slot '${selection.slot}'`,
+      );
+    } else if (selection.kind !== slot.kind) {
+      addManifestIssue(
+        context,
+        `Selection '${selection.id}' kind '${selection.kind}' does not match slot '${selection.slot}' kind '${slot.kind}'`,
       );
     }
     if (!selection.supersedes) continue;
@@ -204,6 +228,7 @@ function validateAcceptedSelectionChains(
   context: z.RefinementCtx,
 ): void {
   for (const slot of manifest.slots) {
+    if (slot.cardinality === "many") continue;
     const accepted = manifest.selections
       .filter(
         (selection) =>
@@ -258,12 +283,16 @@ function validateDefaultCoverage(
       const explicitEmpty =
         slot.noDefaultFrom !== undefined &&
         compareUtcInstants(slot.noDefaultFrom, instant) <= 0;
-      if (acceptedCount === 1 || (explicitEmpty && acceptedCount === 0)) {
+      const hasDefault =
+        slot.cardinality === "many" ? acceptedCount >= 1 : acceptedCount === 1;
+      if (hasDefault || (explicitEmpty && acceptedCount === 0)) {
         continue;
       }
       addManifestIssue(
         context,
-        `Opinionated slot '${policy.slot}' must have exactly one accepted selection at '${instant}'`,
+        slot.cardinality === "many"
+          ? `Opinionated slot '${policy.slot}' must have at least one accepted selection at '${instant}'`
+          : `Opinionated slot '${policy.slot}' must have exactly one accepted selection at '${instant}'`,
       );
       break;
     }
@@ -282,9 +311,11 @@ function validateSlotNames(
         "Slot 'database.engine' is too broad to compare technologies with different requirements",
       );
     }
-    const selectedNames = manifest.selections
-      .filter((selection) => selection.slot === slot.slug)
-      .map((selection) => selection.technology.replace(/[^a-z0-9]/g, ""));
+    const selectedNames = manifest.selections.flatMap((selection) =>
+      selection.kind === "technology" && selection.slot === slot.slug
+        ? [selection.technology.replace(/[^a-z0-9]/g, "")]
+        : [],
+    );
     if (selectedNames.includes(suffix.replace(/[^a-z0-9]/g, ""))) {
       addManifestIssue(
         context,
@@ -324,9 +355,24 @@ function validatePlatformManifest(
     context,
   );
   validateNoOverlaps(
-    manifest.selections.filter((selection) => selection.status === "Accepted"),
+    manifest.selections.filter(
+      (selection) =>
+        selection.status === "Accepted" &&
+        slots.get(selection.slot)?.cardinality === "one",
+    ),
     (item) => item.slot,
     "accepted selections",
+    context,
+  );
+  validateNoOverlaps(
+    manifest.selections.filter(
+      (selection) =>
+        selection.status === "Accepted" &&
+        slots.get(selection.slot)?.cardinality === "many",
+    ),
+    (item) =>
+      `${item.slot}:${item.kind === "technology" ? item.technology : item.value}`,
+    "accepted multi-selections",
     context,
   );
   validateDefaultCoverage(manifest, slots, context);
@@ -343,16 +389,40 @@ export type LayerSlotPolicy = z.infer<typeof LayerSlotPolicySchema>;
 export type DefaultSelection = z.infer<typeof DefaultSelectionSchema>;
 export type PlatformManifest = z.infer<typeof PlatformManifestSchema>;
 
+export function getDefaultSelectionValue(selection: DefaultSelection): string {
+  return selection.kind === "technology"
+    ? selection.technology
+    : selection.value;
+}
+
+const AdoptionDecisionFieldsSchema = z
+  .object({
+    decision: ADRRefSchema.optional(),
+    rationale: z.string().min(1).optional(),
+  })
+  .refine(
+    ({ decision, rationale }) =>
+      (decision === undefined) !== (rationale === undefined),
+    { message: "Provide exactly one of decision or rationale" },
+  );
+
 export const ProjectSlotUseSchema = z
   .object({
     slot: DefaultSlotSlugSchema,
     adopted: UtcInstantSchema,
     until: UtcInstantSchema.optional(),
+    decision: ADRRefSchema.optional(),
+    rationale: z.string().min(1).optional(),
   })
   .refine(
     ({ adopted, until }) =>
       until === undefined || compareUtcInstants(adopted, until) < 0,
     { message: "until must be later than adopted" },
+  )
+  .refine(
+    ({ decision, rationale }) =>
+      AdoptionDecisionFieldsSchema.safeParse({ decision, rationale }).success,
+    { message: "Provide exactly one of decision or rationale" },
   );
 
 export const ProjectLayerUseSchema = z
@@ -362,6 +432,8 @@ export const ProjectLayerUseSchema = z
     until: UtcInstantSchema.optional(),
     tracking: z.boolean(),
     slots: z.array(ProjectSlotUseSchema).default([]),
+    decision: ADRRefSchema.optional(),
+    rationale: z.string().min(1).optional(),
   })
   .refine(
     ({ adopted, until }) =>
@@ -371,6 +443,11 @@ export const ProjectLayerUseSchema = z
   .refine(({ tracking, until }) => tracking || until !== undefined, {
     message: "A non-tracking layer use must have an until instant",
   })
+  .refine(
+    ({ decision, rationale }) =>
+      AdoptionDecisionFieldsSchema.safeParse({ decision, rationale }).success,
+    { message: "Provide exactly one of decision or rationale" },
+  )
   .superRefine((use, context) => {
     for (const slotUse of use.slots) {
       if (compareUtcInstants(slotUse.adopted, use.adopted) < 0) {
@@ -403,10 +480,9 @@ export function getSelectionLifecycleStatus(
     : selection.status;
 }
 
-export const DefaultOverrideSchema = z
+const DefaultOverrideFieldsSchema = z
   .object({
     slot: DefaultSlotSlugSchema,
-    technology: TechnologySlugSchema,
     adopted: UtcInstantSchema,
     until: UtcInstantSchema.optional(),
   })
@@ -415,6 +491,17 @@ export const DefaultOverrideSchema = z
       until === undefined || compareUtcInstants(adopted, until) < 0,
     { message: "until must be later than adopted" },
   );
+
+export const DefaultOverrideSchema = z.union([
+  DefaultOverrideFieldsSchema.extend({
+    kind: z.literal("technology").default("technology"),
+    technology: TechnologySlugSchema,
+  }),
+  DefaultOverrideFieldsSchema.extend({
+    kind: z.literal("policy"),
+    value: z.string().min(1),
+  }),
+]);
 
 export type ProjectSlotUse = z.infer<typeof ProjectSlotUseSchema>;
 export type ProjectLayerUse = z.infer<typeof ProjectLayerUseSchema>;

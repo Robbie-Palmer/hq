@@ -8,6 +8,12 @@ describe("sitemap", () => {
     );
   });
 
+  it("includes the PostHog application", () => {
+    expect(sitemap().map((entry) => entry.url)).toContain(
+      "https://robbiepalmer.me/posthog",
+    );
+  });
+
   it("includes the ideas index and every idea detail page", () => {
     const ideaUrls = sitemap()
       .map((entry) => entry.url)

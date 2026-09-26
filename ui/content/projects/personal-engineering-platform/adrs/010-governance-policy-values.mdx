@@ -1,0 +1,35 @@
+---
+title: "ADR 010: Governance as non-technology defaults"
+date: "2026-09-15"
+status: "Accepted"
+---
+
+## Context
+
+Repository visibility, licensing, and source boundaries apply across personal
+projects, but none is a technology choice. Representing `public` or
+`AGPL-3.0` as a technology would make the manifest pass validation while
+misstating what the value means.
+
+These decisions also have a different owner from build and runtime tools. They
+set the terms under which a project publishes source and shares repository
+infrastructure.
+
+## Decision
+
+Add a governance layer for non-technology policy. Let each slot declare whether
+it selects technologies or policy values. Keep the same dated policies,
+selections, project adoption records, and replacement history for both kinds.
+
+Use public source, AGPL-3.0 licensing, and the shared personal-project monorepo
+as the first required governance defaults.
+
+## Consequences
+
+The manifest can state governance choices without adding them to technology
+pages or project technology stacks. Projects adopt the governance layer
+explicitly and can keep it independent of their language or deployment shape.
+
+Selection rendering and graph data must distinguish policy values from links
+to technology pages. An ADR can override a governance value by recording a
+policy override rather than naming a replacement technology.

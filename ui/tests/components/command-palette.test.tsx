@@ -234,6 +234,85 @@ describe("CommandPalette", () => {
     expect(pushMock).toHaveBeenCalledWith("/ideas/goodharts-law");
   });
 
+  it("searches projects by name and navigates to the selected project", async () => {
+    const user = userEvent.setup();
+    render(
+      <CommandPaletteProvider
+        projects={[
+          { slug: "autonomic-satellite-swarm", title: "Satellite Swarm" },
+        ]}
+      >
+        <CommandPaletteTrigger />
+      </CommandPaletteProvider>,
+    );
+
+    const trigger = screen.getAllByRole("button", { name: "Search" })[0];
+    if (!trigger) throw new Error("Expected a command-palette trigger");
+    await user.click(trigger);
+    await user.type(
+      screen.getByPlaceholderText("Search or type a command..."),
+      "satellite",
+    );
+    await user.click(screen.getByText("Satellite Swarm"));
+
+    expect(pushMock).toHaveBeenCalledWith(
+      "/projects/autonomic-satellite-swarm",
+    );
+  });
+
+  it("searches initiatives by name and navigates to the selected initiative", async () => {
+    const user = userEvent.setup();
+    render(
+      <CommandPaletteProvider
+        initiatives={[
+          { slug: "personalized-medicine", title: "Personalized Medicine" },
+        ]}
+      >
+        <CommandPaletteTrigger />
+      </CommandPaletteProvider>,
+    );
+
+    const trigger = screen.getAllByRole("button", { name: "Search" })[0];
+    if (!trigger) throw new Error("Expected a command-palette trigger");
+    await user.click(trigger);
+    await user.type(
+      screen.getByPlaceholderText("Search or type a command..."),
+      "personalized",
+    );
+    await user.click(screen.getByText("Personalized Medicine"));
+
+    expect(pushMock).toHaveBeenCalledWith("/initiatives/personalized-medicine");
+  });
+
+  it("searches blog posts by name and navigates to the selected post", async () => {
+    const user = userEvent.setup();
+    render(
+      <CommandPaletteProvider
+        blogPosts={[
+          {
+            slug: "the-philosophy-of-data-science",
+            title: "The Philosophy of Data Science",
+          },
+        ]}
+      >
+        <CommandPaletteTrigger />
+      </CommandPaletteProvider>,
+    );
+
+    const trigger = screen.getAllByRole("button", { name: "Search" })[0];
+    if (!trigger) throw new Error("Expected a command-palette trigger");
+    await user.click(trigger);
+    await user.type(
+      screen.getByPlaceholderText("Search or type a command..."),
+      "philosophy",
+    );
+    await user.click(screen.getByText("The Philosophy of Data Science"));
+
+    expect(pushMock).toHaveBeenCalledWith(
+      "/blog/the-philosophy-of-data-science",
+    );
+  });
+
   it("rejects hooks outside the provider", () => {
     expect(() => render(<PaletteState />)).toThrow(
       "useCommandPalette must be used within CommandPaletteProvider",

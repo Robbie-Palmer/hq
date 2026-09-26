@@ -51,8 +51,16 @@ function prepareArtifacts(options: ExtractDatasetOptions): {
   const repository = repositoryRoot(options.repository);
   const artifacts = sourceManifest.entries.map((entry): PreparedArtifact => {
     assertRevisionPair(repository, entry.sourceRevision, entry.publishedRevision);
-    const sourceContent = fileAtRevision(repository, entry.sourceRevision, entry.path);
-    const publishedContent = fileAtRevision(repository, entry.publishedRevision, entry.path);
+    const sourceContent = fileAtRevision(
+      repository,
+      entry.sourceRevision,
+      entry.sourcePath ?? entry.path,
+    );
+    const publishedContent = fileAtRevision(
+      repository,
+      entry.publishedRevision,
+      entry.publishedPath ?? entry.path,
+    );
     if (sourceContent.equals(publishedContent)) {
       throw new Error(`${entry.artifactId} has no change between its pinned revisions`);
     }

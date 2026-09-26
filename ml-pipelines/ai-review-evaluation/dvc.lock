@@ -52,7 +52,7 @@ stages:
             maxExclusive: 5000
           oversized: {}
         source:
-          repository: Robbie-Palmer/personal-site
+          repository: Robbie-Palmer/hq
           exportPath: ~/.cache/ai-review/r2-export
     outs:
     - path: data/corpus

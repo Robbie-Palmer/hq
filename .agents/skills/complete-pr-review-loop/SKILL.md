@@ -1,6 +1,6 @@
 ---
 name: complete-pr-review-loop
-description: Shepherd completed work from a draft PR through CI, preview QA, SonarQube, third-party reviews, and custom AI review until no substantive issue remains. Use after implementation or when asked to publish, monitor, or settle a PR.
+description: Use after implementation is complete when the user asks to publish, monitor, repair, or settle a pull request.
 ---
 
 # Complete the PR review loop

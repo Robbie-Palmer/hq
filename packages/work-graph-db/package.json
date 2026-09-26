@@ -1,0 +1,31 @@
+{
+  "name": "work-graph-db",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PostgreSQL persistence and graph coordination for Work Graph",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test:integration": "bash scripts/test-integration.sh",
+    "test:coverage": "bash scripts/test-integration.sh --coverage",
+    "db:check": "bash scripts/check-migrations.sh",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.0",
+    "postgres": "^3.4.5",
+    "work-graph-domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "@vitest/coverage-v8": "^4.1.10",
+    "drizzle-kit": "^0.31.0",
+    "typescript": "^6.0.0",
+    "vitest": "^4.1.7"
+  }
+}

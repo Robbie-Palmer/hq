@@ -19,11 +19,29 @@ struct ControllerConfig {
   ControllerConfig() = default;
 };
 
+struct ControllerDependencies {
+  Transport& transport;
+  HealthMonitor& health_monitor;
+  const CandidacyScorer& scorer;
+  SafeStateActuator* safe_state_actuator;
+
+  ControllerDependencies(Transport& controller_transport, HealthMonitor& controller_health_monitor,
+                         const CandidacyScorer& controller_scorer,
+                         SafeStateActuator* controller_safe_state_actuator = nullptr)
+      : transport(controller_transport), health_monitor(controller_health_monitor),
+        scorer(controller_scorer), safe_state_actuator(controller_safe_state_actuator) {}
+};
+
 class SwarmController {
 public:
+  // A null actuator records a rejected safe-state result while preserving the latch. A supplied
+  // actuator must outlive the controller.
   SwarmController(NodeId node_id, BootEpoch boot_epoch, const SatelliteSnapshot& satellite,
                   Transport& transport, HealthMonitor& health_monitor,
                   const CandidacyScorer& scorer,
+                  const ControllerConfig& config = ControllerConfig());
+  SwarmController(NodeId node_id, BootEpoch boot_epoch, const SatelliteSnapshot& satellite,
+                  ControllerDependencies dependencies,
                   const ControllerConfig& config = ControllerConfig());
 
   // now_ms must use one modulo-2^32 monotonic tick source for every call. Unsigned elapsed-time
@@ -59,12 +77,18 @@ private:
     uint8_t score = 0U;
   };
 
+  struct SafeStateExecution {
+    TelemetryReason reason = TelemetryReason::None;
+    bool pending = false;
+  };
+
   NodeId node_id_;
   BootEpoch boot_epoch_;
   SatelliteSnapshot satellite_;
   Transport& transport_;
   HealthMonitor& health_monitor_;
   const CandidacyScorer& scorer_;
+  SafeStateActuator* safe_state_actuator_;
   ControllerConfig config_;
   ControllerState state_ = ControllerState::Idle;
   Message current_mission_{};
@@ -75,6 +99,7 @@ private:
   uint8_t attempts_ = 0U;
   uint8_t communication_failures_ = 0U;
   HealthStatus last_health_ = HealthStatus::Nominal;
+  SafeStateExecution safe_state_execution_{};
   Candidate candidates_[kMaximumNodes]{};
   BoundedTelemetryBuffer telemetry_{};
 
@@ -89,6 +114,9 @@ private:
                        NodeId related_node = kBroadcastNode, uint8_t value = 0U);
   void transitionTo(ControllerState state, TelemetryReason reason, uint32_t now_ms,
                     TelemetryPriority priority = TelemetryPriority::Operational);
+  void enterSafeDisabled(TelemetryReason telemetry_reason, SafeStateReason safe_state_reason,
+                         uint32_t now_ms);
+  void observeSafeState(uint32_t now_ms);
   void observeHealth(HealthStatus health, uint32_t now_ms);
   bool matchesCurrentMission(const Message& message) const;
   bool elapsed(uint32_t now_ms, uint32_t since_ms, uint32_t duration_ms) const;

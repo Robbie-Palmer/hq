@@ -1,3 +1,4 @@
+import { isNonBlankString } from "ts-base/strings";
 import { WorkGraphError } from "./errors";
 import type {
   WorkGraph,
@@ -12,21 +13,73 @@ import {
   type TerminalWorkItemState,
   type WorkItemLifecycle,
 } from "./vocabulary";
+import { normalizeAndValidateContextRecords } from "./context";
 
 const isWorkItemLifecycle = (value: unknown): value is WorkItemLifecycle =>
   WORK_ITEM_LIFECYCLES.some((lifecycle) => lifecycle === value);
 
-const validateWorkItemId = (value: unknown): value is string =>
-  typeof value === "string" && value.trim().length > 0;
+const validatePriorityFields = (workItem: WorkItem): void => {
+  if (
+    workItem.priorityRank !== null &&
+    (!Number.isSafeInteger(workItem.priorityRank) ||
+      workItem.priorityRank <= 0 ||
+      workItem.priorityRank > 2_147_483_647)
+  ) {
+    throw new WorkGraphError(
+      "invalid_priority_rank",
+      `Work item ${workItem.id} must have a positive whole-number priority rank.`,
+    );
+  }
+  if (
+    (workItem.schedulingInitiativeId !== null &&
+      !isNonBlankString(workItem.schedulingInitiativeId)) ||
+    (workItem.schedulingProjectId !== null &&
+      !isNonBlankString(workItem.schedulingProjectId))
+  ) {
+    throw new WorkGraphError(
+      "invalid_scheduling_scope",
+      `Work item ${workItem.id} has an invalid scheduling scope.`,
+    );
+  }
+  if (
+    workItem.parentId !== null &&
+    (workItem.priorityRank !== null ||
+      workItem.schedulingInitiativeId !== null ||
+      workItem.schedulingProjectId !== null)
+  ) {
+    throw new WorkGraphError(
+      "invalid_scheduling_scope",
+      `Work item ${workItem.id} inherits scheduling priority from its parent.`,
+    );
+  }
+};
+
+const validateExpediteFields = (workItem: WorkItem): void => {
+  if (
+    workItem.expediteReason !== null &&
+    !isNonBlankString(workItem.expediteReason)
+  ) {
+    throw new WorkGraphError(
+      "invalid_expedite_reason",
+      `Work item ${workItem.id} has an empty expedite reason.`,
+    );
+  }
+  if (workItem.expedited !== (workItem.expediteReason !== null)) {
+    throw new WorkGraphError(
+      "invalid_expedite_reason",
+      `Work item ${workItem.id} must record a reason exactly when it is expedited.`,
+    );
+  }
+};
 
 const validateWorkItemFields = (workItem: WorkItem): void => {
-  if (!validateWorkItemId(workItem.id)) {
+  if (!isNonBlankString(workItem.id)) {
     throw new WorkGraphError(
       "invalid_work_item_id",
       "A work item ID cannot be empty.",
     );
   }
-  if (typeof workItem.title !== "string" || workItem.title.trim().length === 0) {
+  if (!isNonBlankString(workItem.title)) {
     throw new WorkGraphError(
       "invalid_work_item_title",
       `Work item ${workItem.id} must have a title.`,
@@ -38,23 +91,37 @@ const validateWorkItemFields = (workItem: WorkItem): void => {
       `Work item ${workItem.id} has an invalid lifecycle.`,
     );
   }
-  if (workItem.parentId !== null && !validateWorkItemId(workItem.parentId)) {
+  if (workItem.parentId !== null && !isNonBlankString(workItem.parentId)) {
     throw new WorkGraphError(
       "invalid_parent_id",
       `Work item ${workItem.id} has an invalid parent ID.`,
     );
   }
+  if (
+    workItem.rank !== null &&
+    (workItem.parentId === null ||
+      !Number.isSafeInteger(workItem.rank) ||
+      workItem.rank <= 0 ||
+      workItem.rank > 2_147_483_647)
+  ) {
+    throw new WorkGraphError(
+      "invalid_child_rank",
+      `Work item ${workItem.id} must have a positive whole-number rank.`,
+    );
+  }
+  validatePriorityFields(workItem);
+  validateExpediteFields(workItem);
 };
 
 const normalizeWorkItem = (input: WorkItemInput): WorkItem => {
-  if (!validateWorkItemId(input.id)) {
+  if (!isNonBlankString(input.id)) {
     throw new WorkGraphError(
       "invalid_work_item_id",
       "A work item ID cannot be empty.",
     );
   }
 
-  if (typeof input.title !== "string" || input.title.trim().length === 0) {
+  if (!isNonBlankString(input.title)) {
     throw new WorkGraphError(
       "invalid_work_item_title",
       `Work item ${input.id} must have a title.`,
@@ -70,18 +137,31 @@ const normalizeWorkItem = (input: WorkItemInput): WorkItem => {
   }
 
   const parentId = input.parentId ?? null;
-  if (parentId !== null && !validateWorkItemId(parentId)) {
+  if (parentId !== null && !isNonBlankString(parentId)) {
     throw new WorkGraphError(
       "invalid_parent_id",
       `Work item ${input.id} has an invalid parent ID.`,
     );
   }
 
+  const rank = input.rank ?? null;
+  const priorityRank = input.priorityRank ?? null;
+  const schedulingInitiativeId = input.schedulingInitiativeId ?? null;
+  const schedulingProjectId = input.schedulingProjectId ?? null;
+  const expedited = input.expedited ?? false;
+  const expediteReason = input.expediteReason ?? null;
+
   return {
     id: input.id,
     title: input.title,
     lifecycle,
     parentId,
+    rank,
+    priorityRank,
+    schedulingInitiativeId,
+    schedulingProjectId,
+    expedited,
+    expediteReason,
   };
 };
 
@@ -113,6 +193,79 @@ const requireWorkItem = (
     );
   }
   return workItem;
+};
+
+const validateHierarchy = (
+  workItems: readonly WorkItem[],
+  workItemsById: ReadonlyMap<string, WorkItem>,
+): void => {
+  const ranksByParent = new Map<string, Set<number>>();
+
+  for (const workItem of workItems) {
+    if (workItem.parentId === null) continue;
+
+    requireWorkItem(workItemsById, workItem.parentId);
+    if (workItem.rank === null) continue;
+
+    const siblingRanks = ranksByParent.get(workItem.parentId) ?? new Set();
+    if (siblingRanks.has(workItem.rank)) {
+      throw new WorkGraphError(
+        "invalid_child_rank",
+        `Child rank ${workItem.rank} is used more than once beneath work item ${workItem.parentId}.`,
+      );
+    }
+    siblingRanks.add(workItem.rank);
+    ranksByParent.set(workItem.parentId, siblingRanks);
+  }
+};
+
+const validatePriorityRanks = (workItems: readonly WorkItem[]): void => {
+  const ranksByProject = new Map<string, Set<number>>();
+
+  for (const workItem of workItems) {
+    if (workItem.priorityRank === null) continue;
+    const projectKey = workItem.schedulingProjectId ?? "";
+    const ranks = ranksByProject.get(projectKey) ?? new Set<number>();
+    if (ranks.has(workItem.priorityRank)) {
+      throw new WorkGraphError(
+        "invalid_priority_rank",
+        `Priority rank ${workItem.priorityRank} is used more than once in scheduling project ${workItem.schedulingProjectId ?? "the unscoped queue"}.`,
+      );
+    }
+    ranks.add(workItem.priorityRank);
+    ranksByProject.set(projectKey, ranks);
+  }
+};
+
+const validateDependencies = (
+  dependencies: readonly WorkItemDependency[],
+  workItemsById: ReadonlyMap<string, WorkItem>,
+): void => {
+  const blockersByDependent = new Map<string, Set<string>>();
+
+  for (const dependency of dependencies) {
+    requireWorkItem(workItemsById, dependency.dependentWorkItemId);
+    requireWorkItem(workItemsById, dependency.blockerWorkItemId);
+
+    if (dependency.dependentWorkItemId === dependency.blockerWorkItemId) {
+      throw new WorkGraphError(
+        "self_dependency",
+        `Work item ${dependency.dependentWorkItemId} cannot depend on itself.`,
+      );
+    }
+
+    const blockerIds =
+      blockersByDependent.get(dependency.dependentWorkItemId) ??
+      new Set<string>();
+    if (blockerIds.has(dependency.blockerWorkItemId)) {
+      throw new WorkGraphError(
+        "dependency_already_exists",
+        `Dependency ${dependency.dependentWorkItemId} -> ${dependency.blockerWorkItemId} already exists.`,
+      );
+    }
+    blockerIds.add(dependency.blockerWorkItemId);
+    blockersByDependent.set(dependency.dependentWorkItemId, blockerIds);
+  }
 };
 
 const appendWait = (
@@ -216,37 +369,10 @@ export const validateWorkGraph = (graph: WorkGraph): void => {
   }
 
   const workItemsById = indexWorkItems(graph.workItems);
-  const blockersByDependent = new Map<string, Set<string>>();
-
-  for (const workItem of graph.workItems) {
-    if (workItem.parentId !== null) {
-      requireWorkItem(workItemsById, workItem.parentId);
-    }
-  }
-
-  for (const dependency of graph.dependencies) {
-    requireWorkItem(workItemsById, dependency.dependentWorkItemId);
-    requireWorkItem(workItemsById, dependency.blockerWorkItemId);
-
-    if (dependency.dependentWorkItemId === dependency.blockerWorkItemId) {
-      throw new WorkGraphError(
-        "self_dependency",
-        `Work item ${dependency.dependentWorkItemId} cannot depend on itself.`,
-      );
-    }
-
-    const blockerIds =
-      blockersByDependent.get(dependency.dependentWorkItemId) ??
-      new Set<string>();
-    if (blockerIds.has(dependency.blockerWorkItemId)) {
-      throw new WorkGraphError(
-        "dependency_already_exists",
-        `Dependency ${dependency.dependentWorkItemId} -> ${dependency.blockerWorkItemId} already exists.`,
-      );
-    }
-    blockerIds.add(dependency.blockerWorkItemId);
-    blockersByDependent.set(dependency.dependentWorkItemId, blockerIds);
-  }
+  validateHierarchy(graph.workItems, workItemsById);
+  validatePriorityRanks(graph.workItems);
+  validateDependencies(graph.dependencies, workItemsById);
+  normalizeAndValidateContextRecords(graph, workItemsById);
 
   if (hasCycle(buildWaitsForGraph(graph))) {
     throw new WorkGraphError(
@@ -257,11 +383,31 @@ export const validateWorkGraph = (graph: WorkGraph): void => {
 };
 
 export const createWorkGraph = (input: WorkGraphInput = {}): WorkGraph => {
-  const graph = {
+  const graphWithoutContext = {
     workItems: (input.workItems ?? []).map(normalizeWorkItem),
     dependencies: (input.dependencies ?? []).map((dependency) => ({
       ...dependency,
     })),
+    pullRequests: (input.pullRequests ?? []).map((pullRequest) => ({
+      ...pullRequest,
+    })),
+    workItemPullRequests: (input.workItemPullRequests ?? []).map((link) => ({
+      ...link,
+    })),
+  };
+  const graph = {
+    ...graphWithoutContext,
+    ...normalizeAndValidateContextRecords(
+      {
+        ...graphWithoutContext,
+        contexts: input.contexts ?? [],
+        architectureDecisions: input.architectureDecisions ?? [],
+        references: input.references ?? [],
+        pullRequests: graphWithoutContext.pullRequests,
+        workItemPullRequests: graphWithoutContext.workItemPullRequests,
+      },
+      indexWorkItems(graphWithoutContext.workItems),
+    ),
   } satisfies WorkGraph;
   validateWorkGraph(graph);
   return graph;
@@ -298,7 +444,18 @@ export const reparentWorkItem = (
   const candidate = {
     ...graph,
     workItems: graph.workItems.map((workItem) =>
-      workItem.id === workItemId ? { ...workItem, parentId } : workItem,
+      workItem.id === workItemId
+        ? {
+            ...workItem,
+            parentId,
+            rank: workItem.parentId === parentId ? workItem.rank : null,
+            priorityRank: parentId === null ? workItem.priorityRank : null,
+            schedulingInitiativeId:
+              parentId === null ? workItem.schedulingInitiativeId : null,
+            schedulingProjectId:
+              parentId === null ? workItem.schedulingProjectId : null,
+          }
+        : workItem,
     ),
   } satisfies WorkGraph;
   validateWorkGraph(candidate);
@@ -346,7 +503,13 @@ export const getDirectChildren = (
   parentId: string,
 ): readonly WorkItem[] => {
   getWorkItem(graph, parentId);
-  return graph.workItems.filter((workItem) => workItem.parentId === parentId);
+  return graph.workItems
+    .filter((workItem) => workItem.parentId === parentId)
+    .sort(
+      (left, right) =>
+        (left.rank ?? Number.MAX_SAFE_INTEGER) -
+        (right.rank ?? Number.MAX_SAFE_INTEGER),
+    );
 };
 
 export const getAncestors = (
@@ -425,7 +588,9 @@ export const cancelWorkItem = (
 
 export interface DecomposeWorkItemInput {
   readonly parentWorkItemId: string;
-  readonly children: readonly Omit<NewWorkItemInput, "parentId">[];
+  readonly children: readonly (Omit<NewWorkItemInput, "parentId"> & {
+    readonly rank: number;
+  })[];
   readonly dependencies?: readonly WorkItemDependency[];
 }
 
@@ -447,12 +612,34 @@ export const decomposeWorkItem = (
     );
   }
 
+  const ranks = new Set<number>();
+  for (const child of input.children) {
+    if (
+      !Number.isSafeInteger(child.rank) ||
+      child.rank <= 0 ||
+      child.rank > 2_147_483_647
+    ) {
+      throw new WorkGraphError(
+        "invalid_child_rank",
+        `Child work item ${child.id} must have a positive whole-number rank.`,
+      );
+    }
+    if (ranks.has(child.rank)) {
+      throw new WorkGraphError(
+        "invalid_child_rank",
+        `Child rank ${child.rank} is used more than once beneath work item ${parent.id}.`,
+      );
+    }
+    ranks.add(child.rank);
+  }
+
   const candidate = {
+    ...graph,
     workItems: [
       ...graph.workItems,
-      ...input.children.map((child) =>
-        normalizeWorkItem({ ...child, parentId: parent.id }),
-      ),
+      ...[...input.children]
+        .sort((left, right) => left.rank - right.rank)
+        .map((child) => normalizeWorkItem({ ...child, parentId: parent.id })),
     ],
     dependencies: [
       ...graph.dependencies,

@@ -1,0 +1,2 @@
+# Copy to .dev.vars only if Doppler is unavailable. Never commit the copy.
+CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE="postgresql://postgres:postgres@127.0.0.1:5432/work_graph"

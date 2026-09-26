@@ -26,7 +26,11 @@ explicit.
 - A separate transmitter exports fixed telemetry frames at a bounded rate and retains a record when
   its sink rejects the write.
 - A busy node does not accept more work.
-- Health policy can place a node into reversible quiescence or a safe-disabled state latched for the controller lifetime.
+- Health policy can place a node into reversible quiescence or a safe-disabled state latched for
+  the controller lifetime.
+- Entering safe-disabled can make one idempotent platform request. The controller records whether
+  the platform accepts it, polls accepted work until success or failure, and stays latched for every
+  outcome.
 - Repeated failure to receive acknowledgements can trigger the historical "death by default" rule.
 - Deterministic trace inputs can drop, delay, or duplicate deliveries, change directed links, and
   reset a node so protocol failures can be replayed exactly.
@@ -41,9 +45,16 @@ explicit.
 
 [mise](https://mise.jdx.dev/) pins the developer tools and exposes the supported commands:
 
+- On Linux, install Git and a C++20 build toolchain. On Debian or Ubuntu, install the `git` and
+  `build-essential` packages.
+- On macOS, install Git and the Xcode Command Line Tools with `xcode-select --install`.
+
+Then run these commands from this directory:
+
 ```shell
 mise trust
 mise install
+mise run doctor
 mise run test
 mise run simulate
 mise run simulate:json
@@ -89,9 +100,10 @@ Run every host, firmware, formatting, lint, and spelling check with:
 mise run check
 ```
 
-`mise run coverage` also writes SonarQube's generic coverage report and rejects line coverage below
-80% or branch coverage below 70%. The monorepo's SonarQube workflow imports that report alongside
-its JavaScript and Python coverage.
+`mise run coverage` uses the pinned GNU toolchain on Linux and Apple Clang with `llvm-cov` on macOS.
+It writes SonarQube's generic coverage report and rejects line coverage below 80% or branch coverage
+below 70%. The monorepo's SonarQube workflow imports that report alongside its JavaScript and Python
+coverage.
 
 ## Architecture
 
@@ -106,11 +118,13 @@ tests/                     host-side behavior and characterization tests
 docs/                      architecture, protocol, and modernization notes
 ```
 
-The core depends on four interfaces:
+The core depends on five interfaces:
 
 - `Transport` moves semantic messages without exposing radio details.
 - `HealthMonitor` maps platform observations to nominal, quiescent, or fatal health.
 - `CandidacyScorer` ranks a satellite for a mission objective.
+- `SafeStateActuator` accepts or rejects one non-blocking, idempotent request when the controller
+  first enters safe-disabled and reports its eventual terminal status.
 - `TelemetrySink` accepts a diagnostic record when the platform grants output-channel access.
 
 See [Architecture](docs/architecture.md) and [Wire protocol](docs/wire-protocol.md) for the detailed
@@ -151,7 +165,9 @@ The firmware build accepts `SATELLITE_SWARM_BOOT_EPOCH`, which defaults to `1` f
 use. A real deployment must advance that value in durable storage before the controller starts after
 a reset. Initial coordinates remain deliberately simple constants in each sketch. A real deployment
 also needs calibrated health inputs, authenticated transport with replay protection, mission
-persistence, and a genuine guidance/navigation/control implementation.
+persistence, a hardware-specific safe-state actuator, and a genuine guidance/navigation/control
+implementation. The reference sketches do not supply a physical safe-state actuator. Without one,
+the controller records a rejected result and preserves its software latch.
 
 ## Documentation
 

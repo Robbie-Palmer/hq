@@ -1,14 +1,24 @@
-# personal-site
+# hq
 
 [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=Robbie-Palmer_personal-site&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=Robbie-Palmer_personal-site)
 [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=Robbie-Palmer_personal-site&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=Robbie-Palmer_personal-site)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=Robbie-Palmer_personal-site&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=Robbie-Palmer_personal-site)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=Robbie-Palmer_personal-site&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=Robbie-Palmer_personal-site)
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=Robbie-Palmer_personal-site&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=Robbie-Palmer_personal-site)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Robbie-Palmer/personal-site/badge)](https://scorecard.dev/viewer/?uri=github.com/Robbie-Palmer/personal-site)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Robbie-Palmer/hq/badge)](https://scorecard.dev/viewer/?uri=github.com/Robbie-Palmer/hq)
 
-My personal website, blog, resume, and recipes at [robbiepalmer.me](https://robbiepalmer.me), plus
-the projects incubated here alongside it. Each project owns its details in its own README:
+My monorepo for [robbiepalmer.me](https://robbiepalmer.me), software projects, experiments,
+writing, infrastructure, and homelab configuration.
+
+Things you can visit:
+
+- [Recipe Site](https://robbiepalmer.me/recipes), with its [project notes](https://robbiepalmer.me/projects/recipe-site)
+- [Asset Tracker](https://robbiepalmer.me/assettracker), with its [project notes](https://robbiepalmer.me/projects/personal-finance-app)
+- [Agentic Code Review](https://robbiepalmer.me/projects/agentic-code-review) and its [GitHub App](https://github.com/apps/robbie-palmer-ai-review)
+- [Work Graph](https://robbiepalmer.me/projects/work-graph) and its [Access-protected API](https://work-graph.robbiepalmer.me)
+- [Autonomic Satellite Swarm](https://robbiepalmer.me/satellite-swarm), an interactive simulation with [project notes](https://robbiepalmer.me/projects/autonomic-satellite-swarm)
+
+Each project owns its details in its own README:
 
 - [`ui/`](ui/), the website itself (Next.js static export on Cloudflare Pages).
   Content authoring guides: [blog](ui/content/blog/README.md),

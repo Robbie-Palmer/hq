@@ -2,42 +2,71 @@
 title: "Recipe Site"
 description: "A social cooking network that helps friends and families cook better using trusted, real-world kitchen signals"
 date: "2026-02-14"
-repo_url: "https://github.com/Robbie-Palmer/personal-site"
+repo_url: "https://github.com/Robbie-Palmer/hq"
 demo_url: "https://robbiepalmer.me/recipes"
 status: "in_progress"
 platform_layers:
+  - layer: "governance"
+    adopted: "2026-09-15T00:00:00Z"
+    tracking: true
+    rationale: "The public application uses the shared repository's publication and licensing rules."
   - layer: "base"
     adopted: "2026-09-12T00:00:00Z"
     tracking: true
+    rationale: "The application uses the repository-wide development and delivery controls."
+    slots:
+      - slot: "secrets.runtime-store"
+        adopted: "2026-09-15T00:00:00Z"
+        rationale: "Authentication, database, and integration credentials need a runtime store."
+      - slot: "secrets.ci-store"
+        adopted: "2026-09-15T00:00:00Z"
+        rationale: "Preview and production workflows need deployment credentials."
   - layer: "web-app"
     adopted: "2026-09-12T00:00:00Z"
     tracking: true
+    rationale: "The product is delivered as a browser application."
+    slots:
+      - slot: "web-app.host"
+        adopted: "2026-09-15T00:00:00Z"
+        rationale: "The public application and Pull Request previews need managed hosting."
   - layer: "backend-api"
     adopted: "2026-09-12T00:00:00Z"
     tracking: true
+    decision: "recipe-site:033-backend-platform-for-authenticated-features"
     slots:
       - slot: "backend-api.runtime"
         adopted: "2026-09-12T00:00:00Z"
+        decision: "recipe-site:033-backend-platform-for-authenticated-features"
   - layer: "database"
     adopted: "2026-09-12T00:00:00Z"
     tracking: true
+    decision: "recipe-site:033-backend-platform-for-authenticated-features"
     slots:
       - slot: "database.relational-engine"
         adopted: "2026-09-12T00:00:00Z"
+        decision: "recipe-site:033-backend-platform-for-authenticated-features"
       - slot: "database.relational-host"
         adopted: "2026-09-12T00:00:00Z"
+        decision: "recipe-site:033-backend-platform-for-authenticated-features"
   - layer: "infrastructure"
     adopted: "2026-09-12T00:00:00Z"
     tracking: true
+    rationale: "The application owns managed Cloudflare and Neon resources."
     slots:
       - slot: "infrastructure.provisioner"
         adopted: "2026-09-12T00:00:00Z"
+        rationale: "Managed service resources are provisioned from checked-in configuration."
+      - slot: "infrastructure.state-backend"
+        adopted: "2026-09-15T00:00:00Z"
+        rationale: "Preview and production provisioning require protected shared state."
   - layer: "observability"
     adopted: "2026-09-12T00:00:00Z"
     tracking: true
+    decision: "recipe-site:047-posthog-logs"
     slots:
       - slot: "observability.application-telemetry"
         adopted: "2026-09-12T00:00:00Z"
+        decision: "recipe-site:047-posthog-logs"
 initiatives:
   - "digital-twins-for-everyday-life"
 ideas:
@@ -542,7 +571,7 @@ around an otherwise conventional recipe manager.
 
 The prototype above is a self-contained build; the editable design source
 (tokens, shared components, and one file per screen) is vendored alongside this
-document under [`designs/`](https://github.com/Robbie-Palmer/personal-site/tree/main/ui/content/projects/recipe-site/designs).
+document under [`designs/`](https://github.com/Robbie-Palmer/hq/tree/main/ui/content/projects/recipe-site/designs).
 
 # Competitor Analysis
 

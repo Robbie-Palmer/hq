@@ -1,0 +1,28 @@
+# Work Graph API overlay for the shared OpenAPI governance rules.
+
+extends:
+  - "../../api-governance/spectral.yaml"
+
+functionsDir: "../../api-governance/spectral-functions"
+functions:
+  - noVerbPaths
+  - pluralCollections
+
+rules:
+  paths-no-verbs:
+    description: Work Graph paths model resources rather than commands.
+    severity: error
+    given: "$.paths[*]~"
+    then:
+      function: noVerbPaths
+      functionOptions:
+        allowedSegments: []
+
+  collections-are-plural:
+    description: Work Graph collection paths use plural nouns.
+    severity: error
+    given: "$.paths[*]~"
+    then:
+      function: pluralCollections
+      functionOptions:
+        singletons: []

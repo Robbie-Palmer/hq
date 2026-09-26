@@ -12,28 +12,52 @@ tech_stack:
   - "Zod"
   - "Lucide React"
   - "Vale"
-repo_url: "https://github.com/Robbie-Palmer/personal-site"
+repo_url: "https://github.com/Robbie-Palmer/hq"
 demo_url: "https://robbiepalmer.me"
 status: "live"
 platform_layers:
+  - layer: "governance"
+    adopted: "2026-09-15T00:00:00Z"
+    tracking: true
+    decision: "personal-knowledge-graph:059-temporal-platform-layers"
   - layer: "base"
     adopted: "2026-09-12T00:00:00Z"
     tracking: true
+    decision: "personal-knowledge-graph:059-temporal-platform-layers"
+    slots:
+      - slot: "secrets.runtime-store"
+        adopted: "2026-09-15T00:00:00Z"
+        decision: "personal-knowledge-graph:059-temporal-platform-layers"
+      - slot: "secrets.ci-store"
+        adopted: "2026-09-15T00:00:00Z"
+        decision: "personal-knowledge-graph:059-temporal-platform-layers"
   - layer: "web-app"
     adopted: "2026-09-12T00:00:00Z"
     tracking: true
+    decision: "personal-knowledge-graph:059-temporal-platform-layers"
+    slots:
+      - slot: "web-app.host"
+        adopted: "2026-09-15T00:00:00Z"
+        decision: "personal-knowledge-graph:059-temporal-platform-layers"
   - layer: "infrastructure"
     adopted: "2026-09-12T00:00:00Z"
     tracking: true
+    decision: "personal-knowledge-graph:059-temporal-platform-layers"
     slots:
       - slot: "infrastructure.provisioner"
         adopted: "2026-09-12T00:00:00Z"
+        decision: "personal-knowledge-graph:059-temporal-platform-layers"
+      - slot: "infrastructure.state-backend"
+        adopted: "2026-09-15T00:00:00Z"
+        decision: "personal-knowledge-graph:059-temporal-platform-layers"
   - layer: "observability"
     adopted: "2026-09-12T00:00:00Z"
     tracking: true
+    decision: "personal-knowledge-graph:059-temporal-platform-layers"
     slots:
       - slot: "observability.application-telemetry"
         adopted: "2026-09-12T00:00:00Z"
+        decision: "personal-knowledge-graph:059-temporal-platform-layers"
 ---
 
 # Vision

@@ -1,0 +1,40 @@
+{
+  "name": "work-graph-cli",
+  "version": "0.1.0",
+  "description": "Agent-friendly command-line client for the Work Graph REST API",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "bin": {
+    "work-graph": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "build": "tsx scripts/generate-openapi-client.ts && tsx scripts/clean-dist.ts && tsc --project tsconfig.build.json",
+    "build:check": "tsx scripts/clean-dist.ts && tsc --project tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "openapi:generate": "tsx scripts/generate-openapi-client.ts",
+    "openapi:check": "tsx scripts/generate-openapi-client.ts --check",
+    "pack:check": "pnpm pack --dry-run && node dist/cli.js --help"
+  },
+  "dependencies": {
+    "@trpc/server": "11.18.0",
+    "trpc-cli": "0.16.0",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "0.99.0",
+    "@types/node": "^24",
+    "@vitest/coverage-v8": "^4.1.10",
+    "tsx": "^4.21.0",
+    "typescript": "^5",
+    "vitest": "^4.1.7"
+  }
+}

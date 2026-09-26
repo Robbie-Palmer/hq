@@ -1,6 +1,6 @@
 [tools]
 age = "1.3.2"
-awscli = "2.36.43"
+awscli = "2.36.49"
 jq = "1.8.2"
 
 [tasks.backup]

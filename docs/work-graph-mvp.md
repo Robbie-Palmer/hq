@@ -74,10 +74,30 @@ scheduling. A mirror may contain:
 - title snapshot;
 - canonical page and Markdown URLs;
 - source revision;
-- local rank and priority weight.
+- a service-owned rank within its scope kind.
 
 Work Graph owns the rank. Updating a title snapshot does not make it the source
 of truth for project prose.
+
+A mirror has its own small operational lifecycle:
+
+- `active` scopes participate in scheduling and rank against active scopes of
+  the same kind;
+- `archived` scopes retain their source snapshot, relationships, event history,
+  and historical ticket context but disappear from default scope and
+  relationship listings.
+
+Archiving requires a reason, clears the scope's rank, and fails while the scope
+still schedules open work. Agents cannot add relationships to an archived
+scope or assign new work to it. Restoring a scope returns it to the median of
+its active kind. Source refreshes preserve this lifecycle, just as they
+preserve rank, because the knowledge graph's publication status and Work
+Graph's scheduling policy answer different questions.
+
+This lifecycle lets the service retain completed personal projects and work
+owned by an employer without placing either in the personal execution plan.
+Default list operations return active scopes. Audit clients can request active
+and archived scopes together.
 
 Initiatives and projects are not executable work items. An explicit work item
 can represent planning or revising one when that is real work.
@@ -163,29 +183,49 @@ effect.
 
 ## Priority and queue projection
 
-Knowledge scopes and work items can carry local stack ranks and priority
-weights. The scheduler combines them into one deterministic order of eligible
-work items.
+People author priority as contextual stack order. The service owns its numeric
+storage.
+Active initiatives rank against active initiatives, active projects against
+active projects, and tickets against tickets in the same scheduling project.
+New and restored scope entries start at the median.
+Clients move them by saying which nearby item they belong above or below; the
+service owns and may renormalise the stored integers.
 
 The first scoring implementation must preserve these behaviours even if the
 numeric formula changes after dogfooding:
 
-- ancestor priority affects descendants;
-- siblings respect their explicit local order;
-- decomposition preserves the parent's place in the queue;
+- initiative, project, and ticket priority all influence the result without
+  grouping whole parent subtrees;
+- tickets respect their explicit project-local order;
+- decomposition inherits one ticket position and graph depth adds no score;
 - the highest urgency of blocked descendants propagates backwards to their
   blockers;
 - a deterministic final tie-breaker produces a total order; and
 - filtering by initiative, project, parent work item, or other semantic fields
   does not change relative order within the result.
 
-No weighting formula may become part of a migration or public API until
-fixture-driven tests compare it with realistic queue-ordering cases. Ordinal
-ranks must not accidentally gain misleading arithmetic meaning.
+The fixture-backed policy uses reciprocal-rank fusion with an offset of 10 and
+equal initial influence for initiative, project, and ticket positions. A
+leading ticket from a lower-ranked initiative can interleave ahead of later
+tickets from a higher-ranked initiative. Missing dimensions use the
+median position in their stack. Structural hierarchy rank and stable IDs break
+ties.
+
+A priority-owning ticket selects one scheduling project and one scheduling
+initiative. The service fills in the initiative when the project has exactly
+one initiative parent. The caller chooses when it has more than one. A
+dependency blocker inherits the best effective position of any open item
+waiting on it.
+
+Expediting is a separate, reason-bearing decision ahead of normal fusion.
+Expedited urgency propagates to unresolved blockers without permanently marking
+them expedited. Removing the expedite removes the donated urgency. Queue
+filters run after the scheduler calculates global order. Scheduler-selected
+claims use the same order.
 
 Once work is claimed, a newly higher-priority item does not pre-empt it. The
-worker continues until it releases, cancels, decomposes, requests attention,
-or loses a stale lease.
+worker continues until it completes the work, cancels it, decomposes it,
+requests attention, or loses a stale lease.
 
 ## Leases and workers
 
@@ -251,6 +291,13 @@ by stored lifecycle and projected stage. A lease may record either value as its
 outcome when that lease performed the terminal transition. The lease outcome
 remains immutable history rather than another source of current work-item
 state.
+
+`released` means successful completion. It never means returning unfinished
+work to the queue. Repository-backed work may move to `released` only after its
+change is merged and deployed. The release request must record evidence for
+both. Local verification, a commit, or an open pull request is not completion.
+Work that cannot reach completion stays open and uses attention, decomposition,
+cancellation, or lease expiry as appropriate.
 
 This avoids contradictory combinations such as a stored `ready` state with an
 unresolved blocker. Event history explains every transition.
@@ -319,6 +366,10 @@ The likely minimum relational model is:
 The schema can combine records where doing so preserves their semantics. Avoid
 generic relationship and metadata bags merely to reduce the table count.
 
+Event rows are append-only. The database rejects updates, deletes, and
+truncation, and serializes event inserts until commit. A sequence cursor can
+therefore advance without skipping a lower-sequence event that commits later.
+
 ## REST resources
 
 Use nouns and the shared API-governance rules. The initial API will likely
@@ -327,6 +378,8 @@ need:
 - `/api/work-items`
 - `/api/work-items/{workItemId}`
 - `/api/work-items/{workItemId}/decompositions`
+- `/api/work-items/{workItemId}/priority-moves`
+- `/api/work-items/{workItemId}/expedites`
 - `/api/work-items/{workItemId}/releases`
 - `/api/work-items/{workItemId}/cancellations`
 - `/api/work-items/{workItemId}/notes`
@@ -339,6 +392,10 @@ need:
 - `/api/leases/{leaseId}/renewals`
 - `/api/attention-requests`
 - `/api/attention-requests/{attentionRequestId}/resolutions`
+- `/api/knowledge-scopes`
+- `/api/knowledge-scopes/{knowledgeScopeId}`
+- `/api/knowledge-scopes/{knowledgeScopeId}/priority-moves`
+- `/api/knowledge-scope-relationships`
 
 Creating a lease with no work-item ID means "claim the next eligible item".
 Supplying the ID means "atomically claim this item if it remains eligible".
@@ -364,10 +421,12 @@ Pure domain scenarios should cover:
 - replacement work requiring a new dependency edge;
 - reparenting retaining item history;
 - rejection of hierarchy, dependency, and combined waits-for cycles;
-- ancestor, sibling, and blocker priority propagation;
+- contextual rank fusion, median insertion, and blocker priority donation;
+- explicit expedite donation and removal;
 - stable ordering inside filtered scopes;
 - sparse tickets remaining valid;
 - claim context ordering only the context that exists;
+- scope archiving preserving historical context while removing active rank;
 - attention removal from and readiness recomputation before queue return;
 - retention of the previous worker after attention resolution; and
 - pull requests informing work without becoming dependency edges.
@@ -383,6 +442,9 @@ PostgreSQL integration scenarios should cover:
   cycle;
 - atomic decomposition with no partially created child graph; and
 - idempotent retry after a lost HTTP response.
+- relative priority moves remaining inside their initiative, project, or
+  project-local ticket stack.
+- archived scopes rejecting open work and new scheduling assignments.
 
 API scenarios should cover:
 
@@ -407,27 +469,46 @@ it.todo(
 Each slice should leave something testable and avoid building the read-only UI
 before the headless workflow is useful.
 
-1. [x] Create a dependency-free Work Graph domain package and add the scenario
+1. [x] Create a Work Graph domain package and add the scenario
    catalogue as `it.todo` tests.
-2. [ ] Implement lifecycle and readiness projection, hierarchy checks, and the
+2. [x] Implement lifecycle and readiness projection, hierarchy checks, and the
    first deterministic priority policy against in-memory fixtures.
-3. [ ] Add the PostgreSQL schema, migrations, and integration-test database.
-4. [ ] Build create, list, dependency, claim, renew, release, cancel, note, and
-   attention endpoints with generated OpenAPI.
-5. [ ] Add transactional decomposition and stale-lease fencing.
-6. [ ] Build the TypeScript CLI around create, queue, claim, show, note, renew,
+3. [x] Add the PostgreSQL schema, migrations, and integration-test database.
+4. [x] Persist lease history and implement atomic specified and first-eligible
+   claims, renewal, stale recovery, and epoch fencing.
+5. [x] Build the canonical list and readiness projection, claim, renew, release,
+   and cancel endpoints with generated OpenAPI.
+6. [x] Add create, dependency, note, attention, and idempotent mutation
+   endpoints.
+7. [x] Add transactional decomposition, including ending the current lease and
+   optionally claiming a ready child.
+8. [x] Build the TypeScript CLI around create, queue, claim, show, note, renew,
    decompose, attention, release, and cancel operations.
-7. [ ] Provision the Worker, Neon project, Hyperdrive, Access application, service
+9. [x] Provision the Worker, Neon project, Hyperdrive, Access application, service
    token, and secrets through Terraform and Doppler.
-8. [ ] Enter this plan into Work Graph and use it to finish its own MVP.
-9. [ ] Add manual PR links and snapshot refresh. Automate GitHub events only after
+10. [x] Enter this plan into Work Graph and use it to finish its own MVP.
+11. [x] Replace public numeric priority weights with contextual relative moves,
+    median insertion, fixture-driven rank fusion, and explicit expedites.
+12. [x] Add typed briefs, acceptance criteria, ADRs, and supplemental references
+    with inherited resolution and ordered claim output across persistence, API,
+    and CLI.
+13. [x] Add manual PR links and snapshot refresh. Automate GitHub events only after
    manual use shows which events matter.
+14. [x] Add initiative, project, and parent filters to queue reads and
+    scheduler-selected claims. Preserve global relative order, then assign the
+    live Work Graph plan to its project and initiative mirrors.
+15. [x] Expose identity-preserving work-item reparenting through the REST API
+    and CLI, including combined cycle rejection and immutable event history.
+16. [x] Add active and archived knowledge-scope lifecycle, reason-bearing
+    archive and restore operations, active-only ranking, and audit listings.
 
 ## Deferred
 
 - Continuity scoring after attention resolution.
 - MCP exposure.
-- A public DAG view and human attention inbox UI.
+- An optional public DAG view and graphical attention inbox. Neither is an
+  authority-cutover requirement while agents can provide remote access to the
+  full CLI workflow.
 - GitHub webhooks and automatic task release.
 - Formal API versioning.
 - Multiple owners, teams, and policy domains.
@@ -437,7 +518,7 @@ before the headless workflow is useful.
 - Arbitrary labels.
 - Delivery forecasting and estimates.
 - Automatic completion of parents when their last child terminates.
-- A priority-weighting formula chosen without fixture-driven testing.
+- A public numeric priority scale that agents or owners must calibrate.
 
 ## MVP completion check
 

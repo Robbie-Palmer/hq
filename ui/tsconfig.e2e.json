@@ -5,6 +5,11 @@
     "plugins": [],
     "types": ["node"]
   },
-  "include": ["e2e/preview/**/*.ts", "playwright.preview.config.ts"],
+  "include": [
+    "e2e/mermaid/**/*.ts",
+    "e2e/preview/**/*.ts",
+    "playwright.mermaid.config.ts",
+    "playwright.preview.config.ts"
+  ],
   "exclude": ["node_modules"]
 }

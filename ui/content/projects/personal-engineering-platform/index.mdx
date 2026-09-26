@@ -3,11 +3,37 @@ title: "Personal Engineering Platform"
 description: "Shared, dated engineering defaults for personal projects"
 date: "2026-09-12"
 status: "live"
+updated: "2026-09-15"
 initiatives:
   - "semi-autonomous-software-development"
 ---
 
-# Purpose
+# Vision
+
+Start a personal software project with the engineering decisions already made,
+documented, and enforced. New work should inherit a working route from checkout
+to production without copying old ADRs or rediscovering the same tools.
+
+The platform is the part of my engineering practice that should compound. A
+project remains responsible for its product, domain model, and unusual
+constraints. The platform owns the defaults that become more useful when every
+project exercises the same path.
+
+# Why this is a project
+
+The Personal Knowledge Graph was the first place these choices accumulated.
+That worked while the site was the only active product. Once Recipe Site,
+Agentic Code Review, the Work Graph, and the writing editor began sharing its
+tooling, their ADR histories filled with inherited setup decisions. The same
+decision appeared to belong to four products, and a later change could not
+explain which default an older project had used.
+
+Giving the shared policy its own owner fixes that boundary. Projects can say
+that they use the governance, base, TypeScript, web application, API,
+infrastructure, observability, or database layer. Their local ADRs can return
+to the decisions that make the product distinct.
+
+# Responsibilities
 
 The Personal Engineering Platform owns reusable engineering policy. Projects
 opt into named layers and keep their own decision histories for product choices
@@ -17,11 +43,93 @@ The manifest below the project introduction is the source of truth for current
 defaults. Every policy and selection has an effective period and a deciding
 ADR, so historical project stacks do not change when the platform does.
 
+Provenance keeps origins, evidence, and adopters separate. A selection names
+the projects that produced it and the exact ADRs that support that claim.
+Projects record their own adoption decision or a short rationale. Current
+adopters are derived from those dated records rather than copied into the
+manifest.
+
 # Scope
 
-The platform records choices that apply across projects: repository and CI
-defaults, language tooling, application runtimes, infrastructure, telemetry,
-and data stores. It does not own product architecture or employer policy.
+The platform records choices that apply across projects: source governance,
+repository and CI defaults, agentic development, language tooling, application
+runtimes, infrastructure, telemetry, and data stores. It does not own product
+architecture or employer policy.
 
 Required slots apply to every project that uses their layer. Preferred slots
 apply only after a project records that it needs the capability.
+
+The platform does not try to describe every package in a lockfile. A slot earns
+its place when projects face the same architectural role, credible alternatives
+exist, and I am willing to recommend one default. Product features, domain
+models, and organisation-owned systems stay with the project that controls
+them.
+
+# Principles
+
+## Make the common path cheap
+
+A default should remove repeated work. The repository pins tools with mise,
+exposes the same tasks to people, agents, and CI, and keeps checks close to the
+change that caused them. This applies [Short Feedback Loops](/projects?tab=philosophy#short-feedback-loops)
+to the development system itself.
+
+## Prefer accumulated familiarity
+
+The platform favours tools with strong documentation, broad use, and enough
+public examples for coding agents to handle them well. Novel technology still
+has a place when a project needs it, but novelty should belong to the product's
+problem rather than its routine setup. This follows [The Goldilocks Zone](/projects?tab=philosophy#the-goldilocks-zone)
+and [LLM-Optimized](/projects?tab=philosophy#llm-optimized).
+
+## Keep defaults replaceable
+
+Projects adopt capabilities, not brands. A slot such as
+`database.relational-host` can move from Neon to another PostgreSQL host without
+changing what the project says it needs. Effective periods preserve the old
+answer for completed work.
+
+## Earn every shared rule
+
+Shared policy adds maintenance and constrains every adopter. A choice moves into
+the platform only after more than one project needs it or the repository has
+made it a real cross-project control. Otherwise it remains local. That keeps the
+platform aligned with [Less Is More](/projects?tab=philosophy#less-is-more).
+
+## Put policy where tools can check it
+
+The manifest is data rather than a prose inventory. Validation rejects unknown
+layers, overlapping defaults, broken replacement chains, and preferred slots a
+project has not activated. Prose and ADRs explain the reasons. The manifest
+answers what applies now.
+
+# How adoption works
+
+Each project explicitly adopts the layers it uses. Required slots resolve as
+soon as their layer applies. Preferred slots need a separate project record, so
+adopting the database layer does not claim that a project has every kind of
+database.
+
+A project can override one slot through a local ADR. The override must name the
+replacement technology or policy value and its effective period. It leaves the
+rest of the layer intact and makes the departure visible instead of quietly
+drifting from the shared setup.
+
+Tracking projects follow accepted replacements. Completed or deliberately
+frozen projects close their adoption periods and keep the stack they last used.
+The platform has no coordinated version number. Each policy and selection
+changes on its own timeline.
+
+# Promotion test
+
+A project decision is ready to become a platform default when:
+
+* the need recurs outside the project that introduced it;
+* the slot describes a stable job rather than the selected product;
+* repository and CI tooling can enforce or observe the choice;
+* its operational cost is acceptable for small personal projects; and
+* another project can override it without abandoning the whole layer.
+
+The reverse test matters too. A default should leave the platform when it no
+longer saves work, its maintenance exceeds its benefit, or projects routinely
+override it for the same reason.

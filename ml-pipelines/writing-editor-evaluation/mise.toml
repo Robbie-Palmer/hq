@@ -17,6 +17,50 @@ description = "Run Vale against the frozen writing cohort"
 depends = ["install"]
 run = "bash scripts/run-vale.sh"
 
+[tools]
+python = "3.12.12"
+
+[env]
+CUBLAS_WORKSPACE_CONFIG = ":4096:8"
+
+[tasks."runtime:sync"]
+description = "Install the locked CUDA GECToR runtime"
+run = "uv sync --locked --no-dev --no-build"
+
+[tasks."runtime:lock"]
+description = "Resolve the CUDA GECToR runtime lockfile"
+run = "uv lock"
+
+[tasks."runtime:check"]
+description = "Lint and test the GECToR runtime"
+depends = ["runtime:sync"]
+run = ["uv run --locked ruff check python python-tests", "uv run --locked pytest"]
+
+[tasks."runtime:smoke"]
+description = "Run the locked GECToR model against a one-sentence fixture"
+depends = ["runtime:sync"]
+run = ".venv/bin/python python/gector_runtime.py --mode runtime-smoke"
+
+[tasks."run:gector:smoke"]
+description = "Run GECToR against one frozen ADR"
+depends = ["install", "runtime:sync"]
+run = "bash scripts/smoke-gector.sh"
+
+[tasks."run:gector"]
+description = "Run the DVC GECToR stage over the frozen cohort"
+depends = ["install", "runtime:sync"]
+run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc repro run_gector"
+
+[tasks."model:prepare"]
+description = "Download and verify the pinned GECToR-2024 checkpoint"
+depends = ["install"]
+run = "bash scripts/prepare-gector-model.sh"
+
+[tasks."model:publish"]
+description = "Prepare and push the pinned GECToR-2024 checkpoint to DVC"
+depends = ["install"]
+run = "bash scripts/publish-gector-model.sh"
+
 [tasks."match:edits"]
 description = "Align Vale findings with observed published edits"
 depends = ["install"]

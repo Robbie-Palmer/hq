@@ -26,6 +26,7 @@ export type NodeType =
   | "role"
   | "paper"
   | "platform-layer"
+  | "platform-policy"
   | "technology";
 
 export type NodeId =
@@ -37,6 +38,7 @@ export type NodeId =
   | `role:${string}`
   | `paper:${string}`
   | `platform-layer:${string}`
+  | `platform-policy:${string}`
   | `technology:${string}`;
 
 export type EdgeType =

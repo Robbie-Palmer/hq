@@ -1,0 +1,18 @@
+name = "work-graph-api"
+main = "src/index.ts"
+compatibility_date = "2026-09-15"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+
+[observability]
+enabled = true
+
+[placement]
+mode = "smart"
+
+# The deploy helper replaces this valid but nonexistent sentinel with the
+# Terraform-managed Hyperdrive ID in a private temporary copy.
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "00000000000000000000000000000000"

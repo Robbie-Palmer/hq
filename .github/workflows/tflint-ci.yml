@@ -30,3 +30,6 @@ jobs:
 
       - name: Lint remote development infrastructure with TFLint
         run: mise run //infra/remote-development:lint:tflint
+
+      - name: Lint Work Graph infrastructure with TFLint
+        run: mise run //infra/work-graph:lint:tflint

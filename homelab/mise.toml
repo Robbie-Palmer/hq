@@ -314,6 +314,14 @@ bash scripts/install-doppler-operator
 '''
 
 # ---------------------------------------------------------------------------
+# Coding-agent Codex provider accounts
+# ---------------------------------------------------------------------------
+
+[tasks.codex-add-provider]
+description = "Register a new Codex provider instance in t3-code and start its login"
+run = "node scripts/codex-add-provider.mjs"
+
+# ---------------------------------------------------------------------------
 # Media automation (Prowlarr + Sonarr + Radarr + qBittorrent)
 # ---------------------------------------------------------------------------
 

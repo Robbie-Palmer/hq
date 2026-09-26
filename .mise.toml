@@ -6,6 +6,7 @@ config_roots = [
     "infra/bootstrap",
     "infra/public-platform",
     "infra/remote-development",
+    "infra/work-graph",
     "backups",
     "ml-pipelines",
     "ml-pipelines/ai-review-evaluation",
@@ -20,11 +21,14 @@ config_roots = [
     "packages/observability",
     "packages/recipe-parsing",
     "packages/ts-base",
+    "packages/work-graph-cli",
+    "packages/work-graph-db",
     "packages/work-graph-domain",
     "packages/writing-editor-domain",
     "ai-review",
     "workers/recipe-api",
     "workers/recipe-ingest",
+    "workers/work-graph-api",
     "homelab",
     "cpp",
     "cpp/autonomic-satellite-swarm",
@@ -36,15 +40,15 @@ verbose = false
 
 [tools]
 node = "lts"
-"github:pnpm/pnpm" = "12.4.1"
-vale = "3.20.0"
-terraform = "1.16.2"
+"github:pnpm/pnpm" = "12.4.2"
+vale = "3.21.0"
+terraform = "1.16.3"
 tflint = "0.64.0"
 actionlint = "1.7.12"
 zizmor = "1.30.1"
 gitleaks = "8.30.1"
-typos = "1.50.1"
-"github:oasdiff/oasdiff" = "1.31.0"
+typos = "1.50.2"
+"github:oasdiff/oasdiff" = "1.32.1"
 duckdb = "1.5.5"
 
 [env]
@@ -53,11 +57,22 @@ MISE_EXPERIMENTAL = "1"
 # Root-level tasks for repo-wide tooling
 [tasks.lint]
 description = "Lint all files across the entire repo"
-depends = ["//:lint:markdown", "//:lint:mdx", "//:lint:yaml", "//:lint:typos", "//:lint:knip", "//:lint:actions", "//:lint:api", "//:lint:prose", "//packages/ai-review-domain:check", "//packages/browser-base:check", "//packages/node-base:check", "//packages/ts-base:check", "//packages/work-graph-domain:check", "//packages/writing-editor-domain:check", "//ai-review:check", "//ml-pipelines/ai-review-evaluation:check", "//ml-pipelines/writing-editor-evaluation:check", "//ui:lint", "//infra/public-platform:lint", "//infra/public-platform:lint:tflint", "//infra/bootstrap:lint", "//infra/bootstrap:lint:tflint", "//infra/remote-development:lint", "//infra/remote-development:lint:tflint"]
+depends = ["//:lint:markdown", "//:lint:mdx", "//:lint:yaml", "//:lint:typos", "//:lint:knip", "//:lint:actions", "//:lint:api", "//:lint:prose", "//:lint:typescript", "//packages/ai-review-domain:check", "//packages/browser-base:check", "//packages/node-base:check", "//packages/ts-base:check", "//packages/work-graph-cli:check", "//packages/work-graph-db:check", "//packages/work-graph-domain:check", "//packages/writing-editor-domain:check", "//ai-review:check", "//ml-pipelines/ai-review-evaluation:check", "//ml-pipelines/writing-editor-evaluation:check", "//ui:lint", "//infra/public-platform:lint", "//infra/public-platform:lint:tflint", "//infra/bootstrap:lint", "//infra/bootstrap:lint:tflint", "//infra/remote-development:lint", "//infra/remote-development:lint:tflint", "//infra/work-graph:lint", "//infra/work-graph:lint:tflint"]
+
+[tasks."lint:typescript"]
+description = "Lint TypeScript and JavaScript outside the UI (optionally pass files as args)"
+depends = ["//:install"]
+run = """
+#!/usr/bin/env bash
+if [ $# -eq 0 ]; then
+  set -- .
+fi
+pnpm exec biome lint --config-path biome.json --no-errors-on-unmatched "$@"
+"""
 
 [tasks."lint:api"]
-description = "Generate-check and lint the recipe API OpenAPI contract"
-depends = ["//workers/recipe-api:lint:api"]
+description = "Generate-check and lint committed OpenAPI contracts"
+depends = ["//workers/recipe-api:lint:api", "//workers/work-graph-api:lint:api"]
 
 [tasks."lint:markdown"]
 description = "Lint and fix Markdown files (optionally pass files as args)"
@@ -348,6 +363,8 @@ depends = [
     "//packages/observability:test:coverage",
     "//packages/recipe-parsing:test:coverage",
     "//packages/ts-base:test:coverage",
+    "//packages/work-graph-cli:test:coverage",
+    "//packages/work-graph-db:test:coverage",
     "//packages/work-graph-domain:test:coverage",
     "//packages/writing-editor-domain:test:coverage",
     "//ml-pipelines/recipe-parsing:test:coverage",
@@ -356,4 +373,5 @@ depends = [
     "//ml-pipelines/writing-editor-evaluation:test:coverage",
     "//workers/recipe-api:test:coverage",
     "//workers/recipe-ingest:test:coverage",
+    "//workers/work-graph-api:test:coverage",
 ]

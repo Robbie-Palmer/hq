@@ -1,0 +1,48 @@
+[project]
+name = "writing-editor-gector-runtime"
+version = "0.1.0"
+description = "Locked CUDA inference runtime for the GECToR writing baseline"
+requires-python = "==3.14.7"
+dependencies = [
+    "fire==0.7.1",
+    "pydantic==2.13.5",
+    "pydantic-settings==2.15.0",
+    "torch==2.11.0",
+    "transformers==5.17.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "ruff==0.16.7",
+]
+
+[tool.uv]
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+package = false
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["python-tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["A", "ANN", "ARG", "B", "C4", "C90", "E", "F", "I", "N", "PERF", "PTH", "RUF", "S", "SIM", "T20", "TRY", "UP"]
+ignore = ["T201"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+"python-tests/**" = ["S101"]

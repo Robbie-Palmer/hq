@@ -79,6 +79,17 @@ export function formatADRIndex(index: number): string {
   return String(Math.max(0, index)).padStart(3, "0");
 }
 
+export function formatADRSlugIndex(slug: string): string {
+  const prefix = /^\d+/.exec(slug)?.[0];
+  if (!prefix) return "---";
+
+  const index = Number(prefix);
+  const normalizedPrefix = prefix.replace(/^0+/, "") || "0";
+  return Number.isSafeInteger(index) && String(index) === normalizedPrefix
+    ? formatADRIndex(index)
+    : "---";
+}
+
 export function normalizeADRTitle(title: string): string {
   return title.replace(/^ADR\s+\d+\s*:\s*/i, "");
 }

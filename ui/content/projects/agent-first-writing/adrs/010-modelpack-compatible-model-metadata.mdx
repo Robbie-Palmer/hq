@@ -1,0 +1,88 @@
+---
+title: "ADR 010: ModelPack-compatible model metadata"
+date: "2026-09-14"
+status: "Accepted"
+tech_stack: ["ModelPack"]
+---
+
+# Context
+
+[ADR 004](/projects/agent-first-writing/adrs/004-dvc-writing-evaluation-pipeline)
+requires an immutable model revision, content hashes, and enough provenance to
+reject the wrong checkpoint. The first GECToR implementation expressed those
+facts in an OCI image manifest with project-specific media types. That was
+valid OCI metadata, but another model tool could not identify it as an ML model
+without learning this project's schema.
+
+[ModelPack v0.0.7](https://github.com/modelpack/model-spec/tree/v0.0.7)
+defines a model configuration, ML layer media types, and layer annotations on
+top of the OCI image manifest. It is still a CNCF Sandbox specification and may
+change before 1.0. This is cheap to absorb while the repository manages one
+model. A private schema becomes harder to remove after more manifests and
+consumers depend on it.
+
+ModelPack specifies package metadata. It does not need to own DVC's pipeline,
+cache, or remote storage for the metadata to be useful here. A standalone
+manifest whose blobs are not available through an OCI layout or registry is not
+an interoperable ModelPack package, even if its JSON follows the schema.
+
+# Decision
+
+Use the [ModelPack v0.0.7 model format](https://github.com/modelpack/model-spec/blob/v0.0.7/docs/spec.md)
+as the checked-in metadata contract for model inputs.
+
+The manifest must use:
+
+* the OCI image-manifest envelope;
+* `application/vnd.cncf.model.manifest.v1+json` as its artifact type;
+* `application/vnd.cncf.model.config.v1+json` for its embedded model config;
+* the ModelPack raw-weight media type for the checkpoint and raw
+  weight-configuration media type for tokenizer and GECToR vocabulary files;
+* `org.cncf.model.filepath` on every model layer; and
+* ordered `modelfs.diffIds` derived from each layer's uncompressed content;
+  they match a layer descriptor digest only when both hashes cover the same
+  uncompressed bytes.
+
+Keep acquisition URLs and upstream revisions in OCI descriptors. Put local
+policy that ModelPack does not express, such as evaluation-only use and the
+unknown checkpoint licence, in `me.robbiepalmer.*` annotations. Pydantic models
+validate the Python runtime boundary. Zod validates the existing TypeScript
+preparation boundary against the same constants and invariants.
+
+Treat the checked-in file as ModelPack-compatible metadata. It becomes a
+published ModelPack package after a future OCI exporter copies the exact
+descriptor blobs into an OCI image layout or registry and an independent
+ModelPack validator accepts it.
+
+# Alternatives
+
+## Keep project-specific OCI media types
+
+This would preserve every current field with little code. It would also make
+the first model establish a private format for facts that ModelPack already
+defines. Rejected.
+
+## Publish a complete OCI artifact now
+
+This would test off-the-shelf registry interoperability immediately. No current
+consumer pulls the model from a registry, and DVC already stores the large
+files required by the evaluation pipeline. Defer the exporter until a registry
+consumer exists.
+
+## Use Hugging Face repository metadata
+
+Hugging Face model repositories use Git with Xet-backed large-file storage.
+Their library-specific configuration files do not define a vendor-neutral OCI
+package. Keep the pinned Hugging Face files as model layers instead of making
+the Hub repository format the local contract.
+
+# Consequences
+
+The next model can reuse a public vocabulary for identity, configuration, and
+layer roles. Exporting the same bytes to an OCI registry later will not require
+redesigning the checked-in metadata.
+
+ModelPack is pre-1.0. The repository pins v0.0.7 and must handle a later schema
+change as an explicit migration. Until an exporter materialises the complete
+content graph, generic OCI and ModelPack clients cannot pull this DVC-backed
+manifest directly.

@@ -52,6 +52,14 @@ read-only Doppler token. Keep only `CF_ACCESS_CLIENT_ID`,
 `CF_ACCESS_CLIENT_SECRET`, and `CLOUDFLARE_PAGES_HOST` there. The installation
 task stores that token as `t3-code/doppler-agent-token`.
 
+Work Graph access uses another read-only token, scoped to
+`work-graph/prd_work_graph`. The operator selects only the API URL, allowed
+origin, and Access client pair from that config. It renames the Access pair to
+the Work Graph-specific environment variables before injecting them into the
+operator workspace. The workload never receives the Doppler service token or
+the database and infrastructure credentials held in the same config. The
+pilot namespace does not receive Work Graph access.
+
 Build the host, encrypt the empty volume, and install NixOS while Terraform's
 single bootstrap SSH CIDR is active:
 
@@ -128,6 +136,34 @@ T3 labels the second provider `codex2`. Its shadow home keeps
 `auth.json` separate while sharing the main Codex configuration, skills, and
 session state. The image bootstrap keeps its existing colour, enabled state,
 and extra configuration when it adds this provider.
+
+#### Adding a Codex provider
+
+`scripts/codex-add-provider` registers an additional Codex subscription and
+starts its login. It detects the environment: inside a t3-code pod it targets
+`/data/home`, symlinks shared state into a new shadow home such as
+`/data/home/.codex-<name>`, and uses device-code login; on a workstation it uses
+`~/.codex-t3/<name>`, edits `~/.t3/userdata/settings.json`, and opens the
+browser login. Run it from the repo checkout, in a pod shell for a remote
+environment and on the workstation for the desktop client:
+
+```bash
+mise run //homelab:codex-add-provider codex-4 --slug alt
+```
+
+The instance id in the t3-code settings must differ from every existing Codex
+instance in that settings file. The instance id and slug are independent, so
+the same subscription can use a different id on each environment, for example
+`codex4` in a pod and `codex-4` on the desktop. Omit `--slug` to name the
+shadow home after the instance id. `--accent` overrides the colour (default
+next unused palette entry), `--device-auth`/`--browser-auth` force a login
+mode, and `--no-login` registers without signing in. The remote image's
+bootstrap preserves extra instances it did not create, so a registered pod
+instance survives pod restarts.
+
+The script never reads the primary `auth.json`; the new account's credentials
+are written only into its own shadow home. Verify the instance appears in the
+client under the right label, then restart the pod or desktop client once.
 
 The resulting `auth.json` files contain access tokens. Do not copy them into an
 image, Doppler, Kubernetes manifests, Terraform, logs, tickets, or chat. GitHub

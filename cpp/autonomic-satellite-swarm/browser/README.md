@@ -7,11 +7,12 @@ C++ runner. The coordination algorithm remains in the portable core.
 
 The exported C ABI has five functions:
 
-- `satellite_swarm_browser_api_version()` reports worker-facing API version 6.
+- `satellite_swarm_browser_api_version()` reports worker-facing API version 7.
 - `satellite_swarm_source_revision()` reports the exact Git revision embedded at configure time.
 - `satellite_swarm_run_demonstration(longitude, latitude, scenario)` runs the deterministic
   three-node trace and returns a pointer to its JSON result. Scenario `0` uses connected links;
-  scenario `1` drops the winning node's assignment.
+  scenario `1` drops the winning node's assignment; scenario `2` completes an accepted safe-state
+  action successfully.
 - `satellite_swarm_run_fair_allocation_evidence()` runs six equal-score missions and returns the
   assignment telemetry and per-node counts.
 - `satellite_swarm_last_error()` returns the last adapter error when a run fails.
@@ -20,11 +21,11 @@ Returned pointers refer to adapter-owned strings and remain valid until the next
 copies each string into JavaScript before making another call. The adapter catches C++ exceptions so
 none cross the C boundary.
 
-The worker protocol and JSON display record are at version `4`; the C ABI is at version `6`, and the
-simulation trace is at version `4`. These independent version fields prevent a change to one
-boundary from silently reinterpreting another. Display version 4 adds typed controller telemetry
-and per-node drop counts. Trace version 4 adds explicit mission-completion commands for repeated
-workloads.
+The worker protocol is at version `5`, the JSON display record is at version `6`, the C ABI is at
+version `7`, and the simulation trace is at version `5`. These independent version fields prevent a
+change to one boundary from silently reinterpreting another. Display version 6 adds terminal
+safe-state execution telemetry. Trace version 5 adds deterministic safe-state request results and
+status changes. It retains version 4's explicit mission-completion commands for repeated workloads.
 
 ## Build and parity check
 
@@ -57,7 +58,8 @@ select an assignee, or update controller state.
 ## Deliberate limits
 
 - The three node paths are scripted simulation inputs and provide no orbit propagation.
-- The caller can select either the connected baseline or a deterministic lost-assignment fault.
+- The caller can select the connected baseline, a deterministic lost-assignment fault, or a fatal
+  health transition whose accepted safe-state action reports successful completion.
 - The global result buffer assumes one call at a time, which matches the dedicated worker.
 - The browser adapter may allocate memory. The portable coordination core and firmware constraints
   remain unchanged.

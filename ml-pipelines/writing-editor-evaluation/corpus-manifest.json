@@ -54,6 +54,8 @@
       "artifactId": "gitleaks-adr-vale-pass",
       "artifactType": "adr",
       "path": "ui/content/projects/personal-knowledge-graph/adrs/054-gitleaks.mdx",
+      "sourcePath": "ui/content/projects/personal-site/adrs/054-gitleaks.mdx",
+      "publishedPath": "ui/content/projects/personal-site/adrs/054-gitleaks.mdx",
       "sourceRevision": "532d4b8010f8469e199b74fea62c0f01f056af58",
       "publishedRevision": "775f1a279714da53fcd8b4b58a1ca2578a1c2abf",
       "outcomeStatus": "unrecorded"

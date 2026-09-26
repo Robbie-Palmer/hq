@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 2,
+  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+  "artifactType": "application/vnd.cncf.model.manifest.v1+json",
+  "config": {
+    "mediaType": "application/vnd.cncf.model.config.v1+json",
+    "digest": "sha256:e50d598eeab6e2dc94261a33fba970626bfaaf2a79423311bee293d2a1f22833",
+    "size": 1256,
+    "data": "eyJkZXNjcmlwdG9yIjp7ImZhbWlseSI6ImdlY3RvciIsIm5hbWUiOiJnZWN0b3ItMjAyNC1yb2JlcnRhLWxhcmdlIiwidGl0bGUiOiJHRUNUb1ItMjAyNCBSb0JFUlRhLWxhcmdlIiwiZGVzY3JpcHRpb24iOiJHcmFtbWF0aWNhbCBlcnJvciBjb3JyZWN0aW9uIG1vZGVsIHVzZWQgYXMgYW4gZXZhbHVhdGlvbiBiYXNlbGluZS4iLCJkb2NVUkwiOiJodHRwczovL2dpdGh1Yi5jb20vZ3JhbW1hcmx5L3BpbGxhcnMtb2YtZ2VjIiwic291cmNlVVJMIjoiaHR0cHM6Ly9naXRodWIuY29tL2dyYW1tYXJseS9waWxsYXJzLW9mLWdlYyIsInJldmlzaW9uIjoiMTAxNGRlMGJjOTBmYWRkYmEwMDMyYWNiNWRlYzc2MmM2Yzg1ZDJlMSJ9LCJjb25maWciOnsiYXJjaGl0ZWN0dXJlIjoidHJhbnNmb3JtZXIiLCJmb3JtYXQiOiJweXRvcmNoIiwiY2FwYWJpbGl0aWVzIjp7ImlucHV0VHlwZXMiOlsidGV4dCJdLCJvdXRwdXRUeXBlcyI6WyJ0ZXh0Il19fSwibW9kZWxmcyI6eyJ0eXBlIjoibGF5ZXJzIiwiZGlmZklkcyI6WyJzaGEyNTY6NzdlMWM5ZTBkN2FkNTUwN2MxNjUwOWZkNzY1MjgzZGJjZTUyMjE1NTJhYTdhOTBjMzdkMTQzZjFhZWFkZGIxMCIsInNoYTI1Njo4MmJhNDk4MTBlNjQ0MTczNWU2OTYwMzNhYzI1MTJlZTA5ZGE1NTU1MDdiMjkxN2FjMzg2NWIyMDJkNTkyY2MzIiwic2hhMjU2OjFjZTE2NjQ3NzNjNTBmM2UwY2M4ODQyNjE5YTkzZWRjNDYyNDUyNWI3MjhiMTg4YTllMGJlMzNiNzcyNmFkYzUiLCJzaGEyNTY6ODQ3YmJlYWI2MTc0ZDY2YTg4ODk4ZjcyOWQ1MmZhOGQzNTVmYWZlMWJlYTEwMWNmOTYwZGQ0MDQ1ODFkZjcwZSIsInNoYTI1Njo5OTRmNDY3NTRjNWJmNDAxNGYxYWE5MmQzNGIxMzc0MzE5YzNhNmIzZjcwMjEwNWNkNWI3NDJiZWFlY2QxOGNlIiwic2hhMjU2OjllN2Y2M2MyZDE1ZDY2NmI1MmUyMWQyNTBkMmU1MTNiODdjOWI3MTNjZmE2OTg3YTgyZWQ4OWU1ZTZlNTA2NTUiLCJzaGEyNTY6NWFmZTkzMDg4ZWI2ZDgwMzcyY2I1N2FjNjEwZWVhYjU1YzAyNmY3OWFhMTU1MTJhYzVmOTczMGY0YjM0MDlhYyIsInNoYTI1Njo5MjY1OTZkNjVkN2I5MjhhM2Q0ZGZiNTUzYzBjZDJhODE4OWY4ZjJjYTdjYjBiYTI2Y2ZiYjkzNWI1YzVkZmFkIiwic2hhMjU2Ojg2MzA0NDkxOWQ5ZjljMWMwNGFiYTI4MmFjOTgxYWIwMTU3ZDZhYjA4NzM3YTk2YzcyZjdlMTU4ODc5MTFkYjAiLCJzaGEyNTY6NTkwNjgwNGVjOGExYWNkOGNiZmMyOTE4NTIyYmY0MjljZTVlZGRlZDhiYmM0NmZmYzJiZTg2MWQyODBkM2FiZiJdfX0=",
+    "annotations": {
+      "org.opencontainers.image.title": "gector-model-config.json"
+    }
+  },
+  "layers": [
+    {
+      "mediaType": "application/vnd.cncf.model.weight.v1.raw",
+      "digest": "sha256:77e1c9e0d7ad5507c16509fd765283dbce5221552aa7a90c37d143f1aeaddb10",
+      "size": 1442177179,
+      "urls": ["https://grammarly-nlp-data-public.s3.amazonaws.com/GECToR-2024/gector-2024-roberta-large.th"],
+      "annotations": {
+        "org.cncf.model.filepath": "gector-2024-roberta-large.th",
+        "org.opencontainers.image.title": "gector-2024-roberta-large.th",
+        "org.opencontainers.image.source": "https://github.com/grammarly/pillars-of-gec",
+        "org.opencontainers.image.revision": "1014de0bc90faddba0032acb5dec762c6c85d2e1"
+      }
+    },
+    {
+      "mediaType": "application/vnd.cncf.model.weight.config.v1.raw",
+      "digest": "sha256:82ba49810e6441735e696033ac2512ee09da555507b2917ac3865b202d592cc3",
+      "size": 482,
+      "urls": ["https://huggingface.co/FacebookAI/roberta-large/resolve/722cf37b1afa9454edce342e7895e588b6ff1d59/config.json"],
+      "annotations": {
+        "org.cncf.model.filepath": "roberta-large/config.json",
+        "org.opencontainers.image.title": "roberta-large/config.json",
+        "org.opencontainers.image.source": "https://huggingface.co/FacebookAI/roberta-large",
+        "org.opencontainers.image.revision": "722cf37b1afa9454edce342e7895e588b6ff1d59"
+      }
+    },
+    {
+      "mediaType": "application/vnd.cncf.model.weight.config.v1.raw",
+      "digest": "sha256:1ce1664773c50f3e0cc8842619a93edc4624525b728b188a9e0be33b7726adc5",
+      "size": 456318,
+      "urls": ["https://huggingface.co/FacebookAI/roberta-large/resolve/722cf37b1afa9454edce342e7895e588b6ff1d59/merges.txt"],
+      "annotations": {
+        "org.cncf.model.filepath": "roberta-large/merges.txt",
+        "org.opencontainers.image.title": "roberta-large/merges.txt",
+        "org.opencontainers.image.source": "https://huggingface.co/FacebookAI/roberta-large",
+        "org.opencontainers.image.revision": "722cf37b1afa9454edce342e7895e588b6ff1d59"
+      }
+    },
+    {
+      "mediaType": "application/vnd.cncf.model.weight.config.v1.raw",
+      "digest": "sha256:847bbeab6174d66a88898f729d52fa8d355fafe1bea101cf960dd404581df70e",
+      "size": 1355863,
+      "urls": ["https://huggingface.co/FacebookAI/roberta-large/resolve/722cf37b1afa9454edce342e7895e588b6ff1d59/tokenizer.json"],
+      "annotations": {
+        "org.cncf.model.filepath": "roberta-large/tokenizer.json",
+        "org.opencontainers.image.title": "roberta-large/tokenizer.json",
+        "org.opencontainers.image.source": "https://huggingface.co/FacebookAI/roberta-large",
+        "org.opencontainers.image.revision": "722cf37b1afa9454edce342e7895e588b6ff1d59"
+      }
+    },
+    {
+      "mediaType": "application/vnd.cncf.model.weight.config.v1.raw",
+      "digest": "sha256:994f46754c5bf4014f1aa92d34b1374319c3a6b3f702105cd5b742beaecd18ce",
+      "size": 25,
+      "urls": ["https://huggingface.co/FacebookAI/roberta-large/resolve/722cf37b1afa9454edce342e7895e588b6ff1d59/tokenizer_config.json"],
+      "annotations": {
+        "org.cncf.model.filepath": "roberta-large/tokenizer_config.json",
+        "org.opencontainers.image.title": "roberta-large/tokenizer_config.json",
+        "org.opencontainers.image.source": "https://huggingface.co/FacebookAI/roberta-large",
+        "org.opencontainers.image.revision": "722cf37b1afa9454edce342e7895e588b6ff1d59"
+      }
+    },
+    {
+      "mediaType": "application/vnd.cncf.model.weight.config.v1.raw",
+      "digest": "sha256:9e7f63c2d15d666b52e21d250d2e513b87c9b713cfa6987a82ed89e5e6e50655",
+      "size": 898823,
+      "urls": ["https://huggingface.co/FacebookAI/roberta-large/resolve/722cf37b1afa9454edce342e7895e588b6ff1d59/vocab.json"],
+      "annotations": {
+        "org.cncf.model.filepath": "roberta-large/vocab.json",
+        "org.opencontainers.image.title": "roberta-large/vocab.json",
+        "org.opencontainers.image.source": "https://huggingface.co/FacebookAI/roberta-large",
+        "org.opencontainers.image.revision": "722cf37b1afa9454edce342e7895e588b6ff1d59"
+      }
+    },
+    {
+      "mediaType": "application/vnd.cncf.model.weight.config.v1.raw",
+      "digest": "sha256:5afe93088eb6d80372cb57ac610eeab55c026f79aa15512ac5f9730f4b3409ac",
+      "size": 80469,
+      "urls": ["https://raw.githubusercontent.com/MaksTarnavskyi/gector-large/9f699f274dfab524185c27e11fc2cc70f07045f0/data/output_vocabulary/labels.txt"],
+      "annotations": {
+        "org.cncf.model.filepath": "vocabulary/labels.txt",
+        "org.opencontainers.image.title": "vocabulary/labels.txt",
+        "org.opencontainers.image.source": "https://github.com/MaksTarnavskyi/gector-large",
+        "org.opencontainers.image.revision": "9f699f274dfab524185c27e11fc2cc70f07045f0"
+      }
+    },
+    {
+      "mediaType": "application/vnd.cncf.model.weight.config.v1.raw",
+      "digest": "sha256:926596d65d7b928a3d4dfb553c0cd2a8189f8f2ca7cb0ba26cfbb935b5c5dfad",
+      "size": 42,
+      "urls": ["https://raw.githubusercontent.com/MaksTarnavskyi/gector-large/9f699f274dfab524185c27e11fc2cc70f07045f0/data/output_vocabulary/d_tags.txt"],
+      "annotations": {
+        "org.cncf.model.filepath": "vocabulary/d_tags.txt",
+        "org.opencontainers.image.title": "vocabulary/d_tags.txt",
+        "org.opencontainers.image.source": "https://github.com/MaksTarnavskyi/gector-large",
+        "org.opencontainers.image.revision": "9f699f274dfab524185c27e11fc2cc70f07045f0"
+      }
+    },
+    {
+      "mediaType": "application/vnd.cncf.model.weight.config.v1.raw",
+      "digest": "sha256:863044919d9f9c1c04aba282ac981ab0157d6ab08737a96c72f7e15887911db0",
+      "size": 14,
+      "urls": ["https://raw.githubusercontent.com/MaksTarnavskyi/gector-large/9f699f274dfab524185c27e11fc2cc70f07045f0/data/output_vocabulary/non_padded_namespaces.txt"],
+      "annotations": {
+        "org.cncf.model.filepath": "vocabulary/non_padded_namespaces.txt",
+        "org.opencontainers.image.title": "vocabulary/non_padded_namespaces.txt",
+        "org.opencontainers.image.source": "https://github.com/MaksTarnavskyi/gector-large",
+        "org.opencontainers.image.revision": "9f699f274dfab524185c27e11fc2cc70f07045f0"
+      }
+    },
+    {
+      "mediaType": "application/vnd.cncf.model.weight.config.v1.raw",
+      "digest": "sha256:5906804ec8a1acd8cbfc2918522bf429ce5edded8bbc46ffc2be861d280d3abf",
+      "size": 4390076,
+      "urls": ["https://raw.githubusercontent.com/MaksTarnavskyi/gector-large/9f699f274dfab524185c27e11fc2cc70f07045f0/data/verb-form-vocab.txt"],
+      "annotations": {
+        "org.cncf.model.filepath": "verb-form-vocab.txt",
+        "org.opencontainers.image.title": "verb-form-vocab.txt",
+        "org.opencontainers.image.source": "https://github.com/MaksTarnavskyi/gector-large",
+        "org.opencontainers.image.revision": "9f699f274dfab524185c27e11fc2cc70f07045f0"
+      }
+    }
+  ],
+  "annotations": {
+    "org.opencontainers.image.title": "GECToR-2024 RoBERTa-large inference model",
+    "org.opencontainers.image.source": "https://github.com/grammarly/pillars-of-gec",
+    "org.opencontainers.image.revision": "1014de0bc90faddba0032acb5dec762c6c85d2e1",
+    "me.robbiepalmer.gector.checkpoint-license": "not-stated-by-upstream",
+    "me.robbiepalmer.gector.usage": "evaluation-only",
+    "me.robbiepalmer.modelpack.spec-version": "v0.0.7"
+  }
+}

@@ -51,6 +51,12 @@ resource "cloudflare_pages_project" "personal_site" {
     }
   }
 
+  # Cloudflare keeps the existing GitHub connection working across repository
+  # renames, but the provider treats a repo_name change as project replacement.
+  lifecycle {
+    ignore_changes = [source[0].config[0].repo_name]
+  }
+
   deployment_configs {
     production {
       environment_variables = local.pages_production_environment_variables

@@ -6,8 +6,8 @@ import {
 } from "@/lib/api/satellite-swarm-simulation";
 
 const validRecord = {
-  schemaVersion: 4,
-  traceVersion: 4,
+  schemaVersion: 6,
+  traceVersion: 5,
   scenario: "test",
   source: "portable C++ SimulationTrace",
   sourceRevision: "0123456789abcdef0123456789abcdef01234567",
@@ -51,7 +51,7 @@ describe("satellite swarm simulation records", () => {
   it("accepts the committed native fixture", () => {
     const fixture = JSON.parse(
       readFileSync(
-        "public/simulations/autonomic-satellite-swarm/demonstration.v4.json",
+        "public/simulations/autonomic-satellite-swarm/demonstration.v6.json",
         "utf8",
       ),
     );
@@ -375,6 +375,50 @@ describe("satellite swarm simulation records", () => {
           sequence: 8,
         },
         { ...telemetry, event: "transport-failure", missionKey, sequence: 9 },
+        {
+          ...telemetry,
+          event: "safe-state-requested",
+          priority: "critical",
+          reason: "health-fatal",
+          relatedNode: 1,
+          sequence: 10,
+        },
+        {
+          ...telemetry,
+          event: "safe-state-result",
+          priority: "critical",
+          reason: "health-fatal",
+          relatedNode: 1,
+          sequence: 11,
+          value: 0,
+        },
+        {
+          ...telemetry,
+          event: "safe-state-result",
+          priority: "critical",
+          reason: "retry-limit-reached",
+          relatedNode: 1,
+          sequence: 12,
+          value: 1,
+        },
+        {
+          ...telemetry,
+          event: "safe-state-execution-result",
+          priority: "critical",
+          reason: "health-fatal",
+          relatedNode: 1,
+          sequence: 13,
+          value: 1,
+        },
+        {
+          ...telemetry,
+          event: "safe-state-execution-result",
+          priority: "critical",
+          reason: "retry-limit-reached",
+          relatedNode: 1,
+          sequence: 14,
+          value: 2,
+        },
       ],
     });
 
@@ -390,6 +434,11 @@ describe("satellite swarm simulation records", () => {
       "Telemetry 1:1:7 records mission 0:1:1 failed because of retry-limit-reached.",
       "Telemetry 1:1:8 records health change health-quiescent.",
       "Telemetry 1:1:9 records a send failure for mission 0:1:1.",
+      "Telemetry 1:1:10 requests platform safe state because of health-fatal.",
+      "Telemetry 1:1:11 records that the platform rejected its safe-state request.",
+      "Telemetry 1:1:12 records that the platform accepted its safe-state request.",
+      "Telemetry 1:1:13 records that the platform safe-state action succeeded.",
+      "Telemetry 1:1:14 records that the platform safe-state action failed.",
     ]);
 
     expect(() =>
@@ -439,6 +488,62 @@ describe("satellite swarm simulation records", () => {
         }),
       ).toThrow();
     }
+
+    for (const event of [
+      "safe-state-requested",
+      "safe-state-result",
+      "safe-state-execution-result",
+    ] as const) {
+      expect(() =>
+        parseSatelliteSwarmSimulation({
+          ...validRecord,
+          events: [{ ...telemetry, event, relatedNode: null }],
+        }),
+      ).toThrow();
+    }
+
+    expect(() =>
+      parseSatelliteSwarmSimulation({
+        ...validRecord,
+        events: [
+          {
+            ...telemetry,
+            event: "safe-state-result",
+            relatedNode: 1,
+            value: 2,
+          },
+        ],
+      }),
+    ).toThrow();
+
+    for (const value of [0, 3]) {
+      expect(() =>
+        parseSatelliteSwarmSimulation({
+          ...validRecord,
+          events: [
+            {
+              ...telemetry,
+              event: "safe-state-execution-result",
+              relatedNode: 1,
+              value,
+            },
+          ],
+        }),
+      ).toThrow();
+    }
+
+    expect(() =>
+      parseSatelliteSwarmSimulation({
+        ...validRecord,
+        events: [
+          {
+            ...telemetry,
+            event: "safe-state-requested",
+            relatedNode: 1,
+          },
+        ],
+      }),
+    ).toThrow();
   });
 
   it("bounds per-node telemetry drops to an unsigned 32-bit counter", () => {

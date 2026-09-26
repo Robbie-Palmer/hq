@@ -32,14 +32,23 @@ permissions:
 
 jobs:
   host:
-    name: Host checks
-    runs-on: ubuntu-latest
+    name: Host checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - uses: $/.github/actions/setup-mise
+
+      - name: Check developer environment
+        run: mise run //cpp/autonomic-satellite-swarm:doctor
 
       - name: Format, lint, test, sanitize, cover, and spell-check
         run: |

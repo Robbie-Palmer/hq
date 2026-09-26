@@ -60,7 +60,10 @@ export function ScrollNavbar() {
                   <span className="hidden min-[500px]:inline">Experience</span>
                 </>
               ) : (
-                <span>Experience</span>
+                <>
+                  <span className="min-[375px]:hidden">Exp</span>
+                  <span className="hidden min-[375px]:inline">Experience</span>
+                </>
               )}
             </Link>
           </Button>

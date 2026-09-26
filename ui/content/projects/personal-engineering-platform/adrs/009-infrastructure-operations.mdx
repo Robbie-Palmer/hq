@@ -1,0 +1,34 @@
+---
+title: "ADR 009: Terraform state and static checks"
+date: "2026-09-15"
+status: "Accepted"
+tech_stack:
+  - "Terraform Cloud"
+  - "TFLint"
+---
+
+## Context
+
+Selecting Terraform does not answer where shared state lives or how projects
+check configuration beyond `terraform validate`. Both concerns recur across
+the public platform infrastructure used by the Personal Knowledge Graph,
+Recipe Site, Agentic Code Review, and the Work Graph.
+
+## Decision
+
+Require TFLint when Terraform is the selected provisioner. Prefer Terraform
+Cloud when a project needs a remote state backend.
+
+The state backend remains a preferred slot because local experiments can use
+local state without claiming shared operation. Projects that deploy from CI or
+share a state file should activate it.
+
+## Consequences
+
+TFLint catches provider and Terraform conventions before a plan. Terraform
+Cloud supplies protected remote state and locking without requiring the
+projects to operate another state service.
+
+Projects still own workspace boundaries, credentials, imports, recovery, and
+review of destructive plans. The backend stores state; it does not make an
+unsafe change safe.

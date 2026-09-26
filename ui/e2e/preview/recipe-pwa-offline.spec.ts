@@ -37,7 +37,7 @@ async function openOwnerRecipeSession(
 }
 
 async function waitForOfflineRecipeData(page: Page): Promise<void> {
-  await page.evaluate(async () => {
+  await page.evaluate(async (readinessTimeoutMs) => {
     await navigator.serviceWorker.ready;
     if (navigator.serviceWorker.controller) return;
 
@@ -45,7 +45,7 @@ async function waitForOfflineRecipeData(page: Page): Promise<void> {
       const timeout = window.setTimeout(
         () =>
           reject(new Error("The recipe service worker did not take control")),
-        previewReadinessTimeoutMs,
+        readinessTimeoutMs,
       );
       navigator.serviceWorker.addEventListener(
         "controllerchange",
@@ -56,7 +56,7 @@ async function waitForOfflineRecipeData(page: Page): Promise<void> {
         { once: true },
       );
     });
-  });
+  }, previewReadinessTimeoutMs);
 
   await expect
     .poll(

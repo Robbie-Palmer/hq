@@ -26,6 +26,8 @@ function sameDayManifest(linkReplacement = true): PlatformManifest {
         title: "Task runner",
         description: "Runs project tasks",
         rationale: "Several task runners address the same requirement",
+        kind: "technology",
+        cardinality: "one",
         opinionated: true,
       },
     ],
@@ -44,21 +46,25 @@ function sameDayManifest(linkReplacement = true): PlatformManifest {
       {
         id: "runner-old",
         slot: "tool.runner",
+        kind: "technology",
         technology: "old-runner",
         status: "Accepted",
         effectiveFrom: "2026-09-12T09:00:00Z",
         effectiveUntil: "2026-09-12T12:00:00Z",
         decision: "platform:000-runner",
         originProjects: [],
+        evidenceADRs: ["platform:000-runner"],
       },
       {
         id: "runner-new",
         slot: "tool.runner",
+        kind: "technology",
         technology: "new-runner",
         status: "Accepted",
         effectiveFrom: "2026-09-12T12:00:00Z",
         decision: "platform:001-new-runner",
         originProjects: [],
+        evidenceADRs: ["platform:001-new-runner"],
         ...(linkReplacement ? { supersedes: "runner-old" } : {}),
       },
     ],
@@ -76,6 +82,25 @@ describe("temporal platform layers", () => {
     expect(getSelectionLifecycleStatus(result.data, firstSelection)).toBe(
       "Superseded",
     );
+  });
+
+  it("allows concurrent accepted selections for a multi-valued slot", () => {
+    const manifest = sameDayManifest();
+    const slot = manifest.slots[0];
+    const first = manifest.selections[0];
+    const second = manifest.selections[1];
+    expect(slot).toBeDefined();
+    expect(first).toBeDefined();
+    expect(second).toBeDefined();
+    if (!slot || !first || !second) return;
+
+    manifest.slots[0] = { ...slot, cardinality: "many" };
+    manifest.selections = [
+      { ...first, effectiveUntil: undefined },
+      { ...second, supersedes: undefined },
+    ];
+
+    expect(PlatformManifestSchema.safeParse(manifest).success).toBe(true);
   });
 
   it("accepts semantically equal replacement boundary representations", () => {
@@ -101,6 +126,23 @@ describe("temporal platform layers", () => {
     ).toBe(true);
   });
 
+  it("requires exact evidence ADRs for every default selection", () => {
+    const manifest = sameDayManifest();
+    const selection = manifest.selections[0];
+    expect(selection).toBeDefined();
+    if (!selection) return;
+    manifest.selections[0] = { ...selection, evidenceADRs: [] };
+
+    const result = PlatformManifestSchema.safeParse(manifest);
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual([
+      "selections",
+      0,
+      "evidenceADRs",
+    ]);
+  });
+
   it("rejects prerequisite selections outside the policy period", () => {
     const manifest = sameDayManifest();
     manifest.slots.push({
@@ -108,17 +150,21 @@ describe("temporal platform layers", () => {
       title: "Database",
       description: "Stores task state",
       rationale: "Several databases address the same requirement",
+      kind: "technology",
+      cardinality: "one",
       opinionated: false,
     });
     manifest.selections.push({
       id: "database-old",
       slot: "tool.database",
+      kind: "technology",
       technology: "old-database",
       status: "Accepted",
       effectiveFrom: "2026-09-12T07:00:00Z",
       effectiveUntil: "2026-09-12T08:00:00Z",
       decision: "platform:000-database",
       originProjects: [],
+      evidenceADRs: ["platform:000-database"],
     });
     const policy = manifest.policies[0];
     expect(policy).toBeDefined();
@@ -222,6 +268,7 @@ describe("temporal platform layers", () => {
         adopted: "2026-09-12T12:00:00Z",
         until: "2026-09-12T12:00:00.500Z",
         tracking: false,
+        rationale: "Fixture adopts the base layer.",
       }).success,
     ).toBe(true);
     expect(
@@ -244,6 +291,35 @@ describe("temporal platform layers", () => {
     ).toThrow("Invalid RFC 3339 UTC instant");
   });
 
+  it("requires one adoption decision or rationale", () => {
+    const baseUse = {
+      layer: "base",
+      adopted: "2026-09-12T12:00:00Z",
+      tracking: true,
+    };
+
+    expect(
+      ProjectLayerUseSchema.safeParse({
+        ...baseUse,
+        decision: "project:001-adopt-platform",
+      }).success,
+    ).toBe(true);
+    expect(
+      ProjectLayerUseSchema.safeParse({
+        ...baseUse,
+        rationale: "The project uses the shared delivery controls.",
+      }).success,
+    ).toBe(true);
+    expect(ProjectLayerUseSchema.safeParse(baseUse).success).toBe(false);
+    expect(
+      ProjectLayerUseSchema.safeParse({
+        ...baseUse,
+        decision: "project:001-adopt-platform",
+        rationale: "Duplicate explanation",
+      }).success,
+    ).toBe(false);
+  });
+
   it("resolves required, preferred, and overridden technologies", () => {
     const repository = loadDomainRepository();
     const manifest = repository.platform.manifest;
@@ -254,6 +330,7 @@ describe("temporal platform layers", () => {
       manifest?.selections.some(
         (selection) =>
           selection.slot === "project.primary-language" &&
+          selection.kind === "technology" &&
           selection.technology === "python",
       ),
     ).toBe(false);
@@ -289,6 +366,18 @@ describe("temporal platform layers", () => {
     expect(recipe.technologies.map((use) => use.technology)).not.toContain(
       "duckdb",
     );
+    expect(
+      recipe.technologies.find((use) => use.technology === "postgresql"),
+    ).toMatchObject({
+      adoptionDecision:
+        "recipe-site:033-backend-platform-for-authenticated-features",
+      policyDecision: "personal-engineering-platform:005-database-defaults",
+      decision: "personal-engineering-platform:005-database-defaults",
+      originProjects: ["recipe-site"],
+      evidenceADRs: [
+        "recipe-site:033-backend-platform-for-authenticated-features",
+      ],
+    });
 
     const python = resolveEffectiveProjectStack(
       repository,
@@ -321,8 +410,205 @@ describe("temporal platform layers", () => {
       recipe?.builtOn?.find((layer) => layer.slug === "typescript")?.adopted,
     ).toBe("2026-09-12T00:00:00Z");
     expect(
+      recipe?.builtOn?.find((layer) => layer.slug === "database")?.decision,
+    ).toBe("recipe-site:033-backend-platform-for-authenticated-features");
+    expect(
       writing?.builtOn?.find((layer) => layer.slug === "python")?.adopted,
     ).toBe("2026-09-12T00:00:00Z");
+  });
+
+  it("resolves the repository, language, web, and infrastructure baseline", () => {
+    const repository = loadDomainRepository();
+    const recipe = resolveEffectiveProjectStack(
+      repository,
+      "recipe-site",
+      "2026-09-15T12:00:00Z",
+    );
+    const recipeTechnologies = recipe.technologies.map((use) => use.technology);
+
+    expect(recipe.layers).toContain("governance");
+    expect(recipe.policies.map((use) => use.value)).toEqual(
+      expect.arrayContaining([
+        "Public source",
+        "AGPL-3.0",
+        "Shared personal-project monorepo",
+      ]),
+    );
+
+    expect(recipeTechnologies).toEqual(
+      expect.arrayContaining([
+        "github",
+        "mise",
+        "github-actions",
+        "claude-code",
+        "codex",
+        "coderabbit",
+        "greptile",
+        "agentic-code-review",
+        "renovate",
+        "gitleaks",
+        "openssf-scorecard",
+        "sonarqube",
+        "pnpm",
+        "vitest",
+        "biome",
+        "react",
+        "nextdotjs",
+        "tailwind-css",
+        "shadcnui",
+        "cloudflare-pages",
+        "doppler",
+        "github-secrets",
+        "terraform-cloud",
+        "tflint",
+      ]),
+    );
+    expect(
+      recipe.technologies
+        .filter((use) => use.slot === "development.coding-agents")
+        .map((use) => use.technology),
+    ).toEqual(expect.arrayContaining(["claude-code", "codex"]));
+    expect(
+      recipe.technologies
+        .filter((use) => use.slot === "quality.ai-reviewers")
+        .map((use) => use.technology),
+    ).toEqual(
+      expect.arrayContaining([
+        "coderabbit",
+        "greptile",
+        "codex",
+        "agentic-code-review",
+      ]),
+    );
+    const recipeView = getProjectWithADRs(repository, "recipe-site");
+    expect(
+      recipeView?.platformTechnologies?.filter(
+        (technology) => technology.slug === "codex",
+      ),
+    ).toHaveLength(1);
+
+    const writing = resolveEffectiveProjectStack(
+      repository,
+      "agent-first-writing",
+      "2026-09-15T12:00:00Z",
+    );
+    const writingTechnologies = writing.technologies.map(
+      (use) => use.technology,
+    );
+    expect(writingTechnologies).toEqual(
+      expect.arrayContaining(["uv", "ruff", "pytest", "doppler"]),
+    );
+    expect(writingTechnologies).not.toContain("github-secrets");
+  });
+
+  it("resolves a project ADR override for a governance value", () => {
+    const repository = loadDomainRepository();
+    const overrideRef = "personal-knowledge-graph:059-temporal-platform-layers";
+    const existingADR = repository.adrs.get(overrideRef);
+    expect(existingADR).toBeDefined();
+    if (!existingADR) return;
+
+    const adrs = new Map(repository.adrs);
+    adrs.set(overrideRef, {
+      ...existingADR,
+      projectSlug: "recipe-site",
+      status: "Accepted",
+    });
+    const adrOverrides = new Map(repository.platform.adrOverrides);
+    adrOverrides.set(overrideRef, {
+      kind: "policy",
+      slot: "governance.repository-visibility",
+      value: "Private source",
+      adopted: "2026-09-15T00:00:00Z",
+    });
+
+    const stack = resolveEffectiveProjectStack(
+      {
+        ...repository,
+        adrs,
+        platform: { ...repository.platform, adrOverrides },
+      },
+      "recipe-site",
+      "2026-09-15T12:00:00Z",
+    );
+
+    expect(stack.policies).toContainEqual(
+      expect.objectContaining({
+        slot: "governance.repository-visibility",
+        value: "Private source",
+        source: "override",
+        decision: overrideRef,
+      }),
+    );
+    expect(stack.policies.map((policy) => policy.value)).not.toContain(
+      "Public source",
+    );
+  });
+
+  it("retains concurrent project overrides for a multi-valued slot", () => {
+    const repository = loadDomainRepository();
+    const existingADR = repository.adrs.get(
+      "personal-knowledge-graph:059-temporal-platform-layers",
+    );
+    expect(existingADR).toBeDefined();
+    if (!existingADR) return;
+
+    const firstRef = "recipe-site:998-claude-code-override";
+    const secondRef = "recipe-site:999-codex-override";
+    const adrs = new Map(repository.adrs);
+    adrs.set(firstRef, {
+      ...existingADR,
+      adrRef: firstRef,
+      slug: "998-claude-code-override",
+      projectSlug: "recipe-site",
+      status: "Accepted",
+    });
+    adrs.set(secondRef, {
+      ...existingADR,
+      adrRef: secondRef,
+      slug: "999-codex-override",
+      projectSlug: "recipe-site",
+      status: "Accepted",
+    });
+    const adrOverrides = new Map(repository.platform.adrOverrides);
+    adrOverrides.set(firstRef, {
+      kind: "technology",
+      slot: "development.coding-agents",
+      technology: "claude-code",
+      adopted: "2026-09-15T00:00:00Z",
+    });
+    adrOverrides.set(secondRef, {
+      kind: "technology",
+      slot: "development.coding-agents",
+      technology: "codex",
+      adopted: "2026-09-15T00:00:00Z",
+    });
+
+    const stack = resolveEffectiveProjectStack(
+      {
+        ...repository,
+        adrs,
+        platform: { ...repository.platform, adrOverrides },
+      },
+      "recipe-site",
+      "2026-09-15T12:00:00Z",
+    );
+    const codingAgentOverrides = stack.technologies.filter(
+      (technology) =>
+        technology.slot === "development.coding-agents" &&
+        technology.source === "override",
+    );
+
+    expect(codingAgentOverrides).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          technology: "claude-code",
+          decision: firstRef,
+        }),
+        expect.objectContaining({ technology: "codex", decision: secondRef }),
+      ]),
+    );
+    expect(codingAgentOverrides).toHaveLength(2);
   });
 
   it("uses the effective record when a project re-adopts a layer", () => {
@@ -435,14 +721,21 @@ describe("temporal platform layers", () => {
     expect(manifest).toBeDefined();
     if (!manifest) return;
     const previousId = "typescript-schema-validation-zod-2026-09-12";
+    const previousSelection = manifest.selections.find(
+      (selection) => selection.id === previousId,
+    );
+    expect(previousSelection).toBeDefined();
+    if (!previousSelection) return;
     const replacement: DefaultSelection = {
       id: "typescript-schema-validation-valibot-2026-10-01",
       slot: "typescript.schema-validation",
+      kind: "technology",
       technology: "valibot",
       status: "Accepted",
       effectiveFrom: "2026-10-01T00:00:00Z",
       decision: "personal-engineering-platform:001-language-defaults",
       originProjects: [],
+      evidenceADRs: ["personal-engineering-platform:001-language-defaults"],
       supersedes: previousId,
     };
     const repositoryAfterReplacement = {
@@ -456,9 +749,7 @@ describe("temporal platform layers", () => {
               .filter((selection) => selection.id !== previousId)
               .map((selection) => ({ ...selection })),
             {
-              ...manifest.selections.find(
-                (selection) => selection.id === previousId,
-              )!,
+              ...previousSelection,
               effectiveUntil: replacement.effectiveFrom,
             },
             replacement,
@@ -489,6 +780,7 @@ describe("temporal platform layers", () => {
     );
     adrOverrides.set(overrideRef, {
       slot: replacement.slot,
+      kind: "technology",
       technology: "zod",
       adopted: replacement.effectiveFrom,
     });
@@ -517,11 +809,13 @@ describe("temporal platform layers", () => {
     const replacement: DefaultSelection = {
       id: "backend-api-runtime-next-2026-10-01",
       slot: "backend-api.runtime",
+      kind: "technology",
       technology: "nextdotjs",
       status: "Accepted",
       effectiveFrom: "2026-10-01T00:00:00Z",
       decision: "personal-engineering-platform:002-cloudflare-workers",
       originProjects: [],
+      evidenceADRs: ["personal-engineering-platform:002-cloudflare-workers"],
       supersedes: previousId,
     };
     const previous = manifest.selections.find(
@@ -564,5 +858,66 @@ describe("temporal platform layers", () => {
 
     expect(projects).not.toContain("agent-first-writing");
     expect(projects).toContain("recipe-site");
+  });
+
+  it("separates preferred-slot adopters from consumers of the containing layer", () => {
+    const repository = loadDomainRepository();
+    const overrideRef =
+      "recipe-site:033-backend-platform-for-authenticated-features";
+    const projectLayerUses = new Map(repository.platform.projectLayerUses);
+    projectLayerUses.set("agent-first-writing", [
+      ...(projectLayerUses.get("agent-first-writing") ?? []),
+      {
+        layer: "backend-api",
+        adopted: "2026-09-12T00:00:00Z",
+        tracking: true,
+        slots: [],
+        rationale:
+          "The project exposes an API without adopting its runtime default.",
+      },
+    ]);
+    const adrOverrides = new Map(repository.platform.adrOverrides);
+    adrOverrides.set(overrideRef, {
+      slot: "backend-api.runtime",
+      kind: "technology",
+      technology: "nextdotjs",
+      adopted: "2026-09-12T00:00:00Z",
+    });
+    const repositoryWithConsumers = {
+      ...repository,
+      platform: {
+        ...repository.platform,
+        projectLayerUses,
+        adrOverrides,
+      },
+    };
+
+    expect(
+      resolveEffectiveProjectStack(
+        repositoryWithConsumers,
+        "recipe-site",
+        "2026-09-23T00:00:00Z",
+      ).technologies,
+    ).toContainEqual(
+      expect.objectContaining({
+        slot: "backend-api.runtime",
+        technology: "nextdotjs",
+        source: "override",
+      }),
+    );
+
+    const platform = getProjectWithADRs(
+      repositoryWithConsumers,
+      "personal-engineering-platform",
+    );
+    const runtime = platform?.platformManifest?.slots.find(
+      (slot) => slot.slug === "backend-api.runtime",
+    );
+
+    expect(runtime?.adopters).toContain("recipe-site");
+    expect(runtime?.adopters).not.toContain("agent-first-writing");
+    expect(runtime?.layerConsumers).toEqual(
+      expect.arrayContaining(["recipe-site", "agent-first-writing"]),
+    );
   });
 });

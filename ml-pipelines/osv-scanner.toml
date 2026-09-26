@@ -1,0 +1,4 @@
+[[IgnoredVulns]]
+id = "PYSEC-2026-2447"
+ignoreUntil = 2027-03-18
+reason = "DVC owns this transitive dependency, no fixed diskcache release exists, and the cache is not writable by untrusted users."

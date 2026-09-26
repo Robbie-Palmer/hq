@@ -25,7 +25,7 @@ import {
 } from "@/lib/api/projects";
 import { hasTechIcon, TechIcon } from "@/lib/api/tech-icons";
 import {
-  formatADRIndex,
+  formatADRSlugIndex,
   normalizeADRTitle,
   parseADRRef,
 } from "@/lib/domain/adr/adr";
@@ -114,11 +114,7 @@ export default async function ADRPage({ params }: Readonly<PageProps>) {
     currentIndex >= 0 && currentIndex < project.adrs.length - 1
       ? project.adrs[currentIndex + 1]
       : undefined;
-  const requestedIndex = Number.parseInt(/^\d+/.exec(adrSlug)?.[0] ?? "0", 10);
-  const displayIndex =
-    currentIndex >= 0
-      ? formatADRIndex(currentIndex)
-      : formatADRIndex(requestedIndex);
+  const displayIndex = formatADRSlugIndex(adrSlug);
   const displayTitle = normalizeADRTitle(adr.title);
   const ideas = getIdeasForADR(adr.adrRef);
   const supersedesRef = adr.supersedes ? parseADRRef(adr.supersedes) : null;
@@ -210,13 +206,7 @@ export default async function ADRPage({ params }: Readonly<PageProps>) {
             <ADRPagination
               projectSlug={slug}
               prevAdr={prevAdr}
-              prevIndex={currentIndex > 0 ? currentIndex - 1 : undefined}
               nextAdr={nextAdr}
-              nextIndex={
-                currentIndex >= 0 && currentIndex < project.adrs.length - 1
-                  ? currentIndex + 1
-                  : undefined
-              }
               compact
               className={PAGINATION_CONTAINER_CLASSES}
             />

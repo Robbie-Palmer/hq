@@ -4,7 +4,7 @@ import {
   type SatelliteSwarmSimulation,
 } from "@/lib/api/satellite-swarm-simulation";
 
-export const SATELLITE_SWARM_WORKER_PROTOCOL_VERSION = 4 as const;
+export const SATELLITE_SWARM_WORKER_PROTOCOL_VERSION = 5 as const;
 
 const WORKER_URL =
   "/simulations/autonomic-satellite-swarm/satellite-swarm.worker.mjs";
@@ -35,7 +35,10 @@ export interface SatelliteSwarmObjective {
   longitudeDegrees: number;
 }
 
-export type SatelliteSwarmScenario = "lost-assignment" | "nominal";
+export type SatelliteSwarmScenario =
+  | "lost-assignment"
+  | "nominal"
+  | "safe-state-success";
 
 export interface SatelliteSwarmRunOptions {
   scenario?: SatelliteSwarmScenario;

@@ -105,6 +105,15 @@ function writeParams(file: string, seed = "fixture-seed"): void {
       requiredArtifactTypes: ["adr", "project-page"],
     },
     producers: {
+      gector: {
+        batchSize: 8,
+        iterations: 5,
+        maxTokens: 50,
+        minTokens: 3,
+        minErrorProbability: 0.65,
+        minTokenProbability: 0,
+        additionalConfidence: 0.1,
+      },
       vale: { binaryVersion: "3.20.0", timeoutMs: 1_000 },
     },
     matching: { characterDiff: { maxEditLength: 1_000 } },
@@ -161,6 +170,52 @@ describe("writing editor evaluation pipeline", () => {
     expect(second).toEqual(dataset);
   });
 
+  it("keeps the canonical path when pinned revisions use historical paths", () => {
+    const temporary = temporaryDirectory("writing-renamed-path-");
+    const repository = path.join(temporary, "repository");
+    const historicalPath = "docs/old-name.md";
+    const canonicalPath = "docs/new-name.md";
+    fs.mkdirSync(path.join(repository, "docs"), { recursive: true });
+    git(repository, "init", "--quiet");
+    git(repository, "config", "user.name", "Writing Fixture");
+    git(repository, "config", "user.email", "writing@example.test");
+    fs.writeFileSync(path.join(repository, historicalPath), "Draft text.\n");
+    git(repository, "add", ".");
+    git(repository, "commit", "--quiet", "-m", "Add draft at old path");
+    const sourceRevision = git(repository, "rev-parse", "HEAD");
+    fs.writeFileSync(path.join(repository, historicalPath), "Published text.\n");
+    git(repository, "add", ".");
+    git(repository, "commit", "--quiet", "-m", "Publish at old path");
+    const publishedRevision = git(repository, "rev-parse", "HEAD");
+    const manifestFile = path.join(temporary, "corpus-manifest.json");
+    writeJson(manifestFile, {
+      schemaVersion: 1,
+      recordType: "writing-editor-corpus-source-manifest",
+      entries: [{
+        artifactId: "renamed-document",
+        artifactType: "adr",
+        path: canonicalPath,
+        sourcePath: historicalPath,
+        publishedPath: historicalPath,
+        sourceRevision,
+        publishedRevision,
+        outcomeStatus: "unrecorded",
+      }],
+    });
+
+    const dataset = extractDataset({
+      manifestFile,
+      repository,
+      output: path.join(temporary, "corpus"),
+      outputRoot: temporary,
+    });
+
+    expect(dataset.entries[0]?.path).toBe(canonicalPath);
+    expect(dataset.entries[0]?.source.contentHash).not.toBe(
+      dataset.entries[0]?.published.contentHash,
+    );
+  });
+
   it("validates every revision before replacing an existing output", () => {
     const temporary = temporaryDirectory("writing-invalid-");
     const repository = path.join(temporary, "repository");
@@ -201,6 +256,12 @@ describe("writing editor evaluation pipeline", () => {
 
     expect(CorpusSourceManifestSchema.safeParse(record([{ ...base, path: "../secret" }])).success)
       .toBe(false);
+    expect(
+      CorpusSourceManifestSchema.safeParse(record([{ ...base, sourcePath: "../secret" }])).success,
+    ).toBe(false);
+    expect(
+      CorpusSourceManifestSchema.safeParse(record([{ ...base, publishedPath: "../secret" }])).success,
+    ).toBe(false);
     expect(CorpusSourceManifestSchema.safeParse(record([base, base])).success).toBe(false);
     expect(
       CorpusSourceManifestSchema.safeParse(record([{

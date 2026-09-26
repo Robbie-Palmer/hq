@@ -32,7 +32,7 @@ import {
  * Commands are the write-side of the tracker: zod-validated inputs applied
  * by pure functions that return the next state. The browser store runs them
  * against local data today; a future Worker endpoint validates the same
- * schemas and runs the same appliers against D1.
+ * schemas and domain rules before committing changes to PostgreSQL.
  */
 
 export type AssetTrackerCommandErrorCode =

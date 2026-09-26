@@ -1,7 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "exclude": ["exports", "types", "nsExports", "nsTypes", "enumMembers"],
-  "ignoreBinaries": ["mise", "typecheck", "wrangler", "duckdb", "flux-schema"],
+  "ignoreBinaries": ["mise", "typecheck", "wrangler", "duckdb", "flux-schema", "codex"],
   "workspaces": {
     ".": {
       "entry": [
@@ -10,9 +10,11 @@
         "cpp/autonomic-satellite-swarm/browser/tests/browser_parity.mjs",
         "cpp/autonomic-satellite-swarm/scripts/*.ts",
         "homelab/images/t3-code/bootstrap-settings.mjs",
+        "homelab/scripts/codex-add-provider.mjs",
         "homelab/tests/**/*.test.ts",
         "scripts/prose-lint.ts"
       ],
+      "ignore": ["infra/work-graph/bootstrap-worker.mjs"],
       "ignoreDependencies": ["lint-staged", "markdownlint-cli", "remark-cli", "remark-lint", "tsx", "yaml-lint"]
     },
     "ai-review": {
@@ -27,6 +29,13 @@
     "packages/ai-review-domain": {},
     "packages/work-graph-domain": {
       "ignoreBinaries": ["vitest"]
+    },
+    "packages/work-graph-cli": {
+      "entry": ["src/cli.ts"],
+      "ignore": ["src/generated/**"]
+    },
+    "packages/work-graph-db": {
+      "entry": ["vitest.integration.config.ts"]
     },
     "packages/writing-editor-domain": {},
     "ui": {
@@ -46,6 +55,13 @@
     },
     "workers/recipe-ingest": {
       "ignoreDependencies": ["cloudflare"]
+    },
+    "workers/work-graph-api": {
+      "entry": [
+        "vitest.integration.config.ts",
+        "scripts/**/*.ts"
+      ],
+      "ignoreDependencies": ["@stoplight/spectral-owasp-ruleset", "wrangler"]
     },
     "ml-pipelines/recipe-dataset": {
       "entry": ["src/stages/*.mjs", "scripts/*.mjs"]

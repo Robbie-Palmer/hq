@@ -24,6 +24,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # The dependency detector compares the PR head with both parents of
+          # GitHub's synthetic merge commit.
+          fetch-depth: 2
           persist-credentials: false
 
       - uses: $/.github/actions/setup-mise
@@ -43,6 +46,16 @@ jobs:
 
       - name: Install dependencies
         run: mise run //:install
+
+      - name: Detect Mermaid dependency update
+        id: mermaid-dependency
+        working-directory: ui
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          changed=$(pnpm exec tsx scripts/dependency-version-changed.ts mermaid "$BASE_SHA" "$HEAD_SHA")
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
 
       - name: Lint MDX files
         run: mise run //:lint:mdx:check
@@ -73,6 +86,10 @@ jobs:
       # Depends on build output - mise caches the build
       - name: Run integration tests
         run: mise run //ui:test:integration
+
+      - name: Render Mermaid diagrams with Playwright
+        if: steps.mermaid-dependency.outputs.changed == 'true'
+        run: mise run //ui:test:e2e:mermaid
 
       - name: Audit satellite-swarm browser simulation
         run: mise run //ui:audit:satellite-swarm:serve

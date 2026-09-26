@@ -11,7 +11,7 @@ include(FetchContent)
 
 option(SATELLITE_SWARM_BUILD_SIMULATION "Build the deterministic host simulation" ON)
 option(SATELLITE_SWARM_BUILD_BROWSER "Build the Emscripten browser adapter" OFF)
-option(SATELLITE_SWARM_ENABLE_COVERAGE "Enable GCC coverage instrumentation" OFF)
+option(SATELLITE_SWARM_ENABLE_COVERAGE "Enable gcov-compatible coverage instrumentation" OFF)
 option(SATELLITE_SWARM_ENABLE_SANITIZERS "Enable address and undefined-behavior sanitizers" OFF)
 set(SATELLITE_SWARM_SOURCE_REVISION "unknown" CACHE STRING
     "Full Git revision used to build the browser module")
@@ -46,8 +46,8 @@ if(SATELLITE_SWARM_ENABLE_SANITIZERS AND CMAKE_CXX_COMPILER_ID MATCHES "Clang|GN
 endif()
 
 if(SATELLITE_SWARM_ENABLE_COVERAGE)
-  if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    message(FATAL_ERROR "Coverage instrumentation requires GCC")
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    message(FATAL_ERROR "Coverage instrumentation requires GCC or Clang")
   endif()
 
   target_compile_options(satellite_swarm PRIVATE --coverage -O0 -g)

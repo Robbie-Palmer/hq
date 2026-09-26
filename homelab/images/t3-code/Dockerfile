@@ -9,7 +9,7 @@ ARG DOPPLER_SHA256=1b2f412d984920d665daf233ab6c15b364df9339b5c5b5224d5e8ee4e0a70
 ARG VALE_VERSION=3.19.0
 ARG VALE_SHA256=c8f9d6c8055442bc7e9c121b2498e6f0e3fb670f4665e6ee577f1897f7665cf6
 
-LABEL org.opencontainers.image.source="https://github.com/Robbie-Palmer/personal-site"
+LABEL org.opencontainers.image.source="https://github.com/Robbie-Palmer/hq"
 LABEL org.opencontainers.image.description="Pinned t3-code runtime for the remote development K3s cluster"
 
 COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker

@@ -4,9 +4,18 @@ description: "A layered writing system that turns dense agent output into prose 
 date: "2026-09-04"
 status: "in_progress"
 platform_layers:
+  - layer: "governance"
+    adopted: "2026-09-15T00:00:00Z"
+    tracking: true
+    rationale: "The public project uses the shared repository's publication and licensing rules."
   - layer: "base"
     adopted: "2026-09-12T00:00:00Z"
     tracking: true
+    rationale: "The editor uses the repository-wide development and delivery controls."
+    slots:
+      - slot: "secrets.runtime-store"
+        adopted: "2026-09-15T00:00:00Z"
+        rationale: "Evaluation services need credentials from the shared runtime secret store."
 initiatives:
   - "semi-autonomous-software-development"
 tech_stack:

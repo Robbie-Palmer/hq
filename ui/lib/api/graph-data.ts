@@ -1,8 +1,10 @@
 import type { DomainRepository } from "@/lib/domain";
 import { normalizeADRTitle, parseADRRef } from "@/lib/domain/adr/adr";
 import {
+  type DefaultSelection,
   isEffectiveAt,
   isUseEffectiveAt,
+  type LayerSlotPolicy,
   resolveEffectiveProjectStack,
 } from "@/lib/domain/platform";
 import type { NodeType } from "@/lib/repository/graph";
@@ -161,6 +163,7 @@ function addResearchPaperNodes(
 function addPlatformNodes(
   repository: DomainRepository,
   state: GraphBuildState,
+  instant: string,
 ): void {
   const manifest = repository.platform?.manifest;
   if (!manifest) return;
@@ -173,6 +176,38 @@ function addPlatformNodes(
       connections: 0,
     });
   }
+  for (const selection of manifest.selections) {
+    if (
+      selection.kind !== "policy" ||
+      selection.status !== "Accepted" ||
+      !isEffectiveAt(selection, instant)
+    )
+      continue;
+    state.nodes.push({
+      id: `platform-policy:${selection.id}`,
+      name: selection.value,
+      type: "platform-policy",
+      href: `/projects/${manifest.project}#slot-${selection.slot}`,
+      connections: 0,
+    });
+  }
+}
+
+function platformSelectionTarget(selection: DefaultSelection): string {
+  if (selection.kind === "technology") {
+    return `technology:${selection.technology}`;
+  }
+  return `platform-policy:${selection.id}`;
+}
+
+function platformSelectionEdgeType(
+  selection: DefaultSelection,
+  mode: LayerSlotPolicy["mode"],
+): string {
+  if (selection.kind === "technology") {
+    return mode === "required" ? "REQUIRES_TECHNOLOGY" : "PREFERS_TECHNOLOGY";
+  }
+  return mode === "required" ? "REQUIRES_POLICY" : "PREFERS_POLICY";
 }
 
 function addTechnologyAndTagNodes(
@@ -183,7 +218,8 @@ function addTechnologyAndTagNodes(
   for (const [techSlug, usedBy] of repository.graph.reverse.technologyUsedBy) {
     const ideas = repository.graph.edges.technologyIdeas.get(techSlug);
     const selectedByPlatform = repository.platform?.manifest?.selections.some(
-      (selection) => selection.technology === techSlug,
+      (selection) =>
+        selection.kind === "technology" && selection.technology === techSlug,
     );
     if (
       usedBy.size === 0 &&
@@ -384,30 +420,31 @@ function addPlatformPolicyEdges(
   if (!manifest) return;
   for (const policy of manifest.policies) {
     if (!isEffectiveAt(policy, instant)) continue;
-    const selection = manifest.selections.find(
+    const selections = manifest.selections.filter(
       (candidate) =>
         candidate.slot === policy.slot &&
         candidate.status === "Accepted" &&
         isEffectiveAt(candidate, instant),
     );
-    if (!selection) continue;
-    addEdge(
-      state,
-      `platform-layer:${policy.layer}`,
-      `technology:${selection.technology}`,
-      policy.mode === "required" ? "REQUIRES_TECHNOLOGY" : "PREFERS_TECHNOLOGY",
-      {
-        layer: policy.layer,
-        slot: policy.slot,
-        policy: policy.id,
-        selection: selection.id,
-        decision: selection.decision,
-        mode: policy.mode,
-        status: selection.status,
-        effectiveFrom: selection.effectiveFrom,
-        effectiveUntil: selection.effectiveUntil,
-      },
-    );
+    for (const selection of selections) {
+      addEdge(
+        state,
+        `platform-layer:${policy.layer}`,
+        platformSelectionTarget(selection),
+        platformSelectionEdgeType(selection, policy.mode),
+        {
+          layer: policy.layer,
+          slot: policy.slot,
+          policy: policy.id,
+          selection: selection.id,
+          decision: selection.decision,
+          mode: policy.mode,
+          status: selection.status,
+          effectiveFrom: selection.effectiveFrom,
+          effectiveUntil: selection.effectiveUntil,
+        },
+      );
+    }
   }
 }
 
@@ -500,7 +537,7 @@ export function extractGraphData(
   addContentNodes(repository, state);
   addResearchPaperNodes(repository, state);
   addAdrNodes(repository, state);
-  addPlatformNodes(repository, state);
+  addPlatformNodes(repository, state, instant);
   const connectedTechs = addTechnologyAndTagNodes(repository, state);
   addTechnologyEdges(repository, state, connectedTechs);
   addRelationshipEdges(repository, state);

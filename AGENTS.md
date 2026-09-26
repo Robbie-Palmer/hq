@@ -14,6 +14,9 @@ to be set; any non-empty value works for verification builds:
 NEXT_PUBLIC_CF_IMAGES_ACCOUNT_HASH=placeholder pnpm build
 ```
 
+After changing frontend code, run `mise //ui:lint`. The `@shadcn/lint` policy lives in
+`ui/.oxlintrc.json`; keep recipe-specific color and class guidance scoped to the recipe overrides.
+
 ## Agent-Friendly Markdown
 
 Every major page has a plain-Markdown twin at the same URL with a `.md` suffix (e.g.
@@ -22,6 +25,13 @@ Every major page has a plain-Markdown twin at the same URL with a `.md` suffix (
 Idea pages explain concepts independently of the projects or initiatives that use them.
 Keep them domain-agnostic unless the concept itself belongs to a specific domain. Do not
 add project or initiative links to idea-page prose; link from projects and initiatives to ideas.
+
+## Work Graph
+
+When asked to take or update Work Graph tickets, read
+`.agents/skills/work-graph/SKILL.md`. Run `work-graph prime` for the current short workflow. The
+CLI can infer lease fencing fields for ticket commands, so do not carry lease UUIDs through the
+conversation unless a recovery or audit needs them.
 
 ## Protected Preview QA
 

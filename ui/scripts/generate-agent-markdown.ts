@@ -41,6 +41,10 @@ import {
 import type { RecipeCardView } from "@/lib/api/recipes";
 import { siteConfig } from "@/lib/config/site-config";
 import {
+  posthogApplication,
+  posthogApplicationMarkdown,
+} from "@/content/posthog";
+import {
   markdownUrl,
   mdxToAgentMarkdown,
   renderPage,
@@ -116,6 +120,12 @@ function projectFacts(project: ProjectWithADRs): [string, string][] {
         "Platform technologies",
         (project.platformTechnologies ?? [])
           .map((technology) => technology.name)
+          .join(", "),
+      ],
+      [
+        "Platform policies",
+        (project.platformPolicies ?? [])
+          .map((policy) => policy.value)
           .join(", "),
       ],
     );
@@ -313,11 +323,25 @@ function buildPlatformManifestSection(project: ProjectWithADRs): string[] {
                 )
                 .join(", ")}`
             : "";
-        return `- [${selection.technology}](${markdownUrl(routePath("technologies", selection.technology))}): ${selection.lifecycleStatus}, ${selection.effectiveFrom} to ${until}; [decision](${decisionUrl})${origins}`;
+        const selectedValue =
+          selection.kind === "technology"
+            ? `[${selection.technology}](${markdownUrl(routePath("technologies", selection.technology))})`
+            : selection.value;
+        return `- ${selectedValue}: ${selection.lifecycleStatus}, ${selection.effectiveFrom} to ${until}; [decision](${decisionUrl})${origins}`;
       }),
-    ...(slot.users.length > 0
+    ...(slot.adopters.length > 0
       ? [
-          `- Users: ${slot.users
+          `- Adopters: ${slot.adopters
+            .map(
+              (slug) =>
+                `[${slug}](${markdownUrl(routePath("projects", slug))})`,
+            )
+            .join(", ")}`,
+        ]
+      : []),
+    ...(slot.layerConsumers.length > 0
+      ? [
+          `- Layer consumers: ${slot.layerConsumers
             .map(
               (slug) =>
                 `[${slug}](${markdownUrl(routePath("projects", slug))})`,
@@ -615,7 +639,7 @@ function buildSatelliteSwarmPage(): GeneratedPage {
       ["Project", markdownUrl("/projects/autonomic-satellite-swarm")],
       [
         "Source code",
-        "https://github.com/Robbie-Palmer/personal-site/tree/main/cpp/autonomic-satellite-swarm",
+        "https://github.com/Robbie-Palmer/hq/tree/main/cpp/autonomic-satellite-swarm",
       ],
     ],
     content: [
@@ -629,6 +653,17 @@ function buildSatelliteSwarmPage(): GeneratedPage {
       "",
       "Emscripten builds the same controller and deterministic trace runner exercised by native tests. A byte-for-byte parity check protects the default result, and the worker keeps C++ execution off the browser's main thread.",
     ].join("\n"),
+  };
+}
+
+function buildPostHogApplicationPage(): GeneratedPage {
+  return {
+    htmlPath: "/posthog",
+    filePath: "posthog.md",
+    title: posthogApplication.title,
+    description: posthogApplication.description,
+    content: posthogApplicationMarkdown(),
+    facts: [["Location", "Belfast, UK"]],
   };
 }
 
@@ -828,6 +863,7 @@ function buildHomePage(): GeneratedPage {
       `- [Blog](${markdownUrl("/blog")}): ${siteConfig.blog.description}`,
       `- [Recipes](${markdownUrl("/recipes")}): a digital recipe book`,
       `- [Satellite swarm](${markdownUrl("/satellite-swarm")}): a deterministic mission replay on a 3D globe`,
+      `- [PostHog application](${markdownUrl("/posthog")}): a speculative application backed by working systems and shipped code`,
       "",
       "## Links",
       "",
@@ -860,6 +896,7 @@ function buildLlmsTxt(
     `- [Projects](${markdownUrl("/projects")}): all projects plus the building philosophy that guides them`,
     `- [Ideas](${markdownUrl("/ideas")}): recurring laws, methods, and mental models`,
     `- [Satellite swarm](${markdownUrl("/satellite-swarm")}): a deterministic C++ WebAssembly mission on a CesiumJS globe`,
+    `- [PostHog application](${markdownUrl("/posthog")}): a speculative application backed by working systems and shipped code`,
     "",
     "## Initiatives",
     "",
@@ -970,6 +1007,7 @@ function buildRoutesJson(): string {
         "/recipes",
         "/recipes/*",
         "/satellite-swarm",
+        "/posthog",
         "/technologies/*",
         "/ideas",
         "/ideas/*",
@@ -990,14 +1028,27 @@ function buildHeadersFile(pages: GeneratedPage[]): string {
   const entryPages = pages.filter(
     (page) => page.htmlPath.split("/").filter(Boolean).length <= 1,
   );
-  const blocks = entryPages.map((page) =>
-    [
-      page.htmlPath,
-      `  Link: <${markdownUrl(page.htmlPath)}>; rel="alternate"; type="text/markdown"`,
-    ].join("\n"),
-  );
-  const baseHeaders = fs.readFileSync(BASE_HEADERS_PATH, "utf8").trimEnd();
-  return `${baseHeaders}\n${blocks.join("\n")}\n`;
+  let headers = fs.readFileSync(BASE_HEADERS_PATH, "utf8").trimEnd();
+
+  for (const page of entryPages) {
+    const linkHeader = `  Link: <${markdownUrl(page.htmlPath)}>; rel="alternate"; type="text/markdown"`;
+    const lines = headers.split("\n");
+    const existingRuleIndex = lines.indexOf(page.htmlPath);
+
+    if (existingRuleIndex === -1) {
+      headers = `${headers}\n\n${page.htmlPath}\n${linkHeader}`;
+      continue;
+    }
+
+    const nextBlankLine = lines.findIndex(
+      (line, index) => index > existingRuleIndex && line === "",
+    );
+    const insertAt = nextBlankLine === -1 ? lines.length : nextBlankLine;
+    lines.splice(insertAt, 0, linkHeader);
+    headers = lines.join("\n");
+  }
+
+  return `${headers}\n`;
 }
 
 function writeFile(relativePath: string, content: string): void {
@@ -1047,6 +1098,7 @@ function main(): void {
     ...buildBlogPostPages(posts),
     buildRecipesIndexPage(recipes),
     buildSatelliteSwarmPage(),
+    buildPostHogApplicationPage(),
     ...technologyPages,
   ];
 

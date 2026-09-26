@@ -122,7 +122,7 @@ async function main(): Promise<void> {
     deliveryId: `replay-${corpusId}`,
     eventName: "controlled-replay",
     action: values.execute ? "execute" : "plan",
-    repository: process.env.AI_REVIEW_REPOSITORY ?? "Robbie-Palmer/personal-site",
+    repository: process.env.AI_REVIEW_REPOSITORY ?? "Robbie-Palmer/hq",
     pullRequestNumber: 0,
     force: false,
   };

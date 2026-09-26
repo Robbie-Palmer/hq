@@ -82,7 +82,7 @@ justify higher published prices than the current multi-provider route.
   of `ai-review/prd`.
 - The private
   [`robbie-palmer-ai-review`](https://github.com/apps/robbie-palmer-ai-review)
-  GitHub App is installed only on `Robbie-Palmer/personal-site`.
+  GitHub App is installed only on `Robbie-Palmer/hq`.
 
 ## Required Doppler values
 

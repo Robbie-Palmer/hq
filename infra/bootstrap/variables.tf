@@ -12,11 +12,33 @@ variable "github_repo_owner" {
 variable "github_repo_name" {
   description = "GitHub repository name"
   type        = string
-  default     = "personal-site"
+  default     = "hq"
 
   validation {
     condition     = can(regex("^[A-Za-z0-9._-]+$", var.github_repo_name))
     error_message = "github_repo_name must contain only letters, numbers, dots, underscores, and hyphens."
+  }
+}
+
+variable "github_repo_owner_id" {
+  description = "Immutable GitHub ID of the repository owner used in OIDC subjects"
+  type        = string
+  default     = "8760191"
+
+  validation {
+    condition     = can(regex("^[0-9]+$", var.github_repo_owner_id))
+    error_message = "github_repo_owner_id must contain only numbers."
+  }
+}
+
+variable "github_repo_id" {
+  description = "Immutable GitHub repository ID used in OIDC subjects"
+  type        = string
+  default     = "1078839304"
+
+  validation {
+    condition     = can(regex("^[0-9]+$", var.github_repo_id))
+    error_message = "github_repo_id must contain only numbers."
   }
 }
 

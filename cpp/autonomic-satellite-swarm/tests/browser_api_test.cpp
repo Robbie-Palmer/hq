@@ -4,7 +4,7 @@
 #include <string>
 
 TEST_CASE("the browser bridge exposes a versioned JSON result") {
-  CHECK(satellite_swarm_browser_api_version() == 6U);
+  CHECK(satellite_swarm_browser_api_version() == 7U);
   CHECK(std::string(satellite_swarm_source_revision()) == "unknown");
 
   const char* result = satellite_swarm_run_demonstration(12.5F, -45.25F, 0U);
@@ -19,6 +19,13 @@ TEST_CASE("the browser bridge exposes a versioned JSON result") {
   REQUIRE(fault_result != nullptr);
   CHECK(std::string(fault_result).find(R"("scenario": "three-node-assignment-loss")") !=
         std::string::npos);
+
+  const char* safe_state_result = satellite_swarm_run_demonstration(0.0F, -90.0F, 2U);
+  REQUIRE(safe_state_result != nullptr);
+  const std::string safe_state_json(safe_state_result);
+  CHECK(safe_state_json.find(R"("scenario": "three-node-safe-state-success")") !=
+        std::string::npos);
+  CHECK(safe_state_json.find(R"("event":"safe-state-execution-result")") != std::string::npos);
 }
 
 TEST_CASE("the browser bridge exposes equal-score allocation evidence") {

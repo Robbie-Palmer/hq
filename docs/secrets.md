@@ -396,7 +396,7 @@ The standalone Doppler project `ai-review`, config `prd`, should own:
 - `OPENROUTER_API_KEY`
 - `OPENCODE_API_KEY` (optional while anonymous free-model access is available)
 
-The GitHub App is installed only on `Robbie-Palmer/personal-site`. Its App ID
+The GitHub App is installed only on `Robbie-Palmer/hq`. Its App ID
 and installation ID are identifiers, while its private key and webhook secret
 must remain masked. The OpenRouter key is a separate, spend-limited runtime
 credential used by the current scouts and merger. OpenRouter is the default

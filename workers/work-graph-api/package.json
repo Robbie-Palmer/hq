@@ -1,0 +1,36 @@
+{
+  "name": "work-graph-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Canonical REST application for Work Graph",
+  "type": "module",
+  "scripts": {
+    "deploy": "bash scripts/deploy.sh",
+    "dev": "bash scripts/dev.sh",
+    "typecheck": "tsc --noEmit && tsc --project tsconfig.scripts.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "bash scripts/test-integration.sh",
+    "openapi:generate": "tsx scripts/generate-openapi.ts",
+    "openapi:check": "tsx scripts/generate-openapi.ts --check",
+    "lint:api": "pnpm openapi:check && spectral lint openapi.json --ruleset .spectral.yaml --fail-severity error"
+  },
+  "dependencies": {
+    "@hono/zod-openapi": "1.6.3",
+    "hono": "^4.7.11",
+    "work-graph-db": "workspace:*",
+    "work-graph-domain": "workspace:*",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.0.0",
+    "@stoplight/spectral-cli": "6.16.3",
+    "@stoplight/spectral-owasp-ruleset": "2.0.1",
+    "@types/node": "^24",
+    "@vitest/coverage-v8": "^4.1.10",
+    "tsx": "^4.21.0",
+    "typescript": "^5",
+    "vitest": "^4.1.7",
+    "wrangler": "^4"
+  }
+}

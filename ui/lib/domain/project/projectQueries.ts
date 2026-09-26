@@ -209,6 +209,9 @@ export function getProjectWithADRs(
     const explicitUse = layerUses.find(
       (use) => use.layer === layerSlug && isUseEffectiveAt(use, stack.at),
     );
+    const activatedUse = explicitUse
+      ? undefined
+      : getActivatedLayerTechnologyUse(repository, stack, layerSlug);
     return {
       slug: layerSlug,
       title:
@@ -219,8 +222,11 @@ export function getProjectWithADRs(
         getActivatedLayerAdoptionInstant(repository, stack, layerSlug),
       until: explicitUse?.until,
       tracking: explicitUse?.tracking ?? true,
+      decision: explicitUse?.decision ?? activatedUse?.adoptionDecision,
+      rationale: explicitUse?.rationale ?? activatedUse?.adoptionRationale,
     };
   });
+  const seenPlatformTechnologies = new Set<string>();
   const platformTechnologies = stack.technologies
     .filter(
       (
@@ -230,9 +236,11 @@ export function getProjectWithADRs(
       } => use.source !== "project-specific",
     )
     .flatMap((use) => {
+      if (seenPlatformTechnologies.has(use.technology)) return [];
       const [technology] = resolveTechnologiesToBadgeViews(repository, [
         use.technology,
       ]);
+      if (technology) seenPlatformTechnologies.add(use.technology);
       return technology
         ? [
             {
@@ -241,10 +249,33 @@ export function getProjectWithADRs(
               layer: use.layer,
               slot: use.slot,
               decision: use.decision,
+              policyDecision: use.policyDecision,
+              originProjects: use.originProjects,
+              evidenceADRs: use.evidenceADRs,
+              adoptionDecision: use.adoptionDecision,
+              adoptionRationale: use.adoptionRationale,
             },
           ]
         : [];
     });
+  const platformPolicies = stack.policies.map((use) => ({
+    value: use.value,
+    source: use.source,
+    layer: use.layer,
+    slot: use.slot,
+    decision: use.decision,
+    policyDecision: use.policyDecision,
+    originProjects: use.originProjects,
+    evidenceADRs: use.evidenceADRs,
+    adoptionDecision: use.adoptionDecision,
+    adoptionRationale: use.adoptionRationale,
+  }));
+  const projectStacks =
+    manifest?.project === slug
+      ? Array.from(repository.projects.keys()).map((projectSlug) =>
+          resolveEffectiveProjectStack(repository, projectSlug, stack.at),
+        )
+      : [];
   const platformManifest =
     manifest?.project === slug
       ? {
@@ -261,18 +292,22 @@ export function getProjectWithADRs(
                   selection,
                 ),
               })),
-            users: Array.from(
-              new Set(
-                manifest.policies
-                  .filter((policy) => policy.slot === slot.slug)
-                  .flatMap((policy) =>
-                    Array.from(
-                      repository.graph.reverse.layerUsers.get(policy.layer) ??
-                        [],
-                    ),
-                  ),
-              ),
-            ),
+            adopters: projectStacks
+              .filter((projectStack) =>
+                [...projectStack.technologies, ...projectStack.policies].some(
+                  (use) => use.slot === slot.slug,
+                ),
+              )
+              .map((projectStack) => projectStack.project),
+            layerConsumers: projectStacks
+              .filter((projectStack) => {
+                const layers = new Set(projectStack.layers);
+                return manifest.policies.some(
+                  (policy) =>
+                    policy.slot === slot.slug && layers.has(policy.layer),
+                );
+              })
+              .map((projectStack) => projectStack.project),
             overrides: Array.from(
               repository.graph.reverse.slotOverrides.get(slot.slug) ?? [],
             ),
@@ -301,15 +336,16 @@ export function getProjectWithADRs(
     tags,
     builtOn,
     platformTechnologies,
+    platformPolicies,
     platformManifest,
   };
 }
 
-function getActivatedLayerAdoptionInstant(
+function getActivatedLayerTechnologyUse(
   repository: DomainRepository,
   stack: EffectiveProjectStack,
   layerSlug: LayerSlug,
-): string {
+) {
   const manifest = repository.platform.manifest;
   const activation = manifest?.layers.find(
     (layer) => layer.slug === layerSlug,
@@ -326,6 +362,23 @@ function getActivatedLayerAdoptionInstant(
       `Cannot derive adoption time for platform layer '${layerSlug}'`,
     );
   }
+  return technologyUse;
+}
+
+function getActivatedLayerAdoptionInstant(
+  repository: DomainRepository,
+  stack: EffectiveProjectStack,
+  layerSlug: LayerSlug,
+): string {
+  const manifest = repository.platform.manifest;
+  if (!manifest) {
+    throw new Error("Cannot derive adoption time without a platform manifest");
+  }
+  const technologyUse = getActivatedLayerTechnologyUse(
+    repository,
+    stack,
+    layerSlug,
+  );
   const selection = manifest.selections.find(
     (candidate) => candidate.id === technologyUse.selection,
   );

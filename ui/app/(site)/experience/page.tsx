@@ -14,7 +14,7 @@ import {
 } from "@/lib/domain/technology";
 
 const pageDescription =
-  "Professional experience and career history of Robbie Palmer - Principal Software Engineer specializing in machine learning, computer vision, and data engineering.";
+  "Professional experience and career history of Robbie Palmer, a Principal Software Engineer and Engineering Manager specializing in machine learning, computer vision, and data engineering.";
 
 export const metadata: Metadata = {
   title: "Experience",

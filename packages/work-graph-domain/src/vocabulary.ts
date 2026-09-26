@@ -37,3 +37,60 @@ export const PULL_REQUEST_ROLES = [
 ] as const;
 
 export type PullRequestRole = (typeof PULL_REQUEST_ROLES)[number];
+
+export const PULL_REQUEST_STATES = ["open", "closed", "merged"] as const;
+
+export type PullRequestState = (typeof PULL_REQUEST_STATES)[number];
+
+export const PULL_REQUEST_MERGEABILITIES = [
+  "mergeable",
+  "conflicting",
+  "unknown",
+] as const;
+
+export type PullRequestMergeability =
+  (typeof PULL_REQUEST_MERGEABILITIES)[number];
+
+export const PULL_REQUEST_REVIEW_DECISIONS = [
+  "approved",
+  "changes_requested",
+  "review_required",
+] as const;
+
+export type PullRequestReviewDecision =
+  (typeof PULL_REQUEST_REVIEW_DECISIONS)[number];
+
+export const PULL_REQUEST_CHECK_SUMMARIES = [
+  "success",
+  "failure",
+  "pending",
+  "neutral",
+  "unknown",
+] as const;
+
+export type PullRequestCheckSummary =
+  (typeof PULL_REQUEST_CHECK_SUMMARIES)[number];
+
+export const WORK_ITEM_CONTEXT_KINDS = [
+  "brief",
+  "acceptance_criteria",
+] as const;
+
+export type WorkItemContextKind = (typeof WORK_ITEM_CONTEXT_KINDS)[number];
+
+export const ARCHITECTURE_DECISION_ROLES = [
+  "governing",
+  "background",
+] as const;
+
+export type ArchitectureDecisionRole =
+  (typeof ARCHITECTURE_DECISION_ROLES)[number];
+
+export const KNOWLEDGE_SCOPE_KINDS = ["initiative", "project"] as const;
+
+export type KnowledgeScopeKind = (typeof KNOWLEDGE_SCOPE_KINDS)[number];
+
+export const KNOWLEDGE_SCOPE_LIFECYCLES = ["active", "archived"] as const;
+
+export type KnowledgeScopeLifecycle =
+  (typeof KNOWLEDGE_SCOPE_LIFECYCLES)[number];

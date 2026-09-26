@@ -1,0 +1,9 @@
+[[IgnoredVulns]]
+id = "GHSA-rrmf-rvhw-rf47"
+ignoreUntil = 2026-12-18
+reason = "The runtime does not call torch.jit.script, and the first fixed PyTorch version is not available from the required CUDA 12.8 index."
+
+[[IgnoredVulns]]
+id = "PYSEC-2026-3447"
+ignoreUntil = 2026-12-18
+reason = "PyTorch 2.11 constrains setuptools below 82, blocking the fixed setuptools 83.0.0; this environment installs the wheel and does not use the vulnerable sdist path."

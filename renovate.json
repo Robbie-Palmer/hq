@@ -28,6 +28,19 @@
         "image:\\s*(?<depName>[a-z0-9./-]+):\\$\\{(?:PROWLARR|SONARR|RADARR|QBITTORRENT|JELLYFIN|RECYCLARR)_VERSION:-(?<currentValue>[^}]+)\\}"
       ],
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Track the Vale binary version required by the writing editor evaluation",
+      "managerFilePatterns": [
+        "/^ml-pipelines/writing-editor-evaluation/params\\.yaml$/"
+      ],
+      "matchStrings": [
+        "\"binaryVersion\":\\s*\"(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)\""
+      ],
+      "depNameTemplate": "errata-ai/vale",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver-coerced"
     }
   ],
   "lockFileMaintenance": {
@@ -174,10 +187,38 @@
       "groupName": "pnpm"
     },
     {
+      "description": "Keep the Vale binary and writing evaluation version contract in one PR",
+      "matchPackageNames": [
+        "vale",
+        "errata-ai/vale"
+      ],
+      "groupName": "vale"
+    },
+    {
       "description": "Auto-merge pnpm updates after the pinned binary passes the workspace compatibility check",
       "matchPackageNames": [
         "pnpm",
         "pnpm/pnpm"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "major"
+      ],
+      "minimumReleaseAge": "3 days",
+      "dependencyDashboardApproval": false,
+      "automerge": true
+    },
+    {
+      "description": "Auto-merge coding-agent and t3 orchestrator updates after the runtime image checks pass",
+      "matchFileNames": [
+        "homelab/images/t3-code/package.json"
+      ],
+      "matchDepTypes": [
+        "dependencies"
+      ],
+      "matchPackageNames": [
+        "!pnpm"
       ],
       "matchUpdateTypes": [
         "minor",

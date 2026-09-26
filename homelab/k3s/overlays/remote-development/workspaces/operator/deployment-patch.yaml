@@ -89,6 +89,30 @@ spec:
                   name: t3-code-preview-access
                   key: CLOUDFLARE_PAGES_HOST
                   optional: false
+            - name: WORK_GRAPH_API_URL
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-work-graph
+                  key: WORK_GRAPH_API_URL
+                  optional: false
+            - name: WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-work-graph
+                  key: WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS
+                  optional: false
+            - name: WORK_GRAPH_CF_ACCESS_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-work-graph
+                  key: WORK_GRAPH_CF_ACCESS_CLIENT_ID
+                  optional: false
+            - name: WORK_GRAPH_CF_ACCESS_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-work-graph
+                  key: WORK_GRAPH_CF_ACCESS_CLIENT_SECRET
+                  optional: false
           envFrom:
             - secretRef:
                 name: t3-code-runtime

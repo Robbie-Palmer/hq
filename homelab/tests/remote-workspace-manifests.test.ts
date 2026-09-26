@@ -236,7 +236,7 @@ test("the remote overlay isolates durable data from rebuildable caches", () => {
 
   assert.deepEqual(kindCounts(resources), {
     Deployment: 1,
-    DopplerSecret: 2,
+    DopplerSecret: 3,
     Namespace: 1,
     PersistentVolume: 2,
     PersistentVolumeClaim: 2,
@@ -468,6 +468,29 @@ test("the remote overlay isolates durable data from rebuildable caches", () => {
       },
     );
   }
+  for (const name of [
+    "WORK_GRAPH_API_URL",
+    "WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS",
+    "WORK_GRAPH_CF_ACCESS_CLIENT_ID",
+    "WORK_GRAPH_CF_ACCESS_CLIENT_SECRET",
+  ]) {
+    assert.deepEqual(
+      operatorEnvironment.find(
+        (entry) =>
+          typeof entry === "object" && entry !== null && entry.name === name,
+      ),
+      {
+        name,
+        valueFrom: {
+          secretKeyRef: {
+            key: name,
+            name: "t3-code-work-graph",
+            optional: false,
+          },
+        },
+      },
+    );
+  }
   assert.ok(
     String(
       valueAt(operatorDeployment, [
@@ -655,6 +678,38 @@ test("the remote overlay isolates durable data from rebuildable caches", () => {
     valueAt(previewAccessSecret, ["spec", "managedSecret", "name"]),
     "t3-code-preview-access",
   );
+
+  const workGraphSecret = resource(
+    resources,
+    "DopplerSecret",
+    "t3-code-work-graph",
+    "t3-code",
+  );
+  assert.equal(valueAt(workGraphSecret, ["spec", "project"]), "work-graph");
+  assert.equal(
+    valueAt(workGraphSecret, ["spec", "config"]),
+    "prd_work_graph",
+  );
+  assert.equal(
+    valueAt(workGraphSecret, ["spec", "tokenSecret", "name"]),
+    "doppler-work-graph-token",
+  );
+  assert.deepEqual(valueAt(workGraphSecret, ["spec", "secrets"]), [
+    "WORK_GRAPH_API_URL",
+    "WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS",
+    "CF_ACCESS_CLIENT_ID",
+    "CF_ACCESS_CLIENT_SECRET",
+  ]);
+  assert.deepEqual(valueAt(workGraphSecret, ["spec", "processors"]), {
+    CF_ACCESS_CLIENT_ID: {
+      asName: "WORK_GRAPH_CF_ACCESS_CLIENT_ID",
+      type: "plain",
+    },
+    CF_ACCESS_CLIENT_SECRET: {
+      asName: "WORK_GRAPH_CF_ACCESS_CLIENT_SECRET",
+      type: "plain",
+    },
+  });
 });
 
 test("the default remote overlay contains only the operator workspace", () => {
@@ -662,7 +717,7 @@ test("the default remote overlay contains only the operator workspace", () => {
 
   assert.deepEqual(kindCounts(resources), {
     Deployment: 1,
-    DopplerSecret: 2,
+    DopplerSecret: 3,
     Namespace: 1,
     PersistentVolume: 2,
     PersistentVolumeClaim: 2,
@@ -770,6 +825,10 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   );
   assert.ok(healthCheck.includes(".CF_ACCESS_CLIENT_ID"));
   assert.ok(healthCheck.includes(".CF_ACCESS_CLIENT_SECRET"));
+  assert.ok(healthCheck.includes(".data as $data"));
+  assert.ok(healthCheck.includes('($data[$key] // "")'));
+  assert.ok(healthCheck.includes('"WORK_GRAPH_CF_ACCESS_CLIENT_ID"'));
+  assert.ok(healthCheck.includes('"WORK_GRAPH_CF_ACCESS_CLIENT_SECRET"'));
   assert.ok(healthCheck.includes("@base64d"));
 
   const dopplerInstaller = readFileSync(
@@ -783,9 +842,16 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   );
   assert.ok(
     dopplerInstaller.includes(
+      '"t3-code:doppler-work-graph-token:work-graph:prd_work_graph"',
+    ),
+  );
+  assert.ok(
+    dopplerInstaller.includes(
       'remote-development-k3s-${namespace}-${token_secret}-${doppler_config}',
     ),
   );
+  assert.ok(dopplerInstaller.includes("sha256sum -c -"));
+  assert.ok(dopplerInstaller.includes("| tr -d '\\r\\n'"));
   assert.ok(dopplerInstaller.includes("--from-file=serviceToken=/dev/stdin"));
   assert.ok(!dopplerInstaller.includes("token_file"));
 });

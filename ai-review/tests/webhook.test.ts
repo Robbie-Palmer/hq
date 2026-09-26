@@ -43,7 +43,7 @@ describe("parseReviewEvent", () => {
       parseReviewEvent("pull_request", "delivery-1", {
         action: "synchronize",
         number: 816,
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
         pull_request: { head: { sha: "abc123" } },
       }),
     ).toEqual({
@@ -52,7 +52,7 @@ describe("parseReviewEvent", () => {
         deliveryId: "delivery-1",
         eventName: "pull_request",
         action: "synchronize",
-        repository: "Robbie-Palmer/personal-site",
+        repository: "Robbie-Palmer/hq",
         pullRequestNumber: 816,
         headSha: "abc123",
         force: false,
@@ -64,14 +64,14 @@ describe("parseReviewEvent", () => {
     expect(
       parseReviewEvent("issue_comment", "delivery-2", {
         action: "created",
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
         issue: { number: 1 },
       }),
     ).toEqual({ kind: "ignored", reason: "unsupported-event" });
     expect(
       parseReviewEvent("issue_comment", "delivery-2", {
         action: "created",
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
         issue: { number: 1, pull_request: true },
         sender: { login: "robbie" },
         comment: {
@@ -87,7 +87,7 @@ describe("parseReviewEvent", () => {
     expect(
       parseReviewEvent("pull_request", "delivery-ignored", {
         action: "labeled",
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
         pull_request: { number: 816, head: { sha: "abc123" } },
       }),
     ).toEqual({ kind: "ignored", reason: "unsupported-event" });
@@ -99,7 +99,7 @@ describe("parseReviewEvent", () => {
         parseReviewEvent("pull_request", "delivery-missing-sha", {
           action: "synchronize",
           number: 816,
-          repository: { full_name: "Robbie-Palmer/personal-site" },
+          repository: { full_name: "Robbie-Palmer/hq" },
           pull_request: { head: { sha } },
         }),
       ).toEqual({ kind: "invalid", reason: "Malformed webhook payload" });
@@ -114,19 +114,19 @@ describe("parseReviewEvent", () => {
     expect(
       parseReviewEvent("pull_request", "", {
         action: "opened",
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
       }),
     ).toEqual({ kind: "invalid", reason: "Malformed webhook payload" });
     expect(
       parseReviewEvent("pull_request", "delivery", {
         action: "opened",
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
       }),
     ).toEqual({ kind: "invalid", reason: "Malformed webhook payload" });
     expect(
       parseReviewEvent("unsupported", "delivery", {
         action: "created",
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
       }),
     ).toEqual({ kind: "ignored", reason: "unsupported-event" });
     expect(parseReviewEvent("pull_request", "delivery", [])).toEqual({
@@ -136,7 +136,7 @@ describe("parseReviewEvent", () => {
     expect(
       parseReviewEvent("pull_request_review", "delivery", {
         action: "submitted",
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
       }),
     ).toEqual({ kind: "ignored", reason: "unsupported-event" });
   });
@@ -145,7 +145,7 @@ describe("parseReviewEvent", () => {
     expect(
       parseReviewEvent("issue_comment", "delivery-comment", {
         action: "created",
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
         issue: { number: 816, pull_request: {} },
         sender: { login: "robbie" },
         comment: {
@@ -168,7 +168,7 @@ describe("parseReviewEvent", () => {
     expect(
       parseReviewEvent("issue_comment", "delivery-final", {
         action: "created",
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
         issue: { number: 816, pull_request: {} },
         sender: { login: "robbie" },
         comment: {
@@ -189,7 +189,7 @@ describe("parseReviewEvent", () => {
     expect(
       parseReviewEvent("pull_request_review_thread", "delivery-3", {
         action: "resolved",
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
         pull_request: { number: 816 },
       }),
     ).toEqual({ kind: "ignored", reason: "unsupported-event" });
@@ -204,7 +204,7 @@ describe("parseReviewEvent", () => {
       expect(
         parseReviewEvent("issue_comment", "delivery-comment", {
           action: "created",
-          repository: { full_name: "Robbie-Palmer/personal-site" },
+          repository: { full_name: "Robbie-Palmer/hq" },
           issue: { number: 816, pull_request: {} },
           comment,
         }),
@@ -220,7 +220,7 @@ describe("parsePullRequestFinalization", () => {
         parsePullRequestFinalization("pull_request", `closed-${merged}`, {
           action: "closed",
           number: 816,
-          repository: { full_name: "Robbie-Palmer/personal-site" },
+          repository: { full_name: "Robbie-Palmer/hq" },
           pull_request: {
             merged,
             closed_at: "2026-08-15T12:00:00Z",
@@ -233,7 +233,7 @@ describe("parsePullRequestFinalization", () => {
           deliveryId: `closed-${merged}`,
           eventName: "pull_request",
           action: "closed",
-          repository: "Robbie-Palmer/personal-site",
+          repository: "Robbie-Palmer/hq",
           pullRequestNumber: 816,
           headSha: "abc123",
           finalState: merged ? "merged" : "closed",
@@ -248,7 +248,7 @@ describe("parsePullRequestFinalization", () => {
       parsePullRequestFinalization("pull_request", "delivery", {
         action: "closed",
         number: 816,
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
         pull_request: { head: { sha: "abc123" } },
       }),
     ).toEqual({ kind: "invalid", reason: "Malformed webhook payload" });
@@ -256,7 +256,7 @@ describe("parsePullRequestFinalization", () => {
       parsePullRequestFinalization("pull_request", "delivery", {
         action: "closed",
         number: 816,
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
         pull_request: {
           merged: true,
           closed_at: "not-a-timestamp",
@@ -277,7 +277,7 @@ describe("parseFindingInteraction", () => {
     expect(
       parseFindingInteraction("issue_comment", "feedback-1", {
         action: "created",
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
         issue: { number: 816, pull_request: {} },
         sender: { login: "robbie" },
         comment: {
@@ -300,7 +300,7 @@ describe("parseFindingInteraction", () => {
     expect(
       parseFindingInteraction("issue_comment", "feedback-fixed", {
         action: "created",
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
         issue: { number: 816, pull_request: {} },
         sender: { login: "robbie" },
         comment: {
@@ -325,7 +325,7 @@ describe("parseFindingInteraction", () => {
     expect(
       parseFindingInteraction("issue_comment", "feedback-2", {
         action: "created",
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
         issue: { number: 816, pull_request: {} },
         sender: { login: "outside" },
         comment: {
@@ -339,7 +339,7 @@ describe("parseFindingInteraction", () => {
     expect(
       parseFindingInteraction("issue_comment", "feedback-spoofed", {
         action: "created",
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
         issue: { number: 816, pull_request: {} },
         sender: { login: "outside" },
         comment: {
@@ -356,7 +356,7 @@ describe("parseFindingInteraction", () => {
     expect(
       parseFindingInteraction("issue_comment", "feedback-incomplete", {
         action: "created",
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
         issue: { number: 816, pull_request: {} },
         sender: { login: "robbie" },
         comment: {
@@ -370,7 +370,7 @@ describe("parseFindingInteraction", () => {
     expect(
       parseFindingInteraction("issue_comment", "feedback-too-long", {
         action: "created",
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
         issue: { number: 816, pull_request: {} },
         sender: { login: "robbie" },
         comment: {
@@ -394,27 +394,27 @@ describe("parseFindingInteraction", () => {
     expect(
       parseFindingInteraction("issue_comment", "x".repeat(256), {
         action: "created",
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
       }),
     ).toEqual({ kind: "invalid", reason: "Malformed webhook payload" });
     expect(
       parseReviewEvent("pull_request", "x".repeat(256), {
         action: "opened",
         number: 816,
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
         pull_request: { head: { sha: "abc123" } },
       }),
     ).toEqual({ kind: "invalid", reason: "Malformed webhook payload" });
     expect(
       parseFindingInteraction("issue_comment", "feedback", {
         action: "created",
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
       }),
     ).toEqual({ kind: "ignored", reason: "unsupported-event" });
     expect(
       parseFindingInteraction("issue_comment", "feedback", {
         action: "created",
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
         sender: { login: "Robbie-Palmer" },
         comment: {
           body: `/ai-review acknowledge f_${"a".repeat(24)} accepted`,
@@ -424,7 +424,7 @@ describe("parseFindingInteraction", () => {
     expect(
       parseFindingInteraction("pull_request_review_comment", "feedback", {
         action: "created",
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
         pull_request: { number: 816 },
         comment: { id: 201 },
       }),
@@ -432,7 +432,7 @@ describe("parseFindingInteraction", () => {
     expect(
       parseFindingInteraction("pull_request_review_thread", "feedback", {
         action: "resolved",
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
         pull_request: { number: 816 },
         sender: { login: "Robbie-Palmer" },
         thread: { comments: [] },
@@ -443,7 +443,7 @@ describe("parseFindingInteraction", () => {
   it("accepts a trusted pull request author and rejects untrusted reply actors", () => {
     const reply = {
       action: "edited",
-      repository: { full_name: "Robbie-Palmer/personal-site" },
+      repository: { full_name: "Robbie-Palmer/hq" },
       pull_request: {
         number: 816,
         author_association: "MEMBER",
@@ -484,7 +484,7 @@ describe("parseFindingInteraction", () => {
     expect(
       parseFindingInteraction("pull_request_review_comment", "feedback-3", {
         action: "created",
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
         pull_request: { number: 816 },
         sender: { login: "maintainer" },
         comment: {
@@ -512,7 +512,7 @@ describe("parseFindingInteraction", () => {
         "feedback-disposition-edit",
         {
           action: "edited",
-          repository: { full_name: "Robbie-Palmer/personal-site" },
+          repository: { full_name: "Robbie-Palmer/hq" },
           pull_request: { number: 816 },
           sender: { login: "maintainer" },
           comment: {
@@ -539,7 +539,7 @@ describe("parseFindingInteraction", () => {
         "feedback-disposition",
         {
           action: "created",
-          repository: { full_name: "Robbie-Palmer/personal-site" },
+          repository: { full_name: "Robbie-Palmer/hq" },
           pull_request: { number: 816 },
           sender: { login: "maintainer" },
           comment: {
@@ -565,7 +565,7 @@ describe("parseFindingInteraction", () => {
     expect(
       parseFindingInteraction("pull_request_review_thread", "feedback-4", {
         action: "resolved",
-        repository: { full_name: "Robbie-Palmer/personal-site" },
+        repository: { full_name: "Robbie-Palmer/hq" },
         pull_request: { number: 816 },
         sender: { login: "Robbie-Palmer" },
         updated_at: "2026-08-09T12:10:00Z",

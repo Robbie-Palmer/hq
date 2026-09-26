@@ -3,7 +3,7 @@
 namespace satellite_swarm {
 namespace {
 
-constexpr uint8_t kMagicAndVersion = 0xB1U;
+constexpr uint8_t kMagicAndVersion = 0xB3U;
 
 void writeUint16(uint16_t value, uint8_t* output) {
   output[0] = static_cast<uint8_t>(value >> 8U);
@@ -28,7 +28,7 @@ uint32_t readUint32(const uint8_t* input) {
 }
 
 bool isKnownEventType(uint8_t value) {
-  return value <= static_cast<uint8_t>(TelemetryEventType::TransportFailure);
+  return value <= static_cast<uint8_t>(TelemetryEventType::SafeStateExecutionResult);
 }
 
 bool isKnownReason(uint8_t value) {
@@ -48,6 +48,30 @@ bool isAbsentMissionKey(const MissionKey& mission_key) {
          mission_key.sequence == 0U;
 }
 
+bool isSafeStateReason(TelemetryReason reason) {
+  return reason == TelemetryReason::InvalidConfiguration ||
+         reason == TelemetryReason::HealthFatal || reason == TelemetryReason::RetryLimitReached;
+}
+
+bool hasValidTypeSpecificFields(const TelemetryEvent& event) {
+  if (event.type == TelemetryEventType::SafeStateRequested) {
+    return event.priority == TelemetryPriority::Critical && event.related_node == event.node_id &&
+           event.value == 0U && isSafeStateReason(event.reason);
+  }
+  if (event.type == TelemetryEventType::SafeStateResult) {
+    return event.priority == TelemetryPriority::Critical && event.related_node == event.node_id &&
+           event.value <= static_cast<uint8_t>(SafeStateResult::Accepted) &&
+           isSafeStateReason(event.reason);
+  }
+  if (event.type == TelemetryEventType::SafeStateExecutionResult) {
+    return event.priority == TelemetryPriority::Critical && event.related_node == event.node_id &&
+           event.value >= static_cast<uint8_t>(SafeStateExecutionStatus::Succeeded) &&
+           event.value <= static_cast<uint8_t>(SafeStateExecutionStatus::Failed) &&
+           isSafeStateReason(event.reason);
+  }
+  return true;
+}
+
 bool isValidEvent(const TelemetryEvent& event) {
   return event.sequence != 0U && event.node_id < kMaximumNodes &&
          (event.related_node < kMaximumNodes || event.related_node == kBroadcastNode) &&
@@ -56,7 +80,8 @@ bool isValidEvent(const TelemetryEvent& event) {
          isKnownPriority(static_cast<uint8_t>(event.priority)) &&
          isKnownState(static_cast<uint8_t>(event.previous_state)) &&
          isKnownState(static_cast<uint8_t>(event.current_state)) &&
-         (isAbsentMissionKey(event.mission_key) || isValid(event.mission_key));
+         (isAbsentMissionKey(event.mission_key) || isValid(event.mission_key)) &&
+         hasValidTypeSpecificFields(event);
 }
 
 } // namespace

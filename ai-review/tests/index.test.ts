@@ -11,7 +11,7 @@ const event: ReviewWorkflowParams = {
   deliveryId: "delivery-123",
   eventName: "pull_request",
   action: "synchronize",
-  repository: "Robbie-Palmer/personal-site",
+  repository: "Robbie-Palmer/hq",
   pullRequestNumber: 821,
   headSha: "abcdef123456",
   force: false,
@@ -2100,7 +2100,7 @@ describe("HTTP Worker", () => {
   const validBody = JSON.stringify({
     action: "opened",
     number: 821,
-    repository: { full_name: "Robbie-Palmer/personal-site" },
+    repository: { full_name: "Robbie-Palmer/hq" },
     pull_request: { head: { sha: "abcdef123456" } },
   });
 
@@ -2109,7 +2109,7 @@ describe("HTTP Worker", () => {
     return {
       env: {
         AI_REVIEW_ENABLED: "false",
-        AI_REVIEW_REPOSITORY: "Robbie-Palmer/personal-site",
+        AI_REVIEW_REPOSITORY: "Robbie-Palmer/hq",
         AI_REVIEW_WEBHOOK_SECRET: secret,
         PR_STATE: {
           idFromName: vi.fn(() => "coordinator-id"),
@@ -2175,7 +2175,7 @@ describe("HTTP Worker", () => {
     expect(invalid.status).toBe(401);
 
     const disallowedBody = validBody.replace(
-      "Robbie-Palmer/personal-site",
+      "Robbie-Palmer/hq",
       "Robbie-Palmer/other",
     );
     const disallowed = await worker.fetch(
@@ -2204,7 +2204,7 @@ describe("HTTP Worker", () => {
 
     const invalidPayload = JSON.stringify({
       action: "opened",
-      repository: { full_name: "Robbie-Palmer/personal-site" },
+      repository: { full_name: "Robbie-Palmer/hq" },
     });
     const invalid = await worker.fetch(
       signedWebhookRequest(invalidPayload, secret),
@@ -2282,7 +2282,7 @@ describe("HTTP Worker", () => {
     const { env, fetch } = workerEnv();
     const feedbackBody = JSON.stringify({
       action: "created",
-      repository: { full_name: "Robbie-Palmer/personal-site" },
+      repository: { full_name: "Robbie-Palmer/hq" },
       issue: { number: 821, pull_request: {} },
       sender: { login: "Robbie-Palmer" },
       comment: {
@@ -2326,7 +2326,7 @@ describe("HTTP Worker", () => {
     vi.stubGlobal("fetch", githubFetch);
     const feedbackBody = JSON.stringify({
       action: "created",
-      repository: { full_name: "Robbie-Palmer/personal-site" },
+      repository: { full_name: "Robbie-Palmer/hq" },
       pull_request: { number: 821 },
       sender: { login: "Robbie-Palmer" },
       comment: {
@@ -2356,7 +2356,7 @@ describe("HTTP Worker", () => {
     expect(githubFetch).toHaveBeenCalledTimes(2);
     expect(githubFetch).toHaveBeenLastCalledWith(
       new URL(
-        "https://api.github.com/repos/Robbie-Palmer/personal-site/pulls/comments/902/reactions",
+        "https://api.github.com/repos/Robbie-Palmer/hq/pulls/comments/902/reactions",
       ),
       expect.objectContaining({
         method: "POST",
@@ -2386,7 +2386,7 @@ describe("HTTP Worker", () => {
     );
     const feedbackBody = JSON.stringify({
       action: "created",
-      repository: { full_name: "Robbie-Palmer/personal-site" },
+      repository: { full_name: "Robbie-Palmer/hq" },
       pull_request: { number: 821 },
       sender: { login: "Robbie-Palmer" },
       comment: {
@@ -2430,7 +2430,7 @@ describe("HTTP Worker", () => {
     vi.stubGlobal("fetch", githubFetch);
     const feedbackBody = JSON.stringify({
       action: "created",
-      repository: { full_name: "Robbie-Palmer/personal-site" },
+      repository: { full_name: "Robbie-Palmer/hq" },
       issue: { number: 821, pull_request: {} },
       sender: { login: "Robbie-Palmer" },
       comment: {
@@ -2480,7 +2480,7 @@ describe("HTTP Worker", () => {
     );
     const feedbackBody = JSON.stringify({
       action: "created",
-      repository: { full_name: "Robbie-Palmer/personal-site" },
+      repository: { full_name: "Robbie-Palmer/hq" },
       issue: { number: 821, pull_request: {} },
       sender: { login: "Robbie-Palmer" },
       comment: {
@@ -2510,7 +2510,7 @@ describe("HTTP Worker", () => {
     const closedBody = JSON.stringify({
       action: "closed",
       number: 821,
-      repository: { full_name: "Robbie-Palmer/personal-site" },
+      repository: { full_name: "Robbie-Palmer/hq" },
       pull_request: {
         merged: true,
         closed_at: "2026-08-15T12:00:00Z",

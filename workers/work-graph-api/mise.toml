@@ -1,0 +1,57 @@
+[tasks.install]
+description = "Install Work Graph API dependencies"
+run = "pnpm install --frozen-lockfile --filter work-graph-api..."
+
+[tasks.typecheck]
+description = "Typecheck the Work Graph API"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Run Work Graph API tests"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks.dev]
+description = "Run the Work Graph Worker locally with Doppler"
+depends = ["install"]
+run = "pnpm dev"
+
+[tasks.deploy]
+description = "Deploy the Work Graph Worker with its Terraform Hyperdrive binding"
+depends = ["install"]
+run = "pnpm run deploy"
+
+[tasks."deploy:check"]
+description = "Build the production Work Graph Worker without uploading it"
+depends = ["install"]
+run = "bash scripts/deploy.sh --dry-run"
+
+[tasks."smoke:production"]
+description = "Exercise the Access-protected production Work Graph queue"
+depends = ["install"]
+run = "bash scripts/smoke-production.sh"
+
+[tasks."test:integration"]
+description = "Test Work Graph HTTP operations against disposable PostgreSQL"
+depends = ["install"]
+run = "pnpm test:integration"
+
+[tasks."test:coverage"]
+description = "Run Work Graph API tests with LCOV coverage"
+depends = ["//:install"]
+run = "pnpm test:coverage"
+
+[tasks."openapi:generate"]
+description = "Generate the committed Work Graph OpenAPI contract"
+depends = ["install"]
+run = "pnpm openapi:generate"
+
+[tasks."lint:api"]
+description = "Check and lint the committed Work Graph OpenAPI contract"
+depends = ["install"]
+run = "pnpm lint:api"
+
+[tasks.check]
+description = "Check the Work Graph API"
+depends = ["typecheck", "test", "lint:api", "deploy:check"]

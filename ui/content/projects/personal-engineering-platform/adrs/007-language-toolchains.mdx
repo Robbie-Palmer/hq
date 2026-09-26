@@ -1,0 +1,42 @@
+---
+title: "ADR 007: TypeScript and Python toolchains"
+date: "2026-09-15"
+status: "Accepted"
+tech_stack:
+  - "pnpm"
+  - "Vitest"
+  - "Biome"
+  - "Husky"
+  - "Knip"
+  - "CodeQL"
+  - "uv"
+  - "Ruff"
+  - "pytest"
+---
+
+## Context
+
+The language defaults need to cover the ordinary edit, check, and test loop,
+not only runtime schema validation. The repository already repeats one
+TypeScript toolchain across the UI, packages, Workers, and evaluation code. Its
+Python environments use locked uv projects with Ruff and pytest.
+
+## Decision
+
+For TypeScript, use pnpm for packages and workspaces, Vitest for tests, Biome
+for formatting and linting, Husky for repository hooks, Knip for unused code
+and dependencies, and CodeQL for semantic security analysis.
+
+For Python, use uv for packages and environments, Ruff for formatting and
+linting, and pytest as the test runner. Keep Pydantic and pytest-cases as the
+existing validation and reusable-test-case choices.
+
+## Consequences
+
+The language layer now describes a usable development loop. Projects can run
+the same locked commands locally and in CI, while mise remains the language
+independent entry point.
+
+Some packages need runner-specific integration, such as workerd tests for
+Cloudflare Workers or CUDA setup for model tests. Those remain local additions.
+The platform selects the default tool, not one universal test environment.

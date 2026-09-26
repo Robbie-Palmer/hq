@@ -44,15 +44,20 @@ description = "Run Playwright QA against an authenticated PR preview"
 depends = ["//ui:test:e2e:install", "//ui:test:e2e:typecheck"]
 run = "pnpm test:e2e:preview"
 
+[tasks."test:e2e:mermaid"]
+description = "Render Mermaid diagrams in light and dark themes with Playwright"
+depends = ["//ui:test:e2e:install", "//ui:test:e2e:typecheck"]
+run = "pnpm test:e2e:mermaid"
+
 [tasks."test:e2e:install"]
-description = "Install Chromium for Playwright preview tests"
+description = "Install Chromium for Playwright tests"
 depends = ["//ui:install"]
 run = "pnpm exec playwright install chromium"
 
 [tasks."test:e2e:typecheck"]
-description = "Typecheck the Playwright preview tests"
+description = "Typecheck the Playwright tests"
 depends = ["//ui:install"]
-run = "pnpm exec tsc --project tsconfig.preview-e2e.json"
+run = "pnpm exec tsc --project tsconfig.e2e.json"
 
 [tasks."audit:satellite-swarm"]
 description = "Audit satellite-swarm payloads, rendering, provenance, and offline requests"
@@ -107,9 +112,14 @@ depends = ["//ui:install"]
 run = "pnpm test:watch"
 
 [tasks.lint]
-description = "Lint and format check with Biome"
+description = "Lint with Biome and the frontend design-system rules"
 depends = ["//ui:install"]
 run = "pnpm lint"
+
+[tasks."lint:design"]
+description = "Lint frontend design-system rules with @shadcn/lint (optionally pass files as args)"
+depends = ["//ui:install"]
+run = "pnpm lint:design"
 
 [tasks.format]
 description = "Format and fix issues with Biome"

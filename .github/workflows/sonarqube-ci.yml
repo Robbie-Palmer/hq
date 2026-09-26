@@ -132,6 +132,8 @@ jobs:
             packages/observability/coverage/lcov.info
             packages/recipe-parsing/coverage/lcov.info
             packages/ts-base/coverage/lcov.info
+            packages/work-graph-cli/coverage/lcov.info
+            packages/work-graph-db/coverage/lcov.info
             packages/work-graph-domain/coverage/lcov.info
             packages/writing-editor-domain/coverage/lcov.info
             ml-pipelines/ai-review-evaluation/coverage/lcov.info
@@ -140,6 +142,7 @@ jobs:
             ml-pipelines/wsi-analysis/coverage.xml
             workers/recipe-api/coverage/lcov.info
             workers/recipe-ingest/coverage/lcov.info
+            workers/work-graph-api/coverage/lcov.info
           if-no-files-found: error
           retention-days: 1
 

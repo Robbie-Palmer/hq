@@ -47,10 +47,11 @@ import {
 
 /**
  * The Asset Tracker API boundary. Every method is async and mirrors the
- * endpoint a Cloudflare Worker + D1 backend would expose (POST /accounts,
- * PUT /balances, ...), so swapping the local implementation for an HTTP
- * client is a drop-in change. While the site is statically generated, the
- * "backend" is the same domain commands run against browser storage.
+ * endpoint a Cloudflare Worker + PostgreSQL backend would expose
+ * (POST /accounts, PUT /balances, ...), so swapping the local implementation
+ * for an HTTP client is a drop-in change. While the site is statically
+ * generated, the "backend" is the same domain commands run against browser
+ * storage.
  */
 export interface AssetTrackerApi {
   load(): Promise<AssetTrackerLoadResult>;

@@ -13,7 +13,7 @@ The recipe site already depends on Large Language Models for the photo-to-recipe
 The pipeline has three distinct LLM stages, OCR extraction from page images (VLM), normalisation
 of raw extraction into Cooklang (LLM), and ingredient disambiguation (cheaper LLM), each with
 different price/performance trade-offs. The current
-[`params.yaml`](https://github.com/Robbie-Palmer/personal-site/blob/main/ml-pipelines/recipe-parsing/params.yaml)
+[`params.yaml`](https://github.com/Robbie-Palmer/hq/blob/main/ml-pipelines/recipe-parsing/params.yaml)
 already mixes Gemini 3 Flash Preview and Gemini 2.5 Flash across these stages.
 
 Beyond ingestion, the [recipe-site roadmap](/projects/recipe-site) lists several
@@ -24,7 +24,7 @@ models the moment they ship, without a code change, a new SDK, a new key, a new 
 relationship, or a new platform to learn.
 
 Today the ML pipeline talks to OpenRouter via the OpenAI SDK
-([`ml-pipelines/recipe-parsing/src/lib/openrouter.ts`](https://github.com/Robbie-Palmer/personal-site/blob/main/ml-pipelines/recipe-parsing/src/lib/openrouter.ts)).
+([`ml-pipelines/recipe-parsing/src/lib/openrouter.ts`](https://github.com/Robbie-Palmer/hq/blob/main/ml-pipelines/recipe-parsing/src/lib/openrouter.ts)).
 This ADR formalises that as the strategic
 choice for **all** LLM/VLM access across the recipe site, pipeline, future Worker-based features,
 and any client-side experimentation, and documents why the alternatives (direct provider SDKs,
@@ -117,7 +117,7 @@ This aligns with:
 
 * **OpenAI-compatible REST API**. Drop-in replacement for the OpenAI SDK by changing `baseURL`.
   Already in use at
-  [`ml-pipelines/recipe-parsing/src/lib/openrouter.ts`](https://github.com/Robbie-Palmer/personal-site/blob/main/ml-pipelines/recipe-parsing/src/lib/openrouter.ts)
+  [`ml-pipelines/recipe-parsing/src/lib/openrouter.ts`](https://github.com/Robbie-Palmer/hq/blob/main/ml-pipelines/recipe-parsing/src/lib/openrouter.ts)
   (see `getOrCreateOpenRouterClient`). First-party SDKs also exist if we ever want them: an
   [official Python SDK](https://github.com/OpenRouterTeam/python-sdk) (currently beta) and an
   [official Vercel AI SDK provider](https://github.com/OpenRouterTeam/ai-sdk-provider)
@@ -367,7 +367,7 @@ Gateways do not remove per-provider account or billing sprawl. They add observab
   prompt-cache pass-through). Semantic caching, which would be a real differentiator, is on
   Cloudflare's roadmap but [not yet shipped](https://developers.cloudflare.com/ai-gateway/features/caching/).
   And the Cloudflare dashboard is not a particularly strong general-purpose observability tool;
-  if we wanted a single pane of glass across the whole product (Workers, D1, AI, business
+  if we wanted a single pane of glass across the whole product (Workers, Neon Postgres, AI, business
   metrics) we'd more likely introduce a dedicated platform like Grafana Cloud. A separate ADR.
 * **Decision**: **Rejected as the primary access layer.** Worth layering in front of OpenRouter
   *later* if user-facing AI features come to depend on guardrails, the one realistic
@@ -480,8 +480,9 @@ A typed `LLMClient` interface in the domain layer with adapters per provider, sw
   OpenRouter has account-level rate limits and the `user` parameter for activity tracking,
   but it isn't a per-user quota engine. At product scale, enforcing "free tier gets N
   ingestions/month, premium tier unlimited", detecting prompt injection / abuse, and
-  per-user budget caps live in our Workers + D1 backend. OpenRouter is the inference layer;
-  the metering and access-control layer is ours to build. If our backend logic isn't enough,
+  per-user budget caps live in our Workers backend and PostgreSQL database on Neon. OpenRouter is
+  the inference layer; the metering and access-control layer is ours to build. If our backend logic
+  isn't enough,
   Cloudflare AI Gateway specifically offers Guardrails (content-safety inspection) as a
   layered option, but per-user budgets, abuse heuristics, and product-shaped rate limits
   remain ours to own either way.

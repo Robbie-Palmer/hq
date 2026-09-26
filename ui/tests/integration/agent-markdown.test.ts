@@ -41,6 +41,7 @@ describe("agent markdown generation", () => {
       "blog.md",
       "recipes.md",
       "satellite-swarm.md",
+      "posthog.md",
       "llms.txt",
       "llms-full.txt",
       "_headers",
@@ -48,6 +49,23 @@ describe("agent markdown generation", () => {
     ]) {
       expect(fs.existsSync(path.join(OUT_DIR, file)), file).toBe(true);
     }
+  });
+
+  it("publishes the PostHog application with direct evidence", () => {
+    const application = read("posthog.md");
+
+    expect(application).toContain("# I want to help products drive themselves");
+    expect(application).toContain("## Direct evidence");
+    expect(application).toContain("## What the weirdness looks like");
+    expect(application).toContain(
+      "## The subjects vary. The passion for building is consistent.",
+    );
+    expect(application).toContain("/images/posthog/knowledge-graph.png");
+    expect(application).toContain(
+      "I used it to coordinate the work on this page",
+    );
+    expect(application).toContain("/projects/agentic-code-review");
+    expect(read("llms.txt")).toContain("https://robbiepalmer.me/posthog.md");
   });
 
   it("generates a markdown twin for every idea page", () => {
@@ -110,12 +128,22 @@ describe("agent markdown generation", () => {
     expect(platform).toContain("backend-api.runtime: preferred");
     expect(platform).toContain("## Default history");
     expect(platform).toContain("### Primary language");
+    expect(platform).toContain("### Source licence");
+    expect(platform).toContain("AGPL-3.0: Accepted");
     expect(platform).toContain(
       "/projects/personal-engineering-platform/adrs/001-language-defaults.md",
     );
     expect(platform).toContain(
       "driven by [personal-knowledge-graph](https://robbiepalmer.me/projects/personal-knowledge-graph.md)",
     );
+  });
+
+  it("includes inherited governance policy in adopter project twins", () => {
+    const recipe = read("projects/recipe-site.md");
+    expect(recipe).toContain(
+      "- Platform policies: Public source, AGPL-3.0, Shared personal-project monorepo",
+    );
+    expect(recipe.match(/Codex/g)).toHaveLength(1);
   });
 
   it("keeps Markdown routes for the previous project slug", () => {
@@ -281,5 +309,21 @@ describe("agent markdown generation", () => {
     expect(headers).toContain("Strict-Transport-Security: max-age=31536000");
     expect(headers).toContain("X-Content-Type-Options: nosniff");
     expect(headers).toContain("X-Frame-Options: DENY");
+  });
+
+  it("merges the PostHog alternate link into its security exception", () => {
+    const headers = read("_headers");
+    const posthogRules = headers.match(/^\/posthog$/gm) ?? [];
+    const posthogRule = headers.split("/posthog\n")[1]?.split("\n\n")[0];
+
+    expect(posthogRules).toHaveLength(1);
+    expect(posthogRule).toContain("! X-Frame-Options");
+    expect(posthogRule).toContain("frame-ancestors 'self'");
+    expect(posthogRule).toContain("https://a.storyblok.com");
+    expect(posthogRule).toContain("https://res.cloudinary.com");
+    expect(posthogRule).toContain("https://ugc.production.linktr.ee");
+    expect(posthogRule).toContain(
+      'Link: <https://robbiepalmer.me/posthog.md>; rel="alternate"; type="text/markdown"',
+    );
   });
 });

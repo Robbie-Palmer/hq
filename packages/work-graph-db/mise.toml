@@ -1,0 +1,37 @@
+[tasks.install]
+description = "Install Work Graph database dependencies"
+run = "pnpm install --frozen-lockfile --filter work-graph-db..."
+
+[tasks.typecheck]
+description = "Typecheck Work Graph persistence"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks."test:integration"]
+description = "Test Work Graph persistence against disposable PostgreSQL"
+depends = ["install"]
+run = "pnpm test:integration"
+
+[tasks."test:coverage"]
+description = "Test Work Graph persistence and write LCOV coverage for SonarQube"
+depends = ["install"]
+run = "pnpm test:coverage"
+
+[tasks."db:check"]
+description = "Validate the Work Graph migration history and schema snapshot"
+depends = ["install"]
+run = "pnpm db:check"
+
+[tasks."db:generate"]
+description = "Generate a Work Graph database migration"
+depends = ["install"]
+run = "pnpm db:generate"
+
+[tasks."db:migrate"]
+description = "Apply committed Work Graph migrations to DATABASE_URL"
+depends = ["install"]
+run = "pnpm db:migrate"
+
+[tasks.check]
+description = "Check Work Graph persistence"
+depends = ["typecheck", "db:check"]

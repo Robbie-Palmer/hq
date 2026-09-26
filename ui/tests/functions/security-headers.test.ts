@@ -42,10 +42,11 @@ describe("Cloudflare Pages security headers", () => {
     expect(policy).toContain("https://*.googleusercontent.com");
   });
 
-  it("allows only presentation routes to render same-origin speaker previews", () => {
+  it("allows only deliberate preview routes to render same-origin frames", () => {
     for (const route of [
       "/projects/:project/deck",
       "/technologies/revealdotjs/deck",
+      "/posthog",
     ]) {
       const rule = headersFile.split(route)[1]?.split("\n\n")[0];
       expect(rule).toContain("! X-Frame-Options");
@@ -53,6 +54,11 @@ describe("Cloudflare Pages security headers", () => {
       expect(rule).toContain("frame-ancestors 'self'");
       expect(rule).not.toContain("frame-ancestors 'none'");
     }
+
+    const posthogRule = headersFile.split("/posthog")[1]?.split("\n\n")[0];
+    expect(posthogRule).toContain("https://a.storyblok.com");
+    expect(posthogRule).toContain("https://res.cloudinary.com");
+    expect(posthogRule).toContain("https://ugc.production.linktr.ee");
   });
 
   it("keeps Cesium runtime permissions across client-side navigation", () => {

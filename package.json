@@ -1,10 +1,10 @@
 {
-  "name": "personal-site",
+  "name": "hq",
   "version": "0.1.0",
-  "packageManager": "pnpm@12.4.1",
+  "packageManager": "pnpm@12.4.2",
   "private": true,
   "type": "module",
-  "description": "Personal website mono-repo - root package for repo-wide tooling",
+  "description": "Root package for projects, writing, infrastructure, and homelab",
   "dependencies": {
     "observability": "workspace:*",
     "recipe-domain": "workspace:*",
@@ -14,9 +14,10 @@
     "prepare": "husky"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.14",
     "@types/node": "^24",
     "husky": "^9.1.7",
-    "knip": "6.35.1",
+    "knip": "6.37.0",
     "lint-staged": "^17.0.0",
     "markdownlint-cli": "^0.49.0",
     "remark-cli": "^12.0.1",
@@ -28,11 +29,18 @@
     "remark-preset-lint-recommended": "^7.0.0",
     "tsx": "^4.23.12",
     "typescript": "^5",
-    "yaml": "2.9.0",
+    "yaml": "2.9.1",
     "yaml-lint": "^1.7.0"
   },
   "lint-staged": {
-    "ui/**/*.{ts,tsx,js,jsx,json}": [
+    "**/*.{ts,tsx,js,jsx,mjs,cjs}": [
+      "mise run //:lint:typescript"
+    ],
+    "ui/**/*.{ts,tsx,js,jsx}": [
+      "mise run //ui:format",
+      "mise run //ui:lint:design"
+    ],
+    "ui/**/*.json": [
       "mise run //ui:format"
     ],
     "infra/public-platform/**/*.tf": [
@@ -49,6 +57,11 @@
       "mise run //infra/remote-development:format",
       "mise run //infra/remote-development:precommit-lint",
       "mise run //infra/remote-development:lint:tflint"
+    ],
+    "infra/work-graph/**/*.tf": [
+      "mise run //infra/work-graph:format",
+      "mise run //infra/work-graph:precommit-lint",
+      "bash -c 'mise run //infra/work-graph:lint:tflint' --"
     ],
     "**/*.md": [
       "mise run //:lint:markdown",

@@ -147,7 +147,7 @@ test("paid OpenRouter completions are never retried by the HTTP client", async (
   const reviewer = new Reviewer({
     githubToken: "github-token",
     openRouterKey: "openrouter-key",
-    repository: "Robbie-Palmer/personal-site",
+    repository: "Robbie-Palmer/hq",
     prNumber: 837,
     openRouterScouts: ["model-a"],
     openCodeScouts: [],
@@ -172,7 +172,7 @@ test("GitHub comment creation is never retried", async () => {
   const reviewer = new Reviewer({
     githubToken: "github-token",
     openRouterKey: "openrouter-key",
-    repository: "Robbie-Palmer/personal-site",
+    repository: "Robbie-Palmer/hq",
     prNumber: 837,
     openRouterScouts: [],
     openCodeScouts: [],
@@ -250,7 +250,7 @@ test("default OpenRouter scouts enforce their model-specific price ceiling", asy
   const reviewer = new Reviewer({
     githubToken: "github-token",
     openRouterKey: "openrouter-key",
-    repository: "Robbie-Palmer/personal-site",
+    repository: "Robbie-Palmer/hq",
     prNumber: 837,
     openRouterScouts: [...expectedByModel.keys()],
     openCodeScouts: [],
@@ -286,7 +286,7 @@ test("default OpenRouter merger enforces its price ceiling and records top-level
   const reviewer = new Reviewer({
     githubToken: "github-token",
     openRouterKey: "openrouter-key",
-    repository: "Robbie-Palmer/personal-site",
+    repository: "Robbie-Palmer/hq",
     prNumber: 837,
     openRouterScouts: [],
     openCodeScouts: [],
@@ -365,7 +365,7 @@ test("review context ignores malformed API scalar values", async () => {
   const reviewer = new Reviewer({
     githubToken: "github-token",
     openRouterKey: "openrouter-key",
-    repository: "Robbie-Palmer/personal-site",
+    repository: "Robbie-Palmer/hq",
     prNumber: 837,
     openRouterScouts: [],
     openCodeScouts: [],

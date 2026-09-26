@@ -9,6 +9,7 @@
     "./errors": "./src/errors.ts",
     "./layered-graph": "./src/layered-graph.ts",
     "./records": "./src/records.ts",
+    "./strings": "./src/strings.ts",
     "./urls": "./src/urls.ts"
   },
   "scripts": {

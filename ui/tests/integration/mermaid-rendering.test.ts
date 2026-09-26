@@ -75,62 +75,6 @@ describe("Visualization browser rendering", () => {
     );
   });
 
-  it("renders the technology demos as visible SVG diagrams", async () => {
-    const page = await browser.newPage();
-    const pageErrors: string[] = [];
-    page.on("pageerror", (error) => pageErrors.push(String(error)));
-
-    try {
-      await page.goto(`${BASE_URL}/technologies/mermaid`, {
-        waitUntil: "domcontentloaded",
-      });
-      await page.waitForFunction(
-        () => document.querySelectorAll(".mermaid-diagram svg").length === 3,
-        { timeout: 20_000 },
-      );
-
-      const diagrams = await page.$$eval(".mermaid-diagram", (containers) =>
-        containers.map((container) => {
-          const svg = container.querySelector("svg");
-          const bounds = svg?.getBoundingClientRect();
-
-          return {
-            error: container.querySelector("pre")?.textContent ?? null,
-            height: bounds?.height ?? 0,
-            text: svg?.textContent ?? "",
-            viewBox: svg?.getAttribute("viewBox") ?? "",
-            width: bounds?.width ?? 0,
-          };
-        }),
-      );
-
-      expect(pageErrors).toEqual([]);
-      expect(diagrams).toHaveLength(3);
-      expect(diagrams.map((diagram) => diagram.error)).toEqual([
-        null,
-        null,
-        null,
-      ]);
-
-      for (const diagram of diagrams) {
-        expect(diagram.viewBox).toMatch(
-          /^\s*[-\d.]+\s+[-\d.]+\s+[\d.]+\s+[\d.]+\s*$/,
-        );
-        expect(diagram.width).toBeGreaterThan(100);
-        expect(diagram.height).toBeGreaterThan(40);
-      }
-
-      expect(diagrams[0]?.text).toContain("Is it working?");
-      expect(diagrams[0]?.text).toContain("Ship it!");
-      expect(diagrams[1]?.text).toContain("POST /api/data");
-      expect(diagrams[1]?.text).toContain("201 Created");
-      expect(diagrams[2]?.text).toContain("Draft");
-      expect(diagrams[2]?.text).toContain("Published");
-    } finally {
-      await page.close();
-    }
-  }, 30_000);
-
   it("enters and exits fullscreen from the Leaflet map control", async () => {
     const page = await browser.newPage();
     const pageErrors: string[] = [];

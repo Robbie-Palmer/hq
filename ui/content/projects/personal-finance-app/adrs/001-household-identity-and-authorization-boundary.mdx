@@ -1,0 +1,47 @@
+---
+title: "ADR 001: Make the household the authorization boundary"
+date: "2026-09-24"
+status: "Proposed"
+---
+
+## Context
+
+Asset Tracker models people, partners, businesses, joint assets, and ownership percentages. Those
+relationships describe finances, but they do not establish identity or consent to access data. A
+person may also participate in more than one household.
+
+The application needs one clear boundary for shared records without making financial ownership
+double as its security model.
+
+## Decision
+
+Use the household as the tenant and authorization boundary. Every private financial record, source
+artifact, and derived result belongs to one household.
+
+Keep application identity, household membership, and financial ownership separate. Membership
+grants a person a role in a household. Ownership percentages and other financial relationships
+remain domain data and never grant application access.
+
+Cross-household access is not implicit. Any future sharing between households, or administrative
+access to household content, must be introduced as a deliberate capability with its own access
+model.
+
+## Consequences
+
+Households can contain joint and partial ownership without making the financial model responsible
+for authorization. The same person can join several households without merging their data.
+
+Every household-owned record and derived result needs household identity. Features that genuinely
+span households will require an explicit sharing model rather than ordinary links between records.
+
+## Alternatives considered
+
+### Use financial ownership as authorization
+
+This was rejected because an ownership percentage does not prove identity, consent, or current
+access. It also cannot represent people who may view or edit records without owning the asset.
+
+### Give each person a separate tenant
+
+This was rejected because joint finances would require copied records or cross-tenant relationships,
+leaving no single boundary for shared calculations and history.

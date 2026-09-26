@@ -67,7 +67,12 @@ jobs:
           files=$(gh api --paginate \
             "repos/$REPO/pulls/$PR_NUMBER/files?per_page=100" \
             --jq '.[].filename')
-          if echo "$files" | grep -qE '^(workers/recipe-(api|ingest)/|functions/|packages/)'; then
+          # Work Graph packages do not feed the site or Recipe Workers.
+          package_files=$(echo "$files" | grep -E '^packages/' || true)
+          backend_package_files=$(echo "$package_files" \
+            | grep -vE '^packages/work-graph-(cli|db|domain)/' || true)
+          if echo "$files" | grep -qE '^(workers/recipe-(api|ingest)/|functions/)' \
+            || [[ -n "$backend_package_files" ]]; then
             echo "Backend-affecting paths changed; provisioning a backend preview."
             echo "backend=true" >> "$GITHUB_OUTPUT"
           else

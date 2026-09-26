@@ -15,7 +15,10 @@ import {
 } from "react";
 import type {
   FilterOption,
+  PaletteBlogPost,
   PaletteIdea,
+  PaletteInitiative,
+  PaletteProject,
   PaletteTechnology,
 } from "@/components/command-palette-types";
 import { Button } from "@/components/ui/button";
@@ -30,7 +33,10 @@ const CommandPaletteDialog = lazy(() =>
 
 export type {
   FilterOption,
+  PaletteBlogPost,
   PaletteIdea,
+  PaletteInitiative,
+  PaletteProject,
   PaletteTechnology,
 } from "@/components/command-palette-types";
 
@@ -83,12 +89,18 @@ interface CommandPaletteProviderProps {
   children: ReactNode;
   technologies?: PaletteTechnology[];
   ideas?: PaletteIdea[];
+  projects?: PaletteProject[];
+  initiatives?: PaletteInitiative[];
+  blogPosts?: PaletteBlogPost[];
 }
 
 export function CommandPaletteProvider({
   children,
   technologies = [],
   ideas = [],
+  projects = [],
+  initiatives = [],
+  blogPosts = [],
 }: Readonly<CommandPaletteProviderProps>) {
   const [open, setOpen] = useState(false);
   const [pageFilters, setPageFilters] = useState<FilterOption[]>([]);
@@ -141,6 +153,9 @@ export function CommandPaletteProvider({
             pageFilters={pageFilters}
             technologies={technologies}
             ideas={ideas}
+            projects={projects}
+            initiatives={initiatives}
+            blogPosts={blogPosts}
           />
         </Suspense>
       )}

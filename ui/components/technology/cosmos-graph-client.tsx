@@ -53,6 +53,7 @@ const NODE_COLORS: Record<string, string> = {
   paper: "#ef4444",
   adr: "#64748b",
   "platform-layer": "#0f766e",
+  "platform-policy": "#7c3aed",
   technology: "#22c55e",
   tag: "#eab308",
 };
@@ -66,6 +67,7 @@ const NODE_TYPE_LABELS: Record<string, string> = {
   paper: "Research papers",
   adr: "ADRs",
   "platform-layer": "Platform layers",
+  "platform-policy": "Platform policies",
   technology: "Technologies",
   tag: "Tags",
 };

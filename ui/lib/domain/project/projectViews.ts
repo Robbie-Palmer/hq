@@ -6,7 +6,10 @@ import type {
   LayerSlug,
   PlatformLayer,
 } from "../platform/platform";
-import type { EffectiveTechnologySource } from "../platform/platformQueries";
+import type {
+  EffectivePolicySource,
+  EffectiveTechnologySource,
+} from "../platform/platformQueries";
 import type { RoleListItemView } from "../role/roleViews";
 import type { TechnologyBadgeView } from "../technology/technologyViews";
 import type { PitchDeck } from "./pitchDeck";
@@ -81,6 +84,8 @@ export type ProjectWithADRsView = {
     adopted: string;
     until?: string;
     tracking: boolean;
+    decision?: string;
+    rationale?: string;
   }>;
   platformTechnologies?: Array<
     TechnologyBadgeView & {
@@ -88,8 +93,25 @@ export type ProjectWithADRsView = {
       layer?: LayerSlug;
       slot?: string;
       decision?: string;
+      policyDecision?: string;
+      originProjects?: string[];
+      evidenceADRs?: string[];
+      adoptionDecision?: string;
+      adoptionRationale?: string;
     }
   >;
+  platformPolicies?: Array<{
+    value: string;
+    source: EffectivePolicySource;
+    layer?: LayerSlug;
+    slot?: string;
+    decision?: string;
+    policyDecision?: string;
+    originProjects?: string[];
+    evidenceADRs?: string[];
+    adoptionDecision?: string;
+    adoptionRationale?: string;
+  }>;
   platformManifest?: {
     layers: PlatformLayer[];
     policies: LayerSlotPolicy[];
@@ -100,7 +122,8 @@ export type ProjectWithADRsView = {
             lifecycleStatus: DefaultSelection["status"] | "Superseded";
           }
         >;
-        users: string[];
+        adopters: string[];
+        layerConsumers: string[];
         overrides: string[];
       }
     >;

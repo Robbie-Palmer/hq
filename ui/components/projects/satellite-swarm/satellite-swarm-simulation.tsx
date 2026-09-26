@@ -22,8 +22,7 @@ import {
 } from "@/lib/api/satellite-swarm-simulation";
 import { LazySatelliteSwarmGlobe } from "./lazy-satellite-swarm-globe";
 
-const SOURCE_REPOSITORY_URL =
-  "https://github.com/Robbie-Palmer/personal-site/commit";
+const SOURCE_REPOSITORY_URL = "https://github.com/Robbie-Palmer/hq/commit";
 
 function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);

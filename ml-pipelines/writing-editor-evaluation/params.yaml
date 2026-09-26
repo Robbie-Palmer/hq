@@ -10,8 +10,17 @@
     "requiredArtifactTypes": ["adr", "project-page"]
   },
   "producers": {
+    "gector": {
+      "batchSize": 8,
+      "iterations": 5,
+      "maxTokens": 50,
+      "minTokens": 3,
+      "minErrorProbability": 0.65,
+      "minTokenProbability": 0.0,
+      "additionalConfidence": 0.1
+    },
     "vale": {
-      "binaryVersion": "3.20.0",
+      "binaryVersion": "3.21.0",
       "timeoutMs": 300000
     }
   },

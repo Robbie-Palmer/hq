@@ -1,0 +1,75 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "off"
+  },
+  "plugins": [],
+  "jsPlugins": ["@shadcn/lint"],
+  "ignorePatterns": [
+    "content/projects/recipe-site/designs/**",
+    "e2e/**",
+    "tests/**"
+  ],
+  "rules": {
+    "shadcn/no-raw-colors": "error",
+    "shadcn/no-unknown-classes": [
+      "error",
+      {
+        "allow": ["not-prose", "toaster"]
+      }
+    ],
+    "shadcn/require-static-classes": "error"
+  },
+  "overrides": [
+    {
+      "files": [
+        "app/(site)/ideas/page.tsx",
+        "app/(site)/projects/**/adrs/**/page.tsx",
+        "app/satellite-swarm/**",
+        "components/assettracker/**",
+        "components/experience/experience-card.tsx",
+        "components/projects/satellite-swarm/**",
+        "components/technology/cesium/**",
+        "components/ui/tech-icon-orbit.tsx"
+      ],
+      "rules": {
+        "shadcn/no-raw-colors": "off"
+      }
+    },
+    {
+      "files": ["components/projects/pitch-deck/**"],
+      "rules": {
+        "shadcn/no-unknown-classes": "off"
+      }
+    },
+    {
+      "files": ["app/recipes/**", "components/recipes/**"],
+      "rules": {
+        "shadcn/no-raw-colors": [
+          "error",
+          {
+            "message": "Use a recipe color token from app/recipes/recipe-theme.css instead of {{className}}."
+          }
+        ],
+        "shadcn/no-unknown-classes": [
+          "error",
+          {
+            "allow": ["recipe-*", "rt-*"],
+            "message": "Unknown recipe class {{className}}. Use Tailwind or declare it in app/recipes/recipe-theme.css."
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "components/initiatives/initiative-status-badge.tsx",
+        "components/projects/adr-badge.tsx",
+        "components/projects/project-status-badge.tsx",
+        "components/ui/**"
+      ],
+      "rules": {
+        "shadcn/require-static-classes": "off"
+      }
+    }
+  ]
+}

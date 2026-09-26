@@ -30,7 +30,7 @@ const params: ReviewWorkflowParams = {
   deliveryId: "delivery-1",
   eventName: "pull_request",
   action: "synchronize",
-  repository: "Robbie-Palmer/personal-site",
+  repository: "Robbie-Palmer/hq",
   pullRequestNumber: 42,
   headSha: HEAD_SHA,
   force: false,
@@ -1607,7 +1607,7 @@ describe("stateful review engine", () => {
       if (url.pathname === "/app/installations/456/access_tokens") {
         return json({ token: "installation-token" });
       }
-      if (url.pathname === "/repos/Robbie-Palmer/personal-site/pulls/42") {
+      if (url.pathname === "/repos/Robbie-Palmer/hq/pulls/42") {
         return json({
           state: "open",
           draft: false,

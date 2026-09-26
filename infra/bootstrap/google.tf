@@ -40,7 +40,8 @@ resource "google_project_iam_audit_config" "all_services" {
 }
 
 locals {
-  github_repository = "${var.github_repo_owner}/${var.github_repo_name}"
+  github_repository          = "${var.github_repo_owner}/${var.github_repo_name}"
+  github_oidc_subject_prefix = "repo:${var.github_repo_owner}@${var.github_repo_owner_id}/${var.github_repo_name}@${var.github_repo_id}"
 
   gcp_required_services = toset([
     "cloudresourcemanager.googleapis.com",
@@ -50,8 +51,8 @@ locals {
     "sts.googleapis.com",
   ])
 
-  github_actions_principal      = "principal://iam.googleapis.com/projects/${google_project.recipes.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.github_actions.workload_identity_pool_id}/subject/repo:${local.github_repository}:environment:production-infra-bootstrap"
-  github_actions_plan_principal = "principal://iam.googleapis.com/projects/${google_project.recipes.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.github_actions.workload_identity_pool_id}/subject/repo:${local.github_repository}:environment:production-infra-bootstrap-plan"
+  github_actions_principal      = "principal://iam.googleapis.com/projects/${google_project.recipes.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.github_actions.workload_identity_pool_id}/subject/${local.github_oidc_subject_prefix}:environment:production-infra-bootstrap"
+  github_actions_plan_principal = "principal://iam.googleapis.com/projects/${google_project.recipes.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.github_actions.workload_identity_pool_id}/subject/${local.github_oidc_subject_prefix}:environment:production-infra-bootstrap-plan"
 }
 
 resource "google_project_service" "required" {

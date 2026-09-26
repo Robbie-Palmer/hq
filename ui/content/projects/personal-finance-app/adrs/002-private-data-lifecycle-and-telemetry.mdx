@@ -1,0 +1,53 @@
+---
+title: "ADR 002: Limit copies of financial content"
+date: "2026-09-24"
+status: "Proposed"
+---
+
+## Context
+
+Balances, transaction text, account names, tax assumptions, forecasts, imports, and calculation
+inputs are sensitive financial content. Copying that content into logs, analytics, exports, or
+temporary processing stores creates additional places where it can outlive its purpose.
+
+Asset Tracker still needs operational telemetry, source provenance, portable exports, and a way to
+delete a household. Its immutable financial history must not become an excuse to retain personal
+data after the household is deleted.
+
+## Decision
+
+Keep financial content inside storage governed by household access and lifecycle rules. Product
+analytics and general operational telemetry may contain non-financial metadata, but they will not
+receive financial values, user-entered financial text, source documents, or stable domain
+identifiers that reconstruct a household's activity.
+
+Retain source material and calculation lineage only where they support the product's explanation and
+reproducibility guarantees. Retention periods and redaction mechanics belong in operating policy,
+where they can change without revising the architecture.
+
+Provide a machine-readable export of the household's financial records, history, and lineage.
+Deleting a household removes its personal financial content, including immutable history and stored
+copies outside the primary database. Immutability governs changes while data is active; it does not
+override deletion.
+
+## Consequences
+
+Operational systems cannot become a second financial datastore, and household data remains portable
+and deletable. The application will collect less detailed product analytics than a system that emits
+domain activity to an analytics provider.
+
+Complete export and deletion require an inventory of every store that may hold financial content.
+Some historical calculations may become irreproducible after their retained source material is
+deleted, and the product must represent that honestly.
+
+## Alternatives considered
+
+### Send financial domain activity to analytics
+
+This would support richer product analysis. It was rejected because even structured transaction and
+calculation events can reveal a household's financial behaviour without obvious personal fields.
+
+### Exempt immutable history from deletion
+
+This would preserve every audit trail. It was rejected because immutable financial records remain
+personal data. Their storage model does not give them a separate lifecycle from the household.

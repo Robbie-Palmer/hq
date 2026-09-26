@@ -1,8 +1,30 @@
 import { describe, expect, it } from "vitest";
 import {
   formatExperienceDateRange,
+  getAllExperience,
   getExperienceDuration,
 } from "@/lib/api/experience";
+
+describe("getAllExperience", () => {
+  it("shows the Terminal Industries role transition", () => {
+    const terminalIndustries = getAllExperience().find(
+      ({ company }) => company === "Terminal Industries",
+    );
+
+    expect(terminalIndustries).toMatchObject({
+      title: "Principal Software Engineer & Engineering Manager",
+      startDate: "2024-05",
+      previousTitles: [
+        {
+          title: "Principal Software Engineer",
+          startDate: "2024-05",
+          endDate: "2026-03",
+        },
+      ],
+    });
+    expect(terminalIndustries?.endDate).toBeUndefined();
+  });
+});
 
 describe("formatExperienceDateRange", () => {
   it("formats a closed range", () => {

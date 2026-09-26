@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { PlatformManifest } from "@/components/projects/platform-manifest";
 import { PlatformSummary } from "@/components/projects/platform-summary";
@@ -6,7 +6,7 @@ import { getProjectWithADRs } from "@/lib/domain/project/projectQueries";
 import { loadDomainRepository } from "@/lib/repository";
 
 describe("project platform components", () => {
-  it("renders the platform's layers, defaults, users, and overrides", () => {
+  it("renders the platform's layers, defaults, adopters, consumers, and overrides", () => {
     const repository = loadDomainRepository();
     const project = getProjectWithADRs(
       repository,
@@ -25,10 +25,58 @@ describe("project platform components", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Backend API" })).toBeVisible();
     expect(screen.getAllByText("preferred").length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Users:/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Adopters:/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Layer consumers:/).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("link", { name: "decision" })).toHaveLength(
       project.platformManifest.slots.flatMap((slot) => slot.selections).length,
     );
+    expect(
+      screen.getAllByRole("link", {
+        name: "personal-knowledge-graph:000-github-public-repo",
+      }).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText(/originated in/).length).toBeGreaterThan(0);
+  });
+
+  it("keeps adopters and layer consumers under their labels", () => {
+    const project = getProjectWithADRs(
+      loadDomainRepository(),
+      "personal-engineering-platform",
+    );
+    expect(project?.platformManifest).toBeDefined();
+    if (!project?.platformManifest) return;
+    const slot = project.platformManifest.slots.find(
+      (candidate) => candidate.slug === "backend-api.runtime",
+    );
+    expect(slot).toBeDefined();
+    if (!slot) return;
+
+    render(
+      <PlatformManifest
+        manifest={{
+          ...project.platformManifest,
+          slots: [
+            {
+              ...slot,
+              selections: [],
+              adopters: ["adopter-fixture"],
+              layerConsumers: ["layer-consumer-fixture"],
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(
+      within(screen.getByText(/Adopters:/)).getByRole("link", {
+        name: "adopter-fixture",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByText(/Layer consumers:/)).getByRole("link", {
+        name: "layer-consumer-fixture",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("renders adopted layers and expandable platform technologies", () => {
@@ -39,12 +87,24 @@ describe("project platform components", () => {
     const { container } = render(
       <PlatformSummary
         builtOn={project.builtOn}
+        platformPolicies={project.platformPolicies}
         platformTechnologies={project.platformTechnologies}
       />,
     );
 
     expect(screen.getByLabelText("Platform")).toHaveTextContent("Built on");
     expect(screen.getByText(/platform technologies/)).toBeVisible();
+    expect(screen.getByText(/platform policies/)).toBeVisible();
+    expect(screen.getByText("Adoption provenance")).toBeVisible();
+    expect(screen.getByText("AGPL-3.0")).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("link", { name: "adoption" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole("link", {
+        name: "recipe-site:033-backend-platform-for-authenticated-features",
+      }).length,
+    ).toBeGreaterThan(0);
     expect(container.querySelectorAll("a").length).toBeGreaterThan(1);
   });
 

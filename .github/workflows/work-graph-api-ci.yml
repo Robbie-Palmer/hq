@@ -1,0 +1,35 @@
+name: Work Graph API CI
+
+on:
+  pull_request:
+    paths:
+      - "api-governance/**"
+      - "packages/work-graph-cli/**"
+      - "packages/work-graph-db/**"
+      - "packages/work-graph-domain/**"
+      - "workers/work-graph-api/**"
+      - ".github/actions/setup-mise/**"
+      - ".github/workflows/work-graph-api-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Check TypeScript, scenarios, and generated OpenAPI
+        run: mise run //workers/work-graph-api:check
+
+      - name: Check generated client and schema drift, then the installable CLI
+        run: mise run //packages/work-graph-cli:check
+
+      - name: Test REST behavior against PostgreSQL
+        run: mise run //workers/work-graph-api:test:integration

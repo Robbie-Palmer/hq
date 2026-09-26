@@ -2,7 +2,7 @@
 title: "Autonomic Satellite Swarm"
 description: "A revived C++ research prototype for fail-safe coordination across hardware-independent satellite-swarm agents"
 date: "2019-07-30"
-updated: "2026-09-13"
+updated: "2026-09-25"
 ideas:
   - "two-generals-problem"
   - "flp-impossibility"
@@ -16,7 +16,7 @@ tech_stack:
   - "Emscripten"
   - "WebAssembly"
   - "GitHub Actions"
-repo_url: "https://github.com/Robbie-Palmer/personal-site/tree/main/cpp/autonomic-satellite-swarm"
+repo_url: "https://github.com/Robbie-Palmer/hq/tree/main/cpp/autonomic-satellite-swarm"
 demo_url: "https://robbiepalmer.me/satellite-swarm"
 paper_url: "https://doi.org/10.1109/SMC-IT.2019.00015"
 paper_title: "Autonomic Providing Pre-Programmed Death of Cubesats for Avoiding Space JUNK"
@@ -172,7 +172,7 @@ anomaly kept one craft out of the autonomy experiment, so its distributed planne
 three-node network and tolerated periods in which they did not hold the same plan. That is a better
 model for the next simulation than an always-connected cluster.
 
-The [full research note](https://github.com/Robbie-Palmer/personal-site/blob/main/cpp/autonomic-satellite-swarm/docs/distributed-coordination-research.md)
+The [full research note](https://github.com/Robbie-Palmer/hq/blob/main/cpp/autonomic-satellite-swarm/docs/distributed-coordination-research.md)
 turns these results into a sequence of experiments. The deterministic simulator can now drop,
 delay, or duplicate a selected delivery, change one-way links, and reset a node. The browser exposes
 the first experiment: it drops the winning assignment to show that the leader records an assignee
@@ -225,8 +225,9 @@ validity remain outside the current evidence boundary.
    groups), event-storm, and biased-telemetry experiments in a richer simulator.
 6. Evaluate policy changes through replay, independent adversarial review, shadow operation,
    limited canaries, authenticated rollout, and explicit rollback instead of live self-modification.
-7. Test the proposed qrpTracker PLAN-13 propagator on the Uno and compare it with GMAT or Orekit.
-   Separately define what a defensible mission-cost model would need to prove.
+7. Add deterministic SGP4 orbit propagation to the C++ simulation and replay a full orbit at
+   variable display speeds. Separately define what a defensible mission-cost model would need to
+   prove.
 8. Select physical boards and radios only when there is a concrete experiment to run.
 9. Add hardware-in-the-loop tests, authenticated messages, persistent identity, and reset recovery
    before treating the system as more than a bench prototype.

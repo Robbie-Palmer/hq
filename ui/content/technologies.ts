@@ -60,6 +60,28 @@ export const technologies: TechnologyContent[] = [
     type: "language",
   },
   {
+    name: "uv",
+    added: "2026-09-15",
+    description:
+      "Python package and environment manager with a locked workflow",
+    website: "https://docs.astral.sh/uv/",
+    type: "tool",
+  },
+  {
+    name: "Ruff",
+    added: "2026-09-15",
+    description: "Python linter and formatter",
+    website: "https://docs.astral.sh/ruff/",
+    type: "tool",
+  },
+  {
+    name: "pytest",
+    added: "2026-09-15",
+    description: "Python test framework based on fixtures and plain assertions",
+    website: "https://docs.pytest.org/",
+    type: "library",
+  },
+  {
     name: "Pydantic",
     added: "2026-09-12",
     description: "Typed data validation and settings management for Python",
@@ -86,6 +108,13 @@ export const technologies: TechnologyContent[] = [
     description: "Modern unit testing for JS/TS with a familiar Jest-style API",
     website: "https://vitest.dev",
     type: "library",
+  },
+  {
+    name: "Biome",
+    added: "2026-09-15",
+    description: "Formatter and linter for JavaScript and TypeScript projects",
+    website: "https://biomejs.dev/",
+    type: "tool",
   },
   {
     name: "Vale",
@@ -298,6 +327,14 @@ Diff operations can set an edit-distance or time limit. The function returns no 
     type: "tool",
   },
   {
+    name: "Agentic Code Review",
+    added: "2026-09-15",
+    description:
+      "Stateful, model-agnostic Pull Request review with retained findings and evaluation data",
+    website: "https://robbiepalmer.me/projects/agentic-code-review",
+    type: "tool",
+  },
+  {
     name: "Greptile",
     added: "2026-06-20",
     description: "AI code reviewer with whole-codebase context",
@@ -390,6 +427,14 @@ Diff operations can set an edit-distance or time limit. The function returns no 
     description:
       "Zero Trust access control for internal and preview applications",
     website: "https://www.cloudflare.com/zero-trust/products/access/",
+    iconSlug: "cloudflare",
+    type: "platform",
+  },
+  {
+    name: "Cloudflare Queues",
+    added: "2026-09-22",
+    description: "Managed message queues for asynchronous Worker processing",
+    website: "https://developers.cloudflare.com/queues/",
     iconSlug: "cloudflare",
     type: "platform",
   },
@@ -567,6 +612,14 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     type: "library",
   },
   {
+    name: "SGP4",
+    added: "2026-09-20",
+    description:
+      "Analytical orbit propagation model with reference C++ source and test vectors",
+    website: "https://celestrak.org/publications/AIAA/2006-6753/",
+    type: "library",
+  },
+  {
     name: "Bitbucket Pipelines",
     added: "2026-01-04",
     description: "CI/CD service built into Bitbucket",
@@ -644,6 +697,13 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     website: "https://dvc.org",
     type: "tool",
     ideas: ["directed-acyclic-graph"],
+  },
+  {
+    name: "ModelPack",
+    added: "2026-09-14",
+    description: "OCI-based format specification for AI and ML model packages",
+    website: "https://modelpack.org",
+    type: "tool",
   },
   {
     name: "DuckDB",

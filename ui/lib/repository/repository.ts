@@ -35,6 +35,7 @@ import {
   compareUtcInstants,
   type DefaultOverride,
   DefaultOverrideSchema,
+  type DefaultSelection,
   type PlatformManifest,
   PlatformManifestSchema,
   type ProjectLayerUse,
@@ -602,11 +603,15 @@ export function loadProjects(): ProjectLoadResult {
           adopted: use.adopted,
           until: use.until,
           tracking: use.tracking,
+          decision: use.decision,
+          rationale: use.rationale,
           slots: Array.isArray(use.slots)
             ? use.slots.map((slot: Record<string, unknown>) => ({
                 slot: slot.slot,
                 adopted: slot.adopted,
                 until: slot.until,
+                decision: slot.decision,
+                rationale: slot.rationale,
               }))
             : [],
         })),
@@ -674,6 +679,32 @@ interface ADRLoadResult {
   aliases: Map<ADRRef, ADRRef>;
 }
 
+function parseDefaultOverride(value: unknown): DefaultOverride | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const override = value as Record<string, unknown>;
+  if (
+    override.kind === "policy" ||
+    (override.kind === undefined && override.value !== undefined)
+  ) {
+    return DefaultOverrideSchema.parse({
+      slot: override.slot,
+      kind: "policy",
+      value: override.value,
+      adopted: override.adopted,
+      until: override.until,
+    });
+  }
+  return DefaultOverrideSchema.parse({
+    slot: override.slot,
+    kind: "technology",
+    technology: normalizeSlug(String(override.technology)),
+    adopted: override.adopted,
+    until: override.until,
+  });
+}
+
 export function loadADRs(): ADRLoadResult {
   const entities = new Map<ADRRef, ADR>();
   const relations = new Map<ADRRef, ADRRelations>();
@@ -731,14 +762,7 @@ export function loadADRs(): ADRLoadResult {
         status: data.status as ADR["status"],
         inheritsFrom: undefined,
         supersedes: data.supersedes as ADRRef | undefined,
-        overridesDefault: data.overrides_default
-          ? DefaultOverrideSchema.parse({
-              slot: data.overrides_default.slot,
-              technology: normalizeSlug(data.overrides_default.technology),
-              adopted: data.overrides_default.adopted,
-              until: data.overrides_default.until,
-            })
-          : undefined,
+        overridesDefault: parseDefaultOverride(data.overrides_default),
         content,
         readingTime: readingTime(content).text,
       };
@@ -933,13 +957,27 @@ export function loadPlatformManifest(): PlatformManifest | undefined {
       effectiveUntil: policy.effective_until,
     })),
     selections: records(data.selections).map(
-      (selection: Record<string, unknown>) => ({
-        ...selection,
-        technology: normalizeSlug(String(selection.technology)),
-        originProjects: selection.origin_projects ?? [],
-        effectiveFrom: selection.effective_from,
-        effectiveUntil: selection.effective_until,
-      }),
+      (selection: Record<string, unknown>) =>
+        selection.kind === "policy" ||
+        (selection.kind === undefined && selection.value !== undefined)
+          ? {
+              ...selection,
+              kind: "policy",
+              value: selection.value,
+              originProjects: selection.origin_projects ?? [],
+              evidenceADRs: selection.evidence_adrs ?? [],
+              effectiveFrom: selection.effective_from,
+              effectiveUntil: selection.effective_until,
+            }
+          : {
+              ...selection,
+              kind: "technology",
+              technology: normalizeSlug(String(selection.technology)),
+              originProjects: selection.origin_projects ?? [],
+              evidenceADRs: selection.evidence_adrs ?? [],
+              effectiveFrom: selection.effective_from,
+              effectiveUntil: selection.effective_until,
+            },
     ),
   };
   const result = PlatformManifestSchema.safeParse(manifest);
@@ -1011,22 +1049,103 @@ function validatePlatformSelections(
   checkTech: TechnologyReferenceCheck,
 ): void {
   for (const selection of manifest.selections) {
-    checkTech(
-      selection.technology,
-      `DefaultSelection[${selection.id}]`,
-      "technology",
-    );
-    for (const projectSlug of selection.originProjects) {
-      if (!input.projects.has(projectSlug)) {
-        errors.push({
-          type: "missing_reference",
-          entity: `DefaultSelection[${selection.id}]`,
-          field: "originProjects",
-          value: projectSlug,
-          message: `Selection '${selection.id}' references missing origin project '${projectSlug}'`,
-        });
-      }
+    if (selection.kind === "technology") {
+      checkTech(
+        selection.technology,
+        `DefaultSelection[${selection.id}]`,
+        "technology",
+      );
     }
+    validateSelectionOrigins(input, selection, errors);
+    validateSelectionEvidence(input, selection, errors);
+  }
+}
+
+function validateSelectionOrigins(
+  input: ValidationInput,
+  selection: DefaultSelection,
+  errors: ReferentialIntegrityError[],
+): void {
+  for (const projectSlug of selection.originProjects) {
+    if (!input.projects.has(projectSlug)) {
+      errors.push({
+        type: "missing_reference",
+        entity: `DefaultSelection[${selection.id}]`,
+        field: "originProjects",
+        value: projectSlug,
+        message: `Selection '${selection.id}' references missing origin project '${projectSlug}'`,
+      });
+    }
+  }
+}
+
+function validateSelectionEvidence(
+  input: ValidationInput,
+  selection: DefaultSelection,
+  errors: ReferentialIntegrityError[],
+): void {
+  const evidenceProjects = new Set<ProjectSlug>();
+  for (const adrRef of selection.evidenceADRs) {
+    const adr = input.adrs.get(adrRef);
+    if (!adr) {
+      errors.push({
+        type: "missing_reference",
+        entity: `DefaultSelection[${selection.id}]`,
+        field: "evidenceADRs",
+        value: adrRef,
+        message: `Selection '${selection.id}' references missing evidence ADR '${adrRef}'`,
+      });
+      continue;
+    }
+    evidenceProjects.add(adr.projectSlug);
+    if (!selection.originProjects.includes(adr.projectSlug)) {
+      errors.push({
+        type: "invalid_reference",
+        entity: `DefaultSelection[${selection.id}]`,
+        field: "evidenceADRs",
+        value: adrRef,
+        message: `Selection '${selection.id}' evidence ADR '${adrRef}' does not belong to an origin project`,
+      });
+    }
+  }
+  for (const projectSlug of selection.originProjects) {
+    if (!evidenceProjects.has(projectSlug)) {
+      errors.push({
+        type: "invalid_reference",
+        entity: `DefaultSelection[${selection.id}]`,
+        field: "originProjects",
+        value: projectSlug,
+        message: `Selection '${selection.id}' has no evidence ADR from origin project '${projectSlug}'`,
+      });
+    }
+  }
+}
+
+function validateAdoptionDecision(
+  input: ValidationInput,
+  projectSlug: ProjectSlug,
+  entity: string,
+  decision: ADRRef | undefined,
+  errors: ReferentialIntegrityError[],
+): void {
+  if (!decision) return;
+  const adr = input.adrs.get(decision);
+  if (!adr) {
+    errors.push({
+      type: "missing_reference",
+      entity,
+      field: "decision",
+      value: decision,
+      message: `${entity} references missing adoption ADR '${decision}'`,
+    });
+  } else if (adr.projectSlug !== projectSlug) {
+    errors.push({
+      type: "invalid_reference",
+      entity,
+      field: "decision",
+      value: decision,
+      message: `${entity} adoption ADR '${decision}' belongs to project '${adr.projectSlug}'`,
+    });
   }
 }
 
@@ -1039,6 +1158,8 @@ function validateProjectLayerUse(
   slotSlugs: ReadonlySet<string>,
   errors: ReferentialIntegrityError[],
 ): void {
+  const entity = `Project[${projectSlug}].platformLayers[${use.layer}]`;
+  validateAdoptionDecision(input, projectSlug, entity, use.decision, errors);
   if (!layerSlugs.has(use.layer)) {
     errors.push({
       type: "missing_reference",
@@ -1058,6 +1179,13 @@ function validateProjectLayerUse(
     });
   }
   for (const slotUse of use.slots) {
+    validateAdoptionDecision(
+      input,
+      projectSlug,
+      `${entity}.slots[${slotUse.slot}]`,
+      slotUse.decision,
+      errors,
+    );
     if (!slotSlugs.has(slotUse.slot)) {
       errors.push({
         type: "missing_reference",
@@ -1135,7 +1263,21 @@ function validatePlatformOverrides(
         message: `ADR '${adrRef}' overrides missing slot '${override.slot}'`,
       });
     }
-    checkTech(override.technology, `ADR[${adrRef}]`, "overridesDefault");
+    if (override.kind === "technology") {
+      checkTech(override.technology, `ADR[${adrRef}]`, "overridesDefault");
+    }
+    const slot = manifest.slots.find(
+      (candidate) => candidate.slug === override.slot,
+    );
+    if (slot && slot.kind !== override.kind) {
+      errors.push({
+        type: "invalid_reference",
+        entity: `ADR[${adrRef}]`,
+        field: "overridesDefault",
+        value: override.slot,
+        message: `ADR '${adrRef}' override kind '${override.kind}' does not match slot '${override.slot}' kind '${slot.kind}'`,
+      });
+    }
     const owningLayers = new Set(
       manifest.policies
         .filter((policy) => policy.slot === override.slot)

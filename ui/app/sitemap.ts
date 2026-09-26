@@ -118,6 +118,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: new Date().toISOString(),
       priority: 0.6,
     },
+    {
+      url: `${siteConfig.url}/posthog`,
+      lastModified: new Date().toISOString(),
+      priority: 0.5,
+    },
     ...blogPosts,
     ...initiativePages,
     ...projectPages,

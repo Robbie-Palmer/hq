@@ -1,10 +1,13 @@
 import { z } from "zod";
 
 import { FindingIdSchema, FindingSchema } from "writing-editor-domain/findings";
+import { ProposalIdSchema, ProposalSchema } from "writing-editor-domain/proposals";
 import {
   ContentHashSchema,
   ProducerSchema,
   SourceReferenceSchema,
+  SuggestionIdSchema,
+  SuggestionSchema,
 } from "writing-editor-domain/suggestions";
 
 export const ArtifactTypeSchema = z.enum(["adr", "project-page"]);
@@ -34,6 +37,8 @@ const SourceEntrySchema = z.object({
   artifactId: ArtifactIdSchema,
   artifactType: ArtifactTypeSchema,
   path: RepositoryPathSchema,
+  sourcePath: RepositoryPathSchema.optional(),
+  publishedPath: RepositoryPathSchema.optional(),
   sourceRevision: GitCommitSchema,
   publishedRevision: GitCommitSchema,
   outcomeStatus: z.literal("unrecorded"),
@@ -108,6 +113,15 @@ export const PipelineParamsSchema = z.object({
     ),
   }).strict(),
   producers: z.object({
+    gector: z.object({
+      batchSize: z.number().int().positive(),
+      iterations: z.number().int().positive(),
+      maxTokens: z.number().int().positive().max(100),
+      minTokens: z.number().int().positive(),
+      minErrorProbability: z.number().min(0).max(1),
+      minTokenProbability: z.number().min(0).max(1),
+      additionalConfidence: z.number().min(0).max(1),
+    }).strict(),
     vale: z.object({
       binaryVersion: z.string().regex(/^\d+\.\d+\.\d+$/),
       timeoutMs: z.number().int().positive(),
@@ -379,6 +393,151 @@ export const ValeProducerRunSchema = ValeProducerRunBaseSchema.superRefine((run,
   validateValeSummary(run, context);
 });
 export type ValeProducerRun = z.infer<typeof ValeProducerRunSchema>;
+
+const GectorGeneratedSchema = z.object({
+  file: RepositoryPathSchema,
+  contentHash: ContentHashSchema,
+  correctedLines: z.array(z.number().int().positive()),
+  iterationUpdates: z.number().int().nonnegative(),
+}).strict().superRefine((generated, context) => {
+  if (new Set(generated.correctedLines).size !== generated.correctedLines.length) {
+    context.addIssue({
+      code: "custom",
+      message: "corrected line numbers must be unique",
+      path: ["correctedLines"],
+    });
+  }
+});
+
+const GectorArtifactResultSchema = z.object({
+  artifactId: ArtifactIdSchema,
+  artifactType: ArtifactTypeSchema,
+  split: SplitSchema,
+  source: SourceReferenceSchema,
+  generated: GectorGeneratedSchema,
+  suggestionIds: z.array(SuggestionIdSchema),
+  suggestions: z.array(SuggestionSchema),
+  proposalIds: z.array(ProposalIdSchema),
+  proposals: z.array(ProposalSchema),
+}).strict().superRefine((artifact, context) => {
+  const suggestionIds = artifact.suggestions.map(({ suggestionId }) => suggestionId);
+  if (
+    artifact.suggestionIds.length !== suggestionIds.length ||
+    artifact.suggestionIds.some((id, index) => id !== suggestionIds[index])
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "suggestionIds must match suggestions in output order",
+      path: ["suggestionIds"],
+    });
+  }
+  const proposalIds = artifact.proposals.map(({ proposalId }) => proposalId);
+  if (
+    artifact.proposalIds.length !== proposalIds.length ||
+    artifact.proposalIds.some((id, index) => id !== proposalIds[index])
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "proposalIds must match proposals in output order",
+      path: ["proposalIds"],
+    });
+  }
+  const proposalSuggestionIds = artifact.proposals.flatMap(({ suggestionIds: ids }) => ids);
+  if (
+    proposalSuggestionIds.length !== suggestionIds.length ||
+    new Set(proposalSuggestionIds).size !== suggestionIds.length ||
+    suggestionIds.some((id) => !proposalSuggestionIds.includes(id))
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "proposals must contain every suggestion exactly once",
+      path: ["proposals"],
+    });
+  }
+  const suggestionsById = new Map(
+    artifact.suggestions.map((suggestion) => [suggestion.suggestionId, suggestion]),
+  );
+  for (const [proposalIndex, proposal] of artifact.proposals.entries()) {
+    for (const [suggestionIndex, suggestion] of proposal.suggestions.entries()) {
+      const expected = suggestionsById.get(suggestion.suggestionId);
+      if (expected === undefined || JSON.stringify(expected) !== JSON.stringify(suggestion)) {
+        context.addIssue({
+          code: "custom",
+          message: "proposal suggestions must match the top-level suggestion records",
+          path: ["proposals", proposalIndex, "suggestions", suggestionIndex],
+        });
+      }
+    }
+  }
+  for (const [index, suggestion] of artifact.suggestions.entries()) {
+    if (
+      suggestion.source.documentId !== artifact.source.documentId ||
+      suggestion.source.revision !== artifact.source.revision ||
+      suggestion.source.contentHash !== artifact.source.contentHash
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "each suggestion source must match the containing artifact source",
+        path: ["suggestions", index, "source"],
+      });
+    }
+  }
+});
+
+const GectorSummarySchema = z.object({
+  artifacts: z.number().int().positive(),
+  artifactsWithSuggestions: z.number().int().nonnegative(),
+  suggestions: z.number().int().nonnegative(),
+  proposals: z.number().int().nonnegative(),
+}).strict();
+
+export const GectorProducerRunSchema = z.object({
+  schemaVersion: z.literal(1),
+  recordType: z.literal("writing-editor-gector-producer-run"),
+  runId: z.string().regex(/^producer-run:v1:[a-f0-9]{64}$/),
+  cohortId: z.string().regex(/^cohort:v1:[a-f0-9]{64}$/),
+  producer: ProducerSchema,
+  model: z.object({
+    checkpointContentHash: ContentHashSchema,
+    manifestContentHash: ContentHashSchema,
+  }).strict(),
+  runtime: z.object({
+    pythonVersion: z.literal("3.12.12"),
+    torchVersion: z.literal("2.11.0+cu128"),
+    transformersVersion: z.literal("5.17.0"),
+    cudaVersion: z.literal("12.8"),
+    device: z.literal("cuda"),
+    computeCapability: z.string().regex(/^\d+\.\d+$/),
+    lockContentHash: ContentHashSchema,
+    adapterRevision: z.literal(1),
+  }).strict(),
+  parameters: PipelineParamsSchema.shape.producers.shape.gector,
+  artifacts: z.array(GectorArtifactResultSchema).min(1),
+  summary: GectorSummarySchema,
+}).strict().superRefine((run, context) => {
+  const artifactIds = run.artifacts.map(({ artifactId }) => artifactId);
+  if (new Set(artifactIds).size !== artifactIds.length) {
+    context.addIssue({ code: "custom", message: "producer artifact IDs must be unique" });
+  }
+  const suggestions = run.artifacts.flatMap((artifact) => artifact.suggestions);
+  if (suggestions.some((suggestion) =>
+    suggestion.producer.id !== run.producer.id ||
+    suggestion.producer.version !== run.producer.version
+  )) {
+    context.addIssue({ code: "custom", message: "suggestion producer must match the run" });
+  }
+  const expected = {
+    artifacts: run.artifacts.length,
+    artifactsWithSuggestions: run.artifacts.filter(({ suggestions: records }) => records.length > 0)
+      .length,
+    suggestions: suggestions.length,
+    proposals: run.artifacts.reduce((total, artifact) => total + artifact.proposals.length, 0),
+  };
+  if (JSON.stringify(run.summary) !== JSON.stringify(expected)) {
+    context.addIssue({ code: "custom", message: "summary must match artifact counts" });
+  }
+});
+export type GectorProducerRun = z.infer<typeof GectorProducerRunSchema>;
 
 export const EditHunkIdSchema = z.string().regex(/^edit-hunk:v1:[a-f0-9]{64}$/);
 

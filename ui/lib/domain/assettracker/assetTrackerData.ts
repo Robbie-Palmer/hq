@@ -10,7 +10,7 @@ import { TransferSchema } from "./transfer";
 /**
  * The full serializable state of a user's tracker. This is the unit of
  * persistence: today it round-trips through browser storage and JSON
- * export/import; a future backend persists the same shape in D1.
+ * export/import; a future backend maps the same domain concepts to PostgreSQL.
  *
  * New collections default to empty so data saved by earlier versions still
  * parses as the model evolves.

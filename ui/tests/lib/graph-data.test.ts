@@ -171,6 +171,30 @@ describe("extractGraphData", () => {
         type: "PREFERS_TECHNOLOGY",
       }),
     );
+    expect(data.nodes).toContainEqual(
+      expect.objectContaining({
+        id: "platform-policy:governance-license-agpl-3-0-2026-09-15",
+        name: "AGPL-3.0",
+        type: "platform-policy",
+      }),
+    );
+    expect(data.edges).toContainEqual(
+      expect.objectContaining({
+        source: "platform-layer:governance",
+        target: "platform-policy:governance-license-agpl-3-0-2026-09-15",
+        type: "REQUIRES_POLICY",
+      }),
+    );
+    expect(data.edges).toContainEqual(
+      expect.objectContaining({
+        source: "platform-layer:base",
+        target: "technology:codex",
+        type: "REQUIRES_TECHNOLOGY",
+        provenance: expect.objectContaining({
+          slot: "development.coding-agents",
+        }),
+      }),
+    );
     expect(
       data.edges.filter(
         (edge) =>
@@ -245,6 +269,9 @@ describe("extractGraphData", () => {
         source: "project:personal-knowledge-graph",
         type: "USES_PLATFORM_LAYER",
       }),
+    );
+    expect(data.nodes).not.toContainEqual(
+      expect.objectContaining({ type: "platform-policy" }),
     );
   });
 });
