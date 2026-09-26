@@ -58,7 +58,7 @@ function configureCodexDefaults(includeModelCatalog) {
     .filter((line) => {
       const match =
         /^\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_-]+))\s*=/.exec(line);
-      const key = match?.slice(1).find((value) => value !== undefined);
+      const key = match?.[1] ?? match?.[2] ?? match?.[3];
       return key === undefined || !managedKeys.has(key);
     });
   while (unmanagedRootLines[0] === "") {
