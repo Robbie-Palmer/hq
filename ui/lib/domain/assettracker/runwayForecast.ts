@@ -91,7 +91,7 @@ function applyExpectedFlow(
   const source =
     flow.fromAccountId == null ? null : byId.get(flow.fromAccountId);
   const destination =
-    flow.toAccountId == null ? null : byId.get(flow.toAccountId);
+    flow.toAccountId == null ? null : (byId.get(flow.toAccountId) ?? null);
 
   if (flow.fromAccountId != null && source == null) return;
   if (flow.toAccountId != null && destination == null) return;
