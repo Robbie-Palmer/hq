@@ -196,6 +196,39 @@ describe("PhotoRecipeImport", () => {
     expect(onDraftReady).not.toHaveBeenCalled();
   });
 
+  it("cancels polling when the photo importer becomes inactive", async () => {
+    const onDraftReady = vi.fn();
+    const pollAborted = vi.fn();
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ id: "job-1", status: "queued" }))
+      .mockImplementationOnce((_input, init) => {
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            pollAborted();
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+        });
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { rerender } = render(
+      <PhotoRecipeImport active onDraftReady={onDraftReady} />,
+    );
+    fireEvent.change(screen.getByLabelText("Choose recipe photos"), {
+      target: {
+        files: [new File(["photo"], "recipe.jpg", { type: "image/jpeg" })],
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Import from photos" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    rerender(<PhotoRecipeImport active={false} onDraftReady={onDraftReady} />);
+
+    await waitFor(() => expect(pollAborted).toHaveBeenCalledOnce());
+    expect(onDraftReady).not.toHaveBeenCalled();
+  });
+
   it("rejects photo selections over the combined size limit", () => {
     render(<PhotoRecipeImport active onDraftReady={vi.fn()} />);
     const files = ["first", "second", "third", "fourth"].map((name) => {

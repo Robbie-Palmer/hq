@@ -39,6 +39,22 @@ function dateLabel(value: string | null): string {
   }).format(date);
 }
 
+async function loadApprovalRequest(
+  intent: ApprovalIntent,
+  signal: AbortSignal,
+  onAgent: (agent: AgentDetail) => void,
+): Promise<AgentHost | null> {
+  const loadedAgent = await getAgent(intent.agentId, signal);
+  if (signal.aborted) return null;
+  onAgent(loadedAgent);
+  try {
+    return await getAgentHost(loadedAgent.hostId, signal);
+  } catch (cause) {
+    if (isAbortError(cause)) throw cause;
+    return null;
+  }
+}
+
 export function AgentApprovalView() {
   const { data: session, isPending: sessionPending } = authClient.useSession();
   const [intent, setIntent] = useState<ApprovalIntent | null | undefined>();
@@ -61,24 +77,14 @@ export function AgentApprovalView() {
     setLoading(true);
     setError(null);
 
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-    void (async () => {
-      try {
-        const loadedAgent = await getAgent(intent.agentId, controller.signal);
-        if (controller.signal.aborted) return;
-        setAgent(loadedAgent);
-        setLoading(false);
-        try {
-          const loadedHost = await getAgentHost(
-            loadedAgent.hostId,
-            controller.signal,
-          );
-          if (!controller.signal.aborted) setHost(loadedHost);
-        } catch (cause) {
-          if (isAbortError(cause)) return;
-          if (!controller.signal.aborted) setHost(null);
-        }
-      } catch (cause) {
+    void loadApprovalRequest(intent, controller.signal, (loadedAgent) => {
+      setAgent(loadedAgent);
+      setLoading(false);
+    })
+      .then((loadedHost) => {
+        if (!controller.signal.aborted) setHost(loadedHost);
+      })
+      .catch((cause: unknown) => {
         if (isAbortError(cause)) return;
         setError(
           cause instanceof Error
@@ -86,8 +92,7 @@ export function AgentApprovalView() {
             : "The agent request could not be loaded.",
         );
         setLoading(false);
-      }
-    })();
+      });
 
     return () => controller.abort();
   }, [intent, session]);
