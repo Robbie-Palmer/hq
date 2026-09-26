@@ -12,6 +12,11 @@ description = "Test the writing editor domain package"
 depends = ["install"]
 run = "pnpm test"
 
+[tasks.review]
+description = "Review writing editor findings and proposals"
+depends = ["install"]
+run = "pnpm review"
+
 [tasks."test:coverage"]
 description = "Test the writing editor domain package with LCOV coverage"
 depends = ["install"]
