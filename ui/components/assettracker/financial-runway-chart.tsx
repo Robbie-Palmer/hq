@@ -1,4 +1,8 @@
-import { formatCurrency } from "@/lib/domain/assettracker";
+import {
+  type Currency,
+  DEFAULT_BASE_CURRENCY,
+  formatCurrency,
+} from "@/lib/domain/assettracker";
 import type { FinancialRunway } from "@/lib/domain/assettracker/portfolioReconciliation";
 
 type RunwayKey = keyof FinancialRunway;
@@ -37,7 +41,8 @@ function formatDuration(months: number | null): string {
 
 export function FinancialRunwayChart({
   runway,
-}: Readonly<{ runway: FinancialRunway }>) {
+  currency = DEFAULT_BASE_CURRENCY,
+}: Readonly<{ runway: FinancialRunway; currency?: Currency }>) {
   const maximumMonths = Math.max(
     ...RUNWAY_ROWS.map(({ key }) => runway[key].months ?? 0),
   );
@@ -81,7 +86,7 @@ export function FinancialRunwayChart({
                   {formatDuration(pool.months)}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {formatCurrency(Math.round(pool.balance))}
+                  {formatCurrency(Math.round(pool.balance), currency)}
                 </p>
               </div>
             </div>
@@ -100,7 +105,9 @@ export function FinancialRunwayChart({
           {RUNWAY_ROWS.map(({ key, label }) => (
             <tr key={key}>
               <th>{label}</th>
-              <td>{formatCurrency(Math.round(runway[key].balance))}</td>
+              <td>
+                {formatCurrency(Math.round(runway[key].balance), currency)}
+              </td>
               <td>{formatDuration(runway[key].months)}</td>
             </tr>
           ))}

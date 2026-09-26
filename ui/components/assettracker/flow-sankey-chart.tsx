@@ -24,12 +24,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  buildFlowSankeyData,
+  type Currency,
+  type FlowSankeyData,
   type FlowSankeyLink,
   type FlowSankeyNode,
   formatCurrency,
 } from "@/lib/domain/assettracker";
-import { useAssetTracker } from "./asset-tracker-provider";
 import {
   FLOW_SANKEY_LINK_COLOR,
   FLOW_SANKEY_NODE_WIDTH,
@@ -172,9 +172,11 @@ type SankeyTooltipItem = Partial<FlowSankeyLink & FlowSankeyNode> & {
 
 function SankeyTooltip({
   active,
+  currency,
   payload,
 }: Readonly<{
   active?: boolean;
+  currency: Currency;
   payload?: ReadonlyArray<Readonly<{ payload?: SankeyTooltipItem }>>;
 }>) {
   const item = payload?.[0]?.payload;
@@ -192,13 +194,15 @@ function SankeyTooltip({
           {targetName}
         </p>
       )}
-      <p className="font-mono">{formatCurrency(item.value)}/mo</p>
+      <p className="font-mono">{formatCurrency(item.value, currency)}/mo</p>
     </div>
   );
 }
 
-export function FlowSankeyChart() {
-  const { accountDetails, recurringFlows } = useAssetTracker();
+export function FlowSankeyChart({
+  data: flowData,
+  currency,
+}: Readonly<{ data: FlowSankeyData; currency: Currency }>) {
   const [mounted, setMounted] = useState(false);
   const [containerWidth, setContainerWidth] = useState(0);
   const [activeFlowKeys, setActiveFlowKeys] = useState<ReadonlySet<string>>(
@@ -208,18 +212,6 @@ export function FlowSankeyChart() {
     () => new Set(),
   );
   const chartRef = useRef<HTMLDivElement>(null);
-  const liabilityBalances = useMemo(
-    () =>
-      Object.fromEntries(
-        accountDetails.map((detail) => [detail.id, detail.latestBalance ?? 0]),
-      ),
-    [accountDetails],
-  );
-  const flowData = useMemo(
-    () =>
-      buildFlowSankeyData(accountDetails, recurringFlows, liabilityBalances),
-    [accountDetails, recurringFlows, liabilityBalances],
-  );
   const data = useMemo(() => prepareFlowSankeyData(flowData), [flowData]);
   const hasFlows = flowData.links.length > 0;
   useEffect(() => {
@@ -345,7 +337,7 @@ export function FlowSankeyChart() {
                       setActiveNodeIds(new Set());
                     }}
                   >
-                    <Tooltip content={<SankeyTooltip />} />
+                    <Tooltip content={<SankeyTooltip currency={currency} />} />
                   </Sankey>
                 </ResponsiveContainer>
               </div>

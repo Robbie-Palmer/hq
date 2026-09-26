@@ -63,6 +63,7 @@ function forecastData(): AssetTrackerData {
         name: "Salary",
         toAccountId: "current",
         amount: 3_000,
+        currency: "GBP",
         frequency: "monthly",
         startDate: "2025-01-01",
       },
@@ -72,6 +73,7 @@ function forecastData(): AssetTrackerData {
         fromAccountId: "current",
         toAccountId: "isa",
         amount: 500,
+        currency: "GBP",
         frequency: "monthly",
         startDate: "2025-01-01",
       },
@@ -80,6 +82,7 @@ function forecastData(): AssetTrackerData {
         name: "Employer pension",
         toAccountId: "pension",
         amount: 300,
+        currency: "GBP",
         frequency: "monthly",
         startDate: "2025-01-01",
       },
@@ -93,7 +96,12 @@ function forecastData(): AssetTrackerData {
         fromAccountId: "current",
       },
     ],
-    settings: { expectedAnnualInflation: 0, withdrawalRate: 0.04 },
+    settings: {
+      expectedAnnualInflation: 0,
+      withdrawalRate: 0.04,
+      baseCurrency: "GBP",
+      valuationMaxAgeDays: 7,
+    },
   };
 }
 
@@ -179,5 +187,60 @@ describe("buildRunwayForecast", () => {
       10_000 * 1.12 ** (1 / 12),
       2,
     );
+  });
+
+  it("scales a converted payment and fee when a liability is nearly repaid", () => {
+    const data = forecastData();
+    const debt = data.accounts.find((account) => account.id === "debt");
+    const debtSnapshot = data.snapshots.find(
+      (snapshot) => snapshot.accountId === "debt",
+    );
+    if (debt == null || debtSnapshot == null) {
+      throw new Error("fixture has no debt account");
+    }
+    debt.currency = "USD";
+    debtSnapshot.balance = -500;
+    data.recurringFlows = [
+      {
+        id: "debt-payment",
+        name: "Debt payment",
+        fromAccountId: "current",
+        toAccountId: "debt",
+        amount: 500,
+        currency: "GBP",
+        conversion: {
+          received: { amount: 625, currency: "USD" },
+          fee: { amount: 10, currency: "GBP" },
+          provider: "Broker",
+        },
+        frequency: "monthly",
+        startDate: "2025-01-01",
+      },
+    ];
+    data.plannedExpenditures = [];
+    data.exchangeRateObservations = [
+      {
+        id: "usd-gbp-2026-01-01",
+        fromCurrency: "USD",
+        toCurrency: "GBP",
+        rate: 0.8,
+        validAt: "2026-01-01",
+        acceptedAt: "2026-01-01T12:00:00Z",
+        source: { kind: "manual", id: "test" },
+      },
+    ];
+
+    const projection = buildRunwayForecast({
+      repository: buildRepository(data),
+      annualExpenditure: 0,
+      annualCurrentExpenditure: 12_000,
+      startDate: "2026-01-01",
+      months: 1,
+    });
+
+    expect(projection[1]).toMatchObject({
+      cashBalance: 9_592,
+      totalBalance: 59_592,
+    });
   });
 });

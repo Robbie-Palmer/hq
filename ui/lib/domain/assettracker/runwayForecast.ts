@@ -8,7 +8,18 @@ import {
 import { realRate } from "./assetTrackerAnalytics";
 import type { AssetTrackerRepository } from "./assetTrackerRepository";
 import type { PlannedExpenditure } from "./plannedExpenditure";
-import { monthlyAmount, type RecurringFlow } from "./recurringFlow";
+import {
+  convertAccountAmountAtDate,
+  convertMoneyAtDate,
+  latestValuedBalances,
+  valuationDates,
+} from "./portfolioValuation";
+import {
+  monthlyAmount,
+  monthlyFeeAmount,
+  monthlyReceivedAmount,
+  type RecurringFlow,
+} from "./recurringFlow";
 
 export const RUNWAY_FORECAST_MAX_YEARS = 30;
 
@@ -36,24 +47,6 @@ type ForecastBalances = {
   totalBalance: number;
 };
 
-function latestBalances(
-  repository: AssetTrackerRepository,
-): Map<string, number> {
-  const latest = new Map<string, { date: string; balance: number }>();
-  for (const snapshot of repository.snapshots) {
-    const existing = latest.get(snapshot.accountId);
-    if (existing == null || snapshot.date > existing.date) {
-      latest.set(snapshot.accountId, snapshot);
-    }
-  }
-  return new Map(
-    Array.from(latest, ([accountId, snapshot]) => [
-      accountId,
-      snapshot.balance,
-    ]),
-  );
-}
-
 function balancesByAccess(accounts: ProjectedAccount[]): ForecastBalances {
   let cashBalance = 0;
   let liquidBalance = 0;
@@ -79,6 +72,16 @@ function flowIsActive(flow: RecurringFlow, date: string): boolean {
   );
 }
 
+function capLiabilityPayment(
+  destination: ProjectedAccount | null,
+  receivedAmount: number,
+): number {
+  if (destination == null || !isLiability(destination.account.assetType)) {
+    return receivedAmount;
+  }
+  return Math.min(receivedAmount, Math.max(-destination.balance, 0));
+}
+
 function applyExpectedFlow(
   byId: Map<string, ProjectedAccount>,
   flow: RecurringFlow,
@@ -88,7 +91,7 @@ function applyExpectedFlow(
   const source =
     flow.fromAccountId == null ? null : byId.get(flow.fromAccountId);
   const destination =
-    flow.toAccountId == null ? null : byId.get(flow.toAccountId);
+    flow.toAccountId == null ? null : (byId.get(flow.toAccountId) ?? null);
 
   if (flow.fromAccountId != null && source == null) return;
   if (flow.toAccountId != null && destination == null) return;
@@ -97,13 +100,19 @@ function applyExpectedFlow(
   // External income still enters here, and owned-account transfers move the
   // appropriate liquidity pool without changing total net worth.
   if (source != null && destination == null) return;
-  let amount = monthlyAmount(flow, destination?.balance);
-  if (destination && isLiability(destination.account.assetType)) {
-    amount = Math.min(amount, Math.max(-destination.balance, 0));
+  const amount = monthlyAmount(flow, destination?.balance);
+  const uncappedReceivedAmount =
+    flow.conversion == null ? amount : monthlyReceivedAmount(flow);
+  const receivedAmount = capLiabilityPayment(
+    destination,
+    uncappedReceivedAmount,
+  );
+  if (amount <= 0 || uncappedReceivedAmount <= 0) return;
+  const receivedRatio = receivedAmount / uncappedReceivedAmount;
+  if (source) {
+    source.balance -= (amount + monthlyFeeAmount(flow)) * receivedRatio;
   }
-  if (amount <= 0) return;
-  if (source) source.balance -= amount;
-  if (destination) destination.balance += amount;
+  if (destination) destination.balance += receivedAmount;
 }
 
 function applyExpectedFlows(
@@ -176,6 +185,99 @@ function applyPlannedExpenditures(
   }
 }
 
+function convertProjectionFlow(
+  repository: AssetTrackerRepository,
+  flow: RecurringFlow,
+  valuationDate: string,
+): RecurringFlow | null {
+  const amount =
+    flow.amount == null
+      ? undefined
+      : convertMoneyAtDate(
+          repository,
+          { amount: flow.amount, currency: flow.currency },
+          valuationDate,
+        );
+  const grossAmount =
+    flow.grossAmount == null
+      ? undefined
+      : convertMoneyAtDate(
+          repository,
+          { amount: flow.grossAmount, currency: flow.currency },
+          valuationDate,
+        );
+  const floor =
+    flow.formula == null
+      ? undefined
+      : convertMoneyAtDate(
+          repository,
+          { amount: flow.formula.floor, currency: flow.currency },
+          valuationDate,
+        );
+  const received =
+    flow.conversion == null
+      ? undefined
+      : convertMoneyAtDate(repository, flow.conversion.received, valuationDate);
+  const fee =
+    flow.conversion?.fee == null
+      ? undefined
+      : convertMoneyAtDate(repository, flow.conversion.fee, valuationDate);
+  if (
+    amount === null ||
+    grossAmount === null ||
+    floor === null ||
+    received === null ||
+    fee === null
+  ) {
+    return null;
+  }
+  return {
+    ...flow,
+    currency: repository.settings.baseCurrency,
+    ...(amount == null ? {} : { amount }),
+    ...(grossAmount == null ? {} : { grossAmount }),
+    ...(flow.formula == null
+      ? {}
+      : { formula: { ...flow.formula, floor: floor ?? 0 } }),
+    ...(flow.conversion == null
+      ? {}
+      : {
+          conversion: {
+            ...flow.conversion,
+            received: {
+              amount: received ?? 0,
+              currency: repository.settings.baseCurrency,
+            },
+            fee:
+              fee == null
+                ? undefined
+                : {
+                    amount: fee,
+                    currency: repository.settings.baseCurrency,
+                  },
+          },
+        }),
+  };
+}
+
+function convertProjectionExpenditures(
+  repository: AssetTrackerRepository,
+  valuationDate: string,
+): PlannedExpenditure[] | null {
+  const converted: PlannedExpenditure[] = [];
+  for (const expenditure of repository.plannedExpenditures) {
+    const amount = convertAccountAmountAtDate(
+      repository,
+      expenditure.fromAccountId,
+      expenditure.amount,
+      valuationDate,
+    );
+    if (amount == null) return null;
+    converted.push({ ...expenditure, amount });
+  }
+  return converted;
+}
+
 function projectBalances(input: {
   repository: AssetTrackerRepository;
   annualExpenditure: number;
@@ -183,7 +285,19 @@ function projectBalances(input: {
   includePlannedExpenditures: boolean;
   startDate: string;
 }): { date: string; balances: ForecastBalances }[] {
-  const latest = latestBalances(input.repository);
+  const latest = latestValuedBalances(input.repository);
+  if (latest == null) return [];
+  const valuationDate = valuationDates(input.repository).at(-1);
+  if (valuationDate == null) return [];
+  const flows = input.repository.recurringFlows.map((flow) =>
+    convertProjectionFlow(input.repository, flow, valuationDate),
+  );
+  if (flows.some((flow) => flow == null)) return [];
+  const expenditures = convertProjectionExpenditures(
+    input.repository,
+    valuationDate,
+  );
+  if (expenditures == null) return [];
   const accounts = Array.from(input.repository.accounts.values())
     .filter((account) => account.closedAt == null)
     .map((account) => ({
@@ -202,15 +316,14 @@ function projectBalances(input: {
       input.repository.settings.expectedAnnualInflation,
       date,
     );
-    applyExpectedFlows(accounts, input.repository.recurringFlows, date);
+    applyExpectedFlows(
+      accounts,
+      flows.filter((flow) => flow != null),
+      date,
+    );
     applySpending(accounts, input.annualExpenditure / 12);
     if (input.includePlannedExpenditures) {
-      applyPlannedExpenditures(
-        accounts,
-        input.repository.plannedExpenditures,
-        previousDate,
-        date,
-      );
+      applyPlannedExpenditures(accounts, expenditures, previousDate, date);
     }
     points.push({ date, balances: balancesByAccess(accounts) });
     previousDate = date;

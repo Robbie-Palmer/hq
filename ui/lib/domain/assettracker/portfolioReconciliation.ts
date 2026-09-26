@@ -11,7 +11,17 @@ import { getNetWorthTimeSeries } from "./assetTrackerQueries";
 import type { AssetTrackerRepository } from "./assetTrackerRepository";
 import type { NetWorthDataPoint } from "./assetTrackerViews";
 import { type CapitalFlow, capitalFlowKind } from "./capitalFlow";
-import { monthlyAmount } from "./recurringFlow";
+import type { IncomeRecord } from "./incomeRecord";
+import {
+  convertAccountAmountAtDate,
+  convertMoneyAtDate,
+  latestValuedBalances,
+} from "./portfolioValuation";
+import {
+  monthlyReceivedAmount,
+  type RecurringFlow,
+  recurringFlowReceivedMoney,
+} from "./recurringFlow";
 import {
   buildRunwayForecast,
   type RunwayForecastPoint,
@@ -207,6 +217,63 @@ function reconcileRetainedIncome(
  * income row uses the latest earlier balance-sheet observation as its opening
  * boundary; subsequent rows use the previous income date.
  */
+function reconcileIncomePeriod(
+  repository: AssetTrackerRepository,
+  netWorth: readonly NetWorthDataPoint[],
+  income: readonly IncomeRecord[],
+  index: number,
+): PortfolioReconciliationPeriod | null {
+  const record = income[index];
+  if (record == null) return null;
+  const previousIncome = income[index - 1];
+  const opening = previousIncome
+    ? pointAsOf(netWorth, previousIncome.date)
+    : latestPointBefore(netWorth, record.date);
+  const closing = pointAsOf(netWorth, record.date);
+  if (opening?.total == null || closing?.total == null) return null;
+
+  const startDate = previousIncome?.date ?? opening.date;
+  if (opening.date !== startDate || closing.date !== record.date) return null;
+  const days = calendarDaysBetween(startDate, record.date);
+  if (!Number.isFinite(days) || days <= 0 || closing.date <= opening.date) {
+    return null;
+  }
+  const incomeAmount = convertMoneyAtDate(repository, record, record.date);
+  if (incomeAmount == null) return null;
+
+  const nativePeriodFlows = repository.capitalFlows.filter(
+    (flow) => flow.date > startDate && flow.date <= record.date,
+  );
+  const periodFlows = nativePeriodFlows.flatMap((flow) => {
+    const amount = convertAccountAmountAtDate(
+      repository,
+      flow.accountId,
+      flow.amount,
+      flow.date,
+    );
+    return amount == null ? [] : [{ ...flow, amount }];
+  });
+  if (periodFlows.length !== nativePeriodFlows.length) return null;
+  const balanceChange = closing.total - opening.total;
+  const retainedIncome = reconcileRetainedIncome(periodFlows, balanceChange);
+  const expenditure = incomeAmount - retainedIncome.personalCapitalFlow;
+  const currentExpenditure = expenditure + retainedIncome.debtPrincipalFlow;
+
+  return {
+    startDate,
+    endDate: record.date,
+    openingNetWorth: opening.total,
+    closingNetWorth: closing.total,
+    income: incomeAmount,
+    ...retainedIncome,
+    expenditure,
+    currentExpenditure,
+    days,
+    annualizedExpenditure: (expenditure * DAYS_PER_YEAR) / days,
+    annualizedCurrentExpenditure: (currentExpenditure * DAYS_PER_YEAR) / days,
+  };
+}
+
 export function reconcilePortfolio(
   repository: AssetTrackerRepository,
 ): PortfolioReconciliationPeriod[] {
@@ -219,46 +286,10 @@ export function reconcilePortfolio(
   const income = repository.incomeHistory.toSorted((a, b) =>
     a.date.localeCompare(b.date),
   );
-
-  const periods: PortfolioReconciliationPeriod[] = [];
-  for (const [index, record] of income.entries()) {
-    const previousIncome = income[index - 1];
-    const opening = previousIncome
-      ? pointAsOf(netWorth, previousIncome.date)
-      : latestPointBefore(netWorth, record.date);
-    const closing = pointAsOf(netWorth, record.date);
-    if (opening == null || closing == null) continue;
-
-    const startDate = previousIncome?.date ?? opening.date;
-    if (opening.date !== startDate || closing.date !== record.date) continue;
-    const days = calendarDaysBetween(startDate, record.date);
-    if (!Number.isFinite(days) || days <= 0 || closing.date <= opening.date) {
-      continue;
-    }
-
-    const periodFlows = repository.capitalFlows.filter(
-      (flow) => flow.date > startDate && flow.date <= record.date,
-    );
-    const balanceChange = closing.total - opening.total;
-    const retainedIncome = reconcileRetainedIncome(periodFlows, balanceChange);
-    const expenditure = record.amount - retainedIncome.personalCapitalFlow;
-    const currentExpenditure = expenditure + retainedIncome.debtPrincipalFlow;
-
-    periods.push({
-      startDate,
-      endDate: record.date,
-      openingNetWorth: opening.total,
-      closingNetWorth: closing.total,
-      income: record.amount,
-      ...retainedIncome,
-      expenditure,
-      currentExpenditure,
-      days,
-      annualizedExpenditure: (expenditure * DAYS_PER_YEAR) / days,
-      annualizedCurrentExpenditure: (currentExpenditure * DAYS_PER_YEAR) / days,
-    });
-  }
-  return periods;
+  return income.flatMap((_, index) => {
+    const period = reconcileIncomePeriod(repository, netWorth, income, index);
+    return period == null ? [] : [period];
+  });
 }
 
 const RECENT_PERIOD_COUNT = 12;
@@ -309,6 +340,33 @@ export function representativeAnnualSavings(
   );
 }
 
+function isActiveCompensationFlow(
+  repository: AssetTrackerRepository,
+  flow: RecurringFlow,
+  asOfDate: string,
+): boolean {
+  const destination =
+    flow.toAccountId == null ? null : repository.accounts.get(flow.toAccountId);
+  return (
+    flow.compensationKind != null &&
+    (destination?.closedAt == null || destination.closedAt > asOfDate) &&
+    flow.startDate <= asOfDate &&
+    (flow.endDate == null || flow.endDate >= asOfDate)
+  );
+}
+
+function annualCompensationAmount(
+  repository: AssetTrackerRepository,
+  flow: RecurringFlow,
+  asOfDate: string,
+): number | null {
+  const flowMoney = recurringFlowReceivedMoney(flow);
+  if (flowMoney == null) return 0;
+  const baseAmount = convertMoneyAtDate(repository, flowMoney, asOfDate);
+  if (baseAmount == null) return null;
+  return baseAmount * (monthlyReceivedAmount(flow) / flowMoney.amount) * 12;
+}
+
 function currentCompensation(
   repository: AssetTrackerRepository,
   annualExpenditure: number | null,
@@ -320,19 +378,9 @@ function currentCompensation(
   let annualEmployeePensionContribution = 0;
   let annualEmployerPensionContribution = 0;
   for (const flow of repository.recurringFlows) {
-    const destination =
-      flow.toAccountId == null
-        ? null
-        : repository.accounts.get(flow.toAccountId);
-    if (
-      flow.compensationKind == null ||
-      (destination?.closedAt != null && destination.closedAt <= asOfDate) ||
-      flow.startDate > asOfDate ||
-      (flow.endDate != null && flow.endDate < asOfDate)
-    ) {
-      continue;
-    }
-    const annualAmount = monthlyAmount(flow) * 12;
+    if (!isActiveCompensationFlow(repository, flow, asOfDate)) continue;
+    const annualAmount = annualCompensationAmount(repository, flow, asOfDate);
+    if (annualAmount == null) return null;
     switch (flow.compensationKind) {
       case "takeHomeIncome":
         annualTakeHomeIncome += annualAmount;
@@ -353,27 +401,6 @@ function currentCompensation(
     annualEmployeePensionContribution,
     annualEmployerPensionContribution,
   };
-}
-
-function latestBalances(
-  repository: AssetTrackerRepository,
-): Map<string, number> {
-  const balances = new Map<string, { date: string; balance: number }>();
-  for (const snapshot of repository.snapshots) {
-    const latest = balances.get(snapshot.accountId);
-    if (latest == null || snapshot.date > latest.date) {
-      balances.set(snapshot.accountId, {
-        date: snapshot.date,
-        balance: snapshot.balance,
-      });
-    }
-  }
-  return new Map(
-    Array.from(balances, ([accountId, snapshot]) => [
-      accountId,
-      snapshot.balance,
-    ]),
-  );
 }
 
 function expectedPortfolioRealReturn(
@@ -470,8 +497,12 @@ export function getPortfolioFinancialIndependence(
     withdrawalRate > 1
       ? null
       : annualExpenditure / withdrawalRate;
-  const currentNetWorth = getNetWorthTimeSeries(repository).at(-1)?.total ?? 0;
-  const balances = latestBalances(repository);
+  const valuedBalances = latestValuedBalances(repository);
+  const currentNetWorthValue = getNetWorthTimeSeries(repository).at(-1)?.total;
+  const valuationAvailable =
+    valuedBalances != null && currentNetWorthValue != null;
+  const currentNetWorth = currentNetWorthValue ?? 0;
+  const balances = valuedBalances ?? new Map<string, number>();
   const emergencyFund = Array.from(repository.accounts.values()).reduce(
     (sum, account) =>
       accountLiquidity(account) === "cash" &&
@@ -523,17 +554,20 @@ export function getPortfolioFinancialIndependence(
     takeHomeSavingsRate =
       compensation.annualTakeHomeSavings / compensation.annualTakeHomeIncome;
   }
-  const expectedRealReturn = expectedPortfolioRealReturn(
-    repository,
-    balances,
-    currentNetWorth,
-    startDate,
-  );
+  const expectedRealReturn = valuationAvailable
+    ? expectedPortfolioRealReturn(
+        repository,
+        balances,
+        currentNetWorth,
+        startDate,
+      )
+    : null;
   const fiProjection =
     target != null &&
     target > 0 &&
     annualSavings != null &&
-    expectedRealReturn != null
+    expectedRealReturn != null &&
+    valuationAvailable
       ? buildFiProjection({
           startDate,
           currentNetWorth,
@@ -571,7 +605,7 @@ export function getPortfolioFinancialIndependence(
     }),
     target,
     progress:
-      target == null || target <= 0
+      target == null || target <= 0 || !valuationAvailable
         ? null
         : Math.min(Math.max(currentNetWorth / target, 0), 1),
     expectedRealReturn,

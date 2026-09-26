@@ -19,6 +19,7 @@ import {
   applyRecordBalance,
   applyRecordTransfer,
   applySetAccountLiquidity,
+  applySetBaseCurrency,
   applySetExpectedReturn,
   applySetInflation,
   applySetNetWorthTarget,
@@ -39,6 +40,7 @@ import {
   type RecordBalanceInput,
   type RecordTransferInput,
   type SetAccountLiquidityInput,
+  type SetBaseCurrencyInput,
   type SetExpectedReturnInput,
   type SetInflationInput,
   type SetNetWorthTargetInput,
@@ -86,6 +88,7 @@ export interface AssetTrackerApi {
   setAccountLiquidity(
     input: SetAccountLiquidityInput,
   ): Promise<AssetTrackerData>;
+  setBaseCurrency(input: SetBaseCurrencyInput): Promise<AssetTrackerData>;
   setInflation(input: SetInflationInput): Promise<AssetTrackerData>;
   setNetWorthTarget(input: SetNetWorthTargetInput): Promise<AssetTrackerData>;
   setWithdrawalRate(input: SetWithdrawalRateInput): Promise<AssetTrackerData>;
@@ -199,6 +202,9 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
     },
     async setAccountLiquidity(input) {
       return write(applySetAccountLiquidity(current(), input));
+    },
+    async setBaseCurrency(input) {
+      return write(applySetBaseCurrency(current(), input));
     },
     async setInflation(input) {
       return write(applySetInflation(current(), input));

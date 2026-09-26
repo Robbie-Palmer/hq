@@ -21,19 +21,23 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import type { AssetType } from "@/lib/domain/assettracker";
+import type { AssetType, Currency } from "@/lib/domain/assettracker";
 import {
   ASSET_TYPE_COLORS,
   ASSET_TYPE_LABELS,
+  DEFAULT_BASE_CURRENCY,
   formatCurrency,
+  formatCurrencyAxisTick,
 } from "@/lib/domain/assettracker";
 
 interface AssetAllocationChartProps {
   data: { assetType: AssetType; total: number }[];
+  currency?: Currency;
 }
 
 export function AssetAllocationChart({
   data,
+  currency = DEFAULT_BASE_CURRENCY,
 }: Readonly<AssetAllocationChartProps>) {
   // Largest magnitude first so assets and liabilities read top-to-bottom
   const chartData = [...data]
@@ -68,7 +72,9 @@ export function AssetAllocationChart({
               <XAxis
                 type="number"
                 className="text-xs"
-                tickFormatter={(v: number) => `£${(v / 1000).toFixed(0)}k`}
+                tickFormatter={(value: number) =>
+                  formatCurrencyAxisTick(value, currency)
+                }
               />
               <YAxis
                 type="category"
@@ -79,7 +85,7 @@ export function AssetAllocationChart({
               <ReferenceLine x={0} className="stroke-muted-foreground" />
               <ChartTooltip
                 content={<ChartTooltipContent />}
-                formatter={(value) => formatCurrency(value as number)}
+                formatter={(value) => formatCurrency(value as number, currency)}
               />
               <Bar dataKey="value" radius={4}>
                 {chartData.map((entry) => (

@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
+  type Currency,
   computeTotalBalance,
   FI_PROJECTION_MAX_YEARS,
   formatAssetTrackerError,
@@ -23,13 +24,13 @@ import { IncomeHistoryImportDrawer } from "./income-history-import-drawer";
 import { PortfolioFiProjectionChart } from "./portfolio-fi-projection-chart";
 import { RunwayForecast } from "./runway-forecast";
 
-function signedCurrency(value: number): string {
-  if (value === 0) return formatCurrency(0);
-  return `${value > 0 ? "+" : "−"}${formatCurrency(Math.abs(value))}`;
+function signedCurrency(value: number, currency: Currency): string {
+  if (value === 0) return formatCurrency(0, currency);
+  return `${value > 0 ? "+" : "−"}${formatCurrency(Math.abs(value), currency)}`;
 }
 
-function optionalCurrency(value: number | null): string {
-  return value == null ? "—" : formatCurrency(Math.round(value));
+function optionalCurrency(value: number | null, currency: Currency): string {
+  return value == null ? "—" : formatCurrency(Math.round(value), currency);
 }
 
 function percentage(value: number | null, fractionDigits = 0): string {
@@ -53,12 +54,13 @@ function getAnnualSavingsDescription(
     annualEmployeePensionContribution: number;
     annualEmployerPensionContribution: number;
   } | null,
+  currency: Currency,
 ): string {
   if (annualSavings == null) return "Personal capital ÷ entered income";
   if (currentCompensation != null) {
-    return `${formatCurrency(Math.round(annualSavings))}/yr saved: ${formatCurrency(Math.round(currentCompensation.annualTakeHomeSavings))} from take-home pay, ${formatCurrency(Math.round(currentCompensation.annualEmployeePensionContribution))} employee pension, and ${formatCurrency(Math.round(currentCompensation.annualEmployerPensionContribution))} employer pension`;
+    return `${formatCurrency(Math.round(annualSavings), currency)}/yr saved: ${formatCurrency(Math.round(currentCompensation.annualTakeHomeSavings), currency)} from take-home pay, ${formatCurrency(Math.round(currentCompensation.annualEmployeePensionContribution), currency)} employee pension, and ${formatCurrency(Math.round(currentCompensation.annualEmployerPensionContribution), currency)} employer pension`;
   }
-  return `${formatCurrency(Math.round(annualSavings))}/yr median total capital added`;
+  return `${formatCurrency(Math.round(annualSavings), currency)}/yr median total capital added`;
 }
 
 function getEmergencyFundDescription(months: number | null): string {
@@ -93,6 +95,8 @@ function getEmptyReconciliationDescription(hasIncome: boolean): string {
 export function PortfolioGoal() {
   const {
     accounts,
+    netWorthData,
+    baseCurrency,
     incomeHistory,
     financialIndependence,
     withdrawalRate,
@@ -102,9 +106,12 @@ export function PortfolioGoal() {
   const [withdrawalRateDraft, setWithdrawalRateDraft] = useState(() =>
     String(withdrawalRate * 100),
   );
-  const currentNetWorth = computeTotalBalance(
-    accounts.filter((account) => account.isOpen),
-  );
+  const latestNetWorth = netWorthData.at(-1)?.total;
+  const currentNetWorth =
+    latestNetWorth ??
+    (netWorthData.length === 0
+      ? computeTotalBalance(accounts.filter((account) => account.isOpen))
+      : 0);
   const {
     periods,
     representativeAnnualExpenditure,
@@ -174,7 +181,7 @@ export function PortfolioGoal() {
               Representative annual expenditure
             </p>
             <p className="mt-1 text-xl font-semibold">
-              {optionalCurrency(representativeAnnualExpenditure)}
+              {optionalCurrency(representativeAnnualExpenditure, baseCurrency)}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               Median of the latest 12 periods, annualised. Excludes debt
@@ -186,6 +193,7 @@ export function PortfolioGoal() {
                 <p className="mt-2 border-t pt-2 text-xs text-muted-foreground">
                   {formatCurrency(
                     Math.round(representativeAnnualCurrentExpenditure),
+                    baseCurrency,
                   )}
                   /yr current spending, including debt principal
                 </p>
@@ -219,7 +227,7 @@ export function PortfolioGoal() {
               </label>
             </div>
             <p className="mt-1 text-xl font-semibold">
-              {optionalCurrency(target)}
+              {optionalCurrency(target, baseCurrency)}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               Long-term FI spending ÷ withdrawal rate
@@ -229,8 +237,8 @@ export function PortfolioGoal() {
             <p className="text-xs text-muted-foreground">FI progress</p>
             <p className="mt-1 text-xl font-semibold">{percentage(progress)}</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {formatCurrency(currentNetWorth)} total net worth, including all
-              pension assets and home equity
+              {formatCurrency(currentNetWorth, baseCurrency)} total net worth,
+              including all pension assets and home equity
             </p>
           </div>
           <div className="rounded-md border p-3">
@@ -248,13 +256,14 @@ export function PortfolioGoal() {
               {getAnnualSavingsDescription(
                 representativeAnnualSavings,
                 currentCompensation,
+                baseCurrency,
               )}
             </p>
           </div>
           <div className="rounded-md border p-3">
             <p className="text-xs text-muted-foreground">Emergency fund</p>
             <p className="mt-1 text-xl font-semibold">
-              {formatCurrency(Math.round(emergencyFund))}
+              {formatCurrency(Math.round(emergencyFund), baseCurrency)}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               {getEmergencyFundDescription(emergencyFundMonths)}
@@ -278,13 +287,14 @@ export function PortfolioGoal() {
           />
         )}
 
-        <FinancialRunwayChart runway={runway} />
+        <FinancialRunwayChart runway={runway} currency={baseCurrency} />
 
         <RunwayForecast />
 
         <IncomeExpenditureChart
           incomeHistory={incomeHistory}
           periods={periods}
+          currency={baseCurrency}
         />
 
         {target != null &&
@@ -295,6 +305,7 @@ export function PortfolioGoal() {
               target={target}
               annualSavings={representativeAnnualSavings}
               expectedRealReturn={expectedRealReturn}
+              currency={baseCurrency}
             />
           )}
 
@@ -348,14 +359,17 @@ export function PortfolioGoal() {
                         {period.startDate} – {period.endDate}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">
-                        {formatCurrency(period.openingNetWorth)}
+                        {formatCurrency(period.openingNetWorth, baseCurrency)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">
-                        {formatCurrency(period.income)}
+                        {formatCurrency(period.income, baseCurrency)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">
                         <span className="block">
-                          {signedCurrency(period.personalCapitalFlow)}
+                          {signedCurrency(
+                            period.personalCapitalFlow,
+                            baseCurrency,
+                          )}
                         </span>
                         {period.retainedIncomeSource === "balance-change" && (
                           <span className="block text-[11px] text-muted-foreground">
@@ -364,22 +378,28 @@ export function PortfolioGoal() {
                         )}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">
-                        {signedCurrency(period.externalCapitalFlow)}
+                        {signedCurrency(
+                          period.externalCapitalFlow,
+                          baseCurrency,
+                        )}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">
-                        {signedCurrency(period.debtPrincipalFlow)}
+                        {signedCurrency(period.debtPrincipalFlow, baseCurrency)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">
-                        {signedCurrency(period.valuationGain)}
+                        {signedCurrency(period.valuationGain, baseCurrency)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">
-                        {formatCurrency(period.expenditure)}
+                        {formatCurrency(period.expenditure, baseCurrency)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">
-                        {formatCurrency(period.currentExpenditure)}
+                        {formatCurrency(
+                          period.currentExpenditure,
+                          baseCurrency,
+                        )}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">
-                        {formatCurrency(period.closingNetWorth)}
+                        {formatCurrency(period.closingNetWorth, baseCurrency)}
                       </td>
                     </tr>
                   ))}
