@@ -231,9 +231,10 @@ The JSON response has the same information without display formatting.
 and inclusion reasons. `edges` contains the relevant decomposition and
 dependency relationships. `targetOutcomeIds` identifies the selected priority
 outcomes, while `blockingPaths` lists every chain to an unresolved leaf.
-`readyLeafIds`, `blockingAttentionIds`, and `parallelBranches` support agents
-that need to select work or explain why it cannot start. Shared blockers remain
-one node and one edge in the graph even when several paths refer to them.
+`readyLeafIds` and `parallelBranches` support agents that need to select work.
+`blockingAttentionIds` identifies items that need a human response. A shared
+blocker remains one node, while the graph retains each distinct dependency edge
+and blocking path.
 
 This command does not estimate effort, duration, or delivery dates. A
 structural critical path says what blocks an outcome now. It is not a schedule

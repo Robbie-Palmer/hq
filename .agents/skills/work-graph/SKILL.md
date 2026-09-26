@@ -57,12 +57,12 @@ branch that fits the requested scope.
 
 Use `--json` for automation. Consume `nodes` and `edges` as the deduplicated
 graph, `targetOutcomeIds` as the selected outcomes, `blockingPaths` as the
-explanations, and `readyLeafIds`, `blockingAttentionIds`, and
-`parallelBranches` as work-selection lists. Inspect `inclusionReasons` when an
-item's presence is surprising.
+explanations, and `readyLeafIds` and `parallelBranches` as work-selection
+inputs. `blockingAttentionIds` lists items that need a human response. Inspect
+`inclusionReasons` when an item's presence is surprising.
 
-Treat the result as a live structural projection, not a duration estimate or
-delivery forecast. Verify a surprising path with `work-graph show <ticket>`,
+The result is a live structural projection. It does not estimate duration or
+delivery dates. Verify a surprising path with `work-graph show <ticket>`,
 `work-graph metadata dependencies <ticket>`, and `work-graph metadata
 decompositions <ticket>`. Revise stored graph state with the commands below,
 then rerun the projection.
