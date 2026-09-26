@@ -31,7 +31,7 @@ Three architecture families were evaluated:
 
 | Family                      | Shape                                   | Strengths                                            | Weaknesses                                              |
 | --------------------------- | --------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------- |
-| **Cloudflare Workers + DB** | Edge runtime beside existing Pages      | Platform continuity, cheapest, near-zero cold starts | V8 isolate constraints, SQLite if using D1              |
+| **Cloudflare Workers + DB** | Edge runtime beside existing Pages      | Platform continuity, cheapest, near-zero cold starts | V8 isolate constraints; rejected D1 option uses SQLite  |
 | **Node server + Postgres**  | Traditional backend on separate hosting | Maximum flexibility, standard ecosystem              | Most operational overhead, breaks Cloudflare continuity |
 | **Convex**                  | Integrated backend platform             | Highest productivity, zero infrastructure            | Document DB, vendor-specific APIs, no real-time need    |
 
@@ -44,9 +44,9 @@ Several constraints narrowed the field:
    are inherently relational. Convex is a document database with no SQL, no JOINs, and no foreign
    keys, a fundamental mismatch.
 3. **Postgres ecosystem valued.** Full-text search, vector search, DuckDB integration, and PostGIS
-   for other projects make Postgres the long-term database. Starting on SQLite/D1 and migrating
-   later creates schema rewrite debt. The Drizzle community strongly recommends starting with
-   the target dialect.
+   for other projects make Postgres the long-term database. The rejected SQLite/D1 alternative
+   would create schema rewrite debt when migrating later. The Drizzle community strongly
+   recommends starting with the target dialect.
 4. **Split architecture accepted.** The auth/CRUD layer can stay thin. Heavy processing (ML
    pipelines, import jobs, background workers) lives on separate services. This means Workers'
    runtime constraints don't limit the broader system.
@@ -135,8 +135,8 @@ code portable if the runtime ever changes. It is lightweight, TypeScript-native,
 popular framework for Cloudflare Workers.
 
 **Drizzle** with the Postgres dialect from day one. Starting with Postgres avoids the schema
-rewrite debt that would come from starting on SQLite/D1 and migrating later (Drizzle uses different
-table constructors per dialect, `sqliteTable()` vs `pgTable()`, and the migration is non-trivial).
+rewrite debt of the rejected SQLite/D1 alternative (Drizzle uses different table constructors per
+dialect, `sqliteTable()` vs `pgTable()`, and the migration is non-trivial).
 
 ## Infrastructure as Code
 
@@ -277,9 +277,9 @@ Auth in its cleanest environment.
   processing is explicitly separate. The full flexibility of a conventional Node server addresses
   constraints that don't exist yet.
 
-## Cloudflare Workers + D1
+## Cloudflare Workers + D1 (rejected)
 
-Workers with D1 (Cloudflare's SQLite-based database) instead of Neon.
+This alternative paired Workers with D1 (Cloudflare's SQLite-based database) instead of Neon.
 
 **Why it was considered:** Fewest moving parts, everything on one platform, cheapest. D1 also
 has automatic global read replication across all 6 supported location hints at no additional cost, an advantage Neon lacks. Writes go to the primary; reads are served from the nearest replica.
@@ -411,8 +411,8 @@ production import worker is a future infrastructure decision.
   Hyperdrive mitigates connection setup latency and caches reads at the edge, but uncached writes
   and queries still incur cross-region round trips for distant users. If the user base becomes
   genuinely global, escape paths include Supabase (cross-region read replicas on paid plans),
-  manual logical replication to a second Neon project, or revisiting D1 (which has automatic
-  global read replication).
+  manual logical replication to a second Neon project, or reconsidering the rejected D1
+  alternative (which has automatic global read replication).
 * **Neon cold starts.** Scale-to-zero means the Neon compute must wake on first request after
   idle. Typical cold starts are 300-500ms, with p95 spikes up to \~2.6s in some measurements.
   This is often a more noticeable user-facing latency source than cross-region query time on a
