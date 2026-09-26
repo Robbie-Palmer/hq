@@ -11,7 +11,14 @@ import {
   Presentation,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type RefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { RevealApi, RevealConfig, RevealPlugin } from "reveal.js";
 
 interface PitchDeckFrameProps {
@@ -49,7 +56,168 @@ const initialPosition: Position = {
   atEnd: false,
 };
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+function PresenterTopbar({
+  backHref,
+  backLabel,
+  fullscreenButtonRef,
+  isFullscreen,
+  mode,
+  narrowLayout,
+  onFullscreen,
+  onOverview,
+  onScrollView,
+  onSpeakerView,
+  presentationHref,
+  show,
+  showSpeakerView,
+  title,
+  view,
+}: Readonly<{
+  backHref?: string;
+  backLabel: string;
+  fullscreenButtonRef: RefObject<HTMLButtonElement | null>;
+  isFullscreen: boolean;
+  mode: "embedded" | "focused";
+  narrowLayout: boolean;
+  onFullscreen: () => void;
+  onOverview: () => void;
+  onScrollView: () => void;
+  onSpeakerView: () => void;
+  presentationHref?: string;
+  show: boolean;
+  showSpeakerView: boolean;
+  title: string;
+  view: DeckView;
+}>) {
+  if (!show) return null;
+  return (
+    <div className="pitch-deck__topbar">
+      {mode === "focused" && backHref && (
+        <Link href={backHref} className="pitch-deck__back">
+          <ArrowLeft aria-hidden="true" />
+          {backLabel}
+        </Link>
+      )}
+      <span className="pitch-deck__title">{title}</span>
+      <div className="pitch-deck__tools">
+        {mode === "embedded" && presentationHref && (
+          <Link href={presentationHref}>
+            <Presentation aria-hidden="true" />
+            <span>Present</span>
+          </Link>
+        )}
+        <button
+          type="button"
+          onClick={onOverview}
+          aria-pressed={view === "overview"}
+          title="Slide overview"
+        >
+          <LayoutGrid aria-hidden="true" />
+          <span>Overview</span>
+        </button>
+        {!narrowLayout && (
+          <button
+            type="button"
+            className="pitch-deck__scroll-toggle"
+            onClick={onScrollView}
+            aria-pressed={view === "scroll"}
+            title="Toggle scroll view"
+          >
+            <Columns3 aria-hidden="true" />
+            <span>{view === "scroll" ? "Slides" : "Scroll"}</span>
+          </button>
+        )}
+        {showSpeakerView && (
+          <button type="button" onClick={onSpeakerView} title="Speaker view">
+            <Presentation aria-hidden="true" />
+            <span>Speaker</span>
+          </button>
+        )}
+        <button
+          ref={fullscreenButtonRef}
+          type="button"
+          onClick={onFullscreen}
+          title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+        >
+          <Expand aria-hidden="true" />
+          <span>{isFullscreen ? "Exit fullscreen" : "Fullscreen"}</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PresentationControls({
+  isSpeakerPreview,
+  mode,
+  onNavigate,
+  position,
+  presentationHref,
+  projectSlug,
+}: Readonly<{
+  isSpeakerPreview: boolean;
+  mode: "embedded" | "focused";
+  onNavigate: (direction: -1 | 1) => void;
+  position: Position;
+  presentationHref?: string;
+  projectSlug?: string;
+}>) {
+  if (isSpeakerPreview) return null;
+  return (
+    <div className="pitch-deck__controls">
+      <div className="pitch-deck__navigation">
+        <button
+          type="button"
+          onClick={() => onNavigate(-1)}
+          disabled={position.atStart}
+          aria-label="Previous slide"
+        >
+          <ArrowLeft aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          onClick={() => onNavigate(1)}
+          disabled={position.atEnd}
+          aria-label="Next slide"
+        >
+          <ArrowRight aria-hidden="true" />
+        </button>
+        <span
+          className="pitch-deck__position"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          Slide {position.current} of {position.total}
+        </span>
+      </div>
+      {(projectSlug || (mode === "embedded" && presentationHref)) && (
+        <div className="pitch-deck__links">
+          {projectSlug && (
+            <a
+              href={`/projects/${projectSlug}/deck.md`}
+              aria-label="Transcript"
+              title="Read transcript"
+            >
+              <FileText aria-hidden="true" />
+              <span>Transcript</span>
+            </a>
+          )}
+          {mode === "embedded" && presentationHref && (
+            <Link
+              href={presentationHref}
+              aria-label="Open deck"
+              title="Open deck"
+            >
+              <Expand aria-hidden="true" />
+              <span>Open deck</span>
+            </Link>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function PitchDeckFrame({
   backHref,
   backLabel,
@@ -407,65 +575,23 @@ export function PitchDeckFrame({
       className={`pitch-deck pitch-deck--${mode}${projectClassName}`}
       aria-label={`${title} presentation`}
     >
-      {hasPresenterTools && (
-        <div className="pitch-deck__topbar">
-          {mode === "focused" && resolvedBackHref && (
-            <Link href={resolvedBackHref} className="pitch-deck__back">
-              <ArrowLeft aria-hidden="true" />
-              {resolvedBackLabel}
-            </Link>
-          )}
-          <span className="pitch-deck__title">{title}</span>
-          <div className="pitch-deck__tools">
-            {mode === "embedded" && resolvedPresentationHref && (
-              <Link href={resolvedPresentationHref}>
-                <Presentation aria-hidden="true" />
-                <span>Present</span>
-              </Link>
-            )}
-            <button
-              type="button"
-              onClick={toggleOverview}
-              aria-pressed={view === "overview"}
-              title="Slide overview"
-            >
-              <LayoutGrid aria-hidden="true" />
-              <span>Overview</span>
-            </button>
-            {!narrowLayout && (
-              <button
-                type="button"
-                className="pitch-deck__scroll-toggle"
-                onClick={toggleScrollView}
-                aria-pressed={view === "scroll"}
-                title="Toggle scroll view"
-              >
-                <Columns3 aria-hidden="true" />
-                <span>{view === "scroll" ? "Slides" : "Scroll"}</span>
-              </button>
-            )}
-            {showSpeakerView && (
-              <button
-                type="button"
-                onClick={openSpeakerView}
-                title="Speaker view"
-              >
-                <Presentation aria-hidden="true" />
-                <span>Speaker</span>
-              </button>
-            )}
-            <button
-              ref={fullscreenButtonRef}
-              type="button"
-              onClick={() => void toggleFullscreen()}
-              title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-            >
-              <Expand aria-hidden="true" />
-              <span>{isFullscreen ? "Exit fullscreen" : "Fullscreen"}</span>
-            </button>
-          </div>
-        </div>
-      )}
+      <PresenterTopbar
+        backHref={resolvedBackHref}
+        backLabel={resolvedBackLabel}
+        fullscreenButtonRef={fullscreenButtonRef}
+        isFullscreen={isFullscreen}
+        mode={mode}
+        narrowLayout={narrowLayout}
+        onFullscreen={() => void toggleFullscreen()}
+        onOverview={toggleOverview}
+        onScrollView={toggleScrollView}
+        onSpeakerView={openSpeakerView}
+        presentationHref={resolvedPresentationHref}
+        show={hasPresenterTools}
+        showSpeakerView={showSpeakerView}
+        title={title}
+        view={view}
+      />
 
       <div
         ref={stageRef}
@@ -510,61 +636,14 @@ export function PitchDeckFrame({
         )}
       </div>
 
-      {!isSpeakerPreview && (
-        <div className="pitch-deck__controls">
-          <div className="pitch-deck__navigation">
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              disabled={position.atStart}
-              aria-label="Previous slide"
-            >
-              <ArrowLeft aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate(1)}
-              disabled={position.atEnd}
-              aria-label="Next slide"
-            >
-              <ArrowRight aria-hidden="true" />
-            </button>
-            <span
-              className="pitch-deck__position"
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              Slide {position.current} of {position.total}
-            </span>
-          </div>
-
-          {(projectSlug ||
-            (mode === "embedded" && resolvedPresentationHref)) && (
-            <div className="pitch-deck__links">
-              {projectSlug && (
-                <a
-                  href={`/projects/${projectSlug}/deck.md`}
-                  aria-label="Transcript"
-                  title="Read transcript"
-                >
-                  <FileText aria-hidden="true" />
-                  <span>Transcript</span>
-                </a>
-              )}
-              {mode === "embedded" && resolvedPresentationHref && (
-                <Link
-                  href={resolvedPresentationHref}
-                  aria-label="Open deck"
-                  title="Open deck"
-                >
-                  <Expand aria-hidden="true" />
-                  <span>Open deck</span>
-                </Link>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+      <PresentationControls
+        isSpeakerPreview={isSpeakerPreview}
+        mode={mode}
+        onNavigate={navigate}
+        position={position}
+        presentationHref={resolvedPresentationHref}
+        projectSlug={projectSlug}
+      />
     </section>
   );
 }

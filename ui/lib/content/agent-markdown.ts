@@ -34,19 +34,20 @@ type MdxJsxNode = {
   children?: RootContent[];
 };
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+function attributeExpression(value: string): string {
+  const expression = value.trim();
+  const templateLiteral = expression.match(/^`([\s\S]*)`$/);
+  if (templateLiteral?.[1] !== undefined) return templateLiteral[1];
+  const stringLiteral = expression.match(/^(["'])([\s\S]*)\1$/);
+  return stringLiteral?.[2] ?? expression;
+}
+
 function getAttribute(node: MdxJsxNode, name: string): string | null {
   for (const attr of node.attributes ?? []) {
     if (attr.type !== "mdxJsxAttribute" || attr.name !== name) continue;
     if (typeof attr.value === "string") return attr.value;
     if (attr.value && typeof attr.value === "object") {
-      // Attribute expression, e.g. chart={`graph TD ...`}
-      const expression = attr.value.value.trim();
-      const templateLiteral = expression.match(/^`([\s\S]*)`$/);
-      if (templateLiteral?.[1] !== undefined) return templateLiteral[1];
-      const stringLiteral = expression.match(/^(["'])([\s\S]*)\1$/);
-      if (stringLiteral?.[2] !== undefined) return stringLiteral[2];
-      return expression;
+      return attributeExpression(attr.value.value);
     }
   }
   return null;
@@ -89,12 +90,34 @@ function componentPlaceholder(name: string): Paragraph {
   };
 }
 
+function replaceMdxJsxNode(
+  node: RootContent,
+  resolveImageUrl: (src: string) => string | null,
+): RootContent[] {
+  const jsxNode = node as unknown as MdxJsxNode;
+  const name = jsxNode.name ?? "";
+  if (name === "Mermaid") {
+    const code = mermaidToCodeBlock(jsxNode);
+    return code ? [code] : [];
+  }
+  if (name === "img" || name === "Image") {
+    const image = imageToMarkdown(jsxNode, resolveImageUrl);
+    return image ? [image] : [];
+  }
+  const jsxChildren = jsxNode.children ?? [];
+  if (jsxChildren.length > 0) {
+    return replaceMdxNodes(jsxChildren, resolveImageUrl);
+  }
+  return node.type === "mdxJsxFlowElement" && name
+    ? [componentPlaceholder(name)]
+    : [];
+}
+
 /**
  * Replaces MDX-specific syntax (ESM imports, JSX components, expressions)
  * with plain-Markdown equivalents so the output is readable by any
  * Markdown consumer.
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 function replaceMdxNodes(
   children: RootContent[],
   resolveImageUrl: (src: string) => string | null,
@@ -108,25 +131,7 @@ function replaceMdxNodes(
         break;
       case "mdxJsxFlowElement":
       case "mdxJsxTextElement": {
-        const jsxNode = node as unknown as MdxJsxNode;
-        const name = jsxNode.name ?? "";
-        if (name === "Mermaid") {
-          const code = mermaidToCodeBlock(jsxNode);
-          if (code) result.push(code);
-          break;
-        }
-        if (name === "img" || name === "Image") {
-          const image = imageToMarkdown(jsxNode, resolveImageUrl);
-          if (image) result.push(image);
-          break;
-        }
-        const jsxChildren = jsxNode.children ?? [];
-        if (jsxChildren.length > 0) {
-          // Unwrap wrapper components so their inner content survives
-          result.push(...replaceMdxNodes(jsxChildren, resolveImageUrl));
-        } else if (node.type === "mdxJsxFlowElement" && name) {
-          result.push(componentPlaceholder(name));
-        }
+        result.push(...replaceMdxJsxNode(node, resolveImageUrl));
         break;
       }
       default: {

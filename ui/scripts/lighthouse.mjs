@@ -2,6 +2,7 @@
 
 import { launch } from "chrome-launcher";
 import lighthouse from "lighthouse";
+import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import puppeteer from "puppeteer";
@@ -125,7 +126,87 @@ function checkThresholds(result) {
 	return { scores, passed };
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+async function requireServer() {
+	console.log("Checking server availability...");
+	if (await checkServerAvailable(BASE_URL)) {
+		console.log("Server is running.\n");
+		return;
+	}
+	console.error(`\x1b[31mError: Server not reachable at ${BASE_URL}\x1b[0m`);
+	console.error("\nMake sure to either:");
+	console.error("  1. Start the dev server first: pnpm dev");
+	console.error("  2. Use: mise run //ui:lighthouse:serve (builds and serves automatically)");
+	console.error("  3. Set LIGHTHOUSE_URL to a running server");
+	process.exit(1);
+}
+
+async function chromeExecutablePath() {
+	const configuredPath = process.env.PUPPETEER_EXECUTABLE_PATH;
+	if (configuredPath) return configuredPath;
+	try {
+		const channelPath = puppeteer.executablePath("chrome");
+		if (existsSync(channelPath)) return channelPath;
+	} catch {
+		// Fall back to Puppeteer's managed browser below.
+	}
+	return puppeteer.executablePath();
+}
+
+async function runPageAudit(chrome, device, page) {
+	const url = `${BASE_URL}${page.path}`;
+	const testName = `${page.name}-${device}`;
+	console.log(`\nTesting: ${testName} (${url})`);
+	const runnerResult = await runLighthouse(url, chrome.port, device);
+	if (!runnerResult) {
+		console.error(`  Failed to get results for ${testName}`);
+		return null;
+	}
+	const { lhr, report } = runnerResult;
+	if (Array.isArray(report) && report[0] && report[1]) {
+		await writeFile(join(REPORTS_DIR, `${testName}.html`), report[0]);
+		await writeFile(join(REPORTS_DIR, `${testName}.json`), report[1]);
+	}
+	const { scores, passed } = checkThresholds(lhr);
+	console.log("  Scores:");
+	for (const [category, score] of Object.entries(scores)) {
+		const threshold = THRESHOLDS[category];
+		const status = score >= threshold ? "PASS" : "FAIL";
+		console.log(
+			`    ${category}: ${formatScore(score / 100)} (threshold: ${threshold}) [${status}]`,
+		);
+	}
+	return { name: testName, device, path: page.path, scores, passed };
+}
+
+async function runAudits(chrome) {
+	const results = [];
+	let allPassed = true;
+	for (const device of devicesToTest) {
+		console.log(`\n--- ${device.toUpperCase()} ---`);
+		for (const page of PAGES_TO_TEST) {
+			const result = await runPageAudit(chrome, device, page);
+			if (result) results.push(result);
+			if (!result?.passed) allPassed = false;
+		}
+	}
+	return { results, allPassed };
+}
+
+function printSummary(results) {
+	console.log("\n==============================");
+	console.log("Summary");
+	console.log("==============================\n");
+	for (const device of devicesToTest) {
+		console.log(`${device.toUpperCase()}:`);
+		for (const result of results.filter((item) => item.device === device)) {
+			const status = result.passed
+				? "\x1b[32mPASS\x1b[0m"
+				: "\x1b[31mFAIL\x1b[0m";
+			console.log(`  ${result.name}: ${status}`);
+		}
+	}
+}
+
 async function main() {
 	console.log("Lighthouse Performance Testing");
 	console.log("==============================");
@@ -134,93 +215,28 @@ async function main() {
 	console.log(`Reports: ${REPORTS_DIR}`);
 	console.log("");
 
-	// Check server is running
-	console.log("Checking server availability...");
-	const serverAvailable = await checkServerAvailable(BASE_URL);
-	if (!serverAvailable) {
-		console.error(`\x1b[31mError: Server not reachable at ${BASE_URL}\x1b[0m`);
-		console.error("\nMake sure to either:");
-		console.error("  1. Start the dev server first: pnpm dev");
-		console.error("  2. Use: mise run //ui:lighthouse:serve (builds and serves automatically)");
-		console.error("  3. Set LIGHTHOUSE_URL to a running server");
-		process.exit(1);
-	}
-	console.log("Server is running.\n");
+	await requireServer();
 
 	await mkdir(REPORTS_DIR, { recursive: true });
 
 	console.log("Launching Chrome...");
-	let chromePath;
-	try {
-		chromePath = await puppeteer.executablePath("chrome");
-	} catch {
-		chromePath = await puppeteer.executablePath();
-	}
+	const chromePath = await chromeExecutablePath();
 	const chrome = await launch({
 		chromePath,
 		chromeFlags: ["--headless", "--disable-gpu", "--no-sandbox"],
 	});
 
-	const results = [];
-	let allPassed = true;
+	let auditResult;
 	try {
-		for (const device of devicesToTest) {
-			console.log(`\n--- ${device.toUpperCase()} ---`);
-			for (const page of PAGES_TO_TEST) {
-				const url = `${BASE_URL}${page.path}`;
-				const testName = `${page.name}-${device}`;
-				console.log(`\nTesting: ${testName} (${url})`);
-				const runnerResult = await runLighthouse(url, chrome.port, device);
-				if (!runnerResult) {
-					console.error(`  Failed to get results for ${testName}`);
-					allPassed = false;
-					continue;
-				}
-				const { lhr, report } = runnerResult;
-				if (Array.isArray(report) && report[0] && report[1]) {
-					const htmlPath = join(REPORTS_DIR, `${testName}.html`);
-					await writeFile(htmlPath, report[0]);
-					const jsonPath = join(REPORTS_DIR, `${testName}.json`);
-					await writeFile(jsonPath, report[1]);
-				}
-				const { scores, passed } = checkThresholds(lhr);
-				results.push({
-					name: testName,
-					device,
-					path: page.path,
-					scores,
-					passed,
-				});
-				if (!passed) allPassed = false;
-				console.log("  Scores:");
-				for (const [category, score] of Object.entries(scores)) {
-					const threshold = THRESHOLDS[category];
-					const status = score >= threshold ? "PASS" : "FAIL";
-					console.log(
-						`    ${category}: ${formatScore(score / 100)} (threshold: ${threshold}) [${status}]`,
-					);
-				}
-			}
-		}
+		auditResult = await runAudits(chrome);
 	} finally {
 		await chrome.kill();
 	}
 
-	console.log("\n==============================");
-	console.log("Summary");
-	console.log("==============================\n");
-	for (const device of devicesToTest) {
-		console.log(`${device.toUpperCase()}:`);
-		for (const result of results.filter((r) => r.device === device)) {
-			const status = result.passed
-				? "\x1b[32mPASS\x1b[0m"
-				: "\x1b[31mFAIL\x1b[0m";
-			console.log(`  ${result.name}: ${status}`);
-		}
-	}
+	printSummary(auditResult.results);
 	console.log(`\nReports saved to: ${REPORTS_DIR}/`);
 	console.log("  Open HTML reports in browser for detailed analysis.\n");
-	if (!allPassed) {
+	if (!auditResult.allPassed) {
 		console.log(
 			"\x1b[31mSome pages failed to meet performance thresholds.\x1b[0m",
 		);

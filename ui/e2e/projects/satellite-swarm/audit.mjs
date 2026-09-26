@@ -141,7 +141,20 @@ async function sampleAnimationFrames(page, durationMs) {
   }, durationMs);
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+function validateSourceRevision(fullRevision, sourceRevision) {
+  if (
+    !sourceRevisionPattern.test(fullRevision) ||
+    sourceRevision !== fullRevision.slice(0, 12)
+  ) {
+    throw new Error("The simulation did not display its exact source revision");
+  }
+  if (expectedSourceRevision && fullRevision !== expectedSourceRevision) {
+    throw new Error(
+      `The simulation reported ${fullRevision}, expected ${expectedSourceRevision}`,
+    );
+  }
+}
+
 async function auditProfile(browser, profile) {
   const context = await browser.newContext(profile.context);
   const page = await context.newPage();
@@ -197,19 +210,7 @@ async function auditProfile(browser, profile) {
     const sourceRevision = (await revisionLink.textContent())?.trim() ?? "";
     const sourceURL = await revisionLink.getAttribute("href");
     const fullRevision = sourceURL?.split("/").at(-1) ?? "";
-    if (
-      !sourceRevisionPattern.test(fullRevision) ||
-      sourceRevision !== fullRevision.slice(0, 12)
-    ) {
-      throw new Error(
-        "The simulation did not display its exact source revision",
-      );
-    }
-    if (expectedSourceRevision && fullRevision !== expectedSourceRevision) {
-      throw new Error(
-        `The simulation reported ${fullRevision}, expected ${expectedSourceRevision}`,
-      );
-    }
+    validateSourceRevision(fullRevision, sourceRevision);
 
     const frameSamplePromise = sampleAnimationFrames(page, 3_200);
     await page.getByRole("button", { name: "Play replay" }).click();

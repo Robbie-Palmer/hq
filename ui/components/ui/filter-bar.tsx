@@ -72,7 +72,55 @@ interface FilterBarProps {
   mobileExtraContentLabel?: string;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+function availableSections(
+  sections: MobileFilterSection[] | undefined,
+): MobileFilterSection[] {
+  return sections ?? [];
+}
+
+function SearchControl({
+  onSearchChange,
+  searchAriaLabel,
+  searchPlaceholder,
+  searchValue,
+  stackControls,
+}: Readonly<{
+  onSearchChange: (value: string) => void;
+  searchAriaLabel?: string;
+  searchPlaceholder: string;
+  searchValue: string;
+  stackControls: boolean;
+}>) {
+  return (
+    <div
+      className={cn(
+        "relative flex-1 min-w-[120px] md:min-w-[200px] max-w-md",
+        stackControls && "w-full basis-full md:w-auto md:basis-auto",
+      )}
+    >
+      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        type="search"
+        placeholder={searchPlaceholder}
+        value={searchValue}
+        onChange={(event) => onSearchChange(event.target.value)}
+        className="pl-9 pr-9 [&::-webkit-search-cancel-button]:appearance-none"
+        aria-label={searchAriaLabel ?? searchPlaceholder}
+      />
+      {searchValue && (
+        <button
+          type="button"
+          onClick={() => onSearchChange("")}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          aria-label="Clear search"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function FilterBar({
   children,
   searchValue = "",
@@ -99,7 +147,7 @@ export function FilterBar({
   const [mobileOptionOrder, setMobileOptionOrder] = useState<string[]>([]);
   const mobileOptionsId = useId();
   const mobileResultsStatusId = useId();
-  const availableMobileFilterSections = mobileFilterSections ?? [];
+  const availableMobileFilterSections = availableSections(mobileFilterSections);
   const mobileSection = availableMobileFilterSections.find(
     (section) => section.paramName === mobileSectionName,
   );
@@ -165,32 +213,13 @@ export function FilterBar({
     setMobileOptionOrder([]);
   };
   const searchControl = showSearch && onSearchChange && (
-    <div
-      className={cn(
-        "relative flex-1 min-w-[120px] md:min-w-[200px] max-w-md",
-        stackControls && "w-full basis-full md:w-auto md:basis-auto",
-      )}
-    >
-      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-      <Input
-        type="search"
-        placeholder={searchPlaceholder}
-        value={searchValue}
-        onChange={(e) => onSearchChange(e.target.value)}
-        className="pl-9 pr-9 [&::-webkit-search-cancel-button]:appearance-none"
-        aria-label={searchAriaLabel ?? searchPlaceholder}
-      />
-      {searchValue && (
-        <button
-          type="button"
-          onClick={() => onSearchChange("")}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-          aria-label="Clear search"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      )}
-    </div>
+    <SearchControl
+      onSearchChange={onSearchChange}
+      searchAriaLabel={searchAriaLabel}
+      searchPlaceholder={searchPlaceholder}
+      searchValue={searchValue}
+      stackControls={stackControls}
+    />
   );
   const desktopFilters = (
     <div className="hidden md:flex items-center gap-2 flex-wrap">

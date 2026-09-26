@@ -111,11 +111,18 @@ async function responseJson(response: Response): Promise<unknown> {
   }
 }
 
+function isVoidResponse(response: Response, responseType: "json" | "void") {
+  return (
+    responseType === "void" ||
+    response.status === 204 ||
+    response.status === 205
+  );
+}
+
 /**
  * Make a same-origin API request, encoding `json` bodies and normalising API
  * failures into an error callers can branch on by status or code.
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export async function apiRequest<T>(
   path: string,
   options: ApiRequestOptions = {},
@@ -169,11 +176,7 @@ export async function apiRequest<T>(
       },
     );
   }
-  if (
-    responseType === "void" ||
-    response.status === 204 ||
-    response.status === 205
-  ) {
+  if (isVoidResponse(response, responseType)) {
     return undefined as T;
   }
   if (parsed === undefined) {

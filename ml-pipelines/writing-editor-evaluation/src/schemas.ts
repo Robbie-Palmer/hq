@@ -419,7 +419,6 @@ const GectorArtifactResultSchema = z.object({
   suggestions: z.array(SuggestionSchema),
   proposalIds: z.array(ProposalIdSchema),
   proposals: z.array(ProposalSchema),
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 }).strict().superRefine((artifact, context) => {
   const suggestionIds = artifact.suggestions.map(({ suggestionId }) => suggestionId);
   if (
@@ -455,6 +454,16 @@ const GectorArtifactResultSchema = z.object({
       path: ["proposals"],
     });
   }
+  validateProposalSuggestionRecords(artifact, context);
+  validateSuggestionSources(artifact, context);
+});
+
+type GectorArtifactResult = z.infer<typeof GectorArtifactResultSchema>;
+
+function validateProposalSuggestionRecords(
+  artifact: GectorArtifactResult,
+  context: z.RefinementCtx,
+): void {
   const suggestionsById = new Map(
     artifact.suggestions.map((suggestion) => [suggestion.suggestionId, suggestion]),
   );
@@ -470,6 +479,12 @@ const GectorArtifactResultSchema = z.object({
       }
     }
   }
+}
+
+function validateSuggestionSources(
+  artifact: GectorArtifactResult,
+  context: z.RefinementCtx,
+): void {
   for (const [index, suggestion] of artifact.suggestions.entries()) {
     if (
       suggestion.source.documentId !== artifact.source.documentId ||
@@ -483,7 +498,7 @@ const GectorArtifactResultSchema = z.object({
       });
     }
   }
-});
+}
 
 const GectorSummarySchema = z.object({
   artifacts: z.number().int().positive(),
