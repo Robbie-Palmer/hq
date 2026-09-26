@@ -367,7 +367,7 @@ Gateways do not remove per-provider account or billing sprawl. They add observab
   prompt-cache pass-through). Semantic caching, which would be a real differentiator, is on
   Cloudflare's roadmap but [not yet shipped](https://developers.cloudflare.com/ai-gateway/features/caching/).
   And the Cloudflare dashboard is not a particularly strong general-purpose observability tool;
-  if we wanted a single pane of glass across the whole product (Workers, D1, AI, business
+  if we wanted a single pane of glass across the whole product (Workers, Neon Postgres, AI, business
   metrics) we'd more likely introduce a dedicated platform like Grafana Cloud. A separate ADR.
 * **Decision**: **Rejected as the primary access layer.** Worth layering in front of OpenRouter
   *later* if user-facing AI features come to depend on guardrails, the one realistic
@@ -480,8 +480,9 @@ A typed `LLMClient` interface in the domain layer with adapters per provider, sw
   OpenRouter has account-level rate limits and the `user` parameter for activity tracking,
   but it isn't a per-user quota engine. At product scale, enforcing "free tier gets N
   ingestions/month, premium tier unlimited", detecting prompt injection / abuse, and
-  per-user budget caps live in our Workers + D1 backend. OpenRouter is the inference layer;
-  the metering and access-control layer is ours to build. If our backend logic isn't enough,
+  per-user budget caps live in our Workers backend and PostgreSQL database on Neon. OpenRouter is
+  the inference layer; the metering and access-control layer is ours to build. If our backend logic
+  isn't enough,
   Cloudflare AI Gateway specifically offers Guardrails (content-safety inspection) as a
   layered option, but per-user budgets, abuse heuristics, and product-shaped rate limits
   remain ours to own either way.
