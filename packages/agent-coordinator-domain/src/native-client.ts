@@ -35,7 +35,11 @@ const REDACTION_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
   [/\bBearer\s+[^\s"']+/giu, "Bearer [REDACTED]"],
   [/\b(?:sk|key|token|secret)-[a-z\d_-]{8,}\b/giu, "[REDACTED]"],
   [
-    /(["']?(?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)["']?\s*[:=]\s*["']?)[^\s,"'}]+/giu,
+    /(["']?(?:api[_-]?key|password|secret)["']?\s*[:=]\s*["']?)[^\s,"'}]+/giu,
+    "$1[REDACTED]",
+  ],
+  [
+    /(["']?(?:access|refresh)[_-]?token["']?\s*[:=]\s*["']?)[^\s,"'}]+/giu,
     "$1[REDACTED]",
   ],
 ];
@@ -222,6 +226,9 @@ class NativeAdapterSession implements AdapterSession {
     this.#createCheckpointId = options.createCheckpointId;
     this.#routeId = options.routeId;
     this.#providerId = options.providerId;
+  }
+
+  observeCompletion(): void {
     void this.#observeCompletion();
   }
 
@@ -341,12 +348,14 @@ export function createNativeClientAdapter(
       cwd: request.cwd,
       environment: nativeClientEnvironment(options.environment ?? process.env),
     });
-    return new NativeAdapterSession(identity, handle, {
+    const session = new NativeAdapterSession(identity, handle, {
       now,
       createCheckpointId,
       routeId: options.definition.identity.authenticationPathId,
       providerId: options.definition.providerId,
     });
+    session.observeCompletion();
+    return session;
   };
 
   return {
@@ -415,7 +424,7 @@ export function codexNativeClientDefinition(
     resumeArguments: (input, checkpoint) => {
       const threadId = checkpoint.state.threadId;
       if (typeof threadId !== "string") {
-        throw new Error("Codex checkpoint does not contain a threadId");
+        throw new TypeError("Codex checkpoint does not contain a threadId");
       }
       return ["exec", "resume", threadId, input];
     },
@@ -443,7 +452,7 @@ export function claudeCodeNativeClientDefinition(
     resumeArguments: (input, checkpoint) => {
       const sessionId = checkpoint.state.sessionId;
       if (typeof sessionId !== "string") {
-        throw new Error("Claude Code checkpoint does not contain a sessionId");
+        throw new TypeError("Claude Code checkpoint does not contain a sessionId");
       }
       return [
         "--resume",

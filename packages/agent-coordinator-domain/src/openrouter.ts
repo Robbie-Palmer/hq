@@ -258,7 +258,9 @@ export function createOpenRouterAdapter(
     async resume(request: WorkerResumeRequest) {
       const { budgetUsd, spentUsd } = request.checkpoint.state;
       if (typeof budgetUsd !== "number" || typeof spentUsd !== "number") {
-        throw new Error("OpenRouter checkpoint does not contain budget state");
+        throw new TypeError(
+          "OpenRouter checkpoint does not contain budget state",
+        );
       }
       return start(request, request.identity, { budgetUsd, spentUsd });
     },
