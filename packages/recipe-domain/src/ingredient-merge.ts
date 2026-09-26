@@ -24,6 +24,7 @@ export function createIngredientGroupAccumulator(
  * Throws on irreconcilable conflicts (e.g. different units with quantities,
  * different preparation annotations).
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function mergeIngredientIntoGroup(
   group: IngredientGroupAccumulator,
   nextItem: RecipeIngredient,

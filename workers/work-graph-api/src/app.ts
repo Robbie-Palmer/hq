@@ -2792,6 +2792,7 @@ export const createWorkGraphApp = (
     );
   });
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
   app.openapi(createLeaseRoute, async (context) => {
     const request = context.req.valid("json");
     const selection =

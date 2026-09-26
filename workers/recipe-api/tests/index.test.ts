@@ -358,6 +358,7 @@ const dbMock = vi.hoisted(() => {
     state.expireInvitationOnUpdate = false;
   }
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
   function queryRows(query: string, params: unknown[] = []) {
     const shoppingSnapshot = (value: unknown) =>
       (typeof value === "string" ? JSON.parse(value) : value) as ShoppingListRow["snapshot"];

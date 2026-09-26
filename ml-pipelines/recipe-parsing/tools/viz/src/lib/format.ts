@@ -10,6 +10,7 @@ export function humanizeSlug(slug: string): string {
   return slug.replace(/-/g, " ");
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function formatAmount(item: RecipeIngredient, scale = 1): string {
   const parts: string[] = [];
 

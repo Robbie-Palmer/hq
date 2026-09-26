@@ -28,6 +28,7 @@ interface CanonicalizeDetailViewProps {
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function CanonicalizeDetailView({
   entryIndex,
   onBack,
@@ -169,6 +170,7 @@ export function CanonicalizeDetailView({
   }, [edited, entryIndex, groundTruth]);
 
   const handleKeyDown = useCallback(
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     (e: KeyboardEvent) => {
       const totalEntries = groundTruth?.entries.length ?? 0;
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {

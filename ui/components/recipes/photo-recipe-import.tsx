@@ -229,6 +229,7 @@ export function PhotoRecipeImport({
     let consecutiveFailures = 0;
     const controller = new AbortController();
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     async function poll() {
       try {
         const body = await fetchPhotoImportJob(currentJobId, controller.signal);

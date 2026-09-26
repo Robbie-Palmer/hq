@@ -613,6 +613,7 @@ function recipeSummary(
   };
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export async function executeRecipeAgentCapability(
   db: Db,
   capability: string,

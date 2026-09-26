@@ -262,6 +262,7 @@ function archiveText(archive, name) {
 }
 
 function cooklangStepText(step, parsed, flatIngredients, flatCookware, flatTimers) {
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
   return step.items.map((item) => {
     if (item.type === "text") return item.value;
     if (item.type === "ingredient") return flatIngredients[item.index]?.name || "";

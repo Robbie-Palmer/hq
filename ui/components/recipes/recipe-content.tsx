@@ -215,6 +215,7 @@ function ingredientGroupClassName(index: number, hasName: boolean) {
   return hasName ? "border-t border-border/50 pt-4 mt-4" : "mt-4";
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function RecipeContent({
   recipe,
   timersEnabled = true,

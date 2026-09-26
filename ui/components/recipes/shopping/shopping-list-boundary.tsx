@@ -151,6 +151,7 @@ export function ShoppingListBoundary({
   const supersededRevisions = useRef<Set<string>>(new Set());
   const [saveFailed, setSaveFailed] = useState(false);
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
   useEffect(() => {
     if (!current.data) return;
     const serialized = JSON.stringify(current.data.snapshot);
@@ -230,6 +231,7 @@ export function ShoppingListBoundary({
     let timer: ReturnType<typeof setTimeout> | undefined;
     let syncTimer: ReturnType<typeof setTimeout> | undefined;
     let saving = Promise.resolve();
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     const unsubscribe = subscribeShoppingList((source) => {
       if (source !== "local") {
         if (source === "install" && timer) {

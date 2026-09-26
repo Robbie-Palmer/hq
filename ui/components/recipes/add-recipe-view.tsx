@@ -236,6 +236,7 @@ function recipeEditorCopy(editing: boolean) {
       };
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function AddRecipeView({
   initialRecipe,
 }: Readonly<{ initialRecipe?: SavedRecipeApiRecord }>) {
@@ -379,6 +380,7 @@ export function AddRecipeView({
     setImportedUrl(recipe.url ?? null);
   }, []);
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
   async function importRecipeUrl() {
     if (!recipeUrl.trim() || importing) return;
     importRequestRef.current?.controller.abort();
@@ -426,6 +428,7 @@ export function AddRecipeView({
     }
   }
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
   async function importRecipeFile() {
     if (!recipeFile || importing) return;
     importRequestRef.current?.controller.abort();
@@ -508,6 +511,7 @@ export function AddRecipeView({
     setImportedFileName(null);
   }, []);
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
   async function saveRecipe() {
     if (!preview || savingRef.current) return;
     savingRef.current = true;

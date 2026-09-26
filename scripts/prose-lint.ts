@@ -179,6 +179,7 @@ interface ValeOutput {
   [file: string]: ValeAlert[];
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 function runValeBatch(files: string[]): ValeAlert[] {
   const args = ["--config", VALE_CONFIG, "--output", "JSON", ...files];
 
@@ -291,6 +292,7 @@ function parseDiffType(value: string): DiffMode {
   process.exit(1);
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 function parseArgs(argv: string[]): ProseOptions {
   const opts: ProseOptions = {
     files: [],

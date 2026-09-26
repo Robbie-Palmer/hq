@@ -1014,6 +1014,7 @@ export class Reviewer {
     };
   }
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
   async existingComment(
     marker = MARKER,
     botLogins: ReadonlySet<string> = BOT_LOGINS,

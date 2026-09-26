@@ -1577,6 +1577,7 @@ describe("Given a worker managing a lease", () => {
   it("decomposes into ranked children and claims one for the same worker", async () => {
     const repository = buildRepository();
     vi.mocked(repository.listWorkItems).mockResolvedValue(
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
       ["parent", "first", "second"].map((workItemId) => ({
         ...item(
           workItemId,

@@ -140,6 +140,7 @@ function createNextConfig(phase: string): NextConfig {
         config.plugins = config.plugins ?? [];
         config.plugins.push({
           apply(compiler: WebpackCompiler) {
+            // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
             compiler.hooks.afterEmit.tap("CooklangServerWasmPathPlugin", () => {
               const outputPath = compiler.outputPath;
               const sourceDir = path.join(outputPath, "chunks/static/wasm");

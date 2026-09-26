@@ -107,6 +107,7 @@ function recurringFlowValue(
     : monthlyAmount(flow);
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 function addRecurringFlowLinks(
   flows: RecurringFlow[],
   liabilityBalances: Record<string, number>,

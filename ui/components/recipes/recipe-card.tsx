@@ -81,6 +81,7 @@ export function RecipeThumb({
  * what's still needed, and an add/remove shopping-list toggle. The card body is
  * a stretched link to the recipe; interactive children sit above it (z-10).
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function RecipeMatchCard({
   recipe,
   inList,

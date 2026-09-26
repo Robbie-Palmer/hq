@@ -125,6 +125,7 @@ function checkThresholds(result) {
 	return { scores, passed };
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 async function main() {
 	console.log("Lighthouse Performance Testing");
 	console.log("==============================");

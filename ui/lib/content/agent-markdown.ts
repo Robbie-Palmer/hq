@@ -34,6 +34,7 @@ type MdxJsxNode = {
   children?: RootContent[];
 };
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 function getAttribute(node: MdxJsxNode, name: string): string | null {
   for (const attr of node.attributes ?? []) {
     if (attr.type !== "mdxJsxAttribute" || attr.name !== name) continue;
@@ -93,6 +94,7 @@ function componentPlaceholder(name: string): Paragraph {
  * with plain-Markdown equivalents so the output is readable by any
  * Markdown consumer.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 function replaceMdxNodes(
   children: RootContent[],
   resolveImageUrl: (src: string) => string | null,

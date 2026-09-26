@@ -419,6 +419,7 @@ const GectorArtifactResultSchema = z.object({
   suggestions: z.array(SuggestionSchema),
   proposalIds: z.array(ProposalIdSchema),
   proposals: z.array(ProposalSchema),
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 }).strict().superRefine((artifact, context) => {
   const suggestionIds = artifact.suggestions.map(({ suggestionId }) => suggestionId);
   if (
