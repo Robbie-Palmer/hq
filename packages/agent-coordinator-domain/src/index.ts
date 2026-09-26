@@ -6,3 +6,4 @@ export * from "./policy";
 export * from "./session";
 export * from "./task";
 export * from "./vocabulary";
+export * from "./work-graph";
