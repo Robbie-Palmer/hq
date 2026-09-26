@@ -1,23 +1,40 @@
 ---
 title: "Personal Engineering Platform"
-description: "Shared, dated engineering defaults for personal projects"
+description: "An executable developer platform for building and operating personal projects"
 date: "2026-09-12"
 status: "live"
-updated: "2026-09-15"
+updated: "2026-09-26"
 initiatives:
   - "semi-autonomous-software-development"
 ---
 
 # Vision
 
-Start a personal software project with the engineering decisions already made,
-documented, and enforced. New work should inherit a working route from checkout
-to production without copying old ADRs or rediscovering the same tools.
+Build an executable developer platform that turns a project's declared needs
+into a working route from checkout to production. New work should inherit the
+engineering decisions, repository structure, build and release machinery,
+infrastructure, delivery path, and application capabilities it needs without
+copying old ADRs or rediscovering the same tools.
 
 The platform is the part of my engineering practice that should compound. A
 project remains responsible for its product, domain model, and unusual
 constraints. The platform owns the defaults that become more useful when every
-project exercises the same path.
+project exercises the same path. Documentation explains the decisions, but it
+is not the product. The product is the automation that applies those decisions
+and keeps adopted projects aligned as the defaults change.
+
+The platform spans four connected planes:
+
+* **Control and catalog:** model projects, technology stacks, capabilities,
+  dependencies, defaults, and explicit overrides;
+* **Build and release:** create reproducible development environments, package
+  software and models, publish OCI artifacts, and attach provenance;
+* **Delivery:** provision infrastructure and deploy through the appropriate
+  transition point, including serverless runtimes, managed application
+  runtimes, NixOS hosts, K3s, and Kubernetes; and
+* **Application capabilities:** provide reusable contracts and implementations
+  for concerns such as identity, APIs, events, feature flags, telemetry, and
+  data access without forcing one runtime on every project.
 
 # Why this is a project
 
@@ -35,13 +52,16 @@ to the decisions that make the product distinct.
 
 # Responsibilities
 
-The Personal Engineering Platform owns reusable engineering policy. Projects
-opt into named layers and keep their own decision histories for product choices
-and deliberate overrides.
+The Personal Engineering Platform owns reusable engineering policy and the
+automation that enforces it. Projects opt into named layers and capabilities,
+then keep their own decision histories for product choices and deliberate
+overrides.
 
-The manifest below the project introduction is the source of truth for current
-defaults. Every policy and selection has an effective period and a deciding
-ADR, so historical project stacks do not change when the platform does.
+The manifest below the project introduction is the declarative source of truth
+for current defaults. It drives project generation, validation,
+reconciliation, artifact production, provisioning, and deployment. Every
+policy and selection has an effective period and a deciding ADR, so historical
+project stacks do not change when the platform does.
 
 Provenance keeps origins, evidence, and adopters separate. A selection names
 the projects that produced it and the exact ADRs that support that claim.
@@ -51,10 +71,11 @@ manifest.
 
 # Scope
 
-The platform records choices that apply across projects: source governance,
-repository and CI defaults, agentic development, language tooling, application
-runtimes, infrastructure, telemetry, and data stores. It does not own product
-architecture or employer policy.
+The platform models and applies choices that recur across projects: source
+governance, repository and CI defaults, agentic development, language tooling,
+application runtimes, infrastructure, delivery, telemetry, and data stores. It
+generates new projects and reconciles existing adopters. It does not own
+product architecture or employer policy.
 
 Required slots apply to every project that uses their layer. Preferred slots
 apply only after a project records that it needs the capability.
