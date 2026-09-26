@@ -691,8 +691,8 @@ importers:
         specifier: ^3.4.1
         version: 3.4.1
       '@posthog/brand':
-        specifier: 0.10.0
-        version: 0.10.0(react@19.3.0)
+        specifier: 0.12.2
+        version: 0.12.2(react@19.3.0)
       '@radix-ui/react-dialog':
         specifier: ^1.1.15
         version: 1.1.23(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -3151,8 +3151,8 @@ packages:
   '@poppinss/exception@1.2.3':
     resolution: {integrity: sha512-dCED+QRChTVatE9ibtoaxc+WkdzOSjYTKi/+uacHWIsfodVfpsueo3+DKpgU5Px8qXjgmXkSvhXvSCz3fnP9lw==}
 
-  '@posthog/brand@0.10.0':
-    resolution: {integrity: sha512-82lixIzTQB+VnjWnTOxDE3XMveztUr85f/CUyqhr2D74s7LmBKBCiwa8V8EMfc5ri57RIYdK9DaDj1vt/IpIyQ==}
+  '@posthog/brand@0.12.2':
+    resolution: {integrity: sha512-/fIC+pD83a9a6szjB3VX2MgTCH4w3qzJ2LWKwF7bHCpqW3ygqLguRoYeKrF4BU2pefFpDVUqx+UhlVicjxX+Uw==}
     engines: {node: '>=22.18'}
     peerDependencies:
       react: '>=18'
@@ -10336,7 +10336,7 @@ snapshots:
 
   '@poppinss/exception@1.2.3': {}
 
-  '@posthog/brand@0.10.0(react@19.3.0)':
+  '@posthog/brand@0.12.2(react@19.3.0)':
     optionalDependencies:
       react: 19.3.0
 
