@@ -1,6 +1,6 @@
 import type { AgentAuthEvent, AgentSession } from "@better-auth/agent-auth";
 import type { Db } from "recipe-db";
-import type * as schema from "recipe-db/schema";
+import * as schema from "recipe-db/schema";
 import { describe, expect, it, vi } from "vitest";
 import {
   createRecipeAgentAuthPlugin,
@@ -126,6 +126,42 @@ function agentSession(userId = "delegating-user"): AgentSession {
       email: "delegating-user@example.test",
     },
   };
+}
+
+function agentExecutionDb(...queryResults: unknown[][]) {
+  const state = {
+    auditValues: [] as Record<string, unknown>[],
+    counts: new Map<string, number>(),
+  };
+  const db = Object.assign(queryDb(...queryResults), {
+    insert: vi.fn((table: unknown) => {
+      if (table === schema.appRateLimit) {
+        return {
+          values: (values: { key: string; windowStart: Date }) => ({
+            onConflictDoUpdate: () => ({
+              returning: () => {
+                const count = (state.counts.get(values.key) ?? 0) + 1;
+                state.counts.set(values.key, count);
+                return Promise.resolve([
+                  { count, windowStart: values.windowStart },
+                ]);
+              },
+            }),
+          }),
+        };
+      }
+      if (table === schema.agentAuthAuditEvent) {
+        return {
+          values: (values: Record<string, unknown>) => {
+            state.auditValues.push(values);
+            return Promise.resolve();
+          },
+        };
+      }
+      throw new Error("Unexpected insert table");
+    }),
+  }) as Db;
+  return { db, state };
 }
 
 function recipe(
@@ -933,15 +969,7 @@ describe("recipe Agent Auth capabilities", () => {
   });
 
   it("validates, executes, and audits through the Agent Auth callbacks", async () => {
-    const auditValues: Record<string, unknown>[] = [];
-    const db = Object.assign(queryDb([], [recipe()]), {
-      insert: vi.fn(() => ({
-        values: (values: Record<string, unknown>) => {
-          auditValues.push(values);
-          return Promise.resolve();
-        },
-      })),
-    }) as Db;
+    const { db, state } = agentExecutionDb([], [recipe()]);
     const plugin = createRecipeAgentAuthPlugin(db);
     const options = plugin.options;
     if (!options) throw new Error("Agent Auth options were not exposed");
@@ -956,7 +984,17 @@ describe("recipe Agent Auth capabilities", () => {
       await options.validateCapabilities?.(["recipes.delete"]),
     ).toBe(false);
 
+    const responseHeaders = new Headers();
     const executed = await options.onExecute?.({
+      ctx: {
+        headers: new Headers({
+          "cf-connecting-ip": "203.0.113.9",
+          "x-request-id": "agent-request-123",
+        }),
+        responseHeaders,
+        setHeader: (key: string, value: string) =>
+          responseHeaders.set(key, value),
+      },
       capability: "recipes.read",
       arguments: { slug: "tomato-soup" },
       agentSession: agentSession(),
@@ -983,18 +1021,20 @@ describe("recipe Agent Auth capabilities", () => {
     ];
     for (const event of events) await options.onEvent?.(event);
 
-    expect(auditValues).toEqual([
+    expect(responseHeaders.get("x-request-id")).toBe("agent-request-123");
+    expect(state.auditValues).toEqual([
       expect.objectContaining({
         eventType: "capability.executed",
         userId: "delegating-user",
         capability: "recipes.read",
         outcome: "success",
-        durationMs: 12,
+        correlationId: "agent-request-123",
       }),
       expect.objectContaining({
         eventType: "capability.approved",
         userId: "delegating-user",
       }),
     ]);
+    expect(state.auditValues[0]).not.toHaveProperty("arguments");
   });
 });
