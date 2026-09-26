@@ -18,11 +18,13 @@ BEGIN
     current_database(),
     '10s'
   );
-  EXECUTE format(
-    'ALTER ROLE %I IN DATABASE %I SET transaction_timeout = %L',
-    current_user,
-    current_database(),
-    '20s'
-  );
+  IF current_setting('server_version_num')::integer >= 170000 THEN
+    EXECUTE format(
+      'ALTER ROLE %I IN DATABASE %I SET transaction_timeout = %L',
+      current_user,
+      current_database(),
+      '20s'
+    );
+  END IF;
 END
 $work_graph$;

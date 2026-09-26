@@ -57,12 +57,12 @@ smoke-tests production.
 ### Database request limits
 
 The database migration sets a 5-second lock timeout, 15-second statement
-timeout, 10-second idle-in-transaction timeout, and 20-second transaction
-timeout on the dedicated `work_graph_owner` role for the Work Graph database.
-These limits sit below the CLI's 30-second request timeout. They give the Worker
-time to roll back an aborted transaction and return HTTP 503 with
-`Retry-After: 1` instead of holding a Hyperdrive connection until the client
-disconnects.
+timeout, and 10-second idle-in-transaction timeout on the dedicated
+`work_graph_owner` role for the Work Graph database. On PostgreSQL 17 and later,
+it also sets a 20-second transaction timeout. These limits sit below the CLI's
+30-second request timeout. They give the Worker time to roll back an aborted
+transaction and return HTTP 503 with `Retry-After: 1` instead of holding a
+Hyperdrive connection until the client disconnects.
 
 The settings belong to the database role rather than a Worker session.
 Hyperdrive uses transaction pooling and does not support arbitrary per-session
@@ -80,6 +80,7 @@ ALTER ROLE work_graph_owner IN DATABASE work_graph RESET lock_timeout;
 ALTER ROLE work_graph_owner IN DATABASE work_graph RESET statement_timeout;
 ALTER ROLE work_graph_owner IN DATABASE work_graph
   RESET idle_in_transaction_session_timeout;
+-- PostgreSQL 17 and later only:
 ALTER ROLE work_graph_owner IN DATABASE work_graph RESET transaction_timeout;
 ```
 
