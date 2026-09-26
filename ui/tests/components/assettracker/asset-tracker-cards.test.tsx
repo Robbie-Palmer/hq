@@ -1,8 +1,18 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { addDays, format, parseISO } from "date-fns";
 import type { ReactNode } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import { AccountFlows } from "@/components/assettracker/account-flows";
 import { AccountsTable } from "@/components/assettracker/accounts-table";
 import { AssetAllocationHistoryChart } from "@/components/assettracker/asset-allocation-history-chart";
 import { useAssetTracker } from "@/components/assettracker/asset-tracker-provider";
@@ -17,6 +27,7 @@ import {
 } from "@/components/assettracker/runway-forecast";
 import { UpcomingFlows } from "@/components/assettracker/upcoming-flows";
 import {
+  type AccountDetailView,
   buildFlowSankeyData,
   type PortfolioFinancialIndependence,
   todayIsoDate,
@@ -129,6 +140,7 @@ vi.mock("@/components/assettracker/asset-tracker-provider", () => ({
 
 const mockUseAssetTracker = vi.mocked(useAssetTracker);
 const FIXED_NOW = new Date("2026-07-03T12:00:00+01:00");
+const originalScrollIntoView = Element.prototype.scrollIntoView;
 const EMPTY_FI: PortfolioFinancialIndependence = {
   periods: [],
   representativeAnnualExpenditure: null,
@@ -152,6 +164,31 @@ const EMPTY_FI: PortfolioFinancialIndependence = {
   projectedFiDate: null,
   yearsToFi: null,
 };
+
+beforeAll(() => {
+  for (const method of [
+    "setPointerCapture",
+    "releasePointerCapture",
+    "hasPointerCapture",
+  ]) {
+    Object.defineProperty(HTMLElement.prototype, method, {
+      configurable: true,
+      value: vi.fn(),
+    });
+  }
+  Element.prototype.scrollIntoView = vi.fn();
+});
+
+afterAll(() => {
+  for (const method of [
+    "setPointerCapture",
+    "releasePointerCapture",
+    "hasPointerCapture",
+  ]) {
+    Reflect.deleteProperty(HTMLElement.prototype, method);
+  }
+  Element.prototype.scrollIntoView = originalScrollIntoView;
+});
 
 function mockAssetTracker(
   overrides: Partial<ReturnType<typeof useAssetTracker>> = {},
@@ -838,6 +875,134 @@ describe("UpcomingFlows", () => {
       screen.getByText(/£800\.00.*US\$1,000\.00.*£10\.00 fee/),
     ).toBeVisible();
     expect(screen.getByText(/£80\.00.*US\$100\.00$/)).toBeVisible();
+  });
+});
+
+describe("AccountFlows", () => {
+  it("shows converted amounts and delegates recording and deletion", async () => {
+    const addRecurringFlow = vi.fn().mockResolvedValue(undefined);
+    const materializeFlow = vi.fn().mockResolvedValue(undefined);
+    const deleteRecurringFlow = vi.fn().mockResolvedValue(undefined);
+    const account: AccountDetailView = {
+      id: "current",
+      name: "Current account",
+      provider: "Bank",
+      currency: "GBP",
+      assetType: "cash",
+      expectedAnnualReturn: 0,
+      isOpen: true,
+      latestBalance: 1_000,
+      latestSnapshotDate: "2026-07-03",
+      cagr: null,
+      createdAt: "2026-01-01",
+      snapshots: [],
+      capitalFlows: [],
+      netContributed: 0,
+      gainLoss: 0,
+    };
+    mockAssetTracker({
+      accounts: [
+        account,
+        {
+          id: "usd-account",
+          name: "USD account",
+          provider: "Bank",
+          currency: "USD",
+          assetType: "cash",
+          expectedAnnualReturn: 0,
+          isOpen: true,
+          latestBalance: 500,
+          latestSnapshotDate: "2026-07-03",
+          cagr: null,
+        },
+      ],
+      addRecurringFlow,
+      recurringFlows: [
+        {
+          id: "usd-salary",
+          name: "USD salary",
+          amount: 110,
+          currency: "USD",
+          conversion: {
+            received: { amount: 85, currency: "GBP" },
+            fee: { amount: 2, currency: "USD" },
+            provider: "Wise",
+          },
+          frequency: "monthly",
+          fromAccountId: "usd-account",
+          toAccountId: "current",
+          startDate: "2026-07-01",
+        },
+        {
+          id: "usd-rent",
+          name: "USD rent",
+          amount: 40,
+          currency: "GBP",
+          conversion: {
+            received: { amount: 50, currency: "USD" },
+            fee: { amount: 1, currency: "GBP" },
+            provider: "Bank FX",
+          },
+          frequency: "monthly",
+          fromAccountId: "current",
+          toAccountId: "usd-account",
+          startDate: "2026-07-01",
+        },
+      ],
+      materializeFlow,
+      deleteRecurringFlow,
+    });
+    const user = userEvent.setup();
+
+    render(<AccountFlows account={account} />);
+
+    const salary = screen.getByText("USD salary").closest("li");
+    const rent = screen.getByText("USD rent").closest("li");
+    expect(salary).not.toBeNull();
+    expect(rent).not.toBeNull();
+    expect(within(salary as HTMLElement).getByText("+£85.00/mo")).toBeVisible();
+    expect(within(salary as HTMLElement).getByText(/via Wise/)).toBeVisible();
+    expect(within(rent as HTMLElement).getByText("-£41.00/mo")).toBeVisible();
+
+    await user.click(
+      within(salary as HTMLElement).getByRole("button", { name: "Record" }),
+    );
+    expect(materializeFlow).toHaveBeenCalledWith("usd-salary");
+
+    await user.click(
+      within(rent as HTMLElement).getByRole("button", {
+        name: "Delete flow USD rent",
+      }),
+    );
+    expect(deleteRecurringFlow).toHaveBeenCalledWith("usd-rent");
+
+    await user.type(screen.getByLabelText("Flow name"), "Converted income");
+    await user.type(screen.getByLabelText("Flow amount"), "110");
+    await user.click(screen.getByRole("combobox", { name: "Flow source" }));
+    await user.click(screen.getByRole("option", { name: "From USD account" }));
+    await user.type(screen.getByLabelText("Amount received in GBP"), "85");
+    await user.type(screen.getByLabelText("Conversion fee in USD"), "2");
+    await user.type(screen.getByLabelText("Conversion provider"), "Wise");
+    await user.click(
+      screen.getByRole("button", {
+        name: "Add expected flow into this account",
+      }),
+    );
+
+    expect(addRecurringFlow).toHaveBeenCalledWith({
+      name: "Converted income",
+      amount: 110,
+      currency: "USD",
+      conversion: {
+        received: { amount: 85, currency: "GBP" },
+        fee: { amount: 2, currency: "USD" },
+        provider: "Wise",
+      },
+      formula: undefined,
+      frequency: "monthly",
+      fromAccountId: "usd-account",
+      toAccountId: "current",
+    });
   });
 });
 
