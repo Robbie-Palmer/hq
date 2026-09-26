@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  AdapterRuntimeError,
+  AuthenticationAllowlistEntrySchema,
   AuthenticationAllowlist,
   AuthenticationNotAllowedError,
   WorkerAdapterRuntime,
@@ -35,6 +37,23 @@ function testAdapter(): WorkerAdapter {
 }
 
 describe("worker adapter runtime", () => {
+  it("discovers an allowed adapter and rejects duplicate registrations", async () => {
+    const worker = testAdapter();
+    const options = {
+      adapters: [worker],
+      allowlist: new AuthenticationAllowlist([authenticationEntry]),
+      createSessionId: () => "session:stable",
+    };
+    const runtime = new WorkerAdapterRuntime(options);
+
+    await expect(runtime.discoverAvailability(adapter.adapterId)).resolves.toMatchObject({
+      state: "available",
+    });
+    expect(
+      () => new WorkerAdapterRuntime({ ...options, adapters: [worker, worker] }),
+    ).toThrow(`Duplicate adapter ${adapter.adapterId}`);
+  });
+
   it("creates one stable identity and preserves it when resuming", async () => {
     const worker = testAdapter();
     const runtime = new WorkerAdapterRuntime({
@@ -124,5 +143,109 @@ describe("worker adapter runtime", () => {
         cwd: "/workspace",
       }),
     ).resolves.toMatchObject({ identity: { sessionId: "session:stable" } });
+  });
+
+  it("rejects unknown, unavailable, and mismatched sessions", async () => {
+    const worker = testAdapter();
+    vi.mocked(worker.discoverAvailability).mockResolvedValue({
+      state: "quota-exhausted",
+      observedAt: "2026-09-26T08:00:00.000Z",
+      reason: "No capacity",
+    });
+    const runtime = new WorkerAdapterRuntime({
+      adapters: [worker],
+      allowlist: new AuthenticationAllowlist([authenticationEntry]),
+      createSessionId: () => "session:stable",
+    });
+
+    await expect(
+      runtime.launch("adapter:missing", {
+        taskId: "work:test",
+        input: "test",
+        cwd: "/workspace",
+      }),
+    ).rejects.toMatchObject({ code: "adapter-not-found" });
+    await expect(
+      runtime.launch(adapter.adapterId, {
+        taskId: "work:test",
+        input: "test",
+        cwd: "/workspace",
+      }),
+    ).rejects.toMatchObject({ code: "adapter-unavailable" });
+    await expect(
+      runtime.resume(adapter.adapterId, {
+        taskId: "work:other",
+        input: "test",
+        cwd: "/workspace",
+        identity: session,
+        checkpoint: {
+          kind: "checkpoint",
+          checkpointId: "checkpoint:one",
+          createdAt: "2026-09-26T08:01:00.000Z",
+          reason: "test",
+          state: {},
+        },
+      }),
+    ).rejects.toMatchObject({ code: "identity-mismatch" });
+  });
+
+  it("rejects an adapter that changes session identity", async () => {
+    const worker = testAdapter();
+    worker.launch = vi.fn().mockImplementation(async (_request, identity) => ({
+      identity: { ...identity, sessionId: "session:changed" },
+      checkpoint: vi.fn(),
+      quota: vi.fn(),
+      cost: vi.fn(),
+      stop: vi.fn(),
+      signals: () => [],
+    }));
+    const runtime = new WorkerAdapterRuntime({
+      adapters: [worker],
+      allowlist: new AuthenticationAllowlist([authenticationEntry]),
+      createSessionId: () => "session:stable",
+    });
+
+    await expect(
+      runtime.launch(adapter.adapterId, {
+        taskId: "work:test",
+        input: "test",
+        cwd: "/workspace",
+      }),
+    ).rejects.toBeInstanceOf(AdapterRuntimeError);
+  });
+});
+
+describe("authentication allowlist", () => {
+  it("looks up entries and rejects duplicates or unknown disables", () => {
+    const allowlist = new AuthenticationAllowlist([authenticationEntry]);
+    expect(allowlist.get(authenticationEntry.authenticationPathId)).toEqual(
+      authenticationEntry,
+    );
+    expect(
+      () => new AuthenticationAllowlist([authenticationEntry, authenticationEntry]),
+    ).toThrow("Duplicate authentication path");
+    expect(() =>
+      allowlist.disable(
+        "auth:missing",
+        "2026-09-26T09:00:00.000Z",
+        "Missing route",
+      ),
+    ).toThrow(AuthenticationNotAllowedError);
+  });
+
+  it("requires disable metadata only for disabled entries", () => {
+    expect(
+      AuthenticationAllowlistEntrySchema.safeParse({
+        ...authenticationEntry,
+        disabledAt: "2026-09-26T09:00:00.000Z",
+        disabledReason: "Contradiction",
+      }).success,
+    ).toBe(false);
+    expect(
+      AuthenticationAllowlistEntrySchema.safeParse({
+        ...authenticationEntry,
+        enabled: false,
+      }).success,
+    ).toBe(false);
   });
 });

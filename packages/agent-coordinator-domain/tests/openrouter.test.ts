@@ -268,4 +268,134 @@ describe("OpenRouter adapter", () => {
     ).rejects.toThrow("exceeded the reserved request cost");
     expect(await session.cost()).toMatchObject({ amount: 0.6 });
   });
+
+  it("reports quota and stop signals", async () => {
+    const transport: OpenRouterTransport = {
+      isAvailable: vi.fn().mockResolvedValue(true),
+      execute: vi.fn().mockResolvedValue({
+        output: "done",
+        providerId: "provider:one",
+        modelId: "model:one",
+        costUsd: 1,
+      }),
+    };
+    const adapter = createOpenRouterAdapter({
+      actorId: "actor:api-agent",
+      authenticationPathId: authenticationEntry.authenticationPathId,
+      transport,
+    });
+    const runtime = new WorkerAdapterRuntime({
+      allowlist: new AuthenticationAllowlist([authenticationEntry]),
+      adapters: [adapter],
+      createSessionId: () => "session:api",
+    });
+    const session = (await runtime.launch(adapter.identity.adapterId, {
+      taskId: "work:api",
+      input: "",
+      cwd: "/workspace",
+      budgetUsd: 1,
+    })) as OpenRouterSession;
+
+    await expect(session.quota()).resolves.toMatchObject({
+      state: "available",
+      remaining: 1,
+    });
+    await session.execute({
+      requestId: "request:all",
+      model: "model:one",
+      input: "work",
+      maximumCostUsd: 1,
+    });
+    await expect(session.quota()).resolves.toMatchObject({
+      state: "exhausted",
+      remaining: 0,
+    });
+    await session.stop("Bearer private-stop-token");
+    expect(session.signals()).toContainEqual(
+      expect.objectContaining({ kind: "stopped", reason: "Bearer [REDACTED]" }),
+    );
+  });
+
+  it("rejects invalid transport costs and malformed resume state", async () => {
+    const transport: OpenRouterTransport = {
+      isAvailable: vi.fn().mockResolvedValue(true),
+      execute: vi.fn().mockResolvedValue({
+        output: "done",
+        providerId: "provider:one",
+        modelId: "model:one",
+        costUsd: -1,
+      }),
+    };
+    const adapter = createOpenRouterAdapter({
+      actorId: "actor:api-agent",
+      authenticationPathId: authenticationEntry.authenticationPathId,
+      transport,
+    });
+    const runtime = new WorkerAdapterRuntime({
+      allowlist: new AuthenticationAllowlist([authenticationEntry]),
+      adapters: [adapter],
+      createSessionId: () => "session:api",
+    });
+    const session = (await runtime.launch(adapter.identity.adapterId, {
+      taskId: "work:api",
+      input: "",
+      cwd: "/workspace",
+      budgetUsd: 1,
+    })) as OpenRouterSession;
+    await expect(
+      session.execute({
+        requestId: "request:invalid-cost",
+        model: "model:one",
+        input: "work",
+        maximumCostUsd: 1,
+      }),
+    ).rejects.toThrow("invalid metered cost");
+    await expect(
+      runtime.resume(adapter.identity.adapterId, {
+        taskId: "work:api",
+        input: "",
+        cwd: "/workspace",
+        budgetUsd: 1,
+        identity: session.identity,
+        checkpoint: {
+          kind: "checkpoint",
+          checkpointId: "checkpoint:bad",
+          createdAt: "2026-09-26T08:00:00.000Z",
+          reason: "bad",
+          state: {},
+        },
+      }),
+    ).rejects.toThrow("does not contain budget state");
+  });
+
+  it("reports an unavailable transport and requires a positive budget", async () => {
+    const transport: OpenRouterTransport = {
+      isAvailable: vi.fn().mockResolvedValue(false),
+      execute: vi.fn(),
+    };
+    const adapter = createOpenRouterAdapter({
+      actorId: "actor:api-agent",
+      authenticationPathId: authenticationEntry.authenticationPathId,
+      transport,
+    });
+    await expect(adapter.discoverAvailability()).resolves.toMatchObject({
+      state: "unavailable",
+    });
+    await expect(
+      adapter.launch(
+        { taskId: "work:api", input: "", cwd: "/workspace", budgetUsd: 0 },
+        {
+          schemaVersion: 1,
+          recordType: "execution-session",
+          sessionId: "session:api",
+          taskId: "work:api",
+          actorId: adapter.identity.actorId,
+          adapterId: adapter.identity.adapterId,
+          adapterVersion: adapter.identity.adapterVersion,
+          authenticationPathId: adapter.identity.authenticationPathId,
+          startedAt: "2026-09-26T08:00:00.000Z",
+        },
+      ),
+    ).rejects.toBeInstanceOf(SessionBudgetExceededError);
+  });
 });
