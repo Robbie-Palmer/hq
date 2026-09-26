@@ -1372,6 +1372,42 @@ describe("delivery evidence persistence", () => {
       expect.objectContaining({ lifecycle: "open", stage: "in_progress" }),
     );
     expect(await repository.listEvents()).toEqual(lifecycleEventsBefore);
+
+    const firstPullRequest = pullRequests[0];
+    if (!firstPullRequest) throw new Error("Expected a pull request fixture.");
+    const newerCi = await storeObservation(30, {
+      externalId: "ci-1",
+      commitSha: firstPullRequest.head,
+      state: "failure",
+      pullRequestNumber: 1,
+    });
+    const firstPage = await repository.listWorkItemDeliveryEvidence({
+      workItemId: "delivery",
+      limit: 4,
+    });
+    const firstPageCursor = firstPage.at(-1)?.id;
+    if (!firstPageCursor) throw new Error("Expected a first evidence page.");
+    const secondPage = await repository.listWorkItemDeliveryEvidence({
+      workItemId: "delivery",
+      cursor: firstPageCursor,
+      limit: 4,
+    });
+    const history = [...firstPage, ...secondPage];
+    expect(history).toHaveLength(7);
+    expect(
+      history.find(
+        ({ current, externalId }) => externalId === "ci-1" && !current,
+      ),
+    ).toEqual(expect.objectContaining({ state: "success", projectedAt: null }));
+    expect(history).toContainEqual(
+      expect.objectContaining({ id: newerCi.id, current: true }),
+    );
+    await expect(
+      repository.listWorkItemDeliveryEvidence({
+        workItemId: "delivery",
+        currentOnly: true,
+      }),
+    ).resolves.toHaveLength(6);
   });
 });
 

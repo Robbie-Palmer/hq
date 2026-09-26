@@ -270,6 +270,12 @@ separate API calls. Install and authenticate `gh` before using it.
 when an audit or integration needs the stored SHA, mergeability, review
 decision, source ticket, and inheritance depth.
 
+`show` returns the work-item projection, current delivery evidence, and the
+latest completion-candidate evaluation. The evaluation includes the policy ID
+and revision used to produce it. A null `completionCandidate` means no
+evaluation has been recorded. Evidence history remains available through the
+REST collection.
+
 `pr refresh` and `pr link` remain available as low-level automation commands.
 `pr refresh` records the latest observed snapshot independently of any ticket
 claim. Add `--draft` for draft PRs; omit `--review-decision` when GitHub has no

@@ -22,6 +22,8 @@ const repository: WorkGraphApiRepository = {
   listWorkItems: unavailable,
   getWorkItem: unavailable,
   resolveWorkItemContext: unavailable,
+  listWorkItemDeliveryEvidence: unavailable,
+  getCompletionCandidate: unavailable,
   listNotes: unavailable,
   listEvents: unavailable,
   listDependencies: unavailable,

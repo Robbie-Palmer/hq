@@ -1207,10 +1207,38 @@ describe("Given agent-facing Work Graph commands", () => {
   });
 
   it("shows a work item with an encoded path identifier", async () => {
-    const test = harness();
+    const candidate = {
+      id: UUID,
+      workItemId: "work/a b",
+      policyId: "default",
+      policyRevision: 2,
+      candidate: false,
+      reasons: ["missing_required_ci"],
+      evidenceObservationIds: [],
+      evaluatedAt: "2026-09-22T12:00:00.000Z",
+    };
+    const test = harness(({ url }) => {
+      if (url.pathname.endsWith("/evidence")) {
+        return response({ items: [], nextCursor: null });
+      }
+      if (url.pathname.endsWith("/completion-candidate")) {
+        return response({ candidate });
+      }
+      return response({ ...activeWorkItem(), id: "work/a b" });
+    });
     await test.run(["show", "work/a b"]);
     expect(test.requests[0]?.url.pathname).toBe("/root/api/work-items/work%2Fa%20b");
     expect(test.requests[0]?.method).toBe("GET");
+    expect(test.requests.map(({ url }) => url.pathname)).toEqual([
+      "/root/api/work-items/work%2Fa%20b",
+      "/root/api/work-items/work%2Fa%20b/evidence",
+      "/root/api/work-items/work%2Fa%20b/completion-candidate",
+    ]);
+    expect(JSON.parse(test.stdout[0] ?? "null")).toMatchObject({
+      id: "work/a b",
+      deliveryEvidence: { items: [], nextCursor: null },
+      completionCandidate: candidate,
+    });
   });
 
   it("records a fenced note with a generated ID", async () => {

@@ -137,6 +137,48 @@ export type KnowledgeScopeRelationship = {
     childKnowledgeScopeId: string;
 };
 
+export type DeliveryEvidenceList = {
+    items: Array<DeliveryEvidence>;
+    nextCursor: string | null;
+};
+
+export type DeliveryEvidence = {
+    id: string;
+    deliveryProvider: string;
+    deliveryExternalId: string;
+    provider: string;
+    externalId: string;
+    repository: string;
+    commitSha: string;
+    kind: 'pull_request' | 'ci' | 'deployment';
+    state: 'pending' | 'success' | 'failure' | 'cancelled';
+    name: string | null;
+    environment: string | null;
+    sourceUrl: string;
+    providerObservedAt: string;
+    ingestedAt: string;
+    correlationKind: 'unmatched' | 'pull_request_head' | 'pull_request_merge';
+    pullRequestRepository: string | null;
+    pullRequestNumber: number | null;
+    current: boolean;
+    projectedAt: string | null;
+};
+
+export type CompletionCandidateResponse = {
+    candidate: CompletionCandidate | null;
+};
+
+export type CompletionCandidate = {
+    id: string;
+    workItemId: string;
+    policyId: string;
+    policyRevision: number;
+    candidate: boolean;
+    reasons: Array<'missing_implementation_pull_request' | 'pull_request_not_merged' | 'missing_accepted_head' | 'missing_merge_commit' | 'missing_pull_request_evidence' | 'missing_required_ci' | 'missing_production_deployment' | 'unfinished_children' | 'unresolved_blocking_attention'>;
+    evidenceObservationIds: Array<string>;
+    evaluatedAt: string;
+};
+
 export type ResolvedWorkItemContextList = {
     items: Array<ResolvedWorkItemContext>;
 };
@@ -164,7 +206,12 @@ export type ResolvedWorkItemContext = {
     url: string;
     sourceWorkItemId: string;
     inheritanceDepth: number;
-} | ResolvedPullRequest;
+} | ResolvedPullRequest | {
+    kind: 'delivery_evidence';
+    evidence: DeliveryEvidence;
+    sourceWorkItemId: string;
+    inheritanceDepth: number;
+};
 
 export type ResolvedPullRequest = {
     kind: 'pull_request';
@@ -1745,6 +1792,61 @@ export type CreatePostReleaseWorkItemNoteResponses = {
 
 export type CreatePostReleaseWorkItemNoteResponse = CreatePostReleaseWorkItemNoteResponses[keyof CreatePostReleaseWorkItemNoteResponses];
 
+export type GetWorkItemCompletionCandidateData = {
+    body?: never;
+    path: {
+        workItemId: string;
+    };
+    query?: never;
+    url: '/api/work-items/{workItemId}/completion-candidate';
+};
+
+export type GetWorkItemCompletionCandidateErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
+};
+
+export type GetWorkItemCompletionCandidateError = GetWorkItemCompletionCandidateErrors[keyof GetWorkItemCompletionCandidateErrors];
+
+export type GetWorkItemCompletionCandidateResponses = {
+    /**
+     * Current completion-candidate projection
+     */
+    200: CompletionCandidateResponse;
+};
+
+export type GetWorkItemCompletionCandidateResponse = GetWorkItemCompletionCandidateResponses[keyof GetWorkItemCompletionCandidateResponses];
+
 export type ListWorkItemContextsData = {
     body?: never;
     path: {
@@ -2064,6 +2166,65 @@ export type ListWorkItemEventsResponses = {
 };
 
 export type ListWorkItemEventsResponse = ListWorkItemEventsResponses[keyof ListWorkItemEventsResponses];
+
+export type ListWorkItemEvidenceData = {
+    body?: never;
+    path: {
+        workItemId: string;
+    };
+    query?: {
+        currentOnly?: 'true';
+        limit?: number;
+        cursor?: string;
+    };
+    url: '/api/work-items/{workItemId}/evidence';
+};
+
+export type ListWorkItemEvidenceErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
+};
+
+export type ListWorkItemEvidenceError = ListWorkItemEvidenceErrors[keyof ListWorkItemEvidenceErrors];
+
+export type ListWorkItemEvidenceResponses = {
+    /**
+     * Delivery evidence in stable observation-ID order
+     */
+    200: DeliveryEvidenceList;
+};
+
+export type ListWorkItemEvidenceResponse = ListWorkItemEvidenceResponses[keyof ListWorkItemEvidenceResponses];
 
 export type UnexpediteWorkItemData = {
     body?: never;

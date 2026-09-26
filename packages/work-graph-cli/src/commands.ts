@@ -1639,7 +1639,22 @@ export const workGraphRouter = t.router({
         ),
       }),
     )
-    .query(({ ctx, input }) => resolveClient(ctx).getWorkItem(input.workItemId)),
+    .query(async ({ ctx, input }) => {
+      const client = resolveClient(ctx);
+      const workItem = await client.getWorkItem(input.workItemId);
+      const [deliveryEvidence, completion] = await Promise.all([
+        client.listWorkItemEvidence(input.workItemId, {
+          currentOnly: "true",
+          limit: 100,
+        }),
+        client.getWorkItemCompletionCandidate(input.workItemId),
+      ]);
+      return {
+        ...workItem,
+        deliveryEvidence,
+        completionCandidate: completion.candidate,
+      };
+    }),
   note: command
     .meta({ description: "Record progress or handoff notes on claimed work" })
     .input(noteInput)
