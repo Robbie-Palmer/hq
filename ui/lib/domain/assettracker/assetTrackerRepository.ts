@@ -1,6 +1,13 @@
 import { accounts as definedAccounts } from "../../../content/assettracker/accounts";
 import { recurringFlows as definedRecurringFlows } from "../../../content/assettracker/recurringFlows";
 import { snapshots as definedSnapshots } from "../../../content/assettracker/snapshots";
+import { transfers as definedTransfers } from "../../../content/assettracker/transfers";
+import {
+  exchangeRateObservations as definedExchangeRateObservations,
+  holdingObservations as definedHoldingObservations,
+  instruments as definedInstruments,
+  priceObservations as definedPriceObservations,
+} from "../../../content/assettracker/valuations";
 import {
   type Account,
   type AccountId,
@@ -48,8 +55,20 @@ export function getSeedData(): AssetTrackerData {
   return AssetTrackerDataSchema.parse({
     accounts: definedAccounts,
     snapshots: definedSnapshots,
-    transfers: [],
+    transfers: definedTransfers,
     recurringFlows: definedRecurringFlows,
+    instruments: definedInstruments,
+    holdingObservations: definedHoldingObservations,
+    priceObservations: definedPriceObservations,
+    exchangeRateObservations: definedExchangeRateObservations,
+    settings: {
+      expectedAnnualInflation: 0.025,
+      targetNetWorth: { amount: 500_000, currency: "GBP" },
+      targetNetWorthIsReal: true,
+      withdrawalRate: 0.04,
+      baseCurrency: "GBP",
+      valuationMaxAgeDays: 7,
+    },
   });
 }
 

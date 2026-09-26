@@ -21,6 +21,21 @@ export const recurringFlows: RecurringFlow[] = [
     startDate: "2024-01-01",
   },
   {
+    id: "us-brokerage-contribution",
+    name: "US brokerage contribution",
+    fromAccountId: "nationwide-current",
+    toAccountId: "us-brokerage",
+    amount: 300,
+    currency: "GBP",
+    conversion: {
+      received: { amount: 380, currency: "USD" },
+      fee: { amount: 2, currency: "GBP" },
+      provider: "Wise",
+    },
+    frequency: "monthly",
+    startDate: "2024-01-01",
+  },
+  {
     id: "mortgage-payment",
     name: "Mortgage payment",
     fromAccountId: "nationwide-current",
