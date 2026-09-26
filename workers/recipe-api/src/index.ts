@@ -5682,7 +5682,6 @@ const RECIPE_IMPORT_IMAGE_EXTENSIONS: Record<string, string> = {
 };
 
 const recipeImportIdSchema = z.string().uuid();
-type RecipeImportImage = { file: File; extension: string };
 
 function importJobResponse(job: RecipeImportJob) {
   return {
@@ -5703,7 +5702,7 @@ async function parseImportImages(
   c: Context<AppEnv>,
   form: FormData,
 ): Promise<
-  | { success: true; images: RecipeImportImage[] }
+  | { success: true; images: { file: File; extension: string }[] }
   | { success: false; response: Response }
 > {
   // workers-types declares FormData entries as string, but the runtime
@@ -5725,7 +5724,7 @@ async function parseImportImages(
     };
   }
 
-  const images: RecipeImportImage[] = [];
+  const images: { file: File; extension: string }[] = [];
   let totalBytes = 0;
   for (const entry of entries) {
     if (!(entry instanceof File)) {
@@ -5783,123 +5782,10 @@ async function parseImportImages(
   return { success: true, images };
 }
 
-type RecipeImportQuotaOutcome =
-  | { ok: true; job: RecipeImportJob }
-  | { ok: false; reason: "active" | "daily" };
-
-async function createRecipeImportJob(
-  db: Db,
-  userId: string,
-  imageCount: number,
-  dayStart: Date,
-): Promise<RecipeImportQuotaOutcome> {
-  return db.transaction(async (tx) => {
-    // Serialize per-user job creation so concurrent uploads cannot slip past the limits.
-    await tx
-      .select({ id: schema.user.id })
-      .from(schema.user)
-      .where(eq(schema.user.id, userId))
-      .for("update");
-
-    const [active] = await tx
-      .select({ value: count() })
-      .from(schema.recipeImportJob)
-      .where(
-        and(
-          eq(schema.recipeImportJob.userId, userId),
-          inArray(schema.recipeImportJob.status, ["queued", "running"]),
-        ),
-      );
-    if ((active?.value ?? 0) >= RECIPE_IMPORT_MAX_ACTIVE_JOBS) {
-      return { ok: false, reason: "active" };
-    }
-
-    const [today] = await tx
-      .select({ value: count() })
-      .from(schema.recipeImportJob)
-      .where(
-        and(
-          eq(schema.recipeImportJob.userId, userId),
-          gte(schema.recipeImportJob.createdAt, dayStart),
-        ),
-      );
-    if ((today?.value ?? 0) >= RECIPE_IMPORT_DAILY_JOB_LIMIT) {
-      return { ok: false, reason: "daily" };
-    }
-
-    const [job] = await tx
-      .insert(schema.recipeImportJob)
-      .values({ userId, imageCount })
-      .returning();
-    if (!job) throw new Error("Recipe import job insert returned no row");
-    return { ok: true, job };
-  });
-}
-
-async function startRecipeImport(
-  c: Context<AppEnv>,
-  db: Db,
-  artifacts: R2Bucket,
-  workflow: Workflow,
-  job: RecipeImportJob,
-  images: RecipeImportImage[],
-): Promise<Response | undefined> {
-  try {
-    await Promise.all(
-      images.map(({ file, extension }, index) =>
-        artifacts.put(sourceImageKey(job.id, index, extension), file, {
-          httpMetadata: { contentType: file.type },
-        }),
-      ),
-    );
-    await withPostHogSpan(
-      {
-        env: c.env,
-        serviceName: "recipe-api",
-        spanName: "workflow.start recipe-ingest",
-        traceCarrier: traceCarrierFromHeaders(c.req.raw.headers),
-        attributes: { "recipe.import.job_id": job.id },
-        waitUntil: c.executionCtx,
-      },
-      async (span) => {
-        const traceContext = traceCarrierFromSpan(span);
-        await workflow.create({
-          id: job.id,
-          params: {
-            jobId: job.id,
-            ...(traceContext ? { traceContext } : {}),
-          },
-        });
-      },
-    );
-  } catch (error) {
-    console.error("POST /recipe-imports failed to start workflow", error);
-    // Best-effort cleanup so partially uploaded images don't accumulate.
-    try {
-      const uploaded = await artifacts.list({
-        prefix: importJobPrefix(job.id),
-      });
-      await Promise.all(
-        uploaded.objects.map((object) => artifacts.delete(object.key)),
-      );
-    } catch (cleanupError) {
-      console.error(
-        `Failed to clean up R2 objects for import ${job.id}`,
-        cleanupError,
-      );
-    }
-    await db
-      .update(schema.recipeImportJob)
-      .set({
-        status: "failed",
-        progressLabel: "Import failed",
-        errorType: "StartError",
-        errorMessage: "Failed to start the import",
-        finishedAt: new Date(),
-      })
-      .where(eq(schema.recipeImportJob.id, job.id));
-    return c.json({ error: "Failed to start the import" }, 502);
-  }
+function recipeImportQuotaError(reason: "active" | "daily") {
+  return reason === "active"
+    ? "Too many imports in progress"
+    : "Daily import limit reached";
 }
 
 registerRoute("post", "/recipe-imports", async (c) => {
@@ -5942,35 +5828,118 @@ registerRoute("post", "/recipe-imports", async (c) => {
       const dayStart = new Date();
       dayStart.setUTCHours(0, 0, 0, 0);
 
-      const outcome = await createRecipeImportJob(
-        db,
-        userId,
-        images.length,
-        dayStart,
-      );
+      type QuotaOutcome =
+        | { ok: true; job: RecipeImportJob }
+        | { ok: false; reason: "active" | "daily" };
+
+      const outcome = await db.transaction(async (tx): Promise<QuotaOutcome> => {
+        // Serialize per-user job creation so concurrent uploads cannot slip past the limits.
+        await tx
+          .select({ id: schema.user.id })
+          .from(schema.user)
+          .where(eq(schema.user.id, userId))
+          .for("update");
+
+        const [active] = await tx
+          .select({ value: count() })
+          .from(schema.recipeImportJob)
+          .where(
+            and(
+              eq(schema.recipeImportJob.userId, userId),
+              inArray(schema.recipeImportJob.status, ["queued", "running"]),
+            ),
+          );
+        if ((active?.value ?? 0) >= RECIPE_IMPORT_MAX_ACTIVE_JOBS) {
+          return { ok: false, reason: "active" };
+        }
+
+        const [today] = await tx
+          .select({ value: count() })
+          .from(schema.recipeImportJob)
+          .where(
+            and(
+              eq(schema.recipeImportJob.userId, userId),
+              gte(schema.recipeImportJob.createdAt, dayStart),
+            ),
+          );
+        if ((today?.value ?? 0) >= RECIPE_IMPORT_DAILY_JOB_LIMIT) {
+          return { ok: false, reason: "daily" };
+        }
+
+        const [job] = await tx
+          .insert(schema.recipeImportJob)
+          .values({ userId, imageCount: images.length })
+          .returning();
+        if (!job) throw new Error("Recipe import job insert returned no row");
+        return { ok: true, job };
+      });
 
       if (!outcome.ok) {
         return c.json(
           {
-            error:
-              outcome.reason === "active"
-                ? "Too many imports in progress"
-                : "Daily import limit reached",
+            error: recipeImportQuotaError(outcome.reason),
           },
           429,
         );
       }
       const job = outcome.job;
 
-      const startFailure = await startRecipeImport(
-        c,
-        db,
-        artifacts,
-        workflow,
-        job,
-        images,
-      );
-      if (startFailure) return startFailure;
+      try {
+        await Promise.all(
+          images.map(({ file, extension }, index) =>
+            artifacts.put(sourceImageKey(job.id, index, extension), file, {
+              httpMetadata: { contentType: file.type },
+            }),
+          ),
+        );
+        await withPostHogSpan(
+          {
+            env: c.env,
+            serviceName: "recipe-api",
+            spanName: "workflow.start recipe-ingest",
+            traceCarrier: traceCarrierFromHeaders(c.req.raw.headers),
+            attributes: { "recipe.import.job_id": job.id },
+            waitUntil: c.executionCtx,
+          },
+          async (span) => {
+            const traceContext = traceCarrierFromSpan(span);
+            await workflow.create({
+              id: job.id,
+              params: {
+                jobId: job.id,
+                ...(traceContext ? { traceContext } : {}),
+              },
+            });
+          },
+        );
+      } catch (error) {
+        console.error("POST /recipe-imports failed to start workflow", error);
+        // Best-effort cleanup so partially uploaded images don't accumulate.
+        try {
+          const uploaded = await artifacts.list({
+            prefix: importJobPrefix(job.id),
+          });
+          await Promise.all(
+            uploaded.objects.map((object) => artifacts.delete(object.key)),
+          );
+        } catch (cleanupError) {
+          console.error(
+            `Failed to clean up R2 objects for import ${job.id}`,
+            cleanupError,
+          );
+        }
+        await db
+          .update(schema.recipeImportJob)
+          .set({
+            status: "failed",
+            progressLabel: "Import failed",
+            errorType: "StartError",
+            errorMessage: "Failed to start the import",
+            finishedAt: new Date(),
+          })
+          .where(eq(schema.recipeImportJob.id, job.id));
+        return c.json({ error: "Failed to start the import" }, 502);
+      }
 
       return c.json(importJobResponse(job), 202);
     },
