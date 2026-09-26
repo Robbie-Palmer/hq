@@ -110,7 +110,7 @@
     "@vitest/coverage-v8": "^5.0.0",
     "chrome-launcher": "^1.2.1",
     "cloudflare": "^7.0.0",
-    "jsdom": "^29.0.0",
+    "jsdom": "^30.0.0",
     "lighthouse": "^13.0.1",
     "node-base": "workspace:*",
     "oxlint": "^1.85.0",
