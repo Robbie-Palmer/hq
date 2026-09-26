@@ -1932,6 +1932,80 @@ describe("Given an invalid REST request", () => {
 });
 
 describe("Given a transient database failure", () => {
+  it("keeps retry guidance when a lease claim is known not to have committed", async () => {
+    const repository = buildRepository();
+    vi.mocked(repository.claimWorkItem).mockRejectedValue(
+      Object.assign(new Error("too many connections"), { code: "53300" }),
+    );
+    const app = createWorkGraphApp(repository, {
+      createRequestId: () => "request-before-claim",
+    });
+
+    const response = await app.request("/api/leases", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workerId: "worker-a",
+        leaseDurationSeconds: 300,
+      }),
+    });
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("retry-after")).toBe("1");
+    expect(await responseJson(response)).toEqual({
+      error: {
+        code: "database_capacity",
+        message: "The Work Graph database is at connection capacity. Retry it.",
+        requestId: "request-before-claim",
+      },
+    });
+  });
+
+  it("reports an uncertain outcome without retry guidance after a lease claim commits", async () => {
+    const repository = buildRepository();
+    vi.mocked(repository.getWorkItem).mockRejectedValue(
+      Object.assign(new Error("too many connections"), { code: "53300" }),
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const app = createWorkGraphApp(repository, {
+      createLeaseId: () => leaseId,
+      createRequestId: () => "request-after-claim",
+    });
+
+    const response = await app.request("/api/leases", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workItemId: "ready",
+        workerId: "worker-a",
+        leaseDurationSeconds: 300,
+      }),
+    });
+
+    expect(repository.claimWorkItem).toHaveBeenCalledOnce();
+    expect(response.status).toBe(500);
+    expect(response.headers.get("retry-after")).toBeNull();
+    expect(response.headers.get("x-request-id")).toBe("request-after-claim");
+    expect(await responseJson(response)).toEqual({
+      error: {
+        code: "claim_outcome_uncertain",
+        message:
+          "The lease claim may have succeeded, but its response could not be completed. Inspect the work item before claiming again.",
+        requestId: "request-after-claim",
+      },
+    });
+    expect(warn).toHaveBeenCalledWith(
+      JSON.stringify({
+        message: "Work Graph lease claim outcome is uncertain",
+        code: "claim_outcome_uncertain",
+        requestId: "request-after-claim",
+        method: "POST",
+        path: "/api/leases",
+      }),
+    );
+    warn.mockRestore();
+  });
+
   it.each([
     [
       "55P03",

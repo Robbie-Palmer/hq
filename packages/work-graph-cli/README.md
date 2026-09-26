@@ -349,10 +349,12 @@ The CLI retries `database_timeout`, `database_capacity`, and
 idempotency key for API mutations that support replay, then keeps that key
 stable through retries. Other mutations make one attempt because a lost
 response would leave their outcome uncertain. The retry budget is three total
-attempts within the existing 30-second request timeout. Each retry honors
-`Retry-After`, then adds exponential jitter starting at 250 milliseconds and
-capped at 4 seconds. If the deadline expires during a later attempt, the CLI
-reports the last complete server error and its request ID.
+attempts within the existing 30-second request timeout. Each retry honors a
+valid `Retry-After` delay in seconds or HTTP-date form, then adds exponential
+jitter starting at 250 milliseconds and capped at 4 seconds. Invalid, expired,
+or out-of-budget values fall back to exponential backoff. If the deadline
+expires during a later attempt, the CLI reports the last complete server error
+and its request ID.
 
 ## JSON and exit codes
 

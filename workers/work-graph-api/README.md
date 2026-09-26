@@ -71,6 +71,11 @@ includes `Retry-After: 1`, an `X-Request-Id` correlation header, and the same
 request ID in the JSON error. The Worker logs that ID with the request method,
 path, and stable error code. It does not log database error text.
 
+Lease claims are intentionally not replayable. If a transient database failure
+occurs after a claim may have committed, the Worker returns
+`claim_outcome_uncertain` without `Retry-After` and tells the caller to inspect
+the work item before claiming again.
+
 The settings belong to the database role rather than a Worker session.
 Hyperdrive uses transaction pooling and does not support arbitrary per-session
 state. Apply migrations before deploying the Worker, then restart the

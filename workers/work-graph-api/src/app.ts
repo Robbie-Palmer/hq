@@ -2199,6 +2199,15 @@ const retryableDatabaseErrors: Record<
   },
 };
 
+class UncertainClaimOutcomeError extends Error {
+  constructor(cause: unknown) {
+    super("A lease claim may have committed before its response failed.", {
+      cause,
+    });
+    this.name = "UncertainClaimOutcomeError";
+  }
+}
+
 const requireBoundedCriticalPath = (
   projection: CriticalPathProjection,
 ): CriticalPathProjection => {
@@ -2261,6 +2270,30 @@ export const createWorkGraphApp = (
       return context.json(
         { error: { code: error.code, message: error.message } },
         statusForWorkGraphError(error),
+      );
+    }
+    if (error instanceof UncertainClaimOutcomeError) {
+      const requestId = createRequestId();
+      context.header("X-Request-Id", requestId);
+      console.warn(
+        JSON.stringify({
+          message: "Work Graph lease claim outcome is uncertain",
+          code: "claim_outcome_uncertain",
+          requestId,
+          method: context.req.method,
+          path: context.req.path,
+        }),
+      );
+      return context.json(
+        {
+          error: {
+            code: "claim_outcome_uncertain",
+            message:
+              "The lease claim may have succeeded, but its response could not be completed. Inspect the work item before claiming again.",
+            requestId,
+          },
+        },
+        500,
       );
     }
     const retryableDatabaseFailure = classifyRetryableDatabaseFailure(error);
@@ -2889,17 +2922,24 @@ export const createWorkGraphApp = (
         409,
       );
     }
-    const item = await repository.getWorkItem(claimed.workItemId);
-    return context.json(
-      {
-        lease: serializeLease(claimed),
-        workItem: serializeWorkItem(item),
-        context: [
-          ...(await repository.resolveWorkItemContext(claimed.workItemId)),
-        ],
-      },
-      201,
-    );
+    try {
+      const item = await repository.getWorkItem(claimed.workItemId);
+      return context.json(
+        {
+          lease: serializeLease(claimed),
+          workItem: serializeWorkItem(item),
+          context: [
+            ...(await repository.resolveWorkItemContext(claimed.workItemId)),
+          ],
+        },
+        201,
+      );
+    } catch (error) {
+      if (classifyRetryableDatabaseFailure(error) !== undefined) {
+        throw new UncertainClaimOutcomeError(error);
+      }
+      throw error;
+    }
   });
 
   app.openapi(renewLeaseRoute, async (context) => {

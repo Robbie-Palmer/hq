@@ -95,6 +95,55 @@ const RETRYABLE_API_ERROR_CODES = new Set([
   "database_unavailable",
 ]);
 const SAFE_RETRY_METHODS = new Set(["GET", "HEAD"]);
+const REPLAY_CAPABLE_MUTATIONS: ReadonlyArray<{
+  method: string;
+  path: RegExp;
+}> = [
+  { method: "POST", path: /^\/api\/attention-requests$/u },
+  {
+    method: "POST",
+    path: /^\/api\/attention-requests\/[^/]+\/resolutions$/u,
+  },
+  { method: "POST", path: /^\/api\/dependencies$/u },
+  { method: "DELETE", path: /^\/api\/dependencies$/u },
+  { method: "POST", path: /^\/api\/knowledge-scope-relationships$/u },
+  { method: "DELETE", path: /^\/api\/knowledge-scope-relationships$/u },
+  { method: "PUT", path: /^\/api\/knowledge-scopes\/[^/]+$/u },
+  {
+    method: "POST",
+    path: /^\/api\/knowledge-scopes\/[^/]+\/archival$/u,
+  },
+  {
+    method: "DELETE",
+    path: /^\/api\/knowledge-scopes\/[^/]+\/archival$/u,
+  },
+  {
+    method: "POST",
+    path: /^\/api\/knowledge-scopes\/[^/]+\/priority-moves$/u,
+  },
+  { method: "PUT", path: /^\/api\/pull-requests$/u },
+  { method: "POST", path: /^\/api\/work-items$/u },
+  { method: "PUT", path: /^\/api\/work-items\/[^/]+\/contexts$/u },
+  { method: "POST", path: /^\/api\/work-items\/[^/]+\/comments$/u },
+  {
+    method: "POST",
+    path: /^\/api\/work-items\/[^/]+\/decompositions$/u,
+  },
+  { method: "POST", path: /^\/api\/work-items\/[^/]+\/expedites$/u },
+  { method: "DELETE", path: /^\/api\/work-items\/[^/]+\/expedites$/u },
+  { method: "POST", path: /^\/api\/work-items\/[^/]+\/notes$/u },
+  { method: "PUT", path: /^\/api\/work-items\/[^/]+\/parent$/u },
+  {
+    method: "POST",
+    path: /^\/api\/work-items\/[^/]+\/priority-moves$/u,
+  },
+  { method: "PUT", path: /^\/api\/work-items\/[^/]+\/pull-requests$/u },
+  { method: "PUT", path: /^\/api\/work-items\/[^/]+\/references$/u },
+  {
+    method: "PUT",
+    path: /^\/api\/work-items\/[^/]+\/scheduling-scope$/u,
+  },
+];
 
 type Sleep = (delayMs: number, signal: AbortSignal) => Promise<void>;
 
@@ -175,9 +224,15 @@ const isApiError = (
   );
 };
 
-const requestCanBeRetried = (request: Request): boolean =>
-  SAFE_RETRY_METHODS.has(request.method.toUpperCase()) ||
-  request.headers.has("idempotency-key");
+const requestCanBeRetried = (request: Request): boolean => {
+  const method = request.method.toUpperCase();
+  if (SAFE_RETRY_METHODS.has(method)) return true;
+  if (!request.headers.has("idempotency-key")) return false;
+  const path = new URL(request.url).pathname;
+  return REPLAY_CAPABLE_MUTATIONS.some(
+    (operation) => operation.method === method && operation.path.test(path),
+  );
+};
 
 const retryableResponse = async (response: Response): Promise<boolean> => {
   if (response.status !== 503) return false;
@@ -189,22 +244,35 @@ const retryableResponse = async (response: Response): Promise<boolean> => {
   }
 };
 
-const retryAfterMilliseconds = (response: Response): number => {
+const retryAfterMilliseconds = (
+  response: Response,
+  nowMs: number,
+  retryBudgetMs: number,
+): number | undefined => {
   const value = response.headers.get("retry-after");
-  if (value === null || !/^\d+$/u.test(value)) return 0;
-  return Number.parseInt(value, 10) * 1_000;
+  if (value === null) return undefined;
+  const delayMs = /^\d+$/u.test(value)
+    ? Number.parseInt(value, 10) * 1_000
+    : Date.parse(value) - nowMs;
+  if (!Number.isFinite(delayMs) || delayMs <= 0 || delayMs > retryBudgetMs) {
+    return undefined;
+  }
+  return delayMs;
 };
 
 const retryDelay = (
   response: Response,
   retryNumber: number,
+  nowMs: number,
+  retryBudgetMs: number,
   policy: ResolvedRetryPolicy,
 ): number => {
   const backoff = Math.min(
     policy.maxBackoffMs,
     policy.initialBackoffMs * 2 ** (retryNumber - 1),
   );
-  return retryAfterMilliseconds(response) + Math.floor(policy.random() * backoff);
+  const retryAfter = retryAfterMilliseconds(response, nowMs, retryBudgetMs);
+  return (retryAfter ?? backoff) + Math.floor(policy.random() * backoff);
 };
 
 const fetchAttempt = async (
@@ -232,8 +300,16 @@ const waitBeforeRetry = async (
   requestSignal: AbortSignal,
   policy: ResolvedRetryPolicy,
 ): Promise<boolean> => {
-  const delayMs = retryDelay(response, retryNumber, policy);
-  const elapsedMs = policy.now() - startedAt;
+  const nowMs = policy.now();
+  const elapsedMs = nowMs - startedAt;
+  const retryBudgetMs = policy.maxElapsedMs - elapsedMs;
+  const delayMs = retryDelay(
+    response,
+    retryNumber,
+    nowMs,
+    retryBudgetMs,
+    policy,
+  );
   if (elapsedMs + delayMs >= policy.maxElapsedMs) return false;
   try {
     await policy.sleep(delayMs, requestSignal);

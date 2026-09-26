@@ -7,6 +7,7 @@ const config = { apiUrl: API_URL, accessHeaders: {} };
 const retryableResponse = (
   requestId: string,
   code = "database_capacity",
+  retryAfter = "1",
 ): Response =>
   new Response(
     JSON.stringify({
@@ -20,7 +21,7 @@ const retryableResponse = (
       status: 503,
       headers: {
         "Content-Type": "application/json",
-        "Retry-After": "1",
+        "Retry-After": retryAfter,
         "X-Request-Id": requestId,
       },
     },
@@ -85,6 +86,23 @@ describe("Work Graph retry policy", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
+  it("does not let a global idempotency header make lease claims retryable", async () => {
+    const fetch = vi.fn<Fetch>(async () => retryableResponse("request-1"));
+    const client = new WorkGraphClient(
+      {
+        apiUrl: API_URL,
+        accessHeaders: { "idempotency-key": crypto.randomUUID() },
+      },
+      fetch,
+      { sleep: async () => undefined },
+    );
+
+    await expect(
+      client.claim({ workerId: "agent-a", leaseDurationSeconds: 900 }),
+    ).rejects.toMatchObject({ code: "database_capacity" });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("replays an idempotent mutation without duplicating its effect", async () => {
     const committedKeys = new Set<string>();
     const requests: Array<{ body: string; idempotencyKey: string | null }> = [];
@@ -133,6 +151,59 @@ describe("Work Graph retry policy", () => {
     });
     expect(fetch).toHaveBeenCalledTimes(1);
   });
+
+  it("honors a future HTTP-date Retry-After value", async () => {
+    const now = Date.UTC(2026, 8, 26, 8, 0, 0);
+    const delays: number[] = [];
+    const fetch = vi
+      .fn<Fetch>()
+      .mockResolvedValueOnce(
+        retryableResponse(
+          "request-1",
+          "database_capacity",
+          new Date(now + 2_000).toUTCString(),
+        ),
+      )
+      .mockResolvedValueOnce(successResponse({ id: "ticket-1" }));
+    const client = new WorkGraphClient(config, fetch, {
+      now: () => now,
+      random: () => 0,
+      sleep: async (delayMs) => {
+        delays.push(delayMs);
+      },
+    });
+
+    await expect(client.getWorkItem("ticket-1")).resolves.toEqual({
+      id: "ticket-1",
+    });
+    expect(delays).toEqual([2_000]);
+  });
+
+  it.each(["invalid", "Sat, 26 Sep 2026 07:59:59 GMT", "120"])(
+    "uses exponential backoff for unusable Retry-After %s",
+    async (retryAfter) => {
+      const now = Date.UTC(2026, 8, 26, 8, 0, 0);
+      const delays: number[] = [];
+      const fetch = vi
+        .fn<Fetch>()
+        .mockResolvedValueOnce(
+          retryableResponse("request-1", "database_capacity", retryAfter),
+        )
+        .mockResolvedValueOnce(successResponse({ id: "ticket-1" }));
+      const client = new WorkGraphClient(config, fetch, {
+        now: () => now,
+        random: () => 0,
+        sleep: async (delayMs) => {
+          delays.push(delayMs);
+        },
+      });
+
+      await expect(client.getWorkItem("ticket-1")).resolves.toEqual({
+        id: "ticket-1",
+      });
+      expect(delays).toEqual([250]);
+    },
+  );
 
   it("preserves the server response when a later attempt times out", async () => {
     const fetch = vi
