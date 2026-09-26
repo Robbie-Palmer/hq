@@ -5327,6 +5327,111 @@ registerRoute("get", "/recipes/:slug", async (c) => {
   );
 });
 
+async function findRecommendableRecipe(
+  c: Context<AppEnv>,
+  db: Db,
+  session: AuthenticatedSession,
+  slug: string,
+  recipientUserId: string,
+): Promise<Recipe | Response> {
+  const recipe = await findRecipeBySlug(db, slug);
+  if (!recipe) return c.notFound();
+  if (recipe.visibility === "private") {
+    return c.json(
+      { error: "Only public or household recipes can be recommended" },
+      409,
+    );
+  }
+  if (recipe.visibility === "household") {
+    const decision = authorizeRecipeRead(session.user, recipe, {
+      userSharesHouseholdWithOwner: await usersShareHousehold(
+        db,
+        recipe.userId,
+        session.user.id,
+      ),
+    });
+    if (!decision.allowed) return c.notFound();
+  }
+  if (recipe.userId === recipientUserId) {
+    return c.json({ error: "That person already owns this recipe" }, 409);
+  }
+  return recipe;
+}
+
+async function validateRecommendationRecipient(
+  c: Context<AppEnv>,
+  db: Db,
+  senderUserId: string,
+  recipientUserId: string,
+): Promise<Response | undefined> {
+  const senderMembership = await findUserHouseholdMembership(db, senderUserId);
+  if (!senderMembership) {
+    return c.json(
+      { error: "Join a household before recommending recipes" },
+      409,
+    );
+  }
+  const recipientMembership = await findHouseholdMembership(
+    db,
+    senderMembership.organizationId,
+    recipientUserId,
+  );
+  if (!recipientMembership) {
+    return c.json(
+      { error: "Recipes can only be recommended to household members" },
+      403,
+    );
+  }
+}
+
+async function recommendRecipe(
+  c: Context<AppEnv>,
+  db: Db,
+  session: AuthenticatedSession,
+  slug: string,
+) {
+  const body = await parseJsonBody(c, recommendRecipeBodySchema);
+  if (!body.success) return body.response;
+  if (body.data.recipientUserId === session.user.id) {
+    return c.json({ error: "You cannot recommend a recipe to yourself" }, 400);
+  }
+
+  const recipe = await findRecommendableRecipe(
+    c,
+    db,
+    session,
+    slug,
+    body.data.recipientUserId,
+  );
+  if (recipe instanceof Response) return recipe;
+
+  const recipientFailure = await validateRecommendationRecipient(
+    c,
+    db,
+    session.user.id,
+    body.data.recipientUserId,
+  );
+  if (recipientFailure) return recipientFailure;
+
+  const recommendationLimit = await enforceRateLimit(
+    db,
+    `recipe-recommendation:${session.user.id}`,
+    RECIPE_RECOMMENDATION_RATE_LIMIT,
+  );
+  if (!recommendationLimit.allowed) {
+    return rateLimitedResponse(c, recommendationLimit.retryAfter);
+  }
+
+  await db.transaction(async (tx) => {
+    await createRecipeRecommendationNotification(tx, {
+      recipientUserId: body.data.recipientUserId,
+      recipe,
+      actor: { id: session.user.id, name: session.user.name },
+    });
+  });
+  return c.json({ recommended: true }, 201);
+}
+
 registerRoute("post", "/recipes/:slug/recommendations", async (c) => {
   const csrfFailure = validateCsrf(c);
   if (csrfFailure) return csrfFailure;
@@ -5337,76 +5442,7 @@ registerRoute("post", "/recipes/:slug/recommendations", async (c) => {
     c,
     "mutation",
     "POST /recipes/:slug/recommendations failed",
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-    async ({ db, session }) => {
-      const body = await parseJsonBody(c, recommendRecipeBodySchema);
-      if (!body.success) return body.response;
-      if (body.data.recipientUserId === session.user.id) {
-        return c.json({ error: "You cannot recommend a recipe to yourself" }, 400);
-      }
-
-      const recipe = await findRecipeBySlug(db, slug.slug);
-      if (!recipe) return c.notFound();
-      if (recipe.visibility === "private") {
-        return c.json(
-          { error: "Only public or household recipes can be recommended" },
-          409,
-        );
-      }
-      if (recipe.visibility === "household") {
-        const decision = authorizeRecipeRead(session.user, recipe, {
-          userSharesHouseholdWithOwner: await usersShareHousehold(
-            db,
-            recipe.userId,
-            session.user.id,
-          ),
-        });
-        if (!decision.allowed) return c.notFound();
-      }
-      if (recipe.userId === body.data.recipientUserId) {
-        return c.json({ error: "That person already owns this recipe" }, 409);
-      }
-
-      const senderMembership = await findUserHouseholdMembership(
-        db,
-        session.user.id,
-      );
-      if (!senderMembership) {
-        return c.json(
-          { error: "Join a household before recommending recipes" },
-          409,
-        );
-      }
-      const recipientMembership = await findHouseholdMembership(
-        db,
-        senderMembership.organizationId,
-        body.data.recipientUserId,
-      );
-      if (!recipientMembership) {
-        return c.json(
-          { error: "Recipes can only be recommended to household members" },
-          403,
-        );
-      }
-
-      const recommendationLimit = await enforceRateLimit(
-        db,
-        `recipe-recommendation:${session.user.id}`,
-        RECIPE_RECOMMENDATION_RATE_LIMIT,
-      );
-      if (!recommendationLimit.allowed) {
-        return rateLimitedResponse(c, recommendationLimit.retryAfter);
-      }
-
-      await db.transaction(async (tx) => {
-        await createRecipeRecommendationNotification(tx, {
-          recipientUserId: body.data.recipientUserId,
-          recipe,
-          actor: { id: session.user.id, name: session.user.name },
-        });
-      });
-      return c.json({ recommended: true }, 201);
-    },
+    ({ db, session }) => recommendRecipe(c, db, session, slug.slug),
   );
 });
 
@@ -5646,6 +5682,7 @@ const RECIPE_IMPORT_IMAGE_EXTENSIONS: Record<string, string> = {
 };
 
 const recipeImportIdSchema = z.string().uuid();
+type RecipeImportImage = { file: File; extension: string };
 
 function importJobResponse(job: RecipeImportJob) {
   return {
@@ -5666,7 +5703,7 @@ async function parseImportImages(
   c: Context<AppEnv>,
   form: FormData,
 ): Promise<
-  | { success: true; images: { file: File; extension: string }[] }
+  | { success: true; images: RecipeImportImage[] }
   | { success: false; response: Response }
 > {
   // workers-types declares FormData entries as string, but the runtime
@@ -5688,7 +5725,7 @@ async function parseImportImages(
     };
   }
 
-  const images: { file: File; extension: string }[] = [];
+  const images: RecipeImportImage[] = [];
   let totalBytes = 0;
   for (const entry of entries) {
     if (!(entry instanceof File)) {
@@ -5746,6 +5783,125 @@ async function parseImportImages(
   return { success: true, images };
 }
 
+type RecipeImportQuotaOutcome =
+  | { ok: true; job: RecipeImportJob }
+  | { ok: false; reason: "active" | "daily" };
+
+async function createRecipeImportJob(
+  db: Db,
+  userId: string,
+  imageCount: number,
+  dayStart: Date,
+): Promise<RecipeImportQuotaOutcome> {
+  return db.transaction(async (tx) => {
+    // Serialize per-user job creation so concurrent uploads cannot slip past the limits.
+    await tx
+      .select({ id: schema.user.id })
+      .from(schema.user)
+      .where(eq(schema.user.id, userId))
+      .for("update");
+
+    const [active] = await tx
+      .select({ value: count() })
+      .from(schema.recipeImportJob)
+      .where(
+        and(
+          eq(schema.recipeImportJob.userId, userId),
+          inArray(schema.recipeImportJob.status, ["queued", "running"]),
+        ),
+      );
+    if ((active?.value ?? 0) >= RECIPE_IMPORT_MAX_ACTIVE_JOBS) {
+      return { ok: false, reason: "active" };
+    }
+
+    const [today] = await tx
+      .select({ value: count() })
+      .from(schema.recipeImportJob)
+      .where(
+        and(
+          eq(schema.recipeImportJob.userId, userId),
+          gte(schema.recipeImportJob.createdAt, dayStart),
+        ),
+      );
+    if ((today?.value ?? 0) >= RECIPE_IMPORT_DAILY_JOB_LIMIT) {
+      return { ok: false, reason: "daily" };
+    }
+
+    const [job] = await tx
+      .insert(schema.recipeImportJob)
+      .values({ userId, imageCount })
+      .returning();
+    if (!job) throw new Error("Recipe import job insert returned no row");
+    return { ok: true, job };
+  });
+}
+
+async function startRecipeImport(
+  c: Context<AppEnv>,
+  db: Db,
+  artifacts: R2Bucket,
+  workflow: Workflow,
+  job: RecipeImportJob,
+  images: RecipeImportImage[],
+): Promise<Response | undefined> {
+  try {
+    await Promise.all(
+      images.map(({ file, extension }, index) =>
+        artifacts.put(sourceImageKey(job.id, index, extension), file, {
+          httpMetadata: { contentType: file.type },
+        }),
+      ),
+    );
+    await withPostHogSpan(
+      {
+        env: c.env,
+        serviceName: "recipe-api",
+        spanName: "workflow.start recipe-ingest",
+        traceCarrier: traceCarrierFromHeaders(c.req.raw.headers),
+        attributes: { "recipe.import.job_id": job.id },
+        waitUntil: c.executionCtx,
+      },
+      async (span) => {
+        const traceContext = traceCarrierFromSpan(span);
+        await workflow.create({
+          id: job.id,
+          params: {
+            jobId: job.id,
+            ...(traceContext ? { traceContext } : {}),
+          },
+        });
+      },
+    );
+  } catch (error) {
+    console.error("POST /recipe-imports failed to start workflow", error);
+    // Best-effort cleanup so partially uploaded images don't accumulate.
+    try {
+      const uploaded = await artifacts.list({
+        prefix: importJobPrefix(job.id),
+      });
+      await Promise.all(
+        uploaded.objects.map((object) => artifacts.delete(object.key)),
+      );
+    } catch (cleanupError) {
+      console.error(
+        `Failed to clean up R2 objects for import ${job.id}`,
+        cleanupError,
+      );
+    }
+    await db
+      .update(schema.recipeImportJob)
+      .set({
+        status: "failed",
+        progressLabel: "Import failed",
+        errorType: "StartError",
+        errorMessage: "Failed to start the import",
+        finishedAt: new Date(),
+      })
+      .where(eq(schema.recipeImportJob.id, job.id));
+    return c.json({ error: "Failed to start the import" }, 502);
+  }
+}
+
 registerRoute("post", "/recipe-imports", async (c) => {
   const csrfFailure = validateCsrf(c);
   if (csrfFailure) return csrfFailure;
@@ -5760,7 +5916,6 @@ registerRoute("post", "/recipe-imports", async (c) => {
     c,
     "mutation",
     "POST /recipe-imports mutation failed",
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     async ({ db, session }) => {
       const userId = session.user.id;
 
@@ -5787,51 +5942,12 @@ registerRoute("post", "/recipe-imports", async (c) => {
       const dayStart = new Date();
       dayStart.setUTCHours(0, 0, 0, 0);
 
-      type QuotaOutcome =
-        | { ok: true; job: RecipeImportJob }
-        | { ok: false; reason: "active" | "daily" };
-
-      const outcome = await db.transaction(async (tx): Promise<QuotaOutcome> => {
-        // Serialize per-user job creation so concurrent uploads cannot slip past the limits.
-        await tx
-          .select({ id: schema.user.id })
-          .from(schema.user)
-          .where(eq(schema.user.id, userId))
-          .for("update");
-
-        const [active] = await tx
-          .select({ value: count() })
-          .from(schema.recipeImportJob)
-          .where(
-            and(
-              eq(schema.recipeImportJob.userId, userId),
-              inArray(schema.recipeImportJob.status, ["queued", "running"]),
-            ),
-          );
-        if ((active?.value ?? 0) >= RECIPE_IMPORT_MAX_ACTIVE_JOBS) {
-          return { ok: false, reason: "active" };
-        }
-
-        const [today] = await tx
-          .select({ value: count() })
-          .from(schema.recipeImportJob)
-          .where(
-            and(
-              eq(schema.recipeImportJob.userId, userId),
-              gte(schema.recipeImportJob.createdAt, dayStart),
-            ),
-          );
-        if ((today?.value ?? 0) >= RECIPE_IMPORT_DAILY_JOB_LIMIT) {
-          return { ok: false, reason: "daily" };
-        }
-
-        const [job] = await tx
-          .insert(schema.recipeImportJob)
-          .values({ userId, imageCount: images.length })
-          .returning();
-        if (!job) throw new Error("Recipe import job insert returned no row");
-        return { ok: true, job };
-      });
+      const outcome = await createRecipeImportJob(
+        db,
+        userId,
+        images.length,
+        dayStart,
+      );
 
       if (!outcome.ok) {
         return c.json(
@@ -5846,62 +5962,15 @@ registerRoute("post", "/recipe-imports", async (c) => {
       }
       const job = outcome.job;
 
-      try {
-        await Promise.all(
-          images.map(({ file, extension }, index) =>
-            artifacts.put(sourceImageKey(job.id, index, extension), file, {
-              httpMetadata: { contentType: file.type },
-            }),
-          ),
-        );
-        await withPostHogSpan(
-          {
-            env: c.env,
-            serviceName: "recipe-api",
-            spanName: "workflow.start recipe-ingest",
-            traceCarrier: traceCarrierFromHeaders(c.req.raw.headers),
-            attributes: { "recipe.import.job_id": job.id },
-            waitUntil: c.executionCtx,
-          },
-          async (span) => {
-            const traceContext = traceCarrierFromSpan(span);
-            await workflow.create({
-              id: job.id,
-              params: {
-                jobId: job.id,
-                ...(traceContext ? { traceContext } : {}),
-              },
-            });
-          },
-        );
-      } catch (error) {
-        console.error("POST /recipe-imports failed to start workflow", error);
-        // Best-effort cleanup so partially uploaded images don't accumulate.
-        try {
-          const uploaded = await artifacts.list({
-            prefix: importJobPrefix(job.id),
-          });
-          await Promise.all(
-            uploaded.objects.map((object) => artifacts.delete(object.key)),
-          );
-        } catch (cleanupError) {
-          console.error(
-            `Failed to clean up R2 objects for import ${job.id}`,
-            cleanupError,
-          );
-        }
-        await db
-          .update(schema.recipeImportJob)
-          .set({
-            status: "failed",
-            progressLabel: "Import failed",
-            errorType: "StartError",
-            errorMessage: "Failed to start the import",
-            finishedAt: new Date(),
-          })
-          .where(eq(schema.recipeImportJob.id, job.id));
-        return c.json({ error: "Failed to start the import" }, 502);
-      }
+      const startFailure = await startRecipeImport(
+        c,
+        db,
+        artifacts,
+        workflow,
+        job,
+        images,
+      );
+      if (startFailure) return startFailure;
 
       return c.json(importJobResponse(job), 202);
     },
