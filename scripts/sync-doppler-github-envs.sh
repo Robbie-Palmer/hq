@@ -179,6 +179,8 @@ known_environments=(
   production-infra-bootstrap-plan
   production-remote-development-infra
   production-remote-development-infra-plan
+  production-remote-development-cluster
+  production-remote-development-cluster-plan
   production-work-graph
   production-work-graph-backup
   production-work-graph-infra
@@ -206,6 +208,8 @@ sync_requested_env production-infra-bootstrap prd_bootstrap_infra
 sync_requested_env production-infra-bootstrap-plan prd_bootstrap_plan
 sync_requested_env production-remote-development-infra homelab/prd_remote_development_infra
 sync_requested_env production-remote-development-infra-plan homelab/prd_remote_development_infra
+sync_requested_env production-remote-development-cluster homelab/prd_remote_development_cluster
+sync_requested_env production-remote-development-cluster-plan homelab/prd_remote_development_cluster
 sync_requested_env production-work-graph work-graph/prd_work_graph
 sync_requested_env production-work-graph-backup work-graph/prd_work_graph_backup
 sync_requested_env production-work-graph-infra work-graph/prd_work_graph_infra

@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+kubeconfig="${REMOTE_DEVELOPMENT_CLUSTER_KUBECONFIG:-$PWD/.kubeconfig}"
+export KUBECONFIG="$kubeconfig"
+
+kubectl wait --for=condition=Ready nodes --all --timeout=10m
+
+control_plane_count="$(kubectl get nodes -l 'remote-development.robbiepalmer.dev/role=control-plane' -o name | wc -l | tr -d ' ')"
+agent_count="$(kubectl get nodes -l 'remote-development.robbiepalmer.dev/role=workspace' -o name | wc -l | tr -d ' ')"
+
+if [ "$control_plane_count" != "3" ]; then
+  echo "Expected 3 control-plane nodes, found $control_plane_count" >&2
+  exit 1
+fi
+
+if [ "$agent_count" != "2" ]; then
+  echo "Expected 2 workspace agents, found $agent_count" >&2
+  exit 1
+fi
+
+kubectl -n kube-system rollout status daemonset/hcloud-csi-node --timeout=5m
+kubectl -n t3-operator rollout status deployment/t3-code --timeout=10m
+kubectl -n t3-pilot rollout status deployment/t3-code --timeout=10m
+
+for workspace in operator pilot; do
+  namespace="t3-$workspace"
+  phase="$(kubectl -n "$namespace" get pvc workspace-data -o jsonpath='{.status.phase}')"
+  node="$(kubectl -n "$namespace" get pod -l app.kubernetes.io/name=t3-code -o jsonpath='{.items[0].spec.nodeName}')"
+  assigned_workspace="$(kubectl get node "$node" -o jsonpath='{.metadata.labels.remote-development\.robbiepalmer\.dev/workspace}')"
+
+  if [ "$phase" != "Bound" ] || [ "$assigned_workspace" != "$workspace" ]; then
+    echo "$workspace failed volume or node-placement verification" >&2
+    exit 1
+  fi
+done
+
+kubectl get --raw='/readyz?verbose' >/dev/null
+echo "Candidate cluster topology, CSI volumes, workspace placement, and API health passed."

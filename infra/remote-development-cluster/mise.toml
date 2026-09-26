@@ -1,0 +1,85 @@
+[tasks.init]
+description = "Initialize candidate-cluster Terraform"
+run = "bash scripts/doppler-terraform-env terraform init"
+
+[tasks.format]
+description = "Format candidate-cluster Terraform files"
+run = "terraform fmt -recursive ."
+
+[tasks."format:check"]
+description = "Check candidate-cluster Terraform formatting"
+run = "terraform fmt -check -recursive ."
+
+[tasks.lint]
+description = "Validate candidate-cluster Terraform"
+depends = ["//infra/remote-development-cluster:init"]
+run = "terraform validate"
+
+[tasks."lint:tflint"]
+description = "Lint candidate-cluster Terraform with TFLint"
+run = '''
+tflint --format compact
+true # Ignore Terraform file arguments appended by lint-staged.
+'''
+
+[tasks.precommit-lint]
+description = "Validate candidate-cluster Terraform without its remote backend"
+run = '''
+bash scripts/doppler-terraform-env terraform init -backend=false > /dev/null || { echo "Terraform init failed" >&2; exit 1; }
+bash scripts/doppler-terraform-env terraform validate
+true # Ignore Terraform file arguments appended by lint-staged.
+'''
+
+[tasks.plan]
+description = "Create a saved candidate-cluster Terraform plan"
+depends = ["//infra/remote-development-cluster:init"]
+run = "bash scripts/doppler-terraform-env terraform plan -out .planfile"
+outputs = [".planfile"]
+
+[tasks.snapshot]
+description = "Build and pin the candidate project's Kube-Hetzner Leap Micro image"
+depends = ["//infra/remote-development-cluster:init"]
+run = "bash scripts/build-leapmicro-snapshot"
+
+[tasks.apply]
+description = "Apply the reviewed candidate-cluster Terraform plan"
+depends = ["//infra/remote-development-cluster:init"]
+run = "bash scripts/doppler-terraform-env terraform apply .planfile"
+
+[tasks.destroy-plan]
+description = "Create a saved destroy plan for the isolated candidate cluster"
+depends = ["//infra/remote-development-cluster:init"]
+run = "bash scripts/doppler-terraform-env terraform plan -destroy -out .destroy-planfile"
+
+[tasks.destroy]
+description = "Apply the reviewed candidate-cluster destroy plan"
+depends = ["//infra/remote-development-cluster:init"]
+run = "bash scripts/doppler-terraform-env terraform apply .destroy-planfile"
+
+[tasks.kubeconfig]
+description = "Write the tailnet-only candidate kubeconfig to a gitignored file"
+run = "bash scripts/write-kubeconfig"
+
+[tasks.deploy-workspaces]
+description = "Apply the two statically placed candidate workspaces"
+run = '''
+export KUBECONFIG="${REMOTE_DEVELOPMENT_CLUSTER_KUBECONFIG:-$PWD/.kubeconfig}"
+kubectl apply -k workspaces
+'''
+
+[tasks.verify]
+description = "Verify candidate cluster topology, storage, placement, and API health"
+run = "bash scripts/verify-cluster"
+
+[tasks.workspace-check]
+description = "Check workspace manifests against the committed inventory"
+depends = ["//:install"]
+run = "node scripts/check-workspaces.mjs"
+
+[tasks.output-control-planes]
+description = "List candidate control-plane recovery hostnames"
+run = "bash scripts/doppler-terraform-env terraform output -json control_plane_tailscale_hostnames | jq -r '.[]'"
+
+[tasks.check]
+description = "Run all candidate-cluster checks"
+depends = ["//infra/remote-development-cluster:format:check", "//infra/remote-development-cluster:lint", "//infra/remote-development-cluster:lint:tflint", "//infra/remote-development-cluster:workspace-check"]

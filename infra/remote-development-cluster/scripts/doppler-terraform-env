@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project="${DOPPLER_PROJECT:-homelab}"
+cluster_config="${DOPPLER_REMOTE_DEVELOPMENT_CLUSTER_CONFIG:-prd_remote_development_cluster}"
+
+if [ "${DOPPLER_REMOTE_DEVELOPMENT_CLUSTER_ENV_WRAPPED:-}" != "1" ]; then
+  if command -v doppler >/dev/null 2>&1; then
+    export DOPPLER_REMOTE_DEVELOPMENT_CLUSTER_ENV_WRAPPED=1
+    exec doppler run \
+      --project "$project" \
+      --config "$cluster_config" \
+      -- bash "$0" "$@"
+  elif [ "${CI:-}" != "true" ]; then
+    echo "Cannot run candidate-cluster Terraform locally: doppler is required." >&2
+    exit 1
+  fi
+fi
+
+set_if_unset() {
+  local name="$1"
+  local value="${2:-}"
+
+  if [ -z "${!name:-}" ] && [ -n "$value" ]; then
+    export "$name=$value"
+  fi
+}
+
+set_if_unset TF_TOKEN_app_terraform_io "${TF_API_TOKEN:-}"
+set_if_unset TF_VAR_hcloud_token "${HCLOUD_TOKEN:-}"
+set_if_unset TF_VAR_ssh_public_key "${SSH_PUBLIC_KEY:-}"
+set_if_unset TF_VAR_ssh_private_key "${SSH_PRIVATE_KEY:-}"
+set_if_unset TF_VAR_leapmicro_x86_snapshot_id "${LEAPMICRO_X86_SNAPSHOT_ID:-}"
+set_if_unset TF_VAR_tailscale_oauth_client_secret "${TAILSCALE_OAUTH_CLIENT_SECRET:-}"
+set_if_unset TF_VAR_tailscale_magicdns_domain "${TAILSCALE_MAGICDNS_DOMAIN:-}"
+set_if_unset TF_VAR_etcd_s3_endpoint "${ETCD_S3_ENDPOINT:-}"
+set_if_unset TF_VAR_etcd_s3_access_key "${ETCD_S3_ACCESS_KEY:-}"
+set_if_unset TF_VAR_etcd_s3_secret_key "${ETCD_S3_SECRET_KEY:-}"
+set_if_unset TF_VAR_etcd_s3_bucket "${ETCD_S3_BUCKET:-}"
+set_if_unset TF_VAR_etcd_s3_region "${ETCD_S3_REGION:-}"
+
+exec "$@"
