@@ -70,6 +70,7 @@ interface BuildGraphInput {
   relations: RelationData;
 }
 
+/** Applies each relation group in the graph's fixed construction order. */
 class ContentGraphBuilder {
   private readonly graph: ContentGraph;
   private readonly relations: RelationData;
