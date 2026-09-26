@@ -266,6 +266,7 @@ export const agentAuthAuditEvent = pgTable(
     capability: text(),
     outcome: text(),
     durationMs: integer(),
+    correlationId: text(),
     occurredAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -281,6 +282,7 @@ export const agentAuthAuditEvent = pgTable(
       table.hostId,
       table.occurredAt.desc(),
     ),
+    index("agent_auth_audit_event_correlation_idx").on(table.correlationId),
   ],
 );
 

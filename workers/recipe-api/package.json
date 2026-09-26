@@ -24,6 +24,7 @@
   "dependencies": {
     "@better-auth/agent-auth": "0.6.2",
     "@hono/zod-openapi": "1.6.3",
+    "agent-auth": "workspace:*",
     "better-auth": "^1.6.19",
     "better-auth-cloudflare": "^0.3.0",
     "drizzle-orm": "^0.45.0",

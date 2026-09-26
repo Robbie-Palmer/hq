@@ -1,6 +1,10 @@
 import { betterAuth } from "better-auth";
 import { admin, lastLoginMethod } from "better-auth/plugins";
 import { withCloudflare } from "better-auth-cloudflare";
+import {
+  createAgentAuthSecondaryStorage,
+  createBetterAuthRateLimitStorage,
+} from "agent-auth";
 import { and, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import type { Db } from "recipe-db";
 import * as schema from "recipe-db/schema";
@@ -30,11 +34,6 @@ type CreateAuthOptions = {
   autoSignInPreviewSignUp?: boolean;
 };
 
-const AGENT_AUTH_JTI_STORAGE_PREFIX = "agent-auth:jti:";
-const AGENT_AUTH_JTI_RESERVATION_TTL_SECONDS = 2 * 60;
-const AUTH_SECONDARY_STORAGE_DEFAULT_TTL_SECONDS = 30 * 24 * 60 * 60;
-const AUTH_SECONDARY_STORAGE_MAX_TTL_SECONDS = 90 * 24 * 60 * 60;
-
 export function isPreviewAuthEnabled(env: PreviewAuthEnv): boolean {
   if (env.DEPLOYMENT_ENV !== "preview") return false;
 
@@ -55,136 +54,108 @@ export function isPreviewAuthEnabled(env: PreviewAuthEnv): boolean {
 }
 
 function rateLimitStorage(db: Db) {
-  const namespaced = (key: string) => `auth:${key}`;
-  return {
-    consume: async (key: string, rule: { window: number; max: number }) => {
-      const result = await enforceRateLimit(db, namespaced(key), {
-        max: rule.max,
-        windowSeconds: rule.window,
-        failClosed: true,
-      });
-      return {
-        allowed: result.allowed,
-        retryAfter: result.allowed ? null : result.retryAfter,
-      };
+  return createBetterAuthRateLimitStorage({
+    namespace: "auth",
+    adapter: {
+      consume: (key, rule) =>
+        enforceRateLimit(db, key, { ...rule, failClosed: true }),
+      get: async (key) => {
+        const [row] = await db
+          .select({
+            count: schema.appRateLimit.count,
+            windowStart: schema.appRateLimit.windowStart,
+          })
+          .from(schema.appRateLimit)
+          .where(eq(schema.appRateLimit.key, key))
+          .limit(1);
+        return row
+          ? { count: row.count, lastRequest: row.windowStart.getTime() }
+          : undefined;
+      },
+      set: async (key, value) => {
+        const windowStart = new Date(value.lastRequest);
+        await db
+          .insert(schema.appRateLimit)
+          .values({ key, count: value.count, windowStart })
+          .onConflictDoUpdate({
+            target: schema.appRateLimit.key,
+            set: { count: value.count, windowStart },
+          });
+      },
     },
-    get: async (key: string) => {
-      const [row] = await db
-        .select({
-          count: schema.appRateLimit.count,
-          windowStart: schema.appRateLimit.windowStart,
-        })
-        .from(schema.appRateLimit)
-        .where(eq(schema.appRateLimit.key, namespaced(key)))
-        .limit(1);
-      return row
-        ? { key, count: row.count, lastRequest: row.windowStart.getTime() }
-        : undefined;
-    },
-    set: async (
-      key: string,
-      value: { key: string; count: number; lastRequest: number },
-    ) => {
-      const windowStart = new Date(value.lastRequest);
-      await db
-        .insert(schema.appRateLimit)
-        .values({ key: namespaced(key), count: value.count, windowStart })
-        .onConflictDoUpdate({
-          target: schema.appRateLimit.key,
-          set: { count: value.count, windowStart },
-        });
-    },
-  };
+  });
 }
 
 function authSecondaryStorage(db: Db) {
-  return {
-    get: async (key: string) => {
-      if (key.startsWith(AGENT_AUTH_JTI_STORAGE_PREFIX)) {
-        const now = new Date();
-        const expiresAt = new Date(
-          now.getTime() + AGENT_AUTH_JTI_RESERVATION_TTL_SECONDS * 1_000,
-        );
-        return db.transaction(async (tx) => {
+  return createAgentAuthSecondaryStorage({
+    adapter: {
+      read: async (key) => {
+        const [entry] = await db
+          .select({
+            value: schema.authSecondaryStorage.value,
+            expiresAt: schema.authSecondaryStorage.expiresAt,
+          })
+          .from(schema.authSecondaryStorage)
+          .where(eq(schema.authSecondaryStorage.key, key))
+          .limit(1);
+        return entry ?? null;
+      },
+      reserve: (key, value, expiresAt, now) =>
+        db.transaction(async (tx) => {
           await tx
             .delete(schema.authSecondaryStorage)
             .where(lte(schema.authSecondaryStorage.expiresAt, now));
           const [reservation] = await tx
             .insert(schema.authSecondaryStorage)
-            .values({ key, value: "1", expiresAt })
+            .values({ key, value, expiresAt })
             .onConflictDoNothing()
             .returning({ key: schema.authSecondaryStorage.key });
-          return reservation ? null : "1";
-        });
-      }
-      const [entry] = await db
-        .select({
-          value: schema.authSecondaryStorage.value,
-          expiresAt: schema.authSecondaryStorage.expiresAt,
-        })
-        .from(schema.authSecondaryStorage)
-        .where(eq(schema.authSecondaryStorage.key, key))
-        .limit(1);
-      if (!entry) return null;
-      if (entry.expiresAt && entry.expiresAt.getTime() <= Date.now()) {
+          return reservation !== undefined;
+        }),
+      takeLive: async (key, now) => {
+        const [entry] = await db
+          .delete(schema.authSecondaryStorage)
+          .where(
+            and(
+              eq(schema.authSecondaryStorage.key, key),
+              or(
+                isNull(schema.authSecondaryStorage.expiresAt),
+                gt(schema.authSecondaryStorage.expiresAt, now),
+              ),
+            ),
+          )
+          .returning({ value: schema.authSecondaryStorage.value });
+        return entry?.value ?? null;
+      },
+      increment: async (key, expiresAt) => {
+        const [entry] = await db
+          .insert(schema.authSecondaryStorage)
+          .values({ key, value: "1", expiresAt })
+          .onConflictDoUpdate({
+            target: schema.authSecondaryStorage.key,
+            set: {
+              value: sql`${schema.authSecondaryStorage.value}::bigint + 1`,
+            },
+          })
+          .returning({ value: schema.authSecondaryStorage.value });
+        return Number(entry?.value ?? 1);
+      },
+      write: async (key, value, expiresAt) => {
+        await db
+          .insert(schema.authSecondaryStorage)
+          .values({ key, value, expiresAt })
+          .onConflictDoUpdate({
+            target: schema.authSecondaryStorage.key,
+            set: { value, expiresAt },
+          });
+      },
+      delete: async (key) => {
         await db
           .delete(schema.authSecondaryStorage)
           .where(eq(schema.authSecondaryStorage.key, key));
-        return null;
-      }
-      return entry.value;
+      },
     },
-    getAndDelete: async (key: string) => {
-      const [entry] = await db
-        .delete(schema.authSecondaryStorage)
-        .where(
-          and(
-            eq(schema.authSecondaryStorage.key, key),
-            or(
-              isNull(schema.authSecondaryStorage.expiresAt),
-              gt(schema.authSecondaryStorage.expiresAt, new Date()),
-            ),
-          ),
-        )
-        .returning({ value: schema.authSecondaryStorage.value });
-      return entry ? entry.value : null;
-    },
-    increment: async (key: string, ttl: number) => {
-      const expiresAt = new Date(Date.now() + ttl * 1_000);
-      const [entry] = await db
-        .insert(schema.authSecondaryStorage)
-        .values({ key, value: "1", expiresAt })
-        .onConflictDoUpdate({
-          target: schema.authSecondaryStorage.key,
-          set: {
-            value: sql`${schema.authSecondaryStorage.value}::bigint + 1`,
-          },
-        })
-        .returning({ value: schema.authSecondaryStorage.value });
-      return Number(entry?.value ?? 1);
-    },
-    set: async (key: string, value: string, ttlSeconds?: number) => {
-      const boundedTtlSeconds =
-        typeof ttlSeconds === "number" &&
-        Number.isFinite(ttlSeconds) &&
-        ttlSeconds > 0
-          ? Math.min(ttlSeconds, AUTH_SECONDARY_STORAGE_MAX_TTL_SECONDS)
-          : AUTH_SECONDARY_STORAGE_DEFAULT_TTL_SECONDS;
-      const expiresAt = new Date(Date.now() + boundedTtlSeconds * 1_000);
-      await db
-        .insert(schema.authSecondaryStorage)
-        .values({ key, value, expiresAt })
-        .onConflictDoUpdate({
-          target: schema.authSecondaryStorage.key,
-          set: { value, expiresAt },
-        });
-    },
-    delete: async (key: string) => {
-      await db
-        .delete(schema.authSecondaryStorage)
-        .where(eq(schema.authSecondaryStorage.key, key));
-    },
-  };
+  });
 }
 
 export function createAuth(
