@@ -33,6 +33,12 @@ const successResponse = (body: unknown): Response =>
     headers: { "Content-Type": "application/json" },
   });
 
+const platformUnavailableResponse = (): Response =>
+  new Response("error code: 1102", {
+    status: 503,
+    headers: { "Content-Type": "text/plain; charset=UTF-8" },
+  });
+
 describe("Work Graph retry policy", () => {
   it("recovers a safe read with server-guided exponential jitter", async () => {
     const delays: number[] = [];
@@ -52,6 +58,34 @@ describe("Work Graph retry policy", () => {
     });
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(delays).toEqual([1_125]);
+  });
+
+  it("retries a Cloudflare-generated 503 for a safe read", async () => {
+    const fetch = vi
+      .fn<Fetch>()
+      .mockResolvedValueOnce(platformUnavailableResponse())
+      .mockResolvedValueOnce(successResponse({ id: "ticket-1" }));
+    const client = new WorkGraphClient(config, fetch, {
+      random: () => 0,
+      sleep: async () => undefined,
+    });
+
+    await expect(client.getWorkItem("ticket-1")).resolves.toEqual({
+      id: "ticket-1",
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry a Cloudflare-generated 503 for a lease claim", async () => {
+    const fetch = vi.fn<Fetch>(async () => platformUnavailableResponse());
+    const client = new WorkGraphClient(config, fetch, {
+      sleep: async () => undefined,
+    });
+
+    await expect(
+      client.claim({ workerId: "agent-a", leaseDurationSeconds: 900 }),
+    ).rejects.toMatchObject({ code: "HTTP_503", status: 503 });
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it("returns the final server error and request ID after exhausting retries", async () => {

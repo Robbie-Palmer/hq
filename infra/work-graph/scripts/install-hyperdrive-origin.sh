@@ -18,6 +18,7 @@ required_values=(
   WORK_GRAPH_DOPPLER_SERVICE_TOKEN
   WORK_GRAPH_HYPERDRIVE_ID
   WORK_GRAPH_HYPERDRIVE_NAME
+  WORK_GRAPH_HYPERDRIVE_ORIGIN_CONNECTION_LIMIT
 )
 for name in "${required_values[@]}"; do
   if [[ -z "${!name:-}" ]]; then
@@ -25,6 +26,11 @@ for name in "${required_values[@]}"; do
     exit 1
   fi
 done
+if [[ ! "$WORK_GRAPH_HYPERDRIVE_ORIGIN_CONNECTION_LIMIT" =~ ^[0-9]+$ ]] ||
+  ((WORK_GRAPH_HYPERDRIVE_ORIGIN_CONNECTION_LIMIT < 5 || WORK_GRAPH_HYPERDRIVE_ORIGIN_CONNECTION_LIMIT > 100)); then
+  echo "Cannot install the Work Graph Hyperdrive origin: the origin connection limit must be between 5 and 100." >&2
+  exit 1
+fi
 
 secrets_root="${TMPDIR:-/tmp}"
 if [[ -d /dev/shm && -w /dev/shm ]]; then
@@ -55,9 +61,11 @@ jq -n \
   --arg host "$NEON_DATABASE_HOST" \
   --arg name "$WORK_GRAPH_HYPERDRIVE_NAME" \
   --arg user "$NEON_ROLE_NAME" \
+  --argjson origin_connection_limit "$WORK_GRAPH_HYPERDRIVE_ORIGIN_CONNECTION_LIMIT" \
   --slurpfile credential "$work_dir/password.json" \
   '{
     name: $name,
+    origin_connection_limit: $origin_connection_limit,
     origin: {
       database: $database,
       host: $host,

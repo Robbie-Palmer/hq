@@ -6,6 +6,14 @@ the dedicated R2 database-backup bucket, and the desired shape of the dedicated
 Neon project and Hyperdrive configuration. HCP Terraform stores its state in the
 `personal-site-work-graph` workspace.
 
+Production uses a Hyperdrive origin connection limit of 60. Neon permits 112
+connections and reserves four for superusers, so this leaves 48 ordinary
+connections outside Hyperdrive's soft limit for failover, migrations, and
+operator access. The target also gives ten concurrent agents room to overlap
+transactions without pinning the pool at capacity. Cloudflare only accepts a
+limit above 20 on the Workers Paid plan, which the Work Graph Worker also needs
+for its CPU budget.
+
 ## Why credentials bypass state
 
 The Neon provider reads the default role password into state. Cloudflare's

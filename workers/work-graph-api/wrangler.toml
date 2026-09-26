@@ -11,6 +11,13 @@ enabled = true
 [placement]
 mode = "smart"
 
+# Queue and critical-path requests project the complete dependency graph. The
+# production graph exceeds the Workers Free 10 ms CPU allowance, so this Worker
+# requires the Workers Paid plan. Keep an explicit ceiling to catch runaway
+# graph work without relying on the account default.
+[limits]
+cpu_ms = 5_000
+
 # The deploy helper replaces this valid but nonexistent sentinel with the
 # Terraform-managed Hyperdrive ID in a private temporary copy.
 [[hyperdrive]]

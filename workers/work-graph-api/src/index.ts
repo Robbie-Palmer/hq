@@ -13,7 +13,12 @@ export interface WorkGraphBindings {
 
 export default {
   async fetch(request, env, context) {
-    const db = createDb(env.HYPERDRIVE.connectionString);
+    // A Worker invocation uses one sequential repository transaction. Keep its
+    // client to one connection so concurrent requests, rather than one request,
+    // consume the Hyperdrive pool.
+    const db = createDb(env.HYPERDRIVE.connectionString, {
+      maxConnections: 1,
+    });
     try {
       return await createWorkGraphApp(
         new WorkGraphRepository(db),

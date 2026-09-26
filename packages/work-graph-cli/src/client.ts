@@ -89,11 +89,6 @@ interface ApiResult<Data> {
   response?: Response;
 }
 
-const RETRYABLE_API_ERROR_CODES = new Set([
-  "database_capacity",
-  "database_timeout",
-  "database_unavailable",
-]);
 const SAFE_RETRY_METHODS = new Set(["GET", "HEAD"]);
 const REPLAY_CAPABLE_MUTATIONS: ReadonlyArray<{
   method: string;
@@ -234,15 +229,8 @@ const requestCanBeRetried = (request: Request): boolean => {
   );
 };
 
-const retryableResponse = async (response: Response): Promise<boolean> => {
-  if (response.status !== 503) return false;
-  try {
-    const body: unknown = await response.clone().json();
-    return isApiError(body) && RETRYABLE_API_ERROR_CODES.has(body.error.code);
-  } catch {
-    return false;
-  }
-};
+const retryableResponse = (response: Response): boolean =>
+  response.status === 503;
 
 const retryAfterMilliseconds = (
   response: Response,
@@ -375,7 +363,7 @@ export class WorkGraphClient {
         lastRetryableResponse,
       );
       if (retryFailed) return response;
-      if (!canRetry || !(await retryableResponse(response))) return response;
+      if (!canRetry || !retryableResponse(response)) return response;
 
       lastRetryableResponse = response;
       if (attempt === this.#retryPolicy.maxAttempts) return response;

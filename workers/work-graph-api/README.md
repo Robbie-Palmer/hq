@@ -56,6 +56,13 @@ smoke-tests production.
 
 ### Database request limits
 
+Production requires the Workers Paid plan. Queue reads and critical-path
+projections process the dependency graph in the Worker and exceed the Free
+plan's 10 ms CPU limit once the graph contains several hundred tickets. The
+Wrangler config sets a 5-second per-request ceiling. A deployment to a Free
+account must fail instead of silently running with a limit that returns
+Cloudflare error 1102 under normal agent traffic.
+
 The database migration sets a 5-second lock timeout, 15-second statement
 timeout, and 10-second idle-in-transaction timeout on the dedicated
 `work_graph_owner` role for the Work Graph database. On PostgreSQL 17 and later,

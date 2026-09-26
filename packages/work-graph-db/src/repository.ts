@@ -1264,7 +1264,7 @@ export class WorkGraphRepository {
 
     return this.db.transaction(
       async (transaction) => {
-        const graph = await this.loadGraph(transaction);
+        const graph = await this.loadSchedulingGraph(transaction);
         const scopes = await this.loadKnowledgeScopes(transaction);
         const requireScope = (
           id: string,
@@ -1369,7 +1369,7 @@ export class WorkGraphRepository {
   ): Promise<readonly WorkItemReadModel[]> {
     return this.db.transaction(
       async (transaction) => {
-        const graph = await this.loadGraph(transaction);
+        const graph = await this.loadSchedulingGraph(transaction);
         const scopes = await this.loadKnowledgeScopes(transaction);
         const currentLeases = await transaction
           .select()
@@ -4102,7 +4102,9 @@ export class WorkGraphRepository {
     await this.writeWorkItemPriorityRanks(transaction, orderedIds);
   }
 
-  private async loadGraph(transaction: DbTransaction): Promise<WorkGraph> {
+  private async loadSchedulingGraph(
+    transaction: DbTransaction,
+  ): Promise<WorkGraph> {
     const workItems = await transaction
       .select({
         id: workItem.id,
@@ -4137,6 +4139,12 @@ export class WorkGraphRepository {
         workItemDependency.dependentWorkItemId,
         workItemDependency.blockerWorkItemId,
       );
+
+    return createWorkGraph({ workItems, dependencies });
+  }
+
+  private async loadGraph(transaction: DbTransaction): Promise<WorkGraph> {
+    const schedulingGraph = await this.loadSchedulingGraph(transaction);
 
     const contexts = await transaction
       .select({
@@ -4201,8 +4209,7 @@ export class WorkGraphRepository {
       );
 
     return createWorkGraph({
-      workItems,
-      dependencies,
+      ...schedulingGraph,
       contexts,
       architectureDecisions,
       references,
@@ -4250,7 +4257,7 @@ export class WorkGraphRepository {
     transaction: DbTransaction,
     workItemId: string,
   ): Promise<WorkItem> {
-    const graph = await this.loadGraph(transaction);
+    const graph = await this.loadSchedulingGraph(transaction);
     const item = graph.workItems.find(({ id }) => id === workItemId);
     if (!item) throw workItemNotFound(workItemId);
     return item;
@@ -4293,7 +4300,7 @@ export class WorkGraphRepository {
             .where(claimableWorkItemWhere())
         ).map(({ id }) => id),
       );
-      const graph = await this.loadGraph(transaction);
+      const graph = await this.loadSchedulingGraph(transaction);
       candidateIds = orderWorkItemsByPriority(
         graph,
         await this.loadKnowledgeScopes(transaction),
