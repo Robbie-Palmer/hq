@@ -170,9 +170,9 @@ asyncssh==2.24.0 \
     --hash=sha256:4064c590e59ce2e8d82a2f66d35f3120d765828b4df5e3dbfb07b4a8c24686c9 \
     --hash=sha256:9abd46300adcb6d4b73269b34c53cd0d17a138b9a22b5b38008ce7d5808734b7
     # via scmrepo
-atpublic==7.0.0 \
-    --hash=sha256:466ef10d0c8bbd14fd02a5fbd5a8b6af6a846373d91106d3a07c16d72d96b63e \
-    --hash=sha256:6702bd9e7245eb4e8220a3e222afcef7f87412154732271ee7deee4433b72b4b
+atpublic==8.0.0 \
+    --hash=sha256:01eb44a6befc79752f1ca0a87b13a22f556b635a9f39bd93ea5bb9e45eec099e \
+    --hash=sha256:3aed41fabe1d0110be4ff6c227361a7b8dd790efbbcdbaeea5be3495edd8e7b9
     # via flufl-lock
 attrs==26.1.0 \
     --hash=sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309 \
