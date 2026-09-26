@@ -344,13 +344,23 @@ are generated when `--id` is absent. When a mutation has an idempotency key,
 the CLI derives any missing mutation or child-lease UUID from that key.
 Retrying the same command therefore sends the same request fingerprint.
 
+The CLI retries `database_timeout`, `database_capacity`, and
+`database_unavailable` responses for GET and HEAD requests. It generates an
+idempotency key for API mutations that support replay, then keeps that key
+stable through retries. Other mutations make one attempt because a lost
+response would leave their outcome uncertain. The retry budget is three total
+attempts within the existing 30-second request timeout. Each retry honors
+`Retry-After`, then adds exponential jitter starting at 250 milliseconds and
+capped at 4 seconds. If the deadline expires during a later attempt, the CLI
+reports the last complete server error and its request ID.
+
 ## JSON and exit codes
 
 Every completed command writes one compact JSON document to stdout. Errors
 write one JSON document to stderr:
 
 ```json
-{"error":{"code":"WORK_ITEM_NOT_FOUND","message":"Work item not found","status":404}}
+{"error":{"code":"WORK_ITEM_NOT_FOUND","message":"Work item not found","status":404,"requestId":"request-123"}}
 ```
 
 Every command also accepts its complete Zod input through `--json`, which is

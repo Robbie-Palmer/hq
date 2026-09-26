@@ -89,10 +89,76 @@ interface ApiResult<Data> {
   response?: Response;
 }
 
+const RETRYABLE_API_ERROR_CODES = new Set([
+  "database_capacity",
+  "database_timeout",
+  "database_unavailable",
+]);
+const SAFE_RETRY_METHODS = new Set(["GET", "HEAD"]);
+
+type Sleep = (delayMs: number, signal: AbortSignal) => Promise<void>;
+
+export interface WorkGraphClientOptions {
+  readonly initialBackoffMs?: number;
+  readonly maxAttempts?: number;
+  readonly maxBackoffMs?: number;
+  readonly maxElapsedMs?: number;
+  readonly now?: () => number;
+  readonly random?: () => number;
+  readonly requestTimeoutMs?: number;
+  readonly sleep?: Sleep;
+}
+
+interface ResolvedRetryPolicy {
+  initialBackoffMs: number;
+  maxAttempts: number;
+  maxBackoffMs: number;
+  maxElapsedMs: number;
+  now: () => number;
+  random: () => number;
+  requestTimeoutMs: number;
+  sleep: Sleep;
+}
+
+const sleep: Sleep = (delayMs, signal) =>
+  new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, delayMs);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+
+const resolveRetryPolicy = (
+  options: WorkGraphClientOptions,
+): ResolvedRetryPolicy => ({
+  initialBackoffMs: options.initialBackoffMs ?? 250,
+  maxAttempts: options.maxAttempts ?? 3,
+  maxBackoffMs: options.maxBackoffMs ?? 4_000,
+  maxElapsedMs: options.maxElapsedMs ?? 30_000,
+  now: options.now ?? Date.now,
+  random: options.random ?? Math.random,
+  requestTimeoutMs: options.requestTimeoutMs ?? 30_000,
+  sleep: options.sleep ?? sleep,
+});
+
 const isApiError = (
   value: unknown,
 ): value is {
-  error: { code: string; message: string; details?: unknown };
+  error: {
+    code: string;
+    message: string;
+    details?: unknown;
+    requestId?: string;
+  };
 } => {
   if (typeof value !== "object" || value === null || !("error" in value)) {
     return false;
@@ -104,26 +170,103 @@ const isApiError = (
     "code" in error &&
     typeof error.code === "string" &&
     "message" in error &&
-    typeof error.message === "string"
+    typeof error.message === "string" &&
+    (!("requestId" in error) || typeof error.requestId === "string")
   );
+};
+
+const requestCanBeRetried = (request: Request): boolean =>
+  SAFE_RETRY_METHODS.has(request.method.toUpperCase()) ||
+  request.headers.has("idempotency-key");
+
+const retryableResponse = async (response: Response): Promise<boolean> => {
+  if (response.status !== 503) return false;
+  try {
+    const body: unknown = await response.clone().json();
+    return isApiError(body) && RETRYABLE_API_ERROR_CODES.has(body.error.code);
+  } catch {
+    return false;
+  }
+};
+
+const retryAfterMilliseconds = (response: Response): number => {
+  const value = response.headers.get("retry-after");
+  if (value === null || !/^\d+$/u.test(value)) return 0;
+  return Number.parseInt(value, 10) * 1_000;
+};
+
+const retryDelay = (
+  response: Response,
+  retryNumber: number,
+  policy: ResolvedRetryPolicy,
+): number => {
+  const backoff = Math.min(
+    policy.maxBackoffMs,
+    policy.initialBackoffMs * 2 ** (retryNumber - 1),
+  );
+  return retryAfterMilliseconds(response) + Math.floor(policy.random() * backoff);
+};
+
+const fetchAttempt = async (
+  fetchImplementation: Fetch,
+  request: Request,
+  lastRetryableResponse: Response | undefined,
+): Promise<{ response: Response; retryFailed: boolean }> => {
+  try {
+    return {
+      response: await fetchImplementation(request.clone()),
+      retryFailed: false,
+    };
+  } catch (error) {
+    if (lastRetryableResponse !== undefined) {
+      return { response: lastRetryableResponse, retryFailed: true };
+    }
+    throw error;
+  }
+};
+
+const waitBeforeRetry = async (
+  response: Response,
+  retryNumber: number,
+  startedAt: number,
+  requestSignal: AbortSignal,
+  policy: ResolvedRetryPolicy,
+): Promise<boolean> => {
+  const delayMs = retryDelay(response, retryNumber, policy);
+  const elapsedMs = policy.now() - startedAt;
+  if (elapsedMs + delayMs >= policy.maxElapsedMs) return false;
+  try {
+    await policy.sleep(delayMs, requestSignal);
+    return true;
+  } catch (error) {
+    if (requestSignal.aborted) return false;
+    throw error;
+  }
 };
 
 const idempotencyHeaders = (
   idempotencyKey: string | undefined,
-): { "idempotency-key"?: string } =>
-  idempotencyKey === undefined
-    ? {}
-    : { "idempotency-key": idempotencyKey };
+): { "idempotency-key": string } => ({
+  "idempotency-key": idempotencyKey ?? crypto.randomUUID(),
+});
 
 export class WorkGraphClient {
   readonly #apiOrigin: string;
   readonly #client: Client;
+  readonly #fetchImplementation: Fetch;
+  readonly #retryPolicy: ResolvedRetryPolicy;
 
-  constructor(config: WorkGraphClientConfig, fetchImplementation: Fetch = fetch) {
+  constructor(
+    config: WorkGraphClientConfig,
+    fetchImplementation: Fetch = fetch,
+    options: WorkGraphClientOptions = {},
+  ) {
     this.#apiOrigin = config.apiUrl.origin;
+    this.#fetchImplementation = fetchImplementation;
+    this.#retryPolicy = resolveRetryPolicy(options);
     this.#client = createClient({
       baseUrl: config.apiUrl.href,
-      fetch: fetchImplementation,
+      fetch: (input, init) => this.#fetchWithRetry(input, init),
       headers: {
         Accept: "application/json",
         ...config.accessHeaders,
@@ -136,8 +279,41 @@ export class WorkGraphClient {
   #options(): { client: Client; signal: AbortSignal } {
     return {
       client: this.#client,
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(this.#retryPolicy.requestTimeoutMs),
     };
+  }
+
+  async #fetchWithRetry(
+    input: string | URL | Request,
+    init?: RequestInit,
+  ): Promise<Response> {
+    const request = input instanceof Request ? input : new Request(input, init);
+    const canRetry = requestCanBeRetried(request);
+    const startedAt = this.#retryPolicy.now();
+    let lastRetryableResponse: Response | undefined;
+
+    for (let attempt = 1; attempt <= this.#retryPolicy.maxAttempts; attempt += 1) {
+      const { response, retryFailed } = await fetchAttempt(
+        this.#fetchImplementation,
+        request,
+        lastRetryableResponse,
+      );
+      if (retryFailed) return response;
+      if (!canRetry || !(await retryableResponse(response))) return response;
+
+      lastRetryableResponse = response;
+      if (attempt === this.#retryPolicy.maxAttempts) return response;
+      const shouldRetry = await waitBeforeRetry(
+        response,
+        attempt,
+        startedAt,
+        request.signal,
+        this.#retryPolicy,
+      );
+      if (!shouldRetry) return response;
+    }
+
+    throw new Error("The Work Graph retry loop ended without a response.");
   }
 
   async #unwrap<Data>(request: PromiseLike<ApiResult<Data>>): Promise<Data> {
@@ -179,7 +355,14 @@ export class WorkGraphClient {
       serverError?.code ?? `HTTP_${status}`,
       serverError?.message ?? `The Work Graph API returned HTTP ${status}.`,
       exitCodeForStatus(status),
-      { details: serverError?.details, status },
+      {
+        details: serverError?.details,
+        requestId:
+          serverError?.requestId ??
+          result.response?.headers.get("x-request-id") ??
+          undefined,
+        status,
+      },
     );
   }
 

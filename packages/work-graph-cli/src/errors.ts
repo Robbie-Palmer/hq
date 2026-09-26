@@ -15,19 +15,26 @@ export class CliError extends Error {
   readonly code: string;
   readonly exitCode: ExitCode;
   readonly details?: unknown;
+  readonly requestId?: string;
   readonly status?: number;
 
   constructor(
     code: string,
     message: string,
     exitCode: ExitCode,
-    options: { cause?: unknown; details?: unknown; status?: number } = {},
+    options: {
+      cause?: unknown;
+      details?: unknown;
+      requestId?: string;
+      status?: number;
+    } = {},
   ) {
     super(message, { cause: options.cause });
     this.name = "CliError";
     this.code = code;
     this.exitCode = exitCode;
     this.details = options.details;
+    this.requestId = options.requestId;
     this.status = options.status;
   }
 }
@@ -49,6 +56,7 @@ export const errorDocument = (error: CliError): Record<string, unknown> => ({
     code: error.code,
     message: error.message,
     ...(error.status === undefined ? {} : { status: error.status }),
+    ...(error.requestId === undefined ? {} : { requestId: error.requestId }),
     ...(error.details === undefined ? {} : { details: error.details }),
   },
 });

@@ -533,6 +533,11 @@
                 "minLength": 1,
                 "maxLength": 500
               },
+              "requestId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
               "details": {
                 "type": "array",
                 "items": {
@@ -2041,7 +2046,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -2049,6 +2054,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -2232,7 +2245,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -2240,6 +2253,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -2401,7 +2422,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -2409,6 +2430,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -2551,7 +2580,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -2559,6 +2588,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -2710,7 +2747,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -2718,6 +2755,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -2867,7 +2912,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -2875,6 +2920,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -3020,7 +3073,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -3028,6 +3081,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -3177,7 +3238,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -3185,6 +3246,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -3334,7 +3403,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -3342,6 +3411,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -3499,7 +3576,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -3507,6 +3584,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -3629,7 +3714,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -3637,6 +3722,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -3824,7 +3917,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -3832,6 +3925,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -3987,7 +4088,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -3995,6 +4096,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -4127,7 +4236,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -4135,6 +4244,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -4318,7 +4435,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -4326,6 +4443,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -4510,7 +4635,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -4518,6 +4643,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -4669,7 +4802,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -4677,6 +4810,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -4897,7 +5038,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -4905,6 +5046,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -5086,7 +5235,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -5094,6 +5243,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -5279,7 +5436,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -5287,6 +5444,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -5409,7 +5574,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -5417,6 +5582,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -5567,7 +5740,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -5575,6 +5748,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -5742,7 +5923,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -5750,6 +5931,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -5872,7 +6061,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -5880,6 +6069,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -6081,7 +6278,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -6089,6 +6286,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -6335,7 +6540,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -6343,6 +6548,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -6487,7 +6700,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -6495,6 +6708,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -6681,7 +6902,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -6689,6 +6910,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -6844,7 +7073,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -6852,6 +7081,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -6984,7 +7221,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -6992,6 +7229,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -7137,7 +7382,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -7145,6 +7390,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -7319,7 +7572,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -7327,6 +7580,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -7469,7 +7730,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -7477,6 +7738,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -7639,7 +7908,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -7647,6 +7916,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -7830,7 +8107,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -7838,6 +8115,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -7961,7 +8246,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -7969,6 +8254,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -8139,7 +8432,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -8147,6 +8440,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -8309,7 +8610,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -8317,6 +8618,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -8481,7 +8790,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -8489,6 +8798,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
@@ -8664,7 +8981,7 @@
             }
           },
           "503": {
-            "description": "Database request exceeded its execution budget",
+            "description": "Database request can be retried after a transient failure",
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the request may be retried",
@@ -8672,6 +8989,14 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]*$",
                   "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
               }
             },
