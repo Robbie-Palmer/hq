@@ -7,9 +7,19 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 
-const settingsPath = "/data/home/.t3/userdata/settings.json";
+const homePath = process.env.HOME ?? "/data/home";
+const codexHomePath = join(homePath, ".codex");
+const settingsPath = join(
+  process.env.T3CODE_HOME ?? join(homePath, ".t3"),
+  "userdata/settings.json",
+);
+const codexConfigPath = join(codexHomePath, "config.toml");
+const codexModelsCachePath = join(codexHomePath, "models_cache.json");
+const codexModelCatalogPath = join(codexHomePath, "model-catalog.json");
+const preferredModel = "gpt-5.6-sol";
+const preferredReasoningEffort = "high";
 
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -17,6 +27,107 @@ function isRecord(value) {
 
 function recordOrEmpty(value) {
   return isRecord(value) ? value : {};
+}
+
+function atomicWrite(path, contents) {
+  mkdirSync(dirname(path), { recursive: true });
+  const temporaryPath = `${path}.tmp-${process.pid}`;
+  try {
+    writeFileSync(temporaryPath, contents, { mode: 0o600 });
+    renameSync(temporaryPath, path);
+  } finally {
+    rmSync(temporaryPath, { force: true });
+  }
+  chmodSync(path, 0o600);
+}
+
+function configureCodexDefaults(includeModelCatalog) {
+  const existingConfig = existsSync(codexConfigPath)
+    ? readFileSync(codexConfigPath, "utf8")
+    : "";
+  const lines = existingConfig.replace(/\n$/, "").split("\n");
+  const firstTableIndex = lines.findIndex((line) => /^\s*\[/.test(line));
+  const rootEnd = firstTableIndex === -1 ? lines.length : firstTableIndex;
+  const managedKeys = new Set([
+    "model",
+    "model_reasoning_effort",
+    "model_catalog_json",
+  ]);
+  const unmanagedRootLines = lines
+    .slice(0, rootEnd)
+    .filter((line) => {
+      const match = line.match(/^\s*([A-Za-z0-9_-]+)\s*=/);
+      return match === null || !managedKeys.has(match[1]);
+    });
+  while (unmanagedRootLines[0] === "") {
+    unmanagedRootLines.shift();
+  }
+  const managedLines = [
+    `model = ${JSON.stringify(preferredModel)}`,
+    `model_reasoning_effort = ${JSON.stringify(preferredReasoningEffort)}`,
+  ];
+  if (includeModelCatalog) {
+    managedLines.push(
+      `model_catalog_json = ${JSON.stringify(codexModelCatalogPath)}`,
+    );
+  }
+
+  const remainingLines = lines.slice(rootEnd);
+  const newLines = [...managedLines];
+  if (unmanagedRootLines.some((line) => line !== "") || remainingLines.length > 0) {
+    newLines.push("");
+  }
+  newLines.push(...unmanagedRootLines, ...remainingLines);
+  while (newLines.at(-1) === "") {
+    newLines.pop();
+  }
+  atomicWrite(codexConfigPath, `${newLines.join("\n")}\n`);
+}
+
+function refreshModelCatalog() {
+  if (!existsSync(codexModelsCachePath)) {
+    return existsSync(codexModelCatalogPath);
+  }
+
+  let catalog;
+  try {
+    catalog = JSON.parse(readFileSync(codexModelsCachePath, "utf8"));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`Could not read ${codexModelsCachePath}: ${message}`);
+    return existsSync(codexModelCatalogPath);
+  }
+  if (!isRecord(catalog) || !Array.isArray(catalog.models)) {
+    console.warn(`${codexModelsCachePath} does not contain a models array`);
+    return existsSync(codexModelCatalogPath);
+  }
+
+  let foundPreferredModel = false;
+  const models = catalog.models.map((value) => {
+    if (!isRecord(value)) {
+      return value;
+    }
+    if (value.slug === preferredModel) {
+      foundPreferredModel = true;
+      return {
+        ...value,
+        default_reasoning_level: preferredReasoningEffort,
+        priority: 0,
+      };
+    }
+    return value.priority === 0 ? { ...value, priority: 1 } : value;
+  });
+
+  if (!foundPreferredModel) {
+    console.warn(`${codexModelsCachePath} does not contain ${preferredModel}`);
+    return existsSync(codexModelCatalogPath);
+  }
+
+  atomicWrite(
+    codexModelCatalogPath,
+    `${JSON.stringify({ ...catalog, models }, null, 2)}\n`,
+  );
+  return true;
 }
 
 mkdirSync(dirname(settingsPath), { recursive: true });
@@ -65,19 +176,20 @@ settings.providerInstances = {
     config: {
       ...codex2Config,
       binaryPath: "codex",
-      homePath: "/data/home/.codex",
-      shadowHomePath: "/data/home/.codex-personal",
+      homePath: codexHomePath,
+      shadowHomePath: join(homePath, ".codex-personal"),
     },
   },
 };
 
-const temporaryPath = `${settingsPath}.tmp-${process.pid}`;
-try {
-  writeFileSync(temporaryPath, `${JSON.stringify(settings, null, 2)}\n`, {
-    mode: 0o600,
-  });
-  renameSync(temporaryPath, settingsPath);
-} finally {
-  rmSync(temporaryPath, { force: true });
-}
-chmodSync(settingsPath, 0o600);
+settings.defaultModelSelection = {
+  instanceId: "codex",
+  model: preferredModel,
+  options: [
+    { id: "reasoningEffort", value: preferredReasoningEffort },
+    { id: "serviceTier", value: "default" },
+  ],
+};
+
+atomicWrite(settingsPath, `${JSON.stringify(settings, null, 2)}\n`);
+configureCodexDefaults(refreshModelCatalog());

@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { parseAllDocuments } from "yaml";
@@ -43,10 +51,12 @@ function run(
   command: string,
   args: readonly string[],
   input?: string,
+  environment?: NodeJS.ProcessEnv,
 ): { stdout: string; stderr: string } {
   const result = spawnSync(command, args, {
     cwd: homelabDirectory,
     encoding: "utf8",
+    env: environment,
     input,
     timeout: 30_000,
   });
@@ -58,6 +68,113 @@ function run(
   );
   return { stdout: result.stdout, stderr: result.stderr };
 }
+
+test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "t3-bootstrap-"));
+  const testHome = join(temporaryDirectory, "home");
+  const t3Home = join(testHome, ".t3");
+  const codexHome = join(testHome, ".codex");
+  const settingsPath = join(t3Home, "userdata/settings.json");
+  const configPath = join(codexHome, "config.toml");
+  const catalogPath = join(codexHome, "model-catalog.json");
+
+  try {
+    mkdirSync(join(t3Home, "userdata"), { recursive: true });
+    mkdirSync(codexHome, { recursive: true });
+    writeFileSync(
+      settingsPath,
+      `${JSON.stringify({
+        providerInstances: {
+          "codex-personal": {
+            accentColor: "#123456",
+            config: { launchArgs: "--legacy" },
+          },
+        },
+      })}\n`,
+    );
+    writeFileSync(
+      configPath,
+      'personality = "pragmatic"\n\n[features]\njs_repl = false\n',
+    );
+    writeFileSync(
+      join(codexHome, "models_cache.json"),
+      `${JSON.stringify({
+        client_version: "test",
+        models: [
+          {
+            slug: "gpt-6-astra",
+            default_reasoning_level: "medium",
+            priority: 0,
+          },
+          {
+            slug: "gpt-5.6-sol",
+            default_reasoning_level: "low",
+            priority: 4,
+          },
+        ],
+      })}\n`,
+    );
+
+    const environment = {
+      ...process.env,
+      HOME: testHome,
+      T3CODE_HOME: t3Home,
+    };
+    const scriptPath = fileURLToPath(
+      new URL("../images/t3-code/bootstrap-settings.mjs", import.meta.url),
+    );
+    run(process.execPath, [scriptPath], undefined, environment);
+    const firstConfig = readFileSync(configPath, "utf8");
+    const firstSettings = readFileSync(settingsPath, "utf8");
+    const firstCatalog = readFileSync(catalogPath, "utf8");
+    run(process.execPath, [scriptPath], undefined, environment);
+
+    assert.equal(readFileSync(configPath, "utf8"), firstConfig);
+    assert.equal(readFileSync(settingsPath, "utf8"), firstSettings);
+    assert.equal(readFileSync(catalogPath, "utf8"), firstCatalog);
+    assert.match(firstConfig, /^model = "gpt-5\.6-sol"$/m);
+    assert.match(firstConfig, /^model_reasoning_effort = "high"$/m);
+    assert.match(
+      firstConfig,
+      new RegExp(`^model_catalog_json = ${JSON.stringify(catalogPath)}$`, "m"),
+    );
+    assert.match(firstConfig, /^personality = "pragmatic"$/m);
+    assert.match(firstConfig, /^\[features\]$/m);
+
+    const settings = JSON.parse(firstSettings) as Record<string, unknown>;
+    assert.deepEqual(settings.defaultModelSelection, {
+      instanceId: "codex",
+      model: "gpt-5.6-sol",
+      options: [
+        { id: "reasoningEffort", value: "high" },
+        { id: "serviceTier", value: "default" },
+      ],
+    });
+    const instances = settings.providerInstances as Record<
+      string,
+      Record<string, unknown>
+    >;
+    assert.ok(!("codex-personal" in instances));
+    assert.equal(instances.codex2?.accentColor, "#123456");
+    const codex2Config = instances.codex2?.config as Record<string, unknown>;
+    assert.equal(codex2Config.homePath, codexHome);
+    assert.equal(
+      codex2Config.shadowHomePath,
+      join(testHome, ".codex-personal"),
+    );
+
+    const catalog = JSON.parse(firstCatalog) as {
+      models: Array<Record<string, unknown>>;
+    };
+    const sol = catalog.models.find(({ slug }) => slug === "gpt-5.6-sol");
+    const astra = catalog.models.find(({ slug }) => slug === "gpt-6-astra");
+    assert.equal(sol?.default_reasoning_level, "high");
+    assert.equal(sol?.priority, 0);
+    assert.equal(astra?.priority, 1);
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
+});
 
 function renderOverlay(overlay: string): string {
   const cached = renderedOverlays.get(overlay);
