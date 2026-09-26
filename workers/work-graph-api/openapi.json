@@ -890,6 +890,289 @@
           "childKnowledgeScopeId"
         ]
       },
+      "DeliveryEvidenceList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeliveryEvidence"
+            },
+            "maxItems": 100
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 36,
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ]
+      },
+      "DeliveryEvidence": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 36,
+            "format": "uuid"
+          },
+          "deliveryProvider": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "deliveryExternalId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "provider": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "externalId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "repository": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "commitSha": {
+            "type": "string",
+            "maxLength": 40,
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "pull_request",
+              "ci",
+              "deployment"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "success",
+              "failure",
+              "cancelled"
+            ]
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "environment": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceUrl": {
+            "type": "string",
+            "maxLength": 2048,
+            "format": "uri",
+            "pattern": "^[hH][tT][tT][pP][sS]?:\\/\\/(?![^/?#]*@)"
+          },
+          "providerObservedAt": {
+            "type": "string",
+            "maxLength": 30,
+            "format": "date-time"
+          },
+          "ingestedAt": {
+            "type": "string",
+            "maxLength": 30,
+            "format": "date-time"
+          },
+          "correlationKind": {
+            "type": "string",
+            "enum": [
+              "unmatched",
+              "pull_request_head",
+              "pull_request_merge"
+            ]
+          },
+          "pullRequestRepository": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pullRequestNumber": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2147483647,
+                "format": "int32"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "current": {
+            "type": "boolean"
+          },
+          "projectedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 30,
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "deliveryProvider",
+          "deliveryExternalId",
+          "provider",
+          "externalId",
+          "repository",
+          "commitSha",
+          "kind",
+          "state",
+          "name",
+          "environment",
+          "sourceUrl",
+          "providerObservedAt",
+          "ingestedAt",
+          "correlationKind",
+          "pullRequestRepository",
+          "pullRequestNumber",
+          "current",
+          "projectedAt"
+        ]
+      },
+      "CompletionCandidateResponse": {
+        "type": "object",
+        "properties": {
+          "candidate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompletionCandidate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "candidate"
+        ]
+      },
+      "CompletionCandidate": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 36,
+            "format": "uuid"
+          },
+          "workItemId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "policyId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "policyRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "format": "int32"
+          },
+          "candidate": {
+            "type": "boolean"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "missing_implementation_pull_request",
+                "pull_request_not_merged",
+                "missing_accepted_head",
+                "missing_merge_commit",
+                "missing_pull_request_evidence",
+                "missing_required_ci",
+                "missing_production_deployment",
+                "unfinished_children",
+                "unresolved_blocking_attention"
+              ]
+            },
+            "maxItems": 9
+          },
+          "evidenceObservationIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 36,
+              "format": "uuid"
+            },
+            "maxItems": 1000
+          },
+          "evaluatedAt": {
+            "type": "string",
+            "maxLength": 30,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "workItemId",
+          "policyId",
+          "policyRevision",
+          "candidate",
+          "reasons",
+          "evidenceObservationIds",
+          "evaluatedAt"
+        ]
+      },
       "ResolvedWorkItemContextList": {
         "type": "object",
         "properties": {
@@ -1063,6 +1346,37 @@
           },
           {
             "$ref": "#/components/schemas/ResolvedPullRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "delivery_evidence"
+                ]
+              },
+              "evidence": {
+                "$ref": "#/components/schemas/DeliveryEvidence"
+              },
+              "sourceWorkItemId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "inheritanceDepth": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 2147483647,
+                "format": "int32"
+              }
+            },
+            "required": [
+              "kind",
+              "evidence",
+              "sourceWorkItemId",
+              "inheritanceDepth"
+            ]
           }
         ]
       },
@@ -6005,6 +6319,144 @@
         }
       }
     },
+    "/api/work-items/{workItemId}/completion-candidate": {
+      "get": {
+        "operationId": "getWorkItemCompletionCandidate",
+        "summary": "Read the current completion candidacy",
+        "description": "Returns the latest immutable completion evaluation and its policy revision, or null when the work item has not been evaluated.",
+        "tags": [
+          "work-items"
+        ],
+        "security": [
+          {
+            "cloudflareAccessClientId": [],
+            "cloudflareAccessClientSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": true,
+            "name": "workItemId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current completion-candidate projection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompletionCandidateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Cloudflare Access authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cloudflare Access denied the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current Work Graph state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/work-items/{workItemId}/contexts": {
       "get": {
         "operationId": "listWorkItemContexts",
@@ -6879,6 +7331,177 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WorkItemEventList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Cloudflare Access authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cloudflare Access denied the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current Work Graph state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/work-items/{workItemId}/evidence": {
+      "get": {
+        "operationId": "listWorkItemEvidence",
+        "summary": "List delivery evidence for a work item",
+        "description": "Returns immutable evidence correlated through the work item's pull requests. Each record identifies whether it is the current provider projection. Set currentOnly=true for claim context and pass nextCursor unchanged to continue.",
+        "tags": [
+          "work-items"
+        ],
+        "security": [
+          {
+            "cloudflareAccessClientId": [],
+            "cloudflareAccessClientSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": true,
+            "name": "workItemId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            },
+            "required": false,
+            "name": "currentOnly",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "format": "int32"
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 36,
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Delivery evidence in stable observation-ID order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryEvidenceList"
                 }
               }
             }

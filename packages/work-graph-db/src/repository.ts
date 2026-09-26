@@ -146,6 +146,10 @@ export type StoredAttentionResolution =
 export type StoredCompletionCandidateEvaluation = CompletionCandidateEvaluation & {
   readonly id: string;
 };
+export type StoredWorkItemDeliveryEvidence = DeliveryEvidenceObservation & {
+  readonly current: boolean;
+  readonly projectedAt: string | null;
+};
 
 export interface AssignCompletionPolicyInput {
   readonly workItemId: string;
@@ -164,6 +168,13 @@ export interface ListCurrentDeliveryEvidenceInput {
   readonly repository?: string;
   readonly commitSha?: string;
   readonly kind?: DeliveryEvidenceKind;
+}
+
+export interface ListWorkItemDeliveryEvidenceInput {
+  readonly workItemId: string;
+  readonly currentOnly?: boolean;
+  readonly cursor?: string;
+  readonly limit?: number;
 }
 
 export interface ListKnowledgeScopesInput {
@@ -2031,6 +2042,60 @@ export class WorkGraphRepository {
     return this.db.transaction((transaction) =>
       this.listCurrentDeliveryEvidenceInTransaction(transaction, input),
     );
+  }
+
+  async listWorkItemDeliveryEvidence(
+    input: ListWorkItemDeliveryEvidenceInput,
+  ): Promise<readonly StoredWorkItemDeliveryEvidence[]> {
+    requireIdentifier(input.workItemId, "invalid_work_item_id");
+    const query = this.db
+      .select({
+        observation: deliveryEvidenceObservation,
+        currentObservationId: currentDeliveryEvidence.observationId,
+        projectedAt: currentDeliveryEvidence.projectedAt,
+      })
+      .from(deliveryEvidenceObservation)
+      .innerJoin(
+        workItemPullRequest,
+        and(
+          eq(
+            workItemPullRequest.repository,
+            deliveryEvidenceObservation.pullRequestRepository,
+          ),
+          eq(
+            workItemPullRequest.number,
+            deliveryEvidenceObservation.pullRequestNumber,
+          ),
+        ),
+      )
+      .leftJoin(
+        currentDeliveryEvidence,
+        eq(
+          currentDeliveryEvidence.observationId,
+          deliveryEvidenceObservation.id,
+        ),
+      )
+      .where(
+        and(
+          eq(workItemPullRequest.workItemId, input.workItemId),
+          input.currentOnly
+            ? isNotNull(currentDeliveryEvidence.observationId)
+            : undefined,
+          input.cursor === undefined
+            ? undefined
+            : gt(deliveryEvidenceObservation.id, input.cursor),
+        ),
+      )
+      .orderBy(deliveryEvidenceObservation.id);
+    const rows =
+      input.limit === undefined ? await query : await query.limit(input.limit);
+    return rows.map(({ observation, currentObservationId, projectedAt }) => ({
+      ...observation,
+      providerObservedAt: observation.providerObservedAt.toISOString(),
+      ingestedAt: observation.ingestedAt.toISOString(),
+      current: currentObservationId !== null,
+      projectedAt: projectedAt?.toISOString() ?? null,
+    }));
   }
 
   private async listCurrentDeliveryEvidenceInTransaction(

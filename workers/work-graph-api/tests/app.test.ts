@@ -156,6 +156,8 @@ const buildRepository = (): WorkGraphApiRepository => ({
   listWorkItems: vi.fn(async () => []),
   getWorkItem: vi.fn(async (workItemId) => item(workItemId, "ready")),
   resolveWorkItemContext: vi.fn(async () => []),
+  listWorkItemDeliveryEvidence: vi.fn(async () => []),
+  getCompletionCandidate: vi.fn(async () => null),
   listNotes: vi.fn(async () => []),
   listEvents: vi.fn(async () => []),
   listDependencies: vi.fn(async () => []),
@@ -844,6 +846,75 @@ describe("Given work items with derived readiness", () => {
       {},
     );
     expect(await responseJson(listed)).toEqual({ items: resolved });
+  });
+
+  it("lists evidence, exposes candidacy, and adds current evidence to context", async () => {
+    const repository = buildRepository();
+    const evidence = {
+      id: "00000000-0000-4000-8000-000000000009",
+      deliveryProvider: "github",
+      deliveryExternalId: "delivery-1",
+      provider: "github",
+      externalId: "check-1",
+      repository: "example/work-graph",
+      commitSha: "0123456789abcdef0123456789abcdef01234567",
+      kind: "ci" as const,
+      state: "success" as const,
+      name: "verify",
+      environment: null,
+      sourceUrl: "https://github.com/example/work-graph/actions/runs/1",
+      providerObservedAt: "2026-09-22T11:00:00.000Z",
+      ingestedAt: "2026-09-22T11:00:01.000Z",
+      correlationKind: "pull_request_head" as const,
+      pullRequestRepository: "example/work-graph",
+      pullRequestNumber: 7,
+      current: true,
+      projectedAt: "2026-09-22T11:00:01.000Z",
+    };
+    const candidate = {
+      id: "00000000-0000-4000-8000-000000000010",
+      workItemId: "ticket",
+      policyId: "default",
+      policyRevision: 3,
+      candidate: true,
+      reasons: [] as const,
+      evidenceObservationIds: [evidence.id],
+      evaluatedAt: "2026-09-22T12:00:00.000Z",
+    };
+    vi.mocked(repository.listWorkItemDeliveryEvidence).mockResolvedValue([
+      evidence,
+    ]);
+    vi.mocked(repository.getCompletionCandidate).mockResolvedValue(candidate);
+    const app = createWorkGraphApp(repository);
+
+    const listed = await app.request(
+      "/api/work-items/ticket/evidence?currentOnly=true&limit=1",
+    );
+    const completion = await app.request(
+      "/api/work-items/ticket/completion-candidate",
+    );
+    const context = await app.request("/api/work-items/ticket/contexts");
+
+    expect(await responseJson(listed)).toEqual({
+      items: [evidence],
+      nextCursor: null,
+    });
+    expect(repository.listWorkItemDeliveryEvidence).toHaveBeenCalledWith({
+      workItemId: "ticket",
+      currentOnly: true,
+      limit: 2,
+    });
+    expect(await responseJson(completion)).toEqual({ candidate });
+    expect(await responseJson(context)).toEqual({
+      items: [
+        {
+          kind: "delivery_evidence",
+          evidence,
+          sourceWorkItemId: "ticket",
+          inheritanceDepth: 0,
+        },
+      ],
+    });
   });
 
   it("refreshes and links pull requests outside claim operations", async () => {
