@@ -49,6 +49,17 @@
   },
   "packageRules": [
     {
+      "description": "Keep the workerd test runner on the Vitest version supported by Cloudflare's pool",
+      "matchFileNames": [
+        "ai-review/package.json"
+      ],
+      "matchPackageNames": [
+        "vitest",
+        "@vitest/coverage-v8"
+      ],
+      "allowedVersions": "<5"
+    },
+    {
       "matchUpdateTypes": [
         "major"
       ],

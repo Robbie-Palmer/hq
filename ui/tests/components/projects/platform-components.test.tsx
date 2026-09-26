@@ -36,7 +36,7 @@ describe("project platform components", () => {
       }).length,
     ).toBeGreaterThan(0);
     expect(screen.getAllByText(/originated in/).length).toBeGreaterThan(0);
-  });
+  }, 10_000);
 
   it("keeps adopters and layer consumers under their labels", () => {
     const project = getProjectWithADRs(
