@@ -109,6 +109,7 @@ const contexts = [
 
 class FakeWorkGraphClient implements WorkGraphClientPort {
   item = workItem();
+  nextCursor: string | null = null;
   contextRecords: unknown[] = [...contexts];
   dependencies = [
     {
@@ -154,7 +155,7 @@ class FakeWorkGraphClient implements WorkGraphClientPort {
     cursor?: string;
   }): Promise<unknown> {
     this.reads.push(`list:${JSON.stringify(query)}`);
-    return { items: [this.item], nextCursor: null };
+    return { items: [this.item], nextCursor: this.nextCursor };
   }
 
   async getWorkItem(workItemId: string): Promise<unknown> {
@@ -329,6 +330,21 @@ describe("Work Graph coordinator integration", () => {
     expect(client.item.priority).toEqual(originalPriority);
   });
 
+  it("passes an opaque ready-work cursor to the next page", async () => {
+    const client = new FakeWorkGraphClient();
+    const cursor = `Opaque:${"x".repeat(180)}`;
+    client.nextCursor = cursor;
+    const integration = coordinator(client);
+
+    const firstPage = await integration.listReadyCandidates();
+    expect(firstPage.nextCursor).toBe(cursor);
+    if (firstPage.nextCursor === null) throw new Error("Missing next cursor.");
+    client.nextCursor = null;
+    await integration.listReadyCandidates({}, { cursor: firstPage.nextCursor });
+
+    expect(client.reads.at(-1)).toContain(`"cursor":"${cursor}"`);
+  });
+
   it("keeps the worker and epoch fence through claim, renewal, checkpoint, and release", async () => {
     const client = new FakeWorkGraphClient();
     const integration = coordinator(client);
@@ -467,6 +483,32 @@ describe("Work Graph coordinator integration", () => {
       boundedBytes.buildContextPackage(task),
       "context_limit_exceeded",
     );
+  });
+
+  it("rechecks the package byte bound after a claim adds its lease", async () => {
+    const sizingClient = new FakeWorkGraphClient();
+    const unclaimedPackage = await coordinator(
+      sizingClient,
+    ).buildContextPackage(task);
+    const unclaimedBytes = new TextEncoder().encode(
+      JSON.stringify(unclaimedPackage),
+    ).byteLength;
+    const client = new FakeWorkGraphClient();
+    const boundedClaim = new WorkGraphCoordinator(client, {
+      maxPackageBytes: unclaimedBytes,
+      now: () => NOW,
+    });
+
+    await expectIntegrationError(
+      boundedClaim.claim(task, {
+        workerId: "worker:codex",
+        leaseDurationSeconds: 900,
+      }),
+      "context_limit_exceeded",
+    );
+    expect(client.mutations.map(({ operation }) => operation)).toEqual([
+      "claim",
+    ]);
   });
 
   it("exports a distinct integration error for callers that need recovery policy", () => {

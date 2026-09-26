@@ -10,6 +10,7 @@ import { compareIdentifiers, IdentifierSchema } from "./vocabulary";
 const TimestampSchema = z.iso.datetime();
 const LeaseDurationSecondsSchema = z.number().int().min(60).max(86_400);
 const PageSizeSchema = z.number().int().min(1).max(100);
+const WorkItemCursorSchema = z.string().min(1).max(200);
 
 export const WorkGraphLeaseSchema = z
   .object({
@@ -183,7 +184,7 @@ export type WorkGraphScope = z.infer<typeof WorkGraphScopeSchema>;
 export const ReadyWorkPageSchema = z
   .object({
     items: z.array(WorkGraphWorkItemSchema),
-    nextCursor: z.union([IdentifierSchema, z.null()]),
+    nextCursor: z.union([WorkItemCursorSchema, z.null()]),
   })
   .strict();
 export type ReadyWorkPage = z.infer<typeof ReadyWorkPageSchema>;
@@ -350,7 +351,7 @@ const resolveOptions = (
 const WorkItemListResponseSchema = z
   .object({
     items: z.array(WorkGraphWorkItemSchema).max(100),
-    nextCursor: z.union([IdentifierSchema, z.null()]),
+    nextCursor: z.union([WorkItemCursorSchema, z.null()]),
   })
   .strict();
 const WorkItemResponseSchema = WorkGraphWorkItemSchema;
@@ -515,7 +516,7 @@ export class WorkGraphCoordinator {
   ): Promise<ReadyWorkPage> {
     const parsedScope = WorkGraphScopeSchema.parse(scope);
     const limit = PageSizeSchema.parse(page.limit ?? 20);
-    const cursor = page.cursor && IdentifierSchema.parse(page.cursor);
+    const cursor = page.cursor && WorkItemCursorSchema.parse(page.cursor);
     const response = await this.#read(
       "list ready work",
       () =>
@@ -643,16 +644,7 @@ export class WorkGraphCoordinator {
       notes,
       requiredEvidence,
     });
-    const packageBytes = new TextEncoder().encode(
-      JSON.stringify(contextPackage),
-    ).byteLength;
-    if (packageBytes > this.#options.maxPackageBytes) {
-      throw new WorkGraphIntegrationError(
-        "context_limit_exceeded",
-        `The context package for ${workItemId} is ${packageBytes} bytes; the limit is ${this.#options.maxPackageBytes}. Split or trim the work context before routing it.`,
-        { details: { packageBytes, limit: this.#options.maxPackageBytes } },
-      );
-    }
+    this.#assertPackageSize(workItemId, contextPackage);
     return contextPackage;
   }
 
@@ -689,10 +681,15 @@ export class WorkGraphCoordinator {
         { details: { lease: claimed.lease } },
       );
     }
+    const claimedContext = WorkGraphContextPackageSchema.parse({
+      ...context,
+      workItem: claimed.workItem,
+    });
+    this.#assertPackageSize(task.taskId, claimedContext);
     return ClaimedWorkSchema.parse({
       lease: claimed.lease,
       workItem: claimed.workItem,
-      context: { ...context, workItem: claimed.workItem },
+      context: claimedContext,
     });
   }
 
@@ -852,6 +849,21 @@ export class WorkGraphCoordinator {
       "context_limit_exceeded",
       `Work item ${workItemId} has more than ${limit} ${kind}. Archive or summarize them before routing the work.`,
       { details: { kind, limit } },
+    );
+  }
+
+  #assertPackageSize(
+    workItemId: string,
+    contextPackage: WorkGraphContextPackage,
+  ): void {
+    const packageBytes = new TextEncoder().encode(
+      JSON.stringify(contextPackage),
+    ).byteLength;
+    if (packageBytes <= this.#options.maxPackageBytes) return;
+    throw new WorkGraphIntegrationError(
+      "context_limit_exceeded",
+      `The context package for ${workItemId} is ${packageBytes} bytes; the limit is ${this.#options.maxPackageBytes}. Split or trim the work context before routing it.`,
+      { details: { packageBytes, limit: this.#options.maxPackageBytes } },
     );
   }
 
