@@ -120,9 +120,11 @@ spec:
           resources:
             requests:
               cpu: 500m
+              ephemeral-storage: 1Gi
               memory: 1Gi
             limits:
               cpu: "3"
+              ephemeral-storage: 12Gi
               memory: 6Gi
           securityContext:
             allowPrivilegeEscalation: false
@@ -130,6 +132,19 @@ spec:
               drop:
                 - ALL
             readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: cache
+              mountPath: /data/home/.cache
+              subPath: home-cache
+            - name: cache
+              mountPath: /data/home/.local/share/mise
+              subPath: mise
+            - name: cache
+              mountPath: /data/home/.local/share/pnpm
+              subPath: pnpm
+            - name: cache
+              mountPath: /data/home/.arduino15
+              subPath: arduino15
         - name: docker
           image: docker:29.8.0-dind-rootless@sha256:e17fa54c2ffd511d8407c746eec77f7814e6f74fe20caf822dad1870599984c0
           env:
@@ -169,9 +184,11 @@ spec:
           resources:
             requests:
               cpu: 100m
+              ephemeral-storage: 2Gi
               memory: 256Mi
             limits:
               cpu: "1"
+              ephemeral-storage: 16Gi
               memory: 1Gi
           securityContext:
             privileged: true # NOSONAR -- Rootless DinD requires a privileged outer container.
@@ -185,6 +202,12 @@ spec:
             - name: docker-data
               mountPath: /home/rootless/.local/share/docker
       volumes:
+        - name: cache
+          persistentVolumeClaim:
+            claimName: t3-code-cache
         - name: docker-data
           emptyDir:
             sizeLimit: 10Gi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 8Gi

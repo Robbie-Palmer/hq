@@ -38,11 +38,11 @@ Ansible into another permanent workload or host configuration system.
 
 # Decision
 
-Provision one long-lived Hetzner Cloud VPS as a separate remote-development
-plane. Terraform owns the Hetzner server, firewall, SSH key registration, and
-persistent volume. A NixOS flake owns the operating system, Tailscale, storage
-mounts, and a single-node K3s server. K3s owns t3-code and its supporting
-workloads.
+Provision one long-lived Hetzner Cloud VPS as a separate, single-user
+remote-development plane. Terraform owns the Hetzner server, firewall, SSH key
+registration, and persistent volume. A NixOS flake owns the operating system,
+Tailscale, storage mounts, and a single-node K3s server. K3s owns t3-code and
+its supporting workloads.
 
 The VPS is reproducible but not routinely destroyed. Reproducibility is the
 recovery mechanism: a failed server can be replaced without rebuilding the
@@ -103,6 +103,11 @@ workload is genuinely the same. Use separate overlays, Kubernetes contexts,
 storage, credentials, and mutable application state. Deployment commands must
 verify their target context before changing either cluster.
 
+Give the host a zstd-compressed zram swap device capped at 25 percent of
+physical RAM. Configure kubelet to tolerate host swap while keeping `NoSwap`
+behavior for pods. The buffer protects host services during short memory
+spikes without allowing workloads to exceed their declared memory limits.
+
 This is not active-active t3-code. The cloud instance is the available remote
 workspace; the Mac instance remains the low-latency home workspace. Neither
 installation synchronises a live SQLite database, agent session directory, or
@@ -121,6 +126,34 @@ the mutable authentication homes required by the coding harnesses. Stable
 service user and group IDs keep ownership consistent across host and pod
 rebuilds. The volume is not a backup; encrypted backups and a tested restore
 path are separate work.
+
+## Storage isolation
+
+Keep the K3s datastore and container image store on the VPS root disk. Keep
+workspace state on the attached encrypted volume. A workspace filling its
+volume must not also exhaust K3s image storage, taint the node with disk
+pressure, and remove the image needed to restart that workspace.
+
+Split the attached volume into project-quota domains. Give the operator's
+durable state 55 GiB and its rebuildable tool and package caches 30 GiB. Leave
+the remaining filesystem capacity unallocated so ext4 metadata and quota
+enforcement have headroom. Kubernetes local volumes describe these paths,
+while ext4 project quotas enforce their limits on the single physical
+filesystem.
+
+Keep active worktrees, t3-code state, repositories, and agent authentication
+in the durable volume. Put mise installations, the pnpm store, browser caches,
+and Arduino packages in the cache volume. Cache loss may cost download time,
+but it must not lose a branch, thread, or login.
+
+Use disk-backed `emptyDir` volumes for process scratch space. Set an 8 GiB
+limit for the operator's `/tmp` and declare pod ephemeral-storage requests and
+limits. Do not use memory-backed temporary storage on this 8 GiB host.
+
+Delete a worktree through t3-code's thread lifecycle. Automated housekeeping
+may remove a worktree only after its thread is deleted, or report a clean,
+merged, idle thread for bulk deletion. It must not remove a directory owned by
+a running thread directly from the host.
 
 Keep the two Codex subscriptions in distinct authentication homes so their
 allowances and sessions remain independent. Browser or device-login OAuth
@@ -233,10 +266,18 @@ and limited to the repositories and operations the agents need.
 * A single VPS is not internally highly available. Provider or region failure
   can still stop it, while the home instance provides a separate fallback when
   home connectivity is healthy.
+* The VPS is intentionally single-user. A second person requires separate
+  workspace compute and a recovery design proved outside this host.
 * Coding-harness OAuth sessions require a secure commissioning and recovery
   process beyond ordinary Doppler secrets.
 * Two t3-code installations create operational duplication and require Git
   discipline for reliable handoff.
+* Tool and package caches now have a hard ceiling. A full cache can make an
+  install fail until housekeeping prunes it, but it cannot consume workspace
+  or K3s capacity.
+* Local persistent volumes and ext4 quotas remain specific to this one-node
+  design. A multi-node workspace service would need networked or replicated
+  storage instead.
 * The first NixOS installation needs temporary public SSH and careful removal
   after Tailscale is verified.
 

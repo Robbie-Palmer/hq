@@ -3,6 +3,8 @@ kind: Kustomization
 namespace: t3-code
 resources:
   - ../../../../base/t3-code
+  - cache-persistent-volume.yaml
+  - cache-persistent-volume-claim.yaml
   - doppler-secret.yaml
   - preview-agent-doppler-secret.yaml
   - work-graph-secret.yaml

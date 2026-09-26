@@ -56,8 +56,8 @@ Each user receives:
 * access to T3 Code and the supported coding harnesses from a phone or laptop;
 * work that continues through client disconnects;
 * their own source-control and model-provider identities;
-* resource limits that prevent an accidental workload from exhausting the
-  shared host;
+* resource and placement limits that prevent an accidental workload from
+  exhausting another user's workspace node;
 * encrypted backups with a tested restore path;
 * a documented way to export their files and leave the service; and
 * an operator who can provision, update, recover, and remove the workspace from
@@ -67,41 +67,31 @@ Users must not share a home directory, provider login, private endpoint, or
 ordinary service traffic. The workspace must not receive the host filesystem,
 container-runtime socket, or cluster administrator credentials.
 
-# Pilot
+# Rollout boundary
 
-The project starts with two workspaces on one host. My workspace is the first
-deployment. My brother's workspace is the first test of onboarding, identity,
-isolation, recovery, and removal for another person.
+The first deployment is now one workspace for one person. The attempted
+two-workspace design consumed recovery headroom on a 4 vCPU, 8 GiB host before
+the second user was onboarded. My brother's pilot is deferred until it can run
+on dedicated compute without competing with the operator workspace.
 
-The brother pilot is free while it fits inside spare capacity. It uses his own
-GitHub and model-provider accounts. Success requires his workspace to survive a
-restart and a host-replacement exercise, while my files and access remain
-unaffected.
-
-The pilot can use a trusted-user container boundary. Any move beyond a small
-trusted cohort requires a separate isolation decision based on virtual machines
-or microVMs.
+This changes the rollout order, not the product goal. The current VPS proves
+the persistent-workspace workflow and remains the rollback source while a
+multi-node design is evaluated. No migration may erase the only copy of a T3
+session, worktree, branch, login, or workspace backup.
 
 # Current milestone
 
-The repository now defines the operator and first pilot as separate K3s
-workspaces. The operator keeps the existing namespace, volume, and private URL.
-The pilot has a separate namespace, persistent-volume binding, Doppler config,
-and tailnet port. Policy on the pilot blocks cross-workspace traffic. The
-operator keeps its existing network behavior and its 3 CPU and 6 GiB limits.
-The pilot starts with a 1 CPU and 1 GiB limit. That caps its additional pressure
-without changing the operator's declared capacity, though both still share one
-4 CPU, 8 GiB host and can contend for it. The pilot also runs at a lower,
-non-preempting pod priority, making it the earlier eviction candidate when both
-workspaces exceed their requests during node pressure.
+The current NixOS and K3s definitions now describe only the operator workspace.
+Its durable-data ceiling is 55 GiB, its rebuildable cache has a separate 30 GiB
+ceiling, and the filesystem keeps about 13 GiB outside both quotas. K3s state
+and container images remain on the root disk so a full cache cannot also remove
+the control plane's restart capacity.
 
-The repository now declares a 10 GiB and 1,000,000-inode ext4 project quota for
-the pilot without capping the operator workspace. The existing live volume
-still needs the documented one-time filesystem maintenance before that quota
-can take effect. Live onboarding then needs the pilot's Tailscale identity and
-provider logins, followed by the concurrent-build, restart, access-revocation,
-and file-isolation checks. Encrypted backup and replacement-host restore also
-remain open before the pilot can meet the full success test.
+The next milestone is a parallel Kube-Hetzner evaluation. The existing VPS
+stays available while a candidate cluster proves node replacement, volume
+reattachment, encrypted workspace restore, control plane recovery, and T3
+session continuity. Any conversion waits until those checks pass on dedicated
+workspace compute; second-user onboarding waits too.
 
 Rendered workspace definitions now pass Flux Schema validation against pinned
 Kubernetes 1.37 and Doppler Operator schemas. The check rejects missing schemas
@@ -110,25 +100,23 @@ cluster dry run.
 
 # Success measures
 
-The pilot succeeds when:
+The next rollout stage succeeds when:
 
-1. a new user can reach a ready workspace without manual changes to the host;
-2. both users can run real coding work concurrently within their resource
-   limits;
-3. either workspace can restart without losing its home directory;
-4. an encrypted backup restores onto a replacement host;
-5. one user's access can be revoked and their workspace exported or deleted
-   without disturbing the other user;
-6. normal operation leaves no undocumented provider-console or host changes;
-   and
-7. operator interventions and peak resource use are recorded well enough to
-   price a later invited cohort.
+1. the current workspace has an automated encrypted backup and a tested restore;
+2. a candidate cluster can lose and replace a worker without losing workspace
+   data;
+3. a restored copy opens the expected repositories, T3 threads, and provider
+   sessions before any cutover;
+4. one user's compute, storage, and lifecycle are independent from another's;
+5. a failed migration can return to the untouched VPS without reverse data
+   reconstruction; and
+6. normal operation leaves no undocumented provider-console or host changes.
 
 # Scope boundaries
 
-The pilot does not include hostile-tenant isolation, an SLA, metered model
-usage, automatic billing, per-user infrastructure spend caps, or a general
-credential broker. Users continue to buy their own model access.
+The next rollout does not include hostile-tenant isolation, an SLA, metered
+model usage, automatic billing, per-user infrastructure spend caps, or a
+general credential broker. Users continue to buy their own model access.
 
 The project may later connect to the Work Graph and other knowledge services.
 A repository and ordinary provider accounts must remain sufficient to use the
@@ -148,11 +136,18 @@ The implementation choices and their trade-offs live in ADRs:
 * [ADR 007: Per-workspace Doppler secrets](/projects/agent-friendly-remote-development/adrs/007-doppler-secrets)
 * [ADR 008: Shared-host resource containment](/projects/agent-friendly-remote-development/adrs/008-shared-host-resource-containment)
 * [ADR 009: Pre-apply manifest validation with Flux Schema](/projects/agent-friendly-remote-development/adrs/009-flux-schema-validation)
+* [ADR 010: Layered observability for agent workspaces](/projects/agent-friendly-remote-development/adrs/010-layered-workspace-observability)
+* [ADR 011: Single-user boundary for the first host](/projects/agent-friendly-remote-development/adrs/011-single-user-host-boundary)
+* [ADR 012: Kube-Hetzner multi-node evaluation](/projects/agent-friendly-remote-development/adrs/012-kube-hetzner-evaluation)
 
 # Open questions
 
-* How many concurrent agents fit on the first host before memory, CPU, or disk
-  contention affects another user?
+* What is the smallest Kube-Hetzner topology that survives a node failure
+  without turning routine operation into cluster administration?
+* Which workspace backup target and schedule meet the required recovery point
+  without treating a Hetzner Volume as a backup?
+* Should durable workspace nodes remain static while only disposable build
+  workers autoscale?
 * Does a workspace control plane remove enough onboarding and lifecycle work to
   justify operating it?
 * Which files and sessions belong in an export, and which credentials must be

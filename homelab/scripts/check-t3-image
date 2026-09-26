@@ -24,14 +24,14 @@ docker run --rm \
   -ec '
     test "$(id -u)" = 2000
     test "$(id -g)" = 2000
-    test "$(codex --version)" = "codex-cli 0.153.2"
-    test "$(claude --version)" = "2.1.260 (Claude Code)"
-    test "$(opencode --version)" = "1.18.27"
-    test "$(grok --version | cut -d" " -f1-2)" = "grok 1.0.13"
+    test "$(codex --version)" = "codex-cli 0.153.4"
+    test "$(claude --version)" = "2.1.263 (Claude Code)"
+    test "$(opencode --version)" = "1.18.29"
+    test "$(grok --version | cut -d" " -f1-2)" = "grok 1.0.22"
     test "$(mise --version | cut -d" " -f1)" = "$EXPECTED_MISE_VERSION"
     test "$(doppler --version)" = "v3.76.5"
     test "$(vale --version)" = "vale version 3.19.0"
-    test "$(pnpm --version)" = "12.2.1"
+    test "$(pnpm --version)" = "12.4.1"
     test "$MISE_TRUSTED_CONFIG_PATHS" = "/data/workspaces:/data/home/.t3/worktrees"
     test "$(docker --version)" = "Docker version 29.8.0, build 88096ef"
     test "$(docker buildx version | cut -d" " -f1-3)" = "github.com/docker/buildx v0.37.0 ac30b249211430b85fb8f37b6e7154b5c47ba0b6"
@@ -77,7 +77,7 @@ docker run --rm \
       | grep -F browser-ready >/dev/null
   '
 
-docker run --detach --rm \
+docker run --detach \
   --name "${container}" \
   --tmpfs /data:rw,exec,uid=2000,gid=2000,mode=0750,size=1g \
   --publish 127.0.0.1::3773 \
@@ -85,7 +85,7 @@ docker run --detach --rm \
 
 port=$(docker port "${container}" 3773/tcp | sed 's/.*://')
 server_ready=false
-for _ in $(seq 1 30); do
+for _ in $(seq 1 90); do
   if curl --fail --max-time 2 --silent "http://127.0.0.1:${port}/" >/dev/null; then
     server_ready=true
     break
@@ -108,7 +108,7 @@ docker run --rm \
   "${docker_image}" \
   -eu -c 'chown 1000:2000 /data; chmod 2770 /data'
 
-docker run --detach --rm \
+docker run --detach \
   --name "${docker_container}" \
   --privileged \
   --user 1000:1000 \
@@ -121,7 +121,7 @@ docker run --detach --rm \
   --tls=false >/dev/null
 
 docker_ready=false
-for _ in $(seq 1 30); do
+for _ in $(seq 1 90); do
   if docker run --rm \
     --network "container:${docker_container}" \
     --user 2000:2000 \

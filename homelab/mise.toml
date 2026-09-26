@@ -254,10 +254,6 @@ run = "kubectl kustomize k3s/overlays/home"
 description = "Render the remote-development t3-code overlay"
 run = "kubectl kustomize k3s/overlays/remote-development"
 
-[tasks.k3s-render-remote-pilot]
-description = "Render the operator and first-pilot remote workspaces"
-run = "kubectl kustomize k3s/overlays/remote-development-pilot"
-
 [tasks.k3s-test-remote]
 description = "Test rendered workspace structure, isolation controls, and Kubernetes schemas"
 depends = ["//:install"]
@@ -288,17 +284,6 @@ bash scripts/apply-kustomize-overlay \
   dry-run
 '''
 
-[tasks.k3s-dry-run-remote-pilot]
-description = "Server-side dry run of both remote workspaces after an exact context check"
-run = '''
-export KUBECONFIG="${REMOTE_DEVELOPMENT_KUBECONFIG:-$PWD/.kube/remote-development.yaml}"
-bash scripts/apply-kustomize-overlay \
-  k3s/overlays/remote-development-pilot \
-  "${REMOTE_DEVELOPMENT_KUBE_CONTEXT:-remote-development}" \
-  cloud \
-  dry-run
-'''
-
 [tasks.k3s-deploy-home]
 description = "Apply the home overlay after an exact context check"
 run = '''
@@ -321,36 +306,11 @@ bash scripts/apply-kustomize-overlay \
   apply
 '''
 
-[tasks.k3s-deploy-remote-pilot]
-description = "Apply both remote workspaces after an exact context check"
-run = '''
-export KUBECONFIG="${REMOTE_DEVELOPMENT_KUBECONFIG:-$PWD/.kube/remote-development.yaml}"
-bash scripts/apply-kustomize-overlay \
-  k3s/overlays/remote-development-pilot \
-  "${REMOTE_DEVELOPMENT_KUBE_CONTEXT:-remote-development}" \
-  cloud \
-  apply
-'''
-
 [tasks.doppler-operator-install-remote]
 description = "Install the pinned Doppler operator and inject config-scoped tokens"
 run = '''
 export KUBECONFIG="${REMOTE_DEVELOPMENT_KUBECONFIG:-$PWD/.kube/remote-development.yaml}"
 bash scripts/install-doppler-operator
-'''
-
-[tasks.remote-pilot-secret-install]
-description = "Create the pilot workspace's namespace-scoped Doppler token if absent"
-run = '''
-export KUBECONFIG="${REMOTE_DEVELOPMENT_KUBECONFIG:-$PWD/.kube/remote-development.yaml}"
-bash scripts/install-doppler-operator t3-code-pilot:prd_remote_development_pilot
-'''
-
-[tasks.remote-pilot-acceptance]
-description = "Test pilot file and service isolation, then restart its pod"
-run = '''
-export KUBECONFIG="${REMOTE_DEVELOPMENT_KUBECONFIG:-$PWD/.kube/remote-development.yaml}"
-bash scripts/test-remote-pilot-acceptance
 '''
 
 # ---------------------------------------------------------------------------

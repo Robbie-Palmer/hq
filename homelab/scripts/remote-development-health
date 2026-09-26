@@ -17,29 +17,116 @@ test "$(findmnt --noheadings --output FSTYPE /srv/remote-development)" = ext4
 findmnt --noheadings --output OPTIONS /srv/remote-development \
   | tr ',' '\n' \
   | grep -Fx prjquota >/dev/null
-quotaon --project --print-state /srv/remote-development | grep -F ' is on' >/dev/null
-pilot_project_id=$(awk -F: '$1 == "t3-code-pilot" { print $2 }' /etc/projid)
-test -n "${pilot_project_id}"
-test "$(lsattr -dp /srv/remote-development/t3-code-pilot | awk '{ print $1 }')" = "${pilot_project_id}"
-lsattr -d /srv/remote-development/t3-code-pilot \
-  | awk '{ print $1 }' \
-  | grep -F P >/dev/null
-repquota --project --verbose --no-names --output=csv /srv/remote-development \
-  | awk -F, -v project_id="#${pilot_project_id}" '$1 == project_id {
-      found = 1
-      if ($6 != "10485760" || $10 != "1000000") exit 1
-    }
-    END { if (!found) exit 1 }'
+quota_state=$(quotaon --project --print-state /srv/remote-development || true)
+grep -F ' is on' <<<"${quota_state}" >/dev/null
+awk '$1 == "/dev/zram0" { found = 1 } END { if (!found) exit 1 }' /proc/swaps
+zramctl --noheadings --output ALGORITHM /dev/zram0 \
+  | tr -d ' ' \
+  | grep -Fx zstd >/dev/null
+memory_kib=$(awk '$1 == "MemTotal:" { print $2 }' /proc/meminfo)
+zram_bytes=$(zramctl --bytes --noheadings --output DISKSIZE /dev/zram0 | tr -d ' ')
+awk \
+  -v memory_kib="${memory_kib}" \
+  -v zram_bytes="${zram_bytes}" \
+  'BEGIN {
+    ratio = zram_bytes / (memory_kib * 1024)
+    if (ratio < 0.24 || ratio > 0.26) exit 1
+  }'
+free --bytes \
+  | awk -v zram_bytes="${zram_bytes}" \
+      '$1 == "Swap:" {
+        if ($2 < zram_bytes * 0.99 || $2 > zram_bytes) exit 1
+        found = 1
+      }
+      END { if (!found) exit 1 }'
+
+check_project_quota() {
+  local name=$1
+  local path=$2
+  local expected_blocks=$3
+  local expected_inodes=$4
+  local project_id
+
+  project_id=$(awk -F: -v name="${name}" '$1 == name { print $2 }' /etc/projid)
+  test -n "${project_id}"
+  test "$(lsattr -dp "${path}" | awk '{ print $1 }')" = "${project_id}"
+  lsattr -d "${path}" | awk '{ print $1 }' | grep -F P >/dev/null
+  repquota --project --verbose --no-names --output=csv /srv/remote-development \
+    | awk -F, \
+      -v project_id="#${project_id}" \
+      -v expected_blocks="${expected_blocks}" \
+      -v expected_inodes="${expected_inodes}" \
+      '$1 == project_id {
+        found = 1
+        if ($6 != expected_blocks || $10 != expected_inodes) exit 1
+      }
+      END { if (!found) exit 1 }'
+}
+
+check_project_quota t3-code-operator /srv/remote-development/t3-code 57671680 3000000
+check_project_quota t3-code-cache /srv/remote-development/t3-code-cache 31457280 2000000
+test ! -e /srv/remote-development/t3-code-pilot
+! grep -q '^t3-code-pilot:' /etc/projid
+
+check_disk_headroom() {
+  local path=$1
+  local used
+  used=$(df --output=pcent "${path}" | tail -1 | tr -cd '0-9')
+  if [ "${used}" -ge 80 ]; then
+    echo "${path} is ${used}% full; expected less than 80%" >&2
+    return 1
+  fi
+}
+
+check_disk_headroom /
+check_disk_headroom /srv/remote-development
+test "$(findmnt --noheadings --output SOURCE --target /var/lib/rancher/k3s)" != /dev/mapper/remote-development-data
+test -z "$(
+  find /var/lib/rancher/k3s -type l -printf '%l\n' \
+    | grep -F /srv/remote-development/k3s \
+    || true
+)"
+test -z "$(
+  find /var/lib/rancher/k3s/server/cred \
+    -type f \
+    -name '*.kubeconfig' \
+    -exec grep -lF /srv/remote-development/k3s {} + \
+    || true
+)"
 systemctl is-active --quiet tailscaled.service
 systemctl is-active --quiet k3s.service
 tailscale status --json | jq -e '.BackendState == "Running"' >/dev/null
+tailscale serve status --json \
+  | jq -e '.TCP | keys | sort == ["3000", "3001", "3002", "3003", "3004", "443"]' \
+  >/dev/null
+k3s_ready=0
+for _ in $(seq 1 60); do
+  if k3s kubectl --request-timeout=2s get node remote-development >/dev/null 2>&1; then
+    k3s_ready=1
+    break
+  fi
+  sleep 1
+done
+test "${k3s_ready}" = 1
+k3s kubectl get node remote-development --output=json \
+  | jq -e '
+      .status.conditions
+      | any(.type == "Ready" and .status == "True")
+        and any(.type == "DiskPressure" and .status == "False")
+        and any(.type == "MemoryPressure" and .status == "False")
+        and any(.type == "PIDPressure" and .status == "False")
+    ' >/dev/null
+test -z "$(
+  k3s kubectl get node remote-development \
+    --output=jsonpath='{range .spec.taints[?(@.effect=="NoSchedule")]}{.key}{"\n"}{end}'
+)"
 k3s kubectl get node remote-development \
   --output=jsonpath='{.metadata.labels.homelab\.dev/location}{"\n"}' \
   | grep -Fx cloud >/dev/null
 k3s kubectl get node remote-development \
   --output=jsonpath='{.metadata.labels.homelab\.dev/capability}{"\n"}' \
   | grep -Fx agent-workspace >/dev/null
-echo "host, encrypted volume, pilot disk quota, Tailscale, and independent K3s server are healthy"
+echo "host, zram, disk headroom, project quotas, Tailscale, and independent K3s server are healthy"
 
 check_workspace() {
   local namespace=$1
@@ -90,11 +177,16 @@ check_workspace() {
   expected_policy_names=$(printf '%s\n' "$@" | sort)
   test "${actual_policy_names}" = "${expected_policy_names}"
   test "$(k3s kubectl --namespace "${namespace}" get persistentvolumeclaim t3-code-data --output=jsonpath='{.spec.volumeName}')" = "${volume}"
+  k3s kubectl --namespace "${namespace}" get endpointslice \
+    --selector=kubernetes.io/service-name=t3-code \
+    --output=json \
+    | jq -e 'any(.items[].endpoints[]?; .conditions.ready == true)' >/dev/null
   curl --fail --silent --show-error "http://127.0.0.1:${node_port}/" >/dev/null
   echo "${namespace} workspace is healthy"
 }
 
 check_workspace t3-code 30773 t3-code-remote-development
+test "$(k3s kubectl --namespace t3-code get persistentvolumeclaim t3-code-cache --output=jsonpath='{.spec.volumeName}')" = t3-code-remote-development-cache
 k3s kubectl --namespace t3-code get secret t3-code-preview-access --output=json \
   | jq --exit-status '
       .data
@@ -125,15 +217,6 @@ k3s kubectl --namespace t3-code get secret t3-code-work-graph --output=json \
         )
     ' >/dev/null
 echo "operator Work Graph credentials are present"
-check_workspace \
-  t3-code-pilot \
-  30774 \
-  t3-code-remote-development-pilot \
-  workspace-default-deny-ingress \
-  workspace-dns \
-  workspace-public-egress
-
-if k3s kubectl --namespace t3-code-pilot get deployment t3-code >/dev/null 2>&1; then
-  test "$(k3s kubectl --namespace t3-code-pilot get resourcequota workspace --output=jsonpath='{.spec.hard.pods}')" = 1
-fi
+k3s kubectl get namespaces --output=json \
+  | jq -e 'all(.items[]; .metadata.name != "t3-code-pilot")' >/dev/null
 REMOTE

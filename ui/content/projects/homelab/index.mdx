@@ -2,7 +2,7 @@
 title: "Home Lab"
 description: "A private home fleet that backs up personal data, runs coding agents, filters DNS, monitors itself, and gives old hardware a useful job"
 date: "2026-08-02"
-updated: "2026-09-09"
+updated: "2026-09-14"
 status: "live"
 tech_stack:
   - "Ansible"
@@ -438,7 +438,9 @@ owns the photo backup pipeline, the lab's two most important jobs.
 [ADR 025](/projects/homelab/adrs/025-cloud-remote-development-plane) proposes
 a long-lived Hetzner VPS so a home power or broadband outage does not remove
 all coding capacity. Terraform provisions it, the repository's NixOS flake
-declares the host, and an independent single-node K3s cluster runs t3-code.
+declares the host, and an independent single-node K3s cluster runs t3-code for
+one operator. Multi-user capacity belongs on dedicated workspace nodes in a
+separately tested cluster, not on this VPS.
 
 It does not extend the home cluster across the internet. Home and cloud share
 Kustomize bases where useful, but retain separate control planes, overlays,
