@@ -429,6 +429,35 @@ describe("AddRecipeView visibility", () => {
     expect(screen.queryByText(/Imported rice\.cook/)).not.toBeInTheDocument();
   });
 
+  it("cancels a pending URL import when switching methods", async () => {
+    mocks.getHouseholds.mockResolvedValue([]);
+    const requestAborted = vi.fn();
+    globalThis.fetch = vi.fn((_input, init) => {
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          requestAborted();
+          reject(new DOMException("Aborted", "AbortError"));
+        });
+      });
+    }) as typeof fetch;
+
+    render(<AddRecipeView />);
+    fireEvent.click(screen.getByRole("button", { name: "Import URL" }));
+    fireEvent.change(screen.getByLabelText("Recipe webpage URL"), {
+      target: { value: "https://example.test/tomato-pasta" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Import recipe" }));
+
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole("button", { name: "Upload file" }));
+
+    await waitFor(() => expect(requestAborted).toHaveBeenCalledOnce());
+    expect(screen.getByLabelText("Recipe file")).toBeInTheDocument();
+    expect(
+      screen.queryByText("The recipe could not be imported."),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows a generic message for unexpected file import failures", async () => {
     mocks.getHouseholds.mockResolvedValue([]);
     const file = new File(["recipe"], "recipe.cook");

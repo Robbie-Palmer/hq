@@ -136,6 +136,114 @@ const MAX_RECIPE_FILE_LENGTH = 100_000;
 
 class RecipeFileImportError extends Error {}
 
+type ImportRequest = {
+  id: number;
+  controller: AbortController;
+};
+
+function importRequestIsStale(
+  current: ImportRequest | null,
+  request: ImportRequest,
+): boolean {
+  return request.controller.signal.aborted || current?.id !== request.id;
+}
+
+function finishImportRequest(
+  requestRef: { current: ImportRequest | null },
+  request: ImportRequest,
+  setImporting: (importing: boolean) => void,
+) {
+  if (requestRef.current?.id !== request.id) return;
+  requestRef.current = null;
+  setImporting(false);
+}
+
+async function fetchUrlRecipeDraft(
+  url: string,
+  signal: AbortSignal,
+): Promise<ImportedRecipe> {
+  const body = await apiRequest<unknown>("/api/recipe-drafts/url", {
+    method: "POST",
+    json: { url },
+    signal,
+    fallbackMessage: "The recipe could not be imported.",
+  });
+  if (!isImportedRecipe(body)) {
+    throw new Error("The recipe could not be imported.");
+  }
+  return body;
+}
+
+async function fetchFileRecipeDraft(
+  file: File,
+  signal: AbortSignal,
+): Promise<ImportedRecipe> {
+  if (file.size > MAX_RECIPE_FILE_LENGTH) {
+    throw new RecipeFileImportError(
+      "Choose a recipe file smaller than 100 KB.",
+    );
+  }
+  const content = await file.text();
+  const body = await apiRequest<unknown>("/api/recipe-drafts/file", {
+    method: "POST",
+    json: { filename: file.name, content },
+    signal,
+    fallbackMessage: "The recipe file could not be imported.",
+  });
+  if (!isImportedRecipe(body)) {
+    throw new RecipeFileImportError("The recipe file could not be imported.");
+  }
+  return body;
+}
+
+function fileImportErrorMessage(error: unknown): string {
+  return error instanceof RecipeFileImportError || error instanceof ApiError
+    ? error.message
+    : "The recipe file could not be imported.";
+}
+
+function recipeSaveErrorMessage(error: unknown): string {
+  if (error instanceof ApiError && error.status === 409) {
+    return "A recipe with this name already exists. Choose a different name.";
+  }
+  return error instanceof Error
+    ? error.message
+    : "The recipe could not be saved.";
+}
+
+async function persistRecipe({
+  description,
+  initialRecipe,
+  preview,
+  source,
+  title,
+  visibility,
+}: {
+  description: string;
+  initialRecipe?: SavedRecipeApiRecord;
+  preview: ReturnType<typeof buildRecipeDraft>;
+  source: string;
+  title: string;
+  visibility: RecipeVisibility;
+}): Promise<{ slug: string }> {
+  const endpoint = initialRecipe
+    ? `/api/recipes/${encodeURIComponent(initialRecipe.slug)}`
+    : "/api/recipes";
+  const recipeBody = {
+    title: title.trim(),
+    description: description.trim(),
+    body: serializeSavedRecipe(source, preview),
+    visibility,
+  };
+  return apiRequest<{ slug: string }>(endpoint, {
+    method: initialRecipe ? "PATCH" : "POST",
+    json: initialRecipe
+      ? recipeBody
+      : { ...recipeBody, slug: normalizeSlug(title) },
+    fallbackMessage: "The recipe could not be saved.",
+  });
+}
+
 function RecipeEditorGate({
   unreadable,
   pending,
@@ -236,7 +344,301 @@ function recipeEditorCopy(editing: boolean) {
       };
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+const ADD_METHODS = [
+  ["write", PenLine, "Manual entry", "px-3"],
+  ["url", Globe2, "Import URL", "px-3"],
+  ["photo", Camera, "Scan photo", "px-2"],
+  ["file", FileUp, "Upload file", "px-2"],
+] as const;
+
+function RecipeImportControls({
+  editing,
+  fileInputId,
+  importError,
+  importedFileName,
+  importing,
+  method,
+  onFileChange,
+  onFileImport,
+  onMethodChange,
+  onPhotoDraft,
+  onUrlChange,
+  onUrlImport,
+  recipeFile,
+  recipeUrl,
+  urlImportSuccess,
+}: Readonly<{
+  editing: boolean;
+  fileInputId: string;
+  importError: string | null;
+  importedFileName: string | null;
+  importing: boolean;
+  method: AddMethod;
+  onFileChange: (file: File | null) => void;
+  onFileImport: () => Promise<void>;
+  onMethodChange: (method: AddMethod) => void;
+  onPhotoDraft: (draft: PhotoRecipeImportDraft) => void;
+  onUrlChange: (url: string) => void;
+  onUrlImport: () => Promise<void>;
+  recipeFile: File | null;
+  recipeUrl: string;
+  urlImportSuccess: boolean;
+}>) {
+  if (editing) return null;
+  return (
+    <>
+      <fieldset
+        className="grid grid-cols-2 rounded-lg border border-[var(--line-strong)] bg-[var(--paper-warm)] p-1 sm:grid-cols-4"
+        aria-label="Choose how to add a recipe"
+      >
+        {ADD_METHODS.map(([value, Icon, label, padding]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => onMethodChange(value)}
+            aria-pressed={method === value}
+            className={`rt-mono inline-flex items-center justify-center gap-2 rounded-md py-2 text-sm transition-colors ${padding} ${
+              method === value
+                ? "bg-[var(--card)] text-[var(--ink)] shadow-sm"
+                : "text-[var(--ink-3)] hover:text-[var(--ink)]"
+            }`}
+          >
+            <Icon className="size-4" /> {label}
+          </button>
+        ))}
+      </fieldset>
+      {method === "url" && (
+        <div className="grid gap-2 rounded-lg border border-dashed border-[var(--line-strong)] bg-[var(--paper-warm)] p-3">
+          <label htmlFor="recipe-import-url" className="grid gap-1.5">
+            <span className="rt-mono text-[var(--ink-3)]">
+              Recipe webpage URL
+            </span>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                id="recipe-import-url"
+                type="url"
+                value={recipeUrl}
+                onChange={(event) => onUrlChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void onUrlImport();
+                  }
+                }}
+                placeholder="https://example.com/recipes/tomato-pasta"
+                className="min-w-0 flex-1 border-[var(--line-strong)] bg-[var(--paper)]"
+              />
+              <Button
+                type="button"
+                onClick={() => void onUrlImport()}
+                disabled={!recipeUrl.trim() || importing}
+                className="bg-[var(--terracotta)] text-white hover:bg-[var(--terracotta-deep)]"
+              >
+                {importing ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Globe2 className="size-4" />
+                )}
+                {importing ? "Importing…" : "Import recipe"}
+              </Button>
+            </div>
+          </label>
+          <p className="text-xs text-[var(--ink-3)]">
+            The page must publish schema.org Recipe data with a name,
+            ingredients and instructions.
+          </p>
+          {importError && (
+            <p
+              role="alert"
+              className="flex items-start gap-1.5 text-sm text-destructive"
+            >
+              <AlertCircle className="mt-0.5 size-4 shrink-0" />
+              {importError}
+            </p>
+          )}
+          {urlImportSuccess && !importError && (
+            <output className="text-sm text-[var(--sage)]">
+              Imported successfully. You can edit any field before saving.
+            </output>
+          )}
+        </div>
+      )}
+      {method === "file" && (
+        <div className="grid gap-2 rounded-lg border border-dashed border-[var(--line-strong)] bg-[var(--paper-warm)] p-3">
+          <label htmlFor={fileInputId} className="grid gap-1.5">
+            <span className="rt-mono text-[var(--ink-3)]">Recipe file</span>
+            <Input
+              id={fileInputId}
+              type="file"
+              accept=".cook,.cooklang,.json,.jsonld,application/json,application/ld+json"
+              onChange={(event) =>
+                onFileChange(event.target.files?.[0] ?? null)
+              }
+              className="border-[var(--line-strong)] bg-[var(--paper)] file:mr-3 file:font-medium"
+            />
+          </label>
+          <Button
+            type="button"
+            onClick={() => void onFileImport()}
+            disabled={!recipeFile || importing}
+            className="justify-self-start bg-[var(--terracotta)] text-white hover:bg-[var(--terracotta-deep)]"
+          >
+            {importing ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <FileUp className="size-4" />
+            )}
+            {importing ? "Importing…" : "Import recipe"}
+          </Button>
+          <p className="text-xs text-[var(--ink-3)]">
+            Upload Cooklang (.cook or .cooklang) or schema.org Recipe JSON-LD
+            (.json or .jsonld), up to 100 KB.
+          </p>
+          {importError && (
+            <p
+              role="alert"
+              className="flex items-start gap-1.5 text-sm text-destructive"
+            >
+              <AlertCircle className="mt-0.5 size-4 shrink-0" />
+              {importError}
+            </p>
+          )}
+          {importedFileName && !importError && (
+            <output className="text-sm text-[var(--sage)]">
+              Imported {importedFileName}. You can edit any field before saving.
+            </output>
+          )}
+        </div>
+      )}
+      <div className={method === "photo" ? undefined : "hidden"}>
+        <PhotoRecipeImport
+          active={method === "photo"}
+          onDraftReady={onPhotoDraft}
+        />
+      </div>
+    </>
+  );
+}
+
+const VISIBILITY_OPTIONS = [
+  ["private", LockKeyhole, "Private"],
+  ["household", Home, "Household"],
+  ["public", Globe2, "Public"],
+] as const;
+
+function visibilityDescription(visibility: RecipeVisibility): string {
+  if (visibility === "household") {
+    return "Everyone in your household can open this recipe.";
+  }
+  if (visibility === "public") {
+    return "Anyone can open this recipe from the public feed.";
+  }
+  return "Only you can open this recipe.";
+}
+
+function RecipeVisibilityPicker({
+  hasHousehold,
+  householdPending,
+  onChange,
+  visibility,
+}: Readonly<{
+  hasHousehold: boolean;
+  householdPending: boolean;
+  onChange: (visibility: RecipeVisibility) => void;
+  visibility: RecipeVisibility;
+}>) {
+  return (
+    <fieldset className="grid gap-2">
+      <legend className="rt-mono text-[var(--ink-3)]">
+        Who can see this recipe?
+      </legend>
+      <div className="grid grid-cols-3 gap-2">
+        {VISIBILITY_OPTIONS.map(([value, Icon, label]) => {
+          const disabled =
+            value === "household" && (householdPending || !hasHousehold);
+          return (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={visibility === value}
+              disabled={disabled}
+              onClick={() => onChange(value)}
+              className={`rt-body inline-flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2.5 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                visibility === value
+                  ? "border-[var(--terracotta)] bg-[var(--butter-soft)] text-[var(--terracotta-deep)]"
+                  : "border-[var(--line-strong)] bg-[var(--paper)] text-[var(--ink-3)] hover:text-[var(--ink)]"
+              }`}
+            >
+              <Icon className="size-4" /> {label}
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-xs text-[var(--ink-3)]">
+        {visibilityDescription(visibility)}
+        {!householdPending && !hasHousehold && (
+          <> Join a household to share recipes with its members.</>
+        )}
+      </p>
+    </fieldset>
+  );
+}
+
+function RecipePreviewPanel({
+  parseError,
+  parseLoading,
+  preview,
+  previewError,
+}: Readonly<{
+  parseError: boolean;
+  parseLoading: boolean;
+  preview: ReturnType<typeof buildRecipeDraft> | null;
+  previewError: boolean;
+}>) {
+  return (
+    <section className="min-h-[600px] overflow-hidden rounded-xl border-[1.25px] border-[var(--line-strong)] bg-[var(--paper)]">
+      <div className="flex items-center justify-between border-b border-[var(--line)] bg-[var(--paper-warm)] px-4 py-3">
+        <p className="rt-mono text-[var(--ink-3)]">Live preview</p>
+        <div className="flex items-center gap-2">
+          <span className="rt-mono text-[var(--ink-4)]">
+            Timers activate after saving
+          </span>
+          {parseLoading && (
+            <Loader2 className="size-4 animate-spin text-[var(--terracotta)]" />
+          )}
+        </div>
+      </div>
+      {preview ? (
+        <div className="px-4 py-6 md:px-8">
+          <RecipeContent
+            recipe={preview}
+            timersEnabled={false}
+            shoppingListEnabled={false}
+          />
+        </div>
+      ) : (
+        <div className="flex min-h-[540px] flex-col items-center justify-center px-6 text-center">
+          <FileText className="size-12 text-[var(--terracotta)]/50" />
+          <h2 className="rt-display mt-4 text-4xl">
+            Your recipe will appear here
+          </h2>
+          <p className="rt-body mt-2 max-w-md text-[var(--ink-3)]">
+            Add a name and write your steps with inline Cooklang—or use the
+            example, URL importer, local file importer, or a recipe photo to see
+            ingredients and timers come alive.
+          </p>
+          {(parseError || previewError) && (
+            <p role="alert" className="mt-4 text-sm text-destructive">
+              We couldn&apos;t read that recipe yet. Check the Cooklang syntax
+              and try again.
+            </p>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function AddRecipeView({
   initialRecipe,
 }: Readonly<{ initialRecipe?: SavedRecipeApiRecord }>) {
@@ -290,10 +692,7 @@ export function AddRecipeView({
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const visibilityTouchedRef = useRef(editing);
-  const importRequestRef = useRef<{
-    id: number;
-    controller: AbortController;
-  } | null>(null);
+  const importRequestRef = useRef<ImportRequest | null>(null);
   const nextImportRequestIdRef = useRef(0);
   const [saveError, setSaveError] = useState<string | null>(null);
   const cooklang = useMemo(() => normalizeRecipeSource(source), [source]);
@@ -380,7 +779,6 @@ export function AddRecipeView({
     setImportedUrl(recipe.url ?? null);
   }, []);
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
   async function importRecipeUrl() {
     if (!recipeUrl.trim() || importing) return;
     importRequestRef.current?.controller.abort();
@@ -393,42 +791,27 @@ export function AddRecipeView({
     setImportError(null);
     setUrlImportSuccess(false);
     try {
-      const body = await apiRequest<unknown>("/api/recipe-drafts/url", {
-        method: "POST",
-        json: { url: recipeUrl.trim() },
-        signal: request.controller.signal,
-        fallbackMessage: "The recipe could not be imported.",
-      });
-      if (!isImportedRecipe(body)) {
-        throw new Error("The recipe could not be imported.");
-      }
-      const importedRecipe = body;
-      if (importRequestRef.current?.id !== request.id) return;
+      const importedRecipe = await fetchUrlRecipeDraft(
+        recipeUrl.trim(),
+        request.controller.signal,
+      );
+      if (importRequestIsStale(importRequestRef.current, request)) return;
       applyImportedRecipe(importedRecipe);
       setRecipeUrl(importedRecipe.url ?? recipeUrl.trim());
       setUrlImportSuccess(true);
       setImportedFileName(null);
     } catch (error) {
-      if (
-        request.controller.signal.aborted ||
-        importRequestRef.current?.id !== request.id
-      ) {
-        return;
-      }
+      if (importRequestIsStale(importRequestRef.current, request)) return;
       setImportError(
         error instanceof Error
           ? error.message
           : "The recipe could not be imported.",
       );
     } finally {
-      if (importRequestRef.current?.id === request.id) {
-        importRequestRef.current = null;
-        setImporting(false);
-      }
+      finishImportRequest(importRequestRef, request, setImporting);
     }
   }
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
   async function importRecipeFile() {
     if (!recipeFile || importing) return;
     importRequestRef.current?.controller.abort();
@@ -441,45 +824,19 @@ export function AddRecipeView({
     setImportError(null);
     setImportedFileName(null);
     try {
-      if (recipeFile.size > MAX_RECIPE_FILE_LENGTH) {
-        throw new RecipeFileImportError(
-          "Choose a recipe file smaller than 100 KB.",
-        );
-      }
-      const content = await recipeFile.text();
-      const body = await apiRequest<unknown>("/api/recipe-drafts/file", {
-        method: "POST",
-        json: { filename: recipeFile.name, content },
-        signal: request.controller.signal,
-        fallbackMessage: "The recipe file could not be imported.",
-      });
-      if (!isImportedRecipe(body)) {
-        throw new RecipeFileImportError(
-          "The recipe file could not be imported.",
-        );
-      }
-      const importedRecipe = body;
-      if (importRequestRef.current?.id !== request.id) return;
+      const importedRecipe = await fetchFileRecipeDraft(
+        recipeFile,
+        request.controller.signal,
+      );
+      if (importRequestIsStale(importRequestRef.current, request)) return;
       applyImportedRecipe(importedRecipe);
       setImportedFileName(recipeFile.name);
       setUrlImportSuccess(false);
     } catch (error) {
-      if (
-        request.controller.signal.aborted ||
-        importRequestRef.current?.id !== request.id
-      ) {
-        return;
-      }
-      setImportError(
-        error instanceof RecipeFileImportError || error instanceof ApiError
-          ? error.message
-          : "The recipe file could not be imported.",
-      );
+      if (importRequestIsStale(importRequestRef.current, request)) return;
+      setImportError(fileImportErrorMessage(error));
     } finally {
-      if (importRequestRef.current?.id === request.id) {
-        importRequestRef.current = null;
-        setImporting(false);
-      }
+      finishImportRequest(importRequestRef, request, setImporting);
     }
   }
 
@@ -511,28 +868,19 @@ export function AddRecipeView({
     setImportedFileName(null);
   }, []);
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
   async function saveRecipe() {
     if (!preview || savingRef.current) return;
     savingRef.current = true;
     setSaving(true);
     setSaveError(null);
     try {
-      const endpoint = initialRecipe
-        ? `/api/recipes/${encodeURIComponent(initialRecipe.slug)}`
-        : "/api/recipes";
-      const recipeBody = {
-        title: title.trim(),
-        description: description.trim(),
-        body: serializeSavedRecipe(source, preview),
+      const saved = await persistRecipe({
+        description,
+        initialRecipe,
+        preview,
+        source,
+        title,
         visibility,
-      };
-      const saved = await apiRequest<{ slug: string }>(endpoint, {
-        method: initialRecipe ? "PATCH" : "POST",
-        json: initialRecipe
-          ? recipeBody
-          : { ...recipeBody, slug: normalizeSlug(title) },
-        fallbackMessage: "The recipe could not be saved.",
       });
       await invalidateSavedRecipeQueries({
         queryClient,
@@ -559,14 +907,7 @@ export function AddRecipeView({
         navigateToRecipePage(saved);
       }
     } catch (error) {
-      let message = "The recipe could not be saved.";
-      if (error instanceof ApiError && error.status === 409) {
-        message =
-          "A recipe with this name already exists. Choose a different name.";
-      } else if (error instanceof Error) {
-        message = error.message;
-      }
-      setSaveError(message);
+      setSaveError(recipeSaveErrorMessage(error));
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -614,185 +955,32 @@ export function AddRecipeView({
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(380px,0.8fr)_minmax(540px,1.2fr)]">
         <section className="rounded-xl border-[1.25px] border-[var(--line-strong)] bg-[var(--card)] p-4 shadow-[var(--paper-shadow)] xl:sticky xl:top-24">
           <div className="grid gap-4">
-            {!editing && (
-              <fieldset
-                className="grid grid-cols-2 rounded-lg border border-[var(--line-strong)] bg-[var(--paper-warm)] p-1 sm:grid-cols-4"
-                aria-label="Choose how to add a recipe"
-              >
-                <button
-                  type="button"
-                  onClick={() => selectMethod("write")}
-                  aria-pressed={method === "write"}
-                  className={`rt-mono inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
-                    method === "write"
-                      ? "bg-[var(--card)] text-[var(--ink)] shadow-sm"
-                      : "text-[var(--ink-3)] hover:text-[var(--ink)]"
-                  }`}
-                >
-                  <PenLine className="size-4" /> Manual entry
-                </button>
-                <button
-                  type="button"
-                  onClick={() => selectMethod("url")}
-                  aria-pressed={method === "url"}
-                  className={`rt-mono inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
-                    method === "url"
-                      ? "bg-[var(--card)] text-[var(--ink)] shadow-sm"
-                      : "text-[var(--ink-3)] hover:text-[var(--ink)]"
-                  }`}
-                >
-                  <Globe2 className="size-4" /> Import URL
-                </button>
-                <button
-                  type="button"
-                  onClick={() => selectMethod("photo")}
-                  aria-pressed={method === "photo"}
-                  className={`rt-mono inline-flex items-center justify-center gap-2 rounded-md px-2 py-2 text-sm transition-colors ${
-                    method === "photo"
-                      ? "bg-[var(--card)] text-[var(--ink)] shadow-sm"
-                      : "text-[var(--ink-3)] hover:text-[var(--ink)]"
-                  }`}
-                >
-                  <Camera className="size-4" /> Scan photo
-                </button>
-                <button
-                  type="button"
-                  onClick={() => selectMethod("file")}
-                  aria-pressed={method === "file"}
-                  className={`rt-mono inline-flex items-center justify-center gap-2 rounded-md px-2 py-2 text-sm transition-colors ${
-                    method === "file"
-                      ? "bg-[var(--card)] text-[var(--ink)] shadow-sm"
-                      : "text-[var(--ink-3)] hover:text-[var(--ink)]"
-                  }`}
-                >
-                  <FileUp className="size-4" /> Upload file
-                </button>
-              </fieldset>
-            )}
-
-            {!editing && method === "url" && (
-              <div className="grid gap-2 rounded-lg border border-dashed border-[var(--line-strong)] bg-[var(--paper-warm)] p-3">
-                <label htmlFor="recipe-import-url" className="grid gap-1.5">
-                  <span className="rt-mono text-[var(--ink-3)]">
-                    Recipe webpage URL
-                  </span>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Input
-                      id="recipe-import-url"
-                      type="url"
-                      value={recipeUrl}
-                      onChange={(event) => {
-                        invalidateImportRequest();
-                        setRecipeUrl(event.target.value);
-                        setImportError(null);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          void importRecipeUrl();
-                        }
-                      }}
-                      placeholder="https://example.com/recipes/tomato-pasta"
-                      className="min-w-0 flex-1 border-[var(--line-strong)] bg-[var(--paper)]"
-                    />
-                    <Button
-                      type="button"
-                      onClick={() => void importRecipeUrl()}
-                      disabled={!recipeUrl.trim() || importing}
-                      className="bg-[var(--terracotta)] text-white hover:bg-[var(--terracotta-deep)]"
-                    >
-                      {importing ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Globe2 className="size-4" />
-                      )}
-                      {importing ? "Importing…" : "Import recipe"}
-                    </Button>
-                  </div>
-                </label>
-                <p className="text-xs text-[var(--ink-3)]">
-                  The page must publish schema.org Recipe data with a name,
-                  ingredients and instructions.
-                </p>
-                {importError && (
-                  <p
-                    role="alert"
-                    className="flex items-start gap-1.5 text-sm text-destructive"
-                  >
-                    <AlertCircle className="mt-0.5 size-4 shrink-0" />
-                    {importError}
-                  </p>
-                )}
-                {urlImportSuccess && !importError && (
-                  <output className="text-sm text-[var(--sage)]">
-                    Imported successfully. You can edit any field before saving.
-                  </output>
-                )}
-              </div>
-            )}
-
-            {!editing && method === "file" && (
-              <div className="grid gap-2 rounded-lg border border-dashed border-[var(--line-strong)] bg-[var(--paper-warm)] p-3">
-                <label htmlFor={recipeFileId} className="grid gap-1.5">
-                  <span className="rt-mono text-[var(--ink-3)]">
-                    Recipe file
-                  </span>
-                  <Input
-                    id={recipeFileId}
-                    type="file"
-                    accept=".cook,.cooklang,.json,.jsonld,application/json,application/ld+json"
-                    onChange={(event) => {
-                      invalidateImportRequest();
-                      setRecipeFile(event.target.files?.[0] ?? null);
-                      setImportError(null);
-                      setImportedFileName(null);
-                    }}
-                    className="border-[var(--line-strong)] bg-[var(--paper)] file:mr-3 file:font-medium"
-                  />
-                </label>
-                <Button
-                  type="button"
-                  onClick={() => void importRecipeFile()}
-                  disabled={!recipeFile || importing}
-                  className="justify-self-start bg-[var(--terracotta)] text-white hover:bg-[var(--terracotta-deep)]"
-                >
-                  {importing ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <FileUp className="size-4" />
-                  )}
-                  {importing ? "Importing…" : "Import recipe"}
-                </Button>
-                <p className="text-xs text-[var(--ink-3)]">
-                  Upload Cooklang (.cook or .cooklang) or schema.org Recipe
-                  JSON-LD (.json or .jsonld), up to 100 KB.
-                </p>
-                {importError && (
-                  <p
-                    role="alert"
-                    className="flex items-start gap-1.5 text-sm text-destructive"
-                  >
-                    <AlertCircle className="mt-0.5 size-4 shrink-0" />
-                    {importError}
-                  </p>
-                )}
-                {importedFileName && !importError && (
-                  <output className="text-sm text-[var(--sage)]">
-                    Imported {importedFileName}. You can edit any field before
-                    saving.
-                  </output>
-                )}
-              </div>
-            )}
-
-            {!editing && (
-              <div className={method === "photo" ? undefined : "hidden"}>
-                <PhotoRecipeImport
-                  active={method === "photo"}
-                  onDraftReady={applyPhotoDraft}
-                />
-              </div>
-            )}
+            <RecipeImportControls
+              editing={editing}
+              fileInputId={recipeFileId}
+              importError={importError}
+              importedFileName={importedFileName}
+              importing={importing}
+              method={method}
+              onFileChange={(file) => {
+                invalidateImportRequest();
+                setRecipeFile(file);
+                setImportError(null);
+                setImportedFileName(null);
+              }}
+              onFileImport={importRecipeFile}
+              onMethodChange={selectMethod}
+              onPhotoDraft={applyPhotoDraft}
+              onUrlChange={(url) => {
+                invalidateImportRequest();
+                setRecipeUrl(url);
+                setImportError(null);
+              }}
+              onUrlImport={importRecipeUrl}
+              recipeFile={recipeFile}
+              recipeUrl={recipeUrl}
+              urlImportSuccess={urlImportSuccess}
+            />
 
             <label htmlFor={titleId} className="grid gap-1.5">
               <span className="rt-mono text-[var(--ink-3)]">Recipe name</span>
@@ -846,53 +1034,15 @@ export function AddRecipeView({
                 />
               </label>
             </div>
-            <fieldset className="grid gap-2">
-              <legend className="rt-mono text-[var(--ink-3)]">
-                Who can see this recipe?
-              </legend>
-              <div className="grid grid-cols-3 gap-2">
-                {(
-                  [
-                    ["private", LockKeyhole, "Private"],
-                    ["household", Home, "Household"],
-                    ["public", Globe2, "Public"],
-                  ] as const
-                ).map(([value, Icon, label]) => {
-                  const disabled =
-                    value === "household" &&
-                    (householdPending || !hasHousehold);
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      aria-pressed={visibility === value}
-                      disabled={disabled}
-                      onClick={() => {
-                        visibilityTouchedRef.current = true;
-                        setVisibility(value);
-                      }}
-                      className={`rt-body inline-flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2.5 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                        visibility === value
-                          ? "border-[var(--terracotta)] bg-[var(--butter-soft)] text-[var(--terracotta-deep)]"
-                          : "border-[var(--line-strong)] bg-[var(--paper)] text-[var(--ink-3)] hover:text-[var(--ink)]"
-                      }`}
-                    >
-                      <Icon className="size-4" /> {label}
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="text-xs text-[var(--ink-3)]">
-                {visibility === "private" && "Only you can open this recipe."}
-                {visibility === "household" &&
-                  "Everyone in your household can open this recipe."}
-                {visibility === "public" &&
-                  "Anyone can open this recipe from the public feed."}
-                {!householdPending && !hasHousehold && (
-                  <> Join a household to share recipes with its members.</>
-                )}
-              </p>
-            </fieldset>
+            <RecipeVisibilityPicker
+              hasHousehold={hasHousehold}
+              householdPending={householdPending}
+              onChange={(nextVisibility) => {
+                visibilityTouchedRef.current = true;
+                setVisibility(nextVisibility);
+              }}
+              visibility={visibility}
+            />
             <div className="flex items-center justify-between gap-3 border-t border-dashed border-[var(--line-strong)] pt-3">
               <div>
                 <p className="rt-mono text-[var(--ink-3)]">Recipe text</p>
@@ -935,46 +1085,12 @@ export function AddRecipeView({
           </div>
         </section>
 
-        <section className="min-h-[600px] overflow-hidden rounded-xl border-[1.25px] border-[var(--line-strong)] bg-[var(--paper)]">
-          <div className="flex items-center justify-between border-b border-[var(--line)] bg-[var(--paper-warm)] px-4 py-3">
-            <p className="rt-mono text-[var(--ink-3)]">Live preview</p>
-            <div className="flex items-center gap-2">
-              <span className="rt-mono text-[var(--ink-4)]">
-                Timers activate after saving
-              </span>
-              {parse.loading && (
-                <Loader2 className="size-4 animate-spin text-[var(--terracotta)]" />
-              )}
-            </div>
-          </div>
-          {preview ? (
-            <div className="px-4 py-6 md:px-8">
-              <RecipeContent
-                recipe={preview}
-                timersEnabled={false}
-                shoppingListEnabled={false}
-              />
-            </div>
-          ) : (
-            <div className="flex min-h-[540px] flex-col items-center justify-center px-6 text-center">
-              <FileText className="size-12 text-[var(--terracotta)]/50" />
-              <h2 className="rt-display mt-4 text-4xl">
-                Your recipe will appear here
-              </h2>
-              <p className="rt-body mt-2 max-w-md text-[var(--ink-3)]">
-                Add a name and write your steps with inline Cooklang—or use the
-                example, URL importer, local file importer, or a recipe photo to
-                see ingredients and timers come alive.
-              </p>
-              {(parse.error || previewResult.error) && (
-                <p role="alert" className="mt-4 text-sm text-destructive">
-                  We couldn&apos;t read that recipe yet. Check the Cooklang
-                  syntax and try again.
-                </p>
-              )}
-            </div>
-          )}
-        </section>
+        <RecipePreviewPanel
+          parseError={Boolean(parse.error)}
+          parseLoading={parse.loading}
+          preview={preview}
+          previewError={previewResult.error}
+        />
       </div>
     </div>
   );
