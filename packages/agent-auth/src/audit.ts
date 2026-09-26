@@ -23,12 +23,12 @@ export type AgentAuthAuditHandlerOptions = {
 export function toAgentAuthAuditRecord(
   event: AgentAuthEvent,
 ): AgentAuthAuditRecord {
-  const userId =
-    event.type === "capability.executed"
-      ? event.userId
-      : event.actorType === "user"
-        ? event.actorId
-        : undefined;
+  let userId: string | undefined;
+  if (event.type === "capability.executed") {
+    userId = event.userId;
+  } else if (event.actorType === "user") {
+    userId = event.actorId;
+  }
   return {
     eventType: event.type,
     actorType: event.actorType,
