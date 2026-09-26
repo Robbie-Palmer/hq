@@ -23,11 +23,9 @@ const ReviewManifestSchema = ReviewRecordsSchema.extend({
 
 export async function main(
   args = process.argv.slice(2),
-  streams: { input: Readable; output: Writable } = {
-    input: process.stdin,
-    output: process.stdout,
-  },
+  streams?: { input: Readable; output: Writable },
 ): Promise<void> {
+  const io = streams ?? { input: process.stdin, output: process.stdout };
   const parsedArgs = parseArgs(args);
   const manifestPath = resolve(parsedArgs.manifestPath);
   const manifestDirectory = dirname(manifestPath);
@@ -51,23 +49,23 @@ export async function main(
   }, source);
   const existingDecisions = await readDecisionLog(decisionsPath);
 
-  streams.output.write(`Detection-only findings (${records.findings.length})\n\n`);
+  io.output.write(`Detection-only findings (${records.findings.length})\n\n`);
   for (const finding of records.findings) {
-    streams.output.write(`${renderFinding(finding)}\n\n`);
+    io.output.write(`${renderFinding(finding)}\n\n`);
   }
-  streams.output.write(`Actionable proposals (${records.proposals.length})\n\n`);
+  io.output.write(`Actionable proposals (${records.proposals.length})\n\n`);
 
-  const prompts = createInterface(streams);
+  const prompts = createInterface(io);
   try {
     const result = await runReviewSession({
       source,
       records,
       existingDecisions,
       decide: async (proposal) => {
-        streams.output.write(
+        io.output.write(
           `${renderProposalDiff(proposal, source, manifest.sourcePath)}\n`,
         );
-        return promptForDecision(prompts, streams.output);
+        return promptForDecision(prompts, io.output);
       },
       recordDecision: async (decision) => {
         await appendFile(decisionsPath, `${JSON.stringify(decision)}\n`, "utf8");
@@ -75,7 +73,7 @@ export async function main(
     });
 
     if (result.status === "paused") {
-      streams.output.write(
+      io.output.write(
         "Review paused. Recorded decisions are durable; source is unchanged.\n",
       );
       return;
@@ -84,7 +82,7 @@ export async function main(
     if (result.source !== source) {
       await atomicWrite(sourcePath, result.source);
     }
-    streams.output.write(
+    io.output.write(
       `Review complete. Recorded ${result.decisions.length} decisions and applied the selected edits.\n`,
     );
   } finally {
@@ -160,8 +158,10 @@ function isNodeError(error: unknown): error is NodeJS.ErrnoException {
 
 const invokedPath = process.argv[1];
 if (invokedPath && import.meta.url === pathToFileURL(invokedPath).href) {
-  main().catch((error: unknown) => {
+  try {
+    await main();
+  } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;
-  });
+  }
 }

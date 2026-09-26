@@ -16,6 +16,7 @@ import {
   ReviewConflictError,
   runReviewSession,
   sourceReference,
+  validateRecordedDecisions,
 } from "../src";
 import { main as reviewCommand } from "../src/review-cli";
 
@@ -49,6 +50,17 @@ function suggestion(text: string, replacement: string, producerId = "vale") {
     category: "style",
     reason: "Use the direct wording.",
   });
+}
+
+function scriptedInput(lines: string[]): PassThrough {
+  const input = new PassThrough();
+  lines.forEach((line, index) => {
+    setTimeout(() => {
+      input.write(`${line}\n`);
+      if (index === lines.length - 1) input.end();
+    }, (index + 1) * 10);
+  });
+  return input;
 }
 
 function records() {
@@ -102,6 +114,34 @@ describe("repository review", () => {
       findings: [finding],
       proposals: [first],
     }, source.replace("unique", "distinctive"))).toThrow(ReviewConflictError);
+  });
+
+  it("reports document, revision, duplicate, and grouped-overlap conflicts", () => {
+    const { finding } = records();
+    const overlapping = createProposal([
+      suggestion("very unique", "unique"),
+      suggestion("unique", "distinctive", "other"),
+    ]);
+    let failure: unknown;
+    try {
+      prepareReviewRecords({
+        documentId: "other.md",
+        revision: "git:def456",
+        findings: [finding, finding],
+        proposals: [overlapping],
+      }, source);
+    } catch (error) {
+      failure = error;
+    }
+
+    expect(failure).toBeInstanceOf(ReviewConflictError);
+    if (!(failure instanceof ReviewConflictError)) throw failure;
+    expect(failure.conflicts).toEqual(expect.arrayContaining([
+      expect.stringContaining("expected other.md"),
+      expect.stringContaining("expected git:def456"),
+      expect.stringContaining("duplicate record"),
+      expect.stringContaining("overlaps"),
+    ]));
   });
 
   it("applies accepted and changed decisions while leaving rejected text alone", () => {
@@ -168,6 +208,19 @@ describe("repository review", () => {
     ])).toThrow(/overlap/);
   });
 
+  it("rejects duplicate and stale decisions from a resumed log", () => {
+    const { first, grouped } = records();
+    const decision = createDecision(first, "accepted", timing);
+    expect(() => validateRecordedDecisions(
+      [decision, decision],
+      [first],
+    )).toThrow(/duplicate decision/);
+    expect(() => validateRecordedDecisions(
+      [decision],
+      [grouped],
+    )).toThrow(/does not match/);
+  });
+
   it("runs the repository command and writes the decision before the source", async () => {
     const directory = await mkdtemp(join(tmpdir(), "writing-editor-review-"));
     try {
@@ -189,6 +242,15 @@ describe("repository review", () => {
         rendered += chunk.toString("utf8");
       });
 
+      await expect(reviewCommand([
+        manifestPath,
+        "--decisions",
+        sourcePath,
+      ], {
+        input: Readable.from([]),
+        output,
+      })).rejects.toThrow(/must not overwrite/);
+
       await reviewCommand([manifestPath], {
         input: Readable.from(["a\n"]),
         output,
@@ -207,5 +269,77 @@ describe("repository review", () => {
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
+  });
+
+  it("pauses, then resumes with rejected and changed outcomes", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "writing-editor-review-"));
+    try {
+      const sourcePath = join(directory, "draft.md");
+      const manifestPath = join(directory, "review.json");
+      const decisionsPath = join(directory, "outcomes.jsonl");
+      const { finding, first, grouped } = records();
+      await writeFile(sourcePath, source, "utf8");
+      await writeFile(manifestPath, JSON.stringify({
+        sourcePath: "draft.md",
+        documentId: "draft.md",
+        revision: "git:abc123",
+        findings: [finding],
+        proposals: [first, grouped],
+      }), "utf8");
+      const pausedOutput = new PassThrough();
+      let pausedText = "";
+      pausedOutput.on("data", (chunk: Buffer) => {
+        pausedText += chunk.toString("utf8");
+      });
+
+      await reviewCommand([
+        manifestPath,
+        "--decisions",
+        decisionsPath,
+      ], {
+        input: scriptedInput(["invalid", "r", "q"]),
+        output: pausedOutput,
+      });
+
+      expect(pausedText).toContain(`Finding ${finding.findingId}`);
+      expect(pausedText).toContain("Enter a, r, c, or q.");
+      expect(pausedText).toContain("Review paused.");
+      expect(await readFile(sourcePath, "utf8")).toBe(source);
+      expect(JSON.parse(await readFile(decisionsPath, "utf8"))).toMatchObject({
+        outcome: "rejected",
+        proposalId: first.proposalId,
+      });
+
+      const resumedOutput = new PassThrough();
+      await reviewCommand([
+        manifestPath,
+        "--decisions",
+        decisionsPath,
+      ], {
+        input: scriptedInput(["c", "succeeds"]),
+        output: resumedOutput,
+      });
+
+      expect(await readFile(sourcePath, "utf8")).toBe(
+        "# Draft\n\nCafé is very unique. It succeeds.\n",
+      );
+      const decisions = (await readFile(decisionsPath, "utf8"))
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line));
+      expect(decisions.map(({ outcome }) => outcome)).toEqual([
+        "rejected",
+        "changed",
+      ]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects invalid command arguments before reading files", async () => {
+    await expect(reviewCommand([], {
+      input: Readable.from([]),
+      output: new PassThrough(),
+    })).rejects.toThrow(/usage/);
   });
 });
