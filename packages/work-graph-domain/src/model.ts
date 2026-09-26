@@ -3,6 +3,10 @@ import type {
   KnowledgeScopeKind,
   KnowledgeScopeLifecycle,
   PullRequestCheckSummary,
+  CompletionCandidateReason,
+  DeliveryEvidenceKind,
+  DeliveryEvidenceState,
+  EvidenceCorrelationKind,
   PullRequestMergeability,
   PullRequestReviewDecision,
   PullRequestRole,
@@ -95,12 +99,65 @@ export interface PullRequestSnapshot {
   readonly number: number;
   readonly url: string;
   readonly headSha: string;
+  readonly acceptedHeadSha: string | null;
+  readonly mergeCommitSha: string | null;
   readonly state: PullRequestState;
   readonly draft: boolean;
   readonly mergeability: PullRequestMergeability;
   readonly reviewDecision: PullRequestReviewDecision | null;
   readonly checkSummary: PullRequestCheckSummary;
   readonly observedAt: string;
+}
+
+export interface ExternalDelivery {
+  readonly provider: string;
+  readonly externalId: string;
+  readonly payloadDigest: string;
+  readonly receivedAt: string;
+  readonly ingestedAt: string;
+}
+
+export interface DeliveryEvidenceObservation {
+  readonly id: string;
+  readonly deliveryProvider: string;
+  readonly deliveryExternalId: string;
+  readonly provider: string;
+  readonly externalId: string;
+  readonly repository: string;
+  readonly commitSha: string;
+  readonly kind: DeliveryEvidenceKind;
+  readonly state: DeliveryEvidenceState;
+  readonly name: string | null;
+  readonly environment: string | null;
+  readonly sourceUrl: string;
+  readonly providerObservedAt: string;
+  readonly ingestedAt: string;
+  readonly correlationKind: EvidenceCorrelationKind;
+  readonly pullRequestRepository: string | null;
+  readonly pullRequestNumber: number | null;
+}
+
+export interface CurrentDeliveryEvidence
+  extends DeliveryEvidenceObservation {
+  readonly projectedAt: string;
+}
+
+export interface CompletionPolicyRevision {
+  readonly policyId: string;
+  readonly revision: number;
+  readonly requiredCiNames: readonly string[];
+  readonly productionEnvironments: readonly string[];
+  readonly createdAt: string;
+}
+
+export interface CompletionCandidateEvaluation {
+  readonly workItemId: string;
+  readonly policyId: string;
+  readonly policyRevision: number;
+  readonly candidate: boolean;
+  readonly reasons: readonly CompletionCandidateReason[];
+  readonly evidenceObservationIds: readonly string[];
+  readonly evaluatedAt: string;
 }
 
 export interface WorkItemPullRequest {

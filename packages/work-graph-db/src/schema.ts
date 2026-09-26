@@ -16,6 +16,9 @@ import {
 } from "drizzle-orm/pg-core";
 import {
   ARCHITECTURE_DECISION_ROLES,
+  DELIVERY_EVIDENCE_KINDS,
+  DELIVERY_EVIDENCE_STATES,
+  EVIDENCE_CORRELATION_KINDS,
   KNOWLEDGE_SCOPE_KINDS,
   KNOWLEDGE_SCOPE_LIFECYCLES,
   LEASE_OUTCOMES,
@@ -61,6 +64,21 @@ export const pullRequestReviewDecisionEnum = pgEnum(
 export const pullRequestCheckSummaryEnum = pgEnum(
   "pull_request_check_summary",
   PULL_REQUEST_CHECK_SUMMARIES,
+);
+
+export const deliveryEvidenceKindEnum = pgEnum(
+  "delivery_evidence_kind",
+  DELIVERY_EVIDENCE_KINDS,
+);
+
+export const deliveryEvidenceStateEnum = pgEnum(
+  "delivery_evidence_state",
+  DELIVERY_EVIDENCE_STATES,
+);
+
+export const evidenceCorrelationKindEnum = pgEnum(
+  "evidence_correlation_kind",
+  EVIDENCE_CORRELATION_KINDS,
 );
 
 export const knowledgeScopeKindEnum = pgEnum(
@@ -257,6 +275,8 @@ export const pullRequest = pgTable(
     number: integer().notNull(),
     url: text().notNull(),
     headSha: text().notNull(),
+    acceptedHeadSha: text(),
+    mergeCommitSha: text(),
     state: pullRequestStateEnum().notNull(),
     draft: boolean().notNull(),
     mergeability: pullRequestMergeabilityEnum().notNull(),
@@ -286,6 +306,14 @@ export const pullRequest = pgTable(
     check(
       "pull_requests_head_sha_not_blank_check",
       sql`btrim(${table.headSha}) <> ''`,
+    ),
+    check(
+      "pull_requests_accepted_head_sha_not_blank_check",
+      sql`${table.acceptedHeadSha} is null or btrim(${table.acceptedHeadSha}) <> ''`,
+    ),
+    check(
+      "pull_requests_merge_commit_sha_not_blank_check",
+      sql`${table.mergeCommitSha} is null or btrim(${table.mergeCommitSha}) <> ''`,
     ),
   ],
 );
@@ -318,6 +346,212 @@ export const workItemPullRequest = pgTable(
     index("work_item_pull_requests_pull_request_idx").on(
       table.repository,
       table.number,
+    ),
+  ],
+);
+
+export const externalDelivery = pgTable(
+  "external_deliveries",
+  {
+    provider: text().notNull(),
+    externalId: text().notNull(),
+    payloadDigest: text().notNull(),
+    receivedAt: timestamp({ withTimezone: true }).notNull(),
+    ingestedAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "external_deliveries_pk",
+      columns: [table.provider, table.externalId],
+    }),
+    check(
+      "external_deliveries_provider_not_blank_check",
+      sql`btrim(${table.provider}) <> ''`,
+    ),
+    check(
+      "external_deliveries_external_id_not_blank_check",
+      sql`btrim(${table.externalId}) <> ''`,
+    ),
+    check(
+      "external_deliveries_payload_digest_check",
+      sql`${table.payloadDigest} ~ '^[0-9a-f]{64}$'`,
+    ),
+  ],
+);
+
+export const deliveryEvidenceObservation = pgTable(
+  "delivery_evidence_observations",
+  {
+    id: uuid().primaryKey(),
+    deliveryProvider: text().notNull(),
+    deliveryExternalId: text().notNull(),
+    provider: text().notNull(),
+    externalId: text().notNull(),
+    repository: text().notNull(),
+    commitSha: text().notNull(),
+    kind: deliveryEvidenceKindEnum().notNull(),
+    state: deliveryEvidenceStateEnum().notNull(),
+    name: text(),
+    environment: text(),
+    sourceUrl: text().notNull(),
+    providerObservedAt: timestamp({ withTimezone: true }).notNull(),
+    ingestedAt: timestamp({ withTimezone: true }).notNull(),
+    correlationKind: evidenceCorrelationKindEnum().notNull(),
+    pullRequestRepository: text(),
+    pullRequestNumber: integer(),
+  },
+  (table) => [
+    foreignKey({
+      name: "delivery_evidence_observations_delivery_fk",
+      columns: [table.deliveryProvider, table.deliveryExternalId],
+      foreignColumns: [externalDelivery.provider, externalDelivery.externalId],
+    }).onDelete("restrict"),
+    uniqueIndex("delivery_evidence_observations_external_identity_uidx").on(
+      table.provider,
+      table.kind,
+      table.externalId,
+      table.providerObservedAt,
+      table.state,
+    ),
+    index("delivery_evidence_observations_commit_idx").on(
+      table.repository,
+      table.commitSha,
+    ),
+    check(
+      "delivery_evidence_observations_correlation_check",
+      sql`(${table.correlationKind} = 'unmatched' and ${table.pullRequestRepository} is null and ${table.pullRequestNumber} is null) or (${table.correlationKind} <> 'unmatched' and ${table.pullRequestRepository} is not null and ${table.pullRequestNumber} is not null and ${table.pullRequestNumber} > 0)`,
+    ),
+  ],
+);
+
+export const currentDeliveryEvidence = pgTable(
+  "current_delivery_evidence",
+  {
+    provider: text().notNull(),
+    kind: deliveryEvidenceKindEnum().notNull(),
+    externalId: text().notNull(),
+    observationId: uuid()
+      .notNull()
+      .references(() => deliveryEvidenceObservation.id, { onDelete: "restrict" }),
+    providerObservedAt: timestamp({ withTimezone: true }).notNull(),
+    projectedAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "current_delivery_evidence_pk",
+      columns: [table.provider, table.kind, table.externalId],
+    }),
+    uniqueIndex("current_delivery_evidence_observation_id_uidx").on(
+      table.observationId,
+    ),
+  ],
+);
+
+export const completionPolicyRevision = pgTable(
+  "completion_policy_revisions",
+  {
+    policyId: text().notNull(),
+    revision: integer().notNull(),
+    requiredCiNames: text().array().notNull(),
+    productionEnvironments: text().array().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "completion_policy_revisions_pk",
+      columns: [table.policyId, table.revision],
+    }),
+    check(
+      "completion_policy_revisions_revision_positive_check",
+      sql`${table.revision} > 0`,
+    ),
+    check(
+      "completion_policy_revisions_ci_not_empty_check",
+      sql`cardinality(${table.requiredCiNames}) > 0`,
+    ),
+    check(
+      "completion_policy_revisions_environments_not_empty_check",
+      sql`cardinality(${table.productionEnvironments}) > 0`,
+    ),
+  ],
+);
+
+export const workItemCompletionPolicy = pgTable(
+  "work_item_completion_policies",
+  {
+    workItemId: text()
+      .primaryKey()
+      .references(() => workItem.id, { onDelete: "restrict" }),
+    policyId: text().notNull(),
+    policyRevision: integer().notNull(),
+    assignedAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "work_item_completion_policies_revision_fk",
+      columns: [table.policyId, table.policyRevision],
+      foreignColumns: [
+        completionPolicyRevision.policyId,
+        completionPolicyRevision.revision,
+      ],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const completionCandidateEvaluation = pgTable(
+  "completion_candidate_evaluations",
+  {
+    id: uuid().primaryKey(),
+    workItemId: text()
+      .notNull()
+      .references(() => workItem.id, { onDelete: "restrict" }),
+    policyId: text().notNull(),
+    policyRevision: integer().notNull(),
+    candidate: boolean().notNull(),
+    reasons: jsonb().$type<readonly string[]>().notNull(),
+    evidenceObservationIds: uuid().array().notNull(),
+    evaluatedAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "completion_candidate_evaluations_policy_revision_fk",
+      columns: [table.policyId, table.policyRevision],
+      foreignColumns: [
+        completionPolicyRevision.policyId,
+        completionPolicyRevision.revision,
+      ],
+    }).onDelete("restrict"),
+    index("completion_candidate_evaluations_work_item_idx").on(
+      table.workItemId,
+      table.evaluatedAt,
+    ),
+    uniqueIndex("completion_candidate_evaluations_id_work_item_uidx").on(
+      table.id,
+      table.workItemId,
+    ),
+  ],
+);
+
+export const workItemCompletionCandidate = pgTable(
+  "work_item_completion_candidates",
+  {
+    workItemId: text()
+      .primaryKey()
+      .references(() => workItem.id, { onDelete: "restrict" }),
+    evaluationId: uuid().notNull(),
+    projectedAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "work_item_completion_candidates_evaluation_fk",
+      columns: [table.evaluationId, table.workItemId],
+      foreignColumns: [
+        completionCandidateEvaluation.id,
+        completionCandidateEvaluation.workItemId,
+      ],
+    }).onDelete("restrict"),
+    uniqueIndex("work_item_completion_candidates_evaluation_id_uidx").on(
+      table.evaluationId,
     ),
   ],
 );

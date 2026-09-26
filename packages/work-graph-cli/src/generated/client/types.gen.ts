@@ -179,6 +179,8 @@ export type PullRequestSnapshot = {
     number: number;
     url: string;
     headSha: string;
+    acceptedHeadSha: string | null;
+    mergeCommitSha: string | null;
     state: 'open' | 'closed' | 'merged';
     draft: boolean;
     mergeability: 'mergeable' | 'conflicting' | 'unknown';
@@ -1374,6 +1376,8 @@ export type RefreshPullRequestData = {
         number: number;
         url: string;
         headSha: string;
+        acceptedHeadSha?: string | null;
+        mergeCommitSha?: string | null;
         state: 'open' | 'closed' | 'merged';
         draft: boolean;
         mergeability: 'mergeable' | 'conflicting' | 'unknown';

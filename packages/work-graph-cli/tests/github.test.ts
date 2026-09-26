@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { CliError } from "../src/errors.js";
+import type { CliError } from "../src/errors.js";
 import {
   inspectGitHubPullRequest,
   summarizeChecks,
@@ -9,6 +9,7 @@ const githubResult = {
   number: 42,
   url: "https://github.com/Example/Work-Graph/pull/42",
   headRefOid: "0123456789ABCDEF0123456789ABCDEF01234567",
+  mergeCommit: null,
   state: "OPEN",
   isDraft: true,
   mergeable: "CONFLICTING",
@@ -33,6 +34,8 @@ describe("GitHub pull-request inspection", () => {
       number: 42,
       url: githubResult.url,
       headSha: "0123456789abcdef0123456789abcdef01234567",
+      acceptedHeadSha: null,
+      mergeCommitSha: null,
       state: "open",
       draft: true,
       mergeability: "conflicting",
@@ -45,7 +48,7 @@ describe("GitHub pull-request inspection", () => {
       "view",
       githubResult.url,
       "--json",
-      "number,url,headRefOid,state,isDraft,mergeable,reviewDecision,statusCheckRollup",
+      "number,url,headRefOid,mergeCommit,state,isDraft,mergeable,reviewDecision,statusCheckRollup",
     ]);
   });
 
@@ -54,6 +57,9 @@ describe("GitHub pull-request inspection", () => {
       JSON.stringify({
         ...githubResult,
         state: "MERGED",
+        mergeCommit: {
+          oid: "ABCDEF0123456789ABCDEF0123456789ABCDEF01",
+        },
         isDraft: false,
         mergeable: "UNKNOWN",
         reviewDecision: "",
@@ -65,6 +71,8 @@ describe("GitHub pull-request inspection", () => {
       inspectGitHubPullRequest(githubResult.url, { runGitHub }),
     ).resolves.toMatchObject({
       state: "merged",
+      acceptedHeadSha: "0123456789abcdef0123456789abcdef01234567",
+      mergeCommitSha: "abcdef0123456789abcdef0123456789abcdef01",
       draft: false,
       mergeability: "unknown",
       reviewDecision: null,

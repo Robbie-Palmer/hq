@@ -433,6 +433,14 @@ const pullRequestRefreshInput = z.object({
   ),
   url: described(zRefreshPullRequestBody.shape.url, "Pull-request URL"),
   headSha: described(zRefreshPullRequestBody.shape.headSha, "Head commit SHA"),
+  acceptedHeadSha: optional(
+    zRefreshPullRequestBody.shape.acceptedHeadSha.unwrap(),
+    "Accepted head commit SHA",
+  ),
+  mergeCommitSha: optional(
+    zRefreshPullRequestBody.shape.mergeCommitSha.unwrap(),
+    "Merge commit SHA",
+  ),
   state: described(zRefreshPullRequestBody.shape.state, "Pull-request state"),
   draft: zRefreshPullRequestBody.shape.draft
     .optional()
@@ -1520,6 +1528,8 @@ export const workGraphRouter = t.router({
             number: input.number,
             url: input.url,
             headSha: input.headSha,
+            acceptedHeadSha: input.acceptedHeadSha ?? null,
+            mergeCommitSha: input.mergeCommitSha ?? null,
             state: input.state,
             draft: input.draft,
             mergeability: input.mergeability,
