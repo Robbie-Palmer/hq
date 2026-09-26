@@ -149,7 +149,130 @@ function AuthOptions({
   ));
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+function AuthenticatedAccountMenu({
+  error,
+  onOpenChange,
+  onSignOut,
+  open,
+  user,
+}: Readonly<{
+  error: string | null;
+  onOpenChange: (open: boolean) => void;
+  onSignOut: () => Promise<void>;
+  open: boolean;
+  user: {
+    email: string;
+    image?: string | null;
+    name: string;
+    role?: string | null;
+  };
+}>) {
+  return (
+    <PopoverPrimitive.Root open={open} onOpenChange={onOpenChange}>
+      <PopoverPrimitive.Trigger asChild>
+        <button
+          type="button"
+          aria-label={`Account for ${user.name}`}
+          aria-expanded={open}
+          className="rounded-full outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-[var(--terracotta)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--paper)] data-[state=open]:ring-2 data-[state=open]:ring-[var(--terracotta)] data-[state=open]:ring-offset-2 data-[state=open]:ring-offset-[var(--paper)]"
+        >
+          <RecipeAvatar
+            name={user.name}
+            email={user.email}
+            image={user.image}
+            size={36}
+          />
+        </button>
+      </PopoverPrimitive.Trigger>
+      <PopoverPrimitive.Portal>
+        <PopoverPrimitive.Content
+          align="end"
+          sideOffset={8}
+          className="bg-popover text-popover-foreground z-50 w-64 overflow-hidden rounded-xl border shadow-md outline-none"
+        >
+          <div className="flex items-center gap-3 border-b bg-[var(--paper-warm)] px-4 py-3">
+            <RecipeAvatar
+              name={user.name}
+              email={user.email}
+              image={user.image}
+              size={40}
+            />
+            <div className="min-w-0">
+              <p className="rt-display flex items-center gap-2 text-lg leading-none">
+                {user.name}
+                {user.role === "admin" && (
+                  <span className="rt-mono rounded bg-muted px-1.5 py-0.5 text-[0.625rem] text-muted-foreground">
+                    Admin
+                  </span>
+                )}
+              </p>
+              <p className="truncate text-xs text-muted-foreground">
+                {user.email}
+              </p>
+            </div>
+          </div>
+          <div className="p-1.5">
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
+              asChild
+              onClick={() => onOpenChange(false)}
+            >
+              <a href="/recipes/profile">
+                <UserRound /> Profile
+              </a>
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
+              asChild
+              onClick={() => onOpenChange(false)}
+            >
+              <a href="/recipes/settings">
+                <Settings /> Settings
+              </a>
+            </Button>
+          </div>
+          <div className="border-t p-1.5">
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
+              onClick={onSignOut}
+            >
+              <LogOut /> Sign out
+            </Button>
+          </div>
+          {error && (
+            <p role="alert" className="px-3 pb-3 text-xs text-destructive">
+              {error}
+            </p>
+          )}
+        </PopoverPrimitive.Content>
+      </PopoverPrimitive.Portal>
+    </PopoverPrimitive.Root>
+  );
+}
+
+function AuthSessionLoading({
+  intent,
+}: Readonly<{ intent: "signin" | "signup" }>) {
+  return (
+    <>
+      <Skeleton
+        aria-hidden="true"
+        className={intent === "signup" ? "h-9 w-20" : "h-9 w-16"}
+      />
+      <output
+        aria-label="Loading session"
+        aria-live="polite"
+        className="sr-only"
+      >
+        Loading session…
+      </output>
+    </>
+  );
+}
+
 export function AuthButton({
   className,
   compactOnMobile = false,
@@ -232,115 +355,20 @@ export function AuthButton({
   }
 
   if (isPending) {
-    return (
-      <>
-        <Skeleton
-          aria-hidden="true"
-          className={intent === "signup" ? "h-9 w-20" : "h-9 w-16"}
-        />
-        <output
-          aria-label="Loading session"
-          aria-live="polite"
-          className="sr-only"
-        >
-          Loading session…
-        </output>
-      </>
-    );
+    return <AuthSessionLoading intent={intent} />;
   }
 
   if (session && intent === "signup") return null;
 
   if (session) {
     return (
-      <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
-        <PopoverPrimitive.Trigger asChild>
-          <button
-            type="button"
-            aria-label={`Account for ${session.user.name}`}
-            aria-expanded={open}
-            className="rounded-full outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-[var(--terracotta)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--paper)] data-[state=open]:ring-2 data-[state=open]:ring-[var(--terracotta)] data-[state=open]:ring-offset-2 data-[state=open]:ring-offset-[var(--paper)]"
-          >
-            <RecipeAvatar
-              name={session.user.name}
-              email={session.user.email}
-              image={session.user.image}
-              size={36}
-            />
-          </button>
-        </PopoverPrimitive.Trigger>
-        <PopoverPrimitive.Portal>
-          <PopoverPrimitive.Content
-            align="end"
-            sideOffset={8}
-            className="bg-popover text-popover-foreground z-50 w-64 overflow-hidden rounded-xl border shadow-md outline-none"
-          >
-            <div className="flex items-center gap-3 border-b bg-[var(--paper-warm)] px-4 py-3">
-              <RecipeAvatar
-                name={session.user.name}
-                email={session.user.email}
-                image={session.user.image}
-                size={40}
-              />
-              <div className="min-w-0">
-                <p className="rt-display flex items-center gap-2 text-lg leading-none">
-                  {session.user.name}
-                  {session.user.role === "admin" && (
-                    <span className="rt-mono rounded bg-muted px-1.5 py-0.5 text-[0.625rem] text-muted-foreground">
-                      Admin
-                    </span>
-                  )}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {session.user.email}
-                </p>
-              </div>
-            </div>
-
-            <div className="p-1.5">
-              <Button
-                variant="ghost"
-                className="w-full justify-start"
-                asChild
-                onClick={() => setOpen(false)}
-              >
-                <a href="/recipes/profile">
-                  <UserRound />
-                  Profile
-                </a>
-              </Button>
-              <Button
-                variant="ghost"
-                className="w-full justify-start"
-                asChild
-                onClick={() => setOpen(false)}
-              >
-                <a href="/recipes/settings">
-                  <Settings />
-                  Settings
-                </a>
-              </Button>
-            </div>
-
-            <div className="border-t p-1.5">
-              <Button
-                variant="ghost"
-                className="w-full justify-start"
-                onClick={signOut}
-              >
-                <LogOut />
-                Sign out
-              </Button>
-            </div>
-
-            {error && (
-              <p role="alert" className="px-3 pb-3 text-xs text-destructive">
-                {error}
-              </p>
-            )}
-          </PopoverPrimitive.Content>
-        </PopoverPrimitive.Portal>
-      </PopoverPrimitive.Root>
+      <AuthenticatedAccountMenu
+        error={error}
+        onOpenChange={setOpen}
+        onSignOut={signOut}
+        open={open}
+        user={session.user}
+      />
     );
   }
 

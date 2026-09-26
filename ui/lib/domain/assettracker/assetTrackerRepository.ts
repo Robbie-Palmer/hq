@@ -1,6 +1,13 @@
 import { accounts as definedAccounts } from "../../../content/assettracker/accounts";
 import { recurringFlows as definedRecurringFlows } from "../../../content/assettracker/recurringFlows";
 import { snapshots as definedSnapshots } from "../../../content/assettracker/snapshots";
+import { transfers as definedTransfers } from "../../../content/assettracker/transfers";
+import {
+  exchangeRateObservations as definedExchangeRateObservations,
+  holdingObservations as definedHoldingObservations,
+  instruments as definedInstruments,
+  priceObservations as definedPriceObservations,
+} from "../../../content/assettracker/valuations";
 import {
   type Account,
   type AccountId,
@@ -18,6 +25,12 @@ import type { IncomeRecord } from "./incomeRecord";
 import type { PlannedExpenditure } from "./plannedExpenditure";
 import type { RecurringFlow } from "./recurringFlow";
 import type { Transfer } from "./transfer";
+import type {
+  ExchangeRateObservation,
+  HoldingObservation,
+  Instrument,
+  PriceObservation,
+} from "./valuation";
 
 export interface AssetTrackerRepository {
   accounts: Map<AccountId, Account>;
@@ -27,6 +40,10 @@ export interface AssetTrackerRepository {
   transfers: Transfer[];
   recurringFlows: RecurringFlow[];
   plannedExpenditures: PlannedExpenditure[];
+  instruments: Map<string, Instrument>;
+  holdingObservations: HoldingObservation[];
+  priceObservations: PriceObservation[];
+  exchangeRateObservations: ExchangeRateObservation[];
   settings: AssetTrackerData["settings"];
 }
 
@@ -38,8 +55,20 @@ export function getSeedData(): AssetTrackerData {
   return AssetTrackerDataSchema.parse({
     accounts: definedAccounts,
     snapshots: definedSnapshots,
-    transfers: [],
+    transfers: definedTransfers,
     recurringFlows: definedRecurringFlows,
+    instruments: definedInstruments,
+    holdingObservations: definedHoldingObservations,
+    priceObservations: definedPriceObservations,
+    exchangeRateObservations: definedExchangeRateObservations,
+    settings: {
+      expectedAnnualInflation: 0.025,
+      targetNetWorth: { amount: 500_000, currency: "GBP" },
+      targetNetWorthIsReal: true,
+      withdrawalRate: 0.04,
+      baseCurrency: "GBP",
+      valuationMaxAgeDays: 7,
+    },
   });
 }
 
@@ -107,14 +136,42 @@ function assertUniqueCapitalFlows(records: readonly CapitalFlow[]): void {
   }
 }
 
-function validateReferences(
-  data: AssetTrackerData,
-  accounts: Map<AccountId, Account>,
+function assertValidCorrections<
+  T extends {
+    id: string;
+    acceptedAt: string;
+    correctsId?: string;
+  },
+>(
+  records: readonly T[],
+  label: string,
+  seriesKey: (record: T) => string,
 ): void {
-  assertUniqueAccountDates(data.snapshots, "snapshot");
-  assertUniqueCapitalFlows(data.capitalFlows);
+  const byId = new Map(records.map((record) => [record.id, record]));
+  for (const record of records) {
+    if (record.correctsId == null) continue;
+    const corrected = byId.get(record.correctsId);
+    if (corrected == null) {
+      throw new AssetTrackerDataError(
+        `${label} observation "${record.id}" corrects unknown ${label.toLowerCase()} observation "${record.correctsId}"`,
+      );
+    }
+    if (seriesKey(record) !== seriesKey(corrected)) {
+      throw new AssetTrackerDataError(
+        `${label} observation "${record.id}" must correct the same series`,
+      );
+    }
+    if (record.acceptedAt <= corrected.acceptedAt) {
+      throw new AssetTrackerDataError(
+        `${label} correction "${record.id}" must be accepted after "${record.correctsId}"`,
+      );
+    }
+  }
+}
+
+function assertUniqueIncomeDates(incomeHistory: readonly IncomeRecord[]): void {
   const incomeDates = new Set<string>();
-  for (const income of data.incomeHistory) {
+  for (const income of incomeHistory) {
     if (incomeDates.has(income.date)) {
       throw new AssetTrackerDataError(
         `Duplicate income record on ${income.date}`,
@@ -122,6 +179,57 @@ function validateReferences(
     }
     incomeDates.add(income.date);
   }
+}
+
+function validateRecurringFlowReferences(
+  data: AssetTrackerData,
+  accounts: Map<AccountId, Account>,
+): void {
+  for (const flow of data.recurringFlows) {
+    assertKnownAccount(
+      accounts,
+      flow.fromAccountId,
+      `Recurring flow "${flow.name}"`,
+    );
+    assertKnownAccount(
+      accounts,
+      flow.toAccountId,
+      `Recurring flow "${flow.name}"`,
+    );
+    const source =
+      flow.fromAccountId == null ? null : accounts.get(flow.fromAccountId);
+    const destination =
+      flow.toAccountId == null ? null : accounts.get(flow.toAccountId);
+    if (source != null && flow.currency !== source.currency) {
+      throw new AssetTrackerDataError(
+        `Recurring flow "${flow.name}" must use its source account currency`,
+      );
+    }
+    const needsConversion =
+      destination != null && flow.currency !== destination.currency;
+    if (needsConversion && flow.conversion == null) {
+      throw new AssetTrackerDataError(
+        `Recurring flow "${flow.name}" needs a currency conversion`,
+      );
+    }
+    if (
+      flow.conversion != null &&
+      flow.conversion.received.currency !== destination?.currency
+    ) {
+      throw new AssetTrackerDataError(
+        `Recurring flow "${flow.name}" must receive the destination account currency`,
+      );
+    }
+  }
+}
+
+function validateCoreReferences(
+  data: AssetTrackerData,
+  accounts: Map<AccountId, Account>,
+): void {
+  assertUniqueAccountDates(data.snapshots, "snapshot");
+  assertUniqueCapitalFlows(data.capitalFlows);
+  assertUniqueIncomeDates(data.incomeHistory);
   for (const account of data.accounts) {
     assertKnownAccount(
       accounts,
@@ -155,18 +263,13 @@ function validateReferences(
       `Transfer "${transfer.id}"`,
     );
   }
-  for (const flow of data.recurringFlows) {
-    assertKnownAccount(
-      accounts,
-      flow.fromAccountId,
-      `Recurring flow "${flow.name}"`,
-    );
-    assertKnownAccount(
-      accounts,
-      flow.toAccountId,
-      `Recurring flow "${flow.name}"`,
-    );
-  }
+  validateRecurringFlowReferences(data, accounts);
+}
+
+function validatePlannedExpenditureReferences(
+  data: AssetTrackerData,
+  accounts: Map<AccountId, Account>,
+): void {
   for (const expenditure of data.plannedExpenditures) {
     assertKnownAccount(
       accounts,
@@ -185,6 +288,92 @@ function validateReferences(
       );
     }
   }
+}
+
+function indexInstruments(data: AssetTrackerData): Map<string, Instrument> {
+  const instruments = new Map(
+    (data.instruments ?? []).map((instrument) => [instrument.id, instrument]),
+  );
+  if (instruments.size !== (data.instruments ?? []).length) {
+    throw new AssetTrackerDataError("Instrument IDs must be unique");
+  }
+  return instruments;
+}
+
+function assertUniqueObservationIds(data: AssetTrackerData): void {
+  const observationIds = new Set<string>();
+  const observations = [
+    ...(data.holdingObservations ?? []),
+    ...(data.priceObservations ?? []),
+    ...(data.exchangeRateObservations ?? []),
+  ];
+  for (const observation of observations) {
+    if (observationIds.has(observation.id)) {
+      throw new AssetTrackerDataError(
+        `Duplicate observation ID "${observation.id}"`,
+      );
+    }
+    observationIds.add(observation.id);
+  }
+}
+
+function validateInstrumentReferences(
+  data: AssetTrackerData,
+  accounts: Map<AccountId, Account>,
+  instruments: ReadonlyMap<string, Instrument>,
+): void {
+  for (const observation of data.holdingObservations ?? []) {
+    assertKnownAccount(
+      accounts,
+      observation.accountId,
+      `Holding observation "${observation.id}"`,
+    );
+    if (!instruments.has(observation.instrumentId)) {
+      throw new AssetTrackerDataError(
+        `Holding observation "${observation.id}" references unknown instrument "${observation.instrumentId}"`,
+      );
+    }
+  }
+  for (const observation of data.priceObservations ?? []) {
+    if (!instruments.has(observation.instrumentId)) {
+      throw new AssetTrackerDataError(
+        `Price observation "${observation.id}" references unknown instrument "${observation.instrumentId}"`,
+      );
+    }
+  }
+}
+
+function validateValuationReferences(
+  data: AssetTrackerData,
+  accounts: Map<AccountId, Account>,
+): void {
+  const instruments = indexInstruments(data);
+  assertUniqueObservationIds(data);
+  validateInstrumentReferences(data, accounts, instruments);
+  assertValidCorrections(
+    data.holdingObservations ?? [],
+    "Holding",
+    (record) => `${record.accountId}\0${record.instrumentId}`,
+  );
+  assertValidCorrections(
+    data.priceObservations ?? [],
+    "Price",
+    (record) => record.instrumentId,
+  );
+  assertValidCorrections(
+    data.exchangeRateObservations ?? [],
+    "Exchange-rate",
+    (record) => `${record.fromCurrency}\0${record.toCurrency}`,
+  );
+}
+
+function validateReferences(
+  data: AssetTrackerData,
+  accounts: Map<AccountId, Account>,
+): void {
+  validateCoreReferences(data, accounts);
+  validatePlannedExpenditureReferences(data, accounts);
+  validateValuationReferences(data, accounts);
 }
 
 export function buildRepository(
@@ -210,6 +399,12 @@ export function buildRepository(
     plannedExpenditures: [...data.plannedExpenditures].sort((a, b) =>
       a.date.localeCompare(b.date),
     ),
+    instruments: new Map(
+      (data.instruments ?? []).map((instrument) => [instrument.id, instrument]),
+    ),
+    holdingObservations: [...(data.holdingObservations ?? [])],
+    priceObservations: [...(data.priceObservations ?? [])],
+    exchangeRateObservations: [...(data.exchangeRateObservations ?? [])],
     settings: data.settings,
   };
 }

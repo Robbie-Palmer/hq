@@ -1,7 +1,10 @@
 import { type ExpectedReturnChange, effectiveExpectedReturn } from "./account";
 import { todayIsoDate } from "./assetTrackerCommands";
+import type { AssetTrackerRepository } from "./assetTrackerRepository";
 import type { AccountSummaryView } from "./assetTrackerViews";
 import { ACCOUNT_COLORS } from "./constants";
+import type { Money } from "./money";
+import { convertMoneyAtDate, latestValuedBalances } from "./portfolioValuation";
 import { monthlyAmount, type RecurringFlow } from "./recurringFlow";
 
 const EXTERNAL_INCOME_NODE = "__external_income";
@@ -13,10 +16,14 @@ const GROSS_PAY_NODE = "__gross_pay";
 const TAX_NODE = "__tax";
 const MIN_SYNTHETIC_FLOW = 1;
 
-type FlowSankeyAccount = AccountSummaryView & {
-  expectedReturnChanges?: ExpectedReturnChange[];
-  linkedAccountId?: string;
-};
+export type FlowSankeyAccount = Partial<AccountSummaryView> &
+  Pick<
+    AccountSummaryView,
+    "expectedAnnualReturn" | "id" | "isOpen" | "latestBalance" | "name"
+  > & {
+    expectedReturnChanges?: ExpectedReturnChange[];
+    linkedAccountId?: string;
+  };
 
 export type FlowSankeyNode = {
   id: string;
@@ -289,13 +296,13 @@ function addSyntheticFlowLinks(
   flows: RecurringFlow[],
   liabilityBalances: Record<string, number>,
   builder: FlowSankeyBuilder,
+  asOfDate: string,
 ) {
-  const today = todayIsoDate();
   for (const account of accounts) {
     const balance = account.latestBalance ?? 0;
     if (balance === 0) continue;
 
-    const rate = effectiveExpectedReturn(account, today);
+    const rate = effectiveExpectedReturn(account, asOfDate);
     if (rate === 0) continue;
 
     const change = monthlyExpectedChange(balance, rate);
@@ -330,6 +337,7 @@ export function buildFlowSankeyData(
   accounts: FlowSankeyAccount[],
   flows: RecurringFlow[],
   liabilityBalances: Record<string, number>,
+  asOfDate: string = todayIsoDate(),
 ): FlowSankeyData {
   const openAccounts = accounts.filter((account) => account.isOpen);
   const openAccountIds = new Set(openAccounts.map((account) => account.id));
@@ -389,7 +397,13 @@ export function buildFlowSankeyData(
   };
 
   addRecurringFlowLinks(activeFlows, liabilityBalances, builder);
-  addSyntheticFlowLinks(openAccounts, activeFlows, liabilityBalances, builder);
+  addSyntheticFlowLinks(
+    openAccounts,
+    activeFlows,
+    liabilityBalances,
+    builder,
+    asOfDate,
+  );
 
   return {
     nodes,
@@ -398,4 +412,202 @@ export function buildFlowSankeyData(
       value: roundCurrencyValue(link.value),
     })),
   };
+}
+
+function convertFlowMoney(
+  repository: AssetTrackerRepository,
+  value: Money,
+  date: string,
+): number | null {
+  return convertMoneyAtDate(repository, value, date);
+}
+
+function baseFlow(
+  flow: RecurringFlow,
+  currency: RecurringFlow["currency"],
+  id: string,
+  name: string,
+  amount: number,
+  fromAccountId: string | undefined,
+  toAccountId: string | undefined,
+): RecurringFlow {
+  return {
+    ...flow,
+    id,
+    name,
+    fromAccountId,
+    toAccountId,
+    amount,
+    currency,
+    conversion: undefined,
+    formula: undefined,
+    compensationKind: undefined,
+    grossAmount: undefined,
+  };
+}
+
+function resolveConvertedFlow(
+  repository: AssetTrackerRepository,
+  flow: RecurringFlow,
+  sent: number,
+  date: string,
+): { accounts: FlowSankeyAccount[]; flows: RecurringFlow[] } | null {
+  const conversion = flow.conversion;
+  if (conversion == null) return null;
+  const received = convertFlowMoney(repository, conversion.received, date);
+  const fee = convertFlowMoney(
+    repository,
+    conversion.fee ?? { amount: 0, currency: flow.currency },
+    date,
+  );
+  if (received == null || fee == null) return null;
+  const conversionId = `__conversion:${flow.id}`;
+  const sentWithFee = sent + fee;
+  const difference = sentWithFee - received;
+  const flows = [
+    baseFlow(
+      flow,
+      repository.settings.baseCurrency,
+      `${flow.id}:sent`,
+      flow.name,
+      sentWithFee,
+      flow.fromAccountId,
+      conversionId,
+    ),
+    baseFlow(
+      flow,
+      repository.settings.baseCurrency,
+      `${flow.id}:received`,
+      flow.name,
+      received,
+      conversionId,
+      flow.toAccountId,
+    ),
+  ];
+  if (difference > 0) {
+    flows.push(
+      baseFlow(
+        flow,
+        repository.settings.baseCurrency,
+        `${flow.id}:cost`,
+        "Conversion fee and spread",
+        difference,
+        conversionId,
+        undefined,
+      ),
+    );
+  } else if (difference < 0) {
+    flows.push(
+      baseFlow(
+        flow,
+        repository.settings.baseCurrency,
+        `${flow.id}:benefit`,
+        "Conversion rate benefit",
+        Math.abs(difference),
+        undefined,
+        conversionId,
+      ),
+    );
+  }
+  return {
+    accounts: [
+      {
+        id: conversionId,
+        name: conversion.provider,
+        isOpen: true,
+        latestBalance: 0,
+        expectedAnnualReturn: 0,
+      },
+    ],
+    flows,
+  };
+}
+
+function resolveFlowInBaseCurrency(
+  repository: AssetTrackerRepository,
+  flow: RecurringFlow,
+  date: string,
+): { accounts: FlowSankeyAccount[]; flows: RecurringFlow[] } | null {
+  if (flow.amount == null) {
+    const floor =
+      flow.formula == null
+        ? null
+        : convertFlowMoney(
+            repository,
+            { amount: flow.formula.floor, currency: flow.currency },
+            date,
+          );
+    if (flow.formula != null && floor == null) return null;
+    return {
+      accounts: [],
+      flows: [
+        {
+          ...flow,
+          currency: repository.settings.baseCurrency,
+          formula:
+            flow.formula == null
+              ? undefined
+              : { ...flow.formula, floor: floor ?? 0 },
+        },
+      ],
+    };
+  }
+
+  const sent = convertFlowMoney(
+    repository,
+    { amount: flow.amount, currency: flow.currency },
+    date,
+  );
+  const gross =
+    flow.grossAmount == null
+      ? undefined
+      : convertFlowMoney(
+          repository,
+          { amount: flow.grossAmount, currency: flow.currency },
+          date,
+        );
+  if (sent == null || gross === null) return null;
+  if (flow.conversion == null) {
+    return {
+      accounts: [],
+      flows: [
+        {
+          ...flow,
+          amount: sent,
+          grossAmount: gross,
+          currency: repository.settings.baseCurrency,
+        },
+      ],
+    };
+  }
+
+  return resolveConvertedFlow(repository, flow, sent, date);
+}
+
+export function buildBaseCurrencyFlowSankeyData(
+  repository: AssetTrackerRepository,
+  accounts: FlowSankeyAccount[],
+  date: string,
+): FlowSankeyData {
+  const balances = latestValuedBalances(repository);
+  if (balances == null) return { nodes: [], links: [] };
+  const baseAccounts = accounts.map((account) => ({
+    ...account,
+    latestBalance: balances.get(account.id) ?? 0,
+  }));
+  const resolved = repository.recurringFlows.map((flow) =>
+    resolveFlowInBaseCurrency(repository, flow, date),
+  );
+  if (resolved.some((item) => item == null)) return { nodes: [], links: [] };
+  const conversionAccounts = resolved.flatMap((item) => item?.accounts ?? []);
+  const flows = resolved.flatMap((item) => item?.flows ?? []);
+  const liabilityBalances = Object.fromEntries(
+    baseAccounts.map((account) => [account.id, account.latestBalance ?? 0]),
+  );
+  return buildFlowSankeyData(
+    [...baseAccounts, ...conversionAccounts],
+    flows,
+    liabilityBalances,
+    date,
+  );
 }

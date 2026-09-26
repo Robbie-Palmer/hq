@@ -23,15 +23,18 @@ import {
   type AssetAllocationDataPoint,
   type AssetTrackerData,
   type AssetType,
+  buildBaseCurrencyFlowSankeyData,
   buildRepository,
   type ClearAccountHistoryInput,
   type CreateAccountInput,
-  DEFAULT_WITHDRAWAL_RATE,
+  type Currency,
   type DeleteCapitalFlowInput,
   type DeleteSnapshotInput,
+  type FlowSankeyData,
   getAllAccountDetails,
   getAllAccountSummaries,
   getAssetAllocationTimeSeries,
+  getLatestPortfolioValuation,
   getNetWorthTimeSeries,
   getPortfolioAnnualReturn,
   getPortfolioContributionTimeSeries,
@@ -41,6 +44,7 @@ import {
   type ImportAccountHistoryInput,
   type ImportIncomeHistoryInput,
   type IncomeRecord,
+  type Money,
   type NetWorthDataPoint,
   type PlannedExpenditure,
   type PortfolioContributionDataPoint,
@@ -53,6 +57,7 @@ import {
   type Transfer,
   toBalancesCsv,
   todayIsoDate,
+  type ValuationIssue,
 } from "@/lib/domain/assettracker";
 
 interface AssetTrackerContextValue {
@@ -66,17 +71,22 @@ interface AssetTrackerContextValue {
   recurringFlows: RecurringFlow[];
   plannedExpenditures: PlannedExpenditure[];
   incomeHistory: IncomeRecord[];
+  flowSankeyData: FlowSankeyData;
   financialIndependence: PortfolioFinancialIndependence;
   /** Annualised portfolio growth, excluding recorded external money in/out */
   portfolioReturn: number | null;
   /** Expected annual inflation used to express values in today's money */
   inflation: number;
   /** The net worth the user is aiming for, if set */
-  netWorthTarget: number | null;
+  netWorthTarget: Money | null;
   /** Whether the target is expressed in today's money (inflation-adjusted) */
   netWorthTargetIsReal: boolean;
   /** Sustainable annual withdrawal used to derive the FI target */
   withdrawalRate: number;
+  /** Currency used for every household-level value. */
+  baseCurrency: Currency;
+  valuationDate: string | null;
+  valuationIssues: ValuationIssue[];
   /** True once the user has made changes that are persisted in this browser */
   hasLocalChanges: boolean;
   createAccount(input: CreateAccountInput): Promise<void>;
@@ -100,6 +110,7 @@ interface AssetTrackerContextValue {
   setExpectedReturn(input: SetExpectedReturnInput): Promise<void>;
   setAccountLiquidity(input: SetAccountLiquidityInput): Promise<void>;
   setInflation(rate: number): Promise<void>;
+  setBaseCurrency(currency: Currency): Promise<void>;
   setWithdrawalRate(rate: number): Promise<void>;
   setNetWorthTarget(
     target: number | null,
@@ -174,9 +185,12 @@ export function AssetTrackerProvider({
     const repository = buildRepository(data);
     const accounts = getAllAccountSummaries(repository);
     const netWorthData = getNetWorthTimeSeries(repository);
+    const latestValuation = getLatestPortfolioValuation(repository);
+    const accountDetails = getAllAccountDetails(repository);
+    const valuationDate = latestValuation?.date ?? todayIsoDate();
     return {
       accounts,
-      accountDetails: getAllAccountDetails(repository),
+      accountDetails,
       netWorthData,
       contributionData: getPortfolioContributionTimeSeries(repository),
       assetAllocation: getTotalByAssetType(repository),
@@ -185,13 +199,20 @@ export function AssetTrackerProvider({
       recurringFlows: repository.recurringFlows,
       plannedExpenditures: repository.plannedExpenditures,
       incomeHistory: repository.incomeHistory,
+      flowSankeyData: buildBaseCurrencyFlowSankeyData(
+        repository,
+        accountDetails,
+        valuationDate,
+      ),
       financialIndependence: getPortfolioFinancialIndependence(repository),
       portfolioReturn: getPortfolioAnnualReturn(repository),
       inflation: repository.settings.expectedAnnualInflation,
       netWorthTarget: repository.settings.targetNetWorth ?? null,
       netWorthTargetIsReal: repository.settings.targetNetWorthIsReal ?? false,
-      withdrawalRate:
-        repository.settings.withdrawalRate ?? DEFAULT_WITHDRAWAL_RATE,
+      withdrawalRate: repository.settings.withdrawalRate,
+      baseCurrency: repository.settings.baseCurrency,
+      valuationDate: latestValuation?.date ?? null,
+      valuationIssues: latestValuation?.issues ?? [],
     };
   }, [data]);
 
@@ -236,6 +257,8 @@ export function AssetTrackerProvider({
       setAccountLiquidity: (input) =>
         mutate((api) => api.setAccountLiquidity(input)),
       setInflation: (rate) => mutate((api) => api.setInflation({ rate })),
+      setBaseCurrency: (currency) =>
+        mutate((api) => api.setBaseCurrency({ currency })),
       setWithdrawalRate: (rate) =>
         mutate((api) => api.setWithdrawalRate({ rate })),
       setNetWorthTarget: (target, inTodaysMoney) =>

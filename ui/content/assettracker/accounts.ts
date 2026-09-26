@@ -32,6 +32,16 @@ export const accounts: AccountContent[] = [
     expectedAnnualReturn: 0.07,
   },
   {
+    id: "us-brokerage",
+    name: "US Brokerage",
+    provider: "Demo Broker",
+    currency: "USD",
+    createdAt: "2024-01-01",
+    assetType: "stocks",
+    liquidity: "liquid",
+    expectedAnnualReturn: 0.075,
+  },
+  {
     id: "coinbase-btc",
     name: "Coinbase BTC",
     provider: "Coinbase",

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CurrencySchema } from "./currency";
 
 export const AccountIdSchema = z.string().min(1);
 export type AccountId = z.infer<typeof AccountIdSchema>;
@@ -28,9 +29,6 @@ export const LIQUIDITY_TIER_LABELS: Record<LiquidityTier, string> = {
 export function isLiability(assetType: AssetType): boolean {
   return assetType === "mortgage" || assetType === "debt";
 }
-
-export const CurrencySchema = z.enum(["GBP", "USD"]);
-export type Currency = z.infer<typeof CurrencySchema>;
 
 /**
  * A change to the expected annual return from a given date, e.g. a savings

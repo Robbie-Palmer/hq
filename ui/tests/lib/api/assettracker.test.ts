@@ -177,6 +177,16 @@ describe("createLocalAssetTrackerApi", () => {
 
     expect(persisted).toBe(true);
     expect(data.settings.withdrawalRate).toBe(0.04);
+    expect(data.settings.baseCurrency).toBe("GBP");
+    expect(data.settings.valuationMaxAgeDays).toBe(7);
+  });
+
+  it("persists the household base currency", async () => {
+    await createApi().setBaseCurrency({ currency: "USD" });
+
+    const { data } = await createApi().load();
+
+    expect(data.settings.baseCurrency).toBe("USD");
   });
 
   it("repairs duplicate persisted income dates without hiding the portfolio", async () => {
@@ -196,7 +206,9 @@ describe("createLocalAssetTrackerApi", () => {
 
     expect(persisted).toBe(true);
     expect(data.accounts).toEqual(seed.accounts);
-    expect(data.incomeHistory).toEqual([{ date: "2025-01-31", amount: 4_200 }]);
+    expect(data.incomeHistory).toEqual([
+      { date: "2025-01-31", amount: 4_200, currency: "GBP" },
+    ]);
   });
 
   it("persists portfolio income history and the withdrawal rate", async () => {
@@ -207,7 +219,9 @@ describe("createLocalAssetTrackerApi", () => {
     await api.setWithdrawalRate({ rate: 0.035 });
 
     const { data } = await createApi().load();
-    expect(data.incomeHistory).toEqual([{ date: "2025-01-31", amount: 4_500 }]);
+    expect(data.incomeHistory).toEqual([
+      { date: "2025-01-31", amount: 4_500, currency: "GBP" },
+    ]);
     expect(data.settings.withdrawalRate).toBe(0.035);
   });
 
