@@ -1,0 +1,49 @@
+name: Remote Development Candidate Cluster CI
+
+on:
+  pull_request:
+    paths:
+      - "infra/remote-development-cluster/**"
+      - ".github/workflows/remote-development-cluster-ci.yml"
+
+permissions: {}
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: infra/remote-development-cluster
+    env:
+      TF_VAR_hcloud_token: validation-only
+      TF_VAR_ssh_public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGZha2U= validation-only
+      TF_VAR_leapmicro_x86_snapshot_id: "123456"
+      TF_VAR_tailscale_oauth_client_secret: validation-only
+      TF_VAR_tailscale_magicdns_domain: example-tailnet.ts.net
+      TF_VAR_etcd_s3_endpoint: example.invalid
+      TF_VAR_etcd_s3_access_key: validation-only
+      TF_VAR_etcd_s3_secret_key: validation-only
+      TF_VAR_etcd_s3_bucket: validation-only
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-mise
+
+      - name: Create empty .env for mise
+        run: touch .env
+
+      - name: Check Terraform formatting
+        run: mise run //infra/remote-development-cluster:format:check
+
+      - name: Validate Terraform
+        run: mise run //infra/remote-development-cluster:precommit-lint
+
+      - name: Lint Terraform
+        run: mise run //infra/remote-development-cluster:lint:tflint
+
+      - name: Check workspace inventory
+        run: mise run //infra/remote-development-cluster:workspace-check

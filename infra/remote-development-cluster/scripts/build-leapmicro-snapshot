@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project="${DOPPLER_PROJECT:-homelab}"
+cluster_config="${DOPPLER_REMOTE_DEVELOPMENT_CLUSTER_CONFIG:-prd_remote_development_cluster}"
+template=".terraform/modules/candidate_cluster/packer-template/hcloud-leapmicro-snapshots.pkr.hcl"
+
+if [ "${DOPPLER_REMOTE_DEVELOPMENT_CLUSTER_SNAPSHOT_WRAPPED:-}" != "1" ]; then
+  export DOPPLER_REMOTE_DEVELOPMENT_CLUSTER_SNAPSHOT_WRAPPED=1
+  exec doppler run --project "$project" --config "$cluster_config" -- bash "$0" "$@"
+fi
+
+if [ -z "${HCLOUD_TOKEN:-}" ]; then
+  echo "HCLOUD_TOKEN is required in $project/$cluster_config." >&2
+  exit 1
+fi
+
+packer init "$template"
+packer build -only='hcloud.leapmicro-x86-snapshot' "$template"
+
+snapshot_id="$(
+  curl -fsS \
+    -H "Authorization: Bearer $HCLOUD_TOKEN" \
+    'https://api.hetzner.cloud/v1/images?type=snapshot&sort=created:desc&label_selector=leapmicro-snapshot%3Dyes%2Ckube-hetzner%2Fos%3Dleapmicro%2Ckube-hetzner%2Fk8s-distro%3Dk3s' \
+    | jq -er '.images[0].id'
+)"
+
+doppler secrets set \
+  --project "$project" \
+  --config "$cluster_config" \
+  LEAPMICRO_X86_SNAPSHOT_ID="$snapshot_id" >/dev/null
+
+echo "Built and pinned candidate Leap Micro snapshot $snapshot_id."

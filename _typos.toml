@@ -9,6 +9,7 @@ juni = "juni" # coding agent referenced in ADR 012
 symetry = "symetry" # SymetryML, streaming ML product
 vertica = "vertica" # Vertica analytics database
 sie = "sie" # split from the SIEM(s) acronym
+hel = "hel" # prefix of Hetzner's hel1 Helsinki location code
 
 [default.extend-identifiers]
 CelesTrak = "CelesTrak" # orbital-data and reference-software publisher
