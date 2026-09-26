@@ -136,6 +136,16 @@
       "automerge": true
     },
     {
+      "description": "Let pydantic manage its exact pydantic-core pin in compiled requirements",
+      "matchManagers": [
+        "pip_requirements"
+      ],
+      "matchPackageNames": [
+        "pydantic-core"
+      ],
+      "enabled": false
+    },
+    {
       "description": "ml-pipelines is offline tooling with no deploy of its own, so treat its runtime dependencies like devDependencies",
       "matchFileNames": [
         "ml-pipelines/**"
