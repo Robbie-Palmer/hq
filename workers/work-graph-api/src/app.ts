@@ -39,7 +39,10 @@ import type {
   WorkItemReadModel,
   WorkItemSchedulingScopeInput,
 } from "work-graph-db";
-import { WORK_GRAPH_EVENT_TYPES } from "work-graph-db";
+import {
+  isRetryableDatabaseTimeout,
+  WORK_GRAPH_EVENT_TYPES,
+} from "work-graph-db";
 import {
   ARCHITECTURE_DECISION_ROLES,
   KNOWLEDGE_SCOPE_KINDS,
@@ -871,6 +874,19 @@ const errorResponse = (description: string) => ({
   description,
   content: { "application/json": { schema: errorSchema } },
 });
+const retryableDatabaseErrorResponse = {
+  ...errorResponse("Database request exceeded its execution budget"),
+  headers: {
+    "Retry-After": {
+      description: "Seconds until the request may be retried",
+      schema: {
+        type: "string" as const,
+        pattern: "^[1-9][0-9]*$",
+        maxLength: 10,
+      },
+    },
+  },
+};
 const standardErrors = {
   400: errorResponse("Invalid request"),
   401: errorResponse("Cloudflare Access authentication required"),
@@ -879,6 +895,7 @@ const standardErrors = {
   409: errorResponse("Request conflicts with current Work Graph state"),
   422: errorResponse("Request validation failed"),
   500: errorResponse("Unexpected server error"),
+  503: retryableDatabaseErrorResponse,
 };
 const accessSecurity = [
   { cloudflareAccessClientId: [], cloudflareAccessClientSecret: [] },
@@ -2220,6 +2237,18 @@ export const createWorkGraphApp = (
       return context.json(
         { error: { code: error.code, message: error.message } },
         statusForWorkGraphError(error),
+      );
+    }
+    if (isRetryableDatabaseTimeout(error)) {
+      context.header("Retry-After", "1");
+      return context.json(
+        {
+          error: {
+            code: "database_timeout",
+            message: "The Work Graph database request timed out. Retry it.",
+          },
+        },
+        503,
       );
     }
     console.error(

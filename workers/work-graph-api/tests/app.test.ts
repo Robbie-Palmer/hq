@@ -1930,3 +1930,31 @@ describe("Given an invalid REST request", () => {
     expect(repository.addDependency).not.toHaveBeenCalled();
   });
 });
+
+describe("Given a database request timeout", () => {
+  it.each(["25P03", "25P04", "55P03", "57014"])(
+    "maps PostgreSQL %s to a retryable response without database details",
+    async (code) => {
+      const repository = buildRepository();
+      const databaseError = Object.assign(
+        new Error("canceling statement because a database limit was reached"),
+        { code },
+      );
+      vi.mocked(repository.listWorkItems).mockRejectedValue(
+        new Error("database request failed", { cause: databaseError }),
+      );
+      const app = createWorkGraphApp(repository);
+
+      const response = await app.request("/api/work-items");
+
+      expect(response.status).toBe(503);
+      expect(response.headers.get("retry-after")).toBe("1");
+      expect(await responseJson(response)).toEqual({
+        error: {
+          code: "database_timeout",
+          message: "The Work Graph database request timed out. Retry it.",
+        },
+      });
+    },
+  );
+});
