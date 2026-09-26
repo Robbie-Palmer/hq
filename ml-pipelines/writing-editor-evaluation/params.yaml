@@ -20,7 +20,7 @@
       "additionalConfidence": 0.1
     },
     "vale": {
-      "binaryVersion": "3.21.0",
+      "binaryVersion": "3.22.0",
       "timeoutMs": 300000
     }
   },
