@@ -12,7 +12,8 @@
     "./policy": "./src/policy.ts",
     "./session": "./src/session.ts",
     "./task": "./src/task.ts",
-    "./vocabulary": "./src/vocabulary.ts"
+    "./vocabulary": "./src/vocabulary.ts",
+    "./work-graph": "./src/work-graph.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
