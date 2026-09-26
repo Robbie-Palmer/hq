@@ -63,6 +63,7 @@ function forecastData(): AssetTrackerData {
         name: "Salary",
         toAccountId: "current",
         amount: 3_000,
+        currency: "GBP",
         frequency: "monthly",
         startDate: "2025-01-01",
       },
@@ -72,6 +73,7 @@ function forecastData(): AssetTrackerData {
         fromAccountId: "current",
         toAccountId: "isa",
         amount: 500,
+        currency: "GBP",
         frequency: "monthly",
         startDate: "2025-01-01",
       },
@@ -80,6 +82,7 @@ function forecastData(): AssetTrackerData {
         name: "Employer pension",
         toAccountId: "pension",
         amount: 300,
+        currency: "GBP",
         frequency: "monthly",
         startDate: "2025-01-01",
       },
@@ -93,7 +96,12 @@ function forecastData(): AssetTrackerData {
         fromAccountId: "current",
       },
     ],
-    settings: { expectedAnnualInflation: 0, withdrawalRate: 0.04 },
+    settings: {
+      expectedAnnualInflation: 0,
+      withdrawalRate: 0.04,
+      baseCurrency: "GBP",
+      valuationMaxAgeDays: 7,
+    },
   };
 }
 

@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import {
+  formatAccountCurrency,
   formatAnnualRate,
-  formatCurrency,
-  formatTotalBalances,
   realRate,
 } from "@/lib/domain/assettracker";
 import { AccountBalanceChart } from "./account-balance-chart";
@@ -34,6 +33,10 @@ export function AssetTrackerDashboard() {
     assetAllocationHistory,
     portfolioReturn,
     inflation,
+    baseCurrency,
+    valuationDate,
+    valuationIssues,
+    flowSankeyData,
   } = useAssetTracker();
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(
     null,
@@ -41,6 +44,11 @@ export function AssetTrackerDashboard() {
 
   const openAccounts = accounts.filter((a) => a.isOpen);
   const contributedCapital = contributionData.at(-1)?.contributedCapital;
+  const latestNetWorth = netWorthData.at(-1)?.total ?? null;
+  const missingPrices = valuationIssues.filter(
+    (issue) => issue.kind === "missing_price" || issue.kind === "stale_price",
+  ).length;
+  const missingRates = valuationIssues.length - missingPrices;
 
   return (
     <div className="space-y-8">
@@ -59,11 +67,31 @@ export function AssetTrackerDashboard() {
         </div>
       </div>
       <DataControls />
+      {valuationIssues.length > 0 && (
+        <div
+          role="alert"
+          className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm"
+        >
+          <p className="font-medium">Portfolio total unavailable</p>
+          <p className="mt-1 text-muted-foreground">
+            {missingRates > 0
+              ? `${missingRates} exchange rate${missingRates === 1 ? " is" : "s are"} missing or stale. `
+              : ""}
+            {missingPrices > 0
+              ? `${missingPrices} holding price${missingPrices === 1 ? " is" : "s are"} missing or stale. `
+              : ""}
+            Import current observations before using the {baseCurrency} total
+            {valuationDate == null ? "." : ` for ${valuationDate}.`}
+          </p>
+        </div>
+      )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <div className="border rounded-lg p-6">
           <p className="text-sm text-muted-foreground">Market net worth</p>
           <p className="text-3xl font-bold mt-1">
-            {formatTotalBalances(openAccounts)}
+            {latestNetWorth == null
+              ? "Unavailable"
+              : formatAccountCurrency(latestNetWorth, baseCurrency)}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
             Latest valuations less liabilities
@@ -88,7 +116,7 @@ export function AssetTrackerDashboard() {
           <p className="text-3xl font-bold mt-1">
             {contributedCapital == null
               ? "—"
-              : formatCurrency(contributedCapital)}
+              : formatAccountCurrency(contributedCapital, baseCurrency)}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
             Deposits minus withdrawals
@@ -103,16 +131,19 @@ export function AssetTrackerDashboard() {
           <p className="text-3xl font-bold mt-1">{assetAllocation.length}</p>
         </div>
       </div>
-      <NetWorthChart data={netWorthData} />
-      <PortfolioContributionChart data={contributionData} />
+      <NetWorthChart data={netWorthData} currency={baseCurrency} />
+      <PortfolioContributionChart
+        data={contributionData}
+        currency={baseCurrency}
+      />
       <AssetAllocationHistoryChart data={assetAllocationHistory} />
       <PortfolioGoal />
       <div className="grid gap-8 lg:grid-cols-2">
         <UpcomingFlows />
-        <FlowSankeyChart />
+        <FlowSankeyChart data={flowSankeyData} currency={baseCurrency} />
       </div>
       <div className="grid gap-8 lg:grid-cols-2">
-        <AssetAllocationChart data={assetAllocation} />
+        <AssetAllocationChart data={assetAllocation} currency={baseCurrency} />
         <AccountBalanceChart accounts={accountDetails} />
       </div>
       <div>

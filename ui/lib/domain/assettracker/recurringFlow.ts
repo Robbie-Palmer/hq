@@ -1,6 +1,16 @@
 import { addDays, addMonths, format, parseISO } from "date-fns";
 import { z } from "zod";
 import { AccountIdSchema } from "./account";
+import {
+  type Currency,
+  CurrencySchema,
+  DEFAULT_BASE_CURRENCY,
+} from "./currency";
+import {
+  type Money,
+  NonNegativeMoneySchema,
+  PositiveMoneySchema,
+} from "./money";
 
 export const FlowFrequencySchema = z.enum([
   "weekly",
@@ -37,6 +47,15 @@ export const MinimumPaymentFormulaSchema = z.object({
 });
 export type MinimumPaymentFormula = z.infer<typeof MinimumPaymentFormulaSchema>;
 
+export const RecurringFlowConversionSchema = z.object({
+  received: PositiveMoneySchema,
+  fee: NonNegativeMoneySchema.optional(),
+  provider: z.string().trim().min(1).default("Currency conversion"),
+});
+export type RecurringFlowConversion = z.infer<
+  typeof RecurringFlowConversionSchema
+>;
+
 /**
  * An expected regular movement of money: salary landing in an account,
  * a standing order into savings, a loan repayment. Flows feed projections;
@@ -47,6 +66,10 @@ export const RecurringFlowDefinitionShape = {
   fromAccountId: AccountIdSchema.optional(),
   toAccountId: AccountIdSchema.optional(),
   amount: z.number().positive("Amount must be positive").optional(),
+  /** Currency of amount, grossAmount, and a formula floor. */
+  currency: CurrencySchema.default(DEFAULT_BASE_CURRENCY),
+  /** Expected result when source and destination currencies differ. */
+  conversion: RecurringFlowConversionSchema.optional(),
   /** Gross pay before this take-home amount and salary sacrifice are deducted. */
   grossAmount: z.number().positive("Gross amount must be positive").optional(),
   /** Computed against the balance of the liability the flow pays down */
@@ -59,7 +82,7 @@ export const RecurringFlowDefinitionShape = {
 const RecurringFlowDefinitionSchema = z.object(RecurringFlowDefinitionShape);
 type RecurringFlowDefinition = z.infer<typeof RecurringFlowDefinitionSchema>;
 
-export function validateRecurringFlowDefinition(
+function validateFlowEndpoints(
   flow: RecurringFlowDefinition,
   context: z.RefinementCtx,
 ) {
@@ -75,6 +98,12 @@ export function validateRecurringFlowDefinition(
       message: "Source and destination must differ",
     });
   }
+}
+
+function validateFlowAmount(
+  flow: RecurringFlowDefinition,
+  context: z.RefinementCtx,
+) {
   if ((flow.amount != null) === (flow.formula != null)) {
     context.addIssue({
       code: "custom",
@@ -87,6 +116,42 @@ export function validateRecurringFlowDefinition(
       message: "Formula payments must use a monthly frequency",
     });
   }
+}
+
+function validateFlowConversion(
+  flow: RecurringFlowDefinition,
+  context: z.RefinementCtx,
+) {
+  if (flow.formula != null && flow.conversion != null) {
+    context.addIssue({
+      code: "custom",
+      message: "Formula payments cannot use a currency conversion",
+    });
+  }
+  if (
+    flow.conversion != null &&
+    flow.conversion.received.currency === flow.currency
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "Converted money must use a different currency",
+    });
+  }
+  if (
+    flow.conversion?.fee != null &&
+    flow.conversion.fee.currency !== flow.currency
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "Conversion fees must use the sent currency",
+    });
+  }
+}
+
+function validateFlowCompensation(
+  flow: RecurringFlowDefinition,
+  context: z.RefinementCtx,
+) {
   const invalidCompensation =
     flow.compensationKind != null &&
     (flow.fromAccountId != null ||
@@ -114,6 +179,16 @@ export function validateRecurringFlowDefinition(
   }
 }
 
+export function validateRecurringFlowDefinition(
+  flow: RecurringFlowDefinition,
+  context: z.RefinementCtx,
+) {
+  validateFlowEndpoints(flow, context);
+  validateFlowAmount(flow, context);
+  validateFlowConversion(flow, context);
+  validateFlowCompensation(flow, context);
+}
+
 export const RecurringFlowSchema = z
   .object({
     id: z.string().min(1),
@@ -123,6 +198,39 @@ export const RecurringFlowSchema = z
   .superRefine(validateRecurringFlowDefinition);
 
 export type RecurringFlow = z.infer<typeof RecurringFlowSchema>;
+
+export function recurringFlowMoney(flow: RecurringFlow): Money | null {
+  return flow.amount == null
+    ? null
+    : { amount: flow.amount, currency: flow.currency };
+}
+
+export function recurringFlowReceivedMoney(flow: RecurringFlow): Money | null {
+  return flow.conversion?.received ?? recurringFlowMoney(flow);
+}
+
+export function recurringFlowFeeMoney(flow: RecurringFlow): Money {
+  return flow.conversion?.fee ?? { amount: 0, currency: flow.currency };
+}
+
+function monthlyScale(flow: RecurringFlow): number {
+  return flow.amount == null || flow.amount === 0
+    ? 0
+    : monthlyAmount(flow) / flow.amount;
+}
+
+export function monthlyReceivedAmount(flow: RecurringFlow): number {
+  const received = recurringFlowReceivedMoney(flow);
+  return received == null ? 0 : received.amount * monthlyScale(flow);
+}
+
+export function monthlyFeeAmount(flow: RecurringFlow): number {
+  return recurringFlowFeeMoney(flow).amount * monthlyScale(flow);
+}
+
+export function recurringFlowCurrency(flow: RecurringFlow): Currency {
+  return flow.currency;
+}
 
 const MONTHS_PER_PERIOD: Record<FlowFrequency, number> = {
   weekly: 12 / 52,

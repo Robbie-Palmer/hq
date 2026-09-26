@@ -19,8 +19,10 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import {
-  formatAxisTick,
+  type Currency,
+  DEFAULT_BASE_CURRENCY,
   formatCurrency,
+  formatCurrencyAxisTick,
   type IncomeRecord,
   type PortfolioReconciliationPeriod,
 } from "@/lib/domain/assettracker";
@@ -51,22 +53,26 @@ type IncomeExpenditurePoint = {
 export function buildIncomeExpenditureSeries(
   incomeHistory: readonly IncomeRecord[],
   periods: readonly PortfolioReconciliationPeriod[],
+  currency: Currency = DEFAULT_BASE_CURRENCY,
 ): IncomeExpenditurePoint[] {
   const expenditureByDate = new Map(
     periods.map((period) => [period.endDate, period]),
   );
   return incomeHistory
-    .map((record) => {
+    .flatMap((record) => {
       const period = expenditureByDate.get(record.date);
+      if (period == null && record.currency !== currency) return [];
       const expenditure = period?.expenditure;
-      return {
-        date: record.date,
-        income: record.amount,
-        expenditure,
-        currentExpenditure: period?.currentExpenditure,
-        difference:
-          expenditure == null ? undefined : record.amount - expenditure,
-      };
+      const income = period?.income ?? record.amount;
+      return [
+        {
+          date: record.date,
+          income,
+          expenditure,
+          currentExpenditure: period?.currentExpenditure,
+          difference: expenditure == null ? undefined : income - expenditure,
+        },
+      ];
     })
     .toSorted((a, b) => a.date.localeCompare(b.date));
 }
@@ -74,12 +80,14 @@ export function buildIncomeExpenditureSeries(
 export function IncomeExpenditureChart({
   incomeHistory,
   periods,
+  currency = DEFAULT_BASE_CURRENCY,
 }: Readonly<{
   incomeHistory: readonly IncomeRecord[];
   periods: readonly PortfolioReconciliationPeriod[];
+  currency?: Currency;
 }>) {
   const [view, setView] = useState<"comparison" | "difference">("comparison");
-  const data = buildIncomeExpenditureSeries(incomeHistory, periods);
+  const data = buildIncomeExpenditureSeries(incomeHistory, periods, currency);
   if (data.length === 0) return null;
 
   const hasExpenditure = data.some((point) => point.expenditure != null);
@@ -148,12 +156,14 @@ export function IncomeExpenditureChart({
             <YAxis
               className="text-xs"
               width={48}
-              tickFormatter={(value: number) => `£${formatAxisTick(value)}`}
+              tickFormatter={(value: number) =>
+                formatCurrencyAxisTick(value, currency)
+              }
             />
             <ReferenceLine y={0} className="stroke-muted-foreground" />
             <ChartTooltip
               content={<ChartTooltipContent />}
-              formatter={(value) => formatCurrency(value as number)}
+              formatter={(value) => formatCurrency(value as number, currency)}
             />
             {view === "comparison" ? (
               <>
@@ -261,21 +271,21 @@ export function IncomeExpenditureChart({
           {data.map((point) => (
             <tr key={point.date}>
               <td>{point.date}</td>
-              <td>{formatCurrency(point.income)}</td>
+              <td>{formatCurrency(point.income, currency)}</td>
               <td>
                 {point.expenditure == null
                   ? "Awaiting reconciliation"
-                  : formatCurrency(point.expenditure)}
+                  : formatCurrency(point.expenditure, currency)}
               </td>
               <td>
                 {point.currentExpenditure == null
                   ? "Awaiting reconciliation"
-                  : formatCurrency(point.currentExpenditure)}
+                  : formatCurrency(point.currentExpenditure, currency)}
               </td>
               <td>
                 {point.difference == null
                   ? "Awaiting reconciliation"
-                  : formatCurrency(point.difference)}
+                  : formatCurrency(point.difference, currency)}
               </td>
             </tr>
           ))}

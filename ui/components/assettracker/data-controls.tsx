@@ -10,14 +10,27 @@ import {
 import { type ChangeEvent, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { formatAssetTrackerError } from "@/lib/domain/assettracker";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  CurrencySchema,
+  formatAssetTrackerError,
+  SUPPORTED_CURRENCIES,
+} from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
 
 export function DataControls() {
   const {
     hasLocalChanges,
     inflation,
+    baseCurrency,
     setInflation,
+    setBaseCurrency,
     exportData,
     exportCsv,
     importData,
@@ -37,6 +50,15 @@ export function DataControls() {
     if (!Number.isFinite(percent)) return;
     try {
       await setInflation(percent / 100);
+      setError(null);
+    } catch (err) {
+      setError(formatAssetTrackerError(err));
+    }
+  }
+
+  async function handleBaseCurrencyChange(value: string) {
+    try {
+      await setBaseCurrency(CurrencySchema.parse(value));
       setError(null);
     } catch (err) {
       setError(formatAssetTrackerError(err));
@@ -110,6 +132,27 @@ export function DataControls() {
             />
             %/yr
           </label>
+          <div className="flex items-center gap-1.5 pr-2 text-sm text-muted-foreground">
+            <span>Base currency</span>
+            <Select
+              value={baseCurrency}
+              onValueChange={handleBaseCurrencyChange}
+            >
+              <SelectTrigger
+                className="h-8 w-20"
+                aria-label="Household base currency"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SUPPORTED_CURRENCIES.map((currency) => (
+                  <SelectItem key={currency} value={currency}>
+                    {currency}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <Button variant="ghost" size="sm" onClick={exportData}>
             <DownloadIcon />
             Export

@@ -81,7 +81,12 @@ function baseData(): AssetTrackerData {
     transfers: [],
     recurringFlows: [],
     plannedExpenditures: [],
-    settings: { expectedAnnualInflation: 0.025, withdrawalRate: 0.04 },
+    settings: {
+      expectedAnnualInflation: 0.025,
+      withdrawalRate: 0.04,
+      baseCurrency: "GBP",
+      valuationMaxAgeDays: 7,
+    },
   };
 }
 
@@ -479,8 +484,8 @@ describe("portfolio income settings", () => {
     });
 
     expect(imported.incomeHistory).toEqual([
-      { date: "2025-01-31", amount: 4_100 },
-      { date: "2025-02-28", amount: 4_200 },
+      { date: "2025-01-31", amount: 4_100, currency: "GBP" },
+      { date: "2025-02-28", amount: 4_200, currency: "GBP" },
     ]);
     expect(applyClearIncomeHistory(imported).incomeHistory).toEqual([]);
   });
@@ -585,6 +590,74 @@ describe("applyRecordTransfer", () => {
     });
   });
 
+  it("records both native amounts for a cross-currency transfer", () => {
+    const data = baseData();
+    data.accounts.push({
+      id: "usd-cash",
+      name: "USD cash",
+      provider: "Bank",
+      currency: "USD",
+      assetType: "cash",
+      expectedAnnualReturn: 0,
+      createdAt: "2024-01-01",
+    });
+    data.snapshots.push({
+      accountId: "usd-cash",
+      date: "2024-06-01",
+      balance: 0,
+    });
+
+    const next = applyRecordTransfer(data, {
+      date: "2024-07-01",
+      fromAccountId: "savings",
+      toAccountId: "usd-cash",
+      amount: 800,
+      receivedAmount: 1_000,
+      feeAmount: 10,
+      conversionProvider: "Low-cost broker",
+    });
+
+    expect(next.snapshots).toContainEqual({
+      accountId: "savings",
+      date: "2024-07-01",
+      balance: 4_190,
+    });
+    expect(next.snapshots).toContainEqual({
+      accountId: "usd-cash",
+      date: "2024-07-01",
+      balance: 1_000,
+    });
+    expect(next.transfers[0]).toMatchObject({
+      amount: 800,
+      fromAmount: 800,
+      toAmount: 1_000,
+      feeAmount: 10,
+      conversionProvider: "Low-cost broker",
+    });
+  });
+
+  it("requires the received amount when currencies differ", () => {
+    const data = baseData();
+    data.accounts.push({
+      id: "usd-cash",
+      name: "USD cash",
+      provider: "Bank",
+      currency: "USD",
+      assetType: "cash",
+      expectedAnnualReturn: 0,
+      createdAt: "2024-01-01",
+    });
+
+    expect(() =>
+      applyRecordTransfer(data, {
+        date: "2024-07-01",
+        fromAccountId: "savings",
+        toAccountId: "usd-cash",
+        amount: 800,
+      }),
+    ).toThrow(/amount received/);
+  });
+
   it("rejects a transfer with neither side", () => {
     expect(() =>
       applyRecordTransfer(baseData(), { date: "2024-07-01", amount: 100 }),
@@ -608,6 +681,7 @@ describe("flowOccurrenceDates", () => {
     name: "Monthly",
     toAccountId: "savings",
     amount: 100,
+    currency: "GBP" as const,
     frequency: "monthly" as const,
     startDate: "2024-01-15",
   };
@@ -862,6 +936,78 @@ describe("applyAddRecurringFlow / applyDeleteRecurringFlow", () => {
     });
   });
 
+  it("requires and materializes an explicit cross-currency conversion", () => {
+    const data = baseData();
+    data.accounts.push({
+      id: "usd-cash",
+      name: "USD cash",
+      provider: "Bank",
+      currency: "USD",
+      assetType: "cash",
+      expectedAnnualReturn: 0,
+      createdAt: "2024-01-01",
+    });
+    data.snapshots.push({
+      accountId: "usd-cash",
+      date: "2024-06-01",
+      balance: 0,
+    });
+
+    expect(() =>
+      applyAddRecurringFlow(data, {
+        name: "Fund USD account",
+        fromAccountId: "savings",
+        toAccountId: "usd-cash",
+        amount: 800,
+        frequency: "monthly",
+        startDate: "2024-07-01",
+      }),
+    ).toThrow(/expected amount received/);
+
+    const withFlow = applyAddRecurringFlow(data, {
+      name: "Fund USD account",
+      fromAccountId: "savings",
+      toAccountId: "usd-cash",
+      amount: 800,
+      frequency: "monthly",
+      startDate: "2024-07-01",
+      conversion: {
+        received: { amount: 1_000, currency: "USD" },
+        fee: { amount: 10, currency: "GBP" },
+        provider: "Low-cost broker",
+      },
+    });
+    const next = applyMaterializeFlow(withFlow, {
+      flowId: "fund-usd-account",
+      throughDate: "2024-07-01",
+    });
+
+    expect(next.recurringFlows[0]).toMatchObject({
+      currency: "GBP",
+      conversion: {
+        received: { amount: 1_000, currency: "USD" },
+        fee: { amount: 10, currency: "GBP" },
+        provider: "Low-cost broker",
+      },
+    });
+    expect(next.snapshots).toContainEqual({
+      accountId: "savings",
+      date: "2024-07-01",
+      balance: 4_190,
+    });
+    expect(next.snapshots).toContainEqual({
+      accountId: "usd-cash",
+      date: "2024-07-01",
+      balance: 1_000,
+    });
+    expect(next.transfers[0]).toMatchObject({
+      fromAmount: 800,
+      toAmount: 1_000,
+      feeAmount: 10,
+      conversionProvider: "Low-cost broker",
+    });
+  });
+
   it("preserves compensation classification on an external income flow", () => {
     const next = applyAddRecurringFlow(baseData(), {
       name: "Employer pension",
@@ -1029,7 +1175,10 @@ describe("planned expenditures", () => {
 describe("applySetNetWorthTarget", () => {
   it("sets and clears the target while preserving other settings", () => {
     const withTarget = applySetNetWorthTarget(baseData(), { target: 500000 });
-    expect(withTarget.settings.targetNetWorth).toBe(500000);
+    expect(withTarget.settings.targetNetWorth).toEqual({
+      amount: 500000,
+      currency: "GBP",
+    });
     expect(withTarget.settings.targetNetWorthIsReal).toBe(false);
     expect(withTarget.settings.expectedAnnualInflation).toBe(0.025);
 
@@ -1044,8 +1193,23 @@ describe("applySetNetWorthTarget", () => {
       inTodaysMoney: true,
     });
 
-    expect(next.settings.targetNetWorth).toBe(500000);
+    expect(next.settings.targetNetWorth).toEqual({
+      amount: 500000,
+      currency: "GBP",
+    });
     expect(next.settings.targetNetWorthIsReal).toBe(true);
+  });
+
+  it("records the base currency with the target", () => {
+    const data = baseData();
+    data.settings.baseCurrency = "USD";
+
+    const next = applySetNetWorthTarget(data, { target: 600_000 });
+
+    expect(next.settings.targetNetWorth).toEqual({
+      amount: 600_000,
+      currency: "USD",
+    });
   });
 
   it("rejects a non-positive target", () => {

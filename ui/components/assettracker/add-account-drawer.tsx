@@ -23,12 +23,13 @@ import {
 import {
   ASSET_TYPE_LABELS,
   type AssetType,
-  type Currency,
+  CurrencySchema,
   defaultLiquidityForAssetType,
   formatAssetTrackerError,
   isLiability,
   LIQUIDITY_TIER_LABELS,
   type LiquidityTier,
+  SUPPORTED_CURRENCIES,
   todayIsoDate,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
@@ -38,7 +39,6 @@ const ASSET_TYPE_OPTIONS = Object.entries(ASSET_TYPE_LABELS) as [
   string,
 ][];
 
-const CURRENCY_OPTIONS: Currency[] = ["GBP", "USD"];
 const LIQUIDITY_OPTIONS = Object.entries(LIQUIDITY_TIER_LABELS) as [
   LiquidityTier,
   string,
@@ -47,7 +47,7 @@ const LIQUIDITY_OPTIONS = Object.entries(LIQUIDITY_TIER_LABELS) as [
 const NO_LINK = "none";
 
 export function AddAccountDrawer() {
-  const { accounts, createAccount } = useAssetTracker();
+  const { accounts, baseCurrency, createAccount } = useAssetTracker();
   const propertyAccounts = accounts.filter(
     (account) => account.assetType === "property" && account.isOpen,
   );
@@ -57,7 +57,7 @@ export function AddAccountDrawer() {
   const [provider, setProvider] = useState("");
   const [assetType, setAssetType] = useState<AssetType>("cash");
   const [liquidity, setLiquidity] = useState<LiquidityTier>("cash");
-  const [currency, setCurrency] = useState<Currency>("GBP");
+  const [currency, setCurrency] = useState(baseCurrency);
   const [expectedReturnPercent, setExpectedReturnPercent] = useState("");
   const [linkedId, setLinkedId] = useState(NO_LINK);
   const [openingBalance, setOpeningBalance] = useState("");
@@ -70,7 +70,7 @@ export function AddAccountDrawer() {
     setProvider("");
     setAssetType("cash");
     setLiquidity("cash");
-    setCurrency("GBP");
+    setCurrency(baseCurrency);
     setExpectedReturnPercent("");
     setLinkedId(NO_LINK);
     setOpeningBalance("");
@@ -188,13 +188,15 @@ export function AddAccountDrawer() {
               </label>
               <Select
                 value={currency}
-                onValueChange={(value) => setCurrency(value as Currency)}
+                onValueChange={(value) =>
+                  setCurrency(CurrencySchema.parse(value))
+                }
               >
                 <SelectTrigger id="add-account-currency" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {CURRENCY_OPTIONS.map((option) => (
+                  {SUPPORTED_CURRENCIES.map((option) => (
                     <SelectItem key={option} value={option}>
                       {option}
                     </SelectItem>

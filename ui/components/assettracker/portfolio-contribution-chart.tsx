@@ -24,8 +24,10 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import {
-  formatAxisTick,
+  type Currency,
+  DEFAULT_BASE_CURRENCY,
   formatCurrency,
+  formatCurrencyAxisTick,
   type PortfolioContributionDataPoint,
 } from "@/lib/domain/assettracker";
 
@@ -39,7 +41,11 @@ const CHART_CONFIG = {
 
 export function PortfolioContributionChart({
   data,
-}: Readonly<{ data: readonly PortfolioContributionDataPoint[] }>) {
+  currency = DEFAULT_BASE_CURRENCY,
+}: Readonly<{
+  data: readonly PortfolioContributionDataPoint[];
+  currency?: Currency;
+}>) {
   return (
     <Card className="min-w-0">
       <CardHeader>
@@ -85,13 +91,15 @@ export function PortfolioContributionChart({
                     className="text-xs"
                     width={48}
                     tickFormatter={(value: number) =>
-                      `£${formatAxisTick(value)}`
+                      formatCurrencyAxisTick(value, currency)
                     }
                   />
                   <ReferenceLine y={0} className="stroke-muted-foreground" />
                   <ChartTooltip
                     content={<ChartTooltipContent />}
-                    formatter={(value) => formatCurrency(value as number)}
+                    formatter={(value) =>
+                      formatCurrency(value as number, currency)
+                    }
                   />
                   <Line
                     type="monotone"
@@ -116,7 +124,9 @@ export function PortfolioContributionChart({
                 {data.map((point) => (
                   <tr key={point.date}>
                     <td>{point.date}</td>
-                    <td>{formatCurrency(point.contributedCapital)}</td>
+                    <td>
+                      {formatCurrency(point.contributedCapital, currency)}
+                    </td>
                   </tr>
                 ))}
               </tbody>

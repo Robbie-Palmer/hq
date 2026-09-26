@@ -27,7 +27,10 @@ import {
 } from "@/components/ui/chart";
 import {
   ACCOUNT_COLORS,
+  type Currency,
+  DEFAULT_BASE_CURRENCY,
   formatCurrency,
+  formatCurrencyAxisTick,
   type NetWorthDataPoint,
   todayIsoDate,
 } from "@/lib/domain/assettracker";
@@ -70,16 +73,20 @@ function windowToRange(
   return windowed;
 }
 
-function formatSignedCurrency(value: number): string {
+function formatSignedCurrency(value: number, currency: Currency): string {
   const sign = value >= 0 ? "+" : "−";
-  return `${sign}${formatCurrency(Math.abs(Math.round(value)))}`;
+  return `${sign}${formatCurrency(Math.abs(Math.round(value)), currency)}`;
 }
 
 interface NetWorthChartProps {
   data: NetWorthDataPoint[];
+  currency?: Currency;
 }
 
-export function NetWorthChart({ data }: Readonly<NetWorthChartProps>) {
+export function NetWorthChart({
+  data,
+  currency = DEFAULT_BASE_CURRENCY,
+}: Readonly<NetWorthChartProps>) {
   const [rangeYears, setRangeYears] = useState<number | null>(null);
   const rangedData = useMemo(
     () => windowToRange(data, rangeYears),
@@ -121,9 +128,11 @@ export function NetWorthChart({ data }: Readonly<NetWorthChartProps>) {
   const first = chartData[0];
   const latest = chartData[chartData.length - 1];
   const change =
-    first && latest && chartData.length > 1 ? latest.total - first.total : null;
+    first?.total != null && latest?.total != null && chartData.length > 1
+      ? latest.total - first.total
+      : null;
   const changePercent =
-    change != null && first && first.total !== 0
+    change != null && first?.total != null && first.total !== 0
       ? change / Math.abs(first.total)
       : null;
   let rangeLabel: string;
@@ -196,7 +205,7 @@ export function NetWorthChart({ data }: Readonly<NetWorthChartProps>) {
         {change != null && (
           <p className="text-sm">
             <span className="font-semibold">
-              {formatSignedCurrency(change)}
+              {formatSignedCurrency(change, currency)}
             </span>
             {changePercent != null && (
               <span className="font-semibold">
@@ -228,12 +237,14 @@ export function NetWorthChart({ data }: Readonly<NetWorthChartProps>) {
               <XAxis dataKey="date" className="text-xs" />
               <YAxis
                 className="text-xs"
-                tickFormatter={(v: number) => `£${(v / 1000).toFixed(0)}k`}
+                tickFormatter={(value: number) =>
+                  formatCurrencyAxisTick(value, currency)
+                }
               />
               <ReferenceLine y={0} className="stroke-muted-foreground" />
               <ChartTooltip
                 content={<ChartTooltipContent />}
-                formatter={(value) => formatCurrency(value as number)}
+                formatter={(value) => formatCurrency(value as number, currency)}
               />
               {seriesNames.map((name, i) =>
                 hidden.has(name) ? null : (

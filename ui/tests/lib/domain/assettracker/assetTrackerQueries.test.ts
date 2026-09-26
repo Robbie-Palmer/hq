@@ -51,7 +51,12 @@ function homeData(): AssetTrackerData {
     transfers: [],
     recurringFlows: [],
     plannedExpenditures: [],
-    settings: { expectedAnnualInflation: 0.025, withdrawalRate: 0.04 },
+    settings: {
+      expectedAnnualInflation: 0.025,
+      withdrawalRate: 0.04,
+      baseCurrency: "GBP",
+      valuationMaxAgeDays: 7,
+    },
   };
 }
 

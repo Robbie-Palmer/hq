@@ -1,7 +1,6 @@
 import {
   type Account,
   type AssetType,
-  type Currency,
   type ExpectedReturnChange,
   isLiability,
   type LiquidityTier,
@@ -14,7 +13,9 @@ import {
 } from "./assetTrackerAnalytics";
 import type { BalanceSnapshot } from "./balanceSnapshot";
 import type { CapitalFlow, CapitalFlowKind } from "./capitalFlow";
+import type { Currency } from "./currency";
 import type { Transfer } from "./transfer";
+import { transferAmountFrom, transferAmountTo } from "./transfer";
 
 function compareIsoDates(a: string, b: string): number {
   // BalanceSnapshotSchema guarantees canonical YYYY-MM-DD strings, for which
@@ -89,10 +90,11 @@ export type AccountDetailView = AccountSummaryView & {
 
 export type NetWorthDataPoint = {
   date: string;
-  total: number;
+  /** Null when any required price or exchange rate is missing or stale. */
+  total: number | null;
   /** Net worth with unvalued investments replaced by expected balances. */
   estimatedTotal?: number;
-  [accountName: string]: string | number | undefined;
+  [accountName: string]: string | number | null | undefined;
 };
 
 export type EquitySummary = {
@@ -147,9 +149,12 @@ export function selectAccountExternalFlows(
   const flows: ExternalFlow[] = [];
   for (const transfer of transfers) {
     if (transfer.toAccountId === accountId) {
-      flows.push({ date: transfer.date, amount: transfer.amount });
+      flows.push({ date: transfer.date, amount: transferAmountTo(transfer) });
     } else if (transfer.fromAccountId === accountId) {
-      flows.push({ date: transfer.date, amount: -transfer.amount });
+      flows.push({
+        date: transfer.date,
+        amount: -transferAmountFrom(transfer),
+      });
     }
   }
   return flows;
@@ -327,7 +332,7 @@ function recordedNetWorthPoint(
       latestByAccount,
     );
     point[account.name] = balance;
-    point.total += balance;
+    point.total = (point.total ?? 0) + balance;
   }
   return point;
 }
@@ -343,7 +348,7 @@ function withEstimatedNetWorth(
     ReadonlyMap<string, BalanceEstimatePoint>
   >,
 ): NetWorthDataPoint {
-  let estimatedTotal = point.total;
+  let estimatedTotal = point.total ?? 0;
   let usesEstimate = false;
   for (const account of accounts) {
     if (account.closedAt != null && account.closedAt <= date) continue;

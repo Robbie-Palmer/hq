@@ -156,7 +156,7 @@ const EMPTY_FI: PortfolioFinancialIndependence = {
 function mockAssetTracker(
   overrides: Partial<ReturnType<typeof useAssetTracker>> = {},
 ) {
-  mockUseAssetTracker.mockReturnValue({
+  const value = {
     accounts: [],
     accountDetails: [],
     netWorthData: [],
@@ -195,7 +195,9 @@ function mockAssetTracker(
     exportCsv: vi.fn(),
     importData: vi.fn(),
     ...overrides,
-  } as ReturnType<typeof useAssetTracker>);
+  } as ReturnType<typeof useAssetTracker>;
+  mockUseAssetTracker.mockReturnValue(value);
+  return value;
 }
 
 afterEach(() => {
@@ -333,8 +335,8 @@ describe("PortfolioGoal", () => {
   it("plots current and long-term spending and switches to retained income", async () => {
     mockAssetTracker({
       incomeHistory: [
-        { date: "2026-01-31", amount: 4_000 },
-        { date: "2026-02-28", amount: 4_200 },
+        { date: "2026-01-31", amount: 4_000, currency: "GBP" },
+        { date: "2026-02-28", amount: 4_200, currency: "GBP" },
       ],
       financialIndependence: {
         ...EMPTY_FI,
@@ -749,6 +751,7 @@ describe("UpcomingFlows", () => {
           name: "Salary",
           toAccountId: "cash",
           amount: 2500,
+          currency: "GBP",
           frequency: "monthly",
           startDate: today,
         },
@@ -833,7 +836,7 @@ describe("FlowSankeyChart", () => {
 
   it("preserves the calculated node order in the Sankey layout", async () => {
     const today = todayIsoDate();
-    mockAssetTracker({
+    const tracker = mockAssetTracker({
       accountDetails: [
         {
           id: "current",
@@ -877,13 +880,29 @@ describe("FlowSankeyChart", () => {
           fromAccountId: "current",
           toAccountId: "isa",
           amount: 500,
+          currency: "GBP",
           frequency: "monthly",
           startDate: today,
         },
       ],
     });
 
-    render(<FlowSankeyChart />);
+    render(
+      <FlowSankeyChart
+        data={buildFlowSankeyData(
+          tracker.accountDetails,
+          tracker.recurringFlows,
+          Object.fromEntries(
+            tracker.accountDetails.map((account) => [
+              account.id,
+              account.latestBalance ?? 0,
+            ]),
+          ),
+          today,
+        )}
+        currency="GBP"
+      />,
+    );
 
     expect(await screen.findByTestId("flow-sankey")).toHaveAttribute(
       "data-align",
@@ -898,7 +917,7 @@ describe("FlowSankeyChart", () => {
   it("highlights every flow connected to a hovered account", async () => {
     const user = userEvent.setup();
     const today = todayIsoDate();
-    mockAssetTracker({
+    const tracker = mockAssetTracker({
       accountDetails: [
         {
           id: "current",
@@ -941,6 +960,7 @@ describe("FlowSankeyChart", () => {
           name: "Salary",
           toAccountId: "current",
           amount: 2000,
+          currency: "GBP",
           frequency: "monthly",
           startDate: today,
         },
@@ -950,13 +970,29 @@ describe("FlowSankeyChart", () => {
           fromAccountId: "current",
           toAccountId: "isa",
           amount: 500,
+          currency: "GBP",
           frequency: "monthly",
           startDate: today,
         },
       ],
     });
 
-    render(<FlowSankeyChart />);
+    render(
+      <FlowSankeyChart
+        data={buildFlowSankeyData(
+          tracker.accountDetails,
+          tracker.recurringFlows,
+          Object.fromEntries(
+            tracker.accountDetails.map((account) => [
+              account.id,
+              account.latestBalance ?? 0,
+            ]),
+          ),
+          today,
+        )}
+        currency="GBP"
+      />,
+    );
 
     const current = await screen.findByTestId("sankey-node-current");
     const incoming = screen.getByLabelText("External income to Current");
@@ -1017,6 +1053,7 @@ describe("buildFlowSankeyData", () => {
           name: "Closed contribution",
           toAccountId: "closed-isa",
           amount: 500,
+          currency: "GBP",
           frequency: "monthly",
           startDate: "2026-07-01",
         },
@@ -1062,6 +1099,7 @@ describe("buildFlowSankeyData", () => {
           toAccountId: "current",
           amount: 4_100,
           grossAmount: 6_400,
+          currency: "GBP",
           compensationKind: "takeHomeIncome",
           frequency: "monthly",
           startDate: "2026-07-01",
@@ -1071,6 +1109,7 @@ describe("buildFlowSankeyData", () => {
           name: "Employee pension",
           toAccountId: "pension",
           amount: 900,
+          currency: "GBP",
           compensationKind: "employeePension",
           frequency: "monthly",
           startDate: "2026-07-01",
@@ -1080,6 +1119,7 @@ describe("buildFlowSankeyData", () => {
           name: "Employer pension",
           toAccountId: "pension",
           amount: 350,
+          currency: "GBP",
           compensationKind: "employerPension",
           frequency: "monthly",
           startDate: "2026-07-01",
@@ -1174,6 +1214,7 @@ describe("buildFlowSankeyData", () => {
           toAccountId: "current",
           amount: 90,
           grossAmount: 100,
+          currency: "GBP",
           compensationKind: "takeHomeIncome",
           frequency: "monthly",
           startDate: "2026-07-01",
@@ -1183,6 +1224,7 @@ describe("buildFlowSankeyData", () => {
           name: "Employee pension",
           toAccountId: "pension",
           amount: 20,
+          currency: "GBP",
           compensationKind: "employeePension",
           frequency: "monthly",
           startDate: "2026-07-01",
@@ -1244,6 +1286,7 @@ describe("buildFlowSankeyData", () => {
           toAccountId: "current",
           amount: 0.1,
           grossAmount: 0.3,
+          currency: "GBP",
           compensationKind: "takeHomeIncome",
           frequency: "monthly",
           startDate: "2026-07-01",
@@ -1253,6 +1296,7 @@ describe("buildFlowSankeyData", () => {
           name: "Employee pension",
           toAccountId: "pension",
           amount: 0.2,
+          currency: "GBP",
           compensationKind: "employeePension",
           frequency: "monthly",
           startDate: "2026-07-01",
@@ -1320,6 +1364,7 @@ describe("buildFlowSankeyData", () => {
           name: "Salary",
           toAccountId: "current",
           amount: 3200,
+          currency: "GBP",
           frequency: "monthly",
           startDate: "2026-07-01",
         },
@@ -1329,6 +1374,7 @@ describe("buildFlowSankeyData", () => {
           fromAccountId: "current",
           toAccountId: "isa",
           amount: 6000,
+          currency: "GBP",
           frequency: "yearly",
           startDate: "2026-07-01",
         },
@@ -1342,6 +1388,7 @@ describe("buildFlowSankeyData", () => {
             percentOfBalance: 0.025,
             floor: 25,
           },
+          currency: "GBP",
           frequency: "monthly",
           startDate: "2026-07-01",
         },
@@ -1449,6 +1496,7 @@ describe("buildFlowSankeyData", () => {
           fromAccountId: "current",
           toAccountId: "mortgage",
           amount: 1150,
+          currency: "GBP",
           frequency: "monthly",
           startDate: "2026-07-01",
         },
@@ -1593,6 +1641,7 @@ describe("buildFlowSankeyData", () => {
           fromAccountId: "current",
           toAccountId: "savings",
           amount: 0.004,
+          currency: "GBP",
           frequency: "monthly",
           startDate: "2026-07-01",
         },
@@ -1638,6 +1687,7 @@ describe("buildFlowSankeyData", () => {
           fromAccountId: "current",
           toAccountId: "savings",
           amount: 10,
+          currency: "GBP",
           frequency: "monthly",
           startDate: "2026-07-01",
         },
@@ -1647,6 +1697,7 @@ describe("buildFlowSankeyData", () => {
           fromAccountId: "current",
           toAccountId: "savings",
           amount: 5,
+          currency: "GBP",
           frequency: "monthly",
           startDate: "2026-07-01",
         },

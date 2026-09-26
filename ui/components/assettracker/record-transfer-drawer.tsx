@@ -49,12 +49,21 @@ export function RecordTransferDrawer({
     openAccounts.find((a) => a.id !== fromAccountId)?.id ?? EXTERNAL,
   );
   const [amount, setAmount] = useState("");
+  const [receivedAmount, setReceivedAmount] = useState("");
+  const [feeAmount, setFeeAmount] = useState("");
+  const [conversionProvider, setConversionProvider] = useState("");
   const [date, setDate] = useState(todayIsoDate());
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const fromOptions = openAccounts;
   const toOptions = openAccounts.filter((a) => a.id !== fromId);
+  const selectedFrom = accounts.find((account) => account.id === fromId);
+  const selectedTo = accounts.find((account) => account.id === toId);
+  const crossCurrency =
+    selectedFrom != null &&
+    selectedTo != null &&
+    selectedFrom.currency !== selectedTo.currency;
 
   // After import/reset/close, drop selections that point at gone accounts
   // (EXTERNAL is always valid) so a stale ID can't drive a transfer
@@ -84,9 +93,19 @@ export function RecordTransferDrawer({
         fromAccountId: fromId === EXTERNAL ? undefined : fromId,
         toAccountId: toId === EXTERNAL ? undefined : toId,
         amount: Number(amount),
+        receivedAmount: crossCurrency ? Number(receivedAmount) : undefined,
+        feeAmount:
+          crossCurrency && feeAmount !== "" ? Number(feeAmount) : undefined,
+        conversionProvider:
+          crossCurrency && conversionProvider.trim() !== ""
+            ? conversionProvider.trim()
+            : undefined,
       });
       setOpen(false);
       setAmount("");
+      setReceivedAmount("");
+      setFeeAmount("");
+      setConversionProvider("");
       setDate(todayIsoDate());
     } catch (err) {
       setError(formatAssetTrackerError(err));
@@ -194,6 +213,64 @@ export function RecordTransferDrawer({
               </button>
             )}
           </div>
+          {crossCurrency && selectedTo && (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="col-span-2 flex flex-col gap-1.5">
+                <label
+                  htmlFor="transfer-received-amount"
+                  className="text-sm font-medium"
+                >
+                  Amount received ({selectedTo.currency})
+                </label>
+                <Input
+                  id="transfer-received-amount"
+                  type="number"
+                  inputMode="decimal"
+                  min="0.01"
+                  step="0.01"
+                  required
+                  placeholder="0.00"
+                  value={receivedAmount}
+                  onChange={(event) => setReceivedAmount(event.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="transfer-fee" className="text-sm font-medium">
+                  Fee ({selectedFrom?.currency})
+                </label>
+                <Input
+                  id="transfer-fee"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={feeAmount}
+                  onChange={(event) => setFeeAmount(event.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="transfer-conversion-provider"
+                  className="text-sm font-medium"
+                >
+                  Conversion provider
+                </label>
+                <Input
+                  id="transfer-conversion-provider"
+                  placeholder="e.g. bank or broker"
+                  value={conversionProvider}
+                  onChange={(event) =>
+                    setConversionProvider(event.target.value)
+                  }
+                />
+              </div>
+              <p className="col-span-2 text-xs text-muted-foreground">
+                Record both native amounts so currency conversion is not counted
+                as income. The fee is charged on top of the amount sent.
+              </p>
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <label htmlFor="transfer-date" className="text-sm font-medium">
               Date

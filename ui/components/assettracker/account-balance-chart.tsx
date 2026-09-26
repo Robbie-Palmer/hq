@@ -23,7 +23,8 @@ import {
 import {
   ACCOUNT_COLORS,
   type AccountDetailView,
-  formatCurrency,
+  formatAccountCurrency,
+  formatAxisTick,
 } from "@/lib/domain/assettracker";
 
 interface AccountBalanceChartProps {
@@ -59,7 +60,9 @@ export function AccountBalanceChart({
     <Card>
       <CardHeader>
         <CardTitle>Account Balances</CardTitle>
-        <CardDescription>Individual account balance over time</CardDescription>
+        <CardDescription>
+          Individual account balances in each account&apos;s native currency
+        </CardDescription>
       </CardHeader>
       <CardContent className="px-2 sm:px-6">
         <ChartContainer config={chartConfig} className="aspect-auto w-full">
@@ -70,13 +73,17 @@ export function AccountBalanceChart({
             >
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis dataKey="date" className="text-xs" />
-              <YAxis
-                className="text-xs"
-                tickFormatter={(v: number) => `£${(v / 1000).toFixed(0)}k`}
-              />
+              <YAxis className="text-xs" tickFormatter={formatAxisTick} />
               <ChartTooltip
                 content={<ChartTooltipContent />}
-                formatter={(value) => formatCurrency(value as number)}
+                formatter={(value, name) => {
+                  const currency = accounts.find(
+                    (account) => account.name === String(name),
+                  )?.currency;
+                  return currency == null
+                    ? String(value)
+                    : formatAccountCurrency(value as number, currency);
+                }}
               />
               {accounts.map((account, i) => (
                 <Line
