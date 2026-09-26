@@ -11,6 +11,10 @@ const githubPullRequestSchema = z.object({
   number: z.number().int().positive(),
   url: z.url(),
   headRefOid: z.string().regex(/^[0-9a-f]{40}$/iu),
+  mergeCommit: z.union([
+    z.object({ oid: z.string().regex(/^[0-9a-f]{40}$/iu) }),
+    z.null(),
+  ]),
   state: z.enum(["OPEN", "CLOSED", "MERGED"]),
   isDraft: z.boolean(),
   mergeable: z.enum(["MERGEABLE", "CONFLICTING", "UNKNOWN"]),
@@ -145,7 +149,7 @@ export const inspectGitHubPullRequest = async (
       "view",
       url,
       "--json",
-      "number,url,headRefOid,state,isDraft,mergeable,reviewDecision,statusCheckRollup",
+      "number,url,headRefOid,mergeCommit,state,isDraft,mergeable,reviewDecision,statusCheckRollup",
     ]);
   } catch (cause) {
     throw new CliError(
@@ -213,6 +217,11 @@ export const inspectGitHubPullRequest = async (
     number: pullRequest.number,
     url: pullRequest.url,
     headSha: pullRequest.headRefOid.toLowerCase(),
+    acceptedHeadSha:
+      pullRequest.state === "MERGED"
+        ? pullRequest.headRefOid.toLowerCase()
+        : null,
+    mergeCommitSha: pullRequest.mergeCommit?.oid.toLowerCase() ?? null,
     state: ({ OPEN: "open", CLOSED: "closed", MERGED: "merged" } as const)[
       pullRequest.state
     ],

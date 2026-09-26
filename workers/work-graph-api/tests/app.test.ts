@@ -853,6 +853,8 @@ describe("Given work items with derived readiness", () => {
       number: 42,
       url: "https://github.com/example/work-graph/pull/42",
       headSha: "0123456789abcdef0123456789abcdef01234567",
+      acceptedHeadSha: null,
+      mergeCommitSha: null,
       state: "open" as const,
       draft: false,
       mergeability: "mergeable" as const,

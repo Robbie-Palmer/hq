@@ -17,6 +17,7 @@ const app = createWorkGraphApp(repository);
 
 const recordId = (suffix: number): string =>
   `00000000-0000-4000-8000-${suffix.toString().padStart(12, "0")}`;
+const commitSha = (character: string): string => character.repeat(40);
 
 const completionEvidence = {
   mergeEvidence: "https://github.com/example/work-graph/pull/1",
@@ -62,6 +63,23 @@ beforeEach(async () => {
     await transaction.unsafe(
       'alter table "notes" enable trigger notes_immutable',
     );
+  });
+  await db.$client.begin(async (transaction) => {
+    await transaction.unsafe('delete from "work_item_completion_candidates"');
+    await transaction.unsafe('alter table "completion_candidate_evaluations" disable trigger completion_candidate_evaluations_immutable');
+    await transaction.unsafe('delete from "completion_candidate_evaluations"');
+    await transaction.unsafe('alter table "completion_candidate_evaluations" enable trigger completion_candidate_evaluations_immutable');
+    await transaction.unsafe('delete from "work_item_completion_policies"');
+    await transaction.unsafe('alter table "completion_policy_revisions" disable trigger completion_policy_revisions_immutable');
+    await transaction.unsafe('delete from "completion_policy_revisions"');
+    await transaction.unsafe('alter table "completion_policy_revisions" enable trigger completion_policy_revisions_immutable');
+    await transaction.unsafe('delete from "current_delivery_evidence"');
+    await transaction.unsafe('alter table "delivery_evidence_observations" disable trigger delivery_evidence_observations_immutable');
+    await transaction.unsafe('delete from "delivery_evidence_observations"');
+    await transaction.unsafe('alter table "delivery_evidence_observations" enable trigger delivery_evidence_observations_immutable');
+    await transaction.unsafe('alter table "external_deliveries" disable trigger external_deliveries_immutable');
+    await transaction.unsafe('delete from "external_deliveries"');
+    await transaction.unsafe('alter table "external_deliveries" enable trigger external_deliveries_immutable');
   });
   await db.transaction(async (transaction) => {
     await transaction.delete(schema.lease);
@@ -461,7 +479,9 @@ describe("Given inherited work-item context over HTTP", () => {
       number: 42,
       url: "https://github.com/example/work-graph/pull/42",
       headSha: "0123456789abcdef0123456789abcdef01234567",
-      state: "open",
+      acceptedHeadSha: "0123456789abcdef0123456789abcdef01234567",
+      mergeCommitSha: "abcdef0123456789abcdef0123456789abcdef01",
+      state: "merged",
       draft: false,
       mergeability: "mergeable",
       reviewDecision: "approved",
@@ -519,12 +539,144 @@ describe("Given inherited work-item context over HTTP", () => {
           pullRequest: expect.objectContaining({
             repository: "example/work-graph",
             number: 42,
+            acceptedHeadSha: "0123456789abcdef0123456789abcdef01234567",
+            mergeCommitSha: "abcdef0123456789abcdef0123456789abcdef01",
             observedAt: "2026-09-20T10:00:00.000Z",
           }),
         }),
       ],
     });
     expect(claim.context).toEqual(context.items);
+  });
+
+  it("keeps a completion candidate separate from lifecycle and lease state", async () => {
+    await requestJson("/api/work-items", "POST", {
+      id: "evidence-backed",
+      title: "Evidence-backed delivery",
+    });
+    const headSha = commitSha("a");
+    const mergeCommitSha = commitSha("b");
+    await requestJson("/api/pull-requests", "PUT", {
+      repository: "example/work-graph",
+      number: 7,
+      url: "https://github.com/example/work-graph/pull/7",
+      headSha,
+      acceptedHeadSha: headSha,
+      mergeCommitSha,
+      state: "merged",
+      draft: false,
+      mergeability: "unknown",
+      reviewDecision: "approved",
+      checkSummary: "success",
+      observedAt: "2026-09-22T10:00:00.000Z",
+    });
+    await requestJson("/api/work-items/evidence-backed/pull-requests", "PUT", {
+      repository: "example/work-graph",
+      number: 7,
+      role: "implementation",
+    });
+    const claimResponse = await requestJson("/api/leases", "POST", {
+      workItemId: "evidence-backed",
+      workerId: "worker-a",
+      leaseDurationSeconds: 300,
+    });
+    const claim = (await claimResponse.json()) as { lease: { id: string } };
+
+    await repository.putCompletionPolicyRevision({
+      policyId: "default",
+      revision: 1,
+      requiredCiNames: ["verify"],
+      productionEnvironments: ["production"],
+      createdAt: "2026-09-22T09:00:00.000Z",
+    });
+    await repository.assignCompletionPolicy({
+      workItemId: "evidence-backed",
+      policyId: "default",
+      policyRevision: 1,
+      assignedAt: "2026-09-22T09:30:00.000Z",
+    });
+    const observations = [
+      {
+        externalId: "pull-request-7",
+        kind: "pull_request" as const,
+        commitSha: mergeCommitSha,
+        name: null,
+        environment: null,
+        correlationKind: "pull_request_merge" as const,
+      },
+      {
+        externalId: "verify-7",
+        kind: "ci" as const,
+        commitSha: headSha,
+        name: "verify",
+        environment: null,
+        correlationKind: "pull_request_head" as const,
+      },
+      {
+        externalId: "staging-7",
+        kind: "deployment" as const,
+        commitSha: mergeCommitSha,
+        name: null,
+        environment: "staging",
+        correlationKind: "pull_request_merge" as const,
+      },
+      {
+        externalId: "production-7",
+        kind: "deployment" as const,
+        commitSha: mergeCommitSha,
+        name: null,
+        environment: "production",
+        correlationKind: "pull_request_merge" as const,
+      },
+    ];
+    for (const [index, observation] of observations.entries()) {
+      const suffix = 810 + index;
+      const deliveryExternalId = `delivery-${suffix}`;
+      await repository.recordExternalDelivery({
+        provider: "github",
+        externalId: deliveryExternalId,
+        payloadDigest: suffix.toString(16).padStart(64, "0"),
+        receivedAt: `2026-09-22T11:0${index}:00.000Z`,
+        ingestedAt: `2026-09-22T11:0${index}:01.000Z`,
+      });
+      await repository.recordEvidenceObservation({
+        id: recordId(suffix),
+        deliveryProvider: "github",
+        deliveryExternalId,
+        provider: "github",
+        repository: "example/work-graph",
+        state: "success",
+        sourceUrl: `https://github.com/example/work-graph/actions/runs/${suffix}`,
+        providerObservedAt: `2026-09-22T11:0${index}:00.000Z`,
+        ingestedAt: `2026-09-22T11:0${index}:01.000Z`,
+        pullRequestRepository: "example/work-graph",
+        pullRequestNumber: 7,
+        ...observation,
+      });
+    }
+    const eventsBeforeEvaluation = await repository.listEvents();
+    const candidate = await repository.evaluateCompletionCandidate({
+      id: recordId(820),
+      workItemId: "evidence-backed",
+      evaluatedAt: "2026-09-22T12:00:00.000Z",
+    });
+    const response = await app.request("/api/work-items/evidence-backed");
+    const workItem = (await response.json()) as {
+      lifecycle: string;
+      stage: string;
+      currentLease: { id: string } | null;
+    };
+
+    expect(candidate.candidate).toBe(true);
+    expect(response.status).toBe(200);
+    expect(workItem).toEqual(
+      expect.objectContaining({
+        lifecycle: "open",
+        stage: "in_progress",
+        currentLease: expect.objectContaining({ id: claim.lease.id }),
+      }),
+    );
+    expect(await repository.listEvents()).toEqual(eventsBeforeEvaluation);
   });
 });
 

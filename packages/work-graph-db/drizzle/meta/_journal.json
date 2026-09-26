@@ -90,14 +90,14 @@
       "idx": 12,
       "version": "7",
       "when": 1789909161482,
-      "tag": "0012_nebulous_chamber",
+      "tag": "0012_pull_request_tracking",
       "breakpoints": true
     },
     {
       "idx": 13,
       "version": "7",
       "when": 1790240802776,
-      "tag": "0013_lucky_cobalt_man",
+      "tag": "0013_knowledge_scope_lifecycle",
       "breakpoints": true
     },
     {
@@ -105,6 +105,13 @@
       "version": "7",
       "when": 1790374487047,
       "tag": "0014_database_request_timeouts",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1790421850377,
+      "tag": "0015_delivery_evidence_and_completion_candidacy",
       "breakpoints": true
     }
   ]

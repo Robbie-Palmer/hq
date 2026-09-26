@@ -1131,6 +1131,30 @@
             "maxLength": 40,
             "pattern": "^[0-9a-f]{40}$"
           },
+          "acceptedHeadSha": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40,
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mergeCommitSha": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40,
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "state": {
             "type": "string",
             "enum": [
@@ -1186,6 +1210,8 @@
           "number",
           "url",
           "headSha",
+          "acceptedHeadSha",
+          "mergeCommitSha",
           "state",
           "draft",
           "mergeability",
@@ -4888,6 +4914,32 @@
                     "type": "string",
                     "maxLength": 40,
                     "pattern": "^[0-9a-f]{40}$"
+                  },
+                  "acceptedHeadSha": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 40,
+                        "pattern": "^[0-9a-f]{40}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null
+                  },
+                  "mergeCommitSha": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 40,
+                        "pattern": "^[0-9a-f]{40}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null
                   },
                   "state": {
                     "type": "string",

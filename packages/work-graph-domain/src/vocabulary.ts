@@ -71,6 +71,48 @@ export const PULL_REQUEST_CHECK_SUMMARIES = [
 export type PullRequestCheckSummary =
   (typeof PULL_REQUEST_CHECK_SUMMARIES)[number];
 
+export const DELIVERY_EVIDENCE_KINDS = [
+  "pull_request",
+  "ci",
+  "deployment",
+] as const;
+
+export type DeliveryEvidenceKind = (typeof DELIVERY_EVIDENCE_KINDS)[number];
+
+export const DELIVERY_EVIDENCE_STATES = [
+  "pending",
+  "success",
+  "failure",
+  "cancelled",
+] as const;
+
+export type DeliveryEvidenceState =
+  (typeof DELIVERY_EVIDENCE_STATES)[number];
+
+export const EVIDENCE_CORRELATION_KINDS = [
+  "unmatched",
+  "pull_request_head",
+  "pull_request_merge",
+] as const;
+
+export type EvidenceCorrelationKind =
+  (typeof EVIDENCE_CORRELATION_KINDS)[number];
+
+export const COMPLETION_CANDIDATE_REASONS = [
+  "missing_implementation_pull_request",
+  "pull_request_not_merged",
+  "missing_accepted_head",
+  "missing_merge_commit",
+  "missing_pull_request_evidence",
+  "missing_required_ci",
+  "missing_production_deployment",
+  "unfinished_children",
+  "unresolved_blocking_attention",
+] as const;
+
+export type CompletionCandidateReason =
+  (typeof COMPLETION_CANDIDATE_REASONS)[number];
+
 export const WORK_ITEM_CONTEXT_KINDS = [
   "brief",
   "acceptance_criteria",

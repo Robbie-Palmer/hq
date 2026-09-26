@@ -5,6 +5,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lt,
   lte,
   or,
   sql,
@@ -14,11 +15,15 @@ import { alias } from "drizzle-orm/pg-core";
 import {
   createKnowledgeScope,
   createWorkGraph,
+  evaluateCompletionCandidate as evaluateDomainCompletionCandidate,
   isWorkItemInSelectionScope,
   MAX_CRITICAL_PATH_BLOCKING_PATHS,
   MAX_CRITICAL_PATH_NODES,
   normalizeAndValidateContextRecords,
   normalizeKnowledgeScopeArchiveReason,
+  normalizeCompletionPolicyRevision,
+  normalizeEvidenceObservation,
+  normalizeExternalDelivery,
   orderWorkItemsByPriority,
   projectCriticalPath as projectDomainCriticalPath,
   projectWorkItemPriorities,
@@ -28,6 +33,13 @@ import {
   validateKnowledgeScopeRelationships,
   WorkGraphError,
   type CriticalPathProjection,
+  type CompletionCandidateEvaluation,
+  type CompletionCandidateReason,
+  type CompletionPolicyRevision,
+  type CurrentDeliveryEvidence,
+  type DeliveryEvidenceKind,
+  type DeliveryEvidenceObservation,
+  type ExternalDelivery,
   type KnowledgeScope,
   type KnowledgeScopeInput,
   type KnowledgeScopeRelationship,
@@ -55,7 +67,12 @@ import {
 import {
   attentionRequest,
   attentionResolution,
+  completionCandidateEvaluation,
+  completionPolicyRevision,
+  currentDeliveryEvidence,
+  deliveryEvidenceObservation,
   event,
+  externalDelivery,
   graphMutationLock,
   idempotencyKey,
   knowledgeScope,
@@ -66,6 +83,8 @@ import {
   workItem,
   workItemArchitectureDecision,
   workItemContext,
+  workItemCompletionCandidate,
+  workItemCompletionPolicy,
   workItemDependency,
   workItemHierarchy,
   workItemPriorityContext,
@@ -124,6 +143,28 @@ export type StoredEvent = typeof event.$inferSelect;
 export type StoredAttentionRequest = typeof attentionRequest.$inferSelect;
 export type StoredAttentionResolution =
   typeof attentionResolution.$inferSelect;
+export type StoredCompletionCandidateEvaluation = CompletionCandidateEvaluation & {
+  readonly id: string;
+};
+
+export interface AssignCompletionPolicyInput {
+  readonly workItemId: string;
+  readonly policyId: string;
+  readonly policyRevision: number;
+  readonly assignedAt: string;
+}
+
+export interface EvaluateCompletionCandidateInput {
+  readonly id: string;
+  readonly workItemId: string;
+  readonly evaluatedAt: string;
+}
+
+export interface ListCurrentDeliveryEvidenceInput {
+  readonly repository?: string;
+  readonly commitSha?: string;
+  readonly kind?: DeliveryEvidenceKind;
+}
 
 export interface ListKnowledgeScopesInput {
   readonly kind?: KnowledgeScope["kind"];
@@ -480,6 +521,41 @@ const requireCompletionEvidence = (evidence: CompletionEvidence): void => {
     }
   }
 };
+
+const evidenceObservationFingerprint = (
+  observation: DeliveryEvidenceObservation,
+): string =>
+  JSON.stringify([
+    observation.deliveryProvider,
+    observation.deliveryExternalId,
+    observation.provider,
+    observation.externalId,
+    observation.repository,
+    observation.commitSha,
+    observation.kind,
+    observation.state,
+    observation.name,
+    observation.environment,
+    observation.sourceUrl,
+    observation.providerObservedAt,
+    observation.ingestedAt,
+    observation.correlationKind,
+    observation.pullRequestRepository,
+    observation.pullRequestNumber,
+  ]);
+
+const completionCandidateFingerprint = (
+  evaluation: CompletionCandidateEvaluation,
+): string =>
+  JSON.stringify([
+    evaluation.workItemId,
+    evaluation.policyId,
+    evaluation.policyRevision,
+    evaluation.candidate,
+    evaluation.reasons,
+    evaluation.evidenceObservationIds,
+    evaluation.evaluatedAt,
+  ]);
 
 const requireWorkerId = (workerId: string): void => {
   if (typeof workerId !== "string" || workerId.trim().length === 0) {
@@ -1718,6 +1794,8 @@ export class WorkGraphRepository {
           set: {
             url: normalized.url,
             headSha: normalized.headSha,
+            acceptedHeadSha: normalized.acceptedHeadSha,
+            mergeCommitSha: normalized.mergeCommitSha,
             state: normalized.state,
             draft: normalized.draft,
             mergeability: normalized.mergeability,
@@ -1804,6 +1882,423 @@ export class WorkGraphRepository {
         },
       });
       return normalized;
+    });
+  }
+
+  async recordExternalDelivery(input: ExternalDelivery): Promise<ExternalDelivery> {
+    const normalized = normalizeExternalDelivery(input);
+    return this.db.transaction(async (transaction) => {
+      await transaction
+        .insert(externalDelivery)
+        .values({
+          ...normalized,
+          receivedAt: new Date(normalized.receivedAt),
+          ingestedAt: new Date(normalized.ingestedAt),
+        })
+        .onConflictDoNothing();
+      const [stored] = await transaction
+        .select()
+        .from(externalDelivery)
+        .where(
+          and(
+            eq(externalDelivery.provider, normalized.provider),
+            eq(externalDelivery.externalId, normalized.externalId),
+          ),
+        )
+        .limit(1);
+      if (!stored) throw new Error("External delivery insert returned no row.");
+      if (stored.payloadDigest !== normalized.payloadDigest) {
+        throw new WorkGraphError(
+          "external_delivery_reused",
+          `External delivery ${normalized.provider}/${normalized.externalId} was replayed with a different payload.`,
+        );
+      }
+      return {
+        ...stored,
+        receivedAt: stored.receivedAt.toISOString(),
+        ingestedAt: stored.ingestedAt.toISOString(),
+      };
+    });
+  }
+
+  async recordEvidenceObservation(
+    input: DeliveryEvidenceObservation,
+  ): Promise<DeliveryEvidenceObservation> {
+    const normalized = normalizeEvidenceObservation(input);
+    return this.db.transaction(async (transaction) => {
+      const [delivery] = await transaction
+        .select({ provider: externalDelivery.provider })
+        .from(externalDelivery)
+        .where(
+          and(
+            eq(externalDelivery.provider, normalized.deliveryProvider),
+            eq(externalDelivery.externalId, normalized.deliveryExternalId),
+          ),
+        )
+        .limit(1);
+      if (!delivery) {
+        throw new WorkGraphError(
+          "external_delivery_not_found",
+          `External delivery ${normalized.deliveryProvider}/${normalized.deliveryExternalId} does not exist.`,
+        );
+      }
+
+      await transaction
+        .insert(deliveryEvidenceObservation)
+        .values({
+          ...normalized,
+          providerObservedAt: new Date(normalized.providerObservedAt),
+          ingestedAt: new Date(normalized.ingestedAt),
+        })
+        .onConflictDoNothing();
+      const [stored] = await transaction
+        .select()
+        .from(deliveryEvidenceObservation)
+        .where(
+          or(
+            eq(deliveryEvidenceObservation.id, normalized.id),
+            and(
+              eq(deliveryEvidenceObservation.provider, normalized.provider),
+              eq(deliveryEvidenceObservation.kind, normalized.kind),
+              eq(deliveryEvidenceObservation.externalId, normalized.externalId),
+              eq(
+                deliveryEvidenceObservation.providerObservedAt,
+                new Date(normalized.providerObservedAt),
+              ),
+              eq(deliveryEvidenceObservation.state, normalized.state),
+            ),
+          ),
+        )
+        .limit(1);
+      if (!stored) throw new Error("Evidence observation insert returned no row.");
+      const returned: DeliveryEvidenceObservation = {
+        ...stored,
+        providerObservedAt: stored.providerObservedAt.toISOString(),
+        ingestedAt: stored.ingestedAt.toISOString(),
+      };
+      if (
+        evidenceObservationFingerprint(returned) !==
+        evidenceObservationFingerprint(normalized)
+      ) {
+        throw new WorkGraphError(
+          "duplicate_evidence_observation",
+          `Evidence identity ${normalized.provider}/${normalized.kind}/${normalized.externalId} is already used by a different observation.`,
+        );
+      }
+
+      await transaction
+        .insert(currentDeliveryEvidence)
+        .values({
+          provider: stored.provider,
+          kind: stored.kind,
+          externalId: stored.externalId,
+          observationId: stored.id,
+          providerObservedAt: stored.providerObservedAt,
+          projectedAt: stored.ingestedAt,
+        })
+        .onConflictDoUpdate({
+          target: [
+            currentDeliveryEvidence.provider,
+            currentDeliveryEvidence.kind,
+            currentDeliveryEvidence.externalId,
+          ],
+          set: {
+            observationId: stored.id,
+            providerObservedAt: stored.providerObservedAt,
+            projectedAt: stored.ingestedAt,
+          },
+          setWhere: or(
+            lt(
+              currentDeliveryEvidence.providerObservedAt,
+              stored.providerObservedAt,
+            ),
+            and(
+              eq(
+                currentDeliveryEvidence.providerObservedAt,
+                stored.providerObservedAt,
+              ),
+              lt(currentDeliveryEvidence.projectedAt, stored.ingestedAt),
+            ),
+          ),
+        });
+      return returned;
+    });
+  }
+
+  async listCurrentDeliveryEvidence(
+    input: ListCurrentDeliveryEvidenceInput = {},
+  ): Promise<readonly CurrentDeliveryEvidence[]> {
+    return this.db.transaction((transaction) =>
+      this.listCurrentDeliveryEvidenceInTransaction(transaction, input),
+    );
+  }
+
+  private async listCurrentDeliveryEvidenceInTransaction(
+    transaction: DbTransaction,
+    input: ListCurrentDeliveryEvidenceInput = {},
+  ): Promise<readonly CurrentDeliveryEvidence[]> {
+    const rows = await transaction
+      .select({
+        observation: deliveryEvidenceObservation,
+        projectedAt: currentDeliveryEvidence.projectedAt,
+      })
+      .from(currentDeliveryEvidence)
+      .innerJoin(
+        deliveryEvidenceObservation,
+        eq(
+          deliveryEvidenceObservation.id,
+          currentDeliveryEvidence.observationId,
+        ),
+      )
+      .where(
+        and(
+          input.repository === undefined
+            ? undefined
+            : eq(
+                deliveryEvidenceObservation.repository,
+                input.repository.toLowerCase(),
+              ),
+          input.commitSha === undefined
+            ? undefined
+            : eq(
+                deliveryEvidenceObservation.commitSha,
+                input.commitSha.toLowerCase(),
+              ),
+          input.kind === undefined
+            ? undefined
+            : eq(deliveryEvidenceObservation.kind, input.kind),
+        ),
+      )
+      .orderBy(
+        currentDeliveryEvidence.provider,
+        currentDeliveryEvidence.kind,
+        currentDeliveryEvidence.externalId,
+      );
+    return rows.map(({ observation, projectedAt }) => ({
+      ...observation,
+      providerObservedAt: observation.providerObservedAt.toISOString(),
+      ingestedAt: observation.ingestedAt.toISOString(),
+      projectedAt: projectedAt.toISOString(),
+    }));
+  }
+
+  async putCompletionPolicyRevision(
+    input: CompletionPolicyRevision,
+  ): Promise<CompletionPolicyRevision> {
+    const normalized = normalizeCompletionPolicyRevision(input);
+    return this.db.transaction(async (transaction) => {
+      await transaction
+        .insert(completionPolicyRevision)
+        .values({
+          ...normalized,
+          requiredCiNames: [...normalized.requiredCiNames],
+          productionEnvironments: [...normalized.productionEnvironments],
+          createdAt: new Date(normalized.createdAt),
+        })
+        .onConflictDoNothing();
+      const [stored] = await transaction
+        .select()
+        .from(completionPolicyRevision)
+        .where(
+          and(
+            eq(completionPolicyRevision.policyId, normalized.policyId),
+            eq(completionPolicyRevision.revision, normalized.revision),
+          ),
+        )
+        .limit(1);
+      if (!stored) throw new Error("Completion policy insert returned no row.");
+      const result = { ...stored, createdAt: stored.createdAt.toISOString() };
+      if (JSON.stringify(result) !== JSON.stringify(normalized)) {
+        throw new WorkGraphError(
+          "invalid_completion_policy",
+          `Completion policy ${normalized.policyId} revision ${normalized.revision} is immutable.`,
+        );
+      }
+      return result;
+    });
+  }
+
+  async assignCompletionPolicy(input: AssignCompletionPolicyInput): Promise<void> {
+    requireIdentifier(input.workItemId, "invalid_work_item_id");
+    await this.db.transaction(async (transaction) => {
+      await this.requireGraphWorkItem(transaction, input.workItemId);
+      const assignedAt = new Date(input.assignedAt);
+      if (!Number.isFinite(assignedAt.getTime())) {
+        throw new WorkGraphError(
+          "invalid_completion_policy",
+          "A completion policy assignment needs an ISO timestamp.",
+        );
+      }
+      await transaction
+        .insert(workItemCompletionPolicy)
+        .values({ ...input, assignedAt })
+        .onConflictDoUpdate({
+          target: workItemCompletionPolicy.workItemId,
+          set: {
+            policyId: input.policyId,
+            policyRevision: input.policyRevision,
+            assignedAt,
+          },
+        });
+    });
+  }
+
+  async evaluateCompletionCandidate(
+    input: EvaluateCompletionCandidateInput,
+  ): Promise<StoredCompletionCandidateEvaluation> {
+    if (!UUID_PATTERN.test(input.id)) {
+      throw new WorkGraphError(
+        "invalid_completion_candidate",
+        "A completion candidate evaluation ID must be a UUID.",
+      );
+    }
+    return this.db.transaction(async (transaction) => {
+      const item = await this.requireGraphWorkItem(transaction, input.workItemId);
+      const [assignedPolicy] = await transaction
+        .select({ policy: completionPolicyRevision })
+        .from(workItemCompletionPolicy)
+        .innerJoin(
+          completionPolicyRevision,
+          and(
+            eq(
+              completionPolicyRevision.policyId,
+              workItemCompletionPolicy.policyId,
+            ),
+            eq(
+              completionPolicyRevision.revision,
+              workItemCompletionPolicy.policyRevision,
+            ),
+          ),
+        )
+        .where(eq(workItemCompletionPolicy.workItemId, item.id))
+        .limit(1);
+      if (!assignedPolicy) {
+        throw new WorkGraphError(
+          "invalid_completion_policy",
+          `Work item ${item.id} has no completion policy.`,
+        );
+      }
+      const implementationPullRequests = (
+        await transaction
+          .select({ pullRequest })
+          .from(workItemPullRequest)
+          .innerJoin(
+            pullRequest,
+            and(
+              eq(pullRequest.repository, workItemPullRequest.repository),
+              eq(pullRequest.number, workItemPullRequest.number),
+            ),
+          )
+          .where(
+            and(
+              eq(workItemPullRequest.workItemId, item.id),
+              eq(workItemPullRequest.role, "implementation"),
+            ),
+          )
+      ).map(({ pullRequest: stored }) => ({
+        ...stored,
+        observedAt: stored.observedAt.toISOString(),
+      }));
+      const evidence = await this.listCurrentDeliveryEvidenceInTransaction(
+        transaction,
+      );
+      const [unfinishedChild] = await transaction
+        .select({ id: workItem.id })
+        .from(workItemHierarchy)
+        .innerJoin(workItem, eq(workItem.id, workItemHierarchy.childWorkItemId))
+        .where(
+          and(
+            eq(workItemHierarchy.parentWorkItemId, item.id),
+            eq(workItem.lifecycle, "open"),
+          ),
+        )
+        .limit(1);
+      const [blockingAttention] = await transaction
+        .select({ id: attentionRequest.id })
+        .from(attentionRequest)
+        .leftJoin(
+          attentionResolution,
+          eq(attentionResolution.attentionRequestId, attentionRequest.id),
+        )
+        .where(
+          and(
+            eq(attentionRequest.workItemId, item.id),
+            eq(attentionRequest.blocking, true),
+            isNull(attentionResolution.id),
+          ),
+        )
+        .limit(1);
+      const evaluated = evaluateDomainCompletionCandidate({
+        workItemId: item.id,
+        policy: {
+          ...assignedPolicy.policy,
+          createdAt: assignedPolicy.policy.createdAt.toISOString(),
+        },
+        implementationPullRequests,
+        evidence,
+        hasUnfinishedChildren: unfinishedChild !== undefined,
+        hasUnresolvedBlockingAttention: blockingAttention !== undefined,
+        evaluatedAt: input.evaluatedAt,
+      });
+      await transaction
+        .insert(completionCandidateEvaluation)
+        .values({
+          id: input.id,
+          ...evaluated,
+          reasons: evaluated.reasons,
+          evidenceObservationIds: [...evaluated.evidenceObservationIds],
+          evaluatedAt: new Date(evaluated.evaluatedAt),
+        })
+        .onConflictDoNothing();
+      const stored = await this.requireCompletionCandidateEvaluation(
+        transaction,
+        input.id,
+      );
+      if (
+        completionCandidateFingerprint(stored) !==
+        completionCandidateFingerprint(evaluated)
+      ) {
+        throw new WorkGraphError(
+          "duplicate_completion_candidate",
+          `Completion candidate evaluation ${input.id} is already used.`,
+        );
+      }
+      await transaction
+        .insert(workItemCompletionCandidate)
+        .values({
+          workItemId: item.id,
+          evaluationId: input.id,
+          projectedAt: new Date(evaluated.evaluatedAt),
+        })
+        .onConflictDoUpdate({
+          target: workItemCompletionCandidate.workItemId,
+          set: {
+            evaluationId: input.id,
+            projectedAt: new Date(evaluated.evaluatedAt),
+          },
+          setWhere: lte(
+            workItemCompletionCandidate.projectedAt,
+            new Date(evaluated.evaluatedAt),
+          ),
+        });
+      return stored;
+    });
+  }
+
+  async getCompletionCandidate(
+    workItemId: string,
+  ): Promise<StoredCompletionCandidateEvaluation | null> {
+    return this.db.transaction(async (transaction) => {
+      const [projection] = await transaction
+        .select({ id: workItemCompletionCandidate.evaluationId })
+        .from(workItemCompletionCandidate)
+        .where(eq(workItemCompletionCandidate.workItemId, workItemId))
+        .limit(1);
+      if (!projection) return null;
+      return this.requireCompletionCandidateEvaluation(
+        transaction,
+        projection.id,
+      );
     });
   }
 
@@ -4181,6 +4676,8 @@ export class WorkGraphRepository {
           number: pullRequest.number,
           url: pullRequest.url,
           headSha: pullRequest.headSha,
+          acceptedHeadSha: pullRequest.acceptedHeadSha,
+          mergeCommitSha: pullRequest.mergeCommitSha,
           state: pullRequest.state,
           draft: pullRequest.draft,
           mergeability: pullRequest.mergeability,
@@ -4218,6 +4715,25 @@ export class WorkGraphRepository {
     });
   }
 
+  private async requireCompletionCandidateEvaluation(
+    transaction: DbTransaction,
+    id: string,
+  ): Promise<StoredCompletionCandidateEvaluation> {
+    const [stored] = await transaction
+      .select()
+      .from(completionCandidateEvaluation)
+      .where(eq(completionCandidateEvaluation.id, id))
+      .limit(1);
+    if (!stored) {
+      throw new Error(`Completion candidate evaluation ${id} is missing.`);
+    }
+    return {
+      ...stored,
+      reasons: stored.reasons as readonly CompletionCandidateReason[],
+      evaluatedAt: stored.evaluatedAt.toISOString(),
+    };
+  }
+
   private async requireStoredPullRequest(
     transaction: DbTransaction,
     repository: string,
@@ -4229,6 +4745,8 @@ export class WorkGraphRepository {
         number: pullRequest.number,
         url: pullRequest.url,
         headSha: pullRequest.headSha,
+        acceptedHeadSha: pullRequest.acceptedHeadSha,
+        mergeCommitSha: pullRequest.mergeCommitSha,
         state: pullRequest.state,
         draft: pullRequest.draft,
         mergeability: pullRequest.mergeability,
