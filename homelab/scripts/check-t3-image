@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-image=ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-11
+image=ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-12
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 mise_version="$(<"${script_dir}/../../.github/actions/setup-mise/mise-version")"
 container="personal-site-t3-image-check-$$"
@@ -53,11 +53,21 @@ docker run --rm \
     printf "%s\n" \
       "{\"providerInstances\":{\"codex-personal\":{\"accentColor\":\"#123456\",\"config\":{\"launchArgs\":\"--legacy\"}}}}" \
       > /data/home/.t3/userdata/settings.json
+    mkdir -p /data/home/.codex
+    printf "%s\n" \
+      "{\"models\":[{\"slug\":\"gpt-6-astra\",\"default_reasoning_level\":\"medium\",\"priority\":0},{\"slug\":\"gpt-5.6-sol\",\"default_reasoning_level\":\"low\",\"priority\":4}]}" \
+      > /data/home/.codex/models_cache.json
+    printf "%s\n" "personality = \"pragmatic\"" \
+      > /data/home/.codex/config.toml
     node /usr/local/lib/t3-code/bootstrap-settings.mjs
     node -e '\''
+      const fs = require("node:fs");
       const settings = require("/data/home/.t3/userdata/settings.json");
       if (!settings.providers.grok.enabled) process.exit(1);
       if (!settings.providers.opencode.enabled) process.exit(1);
+      if (settings.defaultModelSelection.instanceId !== "codex") process.exit(1);
+      if (settings.defaultModelSelection.model !== "gpt-5.6-sol") process.exit(1);
+      if (settings.defaultModelSelection.options.find(({ id }) => id === "reasoningEffort")?.value !== "high") process.exit(1);
       const codex2 = settings.providerInstances.codex2;
       if ("codex-personal" in settings.providerInstances) process.exit(1);
       if (codex2.driver !== "codex") process.exit(1);
@@ -67,6 +77,16 @@ docker run --rm \
       if (codex2.config.homePath !== "/data/home/.codex") process.exit(1);
       if (codex2.config.shadowHomePath !== "/data/home/.codex-personal") process.exit(1);
       if (codex2.config.launchArgs !== "--legacy") process.exit(1);
+      const config = fs.readFileSync("/data/home/.codex/config.toml", "utf8");
+      if (!config.includes("model = \"gpt-5.6-sol\"")) process.exit(1);
+      if (!config.includes("model_reasoning_effort = \"high\"")) process.exit(1);
+      if (!config.includes("model_catalog_json = \"/data/home/.codex/model-catalog.json\"")) process.exit(1);
+      if (!config.includes("personality = \"pragmatic\"")) process.exit(1);
+      const catalog = require("/data/home/.codex/model-catalog.json");
+      const sol = catalog.models.find(({ slug }) => slug === "gpt-5.6-sol");
+      const astra = catalog.models.find(({ slug }) => slug === "gpt-6-astra");
+      if (sol.default_reasoning_level !== "high" || sol.priority !== 0) process.exit(1);
+      if (astra.priority !== 1) process.exit(1);
     '\''
     timeout 30 chromium \
       --headless \

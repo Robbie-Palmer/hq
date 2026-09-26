@@ -135,7 +135,12 @@ CODEX_HOME=/data/home/.codex-personal codex login --device-auth
 T3 labels the second provider `codex2`. Its shadow home keeps
 `auth.json` separate while sharing the main Codex configuration, skills, and
 session state. The image bootstrap keeps its existing colour, enabled state,
-and extra configuration when it adds this provider.
+and extra configuration when it adds this provider. The bootstrap also sets
+GPT-5.6-Sol with high reasoning as the new-thread default for every Codex
+provider. It builds the custom model catalog from Codex's cached catalog, so
+the other available models remain selectable. To refresh that snapshot, remove
+`models_cache.json` and `model-catalog.json`, restart once to fetch the current
+catalog, then restart again to apply the preferred defaults to it.
 
 #### Adding a Codex provider
 

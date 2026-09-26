@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-image=ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-11
+image=ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-12
 target=${REMOTE_DEVELOPMENT_TAILNET_TARGET:-root@remote-development}
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
