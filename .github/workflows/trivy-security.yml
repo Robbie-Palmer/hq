@@ -56,7 +56,6 @@ jobs:
           mkdir -p trivy-rendered-kubernetes
           mise run //homelab:k3s-render-home > trivy-rendered-kubernetes/home.yaml
           mise run //homelab:k3s-render-remote > trivy-rendered-kubernetes/remote.yaml
-          mise run //homelab:k3s-render-remote-pilot > trivy-rendered-kubernetes/remote-pilot.yaml
 
       # Whole workspace: never pin to a single Terraform root.
       - name: Run Trivy IaC scan
