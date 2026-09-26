@@ -24,14 +24,14 @@ docker run --rm \
   -ec '
     test "$(id -u)" = 2000
     test "$(id -g)" = 2000
-    test "$(codex --version)" = "codex-cli 0.153.4"
-    test "$(claude --version)" = "2.1.263 (Claude Code)"
-    test "$(opencode --version)" = "1.18.29"
-    test "$(grok --version | cut -d" " -f1-2)" = "grok 1.0.22"
+    test "$(codex --version)" = "codex-cli 0.154.0"
+    test "$(claude --version)" = "2.1.280 (Claude Code)"
+    test "$(opencode --version)" = "1.18.32"
+    test "$(grok --version | cut -d" " -f1-2)" = "grok 1.0.41"
     test "$(mise --version | cut -d" " -f1)" = "$EXPECTED_MISE_VERSION"
     test "$(doppler --version)" = "v3.76.5"
     test "$(vale --version)" = "vale version 3.19.0"
-    test "$(pnpm --version)" = "12.4.1"
+    test "$(pnpm --version)" = "12.4.2"
     test "$MISE_TRUSTED_CONFIG_PATHS" = "/data/workspaces:/data/home/.t3/worktrees"
     test "$(docker --version)" = "Docker version 29.8.0, build 88096ef"
     test "$(docker buildx version | cut -d" " -f1-3)" = "github.com/docker/buildx v0.37.0 ac30b249211430b85fb8f37b6e7154b5c47ba0b6"
