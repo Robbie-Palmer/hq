@@ -170,6 +170,11 @@ work-graph ready
 work-graph ready --project-id work-graph
 work-graph queue --stage blocked --initiative-id semi-autonomous-software-development
 work-graph queue --all --limit 100
+work-graph critical-path
+work-graph critical-path --initiative-id semi-autonomous-software-development
+work-graph critical-path --project-id work-graph
+work-graph critical-path --root-work-item-id work-graph-finish-mvp
+work-graph critical-path --project-id work-graph --json
 work-graph claim --worker-id agent-a
 work-graph claim --project-id work-graph --worker-id agent-a
 work-graph claim --parent-id work-graph-finish-mvp --worker-id agent-a
@@ -197,6 +202,13 @@ work-graph cancel cli-8
 across dependency and hierarchy relationships. Both dependency mutations accept
 `--idempotency-key`. Removing an edge leaves its `dependency.added` event in the
 immutable event log and appends a `dependency.removed` event.
+
+`critical-path` prints priority outcomes, blocking chains, ready leaves, active
+work, stale leases, blocking attention, and claimable parallel branches. Its
+default view is global. Narrow it with `--initiative-id`, `--project-id`, or an
+exact `--root-work-item-id`; a root cannot be combined with scheduling-scope
+filters. Pass `--json` to print the complete `/api/critical-path` response for
+automation.
 
 `reparent` moves an existing ticket under another ticket. `detach` moves it to
 the graph root. Both keep the ticket's identity and attached history, reject
