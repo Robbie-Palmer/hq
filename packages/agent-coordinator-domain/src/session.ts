@@ -49,7 +49,7 @@ export const ExecutionSessionIdentitySchema = z
     adapterVersion: z.string().trim().min(1).max(80),
     authenticationPathId: IdentifierSchema,
     startedAt: z.iso.datetime(),
-    workGraphLeaseId: z.string().uuid().optional(),
+    workGraphLeaseId: z.uuid().optional(),
     predecessorSessionId: IdentifierSchema.optional(),
   })
   .strict()

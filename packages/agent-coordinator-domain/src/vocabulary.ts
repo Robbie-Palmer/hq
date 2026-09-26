@@ -14,7 +14,7 @@ export const CurrencySchema = z.string().regex(/^[A-Z]{3}$/);
 export const MoneySchema = z
   .object({
     currency: CurrencySchema,
-    amount: z.number().finite().nonnegative(),
+    amount: z.number().nonnegative(),
   })
   .strict();
 export type Money = z.infer<typeof MoneySchema>;
@@ -42,7 +42,7 @@ export function findDuplicates(values: string[]): string[] {
     if (seen.has(value)) duplicates.add(value);
     seen.add(value);
   }
-  return [...duplicates].sort();
+  return [...duplicates].sort((left, right) => left.localeCompare(right, "en"));
 }
 
 export function compareIdentifiers(left: string, right: string): number {

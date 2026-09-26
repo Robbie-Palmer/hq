@@ -57,7 +57,7 @@ export const RankingSignalSchema = z
       "observed-capability-confidence",
       "preferred-tool-match",
     ]),
-    value: z.number().finite(),
+    value: z.number(),
     direction: z.enum(["higher-is-better", "lower-is-better"]),
     unit: z.string().min(1),
     detail: z.string().min(1),
