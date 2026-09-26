@@ -553,6 +553,10 @@ export type GetCriticalPathErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type GetCriticalPathError = GetCriticalPathErrors[keyof GetCriticalPathErrors];
