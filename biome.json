@@ -1,0 +1,105 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": false
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**/*.js",
+      "**/*.jsx",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.tsx",
+      "!ui",
+      "!**/node_modules",
+      "!**/coverage",
+      "!**/dist",
+      "!packages/work-graph-cli/src/generated"
+    ]
+  },
+  "formatter": {
+    "enabled": false
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "complexity": {
+        "noExcessiveCognitiveComplexity": {
+          "level": "warn",
+          "options": {
+            "maxAllowedComplexity": 15
+          }
+        }
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "ai-review/analytics/stateless-baseline.ts",
+        "packages/ai-review-domain/src/reviewer.ts"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noControlCharactersInRegex": "warn"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "ai-review/analytics/stateless-baseline.ts",
+        "scripts/prose-lint.ts"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noAssignInExpressions": "warn"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["ml-pipelines/recipe-parsing/tools/viz/**"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "useExhaustiveDependencies": "warn"
+          },
+          "suspicious": {
+            "noArrayIndexKey": "warn"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "packages/work-graph-cli/src/main.ts",
+        "workers/recipe-api/src/agent-auth.ts"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noShadowRestrictedNames": "warn"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["workers/recipe-api/tests/agent-auth.test.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noThenProperty": "warn"
+          }
+        }
+      }
+    }
+  ]
+}
