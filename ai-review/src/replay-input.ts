@@ -78,6 +78,7 @@ function yamlLine(value: string): { body: string; indent: number; prefix: string
   };
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 function redactYamlBlockAssignments(value: string, counts: Record<string, number>): string {
   const parts = value.split(/(\r\n|\n|\r)/);
   for (let index = 0; index < parts.length; index += 2) {

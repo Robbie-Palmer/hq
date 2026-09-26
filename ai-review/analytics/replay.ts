@@ -192,6 +192,7 @@ function executionRequirements(values: { "max-cost-usd"?: string; models?: strin
   return { capUsd, models, executor: values.executor };
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 function executeReplay(
   manifest: Manifest,
   capUsd: number,

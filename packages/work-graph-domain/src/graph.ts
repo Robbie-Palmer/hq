@@ -316,6 +316,7 @@ const buildWaitsForGraph = (graph: WorkGraph) => {
   return waitsFor;
 };
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 const hasCycle = (waitsFor: ReadonlyMap<string, ReadonlySet<string>>) => {
   const incomingEdgeCounts = new Map<string, number>();
   for (const workItemId of waitsFor.keys()) {

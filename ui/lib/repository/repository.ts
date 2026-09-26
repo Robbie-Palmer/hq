@@ -146,6 +146,7 @@ export function validateTechnologyReferences(
       .filter((dirent) => dirent.isDirectory())
       .map((dirent) => dirent.name);
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     projectDirs.forEach((projectSlug) => {
       const projectPath = path.join(PROJECTS_DIR, projectSlug, "index.mdx");
       if (fs.existsSync(projectPath)) {
@@ -504,6 +505,7 @@ export function loadProjects(): ProjectLoadResult {
     .filter((dirent) => dirent.isDirectory())
     .map((dirent) => dirent.name);
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
   projectDirs.forEach((projectSlug) => {
     const projectPath = path.join(PROJECTS_DIR, projectSlug, "index.mdx");
     if (!fs.existsSync(projectPath)) {
@@ -705,6 +707,7 @@ function parseDefaultOverride(value: unknown): DefaultOverride | undefined {
   });
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function loadADRs(): ADRLoadResult {
   const entities = new Map<ADRRef, ADR>();
   const relations = new Map<ADRRef, ADRRelations>();

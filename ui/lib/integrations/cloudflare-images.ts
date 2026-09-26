@@ -17,6 +17,7 @@ export interface ImageTransformOptions {
 }
 
 /** Generates a Cloudflare Images URL. Use variant=null for flexible transformations. */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function getImageUrl(
   imageId: string,
   variant: ImageVariant = null,

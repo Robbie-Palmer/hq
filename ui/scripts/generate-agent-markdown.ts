@@ -404,6 +404,7 @@ function buildAdrPages(
     project.slug,
     initiatives,
   );
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
   return project.adrs.map((adrCard) => {
     const adr = getProjectADR(project.slug, adrCard.slug);
     const facts: [string, string][] = [
@@ -692,6 +693,7 @@ function buildTechnologyPages(projects: ProjectWithADRs[]): GeneratedPage[] {
     }
   }
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
   return getAllTechnologySlugs(repository).flatMap((slug) => {
     const tech = getTechnologyDetail(repository, slug);
     if (!tech) return [];

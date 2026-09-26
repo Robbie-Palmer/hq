@@ -93,6 +93,7 @@ function parseDigitWord(token: string): number | undefined {
   return undefined;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 function parseIntegerTokens(tokens: string[]): number | null {
   if (tokens.length === 0) return null;
 

@@ -78,6 +78,7 @@ function buildFailure(params: {
   };
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 async function extractEntryWithRetries(params: {
   apiKey: string;
   images: string[];

@@ -20,6 +20,7 @@ export function CookingCompletionOutbox() {
     let retryDelay = INITIAL_RETRY_DELAY_MS;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     const flush = async () => {
       if (flushInProgress) {
         flushRequested = true;

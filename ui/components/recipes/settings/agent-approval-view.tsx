@@ -61,6 +61,7 @@ export function AgentApprovalView() {
     setLoading(true);
     setError(null);
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     void (async () => {
       try {
         const loadedAgent = await getAgent(intent.agentId, controller.signal);

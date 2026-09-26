@@ -175,6 +175,7 @@ function tokenizeStep(
   return { ok: true, tokens };
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function tokenizeInstructionSdk(
   instructionSdk: RecipeInstructionSdk,
 ): InstructionTokenizationResult {

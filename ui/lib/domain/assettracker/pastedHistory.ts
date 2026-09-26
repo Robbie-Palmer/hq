@@ -92,6 +92,7 @@ function parseAmount(rawFields: string[]): number | null {
  * are accepted, with an optional header. Dates are normalised to ISO and all
  * issues are returned together so the UI can reject the import atomically.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function parsePastedHistory(input: string): PastedHistoryResult {
   if (input.length > MAX_PASTED_HISTORY_CHARACTERS) {
     return {

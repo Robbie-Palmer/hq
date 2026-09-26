@@ -5337,6 +5337,7 @@ registerRoute("post", "/recipes/:slug/recommendations", async (c) => {
     c,
     "mutation",
     "POST /recipes/:slug/recommendations failed",
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     async ({ db, session }) => {
       const body = await parseJsonBody(c, recommendRecipeBodySchema);
       if (!body.success) return body.response;
@@ -5759,6 +5760,7 @@ registerRoute("post", "/recipe-imports", async (c) => {
     c,
     "mutation",
     "POST /recipe-imports mutation failed",
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     async ({ db, session }) => {
       const userId = session.user.id;
 

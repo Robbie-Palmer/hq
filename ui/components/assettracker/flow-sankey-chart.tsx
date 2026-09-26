@@ -317,6 +317,7 @@ export function FlowSankeyChart() {
                     align="left"
                     iterations={64}
                     sort={false}
+                    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
                     onMouseEnter={(item, type) => {
                       if (type === "link") {
                         const link = item.payload as unknown as

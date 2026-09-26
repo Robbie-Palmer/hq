@@ -106,6 +106,7 @@ function ExtractionContextPanel({
   );
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function NormalizationDetailView({
   entryIndex,
   onBack,
@@ -195,6 +196,7 @@ export function NormalizationDetailView({
 
   useEffect(() => {
     const totalEntries = groundTruth?.entries.length ?? 0;
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     function onKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();

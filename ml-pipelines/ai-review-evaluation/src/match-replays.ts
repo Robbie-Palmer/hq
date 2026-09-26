@@ -115,6 +115,7 @@ function candidatesForMethod(candidate: Finding, labels: HistoricalFinding[], me
 
 const CONFIDENCE: Record<MatchingMethod, number> = { "finding-id": 1, "file-hunk": 0.95, "file-line": 0.9 };
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function matchFinding(candidate: Finding, labels: HistoricalFinding[], matching: MatchingPolicy): FindingMatch {
   for (const method of matching.methods) {
     const matches = candidatesForMethod(candidate, labels, method);
@@ -222,6 +223,7 @@ function countOutcomes(matches: FindingMatch[]): OutcomeCounts {
   };
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 function runObservation(wrapper: EvaluationReplay, entry: DatasetEntry, matches: FindingMatch[]): ReplayObservation {
   const replay = wrapper.replay;
   const findings = replayFindings(replay);

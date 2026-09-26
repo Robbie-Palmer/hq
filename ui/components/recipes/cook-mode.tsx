@@ -102,6 +102,7 @@ function timerCircleBackground(state: CookingTimer["state"] | "idle"): string {
   return "var(--card)";
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function CookMode({
   recipeSlug,
   recipeTitle,
@@ -209,6 +210,7 @@ export function CookMode({
   // Keyboard navigation: arrows move between steps, Escape exits, and Tab is
   // trapped inside the dialog.
   useEffect(() => {
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     const onKeyDown = (event: KeyboardEvent) => {
       // An add-timer popover (portalled to <body>, outside the dialog) is open:
       // let it own the keyboard. Otherwise our focus trap yanks Tab back into
@@ -667,6 +669,7 @@ function IngredientReference({
 }
 
 /** Large timer control for the current step, bound to the global store. */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 function CookModeTimer({
   timerId,
   label,

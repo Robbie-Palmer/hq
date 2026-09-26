@@ -12,6 +12,7 @@ export interface RecipeContentGraph {
   };
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function buildRecipeContentGraph(input: {
   ingredientSlugs: Iterable<IngredientSlug>;
   recipeIngredients: Map<RecipeSlug, IngredientSlug[]>;

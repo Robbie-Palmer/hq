@@ -658,6 +658,7 @@ function storedFindingResolution(
   }
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 function isFindingInteractionEvent(
   value: unknown,
 ): value is FindingInteractionEvent {
@@ -1120,6 +1121,7 @@ export class PullRequestCoordinator extends DurableObject<Env> {
     }
   }
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
   private evaluateFinalizedFindings(options: {
     event: PullRequestFinalizationEvent;
     evaluatedAt: string;
@@ -1807,6 +1809,7 @@ export class PullRequestCoordinator extends DurableObject<Env> {
       return errorResponse("Expired review Workflow is still active", 503);
     }
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     const result = this.ctx.storage.transactionSync(() => {
       const aggregate = this.ctx.storage.sql
         .exec<{ attempts: number; runs: number; total_cost: number }>(
@@ -2043,6 +2046,7 @@ export class PullRequestCoordinator extends DurableObject<Env> {
       }),
     );
     const completedAt = new Date().toISOString();
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     const completion = this.ctx.storage.transactionSync(() => {
       const update = this.ctx.storage.sql.exec(
         `UPDATE review_runs
@@ -2551,6 +2555,7 @@ function coordinatorPathForEvent(
   return "/events";
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 async function handleGitHubWebhook(request: Request, env: Env): Promise<Response> {
   const bodyResult = await readWebhookBody(request);
   if ("response" in bodyResult) return bodyResult.response;

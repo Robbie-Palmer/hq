@@ -155,6 +155,7 @@ function servePipelineFiles(): Plugin {
             res.off("finish", cleanup);
             res.off("close", onResponseClose);
           }
+          // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
           function onStreamError(error: NodeJS.ErrnoException) {
             cleanup();
             stream.destroy();

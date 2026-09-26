@@ -274,6 +274,7 @@ export function getPortfolioAnnualReturn(
  * folded into that property (so it contributes equity, not gross value);
  * other liabilities surface as their own negative totals.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function getTotalByAssetType(
   repository: AssetTrackerRepository,
 ): { assetType: AssetType; total: number }[] {

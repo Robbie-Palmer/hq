@@ -214,6 +214,7 @@ const dependencyWaits = (graph: WorkGraph): ReadonlyMap<string, string[]> => {
 const effectivePriorities = (
   graph: WorkGraph,
   base: ReadonlyMap<string, BasePriority>,
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 ): ReadonlyMap<string, EffectivePriority> => {
   const effective = new Map<string, EffectivePriority>(
     [...base].map(([id, priority]) => [

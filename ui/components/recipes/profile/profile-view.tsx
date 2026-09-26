@@ -29,6 +29,7 @@ function loadErrorMessage(error: unknown) {
     : "We couldn't load this profile.";
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function ProfileView({ userId }: Readonly<{ userId?: string | null }>) {
   const { data: session, isPending: sessionPending } = authClient.useSession();
   const [data, setData] = useState<ProfileData | null>(null);
@@ -55,6 +56,7 @@ export function ProfileView({ userId }: Readonly<{ userId?: string | null }>) {
     const currentUserId = session.user.id;
 
     void getHouseholds(controller.signal)
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
       .then(async (households) => {
         const household = households[0];
         const selectedUserId = userId || currentUserId;

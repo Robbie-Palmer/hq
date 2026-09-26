@@ -74,6 +74,7 @@ function StepRail({
       aria-label="Onboarding progress"
       className="flex shrink-0 items-center gap-2"
     >
+      {/** biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited. */}
       {STEPS.map((label, index) => {
         const marker = (
           <>
@@ -276,6 +277,7 @@ function StarterRecipeTile({
   );
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function RecipeOnboarding() {
   const { data: session, isPending: sessionPending } = authClient.useSession();
   const userId = session?.user.id;

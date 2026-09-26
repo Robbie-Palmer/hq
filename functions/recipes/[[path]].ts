@@ -84,6 +84,7 @@ function recipeJsonLd(payload: RecipePayload, url: URL, slug: string): string {
   return `${json}\n`;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export const onRequest = async (context: Context): Promise<Response> => {
   const url = new URL(context.request.url);
   const relativePath = url.pathname.replace(/^\/recipes\/?/, "");

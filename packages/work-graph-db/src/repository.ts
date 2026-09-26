@@ -772,6 +772,7 @@ export class WorkGraphRepository {
       requireIdempotencyKey(options.idempotencyKey);
     }
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     return this.db.transaction(async (transaction) => {
       await this.lockEventSequence(transaction);
       if (options.idempotencyKey !== undefined) {
@@ -1826,6 +1827,7 @@ export class WorkGraphRepository {
     }
 
     try {
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
       return await this.db.transaction(async (transaction) => {
         await this.lockEventSequence(transaction);
         if (options.idempotencyKey !== undefined) {
@@ -2489,6 +2491,7 @@ export class WorkGraphRepository {
     }
 
     try {
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
       return await this.db.transaction(async (transaction) => {
         await this.lockEventSequence(transaction);
         if (options.idempotencyKey !== undefined) {
@@ -3294,6 +3297,7 @@ export class WorkGraphRepository {
     }
 
     try {
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
       await this.db.transaction(async (transaction) => {
         await this.lockEventSequence(transaction);
         const replayed =

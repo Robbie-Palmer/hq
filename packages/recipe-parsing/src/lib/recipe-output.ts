@@ -23,6 +23,7 @@ function sanitizeOptionalPositiveNumber(
   delete obj[key];
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function sanitizeParsedRecipe(raw: unknown): unknown {
   if (!raw || typeof raw !== "object") {
     return raw;
