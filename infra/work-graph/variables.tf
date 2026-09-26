@@ -42,6 +42,17 @@ variable "worker_name" {
   }
 }
 
+variable "r2_database_backups_bucket_name" {
+  description = "Name of the private R2 bucket for encrypted Work Graph PostgreSQL backups"
+  type        = string
+  default     = "work-graph-database-backups"
+
+  validation {
+    condition     = can(regex("^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$", var.r2_database_backups_bucket_name))
+    error_message = "r2_database_backups_bucket_name must be a 3-63 character lowercase R2 bucket name."
+  }
+}
+
 variable "neon_org_id" {
   description = "Neon organization ID"
   type        = string

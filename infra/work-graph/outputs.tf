@@ -18,6 +18,11 @@ output "neon_project_id" {
   value       = data.external.resource_metadata.result.neon_project_id
 }
 
+output "r2_database_backups_bucket_name" {
+  description = "Dedicated bucket for encrypted Work Graph PostgreSQL backups"
+  value       = cloudflare_r2_bucket.database_backups.name
+}
+
 output "worker_name" {
   description = "Work Graph Worker service name"
   value       = cloudflare_workers_script.work_graph.name
