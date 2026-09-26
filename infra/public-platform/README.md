@@ -164,6 +164,15 @@ Private bucket for age-encrypted PostgreSQL custom-format archives. Terraform
 creates the bucket with deletion protection; the scheduled backup and restore
 runbook lives in [`../backups/README.md`](../backups/README.md).
 
+### `personal-site-workspace-backups`
+
+Private bucket for restic-encrypted snapshots of the remote operator
+workspace. Terraform prevents bucket deletion. The host uses an R2 Object Read
+& Write token scoped only to this bucket, while restic applies snapshot
+retention and encrypts both data and metadata before upload. The backup,
+restore, status, and credential-safe export runbook lives in
+[`../../homelab/README.md`](../../homelab/README.md#updates-rollback-and-backups).
+
 ## PostHog
 
 PostHog dashboards and insights are managed in Terraform via the official

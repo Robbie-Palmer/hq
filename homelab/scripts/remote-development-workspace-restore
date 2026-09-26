@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -ne 1 ]; then
+  echo "Usage: $0 EMPTY_TARGET_DIRECTORY" >&2
+  exit 2
+fi
+
+target=$1
+config_file=${WORKSPACE_BACKUP_CONFIG:-/etc/remote-development-workspace-backup/config}
+restic_bin=${RESTIC_BIN:-restic}
+
+if [ ! -r "${config_file}" ]; then
+  echo "workspace backup configuration is not readable" >&2
+  exit 1
+fi
+# shellcheck source=/dev/null
+source "${config_file}"
+
+if [ ! -d "${target}" ]; then
+  install -d -m 0700 "${target}"
+fi
+if [ -n "$(find "${target}" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+  echo "restore target must be empty" >&2
+  exit 1
+fi
+
+"${restic_bin}" restore latest \
+  --host="${WORKSPACE_ID}" \
+  --tag="workspace:${WORKSPACE_ID}" \
+  --target="${target}"
+
+restored_source="${target}${BACKUP_SOURCE}"
+if [ ! -d "${restored_source}/home/.t3" ] \
+  || [ ! -d "${restored_source}/workspaces" ]; then
+  echo "restored workspace is missing required durable paths" >&2
+  exit 1
+fi
+
+echo "workspace restore completed and required durable paths are present"

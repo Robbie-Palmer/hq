@@ -346,10 +346,68 @@ image reference from Git and reapplies the cloud overlay.
 Hetzner server backups are disabled because they cover the reproducible root
 disk and exclude the attached volume. They would speed up root recovery, but
 they would not protect the data that matters here. LUKS encryption and Hetzner
-volume replication are also not backups. An encrypted, versioned copy of the
-workspace directories under `/srv/remote-development/` in a separate provider
-or failure domain is still required. Do not claim backup coverage until that
-destination and a tested restore procedure exist.
+volume replication are also not backups.
+
+The operator workspace now uses restic to send encrypted snapshots to the
+private `personal-site-workspace-backups` Cloudflare R2 bucket. The versioned
+inventory in `remote-development-backup/inventory.json` fixes the workspace,
+destination, daily schedule, 36-hour freshness limit, and retention policy.
+The repository holds paths and policy only. The R2 access key and independent
+restic password stay in Doppler config
+`homelab/prd_remote_development_backup` and on the host under
+`/var/lib/remote-development-backup` with mode `0600`.
+
+The backup reads `/srv/remote-development/t3-code`, including T3 state,
+worktrees, repositories, both Codex homes, and provider sessions. It never
+reads the separate `/srv/remote-development/t3-code-cache` tree. A successful
+run checks five percent of repository data, prunes snapshots to the declared
+retention, and writes `/var/lib/remote-development-backup/status.json`. That
+status contains timestamps, state, and the failed step. It contains no source
+file names, endpoints, or credentials.
+
+Create an R2 Object Read & Write token scoped only to
+`personal-site-workspace-backups`, then store these masked Doppler secrets:
+
+| Name | Purpose |
+| --- | --- |
+| `CLOUDFLARE_ACCOUNT_ID` | Builds the R2 S3 endpoint |
+| `R2_ACCESS_KEY_ID` | Bucket-scoped R2 access key |
+| `R2_SECRET_ACCESS_KEY` | Bucket-scoped R2 secret |
+| `RESTIC_PASSWORD` | Encrypts repository metadata and contents |
+
+Install credentials after a host replacement, then run and inspect the first
+backup:
+
+```bash
+mise run //homelab:remote-backup-credentials
+mise run //homelab:remote-backup
+mise run //homelab:remote-health
+```
+
+For a recovery test, create an empty target on a host with the credential
+files and run the installed restore command. Restic recreates the absolute
+source path beneath the target. The command fails if the target is not empty
+or the restored T3 and workspace roots are missing.
+
+```bash
+install -d -m 0700 /var/tmp/operator-workspace-restore
+remote-development-workspace-restore /var/tmp/operator-workspace-restore
+```
+
+The user export is a different artifact. It retains repositories and session
+history but removes provider tokens, cookies, SSH keys, Doppler state, cloud
+credentials, and provider authentication databases according to the reviewed
+`export-excludes.txt` file:
+
+```bash
+remote-development-workspace-export \
+  /srv/remote-development/t3-code \
+  /var/tmp/operator-workspace-export.tar.gz
+```
+
+Revoke provider sessions before delivering an export. Inspect its file list
+with `tar -tzf` before transfer, then remove the host copy after the recipient
+confirms its checksum.
 
 ## Fleet inventory and checks
 

@@ -21,6 +21,34 @@ let
   cacheInodeHardLimit = "2000000";
   projectQuotaLayoutVersion = "2";
   operatorKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIj4+tNshoonWcOZFnSV0YcXgKuGqfcmn5HyIvLCfdQe robbiepalmer@live.co.uk";
+  workspaceBackupInventory = builtins.fromJSON (
+    builtins.readFile ../../remote-development-backup/inventory.json
+  );
+  workspaceBackupConfig = pkgs.writeText "remote-development-workspace-backup-config" ''
+    WORKSPACE_ID=${workspaceBackupInventory.workspace.id}
+    DESTINATION_PROVIDER=${workspaceBackupInventory.destination.provider}
+    BACKUP_SOURCE=${workspaceBackupInventory.workspace.source}
+    BACKUP_EXCLUDES_FILE=/etc/remote-development-workspace-backup/backup-excludes.txt
+    BACKUP_STATUS_FILE=/var/lib/remote-development-backup/status.json
+    BACKUP_PASSWORD_FILE=${workspaceBackupInventory.destination.passwordFile}
+    MAXIMUM_AGE_SECONDS=${toString workspaceBackupInventory.schedule.maximumAgeSeconds}
+    KEEP_HOURLY=${toString workspaceBackupInventory.retention.hourly}
+    KEEP_DAILY=${toString workspaceBackupInventory.retention.daily}
+    KEEP_WEEKLY=${toString workspaceBackupInventory.retention.weekly}
+    KEEP_MONTHLY=${toString workspaceBackupInventory.retention.monthly}
+  '';
+  workspaceBackup = pkgs.writeShellScriptBin "remote-development-workspace-backup" (
+    builtins.readFile ../../scripts/remote-development-workspace-backup
+  );
+  workspaceBackupStatus = pkgs.writeShellScriptBin "remote-development-workspace-backup-status" (
+    builtins.readFile ../../scripts/remote-development-workspace-backup-status
+  );
+  workspaceRestore = pkgs.writeShellScriptBin "remote-development-workspace-restore" (
+    builtins.readFile ../../scripts/remote-development-workspace-restore
+  );
+  workspaceExport = pkgs.writeShellScriptBin "remote-development-workspace-export" (
+    builtins.readFile ../../scripts/remote-development-workspace-export
+  );
 in
 {
   imports = [
@@ -32,6 +60,14 @@ in
     {
       assertion = dataDevice != "/dev/sda";
       message = "The persistent data volume must not be the disko-managed root disk.";
+    }
+    {
+      assertion = workspaceBackupInventory.workspace.source == operatorDataPath;
+      message = "The workspace backup source must match the durable operator data path.";
+    }
+    {
+      assertion = workspaceBackupInventory.workspace.rebuildableCache == cacheDataPath;
+      message = "The workspace backup inventory must name the separate rebuildable cache path.";
     }
   ];
 
@@ -72,6 +108,11 @@ in
       t3-code-operator:${operatorProjectId}
       t3-code-cache:${cacheProjectId}
     '';
+    "remote-development-workspace-backup/config".source = workspaceBackupConfig;
+    "remote-development-workspace-backup/backup-excludes.txt".source =
+      ../../remote-development-backup/backup-excludes.txt;
+    "remote-development-workspace-backup/export-excludes.txt".source =
+      ../../remote-development-backup/export-excludes.txt;
   };
 
   fileSystems.${dataMount} = {
@@ -87,6 +128,7 @@ in
 
   systemd.tmpfiles.rules = [
     "d /var/lib/remote-development-secrets 0700 root root -"
+    "d /var/lib/remote-development-backup 0700 root root -"
   ];
 
   users = {
@@ -259,6 +301,48 @@ in
     '';
   };
 
+  systemd.services.remote-development-workspace-backup = {
+    description = "Back up the operator workspace to encrypted off-provider storage";
+    after = [
+      "network-online.target"
+      "srv-remote\\x2ddevelopment.mount"
+    ];
+    wants = [ "network-online.target" ];
+    requires = [ "srv-remote\\x2ddevelopment.mount" ];
+    path = [
+      pkgs.coreutils
+      pkgs.findutils
+      pkgs.jq
+      pkgs.restic
+    ];
+    environment.WORKSPACE_BACKUP_CONFIG =
+      "/etc/remote-development-workspace-backup/config";
+    serviceConfig = {
+      Type = "oneshot";
+      EnvironmentFile = workspaceBackupInventory.destination.credentialsFile;
+      ExecStart = "${workspaceBackup}/bin/remote-development-workspace-backup";
+      Nice = 10;
+      IOSchedulingClass = "idle";
+      PrivateTmp = true;
+      ProtectHome = true;
+      ProtectSystem = "strict";
+      ReadOnlyPaths = [ operatorDataPath ];
+      ReadWritePaths = [ "/var/lib/remote-development-backup" ];
+    };
+    unitConfig.ConditionPathExists = workspaceBackupInventory.destination.credentialsFile;
+  };
+
+  systemd.timers.remote-development-workspace-backup = {
+    description = "Run the encrypted operator workspace backup every day";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = workspaceBackupInventory.schedule.onCalendar;
+      Persistent = true;
+      RandomizedDelaySec = workspaceBackupInventory.schedule.randomizedDelaySeconds;
+      Unit = "remote-development-workspace-backup.service";
+    };
+  };
+
   systemd.services.remote-development-k3s-state-migration = {
     description = "Migrate legacy K3s state to the root disk";
     after = [ "srv-remote\\x2ddevelopment.mount" ];
@@ -417,10 +501,15 @@ in
     mtr
     neovim
     quota
+    restic
     ripgrep
     rsync
     tmux
     tree
+    workspaceBackup
+    workspaceBackupStatus
+    workspaceExport
+    workspaceRestore
   ];
 
   nix = {
