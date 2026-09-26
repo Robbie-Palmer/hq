@@ -26,6 +26,7 @@
       ],
       "ignoreDependencies": ["cloudflare"]
     },
+    "packages/agent-coordinator-domain": {},
     "packages/ai-review-domain": {},
     "packages/work-graph-domain": {
       "ignoreBinaries": ["vitest"]

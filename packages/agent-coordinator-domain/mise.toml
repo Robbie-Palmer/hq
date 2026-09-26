@@ -1,0 +1,22 @@
+[tasks.install]
+description = "Install Agent Coordinator domain dependencies"
+depends = ["//:install"]
+
+[tasks.typecheck]
+description = "Typecheck the Agent Coordinator domain package"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test the Agent Coordinator domain package"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test the Agent Coordinator domain package with coverage"
+depends = ["install"]
+run = "pnpm test:coverage"
+
+[tasks.check]
+description = "Check the Agent Coordinator domain package"
+depends = ["typecheck", "test"]
