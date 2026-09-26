@@ -5,6 +5,7 @@ data "cloudflare_zone" "domain" {
 locals {
   api_origin                  = "https://${var.work_graph_hostname}"
   credential_handoff_revision = filesha256("${path.module}/scripts/provision-sensitive-resources.sh")
+  hyperdrive_connection_limit = 60
   hyperdrive_name             = "work-graph-db"
 }
 
@@ -52,18 +53,19 @@ resource "terraform_data" "credential_handoff" {
   provisioner "local-exec" {
     command = "bash ${path.module}/scripts/provision-sensitive-resources.sh"
     environment = {
-      CLOUDFLARE_ACCOUNT_ID         = var.cloudflare_account_id
-      DOPPLER_CONFIG                = var.doppler_config
-      DOPPLER_PROJECT               = var.doppler_project
-      NEON_DATABASE_NAME            = "work_graph"
-      NEON_ORG_ID                   = var.neon_org_id
-      NEON_PG_VERSION               = tostring(var.neon_pg_version)
-      NEON_PROJECT_NAME             = var.neon_project_name
-      NEON_REGION                   = var.neon_region
-      NEON_ROLE_NAME                = "work_graph_owner"
-      WORK_GRAPH_API_ORIGIN         = local.api_origin
-      WORK_GRAPH_HYPERDRIVE_NAME    = local.hyperdrive_name
-      WORK_GRAPH_SERVICE_TOKEN_NAME = var.access_service_token_name
+      CLOUDFLARE_ACCOUNT_ID                         = var.cloudflare_account_id
+      DOPPLER_CONFIG                                = var.doppler_config
+      DOPPLER_PROJECT                               = var.doppler_project
+      NEON_DATABASE_NAME                            = "work_graph"
+      NEON_ORG_ID                                   = var.neon_org_id
+      NEON_PG_VERSION                               = tostring(var.neon_pg_version)
+      NEON_PROJECT_NAME                             = var.neon_project_name
+      NEON_REGION                                   = var.neon_region
+      NEON_ROLE_NAME                                = "work_graph_owner"
+      WORK_GRAPH_API_ORIGIN                         = local.api_origin
+      WORK_GRAPH_HYPERDRIVE_ORIGIN_CONNECTION_LIMIT = tostring(local.hyperdrive_connection_limit)
+      WORK_GRAPH_HYPERDRIVE_NAME                    = local.hyperdrive_name
+      WORK_GRAPH_SERVICE_TOKEN_NAME                 = var.access_service_token_name
     }
   }
 }
@@ -87,7 +89,8 @@ data "external" "resource_metadata" {
 
 resource "terraform_data" "hyperdrive_credentials" {
   triggers_replace = {
-    hyperdrive_id = data.external.resource_metadata.result.hyperdrive_id
+    hyperdrive_id                      = data.external.resource_metadata.result.hyperdrive_id
+    hyperdrive_origin_connection_limit = tostring(local.hyperdrive_connection_limit)
     origin_coordinates_sha256 = sha256(jsonencode({
       branch_id  = data.external.resource_metadata.result.neon_branch_id
       database   = data.external.resource_metadata.result.database_name
@@ -101,17 +104,43 @@ resource "terraform_data" "hyperdrive_credentials" {
   provisioner "local-exec" {
     command = "bash ${path.module}/scripts/install-hyperdrive-origin.sh"
     environment = {
-      CLOUDFLARE_ACCOUNT_ID      = var.cloudflare_account_id
-      DOPPLER_CONFIG             = var.doppler_config
-      DOPPLER_PROJECT            = var.doppler_project
-      NEON_BRANCH_ID             = data.external.resource_metadata.result.neon_branch_id
-      NEON_DATABASE_HOST         = data.external.resource_metadata.result.database_host
-      NEON_DATABASE_NAME         = data.external.resource_metadata.result.database_name
-      NEON_PROJECT_ID            = data.external.resource_metadata.result.neon_project_id
-      NEON_ROLE_NAME             = data.external.resource_metadata.result.database_user
-      WORK_GRAPH_API_ORIGIN      = local.api_origin
-      WORK_GRAPH_HYPERDRIVE_ID   = data.external.resource_metadata.result.hyperdrive_id
-      WORK_GRAPH_HYPERDRIVE_NAME = local.hyperdrive_name
+      CLOUDFLARE_ACCOUNT_ID                         = var.cloudflare_account_id
+      DOPPLER_CONFIG                                = var.doppler_config
+      DOPPLER_PROJECT                               = var.doppler_project
+      NEON_BRANCH_ID                                = data.external.resource_metadata.result.neon_branch_id
+      NEON_DATABASE_HOST                            = data.external.resource_metadata.result.database_host
+      NEON_DATABASE_NAME                            = data.external.resource_metadata.result.database_name
+      NEON_PROJECT_ID                               = data.external.resource_metadata.result.neon_project_id
+      NEON_ROLE_NAME                                = data.external.resource_metadata.result.database_user
+      WORK_GRAPH_API_ORIGIN                         = local.api_origin
+      WORK_GRAPH_HYPERDRIVE_ID                      = data.external.resource_metadata.result.hyperdrive_id
+      WORK_GRAPH_HYPERDRIVE_NAME                    = local.hyperdrive_name
+      WORK_GRAPH_HYPERDRIVE_ORIGIN_CONNECTION_LIMIT = tostring(local.hyperdrive_connection_limit)
+    }
+  }
+}
+
+# Read the provider state again after the installer has run. This separate data
+# source both detects drift during normal plans and makes an incorrect value
+# fail the apply that attempted to install it.
+data "external" "installed_resource_metadata" {
+  depends_on = [terraform_data.hyperdrive_credentials]
+  program    = ["bash", "${path.module}/scripts/read-resource-metadata.sh"]
+
+  query = {
+    cloudflare_account_id = var.cloudflare_account_id
+    hyperdrive_name       = local.hyperdrive_name
+    neon_database_name    = "work_graph"
+    neon_org_id           = var.neon_org_id
+    neon_project_name     = var.neon_project_name
+    neon_role_name        = "work_graph_owner"
+    service_token_name    = var.access_service_token_name
+  }
+
+  lifecycle {
+    postcondition {
+      condition     = tonumber(self.result.hyperdrive_origin_connection_limit) == local.hyperdrive_connection_limit
+      error_message = "Work Graph Hyperdrive must use the repository-owned origin connection limit."
     }
   }
 }

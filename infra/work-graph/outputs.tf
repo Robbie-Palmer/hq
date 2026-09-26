@@ -13,6 +13,11 @@ output "hyperdrive_config_id" {
   value       = data.external.resource_metadata.result.hyperdrive_id
 }
 
+output "hyperdrive_origin_connection_limit" {
+  description = "Verified Work Graph Hyperdrive origin connection limit"
+  value       = tonumber(data.external.installed_resource_metadata.result.hyperdrive_origin_connection_limit)
+}
+
 output "neon_project_id" {
   description = "Dedicated Work Graph Neon project ID"
   value       = data.external.resource_metadata.result.neon_project_id

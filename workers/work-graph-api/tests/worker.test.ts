@@ -51,7 +51,9 @@ describe("Given the deployed Worker entrypoint", () => {
     const actual = await worker.fetch(request, env, context);
 
     expect(actual).toBe(expected);
-    expect(fakes.createDb).toHaveBeenCalledWith(connectionString);
+    expect(fakes.createDb).toHaveBeenCalledWith(connectionString, {
+      maxConnections: 1,
+    });
     expect(fakes.repositoryConstructor).toHaveBeenCalledWith(db);
     expect(fakes.appFetch).toHaveBeenCalledWith(request, env, context);
     expect(fakes.closeDb).toHaveBeenCalledWith(db);

@@ -6,10 +6,22 @@ type DbClient = postgres.Sql;
 export type Db = PostgresJsDatabase<typeof schema> & { $client: DbClient };
 export type DbTransaction = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
-export function createDb(connectionString: string): Db {
+export interface DbConnectionOptions {
+  readonly maxConnections?: number;
+}
+
+export function createDb(
+  connectionString: string,
+  options: DbConnectionOptions = {},
+): Db {
   // Hyperdrive can route transactions to different backend connections, so
   // named prepared statements cannot be reused safely.
-  const client = postgres(connectionString, { prepare: false });
+  const client = postgres(connectionString, {
+    prepare: false,
+    ...(options.maxConnections === undefined
+      ? {}
+      : { max: options.maxConnections }),
+  });
   return drizzle(client, { schema, casing: "snake_case" });
 }
 
