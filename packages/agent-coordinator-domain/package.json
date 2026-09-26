@@ -6,10 +6,14 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./adapter": "./src/adapter.ts",
     "./actor": "./src/actor.ts",
+    "./authentication": "./src/authentication.ts",
     "./compatibility": "./src/compatibility.ts",
     "./complexity": "./src/complexity.ts",
     "./policy": "./src/policy.ts",
+    "./native-client": "./src/native-client.ts",
+    "./openrouter": "./src/openrouter.ts",
     "./session": "./src/session.ts",
     "./task": "./src/task.ts",
     "./vocabulary": "./src/vocabulary.ts"
