@@ -94,7 +94,7 @@ test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", ()
     );
     writeFileSync(
       configPath,
-      'personality = "pragmatic"\n\n[features]\njs_repl = false\n',
+      '"model" = "gpt-6-astra"\n\'model_reasoning_effort\' = \'medium\'\n"custom-key" = "keep"\npersonality = "pragmatic"\n\n[features]\njs_repl = false\n',
     );
     writeFileSync(
       join(codexHome, "models_cache.json"),
@@ -139,6 +139,9 @@ test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", ()
       new RegExp(`^model_catalog_json = ${JSON.stringify(catalogPath)}$`, "m"),
     );
     assert.match(firstConfig, /^personality = "pragmatic"$/m);
+    assert.match(firstConfig, /^"custom-key" = "keep"$/m);
+    assert.doesNotMatch(firstConfig, /^"model"\s*=/m);
+    assert.doesNotMatch(firstConfig, /^'model_reasoning_effort'\s*=/m);
     assert.match(firstConfig, /^\[features\]$/m);
 
     const settings = JSON.parse(firstSettings) as Record<string, unknown>;
