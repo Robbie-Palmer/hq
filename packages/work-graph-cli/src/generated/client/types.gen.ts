@@ -364,6 +364,10 @@ export type ListAttentionRequestsErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type ListAttentionRequestsError = ListAttentionRequestsErrors[keyof ListAttentionRequestsErrors];
@@ -428,6 +432,10 @@ export type CreateAttentionRequestErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type CreateAttentionRequestError = CreateAttentionRequestErrors[keyof CreateAttentionRequestErrors];
@@ -488,6 +496,10 @@ export type CreateAttentionResolutionErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type CreateAttentionResolutionError = CreateAttentionResolutionErrors[keyof CreateAttentionResolutionErrors];
@@ -599,6 +611,10 @@ export type DeleteDependencyErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type DeleteDependencyError = DeleteDependencyErrors[keyof DeleteDependencyErrors];
@@ -657,6 +673,10 @@ export type CreateDependencyErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type CreateDependencyError = CreateDependencyErrors[keyof CreateDependencyErrors];
@@ -715,6 +735,10 @@ export type DeleteKnowledgeScopeRelationshipErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type DeleteKnowledgeScopeRelationshipError = DeleteKnowledgeScopeRelationshipErrors[keyof DeleteKnowledgeScopeRelationshipErrors];
@@ -768,6 +792,10 @@ export type ListKnowledgeScopeRelationshipsErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type ListKnowledgeScopeRelationshipsError = ListKnowledgeScopeRelationshipsErrors[keyof ListKnowledgeScopeRelationshipsErrors];
@@ -826,6 +854,10 @@ export type CreateKnowledgeScopeRelationshipErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type CreateKnowledgeScopeRelationshipError = CreateKnowledgeScopeRelationshipErrors[keyof CreateKnowledgeScopeRelationshipErrors];
@@ -880,6 +912,10 @@ export type ListKnowledgeScopesErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type ListKnowledgeScopesError = ListKnowledgeScopesErrors[keyof ListKnowledgeScopesErrors];
@@ -931,6 +967,10 @@ export type GetKnowledgeScopeErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type GetKnowledgeScopeError = GetKnowledgeScopeErrors[keyof GetKnowledgeScopeErrors];
@@ -994,6 +1034,10 @@ export type PutKnowledgeScopeErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type PutKnowledgeScopeError = PutKnowledgeScopeErrors[keyof PutKnowledgeScopeErrors];
@@ -1051,6 +1095,10 @@ export type RestoreKnowledgeScopeErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type RestoreKnowledgeScopeError = RestoreKnowledgeScopeErrors[keyof RestoreKnowledgeScopeErrors];
@@ -1110,6 +1158,10 @@ export type ArchiveKnowledgeScopeErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type ArchiveKnowledgeScopeError = ArchiveKnowledgeScopeErrors[keyof ArchiveKnowledgeScopeErrors];
@@ -1173,6 +1225,10 @@ export type MoveKnowledgeScopePriorityErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type MoveKnowledgeScopePriorityError = MoveKnowledgeScopePriorityErrors[keyof MoveKnowledgeScopePriorityErrors];
@@ -1232,6 +1288,10 @@ export type CreateLeaseErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type CreateLeaseError = CreateLeaseErrors[keyof CreateLeaseErrors];
@@ -1286,6 +1346,10 @@ export type CreateLeaseRenewalErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type CreateLeaseRenewalError = CreateLeaseRenewalErrors[keyof CreateLeaseRenewalErrors];
@@ -1352,6 +1416,10 @@ export type RefreshPullRequestErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type RefreshPullRequestError = RefreshPullRequestErrors[keyof RefreshPullRequestErrors];
@@ -1408,6 +1476,10 @@ export type ListWorkItemsErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type ListWorkItemsError = ListWorkItemsErrors[keyof ListWorkItemsErrors];
@@ -1469,6 +1541,10 @@ export type CreateWorkItemErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type CreateWorkItemError = CreateWorkItemErrors[keyof CreateWorkItemErrors];
@@ -1520,6 +1596,10 @@ export type GetWorkItemErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type GetWorkItemError = GetWorkItemErrors[keyof GetWorkItemErrors];
@@ -1574,6 +1654,10 @@ export type CreateWorkItemCancellationErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type CreateWorkItemCancellationError = CreateWorkItemCancellationErrors[keyof CreateWorkItemCancellationErrors];
@@ -1635,6 +1719,10 @@ export type CreatePostReleaseWorkItemNoteErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type CreatePostReleaseWorkItemNoteError = CreatePostReleaseWorkItemNoteErrors[keyof CreatePostReleaseWorkItemNoteErrors];
@@ -1686,6 +1774,10 @@ export type ListWorkItemContextsErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type ListWorkItemContextsError = ListWorkItemContextsErrors[keyof ListWorkItemContextsErrors];
@@ -1751,6 +1843,10 @@ export type PutWorkItemContextErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type PutWorkItemContextError = PutWorkItemContextErrors[keyof PutWorkItemContextErrors];
@@ -1825,6 +1921,10 @@ export type CreateWorkItemDecompositionErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type CreateWorkItemDecompositionError = CreateWorkItemDecompositionErrors[keyof CreateWorkItemDecompositionErrors];
@@ -1879,6 +1979,10 @@ export type ListWorkItemDependenciesErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type ListWorkItemDependenciesError = ListWorkItemDependenciesErrors[keyof ListWorkItemDependenciesErrors];
@@ -1935,6 +2039,10 @@ export type ListWorkItemEventsErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type ListWorkItemEventsError = ListWorkItemEventsErrors[keyof ListWorkItemEventsErrors];
@@ -1992,6 +2100,10 @@ export type UnexpediteWorkItemErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type UnexpediteWorkItemError = UnexpediteWorkItemErrors[keyof UnexpediteWorkItemErrors];
@@ -2051,6 +2163,10 @@ export type ExpediteWorkItemErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type ExpediteWorkItemError = ExpediteWorkItemErrors[keyof ExpediteWorkItemErrors];
@@ -2105,6 +2221,10 @@ export type ListWorkItemLeasesErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type ListWorkItemLeasesError = ListWorkItemLeasesErrors[keyof ListWorkItemLeasesErrors];
@@ -2159,6 +2279,10 @@ export type ListWorkItemNotesErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type ListWorkItemNotesError = ListWorkItemNotesErrors[keyof ListWorkItemNotesErrors];
@@ -2221,6 +2345,10 @@ export type CreateWorkItemNoteErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type CreateWorkItemNoteError = CreateWorkItemNoteErrors[keyof CreateWorkItemNoteErrors];
@@ -2280,6 +2408,10 @@ export type PutWorkItemParentErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type PutWorkItemParentError = PutWorkItemParentErrors[keyof PutWorkItemParentErrors];
@@ -2343,6 +2475,10 @@ export type MoveWorkItemPriorityErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type MoveWorkItemPriorityError = MoveWorkItemPriorityErrors[keyof MoveWorkItemPriorityErrors];
@@ -2394,6 +2530,10 @@ export type ListWorkItemPullRequestsErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type ListWorkItemPullRequestsError = ListWorkItemPullRequestsErrors[keyof ListWorkItemPullRequestsErrors];
@@ -2455,6 +2595,10 @@ export type PutWorkItemPullRequestErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type PutWorkItemPullRequestError = PutWorkItemPullRequestErrors[keyof PutWorkItemPullRequestErrors];
@@ -2515,6 +2659,10 @@ export type PutWorkItemReferenceErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type PutWorkItemReferenceError = PutWorkItemReferenceErrors[keyof PutWorkItemReferenceErrors];
@@ -2571,6 +2719,10 @@ export type CreateWorkItemReleaseErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type CreateWorkItemReleaseError = CreateWorkItemReleaseErrors[keyof CreateWorkItemReleaseErrors];
@@ -2631,6 +2783,10 @@ export type PutWorkItemSchedulingScopeErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request exceeded its execution budget
+     */
+    503: Error;
 };
 
 export type PutWorkItemSchedulingScopeError = PutWorkItemSchedulingScopeErrors[keyof PutWorkItemSchedulingScopeErrors];
