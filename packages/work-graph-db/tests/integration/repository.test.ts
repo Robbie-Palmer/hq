@@ -8,6 +8,7 @@ import { eq, sql } from "drizzle-orm";
 import {
   closeDb,
   createDb,
+  isRetryableDatabaseTimeout,
   schema,
   WorkGraphRepository,
 } from "../../src/index";
@@ -85,6 +86,30 @@ const waitForDatabaseLock = async (): Promise<void> => {
   throw new Error("Timed out waiting for a PostgreSQL lock waiter.");
 };
 
+describe("database timeout classification", () => {
+  it.each(["25P03", "25P04", "55P03", "57014"])(
+    "recognizes PostgreSQL %s through wrapped errors",
+    (code) => {
+      const databaseError = Object.assign(new Error("database timeout"), {
+        code,
+      });
+
+      expect(
+        isRetryableDatabaseTimeout(
+          new Error("database request failed", { cause: databaseError }),
+        ),
+      ).toBe(true);
+    },
+  );
+
+  it("rejects unrelated and non-Error values", () => {
+    expect(isRetryableDatabaseTimeout(new Error("database failed"))).toBe(
+      false,
+    );
+    expect(isRetryableDatabaseTimeout({ code: "55P03" })).toBe(false);
+  });
+});
+
 beforeAll(async () => {
   const [migrationCount] = await db.execute<{ count: number }>(sql`
     select count(*)::integer as count
@@ -147,7 +172,7 @@ beforeAll(async () => {
     order by enumsortorder
   `);
 
-  expect(migrationCount?.count).toBe(14);
+  expect(migrationCount?.count).toBe(15);
   expect(tables.map(({ table_name }) => table_name)).toEqual([
     "attention_requests",
     "attention_resolutions",
@@ -797,6 +822,97 @@ beforeEach(async () => {
     await transaction.delete(schema.workItemDependency);
     await transaction.delete(schema.workItemHierarchy);
     await transaction.delete(schema.workItem);
+  });
+});
+
+describe("database request limits", () => {
+  it("sets every session limit below the client request budget", async () => {
+    const [settings] = await db.execute<{
+      idle_in_transaction_session_timeout: string;
+      lock_timeout: string;
+      statement_timeout: string;
+      transaction_timeout: string;
+    }>(sql`
+      select
+        current_setting('lock_timeout') as lock_timeout,
+        current_setting('statement_timeout') as statement_timeout,
+        current_setting(
+          'idle_in_transaction_session_timeout'
+        ) as idle_in_transaction_session_timeout,
+        current_setting('transaction_timeout') as transaction_timeout
+    `);
+
+    expect(settings).toEqual({
+      lock_timeout: "5s",
+      statement_timeout: "15s",
+      idle_in_transaction_session_timeout: "10s",
+      transaction_timeout: "20s",
+    });
+  });
+
+  it("bounds a global-lock wait and rolls back the whole mutation", async () => {
+    const timedDb = createDb(databaseURL);
+    const timedRepository = new WorkGraphRepository(timedDb);
+    const idempotencyKey = recordId(990);
+    let markLockAcquired: () => void = () => undefined;
+    const lockAcquired = new Promise<void>((resolve) => {
+      markLockAcquired = resolve;
+    });
+    let releaseLock: () => void = () => undefined;
+    const lockMayRelease = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    const blocker = db.transaction(async (transaction) => {
+      await transaction
+        .select({ id: schema.graphMutationLock.id })
+        .from(schema.graphMutationLock)
+        .where(eq(schema.graphMutationLock.id, "global"))
+        .for("update");
+      markLockAcquired();
+      await lockMayRelease;
+    });
+    await lockAcquired;
+
+    const startedAt = Date.now();
+    let databaseError: DatabaseError | undefined;
+    try {
+      databaseError = await rejectedDatabaseError(
+        timedRepository.createWorkItem(
+          { id: "timed-out-work", title: "Timed out work" },
+          { idempotencyKey },
+        ),
+      );
+    } finally {
+      releaseLock();
+      await blocker;
+      await closeDb(timedDb);
+    }
+
+    expect(databaseError?.code).toBe("55P03");
+    expect(Date.now() - startedAt).toBeLessThan(7_000);
+    await expect(repository.getWorkItem("timed-out-work")).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "work_item_not_found",
+      }),
+    );
+    expect(
+      await db
+        .select({ id: schema.idempotencyKey.id })
+        .from(schema.idempotencyKey)
+        .where(eq(schema.idempotencyKey.id, idempotencyKey)),
+    ).toEqual([]);
+    expect(
+      await repository.listEvents({ workItemId: "timed-out-work" }),
+    ).toEqual([]);
+    expect(await db.select().from(schema.lease)).toEqual([]);
+    expect(await db.select().from(schema.note)).toEqual([]);
+
+    await expect(
+      repository.createWorkItem(
+        { id: "timed-out-work", title: "Timed out work" },
+        { idempotencyKey },
+      ),
+    ).resolves.toEqual(expect.objectContaining({ id: "timed-out-work" }));
   });
 });
 

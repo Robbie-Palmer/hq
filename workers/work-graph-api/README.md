@@ -54,6 +54,35 @@ CI performs the same sequence after changes reach `main`. Restrict the
 reviewers so a merge automatically runs migrations, deploys the Worker, and
 smoke-tests production.
 
+### Database request limits
+
+The database migration sets a 5-second lock timeout, 15-second statement
+timeout, 10-second idle-in-transaction timeout, and 20-second transaction
+timeout on the dedicated `work_graph_owner` role for the Work Graph database.
+These limits sit below the CLI's 30-second request timeout. They give the Worker
+time to roll back an aborted transaction and return HTTP 503 with
+`Retry-After: 1` instead of holding a Hyperdrive connection until the client
+disconnects.
+
+The settings belong to the database role rather than a Worker session.
+Hyperdrive uses transaction pooling and does not support arbitrary per-session
+state. Apply migrations before deploying the Worker, then restart the
+Hyperdrive pool so every origin connection picks up the new role defaults. Run
+the production smoke test afterward.
+
+To roll back, reset `lock_timeout`, `statement_timeout`,
+`idle_in_transaction_session_timeout`, and `transaction_timeout` for
+`work_graph_owner` in the `work_graph` database. Restart Hyperdrive, revert the
+Worker error mapping, deploy, and run the production smoke test.
+
+```sql
+ALTER ROLE work_graph_owner IN DATABASE work_graph RESET lock_timeout;
+ALTER ROLE work_graph_owner IN DATABASE work_graph RESET statement_timeout;
+ALTER ROLE work_graph_owner IN DATABASE work_graph
+  RESET idle_in_transaction_session_timeout;
+ALTER ROLE work_graph_owner IN DATABASE work_graph RESET transaction_timeout;
+```
+
 ## Client use
 
 The CLI loads the production Doppler config automatically when its API URL is
