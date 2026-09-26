@@ -72,6 +72,16 @@ function flowIsActive(flow: RecurringFlow, date: string): boolean {
   );
 }
 
+function capLiabilityPayment(
+  destination: ProjectedAccount | null,
+  receivedAmount: number,
+): number {
+  if (destination == null || !isLiability(destination.account.assetType)) {
+    return receivedAmount;
+  }
+  return Math.min(receivedAmount, Math.max(-destination.balance, 0));
+}
+
 function applyExpectedFlow(
   byId: Map<string, ProjectedAccount>,
   flow: RecurringFlow,
@@ -91,16 +101,17 @@ function applyExpectedFlow(
   // appropriate liquidity pool without changing total net worth.
   if (source != null && destination == null) return;
   const amount = monthlyAmount(flow, destination?.balance);
-  let receivedAmount =
+  const uncappedReceivedAmount =
     flow.conversion == null ? amount : monthlyReceivedAmount(flow);
-  if (destination && isLiability(destination.account.assetType)) {
-    receivedAmount = Math.min(
-      receivedAmount,
-      Math.max(-destination.balance, 0),
-    );
+  const receivedAmount = capLiabilityPayment(
+    destination,
+    uncappedReceivedAmount,
+  );
+  if (amount <= 0 || uncappedReceivedAmount <= 0) return;
+  const receivedRatio = receivedAmount / uncappedReceivedAmount;
+  if (source) {
+    source.balance -= (amount + monthlyFeeAmount(flow)) * receivedRatio;
   }
-  if (amount <= 0) return;
-  if (source) source.balance -= amount + monthlyFeeAmount(flow);
   if (destination) destination.balance += receivedAmount;
 }
 

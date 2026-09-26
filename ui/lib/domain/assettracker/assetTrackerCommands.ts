@@ -541,6 +541,12 @@ export function applyRecordTransfer(
       "Enter the amount received for a cross-currency transfer",
     );
   }
+  if (!crossCurrency && parsed.receivedAmount != null) {
+    throw new AssetTrackerCommandError(
+      "RECEIVED_AMOUNT_REQUIRED",
+      "A received amount only applies to a cross-currency transfer",
+    );
+  }
   const receivedAmount = parsed.receivedAmount ?? parsed.amount;
   const feeAmount = parsed.feeAmount ?? 0;
   let snapshots = data.snapshots;
@@ -570,7 +576,7 @@ export function applyRecordTransfer(
     fromAccountId: parsed.fromAccountId,
     toAccountId: parsed.toAccountId,
     amount: parsed.amount,
-    ...(crossCurrency || parsed.receivedAmount != null
+    ...(crossCurrency
       ? { fromAmount: parsed.amount, toAmount: receivedAmount }
       : {}),
     ...(feeAmount > 0 ? { feeAmount } : {}),
@@ -781,8 +787,15 @@ export function applyAddRecurringFlow(
       "Enter the expected amount received for a cross-currency flow",
     );
   }
+  if (parsed.conversion != null && destination == null) {
+    throw new AssetTrackerCommandError(
+      "INVALID_RECURRING_FLOW_CONVERSION",
+      "A currency conversion needs a destination account",
+    );
+  }
   if (
     parsed.conversion != null &&
+    destinationCurrency != null &&
     parsed.conversion.received.currency !== destinationCurrency
   ) {
     throw new AssetTrackerCommandError(

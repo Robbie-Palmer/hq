@@ -345,6 +345,47 @@ describe("getAssetAllocationTimeSeries", () => {
     expect(series[1]).toMatchObject({ cash: 1, totalAssets: 20_000 });
     expect(series[1]?.stocks).toBeUndefined();
   });
+
+  it("keeps valued allocation points after a linked mortgage closes", () => {
+    const data = homeData();
+    const mortgage = data.accounts.find((account) => account.id === "mortgage");
+    if (mortgage == null) throw new Error("Expected mortgage fixture");
+    mortgage.closedAt = "2025-01-01";
+    data.accounts.push({
+      id: "usd-cash",
+      name: "USD cash",
+      provider: "Bank",
+      currency: "USD",
+      assetType: "cash",
+      expectedAnnualReturn: 0,
+      createdAt: "2024-01-01",
+    });
+    data.snapshots.push(
+      { accountId: "home", date: "2025-01-01", balance: 310_000 },
+      { accountId: "mortgage", date: "2025-01-01", balance: -190_000 },
+      { accountId: "usd-cash", date: "2025-01-01", balance: 1_000 },
+    );
+    data.exchangeRateObservations = [
+      {
+        id: "usd-gbp-2025-01-01",
+        fromCurrency: "USD",
+        toCurrency: "GBP",
+        rate: 0.8,
+        validAt: "2025-01-01",
+        acceptedAt: "2025-01-01T12:00:00Z",
+        source: { kind: "manual", id: "test" },
+      },
+    ];
+
+    const point = getAssetAllocationTimeSeries(buildRepository(data)).at(-1);
+
+    expect(point).toMatchObject({
+      date: "2025-01-01",
+      property: 310_000 / 310_800,
+      cash: 800 / 310_800,
+      totalAssets: 310_800,
+    });
+  });
 });
 
 describe("getNetWorthTimeSeries", () => {

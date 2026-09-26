@@ -363,9 +363,15 @@ function buildValuedAllocationPoint(
   const totals = new Map<AssetType, number>();
   for (const account of accounts) {
     if (isExcludedFromAllocation(account, date, absorbedIds)) continue;
-    const ids = [account.id, ...(mortgagesByProperty.get(account.id) ?? [])];
+    const ids = [
+      account.id,
+      ...(mortgagesByProperty.get(account.id) ?? []),
+    ].filter((id) => {
+      const closedAt = repository.accounts.get(id)?.closedAt;
+      return closedAt == null || closedAt > date;
+    });
     const values = ids.map((id) => valuation.byAccount.get(id)?.value ?? null);
-    if (values.some((value) => value == null)) return null;
+    if (values.some((value) => value == null)) continue;
     const value = values.reduce<number>(
       (sum, current) => sum + (current ?? 0),
       0,

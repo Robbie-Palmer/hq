@@ -658,6 +658,26 @@ describe("applyRecordTransfer", () => {
     ).toThrow(/amount received/);
   });
 
+  it.each([
+    {
+      label: "same-currency",
+      input: {
+        fromAccountId: "savings",
+        toAccountId: "stocks-isa",
+      },
+    },
+    { label: "external", input: { toAccountId: "savings" } },
+  ])("rejects a received amount for a $label transfer", ({ input }) => {
+    expect(() =>
+      applyRecordTransfer(baseData(), {
+        date: "2024-07-01",
+        amount: 100,
+        receivedAmount: 150,
+        ...input,
+      }),
+    ).toThrow(/only applies to a cross-currency transfer/);
+  });
+
   it("rejects a transfer with neither side", () => {
     expect(() =>
       applyRecordTransfer(baseData(), { date: "2024-07-01", amount: 100 }),
@@ -1019,6 +1039,22 @@ describe("applyAddRecurringFlow / applyDeleteRecurringFlow", () => {
     });
 
     expect(next.recurringFlows[0]?.compensationKind).toBe("employerPension");
+  });
+
+  it("rejects a conversion without a destination account", () => {
+    expect(() =>
+      applyAddRecurringFlow(baseData(), {
+        name: "Converted spending",
+        fromAccountId: "savings",
+        amount: 100,
+        conversion: {
+          received: { amount: 125, currency: "USD" },
+          provider: "Broker",
+        },
+        frequency: "monthly",
+        startDate: "2024-07-01",
+      }),
+    ).toThrow(/needs a destination account/);
   });
 
   it("preserves gross pay on a take-home income flow", () => {

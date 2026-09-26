@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getAllAccountDetails,
+  getAssetAllocationTimeSeries,
   getLatestPortfolioValuation,
 } from "@/lib/domain/assettracker/assetTrackerQueries";
 import {
@@ -29,6 +30,9 @@ describe("Asset Tracker demo data", () => {
     expect(valuation?.date).toBe("2024-12-01");
     expect(valuation?.total).not.toBeNull();
     expect(valuation?.issues).toEqual([]);
+    expect(getAssetAllocationTimeSeries(repository)[0]?.date).toBe(
+      "2020-06-01",
+    );
     expect(repository.settings.targetNetWorth).toEqual({
       amount: 500_000,
       currency: "GBP",
