@@ -1355,6 +1355,157 @@ describe("knowledge scope persistence", () => {
   });
 });
 
+describe("critical-path projection persistence", () => {
+  const putScope = (id: string, kind: "initiative" | "project") =>
+    repository.putKnowledgeScope({
+      id,
+      kind,
+      title: id,
+      canonicalUrl: `https://example.test/${kind}s/${id}`,
+      markdownUrl: `https://example.test/${kind}s/${id}.md`,
+    });
+
+  it("projects global, scoped, and rooted paths with operational state", async () => {
+    await putScope("initiative", "initiative");
+    await putScope("project-a", "project");
+    await putScope("project-b", "project");
+    await repository.addKnowledgeScopeRelationship({
+      parentKnowledgeScopeId: "initiative",
+      childKnowledgeScopeId: "project-a",
+    });
+    await repository.addKnowledgeScopeRelationship({
+      parentKnowledgeScopeId: "initiative",
+      childKnowledgeScopeId: "project-b",
+    });
+    await repository.createWorkItem({
+      id: "outcome",
+      title: "Outcome",
+      schedulingInitiativeId: "initiative",
+      schedulingProjectId: "project-a",
+    });
+    await repository.createWorkItem({
+      id: "implementation",
+      title: "Implementation",
+      parentId: "outcome",
+    });
+    await repository.createWorkItem({
+      id: "review",
+      title: "Review",
+      parentId: "outcome",
+    });
+    await repository.createWorkItem({
+      id: "blocker",
+      title: "Blocker",
+      schedulingInitiativeId: "initiative",
+      schedulingProjectId: "project-b",
+    });
+    await repository.addDependency(dependency("implementation", "blocker"));
+
+    const blockerLease = await repository.claimWorkItem({
+      leaseId: recordId(701),
+      workerId: "blocker-worker",
+      leaseDurationSeconds: 300,
+      workItemId: "blocker",
+    });
+    expect(blockerLease).not.toBeNull();
+    const reviewLease = await repository.claimWorkItem({
+      leaseId: recordId(702),
+      workerId: "review-worker",
+      leaseDurationSeconds: 300,
+      workItemId: "review",
+    });
+    if (!reviewLease) throw new Error("Expected the review claim to succeed.");
+    await repository.createAttentionRequest({
+      id: recordId(703),
+      workItemId: "review",
+      leaseId: reviewLease.id,
+      epoch: reviewLease.epoch,
+      kind: "decision",
+      question: "Approve the review?",
+      blocking: true,
+    });
+
+    const scoped = await repository.projectCriticalPath({
+      initiativeId: "initiative",
+      projectId: "project-a",
+    });
+    expect(scoped.targetOutcomeIds).toEqual(["outcome"]);
+    expect(scoped.nodes.map(({ item }) => item.id)).toEqual([
+      "outcome",
+      "implementation",
+      "blocker",
+      "review",
+    ]);
+    expect(scoped.blockingAttentionIds).toEqual(["review"]);
+    expect(
+      scoped.nodes.find(({ item }) => item.id === "blocker")?.stage,
+    ).toBe("in_progress");
+
+    await expect(
+      repository.projectCriticalPath({ initiativeId: "initiative" }),
+    ).resolves.toEqual(
+      expect.objectContaining({ targetOutcomeIds: ["outcome", "blocker"] }),
+    );
+    await expect(
+      repository.projectCriticalPath({ projectId: "project-b" }),
+    ).resolves.toEqual(expect.objectContaining({ targetOutcomeIds: ["blocker"] }));
+    await expect(
+      repository.projectCriticalPath({ rootWorkItemId: "outcome" }),
+    ).resolves.toEqual(expect.objectContaining({ targetOutcomeIds: ["outcome"] }));
+    await expect(repository.projectCriticalPath()).resolves.toEqual(
+      expect.objectContaining({ targetOutcomeIds: ["outcome", "blocker"] }),
+    );
+  });
+
+  it("rejects invalid, missing, inactive, and mismatched scopes", async () => {
+    await putScope("initiative", "initiative");
+    await putScope("project", "project");
+    await repository.createWorkItem({ id: "outcome", title: "Outcome" });
+
+    await expect(
+      repository.projectCriticalPath({
+        projectId: "project",
+        rootWorkItemId: "outcome",
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "invalid_critical_path_scope",
+      }),
+    );
+    await expect(
+      repository.projectCriticalPath({ projectId: "missing" }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "knowledge_scope_not_found",
+      }),
+    );
+    await expect(
+      repository.projectCriticalPath({ initiativeId: "project" }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "invalid_critical_path_scope",
+      }),
+    );
+    await repository.archiveKnowledgeScope("initiative", {
+      reason: "Completed",
+    });
+    await expect(
+      repository.projectCriticalPath({ initiativeId: "initiative" }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "invalid_critical_path_scope",
+      }),
+    );
+    await expect(
+      repository.projectCriticalPath({ rootWorkItemId: "missing" }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "work_item_not_found",
+      }),
+    );
+  });
+});
+
 afterAll(async () => {
   await closeDb(db);
 });
