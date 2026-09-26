@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   check,
@@ -622,6 +623,118 @@ export const pantryItem = pgTable(
       table.ingredientSlug,
     ),
     index("pantry_item_ingredient_slug_idx").on(table.ingredientSlug),
+  ],
+);
+
+export const mutationActorTypeEnum = pgEnum("mutation_actor_type", [
+  "agent",
+  "user",
+]);
+
+export type PantryMutationValue = {
+  ingredientSlug: string;
+  location: (typeof pantryLocationEnum.enumValues)[number];
+};
+
+/**
+ * One immutable, attributable write to a current-state projection. Undo creates
+ * another row linked through compensatesChangeSetId; history is never edited.
+ */
+export const agentMutationChangeSet = pgTable(
+  "agent_mutation_change_set",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    actorType: mutationActorTypeEnum().notNull(),
+    actorUserId: text().notNull(),
+    actorAgentId: text(),
+    actorAgentName: text(),
+    actorHostId: text(),
+    actorHostName: text(),
+    capability: text().notNull(),
+    targetType: text().notNull(),
+    targetId: text().notNull(),
+    reason: text().notNull(),
+    idempotencyKey: uuid().notNull(),
+    commandFingerprint: text().notNull(),
+    compensatesChangeSetId: uuid().references(
+      (): AnyPgColumn => agentMutationChangeSet.id,
+    ),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      "agent_mutation_change_set_actor_check",
+      sql`(${table.actorType} = 'agent' AND num_nonnulls(${table.actorAgentId}, ${table.actorHostId}) = 2) OR (${table.actorType} = 'user' AND num_nonnulls(${table.actorAgentId}, ${table.actorHostId}) = 0)`,
+    ),
+    uniqueIndex("agent_mutation_change_set_idempotency_uidx").on(
+      table.idempotencyKey,
+    ),
+    index("agent_mutation_change_set_user_time_idx").on(
+      table.actorUserId,
+      table.createdAt.desc(),
+    ),
+    index("agent_mutation_change_set_target_time_idx").on(
+      table.targetType,
+      table.targetId,
+      table.createdAt.desc(),
+    ),
+    index("agent_mutation_change_set_compensates_idx").on(
+      table.compensatesChangeSetId,
+    ),
+  ],
+);
+
+/** Structured before/after state needed for conflict-aware compensation. */
+export const agentMutationChangeItem = pgTable(
+  "agent_mutation_change_item",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    changeSetId: uuid()
+      .notNull()
+      .references(() => agentMutationChangeSet.id, { onDelete: "restrict" }),
+    ordinal: integer().notNull(),
+    stableItemId: uuid().notNull(),
+    ingredientSlug: text().notNull(),
+    beforeValue: jsonb().$type<PantryMutationValue>(),
+    afterValue: jsonb().$type<PantryMutationValue>(),
+    beforeVersion: bigint({ mode: "bigint" }),
+    // Removals store the absence-marker version even though afterValue is null.
+    afterVersion: bigint({ mode: "bigint" }).notNull(),
+  },
+  (table) => [
+    check(
+      "agent_mutation_change_item_value_check",
+      sql`num_nonnulls(${table.beforeValue}, ${table.afterValue}) >= 1`,
+    ),
+    uniqueIndex("agent_mutation_change_item_ordinal_uidx").on(
+      table.changeSetId,
+      table.ordinal,
+    ),
+    index("agent_mutation_change_item_stable_id_idx").on(table.stableItemId),
+  ],
+);
+
+/**
+ * Versioned absence marker for a removed pantry item. Undo may restore only
+ * while this exact marker remains current and no item has been recreated.
+ */
+export const pantryItemAbsence = pgTable(
+  "pantry_item_absence",
+  {
+    aggregateId: uuid()
+      .notNull()
+      .references(() => pantryAggregate.id, { onDelete: "cascade" }),
+    stableItemId: uuid().notNull(),
+    ingredientSlug: text().notNull(),
+    version: bigint({ mode: "bigint" }).notNull(),
+    changeSetId: uuid()
+      .notNull()
+      .references(() => agentMutationChangeSet.id, { onDelete: "restrict" }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.aggregateId, table.ingredientSlug] }),
+    index("pantry_item_absence_stable_id_idx").on(table.stableItemId),
   ],
 );
 

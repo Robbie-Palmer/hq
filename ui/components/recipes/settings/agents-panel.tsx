@@ -1,10 +1,17 @@
 "use client";
 
 import { isAbortError } from "browser-base/errors";
-import { Bot, Clock, LoaderCircle, ShieldX } from "lucide-react";
+import { Bot, Clock, LoaderCircle, RotateCcw, ShieldX } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { type AgentSummary, listAgents, revokeAgent } from "@/lib/api/agents";
+import {
+  type AgentMutationHistory,
+  type AgentSummary,
+  listAgentMutations,
+  listAgents,
+  revokeAgent,
+  undoAgentMutation,
+} from "@/lib/api/agents";
 import { PanelHead } from "./panel-head";
 
 function dateLabel(value: string | null): string {
@@ -32,19 +39,53 @@ function canRevoke(agent: AgentSummary): boolean {
 
 export function AgentsPanel() {
   const [agents, setAgents] = useState<AgentSummary[] | null>(null);
+  const [mutations, setMutations] = useState<AgentMutationHistory[] | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [undoingId, setUndoingId] = useState<string | null>(null);
   const loadControllerRef = useRef<AbortController | null>(null);
 
   async function load(signal?: AbortSignal) {
     setError(null);
     try {
-      setAgents(await listAgents(signal));
+      const [nextAgents, nextMutations] = await Promise.all([
+        listAgents(signal),
+        listAgentMutations(signal),
+      ]);
+      setAgents(nextAgents);
+      setMutations(nextMutations);
     } catch (cause) {
       if (isAbortError(cause)) return;
       setError(
         cause instanceof Error ? cause.message : "Agents could not be loaded.",
       );
+    }
+  }
+
+  async function undo(change: AgentMutationHistory) {
+    const itemCount = change.items.length;
+    if (
+      !window.confirm(
+        `Undo ${itemCount} pantry ${itemCount === 1 ? "change" : "changes"} made by ${change.agentName ?? "this agent"}?`,
+      )
+    ) {
+      return;
+    }
+    setUndoingId(change.id);
+    setError(null);
+    try {
+      await undoAgentMutation(change.id);
+      await load(loadControllerRef.current?.signal);
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "The agent change could not be undone.",
+      );
+    } finally {
+      setUndoingId(null);
     }
   }
 
@@ -220,6 +261,56 @@ export function AgentsPanel() {
           );
         })}
       </div>
+
+      {mutations && mutations.length > 0 && (
+        <section className="mt-8 border-t border-[var(--line)] pt-6">
+          <p className="rt-mono text-[var(--terracotta)]">RECENT CHANGES</p>
+          <h3 className="rt-display mt-1 text-3xl">Agent activity</h3>
+          <div className="mt-4 space-y-3">
+            {mutations.map((change) => (
+              <article
+                key={change.id}
+                className="rounded-xl border border-[var(--line-strong)] bg-[var(--card)] p-4"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="rt-body font-semibold">
+                      {change.compensatesChangeSetId
+                        ? "Change undone"
+                        : (change.agentName ?? "Recipe agent")}
+                    </p>
+                    <p className="rt-body mt-1 text-sm text-[var(--ink-2)]">
+                      {change.reason}
+                    </p>
+                    <p className="rt-mono mt-2 text-xs text-[var(--ink-3)]">
+                      {change.items.length}{" "}
+                      {change.items.length === 1 ? "item" : "items"} ·{" "}
+                      {dateLabel(change.createdAt)}
+                    </p>
+                  </div>
+                  {change.actorType === "agent" &&
+                    !change.compensatesChangeSetId && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={undoingId !== null}
+                        onClick={() => void undo(change)}
+                      >
+                        {undoingId === change.id ? (
+                          <LoaderCircle className="animate-spin" />
+                        ) : (
+                          <RotateCcw />
+                        )}
+                        Undo
+                      </Button>
+                    )}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

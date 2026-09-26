@@ -52,6 +52,12 @@ import {
 import { parseRecipeFile } from "recipe-parsing/recipe-file";
 import { parseSchemaOrgRecipeHtml } from "recipe-parsing/schema-org";
 import { recipeAgentConfiguration } from "./agent-auth";
+import {
+  AgentMutationConflictError,
+  listAgentMutationHistory,
+  previewAgentMutationUndo,
+  undoAgentMutation,
+} from "./agent-mutations";
 import { createAuth, isPreviewAuthEnabled } from "./auth";
 import { verifyCloudflareAccess } from "./cloudflare-access";
 import { cookingInsightsResponse } from "./cooking-reads";
@@ -228,6 +234,11 @@ const pantryResponseSchema = z
   .strict();
 const pantryOperationReceiptSchema = z
   .object({ version: z.literal(1), pantry: pantryResponseSchema })
+  .strict();
+const undoAgentMutationBodySchema = z
+  .object({
+    stableItemIds: z.array(z.uuid().max(36)).min(1).max(100).optional(),
+  })
   .strict();
 const feedScopeSchema = z.enum(["public", "following"]);
 const feedLimitSchema = z.coerce.number().int().min(1).max(30).default(12);
@@ -613,6 +624,12 @@ export const routeMetadata = {
   "GET /api/profile/bootstrap": {},
   "PUT /api/profile/recipe-box": { requestBodySchema: recipeBoxBodySchema },
   "GET /api/profile/cooking-insights": {},
+  "GET /api/profile/agent-mutations": {},
+  "GET /api/profile/agent-mutations/:changeSetId/undo-preview": {},
+  "POST /api/profile/agent-mutations/:changeSetId/undo": {
+    requestBodySchema: undoAgentMutationBodySchema,
+    headersSchema: pantryOperationHeadersSchema,
+  },
   "POST /api/profile/cooking-sessions": {
     requestBodySchema: cookingSessionBodySchema,
     successStatuses: [200, 201],
@@ -767,6 +784,7 @@ const UUID_PATH_PARAMETER_NAMES = new Set([
   "invitationId",
   "memberId",
   "notificationId",
+  "changeSetId",
 ]);
 
 const notificationActionKeySchema = z.enum([
@@ -1158,7 +1176,12 @@ function parseRecipeSlug(c: Context<AppEnv>) {
 
 function uuidParam(
   c: Context<AppEnv>,
-  name: "householdId" | "invitationId" | "memberId" | "notificationId",
+  name:
+    | "householdId"
+    | "invitationId"
+    | "memberId"
+    | "notificationId"
+    | "changeSetId",
   label: string,
 ): string | Response {
   const result = uuidIdSchema.safeParse(c.req.param(name));
@@ -1683,6 +1706,12 @@ async function executePantryOperation(
     }
 
     await mutate(tx, scope);
+    // A human pantry command supersedes any agent-removal absence markers.
+    // Clearing them makes a later undo surface a conflict even if a recreated
+    // item has since been removed again.
+    await tx
+      .delete(schema.pantryItemAbsence)
+      .where(eq(schema.pantryItemAbsence.aggregateId, aggregate.id));
     await enforcePantryItemLimit(tx, scope);
     const [updatedAggregate] = await tx
       .update(schema.pantryAggregate)
@@ -3317,6 +3346,86 @@ registerRoute("put", "/api/profile/recipe-box", async (c) => {
     },
   );
 });
+
+registerRoute("get", "/api/profile/agent-mutations", async (c) => {
+  return withRecipeSession(
+    c,
+    "query",
+    "GET /api/profile/agent-mutations query failed",
+    async ({ db, session }) =>
+      c.json({ items: await listAgentMutationHistory(db, session.user.id) }),
+  );
+});
+
+registerRoute(
+  "get",
+  "/api/profile/agent-mutations/:changeSetId/undo-preview",
+  async (c) => {
+    const changeSetId = uuidParam(c, "changeSetId", "change-set ID");
+    if (changeSetId instanceof Response) return changeSetId;
+    return withRecipeSession(
+      c,
+      "query",
+      "GET agent mutation undo preview failed",
+      async ({ db, session }) => {
+        try {
+          const preview = await previewAgentMutationUndo(
+            db,
+            session.user.id,
+            changeSetId,
+          );
+          return preview
+            ? c.json(preview)
+            : c.json({ error: "Mutation change set not found" }, 404);
+        } catch (error) {
+          if (error instanceof AgentMutationConflictError) {
+            return c.json({ error: error.message }, 409);
+          }
+          throw error;
+        }
+      },
+    );
+  },
+);
+
+registerRoute(
+  "post",
+  "/api/profile/agent-mutations/:changeSetId/undo",
+  async (c) => {
+    const csrfFailure = validateCsrf(c);
+    if (csrfFailure) return csrfFailure;
+    const changeSetId = uuidParam(c, "changeSetId", "change-set ID");
+    if (changeSetId instanceof Response) return changeSetId;
+    const operationId = pantryOperationId(c);
+    if (operationId instanceof Response) return operationId;
+    const body = await parseJsonBody(c, undoAgentMutationBodySchema);
+    if (!body.success) return body.response;
+    return withRecipeSession(
+      c,
+      "mutation",
+      "POST agent mutation undo failed",
+      async ({ db, session }) => {
+        try {
+          const result = await undoAgentMutation(db, {
+            userId: session.user.id,
+            changeSetId,
+            idempotencyKey: operationId,
+            stableItemIds: body.data.stableItemIds,
+          });
+          if (!result) return c.json({ error: "Mutation change set not found" }, 404);
+          return result.applied
+            ? c.json(result)
+            : c.json({ error: "Pantry changed after the agent mutation", ...result }, 409);
+        } catch (error) {
+          if (error instanceof AgentMutationConflictError) {
+            return c.json({ error: error.message }, 409);
+          }
+          throw error;
+        }
+      },
+    );
+  },
+);
 
 registerRoute("get", "/api/profile/cooking-insights", async (c) => {
   return withRecipeSession(
