@@ -56,6 +56,7 @@ mise trust
 mise install
 mise run doctor
 mise run test
+mise run test:invariants
 mise run simulate
 mise run simulate:json
 mise run simulate:fairness
@@ -174,7 +175,7 @@ the controller records a rejected result and preserves its software latch.
 - [Architecture](docs/architecture.md)
 - [Wire protocol](docs/wire-protocol.md)
 - [Bounded telemetry](docs/telemetry.md)
-- [Coordination invariant baseline](docs/invariant-baseline.md)
+- [Coordination semantics and invariant baseline](docs/invariant-baseline.md)
 - [Revival notes and corrected defects](docs/revival-notes.md)
 - [Next research cycle](docs/next-research-cycle.md)
 - [Distributed coordination over intermittent links](docs/distributed-coordination-research.md)

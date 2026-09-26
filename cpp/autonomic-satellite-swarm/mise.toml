@@ -25,6 +25,11 @@ description = "Run host-side tests"
 depends = ["build"]
 run = "ctest --preset dev"
 
+[tasks."test:invariants"]
+description = "Run the categorized deterministic invariant baseline"
+depends = ["build"]
+run = 'ctest --preset dev --label-regex "safety|liveness|cost" --verbose'
+
 [tasks.simulate]
 description = "Run the deterministic three-node simulation"
 depends = ["build"]
