@@ -127,21 +127,19 @@ export async function enforceAgentExecutionRateLimits(
     input.sourceIpHeader ?? DEFAULT_SOURCE_IP_HEADER,
   );
   const results = await Promise.all(
-    RATE_LIMIT_DIMENSIONS.flatMap((dimension) => {
+    RATE_LIMIT_DIMENSIONS.map(async (dimension) => {
       const subject = subjects[dimension];
-      if (!subject) return [];
-      return [
-        (async () => ({
-          dimension,
-          result: await input.consumeRateLimit(
-            await rateLimitKey(prefix, dimension, subject),
-            input.limits[dimension],
-          ),
-        }))(),
-      ];
+      if (!subject) return null;
+      return {
+        dimension,
+        result: await input.consumeRateLimit(
+          await rateLimitKey(prefix, dimension, subject),
+          input.limits[dimension],
+        ),
+      };
     }),
   );
-  const limited = results.find(({ result }) => !result.allowed);
+  const limited = results.find((entry) => entry && !entry.result.allowed);
   return limited
     ? { dimension: limited.dimension, retryAfter: limited.result.retryAfter }
     : null;
