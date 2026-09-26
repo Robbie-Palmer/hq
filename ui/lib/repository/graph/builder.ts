@@ -70,14 +70,53 @@ interface BuildGraphInput {
   relations: RelationData;
 }
 
+class ContentGraphBuilder {
+  private readonly graph: ContentGraph;
+  private readonly relations: RelationData;
+
+  constructor(input: BuildGraphInput) {
+    this.graph = initializeGraph(input);
+    this.relations = input.relations;
+  }
+
+  addTechnologyIdeas(): this {
+    addTechnologyIdeaRelations(this.graph, this.relations);
+    return this;
+  }
+
+  addProjects(): this {
+    addProjectRelations(this.graph, this.relations);
+    return this;
+  }
+
+  addAdrs(): this {
+    addAdrRelations(this.graph, this.relations);
+    return this;
+  }
+
+  addBlogsAndRoles(): this {
+    addBlogAndRoleRelations(this.graph, this.relations);
+    return this;
+  }
+
+  addPlatform(): this {
+    addPlatformRelations(this.graph, this.relations);
+    return this;
+  }
+
+  build(): ContentGraph {
+    return this.graph;
+  }
+}
+
 export function buildContentGraph(input: BuildGraphInput): ContentGraph {
-  const graph = initializeGraph(input);
-  addTechnologyIdeaRelations(graph, input.relations);
-  addProjectRelations(graph, input.relations);
-  addAdrRelations(graph, input.relations);
-  addBlogAndRoleRelations(graph, input.relations);
-  addPlatformRelations(graph, input.relations);
-  return graph;
+  return new ContentGraphBuilder(input)
+    .addTechnologyIdeas()
+    .addProjects()
+    .addAdrs()
+    .addBlogsAndRoles()
+    .addPlatform()
+    .build();
 }
 
 function initializeGraph(input: BuildGraphInput): ContentGraph {
