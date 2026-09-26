@@ -210,6 +210,26 @@
       "automerge": true
     },
     {
+      "description": "Auto-merge coding-agent and t3 orchestrator updates after the runtime image checks pass",
+      "matchFileNames": [
+        "homelab/images/t3-code/package.json"
+      ],
+      "matchDepTypes": [
+        "dependencies"
+      ],
+      "matchPackageNames": [
+        "!pnpm"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "major"
+      ],
+      "minimumReleaseAge": "3 days",
+      "dependencyDashboardApproval": false,
+      "automerge": true
+    },
+    {
       "description": "drizzle-orm (dependencies) and drizzle-kit (devDependencies) generate and apply the same migrations, so land them together and review by hand",
       "matchPackageNames": [
         "drizzle-orm",
