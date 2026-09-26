@@ -38,7 +38,7 @@
       "matchStrings": [
         "\"binaryVersion\":\\s*\"(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)\""
       ],
-      "depNameTemplate": "errata-ai/vale",
+      "depNameTemplate": "vale-cli/vale",
       "datasourceTemplate": "github-releases",
       "versioningTemplate": "semver-coerced"
     }
@@ -210,8 +210,7 @@
     {
       "description": "Keep the Vale binary and writing evaluation version contract in one PR",
       "matchPackageNames": [
-        "vale",
-        "errata-ai/vale"
+        "vale-cli/vale"
       ],
       "groupName": "vale"
     },
