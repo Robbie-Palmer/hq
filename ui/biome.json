@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.4/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -12,9 +12,13 @@
       "components/**",
       "content/**",
       "!content/projects/*/designs",
+      "contexts/**",
       "e2e/**",
       "hooks/**",
       "lib/**",
+      "public/**/*.js",
+      "public/**/*.mjs",
+      "scripts/**",
       "tests/**",
       "*.ts",
       "*.tsx",
@@ -37,7 +41,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "suspicious": {
         "noUnknownAtRules": "off",
         "noArrayIndexKey": "off"
@@ -47,6 +51,14 @@
           "level": "error",
           "options": {
             "ignoreRestSiblings": true
+          }
+        }
+      },
+      "complexity": {
+        "noExcessiveCognitiveComplexity": {
+          "level": "warn",
+          "options": {
+            "maxAllowedComplexity": 15
           }
         }
       }
@@ -62,5 +74,21 @@
         "organizeImports": "on"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "contexts/**",
+        "public/**/*.js",
+        "public/**/*.mjs",
+        "scripts/**"
+      ],
+      "formatter": {
+        "enabled": false
+      },
+      "assist": {
+        "enabled": false
+      }
+    }
+  ]
 }
