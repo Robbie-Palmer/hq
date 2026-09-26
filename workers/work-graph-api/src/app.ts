@@ -4,43 +4,42 @@ import {
   type Hook,
 } from "@hono/zod-openapi";
 import type { Env } from "hono";
-import type {
-  AttentionRequestReadModel,
-  ArchiveKnowledgeScopeInput,
-  ClaimWorkItemInput,
-  CreateAttentionRequestInput,
-  CreateAttentionRequestResult,
-  CreateNoteInput,
-  CreatePostReleaseNoteInput,
-  DecomposeClaimedWorkItemInput,
-  DecomposeClaimedWorkItemResult,
-  IdempotentMutationOptions,
-  KnowledgeScopeRelationshipCursor,
-  ListAttentionRequestsInput,
-  ListEventsInput,
-  ListKnowledgeScopeRelationshipsInput,
-  ListKnowledgeScopesInput,
-  ListWorkItemsInput,
-  ListWorkItemDependenciesInput,
-  ListWorkItemLeasesInput,
-  ListWorkItemNotesInput,
-  PriorityMoveInput,
-  ProjectCriticalPathInput,
-  ResolveAttentionRequestInput,
-  ResolveAttentionRequestResult,
-  RenewLeaseInput,
-  StoredAttentionRequest,
-  StoredAttentionResolution,
-  StoredEvent,
-  StoredLease,
-  StoredNote,
-  TerminateClaimedWorkItemInput,
-  WorkItemDependencyCursor,
-  WorkItemReadModel,
-  WorkItemSchedulingScopeInput,
-} from "work-graph-db";
 import {
   classifyRetryableDatabaseFailure,
+  type AttentionRequestReadModel,
+  type ArchiveKnowledgeScopeInput,
+  type ClaimWorkItemInput,
+  type CreateAttentionRequestInput,
+  type CreateAttentionRequestResult,
+  type CreateNoteInput,
+  type CreatePostReleaseNoteInput,
+  type DecomposeClaimedWorkItemInput,
+  type DecomposeClaimedWorkItemResult,
+  type IdempotentMutationOptions,
+  type KnowledgeScopeRelationshipCursor,
+  type ListAttentionRequestsInput,
+  type ListEventsInput,
+  type ListKnowledgeScopeRelationshipsInput,
+  type ListKnowledgeScopesInput,
+  type ListWorkItemDependenciesInput,
+  type ListWorkItemLeasesInput,
+  type ListWorkItemNotesInput,
+  type ListWorkItemsInput,
+  type PriorityMoveInput,
+  type ProjectCriticalPathInput,
+  type RenewLeaseInput,
+  type ResolveAttentionRequestInput,
+  type ResolveAttentionRequestResult,
+  type RetryableDatabaseFailure,
+  type StoredAttentionRequest,
+  type StoredAttentionResolution,
+  type StoredEvent,
+  type StoredLease,
+  type StoredNote,
+  type TerminateClaimedWorkItemInput,
+  type WorkItemDependencyCursor,
+  type WorkItemReadModel,
+  type WorkItemSchedulingScopeInput,
   type WORK_GRAPH_EVENT_TYPES,
 } from "work-graph-db";
 import {
@@ -2182,6 +2181,24 @@ const statusForWorkGraphError = (error: WorkGraphError): 400 | 404 | 409 => {
   return 409;
 };
 
+const retryableDatabaseErrors: Record<
+  RetryableDatabaseFailure,
+  { code: string; message: string }
+> = {
+  timeout: {
+    code: "database_timeout",
+    message: "The Work Graph database request timed out. Retry it.",
+  },
+  capacity: {
+    code: "database_capacity",
+    message: "The Work Graph database is at connection capacity. Retry it.",
+  },
+  infrastructure: {
+    code: "database_unavailable",
+    message: "The Work Graph database is temporarily unavailable. Retry it.",
+  },
+};
+
 const requireBoundedCriticalPath = (
   projection: CriticalPathProjection,
 ): CriticalPathProjection => {
@@ -2249,23 +2266,7 @@ export const createWorkGraphApp = (
     const retryableDatabaseFailure = classifyRetryableDatabaseFailure(error);
     if (retryableDatabaseFailure !== undefined) {
       const requestId = createRequestId();
-      const responseError =
-        retryableDatabaseFailure === "timeout"
-          ? {
-              code: "database_timeout",
-              message: "The Work Graph database request timed out. Retry it.",
-            }
-          : retryableDatabaseFailure === "capacity"
-            ? {
-                code: "database_capacity",
-                message:
-                  "The Work Graph database is at connection capacity. Retry it.",
-              }
-            : {
-                code: "database_unavailable",
-                message:
-                  "The Work Graph database is temporarily unavailable. Retry it.",
-              };
+      const responseError = retryableDatabaseErrors[retryableDatabaseFailure];
       context.header("Retry-After", "1");
       context.header("X-Request-Id", requestId);
       console.warn(
