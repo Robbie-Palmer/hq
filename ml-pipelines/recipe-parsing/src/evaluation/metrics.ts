@@ -348,13 +348,16 @@ export function evaluateScalarFields(
   };
 }
 
+type IngredientFields = {
+  amount?: number;
+  unit?: string;
+  preparation?: string;
+};
+
 function flattenIngredients(
   groups: Recipe["ingredientGroups"],
-): Map<string, { amount?: number; unit?: string; preparation?: string }[]> {
-  const map = new Map<
-    string,
-    { amount?: number; unit?: string; preparation?: string }[]
-  >();
+): Map<string, IngredientFields[]> {
+  const map = new Map<string, IngredientFields[]>();
   for (const group of groups) {
     for (const item of group.items) {
       const existing = map.get(item.ingredient) ?? [];
@@ -369,7 +372,89 @@ function flattenIngredients(
   return map;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+function ingredientSlugs(
+  ingredients: Map<string, IngredientFields[]>,
+): string[] {
+  return [...ingredients].flatMap(([slug, items]) =>
+    Array.from({ length: items.length }, () => slug),
+  );
+}
+
+function ingredientSimilarity(
+  predicted: IngredientFields,
+  expected: IngredientFields,
+): number {
+  return exactMatch(predicted.amount, expected.amount) +
+    exactMatch(predicted.unit, expected.unit) +
+    computeWordOverlapF1(
+      predicted.preparation ?? "",
+      expected.preparation ?? "",
+    ).f1;
+}
+
+function bestIngredientIndex(
+  candidates: IngredientFields[],
+  expected: IngredientFields,
+): number {
+  let bestIndex = 0;
+  let bestScore = -1;
+  for (let index = 0; index < candidates.length; index++) {
+    const score = ingredientSimilarity(candidates[index]!, expected);
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  }
+  return bestIndex;
+}
+
+function scoreCommonIngredients(
+  predicted: Map<string, IngredientFields[]>,
+  expected: Map<string, IngredientFields[]>,
+  commonSlugs: Set<string>,
+): IngredientParsingScores["fieldScores"] {
+  const amountAccuracies: number[] = [];
+  const unitAccuracies: number[] = [];
+  const preparationScores: F1Scores[] = [];
+  let matchedCount = 0;
+
+  for (const slug of commonSlugs) {
+    const candidates = [...predicted.get(slug)!];
+    const expectedItems = expected.get(slug)!;
+    const pairCount = Math.min(candidates.length, expectedItems.length);
+
+    // Greedily pair each expected entry with the most similar remaining
+    // prediction so repeated ingredients do not depend on input order.
+    for (let index = 0; index < pairCount; index++) {
+      const expectedItem = expectedItems[index]!;
+      const matchIndex = bestIngredientIndex(candidates, expectedItem);
+      const predictedItem = candidates.splice(matchIndex, 1)[0]!;
+      matchedCount += 1;
+      amountAccuracies.push(exactMatch(predictedItem.amount, expectedItem.amount));
+      unitAccuracies.push(exactMatch(predictedItem.unit, expectedItem.unit));
+      preparationScores.push(
+        computeWordOverlapF1(
+          predictedItem.preparation ?? "",
+          expectedItem.preparation ?? "",
+        ),
+      );
+    }
+  }
+
+  return {
+    name: avgF1(
+      Array.from({ length: matchedCount }, () => ({
+        precision: 1,
+        recall: 1,
+        f1: 1,
+      })),
+    ),
+    amount: { accuracy: avg(amountAccuracies) },
+    unit: { accuracy: avg(unitAccuracies) },
+    preparation: avgF1(preparationScores),
+  };
+}
+
 export function evaluateIngredientParsing(
   predicted: Recipe,
   expected: Recipe,
@@ -377,64 +462,19 @@ export function evaluateIngredientParsing(
   const predIngredients = flattenIngredients(predicted.ingredientGroups);
   const expIngredients = flattenIngredients(expected.ingredientGroups);
 
-  const predSlugs: string[] = [];
-  for (const [slug, items] of predIngredients) {
-    for (let i = 0; i < items.length; i++) predSlugs.push(slug);
-  }
-  const expSlugs: string[] = [];
-  for (const [slug, items] of expIngredients) {
-    for (let i = 0; i < items.length; i++) expSlugs.push(slug);
-  }
-
-  const idF1 = computeBagF1(predSlugs, expSlugs);
+  const idF1 = computeBagF1(
+    ingredientSlugs(predIngredients),
+    ingredientSlugs(expIngredients),
+  );
   const commonSlugs = new Set(
     [...predIngredients.keys()].filter((k) => expIngredients.has(k)),
   );
 
-  const nameScores: F1Scores[] = [];
-  const amountAccuracies: number[] = [];
-  const unitAccuracies: number[] = [];
-  const prepScores: F1Scores[] = [];
-
-  for (const slug of commonSlugs) {
-    const preds = [...predIngredients.get(slug)!];
-    const exps = expIngredients.get(slug)!;
-    const pairCount = Math.min(preds.length, exps.length);
-
-    // Greedy best-match pairing: for each expected entry, find the predicted
-    // entry with the highest field similarity to avoid order-sensitive mismatches
-    // when a slug appears more than once.
-    for (let e = 0; e < pairCount; e++) {
-      const exp = exps[e]!;
-      let bestIdx = 0;
-      let bestScore = -1;
-      for (let p = 0; p < preds.length; p++) {
-        const pred = preds[p]!;
-        const score =
-          exactMatch(pred.amount, exp.amount) +
-          exactMatch(pred.unit, exp.unit) +
-          computeWordOverlapF1(pred.preparation ?? "", exp.preparation ?? "").f1;
-        if (score > bestScore) {
-          bestScore = score;
-          bestIdx = p;
-        }
-      }
-      const pred = preds.splice(bestIdx, 1)[0]!;
-      nameScores.push({ precision: 1, recall: 1, f1: 1 });
-      amountAccuracies.push(exactMatch(pred.amount, exp.amount));
-      unitAccuracies.push(exactMatch(pred.unit, exp.unit));
-      prepScores.push(
-        computeWordOverlapF1(pred.preparation ?? "", exp.preparation ?? ""),
-      );
-    }
-  }
-
-  const fieldScores = {
-    name: avgF1(nameScores),
-    amount: { accuracy: avg(amountAccuracies) },
-    unit: { accuracy: avg(unitAccuracies) },
-    preparation: avgF1(prepScores),
-  };
+  const fieldScores = scoreCommonIngredients(
+    predIngredients,
+    expIngredients,
+    commonSlugs,
+  );
 
   // Scale the identity F1 by field quality so that incorrect amounts, units,
   // and preparation text penalise the overall ingredient score.  Field quality
