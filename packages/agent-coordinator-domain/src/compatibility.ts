@@ -523,7 +523,7 @@ function rankingSignals(
       const available = actor.resourceAvailability.find(
         ({ resource }) => resource === requirement.resource,
       );
-      if (!available || available.unit !== requirement.unit) return [];
+      if (available?.unit !== requirement.unit) return [];
       return [
         {
           code: "capacity-headroom" as const,
