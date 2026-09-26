@@ -32,4 +32,38 @@ The tests contain fixed hashes so another language can verify its encoder.
 
 Decisions embed the complete proposal. This keeps the ordered member IDs,
 original suggestions, producer versions, and source revision beside the
-accepted, rejected, or changed outcome.
+accepted, rejected, or changed outcome. They also record when review started
+and when the author chose the outcome.
+
+## Repository review
+
+Run a review with:
+
+```sh
+mise //packages/writing-editor-domain:review -- review.json
+```
+
+The manifest names the source file and revision and contains validated ADR 003
+findings and proposals:
+
+```json
+{
+  "sourcePath": "draft.md",
+  "documentId": "draft.md",
+  "revision": "git:abc123",
+  "findings": [],
+  "proposals": []
+}
+```
+
+`sourcePath` is relative to the manifest. The command verifies the file hash,
+UTF-8 byte spans, recorded source text, document ID, and revision before it
+shows any record. Detection-only findings appear separately from actionable
+proposals. Each proposal includes an exact unified diff.
+
+The command appends each accepted, rejected, or changed outcome to
+`<sourcePath>.decisions.jsonl`. Pass `--decisions <path>` to choose another
+log. Quitting leaves the source untouched, and the next run skips proposals
+already present in the log. After every proposal has a recorded outcome, the
+command checks accepted edits for overlap and atomically writes the source.
+It does not commit or publish the result.
