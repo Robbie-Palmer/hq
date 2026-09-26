@@ -91,18 +91,24 @@ describe("compound Agent Auth execution limits", () => {
     });
 
     expect(result).toBeNull();
-    expect(state.keys.map((key) => key.split(":").slice(0, 2).join(":"))).toEqual([
-      "agent-execution:capability",
-      "agent-execution:agent",
-      "agent-execution:user",
-      "agent-execution:host",
-      "agent-execution:ip",
-    ]);
+    expect(
+      new Set(
+        state.keys.map((key) => key.split(":").slice(0, 2).join(":")),
+      ),
+    ).toEqual(
+      new Set([
+        "agent-execution:capability",
+        "agent-execution:agent",
+        "agent-execution:user",
+        "agent-execution:host",
+        "agent-execution:ip",
+      ]),
+    );
     expect(state.keys.join(" ")).not.toContain("203.0.113.9");
     expect(state.keys.join(" ")).not.toContain("user-1");
   });
 
-  it("stops at an agent-scoped capability limit without blocking another agent", async () => {
+  it("charges every dimension for a denied attempt without blocking another agent", async () => {
     const state = counter();
     const input = {
       limits,
@@ -120,7 +126,7 @@ describe("compound Agent Auth execution limits", () => {
         agentSession: session(),
       }),
     ).resolves.toEqual({ dimension: "capability", retryAfter: 60 });
-    expect(state.keys).toHaveLength(keyCount + 1);
+    expect(state.keys).toHaveLength(keyCount + 5);
     await expect(
       enforceAgentExecutionRateLimits({
         ...input,
@@ -190,5 +196,27 @@ describe("guarded Agent Auth execution", () => {
         outcome: "rate_limited:capability",
       }),
     ]);
+  });
+
+  it("propagates an unhandled audit persistence failure", async () => {
+    const auditError = new Error("audit unavailable");
+    let executions = 0;
+    let auditAttempts = 0;
+    const handler = createAgentExecutionHandler({
+      limits,
+      consumeRateLimit: async () => ({ allowed: true, retryAfter: 0 }),
+      audit: () => {
+        auditAttempts += 1;
+        throw auditError;
+      },
+      execute: async () => {
+        executions += 1;
+        return { recipe: "soup" };
+      },
+    });
+
+    await expect(handler(context())).rejects.toBe(auditError);
+    expect(executions).toBe(1);
+    expect(auditAttempts).toBe(1);
   });
 });

@@ -146,4 +146,22 @@ describe("Agent Auth audit mapping", () => {
     ).resolves.toBeUndefined();
     expect(errors).toEqual([failure]);
   });
+
+  it("propagates an audit persistence failure without an error handler", async () => {
+    const failure = new Error("audit unavailable");
+    const handleAuditEvent = createAgentAuthAuditHandler({
+      write: () => {
+        throw failure;
+      },
+    });
+
+    await expect(
+      handleAuditEvent({
+        type: "capability.approved",
+        actorType: "user",
+        actorId: "user-1",
+        agentId: "agent-1",
+      }),
+    ).rejects.toBe(failure);
+  });
 });

@@ -17,7 +17,10 @@ export type AgentAuthAuditRecord = {
 export type AgentAuthAuditHandlerOptions = {
   write: (record: AgentAuthAuditRecord) => void | Promise<void>;
   includeCapabilityExecutions?: boolean;
-  onError?: (error: unknown, record: AgentAuthAuditRecord) => void;
+  onError?: (
+    error: unknown,
+    record: AgentAuthAuditRecord,
+  ) => void | Promise<void>;
 };
 
 export function toAgentAuthAuditRecord(
@@ -60,10 +63,10 @@ export function createAgentAuthAuditHandler({
       await write(record);
     } catch (error) {
       if (onError) {
-        onError(error, record);
+        await onError(error, record);
         return;
       }
-      console.error("Agent Auth audit write failed", error);
+      throw error;
     }
   };
 }

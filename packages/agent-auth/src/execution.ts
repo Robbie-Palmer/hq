@@ -70,7 +70,7 @@ export type AgentExecutionGuardOptions<Result> = {
   onAuditError?: (
     error: unknown,
     event: AgentExecutionAuditEvent,
-  ) => void;
+  ) => void | Promise<void>;
   rateLimitKeyPrefix?: string;
   sourceIpHeader?: string;
 };
@@ -126,18 +126,25 @@ export async function enforceAgentExecutionRateLimits(
     input.headers,
     input.sourceIpHeader ?? DEFAULT_SOURCE_IP_HEADER,
   );
-  for (const dimension of RATE_LIMIT_DIMENSIONS) {
-    const subject = subjects[dimension];
-    if (!subject) continue;
-    const result = await input.consumeRateLimit(
-      await rateLimitKey(prefix, dimension, subject),
-      input.limits[dimension],
-    );
-    if (!result.allowed) {
-      return { dimension, retryAfter: result.retryAfter };
-    }
-  }
-  return null;
+  const results = await Promise.all(
+    RATE_LIMIT_DIMENSIONS.flatMap((dimension) => {
+      const subject = subjects[dimension];
+      if (!subject) return [];
+      return [
+        (async () => ({
+          dimension,
+          result: await input.consumeRateLimit(
+            await rateLimitKey(prefix, dimension, subject),
+            input.limits[dimension],
+          ),
+        }))(),
+      ];
+    }),
+  );
+  const limited = results.find(({ result }) => !result.allowed);
+  return limited
+    ? { dimension: limited.dimension, retryAfter: limited.result.retryAfter }
+    : null;
 }
 
 function correlationId(ctx: AgentExecutionContext["ctx"]): string {
@@ -179,10 +186,10 @@ async function recordAudit<Result>(
     await options.audit(event);
   } catch (error) {
     if (options.onAuditError) {
-      options.onAuditError(error, event);
+      await options.onAuditError(error, event);
       return;
     }
-    console.error("Agent execution audit write failed", error);
+    throw error;
   }
 }
 
@@ -228,13 +235,9 @@ export function createAgentExecutionHandler<Result>(
       );
     }
 
+    let result: Awaited<Result>;
     try {
-      const result = await options.execute(context);
-      await recordAudit(
-        options,
-        auditEvent(context, requestId, "success", Date.now() - startedAt),
-      );
-      return result;
+      result = await options.execute(context);
     } catch (error) {
       await recordAudit(
         options,
@@ -242,5 +245,10 @@ export function createAgentExecutionHandler<Result>(
       );
       throw error;
     }
+    await recordAudit(
+      options,
+      auditEvent(context, requestId, "success", Date.now() - startedAt),
+    );
+    return result;
   };
 }
