@@ -29,7 +29,8 @@ export class ReviewConflictError extends Error {
   readonly conflicts: string[];
 
   constructor(message: string, conflicts: string[]) {
-    super(`${message}:\n${conflicts.map((conflict) => `- ${conflict}`).join("\n")}`);
+    const formattedConflicts = conflicts.map((conflict) => `- ${conflict}`).join("\n");
+    super(`${message}:\n${formattedConflicts}`);
     this.name = "ReviewConflictError";
     this.conflicts = conflicts;
   }
