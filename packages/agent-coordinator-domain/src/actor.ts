@@ -1,12 +1,13 @@
 import { z } from "zod";
 
+import { ComplexityReferenceSchema } from "./complexity";
 import {
   AGENT_COORDINATOR_CONTRACT_VERSION,
   CapabilityLevelSchema,
-  ComplexitySchema,
   findDuplicates,
   IdentifierSchema,
   MoneySchema,
+  ResourceQuantitySchema,
 } from "./vocabulary";
 
 export const DeclaredCapabilitySchema = z
@@ -20,26 +21,36 @@ export const ObservedCapabilitySchema = z
   .object({
     capability: IdentifierSchema,
     level: CapabilityLevelSchema,
-    sampleSize: z.number().int().positive(),
-    successRate: z.number().min(0).max(1),
-    observedAt: z.iso.datetime(),
+    assessmentId: IdentifierSchema,
+    assessedAt: z.iso.datetime(),
   })
   .strict();
 
-export const ActorCapacitySchema = z
+export const ResourceAvailabilitySchema = ResourceQuantitySchema.extend({
+  observedAt: z.iso.datetime(),
+  resetsAt: z.iso.datetime().optional(),
+}).strict();
+
+export const RoutingPreferencesSchema = z
   .object({
-    maximumSessions: z.number().int().positive(),
-    activeSessions: z.number().int().nonnegative(),
-    availableUntil: z.iso.datetime().optional(),
+    workClasses: z.array(IdentifierSchema),
+    tags: z.array(IdentifierSchema),
   })
   .strict()
-  .refine(
-    ({ activeSessions, maximumSessions }) => activeSessions <= maximumSessions,
-    {
-      message: "activeSessions cannot exceed maximumSessions",
-      path: ["activeSessions"],
-    },
-  );
+  .superRefine((preferences, context) => {
+    for (const [field, values] of [
+      ["workClasses", preferences.workClasses],
+      ["tags", preferences.tags],
+    ] as const) {
+      const duplicates = findDuplicates(values);
+      if (duplicates.length === 0) continue;
+      context.addIssue({
+        code: "custom",
+        message: `${field} contains duplicate values: ${duplicates.join(", ")}`,
+        path: [field],
+      });
+    }
+  });
 
 export const ActorCostSchema = z
   .object({
@@ -66,22 +77,21 @@ const ActorProfileShapeSchema = z
       "user-directed-agent",
       "project-directed-agent",
     ]),
-    maximumComplexity: ComplexitySchema,
-    interests: z.array(IdentifierSchema),
+    complexityLimits: z.array(ComplexityReferenceSchema),
+    routingPreferences: RoutingPreferencesSchema,
     tools: z.array(IdentifierSchema),
     grantedAuthority: z.array(IdentifierSchema),
     access: z.array(IdentifierSchema),
     declaredCapabilities: z.array(DeclaredCapabilitySchema),
     observedCapabilities: z.array(ObservedCapabilitySchema),
     cost: ActorCostSchema,
-    capacity: ActorCapacitySchema,
+    resourceAvailability: z.array(ResourceAvailabilitySchema),
   })
   .strict();
 
 export const ActorProfileSchema = ActorProfileShapeSchema.superRefine(
   (actor, context) => {
     const duplicateGroups: Array<[string, string[]]> = [
-      ["interests", findDuplicates(actor.interests)],
       ["tools", findDuplicates(actor.tools)],
       ["grantedAuthority", findDuplicates(actor.grantedAuthority)],
       ["access", findDuplicates(actor.access)],
@@ -95,6 +105,20 @@ export const ActorProfileSchema = ActorProfileShapeSchema.superRefine(
         "observedCapabilities",
         findDuplicates(
           actor.observedCapabilities.map(({ capability }) => capability),
+        ),
+      ],
+      [
+        "complexityLimits",
+        findDuplicates(
+          actor.complexityLimits.map(
+            ({ scaleId, scaleRevision }) => `${scaleId}:${scaleRevision}`,
+          ),
+        ),
+      ],
+      [
+        "resourceAvailability",
+        findDuplicates(
+          actor.resourceAvailability.map(({ resource }) => resource),
         ),
       ],
     ];

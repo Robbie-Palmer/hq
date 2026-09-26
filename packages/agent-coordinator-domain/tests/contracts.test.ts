@@ -2,17 +2,26 @@ import { describe, expect, it } from "vitest";
 
 import {
   ActorProfileSchema,
+  ComplexityScaleSchema,
   ExecutionSessionIdentitySchema,
   OwnerPolicySchema,
   PortableContractSchema,
   TaskRequirementsSchema,
   WorkerAdapterIdentitySchema,
 } from "../src";
-import { actor, adapter, policy, session, task } from "./fixtures";
+import {
+  actor,
+  adapter,
+  complexityScale,
+  policy,
+  session,
+  task,
+} from "./fixtures";
 
 describe("portable contracts", () => {
   it.each([
     ["task", TaskRequirementsSchema, task],
+    ["complexity scale", ComplexityScaleSchema, complexityScale],
     ["actor", ActorProfileSchema, actor],
     ["policy", OwnerPolicySchema, policy],
     ["adapter", WorkerAdapterIdentitySchema, adapter],
@@ -35,6 +44,37 @@ describe("portable contracts", () => {
     expect(
       ActorProfileSchema.safeParse({ ...actor, modelName: "temporary-name" })
         .success,
+    ).toBe(false);
+  });
+
+  it("keeps analytics aggregates outside observed capability records", () => {
+    expect(
+      ActorProfileSchema.safeParse({
+        ...actor,
+        observedCapabilities: [
+          {
+            ...actor.observedCapabilities[0],
+            sampleSize: 12,
+            successRate: 0.9,
+          },
+        ],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects ambiguous complexity scales", () => {
+    expect(
+      ComplexityScaleSchema.safeParse({
+        ...complexityScale,
+        levels: [
+          ...complexityScale.levels,
+          {
+            levelId: "another-label",
+            rank: 10,
+            definition: "This rank is already in use.",
+          },
+        ],
+      }).success,
     ).toBe(false);
   });
 

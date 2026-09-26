@@ -19,15 +19,16 @@ export const MoneySchema = z
   .strict();
 export type Money = z.infer<typeof MoneySchema>;
 
-export const ComplexitySchema = z.enum([
-  "mechanical",
-  "bounded",
-  "complex",
-  "frontier",
-]);
-export type Complexity = z.infer<typeof ComplexitySchema>;
-
 export const CapabilityLevelSchema = z.number().int().min(1).max(5);
+
+export const ResourceQuantitySchema = z
+  .object({
+    resource: IdentifierSchema,
+    amount: z.number().nonnegative(),
+    unit: IdentifierSchema,
+  })
+  .strict();
+export type ResourceQuantity = z.infer<typeof ResourceQuantitySchema>;
 
 export const EvidenceStageSchema = z.enum([
   "claim",

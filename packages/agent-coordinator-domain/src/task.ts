@@ -1,13 +1,14 @@
 import { z } from "zod";
 
+import { ComplexityReferenceSchema } from "./complexity";
 import {
   AGENT_COORDINATOR_CONTRACT_VERSION,
   CapabilityLevelSchema,
-  ComplexitySchema,
   EvidenceStageSchema,
   findDuplicates,
   IdentifierSchema,
   MoneySchema,
+  ResourceQuantitySchema,
 } from "./vocabulary";
 
 export const CapabilityRequirementSchema = z
@@ -34,7 +35,7 @@ const TaskRequirementsShapeSchema = z
     recordType: z.literal("task-requirements"),
     taskId: IdentifierSchema,
     workClass: IdentifierSchema,
-    complexity: ComplexitySchema,
+    complexity: ComplexityReferenceSchema,
     tags: z.array(IdentifierSchema),
     requiredCapabilities: z.array(CapabilityRequirementSchema),
     requiredAuthority: z.array(IdentifierSchema),
@@ -42,6 +43,7 @@ const TaskRequirementsShapeSchema = z
     requiredTools: z.array(IdentifierSchema),
     preferredTools: z.array(IdentifierSchema),
     requiredEvidence: z.array(EvidenceRequirementSchema),
+    requiredResources: z.array(ResourceQuantitySchema),
     estimatedCost: MoneySchema.optional(),
   })
   .strict();
@@ -66,6 +68,10 @@ export const TaskRequirementsSchema = TaskRequirementsShapeSchema.superRefine(
         ),
       ],
       ["tags", findDuplicates(task.tags)],
+      [
+        "requiredResources",
+        findDuplicates(task.requiredResources.map(({ resource }) => resource)),
+      ],
     ];
 
     for (const [field, duplicates] of duplicateGroups) {

@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 import { type ActorProfile, ActorProfileSchema } from "./actor";
+import {
+  type ComplexityScale,
+  ComplexityScaleSchema,
+} from "./complexity";
 import { type OwnerPolicy, OwnerPolicySchema } from "./policy";
 import {
   RoutingStateSchema,
@@ -10,18 +14,20 @@ import {
 import { type TaskRequirements, TaskRequirementsSchema } from "./task";
 import {
   compareIdentifiers,
-  type Complexity,
   IdentifierSchema,
 } from "./vocabulary";
 
 export const HardExclusionCodeSchema = z.enum([
-  "actor-capacity-exhausted",
   "actor-concurrency-exhausted",
   "adapter-actor-mismatch",
   "authentication-path-denied",
+  "capacity-insufficient",
+  "capacity-missing",
+  "capacity-unit-mismatch",
   "capability-below-minimum",
   "capability-missing",
   "checkpoint-unsupported",
+  "complexity-scale-unsupported",
   "complexity-unsupported",
   "cost-currency-mismatch",
   "evidence-unsupported",
@@ -32,8 +38,8 @@ export const HardExclusionCodeSchema = z.enum([
   "required-tool-missing",
   "session-budget-exceeded",
   "total-concurrency-exhausted",
-  "verified-capability-below-minimum",
-  "verified-capability-missing",
+  "observed-capability-below-minimum",
+  "observed-capability-missing",
   "work-class-concurrency-exhausted",
   "work-class-denied",
 ]);
@@ -50,13 +56,15 @@ export type HardExclusion = z.infer<typeof HardExclusionSchema>;
 export const RankingSignalSchema = z
   .object({
     code: z.enum([
-      "available-capacity",
+      "capacity-headroom",
       "declared-capability-margin",
       "estimated-session-cost",
-      "interest-match",
-      "observed-capability-confidence",
+      "observed-capability-margin",
       "preferred-tool-match",
+      "tag-preference-match",
+      "work-class-preference",
     ]),
+    subject: IdentifierSchema,
     value: z.number(),
     direction: z.enum(["higher-is-better", "lower-is-better"]),
     unit: z.string().min(1),
@@ -86,19 +94,51 @@ export const CompatibilityInputSchema = z
   .object({
     task: TaskRequirementsSchema,
     actor: ActorProfileSchema,
+    complexityScale: ComplexityScaleSchema,
     policy: OwnerPolicySchema,
     adapter: WorkerAdapterIdentitySchema,
     state: RoutingStateSchema,
   })
-  .strict();
-export type CompatibilityInput = z.input<typeof CompatibilityInputSchema>;
+  .strict()
+  .superRefine(({ actor, complexityScale, task }, context) => {
+    if (
+      task.complexity.scaleId !== complexityScale.scaleId ||
+      task.complexity.scaleRevision !== complexityScale.revision
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "complexityScale does not match the task complexity reference",
+        path: ["complexityScale"],
+      });
+      return;
+    }
 
-const COMPLEXITY_RANK: Record<Complexity, number> = {
-  mechanical: 1,
-  bounded: 2,
-  complex: 3,
-  frontier: 4,
-};
+    const levelIds = new Set(
+      complexityScale.levels.map(({ levelId }) => levelId),
+    );
+    if (!levelIds.has(task.complexity.levelId)) {
+      context.addIssue({
+        code: "custom",
+        message: `task references unknown complexity level ${task.complexity.levelId}`,
+        path: ["task", "complexity", "levelId"],
+      });
+    }
+
+    for (const [index, limit] of actor.complexityLimits.entries()) {
+      if (
+        limit.scaleId === complexityScale.scaleId &&
+        limit.scaleRevision === complexityScale.revision &&
+        !levelIds.has(limit.levelId)
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: `actor references unknown complexity level ${limit.levelId}`,
+          path: ["actor", "complexityLimits", index, "levelId"],
+        });
+      }
+    }
+  });
+export type CompatibilityInput = z.input<typeof CompatibilityInputSchema>;
 
 function exclusion(
   code: HardExclusion["code"],
@@ -162,7 +202,7 @@ function capabilityExclusions(
     if (observedLevel === undefined) {
       exclusions.push(
         exclusion(
-          "verified-capability-missing",
+          "observed-capability-missing",
           requirement.capability,
           `Task requires observed evidence for ${requirement.capability}`,
         ),
@@ -170,7 +210,7 @@ function capabilityExclusions(
     } else if (observedLevel < requirement.minimumLevel) {
       exclusions.push(
         exclusion(
-          "verified-capability-below-minimum",
+          "observed-capability-below-minimum",
           requirement.capability,
           `Observed level ${observedLevel} is below ${requirement.minimumLevel}`,
         ),
@@ -304,6 +344,7 @@ function directExclusions(
   task: TaskRequirements,
   actor: ActorProfile,
   adapter: WorkerAdapterIdentity,
+  complexityScale: ComplexityScale,
 ): HardExclusion[] {
   const exclusions: HardExclusion[] = [];
   if (adapter.actorId !== actor.actorId) {
@@ -315,26 +356,70 @@ function directExclusions(
       ),
     );
   }
-  if (
-    COMPLEXITY_RANK[task.complexity] >
-    COMPLEXITY_RANK[actor.maximumComplexity]
-  ) {
+  const actorComplexityLimit = actor.complexityLimits.find(
+    ({ scaleId, scaleRevision }) =>
+      scaleId === task.complexity.scaleId &&
+      scaleRevision === task.complexity.scaleRevision,
+  );
+  if (!actorComplexityLimit) {
     exclusions.push(
       exclusion(
-        "complexity-unsupported",
-        task.complexity,
-        `Actor supports work through ${actor.maximumComplexity}`,
+        "complexity-scale-unsupported",
+        task.complexity.scaleId,
+        `Actor has no limit for revision ${task.complexity.scaleRevision} of ${task.complexity.scaleId}`,
       ),
     );
+  } else {
+    const ranks = new Map(
+      complexityScale.levels.map(({ levelId, rank }) => [levelId, rank]),
+    );
+    const requiredRank = ranks.get(task.complexity.levelId);
+    const maximumRank = ranks.get(actorComplexityLimit.levelId);
+    if (
+      requiredRank !== undefined &&
+      maximumRank !== undefined &&
+      requiredRank > maximumRank
+    ) {
+      exclusions.push(
+        exclusion(
+          "complexity-unsupported",
+          task.complexity.levelId,
+          `Actor limit is ${actorComplexityLimit.levelId} on ${complexityScale.scaleId} revision ${complexityScale.revision}`,
+        ),
+      );
+    }
   }
-  if (actor.capacity.activeSessions >= actor.capacity.maximumSessions) {
-    exclusions.push(
-      exclusion(
-        "actor-capacity-exhausted",
-        actor.actorId,
-        "Actor has no declared session capacity",
-      ),
-    );
+
+  const availableResources = new Map(
+    actor.resourceAvailability.map((resource) => [resource.resource, resource]),
+  );
+  for (const requirement of task.requiredResources) {
+    const available = availableResources.get(requirement.resource);
+    if (!available) {
+      exclusions.push(
+        exclusion(
+          "capacity-missing",
+          requirement.resource,
+          `Actor reports no available ${requirement.resource}`,
+        ),
+      );
+    } else if (available.unit !== requirement.unit) {
+      exclusions.push(
+        exclusion(
+          "capacity-unit-mismatch",
+          requirement.resource,
+          `Task requires ${requirement.unit}; actor reports ${available.unit}`,
+        ),
+      );
+    } else if (available.amount < requirement.amount) {
+      exclusions.push(
+        exclusion(
+          "capacity-insufficient",
+          requirement.resource,
+          `Task requires ${requirement.amount} ${requirement.unit}; actor has ${available.amount}`,
+        ),
+      );
+    }
   }
 
   exclusions.push(
@@ -384,11 +469,6 @@ function directExclusions(
   return exclusions;
 }
 
-function mean(values: number[]): number {
-  if (values.length === 0) return 0;
-  return values.reduce((total, value) => total + value, 0) / values.length;
-}
-
 function rankingSignals(
   task: TaskRequirements,
   actor: ActorProfile,
@@ -406,63 +486,89 @@ function rankingSignals(
       capability,
     ]),
   );
-  const matchedInterests = task.tags.filter((tag) =>
-    actor.interests.includes(tag),
+  const matchedTags = task.tags.filter((tag) =>
+    actor.routingPreferences.tags.includes(tag),
   );
   const matchedPreferredTools = task.preferredTools.filter(
     (tool) => actor.tools.includes(tool) && adapter.tools.includes(tool),
   );
-  const declaredMargins = task.requiredCapabilities.map(
-    ({ capability, minimumLevel }) =>
-      (declared.get(capability) ?? 0) - minimumLevel,
-  );
-  const observedConfidence = task.requiredCapabilities.flatMap(
+  const capabilitySignals: RankingSignal[] = task.requiredCapabilities.flatMap(
     ({ capability, minimumLevel }) => {
-      const record = observed.get(capability);
-      if (!record) return [];
-      const levelFit = Math.min(record.level / minimumLevel, 1);
-      return [levelFit * record.successRate];
+      const signals: RankingSignal[] = [
+        {
+          code: "declared-capability-margin",
+          subject: capability,
+          value: (declared.get(capability) ?? 0) - minimumLevel,
+          direction: "higher-is-better",
+          unit: "levels",
+          detail: "Declared level above the task minimum",
+        },
+      ];
+      const observedCapability = observed.get(capability);
+      if (observedCapability) {
+        signals.push({
+          code: "observed-capability-margin",
+          subject: capability,
+          value: observedCapability.level - minimumLevel,
+          direction: "higher-is-better",
+          unit: "levels",
+          detail: `Assessed level above the task minimum; assessment ${observedCapability.assessmentId}`,
+        });
+      }
+      return signals;
+    },
+  );
+  const capacitySignals: RankingSignal[] = task.requiredResources.flatMap(
+    (requirement) => {
+      const available = actor.resourceAvailability.find(
+        ({ resource }) => resource === requirement.resource,
+      );
+      if (!available || available.unit !== requirement.unit) return [];
+      return [
+        {
+          code: "capacity-headroom" as const,
+          subject: requirement.resource,
+          value: available.amount - requirement.amount,
+          direction: "higher-is-better" as const,
+          unit: requirement.unit,
+          detail: "Reported resource balance after the task requirement",
+        },
+      ];
     },
   );
 
   return [
     {
-      code: "interest-match",
-      value: matchedInterests.length,
+      code: "work-class-preference",
+      subject: task.workClass,
+      value: actor.routingPreferences.workClasses.includes(task.workClass)
+        ? 1
+        : 0,
+      direction: "higher-is-better",
+      unit: "match",
+      detail: "Whether the actor prefers this work class",
+    },
+    {
+      code: "tag-preference-match",
+      subject: task.taskId,
+      value: matchedTags.length,
       direction: "higher-is-better",
       unit: "matching-tags",
-      detail: `${matchedInterests.length} task tags match actor interests`,
+      detail: `${matchedTags.length} task tags match the actor's routing preferences`,
     },
-    {
-      code: "declared-capability-margin",
-      value: mean(declaredMargins),
-      direction: "higher-is-better",
-      unit: "levels",
-      detail: "Mean declared level above the task minimum",
-    },
-    {
-      code: "observed-capability-confidence",
-      value: mean(observedConfidence),
-      direction: "higher-is-better",
-      unit: "ratio",
-      detail: "Mean observed success rate adjusted for required level",
-    },
+    ...capabilitySignals,
     {
       code: "preferred-tool-match",
+      subject: task.taskId,
       value: matchedPreferredTools.length,
       direction: "higher-is-better",
       unit: "matching-tools",
       detail: `${matchedPreferredTools.length} preferred tools are available`,
     },
-    {
-      code: "available-capacity",
-      value: actor.capacity.maximumSessions - actor.capacity.activeSessions,
-      direction: "higher-is-better",
-      unit: "sessions",
-      detail: "Actor session capacity remaining before this assignment",
-    },
+    ...capacitySignals,
     {
       code: "estimated-session-cost",
+      subject: actor.actorId,
       value: actor.cost.estimatedSessionCost.amount,
       direction: "lower-is-better",
       unit: actor.cost.estimatedSessionCost.currency,
@@ -482,10 +588,10 @@ function compareExclusions(left: HardExclusion, right: HardExclusion): number {
 export function evaluateCompatibility(
   input: CompatibilityInput,
 ): CompatibilityResult {
-  const { task, actor, policy, adapter, state } =
+  const { task, actor, complexityScale, policy, adapter, state } =
     CompatibilityInputSchema.parse(input);
   const hardExclusions = [
-    ...directExclusions(task, actor, adapter),
+    ...directExclusions(task, actor, adapter, complexityScale),
     ...capabilityExclusions(task, actor),
     ...policyExclusions(task, actor, policy, adapter, state),
     ...budgetExclusions(task, actor, policy),

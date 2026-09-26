@@ -1,5 +1,6 @@
 import type {
   ActorProfile,
+  ComplexityScale,
   CompatibilityInput,
   ExecutionSessionIdentity,
   OwnerPolicy,
@@ -7,12 +8,43 @@ import type {
   WorkerAdapterIdentity,
 } from "../src";
 
+export const complexityScale: ComplexityScale = {
+  schemaVersion: 1,
+  recordType: "complexity-scale",
+  scaleId: "complexity:repository-change",
+  revision: 1,
+  levels: [
+    {
+      levelId: "bounded-change",
+      rank: 10,
+      definition:
+        "The affected component and implementation path are already known.",
+    },
+    {
+      levelId: "cross-cutting-change",
+      rank: 20,
+      definition:
+        "The change spans components and requires explicit contract decisions.",
+    },
+    {
+      levelId: "open-ended-research",
+      rank: 30,
+      definition:
+        "The implementation path depends on unresolved research or experiments.",
+    },
+  ],
+};
+
 export const task: TaskRequirements = {
   schemaVersion: 1,
   recordType: "task-requirements",
   taskId: "work:contract-implementation",
   workClass: "code.change",
-  complexity: "complex",
+  complexity: {
+    scaleId: complexityScale.scaleId,
+    scaleRevision: complexityScale.revision,
+    levelId: "cross-cutting-change",
+  },
   tags: ["typescript", "domain-modeling"],
   requiredCapabilities: [
     {
@@ -29,6 +61,10 @@ export const task: TaskRequirements = {
     { kind: "test-results", stage: "completion" },
     { kind: "handoff-note", stage: "checkpoint" },
   ],
+  requiredResources: [
+    { resource: "provider-context", amount: 12_000, unit: "tokens" },
+    { resource: "account-budget", amount: 1, unit: "credits" },
+  ],
   estimatedCost: { currency: "USD", amount: 2.5 },
 };
 
@@ -37,8 +73,17 @@ export const actor: ActorProfile = {
   recordType: "actor-profile",
   actorId: "actor:domain-agent",
   actorKind: "user-directed-agent",
-  maximumComplexity: "complex",
-  interests: ["typescript", "architecture"],
+  complexityLimits: [
+    {
+      scaleId: complexityScale.scaleId,
+      scaleRevision: complexityScale.revision,
+      levelId: "cross-cutting-change",
+    },
+  ],
+  routingPreferences: {
+    workClasses: ["code.change"],
+    tags: ["typescript", "architecture"],
+  },
   tools: ["git", "work-graph"],
   grantedAuthority: ["repository-write"],
   access: ["repository:personal-site"],
@@ -49,16 +94,28 @@ export const actor: ActorProfile = {
     {
       capability: "typescript-domain-modeling",
       level: 4,
-      sampleSize: 12,
-      successRate: 0.9,
-      observedAt: "2026-09-25T10:00:00.000Z",
+      assessmentId: "assessment:typescript-domain-modeling-2026-09",
+      assessedAt: "2026-09-25T10:00:00.000Z",
     },
   ],
   cost: {
     funding: "metered",
     estimatedSessionCost: { currency: "USD", amount: 2 },
   },
-  capacity: { maximumSessions: 2, activeSessions: 0 },
+  resourceAvailability: [
+    {
+      resource: "provider-context",
+      amount: 48_000,
+      unit: "tokens",
+      observedAt: "2026-09-26T08:00:00.000Z",
+    },
+    {
+      resource: "account-budget",
+      amount: 8,
+      unit: "credits",
+      observedAt: "2026-09-26T08:00:00.000Z",
+    },
+  ],
 };
 
 export const policy: OwnerPolicy = {
@@ -115,6 +172,7 @@ export const session: ExecutionSessionIdentity = {
 export const compatibleInput: CompatibilityInput = {
   task,
   actor,
+  complexityScale,
   policy,
   adapter,
   state: {
