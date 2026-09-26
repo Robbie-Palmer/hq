@@ -93,66 +93,71 @@ function parseDigitWord(token: string): number | undefined {
   return undefined;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+function integerTokenValue(token: string): number | undefined {
+  return SMALL_NUMBER_WORDS[token] ??
+    TENS_NUMBER_WORDS[token] ??
+    ORDINAL_NUMBER_WORDS[token];
+}
+
+function isValidArticle(tokens: string[], index: number): boolean {
+  const next = tokens[index + 1];
+  return next !== undefined &&
+    (next in SCALE_NUMBER_WORDS || next === DECIMAL_WORD);
+}
+
+interface IntegerParseState {
+  total: number;
+  current: number;
+  sawNumber: boolean;
+}
+
+function consumeIntegerToken(
+  state: IntegerParseState,
+  tokens: string[],
+  index: number,
+): boolean {
+  const token = tokens[index]!;
+  if (CONNECTOR_WORDS.has(token)) return true;
+  if (ARTICLE_WORDS.has(token)) {
+    if (!isValidArticle(tokens, index)) return false;
+    state.current += 1;
+    state.sawNumber = true;
+    return true;
+  }
+
+  const value = integerTokenValue(token);
+  if (value !== undefined) {
+    state.current += value;
+    state.sawNumber = true;
+    return true;
+  }
+
+  const scale = SCALE_NUMBER_WORDS[token];
+  if (scale === undefined) return false;
+  state.sawNumber = true;
+  if (token === "hundred") {
+    state.current = (state.current || 1) * scale;
+  } else {
+    state.total += (state.current || 1) * scale;
+    state.current = 0;
+  }
+  return true;
+}
+
 function parseIntegerTokens(tokens: string[]): number | null {
   if (tokens.length === 0) return null;
 
-  let total = 0;
-  let current = 0;
-  let sawNumber = false;
+  const state: IntegerParseState = {
+    total: 0,
+    current: 0,
+    sawNumber: false,
+  };
 
   for (let index = 0; index < tokens.length; index++) {
-    const token = tokens[index]!;
-
-    if (CONNECTOR_WORDS.has(token)) continue;
-
-    if (ARTICLE_WORDS.has(token)) {
-      const next = tokens[index + 1];
-      if (next && (next in SCALE_NUMBER_WORDS || next === DECIMAL_WORD)) {
-        current += 1;
-        sawNumber = true;
-        continue;
-      }
-      return null;
-    }
-
-    const small = SMALL_NUMBER_WORDS[token];
-    if (small != null) {
-      current += small;
-      sawNumber = true;
-      continue;
-    }
-
-    const tens = TENS_NUMBER_WORDS[token];
-    if (tens != null) {
-      current += tens;
-      sawNumber = true;
-      continue;
-    }
-
-    const ordinal = ORDINAL_NUMBER_WORDS[token];
-    if (ordinal != null) {
-      current += ordinal;
-      sawNumber = true;
-      continue;
-    }
-
-    const scale = SCALE_NUMBER_WORDS[token];
-    if (scale != null) {
-      sawNumber = true;
-      if (token === "hundred") {
-        current = (current || 1) * scale;
-      } else {
-        total += (current || 1) * scale;
-        current = 0;
-      }
-      continue;
-    }
-
-    return null;
+    if (!consumeIntegerToken(state, tokens, index)) return null;
   }
 
-  return sawNumber ? total + current : null;
+  return state.sawNumber ? state.total + state.current : null;
 }
 
 function parseEnglishNumberTokens(tokens: string[]): number | null {

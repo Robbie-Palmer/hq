@@ -261,22 +261,34 @@ function archiveText(archive, name) {
   return result.stdout;
 }
 
-function cooklangStepText(step, parsed, flatIngredients, flatCookware, flatTimers) {
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-  return step.items.map((item) => {
-    if (item.type === "text") return item.value;
-    if (item.type === "ingredient") return flatIngredients[item.index]?.name || "";
-    if (item.type === "cookware") return flatCookware[item.index]?.name || "";
-    if (item.type === "timer") {
+function cooklangStepItemText(item, parsed, flatIngredients, flatCookware, flatTimers) {
+  switch (item.type) {
+    case "text":
+      return item.value;
+    case "ingredient":
+      return flatIngredients[item.index]?.name ?? "";
+    case "cookware":
+      return flatCookware[item.index]?.name ?? "";
+    case "timer": {
       const timer = flatTimers[item.index];
-      return timer?.displayText || timer?.name || "";
+      return timer?.displayText ?? timer?.name ?? "";
     }
-    if (item.type === "inlineQuantity") {
+    case "inlineQuantity": {
       const quantity = parsed.inlineQuantities[item.index];
       return quantity ? quantity_display(quantity) : "";
     }
-    return "";
-  }).join("").trim();
+    default:
+      return "";
+  }
+}
+
+function cooklangStepText(step, parsed, flatIngredients, flatCookware, flatTimers) {
+  return step.items
+    .map((item) =>
+      cooklangStepItemText(item, parsed, flatIngredients, flatCookware, flatTimers),
+    )
+    .join("")
+    .trim();
 }
 
 function isCooklangIngredientListStep(step) {

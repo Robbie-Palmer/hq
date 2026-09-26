@@ -23,30 +23,32 @@ function sanitizeOptionalPositiveNumber(
   delete obj[key];
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-export function sanitizeParsedRecipe(raw: unknown): unknown {
-  if (!raw || typeof raw !== "object") {
-    return raw;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object";
+}
+
+function sanitizeIngredientAmounts(
+  ingredientGroups: unknown,
+  warnings: string[],
+): void {
+  if (!Array.isArray(ingredientGroups)) return;
+  for (const group of ingredientGroups) {
+    if (!isRecord(group) || !Array.isArray(group.items)) continue;
+    for (const item of group.items) {
+      if (!isRecord(item)) continue;
+      sanitizeOptionalPositiveNumber(item, "amount", warnings);
+    }
   }
-  const root = raw as Record<string, unknown>;
+}
+
+export function sanitizeParsedRecipe(raw: unknown): unknown {
+  if (!isRecord(raw)) return raw;
+  const root = raw;
   const warnings: string[] = [];
 
   sanitizeOptionalPositiveNumber(root, "prepTime", warnings);
   sanitizeOptionalPositiveNumber(root, "cookTime", warnings);
-
-  const ingredientGroups = root.ingredientGroups;
-  if (Array.isArray(ingredientGroups)) {
-    for (const group of ingredientGroups) {
-      if (!group || typeof group !== "object") continue;
-      const groupObj = group as Record<string, unknown>;
-      const items = groupObj.items;
-      if (!Array.isArray(items)) continue;
-      for (const item of items) {
-        if (!item || typeof item !== "object") continue;
-        sanitizeOptionalPositiveNumber(item as Record<string, unknown>, "amount", warnings);
-      }
-    }
-  }
+  sanitizeIngredientAmounts(root.ingredientGroups, warnings);
 
   if (warnings.length > 0) {
     console.warn(
