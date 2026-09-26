@@ -6,6 +6,7 @@ import {
 } from "work-graph-domain";
 import { eq, sql } from "drizzle-orm";
 import {
+  classifyRetryableDatabaseFailure,
   closeDb,
   createDb,
   isRetryableDatabaseTimeout,
@@ -107,6 +108,41 @@ describe("database timeout classification", () => {
       false,
     );
     expect(isRetryableDatabaseTimeout({ code: "55P03" })).toBe(false);
+  });
+
+  it.each([
+    ["53300", "too many connections", "capacity"],
+    ["57P03", "the database system is starting up", "capacity"],
+    ["58000", "Failed to acquire a connection from the pool.", "capacity"],
+    ["58000", "Internal error.", "infrastructure"],
+    [
+      "58000",
+      "Server connection attempt failed: connection_refused",
+      "infrastructure",
+    ],
+  ] as const)(
+    "classifies retryable database failure %s as %s",
+    (code, message, expected) => {
+      const databaseError = Object.assign(new Error(message), { code });
+
+      expect(
+        classifyRetryableDatabaseFailure(
+          new Error("database request failed", { cause: databaseError }),
+        ),
+      ).toBe(expected);
+    },
+  );
+
+  it.each([
+    ["58000", "Unsupported Hyperdrive protocol operation"],
+    ["28P01", "password authentication failed"],
+    ["23505", "duplicate key value violates unique constraint"],
+  ])("does not retry permanent database failure %s", (code, message) => {
+    expect(
+      classifyRetryableDatabaseFailure(
+        Object.assign(new Error(message), { code }),
+      ),
+    ).toBeUndefined();
   });
 });
 

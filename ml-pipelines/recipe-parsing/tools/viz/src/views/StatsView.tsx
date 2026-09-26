@@ -789,6 +789,7 @@ function RecipeDeltaChart({
   );
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function StatsView({ onSelectCanonicalizeEntry }: Readonly<StatsViewProps>) {
   const [groundTruth, setGroundTruth] = useState<GroundTruthDataset | null>(null);
   const [extractionPredictions, setExtractionPredictions] = useState<ExtractionPredictionsDataset | null>(null);
@@ -987,6 +988,7 @@ export function StatsView({ onSelectCanonicalizeEntry }: Readonly<StatsViewProps
 
   const totalEntries = groundTruth?.entries.length ?? null;
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
   const comparisonRows = useMemo<ComparisonMetricRow[]>(() => {
     if (!canonicalizationBaselineMetricsResolved || !finalMetricsResolved) return [];
     // Only include metrics for fields that canonicalization actually touches:

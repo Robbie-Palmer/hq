@@ -1,0 +1,67 @@
+---
+title: "ADR 011: Single-user boundary for the first host"
+date: "2026-09-14"
+status: "Accepted"
+supersedes: "agent-friendly-remote-development:008-shared-host-resource-containment"
+tech_stack: ["K3s", "Hetzner Cloud", "Tailscale"]
+---
+
+# Context
+
+[ADR 008](/projects/agent-friendly-remote-development/adrs/008-shared-host-resource-containment)
+accepted two workspaces on one 4 vCPU, 8 GiB Hetzner VPS, with the second user
+limited and given lower scheduling priority. Storage pressure during operator
+use showed that this host already needs its recovery headroom for one person's
+workspaces, caches, container images, and K3s. A lower-priority second pod would
+make an eviction more predictable, but would leave the shared CPU, memory,
+disk, kernel, and host-failure boundary intact.
+
+The second user's namespace was never deployed and its data directory contains
+no user files. The shared-host experiment can end before another person's
+state depends on it.
+
+# Decision
+
+Keep the existing NixOS/K3s VPS as a single-user operator environment. Remove
+the unused second-user namespace, route, secret-delivery task, local-volume
+definition, project ID, and quota. Give its 10 GiB storage ceiling back to the
+operator's durable-data quota while preserving the separate 30 GiB cache quota
+and filesystem headroom.
+
+Do not add another user to this VPS. A multi-user rollout requires dedicated
+workspace compute so one person's builds and agents cannot consume another
+person's node capacity.
+
+Treat cache and workspace cleanup as different operations. Automated cache
+housekeeping may touch only documented, rebuildable cache paths. No cleanup job
+may infer that a T3 worktree is disposable from age or Git merge state alone.
+A worktree may be removed only through T3's thread lifecycle, or after all of
+these conditions are confirmed:
+
+1. the T3 thread has been deleted;
+2. the worktree is clean and merged;
+3. no process has the directory open; and
+4. a recoverable backup covers the remaining session metadata.
+
+# Alternatives
+
+Resizing the current VPS would buy headroom with the least architectural
+change. It would retain one host, one maintenance boundary, one storage device,
+and one failure domain for every user. Resizing remains available for the
+operator's own short-term needs.
+
+Keeping the unused pilot definitions would make later onboarding quicker. It
+would also preserve a deployment path that this incident has shown to be
+unsafe. Version control already retains the experiment if its isolation work
+is useful later.
+
+# Consequences
+
+The current workspace regains 10 GiB of durable-data headroom and loses unused
+pilot machinery. The second-user pilot waits for infrastructure that can
+isolate capacity and recover state without sacrificing the operator
+environment.
+
+The current VPS remains a single point of failure. Independent encrypted
+workspace backups and a tested restore remain urgent even before a multi-node
+design is adopted.

@@ -93,6 +93,7 @@ function buildFailure(params: {
   };
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 async function normalizeEntryWithRetries(params: {
   apiKey: string;
   entry: ExtractionPredictionEntry;
@@ -206,6 +207,7 @@ async function normalizeEntryWithRetries(params: {
   });
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 async function main() {
   const {
     model,

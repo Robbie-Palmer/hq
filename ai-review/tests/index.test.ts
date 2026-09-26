@@ -83,6 +83,7 @@ function coordinatorFixture(
       ..._params: unknown[]
     ): { rowsWritten: number; toArray: () => unknown[] } => ({
       rowsWritten: 1,
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
       toArray: () => {
         if (query.includes("FROM _migrations")) {
           return [...SCHEMA_MIGRATION_HISTORY];
@@ -483,6 +484,7 @@ describe("PullRequestCoordinator", () => {
       }
     >();
     const observations = new Set<string>();
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     sqlExec.mockImplementation((query: string, ...values: unknown[]) => {
       if (query.includes("FROM review_model_health_observations")) {
         const key = `${values[0]}:${values[1]}:${values[2]}`;
@@ -1063,6 +1065,7 @@ describe("PullRequestCoordinator", () => {
     }));
     sqlExec.mockImplementation((query: string, ...params: unknown[]) => ({
       rowsWritten: 1,
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
       toArray: () => {
         if (query.includes("FROM review_runs")) {
           return [{ run_id: "latest-run", head_sha: event.headSha }];

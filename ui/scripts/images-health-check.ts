@@ -3,6 +3,7 @@
 import { listImages } from "./lib/cloudflare";
 import { env } from "./lib/env";
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 async function main() {
 	console.log("Running Cloudflare Images health check...");
 	console.log("");

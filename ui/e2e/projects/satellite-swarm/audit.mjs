@@ -141,6 +141,7 @@ async function sampleAnimationFrames(page, durationMs) {
   }, durationMs);
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 async function auditProfile(browser, profile) {
   const context = await browser.newContext(profile.context);
   const page = await context.newPage();

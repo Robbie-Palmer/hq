@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { parseAllDocuments } from "yaml";
@@ -35,7 +43,6 @@ const homelabDirectory = fileURLToPath(new URL("..", import.meta.url));
 const overlays = {
   home: "k3s/overlays/home",
   remote: "k3s/overlays/remote-development",
-  pilot: "k3s/overlays/remote-development-pilot",
 } as const;
 const renderedOverlays = new Map<string, string>();
 
@@ -43,10 +50,12 @@ function run(
   command: string,
   args: readonly string[],
   input?: string,
+  environment?: NodeJS.ProcessEnv,
 ): { stdout: string; stderr: string } {
   const result = spawnSync(command, args, {
     cwd: homelabDirectory,
     encoding: "utf8",
+    env: environment,
     input,
     timeout: 30_000,
   });
@@ -58,6 +67,116 @@ function run(
   );
   return { stdout: result.stdout, stderr: result.stderr };
 }
+
+test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "t3-bootstrap-"));
+  const testHome = join(temporaryDirectory, "home");
+  const t3Home = join(testHome, ".t3");
+  const codexHome = join(testHome, ".codex");
+  const settingsPath = join(t3Home, "userdata/settings.json");
+  const configPath = join(codexHome, "config.toml");
+  const catalogPath = join(codexHome, "model-catalog.json");
+
+  try {
+    mkdirSync(join(t3Home, "userdata"), { recursive: true });
+    mkdirSync(codexHome, { recursive: true });
+    writeFileSync(
+      settingsPath,
+      `${JSON.stringify({
+        providerInstances: {
+          "codex-personal": {
+            accentColor: "#123456",
+            config: { launchArgs: "--legacy" },
+          },
+        },
+      })}\n`,
+    );
+    writeFileSync(
+      configPath,
+      '"model" = "gpt-6-astra"\n\'model_reasoning_effort\' = \'medium\'\n"custom-key" = "keep"\npersonality = "pragmatic"\n\n[features]\njs_repl = false\n',
+    );
+    writeFileSync(
+      join(codexHome, "models_cache.json"),
+      `${JSON.stringify({
+        client_version: "test",
+        models: [
+          {
+            slug: "gpt-6-astra",
+            default_reasoning_level: "medium",
+            priority: 0,
+          },
+          {
+            slug: "gpt-5.6-sol",
+            default_reasoning_level: "low",
+            priority: 4,
+          },
+        ],
+      })}\n`,
+    );
+
+    const environment = {
+      ...process.env,
+      HOME: testHome,
+      T3CODE_HOME: t3Home,
+    };
+    const scriptPath = fileURLToPath(
+      new URL("../images/t3-code/bootstrap-settings.mjs", import.meta.url),
+    );
+    run(process.execPath, [scriptPath], undefined, environment);
+    const firstConfig = readFileSync(configPath, "utf8");
+    const firstSettings = readFileSync(settingsPath, "utf8");
+    const firstCatalog = readFileSync(catalogPath, "utf8");
+    run(process.execPath, [scriptPath], undefined, environment);
+
+    assert.equal(readFileSync(configPath, "utf8"), firstConfig);
+    assert.equal(readFileSync(settingsPath, "utf8"), firstSettings);
+    assert.equal(readFileSync(catalogPath, "utf8"), firstCatalog);
+    assert.match(firstConfig, /^model = "gpt-5\.6-sol"$/m);
+    assert.match(firstConfig, /^model_reasoning_effort = "high"$/m);
+    assert.match(
+      firstConfig,
+      new RegExp(`^model_catalog_json = ${JSON.stringify(catalogPath)}$`, "m"),
+    );
+    assert.match(firstConfig, /^personality = "pragmatic"$/m);
+    assert.match(firstConfig, /^"custom-key" = "keep"$/m);
+    assert.doesNotMatch(firstConfig, /^"model"\s*=/m);
+    assert.doesNotMatch(firstConfig, /^'model_reasoning_effort'\s*=/m);
+    assert.match(firstConfig, /^\[features\]$/m);
+
+    const settings = JSON.parse(firstSettings) as Record<string, unknown>;
+    assert.deepEqual(settings.defaultModelSelection, {
+      instanceId: "codex",
+      model: "gpt-5.6-sol",
+      options: [
+        { id: "reasoningEffort", value: "high" },
+        { id: "serviceTier", value: "default" },
+      ],
+    });
+    const instances = settings.providerInstances as Record<
+      string,
+      Record<string, unknown>
+    >;
+    assert.ok(!("codex-personal" in instances));
+    assert.equal(instances.codex2?.accentColor, "#123456");
+    const codex2Config = instances.codex2?.config as Record<string, unknown>;
+    assert.equal(codex2Config.homePath, codexHome);
+    assert.equal(
+      codex2Config.shadowHomePath,
+      join(testHome, ".codex-personal"),
+    );
+
+    const catalog = JSON.parse(firstCatalog) as {
+      models: Array<Record<string, unknown>>;
+    };
+    const sol = catalog.models.find(({ slug }) => slug === "gpt-5.6-sol");
+    const astra = catalog.models.find(({ slug }) => slug === "gpt-6-astra");
+    assert.equal(sol?.default_reasoning_level, "high");
+    assert.equal(sol?.priority, 0);
+    assert.equal(astra?.priority, 1);
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
+});
 
 function renderOverlay(overlay: string): string {
   const cached = renderedOverlays.get(overlay);
@@ -232,20 +351,17 @@ test("the Doppler validation catalog matches the installed operator version", ()
   assert.equal(schemaVersion[1], installedVersion[1]);
 });
 
-test("the pilot overlay renders two distinct workspaces", () => {
-  const resources = parseResources(overlays.pilot);
+test("the remote overlay isolates durable data from rebuildable caches", () => {
+  const resources = parseResources(overlays.remote);
 
   assert.deepEqual(kindCounts(resources), {
-    Deployment: 2,
-    DopplerSecret: 4,
-    Namespace: 2,
-    NetworkPolicy: 3,
+    Deployment: 1,
+    DopplerSecret: 3,
+    Namespace: 1,
     PersistentVolume: 2,
     PersistentVolumeClaim: 2,
-    PriorityClass: 1,
-    ResourceQuota: 1,
-    Service: 2,
-    ServiceAccount: 2,
+    Service: 1,
+    ServiceAccount: 1,
   });
 
   const identities = resources.map(
@@ -259,12 +375,6 @@ test("the pilot overlay renders two distinct workspaces", () => {
   );
 
   const operatorService = resource(resources, "Service", "t3-code", "t3-code");
-  const pilotService = resource(
-    resources,
-    "Service",
-    "t3-code",
-    "t3-code-pilot",
-  );
   assert.deepEqual(servicePort(operatorService, "http"), {
     name: "http",
     nodePort: 30773,
@@ -281,27 +391,27 @@ test("the pilot overlay renders two distinct workspaces", () => {
       targetPort: 3000 + offset,
     });
   }
-  assert.equal(servicePort(pilotService, "http").nodePort, 30774);
-
   const operatorVolume = resource(
     resources,
     "PersistentVolume",
     "t3-code-remote-development",
   );
-  const pilotVolume = resource(
+  const cacheVolume = resource(
     resources,
     "PersistentVolume",
-    "t3-code-remote-development-pilot",
+    "t3-code-remote-development-cache",
   );
   assert.equal(
     valueAt(operatorVolume, ["spec", "local", "path"]),
     "/srv/remote-development/t3-code",
   );
+  assert.equal(valueAt(operatorVolume, ["spec", "capacity", "storage"]), "90Gi");
   assert.equal(
-    valueAt(pilotVolume, ["spec", "local", "path"]),
-    "/srv/remote-development/t3-code-pilot",
+    valueAt(cacheVolume, ["spec", "local", "path"]),
+    "/srv/remote-development/t3-code-cache",
   );
-  for (const volume of [operatorVolume, pilotVolume]) {
+  assert.equal(valueAt(cacheVolume, ["spec", "capacity", "storage"]), "30Gi");
+  for (const volume of [operatorVolume, cacheVolume]) {
     assert.deepEqual(
       valueAt(volume, [
         "spec",
@@ -337,19 +447,27 @@ test("the pilot overlay renders two distinct workspaces", () => {
     "t3-code-data",
     "t3-code",
   );
-  const pilotClaim = resource(
+  const cacheClaim = resource(
     resources,
     "PersistentVolumeClaim",
-    "t3-code-data",
-    "t3-code-pilot",
+    "t3-code-cache",
+    "t3-code",
   );
   assert.equal(
     valueAt(operatorClaim, ["spec", "volumeName"]),
     "t3-code-remote-development",
   );
   assert.equal(
-    valueAt(pilotClaim, ["spec", "volumeName"]),
-    "t3-code-remote-development-pilot",
+    valueAt(operatorClaim, ["spec", "resources", "requests", "storage"]),
+    "90Gi",
+  );
+  assert.equal(
+    valueAt(cacheClaim, ["spec", "volumeName"]),
+    "t3-code-remote-development-cache",
+  );
+  assert.equal(
+    valueAt(cacheClaim, ["spec", "resources", "requests", "storage"]),
+    "30Gi",
   );
 
   const operatorDeployment = resource(
@@ -358,14 +476,7 @@ test("the pilot overlay renders two distinct workspaces", () => {
     "t3-code",
     "t3-code",
   );
-  const pilotDeployment = resource(
-    resources,
-    "Deployment",
-    "t3-code",
-    "t3-code-pilot",
-  );
   const operatorNamespace = resource(resources, "Namespace", "t3-code");
-  const pilotNamespace = resource(resources, "Namespace", "t3-code-pilot");
   assert.equal(
     valueAt(operatorNamespace, [
       "metadata",
@@ -391,35 +502,24 @@ test("the pilot overlay renders two distinct workspaces", () => {
     "restricted",
   );
   assert.equal(
-    valueAt(pilotNamespace, [
-      "metadata",
-      "labels",
-      "pod-security.kubernetes.io/enforce",
+    valueAt(operatorDeployment, [
+      "spec",
+      "template",
+      "spec",
+      "initContainers",
+      0,
+      "image",
     ]),
-    "restricted",
+    valueAt(operatorDeployment, [
+      "spec",
+      "template",
+      "spec",
+      "containers",
+      0,
+      "image",
+    ]),
+    "operator init and main images must match",
   );
-  assert.equal(valueAt(pilotDeployment, ["spec", "strategy", "type"]), "Recreate");
-  for (const deployment of [operatorDeployment, pilotDeployment]) {
-    assert.equal(
-      valueAt(deployment, [
-        "spec",
-        "template",
-        "spec",
-        "initContainers",
-        0,
-        "image",
-      ]),
-      valueAt(deployment, [
-        "spec",
-        "template",
-        "spec",
-        "containers",
-        0,
-        "image",
-      ]),
-      `${deployment.metadata.namespace} init and main images must match`,
-    );
-  }
   assert.deepEqual(
     valueAt(operatorDeployment, [
       "spec",
@@ -430,80 +530,10 @@ test("the pilot overlay renders two distinct workspaces", () => {
       "resources",
     ]),
     {
-      limits: { cpu: "3", memory: "6Gi" },
-      requests: { cpu: "500m", memory: "1Gi" },
+      limits: { cpu: "3", "ephemeral-storage": "12Gi", memory: "6Gi" },
+      requests: { cpu: "500m", "ephemeral-storage": "1Gi", memory: "1Gi" },
     },
   );
-  assert.deepEqual(
-    valueAt(pilotDeployment, [
-      "spec",
-      "template",
-      "spec",
-      "containers",
-      0,
-      "resources",
-    ]),
-    {
-      limits: { cpu: "1", memory: "1Gi" },
-      requests: { cpu: "250m", memory: "512Mi" },
-    },
-  );
-  assert.equal(
-    valueAt(pilotDeployment, ["spec", "template", "spec", "priorityClassName"]),
-    "pilot-workspace",
-  );
-  assert.deepEqual(
-    valueAt(pilotDeployment, [
-      "spec",
-      "template",
-      "spec",
-      "containers",
-      0,
-      "envFrom",
-      0,
-    ]),
-    { secretRef: { name: "t3-code-runtime", optional: false } },
-  );
-  assert.equal(
-    valueAt(pilotDeployment, [
-      "spec",
-      "template",
-      "spec",
-      "automountServiceAccountToken",
-    ]),
-    false,
-  );
-  assert.deepEqual(
-    valueAt(pilotDeployment, ["spec", "template", "spec", "securityContext"]),
-    {
-      fsGroup: 2000,
-      fsGroupChangePolicy: "OnRootMismatch",
-      runAsGroup: 2000,
-      runAsNonRoot: true,
-      runAsUser: 2000,
-      seccompProfile: { type: "RuntimeDefault" },
-    },
-  );
-  assert.deepEqual(
-    valueAt(pilotDeployment, [
-      "spec",
-      "template",
-      "spec",
-      "containers",
-      0,
-      "securityContext",
-    ]),
-    {
-      allowPrivilegeEscalation: false,
-      capabilities: { drop: ["ALL"] },
-      readOnlyRootFilesystem: true,
-    },
-  );
-  assert.deepEqual(
-    valueAt(pilotDeployment, ["spec", "template", "spec", "volumes", 1]),
-    { emptyDir: { sizeLimit: "1Gi" }, name: "tmp" },
-  );
-
   assert.deepEqual(
     valueAt(operatorDeployment, [
       "spec",
@@ -694,8 +724,8 @@ test("the pilot overlay renders two distinct workspaces", () => {
       timeoutSeconds: 5,
     },
     resources: {
-      limits: { cpu: "1", memory: "1Gi" },
-      requests: { cpu: "100m", memory: "256Mi" },
+      limits: { cpu: "1", "ephemeral-storage": "16Gi", memory: "1Gi" },
+      requests: { cpu: "100m", "ephemeral-storage": "2Gi", memory: "256Mi" },
     },
     securityContext: {
       privileged: true,
@@ -729,61 +759,26 @@ test("the pilot overlay renders two distinct workspaces", () => {
     dockerDataVolume,
     { emptyDir: { sizeLimit: "10Gi" }, name: "docker-data" },
   );
-  assert.equal(
-    (valueAt(pilotDeployment, [
-      "spec",
-      "template",
-      "spec",
-      "containers",
-    ]) as unknown[]).length,
-    1,
+  const operatorTmpVolume = operatorVolumes.find(
+    (candidate: unknown) =>
+      typeof candidate === "object" &&
+      candidate !== null &&
+      (candidate as Record<string, unknown>).name === "tmp",
   );
-
-  const quota = resource(
-    resources,
-    "ResourceQuota",
-    "workspace",
-    "t3-code-pilot",
+  assert.deepEqual(
+    operatorTmpVolume,
+    { emptyDir: { sizeLimit: "8Gi" }, name: "tmp" },
   );
-  assert.deepEqual(valueAt(quota, ["spec", "hard"]), {
-    "limits.cpu": "1",
-    "limits.memory": "1Gi",
-    persistentvolumeclaims: "1",
-    pods: "1",
-    "requests.cpu": "1",
-    "requests.memory": "1Gi",
-    "requests.storage": "10Gi",
+  const operatorCacheVolume = operatorVolumes.find(
+    (candidate: unknown) =>
+      typeof candidate === "object" &&
+      candidate !== null &&
+      (candidate as Record<string, unknown>).name === "cache",
+  );
+  assert.deepEqual(operatorCacheVolume, {
+    name: "cache",
+    persistentVolumeClaim: { claimName: "t3-code-cache" },
   });
-
-  const priority = resource(resources, "PriorityClass", "pilot-workspace");
-  assert.equal(valueAt(priority, ["value"]), -10);
-  assert.equal(valueAt(priority, ["preemptionPolicy"]), "Never");
-
-  const policyNames = resources
-    .filter(({ kind }) => kind === "NetworkPolicy")
-    .map(({ metadata }) => metadata.name)
-    .sort();
-  assert.deepEqual(policyNames, [
-    "workspace-default-deny-ingress",
-    "workspace-dns",
-    "workspace-public-egress",
-  ]);
-
-  const pilotSecret = resource(
-    resources,
-    "DopplerSecret",
-    "t3-code",
-    "t3-code-pilot",
-  );
-  assert.equal(
-    valueAt(pilotSecret, ["spec", "config"]),
-    "prd_remote_development_pilot",
-  );
-  assert.equal(
-    valueAt(pilotSecret, ["spec", "managedSecret", "namespace"]),
-    "t3-code-pilot",
-  );
-
   const previewAccessSecret = resource(
     resources,
     "DopplerSecret",
@@ -844,8 +839,8 @@ test("the default remote overlay contains only the operator workspace", () => {
     Deployment: 1,
     DopplerSecret: 3,
     Namespace: 1,
-    PersistentVolume: 1,
-    PersistentVolumeClaim: 1,
+    PersistentVolume: 2,
+    PersistentVolumeClaim: 2,
     Service: 1,
     ServiceAccount: 1,
   });
@@ -857,7 +852,7 @@ test("the default remote overlay contains only the operator workspace", () => {
   );
 });
 
-test("the NixOS host publishes, prepares, and limits both workspace paths", () => {
+test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   const hostDefinition = readFileSync(
     new URL("../hosts/remote-development/default.nix", import.meta.url),
     "utf8",
@@ -868,11 +863,8 @@ test("the NixOS host publishes, prepares, and limits both workspace paths", () =
       "tailscale serve --bg --https=443 http://127.0.0.1:30773",
     ),
   );
-  assert.ok(
-    hostDefinition.includes(
-      "tailscale serve --bg --https=8443 http://127.0.0.1:30774",
-    ),
-  );
+  assert.ok(hostDefinition.includes("tailscale serve reset"));
+  assert.ok(!hostDefinition.includes("--https=8443"));
   for (let offset = 0; offset < 5; offset += 1) {
     assert.ok(
       hostDefinition.includes(
@@ -882,34 +874,44 @@ test("the NixOS host publishes, prepares, and limits both workspace paths", () =
   }
   assert.ok(
     hostDefinition.includes(
-      "install -d -m 0700 -o t3code -g t3code ${pilotDataPath}/home/.codex",
+      "install -d -m 2770 -o t3code -g t3code ${operatorDataPath}",
     ),
   );
   assert.ok(
     hostDefinition.includes(
-      "install -d -m 0700 -o t3code -g t3code ${pilotDataPath}/workspaces",
+      "install -d -m 2770 -o t3code -g t3code ${cacheDataPath}",
     ),
   );
+  assert.ok(!hostDefinition.includes("pilotDataPath"));
   assert.ok(hostDefinition.includes('"prjquota"'));
-  assert.ok(hostDefinition.includes('pilotProjectId = "2001"'));
-  assert.ok(hostDefinition.includes('pilotBlockHardLimit = "10G"'));
-  assert.ok(hostDefinition.includes('pilotInodeHardLimit = "1000000"'));
+  assert.ok(hostDefinition.includes('operatorProjectId = "2000"'));
+  assert.ok(hostDefinition.includes('cacheProjectId = "2002"'));
+  assert.ok(hostDefinition.includes('operatorBlockHardLimit = "55G"'));
+  assert.ok(hostDefinition.includes('cacheBlockHardLimit = "30G"'));
+  assert.ok(hostDefinition.includes('operatorInodeHardLimit = "3000000"'));
+  assert.ok(hostDefinition.includes('cacheInodeHardLimit = "2000000"'));
   assert.ok(hostDefinition.includes('containerLogMaxFiles = 3'));
   assert.ok(hostDefinition.includes('containerLogMaxSize = "20Mi"'));
-  assert.ok(
-    hostDefinition.includes(
-      "chattr -R -p ${pilotProjectId} ${pilotDataPath}",
-    ),
-  );
-  assert.ok(hostDefinition.includes("chattr +P ${pilotDataPath}"));
-  assert.ok(
-    hostDefinition.includes(
-      "setquota --project ${pilotProjectId} 0 ${pilotBlockHardLimit} 0 ${pilotInodeHardLimit} ${dataMount}",
-    ),
-  );
+  assert.ok(hostDefinition.includes("zramSwap = {"));
+  assert.ok(hostDefinition.includes("memoryPercent = 25"));
+  assert.ok(hostDefinition.includes('memorySwap.swapBehavior = "NoSwap"'));
+  assert.ok(hostDefinition.includes('projectQuotaLayoutVersion = "2"'));
+  assert.ok(hostDefinition.includes("chattr +P ${operatorDataPath}"));
+  assert.ok(hostDefinition.includes("chattr +P ${cacheDataPath}"));
   assert.ok(
     hostDefinition.includes('"remote-development-project-quotas.service"'),
   );
+  assert.ok(
+    hostDefinition.includes(
+      "systemd.services.remote-development-k3s-state-migration",
+    ),
+  );
+  assert.ok(hostDefinition.includes('legacy=${dataMount}/k3s'));
+  assert.ok(hostDefinition.includes('test -s "$legacy/server/db/state.db"'));
+  assert.ok(hostDefinition.includes("trap cleanup_staging EXIT"));
+  assert.ok(hostDefinition.includes('sync -f "$staging"'));
+  assert.ok(hostDefinition.includes('mv -- "$staging" "$target"'));
+  assert.ok(hostDefinition.includes('test -s "$target/server/db/state.db"'));
 
   const volumePreparation = readFileSync(
     new URL("../scripts/prepare-remote-development-volume", import.meta.url),
@@ -922,12 +924,15 @@ test("the NixOS host publishes, prepares, and limits both workspace paths", () =
     new URL("../scripts/remote-development-health", import.meta.url),
     "utf8",
   );
-  assert.ok(
-    healthCheck.includes(
-      `pilot_project_id=$(awk -F: '$1 == "t3-code-pilot" { print $2 }' /etc/projid)`,
-    ),
-  );
-  assert.ok(!healthCheck.includes('project_id="#2001"'));
+  assert.ok(healthCheck.includes("check_project_quota t3-code-operator"));
+  assert.ok(!healthCheck.includes("check_project_quota t3-code-pilot"));
+  assert.ok(healthCheck.includes("check_project_quota t3-code-cache"));
+  assert.ok(healthCheck.includes("test ! -e /srv/remote-development/t3-code-pilot"));
+  assert.ok(healthCheck.includes('any(.type == "DiskPressure"'));
+  assert.ok(healthCheck.includes("check_disk_headroom /srv/remote-development"));
+  assert.ok(healthCheck.includes('keys | sort == ["3000", "3001"'));
+  assert.ok(healthCheck.includes('$1 == "/dev/zram0"'));
+  assert.ok(healthCheck.includes("for _ in $(seq 1 60)"));
   assert.ok(healthCheck.includes(".lastState.terminated.reason"));
   assert.ok(healthCheck.includes(".lastState.terminated.exitCode"));
   assert.ok(

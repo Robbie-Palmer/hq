@@ -176,6 +176,7 @@ function logProxyResponse(
   );
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export async function proxyRecipeApiRequest(
   context: RecipeApiProxyContext,
   invalidPreviewMessage: string,

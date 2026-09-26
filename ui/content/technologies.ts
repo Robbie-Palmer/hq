@@ -1427,6 +1427,14 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     type: "platform",
   },
   {
+    name: "Kube-Hetzner",
+    added: "2026-09-14",
+    description:
+      "Terraform module for building private, scalable K3s and RKE2 clusters on Hetzner Cloud",
+    website: "https://github.com/mysticaltech/terraform-hcloud-kube-hetzner",
+    type: "tool",
+  },
+  {
     name: "Flux Schema",
     added: "2026-09-09",
     description:

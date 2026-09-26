@@ -5,14 +5,57 @@ const RETRYABLE_DATABASE_TIMEOUT_CODES = new Set([
   "57014", // statement_timeout or query cancellation
 ]);
 
-export const isRetryableDatabaseTimeout = (error: unknown): boolean => {
-  if (!(error instanceof Error)) return false;
-  if (
-    "code" in error &&
-    typeof error.code === "string" &&
-    RETRYABLE_DATABASE_TIMEOUT_CODES.has(error.code)
-  ) {
-    return true;
+const RETRYABLE_DATABASE_CAPACITY_CODES = new Set([
+  "53300", // too_many_connections
+  "57P03", // cannot_connect_now
+]);
+
+const HYPERDRIVE_ERROR_CODE = "58000";
+const RETRYABLE_HYPERDRIVE_MESSAGES = [
+  "Failed to acquire a connection from the pool.",
+  "Internal error.",
+  "Server connection attempt failed: connection_refused",
+] as const;
+
+export type RetryableDatabaseFailure = "capacity" | "infrastructure" | "timeout";
+
+const databaseFailureForError = (
+  error: Error,
+): RetryableDatabaseFailure | undefined => {
+  const code =
+    "code" in error && typeof error.code === "string" ? error.code : undefined;
+  if (code !== undefined && RETRYABLE_DATABASE_TIMEOUT_CODES.has(code)) {
+    return "timeout";
   }
-  return "cause" in error && isRetryableDatabaseTimeout(error.cause);
+  if (code !== undefined && RETRYABLE_DATABASE_CAPACITY_CODES.has(code)) {
+    return "capacity";
+  }
+  if (
+    code === HYPERDRIVE_ERROR_CODE &&
+    RETRYABLE_HYPERDRIVE_MESSAGES.some((message) =>
+      error.message.includes(message),
+    )
+  ) {
+    return error.message.includes(
+      "Failed to acquire a connection from the pool.",
+    )
+      ? "capacity"
+      : "infrastructure";
+  }
+  return undefined;
+};
+
+export const classifyRetryableDatabaseFailure = (
+  error: unknown,
+): RetryableDatabaseFailure | undefined => {
+  if (!(error instanceof Error)) return undefined;
+  const failure = databaseFailureForError(error);
+  if (failure !== undefined) return failure;
+  return "cause" in error
+    ? classifyRetryableDatabaseFailure(error.cause)
+    : undefined;
+};
+
+export const isRetryableDatabaseTimeout = (error: unknown): boolean => {
+  return classifyRetryableDatabaseFailure(error) === "timeout";
 };

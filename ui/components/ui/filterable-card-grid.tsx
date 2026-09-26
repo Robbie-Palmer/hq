@@ -163,6 +163,7 @@ export function FilterableCardGrid<T>({
     [items, searchConfig.keys, searchConfig.threshold],
   );
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
   const filteredItems = useMemo(() => {
     let filtered = searchQuery.trim()
       ? fuse.search(searchQuery).map((result: FuseResult<T>) => result.item)

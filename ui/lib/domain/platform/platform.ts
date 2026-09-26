@@ -250,6 +250,7 @@ function validateAcceptedSelectionChains(
   }
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 function validateDefaultCoverage(
   manifest: PlatformManifestInput,
   slots: ReadonlyMap<string, PlatformManifestInput["slots"][number]>,

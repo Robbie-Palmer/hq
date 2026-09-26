@@ -16,6 +16,7 @@
       "**/*.tsx",
       "!ui",
       "!**/node_modules",
+      "!**/.venv",
       "!**/coverage",
       "!**/dist",
       "!packages/work-graph-cli/src/generated"
@@ -30,7 +31,7 @@
       "preset": "recommended",
       "complexity": {
         "noExcessiveCognitiveComplexity": {
-          "level": "warn",
+          "level": "error",
           "options": {
             "maxAllowedComplexity": 15
           }

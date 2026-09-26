@@ -1,14 +1,14 @@
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: t3-code-remote-development-pilot
+  name: t3-code-remote-development-cache
 spec:
   accessModes:
     - ReadWriteOnce
   capacity:
-    storage: 10Gi
+    storage: 30Gi
   local:
-    path: /srv/remote-development/t3-code-pilot
+    path: /srv/remote-development/t3-code-cache
   nodeAffinity:
     required:
       nodeSelectorTerms:
@@ -26,5 +26,5 @@ spec:
               values:
                 - remote-development
   persistentVolumeReclaimPolicy: Retain
-  storageClassName: t3-code-local
+  storageClassName: t3-code-cache-local
   volumeMode: Filesystem

@@ -1577,6 +1577,7 @@ describe("Given a worker managing a lease", () => {
   it("decomposes into ranked children and claims one for the same worker", async () => {
     const repository = buildRepository();
     vi.mocked(repository.listWorkItems).mockResolvedValue(
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
       ["parent", "first", "second"].map((workItemId) => ({
         ...item(
           workItemId,
@@ -1931,30 +1932,144 @@ describe("Given an invalid REST request", () => {
   });
 });
 
-describe("Given a database request timeout", () => {
-  it.each(["25P03", "25P04", "55P03", "57014"])(
-    "maps PostgreSQL %s to a retryable response without database details",
-    async (code) => {
+describe("Given a transient database failure", () => {
+  it("keeps retry guidance when a lease claim is known not to have committed", async () => {
+    const repository = buildRepository();
+    vi.mocked(repository.claimWorkItem).mockRejectedValue(
+      Object.assign(new Error("too many connections"), { code: "53300" }),
+    );
+    const app = createWorkGraphApp(repository, {
+      createRequestId: () => "request-before-claim",
+    });
+
+    const response = await app.request("/api/leases", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workerId: "worker-a",
+        leaseDurationSeconds: 300,
+      }),
+    });
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("retry-after")).toBe("1");
+    expect(await responseJson(response)).toEqual({
+      error: {
+        code: "database_capacity",
+        message: "The Work Graph database is at connection capacity. Retry it.",
+        requestId: "request-before-claim",
+      },
+    });
+  });
+
+  it("reports an uncertain outcome without retry guidance after a lease claim commits", async () => {
+    const repository = buildRepository();
+    vi.mocked(repository.getWorkItem).mockRejectedValue(
+      Object.assign(new Error("too many connections"), { code: "53300" }),
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const app = createWorkGraphApp(repository, {
+      createLeaseId: () => leaseId,
+      createRequestId: () => "request-after-claim",
+    });
+
+    const response = await app.request("/api/leases", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workItemId: "ready",
+        workerId: "worker-a",
+        leaseDurationSeconds: 300,
+      }),
+    });
+
+    expect(repository.claimWorkItem).toHaveBeenCalledOnce();
+    expect(response.status).toBe(500);
+    expect(response.headers.get("retry-after")).toBeNull();
+    expect(response.headers.get("x-request-id")).toBe("request-after-claim");
+    expect(await responseJson(response)).toEqual({
+      error: {
+        code: "claim_outcome_uncertain",
+        message:
+          "The lease claim may have succeeded, but its response could not be completed. Inspect the work item before claiming again.",
+        requestId: "request-after-claim",
+      },
+    });
+    expect(warn).toHaveBeenCalledWith(
+      JSON.stringify({
+        message: "Work Graph lease claim outcome is uncertain",
+        code: "claim_outcome_uncertain",
+        requestId: "request-after-claim",
+        method: "POST",
+        path: "/api/leases",
+      }),
+    );
+    warn.mockRestore();
+  });
+
+  it.each([
+    [
+      "55P03",
+      "canceling statement because a database limit was reached",
+      "database_timeout",
+      "The Work Graph database request timed out. Retry it.",
+    ],
+    [
+      "53300",
+      "too many connections",
+      "database_capacity",
+      "The Work Graph database is at connection capacity. Retry it.",
+    ],
+    [
+      "58000",
+      "Failed to acquire a connection from the pool.",
+      "database_capacity",
+      "The Work Graph database is at connection capacity. Retry it.",
+    ],
+    [
+      "58000",
+      "Internal error.",
+      "database_unavailable",
+      "The Work Graph database is temporarily unavailable. Retry it.",
+    ],
+  ])(
+    "maps %s to a coded retryable response without database details",
+    async (code, databaseMessage, responseCode, responseMessage) => {
       const repository = buildRepository();
       const databaseError = Object.assign(
-        new Error("canceling statement because a database limit was reached"),
+        new Error(databaseMessage),
         { code },
       );
       vi.mocked(repository.listWorkItems).mockRejectedValue(
         new Error("database request failed", { cause: databaseError }),
       );
-      const app = createWorkGraphApp(repository);
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      const app = createWorkGraphApp(repository, {
+        createRequestId: () => "request-123",
+      });
 
       const response = await app.request("/api/work-items");
 
       expect(response.status).toBe(503);
       expect(response.headers.get("retry-after")).toBe("1");
+      expect(response.headers.get("x-request-id")).toBe("request-123");
       expect(await responseJson(response)).toEqual({
         error: {
-          code: "database_timeout",
-          message: "The Work Graph database request timed out. Retry it.",
+          code: responseCode,
+          message: responseMessage,
+          requestId: "request-123",
         },
       });
+      expect(warn).toHaveBeenCalledWith(
+        JSON.stringify({
+          message: "Work Graph database request can be retried",
+          code: responseCode,
+          requestId: "request-123",
+          method: "GET",
+          path: "/api/work-items",
+        }),
+      );
+      warn.mockRestore();
     },
   );
 });

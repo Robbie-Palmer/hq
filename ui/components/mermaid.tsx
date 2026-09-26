@@ -22,6 +22,7 @@ export function Mermaid({ chart, className = "" }: Readonly<MermaidProps>) {
 
     let isCancelled = false;
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     const renderDiagram = async () => {
       try {
         if (isCancelled || !containerRef.current) return;

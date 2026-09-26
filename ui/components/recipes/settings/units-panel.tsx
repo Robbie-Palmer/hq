@@ -302,6 +302,7 @@ function ThresholdRuler({
                   updateFromPointer(index, event.clientX);
                 }
               }}
+              // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
               onKeyDown={(event) => {
                 const step = thresholdStep(tier.upTo);
                 let nextValue: number | null = null;

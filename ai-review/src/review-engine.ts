@@ -1145,6 +1145,7 @@ async function prepareScoutRoster(
   };
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export async function runScouts(
   env: Env,
   params: ReviewWorkflowParams,
@@ -1434,6 +1435,7 @@ export function estimateMergeCostCeilingUsd(
   ) / 1_000_000;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export async function mergeFindings(
   env: Env,
   params: ReviewWorkflowParams,
@@ -1747,6 +1749,7 @@ export async function recordReview(options: {
   await recordReviewTerminal({ ...options, status: "published" });
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export async function recordReviewTerminal(options: {
   env: Env;
   params: ReviewWorkflowParams;

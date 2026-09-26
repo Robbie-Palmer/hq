@@ -311,6 +311,7 @@ function groupToCooklangLines(recipe: Recipe): string[] {
   return lines;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function recipeToCooklang(recipe: Recipe): CooklangRecipe {
   // Build ingredientAnnotations from items that have preparation or note
   const ingredientAnnotations: Record<string, { preparation?: string; note?: string }> = {};
@@ -447,6 +448,7 @@ export function buildCooklangDraftFromStructuredText(
   };
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function deriveRecipeFromStructuredText(extracted: StructuredTextRecipe): {
   recipe: Recipe | null;
   diagnostics: string[];
@@ -745,6 +747,7 @@ function createDerivedRecipe(
   };
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function deriveRecipeFromCooklang(cooklang: CooklangRecipe): CooklangRecipe {
   const diagnostics = [...cooklang.diagnostics];
   const fixedBody = fixBareMultiWordIngredients(cooklang.body);

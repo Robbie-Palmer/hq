@@ -1,5 +1,5 @@
 ---
-title: "ADR 010: Layered observability for shared agent workspaces"
+title: "ADR 010: Layered observability for agent workspaces"
 date: "2026-09-12"
 status: "Proposed"
 tech_stack:
@@ -20,7 +20,8 @@ coding-agent sessions launched through T3 Code. An alert should name the
 affected workspace and distinguish host pressure, a Kubernetes action, and an
 application or child-process failure.
 
-The first deployment has one small host and two users. A self-hosted
+The first deployment has one small host and one user. A future multi-user
+cluster will use dedicated workspace nodes. A self-hosted
 Prometheus, Grafana, Loki, and Tempo stack would consume memory and create more
 stateful services than this deployment warrants. The chosen system should
 still use standard Kubernetes and OpenTelemetry signals so the project can
@@ -82,8 +83,9 @@ and limit.
 
 ## T3 Code telemetry
 
-Run one pinned OpenTelemetry Collector Contrib service on the host. T3 Code in
-both workspaces will send OTLP/HTTP to its cluster-private endpoint. The
+Run one pinned OpenTelemetry Collector Contrib service on the current host. T3
+Code will send OTLP/HTTP to its private endpoint. A future multi-node cluster
+will run an equivalent collector outside user namespaces. The
 Collector will:
 
 * send T3 Code metrics to Netdata's loopback OTLP/gRPC receiver;
@@ -123,7 +125,8 @@ dependency used to determine whether the remote machine itself is reachable.
 
 ## Attribution and data handling
 
-Use stable, non-personal workspace identifiers such as `operator` and `pilot`.
+Use stable, non-personal workspace identifiers such as `operator` and an
+opaque workspace ID.
 Apply them consistently as the Kubernetes namespace label,
 `T3CODE_OTLP_SERVICE_NAME`, `service.namespace`, and `workspace.id`. PostHog
 may retain a session or trace ID for investigation. Slack messages must contain
@@ -146,7 +149,7 @@ prompts, responses, file contents, diffs, terminal output, environment
 variables, credentials, provider event payloads, or full working-directory
 paths. Apply a default-deny filter to stdout and drop an unrecognised log line
 rather than risk exporting its body. Keep T3 Code's rotating local trace file
-and K3s container log rotation as fallbacks. The pilot user must know what the
+and K3s container log rotation as fallbacks. Any later user must know what the
 system records before their workspace is enabled.
 
 Alert immediately on an OOM kill, `OOMKilled`, eviction, crash loop, failed K3s
@@ -161,8 +164,9 @@ Keep this ADR Proposed until a disposable test proves all of the following:
 
 1. The Netdata dashboard works through its private URL without parent streaming
    or Netdata Cloud.
-2. Netdata shows separate host, `operator`, and `pilot` CPU, memory, pressure,
-   throttling, PID, filesystem, byte-quota, and inode-quota views.
+2. Netdata shows separate host and `operator` CPU, memory, pressure, throttling,
+   PID, filesystem, byte-quota, and inode-quota views. The multi-node evaluation
+   repeats this with a second opaque workspace ID.
 3. The deployed T3 Code image exports successful and failed provider turns, a
    terminal lifecycle event, and the documented counters through the Collector
    without losing its local trace file.
@@ -181,9 +185,9 @@ Keep this ADR Proposed until a disposable test proves all of the following:
 10. Netdata, kube-state-metrics, and the Collector stay below 512 MiB resident
     memory and 5 percent of one CPU at steady state during concurrent agent
     work. Each component also has a bounded memory policy.
-11. Seven days of pilot use produce no duplicate or unactionable pages. The
-    sample records PostHog volume and projected cost, with a billing limit that
-    prevents unplanned spend.
+11. Seven days of representative use produce no duplicate or unactionable
+    pages. The sample records PostHog volume and projected cost, with a billing
+    limit that prevents unplanned spend.
 
 # Alternatives
 

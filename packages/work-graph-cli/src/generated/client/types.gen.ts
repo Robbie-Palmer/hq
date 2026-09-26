@@ -80,6 +80,7 @@ export type Error = {
     error: {
         code: string;
         message: string;
+        requestId?: string;
         details?: Array<{
             path: Array<string | number>;
             message: string;
@@ -365,7 +366,7 @@ export type ListAttentionRequestsErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -433,7 +434,7 @@ export type CreateAttentionRequestErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -497,7 +498,7 @@ export type CreateAttentionResolutionErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -554,7 +555,7 @@ export type GetCriticalPathErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -616,7 +617,7 @@ export type DeleteDependencyErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -678,7 +679,7 @@ export type CreateDependencyErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -740,7 +741,7 @@ export type DeleteKnowledgeScopeRelationshipErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -797,7 +798,7 @@ export type ListKnowledgeScopeRelationshipsErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -859,7 +860,7 @@ export type CreateKnowledgeScopeRelationshipErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -917,7 +918,7 @@ export type ListKnowledgeScopesErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -972,7 +973,7 @@ export type GetKnowledgeScopeErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -1039,7 +1040,7 @@ export type PutKnowledgeScopeErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -1100,7 +1101,7 @@ export type RestoreKnowledgeScopeErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -1163,7 +1164,7 @@ export type ArchiveKnowledgeScopeErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -1230,7 +1231,7 @@ export type MoveKnowledgeScopePriorityErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -1293,7 +1294,7 @@ export type CreateLeaseErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -1351,7 +1352,7 @@ export type CreateLeaseRenewalErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -1421,7 +1422,7 @@ export type RefreshPullRequestErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -1481,7 +1482,7 @@ export type ListWorkItemsErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -1546,7 +1547,7 @@ export type CreateWorkItemErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -1601,7 +1602,7 @@ export type GetWorkItemErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -1659,7 +1660,7 @@ export type CreateWorkItemCancellationErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -1724,7 +1725,7 @@ export type CreatePostReleaseWorkItemNoteErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -1779,7 +1780,7 @@ export type ListWorkItemContextsErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -1848,7 +1849,7 @@ export type PutWorkItemContextErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -1926,7 +1927,7 @@ export type CreateWorkItemDecompositionErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -1984,7 +1985,7 @@ export type ListWorkItemDependenciesErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -2044,7 +2045,7 @@ export type ListWorkItemEventsErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -2105,7 +2106,7 @@ export type UnexpediteWorkItemErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -2168,7 +2169,7 @@ export type ExpediteWorkItemErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -2226,7 +2227,7 @@ export type ListWorkItemLeasesErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -2284,7 +2285,7 @@ export type ListWorkItemNotesErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -2350,7 +2351,7 @@ export type CreateWorkItemNoteErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -2413,7 +2414,7 @@ export type PutWorkItemParentErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -2480,7 +2481,7 @@ export type MoveWorkItemPriorityErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -2535,7 +2536,7 @@ export type ListWorkItemPullRequestsErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -2600,7 +2601,7 @@ export type PutWorkItemPullRequestErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -2664,7 +2665,7 @@ export type PutWorkItemReferenceErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -2724,7 +2725,7 @@ export type CreateWorkItemReleaseErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };
@@ -2788,7 +2789,7 @@ export type PutWorkItemSchedulingScopeErrors = {
      */
     500: Error;
     /**
-     * Database request exceeded its execution budget
+     * Database request can be retried after a transient failure
      */
     503: Error;
 };

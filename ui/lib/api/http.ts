@@ -115,6 +115,7 @@ async function responseJson(response: Response): Promise<unknown> {
  * Make a same-origin API request, encoding `json` bodies and normalising API
  * failures into an error callers can branch on by status or code.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export async function apiRequest<T>(
   path: string,
   options: ApiRequestOptions = {},

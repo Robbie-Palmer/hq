@@ -53,6 +53,7 @@ describe("Sitemap Integration Test", () => {
     const htmlFiles = findAllHtmlFiles(OUT_DIR);
     const projectAliasPaths = findProjectAliasPaths(OUT_DIR);
     const missingUrls: string[] = [];
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     htmlFiles.forEach((file) => {
       let relativePath = path.relative(OUT_DIR, file);
       // Normalize path separators to forward slashes

@@ -120,8 +120,6 @@ describe("AssetTrackerRepository", () => {
       snapshotsMock.snapshots = [];
 
       vi.resetModules();
-      vi.mock("@/content/assettracker/accounts", () => accountsMock);
-      vi.mock("@/content/assettracker/snapshots", () => snapshotsMock);
 
       return import("@/lib/domain/assettracker/assetTrackerRepository").then(
         ({ loadAssetTrackerRepository: freshLoad }) => {
@@ -147,8 +145,6 @@ describe("AssetTrackerRepository", () => {
       ] as BalanceSnapshot[];
 
       vi.resetModules();
-      vi.mock("@/content/assettracker/accounts", () => accountsMock);
-      vi.mock("@/content/assettracker/snapshots", () => snapshotsMock);
 
       return import("@/lib/domain/assettracker/assetTrackerRepository").then(
         ({ loadAssetTrackerRepository: freshLoad }) => {
@@ -172,8 +168,6 @@ describe("AssetTrackerRepository", () => {
       snapshotsMock.snapshots = [];
 
       vi.resetModules();
-      vi.mock("@/content/assettracker/accounts", () => accountsMock);
-      vi.mock("@/content/assettracker/snapshots", () => snapshotsMock);
 
       return import("@/lib/domain/assettracker/assetTrackerRepository").then(
         ({ loadAssetTrackerRepository: freshLoad }) => {
@@ -199,8 +193,6 @@ describe("AssetTrackerRepository", () => {
       ] as unknown as BalanceSnapshot[];
 
       vi.resetModules();
-      vi.mock("@/content/assettracker/accounts", () => accountsMock);
-      vi.mock("@/content/assettracker/snapshots", () => snapshotsMock);
 
       return import("@/lib/domain/assettracker/assetTrackerRepository").then(
         ({ loadAssetTrackerRepository: freshLoad }) => {

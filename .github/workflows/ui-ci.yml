@@ -24,9 +24,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The dependency detector compares the PR head with both parents of
-          # GitHub's synthetic merge commit.
-          fetch-depth: 2
+          # The dependency detector reads the PR's recorded base SHA, which can
+          # predate the current base branch when a PR has been open for a while.
+          fetch-depth: 0
           persist-credentials: false
 
       - uses: $/.github/actions/setup-mise

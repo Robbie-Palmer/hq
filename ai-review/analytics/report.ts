@@ -316,6 +316,7 @@ function prKey(repository: string, pullRequestNumber: number): string {
   return `${repository}#${pullRequestNumber}`;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 function latencyMetricsFor(subset: Subset): number[] {
   const firstTriggerByPullRequest = new Map<string, number>();
   for (const run of subset.runs) {
@@ -843,6 +844,7 @@ function renderMarkdown(report: Json): string {
       "",
       markdownTable(
         ["Key", "Runs", "PRs", "Published", "Adjudicated", "Acceptance", "Fix-through", "Noise", "No-response", "Flags"],
+        // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
         slice.values.map((value) => [
           value.key,
           String(value.sampleSizes.reviewRuns),
@@ -911,6 +913,7 @@ function renderMarkdown(report: Json): string {
   return lines.join("\n");
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 function main(): void {
   const args = parseArgs({
     options: {

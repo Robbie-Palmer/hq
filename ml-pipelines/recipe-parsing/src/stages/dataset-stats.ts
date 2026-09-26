@@ -47,6 +47,7 @@ function toCountRows<K extends string>(counts: Map<string, number>, key: K): Arr
     });
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 async function main() {
   console.log("Loading prepared dataset...");
 

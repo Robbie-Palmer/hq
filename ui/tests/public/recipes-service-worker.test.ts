@@ -325,6 +325,7 @@ describe("recipe service worker", () => {
 
   it("never serves a React Server Components payload as a document", async () => {
     let navigationResponse = "install";
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     const fetchMock = vi.fn<typeof fetch>(async (request) => {
       const value =
         typeof request === "string" || request instanceof URL
