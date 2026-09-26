@@ -141,6 +141,7 @@ describe("Work Graph retry policy", () => {
     );
     const client = new WorkGraphClient(config, fetch, {
       maxElapsedMs: 1_000,
+      now: () => 0,
       random: () => 0,
     });
 
