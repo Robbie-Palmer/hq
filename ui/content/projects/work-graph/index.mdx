@@ -2,7 +2,7 @@
 title: "Work Graph"
 description: "A public source of truth for outcomes, dependencies, evidence, leases, and the human decisions that keep work moving"
 date: "2026-09-04"
-updated: "2026-09-25"
+updated: "2026-09-26"
 status: "in_progress"
 repo_url: "https://github.com/Robbie-Palmer/hq"
 tech_stack:
@@ -155,6 +155,80 @@ The Work Graph owns:
 
 It does not choose the model, machine, subscription, or person that should do a
 work item. The [Agent Coordinator](/projects/agent-coordinator) owns that concern.
+
+# Architecture
+
+The installed CLI is the agent-facing boundary. It sends authenticated commands
+and queries to the REST API, which applies owner policy before changing the
+coordination model. Work items and dependencies define the plan. Priority
+projection finds eligible work, leases fence concurrent workers, evidence gates
+release, and attention requests stop work that needs a person. PostgreSQL keeps
+the current records and their immutable event history.
+
+GitHub observation is a planned, separate automation path. A dedicated observer
+will validate delivery events and place them on a queue before evidence ingestion
+reaches the same application boundary. It cannot bypass policy or write directly
+to the coordination store.
+
+<Mermaid
+  chart={`flowchart LR
+subgraph callers["People and workers"]
+Owner["Owner"]
+Worker["Agent worker"]
+CLI["Installed CLI<br/>Agent-facing boundary"]
+Owner --> CLI
+Worker --> CLI
+end
+
+subgraph service["Released Work Graph service"]
+API["REST API<br/>Authenticated application boundary"]
+Policy["Owner policy<br/>Allowed transitions and evidence rules"]
+Plan["Work items and dependencies<br/>Plan and executability"]
+Priority["Priority projection<br/>Ready work and critical paths"]
+Leases["Leases and fencing<br/>Exclusive temporary ownership"]
+Evidence["Delivery evidence<br/>Release gate"]
+Attention["Attention requests<br/>Decision and access stops"]
+Store[("Coordination records<br/>and immutable event history")]
+
+API --> Policy
+Policy --> Plan
+Plan --> Priority
+Plan --> Leases
+Plan --> Evidence
+Plan --> Attention
+Priority --> Store
+Leases --> Store
+Evidence --> Store
+Attention --> Store
+end
+
+CLI -->|"Commands and queries"| API
+API -->|"Results and errors"| CLI
+
+subgraph planned["Planned queued automation"]
+GitHub["GitHub delivery events"]
+Observer["Observer<br/>Signature and allowlist checks"]
+Queue["Delivery queue<br/>Retries and dead letters"]
+Ingestion["Evidence ingestion"]
+GitHub -.-> Observer
+Observer -.-> Queue
+Queue -.-> Ingestion
+end
+
+Ingestion -.->|"Validated evidence command"| API
+
+classDef actor fill:#7c3aed,color:#fff,stroke:#6d28d9
+classDef boundary fill:#2563eb,color:#fff,stroke:#1d4ed8
+classDef component fill:#0f766e,color:#fff,stroke:#115e59
+classDef data fill:#334155,color:#fff,stroke:#1e293b
+classDef plannedNode fill:#fff7ed,color:#9a3412,stroke:#ea580c,stroke-dasharray:5 5
+class Owner,Worker actor
+class CLI,API boundary
+class Policy,Plan,Priority,Leases,Evidence,Attention component
+class Store data
+class GitHub,Observer,Queue,Ingestion plannedNode
+`}
+/>
 
 # A constrained but adaptable graph
 
