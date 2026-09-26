@@ -16,6 +16,7 @@ import {
   createWorkGraph,
   isWorkItemInSelectionScope,
   MAX_CRITICAL_PATH_BLOCKING_PATHS,
+  MAX_CRITICAL_PATH_NODES,
   normalizeAndValidateContextRecords,
   normalizeKnowledgeScopeArchiveReason,
   orderWorkItemsByPriority,
@@ -1339,6 +1340,7 @@ export class WorkGraphRepository {
         return projectDomainCriticalPath(graph, {
           now: now.getTime(),
           maxBlockingPaths: MAX_CRITICAL_PATH_BLOCKING_PATHS,
+          maxBlockingPathLength: MAX_CRITICAL_PATH_NODES,
           knowledgeScopes: scopes,
           operationalStateByWorkItemId,
           selectionScope: {

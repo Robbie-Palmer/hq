@@ -112,6 +112,27 @@ describe("delivery-critical path projection", () => {
     );
   });
 
+  it("rejects an oversized path without recursive traversal", () => {
+    const graph = createWorkGraph({
+      workItems: [
+        { id: "outcome", title: "Outcome" },
+        { id: "middle", title: "Middle", parentId: "outcome" },
+        { id: "leaf", title: "Leaf", parentId: "middle" },
+      ],
+    });
+
+    expect(() =>
+      projectCriticalPath(graph, {
+        now: NOW,
+        maxBlockingPathLength: 2,
+      }),
+    ).toThrowError(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "critical_path_projection_too_large",
+      }),
+    );
+  });
+
   it("preserves every dependency path to one shared blocker", () => {
     const graph = createWorkGraph({
       workItems: [
