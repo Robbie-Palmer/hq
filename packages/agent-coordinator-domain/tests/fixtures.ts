@@ -1,5 +1,6 @@
 import type {
   ActorProfile,
+  AuthenticationAllowlistEntry,
   ComplexityScale,
   CompatibilityInput,
   ExecutionSessionIdentity,
@@ -7,6 +8,21 @@ import type {
   TaskRequirements,
   WorkerAdapterIdentity,
 } from "../src";
+
+export const authenticationEntry: AuthenticationAllowlistEntry = {
+  schemaVersion: 1,
+  recordType: "authentication-allowlist-entry",
+  authenticationPathId: "auth:provider-native",
+  providerId: "provider:example",
+  routeKind: "native-client",
+  accountClass: "account:owner-subscription",
+  approvalBasis: {
+    kind: "provider-documentation",
+    referenceUrl: "https://example.com/provider-authentication",
+    reviewedAt: "2026-09-26T08:00:00.000Z",
+  },
+  enabled: true,
+};
 
 export const complexityScale: ComplexityScale = {
   schemaVersion: 1,

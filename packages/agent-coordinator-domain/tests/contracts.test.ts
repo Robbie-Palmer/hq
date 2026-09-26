@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ActorProfileSchema,
+  AuthenticationAllowlistEntrySchema,
   ComplexityScaleSchema,
   ExecutionSessionIdentitySchema,
   OwnerPolicySchema,
@@ -12,6 +13,7 @@ import {
 import {
   actor,
   adapter,
+  authenticationEntry,
   complexityScale,
   policy,
   session,
@@ -26,6 +28,11 @@ describe("portable contracts", () => {
     ["policy", OwnerPolicySchema, policy],
     ["adapter", WorkerAdapterIdentitySchema, adapter],
     ["session", ExecutionSessionIdentitySchema, session],
+    [
+      "authentication allowlist entry",
+      AuthenticationAllowlistEntrySchema,
+      authenticationEntry,
+    ],
   ])("round trips the %s contract without changing it", (_name, schema, value) => {
     const wireValue = JSON.parse(JSON.stringify(value));
     expect(schema.parse(wireValue)).toEqual(value);
