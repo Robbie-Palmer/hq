@@ -103,6 +103,14 @@ const PLATFORM_MANIFEST_PATH = path.join(
   "platform.yaml",
 );
 
+function projectDirectories(): string[] {
+  if (!fs.existsSync(PROJECTS_DIR)) return [];
+  return fs
+    .readdirSync(PROJECTS_DIR, { withFileTypes: true })
+    .filter((dirent) => dirent.isDirectory())
+    .map((dirent) => dirent.name);
+}
+
 export function loadTechnologies(): Map<TechnologySlug, Technology> {
   const techMap = new Map<TechnologySlug, Technology>();
 
@@ -118,6 +126,33 @@ export function loadTechnologies(): Map<TechnologySlug, Technology> {
   }
 
   return techMap;
+}
+
+function collectProjectTechnologyReferences(
+  projectSlug: string,
+  collectMissingTech: (name: string, source: string) => void,
+): void {
+  const projectPath = path.join(PROJECTS_DIR, projectSlug, "index.mdx");
+  if (!fs.existsSync(projectPath)) return;
+  const { data } = parseFrontmatter(fs.readFileSync(projectPath, "utf-8"));
+  if (Array.isArray(data.tech_stack)) {
+    for (const tech of data.tech_stack) {
+      collectMissingTech(tech, `project: ${projectSlug}`);
+    }
+  }
+  const adrsDir = path.join(PROJECTS_DIR, projectSlug, "adrs");
+  if (!fs.existsSync(adrsDir)) return;
+  for (const adrFile of fs
+    .readdirSync(adrsDir)
+    .filter((file) => file.endsWith(".mdx"))) {
+    const { data: adrData } = parseFrontmatter(
+      fs.readFileSync(path.join(adrsDir, adrFile), "utf-8"),
+    );
+    if (!Array.isArray(adrData.tech_stack)) continue;
+    for (const tech of adrData.tech_stack) {
+      collectMissingTech(tech, `ADR: ${projectSlug}/${adrFile}`);
+    }
+  }
 }
 
 // Validate that all referenced technologies are defined
@@ -146,35 +181,8 @@ export function validateTechnologyReferences(
       .filter((dirent) => dirent.isDirectory())
       .map((dirent) => dirent.name);
 
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     projectDirs.forEach((projectSlug) => {
-      const projectPath = path.join(PROJECTS_DIR, projectSlug, "index.mdx");
-      if (fs.existsSync(projectPath)) {
-        const fileContent = fs.readFileSync(projectPath, "utf-8");
-        const { data } = parseFrontmatter(fileContent);
-        if (Array.isArray(data.tech_stack)) {
-          for (const tech of data.tech_stack) {
-            collectMissingTech(tech, `project: ${projectSlug}`);
-          }
-        }
-
-        const adrsDir = path.join(PROJECTS_DIR, projectSlug, "adrs");
-        if (fs.existsSync(adrsDir)) {
-          const adrFiles = fs
-            .readdirSync(adrsDir)
-            .filter((f) => f.endsWith(".mdx"));
-          adrFiles.forEach((adrFile) => {
-            const adrPath = path.join(adrsDir, adrFile);
-            const adrContent = fs.readFileSync(adrPath, "utf-8");
-            const { data: adrData } = parseFrontmatter(adrContent);
-            if (Array.isArray(adrData.tech_stack)) {
-              for (const tech of adrData.tech_stack) {
-                collectMissingTech(tech, `ADR: ${projectSlug}/${adrFile}`);
-              }
-            }
-          });
-        }
-      }
+      collectProjectTechnologyReferences(projectSlug, collectMissingTech);
     });
   }
 
@@ -492,20 +500,94 @@ function registerProjectAliases(
   }
 }
 
+function loadPitchDeck(projectSlug: string): PitchDeck | undefined {
+  const pitchPath = path.join(PROJECTS_DIR, projectSlug, "pitch.mdx");
+  if (!fs.existsSync(pitchPath)) return undefined;
+  const { data, content } = parseFrontmatter(
+    fs.readFileSync(pitchPath, "utf-8"),
+  );
+  const result = PitchDeckSchema.safeParse({
+    title: data.title,
+    description: data.description,
+    content,
+  });
+  if (result.success) return result.data;
+  console.error(`Failed to validate pitch deck ${projectSlug}:`, result.error);
+  throw new Error(`Pitch deck ${projectSlug} failed validation`);
+}
+
+function loadProjectAdrRefs(projectSlug: string): ADRRef[] {
+  const adrsDir = path.join(PROJECTS_DIR, projectSlug, "adrs");
+  if (!fs.existsSync(adrsDir)) return [];
+  return fs
+    .readdirSync(adrsDir)
+    .filter((file) => file.endsWith(".mdx"))
+    .sort((left, right) => left.localeCompare(right, "en"))
+    .flatMap((adrFile) => {
+      const adrSlug = adrFile.replace(/\.mdx$/, "");
+      const { data } = parseFrontmatter(
+        fs.readFileSync(path.join(adrsDir, adrFile), "utf-8"),
+      );
+      return typeof data.inherits_from === "string"
+        ? []
+        : [makeADRRef(projectSlug, adrSlug)];
+    });
+}
+
+function parseProjectInitiatives(raw: unknown, projectSlug: string) {
+  const normalized = Array.isArray(raw)
+    ? raw.map((initiative) =>
+        typeof initiative === "string" ? normalizeSlug(initiative) : initiative,
+      )
+    : raw;
+  const result = ProjectRelationsSchema.shape.initiatives.safeParse(normalized);
+  if (result.success) return result.data;
+  console.error(`Failed to validate project ${projectSlug}:`, result.error);
+  throw new Error(`Project ${projectSlug} failed validation`);
+}
+
+function parseProjectPlatformLayers(raw: unknown, projectSlug: string) {
+  const normalized = Array.isArray(raw)
+    ? raw.map((entry) => {
+        const use = entry as Record<string, unknown>;
+        const slots = Array.isArray(use.slots) ? use.slots : [];
+        return {
+          layer: use.layer,
+          adopted: use.adopted,
+          until: use.until,
+          tracking: use.tracking,
+          decision: use.decision,
+          rationale: use.rationale,
+          slots: slots.map((entry) => {
+            const slot = entry as Record<string, unknown>;
+            return {
+              slot: slot.slot,
+              adopted: slot.adopted,
+              until: slot.until,
+              decision: slot.decision,
+              rationale: slot.rationale,
+            };
+          }),
+        };
+      })
+    : raw;
+  const result =
+    ProjectRelationsSchema.shape.platformLayers.safeParse(normalized);
+  if (result.success) return result.data;
+  console.error(
+    `Failed to validate platform layers for ${projectSlug}:`,
+    result.error,
+  );
+  throw new Error(`Project ${projectSlug} failed validation`);
+}
+
 export function loadProjects(): ProjectLoadResult {
   const entities = new Map<ProjectSlug, Project>();
   const relations = new Map<ProjectSlug, ProjectRelations>();
   const aliases = new Map<ProjectSlug, ProjectSlug>();
 
-  if (!fs.existsSync(PROJECTS_DIR)) {
-    return { entities, relations, aliases };
-  }
-  const projectDirs = fs
-    .readdirSync(PROJECTS_DIR, { withFileTypes: true })
-    .filter((dirent) => dirent.isDirectory())
-    .map((dirent) => dirent.name);
+  const projectDirs = projectDirectories();
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
   projectDirs.forEach((projectSlug) => {
     const projectPath = path.join(PROJECTS_DIR, projectSlug, "index.mdx");
     if (!fs.existsSync(projectPath)) {
@@ -514,45 +596,8 @@ export function loadProjects(): ProjectLoadResult {
     const fileContent = fs.readFileSync(projectPath, "utf-8");
     const { data, content } = parseFrontmatter(fileContent);
 
-    let pitch: PitchDeck | undefined;
-    const pitchPath = path.join(PROJECTS_DIR, projectSlug, "pitch.mdx");
-    if (fs.existsSync(pitchPath)) {
-      const pitchFileContent = fs.readFileSync(pitchPath, "utf-8");
-      const { data: pitchData, content: pitchContent } =
-        parseFrontmatter(pitchFileContent);
-      const pitchResult = PitchDeckSchema.safeParse({
-        title: pitchData.title,
-        description: pitchData.description,
-        content: pitchContent,
-      });
-      if (!pitchResult.success) {
-        console.error(
-          `Failed to validate pitch deck ${projectSlug}:`,
-          pitchResult.error,
-        );
-        throw new Error(`Pitch deck ${projectSlug} failed validation`);
-      }
-      pitch = pitchResult.data;
-    }
-
-    const adrRefs: ADRRef[] = [];
-    const adrsDir = path.join(PROJECTS_DIR, projectSlug, "adrs");
-    if (fs.existsSync(adrsDir)) {
-      const adrFiles = fs
-        .readdirSync(adrsDir)
-        .filter((f) => f.endsWith(".mdx"))
-        .sort((a, b) => a.localeCompare(b, "en"));
-      adrFiles.forEach((adrFile) => {
-        const adrSlug = adrFile.replace(/\.mdx$/, "");
-        const adrFileContent = fs.readFileSync(
-          path.join(adrsDir, adrFile),
-          "utf-8",
-        );
-        const { data: adrData } = parseFrontmatter(adrFileContent);
-        if (typeof adrData.inherits_from === "string") return;
-        adrRefs.push(makeADRRef(projectSlug, adrSlug));
-      });
-    }
+    const pitch = loadPitchDeck(projectSlug);
+    const adrRefs = loadProjectAdrRefs(projectSlug);
     if (Array.isArray(data.inherits_adrs) && data.inherits_adrs.length > 0) {
       throw new Error(
         `Project ${projectSlug} uses deprecated 'inherits_adrs'. Use inherited ADR stub files in ${projectSlug}/adrs/ with 'inherits_from' instead.`,
@@ -580,60 +625,23 @@ export function loadProjects(): ProjectLoadResult {
       content,
     };
 
-    const rawInitiatives = data.initiatives || [];
-    const normalizedInitiatives = Array.isArray(rawInitiatives)
-      ? rawInitiatives.map((initiative) =>
-          typeof initiative === "string"
-            ? normalizeSlug(initiative)
-            : initiative,
-        )
-      : rawInitiatives;
-    const initiativesValidation =
-      ProjectRelationsSchema.shape.initiatives.safeParse(normalizedInitiatives);
-    if (!initiativesValidation.success) {
-      console.error(
-        `Failed to validate project ${projectSlug}:`,
-        initiativesValidation.error,
-      );
-      throw new Error(`Project ${projectSlug} failed validation`);
-    }
-
-    const platformLayersValidation =
-      ProjectRelationsSchema.shape.platformLayers.safeParse(
-        (data.platform_layers || []).map((use: Record<string, unknown>) => ({
-          layer: use.layer,
-          adopted: use.adopted,
-          until: use.until,
-          tracking: use.tracking,
-          decision: use.decision,
-          rationale: use.rationale,
-          slots: Array.isArray(use.slots)
-            ? use.slots.map((slot: Record<string, unknown>) => ({
-                slot: slot.slot,
-                adopted: slot.adopted,
-                until: slot.until,
-                decision: slot.decision,
-                rationale: slot.rationale,
-              }))
-            : [],
-        })),
-      );
-    if (!platformLayersValidation.success) {
-      console.error(
-        `Failed to validate platform layers for ${projectSlug}:`,
-        platformLayersValidation.error,
-      );
-      throw new Error(`Project ${projectSlug} failed validation`);
-    }
+    const initiatives = parseProjectInitiatives(
+      data.initiatives || [],
+      projectSlug,
+    );
+    const platformLayers = parseProjectPlatformLayers(
+      data.platform_layers || [],
+      projectSlug,
+    );
 
     const projectRelations: ProjectRelations = {
       technologies,
       ideas: (data.ideas || []).map((idea: string) => normalizeSlug(idea)),
       adrs: adrRefs,
-      initiatives: initiativesValidation.data,
+      initiatives,
       role: data.role ? normalizeSlug(data.role) : undefined,
       tags: data.tags || [],
-      platformLayers: platformLayersValidation.data,
+      platformLayers,
     };
 
     const validation = validateProject(project);
@@ -707,7 +715,6 @@ function parseDefaultOverride(value: unknown): DefaultOverride | undefined {
   });
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function loadADRs(): ADRLoadResult {
   const entities = new Map<ADRRef, ADR>();
   const relations = new Map<ADRRef, ADRRelations>();
@@ -720,13 +727,7 @@ export function loadADRs(): ADRLoadResult {
     content: string;
   }> = [];
 
-  if (!fs.existsSync(PROJECTS_DIR)) {
-    return { entities, relations, aliases };
-  }
-  const projectDirs = fs
-    .readdirSync(PROJECTS_DIR, { withFileTypes: true })
-    .filter((dirent) => dirent.isDirectory())
-    .map((dirent) => dirent.name);
+  const projectDirs = projectDirectories();
 
   projectDirs.forEach((projectSlug) => {
     const adrsDir = path.join(PROJECTS_DIR, projectSlug, "adrs");

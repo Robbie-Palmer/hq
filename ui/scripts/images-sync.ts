@@ -39,7 +39,7 @@ export function parseCalVerImageFilename(
 		`^(.+)-(\\d{4}-\\d{2}-\\d{2})\\.(${validExtensions})$`,
 	);
 	const match = filename.match(pattern);
-	if (!match || !match[1] || !match[2] || !match[3]) {
+	if (!match?.[1] || !match[2] || !match[3]) {
 		return null;
 	}
 	return {
@@ -49,7 +49,85 @@ export function parseCalVerImageFilename(
 	};
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+function validateLocalImages(files: string[], sourceDir: string): number {
+	let errors = 0;
+	const rootNames = new Map<string, string>();
+	for (const filename of files) {
+		const filepath = join(sourceDir, filename);
+		if (!statSync(filepath).isFile()) continue;
+		const parts = parseCalVerImageFilename(filename, env.VALID_IMAGE_EXTENSIONS);
+		if (!parts) {
+			console.log(`   ❌ Invalid filename format: ${filename}`);
+			console.log("      Expected: {name}-YYYY-MM-DD.{ext} (e.g., hero-image-2025-11-27.jpg)");
+			errors++;
+			continue;
+		}
+		if (!validateDate(parts.date)) {
+			console.log(`   ❌ Invalid date in filename: ${filename} (date: ${parts.date})`);
+			errors++;
+			continue;
+		}
+		const duplicate = rootNames.get(parts.rootName);
+		if (duplicate) {
+			console.log("   ❌ Duplicate root name found:");
+			console.log(`      - ${duplicate}`);
+			console.log(`      - ${filename}`);
+			console.log("      Only keep the latest version in source-images/");
+			errors++;
+			continue;
+		}
+		rootNames.set(parts.rootName, filename);
+	}
+	return errors;
+}
+
+function latestExistingVersion(existingIds: Set<string>, rootName: string) {
+	return Array.from(existingIds)
+		.filter((id) => id.startsWith(`blog/${rootName}-`))
+		.map(extractValidDateSuffix)
+		.filter((date): date is string => date !== null)
+		.sort((left, right) => compareIsoDates(right, left))[0];
+}
+
+type UploadOutcome = "failed" | "ignored" | "skipped" | "uploaded";
+
+async function uploadFile(
+	filename: string,
+	sourceDir: string,
+	existingIds: Set<string>,
+): Promise<UploadOutcome> {
+	const filepath = join(sourceDir, filename);
+	if (!statSync(filepath).isFile()) return "ignored";
+	const parts = parseCalVerImageFilename(filename, env.VALID_IMAGE_EXTENSIONS);
+	if (!parts) return "ignored";
+	const imageId = `blog/${parts.rootName}-${parts.date}`;
+	console.log("");
+	console.log(`Processing: ${filename}`);
+	console.log(`   Image ID: ${imageId}`);
+	if (existingIds.has(imageId)) {
+		console.log("   ⏭️  Skipped (already exists in Cloudflare Images)");
+		return "skipped";
+	}
+	const latest = latestExistingVersion(existingIds, parts.rootName);
+	if (latest && compareIsoDates(parts.date, latest) <= 0) {
+		console.log("   ❌ Version validation failed:");
+		console.log(`      Latest existing version: ${latest}`);
+		console.log(`      New version: ${parts.date}`);
+		console.log("      New version must be later than existing versions");
+		return "failed";
+	}
+	if (latest) console.log(`   Newer version detected (latest existing: ${latest})`);
+
+	const response = await uploadImage(filepath, imageId);
+	if (response.success) {
+		console.log("   ✅ Successfully uploaded");
+		return "uploaded";
+	}
+	console.log(`   ❌ Failed to upload (HTTP ${response.statusCode})`);
+	if (response.message) console.log(`   Error: ${response.message}`);
+	return "failed";
+}
+
 async function main() {
 	console.log("Starting image sync to Cloudflare Images...");
 	console.log("");
@@ -71,41 +149,8 @@ async function main() {
 	let validationErrors = 0;
 
 	console.log("1️⃣  Validating local image naming...");
-	const rootNames = new Map<string, string>();
-	const imageDates = new Map<string, string>();
 	const files = readdirSync(sourceDir);
-	for (const filename of files) {
-		const filepath = join(sourceDir, filename);
-		if (!statSync(filepath).isFile()) {
-			continue;
-		}
-		const parts = parseCalVerImageFilename(filename, env.VALID_IMAGE_EXTENSIONS);
-		if (!parts) {
-			console.log(`   ❌ Invalid filename format: ${filename}`);
-			console.log(
-				"      Expected: {name}-YYYY-MM-DD.{ext} (e.g., hero-image-2025-11-27.jpg)",
-			);
-			validationErrors++;
-			continue;
-		}
-
-		const { rootName, date: dateStr, ext: _ext } = parts;
-		if (!validateDate(dateStr)) {
-			console.log(`   ❌ Invalid date in filename: ${filename} (date: ${dateStr})`);
-			validationErrors++;
-			continue;
-		}
-		if (rootNames.has(rootName)) {
-			console.log("   ❌ Duplicate root name found:");
-			console.log(`      - ${rootNames.get(rootName)}`);
-			console.log(`      - ${filename}`);
-			console.log("      Only keep the latest version in source-images/");
-			validationErrors++;
-			continue;
-		}
-		rootNames.set(rootName, filename);
-		imageDates.set(rootName, dateStr);
-	}
+	validationErrors = validateLocalImages(files, sourceDir);
 
 	if (validationErrors > 0) {
 		console.log("");
@@ -126,56 +171,10 @@ async function main() {
 
 	console.log("3️⃣  Uploading new images...");
 	for (const filename of files) {
-		const filepath = join(sourceDir, filename);
-		if (!statSync(filepath).isFile()) {
-			continue;
-		}
-		const parts = parseCalVerImageFilename(filename, env.VALID_IMAGE_EXTENSIONS);
-		if (!parts) {
-			continue;
-		}
-		const { rootName, date: dateStr } = parts;
-		const imageId = `blog/${rootName}-${dateStr}`;
-		console.log("");
-		console.log(`Processing: ${filename}`);
-		console.log(`   Image ID: ${imageId}`);
-		if (existingIds.has(imageId)) {
-			console.log("   ⏭️  Skipped (already exists in Cloudflare Images)");
-			skipped++;
-			continue;
-		}
-		const existingVersions = Array.from(existingIds).filter((id) =>
-			id.startsWith(`blog/${rootName}-`),
-		);
-		if (existingVersions.length > 0) {
-			const latestExisting = existingVersions
-				.map(extractValidDateSuffix)
-				.filter((date): date is string => date !== null)
-				.sort((a, b) => compareIsoDates(b, a))[0];
-			// Both values are validated canonical dates, so code-unit comparison is
-			// chronological without timezone-dependent Date parsing.
-			if (latestExisting && compareIsoDates(dateStr, latestExisting) <= 0) {
-				console.log("   ❌ Version validation failed:");
-				console.log(`      Latest existing version: ${latestExisting}`);
-				console.log(`      New version: ${dateStr}`);
-				console.log("      New version must be later than existing versions");
-				failed++;
-				continue;
-			}
-			console.log(`   Newer version detected (latest existing: ${latestExisting})`);
-		}
-
-		const uploadResponse = await uploadImage(filepath, imageId);
-		if (uploadResponse.success) {
-			console.log("   ✅ Successfully uploaded");
-			uploaded++;
-		} else {
-			console.log(`   ❌ Failed to upload (HTTP ${uploadResponse.statusCode})`);
-			if (uploadResponse.message) {
-				console.log(`   Error: ${uploadResponse.message}`);
-			}
-			failed++;
-		}
+		const outcome = await uploadFile(filename, sourceDir, existingIds);
+		if (outcome === "uploaded") uploaded++;
+		if (outcome === "skipped") skipped++;
+		if (outcome === "failed") failed++;
 	}
 
 	console.log("");

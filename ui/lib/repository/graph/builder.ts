@@ -70,16 +70,17 @@ interface BuildGraphInput {
   relations: RelationData;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function buildContentGraph(input: BuildGraphInput): ContentGraph {
-  const {
-    technologySlugs,
-    projectSlugs,
-    initiativeSlugs = [],
-    ideaSlugs = [],
-    relations,
-  } = input;
+  const graph = initializeGraph(input);
+  addTechnologyIdeaRelations(graph, input.relations);
+  addProjectRelations(graph, input.relations);
+  addAdrRelations(graph, input.relations);
+  addBlogAndRoleRelations(graph, input.relations);
+  addPlatformRelations(graph, input.relations);
+  return graph;
+}
 
+function initializeGraph(input: BuildGraphInput): ContentGraph {
   const graph: ContentGraph = {
     edges: {
       usesTechnology: new Map(),
@@ -116,21 +117,26 @@ export function buildContentGraph(input: BuildGraphInput): ContentGraph {
       slotOverrides: new Map(),
     },
   };
-
-  for (const techSlug of technologySlugs) {
+  for (const techSlug of input.technologySlugs) {
     graph.reverse.technologyUsedBy.set(techSlug, new Set());
   }
-  for (const projectSlug of projectSlugs) {
+  for (const projectSlug of input.projectSlugs) {
     graph.reverse.projectADRs.set(projectSlug, new Set());
   }
-  for (const initiativeSlug of initiativeSlugs) {
+  for (const initiativeSlug of input.initiativeSlugs ?? []) {
     graph.reverse.initiativeProjects.set(initiativeSlug, new Set());
   }
-  for (const ideaSlug of ideaSlugs) {
+  for (const ideaSlug of input.ideaSlugs ?? []) {
     graph.reverse.ideaReferencedBy.set(ideaSlug, new Set());
     graph.reverse.ideaTechnologies.set(ideaSlug, new Set());
   }
+  return graph;
+}
 
+function addTechnologyIdeaRelations(
+  graph: ContentGraph,
+  relations: RelationData,
+): void {
   for (const [techSlug, ideas] of relations.technologyIdeas) {
     if (ideas.length === 0) continue;
     graph.edges.technologyIdeas.set(techSlug, new Set(ideas));
@@ -138,7 +144,12 @@ export function buildContentGraph(input: BuildGraphInput): ContentGraph {
       graph.reverse.ideaTechnologies.get(ideaSlug)?.add(techSlug);
     }
   }
+}
 
+function addProjectRelations(
+  graph: ContentGraph,
+  relations: RelationData,
+): void {
   for (const [slug, technologies] of relations.projectTechnologies) {
     addTechnologyEdges(graph, makeNodeId("project", slug), technologies);
   }
@@ -160,7 +171,9 @@ export function buildContentGraph(input: BuildGraphInput): ContentGraph {
       graph.reverse.projectADRs.get(projectSlug)?.add(adrRef);
     }
   }
+}
 
+function addAdrRelations(graph: ContentGraph, relations: RelationData): void {
   for (const [slug, technologies] of relations.adrTechnologies) {
     addTechnologyEdges(graph, makeNodeId("adr", slug), technologies);
   }
@@ -182,7 +195,12 @@ export function buildContentGraph(input: BuildGraphInput): ContentGraph {
     }
     graph.reverse.inheritedBy.get(parentAdrRef)?.add(childAdrRef);
   }
+}
 
+function addBlogAndRoleRelations(
+  graph: ContentGraph,
+  relations: RelationData,
+): void {
   for (const [slug, technologies] of relations.blogTechnologies) {
     addTechnologyEdges(graph, makeNodeId("blog", slug), technologies);
   }
@@ -218,7 +236,12 @@ export function buildContentGraph(input: BuildGraphInput): ContentGraph {
     }
     graph.reverse.roleBlogs.get(roleSlug)?.add(blogSlug);
   }
+}
 
+function addPlatformRelations(
+  graph: ContentGraph,
+  relations: RelationData,
+): void {
   const manifest = relations.platformManifest;
   if (manifest) {
     graph.edges.platformOwnsLayer.set(
@@ -259,8 +282,6 @@ export function buildContentGraph(input: BuildGraphInput): ContentGraph {
     overrides.add(adrRef);
     graph.reverse.slotOverrides.set(override.slot, overrides);
   }
-
-  return graph;
 }
 
 function addIdeaEdges(

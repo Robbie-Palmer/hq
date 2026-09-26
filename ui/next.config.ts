@@ -13,6 +13,26 @@ type WebpackCompiler = {
   };
 };
 
+function copyCooklangWasm(outputPath: string): void {
+  const sourceDir = path.join(outputPath, "chunks/static/wasm");
+  if (!fs.existsSync(sourceDir)) return;
+
+  const targetDirs = [
+    path.join(outputPath, "static/wasm"),
+    path.join(outputPath, "..", "static/wasm"),
+  ];
+  for (const targetDir of targetDirs) {
+    fs.mkdirSync(targetDir, { recursive: true });
+  }
+  for (const filename of fs.readdirSync(sourceDir)) {
+    if (!filename.endsWith(".wasm")) continue;
+    const sourceFile = path.join(sourceDir, filename);
+    for (const targetDir of targetDirs) {
+      fs.copyFileSync(sourceFile, path.join(targetDir, filename));
+    }
+  }
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function createNextConfig(phase: string): NextConfig {
@@ -140,33 +160,8 @@ function createNextConfig(phase: string): NextConfig {
         config.plugins = config.plugins ?? [];
         config.plugins.push({
           apply(compiler: WebpackCompiler) {
-            // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
             compiler.hooks.afterEmit.tap("CooklangServerWasmPathPlugin", () => {
-              const outputPath = compiler.outputPath;
-              const sourceDir = path.join(outputPath, "chunks/static/wasm");
-              const targetDir = path.join(outputPath, "static/wasm");
-              const staticExportWasmDir = path.join(
-                outputPath,
-                "..",
-                "static/wasm",
-              );
-
-              if (!fs.existsSync(sourceDir)) {
-                return;
-              }
-
-              fs.mkdirSync(targetDir, { recursive: true });
-              fs.mkdirSync(staticExportWasmDir, { recursive: true });
-              for (const filename of fs.readdirSync(sourceDir)) {
-                if (filename.endsWith(".wasm")) {
-                  const sourceFile = path.join(sourceDir, filename);
-                  fs.copyFileSync(sourceFile, path.join(targetDir, filename));
-                  fs.copyFileSync(
-                    sourceFile,
-                    path.join(staticExportWasmDir, filename),
-                  );
-                }
-              }
+              copyCooklangWasm(compiler.outputPath);
             });
           },
         });

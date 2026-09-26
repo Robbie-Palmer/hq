@@ -84,6 +84,51 @@ interface FilterableCardGridProps<T> {
   stackControls?: boolean;
 }
 
+function applyConfiguredFilters<T>(
+  items: T[],
+  filterConfigs: MultiFilterConfig<T>[] | undefined,
+  getSelection: (paramName: string) => { include: string[]; exclude: string[] },
+): T[] {
+  if (!filterConfigs) return items;
+  let filtered = items;
+  for (const config of filterConfigs) {
+    const { include, exclude } = getSelection(config.paramName);
+    if (include.length === 0 && exclude.length === 0) continue;
+    filtered = filtered.filter((item) => {
+      const itemValues = config.getItemValues(item);
+      if (exclude.some((value) => itemValues.includes(value))) return false;
+      return (
+        include.length === 0 ||
+        include.some((value) => itemValues.includes(value))
+      );
+    });
+  }
+  return filtered;
+}
+
+function applyDateRange<T>(
+  items: T[],
+  dateRangeConfig: DateRangeConfig<T> | undefined,
+  range: { from?: string; to?: string },
+): T[] {
+  if (!dateRangeConfig) return items;
+  let filtered = items;
+  if (range.from) {
+    const fromDate = new Date(range.from);
+    filtered = filtered.filter(
+      (item) => new Date(dateRangeConfig.getDate(item)) >= fromDate,
+    );
+  }
+  if (range.to) {
+    const toDate = new Date(range.to);
+    toDate.setHours(23, 59, 59, 999);
+    filtered = filtered.filter(
+      (item) => new Date(dateRangeConfig.getDate(item)) <= toDate,
+    );
+  }
+  return filtered;
+}
+
 export function FilterableCardGrid<T>({
   items,
   renderCard,
@@ -163,47 +208,13 @@ export function FilterableCardGrid<T>({
     [items, searchConfig.keys, searchConfig.threshold],
   );
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
   const filteredItems = useMemo(() => {
     let filtered = searchQuery.trim()
       ? fuse.search(searchQuery).map((result: FuseResult<T>) => result.item)
       : items;
 
-    // Apply multi-filters. Across different filters: AND. Within one filter:
-    // OR over included values, then drop anything carrying an excluded value.
-    if (filterConfigs) {
-      for (const fc of filterConfigs) {
-        const { include, exclude } = getSelection(fc.paramName);
-        if (include.length === 0 && exclude.length === 0) continue;
-        filtered = filtered.filter((item: T) => {
-          const itemValues = fc.getItemValues(item);
-          if (exclude.some((v) => itemValues.includes(v))) return false;
-          if (include.length > 0) {
-            return include.some((v) => itemValues.includes(v));
-          }
-          return true;
-        });
-      }
-    }
-
-    if (dateRangeConfig) {
-      const { from, to } = getDateRange();
-      if (from) {
-        const fromDate = new Date(from);
-        filtered = filtered.filter(
-          (item: T) => new Date(dateRangeConfig.getDate(item)) >= fromDate,
-        );
-      }
-      if (to) {
-        const toDate = new Date(to);
-        toDate.setHours(23, 59, 59, 999); // Include the entire "to" day
-        filtered = filtered.filter(
-          (item: T) => new Date(dateRangeConfig.getDate(item)) <= toDate,
-        );
-      }
-    }
-
-    return filtered;
+    filtered = applyConfiguredFilters(filtered, filterConfigs, getSelection);
+    return applyDateRange(filtered, dateRangeConfig, getDateRange());
   }, [
     fuse,
     searchQuery,

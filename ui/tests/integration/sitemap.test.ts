@@ -34,6 +34,33 @@ const NOINDEX_PAGES = new Set([
   "recipes/shopping",
 ]);
 
+function expectedUrlForFile(
+  file: string,
+  projectAliasPaths: string[],
+): string | null {
+  let relativePath = path.relative(OUT_DIR, file).replace(/\\/g, "/");
+  const topLevelSegment = relativePath.split("/")[0];
+  const fileNameWithoutExt = relativePath.replace(/\.html$/, "");
+  const excluded =
+    (topLevelSegment && SUBDOMAIN_PROJECTS.has(topLevelSegment)) ||
+    SUBDOMAIN_PROJECTS.has(fileNameWithoutExt) ||
+    (topLevelSegment && STATIC_ASSET_SEGMENTS.has(topLevelSegment)) ||
+    NOINDEX_PAGES.has(fileNameWithoutExt) ||
+    projectAliasPaths.some(
+      (aliasPath) =>
+        fileNameWithoutExt === aliasPath ||
+        fileNameWithoutExt.startsWith(`${aliasPath}/`),
+    ) ||
+    fileNameWithoutExt.endsWith("/deck/presenter");
+  if (excluded) return null;
+
+  relativePath = relativePath
+    .replace(/index\.html$/, "")
+    .replace(/\.html$/, "")
+    .replace(/\/$/, "");
+  return relativePath ? `${SITE_URL}/${relativePath}` : SITE_URL;
+}
+
 describe("Sitemap Integration Test", () => {
   it("should have a sitemap.xml that includes all generated pages", () => {
     expect(
@@ -53,55 +80,9 @@ describe("Sitemap Integration Test", () => {
     const htmlFiles = findAllHtmlFiles(OUT_DIR);
     const projectAliasPaths = findProjectAliasPaths(OUT_DIR);
     const missingUrls: string[] = [];
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     htmlFiles.forEach((file) => {
-      let relativePath = path.relative(OUT_DIR, file);
-      // Normalize path separators to forward slashes
-      const normalizedPath = relativePath.replace(/\\/g, "/");
-
-      // Skip subdomain project paths
-      const topLevelSegment = normalizedPath.split("/")[0];
-      const fileNameWithoutExt = normalizedPath.replace(/\.html$/, "");
-      const isSubdomainProject =
-        (topLevelSegment && SUBDOMAIN_PROJECTS.has(topLevelSegment)) ||
-        SUBDOMAIN_PROJECTS.has(fileNameWithoutExt);
-      if (isSubdomainProject) {
-        return;
-      }
-      if (topLevelSegment && STATIC_ASSET_SEGMENTS.has(topLevelSegment)) {
-        return;
-      }
-      if (NOINDEX_PAGES.has(fileNameWithoutExt)) {
-        return;
-      }
-      if (
-        projectAliasPaths.some(
-          (aliasPath) =>
-            fileNameWithoutExt === aliasPath ||
-            fileNameWithoutExt.startsWith(`${aliasPath}/`),
-        )
-      ) {
-        return;
-      }
-      if (fileNameWithoutExt.endsWith("/deck/presenter")) {
-        return;
-      }
-
-      relativePath = normalizedPath;
-
-      if (relativePath.endsWith("index.html")) {
-        relativePath = relativePath.replace("index.html", "");
-      }
-      if (relativePath.endsWith(".html")) {
-        relativePath = relativePath.replace(".html", "");
-      }
-      if (relativePath.endsWith("/")) {
-        relativePath = relativePath.slice(0, -1);
-      }
-      // Construct expected URL
-      const expectedUrl = relativePath
-        ? `${SITE_URL}/${relativePath}`
-        : SITE_URL;
+      const expectedUrl = expectedUrlForFile(file, projectAliasPaths);
+      if (!expectedUrl) return;
       if (!urls.has(expectedUrl)) {
         missingUrls.push(`${file} -> ${expectedUrl}`);
       }

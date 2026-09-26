@@ -179,7 +179,12 @@ interface ValeOutput {
   [file: string]: ValeAlert[];
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+function flattenValeOutput(parsed: ValeOutput): ValeAlert[] {
+  return Object.entries(parsed).flatMap(([file, fileAlerts]) =>
+    fileAlerts.map((alert) => ({ ...alert, File: file })),
+  );
+}
+
 function runValeBatch(files: string[]): ValeAlert[] {
   const args = ["--config", VALE_CONFIG, "--output", "JSON", ...files];
 
@@ -219,16 +224,7 @@ function runValeBatch(files: string[]): ValeAlert[] {
 
   try {
     const parsed: ValeOutput = JSON.parse(stdout);
-    const alerts: ValeAlert[] = [];
-    for (const file of Object.keys(parsed)) {
-      // Vale keys each alert by the file path; inject it so filtering and
-      // reporting can reference the file.
-      for (const alert of parsed[file]) {
-        alert.File = file;
-        alerts.push(alert);
-      }
-    }
-    return alerts;
+    return flattenValeOutput(parsed);
   } catch {
     console.error("prose-lint: failed to parse Vale JSON output");
     console.error(stdout);
@@ -292,7 +288,15 @@ function parseDiffType(value: string): DiffMode {
   process.exit(1);
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+function applyBooleanFlag(opts: ProseOptions, arg: string): boolean {
+  if (arg === "--staged") opts.staged = true;
+  else if (arg === "--all") opts.all = true;
+  else if (arg === "--tracked") opts.tracked = true;
+  else if (arg === "--report-only") opts.reportOnly = true;
+  else return false;
+  return true;
+}
+
 function parseArgs(argv: string[]): ProseOptions {
   const opts: ProseOptions = {
     files: [],
@@ -312,10 +316,7 @@ function parseArgs(argv: string[]): ProseOptions {
     } else if (arg === "--diff") {
       opts.explicitDiff = parseDiffType(requireValue(argv, i, "--diff"));
       i++;
-    } else if (arg === "--staged") opts.staged = true;
-    else if (arg === "--all") opts.all = true;
-    else if (arg === "--tracked") opts.tracked = true;
-    else if (arg === "--report-only") opts.reportOnly = true;
+    } else if (applyBooleanFlag(opts, arg)) continue;
     else if (arg === "--help") printHelp();
     else if (arg === "--") {
       opts.files.push(...argv.slice(i + 1));

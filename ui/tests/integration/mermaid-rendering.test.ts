@@ -538,25 +538,10 @@ describe("Visualization browser rendering", () => {
           const content = diagram.closest<HTMLElement>(".pitch-slide__content");
           const diagramBounds = diagram.getBoundingClientRect();
           const contentBounds = content?.getBoundingClientRect();
-          // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
           const countTracks = (value: string) => {
             const repeatedTracks = /^repeat\(\s*(\d+)/.exec(value)?.[1];
             if (repeatedTracks) return Number(repeatedTracks);
-
-            let count = 0;
-            let depth = 0;
-            let inTrack = false;
-            for (const character of value) {
-              if (character === "(") depth += 1;
-              if (character === ")") depth -= 1;
-              if (/\s/.test(character) && depth === 0) {
-                inTrack = false;
-              } else if (!inTrack) {
-                count += 1;
-                inTrack = true;
-              }
-            }
-            return count;
+            return value.match(/(?:[^\s()]|\([^()]*\))+/g)?.length ?? 0;
           };
           const styles = getComputedStyle(diagram);
 

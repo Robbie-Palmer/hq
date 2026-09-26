@@ -250,7 +250,46 @@ function validateAcceptedSelectionChains(
   }
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+function coverageBoundaries(
+  manifest: PlatformManifestInput,
+  policy: PlatformManifestInput["policies"][number],
+  slot: PlatformManifestInput["slots"][number],
+): string[] {
+  const boundaries = new Set<string>([policy.effectiveFrom]);
+  if (slot.noDefaultFrom && isEffectiveAt(policy, slot.noDefaultFrom)) {
+    boundaries.add(slot.noDefaultFrom);
+  }
+  for (const selection of manifest.selections) {
+    if (selection.slot !== policy.slot) continue;
+    for (const boundary of [
+      selection.effectiveFrom,
+      selection.effectiveUntil,
+    ]) {
+      if (boundary && isEffectiveAt(policy, boundary)) boundaries.add(boundary);
+    }
+  }
+  return Array.from(boundaries).toSorted(compareUtcInstants);
+}
+
+function hasDefaultAt(
+  manifest: PlatformManifestInput,
+  slot: PlatformManifestInput["slots"][number],
+  instant: string,
+): boolean {
+  const acceptedCount = manifest.selections.filter(
+    (selection) =>
+      selection.slot === slot.slug &&
+      selection.status === "Accepted" &&
+      isEffectiveAt(selection, instant),
+  ).length;
+  const explicitEmpty =
+    slot.noDefaultFrom !== undefined &&
+    compareUtcInstants(slot.noDefaultFrom, instant) <= 0;
+  const hasSelection =
+    slot.cardinality === "many" ? acceptedCount >= 1 : acceptedCount === 1;
+  return hasSelection || (explicitEmpty && acceptedCount === 0);
+}
+
 function validateDefaultCoverage(
   manifest: PlatformManifestInput,
   slots: ReadonlyMap<string, PlatformManifestInput["slots"][number]>,
@@ -259,36 +298,8 @@ function validateDefaultCoverage(
   for (const policy of manifest.policies) {
     const slot = slots.get(policy.slot);
     if (!slot?.opinionated) continue;
-    const boundaries = new Set<string>([policy.effectiveFrom]);
-    if (slot.noDefaultFrom && isEffectiveAt(policy, slot.noDefaultFrom)) {
-      boundaries.add(slot.noDefaultFrom);
-    }
-    for (const selection of manifest.selections) {
-      if (selection.slot !== policy.slot) continue;
-      for (const boundary of [
-        selection.effectiveFrom,
-        selection.effectiveUntil,
-      ]) {
-        if (boundary && isEffectiveAt(policy, boundary)) {
-          boundaries.add(boundary);
-        }
-      }
-    }
-    for (const instant of Array.from(boundaries).toSorted(compareUtcInstants)) {
-      const acceptedCount = manifest.selections.filter(
-        (selection) =>
-          selection.slot === policy.slot &&
-          selection.status === "Accepted" &&
-          isEffectiveAt(selection, instant),
-      ).length;
-      const explicitEmpty =
-        slot.noDefaultFrom !== undefined &&
-        compareUtcInstants(slot.noDefaultFrom, instant) <= 0;
-      const hasDefault =
-        slot.cardinality === "many" ? acceptedCount >= 1 : acceptedCount === 1;
-      if (hasDefault || (explicitEmpty && acceptedCount === 0)) {
-        continue;
-      }
+    for (const instant of coverageBoundaries(manifest, policy, slot)) {
+      if (hasDefaultAt(manifest, slot, instant)) continue;
       addManifestIssue(
         context,
         slot.cardinality === "many"
