@@ -1,0 +1,30 @@
+{
+  "name": "agent-coordinator-domain",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agent Coordinator domain types and rules",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./actor": "./src/actor.ts",
+    "./compatibility": "./src/compatibility.ts",
+    "./complexity": "./src/complexity.ts",
+    "./policy": "./src/policy.ts",
+    "./session": "./src/session.ts",
+    "./task": "./src/task.ts",
+    "./vocabulary": "./src/vocabulary.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^5.0.0",
+    "typescript": "^6.0.0",
+    "vitest": "^5.0.0"
+  }
+}

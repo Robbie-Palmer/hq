@@ -14,6 +14,7 @@ config_roots = [
     "ml-pipelines/recipe-parsing",
     "ml-pipelines/writing-editor-evaluation",
     "ml-pipelines/wsi-analysis",
+    "packages/agent-coordinator-domain",
     "packages/ai-review-domain",
     "packages/browser-base",
     "packages/node-base",
@@ -57,7 +58,7 @@ MISE_EXPERIMENTAL = "1"
 # Root-level tasks for repo-wide tooling
 [tasks.lint]
 description = "Lint all files across the entire repo"
-depends = ["//:lint:markdown", "//:lint:mdx", "//:lint:yaml", "//:lint:typos", "//:lint:knip", "//:lint:actions", "//:lint:api", "//:lint:prose", "//:lint:typescript", "//packages/ai-review-domain:check", "//packages/browser-base:check", "//packages/node-base:check", "//packages/ts-base:check", "//packages/work-graph-cli:check", "//packages/work-graph-db:check", "//packages/work-graph-domain:check", "//packages/writing-editor-domain:check", "//ai-review:check", "//ml-pipelines/ai-review-evaluation:check", "//ml-pipelines/writing-editor-evaluation:check", "//ui:lint", "//infra/public-platform:lint", "//infra/public-platform:lint:tflint", "//infra/bootstrap:lint", "//infra/bootstrap:lint:tflint", "//infra/remote-development:lint", "//infra/remote-development:lint:tflint", "//infra/work-graph:lint", "//infra/work-graph:lint:tflint"]
+depends = ["//:lint:markdown", "//:lint:mdx", "//:lint:yaml", "//:lint:typos", "//:lint:knip", "//:lint:actions", "//:lint:api", "//:lint:prose", "//:lint:typescript", "//packages/agent-coordinator-domain:check", "//packages/ai-review-domain:check", "//packages/browser-base:check", "//packages/node-base:check", "//packages/ts-base:check", "//packages/work-graph-cli:check", "//packages/work-graph-db:check", "//packages/work-graph-domain:check", "//packages/writing-editor-domain:check", "//ai-review:check", "//ml-pipelines/ai-review-evaluation:check", "//ml-pipelines/writing-editor-evaluation:check", "//ui:lint", "//infra/public-platform:lint", "//infra/public-platform:lint:tflint", "//infra/bootstrap:lint", "//infra/bootstrap:lint:tflint", "//infra/remote-development:lint", "//infra/remote-development:lint:tflint", "//infra/work-graph:lint", "//infra/work-graph:lint:tflint"]
 
 [tasks."lint:typescript"]
 description = "Lint TypeScript and JavaScript outside the UI (optionally pass files as args)"
@@ -357,6 +358,7 @@ depends = [
     "//ai-review:test:coverage",
     "//cpp/autonomic-satellite-swarm:coverage",
     "//ui:test:coverage",
+    "//packages/agent-coordinator-domain:test:coverage",
     "//packages/ai-review-domain:test:coverage",
     "//packages/browser-base:test:coverage",
     "//packages/node-base:test:coverage",
