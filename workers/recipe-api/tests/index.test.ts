@@ -358,12 +358,18 @@ const dbMock = vi.hoisted(() => {
     state.expireInvitationOnUpdate = false;
   }
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-  function queryRows(query: string, params: unknown[] = []) {
+  type QueryRows = unknown[][];
+  type QueryRowsHandler = (
+    query: string,
+    params: unknown[],
+  ) => QueryRows | undefined;
+
+  function queryShoppingRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     const shoppingSnapshot = (value: unknown) =>
       (typeof value === "string" ? JSON.parse(value) : value) as ShoppingListRow["snapshot"];
-    const shoppingDate = (value: unknown) =>
-      value instanceof Date ? value : new Date(value as string);
     if (query.startsWith('insert into "shopping_list"')) {
       const list: ShoppingListRow = {
         id: `00000000-0000-4000-8000-${String(state.shoppingLists.length + 80).padStart(12, "0")}`,
@@ -392,6 +398,17 @@ const dbMock = vi.hoisted(() => {
       ];
     }
 
+    return undefined;
+  }
+
+  function updateShoppingRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
+    const shoppingSnapshot = (value: unknown) =>
+      (typeof value === "string" ? JSON.parse(value) : value) as ShoppingListRow["snapshot"];
+    const shoppingDate = (value: unknown) =>
+      value instanceof Date ? value : new Date(value as string);
     if (query.startsWith('update "shopping_list"')) {
       const archiving = query.includes('"status" =');
       const id = params.find((param) =>
@@ -434,6 +451,13 @@ const dbMock = vi.hoisted(() => {
           ];
     }
 
+    return undefined;
+  }
+
+  function selectShoppingRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.includes('from "shopping_list"')) {
       const ownerId = params[0] as string;
       return state.shoppingLists
@@ -455,6 +479,13 @@ const dbMock = vi.hoisted(() => {
         ]);
     }
 
+    return undefined;
+  }
+
+  function insertCoreRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "app_rate_limit"')) {
       const key = params[0] as string;
       const count = (state.rateLimitCounts.get(key) ?? 0) + 1;
@@ -503,6 +534,13 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function insertNotificationRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "notification_household_event"')) {
       state.notificationHouseholdEvents.push({
         eventId: params[0] as string,
@@ -551,6 +589,13 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function insertAccountRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "user_email"')) {
       const email = params[0] as string;
       if (state.userEmails.some((candidate) => candidate.email === email)) {
@@ -567,6 +612,13 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function insertFollowRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "user_follow"')) {
       const followerUserId = params[0] as string;
       const followedUserId = params[1] as string;
@@ -586,6 +638,13 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function insertMembershipRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "member"')) {
       const member: MemberRow = {
         id: params[0] as string,
@@ -617,6 +676,13 @@ const dbMock = vi.hoisted(() => {
       return [invitationRow(invitation)];
     }
 
+    return undefined;
+  }
+
+  function insertPantryRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "pantry_aggregate"')) {
       const userId = (params[0] as string | null) ?? null;
       const organizationId = (params[1] as string | null) ?? null;
@@ -639,6 +705,13 @@ const dbMock = vi.hoisted(() => {
       return [[aggregate.id, aggregate.revision.toString()]];
     }
 
+    return undefined;
+  }
+
+  function insertPantryOperationRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "pantry_operation"')) {
       const result = params[3];
       state.pantryOperations.push({
@@ -654,6 +727,40 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function samePantryItemOwner(
+    candidate: PantryItemRow,
+    pantryItem: PantryItemRow,
+  ) {
+    return (
+      candidate.ingredientSlug === pantryItem.ingredientSlug &&
+      ((pantryItem.userId !== null && candidate.userId === pantryItem.userId) ||
+        (pantryItem.organizationId !== null &&
+          candidate.organizationId === pantryItem.organizationId))
+    );
+  }
+
+  function storePantryItem(query: string, pantryItem: PantryItemRow) {
+    const existing = state.pantryItems.find((candidate) =>
+      samePantryItemOwner(candidate, pantryItem),
+    );
+    if (query.includes("do update set") && existing) {
+      existing.location = pantryItem.location;
+      existing.version = (existing.version ?? 1n) + 1n;
+      existing.updatedAt = date;
+      return;
+    }
+    if (!query.includes("on conflict do nothing") || !existing) {
+      state.pantryItems.push(pantryItem);
+    }
+  }
+
+  function insertPantryItemRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "pantry_item"')) {
       const valuesClause = query.split(" values ")[1]?.split(" on conflict")[0] ?? "";
       const valueParameterCount = Math.max(
@@ -671,34 +778,18 @@ const dbMock = vi.hoisted(() => {
           createdAt: date,
           updatedAt: date,
         };
-        const conflicts = state.pantryItems.some(
-          (candidate) =>
-            candidate.ingredientSlug === pantryItem.ingredientSlug &&
-            ((pantryItem.userId !== null && candidate.userId === pantryItem.userId) ||
-              (pantryItem.organizationId !== null &&
-                candidate.organizationId === pantryItem.organizationId)),
-        );
-        if (query.includes("do update set") && conflicts) {
-          const existing = state.pantryItems.find(
-            (candidate) =>
-              candidate.ingredientSlug === pantryItem.ingredientSlug &&
-              ((pantryItem.userId !== null &&
-                candidate.userId === pantryItem.userId) ||
-                (pantryItem.organizationId !== null &&
-                  candidate.organizationId === pantryItem.organizationId)),
-          );
-          if (existing) {
-            existing.location = pantryItem.location;
-            existing.version = (existing.version ?? 1n) + 1n;
-            existing.updatedAt = date;
-          }
-        } else if (!query.includes("on conflict do nothing") || !conflicts) {
-          state.pantryItems.push(pantryItem);
-        }
+        storePantryItem(query, pantryItem);
       }
       return [];
     }
 
+    return undefined;
+  }
+
+  function insertUserStateRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "user_diet_profile"')) {
       const existing = state.dietProfiles.find(
         (candidate) => candidate.userId === params[0],
@@ -718,6 +809,13 @@ const dbMock = vi.hoisted(() => {
       return [dietProfileRow(profile)];
     }
 
+    return undefined;
+  }
+
+  function insertRecipeBoxStateRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "user_recipe_box"')) {
       const userId = params[0] as string;
       const existing = state.recipeBoxes.find((box) => box.userId === userId);
@@ -739,6 +837,13 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function insertCookingSessionRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "cooking_session"')) {
       const session: CookingSessionRow = {
         id: params[0] as string,
@@ -758,6 +863,13 @@ const dbMock = vi.hoisted(() => {
       return [[session.id]];
     }
 
+    return undefined;
+  }
+
+  function insertDietSelectionRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "user_diet_preset"')) {
       for (let index = 0; index < params.length; index += 2) {
         state.userDietPresets.push({
@@ -788,46 +900,126 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function updateInvitationRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('update "invitation" set "status"')) {
-      if (state.expireInvitationOnUpdate) {
-        const invitationId = params[1] as string;
-        const expiring = state.invitations.find(
-          (candidate) => candidate.id === invitationId,
-        );
-        if (expiring) expiring.expiresAt = new Date(0);
-        state.expireInvitationOnUpdate = false;
-      }
+      expireInvitationBeforeUpdate(params[1] as string);
       const status = params[0] as string;
       const invitationId = params[1] as string;
-      const hasHouseholdFilter = query.includes(
-        '"invitation"."organization_id"',
-      );
-      const householdId = hasHouseholdFilter
-        ? (params[2] as string)
-        : undefined;
-      const pendingStatus = hasHouseholdFilter
-        ? (params[3] as string | undefined)
-        : (params[2] as string | undefined);
-      const expiresAfter = query.includes('"invitation"."expires_at" >')
-        ? new Date(params[3] as string)
-        : undefined;
-      const invitation = state.invitations.find(
-        (candidate) =>
-          candidate.id === invitationId &&
-          (!householdId || candidate.organizationId === householdId) &&
-          (!pendingStatus || candidate.status === pendingStatus) &&
-          (!expiresAfter || candidate.expiresAt > expiresAfter),
+      const { householdId, pendingStatus, expiresAfter } =
+        invitationUpdateFilters(query, params);
+      const invitation = state.invitations.find((candidate) =>
+        invitationMatchesUpdate(
+          candidate,
+          invitationId,
+          householdId,
+          pendingStatus,
+          expiresAfter,
+        ),
       );
       if (!invitation) return [];
       invitation.status = status;
       return query.includes("returning") ? [invitationRow(invitation)] : [];
     }
 
+    return undefined;
+  }
+
+  function expireInvitationBeforeUpdate(invitationId: string) {
+    if (!state.expireInvitationOnUpdate) return;
+    const expiring = state.invitations.find(
+      (candidate) => candidate.id === invitationId,
+    );
+    if (expiring) expiring.expiresAt = new Date(0);
+    state.expireInvitationOnUpdate = false;
+  }
+
+  function invitationUpdateFilters(query: string, params: unknown[]) {
+    const hasHouseholdFilter = query.includes(
+      '"invitation"."organization_id"',
+    );
+    return {
+      householdId: hasHouseholdFilter ? (params[2] as string) : undefined,
+      pendingStatus: hasHouseholdFilter
+        ? (params[3] as string | undefined)
+        : (params[2] as string | undefined),
+      expiresAfter: query.includes('"invitation"."expires_at" >')
+        ? new Date(params[3] as string)
+        : undefined,
+    };
+  }
+
+  function invitationMatchesUpdate(
+    candidate: InvitationRow,
+    invitationId: string,
+    householdId: string | undefined,
+    pendingStatus: string | undefined,
+    expiresAfter: Date | undefined,
+  ) {
+    return (
+      candidate.id === invitationId &&
+      (!householdId || candidate.organizationId === householdId) &&
+      (!pendingStatus || candidate.status === pendingStatus) &&
+      (!expiresAfter || candidate.expiresAt > expiresAfter)
+    );
+  }
+
+  function queryPlaceholderValue(
+    query: string,
+    params: unknown[],
+    pattern: RegExp,
+  ) {
+    const match = query.match(pattern);
+    return match ? params[Number(match[1]) - 1] : undefined;
+  }
+
+  type NotificationDeliveryFilter = {
+    deliveryId: string | undefined;
+    recipientUserId: string | undefined;
+    eventId: string | undefined;
+    eventIds: Set<string>;
+    unreadOnly: boolean;
+    undismissedOnly: boolean;
+  };
+
+  function notificationDeliveryMatches(
+    delivery: (typeof state.notificationDeliveries)[number],
+    filter: NotificationDeliveryFilter,
+  ) {
+    return (
+      (!filter.deliveryId || delivery.id === filter.deliveryId) &&
+      (!filter.recipientUserId ||
+        delivery.recipientUserId === filter.recipientUserId) &&
+      (!filter.eventId || delivery.eventId === filter.eventId) &&
+      (filter.eventIds.size === 0 || filter.eventIds.has(delivery.eventId)) &&
+      (!filter.unreadOnly || !delivery.readAt) &&
+      (!filter.undismissedOnly || !delivery.dismissedAt)
+    );
+  }
+
+  function applyNotificationDeliveryUpdate(
+    delivery: (typeof state.notificationDeliveries)[number],
+    readAt: unknown,
+    dismissedAt: unknown,
+  ) {
+    if (readAt !== undefined) delivery.readAt = readAt as Date | null;
+    if (dismissedAt !== undefined) {
+      delivery.dismissedAt = dismissedAt as Date | null;
+    }
+  }
+
+  function updateNotificationRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('update "notification_delivery"')) {
-      const placeholderValue = (pattern: RegExp) => {
-        const match = query.match(pattern);
-        return match ? params[Number(match[1]) - 1] : undefined;
-      };
+      const placeholderValue = (pattern: RegExp) =>
+        queryPlaceholderValue(query, params, pattern);
       const readAt = placeholderValue(/set[\s\S]*?"read_at" = \$(\d+)/);
       const dismissedAt = placeholderValue(
         /set[\s\S]*?"dismissed_at" = \$(\d+)/,
@@ -850,34 +1042,35 @@ const dbMock = vi.hoisted(() => {
       const eventId = placeholderValue(
         /where[\s\S]*?"notification_delivery"\."event_id" = \$(\d+)/,
       ) as string | undefined;
+      const filter: NotificationDeliveryFilter = {
+        deliveryId,
+        recipientUserId,
+        eventId,
+        eventIds,
+        unreadOnly: query.includes('"read_at" is null'),
+        undismissedOnly: query.includes('"dismissed_at" is null'),
+      };
       for (const delivery of state.notificationDeliveries) {
-        if (
-          (!deliveryId || delivery.id === deliveryId) &&
-          (!recipientUserId || delivery.recipientUserId === recipientUserId) &&
-          (!eventId || delivery.eventId === eventId) &&
-          (eventIds.size === 0 || eventIds.has(delivery.eventId)) &&
-          (!query.includes('"read_at" is null') || !delivery.readAt) &&
-          (!query.includes('"dismissed_at" is null') || !delivery.dismissedAt)
-        ) {
-          if (readAt !== undefined) delivery.readAt = readAt as Date | null;
-          if (dismissedAt !== undefined) {
-            delivery.dismissedAt = dismissedAt as Date | null;
-          }
+        if (notificationDeliveryMatches(delivery, filter)) {
+          applyNotificationDeliveryUpdate(delivery, readAt, dismissedAt);
         }
       }
       return [];
     }
 
+    return undefined;
+  }
+
+  function updateAccountRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('update "user_email"')) {
       const setsPrimaryOnly = query.includes('set "is_primary" =');
       if (setsPrimaryOnly) {
         const userId = params.at(-2) as string;
         const excludedEmail = params.at(-1) as string;
-        for (const candidate of state.userEmails) {
-          if (candidate.userId === userId && candidate.email !== excludedEmail) {
-            candidate.isPrimary = false;
-          }
-        }
+        clearOtherPrimaryEmails(userId, excludedEmail);
         return [];
       }
 
@@ -894,6 +1087,21 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function clearOtherPrimaryEmails(userId: string, excludedEmail: string) {
+    for (const candidate of state.userEmails) {
+      if (candidate.userId === userId && candidate.email !== excludedEmail) {
+        candidate.isPrimary = false;
+      }
+    }
+  }
+
+  function updateHouseholdRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('update "organization"')) {
       const householdId = params.at(-1) as string;
       const organization = state.organizations.find(
@@ -919,6 +1127,13 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function updatePantryRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('update "pantry_item"')) {
       const userId = (params[0] as string | null) ?? null;
       const organizationId = (params[1] as string | null) ?? null;
@@ -937,34 +1152,65 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function updatePantryAggregateRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('update "pantry_aggregate"')) {
       if (query.includes('"revision" = "pantry_aggregate"."revision" + 1')) {
-        const aggregateId = params.at(-1) as string;
-        const aggregate = state.pantryAggregates.find(
-          (candidate) => candidate.id === aggregateId,
-        );
-        if (!aggregate) return [];
-        aggregate.revision += 1n;
-        aggregate.updatedAt = date;
-        return [[aggregate.revision.toString()]];
+        return incrementPantryAggregateRevision(params.at(-1) as string);
       }
       const userId = (params[0] as string | null) ?? null;
       const organizationId = (params[1] as string | null) ?? null;
       const previousOwnerId = params.at(-1) as string;
       const personal = query.includes('"pantry_aggregate"."user_id" =');
-      for (const aggregate of state.pantryAggregates) {
-        const matchesPreviousOwner = personal
-          ? aggregate.userId === previousOwnerId
-          : aggregate.organizationId === previousOwnerId;
-        if (matchesPreviousOwner) {
-          aggregate.userId = userId;
-          aggregate.organizationId = organizationId;
-          aggregate.updatedAt = date;
-        }
-      }
+      reassignPantryAggregates(
+        userId,
+        organizationId,
+        previousOwnerId,
+        personal,
+      );
       return [];
     }
 
+    return undefined;
+  }
+
+  function incrementPantryAggregateRevision(aggregateId: string): QueryRows {
+    const aggregate = state.pantryAggregates.find(
+      (candidate) => candidate.id === aggregateId,
+    );
+    if (!aggregate) return [];
+    aggregate.revision += 1n;
+    aggregate.updatedAt = date;
+    return [[aggregate.revision.toString()]];
+  }
+
+  function reassignPantryAggregates(
+    userId: string | null,
+    organizationId: string | null,
+    previousOwnerId: string,
+    personal: boolean,
+  ) {
+    for (const aggregate of state.pantryAggregates) {
+      const matchesPreviousOwner = personal
+        ? aggregate.userId === previousOwnerId
+        : aggregate.organizationId === previousOwnerId;
+      if (matchesPreviousOwner) {
+        aggregate.userId = userId;
+        aggregate.organizationId = organizationId;
+        aggregate.updatedAt = date;
+      }
+    }
+  }
+
+  function deletePantryRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('delete from "app_rate_limit"')) {
       state.rateLimitSweeps += 1;
       return [];
@@ -1023,6 +1269,13 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function deleteAccountRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('delete from "member"')) {
       const memberId = params[0] as string;
       state.members = state.members.filter((member) => member.id !== memberId);
@@ -1060,6 +1313,13 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function deleteUserStateRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('delete from "user_diet_excluded_group"')) {
       const userId = params[0] as string;
       state.userDietExcludedGroups = state.userDietExcludedGroups.filter(
@@ -1087,6 +1347,13 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function updateRecipeRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('update "recipe"')) {
       if (
         query.includes('"recipe"."user_id"') &&
@@ -1095,12 +1362,7 @@ const dbMock = vi.hoisted(() => {
       ) {
         const visibility = params[0] as RecipeRow["visibility"];
         const userId = params.at(-1) as string;
-        for (const recipe of state.recipes) {
-          if (recipe.visibility === "household" && recipe.userId === userId) {
-            recipe.visibility = visibility;
-            recipe.updatedAt = date;
-          }
-        }
+        updateUserHouseholdRecipeVisibility(userId, visibility);
         return [];
       }
 
@@ -1115,6 +1377,25 @@ const dbMock = vi.hoisted(() => {
       return [recipeRow(recipe)];
     }
 
+    return undefined;
+  }
+
+  function updateUserHouseholdRecipeVisibility(
+    userId: string,
+    visibility: RecipeRow["visibility"],
+  ) {
+    for (const recipe of state.recipes) {
+      if (recipe.visibility === "household" && recipe.userId === userId) {
+        recipe.visibility = visibility;
+        recipe.updatedAt = date;
+      }
+    }
+  }
+
+  function selectOrganizationRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.includes('from "organization"') && query.includes('"organization"."id"')) {
       const householdId = params[0] as string;
       return state.organizations
@@ -1122,6 +1403,13 @@ const dbMock = vi.hoisted(() => {
         .map(organizationRow);
     }
 
+    return undefined;
+  }
+
+  function countNotificationRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (
       query.includes('count(*)') &&
       query.includes('from "notification_delivery"')
@@ -1140,6 +1428,13 @@ const dbMock = vi.hoisted(() => {
       ];
     }
 
+    return undefined;
+  }
+
+  function selectNotificationRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (
       query.includes('from "notification_delivery"') &&
       query.includes('inner join "notification_event"')
@@ -1176,6 +1471,13 @@ const dbMock = vi.hoisted(() => {
         });
     }
 
+    return undefined;
+  }
+
+  function selectNotificationDetailRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (
       query.includes('from "notification_household_invitation_event"') &&
       !query.includes('join')
@@ -1255,6 +1557,13 @@ const dbMock = vi.hoisted(() => {
         ]);
     }
 
+    return undefined;
+  }
+
+  function selectUserRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (
       query.includes('from "user"') &&
       query.includes('"user"."email" =')
@@ -1324,6 +1633,13 @@ const dbMock = vi.hoisted(() => {
         .map((follow) => [follow.followedUserId]);
     }
 
+    return undefined;
+  }
+
+  function selectUserEmailRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (
       query.includes('from "user_email"') &&
       query.includes('"user_email"."email" =')
@@ -1350,6 +1666,13 @@ const dbMock = vi.hoisted(() => {
         .map((candidate) => [candidate.email]);
     }
 
+    return undefined;
+  }
+
+  function selectMembershipRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (
       query.includes('from "member"') &&
       query.includes('left join "organization"')
@@ -1392,6 +1715,13 @@ const dbMock = vi.hoisted(() => {
         });
     }
 
+    return undefined;
+  }
+
+  function selectHouseholdRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.includes('from "member" inner join "user"')) {
       const householdId = params[0] as string;
       return state.members
@@ -1427,6 +1757,13 @@ const dbMock = vi.hoisted(() => {
         .map(memberRow);
     }
 
+    return undefined;
+  }
+
+  function selectPantryRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.includes('from "pantry_item"')) {
       const ownerId = params[0] as string;
       const personal = isPersonalPantryQuery(query);
@@ -1473,6 +1810,13 @@ const dbMock = vi.hoisted(() => {
         .map((operation) => [operation.commandFingerprint, operation.result]);
     }
 
+    return undefined;
+  }
+
+  function selectMemberRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (
       query.includes('from "member"') &&
       query.includes('"member"."id"') &&
@@ -1525,6 +1869,13 @@ const dbMock = vi.hoisted(() => {
         .map(memberRow);
     }
 
+    return undefined;
+  }
+
+  function selectInvitationRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (
       query.includes('from "invitation"') &&
       query.includes('inner join "organization"')
@@ -1598,6 +1949,13 @@ const dbMock = vi.hoisted(() => {
         .map(invitationRow);
     }
 
+    return undefined;
+  }
+
+  function selectRecipeFeedRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (
       query.includes('from "recipe"') &&
       query.includes('inner join "user"') &&
@@ -1651,6 +2009,12 @@ const dbMock = vi.hoisted(() => {
       });
     }
 
+    return undefined;
+  }
+
+  function selectRecipeFeedSummaryRows(
+    query: string,
+  ): QueryRows | undefined {
     if (
       query.includes('from "recipe"') &&
       query.includes('inner join "user"') &&
@@ -1676,6 +2040,13 @@ const dbMock = vi.hoisted(() => {
       });
     }
 
+    return undefined;
+  }
+
+  function selectCookRecipeRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (
       query.includes('from "recipe"') &&
       query.includes('inner join "user"') &&
@@ -1703,6 +2074,13 @@ const dbMock = vi.hoisted(() => {
         ]);
     }
 
+    return undefined;
+  }
+
+  function selectScopedRecipeRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (
       query.includes('from "recipe"') &&
       query.includes('"recipe"."slug" =') &&
@@ -1739,6 +2117,13 @@ const dbMock = vi.hoisted(() => {
         .map(recipeRow);
     }
 
+    return undefined;
+  }
+
+  function selectVisibleRecipeRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.includes('from "recipe"')) {
       const trailingParams =
         (query.includes("::timestamptz") ? 3 : 0) +
@@ -1766,6 +2151,12 @@ const dbMock = vi.hoisted(() => {
       );
     }
 
+    return undefined;
+  }
+
+  function selectCatalogRows(
+    query: string,
+  ): QueryRows | undefined {
     if (query.includes('from "diet_preset_excluded_group"')) {
       return state.dietPresetExcludedGroups.map((row) => [
         row.presetKey,
@@ -1795,6 +2186,13 @@ const dbMock = vi.hoisted(() => {
       ]);
     }
 
+    return undefined;
+  }
+
+  function selectDietCatalogRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.includes('from "diet_preset"')) {
       if (params.length > 0) {
         const keys = new Set(params as string[]);
@@ -1809,6 +2207,13 @@ const dbMock = vi.hoisted(() => {
       ]);
     }
 
+    return undefined;
+  }
+
+  function selectIngredientGroupRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.includes('from "ingredient_group"')) {
       if (params.length > 0) {
         const keys = new Set(params as string[]);
@@ -1823,6 +2228,13 @@ const dbMock = vi.hoisted(() => {
       ]);
     }
 
+    return undefined;
+  }
+
+  function selectIngredientRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.includes('from "ingredient"')) {
       if (params.length > 0) {
         const slugs = new Set(params as string[]);
@@ -1837,6 +2249,13 @@ const dbMock = vi.hoisted(() => {
       ]);
     }
 
+    return undefined;
+  }
+
+  function selectDietRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.includes('from "user_diet_preset"')) {
       const userId = params[0] as string;
       return state.userDietPresets
@@ -1865,6 +2284,13 @@ const dbMock = vi.hoisted(() => {
         .map(dietProfileRow);
     }
 
+    return undefined;
+  }
+
+  function selectCookingSessionRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.includes('from "cooking_session"')) {
       const userId = query.includes('"cooking_session"."id" =')
         ? (params[1] as string)
@@ -1912,6 +2338,13 @@ const dbMock = vi.hoisted(() => {
       ]);
     }
 
+    return undefined;
+  }
+
+  function selectRecipeBoxRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.includes('from "user_recipe_box_item"')) {
       const userId = params[0] as string;
       return state.recipeBoxItems
@@ -1930,6 +2363,65 @@ const dbMock = vi.hoisted(() => {
       return [params];
     }
 
+    return undefined;
+  }
+
+  const queryRowsHandlers: QueryRowsHandler[] = [
+    queryShoppingRows,
+    updateShoppingRows,
+    selectShoppingRows,
+    insertCoreRows,
+    insertNotificationRows,
+    insertAccountRows,
+    insertFollowRows,
+    insertMembershipRows,
+    insertPantryRows,
+    insertPantryOperationRows,
+    insertPantryItemRows,
+    insertUserStateRows,
+    insertRecipeBoxStateRows,
+    insertCookingSessionRows,
+    insertDietSelectionRows,
+    updateInvitationRows,
+    updateNotificationRows,
+    updateAccountRows,
+    updateHouseholdRows,
+    updatePantryRows,
+    updatePantryAggregateRows,
+    deletePantryRows,
+    deleteAccountRows,
+    deleteUserStateRows,
+    updateRecipeRows,
+    selectOrganizationRows,
+    countNotificationRows,
+    selectNotificationRows,
+    selectNotificationDetailRows,
+    selectUserRows,
+    selectUserEmailRows,
+    selectMembershipRows,
+    selectHouseholdRows,
+    selectPantryRows,
+    selectMemberRows,
+    selectInvitationRows,
+    selectRecipeFeedRows,
+    selectRecipeFeedSummaryRows,
+    selectCookRecipeRows,
+    selectScopedRecipeRows,
+    selectVisibleRecipeRows,
+    selectCatalogRows,
+    selectDietCatalogRows,
+    selectIngredientGroupRows,
+    selectIngredientRows,
+    selectDietRows,
+    selectCookingSessionRows,
+    selectRecipeBoxRows,
+  ];
+
+  function queryRows(query: string, params: unknown[] = []): QueryRows {
+    for (const handler of queryRowsHandlers) {
+      const rows = handler(query, params);
+      if (rows) return rows;
+    }
     return [];
   }
 

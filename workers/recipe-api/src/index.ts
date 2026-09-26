@@ -5327,6 +5327,111 @@ registerRoute("get", "/recipes/:slug", async (c) => {
   );
 });
 
+async function findRecommendableRecipe(
+  c: Context<AppEnv>,
+  db: Db,
+  session: AuthenticatedSession,
+  slug: string,
+  recipientUserId: string,
+): Promise<Recipe | Response> {
+  const recipe = await findRecipeBySlug(db, slug);
+  if (!recipe) return c.notFound();
+  if (recipe.visibility === "private") {
+    return c.json(
+      { error: "Only public or household recipes can be recommended" },
+      409,
+    );
+  }
+  if (recipe.visibility === "household") {
+    const decision = authorizeRecipeRead(session.user, recipe, {
+      userSharesHouseholdWithOwner: await usersShareHousehold(
+        db,
+        recipe.userId,
+        session.user.id,
+      ),
+    });
+    if (!decision.allowed) return c.notFound();
+  }
+  if (recipe.userId === recipientUserId) {
+    return c.json({ error: "That person already owns this recipe" }, 409);
+  }
+  return recipe;
+}
+
+async function validateRecommendationRecipient(
+  c: Context<AppEnv>,
+  db: Db,
+  senderUserId: string,
+  recipientUserId: string,
+): Promise<Response | undefined> {
+  const senderMembership = await findUserHouseholdMembership(db, senderUserId);
+  if (!senderMembership) {
+    return c.json(
+      { error: "Join a household before recommending recipes" },
+      409,
+    );
+  }
+  const recipientMembership = await findHouseholdMembership(
+    db,
+    senderMembership.organizationId,
+    recipientUserId,
+  );
+  if (!recipientMembership) {
+    return c.json(
+      { error: "Recipes can only be recommended to household members" },
+      403,
+    );
+  }
+}
+
+async function recommendRecipe(
+  c: Context<AppEnv>,
+  db: Db,
+  session: AuthenticatedSession,
+  slug: string,
+) {
+  const body = await parseJsonBody(c, recommendRecipeBodySchema);
+  if (!body.success) return body.response;
+  if (body.data.recipientUserId === session.user.id) {
+    return c.json({ error: "You cannot recommend a recipe to yourself" }, 400);
+  }
+
+  const recipe = await findRecommendableRecipe(
+    c,
+    db,
+    session,
+    slug,
+    body.data.recipientUserId,
+  );
+  if (recipe instanceof Response) return recipe;
+
+  const recipientFailure = await validateRecommendationRecipient(
+    c,
+    db,
+    session.user.id,
+    body.data.recipientUserId,
+  );
+  if (recipientFailure) return recipientFailure;
+
+  const recommendationLimit = await enforceRateLimit(
+    db,
+    `recipe-recommendation:${session.user.id}`,
+    RECIPE_RECOMMENDATION_RATE_LIMIT,
+  );
+  if (!recommendationLimit.allowed) {
+    return rateLimitedResponse(c, recommendationLimit.retryAfter);
+  }
+
+  await db.transaction(async (tx) => {
+    await createRecipeRecommendationNotification(tx, {
+      recipientUserId: body.data.recipientUserId,
+      recipe,
+      actor: { id: session.user.id, name: session.user.name },
+    });
+  });
+  return c.json({ recommended: true }, 201);
+}
+
 registerRoute("post", "/recipes/:slug/recommendations", async (c) => {
   const csrfFailure = validateCsrf(c);
   if (csrfFailure) return csrfFailure;
@@ -5337,76 +5442,7 @@ registerRoute("post", "/recipes/:slug/recommendations", async (c) => {
     c,
     "mutation",
     "POST /recipes/:slug/recommendations failed",
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-    async ({ db, session }) => {
-      const body = await parseJsonBody(c, recommendRecipeBodySchema);
-      if (!body.success) return body.response;
-      if (body.data.recipientUserId === session.user.id) {
-        return c.json({ error: "You cannot recommend a recipe to yourself" }, 400);
-      }
-
-      const recipe = await findRecipeBySlug(db, slug.slug);
-      if (!recipe) return c.notFound();
-      if (recipe.visibility === "private") {
-        return c.json(
-          { error: "Only public or household recipes can be recommended" },
-          409,
-        );
-      }
-      if (recipe.visibility === "household") {
-        const decision = authorizeRecipeRead(session.user, recipe, {
-          userSharesHouseholdWithOwner: await usersShareHousehold(
-            db,
-            recipe.userId,
-            session.user.id,
-          ),
-        });
-        if (!decision.allowed) return c.notFound();
-      }
-      if (recipe.userId === body.data.recipientUserId) {
-        return c.json({ error: "That person already owns this recipe" }, 409);
-      }
-
-      const senderMembership = await findUserHouseholdMembership(
-        db,
-        session.user.id,
-      );
-      if (!senderMembership) {
-        return c.json(
-          { error: "Join a household before recommending recipes" },
-          409,
-        );
-      }
-      const recipientMembership = await findHouseholdMembership(
-        db,
-        senderMembership.organizationId,
-        body.data.recipientUserId,
-      );
-      if (!recipientMembership) {
-        return c.json(
-          { error: "Recipes can only be recommended to household members" },
-          403,
-        );
-      }
-
-      const recommendationLimit = await enforceRateLimit(
-        db,
-        `recipe-recommendation:${session.user.id}`,
-        RECIPE_RECOMMENDATION_RATE_LIMIT,
-      );
-      if (!recommendationLimit.allowed) {
-        return rateLimitedResponse(c, recommendationLimit.retryAfter);
-      }
-
-      await db.transaction(async (tx) => {
-        await createRecipeRecommendationNotification(tx, {
-          recipientUserId: body.data.recipientUserId,
-          recipe,
-          actor: { id: session.user.id, name: session.user.name },
-        });
-      });
-      return c.json({ recommended: true }, 201);
-    },
+    ({ db, session }) => recommendRecipe(c, db, session, slug.slug),
   );
 });
 
@@ -5746,6 +5782,12 @@ async function parseImportImages(
   return { success: true, images };
 }
 
+function recipeImportQuotaError(reason: "active" | "daily") {
+  return reason === "active"
+    ? "Too many imports in progress"
+    : "Daily import limit reached";
+}
+
 registerRoute("post", "/recipe-imports", async (c) => {
   const csrfFailure = validateCsrf(c);
   if (csrfFailure) return csrfFailure;
@@ -5760,7 +5802,6 @@ registerRoute("post", "/recipe-imports", async (c) => {
     c,
     "mutation",
     "POST /recipe-imports mutation failed",
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     async ({ db, session }) => {
       const userId = session.user.id;
 
@@ -5836,10 +5877,7 @@ registerRoute("post", "/recipe-imports", async (c) => {
       if (!outcome.ok) {
         return c.json(
           {
-            error:
-              outcome.reason === "active"
-                ? "Too many imports in progress"
-                : "Daily import limit reached",
+            error: recipeImportQuotaError(outcome.reason),
           },
           429,
         );

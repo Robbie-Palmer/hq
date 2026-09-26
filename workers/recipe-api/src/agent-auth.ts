@@ -613,111 +613,168 @@ function recipeSummary(
   };
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+type AgentCapabilityHandler = (
+  db: Db,
+  args: Record<string, unknown> | undefined,
+  agentSession: AgentSession,
+) => Promise<AgentCapabilityResult>;
+
+async function searchRecipes(
+  db: Db,
+  args: Record<string, unknown> | undefined,
+  agentSession: AgentSession,
+) {
+  const userId = agentSession.user.id;
+  const visibility = await readableRecipeFilter(db, userId);
+  const input = recipeSearchInput.parse(args ?? {});
+  const pattern = escapedLikePattern(input.query);
+  const recipes = await db
+    .select()
+    .from(schema.recipe)
+    .where(
+      and(
+        visibility,
+        or(
+          ilike(schema.recipe.title, pattern),
+          ilike(schema.recipe.description, pattern),
+          ilike(schema.recipe.body, pattern),
+        ),
+      ),
+    )
+    .orderBy(desc(schema.recipe.updatedAt), desc(schema.recipe.id))
+    .limit(input.limit);
+
+  return { items: recipes.map((recipe) => recipeSummary(recipe, userId)) };
+}
+
+async function readRecipe(
+  db: Db,
+  args: Record<string, unknown> | undefined,
+  agentSession: AgentSession,
+) {
+  const userId = agentSession.user.id;
+  const visibility = await readableRecipeFilter(db, userId);
+  const input = recipeReadInput.parse(args ?? {});
+  const [recipe] = await db
+    .select()
+    .from(schema.recipe)
+    .where(and(visibility, eq(schema.recipe.slug, input.slug)))
+    .limit(1);
+
+  return {
+    recipe: recipe
+      ? { ...recipeSummary(recipe, userId), body: recipe.body }
+      : null,
+  };
+}
+
+async function inspectDataset(
+  db: Db,
+  args: Record<string, unknown> | undefined,
+  agentSession: AgentSession,
+) {
+  const input = recipeDatasetInspectInput.parse(args ?? {});
+  return inspectRecipeDataset(db, agentSession.user.id, input);
+}
+
+async function readPantryCapability(
+  db: Db,
+  args: Record<string, unknown> | undefined,
+  agentSession: AgentSession,
+) {
+  noArgumentsInput.parse(args ?? {});
+  const pantry = await readPantry(db, agentSession.user.id);
+  return { ...pantry, scope: pantry.scope.type };
+}
+
+async function readShoppingList(
+  db: Db,
+  args: Record<string, unknown> | undefined,
+  agentSession: AgentSession,
+) {
+  noArgumentsInput.parse(args ?? {});
+  const userId = agentSession.user.id;
+  const [membership] = await db
+    .select({ organizationId: schema.member.organizationId })
+    .from(schema.member)
+    .where(eq(schema.member.userId, userId))
+    .limit(1);
+  const scope = membership ? "household" : "personal";
+  const resourceId = membership?.organizationId ?? userId;
+  const ownerFilter = membership
+    ? eq(schema.shoppingList.organizationId, membership.organizationId)
+    : eq(schema.shoppingList.userId, userId);
+  const [shoppingList] = await db
+    .select()
+    .from(schema.shoppingList)
+    .where(and(ownerFilter, eq(schema.shoppingList.status, "active")))
+    .limit(1);
+
+  return {
+    shoppingList: shoppingList
+      ? {
+          id: shoppingList.id,
+          resourceId,
+          scope,
+          revision: shoppingList.revision.toString(),
+          snapshot: shoppingList.snapshot,
+          createdAt: shoppingList.createdAt.toISOString(),
+          updatedAt: shoppingList.updatedAt.toISOString(),
+        }
+      : null,
+  };
+}
+
+async function readCookLog(
+  db: Db,
+  args: Record<string, unknown> | undefined,
+  agentSession: AgentSession,
+) {
+  const input = cookLogReadInput.parse(args ?? {});
+  return cookingLogResponse(
+    db,
+    agentSession.user.id,
+    cookingLogQuery(input),
+  );
+}
+
+async function readCookingInsights(
+  db: Db,
+  args: Record<string, unknown> | undefined,
+  agentSession: AgentSession,
+) {
+  noArgumentsInput.parse(args ?? {});
+  return cookingInsightsResponse(db, agentSession.user.id);
+}
+
+type AgentCapabilityResult =
+  | Awaited<ReturnType<typeof searchRecipes>>
+  | Awaited<ReturnType<typeof readRecipe>>
+  | Awaited<ReturnType<typeof inspectDataset>>
+  | Awaited<ReturnType<typeof readPantryCapability>>
+  | Awaited<ReturnType<typeof readShoppingList>>
+  | Awaited<ReturnType<typeof readCookLog>>
+  | Awaited<ReturnType<typeof readCookingInsights>>;
+
+const agentCapabilityHandlers: Record<string, AgentCapabilityHandler> = {
+  "recipes.search": searchRecipes,
+  "recipes.read": readRecipe,
+  "recipes.dataset.inspect": inspectDataset,
+  "pantry.read": readPantryCapability,
+  "shopping_list.read": readShoppingList,
+  "cook_log.read": readCookLog,
+  "cooking_insights.read": readCookingInsights,
+};
+
 export async function executeRecipeAgentCapability(
   db: Db,
   capability: string,
   args: Record<string, unknown> | undefined,
   agentSession: AgentSession,
 ) {
-  const userId = agentSession.user.id;
-
-  if (capability === "recipes.search") {
-    const visibility = await readableRecipeFilter(db, userId);
-    const input = recipeSearchInput.parse(args ?? {});
-    const pattern = escapedLikePattern(input.query);
-    const recipes = await db
-      .select()
-      .from(schema.recipe)
-      .where(
-        and(
-          visibility,
-          or(
-            ilike(schema.recipe.title, pattern),
-            ilike(schema.recipe.description, pattern),
-            ilike(schema.recipe.body, pattern),
-          ),
-        ),
-      )
-      .orderBy(desc(schema.recipe.updatedAt), desc(schema.recipe.id))
-      .limit(input.limit);
-
-    return { items: recipes.map((recipe) => recipeSummary(recipe, userId)) };
-  }
-
-  if (capability === "recipes.read") {
-    const visibility = await readableRecipeFilter(db, userId);
-    const input = recipeReadInput.parse(args ?? {});
-    const [recipe] = await db
-      .select()
-      .from(schema.recipe)
-      .where(and(visibility, eq(schema.recipe.slug, input.slug)))
-      .limit(1);
-
-    return {
-      recipe: recipe
-        ? { ...recipeSummary(recipe, userId), body: recipe.body }
-        : null,
-    };
-  }
-
-  if (capability === "recipes.dataset.inspect") {
-    const input = recipeDatasetInspectInput.parse(args ?? {});
-    return inspectRecipeDataset(db, userId, input);
-  }
-
-  if (capability === "pantry.read") {
-    noArgumentsInput.parse(args ?? {});
-    const pantry = await readPantry(db, userId);
-    return { ...pantry, scope: pantry.scope.type };
-  }
-
-  if (capability === "shopping_list.read") {
-    noArgumentsInput.parse(args ?? {});
-    const [membership] = await db
-      .select({ organizationId: schema.member.organizationId })
-      .from(schema.member)
-      .where(eq(schema.member.userId, userId))
-      .limit(1);
-    const scope = membership ? "household" : "personal";
-    const resourceId = membership?.organizationId ?? userId;
-    const ownerFilter = membership
-      ? eq(schema.shoppingList.organizationId, membership.organizationId)
-      : eq(schema.shoppingList.userId, userId);
-    const [shoppingList] = await db
-      .select()
-      .from(schema.shoppingList)
-      .where(
-        and(ownerFilter, eq(schema.shoppingList.status, "active")),
-      )
-      .limit(1);
-
-    return {
-      shoppingList: shoppingList
-        ? {
-            id: shoppingList.id,
-            resourceId,
-            scope,
-            revision: shoppingList.revision.toString(),
-            snapshot: shoppingList.snapshot,
-            createdAt: shoppingList.createdAt.toISOString(),
-            updatedAt: shoppingList.updatedAt.toISOString(),
-          }
-        : null,
-    };
-  }
-
-  if (capability === "cook_log.read") {
-    const input = cookLogReadInput.parse(args ?? {});
-    return cookingLogResponse(db, userId, cookingLogQuery(input));
-  }
-
-  if (capability === "cooking_insights.read") {
-    noArgumentsInput.parse(args ?? {});
-    return cookingInsightsResponse(db, userId);
-  }
-
-  throw new Error(`Unsupported agent capability: ${capability}`);
+  const handler = agentCapabilityHandlers[capability];
+  if (!handler) throw new Error(`Unsupported agent capability: ${capability}`);
+  return handler(db, args, agentSession);
 }
 
 async function writeAgentAuthAuditEvent(db: Db, event: AgentAuthEvent) {
