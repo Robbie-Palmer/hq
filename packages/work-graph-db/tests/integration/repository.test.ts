@@ -1,7 +1,8 @@
 import {
   getDirectChildren,
   projectWorkItemStage,
-  WorkGraphError,
+  type WorkGraphError,
+  type DeliveryEvidenceObservation,
   type WorkItemDependency,
 } from "work-graph-domain";
 import { eq, sql } from "drizzle-orm";
@@ -24,6 +25,7 @@ const repository = new WorkGraphRepository(db);
 
 const recordId = (suffix: number): string =>
   `00000000-0000-4000-8000-${suffix.toString().padStart(12, "0")}`;
+const commitSha = (character: string): string => character.repeat(40);
 
 const completionEvidence = {
   mergeEvidence: "https://github.com/example/work-graph/pull/1",
@@ -208,11 +210,16 @@ beforeAll(async () => {
     order by enumsortorder
   `);
 
-  expect(migrationCount?.count).toBe(15);
+  expect(migrationCount?.count).toBe(16);
   expect(tables.map(({ table_name }) => table_name)).toEqual([
     "attention_requests",
     "attention_resolutions",
+    "completion_candidate_evaluations",
+    "completion_policy_revisions",
+    "current_delivery_evidence",
+    "delivery_evidence_observations",
     "events",
+    "external_deliveries",
     "graph_mutation_locks",
     "idempotency_keys",
     "knowledge_scope_relationships",
@@ -221,6 +228,8 @@ beforeAll(async () => {
     "notes",
     "pull_requests",
     "work_item_architecture_decisions",
+    "work_item_completion_candidates",
+    "work_item_completion_policies",
     "work_item_contexts",
     "work_item_dependencies",
     "work_item_hierarchy",
@@ -847,6 +856,21 @@ beforeEach(async () => {
     );
     await transaction.delete(schema.lease);
     await transaction.delete(schema.idempotencyKey);
+    await transaction.delete(schema.workItemCompletionCandidate);
+    await transaction.execute(sql`alter table ${schema.completionCandidateEvaluation} disable trigger completion_candidate_evaluations_immutable`);
+    await transaction.delete(schema.completionCandidateEvaluation);
+    await transaction.execute(sql`alter table ${schema.completionCandidateEvaluation} enable trigger completion_candidate_evaluations_immutable`);
+    await transaction.delete(schema.workItemCompletionPolicy);
+    await transaction.execute(sql`alter table ${schema.completionPolicyRevision} disable trigger completion_policy_revisions_immutable`);
+    await transaction.delete(schema.completionPolicyRevision);
+    await transaction.execute(sql`alter table ${schema.completionPolicyRevision} enable trigger completion_policy_revisions_immutable`);
+    await transaction.delete(schema.currentDeliveryEvidence);
+    await transaction.execute(sql`alter table ${schema.deliveryEvidenceObservation} disable trigger delivery_evidence_observations_immutable`);
+    await transaction.delete(schema.deliveryEvidenceObservation);
+    await transaction.execute(sql`alter table ${schema.deliveryEvidenceObservation} enable trigger delivery_evidence_observations_immutable`);
+    await transaction.execute(sql`alter table ${schema.externalDelivery} disable trigger external_deliveries_immutable`);
+    await transaction.delete(schema.externalDelivery);
+    await transaction.execute(sql`alter table ${schema.externalDelivery} enable trigger external_deliveries_immutable`);
     await transaction.delete(schema.workItemArchitectureDecision);
     await transaction.delete(schema.workItemContext);
     await transaction.delete(schema.workItemReference);
@@ -1075,6 +1099,8 @@ describe("work-item context persistence", () => {
       number: 42,
       url: "https://github.com/example/work-graph/pull/42",
       headSha: "0123456789abcdef0123456789abcdef01234567",
+      acceptedHeadSha: null,
+      mergeCommitSha: null,
       state: "open" as const,
       draft: true,
       mergeability: "unknown" as const,
@@ -1137,6 +1163,215 @@ describe("work-item context persistence", () => {
       }),
     );
     expect((await repository.getWorkItem("second")).stage).toBe("ready");
+  });
+});
+
+describe("delivery evidence persistence", () => {
+  const storeObservation = async (
+    suffix: number,
+    overrides: Partial<DeliveryEvidenceObservation> = {},
+  ) => {
+    const deliveryExternalId = `delivery-${suffix}`;
+    await repository.recordExternalDelivery({
+      provider: "github",
+      externalId: deliveryExternalId,
+      payloadDigest: suffix.toString(16).padStart(64, "0"),
+      receivedAt: new Date(Date.UTC(2026, 8, 22, 10, 0, suffix)).toISOString(),
+      ingestedAt: new Date(Date.UTC(2026, 8, 22, 11, 0, suffix)).toISOString(),
+    });
+    return repository.recordEvidenceObservation({
+      id: recordId(600 + suffix),
+      deliveryProvider: "github",
+      deliveryExternalId,
+      provider: "github",
+      externalId: `evidence-${suffix}`,
+      repository: "example/work-graph",
+      commitSha: commitSha("a"),
+      kind: "ci",
+      state: "success",
+      name: "verify",
+      environment: null,
+      sourceUrl: `https://github.com/example/work-graph/actions/runs/${suffix}`,
+      providerObservedAt: new Date(
+        Date.UTC(2026, 8, 22, 10, 0, suffix),
+      ).toISOString(),
+      ingestedAt: new Date(
+        Date.UTC(2026, 8, 22, 11, 0, suffix),
+      ).toISOString(),
+      correlationKind: "pull_request_head",
+      pullRequestRepository: "example/work-graph",
+      pullRequestNumber: 1,
+      ...overrides,
+    });
+  };
+
+  it("deduplicates deliveries and preserves out-of-order and unmatched observations", async () => {
+    const latest = await storeObservation(1, {
+      externalId: "workflow-1",
+      providerObservedAt: "2026-09-22T12:00:00.000Z",
+    });
+    await expect(
+      repository.recordEvidenceObservation({ ...latest, id: recordId(699) }),
+    ).resolves.toEqual(latest);
+    const replayedDelivery = await repository.recordExternalDelivery({
+      provider: "github",
+      externalId: "delivery-1",
+      payloadDigest: "1".padStart(64, "0"),
+      receivedAt: "2026-09-22T12:30:00.000Z",
+      ingestedAt: "2026-09-22T12:30:01.000Z",
+    });
+    expect(replayedDelivery.receivedAt).not.toBe("2026-09-22T12:30:00.000Z");
+    await expect(
+      repository.recordExternalDelivery({
+        ...replayedDelivery,
+        payloadDigest: "f".repeat(64),
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "external_delivery_reused",
+      }),
+    );
+
+    const stale = await storeObservation(2, {
+      externalId: "workflow-1",
+      state: "failure",
+      providerObservedAt: "2026-09-22T11:00:00.000Z",
+      ingestedAt: "2026-09-22T13:00:00.000Z",
+    });
+    const unmatched = await storeObservation(3, {
+      externalId: "unmatched-deployment",
+      kind: "deployment",
+      environment: "production",
+      correlationKind: "unmatched",
+      pullRequestRepository: null,
+      pullRequestNumber: null,
+    });
+
+    expect(await repository.listCurrentDeliveryEvidence()).toEqual([
+      expect.objectContaining({ id: latest.id, state: "success" }),
+      expect.objectContaining({
+        id: unmatched.id,
+        correlationKind: "unmatched",
+      }),
+    ]);
+    expect(
+      await db.select().from(schema.deliveryEvidenceObservation),
+    ).toHaveLength(3);
+    expect(stale.state).toBe("failure");
+    expect(
+      (
+        await rejectedDatabaseError(
+          db
+            .update(schema.deliveryEvidenceObservation)
+            .set({ state: "success" })
+            .where(eq(schema.deliveryEvidenceObservation.id, stale.id)),
+        )
+      )?.code,
+    ).toBe("55000");
+  });
+
+  it("records a policy-versioned candidate without changing lifecycle or an active lease", async () => {
+    await repository.createWorkItem({ id: "delivery", title: "Ship delivery" });
+    const pullRequests = [
+      { number: 1, head: commitSha("a"), merge: commitSha("b") },
+      { number: 2, head: commitSha("c"), merge: commitSha("d") },
+    ];
+    for (const pullRequest of pullRequests) {
+      await repository.refreshPullRequest({
+        repository: "example/work-graph",
+        number: pullRequest.number,
+        url: `https://github.com/example/work-graph/pull/${pullRequest.number}`,
+        headSha: pullRequest.head,
+        acceptedHeadSha: pullRequest.head,
+        mergeCommitSha: pullRequest.merge,
+        state: "merged",
+        draft: false,
+        mergeability: "unknown",
+        reviewDecision: "approved",
+        checkSummary: "success",
+        observedAt: "2026-09-22T10:00:00.000Z",
+      });
+      await repository.putWorkItemPullRequest({
+        workItemId: "delivery",
+        repository: "example/work-graph",
+        number: pullRequest.number,
+        role: "implementation",
+      });
+    }
+    await repository.putCompletionPolicyRevision({
+      policyId: "repository-default",
+      revision: 2,
+      requiredCiNames: ["verify"],
+      productionEnvironments: ["production"],
+      createdAt: "2026-09-22T09:00:00.000Z",
+    });
+    await repository.assignCompletionPolicy({
+      workItemId: "delivery",
+      policyId: "repository-default",
+      policyRevision: 2,
+      assignedAt: "2026-09-22T09:30:00.000Z",
+    });
+    let suffix = 10;
+    for (const pullRequest of pullRequests) {
+      await storeObservation(suffix, {
+        externalId: `pr-${pullRequest.number}`,
+        commitSha: pullRequest.merge,
+        kind: "pull_request",
+        name: null,
+        correlationKind: "pull_request_merge",
+        pullRequestNumber: pullRequest.number,
+      });
+      suffix += 1;
+      await storeObservation(suffix, {
+        externalId: `ci-${pullRequest.number}`,
+        commitSha: pullRequest.head,
+        pullRequestNumber: pullRequest.number,
+      });
+      suffix += 1;
+      await storeObservation(suffix, {
+        externalId: `deployment-${pullRequest.number}`,
+        commitSha: pullRequest.merge,
+        kind: "deployment",
+        name: null,
+        environment: "production",
+        correlationKind: "pull_request_merge",
+        pullRequestNumber: pullRequest.number,
+      });
+      suffix += 1;
+    }
+    const activeLease = await repository.claimWorkItem({
+      leaseId: recordId(700),
+      workerId: "worker-a",
+      leaseDurationSeconds: 300,
+      workItemId: "delivery",
+    });
+    if (!activeLease) throw new Error("Expected the claim to succeed.");
+    const lifecycleEventsBefore = await repository.listEvents();
+
+    const evaluation = await repository.evaluateCompletionCandidate({
+      id: recordId(701),
+      workItemId: "delivery",
+      evaluatedAt: "2026-09-22T14:00:00.000Z",
+    });
+
+    expect(evaluation).toEqual(
+      expect.objectContaining({
+        policyId: "repository-default",
+        policyRevision: 2,
+        candidate: true,
+        reasons: [],
+      }),
+    );
+    await expect(
+      repository.getCompletionCandidate("delivery"),
+    ).resolves.toEqual(evaluation);
+    await expect(repository.getCurrentLease("delivery")).resolves.toEqual(
+      activeLease,
+    );
+    await expect(repository.getWorkItem("delivery")).resolves.toEqual(
+      expect.objectContaining({ lifecycle: "open", stage: "in_progress" }),
+    );
+    expect(await repository.listEvents()).toEqual(lifecycleEventsBefore);
   });
 });
 

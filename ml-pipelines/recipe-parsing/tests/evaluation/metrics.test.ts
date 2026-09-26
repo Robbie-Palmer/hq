@@ -56,6 +56,14 @@ describe("comparable text normalization", () => {
     ).toBe("bake 2 potatoes for 21 minutes");
   });
 
+  it("normalizes articles, connectors, and integer scales", () => {
+    expect(normalizeComparableText("a hundred and five")).toBe("105");
+    expect(normalizeComparableText("two thousand three hundred")).toBe(
+      "2300",
+    );
+    expect(normalizeComparableText("a potato")).toBe("a potato");
+  });
+
   it("treats em dash and hyphen as equivalent", () => {
     expect(normalizeComparableText("Mix well—and serve")).toBe(
       normalizeComparableText("Mix well-and serve"),

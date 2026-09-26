@@ -1,9 +1,13 @@
+import type { AgentSession, Capability } from "@better-auth/agent-auth";
 import {
-  agentAuth,
-  type AgentAuthEvent,
-  type AgentSession,
-  type Capability,
-} from "@better-auth/agent-auth";
+  createAgentAuthAuditHandler,
+  createAgentAuthConfiguration,
+  createAgentAuthPlugin,
+  createAgentExecutionHandler,
+  type AgentAuthAuditRecord,
+  type AgentExecutionAuditEvent,
+  type AgentExecutionRateLimits,
+} from "agent-auth";
 import { APIError } from "better-auth";
 import { and, desc, eq, ilike, or } from "drizzle-orm";
 import type { Db } from "recipe-db";
@@ -18,47 +22,33 @@ import {
 import { MAX_PANTRY_ITEMS, readPantry } from "./pantry";
 import { readableRecipeFilter } from "./recipe-access";
 import { inspectRecipeDataset } from "./recipe-dataset";
+import { enforceRateLimit } from "./http/rate-limit";
 
 const READ_GRANT_TTL_SECONDS = 30 * 24 * 60 * 60;
-const MAX_AGENT_LIFETIME_SECONDS = 30 * 24 * 60 * 60;
 const MAX_COOK_LOG_RANGE_MS = 90 * 24 * 60 * 60 * 1_000;
 const AGENT_AUTH_PROVIDER_NAME = "Robbie's Recipes";
 const AGENT_AUTH_PROVIDER_DESCRIPTION =
   "Delegated access to recipes and personal cooking data.";
 const AGENT_AUTH_MODES = ["delegated"] as const;
 const AGENT_AUTH_APPROVAL_METHODS = ["device_authorization"] as const;
+const AGENT_EXECUTION_WINDOW_SECONDS = 60;
+
+const AGENT_EXECUTION_RATE_LIMITS = {
+  capability: { max: 30, windowSeconds: AGENT_EXECUTION_WINDOW_SECONDS },
+  agent: { max: 60, windowSeconds: AGENT_EXECUTION_WINDOW_SECONDS },
+  user: { max: 240, windowSeconds: AGENT_EXECUTION_WINDOW_SECONDS },
+  host: { max: 480, windowSeconds: AGENT_EXECUTION_WINDOW_SECONDS },
+  ip: { max: 1_200, windowSeconds: AGENT_EXECUTION_WINDOW_SECONDS },
+} as const satisfies AgentExecutionRateLimits;
 
 export function recipeAgentConfiguration(baseUrl: string) {
-  const issuer = `${new URL(baseUrl).origin}/api/auth`;
-  const paths = {
-    register: "/agent/register",
-    capabilities: "/capability/list",
-    describe_capability: "/capability/describe",
-    execute: "/capability/execute",
-    request_capability: "/agent/request-capability",
-    status: "/agent/status",
-    reactivate: "/agent/reactivate",
-    revoke: "/agent/revoke",
-    revoke_host: "/host/revoke",
-    rotate_key: "/agent/rotate-key",
-    rotate_host_key: "/host/rotate-key",
-    introspect: "/agent/introspect",
-  };
-  const endpoints = Object.fromEntries(
-    Object.entries(paths).map(([name, path]) => [name, `${issuer}${path}`]),
-  );
-
-  return {
-    version: "1.0-draft",
-    provider_name: AGENT_AUTH_PROVIDER_NAME,
+  return createAgentAuthConfiguration({
+    baseUrl,
+    providerName: AGENT_AUTH_PROVIDER_NAME,
     description: AGENT_AUTH_PROVIDER_DESCRIPTION,
-    issuer,
-    default_location: endpoints.execute,
-    algorithms: ["Ed25519"],
     modes: [...AGENT_AUTH_MODES],
-    approval_methods: [...AGENT_AUTH_APPROVAL_METHODS],
-    endpoints,
-  };
+    approvalMethods: [...AGENT_AUTH_APPROVAL_METHODS],
+  });
 }
 
 const recipeSearchInput = z
@@ -777,58 +767,31 @@ export async function executeRecipeAgentCapability(
   return handler(db, args, agentSession);
 }
 
-async function writeAgentAuthAuditEvent(db: Db, event: AgentAuthEvent) {
-  let userId: string | undefined;
-  if (event.type === "capability.executed") {
-    userId = event.userId;
-  } else if (event.actorType === "user") {
-    userId = event.actorId;
-  }
-
-  await db.insert(schema.agentAuthAuditEvent).values({
-    eventType: event.type,
-    actorType: event.actorType,
-    actorId: event.actorId,
-    userId,
-    agentId: event.agentId,
-    hostId: event.hostId,
-    targetType: event.targetType,
-    targetId: event.targetId,
-    capability:
-      event.type === "capability.executed" ? event.capability : undefined,
-    outcome: event.type === "capability.executed" ? event.status : undefined,
-    durationMs:
-      event.type === "capability.executed" ? event.durationMs : undefined,
-  });
+async function writeAgentAuthAuditRecord(
+  db: Db,
+  record: AgentAuthAuditRecord | AgentExecutionAuditEvent,
+) {
+  await db.insert(schema.agentAuthAuditEvent).values(record);
 }
 
 export function createRecipeAgentAuthPlugin(db: Db) {
-  return agentAuth({
+  const onExecute = createAgentExecutionHandler({
+    limits: AGENT_EXECUTION_RATE_LIMITS,
+    consumeRateLimit: (key, rule) =>
+      enforceRateLimit(db, key, { ...rule, failClosed: true }),
+    audit: (event) => writeAgentAuthAuditRecord(db, event),
+    execute: ({ capability, arguments: args, agentSession }) =>
+      executeRecipeAgentCapability(db, capability, args, agentSession),
+  });
+  return createAgentAuthPlugin({
     providerName: AGENT_AUTH_PROVIDER_NAME,
     providerDescription: AGENT_AUTH_PROVIDER_DESCRIPTION,
-    modes: [...AGENT_AUTH_MODES],
-    approvalMethods: [...AGENT_AUTH_APPROVAL_METHODS],
     deviceAuthorizationPage: "/recipes/settings/agents/approve",
     capabilities: RECIPE_SITE_AGENT_CAPABILITIES,
-    validateCapabilities: (capabilities) =>
-      capabilities.every((name) =>
-        RECIPE_SITE_AGENT_CAPABILITIES.some(
-          (capability) => capability.name === name,
-        ),
-      ),
-    allowDynamicHostRegistration: false,
-    defaultHostCapabilities: [],
-    jwtMaxAge: 60,
-    agentSessionTTL: MAX_AGENT_LIFETIME_SECONDS,
-    agentMaxLifetime: MAX_AGENT_LIFETIME_SECONDS,
-    absoluteLifetime: 90 * 24 * 60 * 60,
-    // Better Auth checks a JTI with get() before its later set(). The
-    // PostgreSQL adapter claims agent-auth:jti keys atomically inside get(),
-    // so concurrent requests cannot both observe an unused token.
-    jtiCacheStorage: "secondary-storage",
-    jwksCacheStorage: "secondary-storage",
-    onEvent: (event) => writeAgentAuthAuditEvent(db, event),
-    onExecute: ({ capability, arguments: args, agentSession }) =>
-      executeRecipeAgentCapability(db, capability, args, agentSession),
+    onEvent: createAgentAuthAuditHandler({
+      includeCapabilityExecutions: false,
+      write: (record) => writeAgentAuthAuditRecord(db, record),
+    }),
+    onExecute,
   });
 }

@@ -84,121 +84,158 @@ function recipeJsonLd(payload: RecipePayload, url: URL, slug: string): string {
   return `${json}\n`;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-export const onRequest = async (context: Context): Promise<Response> => {
-  const url = new URL(context.request.url);
-  const relativePath = url.pathname.replace(/^\/recipes\/?/, "");
-  if (!relativePath || relativePath.includes("/")) return context.next();
+type RecipeExtension = "md" | "json" | "cook";
 
-  const extension = /\.(md|json|cook)$/.exec(relativePath)?.[1];
+function parseRecipeRoute(url: URL): {
+  slug: string;
+  extension?: RecipeExtension;
+} | null {
+  const relativePath = url.pathname.replace(/^\/recipes\/?/, "");
+  if (!relativePath || relativePath.includes("/")) return null;
+
+  const extension = /\.(md|json|cook)$/.exec(relativePath)?.[1] as
+    | RecipeExtension
+    | undefined;
   const slug = extension
     ? relativePath.slice(0, -(extension.length + 1))
     : relativePath;
   if (!isRecipeSlug(slug) || (!extension && isRecipeAppRouteSlug(slug))) {
-    return context.next();
+    return null;
   }
+  return { slug, extension };
+}
 
-  if (!extension) {
-    const apiRequest = new Request(context.request.url, {
-      method: "GET",
-      headers: context.request.headers,
-    });
-    const apiResponse = await proxyRecipeApiRequest(
-      {
-        request: apiRequest,
-        env: context.env,
-        waitUntil: context.waitUntil
-          ? (promise) => context.waitUntil?.(promise)
-          : undefined,
+async function fetchRecipePageAsset(
+  context: Context,
+  url: URL,
+): Promise<Response> {
+  const assetHeaders = new Headers(context.request.headers);
+  assetHeaders.delete("if-none-match");
+  assetHeaders.delete("if-modified-since");
+  return context.env.ASSETS.fetch(
+    new Request(new URL("/recipes/saved.html", url), {
+      method: context.request.method,
+      headers: assetHeaders,
+    }),
+  );
+}
+
+function rewriteRecipePage(
+  asset: Response,
+  headers: Headers,
+  payload: RecipePayload,
+  description: string,
+  canonicalUrl: string | null,
+  jsonLd: string,
+): Response {
+  const Rewriter = (
+    globalThis as typeof globalThis & {
+      HTMLRewriter: HtmlRewriterConstructor;
+    }
+  ).HTMLRewriter;
+  let rewriter = new Rewriter()
+    .on("title", {
+      element(element) {
+        element.setInnerContent(payload.recipe.title);
       },
-      "Recipe pages are available on the canonical PR preview URL only",
-    );
-    const loaded = await decodeRecipeResponse(apiResponse);
-    if (!loaded) return new Response("Not found", { status: 404 });
-    if (
-      loaded.record.visibility === "public" &&
-      (context.request.headers.get("accept") ?? "").includes("text/markdown")
-    ) {
-      return textResponse(recipeMarkdown(loaded.payload), "text/markdown");
-    }
-    const isPublic = loaded.record.visibility === "public";
-    const assetUrl = new URL("/recipes/saved.html", url);
-    const assetHeaders = new Headers(context.request.headers);
-    assetHeaders.delete("if-none-match");
-    assetHeaders.delete("if-modified-since");
-    const asset = await context.env.ASSETS.fetch(
-      new Request(assetUrl, {
-        method: context.request.method,
-        headers: assetHeaders,
-      }),
-    );
-    if (!asset.ok) return asset;
-    const headers = rewrittenRecipeAssetHeaders(
-      asset,
-      isPublic
-        ? "public, max-age=60, s-maxage=300"
-        : "private, no-store",
-    );
-    if (context.request.method === "HEAD") {
-      return new Response(null, { status: asset.status, headers });
-    }
-    const description =
-      loaded.payload.recipe.description ||
-      loaded.record.description ||
-      loaded.payload.recipe.title;
-    const headMarkup = isPublic
-      ? `<link rel="canonical" href="${escapeHtmlAttribute(
-          `${url.origin}/recipes/${slug}`,
-        )}">` +
-        `<script type="application/ld+json">${recipeJsonLd(
-          loaded.payload,
-          url,
-          slug,
-        ).trim()}</script>`
-      : "";
-    const Rewriter = (
-      globalThis as typeof globalThis & {
-        HTMLRewriter: HtmlRewriterConstructor;
-      }
-    ).HTMLRewriter;
-    let rewriter = new Rewriter()
-      .on("title", {
+    })
+    .on('meta[name="description"]', {
+      element(element) {
+        element.setAttribute("content", description);
+      },
+    });
+
+  if (canonicalUrl) {
+    const headMarkup =
+      `<link rel="canonical" href="${escapeHtmlAttribute(canonicalUrl)}">` +
+      `<script type="application/ld+json">${jsonLd.trim()}</script>`;
+    rewriter = rewriter
+      .on('link[rel="canonical"]', {
         element(element) {
-          element.setInnerContent(loaded.payload.recipe.title);
+          element.remove();
         },
       })
-      .on('meta[name="description"]', {
+      .on('meta[name="robots"]', {
         element(element) {
-          element.setAttribute("content", description);
+          element.remove();
+        },
+      })
+      .on("head", {
+        element(element) {
+          element.append(headMarkup, { html: true });
         },
       });
-    if (isPublic) {
-      rewriter = rewriter
-        .on('link[rel="canonical"]', {
-          element(element) {
-            element.remove();
-          },
-        })
-        .on('meta[name="robots"]', {
-          element(element) {
-            element.remove();
-          },
-        })
-        .on("head", {
-          element(element) {
-            element.append(headMarkup, { html: true });
-          },
-        });
-    }
-    return rewriter.transform(
-      new Response(asset.body, {
-        status: asset.status,
-        statusText: asset.statusText,
-        headers,
-      }),
-    );
   }
 
+  return rewriter.transform(
+    new Response(asset.body, {
+      status: asset.status,
+      statusText: asset.statusText,
+      headers,
+    }),
+  );
+}
+
+async function serveRecipePage(
+  context: Context,
+  url: URL,
+  slug: string,
+): Promise<Response> {
+  const apiRequest = new Request(context.request.url, {
+    method: "GET",
+    headers: context.request.headers,
+  });
+  const apiResponse = await proxyRecipeApiRequest(
+    {
+      request: apiRequest,
+      env: context.env,
+      waitUntil: context.waitUntil
+        ? (promise) => context.waitUntil?.(promise)
+        : undefined,
+    },
+    "Recipe pages are available on the canonical PR preview URL only",
+  );
+  const loaded = await decodeRecipeResponse(apiResponse);
+  if (!loaded) return new Response("Not found", { status: 404 });
+
+  const isPublic = loaded.record.visibility === "public";
+  const acceptsMarkdown = (
+    context.request.headers.get("accept") ?? ""
+  ).includes("text/markdown");
+  if (isPublic && acceptsMarkdown) {
+    return textResponse(recipeMarkdown(loaded.payload), "text/markdown");
+  }
+
+  const asset = await fetchRecipePageAsset(context, url);
+  if (!asset.ok) return asset;
+  const headers = rewrittenRecipeAssetHeaders(
+    asset,
+    isPublic ? "public, max-age=60, s-maxage=300" : "private, no-store",
+  );
+  if (context.request.method === "HEAD") {
+    return new Response(null, { status: asset.status, headers });
+  }
+
+  const description =
+    loaded.payload.recipe.description ||
+    loaded.record.description ||
+    loaded.payload.recipe.title;
+  return rewriteRecipePage(
+    asset,
+    headers,
+    loaded.payload,
+    description,
+    isPublic ? `${url.origin}/recipes/${slug}` : null,
+    recipeJsonLd(loaded.payload, url, slug),
+  );
+}
+
+async function servePublicRecipeFormat(
+  context: Context,
+  url: URL,
+  slug: string,
+  extension: RecipeExtension,
+): Promise<Response> {
   const loaded = await loadPublicRecipe(context.env, slug);
   if (!loaded) return new Response("Not found", { status: 404 });
   if (extension === "md") {
@@ -214,4 +251,14 @@ export const onRequest = async (context: Context): Promise<Response> => {
     recipeJsonLd(loaded.payload, url, slug),
     "application/ld+json",
   );
+}
+
+export const onRequest = async (context: Context): Promise<Response> => {
+  const url = new URL(context.request.url);
+  const route = parseRecipeRoute(url);
+  if (!route) return context.next();
+
+  return route.extension
+    ? servePublicRecipeFormat(context, url, route.slug, route.extension)
+    : serveRecipePage(context, url, route.slug);
 };

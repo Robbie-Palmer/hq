@@ -10,7 +10,8 @@ import {
   loadParams,
   writeJson,
 } from "../lib/io";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { extractRecipeFromImages } from "recipe-parsing/openrouter";
 import { imageSetKey } from "../lib/image-key.js";
 import { stringifyProviderErrorBody } from "recipe-parsing/parse-retry";
@@ -43,7 +44,19 @@ type ExtractFailure = {
   failure: ParseFailuresDataset["entries"][number];
 };
 
-type ExtractResult = ExtractSuccess | ExtractFailure;
+export type ExtractResult = ExtractSuccess | ExtractFailure;
+
+export type ExtractParams = {
+  apiKey: string;
+  images: string[];
+  model: string;
+  requestTimeoutMs: number;
+  maxRetries: number;
+  maxImageDimension: number;
+  jpegQuality: number;
+  backoffBaseDelayMs: number;
+  backoffMaxDelayMs: number;
+};
 
 function buildFailure(params: {
   images: string[];
@@ -78,34 +91,22 @@ function buildFailure(params: {
   };
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-async function extractEntryWithRetries(params: {
-  apiKey: string;
-  images: string[];
-  model: string;
-  requestTimeoutMs: number;
-  maxRetries: number;
-  maxImageDimension: number;
-  jpegQuality: number;
-  backoffBaseDelayMs: number;
-  backoffMaxDelayMs: number;
-}): Promise<ExtractResult> {
-  const attempts = params.maxRetries + 1;
-  let lastError: unknown;
-  const attemptErrors: AttemptErrorDetail[] = [];
-
-  // A single unreadable image should fail this entry, not abort the whole run.
-  let imageDataUrls: string[];
+async function loadImageDataUrls(
+  params: ExtractParams,
+): Promise<{ ok: true; imageDataUrls: string[] } | ExtractFailure> {
   try {
-    imageDataUrls = await Promise.all(
-      params.images.map((imageFile) =>
-        imagePathToDataUrl(
-          join(IMAGES_DIR, imageFile),
-          params.maxImageDimension,
-          params.jpegQuality,
+    return {
+      ok: true,
+      imageDataUrls: await Promise.all(
+        params.images.map((imageFile) =>
+          imagePathToDataUrl(
+            join(IMAGES_DIR, imageFile),
+            params.maxImageDimension,
+            params.jpegQuality,
+          ),
         ),
       ),
-    );
+    };
   } catch (error) {
     return buildFailure({
       images: params.images,
@@ -114,12 +115,50 @@ async function extractEntryWithRetries(params: {
       attemptErrors: [extractAttemptErrorDetail(error, 1)],
     });
   }
+}
+
+function extractionDiagnosticSuffix(detail: AttemptErrorDetail): string {
+  const diagnostics: string[] = [];
+  if (detail.statusCode !== undefined) {
+    diagnostics.push(`status=${detail.statusCode}`);
+  }
+  if (detail.requestId) diagnostics.push(`request_id=${detail.requestId}`);
+  if (detail.providerErrorCode) {
+    diagnostics.push(`code=${detail.providerErrorCode}`);
+  }
+  if (detail.providerErrorType) {
+    diagnostics.push(`type=${detail.providerErrorType}`);
+  }
+  return diagnostics.length > 0 ? ` (${diagnostics.join(", ")})` : "";
+}
+
+function logExtractionFailure(
+  images: string[],
+  detail: AttemptErrorDetail,
+  attempt: number,
+  attempts: number,
+): void {
+  console.warn(
+    `Extraction failed for [${images.join(", ")}] attempt ${attempt}/${attempts}: ${detail.errorMessage}${extractionDiagnosticSuffix(detail)}`,
+  );
+}
+
+export async function extractEntryWithRetries(
+  params: ExtractParams,
+): Promise<ExtractResult> {
+  const attempts = params.maxRetries + 1;
+  let lastError: unknown;
+  const attemptErrors: AttemptErrorDetail[] = [];
+
+  // A single unreadable image should fail this entry, not abort the whole run.
+  const loadedImages = await loadImageDataUrls(params);
+  if (!loadedImages.ok) return loadedImages;
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
       const extracted = await extractRecipeFromImages({
         apiKey: params.apiKey,
-        imageDataUrls,
+        imageDataUrls: loadedImages.imageDataUrls,
         model: params.model,
         requestTimeoutMs: params.requestTimeoutMs,
       });
@@ -135,29 +174,16 @@ async function extractEntryWithRetries(params: {
       lastError = error;
       const detail = extractAttemptErrorDetail(error, attempt);
       attemptErrors.push(detail);
-      const diagnostics: string[] = [];
-      if (detail.statusCode !== undefined) diagnostics.push(`status=${detail.statusCode}`);
-      if (detail.requestId) diagnostics.push(`request_id=${detail.requestId}`);
-      if (detail.providerErrorCode) diagnostics.push(`code=${detail.providerErrorCode}`);
-      if (detail.providerErrorType) diagnostics.push(`type=${detail.providerErrorType}`);
-      const diagnosticSuffix =
-        diagnostics.length > 0 ? ` (${diagnostics.join(", ")})` : "";
-      console.warn(
-        `Extraction failed for [${params.images.join(", ")}] attempt ${attempt}/${attempts}: ${detail.errorMessage}${diagnosticSuffix}`,
-      );
+      logExtractionFailure(params.images, detail, attempt, attempts);
       const hasNextAttempt = attempt < attempts;
-      if (hasNextAttempt && detail.retryable) {
-        const delayMs = computeBackoffDelayMs(
-          attempt,
-          params.backoffBaseDelayMs,
-          params.backoffMaxDelayMs,
-        );
-        console.log(`Retrying [${params.images.join(", ")}] in ${delayMs}ms...`);
-        await sleep(delayMs);
-      }
-      if (hasNextAttempt && !detail.retryable) {
-        break;
-      }
+      if (!hasNextAttempt || !detail.retryable) break;
+      const delayMs = computeBackoffDelayMs(
+        attempt,
+        params.backoffBaseDelayMs,
+        params.backoffMaxDelayMs,
+      );
+      console.log(`Retrying [${params.images.join(", ")}] in ${delayMs}ms...`);
+      await sleep(delayMs);
     }
   }
 
@@ -299,7 +325,9 @@ async function main() {
   console.log(`Failures written to ${EXTRACTION_FAILURES_PATH}`);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

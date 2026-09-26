@@ -7,6 +7,8 @@ import {
   loadPreparedData,
   writeJson,
 } from "../lib/io";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 interface DatasetStats {
   recipes: {
@@ -47,7 +49,65 @@ function toCountRows<K extends string>(counts: Map<string, number>, key: K): Arr
     });
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+type PreparedEntries = Awaited<ReturnType<typeof loadPreparedData>>["entries"];
+
+export function imagesPerRecipe(entries: PreparedEntries) {
+  return entries
+    .map((entry, index) => ({
+      recipe: entry.expected.title,
+      recipe_index: index + 1,
+      image_count: entry.images.length,
+    }))
+    .sort((a, b) => {
+      const countDiff = b.image_count - a.image_count;
+      return countDiff !== 0 ? countDiff : a.recipe.localeCompare(b.recipe);
+    });
+}
+
+export function imageCountHistogram(
+  entries: ReturnType<typeof imagesPerRecipe>,
+): { image_count: number; recipe_count: number }[] {
+  const counts = new Map<number, number>();
+  for (const entry of entries) {
+    counts.set(entry.image_count, (counts.get(entry.image_count) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([image_count, recipe_count]) => ({ image_count, recipe_count }))
+    .sort((a, b) => a.image_count - b.image_count);
+}
+
+export function countRecipeValues(entries: PreparedEntries) {
+  const cuisineCounts = new Map<string, number>();
+  const ingredientCounts = new Map<string, number>();
+  let unknownCuisineCount = 0;
+
+  for (const entry of entries) {
+    if (entry.expected.cuisine.length === 0) unknownCuisineCount += 1;
+    for (const cuisine of entry.expected.cuisine) {
+      const trimmed = cuisine.trim();
+      if (trimmed) {
+        cuisineCounts.set(trimmed, (cuisineCounts.get(trimmed) ?? 0) + 1);
+      }
+    }
+    for (const group of entry.expected.ingredientGroups) {
+      for (const item of group.items) {
+        ingredientCounts.set(
+          item.ingredient,
+          (ingredientCounts.get(item.ingredient) ?? 0) + 1,
+        );
+      }
+    }
+  }
+  return { cuisineCounts, ingredientCounts, unknownCuisineCount };
+}
+
+export function average(values: number[]): number {
+  if (values.length === 0) return 0;
+  return Number(
+    (values.reduce((sum, count) => sum + count, 0) / values.length).toFixed(2),
+  );
+}
+
 async function main() {
   console.log("Loading prepared dataset...");
 
@@ -63,59 +123,15 @@ async function main() {
     (image) => !localImageSet.has(image),
   ).length;
 
-  const imagesPerRecipe = prepared.entries
-    .map((entry, index) => ({
-      recipe: entry.expected.title,
-      recipe_index: index + 1,
-      image_count: entry.images.length,
-    }))
-    .sort((a, b) => {
-      const countDiff = b.image_count - a.image_count;
-      if (countDiff !== 0) return countDiff;
-      return a.recipe.localeCompare(b.recipe);
-    });
-
-  const imageCountHistogramMap = new Map<number, number>();
-  for (const entry of imagesPerRecipe) {
-    imageCountHistogramMap.set(
-      entry.image_count,
-      (imageCountHistogramMap.get(entry.image_count) ?? 0) + 1,
-    );
-  }
-  const imageCountHistogram = [...imageCountHistogramMap.entries()]
-    .map(([image_count, recipe_count]) => ({ image_count, recipe_count }))
-    .sort((a, b) => a.image_count - b.image_count);
-
-  const cuisineCounts = new Map<string, number>();
-  const ingredientCounts = new Map<string, number>();
-  let unknownCuisineCount = 0;
-
-  for (const entry of prepared.entries) {
-    if (entry.expected.cuisine.length > 0) {
-      for (const cuisine of entry.expected.cuisine) {
-        const trimmed = cuisine.trim();
-        if (trimmed) {
-          cuisineCounts.set(trimmed, (cuisineCounts.get(trimmed) ?? 0) + 1);
-        }
-      }
-    } else {
-      unknownCuisineCount += 1;
-    }
-
-    for (const group of entry.expected.ingredientGroups) {
-      for (const item of group.items) {
-        ingredientCounts.set(
-          item.ingredient,
-          (ingredientCounts.get(item.ingredient) ?? 0) + 1,
-        );
-      }
-    }
-  }
+  const recipeImageCounts = imagesPerRecipe(prepared.entries);
+  const histogram = imageCountHistogram(recipeImageCounts);
+  const { cuisineCounts, ingredientCounts, unknownCuisineCount } =
+    countRecipeValues(prepared.entries);
 
   const cuisineDistribution = toCountRows(cuisineCounts, "cuisine");
   const topIngredients = toCountRows(ingredientCounts, "ingredient").slice(0, 20);
 
-  const imageCounts = imagesPerRecipe.map((entry) => entry.image_count);
+  const imageCounts = recipeImageCounts.map((entry) => entry.image_count);
   const stats: DatasetStats = {
     recipes: {
       count: prepared.entries.length,
@@ -125,15 +141,7 @@ async function main() {
       uniqueReferencedCount: uniqueReferencedImages.size,
       localFileCount: localImageFiles.length,
       missingReferencedCount,
-      averagePerRecipe:
-        imageCounts.length === 0
-          ? 0
-          : Number(
-              (
-                imageCounts.reduce((sum, count) => sum + count, 0) /
-                imageCounts.length
-              ).toFixed(2),
-            ),
+      averagePerRecipe: average(imageCounts),
       maxPerRecipe: imageCounts.reduce((max, c) => (c > max ? c : max), 0),
       minPerRecipe: imageCounts.reduce(
         (min, c) => (c < min ? c : min),
@@ -157,7 +165,7 @@ async function main() {
 
   await Promise.all([
     writeJson(DATASET_STATS_PATH, stats),
-    writeJson(IMAGES_PER_RECIPE_HISTOGRAM_PATH, imageCountHistogram),
+    writeJson(IMAGES_PER_RECIPE_HISTOGRAM_PATH, histogram),
     writeJson(CUISINE_DISTRIBUTION_PLOT_PATH, cuisineDistribution.slice(0, 20)),
     writeJson(TOP_INGREDIENTS_PLOT_PATH, topIngredients),
   ]);
@@ -175,7 +183,9 @@ async function main() {
   console.log(`Plot data written to ${TOP_INGREDIENTS_PLOT_PATH}`);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

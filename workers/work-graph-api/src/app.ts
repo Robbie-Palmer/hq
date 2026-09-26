@@ -319,6 +319,7 @@ const inheritanceDepthSchema = z
   .min(0)
   .max(MAX_INT32)
   .openapi({ format: "int32" });
+const commitShaSchema = z.string().max(40).regex(/^[0-9a-f]{40}$/);
 const workItemTextContextSchema = z.object({
   workItemId: identifierSchema,
   kind: z.enum(WORK_ITEM_CONTEXT_KINDS),
@@ -336,7 +337,9 @@ const pullRequestSnapshotSchema = z
     repository: identifierSchema,
     number: z.number().int().min(1).max(MAX_INT32).openapi({ format: "int32" }),
     url: contextUrlSchema,
-    headSha: z.string().max(40).regex(/^[0-9a-f]{40}$/),
+    headSha: commitShaSchema,
+    acceptedHeadSha: z.union([commitShaSchema, z.null()]),
+    mergeCommitSha: z.union([commitShaSchema, z.null()]),
     state: z.enum(PULL_REQUEST_STATES),
     draft: z.boolean(),
     mergeability: z.enum(PULL_REQUEST_MERGEABILITIES),
@@ -694,7 +697,16 @@ const putWorkItemContextBodySchema = z.union([
 const putWorkItemReferenceBodySchema = workItemReferenceSchema
   .omit({ workItemId: true })
   .strict();
-const refreshPullRequestBodySchema = pullRequestSnapshotSchema.strict();
+const refreshPullRequestBodySchema = pullRequestSnapshotSchema
+  .extend({
+    acceptedHeadSha: pullRequestSnapshotSchema.shape.acceptedHeadSha
+      .optional()
+      .default(null),
+    mergeCommitSha: pullRequestSnapshotSchema.shape.mergeCommitSha
+      .optional()
+      .default(null),
+  })
+  .strict();
 const putWorkItemPullRequestBodySchema = workItemPullRequestSchema
   .omit({ workItemId: true })
   .strict();
@@ -2172,6 +2184,7 @@ const statusForWorkGraphError = (error: WorkGraphError): 400 | 404 | 409 => {
   if (
     error.code === "work_item_not_found" ||
     error.code === "attention_request_not_found" ||
+    error.code === "external_delivery_not_found" ||
     error.code === "knowledge_scope_not_found" ||
     error.code === "pull_request_not_found"
   ) {

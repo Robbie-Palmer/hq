@@ -181,6 +181,8 @@ export const zPullRequestSnapshot = z.object({
     number: z.int().gte(1).lte(2147483647),
     url: z.url().max(2048).regex(/^[hH][tT][tT][pP][sS]?:\/\/(?![^\/?#]*@)/),
     headSha: z.string().max(40).regex(/^[0-9a-f]{40}$/),
+    acceptedHeadSha: z.string().max(40).regex(/^[0-9a-f]{40}$/).nullable(),
+    mergeCommitSha: z.string().max(40).regex(/^[0-9a-f]{40}$/).nullable(),
     state: z.enum([
         'open',
         'closed',
@@ -703,6 +705,8 @@ export const zRefreshPullRequestBody = z.object({
     number: z.int().gte(1).lte(2147483647),
     url: z.url().max(2048).regex(/^[hH][tT][tT][pP][sS]?:\/\/(?![^\/?#]*@)/),
     headSha: z.string().max(40).regex(/^[0-9a-f]{40}$/),
+    acceptedHeadSha: z.string().max(40).regex(/^[0-9a-f]{40}$/).nullish().default(null),
+    mergeCommitSha: z.string().max(40).regex(/^[0-9a-f]{40}$/).nullish().default(null),
     state: z.enum([
         'open',
         'closed',

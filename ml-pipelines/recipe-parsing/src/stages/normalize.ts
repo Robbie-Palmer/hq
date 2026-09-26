@@ -1,4 +1,6 @@
 import "dotenv/config";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { requiredEnv } from "node-base/env";
 import {
   PREDICTIONS_PATH,
@@ -54,7 +56,17 @@ type NormalizeFailure = {
   failure: ParseFailuresDataset["entries"][number];
 };
 
-type NormalizeResult = NormalizeSuccess | NormalizeFailure;
+export type NormalizeResult = NormalizeSuccess | NormalizeFailure;
+
+export type NormalizeParams = {
+  apiKey: string;
+  entry: ExtractionPredictionEntry;
+  model: string;
+  requestTimeoutMs: number;
+  maxRetries: number;
+  backoffBaseDelayMs: number;
+  backoffMaxDelayMs: number;
+};
 
 function buildFailure(params: {
   images: string[];
@@ -93,16 +105,85 @@ function buildFailure(params: {
   };
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-async function normalizeEntryWithRetries(params: {
-  apiKey: string;
-  entry: ExtractionPredictionEntry;
-  model: string;
-  requestTimeoutMs: number;
-  maxRetries: number;
-  backoffBaseDelayMs: number;
-  backoffMaxDelayMs: number;
-}): Promise<NormalizeResult> {
+function normalizationSuccess(
+  entry: ExtractionPredictionEntry,
+  cooklang: CooklangPredictionEntry["cooklang"],
+  predicted: PredictionEntry["predicted"],
+): NormalizeSuccess {
+  return {
+    ok: true,
+    prediction: { images: entry.images, predicted },
+    cooklang: { images: entry.images, cooklang },
+  };
+}
+
+function normalizationDerivationResult(
+  params: NormalizeParams,
+  derived: CooklangPredictionEntry["cooklang"],
+  draft: CooklangPredictionEntry["cooklang"],
+  attemptErrors: AttemptErrorDetail[],
+): NormalizeResult {
+  if (derived.derived) {
+    return normalizationSuccess(params.entry, derived, derived.derived);
+  }
+  if (draft.derived) {
+    return normalizationSuccess(
+      params.entry,
+      {
+        ...derived,
+        derived: draft.derived,
+        diagnostics: [
+          ...derived.diagnostics,
+          "LLM cooklang derivation failed; using deterministic draft.",
+        ],
+      },
+      draft.derived,
+    );
+  }
+  return buildFailure({
+    images: params.entry.images,
+    model: params.model,
+    lastError: new Error(derived.diagnostics.join(" | ")),
+    attemptErrors,
+    cooklang: { images: params.entry.images, cooklang: derived },
+  });
+}
+
+function failedNormalizationFallback(
+  params: NormalizeParams,
+  draft: CooklangPredictionEntry["cooklang"],
+  attemptErrors: AttemptErrorDetail[],
+): NormalizeResult {
+  if (draft.derived) {
+    console.log(
+      `Using deterministic draft for [${params.entry.images.join(", ")}] after normalization failures.`,
+    );
+    return normalizationSuccess(
+      params.entry,
+      {
+        ...draft,
+        diagnostics: [
+          ...draft.diagnostics,
+          `Normalization LLM failed after ${attemptErrors.length} attempts; using deterministic draft.`,
+        ],
+      },
+      draft.derived,
+    );
+  }
+  return buildFailure({
+    images: params.entry.images,
+    model: params.model,
+    lastError: new Error(
+      "Normalization failed and deterministic draft could not produce a recipe",
+    ),
+    attemptErrors,
+    cooklang: { images: params.entry.images, cooklang: draft },
+  });
+}
+
+export async function normalizeEntryWithRetries(
+  params: NormalizeParams,
+): Promise<NormalizeResult> {
   const { entry } = params;
   const draft = buildCooklangDraftFromExtraction(entry.extracted);
   const attempts = params.maxRetries + 1;
@@ -121,39 +202,12 @@ async function normalizeEntryWithRetries(params: {
       // The LLM may include a `derived` field but it won't have normalized slugs.
       const derived = deriveRecipeFromCooklang({ ...cooklang.value, derived: undefined });
 
-      if (!derived.derived) {
-        // LLM produced cooklang but derivation failed — use draft fallback
-        const fallbackDerived = draft.derived;
-        if (fallbackDerived) {
-          return {
-            ok: true,
-            prediction: { images: entry.images, predicted: fallbackDerived },
-            cooklang: {
-              images: entry.images,
-              cooklang: {
-                ...derived,
-                diagnostics: [
-                  ...derived.diagnostics,
-                  "LLM cooklang derivation failed; using deterministic draft.",
-                ],
-              },
-            },
-          };
-        }
-        return buildFailure({
-          images: entry.images,
-          model: params.model,
-          lastError: new Error(derived.diagnostics.join(" | ")),
-          attemptErrors,
-          cooklang: { images: entry.images, cooklang: derived },
-        });
-      }
-
-      return {
-        ok: true,
-        prediction: { images: entry.images, predicted: derived.derived },
-        cooklang: { images: entry.images, cooklang: derived },
-      };
+      return normalizationDerivationResult(
+        params,
+        derived,
+        draft,
+        attemptErrors,
+      );
     } catch (error) {
       const detail = extractAttemptErrorDetail(error, attempt);
       attemptErrors.push(detail);
@@ -177,37 +231,122 @@ async function normalizeEntryWithRetries(params: {
     }
   }
 
-  // All retries exhausted — fall back to deterministic draft
-  if (draft.derived) {
-    console.log(
-      `Using deterministic draft for [${entry.images.join(", ")}] after normalization failures.`,
-    );
-    return {
-      ok: true,
-      prediction: { images: entry.images, predicted: draft.derived },
-      cooklang: {
-        images: entry.images,
-        cooklang: {
-          ...draft,
-          diagnostics: [
-            ...draft.diagnostics,
-            `Normalization LLM failed after ${attemptErrors.length} attempts; using deterministic draft.`,
-          ],
-        },
-      },
-    };
-  }
-
-  return buildFailure({
-    images: entry.images,
-    model: params.model,
-    lastError: new Error("Normalization failed and deterministic draft could not produce a recipe"),
-    attemptErrors,
-    cooklang: { images: entry.images, cooklang: draft },
-  });
+  return failedNormalizationFallback(params, draft, attemptErrors);
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+export function selectNormalizationEntries(
+  entries: ExtractionPredictionEntry[],
+  targetImages: string[] | undefined,
+): { entries: ExtractionPredictionEntry[]; targetKeys: Set<string> } {
+  if (!targetImages) return { entries, targetKeys: new Set() };
+  const targetSet = new Set(targetImages);
+  const matches = entries.filter(
+    (entry) =>
+      entry.images.length === targetImages.length &&
+      entry.images.every((image) => targetSet.has(image)),
+  );
+  if (matches.length === 0) {
+    const available = entries
+      .map((entry) => entry.images.join(", "))
+      .sort((a, b) => a.localeCompare(b))
+      .join("\n  - ");
+    throw new Error(
+      `No entry matched NORMALIZE_TARGET_IMAGES=${targetImages.join(", ")}.\nAvailable image sets:\n  - ${available}`,
+    );
+  }
+  return {
+    entries: matches,
+    targetKeys: new Set(matches.map((entry) => imageSetKey(entry.images))),
+  };
+}
+
+export async function runNormalizationWorkers(
+  entries: ExtractionPredictionEntry[],
+  concurrency: number,
+  params: Omit<NormalizeParams, "entry">,
+): Promise<Array<NormalizeResult | undefined>> {
+  const results = new Array<NormalizeResult | undefined>(entries.length);
+  let nextIndex = 0;
+  const worker = async () => {
+    while (true) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      if (currentIndex >= entries.length) return;
+      results[currentIndex] = await normalizeEntryWithRetries({
+        ...params,
+        entry: entries[currentIndex]!,
+      });
+    }
+  };
+  const workerCount = Math.min(concurrency, Math.max(entries.length, 1));
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
+}
+
+export type NormalizeOutputs = {
+  predictions: PredictionsDataset;
+  cooklangPredictions: CooklangPredictionsDataset;
+  failures: ParseFailuresDataset;
+};
+
+export function collectNormalizationOutputs(
+  results: Array<NormalizeResult | undefined>,
+): NormalizeOutputs {
+  const outputs: NormalizeOutputs = {
+    predictions: { entries: [] },
+    cooklangPredictions: { entries: [] },
+    failures: { entries: [] },
+  };
+  for (const result of results) {
+    if (!result) continue;
+    if (result.ok) {
+      outputs.predictions.entries.push(result.prediction);
+      outputs.cooklangPredictions.entries.push(result.cooklang);
+      continue;
+    }
+    if (result.prediction) outputs.predictions.entries.push(result.prediction);
+    if (result.cooklang) {
+      outputs.cooklangPredictions.entries.push(result.cooklang);
+    }
+    outputs.failures.entries.push(result.failure);
+  }
+  return outputs;
+}
+
+export async function mergeExistingNormalizationOutputs(
+  outputs: NormalizeOutputs,
+  targetKeys: Set<string>,
+): Promise<void> {
+  if (targetKeys.size === 0) return;
+  const [existingPredictions, existingCooklang, existingFailures] =
+    await Promise.all([
+      loadPredictions().catch(
+        catchMissingFile({ entries: [] } as PredictionsDataset),
+      ),
+      loadCooklangPredictions().catch(
+        catchMissingFile({ entries: [] } as CooklangPredictionsDataset),
+      ),
+      loadNormalizeFailures().catch(
+        catchMissingFile({ entries: [] } as ParseFailuresDataset),
+      ),
+    ]);
+  outputs.predictions.entries = mergeByImageSet(
+    existingPredictions.entries,
+    outputs.predictions.entries,
+    targetKeys,
+  );
+  outputs.cooklangPredictions.entries = mergeByImageSet(
+    existingCooklang.entries,
+    outputs.cooklangPredictions.entries,
+    targetKeys,
+  );
+  outputs.failures.entries = mergeByImageSet(
+    existingFailures.entries,
+    outputs.failures.entries,
+    targetKeys,
+  );
+}
+
 async function main() {
   const {
     model,
@@ -235,123 +374,42 @@ async function main() {
 
   console.log("Loading extraction predictions...");
   const extractionPredictions = await loadExtractionPredictions();
-  let entriesToProcess = extractionPredictions.entries;
-  let targetEntryKeys = new Set<string>();
-
-  if (targetImages) {
-    const targetSet = new Set(targetImages);
-    const matches = extractionPredictions.entries.filter((entry) => {
-      if (entry.images.length !== targetImages.length) return false;
-      return entry.images.every((image) => targetSet.has(image));
-    });
-    if (matches.length === 0) {
-      const available = extractionPredictions.entries
-        .map((entry) => entry.images.join(", "))
-        .sort((a, b) => a.localeCompare(b))
-        .join("\n  - ");
-      throw new Error(
-        `No entry matched NORMALIZE_TARGET_IMAGES=${targetImages.join(", ")}.\nAvailable image sets:\n  - ${available}`,
-      );
-    }
-    entriesToProcess = matches;
-    targetEntryKeys = new Set(matches.map((entry) => imageSetKey(entry.images)));
-  }
-
-  console.log(
-    `Running normalization on ${entriesToProcess.length} entries...`,
+  const selection = selectNormalizationEntries(
+    extractionPredictions.entries,
+    targetImages,
   );
 
-  const results = new Array<NormalizeResult | undefined>(entriesToProcess.length);
-  let nextIndex = 0;
+  console.log(
+    `Running normalization on ${selection.entries.length} entries...`,
+  );
 
-  const worker = async () => {
-    while (true) {
-      const currentIndex = nextIndex;
-      nextIndex += 1;
-      if (currentIndex >= entriesToProcess.length) {
-        return;
-      }
-      const entry = entriesToProcess[currentIndex]!;
-      results[currentIndex] = await normalizeEntryWithRetries({
-        apiKey,
-        entry,
-        model,
-        requestTimeoutMs,
-        maxRetries,
-        backoffBaseDelayMs,
-        backoffMaxDelayMs,
-      });
-    }
-  };
-
-  const workerCount = Math.min(concurrency, Math.max(entriesToProcess.length, 1));
-  await Promise.all(Array.from({ length: workerCount }, () => worker()));
-
-  const predictions: PredictionsDataset = { entries: [] };
-  const cooklangPredictions: CooklangPredictionsDataset = { entries: [] };
-  const failures: ParseFailuresDataset = { entries: [] };
-
-  for (const result of results) {
-    if (!result) continue;
-    if (result.ok) {
-      predictions.entries.push(result.prediction);
-      cooklangPredictions.entries.push(result.cooklang);
-    } else {
-      if (result.prediction) {
-        predictions.entries.push(result.prediction);
-      }
-      if (result.cooklang) {
-        cooklangPredictions.entries.push(result.cooklang);
-      }
-      failures.entries.push(result.failure);
-    }
-  }
-
-  if (targetEntryKeys.size > 0) {
-    const [existingPredictions, existingCooklang, existingFailures] =
-      await Promise.all([
-        loadPredictions().catch(
-          catchMissingFile({ entries: [] } as PredictionsDataset),
-        ),
-        loadCooklangPredictions().catch(
-          catchMissingFile({ entries: [] } as CooklangPredictionsDataset),
-        ),
-        loadNormalizeFailures().catch(
-          catchMissingFile({ entries: [] } as ParseFailuresDataset),
-        ),
-      ]);
-
-    predictions.entries = mergeByImageSet(
-      existingPredictions.entries,
-      predictions.entries,
-      targetEntryKeys,
-    );
-    cooklangPredictions.entries = mergeByImageSet(
-      existingCooklang.entries,
-      cooklangPredictions.entries,
-      targetEntryKeys,
-    );
-    failures.entries = mergeByImageSet(
-      existingFailures.entries,
-      failures.entries,
-      targetEntryKeys,
-    );
-  }
+  const results = await runNormalizationWorkers(selection.entries, concurrency, {
+    apiKey,
+    model,
+    requestTimeoutMs,
+    maxRetries,
+    backoffBaseDelayMs,
+    backoffMaxDelayMs,
+  });
+  const outputs = collectNormalizationOutputs(results);
+  await mergeExistingNormalizationOutputs(outputs, selection.targetKeys);
 
   await Promise.all([
-    writeJson(PREDICTIONS_PATH, predictions),
-    writeJson(COOKLANG_PREDICTIONS_PATH, cooklangPredictions),
-    writeJson(NORMALIZE_FAILURES_PATH, failures),
+    writeJson(PREDICTIONS_PATH, outputs.predictions),
+    writeJson(COOKLANG_PREDICTIONS_PATH, outputs.cooklangPredictions),
+    writeJson(NORMALIZE_FAILURES_PATH, outputs.failures),
   ]);
 
   console.log(
-    `Normalized ${predictions.entries.length} entries -> ${PREDICTIONS_PATH}`,
+    `Normalized ${outputs.predictions.entries.length} entries -> ${PREDICTIONS_PATH}`,
   );
   console.log(`Cooklang artifacts written to ${COOKLANG_PREDICTIONS_PATH}`);
   console.log(`Failures written to ${NORMALIZE_FAILURES_PATH}`);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

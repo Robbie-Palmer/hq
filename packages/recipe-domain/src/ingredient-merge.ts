@@ -17,6 +17,85 @@ export function createIngredientGroupAccumulator(
   };
 }
 
+function duplicateIngredientConflict(
+  group: IngredientGroupAccumulator,
+  nextItem: RecipeIngredient,
+  reason: string,
+): never {
+  throw new Error(
+    `Conflicting duplicate ingredient "${nextItem.ingredient}" in group "${group.name ?? "unnamed"}": ${reason}`,
+  );
+}
+
+function assertMatchingAnnotations(
+  group: IngredientGroupAccumulator,
+  existing: RecipeIngredient,
+  nextItem: RecipeIngredient,
+): void {
+  if (existing.preparation !== nextItem.preparation) {
+    duplicateIngredientConflict(
+      group,
+      nextItem,
+      "preparation annotations differ",
+    );
+  }
+  if (existing.note !== nextItem.note) {
+    duplicateIngredientConflict(group, nextItem, "notes differ");
+  }
+}
+
+function mergeIntoUnquantifiedIngredient(
+  group: IngredientGroupAccumulator,
+  existing: RecipeIngredient,
+  nextItem: RecipeIngredient,
+): void {
+  if (nextItem.amount === undefined) {
+    if (existing.unit !== nextItem.unit) {
+      duplicateIngredientConflict(
+        group,
+        nextItem,
+        "unit differs between unquantified duplicate entries",
+      );
+    }
+    return;
+  }
+  if (
+    existing.unit !== undefined &&
+    nextItem.unit !== undefined &&
+    existing.unit !== nextItem.unit
+  ) {
+    duplicateIngredientConflict(
+      group,
+      nextItem,
+      "unit differs from the existing entry",
+    );
+  }
+  existing.amount = nextItem.amount;
+  if (nextItem.unit !== undefined) existing.unit = nextItem.unit;
+}
+
+function mergeIntoQuantifiedIngredient(
+  group: IngredientGroupAccumulator,
+  existing: RecipeIngredient,
+  existingAmount: number,
+  nextItem: RecipeIngredient,
+): void {
+  if (nextItem.amount === undefined) {
+    if (nextItem.unit !== undefined && nextItem.unit !== existing.unit) {
+      duplicateIngredientConflict(
+        group,
+        nextItem,
+        "unit differs from the existing quantified entry",
+      );
+    }
+    return;
+  }
+  if (existing.unit !== nextItem.unit) {
+    duplicateIngredientConflict(group, nextItem, "units differ");
+  }
+  existing.amount = existingAmount + nextItem.amount;
+}
+
 /**
  * Merge an ingredient into a group accumulator, aggregating amounts when the
  * same ingredient slug appears more than once with a compatible unit.
@@ -24,7 +103,6 @@ export function createIngredientGroupAccumulator(
  * Throws on irreconcilable conflicts (e.g. different units with quantities,
  * different preparation annotations).
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function mergeIngredientIntoGroup(
   group: IngredientGroupAccumulator,
   nextItem: RecipeIngredient,
@@ -40,64 +118,14 @@ export function mergeIngredientIntoGroup(
   }
 
   const existing = group.items[existingIndex]!;
-  const duplicateConflict = (reason: string): never => {
-    throw new Error(
-      `Conflicting duplicate ingredient "${nextItem.ingredient}" in group "${group.name ?? "unnamed"}": ${reason}`,
-    );
-  };
-
-  if (existing.preparation !== nextItem.preparation) {
-    duplicateConflict("preparation annotations differ");
-  }
-
-  if (existing.note !== nextItem.note) {
-    duplicateConflict("notes differ");
-  }
+  assertMatchingAnnotations(group, existing, nextItem);
 
   // Repeated inline tags for the same ingredient within a group are allowed
   // when they reinforce the same ingredient or contribute an additional
   // compatible quantity we can safely sum.
-  if (
-    existing.unit === nextItem.unit &&
-    existing.amount !== undefined &&
-    nextItem.amount !== undefined
-  ) {
-    existing.amount += nextItem.amount;
-    return;
+  if (existing.amount === undefined) {
+    mergeIntoUnquantifiedIngredient(group, existing, nextItem);
+  } else {
+    mergeIntoQuantifiedIngredient(group, existing, existing.amount, nextItem);
   }
-
-  if (existing.amount === undefined && nextItem.amount !== undefined) {
-    if (
-      existing.unit !== undefined &&
-      nextItem.unit !== undefined &&
-      existing.unit !== nextItem.unit
-    ) {
-      duplicateConflict("unit differs from the existing entry");
-    }
-    existing.amount = nextItem.amount;
-    if (nextItem.unit !== undefined) {
-      existing.unit = nextItem.unit;
-    }
-    return;
-  }
-
-  if (existing.amount !== undefined && nextItem.amount === undefined) {
-    if (nextItem.unit !== undefined && nextItem.unit !== existing.unit) {
-      duplicateConflict("unit differs from the existing quantified entry");
-    }
-    return;
-  }
-
-  if (existing.amount === undefined && nextItem.amount === undefined) {
-    if (existing.unit !== nextItem.unit) {
-      duplicateConflict("unit differs between unquantified duplicate entries");
-    }
-    return;
-  }
-
-  if (existing.unit !== nextItem.unit) {
-    duplicateConflict("units differ");
-  }
-
-  duplicateConflict("duplicate quantities could not be merged safely");
 }
