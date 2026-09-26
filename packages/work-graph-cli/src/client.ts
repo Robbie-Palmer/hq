@@ -17,6 +17,7 @@ import {
   deleteDependency,
   deleteKnowledgeScopeRelationship,
   expediteWorkItem,
+  getCriticalPath,
   getKnowledgeScope,
   getWorkItem,
   listAttentionRequests,
@@ -58,6 +59,7 @@ import type {
   DeleteDependencyData,
   DeleteKnowledgeScopeRelationshipData,
   ExpediteWorkItemData,
+  GetCriticalPathData,
   ListAttentionRequestsData,
   ListKnowledgeScopeRelationshipsData,
   ListKnowledgeScopesData,
@@ -189,6 +191,10 @@ export class WorkGraphClient {
         headers: idempotencyHeaders(idempotencyKey),
       }),
     );
+  }
+
+  getCriticalPath(query: NonNullable<GetCriticalPathData["query"]>) {
+    return this.#unwrap(getCriticalPath({ ...this.#options(), query }));
   }
 
   listKnowledgeScopes(query: NonNullable<ListKnowledgeScopesData["query"]>) {

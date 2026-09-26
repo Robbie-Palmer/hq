@@ -4,6 +4,7 @@ import { getCliContext, type TrpcCliMeta } from "trpc-cli";
 import { z } from "zod";
 import { WorkGraphClient, type Fetch } from "./client.js";
 import { resolveClientConfig } from "./config.js";
+import { renderCriticalPath } from "./critical-path.js";
 import { usageError } from "./errors.js";
 import {
   inspectGitHubPullRequest,
@@ -39,6 +40,7 @@ import {
   zCreateWorkItemReleaseBody,
   zExpediteWorkItemBody,
   zExpediteWorkItemHeaders,
+  zGetCriticalPathQuery,
   zGetKnowledgeScopePath,
   zGetWorkItemPath,
   zListAttentionRequestsQuery,
@@ -748,6 +750,37 @@ const readyInput = z.object({
   ),
 });
 
+const criticalPathInput = z
+  .object({
+    initiativeId: optional(
+      zGetCriticalPathQuery.shape.initiativeId.unwrap(),
+      "Only outcomes scheduled in this initiative",
+    ),
+    projectId: optional(
+      zGetCriticalPathQuery.shape.projectId.unwrap(),
+      "Only outcomes scheduled in this project",
+    ),
+    rootWorkItemId: optional(
+      zGetCriticalPathQuery.shape.rootWorkItemId.unwrap(),
+      "Project this root ticket as the exact outcome",
+    ),
+    json: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe("Print the complete API response as JSON"),
+  })
+  .refine(
+    ({ initiativeId, projectId, rootWorkItemId }) =>
+      rootWorkItemId === undefined ||
+      (initiativeId === undefined && projectId === undefined),
+    {
+      message:
+        "--root-work-item-id cannot be combined with --initiative-id or --project-id.",
+      path: ["rootWorkItemId"],
+    },
+  );
+
 const claimInput = z.object({
   workItemId: positional(
     optional(directLeaseBodySchema.shape.workItemId, "Ticket ID"),
@@ -1086,6 +1119,24 @@ export const workGraphRouter = t.router({
     .meta({ description: "List ready tickets in priority order" })
     .input(readyInput)
     .query(({ ctx, input }) => listQueue(ctx, input)),
+  criticalPath: command
+    .meta({ description: "Show the delivery-critical path" })
+    .input(criticalPathInput)
+    .query(async ({ ctx, input }) => {
+      const query = {
+        ...(input.initiativeId === undefined
+          ? {}
+          : { initiativeId: input.initiativeId }),
+        ...(input.projectId === undefined
+          ? {}
+          : { projectId: input.projectId }),
+        ...(input.rootWorkItemId === undefined
+          ? {}
+          : { rootWorkItemId: input.rootWorkItemId }),
+      };
+      const projection = await resolveClient(ctx).getCriticalPath(query);
+      return input.json ? projection : renderCriticalPath(projection, query);
+    }),
   metadata: t.router({
     notes: command
       .meta({ description: "List ticket notes" })

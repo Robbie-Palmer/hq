@@ -60,6 +60,50 @@ const activeWorkItem = (workerId = "agent-a") => ({
   },
 });
 
+const criticalPathProjection = () => ({
+  targetOutcomeIds: ["outcome"],
+  nodes: [
+    {
+      item: {
+        id: "outcome",
+        title: "Ship the outcome",
+        lifecycle: "open",
+        parentId: null,
+        rank: null,
+        priorityRank: 1,
+        schedulingInitiativeId: "initiative",
+        schedulingProjectId: "project",
+        expedited: false,
+        expediteReason: null,
+      },
+      stage: "ready",
+      claimable: true,
+      priority: {
+        initiativeRank: 1,
+        projectRank: 1,
+        ticketRank: 1,
+        expedited: false,
+        effectiveExpedited: false,
+        donatedFromWorkItemId: null,
+      },
+      inclusionReasons: [{ kind: "target_outcome" }],
+    },
+  ],
+  edges: [],
+  blockingPaths: [["outcome"]],
+  readyLeafIds: ["outcome"],
+  blockingAttentionIds: [],
+  parallelBranches: [
+    {
+      workItemId: "outcome",
+      stage: "ready",
+      claimable: true,
+      targetWorkItemIds: ["outcome"],
+      paths: [["outcome"]],
+    },
+  ],
+});
+
 const response = (body: unknown = { ok: true }, status = 200): Response =>
   new Response(JSON.stringify(body), {
     status,
@@ -160,6 +204,113 @@ describe("Given agent-facing Work Graph commands", () => {
       ]),
     ).toBe(EXIT_CODES.success);
     expect(test.selfUpdate).toHaveBeenCalledWith("/workspace/other-hq");
+  });
+
+  it.each([
+    ["global", [], ""],
+    [
+      "initiative",
+      ["--initiative-id", "initiative"],
+      "initiativeId=initiative",
+    ],
+    ["project", ["--project-id", "project"], "projectId=project"],
+    ["root", ["--root-work-item-id", "outcome"], "rootWorkItemId=outcome"],
+  ])(
+    "requests and renders the %s critical path",
+    async (_name, args, search) => {
+      const test = harness(() => response(criticalPathProjection()));
+
+      expect(await test.run(["critical-path", ...args])).toBe(
+        EXIT_CODES.success,
+      );
+      expect(test.requests[0]?.method).toBe("GET");
+      expect(test.requests[0]?.url.pathname).toBe("/root/api/critical-path");
+      expect(test.requests[0]?.url.searchParams.toString()).toBe(search);
+      expect(test.stdout.join("")).toContain("Priority outcomes:");
+      expect(test.stdout.join("")).toContain("Parallel branches:");
+    },
+  );
+
+  it("prints the complete critical-path API contract as JSON", async () => {
+    const projection = criticalPathProjection();
+    const test = harness(() => response(projection));
+
+    expect(await test.run(["critical-path", "--json"])).toBe(
+      EXIT_CODES.success,
+    );
+    expect(JSON.parse(test.stdout.join(""))).toEqual(projection);
+  });
+
+  it("renders an empty critical path", async () => {
+    const test = harness(() =>
+      response({
+        targetOutcomeIds: [],
+        nodes: [],
+        edges: [],
+        blockingPaths: [],
+        readyLeafIds: [],
+        blockingAttentionIds: [],
+        parallelBranches: [],
+      }),
+    );
+
+    expect(await test.run(["critical-path"])).toBe(EXIT_CODES.success);
+    expect(test.stdout.join("")).toContain(
+      "No open priority outcomes in this scope.",
+    );
+  });
+
+  it("rejects a root critical path combined with scope filters", async () => {
+    const test = harness(() => response(criticalPathProjection()));
+
+    expect(
+      await test.run([
+        "critical-path",
+        "--root-work-item-id",
+        "outcome",
+        "--project-id",
+        "project",
+      ]),
+    ).toBe(EXIT_CODES.usage);
+    expect(test.requests).toEqual([]);
+  });
+
+  it("reports critical-path API errors through the shared error contract", async () => {
+    const test = harness(() =>
+      response(
+        {
+          error: {
+            code: "knowledge_scope_not_found",
+            message: "Knowledge scope missing does not exist.",
+          },
+        },
+        404,
+      ),
+    );
+
+    expect(
+      await test.run(["critical-path", "--project-id", "missing"]),
+    ).toBe(EXIT_CODES.notFound);
+    expect(JSON.parse(test.stderr.join(""))).toMatchObject({
+      error: { code: "knowledge_scope_not_found" },
+    });
+  });
+
+  it("sends production Access headers with a critical-path request", async () => {
+    const test = harness(() => response(criticalPathProjection()), {
+      WORK_GRAPH_API_URL: API_URL,
+      WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS: "https://work.example.test",
+      WORK_GRAPH_CF_ACCESS_CLIENT_ID: "client-id",
+      WORK_GRAPH_CF_ACCESS_CLIENT_SECRET: "client-secret",
+    });
+
+    expect(await test.run(["critical-path"])).toBe(EXIT_CODES.success);
+    expect(test.requests[0]?.headers.get("CF-Access-Client-Id")).toBe(
+      "client-id",
+    );
+    expect(test.requests[0]?.headers.get("CF-Access-Client-Secret")).toBe(
+      "client-secret",
+    );
   });
 
   it("adds and removes dependency edges", async () => {
