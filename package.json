@@ -58,6 +58,11 @@
       "mise run //infra/remote-development:precommit-lint",
       "mise run //infra/remote-development:lint:tflint"
     ],
+    "infra/remote-development-cluster/**/*.tf": [
+      "mise run //infra/remote-development-cluster:format",
+      "mise run //infra/remote-development-cluster:precommit-lint",
+      "mise run //infra/remote-development-cluster:lint:tflint"
+    ],
     "infra/work-graph/**/*.tf": [
       "mise run //infra/work-graph:format",
       "mise run //infra/work-graph:precommit-lint",

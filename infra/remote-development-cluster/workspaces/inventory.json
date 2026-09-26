@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "cluster": "remote-development-candidate",
+  "workspaces": [
+    {
+      "id": "operator",
+      "owner": "operator",
+      "namespace": "t3-operator",
+      "nodePool": "workspace-operator",
+      "nodeSelector": {
+        "remote-development.robbiepalmer.dev/workspace": "operator"
+      },
+      "location": "nbg1",
+      "volumeClaim": "workspace-data",
+      "storageClass": "hcloud-volumes-retain",
+      "volumeSizeGiB": 90,
+      "backupSet": "remote-development-candidate/operator",
+      "endpoint": {
+        "kind": "tailnet-node-port",
+        "nodePool": "workspace-operator",
+        "port": 30773
+      }
+    },
+    {
+      "id": "pilot",
+      "owner": "pilot-user",
+      "namespace": "t3-pilot",
+      "nodePool": "workspace-pilot",
+      "nodeSelector": {
+        "remote-development.robbiepalmer.dev/workspace": "pilot"
+      },
+      "location": "fsn1",
+      "volumeClaim": "workspace-data",
+      "storageClass": "hcloud-volumes-retain",
+      "volumeSizeGiB": 90,
+      "backupSet": "remote-development-candidate/pilot",
+      "endpoint": {
+        "kind": "tailnet-node-port",
+        "nodePool": "workspace-pilot",
+        "port": 30774
+      }
+    }
+  ],
+  "cachePolicy": {
+    "kind": "ephemeral",
+    "sizeLimitGiB": 20,
+    "retainedAfterPodReplacement": false,
+    "protectedPaths": [
+      "/data/home/.t3",
+      "/data/home/.codex",
+      "/data/home/.codex-personal",
+      "/data/workspaces"
+    ]
+  }
+}
