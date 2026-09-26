@@ -90,4 +90,39 @@ describe("worker adapter runtime", () => {
     ).rejects.toBeInstanceOf(AuthenticationNotAllowedError);
     expect(worker.discoverAvailability).not.toHaveBeenCalled();
   });
+
+  it("accepts an equivalent identity with a different property order", async () => {
+    const worker = testAdapter();
+    worker.launch = vi.fn().mockImplementation(async (_request, identity) => ({
+      identity: {
+        taskId: identity.taskId,
+        sessionId: identity.sessionId,
+        schemaVersion: identity.schemaVersion,
+        recordType: identity.recordType,
+        actorId: identity.actorId,
+        adapterId: identity.adapterId,
+        adapterVersion: identity.adapterVersion,
+        authenticationPathId: identity.authenticationPathId,
+        startedAt: identity.startedAt,
+      },
+      checkpoint: vi.fn(),
+      quota: vi.fn(),
+      cost: vi.fn(),
+      stop: vi.fn(),
+      signals: () => [],
+    }));
+    const runtime = new WorkerAdapterRuntime({
+      adapters: [worker],
+      allowlist: new AuthenticationAllowlist([authenticationEntry]),
+      createSessionId: () => "session:stable",
+    });
+
+    await expect(
+      runtime.launch(adapter.adapterId, {
+        taskId: "work:test",
+        input: "Do the work",
+        cwd: "/workspace",
+      }),
+    ).resolves.toMatchObject({ identity: { sessionId: "session:stable" } });
+  });
 });

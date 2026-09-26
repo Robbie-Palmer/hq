@@ -121,11 +121,7 @@ class MeteredOpenRouterSession implements OpenRouterSession {
     } finally {
       this.#reservedUsd -= request.maximumCostUsd;
     }
-    if (
-      !Number.isFinite(result.costUsd) ||
-      result.costUsd < 0 ||
-      result.costUsd > request.maximumCostUsd
-    ) {
+    if (!Number.isFinite(result.costUsd) || result.costUsd < 0) {
       throw new Error("OpenRouter transport returned an invalid metered cost");
     }
     this.#spentUsd += result.costUsd;
@@ -139,6 +135,11 @@ class MeteredOpenRouterSession implements OpenRouterSession {
       modelId: result.modelId,
       requestId: request.requestId,
     });
+    if (result.costUsd > request.maximumCostUsd) {
+      throw new Error(
+        "OpenRouter transport exceeded the reserved request cost",
+      );
+    }
     return result;
   }
 

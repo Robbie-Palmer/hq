@@ -230,4 +230,42 @@ describe("OpenRouter adapter", () => {
       }),
     ).rejects.toBeInstanceOf(SessionBudgetExceededError);
   });
+
+  it("records a transport cost that violates its reserved ceiling", async () => {
+    const transport: OpenRouterTransport = {
+      isAvailable: vi.fn().mockResolvedValue(true),
+      execute: vi.fn().mockResolvedValue({
+        output: "done",
+        providerId: "provider:one",
+        modelId: "model:one",
+        costUsd: 0.6,
+      }),
+    };
+    const adapter = createOpenRouterAdapter({
+      actorId: "actor:api-agent",
+      authenticationPathId: authenticationEntry.authenticationPathId,
+      transport,
+    });
+    const runtime = new WorkerAdapterRuntime({
+      allowlist: new AuthenticationAllowlist([authenticationEntry]),
+      adapters: [adapter],
+      createSessionId: () => "session:api",
+    });
+    const session = (await runtime.launch(adapter.identity.adapterId, {
+      taskId: "work:api",
+      input: "",
+      cwd: "/workspace",
+      budgetUsd: 1,
+    })) as OpenRouterSession;
+
+    await expect(
+      session.execute({
+        requestId: "request:bad-ceiling",
+        model: "model:one",
+        input: "work",
+        maximumCostUsd: 0.5,
+      }),
+    ).rejects.toThrow("exceeded the reserved request cost");
+    expect(await session.cost()).toMatchObject({ amount: 0.6 });
+  });
 });

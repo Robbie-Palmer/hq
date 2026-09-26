@@ -1,7 +1,9 @@
 import type { AuthenticationAllowlist } from "./authentication";
-import type {
-  ExecutionSessionIdentity,
-  WorkerAdapterIdentity,
+import {
+  ExecutionSessionIdentitySchema,
+  WorkerAdapterIdentitySchema,
+  type ExecutionSessionIdentity,
+  type WorkerAdapterIdentity,
 } from "./session";
 
 export type AdapterAvailability =
@@ -109,6 +111,7 @@ export class WorkerAdapterRuntime {
     this.#createSessionId = options.createSessionId;
     this.#now = options.now ?? (() => new Date());
     for (const adapter of options.adapters) {
+      WorkerAdapterIdentitySchema.parse(adapter.identity);
       if (this.#adapters.has(adapter.identity.adapterId)) {
         throw new Error(`Duplicate adapter ${adapter.identity.adapterId}`);
       }
@@ -135,7 +138,7 @@ export class WorkerAdapterRuntime {
         `${adapterId} is ${availability.state}`,
       );
     }
-    const identity: ExecutionSessionIdentity = {
+    const identity = ExecutionSessionIdentitySchema.parse({
       schemaVersion: 1,
       recordType: "execution-session",
       sessionId: this.#createSessionId(),
@@ -145,7 +148,7 @@ export class WorkerAdapterRuntime {
       adapterVersion: adapter.identity.adapterVersion,
       authenticationPathId: adapter.identity.authenticationPathId,
       startedAt: this.#now().toISOString(),
-    };
+    });
     const session = await adapter.launch(request, identity);
     this.#assertIdentity(identity, session.identity);
     return session;
@@ -208,7 +211,22 @@ export class WorkerAdapterRuntime {
     expected: ExecutionSessionIdentity,
     actual: ExecutionSessionIdentity,
   ): void {
-    if (JSON.stringify(expected) !== JSON.stringify(actual)) {
+    const parsedExpected = ExecutionSessionIdentitySchema.parse(expected);
+    const parsedActual = ExecutionSessionIdentitySchema.parse(actual);
+    const fields = [
+      "schemaVersion",
+      "recordType",
+      "sessionId",
+      "taskId",
+      "actorId",
+      "adapterId",
+      "adapterVersion",
+      "authenticationPathId",
+      "startedAt",
+      "workGraphLeaseId",
+      "predecessorSessionId",
+    ] as const;
+    if (fields.some((field) => parsedExpected[field] !== parsedActual[field])) {
       throw new AdapterRuntimeError(
         "identity-mismatch",
         "Adapter changed the stable session identity",
