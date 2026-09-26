@@ -402,6 +402,14 @@ const evidenceStageRank: Record<EvidenceRequirement["stage"], number> = {
   completion: 2,
 };
 
+const architectureDecisionRoleRank: Record<
+  WorkGraphArchitectureDecision["role"],
+  number
+> = {
+  governing: 0,
+  background: 1,
+};
+
 const requirementsFromContext = (
   workItemId: string,
   records: readonly ResolvedContext[],
@@ -471,6 +479,23 @@ const statusOfError = (error: unknown): number | undefined =>
   typeof error.status === "number"
     ? error.status
     : undefined;
+
+const leaseStatus = (
+  lease: WorkGraphLease,
+  currentLease: WorkGraphLease | null,
+  now: number,
+): LeaseObservation["status"] => {
+  if (
+    currentLease !== null &&
+    (currentLease.id !== lease.id || currentLease.epoch !== lease.epoch)
+  ) {
+    return "superseded";
+  }
+  if (lease.endedAt !== null) {
+    return lease.outcome === "expired" ? "expired" : "ended";
+  }
+  return Date.parse(lease.expiresAt) <= now ? "expired" : "active";
+};
 
 export class WorkGraphCoordinator {
   readonly #client: WorkGraphClientPort;
@@ -572,7 +597,8 @@ export class WorkGraphCoordinator {
       ),
     ).sort(
       (left, right) =>
-        (left.role === right.role ? 0 : left.role === "governing" ? -1 : 1) ||
+        architectureDecisionRoleRank[left.role] -
+          architectureDecisionRoleRank[right.role] ||
         left.inheritanceDepth - right.inheritanceDepth ||
         compareIdentifiers(left.sourceWorkItemId, right.sourceWorkItemId) ||
         compareStrings(left.url, right.url),
@@ -787,19 +813,11 @@ export class WorkGraphCoordinator {
         `Work Graph has no lease ${handle.id} at epoch ${handle.epoch} for ${handle.workItemId}. Refresh the claim record.`,
       );
     }
-    const currentLease = workItem.currentLease;
-    const superseded =
-      currentLease !== null &&
-      (currentLease.id !== handle.id || currentLease.epoch !== handle.epoch);
-    const status = superseded
-      ? "superseded"
-      : lease.endedAt !== null
-        ? lease.outcome === "expired"
-          ? "expired"
-          : "ended"
-        : Date.parse(lease.expiresAt) <= this.#options.now()
-          ? "expired"
-          : "active";
+    const status = leaseStatus(
+      lease,
+      workItem.currentLease,
+      this.#options.now(),
+    );
     return LeaseObservationSchema.parse({
       status,
       lease,
