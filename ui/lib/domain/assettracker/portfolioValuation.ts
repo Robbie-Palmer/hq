@@ -229,18 +229,20 @@ function valueHoldings(
   const instrumentIds = new Set(
     known.map((observation) => observation.instrumentId),
   );
-  const parts = [...instrumentIds].sort().map((instrumentId) =>
-    valueInstrumentHolding({
-      repository,
-      account,
-      holdings: known,
-      instrumentId,
-      date,
-      baseCurrency,
-      maxAgeDays,
-      asKnownAt,
-    }),
-  );
+  const parts = [...instrumentIds]
+    .sort((a, b) => a.localeCompare(b))
+    .map((instrumentId) =>
+      valueInstrumentHolding({
+        repository,
+        account,
+        holdings: known,
+        instrumentId,
+        date,
+        baseCurrency,
+        maxAgeDays,
+        asKnownAt,
+      }),
+    );
   const issues = parts.flatMap((part) => part.issues);
   const inputObservationIds = parts.flatMap((part) => part.inputObservationIds);
   const value = parts.reduce((sum, part) => sum + (part.value ?? 0), 0);
@@ -362,7 +364,7 @@ export function valuationDates(repository: AssetTrackerRepository): string[] {
         (observation) => observation.validAt,
       ),
     ]),
-  ].sort();
+  ].sort((a, b) => a.localeCompare(b));
 }
 
 /** Base-currency balances for the latest fully valued portfolio state. */

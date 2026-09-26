@@ -129,6 +129,16 @@ function buildFlowFormula(
   };
 }
 
+function displayedMonthlyAmount(
+  flow: RecurringFlow,
+  accounts: readonly AccountSummaryView[],
+  into: boolean,
+): number {
+  if (into && flow.conversion != null) return monthlyReceivedAmount(flow);
+  const fee = into ? 0 : monthlyFeeAmount(flow);
+  return flowMonthly(flow, accounts) + fee;
+}
+
 function AccountFlowRow({
   account,
   accounts,
@@ -145,10 +155,7 @@ function AccountFlowRow({
   onMaterialize: (id: string) => void;
 }>) {
   const into = flow.toAccountId === account.id;
-  const nativeMonthly =
-    into && flow.conversion != null
-      ? monthlyReceivedAmount(flow)
-      : flowMonthly(flow, accounts) + (into ? 0 : monthlyFeeAmount(flow));
+  const nativeMonthly = displayedMonthlyAmount(flow, accounts, into);
   const signedMonthly =
     ((into ? 1 : -1) * Math.round(nativeMonthly * 100)) / 100;
   const displayCurrency =

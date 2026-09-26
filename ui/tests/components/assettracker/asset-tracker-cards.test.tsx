@@ -767,6 +767,78 @@ describe("UpcomingFlows", () => {
     expect(row).toHaveClass("grid", "min-w-0", "sm:flex");
     expect(row?.querySelector("span")).toHaveClass("shrink-0", "sm:w-24");
   });
+
+  it("shows both native amounts and the conversion fee", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(FIXED_NOW);
+    const today = todayIsoDate();
+    mockAssetTracker({
+      accounts: [
+        {
+          id: "gbp-cash",
+          name: "GBP cash",
+          provider: "Bank",
+          currency: "GBP",
+          assetType: "cash",
+          expectedAnnualReturn: 0,
+          isOpen: true,
+          latestBalance: 2_000,
+          latestSnapshotDate: today,
+          cagr: null,
+        },
+        {
+          id: "usd-cash",
+          name: "USD cash",
+          provider: "Bank",
+          currency: "USD",
+          assetType: "cash",
+          expectedAnnualReturn: 0,
+          isOpen: true,
+          latestBalance: 0,
+          latestSnapshotDate: today,
+          cagr: null,
+        },
+      ],
+      recurringFlows: [
+        {
+          id: "convert",
+          name: "Convert savings",
+          fromAccountId: "gbp-cash",
+          toAccountId: "usd-cash",
+          amount: 800,
+          currency: "GBP",
+          conversion: {
+            received: { amount: 1_000, currency: "USD" },
+            fee: { amount: 10, currency: "GBP" },
+            provider: "Broker",
+          },
+          frequency: "monthly",
+          startDate: today,
+        },
+        {
+          id: "free-convert",
+          name: "Fee-free conversion",
+          fromAccountId: "gbp-cash",
+          toAccountId: "usd-cash",
+          amount: 80,
+          currency: "GBP",
+          conversion: {
+            received: { amount: 100, currency: "USD" },
+            provider: "Bank",
+          },
+          frequency: "monthly",
+          startDate: today,
+        },
+      ],
+    });
+
+    render(<UpcomingFlows />);
+
+    expect(
+      screen.getByText(/£800\.00.*US\$1,000\.00.*£10\.00 fee/),
+    ).toBeVisible();
+    expect(screen.getByText(/£80\.00.*US\$100\.00$/)).toBeVisible();
+  });
 });
 
 describe("AccountsTable", () => {

@@ -463,51 +463,48 @@ export function getPortfolioAnnualReturn(
   return computeMoneyWeightedReturn(balances, externalFlows);
 }
 
-/**
- * Net worth composition by asset type. Mortgages secured on a property are
- * folded into that property (so it contributes equity, not gross value);
- * other liabilities surface as their own negative totals.
- */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-export function getTotalByAssetType(
+function getValuedTotalByAssetType(
   repository: AssetTrackerRepository,
 ): { assetType: AssetType; total: number }[] {
-  if (needsExplicitValuation(repository)) {
-    const date = valuationDates(repository).at(-1);
-    if (date == null) return [];
-    const valuation = valuePortfolioAtDate(repository, date);
-    if (valuation.total == null) return [];
-    const accounts = Array.from(repository.accounts.values());
-    const { absorbedIds, mortgagesByProperty } = buildLinkage(accounts);
-    const totals = new Map<AssetType, number>();
-    for (const account of accounts) {
-      if (absorbedIds.has(account.id) || account.closedAt != null) continue;
-      const ids = [account.id, ...(mortgagesByProperty.get(account.id) ?? [])];
-      const value = ids.reduce(
-        (sum, id) => sum + (valuation.byAccount.get(id)?.value ?? 0),
-        0,
-      );
-      totals.set(
-        account.assetType,
-        (totals.get(account.assetType) ?? 0) + value,
-      );
-    }
-    return [...totals].map(([assetType, total]) => ({ assetType, total }));
-  }
+  const date = valuationDates(repository).at(-1);
+  if (date == null) return [];
+  const valuation = valuePortfolioAtDate(repository, date);
+  if (valuation.total == null) return [];
+  const accounts = Array.from(repository.accounts.values());
+  const { absorbedIds, mortgagesByProperty } = buildLinkage(accounts);
   const totals = new Map<AssetType, number>();
+  for (const account of accounts) {
+    if (absorbedIds.has(account.id) || account.closedAt != null) continue;
+    const ids = [account.id, ...(mortgagesByProperty.get(account.id) ?? [])];
+    const value = ids.reduce(
+      (sum, id) => sum + (valuation.byAccount.get(id)?.value ?? 0),
+      0,
+    );
+    totals.set(account.assetType, (totals.get(account.assetType) ?? 0) + value);
+  }
+  return [...totals].map(([assetType, total]) => ({ assetType, total }));
+}
 
-  // Find latest snapshot for each account in single pass
+function latestSnapshotsByAccount(
+  snapshots: readonly BalanceSnapshot[],
+): Map<AccountId, BalanceSnapshot> {
   const latestSnapshots = new Map<AccountId, BalanceSnapshot>();
-  for (const snapshot of repository.snapshots) {
+  for (const snapshot of snapshots) {
     const existing = latestSnapshots.get(snapshot.accountId);
-    if (!existing || new Date(snapshot.date) > new Date(existing.date)) {
+    if (existing == null || snapshot.date > existing.date) {
       latestSnapshots.set(snapshot.accountId, snapshot);
     }
   }
+  return latestSnapshots;
+}
 
+function getLegacyTotalByAssetType(
+  repository: AssetTrackerRepository,
+): { assetType: AssetType; total: number }[] {
+  const totals = new Map<AssetType, number>();
+  const latestSnapshots = latestSnapshotsByAccount(repository.snapshots);
   const accounts = Array.from(repository.accounts.values());
   const { absorbedIds, mortgagesByProperty } = buildLinkage(accounts);
-
   for (const account of accounts) {
     if (absorbedIds.has(account.id) || account.closedAt != null) continue;
     let balance = latestSnapshots.get(account.id)?.balance ?? 0;
@@ -525,4 +522,17 @@ export function getTotalByAssetType(
     assetType,
     total,
   }));
+}
+
+/**
+ * Net worth composition by asset type. Mortgages secured on a property are
+ * folded into that property (so it contributes equity, not gross value);
+ * other liabilities surface as their own negative totals.
+ */
+export function getTotalByAssetType(
+  repository: AssetTrackerRepository,
+): { assetType: AssetType; total: number }[] {
+  return needsExplicitValuation(repository)
+    ? getValuedTotalByAssetType(repository)
+    : getLegacyTotalByAssetType(repository);
 }

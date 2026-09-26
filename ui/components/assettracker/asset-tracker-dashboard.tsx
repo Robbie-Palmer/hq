@@ -23,6 +23,17 @@ import { PortfolioGoal } from "./portfolio-goal";
 import { RecordTransferDrawer } from "./record-transfer-drawer";
 import { UpcomingFlows } from "./upcoming-flows";
 
+function staleObservationMessage(
+  count: number,
+  singular: string,
+  plural: string,
+): string {
+  if (count === 0) return "";
+  const noun = count === 1 ? singular : plural;
+  const verb = count === 1 ? "is" : "are";
+  return `${count} ${noun} ${verb} missing or stale. `;
+}
+
 export function AssetTrackerDashboard() {
   const {
     accounts,
@@ -49,6 +60,16 @@ export function AssetTrackerDashboard() {
     (issue) => issue.kind === "missing_price" || issue.kind === "stale_price",
   ).length;
   const missingRates = valuationIssues.length - missingPrices;
+  const missingRateMessage = staleObservationMessage(
+    missingRates,
+    "exchange rate",
+    "exchange rates",
+  );
+  const missingPriceMessage = staleObservationMessage(
+    missingPrices,
+    "holding price",
+    "holding prices",
+  );
 
   return (
     <div className="space-y-8">
@@ -74,12 +95,8 @@ export function AssetTrackerDashboard() {
         >
           <p className="font-medium">Portfolio total unavailable</p>
           <p className="mt-1 text-muted-foreground">
-            {missingRates > 0
-              ? `${missingRates} exchange rate${missingRates === 1 ? " is" : "s are"} missing or stale. `
-              : ""}
-            {missingPrices > 0
-              ? `${missingPrices} holding price${missingPrices === 1 ? " is" : "s are"} missing or stale. `
-              : ""}
+            {missingRateMessage}
+            {missingPriceMessage}
             Import current observations before using the {baseCurrency} total
             {valuationDate == null ? "." : ` for ${valuationDate}.`}
           </p>

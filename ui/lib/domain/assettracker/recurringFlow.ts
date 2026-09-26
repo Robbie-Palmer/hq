@@ -128,10 +128,7 @@ function validateFlowConversion(
       message: "Formula payments cannot use a currency conversion",
     });
   }
-  if (
-    flow.conversion != null &&
-    flow.conversion.received.currency === flow.currency
-  ) {
+  if (flow.conversion?.received.currency === flow.currency) {
     context.addIssue({
       code: "custom",
       message: "Converted money must use a different currency",

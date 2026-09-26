@@ -3,6 +3,9 @@ import {
   AssetTrackerDataSchema,
   MoneySchema,
   money,
+  transferAmountFrom,
+  transferAmountTo,
+  transferFeeAmount,
 } from "@/lib/domain/assettracker";
 
 describe("Money", () => {
@@ -44,5 +47,23 @@ describe("Money", () => {
       currency: "GBP",
     });
     expect(data.recurringFlows[0]?.currency).toBe("USD");
+  });
+
+  it("reads native transfer amounts and source fees", () => {
+    const transfer = {
+      id: "conversion",
+      date: "2025-01-01",
+      fromAccountId: "gbp",
+      toAccountId: "usd",
+      amount: 800,
+      fromAmount: 800,
+      toAmount: 1_000,
+      feeAmount: 10,
+    };
+
+    expect(transferAmountFrom(transfer)).toBe(800);
+    expect(transferAmountTo(transfer)).toBe(1_000);
+    expect(transferFeeAmount(transfer)).toBe(10);
+    expect(transferFeeAmount({ ...transfer, feeAmount: undefined })).toBe(0);
   });
 });

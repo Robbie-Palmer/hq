@@ -2,7 +2,7 @@ import { z } from "zod";
 import { type Currency, CurrencySchema } from "./currency";
 
 export const MoneySchema = z.object({
-  amount: z.number().finite(),
+  amount: z.number(),
   currency: CurrencySchema,
 });
 export type Money = z.infer<typeof MoneySchema>;
