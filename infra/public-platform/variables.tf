@@ -118,6 +118,12 @@ variable "r2_database_backups_bucket_name" {
   default     = "personal-site-database-backups"
 }
 
+variable "r2_workspace_backups_bucket_name" {
+  description = "Name of the private R2 bucket for encrypted remote workspace backups"
+  type        = string
+  default     = "personal-site-workspace-backups"
+}
+
 variable "recipe_api_url" {
   description = "URL of the recipe-api Worker for the auth proxy"
   type        = string

@@ -95,6 +95,17 @@ test -z "$(
 )"
 systemctl is-active --quiet tailscaled.service
 systemctl is-active --quiet k3s.service
+systemctl is-enabled --quiet remote-development-workspace-backup.timer
+systemctl is-active --quiet remote-development-workspace-backup.timer
+if [ -r /var/lib/remote-development-backup/status.json ]; then
+  remote-development-workspace-backup-status \
+    | jq --exit-status \
+      '.workspaceId == "operator" and .state == "success" and .fresh == true' \
+      >/dev/null
+  echo "encrypted workspace backup is fresh"
+else
+  echo "workspace backup timer is active and waiting for its first run"
+fi
 tailscale status --json | jq -e '.BackendState == "Running"' >/dev/null
 tailscale serve status --json \
   | jq -e '.TCP | keys | sort == ["3000", "3001", "3002", "3003", "3004", "443"]' \

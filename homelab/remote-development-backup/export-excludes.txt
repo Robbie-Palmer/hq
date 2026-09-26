@@ -1,0 +1,47 @@
+# Provider and source-control credentials.
+home/.codex/auth.json
+home/.codex-personal/auth.json
+home/.codex-t3/*/auth.json
+home/.claude.json
+home/.claude/.credentials.json
+home/.grok/auth.json
+home/.grok/auth.json.*
+home/.config/gh/hosts.yml
+home/.config/opencode/auth.json
+home/.local/share/opencode/auth.json
+home/.config/configstore
+
+# Tokens, cookies, keys, and provider authentication databases.
+home/.ssh
+home/.doppler
+home/.aws
+home/.azure
+home/.kube
+home/.docker/config.json
+home/.terraform.d/credentials.tfrc.json
+home/.npmrc
+home/.git-credentials
+home/.config/gcloud
+home/.config/.wrangler
+home/.local/share/keyrings
+home/.local/share/cookies
+home/.t3/userdata/secrets
+home/.t3/userdata/logs
+
+# Login logs and transient caches can contain credential material.
+home/.codex/log/codex-login.log
+home/.codex-personal/log/codex-login.log
+home/.cache
+home/.npm/_cacache
+home/.pnpm-store
+workspaces/.pnpm-store
+
+# Repository-local credentials and provider state.
+workspaces/*/.env
+workspaces/*/.env.*
+workspaces/*/.dev.vars
+workspaces/*/.npmrc
+workspaces/*/.pypirc
+workspaces/*/.netrc
+workspaces/*/.terraform
+workspaces/*/.wrangler/state

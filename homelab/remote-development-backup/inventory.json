@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "workspace": {
+    "id": "operator",
+    "owner": "robbie",
+    "source": "/srv/remote-development/t3-code",
+    "rebuildableCache": "/srv/remote-development/t3-code-cache"
+  },
+  "destination": {
+    "provider": "cloudflare-r2",
+    "bucket": "personal-site-workspace-backups",
+    "repositoryPrefix": "restic/operator",
+    "credentialsFile": "/var/lib/remote-development-backup/restic.env",
+    "passwordFile": "/var/lib/remote-development-backup/restic-password"
+  },
+  "schedule": {
+    "onCalendar": "*-*-* 03:47:00 UTC",
+    "randomizedDelaySeconds": 2700,
+    "maximumAgeSeconds": 129600
+  },
+  "retention": {
+    "hourly": 24,
+    "daily": 14,
+    "weekly": 8,
+    "monthly": 12
+  }
+}

@@ -219,6 +219,21 @@ run = "bash scripts/rebuild-remote-development"
 description = "Verify the remote host, encrypted volume, Tailscale, K3s, and t3-code"
 run = "bash scripts/remote-development-health"
 
+[tasks.remote-backup-credentials]
+description = "Install the workspace backup credentials from Doppler without printing them"
+run = "bash scripts/install-remote-development-backup-credentials"
+
+[tasks.remote-backup]
+description = "Run the encrypted workspace backup and print its safe status"
+run = '''
+bash scripts/run-remote-development-backup
+'''
+
+[tasks.remote-backup-test]
+description = "Test workspace backup, restore, retention, failure, and export behavior"
+depends = ["//:install"]
+run = "pnpm exec tsx --test tests/remote-development-backup.test.ts"
+
 [tasks.remote-kubeconfig]
 description = "Fetch the remote cluster kubeconfig over Tailscale into a gitignored file"
 run = "bash scripts/fetch-remote-development-kubeconfig"
