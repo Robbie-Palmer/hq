@@ -105,6 +105,7 @@ export const zError = z.object({
     error: z.object({
         code: z.string().min(1).max(100),
         message: z.string().min(1).max(500),
+        requestId: z.string().min(1).max(128).optional(),
         details: z.array(z.object({
             path: z.array(z.union([z.string().max(200), z.number()])).max(20),
             message: z.string().max(500)

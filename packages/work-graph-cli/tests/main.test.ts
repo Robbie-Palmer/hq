@@ -1711,6 +1711,31 @@ describe("Given Cloudflare Access service-token credentials", () => {
 });
 
 describe("Given CLI and HTTP failures", () => {
+  it("preserves the server request ID in diagnostics", async () => {
+    const test = harness(() =>
+      response(
+        {
+          error: {
+            code: "API_PROBLEM",
+            message: "Request failed",
+            requestId: "request-123",
+          },
+        },
+        409,
+      ),
+    );
+
+    expect(await test.run(["show", "item-1"])).toBe(EXIT_CODES.conflict);
+    expect(JSON.parse(test.stderr[0] ?? "null")).toEqual({
+      error: {
+        code: "API_PROBLEM",
+        message: "Request failed",
+        requestId: "request-123",
+        status: 409,
+      },
+    });
+  });
+
   it.each([
     [400, EXIT_CODES.validation],
     [401, EXIT_CODES.authentication],

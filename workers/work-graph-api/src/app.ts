@@ -4,44 +4,43 @@ import {
   type Hook,
 } from "@hono/zod-openapi";
 import type { Env } from "hono";
-import type {
-  AttentionRequestReadModel,
-  ArchiveKnowledgeScopeInput,
-  ClaimWorkItemInput,
-  CreateAttentionRequestInput,
-  CreateAttentionRequestResult,
-  CreateNoteInput,
-  CreatePostReleaseNoteInput,
-  DecomposeClaimedWorkItemInput,
-  DecomposeClaimedWorkItemResult,
-  IdempotentMutationOptions,
-  KnowledgeScopeRelationshipCursor,
-  ListAttentionRequestsInput,
-  ListEventsInput,
-  ListKnowledgeScopeRelationshipsInput,
-  ListKnowledgeScopesInput,
-  ListWorkItemsInput,
-  ListWorkItemDependenciesInput,
-  ListWorkItemLeasesInput,
-  ListWorkItemNotesInput,
-  PriorityMoveInput,
-  ProjectCriticalPathInput,
-  ResolveAttentionRequestInput,
-  ResolveAttentionRequestResult,
-  RenewLeaseInput,
-  StoredAttentionRequest,
-  StoredAttentionResolution,
-  StoredEvent,
-  StoredLease,
-  StoredNote,
-  TerminateClaimedWorkItemInput,
-  WorkItemDependencyCursor,
-  WorkItemReadModel,
-  WorkItemSchedulingScopeInput,
-} from "work-graph-db";
 import {
-  isRetryableDatabaseTimeout,
-  WORK_GRAPH_EVENT_TYPES,
+  classifyRetryableDatabaseFailure,
+  type AttentionRequestReadModel,
+  type ArchiveKnowledgeScopeInput,
+  type ClaimWorkItemInput,
+  type CreateAttentionRequestInput,
+  type CreateAttentionRequestResult,
+  type CreateNoteInput,
+  type CreatePostReleaseNoteInput,
+  type DecomposeClaimedWorkItemInput,
+  type DecomposeClaimedWorkItemResult,
+  type IdempotentMutationOptions,
+  type KnowledgeScopeRelationshipCursor,
+  type ListAttentionRequestsInput,
+  type ListEventsInput,
+  type ListKnowledgeScopeRelationshipsInput,
+  type ListKnowledgeScopesInput,
+  type ListWorkItemDependenciesInput,
+  type ListWorkItemLeasesInput,
+  type ListWorkItemNotesInput,
+  type ListWorkItemsInput,
+  type PriorityMoveInput,
+  type ProjectCriticalPathInput,
+  type RenewLeaseInput,
+  type ResolveAttentionRequestInput,
+  type ResolveAttentionRequestResult,
+  type RetryableDatabaseFailure,
+  type StoredAttentionRequest,
+  type StoredAttentionResolution,
+  type StoredEvent,
+  type StoredLease,
+  type StoredNote,
+  type TerminateClaimedWorkItemInput,
+  type WorkItemDependencyCursor,
+  type WorkItemReadModel,
+  type WorkItemSchedulingScopeInput,
+  type WORK_GRAPH_EVENT_TYPES,
 } from "work-graph-db";
 import {
   ARCHITECTURE_DECISION_ROLES,
@@ -144,6 +143,7 @@ const errorSchema = z
     error: z.object({
       code: z.string().min(1).max(100),
       message: z.string().min(1).max(500),
+      requestId: z.string().min(1).max(128).optional(),
       details: z
         .array(
           z.object({
@@ -875,7 +875,7 @@ const errorResponse = (description: string) => ({
   content: { "application/json": { schema: errorSchema } },
 });
 const retryableDatabaseErrorResponse = {
-  ...errorResponse("Database request exceeded its execution budget"),
+  ...errorResponse("Database request can be retried after a transient failure"),
   headers: {
     "Retry-After": {
       description: "Seconds until the request may be retried",
@@ -884,6 +884,10 @@ const retryableDatabaseErrorResponse = {
         pattern: "^[1-9][0-9]*$",
         maxLength: 10,
       },
+    },
+    "X-Request-Id": {
+      description: "Request correlation identifier",
+      schema: { type: "string" as const, minLength: 1, maxLength: 128 },
     },
   },
 };
@@ -2017,6 +2021,7 @@ export interface WorkGraphApiRepository {
 
 export interface WorkGraphAppOptions {
   readonly createLeaseId?: () => string;
+  readonly createRequestId?: () => string;
 }
 
 const idempotencyOptions = (
@@ -2176,6 +2181,33 @@ const statusForWorkGraphError = (error: WorkGraphError): 400 | 404 | 409 => {
   return 409;
 };
 
+const retryableDatabaseErrors: Record<
+  RetryableDatabaseFailure,
+  { code: string; message: string }
+> = {
+  timeout: {
+    code: "database_timeout",
+    message: "The Work Graph database request timed out. Retry it.",
+  },
+  capacity: {
+    code: "database_capacity",
+    message: "The Work Graph database is at connection capacity. Retry it.",
+  },
+  infrastructure: {
+    code: "database_unavailable",
+    message: "The Work Graph database is temporarily unavailable. Retry it.",
+  },
+};
+
+class UncertainClaimOutcomeError extends Error {
+  constructor(cause: unknown) {
+    super("A lease claim may have committed before its response failed.", {
+      cause,
+    });
+    this.name = "UncertainClaimOutcomeError";
+  }
+}
+
 const requireBoundedCriticalPath = (
   projection: CriticalPathProjection,
 ): CriticalPathProjection => {
@@ -2210,6 +2242,7 @@ export const createWorkGraphApp = (
 ) => {
   const app = new OpenAPIHono({ defaultHook: validationHook });
   const createLeaseId = options.createLeaseId ?? (() => crypto.randomUUID());
+  const createRequestId = options.createRequestId ?? (() => crypto.randomUUID());
 
   app.openAPIRegistry.registerComponent(
     "securitySchemes",
@@ -2239,13 +2272,50 @@ export const createWorkGraphApp = (
         statusForWorkGraphError(error),
       );
     }
-    if (isRetryableDatabaseTimeout(error)) {
-      context.header("Retry-After", "1");
+    if (error instanceof UncertainClaimOutcomeError) {
+      const requestId = createRequestId();
+      context.header("X-Request-Id", requestId);
+      console.warn(
+        JSON.stringify({
+          message: "Work Graph lease claim outcome is uncertain",
+          code: "claim_outcome_uncertain",
+          requestId,
+          method: context.req.method,
+          path: context.req.path,
+        }),
+      );
       return context.json(
         {
           error: {
-            code: "database_timeout",
-            message: "The Work Graph database request timed out. Retry it.",
+            code: "claim_outcome_uncertain",
+            message:
+              "The lease claim may have succeeded, but its response could not be completed. Inspect the work item before claiming again.",
+            requestId,
+          },
+        },
+        500,
+      );
+    }
+    const retryableDatabaseFailure = classifyRetryableDatabaseFailure(error);
+    if (retryableDatabaseFailure !== undefined) {
+      const requestId = createRequestId();
+      const responseError = retryableDatabaseErrors[retryableDatabaseFailure];
+      context.header("Retry-After", "1");
+      context.header("X-Request-Id", requestId);
+      console.warn(
+        JSON.stringify({
+          message: "Work Graph database request can be retried",
+          code: responseError.code,
+          requestId,
+          method: context.req.method,
+          path: context.req.path,
+        }),
+      );
+      return context.json(
+        {
+          error: {
+            ...responseError,
+            requestId,
           },
         },
         503,
@@ -2852,17 +2922,24 @@ export const createWorkGraphApp = (
         409,
       );
     }
-    const item = await repository.getWorkItem(claimed.workItemId);
-    return context.json(
-      {
-        lease: serializeLease(claimed),
-        workItem: serializeWorkItem(item),
-        context: [
-          ...(await repository.resolveWorkItemContext(claimed.workItemId)),
-        ],
-      },
-      201,
-    );
+    try {
+      const item = await repository.getWorkItem(claimed.workItemId);
+      return context.json(
+        {
+          lease: serializeLease(claimed),
+          workItem: serializeWorkItem(item),
+          context: [
+            ...(await repository.resolveWorkItemContext(claimed.workItemId)),
+          ],
+        },
+        201,
+      );
+    } catch (error) {
+      if (classifyRetryableDatabaseFailure(error) !== undefined) {
+        throw new UncertainClaimOutcomeError(error);
+      }
+      throw error;
+    }
   });
 
   app.openapi(renewLeaseRoute, async (context) => {
