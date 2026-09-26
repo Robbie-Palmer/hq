@@ -210,6 +210,35 @@ exact `--root-work-item-id`; a root cannot be combined with scheduling-scope
 filters. Pass `--json` to print the complete `/api/critical-path` response for
 automation.
 
+Use the projection to choose work and revise the plan:
+
+1. Select the smallest useful scope. Use the global view for portfolio work,
+   an initiative or project filter for an owner review, and a root filter to
+   explain one exact outcome.
+2. Read each blocking chain from the priority outcome to its unresolved leaf.
+   A chain can follow decomposition children and explicit dependency blockers.
+3. Start from the ready leaves or claimable parallel branches. Active work,
+   stale leases, and blocking attention appear separately so they are not
+   mistaken for new starts.
+4. Confirm an unexpected result with `show`, `metadata dependencies`, and
+   `metadata decompositions`. Change the stored parent, dependency, priority,
+   attention, or lease state rather than editing the projection.
+5. Run `critical-path` again. It is a current structural view of the stored
+   graph, so a claim or graph change can alter the result immediately.
+
+The JSON response has the same information without display formatting.
+`nodes` contains each work item once with its stage, claimability, priority,
+and inclusion reasons. `edges` contains the relevant decomposition and
+dependency relationships. `targetOutcomeIds` identifies the selected priority
+outcomes, while `blockingPaths` lists every chain to an unresolved leaf.
+`readyLeafIds`, `blockingAttentionIds`, and `parallelBranches` support agents
+that need to select work or explain why it cannot start. Shared blockers remain
+one node and one edge in the graph even when several paths refer to them.
+
+This command does not estimate effort, duration, or delivery dates. A
+structural critical path says what blocks an outcome now. It is not a schedule
+or delivery forecast.
+
 `reparent` moves an existing ticket under another ticket. `detach` moves it to
 the graph root. Both keep the ticket's identity and attached history, reject
 combined waits-for cycles, and accept `--idempotency-key`.

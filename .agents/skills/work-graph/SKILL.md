@@ -41,6 +41,32 @@ machine with an older client, bootstrap once with
 the ticket's active lease. Pass `--lease-id` and `--epoch` together only when a
 script already has both values.
 
+## Plan with the critical path
+
+Run `work-graph critical-path` for the global plan. Narrow an owner review with
+`--initiative-id <initiative>` or `--project-id <project>`. Use
+`--root-work-item-id <ticket>` to explain one exact outcome. Do not combine a
+root filter with an initiative or project filter.
+
+Read a blocking path from its priority outcome to the unresolved leaf. Paths
+can cross decomposition and dependency edges. `ready` leaves can start now,
+`active` work already has a lease, `stale` work can be reclaimed, and
+`needs_attention` requires the recorded human response. Parallel branches are
+claimable leaves that can advance independently. Prefer the highest-priority
+branch that fits the requested scope.
+
+Use `--json` for automation. Consume `nodes` and `edges` as the deduplicated
+graph, `targetOutcomeIds` as the selected outcomes, `blockingPaths` as the
+explanations, and `readyLeafIds`, `blockingAttentionIds`, and
+`parallelBranches` as work-selection lists. Inspect `inclusionReasons` when an
+item's presence is surprising.
+
+Treat the result as a live structural projection, not a duration estimate or
+delivery forecast. Verify a surprising path with `work-graph show <ticket>`,
+`work-graph metadata dependencies <ticket>`, and `work-graph metadata
+decompositions <ticket>`. Revise stored graph state with the commands below,
+then rerun the projection.
+
 ## Changes to the plan
 
 - Reorder a ticket with `work-graph priority move <ticket> --above <ticket>` or
