@@ -2,6 +2,116 @@
 
 import * as z from 'zod';
 
+export const zStoredWorkItem = z.object({
+    id: z.string().min(1).max(200),
+    title: z.string().min(1).max(10000),
+    lifecycle: z.enum([
+        'open',
+        'released',
+        'cancelled'
+    ]),
+    parentId: z.string().min(1).max(200).nullable(),
+    rank: z.int().gte(1).lte(2147483647).nullable(),
+    priorityRank: z.int().gte(1).lte(2147483647).nullable(),
+    schedulingInitiativeId: z.string().min(1).max(200).nullable(),
+    schedulingProjectId: z.string().min(1).max(200).nullable(),
+    expedited: z.boolean(),
+    expediteReason: z.string().min(1).max(10000).nullable()
+});
+
+export const zWorkItemPriority = z.object({
+    initiativeRank: z.int().gte(1).lte(2147483647),
+    projectRank: z.int().gte(1).lte(2147483647),
+    ticketRank: z.int().gte(1).lte(2147483647),
+    expedited: z.boolean(),
+    effectiveExpedited: z.boolean(),
+    donatedFromWorkItemId: z.string().min(1).max(200).nullable()
+});
+
+export const zCriticalPathInclusionReason = z.union([
+    z.object({
+        kind: z.enum(['target_outcome'])
+    }),
+    z.object({
+        kind: z.enum(['decomposition_child']),
+        fromWorkItemId: z.string().min(1).max(200)
+    }),
+    z.object({
+        kind: z.enum(['dependency_blocker']),
+        fromWorkItemId: z.string().min(1).max(200),
+        dependencyDeclaredByWorkItemId: z.string().min(1).max(200)
+    })
+]);
+
+export const zCriticalPathNode = z.object({
+    item: zStoredWorkItem,
+    stage: z.enum([
+        'blocked',
+        'ready',
+        'in_progress',
+        'stale',
+        'needs_attention',
+        'released',
+        'cancelled'
+    ]),
+    claimable: z.boolean(),
+    priority: zWorkItemPriority,
+    inclusionReasons: z.array(zCriticalPathInclusionReason).min(1).max(5001)
+});
+
+export const zCriticalPathEdge = z.union([
+    z.object({
+        kind: z.enum(['decomposition']),
+        fromWorkItemId: z.string().min(1).max(200),
+        toWorkItemId: z.string().min(1).max(200)
+    }),
+    z.object({
+        kind: z.enum(['dependency']),
+        fromWorkItemId: z.string().min(1).max(200),
+        toWorkItemId: z.string().min(1).max(200),
+        dependencyDeclaredByWorkItemId: z.string().min(1).max(200)
+    })
+]);
+
+export const zCriticalPathWorkItemPath = z.array(z.string().min(1).max(200)).min(1).max(1000);
+
+export const zCriticalPathParallelBranch = z.object({
+    workItemId: z.string().min(1).max(200),
+    stage: z.enum([
+        'blocked',
+        'ready',
+        'in_progress',
+        'stale',
+        'needs_attention',
+        'released',
+        'cancelled'
+    ]),
+    claimable: z.boolean(),
+    targetWorkItemIds: z.array(z.string().min(1).max(200)).max(1000),
+    paths: z.array(zCriticalPathWorkItemPath).max(5000)
+});
+
+export const zCriticalPathProjection = z.object({
+    targetOutcomeIds: z.array(z.string().min(1).max(200)).max(1000),
+    nodes: z.array(zCriticalPathNode).max(1000),
+    edges: z.array(zCriticalPathEdge).max(5000),
+    blockingPaths: z.array(zCriticalPathWorkItemPath).max(5000),
+    readyLeafIds: z.array(z.string().min(1).max(200)).max(1000),
+    blockingAttentionIds: z.array(z.string().min(1).max(200)).max(1000),
+    parallelBranches: z.array(zCriticalPathParallelBranch).max(1000)
+});
+
+export const zError = z.object({
+    error: z.object({
+        code: z.string().min(1).max(100),
+        message: z.string().min(1).max(500),
+        details: z.array(z.object({
+            path: z.array(z.union([z.string().max(200), z.number()])).max(20),
+            message: z.string().max(500)
+        })).max(100).optional()
+    })
+});
+
 export const zLease = z.object({
     id: z.uuid().max(36),
     workItemId: z.string().min(1).max(200),
@@ -19,29 +129,8 @@ export const zLease = z.object({
     ]).nullable()
 });
 
-export const zWorkItem = z.object({
-    id: z.string().min(1).max(200),
-    title: z.string().min(1).max(10000),
-    lifecycle: z.enum([
-        'open',
-        'released',
-        'cancelled'
-    ]),
-    parentId: z.string().min(1).max(200).nullable(),
-    rank: z.int().gte(1).lte(2147483647).nullable(),
-    priorityRank: z.int().gte(1).lte(2147483647).nullable(),
-    schedulingInitiativeId: z.string().min(1).max(200).nullable(),
-    schedulingProjectId: z.string().min(1).max(200).nullable(),
-    expedited: z.boolean(),
-    expediteReason: z.string().min(1).max(10000).nullable(),
-    priority: z.object({
-        initiativeRank: z.int().gte(1).lte(2147483647),
-        projectRank: z.int().gte(1).lte(2147483647),
-        ticketRank: z.int().gte(1).lte(2147483647),
-        expedited: z.boolean(),
-        effectiveExpedited: z.boolean(),
-        donatedFromWorkItemId: z.string().min(1).max(200).nullable()
-    }),
+export const zWorkItem = zStoredWorkItem.and(z.object({
+    priority: zWorkItemPriority,
     stage: z.enum([
         'blocked',
         'ready',
@@ -52,22 +141,11 @@ export const zWorkItem = z.object({
         'cancelled'
     ]),
     currentLease: zLease.nullable()
-});
+}));
 
 export const zWorkItemList = z.object({
     items: z.array(zWorkItem).max(100),
     nextCursor: z.string().min(1).max(200).nullable()
-});
-
-export const zError = z.object({
-    error: z.object({
-        code: z.string().min(1).max(100),
-        message: z.string().min(1).max(500),
-        details: z.array(z.object({
-            path: z.array(z.union([z.string().max(200), z.number()])).max(20),
-            message: z.string().max(500)
-        })).max(100).optional()
-    })
 });
 
 export const zKnowledgeScope = z.object({
@@ -394,6 +472,17 @@ export const zCreateAttentionResolutionPath = z.object({
  * Attention request resolved or matching mutation replayed
  */
 export const zCreateAttentionResolutionResponse = zAttentionResolutionResponse;
+
+export const zGetCriticalPathQuery = z.object({
+    initiativeId: z.string().min(1).max(200).optional(),
+    projectId: z.string().min(1).max(200).optional(),
+    rootWorkItemId: z.string().min(1).max(200).optional()
+});
+
+/**
+ * Critical-path targets, included nodes and edges, blocking paths, and claimable parallel branches
+ */
+export const zGetCriticalPathResponse = zCriticalPathProjection;
 
 export const zDeleteDependencyBody = z.object({
     dependentWorkItemId: z.string().min(1).max(200),

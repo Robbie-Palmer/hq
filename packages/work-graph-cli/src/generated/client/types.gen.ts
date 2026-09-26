@@ -4,12 +4,25 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
-export type WorkItemList = {
-    items: Array<WorkItem>;
-    nextCursor: string | null;
+export type CriticalPathProjection = {
+    targetOutcomeIds: Array<string>;
+    nodes: Array<CriticalPathNode>;
+    edges: Array<CriticalPathEdge>;
+    blockingPaths: Array<CriticalPathWorkItemPath>;
+    readyLeafIds: Array<string>;
+    blockingAttentionIds: Array<string>;
+    parallelBranches: Array<CriticalPathParallelBranch>;
 };
 
-export type WorkItem = {
+export type CriticalPathNode = {
+    item: StoredWorkItem;
+    stage: 'blocked' | 'ready' | 'in_progress' | 'stale' | 'needs_attention' | 'released' | 'cancelled';
+    claimable: boolean;
+    priority: WorkItemPriority;
+    inclusionReasons: Array<CriticalPathInclusionReason>;
+};
+
+export type StoredWorkItem = {
     id: string;
     title: string;
     lifecycle: 'open' | 'released' | 'cancelled';
@@ -20,14 +33,67 @@ export type WorkItem = {
     schedulingProjectId: string | null;
     expedited: boolean;
     expediteReason: string | null;
-    priority: {
-        initiativeRank: number;
-        projectRank: number;
-        ticketRank: number;
-        expedited: boolean;
-        effectiveExpedited: boolean;
-        donatedFromWorkItemId: string | null;
+};
+
+export type WorkItemPriority = {
+    initiativeRank: number;
+    projectRank: number;
+    ticketRank: number;
+    expedited: boolean;
+    effectiveExpedited: boolean;
+    donatedFromWorkItemId: string | null;
+};
+
+export type CriticalPathInclusionReason = {
+    kind: 'target_outcome';
+} | {
+    kind: 'decomposition_child';
+    fromWorkItemId: string;
+} | {
+    kind: 'dependency_blocker';
+    fromWorkItemId: string;
+    dependencyDeclaredByWorkItemId: string;
+};
+
+export type CriticalPathEdge = {
+    kind: 'decomposition';
+    fromWorkItemId: string;
+    toWorkItemId: string;
+} | {
+    kind: 'dependency';
+    fromWorkItemId: string;
+    toWorkItemId: string;
+    dependencyDeclaredByWorkItemId: string;
+};
+
+export type CriticalPathWorkItemPath = Array<string>;
+
+export type CriticalPathParallelBranch = {
+    workItemId: string;
+    stage: 'blocked' | 'ready' | 'in_progress' | 'stale' | 'needs_attention' | 'released' | 'cancelled';
+    claimable: boolean;
+    targetWorkItemIds: Array<string>;
+    paths: Array<CriticalPathWorkItemPath>;
+};
+
+export type Error = {
+    error: {
+        code: string;
+        message: string;
+        details?: Array<{
+            path: Array<string | number>;
+            message: string;
+        }>;
     };
+};
+
+export type WorkItemList = {
+    items: Array<WorkItem>;
+    nextCursor: string | null;
+};
+
+export type WorkItem = StoredWorkItem & {
+    priority: WorkItemPriority;
     stage: 'blocked' | 'ready' | 'in_progress' | 'stale' | 'needs_attention' | 'released' | 'cancelled';
     currentLease: Lease | null;
 };
@@ -41,17 +107,6 @@ export type Lease = {
     expiresAt: string;
     endedAt: string | null;
     outcome: 'released' | 'cancelled' | 'decomposed' | 'attention_requested' | 'expired' | null;
-};
-
-export type Error = {
-    error: {
-        code: string;
-        message: string;
-        details?: Array<{
-            path: Array<string | number>;
-            message: string;
-        }>;
-    };
 };
 
 export type KnowledgeScopeList = {
@@ -445,6 +500,59 @@ export type CreateAttentionResolutionResponses = {
 };
 
 export type CreateAttentionResolutionResponse = CreateAttentionResolutionResponses[keyof CreateAttentionResolutionResponses];
+
+export type GetCriticalPathData = {
+    body?: never;
+    path?: never;
+    query?: {
+        initiativeId?: string;
+        projectId?: string;
+        rootWorkItemId?: string;
+    };
+    url: '/api/critical-path';
+};
+
+export type GetCriticalPathErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+};
+
+export type GetCriticalPathError = GetCriticalPathErrors[keyof GetCriticalPathErrors];
+
+export type GetCriticalPathResponses = {
+    /**
+     * Critical-path targets, included nodes and edges, blocking paths, and claimable parallel branches
+     */
+    200: CriticalPathProjection;
+};
+
+export type GetCriticalPathResponse = GetCriticalPathResponses[keyof GetCriticalPathResponses];
 
 export type DeleteDependencyData = {
     body: {

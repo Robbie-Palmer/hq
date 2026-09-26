@@ -1,4 +1,5 @@
 import { compareStrings } from "ts-base/strings";
+import { WorkGraphError } from "./errors";
 import {
   getDirectChildren,
   getEffectiveDependencies,
@@ -26,6 +27,9 @@ import {
 import type { WorkStage } from "./vocabulary";
 
 export type CriticalPathEdgeKind = "decomposition" | "dependency";
+
+export const MAX_CRITICAL_PATH_BLOCKING_PATHS = 5_000;
+export const MAX_CRITICAL_PATH_NODES = 1_000;
 
 export type CriticalPathInclusionReason =
   | { readonly kind: "target_outcome" }
@@ -88,6 +92,10 @@ export interface CriticalPathProjectionOptions {
   readonly selectionScope?: WorkItemSelectionScope;
   /** Select exact outcomes. Without this, open roots in the selection scope apply. */
   readonly targetWorkItemIds?: readonly string[];
+  /** Abort path enumeration at this bound instead of returning a partial graph. */
+  readonly maxBlockingPaths?: number;
+  /** Abort path enumeration before a path can exceed this many nodes. */
+  readonly maxBlockingPathLength?: number;
 }
 
 type WorkItemOrder = ReadonlyMap<string, number>;
@@ -240,6 +248,8 @@ const enumerateBlockingPaths = (
   targetOutcomeIds: readonly string[],
   edges: readonly CriticalPathEdge[],
   orderById: WorkItemOrder,
+  maxBlockingPaths: number,
+  maxBlockingPathLength: number,
 ): readonly (readonly string[])[] => {
   const nextIdsByWorkItemId = new Map<string, Set<string>>();
   for (const edge of edges) {
@@ -250,19 +260,35 @@ const enumerateBlockingPaths = (
   }
 
   const paths: string[][] = [];
-  const visit = (workItemId: string, path: readonly string[]): void => {
-    const nextIds = [...(nextIdsByWorkItemId.get(workItemId) ?? [])].sort(
-      (left, right) => compareByOrder(orderById, left, right),
-    );
-    if (nextIds.length === 0) {
-      paths.push([...path, workItemId]);
-      return;
+  const pending = targetOutcomeIds
+    .toReversed()
+    .map((workItemId) => ({ workItemId, path: [] as readonly string[] }));
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (!current) break;
+    const path = [...current.path, current.workItemId];
+    if (path.length > maxBlockingPathLength) {
+      throw new WorkGraphError(
+        "critical_path_projection_too_large",
+        `The critical-path projection exceeds the limit of ${maxBlockingPathLength} nodes per blocking path. Narrow the projection scope.`,
+      );
     }
-    for (const nextId of nextIds) visit(nextId, [...path, workItemId]);
-  };
-
-  for (const targetOutcomeId of targetOutcomeIds) {
-    visit(targetOutcomeId, []);
+    const nextIds = [
+      ...(nextIdsByWorkItemId.get(current.workItemId) ?? []),
+    ].sort((left, right) => compareByOrder(orderById, left, right));
+    if (nextIds.length === 0) {
+      if (paths.length >= maxBlockingPaths) {
+        throw new WorkGraphError(
+          "critical_path_projection_too_large",
+          `The critical-path projection exceeds the limit of ${maxBlockingPaths} blocking paths. Narrow the projection scope.`,
+        );
+      }
+      paths.push(path);
+      continue;
+    }
+    for (const nextId of nextIds.toReversed()) {
+      pending.push({ workItemId: nextId, path });
+    }
   }
   return paths;
 };
@@ -509,6 +535,8 @@ export const projectCriticalPath = (
     targetOutcomeIds,
     traversal.edges,
     orderById,
+    options.maxBlockingPaths ?? MAX_CRITICAL_PATH_BLOCKING_PATHS,
+    options.maxBlockingPathLength ?? MAX_CRITICAL_PATH_NODES,
   );
   const leaves = projectLeaves(nodes, blockingPaths, orderById);
   return assembleProjection(

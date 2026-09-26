@@ -94,6 +94,45 @@ describe("delivery-critical path projection", () => {
     ).toEqual(["schema", "interface"]);
   });
 
+  it("aborts blocking-path enumeration before returning a partial graph", () => {
+    const graph = createWorkGraph({
+      workItems: [
+        { id: "outcome", title: "Outcome" },
+        { id: "first", title: "First", parentId: "outcome", rank: 1 },
+        { id: "second", title: "Second", parentId: "outcome", rank: 2 },
+      ],
+    });
+
+    expect(() =>
+      projectCriticalPath(graph, { now: NOW, maxBlockingPaths: 1 }),
+    ).toThrowError(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "critical_path_projection_too_large",
+      }),
+    );
+  });
+
+  it("rejects an oversized path without recursive traversal", () => {
+    const graph = createWorkGraph({
+      workItems: [
+        { id: "outcome", title: "Outcome" },
+        { id: "middle", title: "Middle", parentId: "outcome" },
+        { id: "leaf", title: "Leaf", parentId: "middle" },
+      ],
+    });
+
+    expect(() =>
+      projectCriticalPath(graph, {
+        now: NOW,
+        maxBlockingPathLength: 2,
+      }),
+    ).toThrowError(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "critical_path_projection_too_large",
+      }),
+    );
+  });
+
   it("preserves every dependency path to one shared blocker", () => {
     const graph = createWorkGraph({
       workItems: [

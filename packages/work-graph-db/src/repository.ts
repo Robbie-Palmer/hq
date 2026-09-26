@@ -15,15 +15,19 @@ import {
   createKnowledgeScope,
   createWorkGraph,
   isWorkItemInSelectionScope,
+  MAX_CRITICAL_PATH_BLOCKING_PATHS,
+  MAX_CRITICAL_PATH_NODES,
   normalizeAndValidateContextRecords,
   normalizeKnowledgeScopeArchiveReason,
   orderWorkItemsByPriority,
+  projectCriticalPath as projectDomainCriticalPath,
   projectWorkItemPriorities,
   projectWorkItemStage,
   resolveWorkItemContext as resolveDomainWorkItemContext,
   validatePostReleaseNote,
   validateKnowledgeScopeRelationships,
   WorkGraphError,
+  type CriticalPathProjection,
   type KnowledgeScope,
   type KnowledgeScopeInput,
   type KnowledgeScopeRelationship,
@@ -154,6 +158,12 @@ export interface ClaimWorkItemInput {
 }
 
 export type ListWorkItemsInput = WorkItemSelectionScope;
+
+export interface ProjectCriticalPathInput {
+  readonly initiativeId?: string;
+  readonly projectId?: string;
+  readonly rootWorkItemId?: string;
+}
 
 export interface WorkItemSchedulingScopeInput {
   readonly schedulingInitiativeId: string | null;
@@ -1222,6 +1232,130 @@ export class WorkGraphRepository {
   async load(): Promise<WorkGraph> {
     return this.db.transaction(
       (transaction) => this.loadGraph(transaction),
+      {
+        isolationLevel: "repeatable read",
+        accessMode: "read only",
+      },
+    );
+  }
+
+  async projectCriticalPath(
+    input: ProjectCriticalPathInput = {},
+  ): Promise<CriticalPathProjection> {
+    if (input.initiativeId !== undefined) {
+      requireKnowledgeScopeId(input.initiativeId);
+    }
+    if (input.projectId !== undefined) {
+      requireKnowledgeScopeId(input.projectId);
+    }
+    if (input.rootWorkItemId !== undefined) {
+      requireIdentifier(input.rootWorkItemId, "invalid_work_item_id");
+    }
+    if (
+      input.rootWorkItemId !== undefined &&
+      (input.initiativeId !== undefined || input.projectId !== undefined)
+    ) {
+      throw new WorkGraphError(
+        "invalid_critical_path_scope",
+        "A root work item cannot be combined with initiative or project filters.",
+      );
+    }
+
+    return this.db.transaction(
+      async (transaction) => {
+        const graph = await this.loadGraph(transaction);
+        const scopes = await this.loadKnowledgeScopes(transaction);
+        const requireScope = (
+          id: string,
+          kind: KnowledgeScope["kind"],
+        ): void => {
+          const scope = scopes.find((candidate) => candidate.id === id);
+          if (!scope) throw knowledgeScopeNotFound(id);
+          if (scope.lifecycle !== "active" || scope.kind !== kind) {
+            throw new WorkGraphError(
+              "invalid_critical_path_scope",
+              `Knowledge scope ${id} is not an active ${kind}.`,
+            );
+          }
+        };
+        if (input.initiativeId !== undefined) {
+          requireScope(input.initiativeId, "initiative");
+        }
+        if (input.projectId !== undefined) {
+          requireScope(input.projectId, "project");
+        }
+        if (
+          input.rootWorkItemId !== undefined &&
+          !graph.workItems.some(({ id }) => id === input.rootWorkItemId)
+        ) {
+          throw workItemNotFound(input.rootWorkItemId);
+        }
+
+        const currentLeases = await transaction
+          .select()
+          .from(lease)
+          .where(isNull(lease.endedAt));
+        const unresolvedBlockingAttention = await transaction
+          .select({ workItemId: attentionRequest.workItemId })
+          .from(attentionRequest)
+          .leftJoin(
+            attentionResolution,
+            eq(
+              attentionResolution.attentionRequestId,
+              attentionRequest.id,
+            ),
+          )
+          .where(
+            and(
+              eq(attentionRequest.blocking, true),
+              isNull(attentionResolution.id),
+            ),
+          );
+        const now = await readDatabaseClock(transaction);
+        const leasesByWorkItemId = new Map(
+          currentLeases.map((storedLease) => [
+            storedLease.workItemId,
+            storedLease,
+          ]),
+        );
+        const workItemIdsNeedingAttention = new Set(
+          unresolvedBlockingAttention.map(({ workItemId }) => workItemId),
+        );
+        const operationalStateByWorkItemId = Object.fromEntries(
+          graph.workItems.map(({ id }) => {
+            const currentLease = leasesByWorkItemId.get(id);
+            return [
+              id,
+              {
+                currentLease: currentLease
+                  ? { expiresAt: currentLease.expiresAt.getTime() }
+                  : null,
+                hasUnresolvedBlockingAttention:
+                  workItemIdsNeedingAttention.has(id),
+              },
+            ];
+          }),
+        );
+
+        return projectDomainCriticalPath(graph, {
+          now: now.getTime(),
+          maxBlockingPaths: MAX_CRITICAL_PATH_BLOCKING_PATHS,
+          maxBlockingPathLength: MAX_CRITICAL_PATH_NODES,
+          knowledgeScopes: scopes,
+          operationalStateByWorkItemId,
+          selectionScope: {
+            ...(input.initiativeId === undefined
+              ? {}
+              : { initiativeId: input.initiativeId }),
+            ...(input.projectId === undefined
+              ? {}
+              : { projectId: input.projectId }),
+          },
+          ...(input.rootWorkItemId === undefined
+            ? {}
+            : { targetWorkItemIds: [input.rootWorkItemId] }),
+        });
+      },
       {
         isolationLevel: "repeatable read",
         accessMode: "read only",

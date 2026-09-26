@@ -1,5 +1,6 @@
 import {
   WorkGraphError,
+  type CriticalPathProjection,
   type WorkItemLifecycle,
   type WorkStage,
 } from "work-graph-domain";
@@ -68,6 +69,40 @@ const item = (
   currentLease,
 });
 
+const criticalPathProjection = (
+  workItemId = "outcome",
+): CriticalPathProjection => {
+  const { currentLease: _, priority, stage, ...storedItem } = item(
+    workItemId,
+    "ready",
+  );
+  return {
+    targetOutcomeIds: [workItemId],
+    nodes: [
+      {
+        item: storedItem,
+        stage,
+        claimable: true,
+        priority,
+        inclusionReasons: [{ kind: "target_outcome" }],
+      },
+    ],
+    edges: [],
+    blockingPaths: [[workItemId]],
+    readyLeafIds: [workItemId],
+    blockingAttentionIds: [],
+    parallelBranches: [
+      {
+        workItemId,
+        stage,
+        claimable: true,
+        targetWorkItemIds: [workItemId],
+        paths: [[workItemId]],
+      },
+    ],
+  };
+};
+
 const responseJson = async (response: Response): Promise<unknown> =>
   response.json();
 
@@ -84,6 +119,7 @@ const knowledgeScope = (id: string, kind: "initiative" | "project") => ({
 });
 
 const buildRepository = (): WorkGraphApiRepository => ({
+  projectCriticalPath: vi.fn(async () => criticalPathProjection()),
   listKnowledgeScopes: vi.fn(async () => []),
   getKnowledgeScope: vi.fn(async (id) => ({
     id,
@@ -240,6 +276,107 @@ const buildRepository = (): WorkGraphApiRepository => ({
         }
       : null,
   })),
+});
+
+describe("Given a requested delivery-critical path", () => {
+  it("returns the stable projection and passes scope filters", async () => {
+    const repository = buildRepository();
+    const projection = criticalPathProjection("project-outcome");
+    vi.mocked(repository.projectCriticalPath).mockResolvedValue(projection);
+    const app = createWorkGraphApp(repository);
+
+    const response = await app.request(
+      "/api/critical-path?initiativeId=initiative&projectId=project",
+    );
+
+    expect(response.status).toBe(200);
+    expect(repository.projectCriticalPath).toHaveBeenCalledWith({
+      initiativeId: "initiative",
+      projectId: "project",
+    });
+    expect(await responseJson(response)).toEqual(projection);
+  });
+
+  it("returns an empty projection without inventing targets", async () => {
+    const repository = buildRepository();
+    const projection: CriticalPathProjection = {
+      targetOutcomeIds: [],
+      nodes: [],
+      edges: [],
+      blockingPaths: [],
+      readyLeafIds: [],
+      blockingAttentionIds: [],
+      parallelBranches: [],
+    };
+    vi.mocked(repository.projectCriticalPath).mockResolvedValue(projection);
+    const app = createWorkGraphApp(repository);
+
+    const response = await app.request("/api/critical-path");
+
+    expect(response.status).toBe(200);
+    expect(await responseJson(response)).toEqual(projection);
+  });
+
+  it("rejects an explicit root combined with scheduling scopes", async () => {
+    const repository = buildRepository();
+    const app = createWorkGraphApp(repository);
+
+    const response = await app.request(
+      "/api/critical-path?rootWorkItemId=root&projectId=project",
+    );
+
+    expect(response.status).toBe(422);
+    expect(await responseJson(response)).toEqual(
+      expect.objectContaining({
+        error: expect.objectContaining({ code: "validation_failed" }),
+      }),
+    );
+    expect(repository.projectCriticalPath).not.toHaveBeenCalled();
+  });
+
+  it("maps missing scopes and roots to the shared not-found response", async () => {
+    const repository = buildRepository();
+    vi.mocked(repository.projectCriticalPath).mockRejectedValue(
+      new WorkGraphError(
+        "knowledge_scope_not_found",
+        "Knowledge scope missing does not exist.",
+      ),
+    );
+    const app = createWorkGraphApp(repository);
+
+    const response = await app.request(
+      "/api/critical-path?initiativeId=missing",
+    );
+
+    expect(response.status).toBe(404);
+    expect(await responseJson(response)).toEqual({
+      error: {
+        code: "knowledge_scope_not_found",
+        message: "Knowledge scope missing does not exist.",
+      },
+    });
+  });
+
+  it("rejects a projection that exceeds its all-or-nothing bound", async () => {
+    const repository = buildRepository();
+    const projection = criticalPathProjection();
+    vi.mocked(repository.projectCriticalPath).mockResolvedValue({
+      ...projection,
+      nodes: Array.from({ length: 1_001 }, () => projection.nodes[0]!),
+    });
+    const app = createWorkGraphApp(repository);
+
+    const response = await app.request("/api/critical-path");
+
+    expect(response.status).toBe(409);
+    expect(await responseJson(response)).toEqual(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          code: "critical_path_projection_too_large",
+        }),
+      }),
+    );
+  });
 });
 
 describe("Given knowledge-scope mirrors", () => {

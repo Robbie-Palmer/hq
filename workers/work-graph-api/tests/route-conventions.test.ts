@@ -8,6 +8,7 @@ const unavailable = async (): Promise<never> => {
   throw new Error("Repository operations are unavailable in route tests.");
 };
 const app = createWorkGraphApp({
+  projectCriticalPath: unavailable,
   listKnowledgeScopes: unavailable,
   getKnowledgeScope: unavailable,
   putKnowledgeScope: unavailable,
@@ -78,6 +79,12 @@ describe("Given the Work Graph route registry", () => {
     );
 
     expect(documented.sort()).toEqual(runtime.sort());
+    expect(document.paths?.["/api/critical-path"]?.get?.security).toEqual([
+      {
+        cloudflareAccessClientId: [],
+        cloudflareAccessClientSecret: [],
+      },
+    ]);
   });
 
   it("uses noun-based kebab-case paths without trailing slashes", () => {
@@ -101,6 +108,7 @@ describe("Given the Work Graph route registry", () => {
         "DELETE /api/knowledge-scopes/:knowledgeScopeId/archival",
         "DELETE /api/work-items/:workItemId/expedites",
         "GET /api/attention-requests",
+        "GET /api/critical-path",
         "GET /api/knowledge-scope-relationships",
         "GET /api/knowledge-scopes",
         "GET /api/knowledge-scopes/:knowledgeScopeId",

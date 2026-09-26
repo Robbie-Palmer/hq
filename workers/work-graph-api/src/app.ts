@@ -25,6 +25,7 @@ import type {
   ListWorkItemLeasesInput,
   ListWorkItemNotesInput,
   PriorityMoveInput,
+  ProjectCriticalPathInput,
   ResolveAttentionRequestInput,
   ResolveAttentionRequestResult,
   RenewLeaseInput,
@@ -44,6 +45,8 @@ import {
   KNOWLEDGE_SCOPE_KINDS,
   KNOWLEDGE_SCOPE_LIFECYCLES,
   LEASE_OUTCOMES,
+  MAX_CRITICAL_PATH_BLOCKING_PATHS,
+  MAX_CRITICAL_PATH_NODES,
   PULL_REQUEST_CHECK_SUMMARIES,
   PULL_REQUEST_MERGEABILITIES,
   PULL_REQUEST_REVIEW_DECISIONS,
@@ -53,6 +56,7 @@ import {
   WORK_ITEM_CONTEXT_KINDS,
   WORK_STAGES,
   WorkGraphError,
+  type CriticalPathProjection,
   type KnowledgeScope,
   type KnowledgeScopeInput,
   type KnowledgeScopeRelationship,
@@ -78,6 +82,7 @@ const MAX_URL_LENGTH = 2_048;
 const MAX_RELATIONSHIP_CURSOR_LENGTH = 4_096;
 const MAX_METADATA_CURSOR_LENGTH = 4_096;
 const MAX_INT32 = 2_147_483_647;
+const MAX_CRITICAL_PATH_EDGES = 5_000;
 const WORK_ITEM_EVENT_TYPES = [
   "attention.requested",
   "attention.resolved",
@@ -162,7 +167,7 @@ const leaseSchema = z
   })
   .openapi("Lease");
 
-const workItemSchema = z
+const storedWorkItemSchema = z
   .object({
     id: identifierSchema,
     title: z.string().min(1).max(MAX_TITLE_LENGTH),
@@ -177,14 +182,21 @@ const workItemSchema = z
       z.string().trim().min(1).max(MAX_TITLE_LENGTH),
       z.null(),
     ]),
-    priority: z.object({
-      initiativeRank: childRankSchema,
-      projectRank: childRankSchema,
-      ticketRank: childRankSchema,
-      expedited: z.boolean(),
-      effectiveExpedited: z.boolean(),
-      donatedFromWorkItemId: z.union([identifierSchema, z.null()]),
-    }),
+  })
+  .openapi("StoredWorkItem");
+const workItemPrioritySchema = z
+  .object({
+    initiativeRank: childRankSchema,
+    projectRank: childRankSchema,
+    ticketRank: childRankSchema,
+    expedited: z.boolean(),
+    effectiveExpedited: z.boolean(),
+    donatedFromWorkItemId: z.union([identifierSchema, z.null()]),
+  })
+  .openapi("WorkItemPriority");
+const workItemSchema = storedWorkItemSchema
+  .extend({
+    priority: workItemPrioritySchema,
     stage: z.enum(WORK_STAGES),
     currentLease: z.union([leaseSchema, z.null()]),
   })
@@ -196,6 +208,82 @@ const workItemListSchema = z
     nextCursor: z.union([identifierSchema, z.null()]),
   })
   .openapi("WorkItemList");
+const criticalPathInclusionReasonSchema = z
+  .discriminatedUnion("kind", [
+    z.object({ kind: z.literal("target_outcome") }),
+    z.object({
+      kind: z.literal("decomposition_child"),
+      fromWorkItemId: identifierSchema,
+    }),
+    z.object({
+      kind: z.literal("dependency_blocker"),
+      fromWorkItemId: identifierSchema,
+      dependencyDeclaredByWorkItemId: identifierSchema,
+    }),
+  ])
+  .openapi("CriticalPathInclusionReason");
+const criticalPathNodeSchema = z
+  .object({
+    item: storedWorkItemSchema,
+    stage: z.enum(WORK_STAGES),
+    claimable: z.boolean(),
+    priority: workItemPrioritySchema,
+    inclusionReasons: z
+      .array(criticalPathInclusionReasonSchema)
+      .min(1)
+      .max(MAX_CRITICAL_PATH_EDGES + 1),
+  })
+  .openapi("CriticalPathNode");
+const criticalPathEdgeSchema = z
+  .discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("decomposition"),
+      fromWorkItemId: identifierSchema,
+      toWorkItemId: identifierSchema,
+    }),
+    z.object({
+      kind: z.literal("dependency"),
+      fromWorkItemId: identifierSchema,
+      toWorkItemId: identifierSchema,
+      dependencyDeclaredByWorkItemId: identifierSchema,
+    }),
+  ])
+  .openapi("CriticalPathEdge");
+const criticalPathPathSchema = z
+  .array(identifierSchema)
+  .min(1)
+  .max(MAX_CRITICAL_PATH_NODES)
+  .openapi("CriticalPathWorkItemPath");
+const criticalPathParallelBranchSchema = z
+  .object({
+    workItemId: identifierSchema,
+    stage: z.enum(WORK_STAGES),
+    claimable: z.boolean(),
+    targetWorkItemIds: z
+      .array(identifierSchema)
+      .max(MAX_CRITICAL_PATH_NODES),
+    paths: z
+      .array(criticalPathPathSchema)
+      .max(MAX_CRITICAL_PATH_BLOCKING_PATHS),
+  })
+  .openapi("CriticalPathParallelBranch");
+const criticalPathProjectionSchema = z
+  .object({
+    targetOutcomeIds: z.array(identifierSchema).max(MAX_CRITICAL_PATH_NODES),
+    nodes: z.array(criticalPathNodeSchema).max(MAX_CRITICAL_PATH_NODES),
+    edges: z.array(criticalPathEdgeSchema).max(MAX_CRITICAL_PATH_EDGES),
+    blockingPaths: z
+      .array(criticalPathPathSchema)
+      .max(MAX_CRITICAL_PATH_BLOCKING_PATHS),
+    readyLeafIds: z.array(identifierSchema).max(MAX_CRITICAL_PATH_NODES),
+    blockingAttentionIds: z
+      .array(identifierSchema)
+      .max(MAX_CRITICAL_PATH_NODES),
+    parallelBranches: z
+      .array(criticalPathParallelBranchSchema)
+      .max(MAX_CRITICAL_PATH_NODES),
+  })
+  .openapi("CriticalPathProjection");
 const knowledgeScopeUrlSchema = z
   .url()
   .max(MAX_URL_LENGTH)
@@ -474,6 +562,22 @@ const listWorkItemsQuerySchema = z.object({
     .openapi({ format: "int32" }),
   cursor: identifierSchema.optional(),
 });
+const getCriticalPathQuerySchema = z
+  .object({
+    initiativeId: identifierSchema.optional(),
+    projectId: identifierSchema.optional(),
+    rootWorkItemId: identifierSchema.optional(),
+  })
+  .refine(
+    ({ initiativeId, projectId, rootWorkItemId }) =>
+      rootWorkItemId === undefined ||
+      (initiativeId === undefined && projectId === undefined),
+    {
+      message:
+        "rootWorkItemId cannot be combined with initiativeId or projectId",
+      path: ["rootWorkItemId"],
+    },
+  );
 const listAttentionRequestsQuerySchema = z.object({
   workItemId: identifierSchema.optional(),
   state: z.enum(["all", "unresolved", "resolved"]).default("unresolved"),
@@ -794,6 +898,28 @@ const listWorkItemsRoute = createRoute({
     200: {
       description: "Work items in deterministic priority order",
       content: { "application/json": { schema: workItemListSchema } },
+    },
+    ...standardErrors,
+  },
+});
+
+const getCriticalPathRoute = createRoute({
+  method: "get",
+  path: "/api/critical-path",
+  operationId: "getCriticalPath",
+  summary: "Project the current delivery-critical path",
+  description:
+    "Returns one deterministic, bounded projection for global open roots, an initiative, a project, or one explicit root work item. Initiative and project filters may be combined. An explicit root cannot be combined with scope filters. Projections are limited to 1,000 nodes, 5,000 edges, and 5,000 blocking paths; larger projections return a conflict instead of a partial graph.",
+  tags: ["work-items"],
+  security: accessSecurity,
+  request: { query: getCriticalPathQuerySchema },
+  responses: {
+    200: {
+      description:
+        "Critical-path targets, included nodes and edges, blocking paths, and claimable parallel branches",
+      content: {
+        "application/json": { schema: criticalPathProjectionSchema },
+      },
     },
     ...standardErrors,
   },
@@ -1733,6 +1859,9 @@ const createDecompositionRoute = createRoute({
 });
 
 export interface WorkGraphApiRepository {
+  projectCriticalPath(
+    input?: ProjectCriticalPathInput,
+  ): Promise<CriticalPathProjection>;
   listKnowledgeScopes(
     input?: ListKnowledgeScopesInput,
   ): Promise<readonly KnowledgeScope[]>;
@@ -2030,6 +2159,34 @@ const statusForWorkGraphError = (error: WorkGraphError): 400 | 404 | 409 => {
   return 409;
 };
 
+const requireBoundedCriticalPath = (
+  projection: CriticalPathProjection,
+): CriticalPathProjection => {
+  const parallelPathCount = projection.parallelBranches.reduce(
+    (total, branch) => total + branch.paths.length,
+    0,
+  );
+  const tooLarge =
+    projection.nodes.length > MAX_CRITICAL_PATH_NODES ||
+    projection.edges.length > MAX_CRITICAL_PATH_EDGES ||
+    projection.blockingPaths.length > MAX_CRITICAL_PATH_BLOCKING_PATHS ||
+    projection.blockingPaths.some(
+      (path) => path.length > MAX_CRITICAL_PATH_NODES,
+    ) ||
+    projection.parallelBranches.length > MAX_CRITICAL_PATH_NODES ||
+    parallelPathCount > MAX_CRITICAL_PATH_BLOCKING_PATHS ||
+    projection.parallelBranches.some((branch) =>
+      branch.paths.some((path) => path.length > MAX_CRITICAL_PATH_NODES),
+    );
+  if (tooLarge) {
+    throw new WorkGraphError(
+      "critical_path_projection_too_large",
+      `The critical-path projection exceeds the response limit of ${MAX_CRITICAL_PATH_NODES} nodes, ${MAX_CRITICAL_PATH_EDGES} edges, or ${MAX_CRITICAL_PATH_BLOCKING_PATHS} paths. Narrow the request by initiative, project, or root work item.`,
+    );
+  }
+  return projection;
+};
+
 export const createWorkGraphApp = (
   repository: WorkGraphApiRepository,
   options: WorkGraphAppOptions = {},
@@ -2087,6 +2244,22 @@ export const createWorkGraphApp = (
       404,
     ),
   );
+
+  app.openapi(getCriticalPathRoute, async (context) => {
+    const { initiativeId, projectId, rootWorkItemId } =
+      context.req.valid("query");
+    const projection = await repository.projectCriticalPath({
+      ...(initiativeId === undefined ? {} : { initiativeId }),
+      ...(projectId === undefined ? {} : { projectId }),
+      ...(rootWorkItemId === undefined ? {} : { rootWorkItemId }),
+    });
+    return context.json(
+      criticalPathProjectionSchema.parse(
+        requireBoundedCriticalPath(projection),
+      ),
+      200,
+    );
+  });
 
   app.openapi(listWorkItemsRoute, async (context) => {
     const { cursor, initiativeId, limit, parentId, projectId, stage } =

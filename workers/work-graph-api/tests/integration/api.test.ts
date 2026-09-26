@@ -225,6 +225,207 @@ describe("Given knowledge scopes mirrored over HTTP", () => {
   });
 });
 
+describe("Given a persisted delivery-critical path", () => {
+  it("projects scoped blockers, stages, reasons, paths, and parallel work", async () => {
+    for (const [id, kind] of [
+      ["initiative", "initiative"],
+      ["project-a", "project"],
+      ["project-b", "project"],
+    ] as const) {
+      const response = await requestJson(
+        `/api/knowledge-scopes/${id}`,
+        "PUT",
+        {
+          kind,
+          title: id,
+          canonicalUrl: `https://example.test/${id}`,
+          markdownUrl: `https://example.test/${id}.md`,
+        },
+      );
+      expect(response.status).toBe(200);
+    }
+    for (const projectId of ["project-a", "project-b"]) {
+      const response = await requestJson(
+        "/api/knowledge-scope-relationships",
+        "POST",
+        {
+          parentKnowledgeScopeId: "initiative",
+          childKnowledgeScopeId: projectId,
+        },
+      );
+      expect(response.status).toBe(201);
+    }
+
+    for (const body of [
+      {
+        id: "outcome",
+        title: "Project outcome",
+        schedulingInitiativeId: "initiative",
+        schedulingProjectId: "project-a",
+      },
+      { id: "implementation", title: "Implementation", parentId: "outcome" },
+      { id: "review", title: "Review", parentId: "outcome" },
+      {
+        id: "schema",
+        title: "Schema blocker",
+        schedulingInitiativeId: "initiative",
+        schedulingProjectId: "project-b",
+      },
+      {
+        id: "other-outcome",
+        title: "Other outcome",
+        schedulingInitiativeId: "initiative",
+        schedulingProjectId: "project-b",
+      },
+    ]) {
+      const response = await requestJson("/api/work-items", "POST", body);
+      expect(response.status).toBe(201);
+    }
+    await requestJson("/api/dependencies", "POST", {
+      dependentWorkItemId: "implementation",
+      blockerWorkItemId: "schema",
+    });
+    const reviewClaim = await requestJson("/api/leases", "POST", {
+      workItemId: "review",
+      workerId: "review-worker",
+      leaseDurationSeconds: 300,
+    });
+    const claimed = (await reviewClaim.json()) as {
+      lease: { id: string; epoch: number };
+    };
+    await requestJson("/api/attention-requests", "POST", {
+      id: recordId(501),
+      workItemId: "review",
+      leaseId: claimed.lease.id,
+      epoch: claimed.lease.epoch,
+      kind: "decision",
+      question: "Approve the review?",
+      blocking: true,
+    });
+
+    const response = await app.request(
+      "/api/critical-path?initiativeId=initiative&projectId=project-a",
+    );
+    const projection = (await response.json()) as {
+      targetOutcomeIds: string[];
+      nodes: Array<{
+        item: { id: string };
+        stage: string;
+        inclusionReasons: Array<{ kind: string }>;
+      }>;
+      edges: Array<{
+        kind: string;
+        fromWorkItemId: string;
+        toWorkItemId: string;
+      }>;
+      blockingPaths: string[][];
+      readyLeafIds: string[];
+      blockingAttentionIds: string[];
+      parallelBranches: Array<{ workItemId: string }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(projection.targetOutcomeIds).toEqual(["outcome"]);
+    expect(projection.nodes.map(({ item }) => item.id)).toEqual([
+      "outcome",
+      "implementation",
+      "schema",
+      "review",
+    ]);
+    expect(projection.edges).toEqual([
+      {
+        kind: "decomposition",
+        fromWorkItemId: "outcome",
+        toWorkItemId: "implementation",
+      },
+      {
+        kind: "decomposition",
+        fromWorkItemId: "outcome",
+        toWorkItemId: "review",
+      },
+      {
+        kind: "dependency",
+        fromWorkItemId: "implementation",
+        toWorkItemId: "schema",
+        dependencyDeclaredByWorkItemId: "implementation",
+      },
+    ]);
+    expect(projection.blockingPaths).toEqual([
+      ["outcome", "implementation", "schema"],
+      ["outcome", "review"],
+    ]);
+    expect(projection.readyLeafIds).toEqual(["schema"]);
+    expect(projection.blockingAttentionIds).toEqual(["review"]);
+    expect(
+      projection.parallelBranches.map(({ workItemId }) => workItemId),
+    ).toEqual(["schema"]);
+    expect(
+      projection.nodes.find(({ item }) => item.id === "schema")
+        ?.inclusionReasons,
+    ).toEqual([
+      {
+        kind: "dependency_blocker",
+        fromWorkItemId: "implementation",
+        dependencyDeclaredByWorkItemId: "implementation",
+      },
+    ]);
+
+    const global = await app.request("/api/critical-path");
+    expect(global.status).toBe(200);
+    expect(
+      ((await global.json()) as { targetOutcomeIds: string[] })
+        .targetOutcomeIds,
+    ).toEqual(["outcome", "schema", "other-outcome"]);
+
+    const initiative = await app.request(
+      "/api/critical-path?initiativeId=initiative",
+    );
+    expect(initiative.status).toBe(200);
+    expect(
+      ((await initiative.json()) as { targetOutcomeIds: string[] })
+        .targetOutcomeIds,
+    ).toEqual(["outcome", "schema", "other-outcome"]);
+
+    const project = await app.request(
+      "/api/critical-path?projectId=project-b",
+    );
+    expect(project.status).toBe(200);
+    expect(
+      ((await project.json()) as { targetOutcomeIds: string[] })
+        .targetOutcomeIds,
+    ).toEqual(["schema", "other-outcome"]);
+
+    const rooted = await app.request(
+      "/api/critical-path?rootWorkItemId=outcome",
+    );
+    expect(rooted.status).toBe(200);
+    expect(
+      ((await rooted.json()) as { targetOutcomeIds: string[] })
+        .targetOutcomeIds,
+    ).toEqual(["outcome"]);
+
+    const missingRoot = await app.request(
+      "/api/critical-path?rootWorkItemId=missing",
+    );
+    expect(missingRoot.status).toBe(404);
+    expect(await missingRoot.json()).toEqual(
+      expect.objectContaining({
+        error: expect.objectContaining({ code: "work_item_not_found" }),
+      }),
+    );
+
+    const missingScope = await app.request(
+      "/api/critical-path?projectId=missing",
+    );
+    expect(missingScope.status).toBe(404);
+    expect(await missingScope.json()).toEqual(
+      expect.objectContaining({
+        error: expect.objectContaining({ code: "knowledge_scope_not_found" }),
+      }),
+    );
+  });
+});
+
 describe("Given inherited work-item context over HTTP", () => {
   it("returns the same stable context package from reads and claims", async () => {
     await requestJson("/api/work-items", "POST", {
