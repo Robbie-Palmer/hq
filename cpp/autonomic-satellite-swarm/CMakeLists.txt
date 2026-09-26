@@ -199,5 +199,20 @@ if(BUILD_TESTING)
   endif()
 
   include(Catch)
-  catch_discover_tests(satellite_swarm_tests)
+  catch_discover_tests(satellite_swarm_tests TEST_SPEC "~[invariant]")
+  catch_discover_tests(
+    satellite_swarm_tests
+    TEST_SPEC "[invariant][safety]"
+    TEST_PREFIX "safety: "
+    PROPERTIES LABELS safety)
+  catch_discover_tests(
+    satellite_swarm_tests
+    TEST_SPEC "[invariant][liveness]"
+    TEST_PREFIX "liveness: "
+    PROPERTIES LABELS liveness)
+  catch_discover_tests(
+    satellite_swarm_tests
+    TEST_SPEC "[invariant][cost]"
+    TEST_PREFIX "cost: "
+    PROPERTIES LABELS cost)
 endif()
