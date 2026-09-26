@@ -16,13 +16,14 @@ COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
 COPY --from=docker-cli /usr/local/libexec/docker/cli-plugins /usr/local/libexec/docker/cli-plugins
 COPY package.json package-lock.json /usr/local/lib/t3-code/
 
+# npm omits t3's optional platform bundle when reinstalling from its lockfile,
+# so unpack the exact Linux package separately below.
 RUN test -n "${MISE_VERSION}" \
     && groupadd --gid 2000 t3code \
     && useradd --uid 2000 --gid 2000 --create-home --shell /bin/bash t3code \
     && apt-get update \
     && apt-get install --yes --no-install-recommends \
       bubblewrap \
-      build-essential \
       ca-certificates \
       chromium \
       curl \
@@ -34,15 +35,24 @@ RUN test -n "${MISE_VERSION}" \
       iproute2 \
       jq \
       less \
+      libatomic1 \
       lsof \
       netcat-openbsd \
       openssh-client \
       procps \
-      python3 \
       ripgrep \
       tini \
       unzip \
-    && npm ci --ignore-scripts --omit=dev --prefix /usr/local/lib/t3-code \
+    && npm install --ignore-scripts --omit=dev --prefix /usr/local/lib/t3-code \
+    && t3_version="$(node -p \
+      "require('/usr/local/lib/t3-code/package.json').dependencies.t3")" \
+    && npm pack --ignore-scripts --pack-destination /tmp \
+      "@t3code/t3-linux-x64@${t3_version}" \
+    && mkdir -p /usr/local/lib/t3-code/node_modules/@t3code/t3-linux-x64 \
+    && tar --extract --gzip \
+      --file "/tmp/t3code-t3-linux-x64-${t3_version}.tgz" \
+      --directory /usr/local/lib/t3-code/node_modules/@t3code/t3-linux-x64 \
+      --strip-components=1 \
     && ln --force \
       /usr/local/lib/t3-code/node_modules/@anthropic-ai/claude-code-linux-x64/claude \
       /usr/local/lib/t3-code/node_modules/@anthropic-ai/claude-code/bin/claude.exe \
@@ -60,8 +70,6 @@ RUN test -n "${MISE_VERSION}" \
       /usr/local/lib/t3-code/node_modules/.bin/pnpm \
       /usr/local/lib/t3-code/node_modules/.bin/t3 \
       /usr/local/bin/ \
-    && node /usr/local/lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js rebuild \
-      --directory /usr/local/lib/t3-code/node_modules/node-pty \
     && npm cache clean --force \
     && curl --fail --location --proto '=https' --proto-redir '=https' --silent --show-error \
       "https://github.com/jdx/mise/releases/download/v${MISE_VERSION}/mise-v${MISE_VERSION}-linux-x64.tar.gz" \
@@ -79,8 +87,11 @@ RUN test -n "${MISE_VERSION}" \
       --output /tmp/vale.tar.gz \
     && echo "${VALE_SHA256}  /tmp/vale.tar.gz" | sha256sum --check \
     && tar --extract --gzip --file /tmp/vale.tar.gz --directory /usr/local/bin vale \
-    && rm -f /tmp/mise.tar.gz /tmp/doppler.tar.gz /tmp/vale.tar.gz \
-    && apt-get purge --yes --auto-remove build-essential python3 \
+    && rm -f \
+      /tmp/mise.tar.gz \
+      /tmp/doppler.tar.gz \
+      "/tmp/t3code-t3-linux-x64-${t3_version}.tgz" \
+      /tmp/vale.tar.gz \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
