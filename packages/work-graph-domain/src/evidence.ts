@@ -345,7 +345,9 @@ export const evaluateCompletionCandidate = (
     policyRevision: policy.revision,
     candidate: reasons.size === 0,
     reasons: [...reasons],
-    evidenceObservationIds: [...evidenceIds].sort(),
+    evidenceObservationIds: [...evidenceIds].sort((left, right) =>
+      left.localeCompare(right),
+    ),
     evaluatedAt,
   };
 };
