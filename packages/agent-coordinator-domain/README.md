@@ -6,8 +6,6 @@ versioned, strictly validated, and independent of provider product names.
 The public API is exported from `src/index.ts`. See
 `docs/compatibility-examples.md` for examples of eligibility and ranking, and
 `docs/worker-adapters.md` for native-client and API-funded session controls.
-`docs/advisory-matching.md` describes deterministic recommendations and the
-confirm-only claim boundary.
 
 ## Work Graph integration
 
