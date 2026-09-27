@@ -125,6 +125,10 @@ export class WorkerAdapterRuntime {
     return adapter.discoverAvailability();
   }
 
+  adapterIdentity(adapterId: string): WorkerAdapterIdentity {
+    return this.#adapter(adapterId).identity;
+  }
+
   async launch(
     adapterId: string,
     request: WorkerLaunchRequest,
@@ -176,6 +180,42 @@ export class WorkerAdapterRuntime {
     }
     const session = await adapter.resume(request);
     this.#assertIdentity(request.identity, session.identity);
+    return session;
+  }
+
+  async handoff(
+    adapterId: string,
+    request: WorkerResumeRequest,
+  ): Promise<AdapterSession> {
+    const adapter = this.#adapter(adapterId);
+    this.#allowlist.requireEnabled(adapter.identity.authenticationPathId);
+    if (adapter.identity.adapterId === request.identity.adapterId) {
+      throw new AdapterRuntimeError(
+        "identity-mismatch",
+        "A handoff must select a different adapter",
+      );
+    }
+    const availability = await adapter.discoverAvailability();
+    if (availability.state !== "available") {
+      throw new AdapterRuntimeError(
+        "adapter-unavailable",
+        `${adapterId} is ${availability.state}`,
+      );
+    }
+    const identity = ExecutionSessionIdentitySchema.parse({
+      schemaVersion: 1,
+      recordType: "execution-session",
+      sessionId: this.#createSessionId(),
+      taskId: request.taskId,
+      actorId: adapter.identity.actorId,
+      adapterId: adapter.identity.adapterId,
+      adapterVersion: adapter.identity.adapterVersion,
+      authenticationPathId: adapter.identity.authenticationPathId,
+      startedAt: this.#now().toISOString(),
+      predecessorSessionId: request.identity.sessionId,
+    });
+    const session = await adapter.resume({ ...request, identity });
+    this.#assertIdentity(identity, session.identity);
     return session;
   }
 

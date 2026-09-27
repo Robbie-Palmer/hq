@@ -8,6 +8,7 @@ export * from "./matching";
 export * from "./policy";
 export * from "./native-client";
 export * from "./openrouter";
+export * from "./orchestration";
 export * from "./session";
 export * from "./task";
 export * from "./vocabulary";

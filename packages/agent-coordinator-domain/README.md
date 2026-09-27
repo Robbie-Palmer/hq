@@ -26,3 +26,18 @@ Lease handles retain the Work Graph lease ID and epoch. Renewal, checkpoint,
 and release send both values back to Work Graph. `observeLease` distinguishes
 active, expired, ended, and superseded claims so a caller can stop before a
 stale worker writes more state.
+
+## Session orchestration
+
+`SessionOrchestrator` binds the worker and adapter to one stable session,
+claimed Work Graph lease, policy snapshot, context package version, and budget.
+Its heartbeat renews the lease only while the worker is healthy, authorised,
+inside quota, and inside budget. A deadline, shutdown, failed client, revoked
+authorisation, or exhausted limit writes a structured checkpoint to a Work
+Graph note before the worker stops.
+
+Callers supply a UUID for retryable checkpoints. Reusing that UUID returns the
+same operation and relies on the Work Graph note idempotency key across process
+restarts. `providerFallback` retains an API session's identity, context, and
+lease. Resuming with another adapter uses the explicit handoff path and records
+the prior session as its predecessor.
