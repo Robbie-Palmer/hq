@@ -1669,9 +1669,9 @@ ruamel-yaml==0.19.1 \
     # via
     #   dvc
     #   gto
-s3fs==2026.7.0 \
-    --hash=sha256:64edf3c01ebffab1eec38ff9c09eefbf86a3db14c87d248f795da0e7b801d698 \
-    --hash=sha256:76b062d1b2bc7bf4bcd9e7d8f1eb2b5dd9d5cee96ce888664c4ddb5f563146bf
+s3fs==2026.9.0 \
+    --hash=sha256:eb185fd98e20a1c9375087d9b2a6ef506f0cd01ae0c0c94efc79f88403fb81fe \
+    --hash=sha256:ec078ff0122d28fd21d36ea4987794e4f42ecd6e8785eeaa083208771c1464e5
     # via dvc-s3
 scmrepo==3.6.2 \
     --hash=sha256:750741af151e4c602dbf1456b49c7a1d27844527ba94db1e0c580b167cbd9316 \
