@@ -40,6 +40,11 @@ import {
 } from "recipe-db";
 import { SavedRecipePayloadSchema } from "recipe-domain/serialization";
 import {
+  MAX_PANTRY_MUTATION_CHANGES,
+  PantryLocationSchema,
+  PantryMutationConflictError,
+} from "recipe-domain/pantry";
+import {
   isRecipeAppRouteSlug,
   LOWERCASE_KEBAB_CASE_PATTERN,
   RECIPE_SLUG_MAX_LENGTH,
@@ -52,12 +57,6 @@ import {
 import { parseRecipeFile } from "recipe-parsing/recipe-file";
 import { parseSchemaOrgRecipeHtml } from "recipe-parsing/schema-org";
 import { recipeAgentConfiguration } from "./agent-auth";
-import {
-  AgentMutationConflictError,
-  listAgentMutationHistory,
-  previewAgentMutationUndo,
-  undoAgentMutation,
-} from "./agent-mutations";
 import { createAuth, isPreviewAuthEnabled } from "./auth";
 import { verifyCloudflareAccess } from "./cloudflare-access";
 import { cookingInsightsResponse } from "./cooking-reads";
@@ -106,6 +105,9 @@ import {
   readPantry,
   resolvePantryScope,
 } from "./pantry";
+import { listPantryMutationHistory } from "./pantry/services/list-pantry-mutation-history";
+import { previewPantryMutationUndo } from "./pantry/services/preview-pantry-mutation-undo";
+import { undoPantryMutation } from "./pantry/services/undo-pantry-mutation";
 import { readableRecipeFilter } from "./recipe-access";
 import { fetchRecipePage, RecipeUrlImportError } from "./recipe-url-import";
 import {
@@ -210,7 +212,7 @@ const creatableRecipeSlugSchema = recipeSlugSchema.refine(
   { message: "Slug is reserved for a recipe application route" },
 );
 const dietRecipeMatchModeSchema = z.enum(["hide", "warn"]);
-const pantryLocationSchema = z.enum(schema.pantryLocationEnum.enumValues);
+const pantryLocationSchema = PantryLocationSchema;
 const pantryIngredientSlugSchema = z.string().min(1).max(200);
 const pantryResponseSchema = z
   .object({
@@ -237,7 +239,11 @@ const pantryOperationReceiptSchema = z
   .strict();
 const undoAgentMutationBodySchema = z
   .object({
-    stableItemIds: z.array(z.uuid().max(36)).min(1).max(100).optional(),
+    stableItemIds: z
+      .array(z.uuid().max(36))
+      .min(1)
+      .max(MAX_PANTRY_MUTATION_CHANGES)
+      .optional(),
   })
   .strict();
 const feedScopeSchema = z.enum(["public", "following"]);
@@ -3353,7 +3359,7 @@ registerRoute("get", "/api/profile/agent-mutations", async (c) => {
     "query",
     "GET /api/profile/agent-mutations query failed",
     async ({ db, session }) =>
-      c.json({ items: await listAgentMutationHistory(db, session.user.id) }),
+      c.json({ items: await listPantryMutationHistory(db, session.user.id) }),
   );
 });
 
@@ -3369,7 +3375,7 @@ registerRoute(
       "GET agent mutation undo preview failed",
       async ({ db, session }) => {
         try {
-          const preview = await previewAgentMutationUndo(
+          const preview = await previewPantryMutationUndo(
             db,
             session.user.id,
             changeSetId,
@@ -3378,7 +3384,7 @@ registerRoute(
             ? c.json(preview)
             : c.json({ error: "Mutation change set not found" }, 404);
         } catch (error) {
-          if (error instanceof AgentMutationConflictError) {
+          if (error instanceof PantryMutationConflictError) {
             return c.json({ error: error.message }, 409);
           }
           throw error;
@@ -3406,7 +3412,7 @@ registerRoute(
       "POST agent mutation undo failed",
       async ({ db, session }) => {
         try {
-          const result = await undoAgentMutation(db, {
+          const result = await undoPantryMutation(db, {
             userId: session.user.id,
             changeSetId,
             idempotencyKey: operationId,
@@ -3417,7 +3423,7 @@ registerRoute(
             ? c.json(result)
             : c.json({ error: "Pantry changed after the agent mutation", ...result }, 409);
         } catch (error) {
-          if (error instanceof AgentMutationConflictError) {
+          if (error instanceof PantryMutationConflictError) {
             return c.json({ error: error.message }, 409);
           }
           throw error;

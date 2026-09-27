@@ -1,3 +1,11 @@
+import {
+  type MutationActorType,
+  MutationActorTypeSchema,
+} from "recipe-domain/mutation";
+import {
+  PantryLocationSchema,
+  type PantryMutationValue,
+} from "recipe-domain/pantry";
 import { isRecord } from "ts-base/records";
 import { z } from "zod";
 import { apiRequest } from "@/lib/api/http";
@@ -47,10 +55,7 @@ export type AgentHost = {
   status: string;
 };
 
-export type AgentMutationValue = {
-  ingredientSlug: string;
-  location: "fridge" | "cupboards" | "fresh";
-};
+export type AgentMutationValue = PantryMutationValue;
 
 export type AgentMutationHistoryItem = {
   stableItemId: string;
@@ -63,7 +68,7 @@ export type AgentMutationHistoryItem = {
 
 export type AgentMutationHistory = {
   id: string;
-  actorType: "agent" | "user";
+  actorType: MutationActorType;
   agentId: string | null;
   agentName: string | null;
   hostId: string | null;
@@ -80,7 +85,7 @@ export type AgentMutationHistory = {
 const mutationValueSchema = z
   .object({
     ingredientSlug: z.string(),
-    location: z.enum(["fridge", "cupboards", "fresh"]),
+    location: PantryLocationSchema,
   })
   .strict();
 const mutationItemSchema = z
@@ -96,7 +101,7 @@ const mutationItemSchema = z
 const mutationHistorySchema = z
   .object({
     id: z.uuid(),
-    actorType: z.enum(["agent", "user"]),
+    actorType: MutationActorTypeSchema,
     agentId: z.string().nullable(),
     agentName: z.string().nullable(),
     hostId: z.string().nullable(),

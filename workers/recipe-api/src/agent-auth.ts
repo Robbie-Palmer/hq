@@ -12,6 +12,7 @@ import { APIError } from "better-auth";
 import { and, desc, eq, ilike, or } from "drizzle-orm";
 import type { Db } from "recipe-db";
 import * as schema from "recipe-db/schema";
+import { PANTRY_LOCATIONS } from "recipe-domain/pantry";
 import { RECIPE_VISIBILITIES } from "recipe-domain/visibility";
 import { z } from "zod";
 import {
@@ -181,7 +182,7 @@ const pantrySnapshotSchema = {
     stock: {
       type: "object",
       maxProperties: MAX_PANTRY_ITEMS,
-      additionalProperties: { enum: schema.pantryLocationEnum.enumValues },
+      additionalProperties: { enum: PANTRY_LOCATIONS },
     },
     itemVersions: {
       type: "object",

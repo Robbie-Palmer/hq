@@ -1,5 +1,6 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
 import postgres from "postgres";
+import type { PantryLocation } from "recipe-domain/pantry";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -121,7 +122,7 @@ const dbMock = vi.hoisted(() => {
     userId: string | null;
     organizationId: string | null;
     ingredientSlug: string;
-    location: "fridge" | "cupboards" | "fresh";
+    location: PantryLocation;
     version?: bigint;
     createdAt: Date;
     updatedAt: Date;

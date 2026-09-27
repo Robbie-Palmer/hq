@@ -8,6 +8,8 @@
     "./ingredient": "./src/ingredient.ts",
     "./ingredient-normalization": "./src/ingredient-normalization.ts",
     "./import-storage": "./src/import-storage.ts",
+    "./mutation": "./src/mutation.ts",
+    "./pantry": "./src/pantry.ts",
     "./recipe": "./src/recipe.ts",
     "./serialization": "./src/serialization.ts",
     "./visibility": "./src/visibility.ts",

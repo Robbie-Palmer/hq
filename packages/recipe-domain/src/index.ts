@@ -8,4 +8,6 @@ export * from "./import-storage";
 export * from "./recipe";
 export * from "./serialization";
 export * from "./pluralization";
+export * from "./mutation";
+export * from "./pantry";
 export * from "./visibility";

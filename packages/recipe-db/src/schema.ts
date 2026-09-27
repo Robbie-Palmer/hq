@@ -16,6 +16,13 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { RECIPE_VISIBILITIES } from "recipe-domain/visibility";
+import { MUTATION_ACTOR_TYPES } from "recipe-domain/mutation";
+import {
+  PANTRY_LOCATIONS,
+  type PantryMutationValue,
+} from "recipe-domain/pantry";
+
+export type { PantryMutationValue } from "recipe-domain/pantry";
 
 export const user = pgTable("user", {
   id: text().primaryKey(),
@@ -531,11 +538,7 @@ export const ingredient = pgTable("ingredient", {
     .$onUpdate(() => new Date()),
 });
 
-export const pantryLocationEnum = pgEnum("pantry_location", [
-  "fridge",
-  "cupboards",
-  "fresh",
-]);
+export const pantryLocationEnum = pgEnum("pantry_location", PANTRY_LOCATIONS);
 
 /**
  * Revision state for one logical pantry. The owner mirrors pantry_item so a
@@ -626,15 +629,10 @@ export const pantryItem = pgTable(
   ],
 );
 
-export const mutationActorTypeEnum = pgEnum("mutation_actor_type", [
-  "agent",
-  "user",
-]);
-
-export type PantryMutationValue = {
-  ingredientSlug: string;
-  location: (typeof pantryLocationEnum.enumValues)[number];
-};
+export const mutationActorTypeEnum = pgEnum(
+  "mutation_actor_type",
+  MUTATION_ACTOR_TYPES,
+);
 
 /**
  * One immutable, attributable write to a current-state projection. Undo creates

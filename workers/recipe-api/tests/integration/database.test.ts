@@ -13,12 +13,10 @@ import {
 } from "vitest";
 import { createAuth } from "../../src/auth";
 import { executeRecipeAgentCapability } from "../../src/agent-auth";
-import {
-  applyAgentPantryMutation,
-  listAgentMutationHistory,
-  previewAgentMutationUndo,
-  undoAgentMutation,
-} from "../../src/agent-mutations";
+import { listPantryMutationHistory } from "../../src/pantry/services/list-pantry-mutation-history";
+import { previewPantryMutationUndo } from "../../src/pantry/services/preview-pantry-mutation-undo";
+import { reconcilePantry } from "../../src/pantry/services/reconcile-pantry";
+import { undoPantryMutation } from "../../src/pantry/services/undo-pantry-mutation";
 import { betterAuthSessionCookie } from "../../src/better-auth-session-cookie";
 import {
   cookingLogResponse,
@@ -312,11 +310,14 @@ describe("recipe API PostgreSQL integration", () => {
   it("records idempotent agent pantry mutations and compensates them", async () => {
     const cook = await createUser("Ledger Cook", "ledger@example.test");
     const mutation = {
-      userId: cook.id,
-      agentId: "ledger-agent",
-      agentName: "Pantry helper",
-      hostId: "ledger-host",
-      hostName: "Kitchen terminal",
+      actor: {
+        type: "agent" as const,
+        userId: cook.id,
+        agentId: "ledger-agent",
+        agentName: "Pantry helper",
+        hostId: "ledger-host",
+        hostName: "Kitchen terminal",
+      },
       capability: "pantry.reconcile" as const,
       reason: "Put away the grocery delivery",
       idempotencyKey: "0198f1f0-5555-7555-8555-555555555555",
@@ -329,13 +330,13 @@ describe("recipe API PostgreSQL integration", () => {
       ],
     };
 
-    const applied = await applyAgentPantryMutation(db, mutation);
-    const replayed = await applyAgentPantryMutation(db, mutation);
+    const applied = await reconcilePantry(db, mutation);
+    const replayed = await reconcilePantry(db, mutation);
     expect(replayed).toMatchObject({
       changeSetId: applied.changeSetId,
       replayed: true,
     });
-    expect(await listAgentMutationHistory(db, cook.id)).toMatchObject([
+    expect(await listPantryMutationHistory(db, cook.id)).toMatchObject([
       {
         id: applied.changeSetId,
         agentName: "Pantry helper",
@@ -353,10 +354,10 @@ describe("recipe API PostgreSQL integration", () => {
       },
     ]);
     await expect(
-      previewAgentMutationUndo(db, cook.id, applied.changeSetId),
+      previewPantryMutationUndo(db, cook.id, applied.changeSetId),
     ).resolves.toMatchObject({ canUndo: true, items: [{ status: "ready" }] });
 
-    const undone = await undoAgentMutation(db, {
+    const undone = await undoPantryMutation(db, {
       userId: cook.id,
       changeSetId: applied.changeSetId,
       idempotencyKey: "0198f1f0-6666-7666-8666-666666666666",
@@ -371,11 +372,14 @@ describe("recipe API PostgreSQL integration", () => {
       "Ledger Conflict Cook",
       "ledger-conflict@example.test",
     );
-    const applied = await applyAgentPantryMutation(db, {
-      userId: cook.id,
-      agentId: "ledger-conflict-agent",
-      agentName: "Pantry helper",
-      hostId: "ledger-conflict-host",
+    const applied = await reconcilePantry(db, {
+      actor: {
+        type: "agent",
+        userId: cook.id,
+        agentId: "ledger-conflict-agent",
+        agentName: "Pantry helper",
+        hostId: "ledger-conflict-host",
+      },
       capability: "pantry.reconcile",
       reason: "Record the cupboard stock",
       idempotencyKey: "0198f1f0-7777-7777-8777-777777777777",
@@ -394,10 +398,10 @@ describe("recipe API PostgreSQL integration", () => {
     expect(humanEdit.status).toBe(200);
 
     await expect(
-      previewAgentMutationUndo(db, cook.id, applied.changeSetId),
+      previewPantryMutationUndo(db, cook.id, applied.changeSetId),
     ).resolves.toMatchObject({ canUndo: false, items: [{ status: "conflict" }] });
     await expect(
-      undoAgentMutation(db, {
+      undoPantryMutation(db, {
         userId: cook.id,
         changeSetId: applied.changeSetId,
         idempotencyKey: "0198f1f0-8888-7888-8888-888888888888",
