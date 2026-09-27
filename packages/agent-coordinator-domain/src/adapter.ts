@@ -195,6 +195,12 @@ export class WorkerAdapterRuntime {
         "A handoff must select a different adapter",
       );
     }
+    if (request.taskId !== request.identity.taskId) {
+      throw new AdapterRuntimeError(
+        "identity-mismatch",
+        "Handoff request task does not match the predecessor session",
+      );
+    }
     const availability = await adapter.discoverAvailability();
     if (availability.state !== "available") {
       throw new AdapterRuntimeError(

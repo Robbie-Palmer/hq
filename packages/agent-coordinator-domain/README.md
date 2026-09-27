@@ -36,8 +36,8 @@ inside quota, and inside budget. A deadline, shutdown, failed client, revoked
 authorisation, or exhausted limit writes a structured checkpoint to a Work
 Graph note before the worker stops.
 
-Callers supply a UUID for retryable checkpoints. Reusing that UUID returns the
-same operation and relies on the Work Graph note idempotency key across process
-restarts. `providerFallback` retains an API session's identity, context, and
-lease. Resuming with another adapter uses the explicit handoff path and records
-the prior session as its predecessor.
+Callers supply a UUID for retryable checkpoints. Concurrent calls share one
+in-flight operation. Later retries reach Work Graph with the same idempotency
+key, including after a process restart. `providerFallback` retains an API
+session's identity, context, and lease. Resuming with another adapter uses the
+explicit handoff path and records the prior session as its predecessor.

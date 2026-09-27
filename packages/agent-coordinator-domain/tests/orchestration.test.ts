@@ -355,7 +355,10 @@ describe("session orchestration", () => {
       artifacts: [],
     };
 
-    const first = await orchestrator.checkpoint(session, request);
+    const firstOperation = orchestrator.checkpoint(session, request);
+    const concurrentOperation = orchestrator.checkpoint(session, request);
+    expect(concurrentOperation).toBe(firstOperation);
+    const first = await firstOperation;
     const retried = await orchestrator.checkpoint(session, request);
     const resumed = await orchestrator.resume(first.checkpoint, {
       task,
@@ -364,9 +367,9 @@ describe("session orchestration", () => {
       launch: { input: "Resume", cwd: "/workspace" },
     });
 
-    expect(retried).toBe(first);
-    expect(graph.checkpoint).toHaveBeenCalledOnce();
-    expect(session.worker.checkpoint).toHaveBeenCalledOnce();
+    expect(retried.durable.note.id).toBe(first.durable.note.id);
+    expect(graph.checkpoint).toHaveBeenCalledTimes(2);
+    expect(session.worker.checkpoint).toHaveBeenCalledTimes(2);
     expect(resumed.binding.lease.id).toBe(LEASE_IDS[1]);
     expect(resumed.binding.identity).toEqual(session.binding.identity);
   });
@@ -378,6 +381,7 @@ describe("session orchestration", () => {
       createNoteId: () => NOTE_ID,
     });
     const session = await orchestrator.start(startInput());
+    await orchestrator.heartbeat(session, { leaseDurationSeconds: 600 });
     const { checkpoint } = await orchestrator.checkpoint(session, {
       stopReason: "manual",
       completedWork: [],
@@ -399,6 +403,56 @@ describe("session orchestration", () => {
       predecessorSessionId: "session:first",
       adapterId: "adapter:second-native-client",
     });
+    expect(resumed.costBaselineUsd).toBe(1);
+    expect(resumed.workerBudgetUsd).toBe(2);
+    vi.mocked(resumed.worker.cost).mockResolvedValue({
+      kind: "cost",
+      funding: "metered",
+      currency: "USD",
+      amount: 1.5,
+      routeId: authenticationEntry.authenticationPathId,
+      providerId: "provider:test",
+    });
+    await orchestrator.heartbeat(resumed, { leaseDurationSeconds: 600 });
+    expect(resumed.binding.budget.spent.amount).toBe(2.5);
+  });
+
+  it("rejects a mismatched resume before claiming and records launch failures", async () => {
+    const graph = workGraphPort();
+    const orchestrator = new SessionOrchestrator(graph, runtime(), {
+      now: () => new Date(NOW),
+      createNoteId: () => NOTE_ID,
+    });
+    const session = await orchestrator.start(startInput());
+    const { checkpoint } = await orchestrator.checkpoint(session, {
+      stopReason: "manual",
+      completedWork: [],
+      remainingWork: ["Resume"],
+      evidence: [],
+      artifacts: [],
+    });
+
+    await expect(
+      orchestrator.resume(checkpoint, {
+        task: { ...task, taskId: "work:other" },
+        workerId: "worker:test",
+        leaseDurationSeconds: 600,
+        launch: { input: "Wrong task", cwd: "/workspace" },
+      }),
+    ).rejects.toThrow("does not match");
+    expect(graph.claim).toHaveBeenCalledOnce();
+
+    await expect(
+      orchestrator.resume(checkpoint, {
+        task,
+        workerId: "worker:test",
+        adapterId: "adapter:missing",
+        leaseDurationSeconds: 600,
+        launch: { input: "Unavailable adapter", cwd: "/workspace" },
+      }),
+    ).rejects.toMatchObject({ code: "adapter-not-found" });
+    expect(graph.claim).toHaveBeenCalledTimes(2);
+    expect(graph.checkpoint).toHaveBeenCalledTimes(2);
   });
 
   it("keeps the binding stable during an API provider fallback", async () => {

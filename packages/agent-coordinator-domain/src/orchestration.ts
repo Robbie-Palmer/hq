@@ -114,6 +114,8 @@ export const DurableSessionCheckpointSchema = z
     noteId: z.uuid(),
     createdAt: TimestampSchema,
     stopReason: SessionStopReasonSchema,
+    costBaselineUsd: z.number().nonnegative(),
+    workerBudgetUsd: z.number().nonnegative(),
     binding: CheckpointBindingSchema,
     adapterCheckpoint: z.object({
       kind: z.literal("checkpoint"),
@@ -132,6 +134,8 @@ export type DurableSessionCheckpoint = z.infer<
 export interface CoordinatedSession {
   binding: SessionBinding;
   worker: AdapterSession;
+  costBaselineUsd: number;
+  workerBudgetUsd: number;
 }
 
 export interface SessionWorkGraphPort {
@@ -288,7 +292,12 @@ export class SessionOrchestrator {
           spent: { currency: "USD", amount: 0 },
         },
       });
-      return { binding, worker };
+      return {
+        binding,
+        worker,
+        costBaselineUsd: 0,
+        workerBudgetUsd: budgetUsd,
+      };
     } catch (error) {
       await this.#recordStartupFailure(handle, error);
       throw error;
@@ -313,11 +322,12 @@ export class SessionOrchestrator {
     );
     const quota = await session.worker.quota();
     const cost = await session.worker.cost();
+    const totalSpent = session.costBaselineUsd + cost.amount;
     session.binding = SessionBindingSchema.parse({
       ...session.binding,
       budget: {
         ...session.binding.budget,
-        spent: { currency: "USD", amount: cost.amount },
+        spent: { currency: "USD", amount: totalSpent },
       },
     });
     const nearDeadline =
@@ -330,7 +340,7 @@ export class SessionOrchestrator {
       quotaState: quota.state,
       budgetExhausted:
         cost.funding === "metered" &&
-        cost.amount >= session.binding.budget.limit.amount,
+        totalSpent >= session.binding.budget.limit.amount,
       nearDeadline,
     });
     if (stopReason) {
@@ -362,7 +372,11 @@ export class SessionOrchestrator {
     const noteId = z.uuid().parse(input.noteId ?? this.#createNoteId());
     const existing = this.#checkpoints.get(noteId);
     if (existing) return existing;
-    const operation = this.#writeCheckpoint(session, input, noteId);
+    const operation = this.#writeCheckpoint(session, input, noteId).finally(
+      () => {
+        this.#checkpoints.delete(noteId);
+      },
+    );
     this.#checkpoints.set(noteId, operation);
     return operation;
   }
@@ -379,32 +393,56 @@ export class SessionOrchestrator {
   ): Promise<CoordinatedSession> {
     const checkpoint = DurableSessionCheckpointSchema.parse(checkpointInput);
     const task = TaskRequirementsSchema.parse(input.task);
+    if (task.taskId !== checkpoint.binding.identity.taskId) {
+      throw new Error("Resume task does not match the checkpointed session");
+    }
     const claimed = await this.#workGraph.claim(task, {
       workerId: input.workerId,
       leaseDurationSeconds: input.leaseDurationSeconds,
     });
+    const handle = leaseHandle(claimed);
     const adapterId = input.adapterId ?? checkpoint.binding.adapter.adapterId;
+    const sameAdapter = adapterId === checkpoint.binding.adapter.adapterId;
+    const remainingBudget = Math.max(
+      0,
+      checkpoint.binding.budget.limit.amount -
+        checkpoint.binding.budget.spent.amount,
+    );
     const request = {
       ...input.launch,
       taskId: task.taskId,
-      budgetUsd: checkpoint.binding.budget.limit.amount,
+      budgetUsd: sameAdapter ? checkpoint.workerBudgetUsd : remainingBudget,
       identity: checkpoint.binding.identity,
       checkpoint: checkpoint.adapterCheckpoint as CheckpointSignal,
     };
-    const worker =
-      adapterId === checkpoint.binding.adapter.adapterId
+    let worker: AdapterSession;
+    try {
+      worker = sameAdapter
         ? await this.#adapters.resume(adapterId, request)
         : await this.#adapters.handoff(adapterId, request);
+    } catch (error) {
+      await this.#recordStartupFailure(handle, error);
+      throw error;
+    }
     const binding = SessionBindingSchema.parse({
       ...checkpoint.binding,
       workerId: input.workerId,
       identity: worker.identity,
       adapter: this.#adapters.adapterIdentity(adapterId),
       workItem: claimed.workItem,
-      lease: leaseHandle(claimed),
+      lease: handle,
       context: claimed.context,
     });
-    return { binding, worker };
+    return {
+      binding,
+      worker,
+      costBaselineUsd: sameAdapter
+        ? checkpoint.costBaselineUsd
+        : checkpoint.binding.budget.spent.amount,
+      workerBudgetUsd: sameAdapter
+        ? checkpoint.workerBudgetUsd
+        : remainingBudget,
+    };
   }
 
   async providerFallback(
@@ -420,12 +458,17 @@ export class SessionOrchestrator {
       {
         ...input,
         taskId: session.binding.identity.taskId,
-        budgetUsd: session.binding.budget.limit.amount,
+        budgetUsd: session.workerBudgetUsd,
         identity: session.binding.identity,
         checkpoint,
       },
     );
-    return { binding: session.binding, worker };
+    return {
+      binding: session.binding,
+      worker,
+      costBaselineUsd: session.costBaselineUsd,
+      workerBudgetUsd: session.workerBudgetUsd,
+    };
   }
 
   async #writeCheckpoint(
@@ -446,6 +489,8 @@ export class SessionOrchestrator {
       noteId,
       createdAt: this.#now().toISOString(),
       stopReason: input.stopReason,
+      costBaselineUsd: session.costBaselineUsd,
+      workerBudgetUsd: session.workerBudgetUsd,
       binding: {
         schemaVersion: session.binding.schemaVersion,
         recordType: session.binding.recordType,
