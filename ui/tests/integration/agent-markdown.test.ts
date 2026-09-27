@@ -77,7 +77,12 @@ describe("agent markdown generation", () => {
     expect(htmlPages).toContain("context-engineering.html");
     expect(htmlPages).toContain("commit-log.html");
     expect(htmlPages).toContain("stream-table-duality.html");
-    expect(htmlPages).toHaveLength(28);
+    expect(htmlPages).toContain("theory-ladenness.html");
+    expect(htmlPages).toContain("falsifiability.html");
+    expect(htmlPages).toContain("paradigm-shift.html");
+    expect(htmlPages).toContain("incommensurability.html");
+    expect(htmlPages).toContain("postpositivism.html");
+    expect(htmlPages).toHaveLength(33);
     for (const htmlPage of htmlPages) {
       const mdPage = htmlPage.replace(/\.html$/, ".md");
       expect(fs.existsSync(path.join(OUT_DIR, "ideas", mdPage))).toBe(true);

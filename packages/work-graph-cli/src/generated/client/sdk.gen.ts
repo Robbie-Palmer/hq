@@ -55,7 +55,7 @@ export const createAttentionResolution = <ThrowOnError extends boolean = false>(
 /**
  * Project the current delivery-critical path
  *
- * Returns one deterministic, bounded projection for global open roots, an initiative, a project, or one explicit root work item. Initiative and project filters may be combined. An explicit root cannot be combined with scope filters. Projections are limited to 1,000 nodes, 5,000 edges, and 5,000 blocking paths; larger projections return a conflict instead of a partial graph.
+ * Returns one deterministic, bounded projection for global open roots, selected scopes, or one explicit root work item. Scope arrays use repeated query parameters. Values within one inclusion dimension are alternatives, initiative and project filters must both match, and exclusions win. Exclusions remove matching targets but retain cross-scope blockers required by included outcomes. The singular initiativeId and projectId parameters remain deprecated one-item inclusion aliases. An explicit root cannot be combined with scope filters. Projections are limited to 1,000 nodes, 5,000 edges, and 5,000 blocking paths; larger projections return a conflict instead of a partial graph.
  */
 export const getCriticalPath = <ThrowOnError extends boolean = false>(options: Options<GetCriticalPathData, ThrowOnError>): RequestResult<GetCriticalPathResponses, GetCriticalPathErrors, ThrowOnError> => options.client.get<GetCriticalPathResponses, GetCriticalPathErrors, ThrowOnError>({ url: '/api/critical-path', ...options });
 
@@ -188,7 +188,7 @@ export const moveKnowledgeScopePriority = <ThrowOnError extends boolean = false>
 /**
  * Claim a specified or first eligible work item
  *
- * Creates a fenced lease for the requested item, including recovery of its expired lease after graph blockers changed. When workItemId is absent, claims only the highest-priority ready item within optional initiative, project, and direct-parent filters.
+ * Creates a fenced lease for the requested item, including recovery of its expired lease after graph blockers changed. When workItemId is absent, claims only the highest-priority ready item within the optional scope filters. Values within one inclusion dimension are alternatives, initiative and project filters must both match, and exclusions win. Empty inclusion arrays impose no restriction. The singular initiativeId and projectId fields remain deprecated one-item inclusion aliases. Explicit claims by workItemId reject every selection filter.
  */
 export const createLease = <ThrowOnError extends boolean = false>(options: Options<CreateLeaseData, ThrowOnError>): RequestResult<CreateLeaseResponses, CreateLeaseErrors, ThrowOnError> => options.client.post<CreateLeaseResponses, CreateLeaseErrors, ThrowOnError>({
     url: '/api/leases',
@@ -230,7 +230,7 @@ export const refreshPullRequest = <ThrowOnError extends boolean = false>(options
 /**
  * List work items with their derived stage
  *
- * Returns one bounded page in global priority order. Optional stage, initiative, project, and direct-parent filters preserve that relative order. Pass nextCursor to continue after the last observed item without offset drift during lease transitions.
+ * Returns one bounded page in global priority order. Scope arrays use repeated query parameters. Values within one inclusion dimension are alternatives, initiative and project filters must both match, and exclusions win. Empty inclusion arrays impose no restriction. Optional stage and direct-parent filters preserve priority order. The singular initiativeId and projectId parameters remain deprecated one-item inclusion aliases. Pass nextCursor to continue after the last observed item without offset drift during lease transitions.
  */
 export const listWorkItems = <ThrowOnError extends boolean = false>(options: Options<ListWorkItemsData, ThrowOnError>): RequestResult<ListWorkItemsResponses, ListWorkItemsErrors, ThrowOnError> => options.client.get<ListWorkItemsResponses, ListWorkItemsErrors, ThrowOnError>({ url: '/api/work-items', ...options });
 
