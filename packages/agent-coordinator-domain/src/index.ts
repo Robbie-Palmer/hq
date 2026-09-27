@@ -4,6 +4,7 @@ export * from "./authentication";
 export * from "./compatibility";
 export * from "./complexity";
 export * from "./contracts";
+export * from "./matching";
 export * from "./policy";
 export * from "./native-client";
 export * from "./openrouter";
