@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toBalancesCsv } from "@/lib/domain/assettracker/assetTrackerCsv";
+import { toBalancesCsv } from "@/lib/assettracker/csv";
 import type { AssetTrackerData } from "@/lib/domain/assettracker/assetTrackerData";
 
 function csvData(): AssetTrackerData {
@@ -24,11 +24,16 @@ function csvData(): AssetTrackerData {
     transfers: [],
     recurringFlows: [],
     plannedExpenditures: [],
-    settings: { expectedAnnualInflation: 0.025, withdrawalRate: 0.04 },
+    settings: {
+      expectedAnnualInflation: 0.025,
+      withdrawalRate: 0.04,
+      baseCurrency: "GBP",
+      valuationMaxAgeDays: 7,
+    },
   };
 }
 
-describe("toBalancesCsv", () => {
+describe("toBalancesCsv adapter", () => {
   it("emits one date-sorted row per balance with account metadata", () => {
     const lines = toBalancesCsv(csvData()).split("\n");
 

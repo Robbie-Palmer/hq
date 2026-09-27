@@ -20,10 +20,12 @@ import {
   getCriticalPath,
   getKnowledgeScope,
   getWorkItem,
+  getWorkItemCompletionCandidate,
   listAttentionRequests,
   listKnowledgeScopeRelationships,
   listKnowledgeScopes,
   listWorkItemDependencies,
+  listWorkItemEvidence,
   listWorkItemContexts,
   listWorkItemEvents,
   listWorkItemLeases,
@@ -60,6 +62,7 @@ import type {
   DeleteKnowledgeScopeRelationshipData,
   ExpediteWorkItemData,
   GetCriticalPathData,
+  ListWorkItemEvidenceData,
   ListAttentionRequestsData,
   ListKnowledgeScopeRelationshipsData,
   ListKnowledgeScopesData,
@@ -442,6 +445,28 @@ export class WorkGraphClient {
 
   getCriticalPath(query: NonNullable<GetCriticalPathData["query"]>) {
     return this.#unwrap(getCriticalPath({ ...this.#options(), query }));
+  }
+
+  listWorkItemEvidence(
+    workItemId: string,
+    query: NonNullable<ListWorkItemEvidenceData["query"]>,
+  ) {
+    return this.#unwrap(
+      listWorkItemEvidence({
+        ...this.#options(),
+        path: { workItemId },
+        query,
+      }),
+    );
+  }
+
+  getWorkItemCompletionCandidate(workItemId: string) {
+    return this.#unwrap(
+      getWorkItemCompletionCandidate({
+        ...this.#options(),
+        path: { workItemId },
+      }),
+    );
   }
 
   listKnowledgeScopes(query: NonNullable<ListKnowledgeScopesData["query"]>) {

@@ -3,7 +3,7 @@ import {
   ASSET_TRACKER_STORAGE_KEY,
   createLocalAssetTrackerApi,
 } from "@/lib/api/assettracker";
-import { getSeedData } from "@/lib/domain/assettracker";
+import { getDemoAssetTrackerData } from "@/lib/assettracker/demoData";
 
 describe("createLocalAssetTrackerApi", () => {
   beforeEach(() => {
@@ -18,11 +18,11 @@ describe("createLocalAssetTrackerApi", () => {
     const { data, persisted } = await createApi().load();
 
     expect(persisted).toBe(false);
-    expect(data).toEqual(getSeedData());
+    expect(data).toEqual(getDemoAssetTrackerData());
   });
 
   it("persists mutations across instances", async () => {
-    const seed = getSeedData();
+    const seed = getDemoAssetTrackerData();
     const accountId = seed.accounts.find((a) => !a.closedAt)?.id;
     if (!accountId) throw new Error("seed data has no open account");
 
@@ -42,7 +42,7 @@ describe("createLocalAssetTrackerApi", () => {
   });
 
   it("persists created accounts", async () => {
-    const seed = getSeedData();
+    const seed = getDemoAssetTrackerData();
     await createApi().createAccount({
       name: "Premium Bonds",
       provider: "NS&I",
@@ -59,7 +59,7 @@ describe("createLocalAssetTrackerApi", () => {
   });
 
   it("persists an atomic account-history import", async () => {
-    const seed = getSeedData();
+    const seed = getDemoAssetTrackerData();
     const accountId = seed.accounts.find((account) => !account.closedAt)?.id;
     if (!accountId) throw new Error("seed data has no open account");
 
@@ -84,7 +84,7 @@ describe("createLocalAssetTrackerApi", () => {
 
   it("persists clearing one account history without removing the account", async () => {
     const api = createApi();
-    const seed = getSeedData();
+    const seed = getDemoAssetTrackerData();
     const accountId = seed.snapshots[0]?.accountId;
     if (!accountId) throw new Error("seed data has no balance history");
 
@@ -107,7 +107,7 @@ describe("createLocalAssetTrackerApi", () => {
 
     const { data, persisted } = await createApi().load();
     expect(persisted).toBe(false);
-    expect(data).toEqual(getSeedData());
+    expect(data).toEqual(getDemoAssetTrackerData());
   });
 
   it("falls back to seed data when stored data fails validation", async () => {
@@ -121,7 +121,8 @@ describe("createLocalAssetTrackerApi", () => {
   });
 
   it("loads older saved data with no capital-flow collection", async () => {
-    const { capitalFlows: _capitalFlows, ...legacy } = getSeedData();
+    const { capitalFlows: _capitalFlows, ...legacy } =
+      getDemoAssetTrackerData();
     window.localStorage.setItem(
       ASSET_TRACKER_STORAGE_KEY,
       JSON.stringify(legacy),
@@ -134,7 +135,8 @@ describe("createLocalAssetTrackerApi", () => {
   });
 
   it("loads older saved data with no income history", async () => {
-    const { incomeHistory: _incomeHistory, ...legacy } = getSeedData();
+    const { incomeHistory: _incomeHistory, ...legacy } =
+      getDemoAssetTrackerData();
     window.localStorage.setItem(
       ASSET_TRACKER_STORAGE_KEY,
       JSON.stringify(legacy),
@@ -148,7 +150,7 @@ describe("createLocalAssetTrackerApi", () => {
 
   it("loads older saved data with no planned expenditures", async () => {
     const { plannedExpenditures: _plannedExpenditures, ...legacy } =
-      getSeedData();
+      getDemoAssetTrackerData();
     window.localStorage.setItem(
       ASSET_TRACKER_STORAGE_KEY,
       JSON.stringify(legacy),
@@ -161,7 +163,7 @@ describe("createLocalAssetTrackerApi", () => {
   });
 
   it("defaults the withdrawal rate in older saved settings", async () => {
-    const seed = getSeedData();
+    const seed = getDemoAssetTrackerData();
     const legacy = {
       ...seed,
       settings: {
@@ -177,10 +179,20 @@ describe("createLocalAssetTrackerApi", () => {
 
     expect(persisted).toBe(true);
     expect(data.settings.withdrawalRate).toBe(0.04);
+    expect(data.settings.baseCurrency).toBe("GBP");
+    expect(data.settings.valuationMaxAgeDays).toBe(7);
+  });
+
+  it("persists the household base currency", async () => {
+    await createApi().setBaseCurrency({ currency: "USD" });
+
+    const { data } = await createApi().load();
+
+    expect(data.settings.baseCurrency).toBe("USD");
   });
 
   it("repairs duplicate persisted income dates without hiding the portfolio", async () => {
-    const seed = getSeedData();
+    const seed = getDemoAssetTrackerData();
     window.localStorage.setItem(
       ASSET_TRACKER_STORAGE_KEY,
       JSON.stringify({
@@ -196,7 +208,9 @@ describe("createLocalAssetTrackerApi", () => {
 
     expect(persisted).toBe(true);
     expect(data.accounts).toEqual(seed.accounts);
-    expect(data.incomeHistory).toEqual([{ date: "2025-01-31", amount: 4_200 }]);
+    expect(data.incomeHistory).toEqual([
+      { date: "2025-01-31", amount: 4_200, currency: "GBP" },
+    ]);
   });
 
   it("persists portfolio income history and the withdrawal rate", async () => {
@@ -207,13 +221,15 @@ describe("createLocalAssetTrackerApi", () => {
     await api.setWithdrawalRate({ rate: 0.035 });
 
     const { data } = await createApi().load();
-    expect(data.incomeHistory).toEqual([{ date: "2025-01-31", amount: 4_500 }]);
+    expect(data.incomeHistory).toEqual([
+      { date: "2025-01-31", amount: 4_500, currency: "GBP" },
+    ]);
     expect(data.settings.withdrawalRate).toBe(0.035);
   });
 
   it("persists planned expenditures", async () => {
     const api = createApi();
-    const source = getSeedData().accounts.find(
+    const source = getDemoAssetTrackerData().accounts.find(
       (account) => account.id === "nationwide-current",
     );
     if (!source) throw new Error("seed data has no current account");
@@ -251,7 +267,7 @@ describe("createLocalAssetTrackerApi", () => {
   });
 
   it("imports and persists a valid export", async () => {
-    const exported = getSeedData();
+    const exported = getDemoAssetTrackerData();
     const imported = await createApi().importData(exported);
 
     expect(imported).toEqual(exported);
@@ -261,7 +277,7 @@ describe("createLocalAssetTrackerApi", () => {
 
   it("reset clears stored data and returns the seed", async () => {
     const api = createApi();
-    const seed = getSeedData();
+    const seed = getDemoAssetTrackerData();
     const accountId = seed.accounts.find((a) => !a.closedAt)?.id;
     if (!accountId) throw new Error("seed data has no open account");
     await api.recordBalance({ accountId, date: "2025-06-01", balance: 1 });

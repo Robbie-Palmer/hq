@@ -1,3 +1,5 @@
+import { todayIsoDate } from "@/lib/assettracker/date";
+import { getDemoAssetTrackerData } from "@/lib/assettracker/demoData";
 import {
   type AddPlannedExpenditureInput,
   type AddRecurringFlowInput,
@@ -19,6 +21,7 @@ import {
   applyRecordBalance,
   applyRecordTransfer,
   applySetAccountLiquidity,
+  applySetBaseCurrency,
   applySetExpectedReturn,
   applySetInflation,
   applySetNetWorthTarget,
@@ -32,13 +35,13 @@ import {
   type DeleteRecurringFlowInput,
   type DeleteSnapshotInput,
   getEmptyData,
-  getSeedData,
   type ImportAccountHistoryInput,
   type ImportIncomeHistoryInput,
   type MaterializeFlowInput,
   type RecordBalanceInput,
   type RecordTransferInput,
   type SetAccountLiquidityInput,
+  type SetBaseCurrencyInput,
   type SetExpectedReturnInput,
   type SetInflationInput,
   type SetNetWorthTargetInput,
@@ -86,6 +89,7 @@ export interface AssetTrackerApi {
   setAccountLiquidity(
     input: SetAccountLiquidityInput,
   ): Promise<AssetTrackerData>;
+  setBaseCurrency(input: SetBaseCurrencyInput): Promise<AssetTrackerData>;
   setInflation(input: SetInflationInput): Promise<AssetTrackerData>;
   setNetWorthTarget(input: SetNetWorthTargetInput): Promise<AssetTrackerData>;
   setWithdrawalRate(input: SetWithdrawalRateInput): Promise<AssetTrackerData>;
@@ -123,6 +127,7 @@ function parseStored(raw: string): AssetTrackerData {
 }
 
 export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
+  const currentDate = () => todayIsoDate();
   function readStored(): AssetTrackerData | null {
     const raw = storage.getItem(ASSET_TRACKER_STORAGE_KEY);
     if (raw == null) return null;
@@ -141,16 +146,19 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
   }
 
   function current(): AssetTrackerData {
-    return readStored() ?? getSeedData();
+    return readStored() ?? getDemoAssetTrackerData();
   }
 
   return {
     async load() {
       const stored = readStored();
-      return { data: stored ?? getSeedData(), persisted: stored !== null };
+      return {
+        data: stored ?? getDemoAssetTrackerData(),
+        persisted: stored !== null,
+      };
     },
     async createAccount(input) {
-      return write(applyCreateAccount(current(), input).data);
+      return write(applyCreateAccount(current(), input, currentDate()).data);
     },
     async recordBalance(input) {
       return write(applyRecordBalance(current(), input));
@@ -180,10 +188,10 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
       return write(applyClearIncomeHistory(current()));
     },
     async addRecurringFlow(input) {
-      return write(applyAddRecurringFlow(current(), input));
+      return write(applyAddRecurringFlow(current(), input, currentDate()));
     },
     async addPlannedExpenditure(input) {
-      return write(applyAddPlannedExpenditure(current(), input));
+      return write(applyAddPlannedExpenditure(current(), input, currentDate()));
     },
     async deleteRecurringFlow(input) {
       return write(applyDeleteRecurringFlow(current(), input));
@@ -199,6 +207,9 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
     },
     async setAccountLiquidity(input) {
       return write(applySetAccountLiquidity(current(), input));
+    },
+    async setBaseCurrency(input) {
+      return write(applySetBaseCurrency(current(), input));
     },
     async setInflation(input) {
       return write(applySetInflation(current(), input));
@@ -219,7 +230,7 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
     },
     async reset() {
       storage.removeItem(ASSET_TRACKER_STORAGE_KEY);
-      return getSeedData();
+      return getDemoAssetTrackerData();
     },
   };
 }

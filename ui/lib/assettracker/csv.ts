@@ -1,4 +1,4 @@
-import type { AssetTrackerData } from "./assetTrackerData";
+import type { AssetTrackerData } from "@/lib/domain/assettracker/assetTrackerData";
 
 function csvField(value: string | number): string {
   const text = String(value);

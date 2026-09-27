@@ -28,6 +28,7 @@ export const EvidenceRequirementSchema = z
     stage: EvidenceStageSchema,
   })
   .strict();
+export type EvidenceRequirement = z.infer<typeof EvidenceRequirementSchema>;
 
 const TaskRequirementsShapeSchema = z
   .object({

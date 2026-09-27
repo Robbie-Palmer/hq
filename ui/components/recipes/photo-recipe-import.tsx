@@ -165,6 +165,52 @@ function importProgressLabel(job: PhotoImportJob): string {
   return "Import failed";
 }
 
+type PhotoPollOutcome =
+  | { kind: "continue"; job: PhotoImportJob }
+  | { kind: "draft"; draft: PhotoRecipeImportDraft; job: PhotoImportJob }
+  | { kind: "error"; message: string; job: PhotoImportJob };
+
+function photoPollOutcome(job: PhotoImportJob): PhotoPollOutcome {
+  if (job.status === "succeeded") {
+    if (!job.draft) {
+      return {
+        kind: "error",
+        job,
+        message: "The import finished without an editable recipe draft.",
+      };
+    }
+    if (job.draft.cooklang.body.length > MAX_RECIPE_SOURCE_LENGTH) {
+      return {
+        kind: "error",
+        job: {
+          ...job,
+          status: "failed",
+          progressLabel: "Imported recipe is too long",
+        },
+        message:
+          "The imported recipe is too long to save. Try fewer photos or import the recipe in sections.",
+      };
+    }
+    return { kind: "draft", draft: job.draft, job };
+  }
+  if (job.status === "failed") {
+    return {
+      kind: "error",
+      job,
+      message:
+        job.error?.message ||
+        "We couldn't read a recipe from those photos. Try clearer, well-lit images.",
+    };
+  }
+  return { kind: "continue", job };
+}
+
+function photoPollErrorMessage(error: unknown): string {
+  return error instanceof Error
+    ? error.message
+    : "We couldn't check the photo import status.";
+}
+
 function SelectedPhoto({
   file,
   index,
@@ -229,71 +275,57 @@ export function PhotoRecipeImport({
     let consecutiveFailures = 0;
     const controller = new AbortController();
 
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+    function schedulePoll() {
+      pollTimeout = window.setTimeout(poll, PHOTO_IMPORT_POLL_INTERVAL_MS);
+    }
+
+    function handlePollResult(body: PhotoImportJob) {
+      consecutiveFailures = 0;
+      setError(null);
+      const outcome = photoPollOutcome(body);
+      setJob(outcome.job);
+      if (outcome.kind === "continue") {
+        schedulePoll();
+        return;
+      }
+      handledJobIdRef.current = body.id;
+      if (outcome.kind === "draft") {
+        onDraftReadyRef.current(outcome.draft);
+        return;
+      }
+      setError(outcome.message);
+    }
+
+    function handlePollError(pollError: unknown) {
+      if (controller.signal.aborted || !activeRequest) return;
+      const message = photoPollErrorMessage(pollError);
+      consecutiveFailures += 1;
+      if (consecutiveFailures < MAX_PHOTO_POLL_FAILURES) {
+        setError(`${message} Retrying…`);
+        schedulePoll();
+        return;
+      }
+      handledJobIdRef.current = currentJobId;
+      setJob((current) =>
+        current?.id === currentJobId
+          ? {
+              ...current,
+              status: "failed",
+              progressLabel: "Status check failed",
+              error: { message },
+            }
+          : current,
+      );
+      setError(`${message} Start the import again to retry.`);
+    }
+
     async function poll() {
       try {
         const body = await fetchPhotoImportJob(currentJobId, controller.signal);
         if (!activeRequest) return;
-        consecutiveFailures = 0;
-        setError(null);
-        setJob(body);
-        if (body.status === "succeeded") {
-          handledJobIdRef.current = body.id;
-          if (!body.draft) {
-            setError("The import finished without an editable recipe draft.");
-            return;
-          }
-          if (body.draft.cooklang.body.length > MAX_RECIPE_SOURCE_LENGTH) {
-            setJob({
-              ...body,
-              status: "failed",
-              progressLabel: "Imported recipe is too long",
-            });
-            setError(
-              "The imported recipe is too long to save. Try fewer photos or import the recipe in sections.",
-            );
-            return;
-          }
-          onDraftReadyRef.current(body.draft);
-          return;
-        }
-        if (body.status === "failed") {
-          handledJobIdRef.current = body.id;
-          setError(
-            body.error?.message ||
-              "We couldn't read a recipe from those photos. Try clearer, well-lit images.",
-          );
-          return;
-        }
-        pollTimeout = window.setTimeout(poll, PHOTO_IMPORT_POLL_INTERVAL_MS);
+        handlePollResult(body);
       } catch (pollError) {
-        if (!controller.signal.aborted && activeRequest) {
-          const message =
-            pollError instanceof Error
-              ? pollError.message
-              : "We couldn't check the photo import status.";
-          consecutiveFailures += 1;
-          if (consecutiveFailures < MAX_PHOTO_POLL_FAILURES) {
-            setError(`${message} Retrying…`);
-            pollTimeout = window.setTimeout(
-              poll,
-              PHOTO_IMPORT_POLL_INTERVAL_MS,
-            );
-            return;
-          }
-          handledJobIdRef.current = currentJobId;
-          setJob((current) =>
-            current?.id === currentJobId
-              ? {
-                  ...current,
-                  status: "failed",
-                  progressLabel: "Status check failed",
-                  error: { message },
-                }
-              : current,
-          );
-          setError(`${message} Start the import again to retry.`);
-        }
+        handlePollError(pollError);
       }
     }
 

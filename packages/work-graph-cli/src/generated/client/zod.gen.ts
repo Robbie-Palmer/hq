@@ -176,6 +176,71 @@ export const zKnowledgeScopeRelationshipList = z.object({
     nextCursor: z.string().min(1).max(4096).nullable()
 });
 
+export const zDeliveryEvidence = z.object({
+    id: z.uuid().max(36),
+    deliveryProvider: z.string().min(1).max(10000),
+    deliveryExternalId: z.string().min(1).max(10000),
+    provider: z.string().min(1).max(10000),
+    externalId: z.string().min(1).max(10000),
+    repository: z.string().min(1).max(200),
+    commitSha: z.string().max(40).regex(/^[0-9a-f]{40}$/),
+    kind: z.enum([
+        'pull_request',
+        'ci',
+        'deployment'
+    ]),
+    state: z.enum([
+        'pending',
+        'success',
+        'failure',
+        'cancelled'
+    ]),
+    name: z.string().min(1).max(10000).nullable(),
+    environment: z.string().min(1).max(10000).nullable(),
+    sourceUrl: z.url().max(2048).regex(/^[hH][tT][tT][pP][sS]?:\/\/(?![^\/?#]*@)/),
+    providerObservedAt: z.iso.datetime().max(30),
+    ingestedAt: z.iso.datetime().max(30),
+    correlationKind: z.enum([
+        'unmatched',
+        'pull_request_head',
+        'pull_request_merge'
+    ]),
+    pullRequestRepository: z.string().min(1).max(200).nullable(),
+    pullRequestNumber: z.int().gte(1).lte(2147483647).nullable(),
+    current: z.boolean(),
+    projectedAt: z.iso.datetime().max(30).nullable()
+});
+
+export const zDeliveryEvidenceList = z.object({
+    items: z.array(zDeliveryEvidence).max(100),
+    nextCursor: z.uuid().max(36).nullable()
+});
+
+export const zCompletionCandidate = z.object({
+    id: z.uuid().max(36),
+    workItemId: z.string().min(1).max(200),
+    policyId: z.string().min(1).max(200),
+    policyRevision: z.int().gte(1).lte(2147483647),
+    candidate: z.boolean(),
+    reasons: z.array(z.enum([
+        'missing_implementation_pull_request',
+        'pull_request_not_merged',
+        'missing_accepted_head',
+        'missing_merge_commit',
+        'missing_pull_request_evidence',
+        'missing_required_ci',
+        'missing_production_deployment',
+        'unfinished_children',
+        'unresolved_blocking_attention'
+    ])).max(9),
+    evidenceObservationIds: z.array(z.uuid().max(36)).max(1000),
+    evaluatedAt: z.iso.datetime().max(30)
+});
+
+export const zCompletionCandidateResponse = z.object({
+    candidate: zCompletionCandidate.nullable()
+});
+
 export const zPullRequestSnapshot = z.object({
     repository: z.string().min(1).max(200),
     number: z.int().gte(1).lte(2147483647),
@@ -249,7 +314,13 @@ export const zResolvedWorkItemContext = z.union([
         sourceWorkItemId: z.string().min(1).max(200),
         inheritanceDepth: z.int().gte(0).lte(2147483647)
     }),
-    zResolvedPullRequest
+    zResolvedPullRequest,
+    z.object({
+        kind: z.enum(['delivery_evidence']),
+        evidence: zDeliveryEvidence,
+        sourceWorkItemId: z.string().min(1).max(200),
+        inheritanceDepth: z.int().gte(0).lte(2147483647)
+    })
 ]);
 
 export const zResolvedWorkItemContextList = z.object({
@@ -829,6 +900,15 @@ export const zCreatePostReleaseWorkItemNotePath = z.object({
  */
 export const zCreatePostReleaseWorkItemNoteResponse = zWorkItemNote;
 
+export const zGetWorkItemCompletionCandidatePath = z.object({
+    workItemId: z.string().min(1).max(200)
+});
+
+/**
+ * Current completion-candidate projection
+ */
+export const zGetWorkItemCompletionCandidateResponse = zCompletionCandidateResponse;
+
 export const zListWorkItemContextsPath = z.object({
     workItemId: z.string().min(1).max(200)
 });
@@ -949,6 +1029,21 @@ export const zListWorkItemEventsQuery = z.object({
  * Work-item events in stable sequence order
  */
 export const zListWorkItemEventsResponse = zWorkItemEventList;
+
+export const zListWorkItemEvidencePath = z.object({
+    workItemId: z.string().min(1).max(200)
+});
+
+export const zListWorkItemEvidenceQuery = z.object({
+    currentOnly: z.enum(['true']).optional(),
+    limit: z.int().gte(1).lte(100).optional().default(50),
+    cursor: z.uuid().max(36).optional()
+});
+
+/**
+ * Delivery evidence in stable observation-ID order
+ */
+export const zListWorkItemEvidenceResponse = zDeliveryEvidenceList;
 
 export const zUnexpediteWorkItemHeaders = z.object({
     'idempotency-key': z.uuid().max(36).register(z.globalRegistry, {

@@ -661,6 +661,12 @@ describe("Given inherited work-item context over HTTP", () => {
       evaluatedAt: "2026-09-22T12:00:00.000Z",
     });
     const response = await app.request("/api/work-items/evidence-backed");
+    const evidenceResponse = await app.request(
+      "/api/work-items/evidence-backed/evidence?currentOnly=true&limit=3",
+    );
+    const candidateResponse = await app.request(
+      "/api/work-items/evidence-backed/completion-candidate",
+    );
     const workItem = (await response.json()) as {
       lifecycle: string;
       stage: string;
@@ -669,6 +675,18 @@ describe("Given inherited work-item context over HTTP", () => {
 
     expect(candidate.candidate).toBe(true);
     expect(response.status).toBe(200);
+    expect(evidenceResponse.status).toBe(200);
+    expect(await evidenceResponse.json()).toEqual({
+      items: expect.arrayContaining([
+        expect.objectContaining({
+          provider: "github",
+          current: true,
+          correlationKind: expect.stringMatching(/^pull_request_/u),
+        }),
+      ]),
+      nextCursor: expect.any(String),
+    });
+    expect(await candidateResponse.json()).toEqual({ candidate });
     expect(workItem).toEqual(
       expect.objectContaining({
         lifecycle: "open",

@@ -12,78 +12,154 @@ import type { AssetTrackerRepository } from "./assetTrackerRepository";
 import {
   type AccountDetailView,
   type AccountSummaryView,
+  buildAccountReadModel,
   buildLinkage,
   type NetWorthDataPoint,
-  toAccountDetailView,
-  toAccountSummaryView,
   toNetWorthTimeSeries,
 } from "./assetTrackerViews";
 import type { BalanceSnapshot } from "./balanceSnapshot";
+import { DEFAULT_BASE_CURRENCY } from "./currency";
+import {
+  convertAccountAmountAtDate,
+  valuationDates,
+  valueAccountAtDate,
+  valuePortfolioAtDate,
+} from "./portfolioValuation";
+import { transferAmountFrom, transferAmountTo } from "./transfer";
+
+function needsExplicitValuation(repository: AssetTrackerRepository): boolean {
+  const baseCurrency =
+    repository.settings.baseCurrency ?? DEFAULT_BASE_CURRENCY;
+  return (
+    repository.holdingObservations.length > 0 ||
+    Array.from(repository.accounts.values()).some(
+      (account) => account.currency !== baseCurrency,
+    )
+  );
+}
 
 export function getAllAccountSummaries(
   repository: AssetTrackerRepository,
 ): AccountSummaryView[] {
-  return Array.from(repository.accounts.values()).map((account) =>
-    toAccountSummaryView(
-      account,
-      repository.snapshots,
-      repository.transfers,
-      repository.capitalFlows,
-    ),
-  );
+  return buildAccountReadModels(repository).summaries;
 }
 
 export function getAccountDetail(
   repository: AssetTrackerRepository,
   accountId: AccountId,
 ): AccountDetailView | null {
-  const account = repository.accounts.get(accountId);
-  if (!account) return null;
-  return toAccountDetailView(
-    account,
-    repository.snapshots,
-    repository.transfers,
-    repository.capitalFlows,
-  );
+  return buildAccountReadModels(repository).detailsById.get(accountId) ?? null;
 }
 
 export function getAllAccountDetails(
   repository: AssetTrackerRepository,
 ): AccountDetailView[] {
-  return Array.from(repository.accounts.values()).map((account) =>
-    toAccountDetailView(
+  return buildAccountReadModels(repository).details;
+}
+
+export type AccountReadModels = {
+  summaries: AccountSummaryView[];
+  details: AccountDetailView[];
+  detailsById: ReadonlyMap<AccountId, AccountDetailView>;
+};
+
+/** Builds summary and detail views through one snapshot and valuation pass. */
+export function buildAccountReadModels(
+  repository: AssetTrackerRepository,
+): AccountReadModels {
+  const valuationDate = valuationDates(repository).at(-1);
+  const accountsWithHoldings = new Set(
+    repository.holdingObservations.map((observation) => observation.accountId),
+  );
+  const summaries: AccountSummaryView[] = [];
+  const details: AccountDetailView[] = [];
+  const detailsById = new Map<AccountId, AccountDetailView>();
+
+  for (const account of repository.accounts.values()) {
+    let { summary, detail } = buildAccountReadModel(
       account,
       repository.snapshots,
       repository.transfers,
       repository.capitalFlows,
-    ),
-  );
+    );
+    if (valuationDate != null && accountsWithHoldings.has(account.id)) {
+      const valuation = valueAccountAtDate(repository, account, valuationDate);
+      summary = {
+        ...summary,
+        latestBalance: valuation.nativeValue,
+        latestSnapshotDate: valuationDate,
+      };
+      detail = {
+        ...detail,
+        latestBalance: valuation.nativeValue,
+        latestSnapshotDate: valuationDate,
+        gainLoss:
+          valuation.nativeValue == null || detail.netContributed == null
+            ? null
+            : valuation.nativeValue - detail.netContributed,
+      };
+    }
+    summaries.push(summary);
+    details.push(detail);
+    detailsById.set(account.id, detail);
+  }
+
+  return { summaries, details, detailsById };
 }
 
 export function getAccountsByAssetType(
   repository: AssetTrackerRepository,
   assetType: AssetType,
 ): AccountSummaryView[] {
-  return Array.from(repository.accounts.values())
-    .filter((account) => account.assetType === assetType)
-    .map((account) =>
-      toAccountSummaryView(
-        account,
-        repository.snapshots,
-        repository.transfers,
-        repository.capitalFlows,
-      ),
-    );
+  return getAllAccountSummaries(repository).filter(
+    (account) => account.assetType === assetType,
+  );
 }
 
 export function getNetWorthTimeSeries(
   repository: AssetTrackerRepository,
 ): NetWorthDataPoint[] {
+  if (needsExplicitValuation(repository)) {
+    const accounts = Array.from(repository.accounts.values());
+    const { absorbedIds, mortgagesByProperty } = buildLinkage(accounts);
+    return valuationDates(repository).map((date) => {
+      const valuation = valuePortfolioAtDate(repository, date);
+      const point: NetWorthDataPoint = { date, total: valuation.total };
+      for (const account of accounts) {
+        if (
+          absorbedIds.has(account.id) ||
+          (account.closedAt != null && account.closedAt <= date)
+        ) {
+          continue;
+        }
+        const mortgageIds = mortgagesByProperty.get(account.id) ?? [];
+        const componentValues = [account.id, ...mortgageIds]
+          .filter((id) => {
+            const closedAt = repository.accounts.get(id)?.closedAt;
+            return closedAt == null || closedAt > date;
+          })
+          .map((id) => valuation.byAccount.get(id)?.value ?? null);
+        if (componentValues.some((value) => value == null)) continue;
+        point[account.name] = componentValues.reduce<number>(
+          (sum, value) => sum + (value ?? 0),
+          0,
+        );
+      }
+      return point;
+    });
+  }
   return toNetWorthTimeSeries(
     Array.from(repository.accounts.values()),
     repository.snapshots,
     repository.capitalFlows,
   );
+}
+
+export function getLatestPortfolioValuation(
+  repository: AssetTrackerRepository,
+) {
+  const date = valuationDates(repository).at(-1);
+  return date == null ? null : valuePortfolioAtDate(repository, date);
 }
 
 export type PortfolioContributionDataPoint = {
@@ -92,6 +168,62 @@ export type PortfolioContributionDataPoint = {
   contributedCapital: number;
 };
 
+type BaseCurrencyFlow = { date: string; amount: number };
+
+function convertCapitalFlows(
+  repository: AssetTrackerRepository,
+): BaseCurrencyFlow[] | null {
+  const converted: BaseCurrencyFlow[] = [];
+  for (const flow of repository.capitalFlows) {
+    const amount = convertAccountAmountAtDate(
+      repository,
+      flow.accountId,
+      flow.amount,
+      flow.date,
+    );
+    if (amount == null) return null;
+    converted.push({ date: flow.date, amount });
+  }
+  return converted;
+}
+
+function convertExternalTransfer(
+  repository: AssetTrackerRepository,
+  transfer: AssetTrackerRepository["transfers"][number],
+): BaseCurrencyFlow | "internal" | null {
+  if (transfer.fromAccountId == null && transfer.toAccountId != null) {
+    const amount = convertAccountAmountAtDate(
+      repository,
+      transfer.toAccountId,
+      transferAmountTo(transfer),
+      transfer.date,
+    );
+    return amount == null ? null : { date: transfer.date, amount };
+  }
+  if (transfer.toAccountId == null && transfer.fromAccountId != null) {
+    const amount = convertAccountAmountAtDate(
+      repository,
+      transfer.fromAccountId,
+      transferAmountFrom(transfer),
+      transfer.date,
+    );
+    return amount == null ? null : { date: transfer.date, amount: -amount };
+  }
+  return "internal";
+}
+
+function getExternalFlowsInBaseCurrency(
+  repository: AssetTrackerRepository,
+): BaseCurrencyFlow[] | null {
+  const flows: BaseCurrencyFlow[] = [];
+  for (const transfer of repository.transfers) {
+    const converted = convertExternalTransfer(repository, transfer);
+    if (converted == null) return null;
+    if (converted !== "internal") flows.push(converted);
+  }
+  return flows;
+}
+
 /**
  * Portfolio-level cumulative contributed capital, kept independent of market
  * value. Equal signed flows for an internal transfer cancel in the total.
@@ -99,17 +231,10 @@ export type PortfolioContributionDataPoint = {
 export function getPortfolioContributionTimeSeries(
   repository: AssetTrackerRepository,
 ): PortfolioContributionDataPoint[] {
-  const flows = repository.capitalFlows.map(({ date, amount }) => ({
-    date,
-    amount,
-  }));
-  for (const transfer of repository.transfers) {
-    if (transfer.fromAccountId == null && transfer.toAccountId != null) {
-      flows.push({ date: transfer.date, amount: transfer.amount });
-    } else if (transfer.toAccountId == null && transfer.fromAccountId != null) {
-      flows.push({ date: transfer.date, amount: -transfer.amount });
-    }
-  }
+  const capitalFlows = convertCapitalFlows(repository);
+  const externalTransfers = getExternalFlowsInBaseCurrency(repository);
+  if (capitalFlows == null || externalTransfers == null) return [];
+  const flows = [...capitalFlows, ...externalTransfers];
   flows.sort((a, b) => a.date.localeCompare(b.date));
 
   const points: PortfolioContributionDataPoint[] = [];
@@ -201,6 +326,46 @@ function buildAllocationPoint(
   return point;
 }
 
+function buildValuedAllocationPoint(
+  repository: AssetTrackerRepository,
+  accounts: readonly Account[],
+  absorbedIds: ReadonlySet<AccountId>,
+  mortgagesByProperty: ReadonlyMap<AccountId, readonly AccountId[]>,
+  date: string,
+): AssetAllocationDataPoint | null {
+  const valuation = valuePortfolioAtDate(repository, date);
+  if (valuation.total == null) return null;
+  const totals = new Map<AssetType, number>();
+  for (const account of accounts) {
+    if (isExcludedFromAllocation(account, date, absorbedIds)) continue;
+    const ids = [
+      account.id,
+      ...(mortgagesByProperty.get(account.id) ?? []),
+    ].filter((id) => {
+      const closedAt = repository.accounts.get(id)?.closedAt;
+      return closedAt == null || closedAt > date;
+    });
+    const values = ids.map((id) => valuation.byAccount.get(id)?.value ?? null);
+    if (values.some((value) => value == null)) continue;
+    const value = values.reduce<number>(
+      (sum, current) => sum + (current ?? 0),
+      0,
+    );
+    if (value <= 0) continue;
+    totals.set(account.assetType, (totals.get(account.assetType) ?? 0) + value);
+  }
+  const totalAssets = [...totals.values()].reduce(
+    (sum, value) => sum + value,
+    0,
+  );
+  if (totalAssets <= 0) return null;
+  const point: AssetAllocationDataPoint = { date, totalAssets };
+  for (const [assetType, value] of totals) {
+    point[assetType] = value / totalAssets;
+  }
+  return point;
+}
+
 /**
  * Percentage allocation through time, using the same linkage model as the
  * current composition chart. A linked mortgage therefore reduces property to
@@ -210,6 +375,20 @@ function buildAllocationPoint(
 export function getAssetAllocationTimeSeries(
   repository: AssetTrackerRepository,
 ): AssetAllocationDataPoint[] {
+  if (needsExplicitValuation(repository)) {
+    const accounts = Array.from(repository.accounts.values());
+    const { absorbedIds, mortgagesByProperty } = buildLinkage(accounts);
+    return valuationDates(repository).flatMap((date) => {
+      const point = buildValuedAllocationPoint(
+        repository,
+        accounts,
+        absorbedIds,
+        mortgagesByProperty,
+        date,
+      );
+      return point == null ? [] : [point];
+    });
+  }
   const accounts = Array.from(repository.accounts.values());
   const accountsById = new Map(
     accounts.map((account) => [account.id, account]),
@@ -254,44 +433,59 @@ export function getPortfolioAnnualReturn(
   repository: AssetTrackerRepository,
 ): number | null {
   const netWorth = getNetWorthTimeSeries(repository);
+  if (netWorth.some((point) => point.total == null)) return null;
   const balances = netWorth.map((point) => ({
     date: point.date,
-    balance: point.total,
+    balance: point.total ?? 0,
   }));
-  const externalFlows: ExternalFlow[] = [];
-  for (const transfer of repository.transfers) {
-    if (transfer.fromAccountId == null && transfer.toAccountId != null) {
-      externalFlows.push({ date: transfer.date, amount: transfer.amount });
-    } else if (transfer.toAccountId == null && transfer.fromAccountId != null) {
-      externalFlows.push({ date: transfer.date, amount: -transfer.amount });
-    }
-  }
+  const externalFlows: ExternalFlow[] | null =
+    getExternalFlowsInBaseCurrency(repository);
+  if (externalFlows == null) return null;
   return computeMoneyWeightedReturn(balances, externalFlows);
 }
 
-/**
- * Net worth composition by asset type. Mortgages secured on a property are
- * folded into that property (so it contributes equity, not gross value);
- * other liabilities surface as their own negative totals.
- */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-export function getTotalByAssetType(
+function getValuedTotalByAssetType(
   repository: AssetTrackerRepository,
 ): { assetType: AssetType; total: number }[] {
+  const date = valuationDates(repository).at(-1);
+  if (date == null) return [];
+  const valuation = valuePortfolioAtDate(repository, date);
+  if (valuation.total == null) return [];
+  const accounts = Array.from(repository.accounts.values());
+  const { absorbedIds, mortgagesByProperty } = buildLinkage(accounts);
   const totals = new Map<AssetType, number>();
+  for (const account of accounts) {
+    if (absorbedIds.has(account.id) || account.closedAt != null) continue;
+    const ids = [account.id, ...(mortgagesByProperty.get(account.id) ?? [])];
+    const value = ids.reduce(
+      (sum, id) => sum + (valuation.byAccount.get(id)?.value ?? 0),
+      0,
+    );
+    totals.set(account.assetType, (totals.get(account.assetType) ?? 0) + value);
+  }
+  return [...totals].map(([assetType, total]) => ({ assetType, total }));
+}
 
-  // Find latest snapshot for each account in single pass
+function latestSnapshotsByAccount(
+  snapshots: readonly BalanceSnapshot[],
+): Map<AccountId, BalanceSnapshot> {
   const latestSnapshots = new Map<AccountId, BalanceSnapshot>();
-  for (const snapshot of repository.snapshots) {
+  for (const snapshot of snapshots) {
     const existing = latestSnapshots.get(snapshot.accountId);
-    if (!existing || new Date(snapshot.date) > new Date(existing.date)) {
+    if (existing == null || snapshot.date > existing.date) {
       latestSnapshots.set(snapshot.accountId, snapshot);
     }
   }
+  return latestSnapshots;
+}
 
+function getLegacyTotalByAssetType(
+  repository: AssetTrackerRepository,
+): { assetType: AssetType; total: number }[] {
+  const totals = new Map<AssetType, number>();
+  const latestSnapshots = latestSnapshotsByAccount(repository.snapshots);
   const accounts = Array.from(repository.accounts.values());
   const { absorbedIds, mortgagesByProperty } = buildLinkage(accounts);
-
   for (const account of accounts) {
     if (absorbedIds.has(account.id) || account.closedAt != null) continue;
     let balance = latestSnapshots.get(account.id)?.balance ?? 0;
@@ -309,4 +503,17 @@ export function getTotalByAssetType(
     assetType,
     total,
   }));
+}
+
+/**
+ * Net worth composition by asset type. Mortgages secured on a property are
+ * folded into that property (so it contributes equity, not gross value);
+ * other liabilities surface as their own negative totals.
+ */
+export function getTotalByAssetType(
+  repository: AssetTrackerRepository,
+): { assetType: AssetType; total: number }[] {
+  return needsExplicitValuation(repository)
+    ? getValuedTotalByAssetType(repository)
+    : getLegacyTotalByAssetType(repository);
 }

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { ActorProfileSchema } from "./actor";
+import { AuthenticationAllowlistEntrySchema } from "./authentication";
 import { ComplexityScaleSchema } from "./complexity";
 import { OwnerPolicySchema } from "./policy";
 import {
@@ -16,5 +17,6 @@ export const PortableContractSchema = z.union([
   OwnerPolicySchema,
   WorkerAdapterIdentitySchema,
   ExecutionSessionIdentitySchema,
+  AuthenticationAllowlistEntrySchema,
 ]);
 export type PortableContract = z.infer<typeof PortableContractSchema>;

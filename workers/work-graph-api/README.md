@@ -126,6 +126,15 @@ null `parentId` to detach it to the graph root. The operation preserves the
 ticket and its history, and rejects cycles across hierarchy and dependency
 edges.
 
+`GET /api/work-items/{workItemId}/evidence` returns immutable delivery-evidence
+observations correlated through the ticket's pull requests. Records include
+provider identity, kind, state, commit, environment, source URL, provider and
+ingestion times, correlation fields, and a `current` marker. Use
+`currentOnly=true` for the current projection and `nextCursor` for the next
+page. `GET /api/work-items/{workItemId}/completion-candidate` returns the latest
+evaluation with its policy revision, or null before the first evaluation.
+Current evidence also appears after the normal records in claim context.
+
 Knowledge-scope lists and relationship lists return active scopes by default.
 Pass `includeArchived=true` for an audit view. Send `POST` to
 `/api/knowledge-scopes/{knowledgeScopeId}/archival` to archive a scope with a

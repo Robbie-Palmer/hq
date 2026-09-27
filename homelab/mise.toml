@@ -6,8 +6,8 @@ python = "3.12.14"
 "aqua:abiosoft/colima" = "0.10.3"
 "aqua:lima-vm/lima" = "2.2.0"
 "pipx:ansible-core" = "2.21.4"
-"pipx:ansible-lint" = "26.8.0"
-"aqua:kubernetes/kubernetes/kubectl" = "1.37.0"
+"pipx:ansible-lint" = "26.9.0"
+"aqua:kubernetes/kubernetes/kubectl" = "1.37.1"
 "aqua:kubernetes-sigs/kustomize" = "5.8.1"
 "github:fluxcd/flux-schema" = "0.13.0"
 
@@ -231,7 +231,7 @@ docker build \
   --platform linux/amd64 \
   --build-arg "MISE_VERSION=$mise_version" \
   --pull=false \
-  --tag ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-12 \
+  --tag ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-13 \
   images/t3-code
 '''
 
@@ -241,7 +241,7 @@ run = "bash scripts/check-t3-image"
 
 [tasks.t3-image-push]
 description = "Push the checked t3-code image to GHCR"
-run = "docker push ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-12"
+run = "docker push ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-13"
 
 [tasks.t3-image-load-remote]
 description = "Load the checked image into remote-development K3s over SSH"

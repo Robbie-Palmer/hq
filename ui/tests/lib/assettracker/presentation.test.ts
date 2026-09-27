@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { AccountSummaryView, Currency } from "@/lib/domain/assettracker";
 import {
   computeTotalBalancesByCurrency,
   formatTotalBalances,
-} from "@/lib/domain/assettracker";
+} from "@/lib/assettracker";
+import type { AccountSummaryView, Currency } from "@/lib/domain/assettracker";
 
 function account(
   id: string,
@@ -24,7 +24,7 @@ function account(
   };
 }
 
-describe("computeTotalBalancesByCurrency", () => {
+describe("computeTotalBalancesByCurrency presentation adapter", () => {
   it("sums each currency separately", () => {
     const totals = computeTotalBalancesByCurrency([
       account("gbp-1", "GBP", 1000),

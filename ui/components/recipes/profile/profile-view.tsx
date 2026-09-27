@@ -29,14 +29,87 @@ function loadErrorMessage(error: unknown) {
     : "We couldn't load this profile.";
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+async function loadProfileData(
+  currentUser: {
+    id: string;
+    email: string;
+    name: string;
+    image?: string | null;
+  },
+  requestedUserId: string | null | undefined,
+  signal: AbortSignal,
+): Promise<ProfileData> {
+  const households = await getHouseholds(signal);
+  const household = households[0];
+  const selectedUserId = requestedUserId || currentUser.id;
+  if (!household) {
+    if (selectedUserId !== currentUser.id) {
+      throw new Error("This profile isn't part of your household.");
+    }
+    return {
+      household: null,
+      members: [],
+      profile: {
+        id: currentUser.id,
+        email: currentUser.email,
+        name: currentUser.name,
+        image: currentUser.image ?? null,
+      },
+      role: null,
+    };
+  }
+  const members = await getHouseholdMembers(household.id, signal);
+  const membership = members.find(
+    (member) => member.user.id === selectedUserId,
+  );
+  if (!membership) {
+    throw new Error("This profile isn't part of your household.");
+  }
+  return {
+    household,
+    members,
+    profile: membership.user,
+    role: membership.role,
+  };
+}
+
+function shouldLoadOwnConnections(
+  sessionUserId: string | undefined,
+  requestedUserId: string | null | undefined,
+): boolean {
+  return Boolean(
+    sessionUserId && (!requestedUserId || requestedUserId === sessionUserId),
+  );
+}
+
+function profileIsPending(
+  sessionPending: boolean,
+  loading: boolean,
+  ownConnectionsEnabled: boolean,
+  ownConnectionsPending: boolean,
+): boolean {
+  return (
+    sessionPending ||
+    loading ||
+    (ownConnectionsEnabled && ownConnectionsPending)
+  );
+}
+
+function availableProfileData(
+  data: ProfileData | null,
+  error: string | null,
+): ProfileData | null {
+  return error ? null : data;
+}
+
 export function ProfileView({ userId }: Readonly<{ userId?: string | null }>) {
   const { data: session, isPending: sessionPending } = authClient.useSession();
   const [data, setData] = useState<ProfileData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const ownConnectionsEnabled = Boolean(
-    session && (!userId || userId === session.user.id),
+  const ownConnectionsEnabled = shouldLoadOwnConnections(
+    session?.user.id,
+    userId,
   );
   const ownConnections = useQuery({
     ...ownCookConnectionsQuery(session?.user.id ?? "anonymous"),
@@ -53,50 +126,9 @@ export function ProfileView({ userId }: Readonly<{ userId?: string | null }>) {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    const currentUserId = session.user.id;
-
-    void getHouseholds(controller.signal)
-      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-      .then(async (households) => {
-        const household = households[0];
-        const selectedUserId = userId || currentUserId;
-        if (!household) {
-          if (selectedUserId !== currentUserId) {
-            throw new Error("This profile isn't part of your household.");
-          }
-          if (!controller.signal.aborted) {
-            setData({
-              household: null,
-              members: [],
-              profile: {
-                id: session.user.id,
-                email: session.user.email,
-                name: session.user.name,
-                image: session.user.image ?? null,
-              },
-              role: null,
-            });
-          }
-          return;
-        }
-        const members = await getHouseholdMembers(
-          household.id,
-          controller.signal,
-        );
-        const membership = members.find(
-          (member) => member.user.id === selectedUserId,
-        );
-        if (!membership) {
-          throw new Error("This profile isn't part of your household.");
-        }
-        if (!controller.signal.aborted) {
-          setData({
-            household,
-            members,
-            profile: membership.user,
-            role: membership.role,
-          });
-        }
+    void loadProfileData(session.user, userId, controller.signal)
+      .then((profileData) => {
+        if (!controller.signal.aborted) setData(profileData);
       })
       .catch((loadError: unknown) => {
         if (!controller.signal.aborted) setError(loadErrorMessage(loadError));
@@ -109,9 +141,12 @@ export function ProfileView({ userId }: Readonly<{ userId?: string | null }>) {
   }, [session, sessionPending, userId]);
 
   if (
-    sessionPending ||
-    loading ||
-    (ownConnectionsEnabled && ownConnections.isPending)
+    profileIsPending(
+      sessionPending,
+      loading,
+      ownConnectionsEnabled,
+      ownConnections.isPending,
+    )
   ) {
     return (
       <div className="container mx-auto flex max-w-5xl flex-1 items-center justify-center px-4 py-20">
@@ -134,7 +169,8 @@ export function ProfileView({ userId }: Readonly<{ userId?: string | null }>) {
     );
   }
 
-  if (!data || error) {
+  const profileData = availableProfileData(data, error);
+  if (!profileData) {
     return (
       <div className="container mx-auto max-w-xl flex-1 px-4 py-20 text-center">
         <p className="rt-mono text-[var(--terracotta)]">Profile unavailable</p>
@@ -149,7 +185,7 @@ export function ProfileView({ userId }: Readonly<{ userId?: string | null }>) {
     );
   }
 
-  const { household, members, profile, role } = data;
+  const { household, members, profile, role } = profileData;
   const currentUserId = session.user.id;
   const isSelf = profile.id === currentUserId;
   const firstName = profile.name.trim().split(/\s+/)[0] || "Chef";

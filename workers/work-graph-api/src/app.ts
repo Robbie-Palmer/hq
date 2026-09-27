@@ -18,6 +18,7 @@ import {
   type IdempotentMutationOptions,
   type KnowledgeScopeRelationshipCursor,
   type ListAttentionRequestsInput,
+  type ListWorkItemDeliveryEvidenceInput,
   type ListEventsInput,
   type ListKnowledgeScopeRelationshipsInput,
   type ListKnowledgeScopesInput,
@@ -36,6 +37,8 @@ import {
   type StoredEvent,
   type StoredLease,
   type StoredNote,
+  type StoredCompletionCandidateEvaluation,
+  type StoredWorkItemDeliveryEvidence,
   type TerminateClaimedWorkItemInput,
   type WorkItemDependencyCursor,
   type WorkItemReadModel,
@@ -44,6 +47,10 @@ import {
 } from "work-graph-db";
 import {
   ARCHITECTURE_DECISION_ROLES,
+  COMPLETION_CANDIDATE_REASONS,
+  DELIVERY_EVIDENCE_KINDS,
+  DELIVERY_EVIDENCE_STATES,
+  EVIDENCE_CORRELATION_KINDS,
   KNOWLEDGE_SCOPE_KINDS,
   KNOWLEDGE_SCOPE_LIFECYCLES,
   LEASE_OUTCOMES,
@@ -360,6 +367,52 @@ const resolvedPullRequestSchema = z
     inheritanceDepth: inheritanceDepthSchema,
   })
   .openapi("ResolvedPullRequest");
+const deliveryEvidenceSchema = z
+  .object({
+    id: z.uuid().max(36),
+    deliveryProvider: z.string().trim().min(1).max(MAX_TITLE_LENGTH),
+    deliveryExternalId: z.string().trim().min(1).max(MAX_TITLE_LENGTH),
+    provider: z.string().trim().min(1).max(MAX_TITLE_LENGTH),
+    externalId: z.string().trim().min(1).max(MAX_TITLE_LENGTH),
+    repository: identifierSchema,
+    commitSha: commitShaSchema,
+    kind: z.enum(DELIVERY_EVIDENCE_KINDS),
+    state: z.enum(DELIVERY_EVIDENCE_STATES),
+    name: z.union([z.string().trim().min(1).max(MAX_TITLE_LENGTH), z.null()]),
+    environment: z.union([
+      z.string().trim().min(1).max(MAX_TITLE_LENGTH),
+      z.null(),
+    ]),
+    sourceUrl: contextUrlSchema,
+    providerObservedAt: timestampSchema,
+    ingestedAt: timestampSchema,
+    correlationKind: z.enum(EVIDENCE_CORRELATION_KINDS),
+    pullRequestRepository: z.union([identifierSchema, z.null()]),
+    pullRequestNumber: z.union([
+      z.number().int().min(1).max(MAX_INT32).openapi({ format: "int32" }),
+      z.null(),
+    ]),
+    current: z.boolean(),
+    projectedAt: z.union([timestampSchema, z.null()]),
+  })
+  .openapi("DeliveryEvidence");
+const completionCandidateSchema = z
+  .object({
+    id: z.uuid().max(36),
+    workItemId: identifierSchema,
+    policyId: identifierSchema,
+    policyRevision: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_INT32)
+      .openapi({ format: "int32" }),
+    candidate: z.boolean(),
+    reasons: z.array(z.enum(COMPLETION_CANDIDATE_REASONS)).max(9),
+    evidenceObservationIds: z.array(z.uuid().max(36)).max(1_000),
+    evaluatedAt: timestampSchema,
+  })
+  .openapi("CompletionCandidate");
 const workItemContextRecordSchema = z
   .union([workItemTextContextSchema, workItemArchitectureDecisionSchema])
   .openapi("WorkItemContextRecord");
@@ -391,6 +444,12 @@ const resolvedWorkItemContextSchema = z
       inheritanceDepth: inheritanceDepthSchema,
     }),
     resolvedPullRequestSchema,
+    z.object({
+      kind: z.literal("delivery_evidence"),
+      evidence: deliveryEvidenceSchema,
+      sourceWorkItemId: identifierSchema,
+      inheritanceDepth: inheritanceDepthSchema,
+    }),
   ])
   .openapi("ResolvedWorkItemContext");
 const resolvedWorkItemContextListSchema = z
@@ -414,6 +473,15 @@ const workItemPullRequestSchema = z
 const resolvedPullRequestListSchema = z
   .object({ items: z.array(resolvedPullRequestSchema).max(1_000) })
   .openapi("ResolvedPullRequestList");
+const deliveryEvidenceListSchema = z
+  .object({
+    items: z.array(deliveryEvidenceSchema).max(100),
+    nextCursor: z.union([z.uuid().max(36), z.null()]),
+  })
+  .openapi("DeliveryEvidenceList");
+const completionCandidateResponseSchema = z
+  .object({ candidate: z.union([completionCandidateSchema, z.null()]) })
+  .openapi("CompletionCandidateResponse");
 const knowledgeScopeListSchema = z
   .object({
     items: z.array(knowledgeScopeSchema).max(100),
@@ -672,6 +740,17 @@ const listKnowledgeScopeRelationshipsQuerySchema = z.object({
     .optional(),
 });
 const workItemParamsSchema = z.object({ workItemId: identifierSchema });
+const listWorkItemEvidenceQuerySchema = z.object({
+  currentOnly: z.enum(["true"]).optional(),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .default(DEFAULT_LIST_LIMIT)
+    .openapi({ format: "int32" }),
+  cursor: z.uuid().max(36).optional(),
+});
 const knowledgeScopeParamsSchema = z.object({
   knowledgeScopeId: identifierSchema,
 });
@@ -1191,6 +1270,49 @@ const getWorkItemRoute = createRoute({
     200: {
       description: "Current work-item projection",
       content: { "application/json": { schema: workItemSchema } },
+    },
+    ...standardErrors,
+  },
+});
+
+const listWorkItemEvidenceRoute = createRoute({
+  method: "get",
+  path: "/api/work-items/{workItemId}/evidence",
+  operationId: "listWorkItemEvidence",
+  summary: "List delivery evidence for a work item",
+  description:
+    "Returns immutable evidence correlated through the work item's pull requests. Each record identifies whether it is the current provider projection. Set currentOnly=true for claim context and pass nextCursor unchanged to continue.",
+  tags: ["work-items"],
+  security: accessSecurity,
+  request: {
+    params: workItemParamsSchema,
+    query: listWorkItemEvidenceQuerySchema,
+  },
+  responses: {
+    200: {
+      description: "Delivery evidence in stable observation-ID order",
+      content: { "application/json": { schema: deliveryEvidenceListSchema } },
+    },
+    ...standardErrors,
+  },
+});
+
+const getWorkItemCompletionCandidateRoute = createRoute({
+  method: "get",
+  path: "/api/work-items/{workItemId}/completion-candidate",
+  operationId: "getWorkItemCompletionCandidate",
+  summary: "Read the current completion candidacy",
+  description:
+    "Returns the latest immutable completion evaluation and its policy revision, or null when the work item has not been evaluated.",
+  tags: ["work-items"],
+  security: accessSecurity,
+  request: { params: workItemParamsSchema },
+  responses: {
+    200: {
+      description: "Current completion-candidate projection",
+      content: {
+        "application/json": { schema: completionCandidateResponseSchema },
+      },
     },
     ...standardErrors,
   },
@@ -1934,6 +2056,12 @@ export interface WorkGraphApiRepository {
     input?: ListWorkItemsInput,
   ): Promise<readonly WorkItemReadModel[]>;
   getWorkItem(workItemId: string): Promise<WorkItemReadModel>;
+  listWorkItemDeliveryEvidence(
+    input: ListWorkItemDeliveryEvidenceInput,
+  ): Promise<readonly StoredWorkItemDeliveryEvidence[]>;
+  getCompletionCandidate(
+    workItemId: string,
+  ): Promise<StoredCompletionCandidateEvaluation | null>;
   resolveWorkItemContext(
     workItemId: string,
   ): Promise<readonly ResolvedWorkItemContext[]>;
@@ -2256,6 +2384,25 @@ export const createWorkGraphApp = (
   const app = new OpenAPIHono({ defaultHook: validationHook });
   const createLeaseId = options.createLeaseId ?? (() => crypto.randomUUID());
   const createRequestId = options.createRequestId ?? (() => crypto.randomUUID());
+  const resolveContextWithEvidence = async (workItemId: string) => {
+    const resolved = [...(await repository.resolveWorkItemContext(workItemId))];
+    const remaining = Math.max(0, 1_000 - resolved.length);
+    if (remaining === 0) return resolved;
+    const evidence = await repository.listWorkItemDeliveryEvidence({
+      workItemId,
+      currentOnly: true,
+      limit: remaining,
+    });
+    return [
+      ...resolved,
+      ...evidence.map((item) => ({
+        kind: "delivery_evidence" as const,
+        evidence: item,
+        sourceWorkItemId: workItemId,
+        inheritanceDepth: 0,
+      })),
+    ];
+  };
 
   app.openAPIRegistry.registerComponent(
     "securitySchemes",
@@ -2536,10 +2683,50 @@ export const createWorkGraphApp = (
     );
   });
 
+  app.openapi(listWorkItemEvidenceRoute, async (context) => {
+    const { workItemId } = context.req.valid("param");
+    const { currentOnly, cursor, limit } = context.req.valid("query");
+    await repository.getWorkItem(workItemId);
+    const evidence = await repository.listWorkItemDeliveryEvidence({
+      workItemId,
+      currentOnly: currentOnly === "true",
+      ...(cursor === undefined ? {} : { cursor }),
+      limit: limit + 1,
+    });
+    const page = evidence.slice(0, limit);
+    return context.json(
+      {
+        items: page,
+        nextCursor:
+          evidence.length > limit ? (page.at(-1)?.id ?? null) : null,
+      },
+      200,
+    );
+  });
+
+  app.openapi(getWorkItemCompletionCandidateRoute, async (context) => {
+    const { workItemId } = context.req.valid("param");
+    await repository.getWorkItem(workItemId);
+    const candidate = await repository.getCompletionCandidate(workItemId);
+    return context.json(
+      {
+        candidate:
+          candidate === null
+            ? null
+            : {
+                ...candidate,
+                reasons: [...candidate.reasons],
+                evidenceObservationIds: [...candidate.evidenceObservationIds],
+              },
+      },
+      200,
+    );
+  });
+
   app.openapi(listWorkItemContextsRoute, async (context) => {
     const { workItemId } = context.req.valid("param");
     return context.json(
-      { items: [...(await repository.resolveWorkItemContext(workItemId))] },
+      { items: await resolveContextWithEvidence(workItemId) },
       200,
     );
   });
@@ -2943,7 +3130,7 @@ export const createWorkGraphApp = (
           lease: serializeLease(claimed),
           workItem: serializeWorkItem(item),
           context: [
-            ...(await repository.resolveWorkItemContext(claimed.workItemId)),
+            ...(await resolveContextWithEvidence(claimed.workItemId)),
           ],
         },
         201,

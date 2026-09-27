@@ -2,6 +2,7 @@
 title: "Agent Coordinator"
 description: "A matching and handoff system that offers ready work to suitable people and agents without owning the work plan"
 date: "2026-09-04"
+updated: "2026-09-27"
 status: "idea"
 initiatives:
   - "semi-autonomous-software-development"
@@ -32,6 +33,60 @@ Putting those details in the Work Graph would couple durable project knowledge
 to a temporary market. The graph should keep task complexity, required
 capabilities, authority, and evidence. The coordinator should map those needs
 to the actors available now.
+
+# Architecture
+
+There is no deployed coordinator yet. Today, an owner or a directly supervised
+agent queries the Work Graph, chooses a ready item, and claims its lease. The
+Work Graph remains the authority for priority, dependencies, readiness, leases,
+attention, and completion evidence. It does not choose an actor or model.
+
+The planned Agent Coordinator sits between that coordination record and a pool
+of candidate actors. It will read ready work and owner policy from the Work
+Graph, compare task requirements with actor capabilities and availability, and
+offer a bounded context package to a suitable actor. People, coding agents, and
+project-owned automation are candidate actors. Model providers are external
+services that supply models, sessions, prices, and capacity. They do not decide
+which work matters, and the coordinator does not receive a contributor's
+credentials.
+
+The first routing mode will be advisory. The owner sees the proposed actor and
+task before anyone claims a lease. Later automatic routing may claim and renew
+leases only inside owner-defined limits for task class, budget, access, and
+concurrency. It cannot change Work Graph priority or dependencies, approve an
+attention request, or mark work complete without the evidence required by the
+graph. Actors return progress and delivery evidence through the Work Graph;
+execution telemetry stays outside the public task graph.
+
+## System context and authority boundary
+
+<Mermaid
+  chart={`flowchart TB
+Owner["Project owner<br/>[Person, current]<br/>Sets policy and keeps final authority"]
+WorkGraph["Work Graph<br/>[External system, current]<br/>Priority, ready work, leases,<br/>attention, and evidence"]
+Coordinator["Agent Coordinator<br/>[Software system, planned]<br/>Advises first; automates only<br/>inside owner policy"]
+Actors["Candidate actors<br/>[People and agents, current]<br/>Declare capability, access,<br/>cost, and availability"]
+Providers["Model providers<br/>[External systems, current]<br/>Models, sessions, prices,<br/>and capacity"]
+
+Owner -->|"governs plan and exceptions"| WorkGraph
+Actors -->|"claim, progress, and evidence"| WorkGraph
+Actors -->|"use actor-owned credentials"| Providers
+Owner -.->|"sets automation limits"| Coordinator
+WorkGraph -.->|"ready work and constraints"| Coordinator
+Providers -.->|"availability and cost signals"| Coordinator
+Coordinator -.->|"offers task and bounded context"| Actors
+
+classDef person fill:#7c3aed,color:#fff,stroke:#6d28d9
+classDef current fill:#2563eb,color:#fff,stroke:#1d4ed8
+classDef external fill:#475569,color:#fff,stroke:#334155
+classDef planned fill:#fff7ed,color:#9a3412,stroke:#ea580c,stroke-dasharray:5 5
+class Owner person
+class Actors current
+class WorkGraph,Providers external
+class Coordinator planned
+`}
+  className="w-full justify-start overflow-x-auto [&>svg]:min-w-[31rem]"
+/>
 
 The initial routing model can use broad bands. Deep research and architecture
 need frontier reasoning. Well-bounded implementation can use mid-priced models.

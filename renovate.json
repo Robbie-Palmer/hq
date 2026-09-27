@@ -6,7 +6,21 @@
   ],
   "dependencyDashboard": true,
   "minimumReleaseAge": "7 days",
+  "nix": {
+    "enabled": true
+  },
   "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track annotated versions in homelab shell scripts",
+      "managerFilePatterns": [
+        "/^homelab/.+\\.sh$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?\\s+[A-Z][A-Z0-9_]*=\"(?<currentValue>[^\"]+)\""
+      ],
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver-coerced{{/if}}"
+    },
     {
       "customType": "regex",
       "description": "Track pip packages pinned in workflow run steps (e.g. dvc[s3]==x.y.z)",
@@ -58,6 +72,14 @@
         "@vitest/coverage-v8"
       ],
       "allowedVersions": "<5"
+    },
+    {
+      "description": "Keep Vitest and its coverage provider aligned across workspace packages",
+      "matchPackageNames": [
+        "vitest",
+        "@vitest/coverage-v8"
+      ],
+      "groupName": "vitest"
     },
     {
       "matchUpdateTypes": [
@@ -200,7 +222,7 @@
       "followTag": "latest-12"
     },
     {
-      "description": "Keep the pnpm version pinned in package.json (packageManager) and .mise.toml in one PR so they land together",
+      "description": "Keep pnpm aligned across packageManager, mise, and the t3-code runtime image",
       "matchPackageNames": [
         "pnpm",
         "pnpm/pnpm"
@@ -213,6 +235,27 @@
         "vale-cli/vale"
       ],
       "groupName": "vale"
+    },
+    {
+      "description": "Keep the uv toolchain aligned across C++ and ML tooling",
+      "matchManagers": [
+        "mise"
+      ],
+      "matchDepNames": [
+        "uv"
+      ],
+      "groupName": "uv"
+    },
+    {
+      "description": "Keep the Docker CLI image and remote-development DinD daemon in one PR",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "docker"
+      ],
+      "groupName": "docker engine and cli",
+      "automerge": false
     },
     {
       "description": "Auto-merge pnpm updates after the pinned binary passes the workspace compatibility check",
@@ -273,6 +316,24 @@
         "lockFileMaintenance"
       ],
       "minimumReleaseAge": null
+    },
+    {
+      "description": "Review Nix flake updates by hand after CI evaluates the NixOS definitions",
+      "matchManagers": [
+        "nix"
+      ],
+      "groupName": "nix flake inputs",
+      "automerge": false
+    },
+    {
+      "description": "Review homelab script dependency updates by hand",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchFileNames": [
+        "homelab/**/*.sh"
+      ],
+      "automerge": false
     },
     {
       "description": "Media stack images run unattended against real data - group and review bumps by hand instead of automerging",

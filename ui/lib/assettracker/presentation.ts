@@ -1,5 +1,12 @@
-import type { AssetType, Currency } from "./account";
-import type { AccountSummaryView } from "./assetTrackerViews";
+import type {
+  AssetType,
+  LiquidityTier,
+} from "@/lib/domain/assettracker/account";
+import type { AccountSummaryView } from "@/lib/domain/assettracker/assetTrackerViews";
+import {
+  type Currency,
+  DEFAULT_BASE_CURRENCY,
+} from "@/lib/domain/assettracker/currency";
 
 export const ASSET_TYPE_LABELS: Record<AssetType, string> = {
   cash: "Cash",
@@ -10,6 +17,12 @@ export const ASSET_TYPE_LABELS: Record<AssetType, string> = {
   property: "Property",
   mortgage: "Mortgage",
   debt: "Debt",
+};
+
+export const LIQUIDITY_TIER_LABELS: Record<LiquidityTier, string> = {
+  cash: "Cash",
+  liquid: "Liquid investment",
+  illiquid: "Illiquid asset",
 };
 
 export const ASSET_TYPE_COLORS: Record<AssetType, string> = {
@@ -32,8 +45,15 @@ export const ACCOUNT_COLORS = [
   "hsl(190, 70%, 45%)",
 ] as const;
 
-export function formatCurrency(value: number): string {
-  return `£${value.toLocaleString()}`;
+export function formatCurrency(
+  value: number,
+  currency: Currency = DEFAULT_BASE_CURRENCY,
+): string {
+  return new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 export function formatAccountCurrency(
@@ -54,6 +74,18 @@ export function formatAccountCurrency(
 export function formatAxisTick(value: number): string {
   if (Math.abs(value) >= 1000) return `${Math.round(value / 1000)}k`;
   return String(Math.round(value));
+}
+
+export function formatCurrencyAxisTick(
+  value: number,
+  currency: Currency,
+): string {
+  return new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency,
+    notation: "compact",
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 export function formatAnnualRate(rate: number): string {
@@ -90,7 +122,9 @@ export function computeTotalBalancesByCurrency(
  */
 export function formatTotalBalances(accounts: AccountSummaryView[]): string {
   const totals = computeTotalBalancesByCurrency(accounts);
-  if (totals.length === 0) return formatAccountCurrency(0, "GBP");
+  if (totals.length === 0) {
+    return formatAccountCurrency(0, DEFAULT_BASE_CURRENCY);
+  }
   return totals
     .map(({ currency, total }) => formatAccountCurrency(total, currency))
     .join(" + ");

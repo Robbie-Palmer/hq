@@ -26,15 +26,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  formatAccountCurrency,
+  formatAxisTick,
+  todayIsoDate,
+} from "@/lib/assettracker";
+import {
   type AccountDetailView,
   addRealValues,
   buildProjection,
   dateTargetReached,
-  formatAccountCurrency,
-  formatAxisTick,
   projectedDateForTarget,
   type RecurringFlow,
-  todayIsoDate,
 } from "@/lib/domain/assettracker";
 
 const HORIZON_OPTIONS = [5, 10, 20, 30, 40] as const;

@@ -8,11 +8,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { LIQUIDITY_TIER_LABELS } from "@/lib/assettracker";
 import {
   type AccountDetailView,
   accountLiquidity,
   formatAssetTrackerError,
-  LIQUIDITY_TIER_LABELS,
   type LiquidityTier,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
