@@ -34,9 +34,10 @@ Each project owns its details in its own README:
 - [`infra/`](infra/README.md), independently stateful Terraform roots for bootstrap, the public platform, and remote development
   for Cloudflare, Neon, and PostHog
 - [`backups/`](backups/README.md), encrypted Postgres backups to R2
-- [`docs/`](docs/), internal runbooks: [external dashboards](docs/dashboards.md),
+- [`docs/`](docs/), project context and guides: [external dashboards](docs/dashboards.md),
   [social preview QA](docs/social-previews.md), [database operations](docs/database.md),
-  [preview environments](docs/preview-environments.md), [secrets](docs/secrets.md)
+  [preview environments](docs/preview-environments.md), [secrets](docs/secrets.md), and
+  focused [operational runbooks](docs/runbooks/)
 
 ## Development
 

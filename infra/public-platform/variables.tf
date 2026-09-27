@@ -159,17 +159,6 @@ variable "cf_pages_host" {
   }
 }
 
-variable "cloudflare_pages_preview_access_application_id" {
-  description = "Account-level Access application ID created by Cloudflare Pages preview protection"
-  type        = string
-  nullable    = false
-
-  validation {
-    condition     = can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", var.cloudflare_pages_preview_access_application_id))
-    error_message = "cloudflare_pages_preview_access_application_id must be a lowercase UUID."
-  }
-}
-
 variable "cloudflare_account_identity_provider_id" {
   description = "Cloudflare identity provider ID used for Pages preview browser logins"
   type        = string

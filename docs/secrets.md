@@ -188,7 +188,6 @@ Pages:
 `dev_infra` owns normal provider credentials. Terraform should not receive UI
 deploy credentials or privileged GCP credentials:
 
-- `CF_PAGES_PREVIEW_ACCESS_APPLICATION_ID` (unmasked)
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_SLACK_WEBHOOK_URL`
 - `GITHUB_TOKEN` or `MISE_GITHUB_TOKEN`
@@ -335,7 +334,6 @@ into each service-specific Doppler config.
 
 `prd_infra` should own:
 
-- `CF_PAGES_PREVIEW_ACCESS_APPLICATION_ID` (unmasked; syncs to a GitHub Actions variable)
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_SLACK_WEBHOOK_URL`

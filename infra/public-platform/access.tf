@@ -1,7 +1,6 @@
 # Cloudflare Pages creates the preview Access application when preview
-# protection is enabled in the dashboard. Import that generated application so
-# Terraform can configure its login method without replacing the Pages-aware
-# wildcard application.
+# protection is enabled in the dashboard. Terraform owns that application
+# after the one-time import documented in the preview environment runbook.
 resource "cloudflare_zero_trust_access_application" "pages_preview" {
   account_id = var.cloudflare_account_id
   name       = "${var.project_name} - Cloudflare Pages"
@@ -21,11 +20,6 @@ resource "cloudflare_zero_trust_access_application" "pages_preview" {
   lifecycle {
     prevent_destroy = true
   }
-}
-
-import {
-  to = cloudflare_zero_trust_access_application.pages_preview
-  id = "${var.cloudflare_account_id}/${var.cloudflare_pages_preview_access_application_id}"
 }
 
 resource "cloudflare_zero_trust_access_service_token" "preview_qa_agents" {

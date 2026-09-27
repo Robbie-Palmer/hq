@@ -88,22 +88,11 @@ Secrets and config mirrored from Doppler:
     - Mark unmasked in Doppler so the GitHub sync publishes it as an Actions
       variable, not a secret. Terraform requires a non-empty value and has no
       production default.
-12. **`CF_PAGES_PREVIEW_ACCESS_APPLICATION_ID`**
-    - Find in: Cloudflare Zero Trust → Access → Applications → the Pages
-      preview application → application overview or URL
-    - Mark unmasked in Doppler because it identifies a public resource
-    - Passed as `TF_VAR_cloudflare_pages_preview_access_application_id`
 
-The Pages preview application uses the `Cloudflare` identity provider. Create
-that provider once in Zero Trust and restrict it to account members. Terraform
-selects it by its non-secret UUID, imports the Pages-generated application,
-redirects browser logins straight to it, and sets the preview session to 30
-days. If you replace the provider, update the
-`cloudflare_account_identity_provider_id` default. A Cloudflare account that
-uses Google sign-in can then authenticate without the email-code round trip.
-Follow the runbook's
-[state-safe rollback procedure](../../docs/preview-environments.md#roll-back-terraform-ownership)
-before returning the application to dashboard ownership.
+The Pages preview application uses the account-restricted `Cloudflare` identity
+provider. See the
+[PR preview environment runbook](../../docs/runbooks/preview-environments.md)
+for bootstrap, import, and recovery procedures.
 
 ### Required Environment
 
@@ -118,8 +107,8 @@ Create GitHub environments that match the Doppler config boundaries:
 
 PR infrastructure uses the `preview-*` environments with least-privilege
 credentials. Follow the
-[preview environment runbook](../docs/preview-environments.md); do not copy the
-production Cloudflare token or production database URL into them.
+[preview environment runbook](../../docs/runbooks/preview-environments.md); do
+not copy the production Cloudflare token or production database URL into them.
 `preview-agent-access` is used only by trusted default-branch workflows to
 rotate the coding-agent Access secret and issue short-lived preview QA
 credentials. Restrict it to the default branch and follow the same runbook.
