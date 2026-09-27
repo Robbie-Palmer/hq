@@ -1,0 +1,181 @@
+---
+title: "ADR 060: Product Decision Records"
+date: "2026-09-27"
+status: "Accepted"
+---
+
+## Context
+
+Architecture Decision Records explain technical structure and implementation
+trade-offs. Several existing ADRs also carry product choices because the
+repository has no durable record for a user-facing promise, scope boundary,
+policy, success measure, or behaviour. That blurs two different questions:
+
+* What should the product do, for whom, and how will I judge the result?
+* How should the system deliver that outcome under its technical constraints?
+
+A product choice may lead to several architecture choices. Architecture work
+can also be worth recording without changing the product. Treating both as one
+record makes product history hard to find and encourages implementation
+evidence to stand in for an outcome.
+
+## Decision
+
+The knowledge graph will add Product Decision Records as a separate, global
+content type. PDRs own durable product choices. ADRs continue to own durable
+architecture choices.
+
+A PDR is warranted when changing the choice would alter a user-facing promise,
+target audience, supported workflow, scope boundary, policy, outcome measure,
+or product behaviour. Research notes, feature specifications, delivery plans,
+and routine copy changes do not become PDRs. An ADR is warranted when changing
+the choice would alter system structure, a non-functional constraint, a
+technology selection, or an implementation trade-off.
+
+### Location, identity, and routes
+
+PDR source files will live in `ui/content/product-decisions/`. Each filename
+uses a repository-wide, monotonic number and a stable slug, such as
+`001-agent-readable-project-pages.mdx`. A number is never reused, including
+after rejection or deprecation.
+
+The filename slug is the canonical PDR identity. Public collection and detail
+routes will be `/product-decisions` and `/product-decisions/<slug>`. The global
+identity fits decisions that affect more than one project and avoids choosing
+one project as their artificial owner.
+
+The title repeats the number for readers, for example `PDR 001: Publish
+agent-readable project pages`. Renaming the prose title does not change the
+filename, identity, or route.
+
+### Frontmatter contract
+
+`ProductDecisionFrontmatterSchema` is the typed source contract. A complete
+record has this shape:
+
+```yaml
+title: "PDR 001: Publish agent-readable project pages"
+date: "2026-09-20"
+status: "Accepted"
+decision_date: "2026-09-21"
+supersedes: "000-earlier-publication-policy"
+evidence:
+  - title: "Reader and agent access study"
+    url: "https://example.com/study"
+outcome_metrics:
+  - name: "Project coverage"
+    target: "Every public project has a Markdown twin"
+    measurement: "Run the generated-route coverage test"
+    window: "At each production deployment"
+implementation_evidence:
+  - title: "Markdown route deployment"
+    url: "https://github.com/example/repository/pull/1"
+ideas: ["context-engineering"]
+affected_projects: ["personal-knowledge-graph"]
+adrs: ["personal-knowledge-graph:020-mdx"]
+```
+
+`date` records when the PDR was opened. `decision_date` records when a proposal
+was accepted or rejected. An accepted choice created in one step may use the
+same value for both. `deprecated_date` records when an accepted choice ended
+without a replacement.
+
+`evidence` supports the choice at decision time. `outcome_metrics` states the
+observable result and how to measure it. `implementation_evidence` links to
+proof that the chosen behaviour shipped. A merged pull request may prove
+delivery, but it does not prove that the product outcome occurred.
+
+`ideas` preserves conceptual provenance. `affected_projects` names every
+project governed by the choice. `adrs` links architecture decisions that
+implement or constrain it. ADR frontmatter may link back through
+`product_decisions`; the content graph will derive backlinks, so neither side
+must duplicate every relation.
+
+### Lifecycle and supersession
+
+Authors may set `Proposed`, `Accepted`, `Rejected`, or `Deprecated`.
+`Superseded` is derived and never written into frontmatter.
+
+* A Proposed PDR has no `decision_date`. It may name the record it intends to
+  supersede, but the earlier choice remains current.
+* Accepted and Rejected PDRs require `decision_date`.
+* A Rejected PDR remains in the graph as decision history. It cannot supersede
+  an earlier choice.
+* A Deprecated PDR requires both `decision_date` and `deprecated_date`. It has
+  ended without a replacement.
+* An Accepted PDR with `supersedes` makes the named record Superseded from the
+  successor's `decision_date`.
+
+Lifecycle dates cannot run backwards. An accepted file remains unchanged when
+a later record replaces it. The graph derives its effective Superseded state
+from the accepted successor, following the same immutable-history rule used by
+ADRs.
+
+### Relationship to ADRs
+
+One product choice may govern several architecture decisions. For example, a
+PDR promising one canonical project narrative for people and agents could lead
+to the choices for [static generation](/projects/personal-knowledge-graph/adrs/015-ssg),
+[MDX content](/projects/personal-knowledge-graph/adrs/020-mdx), and the
+[in-memory content graph](/projects/personal-knowledge-graph/adrs/033-content-graph-indexes).
+The PDR owns the audience, promise, and coverage measure. Each ADR owns its
+technical trade-off.
+
+An ADR does not need a PDR when its value is architectural and it does not
+change a product promise. The
+[Typos adoption](/projects/personal-knowledge-graph/adrs/055-typos) records a
+repository quality control. It can stand alone unless a separate product
+decision promises a measurable editorial standard to users.
+
+### Initial records
+
+The first adoption pass should preserve these live choices:
+
+1. The Personal Knowledge Graph is the primary public account of projects,
+   decisions, and delivery evidence, rather than a conventional portfolio of
+   unconnected summaries.
+2. Every major public page has a canonical plain-Markdown twin for agents and
+   text-first readers.
+3. Public project narratives include the problem, current boundary, decisions,
+   and evidence needed to assess the work. Private notes and application data
+   remain outside the public graph.
+
+This ADR only identifies the candidates. The adoption work must give each one
+its own evidence, outcome measures, affected projects, and lifecycle dates.
+
+## Consequences
+
+Product intent gains a stable identity and can connect to ideas, projects,
+evidence, and the architecture that delivers it. Reviews can ask separately
+whether a feature shipped and whether it changed the stated outcome.
+
+The repository gains another content type, route family, validation path, and
+set of graph relations. Authors must decide whether a choice belongs in a PDR,
+an ADR, both, or neither. The boundary above makes that extra judgment useful,
+but it does not remove it.
+
+Existing ADRs remain valid. The initial adoption may link them from new PDRs
+without rewriting their historical text. Later pipeline work will load and
+validate the new files; later publication work will add views and the initial
+records.
+
+## Alternatives
+
+### Keep product choices in ADRs
+
+This adds no content type. It also keeps product outcomes mixed with technical
+means and makes a product choice that spans several ADRs difficult to express.
+Rejected because the current ambiguity is the problem this decision addresses.
+
+### Store PDRs under one project
+
+Project-local numbering matches the ADR layout. It breaks down for choices
+that govern several projects and makes cross-project ownership arbitrary.
+Rejected in favour of a global sequence with explicit `affected_projects`.
+
+### Store product choices only in the Work Graph
+
+Work Graph tickets are useful for scheduling and delivery state. They are not
+immutable public decision records, and closing a ticket does not explain why a
+product policy remains in force. Rejected. Tickets may link to PDRs as context
+or evidence.
