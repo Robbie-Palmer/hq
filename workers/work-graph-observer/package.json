@@ -1,0 +1,21 @@
+{
+  "name": "work-graph-observer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Signed GitHub webhook ingress for Work Graph",
+  "type": "module",
+  "scripts": {
+    "deploy": "bash scripts/deploy.sh",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.0.0",
+    "@types/node": "^24",
+    "@vitest/coverage-v8": "^5.0.0",
+    "typescript": "^5",
+    "vitest": "^5.0.0",
+    "wrangler": "^4"
+  }
+}

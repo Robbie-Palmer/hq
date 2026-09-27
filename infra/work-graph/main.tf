@@ -9,6 +9,19 @@ locals {
   hyperdrive_name             = "work-graph-db"
 }
 
+# The public observer has one webhook route and no service binding to the
+# Access-protected API. Application deployment adds its producer and consumer
+# bindings after these queues and the service name exist.
+resource "cloudflare_queue" "github_deliveries" {
+  account_id = var.cloudflare_account_id
+  name       = var.github_deliveries_queue_name
+}
+
+resource "cloudflare_queue" "github_deliveries_dead_letter" {
+  account_id = var.cloudflare_account_id
+  name       = var.github_deliveries_dead_letter_queue_name
+}
+
 # Private, provider-independent Work Graph PostgreSQL backups. The backup
 # runner encrypts each archive before upload and uses a bucket-scoped token.
 resource "cloudflare_r2_bucket" "database_backups" {
@@ -169,6 +182,32 @@ resource "cloudflare_workers_domain" "work_graph" {
   zone_id    = data.cloudflare_zone.domain.id
   hostname   = var.work_graph_hostname
   service    = cloudflare_workers_script.work_graph.name
+}
+
+resource "cloudflare_workers_script" "github_observer" {
+  account_id         = var.cloudflare_account_id
+  name               = var.github_observer_worker_name
+  content            = file("${path.module}/observer-bootstrap-worker.mjs")
+  module             = true
+  compatibility_date = "2026-09-15"
+
+  queue_binding {
+    binding = "DELIVERIES"
+    queue   = cloudflare_queue.github_deliveries.name
+  }
+
+  lifecycle {
+    # Wrangler owns application versions and secret bindings after Terraform
+    # claims the service name with a fail-closed bootstrap version.
+    ignore_changes = [content, secret_text_binding]
+  }
+}
+
+resource "cloudflare_workers_domain" "github_observer" {
+  account_id = var.cloudflare_account_id
+  zone_id    = data.cloudflare_zone.domain.id
+  hostname   = var.github_observer_hostname
+  service    = cloudflare_workers_script.github_observer.name
 }
 
 resource "cloudflare_zero_trust_access_application" "work_graph" {

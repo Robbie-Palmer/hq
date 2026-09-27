@@ -1,0 +1,32 @@
+[tasks.install]
+description = "Install Work Graph observer dependencies"
+run = "pnpm install --frozen-lockfile --filter work-graph-observer..."
+
+[tasks.typecheck]
+description = "Typecheck the Work Graph observer"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Run Work Graph observer tests"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Run Work Graph observer tests with coverage"
+depends = ["//:install"]
+run = "pnpm test:coverage"
+
+[tasks.deploy]
+description = "Deploy the Work Graph observer and install its runtime secrets"
+depends = ["install"]
+run = "pnpm run deploy"
+
+[tasks."deploy:check"]
+description = "Build the production Work Graph observer without uploading it"
+depends = ["install"]
+run = "bash scripts/deploy.sh --dry-run"
+
+[tasks.check]
+description = "Check the Work Graph observer"
+depends = ["typecheck", "test", "deploy:check"]

@@ -1,0 +1,26 @@
+name: Work Graph Observer CI
+
+on:
+  pull_request:
+    paths:
+      - "workers/work-graph-observer/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".github/actions/setup-mise/**"
+      - ".github/workflows/work-graph-observer-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825a76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-mise
+
+      - name: Check the signed webhook boundary and Worker bundle
+        run: mise run //workers/work-graph-observer:check
