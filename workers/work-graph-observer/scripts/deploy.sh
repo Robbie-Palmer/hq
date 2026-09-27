@@ -35,7 +35,7 @@ fi
 if [[ "$dry_run" == true ]]; then
   bundle_dir="$(mktemp -d "${TMPDIR:-/tmp}/work-graph-observer-bundle.XXXXXX")"
   trap 'find "$bundle_dir" -depth -delete 2>/dev/null || true' EXIT INT TERM
-  pnpm exec wrangler deploy --dry-run --outdir "$bundle_dir"
+  ./node_modules/.bin/wrangler deploy --dry-run --outdir "$bundle_dir"
   exit
 fi
 
@@ -58,5 +58,5 @@ jq -n '{
 }' >"$secret_file"
 chmod 600 "$secret_file"
 
-pnpm exec wrangler secret bulk "$secret_file"
-pnpm exec wrangler deploy
+./node_modules/.bin/wrangler secret bulk "$secret_file"
+./node_modules/.bin/wrangler deploy
