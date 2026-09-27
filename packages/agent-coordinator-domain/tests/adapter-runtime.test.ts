@@ -242,6 +242,24 @@ describe("worker adapter runtime", () => {
       }),
     ).rejects.toMatchObject({ code: "identity-mismatch" });
     expect(second.resume).not.toHaveBeenCalled();
+
+    await expect(
+      runtime.handoff(second.identity.adapterId, {
+        taskId: session.taskId,
+        input: "test",
+        cwd: "/workspace",
+        identity: session,
+        checkpoint: {
+          kind: "checkpoint",
+          checkpointId: "checkpoint:one",
+          createdAt: "2026-09-26T08:01:00.000Z",
+          reason: "test",
+          state: {},
+        },
+      }),
+    ).rejects.toMatchObject({ code: "checkpoint-incompatible" });
+    expect(second.discoverAvailability).not.toHaveBeenCalled();
+    expect(second.resume).not.toHaveBeenCalled();
   });
 });
 

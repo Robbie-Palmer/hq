@@ -359,6 +359,14 @@ export function createNativeClientAdapter(
 
   return {
     identity: options.definition.identity,
+    canResumeCheckpoint(checkpoint) {
+      try {
+        options.definition.resumeArguments("", checkpoint);
+        return true;
+      } catch {
+        return false;
+      }
+    },
     async discoverAvailability(): Promise<AdapterAvailability> {
       const available = await options.launcher.isAvailable(
         options.definition.executable,

@@ -215,7 +215,6 @@ describe("OpenRouter adapter", () => {
       taskId: "work:api",
       input: "",
       cwd: "/workspace",
-      budget: { currency: "USD", amount: 1 },
       identity: first.identity,
       checkpoint,
     })) as OpenRouterSession;

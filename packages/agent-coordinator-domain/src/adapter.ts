@@ -74,6 +74,7 @@ export interface AdapterSession {
 
 export interface WorkerAdapter {
   readonly identity: WorkerAdapterIdentity;
+  canResumeCheckpoint?(checkpoint: CheckpointSignal): boolean;
   discoverAvailability(): Promise<AdapterAvailability>;
   launch(
     request: WorkerLaunchRequest,
@@ -87,6 +88,7 @@ export class AdapterRuntimeError extends Error {
     readonly code:
       | "adapter-not-found"
       | "adapter-unavailable"
+      | "checkpoint-incompatible"
       | "identity-mismatch",
     message: string,
   ) {
@@ -129,6 +131,26 @@ export class WorkerAdapterRuntime {
 
   adapterIdentity(adapterId: string): WorkerAdapterIdentity {
     return this.#adapter(adapterId).identity;
+  }
+
+  requireCheckpointCompatibility(
+    adapterId: string,
+    checkpoint: CheckpointSignal,
+  ): void {
+    const adapter = this.#adapter(adapterId);
+    this.#allowlist.requireEnabled(adapter.identity.authenticationPathId);
+    let compatible = false;
+    try {
+      compatible = adapter.canResumeCheckpoint?.(checkpoint) === true;
+    } catch {
+      compatible = false;
+    }
+    if (!compatible) {
+      throw new AdapterRuntimeError(
+        "checkpoint-incompatible",
+        `${adapterId} cannot resume this checkpoint`,
+      );
+    }
   }
 
   async launch(
@@ -203,6 +225,7 @@ export class WorkerAdapterRuntime {
         "Handoff request task does not match the predecessor session",
       );
     }
+    this.requireCheckpointCompatibility(adapterId, request.checkpoint);
     const availability = await adapter.discoverAvailability();
     if (availability.state !== "available") {
       throw new AdapterRuntimeError(

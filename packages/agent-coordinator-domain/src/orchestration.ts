@@ -562,6 +562,12 @@ export class SessionOrchestrator {
             currencyConversions,
           )
         : remaining;
+    if (!sameAdapter) {
+      this.#adapters.requireCheckpointCompatibility(
+        adapterId,
+        checkpoint.adapterCheckpoint as CheckpointSignal,
+      );
+    }
     const claimed = await this.#workGraph.claim(task, {
       workerId: input.workerId,
       leaseDurationSeconds: input.leaseDurationSeconds,

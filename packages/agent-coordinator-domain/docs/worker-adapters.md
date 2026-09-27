@@ -11,6 +11,11 @@ for a zero charge. The session coordinator keeps the owner's budget currency
 and requires a dated, sourced conversion record before comparing a provider
 cost in another currency.
 
+Cross-adapter handoff is allowed only when the target adapter declares that it
+can resume the source checkpoint. The coordinator checks compatibility before
+claiming work, so opaque checkpoint state is never passed speculatively to an
+unrelated adapter.
+
 The runtime checks `AuthenticationAllowlist` before availability discovery and
 again before every launch or resume. Each entry names the provider, route type,
 account class, documentation or written approval, review time, and enabled

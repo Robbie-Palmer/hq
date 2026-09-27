@@ -228,8 +228,7 @@ export function createOpenRouterAdapter(
       !Number.isFinite(spentUsd) ||
       spentUsd < 0 ||
       spentUsd > budgetUsd ||
-      request.budget?.currency !== "USD" ||
-      request.budget.amount !== budgetUsd
+      (request.budget !== undefined && request.budget.amount !== budgetUsd)
     ) {
       throw new SessionBudgetExceededError(budgetUsd ?? 0, spentUsd, 0);
     }
@@ -245,6 +244,18 @@ export function createOpenRouterAdapter(
 
   return {
     identity,
+    canResumeCheckpoint(checkpoint) {
+      const { budgetUsd, spentUsd } = checkpoint.state;
+      return (
+        typeof budgetUsd === "number" &&
+        Number.isFinite(budgetUsd) &&
+        budgetUsd > 0 &&
+        typeof spentUsd === "number" &&
+        Number.isFinite(spentUsd) &&
+        spentUsd >= 0 &&
+        spentUsd <= budgetUsd
+      );
+    },
     async discoverAvailability(): Promise<AdapterAvailability> {
       const available = await options.transport.isAvailable();
       return available

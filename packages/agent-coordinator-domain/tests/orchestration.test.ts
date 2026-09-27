@@ -149,6 +149,7 @@ function adapterSession(
 function runtime(
   signals: WorkerSignal[] = [],
   secondAdapterAvailable = true,
+  secondAdapterCanResume = true,
 ) {
   const handoffAdapter = {
     ...adapter,
@@ -157,6 +158,11 @@ function runtime(
   } as const;
   const makeAdapter = (identity: typeof adapter): WorkerAdapter => ({
     identity,
+    canResumeCheckpoint: vi.fn(
+      () =>
+        identity.adapterId !== handoffAdapter.adapterId ||
+        secondAdapterCanResume,
+    ),
     discoverAvailability: vi.fn().mockResolvedValue(
       identity.adapterId === handoffAdapter.adapterId &&
         !secondAdapterAvailable
@@ -480,7 +486,7 @@ describe("session orchestration", () => {
 
   it("rejects invalid resume inputs before claiming", async () => {
     const graph = workGraphPort();
-    const orchestrator = new SessionOrchestrator(graph, runtime(), {
+    const orchestrator = new SessionOrchestrator(graph, runtime([], true, false), {
       now: () => new Date(NOW),
       createNoteId: () => NOTE_ID,
     });
@@ -514,6 +520,17 @@ describe("session orchestration", () => {
     ).rejects.toMatchObject({ code: "adapter-not-found" });
     expect(graph.claim).toHaveBeenCalledOnce();
     expect(graph.checkpoint).toHaveBeenCalledOnce();
+
+    await expect(
+      orchestrator.resume(checkpoint, {
+        task,
+        workerId: "worker:test",
+        adapterId: "adapter:second-native-client",
+        leaseDurationSeconds: 600,
+        launch: { input: "Incompatible checkpoint", cwd: "/workspace" },
+      }),
+    ).rejects.toMatchObject({ code: "checkpoint-incompatible" });
+    expect(graph.claim).toHaveBeenCalledOnce();
   });
 
   it("records a diagnostic if an adapter fails after the resume claim", async () => {
