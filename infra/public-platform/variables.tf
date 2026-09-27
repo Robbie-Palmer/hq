@@ -170,6 +170,17 @@ variable "cloudflare_pages_preview_access_application_id" {
   }
 }
 
+variable "cloudflare_account_identity_provider_id" {
+  description = "Cloudflare identity provider ID used for Pages preview browser logins"
+  type        = string
+  default     = "69e998ae-23eb-45a4-b2ed-6f13bb62040b"
+
+  validation {
+    condition     = can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", var.cloudflare_account_identity_provider_id))
+    error_message = "cloudflare_account_identity_provider_id must be a lowercase UUID."
+  }
+}
+
 variable "auth_rate_limit_requests" {
   description = "Max auth requests per IP within the counting period before the edge returns 429"
   type        = number

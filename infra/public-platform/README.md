@@ -30,9 +30,8 @@ Secrets and config mirrored from Doppler:
       - Account.Workers R2 Storage: Edit
       - Account.Hyperdrive: Edit
       - Account.Account Rulesets: Edit
-      - Account.Access Apps: Read
+      - Account.Access Apps and Policies: Edit
       - Account.Access Organizations: Read
-      - Account.Access Policies: Edit
       - Account.Access: Service Tokens: Edit
       - Zone.DNS: Edit, scoped to `robbiepalmer.me`
       - Zone.Cache Settings: Edit, scoped to `robbiepalmer.me`
@@ -94,6 +93,14 @@ Secrets and config mirrored from Doppler:
       preview application → application overview or URL
     - Mark unmasked in Doppler because it identifies a public resource
     - Passed as `TF_VAR_cloudflare_pages_preview_access_application_id`
+
+The Pages preview application uses the `Cloudflare` identity provider. Create
+that provider once in Zero Trust and restrict it to account members. Terraform
+selects it by its non-secret UUID, imports the Pages-generated application,
+redirects browser logins straight to it, and sets the preview session to 30
+days. If you replace the provider, update the
+`cloudflare_account_identity_provider_id` default. A Cloudflare account that
+uses Google sign-in can then authenticate without the email-code round trip.
 
 ### Required Environment
 
