@@ -9,20 +9,20 @@ run = "pnpm test:coverage"
 
 [tasks.dvc]
 description = "Run a DVC command with credentials from Doppler (e.g. mise run //ml-pipelines/recipe-parsing:dvc -- status)"
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc"
 
 [tasks.pull]
 description = "Pull recipe-parsing data and cached stage outputs from R2"
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc pull"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc pull"
 
 [tasks.push]
 description = "Push the recipe-parsing DVC cache to its R2 prefix"
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc push"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc push"
 
 [tasks.repro]
 description = "Reproduce the recipe-parsing pipeline (LLM stages need OPENROUTER_API_KEY, injected from Doppler)"
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc repro"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro"
 
 [tasks.metrics]
 description = "Show recipe-parsing metrics, or diff them against a revision"
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc metrics"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc metrics"

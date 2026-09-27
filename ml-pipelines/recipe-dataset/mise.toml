@@ -12,11 +12,11 @@ run = "node src/stages/stats.mjs"
 
 [tasks.repro]
 description = "Reproduce the complete recipe dataset pipeline"
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc repro"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro"
 
 [tasks.pull]
 description = "Pull recipe dataset data from R2"
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc pull"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc pull"
 
 [tasks.push]
 description = "Push the recipe dataset DVC cache to its R2 prefix"
