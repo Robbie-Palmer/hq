@@ -10,7 +10,7 @@ import {
 
 describe("ideas API", () => {
   it("lists every idea with canonical reference counts", () => {
-    expect(getAllIdeaSlugs()).toHaveLength(28);
+    expect(getAllIdeaSlugs()).toHaveLength(33);
 
     const ideas = getAllIdeas();
     expect(ideas.map((idea) => idea.title)).toEqual(
@@ -110,7 +110,17 @@ describe("ideas API", () => {
       getIdeasForBlog("2022-03-02-the-philosophy-of-data-science").map(
         (idea) => idea.slug,
       ),
-    ).toEqual(["bounded-context", "data-mesh", "domain-driven-design"]);
+    ).toEqual([
+      "bounded-context",
+      "data-mesh",
+      "domain-driven-design",
+      "epistemology",
+      "falsifiability",
+      "incommensurability",
+      "paradigm-shift",
+      "postpositivism",
+      "theory-ladenness",
+    ]);
     expect(
       getIdeasForBlog(
         "2023-03-28-uniting-machine-learning-data-streaming-1",
