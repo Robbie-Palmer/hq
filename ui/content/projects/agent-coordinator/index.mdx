@@ -61,7 +61,6 @@ execution telemetry stays outside the public task graph.
 ## System context and authority boundary
 
 <Mermaid
-  className="w-full justify-start overflow-x-auto [&>svg]:min-w-[31rem]"
   chart={`flowchart TB
 Owner["Project owner<br/>[Person, current]<br/>Sets policy and keeps final authority"]
 WorkGraph["Work Graph<br/>[External system, current]<br/>Priority, ready work, leases,<br/>attention, and evidence"]
@@ -86,6 +85,7 @@ class Actors current
 class WorkGraph,Providers external
 class Coordinator planned
 `}
+  className="w-full justify-start overflow-x-auto [&>svg]:min-w-[31rem]"
 />
 
 The initial routing model can use broad bands. Deep research and architecture
