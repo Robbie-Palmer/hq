@@ -44,12 +44,9 @@ describe("sitemap", () => {
     expect(ideaUrls).toHaveLength(29);
   });
 
-  it("uses the source ADR date for legacy ADR paths", () => {
-    expect(sitemap()).toContainEqual(
-      expect.objectContaining({
-        url: "https://robbiepalmer.me/projects/recipe-site/adrs/000-github-public-repo",
-        lastModified: "2025-10-18",
-      }),
+  it("excludes legacy ADR aliases", () => {
+    expect(sitemap().map((entry) => entry.url)).not.toContain(
+      "https://robbiepalmer.me/projects/recipe-site/adrs/000-github-public-repo",
     );
   });
 

@@ -1,10 +1,17 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { legacyADRAliases } from "@/content/adr-aliases";
 
 const OUT_DIR = path.resolve(__dirname, "../../out");
 const SITEMAP_PATH = path.join(OUT_DIR, "sitemap.xml");
 const SITE_URL = "https://robbiepalmer.me";
+const LEGACY_ADR_ALIAS_PATHS = new Set(
+  legacyADRAliases.map(({ alias }) => {
+    const [projectSlug, adrSlug] = alias.split(":");
+    return `projects/${projectSlug}/adrs/${adrSlug}`;
+  }),
+);
 
 // Subdomain projects that have their own routing and should not be in main sitemap
 const SUBDOMAIN_PROJECTS = new Set(["assettracker"]);
@@ -46,6 +53,7 @@ function expectedUrlForFile(
     SUBDOMAIN_PROJECTS.has(fileNameWithoutExt) ||
     (topLevelSegment && STATIC_ASSET_SEGMENTS.has(topLevelSegment)) ||
     NOINDEX_PAGES.has(fileNameWithoutExt) ||
+    LEGACY_ADR_ALIAS_PATHS.has(fileNameWithoutExt) ||
     projectAliasPaths.some(
       (aliasPath) =>
         fileNameWithoutExt === aliasPath ||

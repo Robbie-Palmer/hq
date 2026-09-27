@@ -155,6 +155,18 @@ describe("agent markdown generation", () => {
     );
   });
 
+  it("keeps Markdown routes for legacy ADR aliases", () => {
+    const legacyAdr = read(
+      "projects/recipe-site/adrs/000-github-public-repo.md",
+    );
+    expect(legacyAdr).toContain(
+      "https://robbiepalmer.me/projects/personal-knowledge-graph/adrs/000-github-public-repo.md",
+    );
+    expect(read("llms.txt")).not.toContain(
+      "/projects/recipe-site/adrs/000-github-public-repo.md",
+    );
+  });
+
   it("generates a markdown twin for every project HTML page", () => {
     const projectDirs = fs
       .readdirSync(path.join(OUT_DIR, "projects"), { withFileTypes: true })

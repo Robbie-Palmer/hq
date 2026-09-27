@@ -458,7 +458,7 @@ title: "Invalid Initiative"
     it("should return empty map when projects directory does not exist", () => {
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      const result = loadADRs();
+      const result = loadADRs([]);
 
       expect(result.entities.size).toBe(0);
     });
@@ -481,7 +481,7 @@ We decided to use React.`;
 
       vi.mocked(fs.readFileSync).mockReturnValue(mockADRContent);
 
-      const result = loadADRs();
+      const result = loadADRs([]);
 
       expect(result.entities.size).toBe(1);
       const adr = result.entities.get("project-1:001-react");
@@ -516,14 +516,14 @@ Use TypeScript.`;
       }) as unknown as typeof fs.readdirSync);
       vi.mocked(fs.readFileSync).mockReturnValue(mockADRContent);
 
-      const result = loadADRs();
+      const result = loadADRs([]);
 
       expect(
         result.entities.get("project-1:001-language")?.overridesDefault,
       ).toMatchObject({ kind: "technology", technology: "typescript" });
     });
 
-    it("should turn an inherited ADR stub into a legacy alias", () => {
+    it("loads a legacy alias from the dedicated registry", () => {
       const sourceADR = `---
 title: "ADR 002: React"
 date: "2025-10-18"
@@ -532,39 +532,24 @@ tech_stack: ["React"]
 ---
 
 Canonical source content.`;
-      const inheritedStub = `---
-inherits_from: "personal-knowledge-graph:002-react"
----
-
-Recipe-site note: this is adopted as-is for now.
-`;
 
       vi.mocked(fs.existsSync).mockImplementation(() => true);
       vi.mocked(fs.readdirSync).mockImplementation(((path: string) => {
-        if (path.endsWith("projects")) {
-          return [
-            mockDirent("personal-knowledge-graph"),
-            mockDirent("recipe-site"),
-          ];
-        }
+        if (path.endsWith("projects"))
+          return [mockDirent("personal-knowledge-graph")];
         if (path.includes("personal-knowledge-graph/adrs"))
           return ["002-react.mdx"];
-        if (path.includes("recipe-site/adrs")) return ["000-react.mdx"];
         return [];
       }) as unknown as typeof fs.readdirSync);
+      vi.mocked(fs.readFileSync).mockReturnValue(sourceADR);
 
-      vi.mocked(fs.readFileSync).mockImplementation((path) => {
-        const pathStr = path.toString();
-        if (pathStr.includes("personal-knowledge-graph/adrs/002-react.mdx")) {
-          return sourceADR;
-        }
-        if (pathStr.includes("recipe-site/adrs/000-react.mdx")) {
-          return inheritedStub;
-        }
-        return "";
-      });
-
-      const result = loadADRs();
+      const result = loadADRs([
+        {
+          alias: "recipe-site:000-react",
+          target: "personal-knowledge-graph:002-react",
+          notes: "Recipe-site note: this is adopted as-is for now.\n",
+        },
+      ]);
       expect(result.entities.has("recipe-site:000-react")).toBe(false);
       expect(result.relations.has("recipe-site:000-react")).toBe(false);
       expect(result.aliases.get("recipe-site:000-react")).toBe(
@@ -572,56 +557,32 @@ Recipe-site note: this is adopted as-is for now.
       );
     });
 
-    it("should ignore a legacy alias display title", () => {
-      const sourceADR = `---
-title: "ADR 049: Cloudflare Workflows for Source Domain"
-date: "2026-07-08"
-status: "Accepted"
-tech_stack: ["Cloudflare Workflows"]
----
-
-Canonical source content.`;
+    it("rejects inherited ADR stub files", () => {
       const inheritedStub = `---
 inherits_from: "source:049-cloudflare-workflows"
-title: "Cloudflare Workflows"
 ---
 
 Project-specific orchestration notes.`;
 
       vi.mocked(fs.existsSync).mockImplementation(() => true);
       vi.mocked(fs.readdirSync).mockImplementation(((path: string) => {
-        if (path.endsWith("projects")) {
-          return [mockDirent("source"), mockDirent("target")];
-        }
-        if (path.includes("source/adrs")) {
-          return ["049-cloudflare-workflows.mdx"];
-        }
-        if (path.includes("target/adrs")) {
+        if (path.endsWith("projects")) return [mockDirent("target")];
+        if (path.includes("target/adrs"))
           return ["014-cloudflare-workflows.mdx"];
-        }
         return [];
       }) as unknown as typeof fs.readdirSync);
-      vi.mocked(fs.readFileSync).mockImplementation((path) => {
-        const pathString = path.toString();
-        if (pathString.includes("source/adrs")) return sourceADR;
-        if (pathString.includes("target/adrs")) return inheritedStub;
-        throw new Error(`Unexpected file read: ${pathString}`);
-      });
+      vi.mocked(fs.readFileSync).mockReturnValue(inheritedStub);
 
-      const result = loadADRs();
-      expect(result.entities.has("target:014-cloudflare-workflows")).toBe(
-        false,
-      );
-      expect(result.aliases.get("target:014-cloudflare-workflows")).toBe(
-        "source:049-cloudflare-workflows",
+      expect(() => loadADRs([])).toThrow(
+        "must be declared in content/adr-aliases.ts",
       );
     });
 
     it.each([
-      ["empty", 'title: ""'],
-      ["whitespace-only", 'title: "   "'],
-      ["non-string", "title: 123"],
-    ])("should reject a %s inherited ADR title override", (_case, title) => {
+      ["empty", ""],
+      ["whitespace-only", "   "],
+      ["non-string", 123],
+    ])("rejects a %s legacy alias title", (_case, title) => {
       const sourceADR = `---
 title: "ADR 049: Cloudflare Workflows for Source Domain"
 date: "2026-07-08"
@@ -630,34 +591,25 @@ tech_stack: ["Cloudflare Workflows"]
 ---
 
 Canonical source content.`;
-      const inheritedStub = `---
-inherits_from: "source:049-cloudflare-workflows"
-${title}
----
-
-Project-specific orchestration notes.`;
 
       vi.mocked(fs.existsSync).mockImplementation(() => true);
       vi.mocked(fs.readdirSync).mockImplementation(((path: string) => {
-        if (path.endsWith("projects")) {
-          return [mockDirent("source"), mockDirent("target")];
-        }
-        if (path.includes("source/adrs")) {
+        if (path.endsWith("projects")) return [mockDirent("source")];
+        if (path.includes("source/adrs"))
           return ["049-cloudflare-workflows.mdx"];
-        }
-        if (path.includes("target/adrs")) {
-          return ["014-cloudflare-workflows.mdx"];
-        }
         return [];
       }) as unknown as typeof fs.readdirSync);
-      vi.mocked(fs.readFileSync).mockImplementation((path) => {
-        const pathString = path.toString();
-        if (pathString.includes("source/adrs")) return sourceADR;
-        if (pathString.includes("target/adrs")) return inheritedStub;
-        throw new Error(`Unexpected file read: ${pathString}`);
-      });
+      vi.mocked(fs.readFileSync).mockReturnValue(sourceADR);
 
-      expect(() => loadADRs()).toThrow("has invalid title override");
+      expect(() =>
+        loadADRs([
+          {
+            alias: "target:014-cloudflare-workflows",
+            target: "source:049-cloudflare-workflows",
+            title,
+          } as never,
+        ]),
+      ).toThrow("failed validation");
     });
   });
 

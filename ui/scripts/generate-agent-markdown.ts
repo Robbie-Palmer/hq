@@ -31,6 +31,7 @@ import {
   getIdeasForProject,
 } from "@/lib/api/ideas";
 import {
+  getAllLegacyADRPaths,
   getAllProjectAliases,
   getAllProjectAliasADRPaths,
   getAllProjects,
@@ -505,6 +506,23 @@ function buildProjectAliasPages(
         } satisfies GeneratedPage;
       });
     return [projectPage, ...adrPages];
+  });
+}
+
+function buildLegacyAdrAliasPages(): GeneratedPage[] {
+  return getAllLegacyADRPaths().map(({ projectSlug, adrSlug }) => {
+    const adr = getProjectADR(projectSlug, adrSlug);
+    const canonicalAdrUrl = markdownUrl(
+      routePath("projects", adr.projectSlug, "adrs", adr.slug),
+    );
+    return {
+      htmlPath: `/projects/${projectSlug}/adrs/${adrSlug}`,
+      filePath: `projects/${projectSlug}/adrs/${adrSlug}.md`,
+      title: `${adr.title} moved`,
+      description: "",
+      content: `This legacy ADR URL now resolves to [the canonical ADR](${canonicalAdrUrl}).`,
+      facts: [["Canonical ADR", canonicalAdrUrl]],
+    };
   });
 }
 
@@ -1098,6 +1116,7 @@ function main(): void {
     .map(buildPitchDeckPage)
     .filter((page): page is GeneratedPage => page !== null);
   const projectAliasPages = buildProjectAliasPages(projects);
+  const legacyAdrAliasPages = buildLegacyAdrAliasPages();
 
   const pages: GeneratedPage[] = [
     buildHomePage(),
@@ -1132,7 +1151,7 @@ function main(): void {
     );
   }
 
-  for (const page of projectAliasPages) {
+  for (const page of [...projectAliasPages, ...legacyAdrAliasPages]) {
     writeFile(
       page.filePath,
       renderPage(

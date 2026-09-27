@@ -247,6 +247,16 @@ describe("Projects functions", () => {
       ).toThrow("ADR not found");
     });
 
+    it("resolves a legacy ADR URL to its canonical record", () => {
+      expect(
+        getProjectADR("recipe-site", "000-github-public-repo"),
+      ).toMatchObject({
+        projectSlug: "personal-knowledge-graph",
+        slug: "000-github-public-repo",
+        adrRef: "personal-knowledge-graph:000-github-public-repo",
+      });
+    });
+
     it("should throw error if ADR is requested from a different project route", () => {
       const projects = getAllProjects();
       if (projects.length < 2) {

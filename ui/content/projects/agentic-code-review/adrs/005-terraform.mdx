@@ -1,7 +1,0 @@
----
-inherits_from: "personal-knowledge-graph:010-terraform"
----
-
-Terraform owns the shared Cloudflare account resources used by the product,
-including its private R2 bucket. Wrangler retains ownership of Worker-specific
-bindings and deployment configuration, giving each tool a bounded concern.
