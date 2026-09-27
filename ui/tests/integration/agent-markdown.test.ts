@@ -165,6 +165,16 @@ describe("agent markdown generation", () => {
     expect(read("llms.txt")).not.toContain(
       "/projects/recipe-site/adrs/000-github-public-repo.md",
     );
+
+    const compactedAdr = read(
+      "projects/agentic-code-review/adrs/031-custom-agentic-code-review.md",
+    );
+    expect(compactedAdr).toContain(
+      "https://robbiepalmer.me/projects/agentic-code-review/adrs/000-custom-agentic-code-review.md",
+    );
+    expect(read("llms.txt")).not.toContain(
+      "/projects/agentic-code-review/adrs/031-custom-agentic-code-review.md",
+    );
   });
 
   it("generates a markdown twin for every project HTML page", () => {

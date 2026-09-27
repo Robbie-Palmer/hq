@@ -370,12 +370,12 @@ describe("temporal platform layers", () => {
       recipe.technologies.find((use) => use.technology === "postgresql"),
     ).toMatchObject({
       adoptionDecision:
-        "recipe-site:033-backend-platform-for-authenticated-features",
+        "recipe-site:004-backend-platform-for-authenticated-features",
       policyDecision: "personal-engineering-platform:005-database-defaults",
       decision: "personal-engineering-platform:005-database-defaults",
       originProjects: ["recipe-site"],
       evidenceADRs: [
-        "recipe-site:033-backend-platform-for-authenticated-features",
+        "recipe-site:004-backend-platform-for-authenticated-features",
       ],
     });
 
@@ -411,7 +411,7 @@ describe("temporal platform layers", () => {
     ).toBe("2026-09-12T00:00:00Z");
     expect(
       recipe?.builtOn?.find((layer) => layer.slug === "database")?.decision,
-    ).toBe("recipe-site:033-backend-platform-for-authenticated-features");
+    ).toBe("recipe-site:004-backend-platform-for-authenticated-features");
     expect(
       writing?.builtOn?.find((layer) => layer.slug === "python")?.adopted,
     ).toBe("2026-09-12T00:00:00Z");
@@ -503,7 +503,7 @@ describe("temporal platform layers", () => {
 
   it("resolves a project ADR override for a governance value", () => {
     const repository = loadDomainRepository();
-    const overrideRef = "personal-knowledge-graph:059-temporal-platform-layers";
+    const overrideRef = "personal-knowledge-graph:058-temporal-platform-layers";
     const existingADR = repository.adrs.get(overrideRef);
     expect(existingADR).toBeDefined();
     if (!existingADR) return;
@@ -548,7 +548,7 @@ describe("temporal platform layers", () => {
   it("retains concurrent project overrides for a multi-valued slot", () => {
     const repository = loadDomainRepository();
     const existingADR = repository.adrs.get(
-      "personal-knowledge-graph:059-temporal-platform-layers",
+      "personal-knowledge-graph:058-temporal-platform-layers",
     );
     expect(existingADR).toBeDefined();
     if (!existingADR) return;
@@ -769,7 +769,7 @@ describe("temporal platform layers", () => {
     expect(projects).not.toContain("agent-first-writing");
     expect(projects).not.toContain("genomic-prediction");
 
-    const overrideRef = "personal-knowledge-graph:059-temporal-platform-layers";
+    const overrideRef = "personal-knowledge-graph:058-temporal-platform-layers";
     const overrideADR = repository.adrs.get(overrideRef);
     expect(overrideADR).toBeDefined();
     if (!overrideADR) return;
@@ -863,7 +863,7 @@ describe("temporal platform layers", () => {
   it("separates preferred-slot adopters from consumers of the containing layer", () => {
     const repository = loadDomainRepository();
     const overrideRef =
-      "recipe-site:033-backend-platform-for-authenticated-features";
+      "recipe-site:004-backend-platform-for-authenticated-features";
     const projectLayerUses = new Map(repository.platform.projectLayerUses);
     projectLayerUses.set("agent-first-writing", [
       ...(projectLayerUses.get("agent-first-writing") ?? []),

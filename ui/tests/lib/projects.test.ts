@@ -257,6 +257,28 @@ describe("Projects functions", () => {
       });
     });
 
+    it.each([
+      [
+        "agentic-code-review",
+        "031-custom-agentic-code-review",
+        "000-custom-agentic-code-review",
+      ],
+      [
+        "recipe-site",
+        "067-versioned-ingredient-density-catalog-and-source-ingestion",
+        "025-versioned-ingredient-density-catalog-and-source-ingestion",
+      ],
+    ])(
+      "resolves the former canonical URL %s:%s after sequence compaction",
+      (projectSlug, legacySlug, canonicalSlug) => {
+        expect(getProjectADR(projectSlug, legacySlug)).toMatchObject({
+          projectSlug,
+          slug: canonicalSlug,
+          adrRef: `${projectSlug}:${canonicalSlug}`,
+        });
+      },
+    );
+
     it("should throw error if ADR is requested from a different project route", () => {
       const projects = getAllProjects();
       if (projects.length < 2) {

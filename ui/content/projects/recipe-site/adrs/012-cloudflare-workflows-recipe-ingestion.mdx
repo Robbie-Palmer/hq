@@ -1,0 +1,319 @@
+---
+title: "ADR 012: Cloudflare Workflows for Recipe Ingestion"
+date: "2026-07-08"
+status: "Accepted"
+tech_stack: ["Cloudflare Workflows", "Cloudflare Workers", "Neon", "Cloudflare R2", "OpenRouter"]
+---
+
+# Summary
+
+Use **Cloudflare Workflows** to orchestrate the production photo-to-recipe ingestion pipeline.
+
+The existing `recipe-api` Worker remains the authenticated product API: it owns sessions,
+authorization, quotas, job creation, status reads, and publishing accepted drafts. A separate
+workflow-backed ingestion Worker owns the long-running chain of image preprocessing, VLM/LLM calls
+through [OpenRouter](/projects/recipe-site/adrs/002-openrouter), Cooklang normalization,
+validation, canonicalization, retries, and final draft creation.
+
+Postgres remains the source of truth for jobs, quotas, status, usage, artifact manifests, and user
+corrections. R2 stores uploaded source images and immutable raw artifact snapshots. That keeps the
+application query model relational while making the production ingestion corpus useful for ground
+truth, quality monitoring, and future model refinement from the start.
+
+# Context
+
+The recipe site already has two related but different systems:
+
+1. A user-facing recipe backend (`workers/recipe-api`) for auth, households, and recipe CRUD
+   ([ADR 004](/projects/recipe-site/adrs/004-backend-platform-for-authenticated-features)).
+2. An offline ML pipeline in `ml-pipelines/recipe-parsing` that parses recipe images, writes staged
+   artifacts, evaluates outputs, and supports DVC-backed dataset/version management for experiments
+   ([ADR 000](/projects/recipe-site/adrs/000-dvc)).
+
+The production feature is not a batch-evaluation pipeline. A user uploads one or more recipe
+photos, asks the site to parse them, and expects the app to show progress, enforce usage limits,
+handle provider failures, and eventually return an editable draft recipe.
+
+The pipeline has several properties that make a normal request/response endpoint a poor fit:
+
+* It is multi-step: upload, preprocess, extract, normalize, derive, canonicalize, validate, and
+  publish or await review.
+* It calls external providers several times, with different retry and timeout behavior per stage.
+* It needs durable progress: a browser tab closing should not cancel the job.
+* It needs per-user quotas and active-job limits before expensive work starts.
+* It needs intermediate artifacts for debugging, user review, and future evaluation against
+  corrected recipes.
+* It needs to capture user corrections as ground truth so production quality can be measured and
+  improved over time.
+* It should not couple the availability or deploy risk of `recipe-api` to a long-running LLM
+  pipeline.
+
+Cloudflare Workflows now provides durable multi-step execution, step retries, sleeps,
+wait-for-event/human approval, lifecycle APIs, and built-in observability while staying inside the
+Cloudflare Worker platform already chosen for the recipe backend.
+
+# Decision
+
+Use Cloudflare Workflows for production recipe ingestion.
+
+The high-level flow:
+
+<Mermaid
+  chart={`sequenceDiagram
+participant Browser
+participant API as recipe-api Worker
+participant PG as Neon Postgres
+participant R2 as R2 Artifacts
+participant WF as recipe-ingest Workflow
+participant OR as OpenRouter
+
+Browser->>API: POST /recipe-imports
+API->>PG: transaction: check quota, reserve credits, create job
+API->>R2: store uploaded source image(s)
+API->>WF: create workflow instance
+API-->>Browser: 202 Accepted + jobId
+
+par Workflow processes job
+WF->>R2: read source image(s)
+WF->>PG: mark stage running
+WF->>OR: extract visible recipe text from image(s)
+WF->>PG: persist extraction artifact
+WF->>R2: write extraction artifact snapshot
+WF->>OR: normalize extraction to Cooklang
+WF->>PG: persist Cooklang + derived recipe
+WF->>R2: write Cooklang artifact snapshot
+WF->>OR: disambiguate ingredients when needed
+WF->>PG: persist canonicalization decisions + final draft
+WF->>R2: write canonicalization and draft snapshots
+WF->>PG: reconcile quota reservation with actual usage
+and Browser polls status
+loop Poll while workflow is active
+Browser->>API: GET /recipe-imports/:jobId
+API->>PG: read authorized job status
+API-->>Browser: current stage/progress
+end
+end
+
+Browser->>API: GET /recipe-imports/:jobId
+API->>PG: read final status + draft manifest
+API-->>Browser: succeeded + editable draft
+Browser->>API: edit and accept generated draft
+API->>PG: publish recipe + correction metadata
+API->>R2: write user-corrected final artifact
+`}
+/>
+
+## Responsibilities
+
+| Component                | Responsibility                                                                 |
+| ------------------------ | ------------------------------------------------------------------------------ |
+| `recipe-api` Worker      | Auth, authorization, CSRF, quota checks, job creation, job reads, publish flow |
+| `recipe-ingest` Workflow | Durable step orchestration, retries, provider calls, stage transitions         |
+| Neon Postgres            | Jobs, ownership, quotas, usage, status, manifests, corrections, idempotency    |
+| R2                       | Uploaded source images and immutable raw artifact snapshots                    |
+| OpenRouter               | VLM/LLM provider routing, structured outputs, model/provider fallback          |
+| Evaluation pipeline      | Prompt/model experiments, quality reports, regression tracking                 |
+
+## Job and quota model
+
+Quota enforcement happens before the workflow starts, inside a Postgres transaction owned by
+`recipe-api`:
+
+1. Lock or upsert the user's current usage bucket.
+2. Check daily/monthly quota, active job count, and any per-household policy.
+3. Reserve an estimated amount of usage for the job.
+4. Create the job row with an idempotency key.
+5. Commit, then start the Workflow instance.
+
+When the workflow finishes, it writes actual stage/model/token/image usage and reconciles the
+reservation. If it fails before provider calls, most or all of the reservation is released. If it
+fails after provider calls, the consumed usage is retained and the remaining reservation is
+released.
+
+This keeps quota decisions in the same relational system as users, sessions, households, and
+recipes.
+
+## Status reads
+
+Initial status delivery is intentionally simple:
+
+* `GET /recipe-imports/:jobId` returns the current stage, progress label, failure diagnostics, and
+  draft output when available.
+* The frontend polls while a job is active and stops when the job reaches `succeeded`, `failed`,
+  `canceled`, or `awaiting_review`.
+
+Push updates are out of scope for this ADR. Polling is enough to prove the ingestion architecture;
+SSE or another live update mechanism can be added later without changing the job model.
+
+## Artifact storage
+
+Use both Postgres and R2, with different jobs:
+
+* Postgres stores queryable metadata, status, indexes, usage, review state, and user corrections.
+* R2 stores immutable raw snapshots of every source and stage artifact.
+
+The R2 artifact corpus should include:
+
+* extracted raw recipe text/JSON
+* model input envelope and provider routing metadata
+* provider output payload or normalized response body
+* Cooklang draft
+* derived normalized recipe
+* canonicalization decisions
+* retry/failure diagnostics
+* final draft recipe payload
+* user-corrected final recipe and correction metadata
+
+Postgres keeps an artifact manifest row for each snapshot: job id, stage, kind, R2 key, checksum,
+schema version, model/provider, created timestamp, and any small fields needed for filtering or UI
+display. Frequently displayed structured results can also be copied into JSONB columns for
+convenient reads, but the immutable record lives in R2.
+
+This is slightly more machinery than storing all JSON in Postgres, but it protects the core feedback
+loop: every production parse should be explainable, reviewable, and comparable with what the user
+actually accepted. Without immutable artifacts and correction records, quality monitoring depends on
+ad hoc reconstruction from mutable application rows, which is weaker evidence and harder to turn
+into regression tests or improved prompts/models. Postgres stays lean, while the evaluation pipeline
+gets stable object snapshots to consume later.
+
+## User corrections as ground truth
+
+Every generated draft needs a way to produce a correction record:
+
+* original source image keys
+* generated extraction, Cooklang, canonicalization, and final draft artifact keys
+* user-edited accepted recipe
+* field-level or whole-document diff when practical
+* timestamp, user id, model/provider versions, prompt/schema versions, and usage metrics
+
+This correction record is the bridge from production ingestion to evaluation. It lets the project
+measure parse success, identify recurring failure modes, and build future training/evaluation
+datasets without scraping application tables after the fact.
+
+Batch processing and backfilling should use the same artifact contract, but should not depend on
+DVC as the execution mechanism. DVC remains useful for curated datasets and experiment
+reproducibility; production-scale batch runs need a decoupled runner that can read/write the same
+R2 artifact layout and Postgres manifests.
+
+# Alternatives Considered
+
+## Temporal
+
+Temporal is the strongest general-purpose workflow engine. It has mature durable execution,
+activity workers, signals, queries, timers, retries, replay from event history, rich operational
+tooling, and a long track record outside any one edge platform. It is the best choice if recipe
+ingestion becomes a serious product subsystem with high volume, complex cancellation semantics,
+heavy human-review workflows, long retention requirements, or worker code that needs a full
+Node/Python runtime outside Cloudflare.
+
+Rejected for now because it adds another managed platform, another deployment target, another local
+dev story, and another operational surface. The current ingestion problem is important but small
+enough that Cloudflare Workflows' platform-native durability is the better trade-off.
+
+The escape hatch remains clean: the application contract is a durable `recipe_import_job` row plus
+stage artifacts. A future Temporal workflow could consume the same schema and R2 image keys without
+changing the user-facing API.
+
+## Cloudflare Queues
+
+Queues are good for buffering and background fanout, and could be useful later for bulk batch runs or
+provider-call throttling. They are less expressive than Workflows for a single user-visible
+multi-step job because orchestration, step state, waiting for review, and cross-step error handling
+would need to be built in application tables anyway.
+
+Rejected as the primary orchestrator. Kept as a possible supporting primitive if ingestion needs
+separate queue-based throttling for expensive stages.
+
+## Postgres-backed queue
+
+A Postgres queue using `FOR UPDATE SKIP LOCKED` or a library such as `pg-boss` is attractive because
+it keeps enqueueing, job state, quota reservations, and idempotency in one database transaction. It
+is especially strong when workers run as persistent Node processes.
+
+Rejected as the first production runtime because this project currently runs backend compute on
+Cloudflare Workers, not persistent workers. Polling Postgres from serverless Workers introduces
+unnecessary connection and scheduling complexity, while Cloudflare Workflows already provides the
+durable execution primitive we need. Postgres remains the job state and quota authority; it just is
+not the worker scheduler.
+
+## Inline execution in `recipe-api`
+
+Running the whole pipeline inside the existing API Worker would be the smallest codebase on day one,
+but it puts long-running, failure-prone, provider-dependent work into the auth/CRUD service. That
+couples unrelated deploys and failure modes, complicates timeout/retry behavior, and makes browser
+disconnects awkward.
+
+Rejected. `recipe-api` starts and observes jobs; it does not perform the parsing chain.
+
+## Offline evaluation pipeline only
+
+The existing ML pipeline remains valuable for evaluation, prompt changes, curated datasets, and
+regression tracking. It is not a production job system: it does not handle per-user auth, quotas,
+job status, interactive review, or request-time uploads.
+
+Rejected as the production runtime. Kept as the evaluation harness. If backfills or large batch
+processing become necessary, they should run through a decoupled batch runner that reuses the same
+schemas, artifact layout, and parsing code without making DVC the orchestrator.
+
+# Consequences
+
+## Positive
+
+* **Durable user jobs.** Browser disconnects and transient provider failures do not lose work.
+* **Platform continuity.** Stays inside Cloudflare Workers, the backend platform already chosen in
+  [ADR 004](/projects/recipe-site/adrs/004-backend-platform-for-authenticated-features).
+* **Clear service boundary.** The product API stays thin; ingestion owns provider calls and retries.
+* **Transactional quotas.** Usage limits are enforced in Postgres before expensive work starts.
+* **Ground-truth capture from day one.** Raw artifacts and user corrections become a usable
+  evaluation corpus, not a one-off debugging trace.
+* **Simple application reads.** Status, manifests, review state, and frequently displayed outputs
+  remain queryable and authorizable through Postgres.
+* **OpenRouter remains strategic.** Workflow steps call the same OpenRouter-backed parsing helpers
+  used by the offline pipeline.
+* **Temporal escape hatch.** Job state and artifact contracts are not Cloudflare-specific.
+
+## Negative
+
+* **New Cloudflare primitive.** Workflows is another product to learn, test locally, monitor, and
+  configure.
+* **Platform maturity risk.** Temporal is more proven for complex durable workflows.
+* **State split.** Workflow instance state and Postgres job state must be kept consistent enough for
+  user-facing status.
+* **Manual idempotency still matters.** Provider calls and final recipe writes must use stage/job
+  idempotency keys so retries cannot double-publish or double-charge.
+* **More storage plumbing.** The first implementation must write both Postgres manifest rows and R2
+  artifact snapshots.
+* **Retention policy required.** Capturing prompts, outputs, images, and corrections creates a real
+  data-governance surface that needs explicit retention and deletion behavior.
+
+# Implementation Notes
+
+Start with a small schema:
+
+* `recipe_import_job`: owner, source type, status, current stage, progress label, quota reservation,
+  actual usage, error summary, timestamps, workflow instance id.
+* `recipe_import_artifact`: job id, stage, artifact kind, R2 key, checksum, schema version,
+  model/provider metadata, created timestamp, optional JSONB preview.
+* `recipe_import_attempt`: job id, stage, attempt number, retryable flag, provider request id,
+  status/error fields, duration, token/image usage.
+* `recipe_import_correction`: job id, accepted recipe id or draft id, corrected artifact key,
+  correction summary/diff, reviewer user id, created timestamp.
+
+The source images and raw stage artifacts live in R2 under keys derived from the job id, stage, and
+artifact kind. Postgres stores manifests and small UI-friendly previews.
+
+The UI should treat the generated recipe as a draft. A successful parse creates an editable draft
+or import result; publishing to the canonical `recipe` table remains an explicit user action unless
+later UX proves auto-publish is safe.
+
+# When To Revisit
+
+* Job volume grows enough that Cloudflare Workflows limits, retention, or debugging become painful.
+* The ingestion chain gains complex cancellation, compensation, or long human-review lifecycles that
+  make Temporal's workflow model materially better.
+* Batch processing volume grows enough to justify a separate batch runner alongside user-facing
+  Workflows.
+* The production artifact corpus needs a more formal lake layout, catalog, or warehouse export.
+* Live progress becomes important enough to replace polling with SSE or another push mechanism.
+* The pipeline needs persistent CPU/GPU-heavy processing, including custom deep-learning models,
+  prompting Temporal workers, Cloudflare Containers, GPU infrastructure, or another compute runtime.

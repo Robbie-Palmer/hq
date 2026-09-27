@@ -1,7 +1,7 @@
 # Ansible migration bridge
 
 This directory implements the host-side bridge from
-[ADR 022](../../ui/content/projects/homelab/adrs/022-ansible-k3s-migration-bridge.mdx).
+[ADR 019](../../ui/content/projects/homelab/adrs/019-ansible-k3s-migration-bridge.mdx).
 It inventories the three live hosts, gathers facts, configures native Mac
 services, prepares an isolated K3s server, deploys the Asus NixOS flake, and
 checks fleet health. It does not configure workloads.

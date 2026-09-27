@@ -1,0 +1,213 @@
+---
+title: "ADR 007: Google OIDC Login"
+date: "2026-06-19"
+status: "Accepted"
+tech_stack: ["Google OAuth"]
+---
+
+# Summary
+
+Use **Sign in with Google** (Google's OAuth 2.0 / OpenID Connect implementation) as the recipe
+site's primary sign-in method.
+
+[ADR 003](/projects/recipe-site/adrs/003-better-auth) chose Better Auth as the authentication
+library and named Google as the expected default sign-in path. This ADR formalises *why* Google
+OIDC is that default, with explicit pros and cons.
+
+This is a decision about the **identity provider used for sign-in**. It does not decide the auth
+library ([Better Auth, ADR 003](/projects/recipe-site/adrs/003-better-auth)), the backend runtime
+([ADR 004](/projects/recipe-site/adrs/004-backend-platform-for-authenticated-features)), the
+authorization model ([ADR 005](/projects/recipe-site/adrs/005-authorization-model)), or the security
+baseline ([ADR 006](/projects/recipe-site/adrs/006-application-security-baseline)).
+
+# Context
+
+The recipe site is moving from a shared public collection toward authenticated, user-specific state
+and household sharing. That needs a sign-in method.
+
+Two goals dominate the choice:
+
+1. **Sign-up should be as frictionless as possible.** The intended users, household members and a
+   small inner circle of friends, already have Google accounts. The ideal sign-up is a couple of
+   clicks with no form to fill in: no username to invent, no password to choose, no email to verify.
+2. **Password handling should sit with someone else.** Storing passwords drags in a long tail of
+   complexity: secure hashing, breach response, password reset flows, account recovery, and the UX
+   for all of it. None of that is differentiating work for a recipe site. Deferring it to Google
+   removes a whole category of code, support burden, and security risk.
+
+Better Auth ([ADR 003](/projects/recipe-site/adrs/003-better-auth)) already states the social-first
+position: email/password is out of scope, and Google is the default path.
+
+# Decision
+
+Use **Google OIDC** as the primary sign-in method, wired through Better Auth's `google` social
+provider:
+
+```ts
+socialProviders: {
+  google: {
+    clientId: env.GOOGLE_CLIENT_ID,
+    clientSecret: env.GOOGLE_CLIENT_SECRET,
+  },
+}
+```
+
+The supporting setup is:
+
+* A **Google Cloud project** holds the OAuth consent screen and OAuth 2.0 client credentials.
+* The client ID and secret live in the project's secret-management layer, not in the repo.
+* Authorized redirect URIs point at the backend's OAuth callback route.
+
+Sign-up and sign-in are the same gesture: a returning user who authenticates with Google lands on
+their existing account; a new user gets one created on first sign-in. No separate
+registration step exists.
+
+## Infrastructure as Code
+
+The project's standing principle (ADR 003, ADR 004) is that vendor configuration should live in code
+wherever a Terraform provider or stable API exists. Google OIDC only partly satisfies that. The
+split:
+
+| Element                                          | IaC status                                                                                                                   |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| Google Cloud project                             | Terraformable (`google_project`).                                                                                            |
+| Enabling required APIs                           | Terraformable (`google_project_service`).                                                                                    |
+| Client ID / secret stored as app secrets         | Terraformable via the project's secret-management layer.                                                                     |
+| **OAuth consent screen (brand)**                 | **Not** manageable as a normal web-app brand; the only Terraform resource (`google_iap_brand`) is Identity-Aware Proxy only. |
+| **OAuth 2.0 Client ID (type "Web application")** | **No Terraform resource exists.** This is the credential the sign-in flow depends on.                                        |
+
+The HashiCorp Google provider has no resource for a standard (non-IAP) web-application OAuth 2.0
+Client ID. The long-running feature request
+([terraform-provider-google#16452](https://github.com/hashicorp/terraform-provider-google/issues/16452))
+is still open and unresolved. The existing `google_iap_client` resource is for Identity-Aware Proxy
+and cannot manage these credentials, and `google_iam_oauth_client` is for Workforce Identity
+Federation, not Sign in with Google.
+
+The consequence for this decision: the project and its APIs can be Terraformed, but **creating the
+OAuth consent screen and the web OAuth client is a manual Google Cloud Console step**. The resulting
+client ID and secret are then fed into the secret-management layer, which *is* code-owned. This is
+the one piece of console-owned configuration this decision introduces: it happens once per
+environment and produces values the rest of the pipeline consumes as code.
+
+## Same-Origin Proxy
+
+Google OIDC with Better Auth needs the auth/API backend and the frontend to share a **site**, and
+the cleanest way to guarantee that is to serve both on the **same origin**.
+
+The site's frontend is a static export on Cloudflare Pages; the auth/API layer is a separate
+Cloudflare Worker ([ADR 004](/projects/recipe-site/adrs/004-backend-platform-for-authenticated-features)).
+Better Auth sets the session cookie during the OAuth callback, and whether the browser returns that
+cookie on later requests depends on how the two halves are hosted:
+
+* **Subdomains of one registrable domain** (for example `recipes.example.com` and
+  `api.example.com`) are *same-site*. The session cookie can be shared by scoping it to
+  `Domain=example.com` with `SameSite=Lax`; it is not affected by third-party-cookie restrictions.
+  This works, but it needs explicit cookie-domain configuration and still triggers CORS preflight on
+  cross-subdomain API calls.
+* **Genuinely cross-site origins** (different registrable domains, notably Cloudflare's defaults
+  `*.pages.dev` and `*.workers.dev`) require `SameSite=None`, which is subject to browsers'
+  third-party-cookie phase-out. That is not a durable setup.
+
+Serving the Worker on the **same origin** as the site, for example routing `/api/*` on the site's
+domain to the Worker via a proxy, sidesteps both cases: the session cookie is first-party with no
+special `Domain`/`SameSite` handling, there is no CORS preflight, and Google has a single stable
+callback URL on that one origin. This is the
+[backend-for-frontend](https://github.com/better-auth/better-auth/issues/7657) pattern.
+
+**The deployment will front the auth Worker on the site's own origin** rather than expose it on a
+separate host. The exact mechanism (a Pages route/proxy, a Cloudflare route binding, or equivalent)
+is left to the backend work, but the two halves must stay same-origin: Cloudflare's default
+`*.pages.dev` / `*.workers.dev` hosts are cross-site and would otherwise force the fragile
+`SameSite=None` path.
+
+# Google remains the default among additive choices
+
+Choosing Google as the primary sign-in method does **not** preclude any other method. Better Auth
+([ADR 003](/projects/recipe-site/adrs/003-better-auth)) treats sign-in methods as additive
+configuration: each social provider is a few lines, and magic links and passkeys are plugins. Adding
+a second provider or method later does not require revisiting this ADR. It is expected headroom.
+
+What this ADR fixes is the **default**: the path the sign-in screen leads with, and the one onboarding
+is optimised for. The comparison below decides *what to lead with* while leaving the others available.
+
+# How Google Compares To The Alternatives
+
+## Other OIDC providers
+
+| Provider   | Status for this site   | How it compares to Google                                                                                                                                                                                                                             |
+| ---------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Google** | **Primary (this ADR)** | Near-universal account ownership in the target audience, lowest-friction consent, verified email, no provider cost.                                                                                                                                   |
+| **Apple**  | Deferred               | Strong fit for iOS users and sometimes required by App Store policy, but **requires a paid Apple Developer Program membership ($99/year)** and carries the recurring client-secret rotation burden noted in ADR 003. Worth adding on a real iOS need. |
+
+Apple is the same *kind* of decision as Google, federated OIDC, no passwords held here, so it
+stacks cleanly alongside it. The reasons Google leads are audience fit and that it has no membership
+fee, not a technical advantage.
+
+## Non-OIDC methods
+
+| Method               | Status       | How it compares to Google                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| -------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Email + password** | Out of scope | The highest-friction sign-up for this audience and the one that drags in password storage, resets, recovery, and breach response, the exact complexity this decision exists to avoid. Not planned.                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **Magic links**      | Deferred     | Passwordless like Google, but adds an email-delivery dependency and link-consumption edge cases (expiry, reuse, multi-device) that a federated provider sidesteps. A reasonable *fallback* for users without a Google account.                                                                                                                                                                                                                                                                                                                                                                                                 |
+| **Passkeys**         | Deferred     | Phishing-resistant and passwordless, and the strongest long-term direction. The security ceiling is **per account**: a user who registers only a passkey gets the full guarantee, and is unaffected by which methods other users or the system offer. It is only diluted for a user who links *both* a passkey and a weaker method (e.g. Google) to the *same* account, since an attacker can then fall back to the weaker one. Passkeys deliver real value as soon as any individual wants stronger protection. They do not require replacing Google system-wide. Still less universally ready for non-technical users today. |
+
+Magic links and passkeys are future layers rather than competitors. Magic links would be a
+no-account-required fallback for users without Google. Passkeys give individual users full
+phishing-resistance: a passkey-only account is unaffected by the methods other people use, and the
+guarantee is only diluted if a single account links a passkey alongside a weaker method like Google.
+Passkeys are worth adding whenever a user wants stronger protection, with no need to drop Google
+for everyone else.
+
+# Consequences
+
+## Positive
+
+* **Sign-up is a couple of clicks.** No forms, no password, no email verification step.
+* **No password complexity.** Storage, resets, recovery, and breach response are Google's
+  responsibility, not ours.
+* **Smaller security surface.** No password store exists to leak and no credential-stuffing
+  target.
+* **Cheap.** No auth-provider cost and no membership fee at MVP scale.
+
+## Negative
+
+* **A Google Cloud project is required.** Sign-in depends on an external GCP project with an OAuth
+  consent screen and client credentials, a setup step and an ongoing dependency that would not
+  exist with self-contained auth.
+* **The OAuth client cannot be created via IaC.** As detailed above, the project and APIs are
+  Terraformable but the OAuth consent screen and web OAuth 2.0 Client ID are not. They are a manual
+  console step. This is one bounded piece of console-owned configuration, mitigated by storing the
+  resulting credentials in the code-owned secret layer.
+* **A same-origin proxy is needed.** The auth Worker must be fronted on the site's own origin so the
+  session cookie stays first-party; running it cross-site (e.g. on the default `*.pages.dev` /
+  `*.workers.dev` hosts) forces the fragile `SameSite=None` path. This is extra routing
+  infrastructure to operate.
+* **No preview-environment story.** OAuth requires pre-registered, static redirect URIs, so
+  ephemeral per-PR preview URLs cannot complete a Google sign-in out of the box. This conflicts with
+  the short-feedback-loop / preview-environment goals in ADR 004, and there is no obvious solution
+  yet (options to explore: a shared fixed callback host, a wildcard-tolerant proxy, or a dedicated
+  long-lived staging client).
+* **Hard dependency on Google.** Users without a Google account cannot sign in via this path; a
+  deferred fallback such as magic links would be the mitigation. A Google outage or account-level
+  lockout blocks sign-in entirely.
+
+# When To Revisit
+
+Revisit this ADR if any of the following become true:
+
+* a meaningful number of intended users do not have, or do not want to use, a Google account
+* the manual Google Cloud setup becomes painful enough to justify scripting it (or Google ships a
+  Terraform-supported OAuth client resource. Track
+  [terraform-provider-google#16452](https://github.com/hashicorp/terraform-provider-google/issues/16452))
+* preview environments need real sign-in and the missing callback-URL story starts to hurt
+* the same-origin proxy becomes a recurring source of bugs, or a simpler topology removes the need
+  for it
+* Google changes OAuth terms, pricing, or verification requirements in a way that affects this use
+* another method (passkeys, magic links, or another provider) becomes a better *default* than Google
+  for first-run sign-up. Note that merely *adding* one of these alongside Google does not need this
+  ADR revisited
+
+This ADR stays **Accepted** for as long as Google is offered as a sign-in option, even if it stops
+being the default. Losing default status calls for an ADR update. The ADR moves to **Deprecated**
+only if the site removes Google sign-in entirely, and Better Auth (ADR 003)
+keeps the underlying auth layer stable through any such change.

@@ -1,7 +1,7 @@
 # Stateful AI review
 
 This top-level project is the deployable service proposed by
-[ADR 056](../ui/content/projects/personal-knowledge-graph/adrs/056-stateful-ai-code-review.mdx).
+[ADR 055](../ui/content/projects/personal-knowledge-graph/adrs/055-stateful-ai-code-review.mdx).
 The ADR remains in the Personal Knowledge Graph content tree for now, but the
 service is not a Personal Knowledge Graph runtime component.
 
@@ -290,7 +290,7 @@ stateful review against the same stateless evidence instead of entering
 baseline values by hand.
 
 Metric definitions follow
-[Agentic Code Review ADR 033](/projects/agentic-code-review/adrs/033-duckdb-ai-review-scorecard):
+[Agentic Code Review ADR 002](/projects/agentic-code-review/adrs/002-duckdb-ai-review-scorecard):
 acceptance excludes censored outcomes, fix-through and noise use published
 findings as their denominator, cost uses accepted findings, token efficiency
 uses uncached input tokens, and coverage uses reviewed over total hunks. Outputs

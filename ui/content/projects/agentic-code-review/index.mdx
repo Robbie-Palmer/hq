@@ -35,19 +35,19 @@ platform_layers:
   - layer: "backend-api"
     adopted: "2026-09-12T00:00:00Z"
     tracking: true
-    decision: "agentic-code-review:032-stateful-ai-code-review"
+    decision: "agentic-code-review:001-stateful-ai-code-review"
     slots:
       - slot: "backend-api.runtime"
         adopted: "2026-09-12T00:00:00Z"
-        decision: "agentic-code-review:032-stateful-ai-code-review"
+        decision: "agentic-code-review:001-stateful-ai-code-review"
   - layer: "database"
     adopted: "2026-09-12T00:00:00Z"
     tracking: true
-    decision: "agentic-code-review:033-duckdb-ai-review-scorecard"
+    decision: "agentic-code-review:002-duckdb-ai-review-scorecard"
     slots:
       - slot: "database.olap-engine"
         adopted: "2026-09-12T00:00:00Z"
-        decision: "agentic-code-review:033-duckdb-ai-review-scorecard"
+        decision: "agentic-code-review:002-duckdb-ai-review-scorecard"
   - layer: "infrastructure"
     adopted: "2026-09-12T00:00:00Z"
     tracking: true
@@ -272,7 +272,7 @@ evidence of value before entering scope.
 
 The current output is a **GitHub App** implementing the stateful AI review
 described by
-[ADR 032](/projects/agentic-code-review/adrs/032-stateful-ai-code-review):
+[ADR 001](/projects/agentic-code-review/adrs/001-stateful-ai-code-review):
 
 * receive and verify GitHub webhook events;
 * apply deterministic eligibility, risk, debounce, and budget policies;
@@ -300,7 +300,7 @@ secret detection, and spelling checks. ADRs 026–032 then record the succession
 of managed and custom AI reviewers that led to the current stateful product.
 
 Cloudflare Workers and the per-PR Durable Object are already selected by
-[ADR 032](/projects/agentic-code-review/adrs/032-stateful-ai-code-review).
+[ADR 001](/projects/agentic-code-review/adrs/001-stateful-ai-code-review).
 [ADR 014](/projects/agentic-code-review/adrs/014-cloudflare-workflows) inherits
 the Cloudflare Workflows platform decision and adds the orchestration, lease,
 and retry boundaries used by code review.

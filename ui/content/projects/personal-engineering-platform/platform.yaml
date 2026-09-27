@@ -565,7 +565,7 @@ selections:
     effective_from: "2026-09-12T00:00:00Z"
     decision: "personal-engineering-platform:001-language-defaults"
     origin_projects: ["personal-knowledge-graph"]
-    evidence_adrs: ["personal-knowledge-graph:059-temporal-platform-layers"]
+    evidence_adrs: ["personal-knowledge-graph:058-temporal-platform-layers"]
   - id: "development-coding-agents-claude-code-2026-09-15"
     slot: "development.coding-agents"
     technology: "Claude Code"
@@ -613,7 +613,7 @@ selections:
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:011-agentic-development-baseline"
     origin_projects: ["agentic-code-review"]
-    evidence_adrs: ["agentic-code-review:032-stateful-ai-code-review"]
+    evidence_adrs: ["agentic-code-review:001-stateful-ai-code-review"]
   - id: "delivery-ci-github-actions-2026-09-15"
     slot: "delivery.ci"
     technology: "GitHub Actions"
@@ -637,7 +637,7 @@ selections:
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
     origin_projects: ["personal-knowledge-graph"]
-    evidence_adrs: ["personal-knowledge-graph:049-zizmor"]
+    evidence_adrs: ["personal-knowledge-graph:048-zizmor"]
   - id: "security-workflow-analysis-zizmor-2026-09-15"
     slot: "security.workflow-analysis"
     technology: "zizmor"
@@ -645,7 +645,7 @@ selections:
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
     origin_projects: ["personal-knowledge-graph"]
-    evidence_adrs: ["personal-knowledge-graph:049-zizmor"]
+    evidence_adrs: ["personal-knowledge-graph:048-zizmor"]
   - id: "security-dependency-and-iac-scan-trivy-2026-09-15"
     slot: "security.dependency-and-iac-scan"
     technology: "Trivy"
@@ -661,7 +661,7 @@ selections:
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
     origin_projects: ["personal-knowledge-graph"]
-    evidence_adrs: ["personal-knowledge-graph:053-openssf-scorecard"]
+    evidence_adrs: ["personal-knowledge-graph:052-openssf-scorecard"]
   - id: "security-secret-scan-gitleaks-2026-09-15"
     slot: "security.secret-scan"
     technology: "Gitleaks"
@@ -669,7 +669,7 @@ selections:
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
     origin_projects: ["personal-knowledge-graph"]
-    evidence_adrs: ["personal-knowledge-graph:054-gitleaks"]
+    evidence_adrs: ["personal-knowledge-graph:053-gitleaks"]
   - id: "quality-code-analysis-sonarqube-2026-09-15"
     slot: "quality.code-analysis"
     technology: "SonarQube"
@@ -677,7 +677,7 @@ selections:
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
     origin_projects: ["recipe-site"]
-    evidence_adrs: ["recipe-site:045-sonarqube"]
+    evidence_adrs: ["recipe-site:009-sonarqube"]
   - id: "content-spell-check-typos-2026-09-15"
     slot: "content.spell-check"
     technology: "typos"
@@ -685,7 +685,7 @@ selections:
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
     origin_projects: ["personal-knowledge-graph"]
-    evidence_adrs: ["personal-knowledge-graph:055-typos"]
+    evidence_adrs: ["personal-knowledge-graph:054-typos"]
   - id: "secrets-runtime-store-doppler-2026-09-15"
     slot: "secrets.runtime-store"
     technology: "Doppler"
@@ -741,7 +741,7 @@ selections:
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:007-language-toolchains"
     origin_projects: ["personal-knowledge-graph"]
-    evidence_adrs: ["personal-knowledge-graph:052-knip"]
+    evidence_adrs: ["personal-knowledge-graph:051-knip"]
   - id: "typescript-source-security-codeql-2026-09-15"
     slot: "typescript.source-security"
     technology: "CodeQL"
@@ -757,7 +757,7 @@ selections:
     effective_from: "2026-09-12T00:00:00Z"
     decision: "personal-engineering-platform:001-language-defaults"
     origin_projects: ["personal-knowledge-graph"]
-    evidence_adrs: ["personal-knowledge-graph:059-temporal-platform-layers"]
+    evidence_adrs: ["personal-knowledge-graph:058-temporal-platform-layers"]
   - id: "python-package-manager-uv-2026-09-15"
     slot: "python.package-manager"
     technology: "uv"
@@ -846,8 +846,8 @@ selections:
     decision: "personal-engineering-platform:002-cloudflare-workers"
     origin_projects: ["agentic-code-review", "recipe-site"]
     evidence_adrs:
-      - "agentic-code-review:032-stateful-ai-code-review"
-      - "recipe-site:033-backend-platform-for-authenticated-features"
+      - "agentic-code-review:001-stateful-ai-code-review"
+      - "recipe-site:004-backend-platform-for-authenticated-features"
   - id: "infrastructure-provisioner-terraform-2026-09-12"
     slot: "infrastructure.provisioner"
     technology: "Terraform"
@@ -871,7 +871,7 @@ selections:
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:009-infrastructure-operations"
     origin_projects: ["personal-knowledge-graph"]
-    evidence_adrs: ["personal-knowledge-graph:051-tflint"]
+    evidence_adrs: ["personal-knowledge-graph:050-tflint"]
   - id: "observability-application-telemetry-posthog-2026-09-12"
     slot: "observability.application-telemetry"
     technology: "PostHog"
@@ -887,7 +887,7 @@ selections:
     effective_from: "2026-09-12T00:00:00Z"
     decision: "personal-engineering-platform:004-observability"
     origin_projects: ["homelab"]
-    evidence_adrs: ["homelab:009-netdata"]
+    evidence_adrs: ["homelab:006-netdata"]
   - id: "database-relational-engine-postgresql-2026-09-12"
     slot: "database.relational-engine"
     technology: "PostgreSQL"
@@ -895,7 +895,7 @@ selections:
     effective_from: "2026-09-12T00:00:00Z"
     decision: "personal-engineering-platform:005-database-defaults"
     origin_projects: ["recipe-site"]
-    evidence_adrs: ["recipe-site:033-backend-platform-for-authenticated-features"]
+    evidence_adrs: ["recipe-site:004-backend-platform-for-authenticated-features"]
   - id: "database-relational-host-neon-2026-09-12"
     slot: "database.relational-host"
     technology: "Neon"
@@ -903,7 +903,7 @@ selections:
     effective_from: "2026-09-12T00:00:00Z"
     decision: "personal-engineering-platform:005-database-defaults"
     origin_projects: ["recipe-site"]
-    evidence_adrs: ["recipe-site:033-backend-platform-for-authenticated-features"]
+    evidence_adrs: ["recipe-site:004-backend-platform-for-authenticated-features"]
   - id: "database-olap-engine-duckdb-2026-09-12"
     slot: "database.olap-engine"
     technology: "DuckDB"
@@ -911,4 +911,4 @@ selections:
     effective_from: "2026-09-12T00:00:00Z"
     decision: "personal-engineering-platform:005-database-defaults"
     origin_projects: ["agentic-code-review"]
-    evidence_adrs: ["agentic-code-review:033-duckdb-ai-review-scorecard"]
+    evidence_adrs: ["agentic-code-review:002-duckdb-ai-review-scorecard"]

@@ -2,7 +2,8 @@ import type { LegacyADRAlias } from "@/lib/domain/adr/adr";
 
 /**
  * Historical project-local ADR URLs. Notes preserve authored context from the
- * removed inherited stub files; aliases without notes were empty redirects.
+ * removed inherited stub files; aliases without notes were empty redirects or
+ * canonical URLs retained when project-local ADR sequences were compacted.
  * This is a data registry, so Sonar excludes its repeated record shape from CPD.
  */
 export const legacyADRAliases = [
@@ -86,13 +87,13 @@ export const legacyADRAliases = [
   },
   {
     alias: "agentic-code-review:013-openrouter",
-    target: "recipe-site:031-openrouter",
+    target: "recipe-site:002-openrouter",
     notes:
       "The general gateway decision carries over from Recipe Site: one API, key, bill,\nand routing surface makes models and upstream providers replaceable. The code\nreview-specific ensemble, privacy controls, budgets, and evaluation requirements\nremain governed by ADRs 031 and 032.\n",
   },
   {
     alias: "agentic-code-review:014-cloudflare-workflows",
-    target: "recipe-site:049-cloudflare-workflows-recipe-ingestion",
+    target: "recipe-site:012-cloudflare-workflows-recipe-ingestion",
     title: "Cloudflare Workflows",
     notes:
       "The durable orchestration decision carries over to code review. The per-PR\nDurable Object owns delivery deduplication, debounce, reviewed-head state,\nbudgets, and the single active paid-review lease. A Workflow owns the admitted\nrun: prepare current GitHub context, run paid and free scouts in separate steps,\nmerge findings, publish the rolling comment, append the analytical record to\nR2, and complete the PR state.\n\nEach model step permits one configured application attempt. Separating paid and\nfree providers prevents recovery from a stalled free call from replaying a\ncompleted paid ensemble. An expired lease must terminate its old Workflow\nbefore the coordinator admits a replacement.\n",
@@ -123,43 +124,43 @@ export const legacyADRAliases = [
   },
   {
     alias: "agentic-code-review:019-sonarqube",
-    target: "recipe-site:045-sonarqube",
+    target: "recipe-site:009-sonarqube",
     notes:
       "SonarQube supplies deterministic code-health analysis and a quality gate for the\nservice alongside its unit-test coverage. This inheritance records how the App\nis developed; incorporating SonarQube findings into reviews would be a separate\nproduct decision.\n",
   },
   {
     alias: "agentic-code-review:020-zizmor",
-    target: "personal-knowledge-graph:049-zizmor",
+    target: "personal-knowledge-graph:048-zizmor",
     notes:
       "actionlint and zizmor validate the GitHub Actions workflows that test, scan, and\ndeploy the service. Their checks are especially relevant to workflows handling\nthe GitHub App, Cloudflare, Doppler, and OpenRouter credentials.\n",
   },
   {
     alias: "agentic-code-review:021-tflint",
-    target: "personal-knowledge-graph:051-tflint",
+    target: "personal-knowledge-graph:050-tflint",
     notes:
       "The service's R2 and related Cloudflare infrastructure live in the shared\nTerraform root, so the same blocking TFLint checks cover its declarations. An\nindependent repository would carry this infrastructure gate with the Terraform.\n",
   },
   {
     alias: "agentic-code-review:022-knip",
-    target: "personal-knowledge-graph:052-knip",
+    target: "personal-knowledge-graph:051-knip",
     notes:
       "Knip checks the service workspace for unused files and dependencies while the\nroot configuration accounts for Worker entry points and Cloudflare runtime\nmodules that static import analysis cannot discover on its own.\n",
   },
   {
     alias: "agentic-code-review:023-openssf-scorecard",
-    target: "personal-knowledge-graph:053-openssf-scorecard",
+    target: "personal-knowledge-graph:052-openssf-scorecard",
     notes:
       "OpenSSF Scorecard audits the GitHub repository settings and supply-chain posture\naround the service. It remains a repository-level signal in the monorepo and\nwould become independently measurable if the project moved to its own repo.\n",
   },
   {
     alias: "agentic-code-review:024-gitleaks",
-    target: "personal-knowledge-graph:054-gitleaks",
+    target: "personal-knowledge-graph:053-gitleaks",
     notes:
       "Gitleaks protects the GitHub App private key, webhook secret, OpenRouter key,\nand Cloudflare credentials from accidental commits through the local hook and\nfull-history CI scan. That pre-publication gate is part of the service's\ndevelopment baseline.\n",
   },
   {
     alias: "agentic-code-review:025-typos",
-    target: "personal-knowledge-graph:055-typos",
+    target: "personal-knowledge-graph:054-typos",
     notes:
       "typos checks the service's public PRD, ADRs, prompts, configuration, and source\ntext as a cheap deterministic gate. The shared allowlist keeps product and model\nnames from turning the check into noise.\n",
   },
@@ -207,7 +208,7 @@ export const legacyADRAliases = [
   },
   {
     alias: "homelab:008-dvc",
-    target: "recipe-site:029-dvc",
+    target: "recipe-site:000-dvc",
     notes:
       "Applied to the lab: whichever machine runs batch jobs keeps local copies of\ndatasets on its own disk as a DVC remote, so those jobs read from a local\ncache instead of re-pulling over the network each time. The same principles,\ndataset hashes pinned to git commits, stage caching via `dvc repro`, and\nmetrics surfaced in PRs, govern how datasets are managed across the ML\npipelines (`ml-pipelines/recipe-parsing/`).\n",
   },
@@ -220,7 +221,7 @@ export const legacyADRAliases = [
   },
   {
     alias: "personal-knowledge-graph:048-sonarqube",
-    target: "recipe-site:045-sonarqube",
+    target: "recipe-site:009-sonarqube",
   },
   {
     alias: "recipe-site:000-github-public-repo",
@@ -374,37 +375,37 @@ export const legacyADRAliases = [
   },
   {
     alias: "recipe-site:046-zizmor",
-    target: "personal-knowledge-graph:049-zizmor",
+    target: "personal-knowledge-graph:048-zizmor",
     notes:
       "# Additional Context for Recipe Site\n\nThe recipe site is where the workflow-security risk concentrates. The\npreview-environment workflows provision a per-PR Neon Postgres branch and an\nisolated Cloudflare Worker for the backend (`workers/recipe-api`), so they handle\nNeon and Cloudflare secrets on pull requests. That makes the trigger model,\n`GITHUB_ENV` use, and least-privilege permissions zizmor checks matter most for\nthe recipe site's CI.\n",
   },
   {
     alias: "recipe-site:055-tflint",
-    target: "personal-knowledge-graph:051-tflint",
+    target: "personal-knowledge-graph:050-tflint",
     notes:
       "# Additional Context for Recipe Site\n\nThe recipe site's infrastructure, Neon Postgres, Hyperdrive, and the\nrecipe-api/recipe-ingest Workers, is defined in the same `infra/public-platform/` Terraform\nroot, so it is covered by the same TFLint configuration and CI job (see\n[Personal Knowledge Graph ADR 051](/projects/personal-knowledge-graph/adrs/051-tflint)).\n\nThe hygiene rules matter most where the Terraform churns fastest, and that is\nthe recipe-site backend: preview environments, database branches, and Worker\nbindings have driven most recent infra changes. Unused declarations and\ndeprecated syntax left behind by that churn are exactly what the\n`recommended` preset flags.\n\n# Consequences\n\n## Positive\n\n* The most actively edited Terraform (recipe-site backend resources) gains a\n  blocking correctness lint on every PR, before the plan job needs secrets.\n\n## Negative\n\n* No Neon provider ruleset exists, so Neon-specific argument mistakes still\n  surface only at `terraform plan`.\n",
   },
   {
     alias: "recipe-site:056-knip",
-    target: "personal-knowledge-graph:052-knip",
+    target: "personal-knowledge-graph:051-knip",
     notes:
       "# Additional Context for Recipe Site\n\nThe recipe pipeline is where Knip needed the most teaching, and where it then\nfound the most: its entry points are invisible to static import analysis, DVC\nstages in `ml-pipelines/*`, Cloudflare Pages Functions, worker scripts, and the\nviz tool's Vite app, so `knip.json` declares them explicitly (see\n[Personal Knowledge Graph ADR 052](/projects/personal-knowledge-graph/adrs/052-knip)). That\nconfiguration is what let Knip confidently identify a superseded 12-component\ncluster in the viz tool as dead, deleted on adoption.\n\nThe Workers also supplied the config's canonical false positive: workerd's\n`cloudflare:workers`/`cloudflare:workflows` virtual modules are provided by the\nruntime, not by any npm package, and Knip initially reported them as an\nunlisted `cloudflare` dependency. They are now declared in `knip.json`, so the\nunlisted-dependency check stays trustworthy for the case it exists to catch, a\nWorker importing a package that only another workspace declares, which would\nbreak on a lockfile reshuffle.\n\n# Consequences\n\n## Positive\n\n* Genuinely undeclared dependencies in deployed Workers now fail CI instead of\n  waiting for a lockfile change to expose them.\n* The recipe pipeline's non-obvious entry points (DVC stages, Pages Functions,\n  worker scripts) are documented in one config.\n\n## Negative\n\n* New pipeline stages, workers, or runtime-provided modules must be added to\n  `knip.json` when their usage isn't a plain import; the failure mode is a\n  loud false positive.\n",
   },
   {
     alias: "recipe-site:057-openssf-scorecard",
-    target: "personal-knowledge-graph:053-openssf-scorecard",
+    target: "personal-knowledge-graph:052-openssf-scorecard",
     notes:
       "# Additional Context for Recipe Site\n\nScorecard audits the repository layer, so the recipe site inherits the same\nweekly posture check (see\n[Personal Knowledge Graph ADR 053](/projects/personal-knowledge-graph/adrs/053-openssf-scorecard)).\nThe stakes are higher on this side of the monorepo: the branch-protection,\ntoken-permission, and dangerous-workflow checks guard the path by which code\nreaches the deployed Workers and the Neon database, and the preview-environment\nworkflows handle real credentials on pull requests\n([ADR 046 zizmor](/projects/recipe-site/adrs/046-zizmor) covers their content;\nScorecard covers the settings around them).\n\n# Consequences\n\n## Positive\n\n* Regressions in the repo settings that gate deploy credentials (branch\n  protection, default token permissions) now surface within a week instead of\n  silently persisting.\n\n## Negative\n\n* Scorecard evaluates the repository as a whole; it cannot score the\n  recipe-site backend's posture separately from the static site's.\n",
   },
   {
     alias: "recipe-site:058-gitleaks",
-    target: "personal-knowledge-graph:054-gitleaks",
+    target: "personal-knowledge-graph:053-gitleaks",
     notes:
       "# Additional Context for Recipe Site\n\nThe recipe site concentrates the credentials worth stealing: Neon Postgres\nconnection strings, better-auth secrets, OAuth client secrets (Google/GitHub\nlogin), OpenRouter API keys, and Cloudflare tokens for the Workers. Most of\nthese are exactly the shapes GitHub's provider-pattern scanning is weakest on. A Postgres URL\nwith an inline password or a better-auth signing secret has no\nvendor-recognisable format, but does trip gitleaks' generic and entropy rules\n(see [Personal Knowledge Graph ADR 054](/projects/personal-knowledge-graph/adrs/054-gitleaks)).\n\nThe financial-risk framing from\n[ADR 035 (application security baseline)](/projects/recipe-site/adrs/035-application-security-baseline)\napplies directly: a leaked OpenRouter key or database URL converts to\nunauthorized usage cost or a data breach of user accounts, so blocking the\ncommit beats rotating after disclosure.\n\n# Consequences\n\n## Positive\n\n* Database URLs and auth secrets, the credential shapes vendor-pattern\n  scanning misses, are checked before a commit exists, on the side of the\n  monorepo where they circulate most (local `.dev.vars`, seeded QA scenarios,\n  integration-test configs).\n\n## Negative\n\n* Seeded QA fixtures and example configs are the likeliest source of false\n  positives; expect the first `.gitleaks.toml` allowlist entries to come from\n  the recipe-site test surface.\n",
   },
   {
     alias: "recipe-site:059-typos",
-    target: "personal-knowledge-graph:055-typos",
+    target: "personal-knowledge-graph:054-typos",
     notes:
       '# Additional Context for Recipe Site\n\nThe recipe site adds the content type where spelling errors are most\nuser-visible: recipe titles, ingredient names, and instructions, rendered both\non the site and in the schema.org Recipe JSON twins consumed by other tools\n(see [Personal Knowledge Graph ADR 055](/projects/personal-knowledge-graph/adrs/055-typos)).\nIngredient vocabulary is also exactly where dictionary-based checkers drown in\nnoise, cuisine terms, brand names, non-English loanwords, which is why the\nknown-misspellings design matters doubly here.\n\nThe recipe-parsing package also demonstrates the config\'s judgement calls: its\ndiagnostics use "unparseable", a legitimate word typos\' dictionary would\n"correct", now allowlisted in `_typos.toml` rather than rewritten in\nuser-facing strings.\n\n# Consequences\n\n## Positive\n\n* Typos in recipe content are caught before they ship to the site and its\n  machine-readable JSON twins.\n\n## Negative\n\n* Loanword-heavy recipe vocabulary may occasionally need `_typos.toml`\n  entries as content grows.\n',
   },
@@ -413,5 +414,266 @@ export const legacyADRAliases = [
     target: "personal-knowledge-graph:034-shortcut",
     notes:
       "Shortcut remains the authoritative tracker outside any explicitly bounded Work\nGraph pilot while Work Graph proves that it can replace the existing capture,\nranking, and review workflow. Inheriting the decision here gives Work Graph\nownership of that eventual cutover without pretending it has already happened.\n",
+  },
+  // Canonical URLs retained after compacting project-local ADR sequences.
+  {
+    alias: "agentic-code-review:031-custom-agentic-code-review",
+    target: "agentic-code-review:000-custom-agentic-code-review",
+  },
+  {
+    alias: "agentic-code-review:032-stateful-ai-code-review",
+    target: "agentic-code-review:001-stateful-ai-code-review",
+  },
+  {
+    alias: "agentic-code-review:033-duckdb-ai-review-scorecard",
+    target: "agentic-code-review:002-duckdb-ai-review-scorecard",
+  },
+  {
+    alias: "homelab:004-grok-build",
+    target: "homelab:002-grok-build",
+  },
+  {
+    alias: "homelab:005-opencode",
+    target: "homelab:003-opencode",
+  },
+  {
+    alias: "homelab:006-t3-code",
+    target: "homelab:004-t3-code",
+  },
+  {
+    alias: "homelab:007-ente-photo-backup",
+    target: "homelab:005-ente-photo-backup",
+  },
+  {
+    alias: "homelab:009-netdata",
+    target: "homelab:006-netdata",
+  },
+  {
+    alias: "homelab:010-nixos-gpu-worker",
+    target: "homelab:007-nixos-gpu-worker",
+  },
+  {
+    alias: "homelab:011-jellyfin",
+    target: "homelab:008-jellyfin",
+  },
+  {
+    alias: "homelab:012-cups",
+    target: "homelab:009-cups",
+  },
+  {
+    alias: "homelab:013-amazon-echo",
+    target: "homelab:010-amazon-echo",
+  },
+  {
+    alias: "homelab:014-basic-memory-silverbullet-agentic-knowledge-base",
+    target: "homelab:011-basic-memory-silverbullet-agentic-knowledge-base",
+  },
+  {
+    alias: "homelab:015-phone-device-lab",
+    target: "homelab:012-phone-device-lab",
+  },
+  {
+    alias: "homelab:016-media-automation-arr-stack",
+    target: "homelab:013-media-automation-arr-stack",
+  },
+  {
+    alias: "homelab:017-prowlarr-indexer-management",
+    target: "homelab:014-prowlarr-indexer-management",
+  },
+  {
+    alias: "homelab:018-single-containerized-torrent-client",
+    target: "homelab:015-single-containerized-torrent-client",
+  },
+  {
+    alias: "homelab:019-recyclarr-trash-guides",
+    target: "homelab:016-recyclarr-trash-guides",
+  },
+  {
+    alias: "homelab:020-vpn-gated-stack",
+    target: "homelab:017-vpn-gated-stack",
+  },
+  {
+    alias: "homelab:021-trakt-watchlist",
+    target: "homelab:018-trakt-watchlist",
+  },
+  {
+    alias: "homelab:022-ansible-k3s-migration-bridge",
+    target: "homelab:019-ansible-k3s-migration-bridge",
+  },
+  {
+    alias: "homelab:023-k3s-declarative-workloads",
+    target: "homelab:020-k3s-declarative-workloads",
+  },
+  {
+    alias: "homelab:025-cloud-remote-development-plane",
+    target: "homelab:021-cloud-remote-development-plane",
+  },
+  {
+    alias: "personal-knowledge-graph:049-zizmor",
+    target: "personal-knowledge-graph:048-zizmor",
+  },
+  {
+    alias: "personal-knowledge-graph:050-simple-icons-and-svgl",
+    target: "personal-knowledge-graph:049-simple-icons-and-svgl",
+  },
+  {
+    alias: "personal-knowledge-graph:051-tflint",
+    target: "personal-knowledge-graph:050-tflint",
+  },
+  {
+    alias: "personal-knowledge-graph:052-knip",
+    target: "personal-knowledge-graph:051-knip",
+  },
+  {
+    alias: "personal-knowledge-graph:053-openssf-scorecard",
+    target: "personal-knowledge-graph:052-openssf-scorecard",
+  },
+  {
+    alias: "personal-knowledge-graph:054-gitleaks",
+    target: "personal-knowledge-graph:053-gitleaks",
+  },
+  {
+    alias: "personal-knowledge-graph:055-typos",
+    target: "personal-knowledge-graph:054-typos",
+  },
+  {
+    alias: "personal-knowledge-graph:056-stateful-ai-code-review",
+    target: "personal-knowledge-graph:055-stateful-ai-code-review",
+  },
+  {
+    alias: "personal-knowledge-graph:057-food-ontology-alignment",
+    target: "personal-knowledge-graph:056-food-ontology-alignment",
+  },
+  {
+    alias: "personal-knowledge-graph:058-project-pitch-decks",
+    target: "personal-knowledge-graph:057-project-pitch-decks",
+  },
+  {
+    alias: "personal-knowledge-graph:059-temporal-platform-layers",
+    target: "personal-knowledge-graph:058-temporal-platform-layers",
+  },
+  {
+    alias: "personal-knowledge-graph:060-product-decision-records",
+    target: "personal-knowledge-graph:059-product-decision-records",
+  },
+  {
+    alias: "recipe-site:029-dvc",
+    target: "recipe-site:000-dvc",
+  },
+  {
+    alias: "recipe-site:030-cooklang",
+    target: "recipe-site:001-cooklang",
+  },
+  {
+    alias: "recipe-site:031-openrouter",
+    target: "recipe-site:002-openrouter",
+  },
+  {
+    alias: "recipe-site:032-better-auth",
+    target: "recipe-site:003-better-auth",
+  },
+  {
+    alias: "recipe-site:033-backend-platform-for-authenticated-features",
+    target: "recipe-site:004-backend-platform-for-authenticated-features",
+  },
+  {
+    alias: "recipe-site:034-authorization-model",
+    target: "recipe-site:005-authorization-model",
+  },
+  {
+    alias: "recipe-site:035-application-security-baseline",
+    target: "recipe-site:006-application-security-baseline",
+  },
+  {
+    alias: "recipe-site:036-google-oidc-login",
+    target: "recipe-site:007-google-oidc-login",
+  },
+  {
+    alias: "recipe-site:037-github-oauth-login",
+    target: "recipe-site:008-github-oauth-login",
+  },
+  {
+    alias: "recipe-site:045-sonarqube",
+    target: "recipe-site:009-sonarqube",
+  },
+  {
+    alias: "recipe-site:047-posthog-logs",
+    target: "recipe-site:010-posthog-logs",
+  },
+  {
+    alias: "recipe-site:048-cloudflare-observability-destinations",
+    target: "recipe-site:011-cloudflare-observability-destinations",
+  },
+  {
+    alias: "recipe-site:049-cloudflare-workflows-recipe-ingestion",
+    target: "recipe-site:012-cloudflare-workflows-recipe-ingestion",
+  },
+  {
+    alias: "recipe-site:050-cloudflare-access-preview-gates",
+    target: "recipe-site:013-cloudflare-access-preview-gates",
+  },
+  {
+    alias: "recipe-site:051-neon-database-snapshots-and-backups",
+    target: "recipe-site:014-neon-database-snapshots-and-backups",
+  },
+  {
+    alias: "recipe-site:051-relational-notification-events",
+    target: "recipe-site:015-relational-notification-events",
+  },
+  {
+    alias: "recipe-site:052-committed-postgres-migrations",
+    target: "recipe-site:016-committed-postgres-migrations",
+  },
+  {
+    alias:
+      "recipe-site:053-fresh-migration-baseline-and-isolated-preview-database-project",
+    target:
+      "recipe-site:017-fresh-migration-baseline-and-isolated-preview-database-project",
+  },
+  {
+    alias: "recipe-site:054-tanstack-query-for-client-server-state",
+    target: "recipe-site:018-tanstack-query-for-client-server-state",
+  },
+  {
+    alias: "recipe-site:061-agent-auth",
+    target: "recipe-site:019-agent-auth",
+  },
+  {
+    alias: "recipe-site:062-direct-otlp-export-to-posthog",
+    target: "recipe-site:020-direct-otlp-export-to-posthog",
+  },
+  {
+    alias: "recipe-site:063-posthog-alerting-and-slack",
+    target: "recipe-site:021-posthog-alerting-and-slack",
+  },
+  {
+    alias: "recipe-site:064-realtime-household-collaboration",
+    target: "recipe-site:022-realtime-household-collaboration",
+  },
+  {
+    alias: "recipe-site:065-spectral",
+    target: "recipe-site:023-spectral",
+  },
+  {
+    alias: "recipe-site:066-batch-recipe-import-staging",
+    target: "recipe-site:024-batch-recipe-import-staging",
+  },
+  {
+    alias:
+      "recipe-site:067-versioned-ingredient-density-catalog-and-source-ingestion",
+    target:
+      "recipe-site:025-versioned-ingredient-density-catalog-and-source-ingestion",
+  },
+  {
+    alias: "work-graph:008-authoritative-work-graph",
+    target: "work-graph:007-authoritative-work-graph",
+  },
+  {
+    alias: "work-graph:009-github-delivery-evidence-ingestion",
+    target: "work-graph:008-github-delivery-evidence-ingestion",
+  },
+  {
+    alias: "work-graph:010-observed-evidence-before-automatic-release",
+    target: "work-graph:009-observed-evidence-before-automatic-release",
   },
 ] satisfies readonly LegacyADRAlias[];

@@ -2,7 +2,7 @@
 
 This independently stateful Terraform root provisions the Hetzner Cloud
 resources proposed by
-[ADR 025](../../ui/content/projects/homelab/adrs/025-cloud-remote-development-plane.mdx).
+[ADR 021](../../ui/content/projects/homelab/adrs/021-cloud-remote-development-plane.mdx).
 It does not configure the operating system or deploy workloads.
 
 ## Ownership boundary

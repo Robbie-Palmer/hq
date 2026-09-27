@@ -1,0 +1,553 @@
+---
+title: "ADR 002: OpenRouter"
+date: "2026-05-23"
+status: "Accepted"
+tech_stack: ["OpenRouter"]
+ideas: ["intelligent-document-processing", "ocr", "nlp"]
+---
+
+# Context
+
+The recipe site already depends on Large Language Models for the photo-to-recipe ingestion pipeline
+([ADR 000: DVC](/projects/recipe-site/adrs/000-dvc), [ADR 001: Cooklang](/projects/recipe-site/adrs/001-cooklang)).
+The pipeline has three distinct LLM stages, OCR extraction from page images (VLM), normalisation
+of raw extraction into Cooklang (LLM), and ingredient disambiguation (cheaper LLM), each with
+different price/performance trade-offs. The current
+[`params.yaml`](https://github.com/Robbie-Palmer/hq/blob/main/ml-pipelines/recipe-parsing/params.yaml)
+already mixes Gemini 3 Flash Preview and Gemini 2.5 Flash across these stages.
+
+Beyond ingestion, the [recipe-site roadmap](/projects/recipe-site) lists several
+AI-powered user-facing features in Phases 2–6: AI URL import, AI photo import for smooth
+onboarding, AI meal planning, and nutritional analysis. Each will benefit from being able to
+pick the right model for the job, swap providers as price/quality moves, and try new frontier
+models the moment they ship, without a code change, a new SDK, a new key, a new billing
+relationship, or a new platform to learn.
+
+Today the ML pipeline talks to OpenRouter via the OpenAI SDK
+([`ml-pipelines/recipe-parsing/src/lib/openrouter.ts`](https://github.com/Robbie-Palmer/hq/blob/main/ml-pipelines/recipe-parsing/src/lib/openrouter.ts)).
+This ADR formalises that as the strategic
+choice for **all** LLM/VLM access across the recipe site, pipeline, future Worker-based features,
+and any client-side experimentation, and documents why the alternatives (direct provider SDKs,
+Cloudflare AI Gateway, Vercel AI Gateway, custom abstraction layers) are not a better fit.
+
+The recipe site is governed by a small set of strong constraints:
+
+1. **Solo developer, fast iteration.** Every platform, billing relationship, and SDK is friction.
+   [Less Is More](/projects?tab=philosophy#less-is-more) and
+   [Short Feedback Loops](/projects?tab=philosophy#short-feedback-loops) push hard against adding
+   per-provider integrations.
+2. **Model churn will continue.** New frontier and open models ship monthly.
+   Locking the codebase to one vendor's SDK has a high opportunity cost.
+3. **Capacity matters more than brand.** The Anthropic API has had repeated availability and
+   rate-limit issues during peak demand windows for Claude releases. AWS Bedrock and Google
+   Vertex AI typically have far higher available capacity for the same models, but require full
+   IAM/SigV4 or service-account setup to access, overhead that doesn't pay back for a recipe
+   site.
+4. **Mixed-modality workloads.** Photo-to-recipe needs a vision-capable model; normalisation needs
+   a cheap, fast text model; disambiguation can run on a tiny one. The same gateway must serve
+   all three.
+5. **Cooklang is the canonical output.** Whatever model is in the loop, the result lands in
+   Cooklang ([ADR 001](/projects/recipe-site/adrs/001-cooklang)). The model returns a JSON
+   envelope (`{ frontmatter, body }`) that the gateway constrains via structured outputs; the
+   Cooklang text inside `body` is plain text, validated post-hoc by `cooklang-rs`. Structured-output
+   support across providers is required for the envelope, even though the
+   format inside it is not JSON.
+
+# Decision
+
+I **accept** using **[OpenRouter](https://openrouter.ai)** as the single LLM/VLM access point
+for all AI-powered features in the recipe site, the ML ingestion pipeline today, and any future
+user-facing AI features (recipe URL import, smooth-onboarding photo capture, meal planning,
+nutrition) as they ship.
+
+OpenRouter is an OpenAI-compatible gateway that routes one API to 350+ models across 60+ providers,
+with one account, one key, one bill, and one SDK. A model swap is a string change:
+
+```ts
+// before
+model: "google/gemini-2.5-flash"
+// after
+model: "anthropic/claude-sonnet-4.6"
+```
+
+Configure provider-level routing per request. Fallbacks, sort-by-price, sort-by-throughput,
+sort-by-latency, ignore-list, only-list, zero-data-retention enforcement, and quantisation
+filtering all live in the request body instead of platform config. This means:
+
+* **One commit, not one platform migration**, to try a new model in production for any feature.
+* **Automatic failover** if a provider rate-limits or has an outage. The pipeline doesn't see the
+  error, just slightly different latency.
+* **Capacity from Bedrock/Vertex when the model author's first-party API is saturated**, with no
+  IAM or SigV4 setup on our side. OpenRouter handles provider authentication on behalf of all
+  routes.
+* **Per-stage model choice.** The pipeline already mixes a cheaper text model
+  (`google/gemini-2.5-flash`) for disambiguation with a vision-capable model
+  (`google/gemini-3-flash-preview`) for OCR via `params.yaml`. Swapping any stage is a one-line
+  change with no SDK or platform work.
+
+The existing `openrouter.ts` helper already uses the OpenAI SDK pointed at
+`https://openrouter.ai/api/v1`. Future Workers can do the same with the same SDK.
+
+This aligns with:
+
+* **[Less Is More](/projects?tab=philosophy#less-is-more)**: one account, one key, one bill,
+  one SDK replaces N integrations per provider.
+* **[Short Feedback Loops](/projects?tab=philosophy#short-feedback-loops)**: trying a new model
+  is a one-line change in `params.yaml` or a request body, not a platform onboarding exercise.
+* **[The Goldilocks Zone](/projects?tab=philosophy#the-goldilocks-zone)**: OpenRouter has been
+  the de facto cross-provider LLM gateway since 2023: battle-tested API surface, large
+  catalogue, good docs, and personal production use from Bestomer's
+  [AI Shopping Assistant](/projects/chatbot) chatbot since 2023. Vercel AI Gateway is GA 2025
+  (early-adopter cost), Eden AI and AI/ML API are smaller and less proven, and Cloudflare AI
+  Gateway is a different category of product. OpenRouter sits squarely in the "old enough to be
+  reliable, not so old it's stagnant" sweet spot.
+
+## What Underlying Features It Enables
+
+| Feature                                 | Phase | What OpenRouter Gives Us                                                                                                                                            |
+| --------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Photo-to-recipe (VLM)**               | P1/P4 | Multimodal models from multiple providers, Gemini, GPT-4o, Claude vision, open VLMs via Together/DeepInfra, all reachable through the same `chat.completions` call. |
+| **AI URL import (LLM)**                 | P4    | A cheap, fast text model to clean scraped HTML/JSON-LD into Cooklang; pick the cheapest capable model per request.                                                  |
+| **Smooth onboarding (mixed VLM + LLM)** | P4    | One key for the photograph-then-normalise loop. Latency-sorted routing on the OCR step makes onboarding feel snappy.                                                |
+| **Meal planning (LLM)**                 | P5    | Quality vs. cost trade-off per user request, frontier model for "plan my week", cheap model for "swap one meal".                                                    |
+| **Nutritional analysis (LLM)**          | P6    | Structured output (`response_format: json_schema`) against our nutrition schema, with the freedom to pick the cheapest model that hits accuracy targets.            |
+| **Cooking assistant chat (LLM)**        | Idea  | If a Phase-3+ conversational layer is built, the same gateway serves it, including streaming.                                                                       |
+
+## What Specifically OpenRouter Provides
+
+* **OpenAI-compatible REST API**. Drop-in replacement for the OpenAI SDK by changing `baseURL`.
+  Already in use at
+  [`ml-pipelines/recipe-parsing/src/lib/openrouter.ts`](https://github.com/Robbie-Palmer/hq/blob/main/ml-pipelines/recipe-parsing/src/lib/openrouter.ts)
+  (see `getOrCreateOpenRouterClient`). First-party SDKs also exist if we ever want them: an
+  [official Python SDK](https://github.com/OpenRouterTeam/python-sdk) (currently beta) and an
+  [official Vercel AI SDK provider](https://github.com/OpenRouterTeam/ai-sdk-provider)
+  (`@openrouter/ai-sdk-provider`) for TypeScript apps that want the Vercel AI SDK's React hooks.
+* **358 models across 60+ providers** (live count, May 2026), Anthropic, OpenAI, Google (AI
+  Studio + Vertex), Mistral, Meta, DeepSeek, Qwen, Together, DeepInfra, Fireworks, AWS Bedrock
+  and more, behind one catalogue and one billing relationship. Crucially, deep coverage of the
+  *open-weight long tail* (Together, DeepInfra, Fireworks, Groq, Cerebras, Nebius, AkashML,
+  Parasail, Friendli, etc.) means popular models like Llama 3.3 70B Instruct route across
+  \~15 providers. This breadth enables load balancing and price arbitrage.
+* **Better availability than first-party APIs**. For models that ship on multiple clouds
+  (Claude on Anthropic + Bedrock + Vertex, Llama on Together + DeepInfra + Fireworks + Bedrock),
+  OpenRouter load-balances and falls back across providers. When the model author's own API is
+  rate-limiting or down, a recurring pattern around frontier model launches, the request still
+  succeeds via Bedrock/Vertex without any code or config change on our side.
+* **Per-request provider preferences**. `provider.order`, `provider.only`, `provider.ignore`,
+  `provider.sort` (`price` | `throughput` | `latency`), `provider.allow_fallbacks`,
+  `provider.data_collection: "deny"`, `provider.zdr: true`, and quantisation filters
+  (`int4`, `int8`, `fp8`, `bf16`), all set in the request body.
+* **Sort shortcuts in the model slug**. `:nitro` for highest throughput, `:floor` for lowest
+  price. Syntactic sugar for the `provider.sort` parameter; useful as a one-line knob if
+  experimentation later wants it, but the integration does not depend on it.
+* **Structured outputs**. `response_format: { type: "json_schema", strict: true, ... }` is
+  honoured across providers that support it, with automatic filtering to capable providers.
+  Already used in `openrouter.ts` for every stage.
+* **Multimodal in one API**. Text, images, and PDFs (URL or base64). The photo-to-recipe stage
+  already passes images this way (see `parseRecipeFromImages` / `runImagePrompt` in
+  `openrouter.ts`). Audio (STT + TTS) is also covered via dedicated
+  `/audio/transcriptions` (Whisper, Whisper Large V3 Turbo, GPT-4o Transcribe, Google Chirp 3,
+  Groq's fast Whisper) and `/audio/speech` (OpenAI, Google Gemini Flash, Mistral Voxtral, xAI
+  Grok Voice) endpoints. This is relevant if cooking mode's voice navigation
+  (see the recipe-site roadmap's *Voice / Hands-Free Navigation* section) ever outgrows the browser-native Web Speech
+  API and needs server-side STT/TTS for accuracy or language coverage.
+* **Per-model latency and throughput visibility**. The OpenRouter dashboard surfaces TTFT and
+  tokens-per-second per provider per model, useful when picking models for latency-sensitive
+  features like onboarding.
+* **Usage activity dashboard**. Historic usage filterable by model, provider, and API key. A
+  light-touch observability layer that we'd otherwise need to build.
+* **Response caching and input/output logging out of the box**. Identical-request
+  [response caching](https://openrouter.ai/docs/guides/features/response-caching) (zero-cost cache
+  hits, surfaced as `cached_tokens` / `cache_write_tokens` in the usage response), provider prompt
+  caching pass-through with session-id sticky routing, and full request/response
+  [input/output logging](https://openrouter.ai/docs/guides/features/input-output-logging) on the
+  Logs page when enabled, without standing up a separate gateway.
+* **No platform-side per-provider setup**. No Bedrock IAM/SigV4, no Vertex service account, no
+  Anthropic console keys, no AWS billing relationship. The full BYOK escape hatch exists if we
+  ever want it.
+
+## Cost Model
+
+Per-token pricing is pass-through. OpenRouter charges the same per-token rate as the underlying
+provider, with no markup on inference itself. The platform monetises via a
+[5.5% fee on credit top-up](https://openrouter.ai/announcements/simplifying-our-platform-fee)
+(5% for crypto, $0.80 minimum), so a $100 top-up funds \~$94.50 of inference. Effective markup
+works out to roughly 5.8%. The same as Eden AI, which uses an identical 5.5%-on-credit-top-up
+structure. Spend stays predictable and pay-as-you-go, with no minimum commitment per provider.
+
+[Vercel AI Gateway](https://vercel.com/docs/ai-gateway/pricing) is the cheaper aggregator on
+paper, 0% Vercel markup on tokens, $5/month free credit, no paid Vercel plan required (Hobby
+team accounts work). Vercel monetises elsewhere: hosting/deployment is the core business and
+AI Gateway is a loss leader for it, plus optional add-on capabilities (Custom Reporting,
+team-wide allowlists, team-wide ZDR) carry per-request surcharges if turned on. Vercel's docs
+also disclaim "you're responsible for any payment processing fees that may apply" on credit
+top-ups, which in practice translates to Stripe-style card processing (\~2.5%) passed through.
+The effective gap between the two is therefore \~3 percentage points at meaningful scale, not
+the full 5.8%:
+
+| Monthly inference spend | OpenRouter overhead             | Vercel overhead                 | Gap     |
+| ----------------------- | ------------------------------- | ------------------------------- | ------- |
+| **$5**                  | \~16% ($0.80 minimum dominates) | 0% (free $5 credit)             | \~16pp  |
+| **$50**                 | 5.8%                            | \~0% (free credit absorbs most) | \~5.8pp |
+| **$500**                | 5.8%                            | \~1.5%                          | \~4.3pp |
+| **$5,000**              | 5.8%                            | \~2.5%                          | \~3.3pp |
+| **$50,000**             | 5.8%                            | \~2.5%                          | \~3.3pp |
+
+The Stripe-style passthrough is an estimate based on Vercel's "may apply" language. The actual
+could be lower (Vercel's own merchant rate) or zero (absorbed). Even taking the worst case,
+the OpenRouter cost premium stabilises at roughly 3pp once spend grows past the $5 free credit.
+
+### Cost Over the Lifecycle
+
+The 5.8% effective markup is a knob we can turn down over time rather than a fixed cost.
+OpenRouter's BYOK terms make the cost story phase-dependent:
+
+* **First 1M BYOK requests per month: free**. 0% markup on top of whatever the provider charges
+  you directly ([announcement](https://openrouter.ai/announcements/1-million-free-byok-requests-per-month)).
+* **Above 1M BYOK requests per month**: 5% of the equivalent OpenRouter pay-as-you-go cost on the
+  surplus.
+* **BYOK is configured per provider**. You can BYOK Anthropic while staying on
+  pay-as-you-go for Google, or vice versa, and switch any one of them independently.
+* **Fallback still works under BYOK**. By default, if BYOK keys rate-limit or fail, OpenRouter
+  falls back to its own shared endpoints. The availability story doesn't change.
+
+That enables a natural lifecycle:
+
+1. **Today (broad experimentation, low absolute spend).** Stay on pay-as-you-go across the
+   board. Catalogue breadth matters more than 5.8% on pocket-change spend. New model
+   experiments don't justify creating a provider account.
+2. **As user-facing AI scales.** Selectively BYOK the providers carrying the most volume *and*
+   that are operationally cheap to onboard, Anthropic direct, OpenAI direct, Google AI Studio.
+   Those drop to 0% markup (under 1M req/month) or 5% (above) while the rest of the catalogue
+   stays one config flip away.
+3. **Long tail stays pay-as-you-go.** Painful providers (AWS Bedrock SigV4, Vertex service
+   accounts) stay on OpenRouter's relationship; the 5.8% buys us out of IAM. Open-weight
+   experimentation providers (Together, DeepInfra, Fireworks) get the same story; no account for a
+   one-week test.
+
+Net: the effective markup converges toward 0% on the volume that matters as the product scales,
+without sacrificing catalogue breadth, routing controls, or the one-key/one-bill story for the
+long tail. Vercel AI Gateway runs at \~2.5% overhead in practice (Stripe passthrough), so the
+\~3pp cost gap to OpenRouter doesn't close fully via BYOK, but it does narrow to the point where
+the catalogue breadth and routing controls that drove the original decision comfortably outweigh
+the residual saving.
+
+# Alternatives Considered
+
+The cross-provider LLM access market splits cleanly into two categories with different
+operating models:
+
+* **LLM Aggregators** own a model catalogue *and* the billing relationship with each upstream
+  provider. You sign up to the aggregator, pay it, and it pays the providers. Examples:
+  OpenRouter, Vercel AI Gateway (despite the "Gateway" branding), Eden AI, AI/ML API.
+* **LLM Gateways** sit in front of providers as a proxy. They centralise observability, key
+  management, guardrails, and routing, but you bring your own provider keys and own the
+  provider billing relationships. Examples: Cloudflare AI Gateway, LiteLLM, Portkey, Kong AI
+  Gateway.
+
+These are not interchangeable. An aggregator eliminates per-provider account sprawl; a gateway
+adds policy and observability *on top of* that sprawl. The two can also compose, a gateway can
+sit in front of an aggregator. The decision framing below first considers the baseline (no
+intermediary), then the aggregator peers of OpenRouter, then the BYOK gateways (which solve a
+different half of the problem).
+
+## Baseline: Direct Per-Provider SDKs (`@anthropic-ai/sdk`, `@google/genai`, `openai`, AWS SDK for Bedrock, etc.)
+
+* **Pros**: First-party, full feature coverage on the day of launch (e.g., Anthropic's prompt
+  caching, OpenAI's Responses API), no third-party dependency in the inference path.
+* **Cons**: Every new model means a new SDK, a new account, a new console, a new billing
+  relationship, and a new set of keys/secrets to inject into CI, Workers, and local dev.
+  Bedrock additionally requires AWS IAM and SigV4 signing, substantial setup overhead for a
+  recipe site. Switching the disambiguation stage from Gemini Flash to a Together-hosted Qwen
+  variant for a price experiment becomes a multi-day platform change instead of a one-line
+  `params.yaml` edit. Fallback across providers when one is rate-limiting is hand-rolled
+  retry/try-catch glue that we'd have to maintain.
+* **Decision**: **Rejected.** The friction is incompatible with the iteration cadence the
+  ingestion pipeline and future AI features need.
+
+## LLM Aggregators (real peers to OpenRouter)
+
+Aggregators own the upstream provider relationships, so a single account, key, and bill replace
+N per-provider integrations. The relevant axes to compare them on are catalogue breadth,
+routing controls, pricing model, platform coupling, and maturity.
+
+### [Vercel AI Gateway](https://vercel.com/ai-gateway)
+
+The closest peer to OpenRouter, a unified API to hundreds of models with no per-token markup,
+optional BYOK, OpenAI- and Anthropic-compatible endpoints, automatic cross-provider retry, and
+spend monitoring.
+
+* **Pros**: Genuine OpenRouter-class product (catalogue + unified billing + retry). **Cheaper
+  on tokens than OpenRouter**: Vercel charges 0% markup on per-token pricing (AI Gateway is a
+  loss leader for hosting; optional add-on capabilities and Stripe-passthrough card processing
+  carry the cost), where OpenRouter applies \~5.8% effective via its credit-top-up fee. See
+  the Cost Model table above for the \~3pp effective gap at meaningful scale. Native
+  integration with the Vercel AI SDK if we ever adopt that client library.
+* **Cons**: Smaller catalogue (275 vs OpenRouter's 358 models, live counts May 2026) and
+  meaningfully thinner provider depth on popular open-weight models. Hard examples from
+  querying both APIs: Llama 3.3 70B Instruct is **not in Vercel's catalogue at all**
+  (OpenRouter has 15 providers for it); Claude Sonnet 4.6 has 3 endpoints on Vercel vs 8 on
+  OpenRouter; the long-tail open-weight providers (Groq, Cerebras, Nebius, AkashML, Parasail,
+  Friendli) are largely missing. For closed frontier models the depth is comparable (GPT-5.5:
+  2 vs 2; DeepSeek V3.1: 6 vs 7), and Vercel   occasionally has more depth (Qwen 3 235B: 4 vs 1),
+  but the open-weight long tail is where cost arbitrage lives and OpenRouter is clearly
+  ahead. Fewer published granular routing knobs (no documented equivalent of `provider.zdr`,
+  `provider.data_collection: "deny"`, `provider.quantizations`, or
+  `provider.preferred_min_throughput`). The product is Vercel-platform tilted: free credits
+  and dashboard tooling are scoped to a Vercel account, app attribution assumes a Vercel
+  deployment. We are on [Cloudflare Pages (ADR 011)](/projects/personal-knowledge-graph/adrs/011-cloudflare-pages)
+  with no Vercel account, so adopting it pulls in an entire platform relationship for the LLM
+  layer alone. Newer product (GA 2025) with a thinner public track record than OpenRouter,
+  which has been the de facto cross-provider LLM marketplace since 2023.
+* **Decision**: **Rejected.** Real alternative, but adopting it would mean taking on Vercel as a
+  platform purely for inference while losing routing controls we already use. If a future
+  feature ever needs Vercel-only capabilities (a Next.js-on-Vercel deployment, Vercel's app
+  attribution), this is worth revisiting.
+
+> **Composable, not an alternative.** The [Vercel AI SDK](https://ai-sdk.dev/) (the
+> client/server *library*, with `useChat`, `useCompletion`, `useObject` and streaming primitives) is a
+> separate product from the Vercel AI Gateway. It is framework-agnostic, runs fine on
+> Cloudflare, and has an [official OpenRouter provider](https://github.com/OpenRouterTeam/ai-sdk-provider)
+> (`@openrouter/ai-sdk-provider`). If we build a streaming chat UI, the Vercel AI SDK on top of
+> OpenRouter is the natural fit; the two compose, they don't compete.
+
+### [Eden AI](https://www.edenai.co/)
+
+A multimodal aggregator with \~30 provider integrations across text, OCR, document parsing,
+speech, translation, and image analysis, leaning on specialist providers per modality (Mindee
+for OCR, DeepL for translation, Deepgram for speech, etc.) rather than the LLM/VLM
+generalists. Unified billing on a credit balance with a 5.5% platform fee on credit top-up,
+effectively the same cost model as OpenRouter, so no price advantage either way. GDPR-native,
+EU data residency by default, headquartered in France.
+
+* **Decision**: **Rejected.** The "multi-modality under one contract" angle would be
+  compelling if OpenRouter only did text, but it doesn't. OpenRouter covers a superset of the
+  modalities we need: LLMs, VLMs, embeddings, image generation, and (since the
+  [2025 audio APIs launch](https://openrouter.ai/announcements/announcing-audio-apis)) STT and
+  TTS via Whisper, Chirp 3, GPT-4o Transcribe, Groq Whisper, and similar TTS providers. Eden
+  AI's specialist providers (DeepL, Mindee, Deepgram) are higher-quality on their narrow
+  domains but we don't need them. Our document parsing is already VLM-based, voice navigation
+  in cooking mode uses the browser-native Web Speech API
+  (see the recipe-site roadmap's *Voice / Hands-Free Navigation* section), and translation isn't on the roadmap. The
+  remaining real differences are smaller LLM catalogue (\~30 vs OpenRouter's 60+) and less
+  granular routing controls. Eden AI's EU data residency posture is nice but isn't a trigger
+  for a B2C consumer product without that as an explicit positioning claim.
+
+### [AI/ML API](https://aimlapi.com/)
+
+OpenAI-compatible aggregator with its own catalogue and unified billing. Positioned as a
+lower-cost OpenRouter alternative.
+
+* **Decision**: **Rejected.** Smaller catalogue and ecosystem than OpenRouter, with no clear
+  feature advantage for our workload. OpenRouter's incumbency, integration in the existing
+  pipeline, and routing-control surface area outweigh any marginal price difference.
+
+## LLM Gateways (BYOK, solve a different half of the problem)
+
+Gateways do not remove per-provider account or billing sprawl. They add observability, policy
+(rate limits, budgets, guardrails), key management, and routing on top of provider relationships
+*we* still have to set up and own. Useful as a complement to an aggregator, not as a replacement.
+
+### [Cloudflare AI Gateway](https://developers.cloudflare.com/ai-gateway/)
+
+* **Pros**: Sits inline with the rest of the Cloudflare estate ([ADR 011](/projects/personal-knowledge-graph/adrs/011-cloudflare-pages),
+  [ADR 029](/projects/personal-knowledge-graph/adrs/029-cloudflare-images), [ADR 039](/projects/personal-knowledge-graph/adrs/039-cloudflare-r2)).
+  Free tier. Recent Secrets Store integration
+  ([Aug 2025](https://developers.cloudflare.com/changelog/post/2025-08-25-secrets-store-ai-gateway/))
+  centralises API key storage. Adds [Guardrails](https://developers.cloudflare.com/ai-gateway/features/guardrails/)
+  (content-safety inspection on prompts and responses), which OpenRouter does not. The one
+  capability that could realistically pull us toward layering AI Gateway later, if
+  user-facing AI inputs become an abuse vector.
+* **Cons**: To use Claude via Bedrock through AI Gateway, the project still needs an AWS account,
+  IAM user, SigV4 setup, and a Bedrock billing relationship; AI Gateway signs requests with
+  credentials we provide. Vertex AI similarly requires a Google service account JSON. Every
+  provider needs to be onboarded individually. No first-party cross-provider model catalogue and
+  no fallback to alternative providers for the same model. Caching overlaps heavily with what
+  OpenRouter already provides ([response caching](https://openrouter.ai/docs/guides/features/response-caching),
+  prompt-cache pass-through). Semantic caching, which would be a real differentiator, is on
+  Cloudflare's roadmap but [not yet shipped](https://developers.cloudflare.com/ai-gateway/features/caching/).
+  And the Cloudflare dashboard is not a particularly strong general-purpose observability tool;
+  if we wanted a single pane of glass across the whole product (Workers, Neon Postgres, AI, business
+  metrics) we'd more likely introduce a dedicated platform like Grafana Cloud. A separate ADR.
+* **Decision**: **Rejected as the primary access layer.** Worth layering in front of OpenRouter
+  *later* if user-facing AI features come to depend on guardrails, the one realistic
+  trigger for a B2C consumer recipe product, and accepting the per-provider onboarding cost
+  that comes with it. Pure caching is not on its own reason enough (OpenRouter already covers
+  it), and general observability is *not* a reason to reach for AI Gateway either. That's a
+  separate decision about observability tooling. The SDK doesn't change either way.
+
+### [LiteLLM](https://github.com/BerriAI/litellm)
+
+Open-source (MIT) proxy. Self-hosted or via the managed LiteLLM Cloud offering, both BYOK at
+the inference layer.
+
+* **Pros**: Same provider-abstraction surface as the aggregators. No third-party dependency on
+  the inference path if self-hosted. Strong observability and routing primitives.
+* **Cons**: Self-hosting is a platform we'd have to run, scale, and pay for; the managed cloud
+  removes that but is still BYOK so the per-provider account/billing problem persists either
+  way. It's a *router*, not a *marketplace*.
+* **Decision**: **Rejected.** Buys flexibility we don't need at the cost of platforms and
+  per-provider admin we explicitly want to avoid.
+
+### [Portkey](https://portkey.ai/)
+
+Production-focused BYOK gateway with Virtual Keys / Model Catalog for centralised key
+management, budgets, guardrails, and routing. Markets "1,600+ models". Note this is the
+aggregate across upstream providers Portkey can proxy to (Together alone exposes hundreds of
+open-weight variants), not a Portkey-curated catalogue comparable to OpenRouter's 358 or
+Vercel's 275. Portkey operates only as a router. Pricing is per-log (\~$49/mo for
+100K logs at the time of writing).
+
+In May 2026, [Palo Alto Networks](https://www.paloaltonetworks.com/), one of the largest
+pure-play cybersecurity vendors, known for premium enterprise pricing, announced intent to
+acquire Portkey. PANW acquisitions typically de-prioritise self-serve / SMB tiers in favour of
+enterprise SKUs sold to security teams, push pricing up, and shift the roadmap toward audit /
+compliance / DLP features rather than developer ergonomics. The open-source Portkey gateway
+could stagnate or be re-licensed. This is a yellow flag for any project planning to use
+Portkey self-serve at SMB scale, even though existing customers usually keep service on
+grandfathered terms for 12–24 months post-acquisition.
+
+* **Decision**: **Rejected.** Strong enterprise feature set we don't need, BYOK at the
+  inference layer so doesn't remove provider sprawl, and log-based pricing scales unfavourably
+  for a project where individual feature usage may be high-volume (every recipe ingestion is a
+  request). The PANW acquisition reinforces the rejection, the product is heading further
+  toward enterprise buyers and away from self-serve developers.
+
+### [Kong AI Gateway](https://konghq.com/products/kong-ai-gateway)
+
+The AI extension of Kong's enterprise API gateway. Adds semantic caching, semantic routing,
+PII redaction, model lifecycle management, and governance on top of BYOK provider
+relationships. Enterprise licensing, typically $50K+/year.
+
+* **Decision**: **Rejected.** Enterprise governance platform aimed at organisations
+  standardising agentic AI across many teams. Operationally and commercially disproportionate
+  to a personal/portfolio project. BYOK at the inference layer; same provider-sprawl story as
+  the other gateways.
+
+## Custom Internal Abstraction over Provider SDKs
+
+A typed `LLMClient` interface in the domain layer with adapters per provider, switching by config.
+
+* **Pros**: No third-party gateway; bespoke fit.
+* **Cons**: Every new model and feature (prompt caching, vision, structured outputs, streaming)
+  becomes another adapter PR. Reimplements OpenRouter at greater cost and worse coverage. Strong
+  variant of Not Invented Here (NIH) syndrome.
+* **Decision**: **Rejected.** This is the work to avoid.
+
+# Consequences
+
+## Positive
+
+* **One bill, one key, one SDK across the whole project.** The ML pipeline and any future
+  Cloudflare Worker handling AI features use the same OpenAI SDK pointed at OpenRouter, with the
+  same `OPENROUTER_API_KEY`. Secrets management surface area stays flat as more AI features
+  ship.
+* **Higher effective availability than first-party APIs.** For widely hosted models (Claude on
+  Anthropic + Bedrock + Vertex; Llama on Together + DeepInfra + Fireworks + Bedrock), OpenRouter
+  falls back across providers transparently. The Anthropic API outages around major Claude
+  releases stop being our problem.
+* **No Bedrock IAM, no Vertex service accounts, no per-provider consoles**, capacity from those
+  providers is reachable without taking on AWS/GCP as a platform.
+* **One-line model swaps in experiments.** `params.yaml` already lists per-stage models; trying
+  a new VLM or LLM is changing one string and rerunning `dvc repro`
+  ([ADR 000](/projects/recipe-site/adrs/000-dvc)). Stage caching means only the affected stages
+  re-execute.
+* **Per-stage cost/perf tuning via model choice.** `params.yaml` already mixes Gemini 3 Flash
+  Preview (vision-heavy stages) with Gemini 2.5 Flash (cheaper text stage). Future tuning can
+  swap any stage's model on a one-line edit, or reach for `provider.sort` / `:nitro` / `:floor`
+  if provider-level optimisation ever proves worth it.
+* **Structured outputs already wired in.** `response_format: json_schema, strict: true` is
+  already used for every pipeline stage, and Cooklang's frontmatter schema is a perfect fit for
+  it.
+* **VLM and LLM in one place.** Photo ingestion and text normalisation use the same client; future
+  features (photo URL import, smooth onboarding) inherit this with zero new integration work.
+* **Built-in usage observability**. Historic activity dashboard filterable by model/provider/key
+  removes the immediate need to roll our own LLM telemetry.
+
+## Negative
+
+* **Third-party dependency on the live inference path.** Once user-facing AI features ship
+  (recipe ingestion at onboarding, cooking-mode voice navigation, AI URL import, meal
+  planning, nutritional analysis), product UX depends on OpenRouter availability. An
+  OpenRouter outage degrades onboarding, blocks live transcription, breaks meal
+  planning. The BYOK fallback isn't an instant escape hatch. It requires us to have already
+  onboarded the affected provider directly, which is itself a planning decision we'd need to
+  have made in advance for the heavy-traffic paths. Mitigation: BYOK pre-configured for the
+  top traffic providers as scale grows, status monitoring, and accepting that long-tail
+  experimentation features will be down during an OpenRouter outage.
+
+* **We own per-user quotas, metering, and abuse protection.**
+  OpenRouter has account-level rate limits and the `user` parameter for activity tracking,
+  but it isn't a per-user quota engine. At product scale, enforcing "free tier gets N
+  ingestions/month, premium tier unlimited", detecting prompt injection / abuse, and
+  per-user budget caps live in our Workers backend and PostgreSQL database on Neon. OpenRouter is
+  the inference layer; the metering and access-control layer is ours to build. If our backend logic
+  isn't enough,
+  Cloudflare AI Gateway specifically offers Guardrails (content-safety inspection) as a
+  layered option, but per-user budgets, abuse heuristics, and product-shaped rate limits
+  remain ours to own either way.
+
+* **Data flows through OpenRouter and the AI-side audit trail lives there, not on our
+  infrastructure.** For GDPR data subject access / deletion requests on AI-related data, we
+  coordinate with OpenRouter as a sub-processor rather than self-serving from our own logs.
+  `provider.zdr: true` and `provider.data_collection: "deny"` mitigate retention/training
+  concerns where the provider supports them, but the request still transits OpenRouter's
+  infrastructure. For a B2C consumer product this is a normal sub-processor relationship and
+  the right trade-off; if the product ever takes on a partner or use case that demands
+  in-house data flow, Cloudflare AI Gateway as a BYOK proxy is the documented escape hatch
+  (with its own per-provider onboarding cost).
+
+* **Added latency on every request.** OpenRouter is one extra hop between our backend and the
+  upstream provider. Inconsequential for async features (batch ingestion, AI URL import,
+  meal planning generation); potentially meaningful for low-latency interactive features,
+  most notably server-side voice transcription in cooking mode if we move off the
+  browser-native Web Speech API. Per-request TTFT is visible in OpenRouter's dashboard so we
+  can measure rather than guess.
+
+* **Spend goes through OpenRouter, not directly to the model provider.** We can't draw down
+  provider startup credits (AWS Activate, Google Cloud credits, Anthropic / OpenAI startup
+  programmes) unless we BYOK that specific provider, which reintroduces the per-provider
+  account/billing setup we're trying to avoid for the long tail. At meaningful product spend
+  the \~5.8% effective markup is a real cost; the [Cost Over the Lifecycle](#cost-over-the-lifecycle)
+  BYOK path is the mitigation, but only closes the gap for providers we onboard directly.
+
+* **Feature-launch lag for provider-native capabilities.** When Anthropic ships a new prompt
+  caching mode, OpenAI ships the Responses API, or Google ships new safety controls, there
+  can be a gap before OpenRouter exposes them through the unified API. BYOK direct or a
+  temporary direct-SDK integration for one stage is the escape hatch if a feature is
+  genuinely blocking a release.
+
+* **Commercial single point of failure.** OpenRouter is a venture-backed startup with no
+  acquisition or IPO history. Pricing changes, an unfavourable acquisition (rug-pull risk),
+  or worst-case business failure are live risks for any AI feature in critical path. Bounded
+  by the OpenAI-compatible thin-integration shape, migrating to another aggregator (Vercel
+  AI Gateway, Eden AI), to a BYOK gateway with full provider sprawl (Cloudflare AI Gateway,
+  Portkey), or to provider-direct requires a baseURL change and provider re-onboarding without a
+  code rewrite. Keep the integration on the OpenAI-compatible API and treat
+  vendor-specific OpenRouter features as optional.
+
+## When to Revisit
+
+This decision should be revisited if any of the following become true:
+
+* **Spend on easy-to-BYOK providers grows large enough to justify the operational cost of
+  setting up direct accounts.** The first response is selective BYOK on OpenRouter (Anthropic /
+  OpenAI / Google AI Studio direct keys, fallback unchanged), not switching access layer. Only
+  if BYOK on OpenRouter doesn't close the gap should switching come into scope.
+* **Spend grows large on providers we can't BYOK cheaply** (Bedrock, Vertex), and the \~5.8%
+  markup on that subset becomes a meaningful absolute number. At that point a head-to-head with
+  Vercel AI Gateway is warranted, they run at \~2.5% effective (Stripe passthrough) so the
+  \~3pp gap on that traffic could justify accepting the catalogue/depth trade-offs.
+* A feature comes to depend on prompt caching across providers (Anthropic-style cache control,
+  OpenAI cached input pricing) and OpenRouter's pass-through coverage lags. At that point
+  going direct for one specific stage via BYOK is reasonable.
+* **User-facing AI features become abuse vectors.** If a Phase 3+ cooking-assistant chat,
+  AI URL import, or AI photo import accepts freeform user input that ends up at a model, the
+  surface area for prompt injection, jailbreak attempts, or generating harmful content grows.
+  At that point [Cloudflare AI Gateway's Guardrails](https://developers.cloudflare.com/ai-gateway/features/guardrails/)
+  layered in front of OpenRouter, without changing SDK code, is a reasonable response,
+  accepting the per-provider onboarding cost that comes with it.
+* An outage pattern on OpenRouter itself proves more disruptive than first-party APIs.
+
+Until then, OpenRouter is the right point on the curve: maximum model agility, minimum platform
+sprawl, and a clean BYOK migration path as scale arrives.
