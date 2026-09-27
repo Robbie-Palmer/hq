@@ -37,6 +37,31 @@ function canRevoke(agent: AgentSummary): boolean {
   return agent.status === "active" || agent.status === "pending";
 }
 
+type LoadResult<T> =
+  | { success: true; value: T }
+  | { success: false; error: unknown };
+
+async function loadResult<T>(request: Promise<T>): Promise<LoadResult<T>> {
+  try {
+    return { success: true, value: await request };
+  } catch (error) {
+    return { success: false, error };
+  }
+}
+
+function loadWasAborted(result: LoadResult<unknown>): boolean {
+  return !result.success && isAbortError(result.error);
+}
+
+function loadFailure(
+  agentResult: LoadResult<AgentSummary[]>,
+  mutationResult: LoadResult<AgentMutationHistory[]>,
+): unknown | null {
+  if (!agentResult.success) return agentResult.error;
+  if (!mutationResult.success) return mutationResult.error;
+  return null;
+}
+
 export function AgentsPanel() {
   const [agents, setAgents] = useState<AgentSummary[] | null>(null);
   const [mutations, setMutations] = useState<AgentMutationHistory[] | null>(
@@ -49,17 +74,27 @@ export function AgentsPanel() {
 
   async function load(signal?: AbortSignal) {
     setError(null);
-    try {
-      const [nextAgents, nextMutations] = await Promise.all([
-        listAgents(signal),
-        listAgentMutations(signal),
-      ]);
-      setAgents(nextAgents);
-      setMutations(nextMutations);
-    } catch (cause) {
-      if (isAbortError(cause)) return;
+    const [agentResult, mutationResult] = await Promise.all([
+      loadResult(listAgents(signal)),
+      loadResult(listAgentMutations(signal)),
+    ]);
+    if (
+      signal?.aborted ||
+      loadWasAborted(agentResult) ||
+      loadWasAborted(mutationResult)
+    ) {
+      return;
+    }
+    if (agentResult.success) setAgents(agentResult.value);
+    if (mutationResult.success) {
+      setMutations(mutationResult.value);
+    }
+    const failure = loadFailure(agentResult, mutationResult);
+    if (failure) {
       setError(
-        cause instanceof Error ? cause.message : "Agents could not be loaded.",
+        failure instanceof Error
+          ? failure.message
+          : "Agent data could not be loaded.",
       );
     }
   }
@@ -128,6 +163,12 @@ export function AgentsPanel() {
       setRevokingId(null);
     }
   }
+
+  const compensatedChangeSetIds = new Set(
+    mutations?.flatMap((mutation) =>
+      mutation.compensatesChangeSetId ? [mutation.compensatesChangeSetId] : [],
+    ) ?? [],
+  );
 
   return (
     <div>
@@ -289,7 +330,8 @@ export function AgentsPanel() {
                     </p>
                   </div>
                   {change.actorType === "agent" &&
-                    !change.compensatesChangeSetId && (
+                    !change.compensatesChangeSetId &&
+                    !compensatedChangeSetIds.has(change.id) && (
                       <Button
                         type="button"
                         variant="outline"

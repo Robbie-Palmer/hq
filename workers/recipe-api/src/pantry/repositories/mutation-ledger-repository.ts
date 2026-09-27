@@ -144,3 +144,35 @@ export async function listMutationHistory(
     items: items.filter((item) => item.changeSetId === set.id),
   }));
 }
+
+export async function purgeMutationHistoryForUser(
+  tx: DbTransaction,
+  userId: string,
+): Promise<void> {
+  const changeSets = await tx
+    .select({ id: schema.agentMutationChangeSet.id })
+    .from(schema.agentMutationChangeSet)
+    .where(eq(schema.agentMutationChangeSet.actorUserId, userId));
+  if (changeSets.length === 0) return;
+  const changeSetIds = changeSets.map(({ id }) => id);
+  await tx
+    .delete(schema.agentMutationChangeItem)
+    .where(
+      inArray(schema.agentMutationChangeItem.changeSetId, changeSetIds),
+    );
+  await tx
+    .delete(schema.pantryItemAbsence)
+    .where(inArray(schema.pantryItemAbsence.changeSetId, changeSetIds));
+  await tx
+    .update(schema.agentMutationChangeSet)
+    .set({ compensatesChangeSetId: null })
+    .where(
+      inArray(
+        schema.agentMutationChangeSet.compensatesChangeSetId,
+        changeSetIds,
+      ),
+    );
+  await tx
+    .delete(schema.agentMutationChangeSet)
+    .where(inArray(schema.agentMutationChangeSet.id, changeSetIds));
+}

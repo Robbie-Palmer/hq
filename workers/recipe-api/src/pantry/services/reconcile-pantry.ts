@@ -1,8 +1,8 @@
 import type { Db } from "recipe-db";
 import type { MutationActor } from "recipe-domain/mutation";
 import {
-  PantryMutationConflictError,
   type PantryMutationChange,
+  PantryMutationConflictError,
   planPantryTransition,
   validatePantryMutationChanges,
 } from "recipe-domain/pantry";
@@ -15,6 +15,7 @@ import {
 } from "../repositories/mutation-ledger-repository";
 import {
   applyPantryTransition,
+  enforcePantryItemLimit,
   ensureLockedPantryAggregate,
   findCurrentPantryItems,
   incrementPantryRevision,
@@ -117,6 +118,7 @@ export async function reconcilePantry(db: Db, input: ReconcilePantryInput) {
       });
     }
     await insertMutationChangeItems(tx, changeSetId, transitions);
+    await enforcePantryItemLimit(tx, scope);
     const revision = await incrementPantryRevision(tx, aggregate.id);
     return {
       changeSetId,

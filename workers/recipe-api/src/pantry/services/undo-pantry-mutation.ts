@@ -3,6 +3,7 @@ import {
   PantryMutationConflictError,
   planPantryCompensation,
 } from "recipe-domain/pantry";
+import type { DbTransaction } from "../../db/types";
 import {
   findChangeSetByIdempotencyKey,
   insertMutationChangeItems,
@@ -10,6 +11,7 @@ import {
 } from "../repositories/mutation-ledger-repository";
 import {
   applyPantryTransition,
+  enforcePantryItemLimit,
   incrementPantryRevision,
 } from "../repositories/pantry-repository";
 import { loadPantryMutationUndoPreview } from "./preview-pantry-mutation-undo";
@@ -21,36 +23,46 @@ export type UndoPantryMutationInput = {
   stableItemIds?: string[];
 };
 
+async function replayedUndo(
+  tx: DbTransaction,
+  input: UndoPantryMutationInput,
+  requestFingerprint: string,
+) {
+  const existing = await findChangeSetByIdempotencyKey(
+    tx,
+    input.idempotencyKey,
+  );
+  if (!existing) return null;
+  const matches =
+    existing.actorType === "user" &&
+    existing.actorUserId === input.userId &&
+    existing.compensatesChangeSetId === input.changeSetId &&
+    existing.commandFingerprint === requestFingerprint;
+  if (!matches) {
+    throw new PantryMutationConflictError(
+      "Idempotency key was already used for a different mutation",
+    );
+  }
+  return {
+    applied: true as const,
+    changeSetId: existing.id,
+    replayed: true as const,
+  };
+}
+
 export async function undoPantryMutation(
   db: Db,
   input: UndoPantryMutationInput,
 ) {
   const requestFingerprint = JSON.stringify([
     input.changeSetId,
-    input.stableItemIds ? [...input.stableItemIds].sort() : "*",
+    input.stableItemIds
+      ? [...input.stableItemIds].sort((a, b) => a.localeCompare(b))
+      : "*",
   ]);
   return db.transaction(async (tx) => {
-    const existing = await findChangeSetByIdempotencyKey(
-      tx,
-      input.idempotencyKey,
-    );
-    if (existing) {
-      const matches =
-        existing.actorType === "user" &&
-        existing.actorUserId === input.userId &&
-        existing.compensatesChangeSetId === input.changeSetId &&
-        existing.commandFingerprint === requestFingerprint;
-      if (!matches) {
-        throw new PantryMutationConflictError(
-          "Idempotency key was already used for a different mutation",
-        );
-      }
-      return {
-        applied: true as const,
-        changeSetId: existing.id,
-        replayed: true as const,
-      };
-    }
+    const replay = await replayedUndo(tx, input, requestFingerprint);
+    if (replay) return replay;
 
     const preview = await loadPantryMutationUndoPreview(
       tx,
@@ -58,6 +70,8 @@ export async function undoPantryMutation(
       input.changeSetId,
     );
     if (!preview) return null;
+    const lockedReplay = await replayedUndo(tx, input, requestFingerprint);
+    if (lockedReplay) return lockedReplay;
     const selectedIds = input.stableItemIds
       ? new Set(input.stableItemIds)
       : new Set(preview.items.map((item) => item.stableItemId));
@@ -103,6 +117,7 @@ export async function undoPantryMutation(
       });
     }
     await insertMutationChangeItems(tx, compensationId, transitions);
+    await enforcePantryItemLimit(tx, preview.scope);
     await incrementPantryRevision(tx, preview.aggregate.id);
     return {
       applied: true as const,

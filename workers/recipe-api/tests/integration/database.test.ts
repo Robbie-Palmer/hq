@@ -411,6 +411,105 @@ describe("recipe API PostgreSQL integration", () => {
     expect(await json(pantry)).toMatchObject({ stock: { onion: "fresh" } });
   });
 
+  it("invalidates an agent addition after a human deletes it", async () => {
+    const cook = await createUser(
+      "Ledger Delete Cook",
+      "ledger-delete@example.test",
+    );
+    const applied = await reconcilePantry(db, {
+      actor: {
+        type: "agent",
+        userId: cook.id,
+        agentId: "ledger-delete-agent",
+        agentName: "Pantry helper",
+        hostId: "ledger-delete-host",
+      },
+      capability: "pantry.reconcile",
+      reason: "Record the fresh stock",
+      idempotencyKey: "0198f1f0-9999-7999-8999-999999999999",
+      changes: [
+        {
+          ingredientSlug: "onion",
+          expectedVersion: null,
+          location: "fresh",
+        },
+      ],
+    });
+    const humanDelete = await authenticatedRequest(
+      cook,
+      "/pantry/items/onion",
+      { method: "DELETE" },
+    );
+    expect(humanDelete.status).toBe(200);
+
+    await expect(
+      previewPantryMutationUndo(db, cook.id, applied.changeSetId),
+    ).resolves.toMatchObject({ canUndo: false, items: [{ status: "conflict" }] });
+    await expect(
+      undoPantryMutation(db, {
+        userId: cook.id,
+        changeSetId: applied.changeSetId,
+        idempotencyKey: "0198f1f0-aaaa-7aaa-8aaa-aaaaaaaaaaaa",
+      }),
+    ).resolves.toMatchObject({ applied: false });
+  });
+
+  it("purges the mutation ledger when its actor deletes their account", async () => {
+    const cook = await createUser(
+      "Ledger Deletion Cook",
+      "ledger-account-delete@example.test",
+    );
+    const applied = await reconcilePantry(db, {
+      actor: {
+        type: "agent",
+        userId: cook.id,
+        agentId: "account-delete-agent",
+        agentName: "Pantry helper",
+        hostId: "account-delete-host",
+      },
+      capability: "pantry.reconcile",
+      reason: "Record stock before account deletion",
+      idempotencyKey: "0198f1f0-bbbb-7bbb-8bbb-bbbbbbbbbbbb",
+      changes: [
+        {
+          ingredientSlug: "onion",
+          expectedVersion: null,
+          location: "fresh",
+        },
+      ],
+    });
+    const undone = await undoPantryMutation(db, {
+      userId: cook.id,
+      changeSetId: applied.changeSetId,
+      idempotencyKey: "0198f1f0-cccc-7ccc-8ccc-cccccccccccc",
+    });
+    if (!undone?.changeSetId) throw new Error("Mutation could not be undone");
+
+    const deletion = await authenticatedRequest(cook, "/api/auth/delete-user", {
+      method: "POST",
+      body: { password },
+    });
+    expect(deletion.status).toBe(200);
+    expect(
+      await db
+        .select()
+        .from(schema.agentMutationChangeSet)
+        .where(eq(schema.agentMutationChangeSet.actorUserId, cook.id)),
+    ).toHaveLength(0);
+    expect(
+      await db
+        .select()
+        .from(schema.agentMutationChangeItem)
+        .where(eq(schema.agentMutationChangeItem.changeSetId, applied.changeSetId)),
+    ).toHaveLength(0);
+    expect(
+      await db
+        .select()
+        .from(schema.pantryItemAbsence)
+        .where(eq(schema.pantryItemAbsence.changeSetId, undone.changeSetId)),
+    ).toHaveLength(0);
+  });
+
   it("resolves pantry ownership again when an agent reads it", async () => {
     const cook = await createUser(
       "Delegated Pantry Cook",

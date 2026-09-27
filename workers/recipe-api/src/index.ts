@@ -40,7 +40,9 @@ import {
 } from "recipe-db";
 import { SavedRecipePayloadSchema } from "recipe-domain/serialization";
 import {
+  MAX_PANTRY_ITEMS,
   MAX_PANTRY_MUTATION_CHANGES,
+  PantryItemLimitError,
   PantryLocationSchema,
   PantryMutationConflictError,
 } from "recipe-domain/pantry";
@@ -94,7 +96,6 @@ import {
 } from "./notifications";
 import {
   findPantryAggregate,
-  MAX_PANTRY_ITEMS,
   pantryAggregateScopeFilter,
   type PantryLocation,
   type PantryResponse,
@@ -105,6 +106,7 @@ import {
   readPantry,
   resolvePantryScope,
 } from "./pantry";
+import { enforcePantryItemLimit } from "./pantry/repositories/pantry-repository";
 import { listPantryMutationHistory } from "./pantry/services/list-pantry-mutation-history";
 import { previewPantryMutationUndo } from "./pantry/services/preview-pantry-mutation-undo";
 import { undoPantryMutation } from "./pantry/services/undo-pantry-mutation";
@@ -1633,24 +1635,6 @@ class UnknownPantryIngredientError extends Error {
   constructor(readonly ingredientSlug: string) {
     super(`Unknown ingredient: ${ingredientSlug}`);
   }
-}
-
-class PantryItemLimitError extends Error {
-  constructor() {
-    super(`A pantry can contain at most ${MAX_PANTRY_ITEMS} ingredients`);
-  }
-}
-
-async function enforcePantryItemLimit(
-  tx: DbTransaction,
-  scope: PantryScope,
-): Promise<void> {
-  const items = await tx
-    .select({ ingredientSlug: schema.pantryItem.ingredientSlug })
-    .from(schema.pantryItem)
-    .where(pantryScopeFilter(scope))
-    .limit(MAX_PANTRY_ITEMS + 1);
-  if (items.length > MAX_PANTRY_ITEMS) throw new PantryItemLimitError();
 }
 
 function pantryOperationId(c: Context<AppEnv>): string | Response {

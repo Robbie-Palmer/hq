@@ -6,6 +6,7 @@ export const PantryLocationSchema = z.enum(PANTRY_LOCATIONS);
 
 export type PantryLocation = z.infer<typeof PantryLocationSchema>;
 
+export const MAX_PANTRY_ITEMS = 500;
 export const MAX_PANTRY_MUTATION_CHANGES = 100;
 
 export type PantryMutationValue = {
@@ -38,8 +39,6 @@ export type PantryChangeRecord = {
   afterVersion: bigint;
 };
 
-export type PantryTransition = PantryChangeRecord;
-
 export type PantryUndoPreviewItem = Omit<
   PantryChangeRecord,
   "beforeVersion" | "afterVersion"
@@ -52,6 +51,13 @@ export class PantryMutationConflictError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "PantryMutationConflictError";
+  }
+}
+
+export class PantryItemLimitError extends Error {
+  constructor() {
+    super(`A pantry can contain at most ${MAX_PANTRY_ITEMS} ingredients`);
+    this.name = "PantryItemLimitError";
   }
 }
 
@@ -89,7 +95,7 @@ export function planPantryTransition(
   change: PantryMutationChange,
   current: PantryCurrentItem | undefined,
   newStableItemId: string,
-): PantryTransition {
+): PantryChangeRecord {
   if ((current?.version ?? null) !== expectedVersion(change.expectedVersion)) {
     throw new PantryMutationConflictError(
       `${change.ingredientSlug} changed after the actor read it`,
@@ -148,7 +154,7 @@ export function planPantryCompensation(
   record: PantryChangeRecord,
   current: PantryCurrentItem | undefined,
   absence: PantryAbsenceRevision | undefined,
-): PantryTransition {
+): PantryChangeRecord {
   const preview = previewPantryCompensation(record, current, absence);
   if (preview.status === "conflict") {
     throw new PantryMutationConflictError(

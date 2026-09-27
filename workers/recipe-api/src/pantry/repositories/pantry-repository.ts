@@ -2,13 +2,17 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import * as schema from "recipe-db/schema";
 import type {
   PantryAbsenceRevision,
+  PantryChangeRecord,
   PantryCurrentItem,
-  PantryTransition,
+} from "recipe-domain/pantry";
+import {
+  MAX_PANTRY_ITEMS,
+  PantryItemLimitError,
 } from "recipe-domain/pantry";
 import type { DbTransaction } from "../../db/types";
 import {
-  pantryAggregateScopeFilter,
   type PantryScope,
+  pantryAggregateScopeFilter,
   pantryScopeFilter,
   resolvePantryScope,
 } from "../../pantry";
@@ -124,7 +128,7 @@ export async function applyPantryTransition(
     aggregateId: string;
     changeSetId: string;
     scope: PantryScope;
-    transition: PantryTransition;
+    transition: PantryChangeRecord;
   },
 ): Promise<void> {
   const { aggregateId, changeSetId, scope, transition } = input;
@@ -191,6 +195,18 @@ export async function applyPantryTransition(
         ),
       ),
     );
+}
+
+export async function enforcePantryItemLimit(
+  tx: DbTransaction,
+  scope: PantryScope,
+): Promise<void> {
+  const items = await tx
+    .select({ ingredientSlug: schema.pantryItem.ingredientSlug })
+    .from(schema.pantryItem)
+    .where(pantryScopeFilter(scope))
+    .limit(MAX_PANTRY_ITEMS + 1);
+  if (items.length > MAX_PANTRY_ITEMS) throw new PantryItemLimitError();
 }
 
 export async function incrementPantryRevision(

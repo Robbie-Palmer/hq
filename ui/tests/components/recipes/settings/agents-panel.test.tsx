@@ -114,6 +114,17 @@ describe("AgentsPanel", () => {
     expect(screen.getByText("Meal planner")).toBeInTheDocument();
   });
 
+  it("keeps agent controls available when mutation history fails", async () => {
+    mocks.listAgentMutations.mockRejectedValueOnce(
+      new Error("History unavailable"),
+    );
+    render(<AgentsPanel />);
+
+    expect(await screen.findByText("Meal planner")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Revoke access" })).toBeEnabled();
+    expect(screen.getByRole("alert")).toHaveTextContent("History unavailable");
+  });
+
   it("keeps a successful revocation visible when refresh fails", async () => {
     const user = userEvent.setup();
     mocks.listAgents
@@ -171,5 +182,47 @@ describe("AgentsPanel", () => {
     await waitFor(() =>
       expect(mocks.listAgentMutations).toHaveBeenCalledTimes(2),
     );
+  });
+
+  it("does not offer to undo a change that has a compensation", async () => {
+    const originalId = "0198f1f0-5555-7555-8555-555555555555";
+    mocks.listAgentMutations.mockResolvedValueOnce([
+      {
+        id: "0198f1f0-7777-7777-8777-777777777777",
+        actorType: "user",
+        agentId: null,
+        agentName: null,
+        hostId: null,
+        hostName: null,
+        capability: "agent_mutation.undo",
+        targetType: "pantry",
+        targetId: "user-1",
+        reason: "Undo: Put away groceries",
+        compensatesChangeSetId: originalId,
+        createdAt: "2026-08-22T11:00:00.000Z",
+        items: [],
+      },
+      {
+        id: originalId,
+        actorType: "agent",
+        agentId: "agent-1",
+        agentName: "Meal planner",
+        hostId: "host-1",
+        hostName: "Kitchen helper host",
+        capability: "pantry.reconcile",
+        targetType: "pantry",
+        targetId: "user-1",
+        reason: "Put away groceries",
+        compensatesChangeSetId: null,
+        createdAt: "2026-08-22T10:00:00.000Z",
+        items: [],
+      },
+    ]);
+    render(<AgentsPanel />);
+
+    expect(await screen.findByText("Change undone")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Undo" }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -11,6 +11,7 @@ import * as schema from "recipe-db/schema";
 import { createRecipeAgentAuthPlugin } from "./agent-auth";
 import { enforceRateLimit } from "./http/rate-limit";
 import { createHouseholdNotification } from "./notifications";
+import { purgeMutationHistoryForUser } from "./pantry/repositories/mutation-ledger-repository";
 import {
   canonicalEmailIsAvailable,
   syncCanonicalUserEmail,
@@ -193,7 +194,12 @@ export function createAuth(
       )
       .where(eq(schema.member.userId, deletedUser.id))
       .limit(1);
-    if (!membership) return;
+    if (!membership) {
+      await db.transaction((tx) =>
+        purgeMutationHistoryForUser(tx, deletedUser.id),
+      );
+      return;
+    }
 
     if (membership.role !== "owner") {
       const [owner] = await db
@@ -206,8 +212,8 @@ export function createAuth(
           ),
         )
         .limit(1);
-      if (owner) {
-        await db.transaction(async (tx) => {
+      await db.transaction(async (tx) => {
+        if (owner) {
           await createHouseholdNotification(tx, {
             recipientUserIds: [owner.userId],
             kind: "household_member_left",
@@ -217,8 +223,9 @@ export function createAuth(
               name: membership.householdName,
             },
           });
-        });
-      }
+        }
+        await purgeMutationHistoryForUser(tx, deletedUser.id);
+      });
       return;
     }
 
@@ -258,6 +265,7 @@ export function createAuth(
             ),
           );
       }
+      await purgeMutationHistoryForUser(tx, deletedUser.id);
       await tx
         .delete(schema.organization)
         .where(eq(schema.organization.id, membership.householdId));

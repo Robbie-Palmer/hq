@@ -181,6 +181,7 @@ describe("agent access API", () => {
       Response.json({
         applied: true,
         changeSetId: "0198f1f0-7777-7777-8777-777777777777",
+        replayed: false,
       }),
     );
     await expect(undoAgentMutation(changeSetId)).resolves.toBeUndefined();

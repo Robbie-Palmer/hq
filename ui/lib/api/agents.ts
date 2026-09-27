@@ -324,8 +324,12 @@ export async function undoAgentMutation(changeSetId: string): Promise<void> {
     },
   );
   const parsed = z
-    .object({ applied: z.literal(true), changeSetId: z.uuid() })
-    .passthrough()
+    .object({
+      applied: z.literal(true),
+      changeSetId: z.uuid(),
+      replayed: z.boolean(),
+    })
+    .strict()
     .safeParse(body);
   if (!parsed.success) throw new Error("The undo response was invalid.");
 }
