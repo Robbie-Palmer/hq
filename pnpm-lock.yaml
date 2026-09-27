@@ -590,7 +590,7 @@ importers:
         version: 3.3.2
       openai:
         specifier: ^7.0.0
-        version: 7.15.0(undici@7.29.1)(ws@8.21.3)(zod@4.6.5)
+        version: 7.20.0(undici@7.29.1)(ws@8.21.3)(zod@4.6.5)
       recipe-domain:
         specifier: workspace:*
         version: link:../recipe-domain
@@ -7166,8 +7166,8 @@ packages:
     resolution: {integrity: sha512-7x81NCL719oNbsq/3mh+hVrAWmFuEYUqrq/Iw3kUzH8ReypT9QQ0BLoJS7/G9k6N81XjW4qHWtjWwe/9eLy1EQ==}
     engines: {node: '>=12'}
 
-  openai@7.15.0:
-    resolution: {integrity: sha512-2DIwesnPSduw68MFx7nAdgvshrgvS8WOan5W8+tgUMlAy/tY+Q41g80Pa+w/v64rHA6rtn+dketa8QvMVxU96w==}
+  openai@7.20.0:
+    resolution: {integrity: sha512-5x5ru4cKEvEqHqYZbdIbT57OE7KqmP9YYxZiUKuKng016grOHXqom1vmu34MTPPW30q+lcP9RhxAbaRse+Xlcw==}
     engines: {node: '>=22.0.0'}
     peerDependencies:
       '@aws-sdk/credential-provider-node': '>=3.972.0 <4'
@@ -8207,9 +8207,6 @@ packages:
   tinyrainbow@3.1.1:
     resolution: {integrity: sha512-yau8yJdTt989Mm0Bd/236QnzEiPf2xLLTqUZRUJOo/3CB078LSwzei343DgtJVmfJKJE3TMINY1u42SQsP6mXw==}
     engines: {node: '>=14.0.0'}
-
-  tldts-core@7.4.12:
-    resolution: {integrity: sha512-nYNzS2WRf4QJmjzFFgAxLOBjyBxAGRbCy9PVBPaglcYyYajh40VBn+v5Ngr96ZMc7oM0+aCJdtQnNejvdBnXMQ==}
 
   tldts-core@7.4.15:
     resolution: {integrity: sha512-ERuv0p98XgSzmlSLJr8vDNxX+uATGInlN97V3R+JpYWaSqn5IG3ewWgCwczk4bkOpgth/o8Nt5FOi4B4w0n/1A==}
@@ -15081,7 +15078,7 @@ snapshots:
       is-docker: 2.2.1
       is-wsl: 2.2.0
 
-  openai@7.15.0(undici@7.29.1)(ws@8.21.3)(zod@4.6.5):
+  openai@7.20.0(undici@7.29.1)(ws@8.21.3)(zod@4.6.5):
     optionalDependencies:
       undici: 7.29.1
       ws: 8.21.3
@@ -16413,8 +16410,6 @@ snapshots:
 
   tinyrainbow@3.1.1: {}
 
-  tldts-core@7.4.12: {}
-
   tldts-core@7.4.15: {}
 
   tldts-icann@7.4.15:
@@ -16423,7 +16418,7 @@ snapshots:
 
   tldts@7.4.12:
     dependencies:
-      tldts-core: 7.4.12
+      tldts-core: 7.4.15
 
   to-regex-range@5.0.1:
     dependencies:
