@@ -299,6 +299,22 @@ describe("Given a requested delivery-critical path", () => {
     expect(await responseJson(response)).toEqual(projection);
   });
 
+  it("passes repeated inclusion and exclusion filters to critical-path selection", async () => {
+    const repository = buildRepository();
+    const app = createWorkGraphApp(repository);
+
+    const response = await app.request(
+      "/api/critical-path?includeInitiativeIds=initiative-a&includeInitiativeIds=initiative-b&includeProjectIds=project-a&excludeProjectIds=project-b",
+    );
+
+    expect(response.status).toBe(200);
+    expect(repository.projectCriticalPath).toHaveBeenCalledWith({
+      includeInitiativeIds: ["initiative-a", "initiative-b"],
+      includeProjectIds: ["project-a"],
+      excludeProjectIds: ["project-b"],
+    });
+  });
+
   it("returns an empty projection without inventing targets", async () => {
     const repository = buildRepository();
     const projection: CriticalPathProjection = {
@@ -715,6 +731,21 @@ describe("Given work items with derived readiness", () => {
       initiativeId: "initiative",
       projectId: "project",
       parentId: "parent",
+    });
+  });
+
+  it("passes repeated inclusion and exclusion filters to the ordered read", async () => {
+    const repository = buildRepository();
+    const app = createWorkGraphApp(repository);
+
+    const response = await app.request(
+      "/api/work-items?includeProjectIds=project-a&includeProjectIds=project-b&excludeInitiativeIds=initiative-b",
+    );
+
+    expect(response.status).toBe(200);
+    expect(repository.listWorkItems).toHaveBeenCalledWith({
+      includeProjectIds: ["project-a", "project-b"],
+      excludeInitiativeIds: ["initiative-b"],
     });
   });
 
@@ -1645,6 +1676,52 @@ describe("Given a worker managing a lease", () => {
       projectId: "project",
       parentId: "parent",
     });
+  });
+
+  it("passes scope arrays to scheduler-selected claims", async () => {
+    const repository = buildRepository();
+    const app = createWorkGraphApp(repository, {
+      createLeaseId: () => leaseId,
+    });
+
+    const response = await app.request("/api/leases", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workerId: "worker-a",
+        leaseDurationSeconds: 300,
+        includeProjectIds: ["project-a", "project-b"],
+        excludeProjectIds: ["project-b"],
+      }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(repository.claimWorkItem).toHaveBeenCalledWith({
+      leaseId,
+      workerId: "worker-a",
+      leaseDurationSeconds: 300,
+      includeProjectIds: ["project-a", "project-b"],
+      excludeProjectIds: ["project-b"],
+    });
+  });
+
+  it("rejects scope filters on an explicit claim", async () => {
+    const repository = buildRepository();
+    const app = createWorkGraphApp(repository);
+
+    const response = await app.request("/api/leases", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workerId: "worker-a",
+        leaseDurationSeconds: 300,
+        workItemId: "ticket",
+        excludeProjectIds: ["project-b"],
+      }),
+    });
+
+    expect(response.status).toBe(422);
+    expect(repository.claimWorkItem).not.toHaveBeenCalled();
   });
 
   it("decomposes into ranked children and claims one for the same worker", async () => {

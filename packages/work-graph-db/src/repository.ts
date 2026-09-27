@@ -16,7 +16,6 @@ import {
   createKnowledgeScope,
   createWorkGraph,
   evaluateCompletionCandidate as evaluateDomainCompletionCandidate,
-  isWorkItemInSelectionScope,
   MAX_CRITICAL_PATH_BLOCKING_PATHS,
   MAX_CRITICAL_PATH_NODES,
   normalizeAndValidateContextRecords,
@@ -199,21 +198,17 @@ export interface ArchiveKnowledgeScopeInput {
   readonly reason: string;
 }
 
-export interface ClaimWorkItemInput {
+export interface ClaimWorkItemInput extends WorkItemSelectionScope {
   readonly leaseId: string;
   readonly workerId: string;
   readonly leaseDurationSeconds: number;
   readonly workItemId?: string;
-  readonly initiativeId?: string;
-  readonly parentId?: string;
-  readonly projectId?: string;
 }
 
 export type ListWorkItemsInput = WorkItemSelectionScope;
 
-export interface ProjectCriticalPathInput {
-  readonly initiativeId?: string;
-  readonly projectId?: string;
+export interface ProjectCriticalPathInput
+  extends Omit<WorkItemSelectionScope, "parentId"> {
   readonly rootWorkItemId?: string;
 }
 
@@ -459,6 +454,120 @@ const knowledgeScopeNotFound = (id: string) =>
     "knowledge_scope_not_found",
     `Knowledge scope ${id} does not exist.`,
   );
+
+const selectionScopeIds = (
+  scope: WorkItemSelectionScope,
+): readonly {
+  readonly id: string;
+  readonly kind: KnowledgeScope["kind"];
+}[] => [
+  ...(scope.initiativeId === undefined
+    ? []
+    : [{ id: scope.initiativeId, kind: "initiative" as const }]),
+  ...(scope.projectId === undefined
+    ? []
+    : [{ id: scope.projectId, kind: "project" as const }]),
+  ...(scope.includeInitiativeIds ?? []).map((id) => ({
+    id,
+    kind: "initiative" as const,
+  })),
+  ...(scope.excludeInitiativeIds ?? []).map((id) => ({
+    id,
+    kind: "initiative" as const,
+  })),
+  ...(scope.includeProjectIds ?? []).map((id) => ({
+    id,
+    kind: "project" as const,
+  })),
+  ...(scope.excludeProjectIds ?? []).map((id) => ({
+    id,
+    kind: "project" as const,
+  })),
+];
+
+const hasSelectionFilters = (scope: WorkItemSelectionScope): boolean =>
+  scope.initiativeId !== undefined ||
+  scope.projectId !== undefined ||
+  scope.parentId !== undefined ||
+  scope.includeInitiativeIds !== undefined ||
+  scope.excludeInitiativeIds !== undefined ||
+  scope.includeProjectIds !== undefined ||
+  scope.excludeProjectIds !== undefined;
+
+const selectionList = (values: readonly string[]): SQL =>
+  sql.join(values.map((value) => sql`${value}`), sql`, `);
+
+const workItemSelectionWhere = (
+  scope: WorkItemSelectionScope,
+): SQL | undefined => {
+  const includeInitiativeIds = [
+    ...(scope.includeInitiativeIds ?? []),
+    ...(scope.initiativeId === undefined ? [] : [scope.initiativeId]),
+  ];
+  const includeProjectIds = [
+    ...(scope.includeProjectIds ?? []),
+    ...(scope.projectId === undefined ? [] : [scope.projectId]),
+  ];
+  const ownerPredicates: SQL[] = [];
+  if (includeInitiativeIds.length > 0) {
+    ownerPredicates.push(
+      sql`scheduling_initiative_id in (${selectionList(includeInitiativeIds)})`,
+    );
+  }
+  if (includeProjectIds.length > 0) {
+    ownerPredicates.push(
+      sql`scheduling_project_id in (${selectionList(includeProjectIds)})`,
+    );
+  }
+  const excludeInitiativeIds = scope.excludeInitiativeIds ?? [];
+  if (excludeInitiativeIds.length > 0) {
+    ownerPredicates.push(
+      sql`(scheduling_initiative_id is null or scheduling_initiative_id not in (${selectionList(excludeInitiativeIds)}))`,
+    );
+  }
+  const excludeProjectIds = scope.excludeProjectIds ?? [];
+  if (excludeProjectIds.length > 0) {
+    ownerPredicates.push(
+      sql`(scheduling_project_id is null or scheduling_project_id not in (${selectionList(excludeProjectIds)}))`,
+    );
+  }
+
+  const ownerWhere =
+    ownerPredicates.length === 0
+      ? undefined
+      : sql`exists (
+          with recursive selection_lineage(work_item_id, depth) as (
+            select ${workItem.id}, 0
+            union all
+            select ${workItemHierarchy.parentWorkItemId}, selection_lineage.depth + 1
+            from ${workItemHierarchy}
+            inner join selection_lineage
+              on ${workItemHierarchy.childWorkItemId} = selection_lineage.work_item_id
+          ), selection_owner as (
+            select
+              ${workItemPriorityContext.schedulingInitiativeId} as scheduling_initiative_id,
+              ${workItemPriorityContext.schedulingProjectId} as scheduling_project_id
+            from selection_lineage
+            left join ${workItemPriorityContext}
+              on ${workItemPriorityContext.workItemId} = selection_lineage.work_item_id
+            order by (${workItemPriorityContext.rank} is not null) desc, selection_lineage.depth
+            limit 1
+          )
+          select 1 from selection_owner
+          where ${sql.join(ownerPredicates, sql` and `)}
+        )`;
+
+  return and(
+    scope.parentId === undefined
+      ? undefined
+      : sql`exists (
+          select 1 from ${workItemHierarchy}
+          where ${workItemHierarchy.childWorkItemId} = ${workItem.id}
+            and ${workItemHierarchy.parentWorkItemId} = ${scope.parentId}
+        )`,
+    ownerWhere,
+  );
+};
 
 const toKnowledgeScope = (
   stored: typeof knowledgeScope.$inferSelect,
@@ -1330,22 +1439,19 @@ export class WorkGraphRepository {
   async projectCriticalPath(
     input: ProjectCriticalPathInput = {},
   ): Promise<CriticalPathProjection> {
-    if (input.initiativeId !== undefined) {
-      requireKnowledgeScopeId(input.initiativeId);
-    }
-    if (input.projectId !== undefined) {
-      requireKnowledgeScopeId(input.projectId);
+    for (const { id } of selectionScopeIds(input)) {
+      requireKnowledgeScopeId(id);
     }
     if (input.rootWorkItemId !== undefined) {
       requireIdentifier(input.rootWorkItemId, "invalid_work_item_id");
     }
     if (
       input.rootWorkItemId !== undefined &&
-      (input.initiativeId !== undefined || input.projectId !== undefined)
+      hasSelectionFilters(input)
     ) {
       throw new WorkGraphError(
         "invalid_critical_path_scope",
-        "A root work item cannot be combined with initiative or project filters.",
+        "A root work item cannot be combined with scope filters.",
       );
     }
 
@@ -1353,25 +1459,11 @@ export class WorkGraphRepository {
       async (transaction) => {
         const graph = await this.loadSchedulingGraph(transaction);
         const scopes = await this.loadKnowledgeScopes(transaction);
-        const requireScope = (
-          id: string,
-          kind: KnowledgeScope["kind"],
-        ): void => {
-          const scope = scopes.find((candidate) => candidate.id === id);
-          if (!scope) throw knowledgeScopeNotFound(id);
-          if (scope.lifecycle !== "active" || scope.kind !== kind) {
-            throw new WorkGraphError(
-              "invalid_critical_path_scope",
-              `Knowledge scope ${id} is not an active ${kind}.`,
-            );
-          }
-        };
-        if (input.initiativeId !== undefined) {
-          requireScope(input.initiativeId, "initiative");
-        }
-        if (input.projectId !== undefined) {
-          requireScope(input.projectId, "project");
-        }
+        await this.requireSelectionScopes(
+          transaction,
+          input,
+          "invalid_critical_path_scope",
+        );
         if (
           input.rootWorkItemId !== undefined &&
           !graph.workItems.some(({ id }) => id === input.rootWorkItemId)
@@ -1425,23 +1517,33 @@ export class WorkGraphRepository {
           }),
         );
 
+        const targetWorkItemIds =
+          input.rootWorkItemId === undefined
+            ? (
+                await transaction
+                  .select({ id: workItem.id })
+                  .from(workItem)
+                  .leftJoin(
+                    workItemHierarchy,
+                    eq(workItemHierarchy.childWorkItemId, workItem.id),
+                  )
+                  .where(
+                    and(
+                      eq(workItem.lifecycle, "open"),
+                      isNull(workItemHierarchy.parentWorkItemId),
+                      workItemSelectionWhere(input),
+                    ),
+                  )
+              ).map(({ id }) => id)
+            : [input.rootWorkItemId];
+
         return projectDomainCriticalPath(graph, {
           now: now.getTime(),
           maxBlockingPaths: MAX_CRITICAL_PATH_BLOCKING_PATHS,
           maxBlockingPathLength: MAX_CRITICAL_PATH_NODES,
           knowledgeScopes: scopes,
           operationalStateByWorkItemId,
-          selectionScope: {
-            ...(input.initiativeId === undefined
-              ? {}
-              : { initiativeId: input.initiativeId }),
-            ...(input.projectId === undefined
-              ? {}
-              : { projectId: input.projectId }),
-          },
-          ...(input.rootWorkItemId === undefined
-            ? {}
-            : { targetWorkItemIds: [input.rootWorkItemId] }),
+          targetWorkItemIds,
         });
       },
       {
@@ -1456,6 +1558,14 @@ export class WorkGraphRepository {
   ): Promise<readonly WorkItemReadModel[]> {
     return this.db.transaction(
       async (transaction) => {
+        for (const { id } of selectionScopeIds(input)) {
+          requireKnowledgeScopeId(id);
+        }
+        await this.requireSelectionScopes(
+          transaction,
+          input,
+          "invalid_scheduling_scope",
+        );
         const graph = await this.loadSchedulingGraph(transaction);
         const scopes = await this.loadKnowledgeScopes(transaction);
         const currentLeases = await transaction
@@ -1489,9 +1599,17 @@ export class WorkGraphRepository {
           unresolvedBlockingAttention.map(({ workItemId }) => workItemId),
         );
         const priorities = projectWorkItemPriorities(graph, scopes);
+        const selectedIds = new Set(
+          (
+            await transaction
+              .select({ id: workItem.id })
+              .from(workItem)
+              .where(workItemSelectionWhere(input))
+          ).map(({ id }) => id),
+        );
 
         return orderWorkItemsByPriority(graph, scopes)
-          .filter((item) => isWorkItemInSelectionScope(graph, item, input))
+          .filter((item) => selectedIds.has(item.id))
           .map((item) => {
             const currentLease = leasesByWorkItemId.get(item.id) ?? null;
             return {
@@ -3267,21 +3385,13 @@ export class WorkGraphRepository {
     if (input.workItemId !== undefined) {
       requireIdentifier(input.workItemId, "invalid_work_item_id");
     }
-    if (input.initiativeId !== undefined) {
-      requireKnowledgeScopeId(input.initiativeId);
-    }
-    if (input.projectId !== undefined) {
-      requireKnowledgeScopeId(input.projectId);
+    for (const { id } of selectionScopeIds(input)) {
+      requireKnowledgeScopeId(id);
     }
     if (input.parentId !== undefined) {
       requireIdentifier(input.parentId, "invalid_parent_id");
     }
-    if (
-      input.workItemId !== undefined &&
-      (input.initiativeId !== undefined ||
-        input.projectId !== undefined ||
-        input.parentId !== undefined)
-    ) {
+    if (input.workItemId !== undefined && hasSelectionFilters(input)) {
       throw new WorkGraphError(
         "invalid_claim_scope",
         "A specified work item cannot be combined with scope filters.",
@@ -3293,21 +3403,16 @@ export class WorkGraphRepository {
         async (transaction) => {
           await this.lockEventSequence(transaction);
           await this.lockGraphSnapshot(transaction);
+          await this.requireSelectionScopes(
+            transaction,
+            input,
+            "invalid_claim_scope",
+          );
 
           const candidateId = await this.findClaimableWorkItemId(
             transaction,
             input.workItemId,
-            {
-              ...(input.initiativeId === undefined
-                ? {}
-                : { initiativeId: input.initiativeId }),
-              ...(input.projectId === undefined
-                ? {}
-                : { projectId: input.projectId }),
-              ...(input.parentId === undefined
-                ? {}
-                : { parentId: input.parentId }),
-            },
+            input,
           );
           if (candidateId === null) return null;
 
@@ -4409,6 +4514,29 @@ export class WorkGraphRepository {
     return rows.map(toKnowledgeScope);
   }
 
+  private async requireSelectionScopes(
+    transaction: DbTransaction,
+    selection: WorkItemSelectionScope,
+    invalidCode:
+      | "invalid_claim_scope"
+      | "invalid_critical_path_scope"
+      | "invalid_scheduling_scope",
+  ): Promise<void> {
+    const seen = new Set<string>();
+    for (const { id, kind } of selectionScopeIds(selection)) {
+      const key = `${kind}:${id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const scope = await this.requireStoredKnowledgeScope(transaction, id);
+      if (scope.lifecycle !== "active" || scope.kind !== kind) {
+        throw new WorkGraphError(
+          invalidCode,
+          `Knowledge scope ${id} is not an active ${kind}.`,
+        );
+      }
+    }
+  }
+
   private async requireStoredKnowledgeScope(
     transaction: DbTransaction,
     id: string,
@@ -4880,7 +5008,12 @@ export class WorkGraphRepository {
           await transaction
             .select({ id: workItem.id })
             .from(workItem)
-            .where(claimableWorkItemWhere())
+            .where(
+              and(
+                claimableWorkItemWhere(),
+                workItemSelectionWhere(scope),
+              ),
+            )
         ).map(({ id }) => id),
       );
       const graph = await this.loadSchedulingGraph(transaction);
@@ -4888,7 +5021,6 @@ export class WorkGraphRepository {
         graph,
         await this.loadKnowledgeScopes(transaction),
       )
-        .filter((item) => isWorkItemInSelectionScope(graph, item, scope))
         .map(({ id }) => id)
         .filter((id) => claimableIds.has(id));
     } else {

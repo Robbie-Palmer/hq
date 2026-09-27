@@ -1,6 +1,7 @@
 import {
   createKnowledgeScope,
   createWorkGraph,
+  getWorkItem,
   isWorkItemInSelectionScope,
   orderWorkItemsByPriority,
   projectWorkItemPriorities,
@@ -94,6 +95,74 @@ describe("priority projection", () => {
       isWorkItemInSelectionScope(graph, grandchild, {
         projectId: "project-a",
         parentId: "ticket",
+      }),
+    ).toBe(false);
+  });
+
+  it("combines inclusion dimensions and gives exclusions precedence", () => {
+    const graph = createWorkGraph({
+      workItems: [
+        {
+          id: "ticket-a",
+          title: "Ticket A",
+          priorityRank: 1_024,
+          schedulingInitiativeId: "initiative-a",
+          schedulingProjectId: "project-a",
+        },
+        {
+          id: "ticket-b",
+          title: "Ticket B",
+          priorityRank: 1_024,
+          schedulingInitiativeId: "initiative-a",
+          schedulingProjectId: "project-b",
+        },
+        { id: "unscoped", title: "Unscoped", priorityRank: 1_024 },
+      ],
+    });
+    const ticketA = getWorkItem(graph, "ticket-a");
+    const ticketB = getWorkItem(graph, "ticket-b");
+    const unscoped = getWorkItem(graph, "unscoped");
+    const scope = {
+      includeInitiativeIds: ["initiative-a", "initiative-b"],
+      includeProjectIds: ["project-a", "project-b"],
+      excludeProjectIds: ["project-b"],
+    };
+
+    expect(isWorkItemInSelectionScope(graph, ticketA, scope)).toBe(true);
+    expect(isWorkItemInSelectionScope(graph, ticketB, scope)).toBe(false);
+    expect(isWorkItemInSelectionScope(graph, unscoped, scope)).toBe(false);
+    expect(
+      isWorkItemInSelectionScope(graph, unscoped, {
+        includeInitiativeIds: [],
+        includeProjectIds: [],
+      }),
+    ).toBe(true);
+  });
+
+  it("treats singular scope fields as one-element inclusion aliases", () => {
+    const graph = createWorkGraph({
+      workItems: [
+        {
+          id: "ticket",
+          title: "Ticket",
+          priorityRank: 1_024,
+          schedulingInitiativeId: "initiative",
+          schedulingProjectId: "project",
+        },
+      ],
+    });
+    const ticket = getWorkItem(graph, "ticket");
+
+    expect(
+      isWorkItemInSelectionScope(graph, ticket, {
+        initiativeId: "initiative",
+        projectId: "project",
+      }),
+    ).toBe(true);
+    expect(
+      isWorkItemInSelectionScope(graph, ticket, {
+        projectId: "project",
+        excludeProjectIds: ["project"],
       }),
     ).toBe(false);
   });

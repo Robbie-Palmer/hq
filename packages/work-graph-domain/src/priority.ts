@@ -28,8 +28,14 @@ interface EffectivePriority {
 }
 
 export interface WorkItemSelectionScope {
+  readonly excludeInitiativeIds?: readonly string[];
+  readonly excludeProjectIds?: readonly string[];
+  readonly includeInitiativeIds?: readonly string[];
+  readonly includeProjectIds?: readonly string[];
+  /** @deprecated Use includeInitiativeIds. */
   readonly initiativeId?: string;
   readonly parentId?: string;
+  /** @deprecated Use includeProjectIds. */
   readonly projectId?: string;
 }
 
@@ -110,11 +116,27 @@ export const isWorkItemInSelectionScope = (
     return false;
   }
   const owner = getWorkItemSchedulingOwner(graph, item);
+  const includeInitiativeIds = [
+    ...(scope.includeInitiativeIds ?? []),
+    ...(scope.initiativeId === undefined ? [] : [scope.initiativeId]),
+  ];
+  const includeProjectIds = [
+    ...(scope.includeProjectIds ?? []),
+    ...(scope.projectId === undefined ? [] : [scope.projectId]),
+  ];
   return (
-    (scope.initiativeId === undefined ||
-      owner.schedulingInitiativeId === scope.initiativeId) &&
-    (scope.projectId === undefined ||
-      owner.schedulingProjectId === scope.projectId)
+    (includeInitiativeIds.length === 0 ||
+      (owner.schedulingInitiativeId !== null &&
+        includeInitiativeIds.includes(owner.schedulingInitiativeId))) &&
+    (includeProjectIds.length === 0 ||
+      (owner.schedulingProjectId !== null &&
+        includeProjectIds.includes(owner.schedulingProjectId))) &&
+    (owner.schedulingInitiativeId === null ||
+      !scope.excludeInitiativeIds?.includes(
+        owner.schedulingInitiativeId,
+      )) &&
+    (owner.schedulingProjectId === null ||
+      !scope.excludeProjectIds?.includes(owner.schedulingProjectId))
   );
 };
 

@@ -336,6 +336,44 @@ describe("delivery-critical path projection", () => {
     ).toEqual(["alpha", "zebra"]);
   });
 
+  it("excludes target outcomes without removing their cross-scope blockers", () => {
+    const graph = createWorkGraph({
+      workItems: [
+        {
+          id: "included",
+          title: "Included outcome",
+          priorityRank: 1_024,
+          schedulingInitiativeId: "initiative",
+          schedulingProjectId: "project-a",
+        },
+        {
+          id: "excluded",
+          title: "Excluded outcome",
+          priorityRank: 1_024,
+          schedulingInitiativeId: "initiative",
+          schedulingProjectId: "project-b",
+        },
+      ],
+      dependencies: [
+        {
+          dependentWorkItemId: "included",
+          blockerWorkItemId: "excluded",
+        },
+      ],
+    });
+
+    const projection = projectCriticalPath(graph, {
+      now: NOW,
+      selectionScope: { excludeProjectIds: ["project-b"] },
+    });
+
+    expect(projection.targetOutcomeIds).toEqual(["included"]);
+    expect(projection.nodes.map(({ item }) => item.id)).toEqual([
+      "excluded",
+      "included",
+    ]);
+  });
+
   it("rejects a cyclic fixture even when it bypasses graph construction", () => {
     const valid = createWorkGraph({
       workItems: [

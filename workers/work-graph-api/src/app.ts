@@ -78,6 +78,7 @@ import {
   type WorkItemDependency,
   type WorkItemReference,
   type WorkItemPullRequest,
+  type WorkItemSelectionScope,
 } from "work-graph-domain";
 import { z } from "zod";
 
@@ -88,6 +89,28 @@ const MAX_DECOMPOSITION_CHILDREN = 100;
 const MAX_DECOMPOSITION_DEPENDENCIES = 1_000;
 const DEFAULT_LIST_LIMIT = 50;
 const MAX_URL_LENGTH = 2_048;
+
+const selectionScopeFrom = (
+  input: WorkItemSelectionScope,
+): WorkItemSelectionScope => ({
+  ...(input.excludeInitiativeIds === undefined
+    ? {}
+    : { excludeInitiativeIds: input.excludeInitiativeIds }),
+  ...(input.excludeProjectIds === undefined
+    ? {}
+    : { excludeProjectIds: input.excludeProjectIds }),
+  ...(input.includeInitiativeIds === undefined
+    ? {}
+    : { includeInitiativeIds: input.includeInitiativeIds }),
+  ...(input.includeProjectIds === undefined
+    ? {}
+    : { includeProjectIds: input.includeProjectIds }),
+  ...(input.initiativeId === undefined
+    ? {}
+    : { initiativeId: input.initiativeId }),
+  ...(input.projectId === undefined ? {} : { projectId: input.projectId }),
+  ...(input.parentId === undefined ? {} : { parentId: input.parentId }),
+});
 const MAX_RELATIONSHIP_CURSOR_LENGTH = 4_096;
 const MAX_METADATA_CURSOR_LENGTH = 4_096;
 const MAX_INT32 = 2_147_483_647;
@@ -622,10 +645,33 @@ const leaseResponseSchema = z
   .object({ lease: leaseSchema })
   .openapi("LeaseResponse");
 
+const repeatedScopeIdsSchema = z
+  .preprocess(
+    (value) => (typeof value === "string" ? [value] : value),
+    z.array(identifierSchema).max(100),
+  )
+  .openapi({
+    description: "Repeat the query parameter to select more than one scope.",
+    param: { explode: true, style: "form" },
+  });
+const deprecatedInitiativeIdSchema = identifierSchema.optional().openapi({
+  deprecated: true,
+  description:
+    "Deprecated one-item alias for includeInitiativeIds.",
+});
+const deprecatedProjectIdSchema = identifierSchema.optional().openapi({
+  deprecated: true,
+  description: "Deprecated one-item alias for includeProjectIds.",
+});
+
 const listWorkItemsQuerySchema = z.object({
   stage: z.enum(WORK_STAGES).optional(),
-  initiativeId: identifierSchema.optional(),
-  projectId: identifierSchema.optional(),
+  includeInitiativeIds: repeatedScopeIdsSchema.optional(),
+  excludeInitiativeIds: repeatedScopeIdsSchema.optional(),
+  includeProjectIds: repeatedScopeIdsSchema.optional(),
+  excludeProjectIds: repeatedScopeIdsSchema.optional(),
+  initiativeId: deprecatedInitiativeIdSchema,
+  projectId: deprecatedProjectIdSchema,
   parentId: identifierSchema.optional(),
   limit: z.coerce
     .number()
@@ -638,17 +684,33 @@ const listWorkItemsQuerySchema = z.object({
 });
 const getCriticalPathQuerySchema = z
   .object({
-    initiativeId: identifierSchema.optional(),
-    projectId: identifierSchema.optional(),
+    includeInitiativeIds: repeatedScopeIdsSchema.optional(),
+    excludeInitiativeIds: repeatedScopeIdsSchema.optional(),
+    includeProjectIds: repeatedScopeIdsSchema.optional(),
+    excludeProjectIds: repeatedScopeIdsSchema.optional(),
+    initiativeId: deprecatedInitiativeIdSchema,
+    projectId: deprecatedProjectIdSchema,
     rootWorkItemId: identifierSchema.optional(),
   })
   .refine(
-    ({ initiativeId, projectId, rootWorkItemId }) =>
+    ({
+      excludeInitiativeIds,
+      excludeProjectIds,
+      includeInitiativeIds,
+      includeProjectIds,
+      initiativeId,
+      projectId,
+      rootWorkItemId,
+    }) =>
       rootWorkItemId === undefined ||
-      (initiativeId === undefined && projectId === undefined),
+      (initiativeId === undefined &&
+        projectId === undefined &&
+        includeInitiativeIds === undefined &&
+        excludeInitiativeIds === undefined &&
+        includeProjectIds === undefined &&
+        excludeProjectIds === undefined),
     {
-      message:
-        "rootWorkItemId cannot be combined with initiativeId or projectId",
+      message: "rootWorkItemId cannot be combined with scope filters",
       path: ["rootWorkItemId"],
     },
   );
@@ -872,8 +934,12 @@ const createLeaseBodySchema = z.union([
     .object({
       workerId: identifierSchema,
       leaseDurationSeconds: leaseDurationSchema,
-      initiativeId: identifierSchema.optional(),
-      projectId: identifierSchema.optional(),
+      includeInitiativeIds: z.array(identifierSchema).max(100).optional(),
+      excludeInitiativeIds: z.array(identifierSchema).max(100).optional(),
+      includeProjectIds: z.array(identifierSchema).max(100).optional(),
+      excludeProjectIds: z.array(identifierSchema).max(100).optional(),
+      initiativeId: deprecatedInitiativeIdSchema,
+      projectId: deprecatedProjectIdSchema,
       parentId: identifierSchema.optional(),
     })
     .strict(),
@@ -1002,7 +1068,7 @@ const listWorkItemsRoute = createRoute({
   operationId: "listWorkItems",
   summary: "List work items with their derived stage",
   description:
-    "Returns one bounded page in global priority order. Optional stage, initiative, project, and direct-parent filters preserve that relative order. Pass nextCursor to continue after the last observed item without offset drift during lease transitions.",
+    "Returns one bounded page in global priority order. Scope arrays use repeated query parameters. Values within one inclusion dimension are ORed, initiative and project dimensions are ANDed, and exclusions win. Empty inclusion arrays impose no restriction. Optional stage and direct-parent filters preserve priority order. The singular initiativeId and projectId parameters remain deprecated one-item inclusion aliases. Pass nextCursor to continue after the last observed item without offset drift during lease transitions.",
   tags: ["work-items"],
   security: accessSecurity,
   request: { query: listWorkItemsQuerySchema },
@@ -1021,7 +1087,7 @@ const getCriticalPathRoute = createRoute({
   operationId: "getCriticalPath",
   summary: "Project the current delivery-critical path",
   description:
-    "Returns one deterministic, bounded projection for global open roots, an initiative, a project, or one explicit root work item. Initiative and project filters may be combined. An explicit root cannot be combined with scope filters. Projections are limited to 1,000 nodes, 5,000 edges, and 5,000 blocking paths; larger projections return a conflict instead of a partial graph.",
+    "Returns one deterministic, bounded projection for global open roots, selected scopes, or one explicit root work item. Scope arrays use repeated query parameters. Values within one inclusion dimension are ORed, initiative and project dimensions are ANDed, and exclusions win. Exclusions remove matching targets but retain cross-scope blockers required by included outcomes. The singular initiativeId and projectId parameters remain deprecated one-item inclusion aliases. An explicit root cannot be combined with scope filters. Projections are limited to 1,000 nodes, 5,000 edges, and 5,000 blocking paths; larger projections return a conflict instead of a partial graph.",
   tags: ["work-items"],
   security: accessSecurity,
   request: { query: getCriticalPathQuerySchema },
@@ -1892,7 +1958,7 @@ const createLeaseRoute = createRoute({
   operationId: "createLease",
   summary: "Claim a specified or first eligible work item",
   description:
-    "Creates a fenced lease for the requested item, including recovery of its expired lease after graph blockers changed. When workItemId is absent, claims only the highest-priority ready item within optional initiative, project, and direct-parent filters.",
+    "Creates a fenced lease for the requested item, including recovery of its expired lease after graph blockers changed. When workItemId is absent, claims only the highest-priority ready item within the optional scope filters. Values within one inclusion dimension are ORed, initiative and project dimensions are ANDed, and exclusions win. Empty inclusion arrays impose no restriction. The singular initiativeId and projectId fields remain deprecated one-item inclusion aliases. Explicit claims by workItemId reject every selection filter.",
   tags: ["leases"],
   security: accessSecurity,
   request: {
@@ -2505,12 +2571,12 @@ export const createWorkGraphApp = (
   );
 
   app.openapi(getCriticalPathRoute, async (context) => {
-    const { initiativeId, projectId, rootWorkItemId } =
-      context.req.valid("query");
+    const query = context.req.valid("query");
     const projection = await repository.projectCriticalPath({
-      ...(initiativeId === undefined ? {} : { initiativeId }),
-      ...(projectId === undefined ? {} : { projectId }),
-      ...(rootWorkItemId === undefined ? {} : { rootWorkItemId }),
+      ...selectionScopeFrom(query),
+      ...(query.rootWorkItemId === undefined
+        ? {}
+        : { rootWorkItemId: query.rootWorkItemId }),
     });
     return context.json(
       criticalPathProjectionSchema.parse(
@@ -2521,25 +2587,20 @@ export const createWorkGraphApp = (
   });
 
   app.openapi(listWorkItemsRoute, async (context) => {
-    const { cursor, initiativeId, limit, parentId, projectId, stage } =
-      context.req.valid("query");
-    const items = await repository.listWorkItems({
-      ...(initiativeId === undefined ? {} : { initiativeId }),
-      ...(projectId === undefined ? {} : { projectId }),
-      ...(parentId === undefined ? {} : { parentId }),
-    });
+    const query = context.req.valid("query");
+    const items = await repository.listWorkItems(selectionScopeFrom(query));
     const cursorIndex =
-      cursor === undefined
+      query.cursor === undefined
         ? -1
-        : items.findIndex((item) => item.id === cursor);
+        : items.findIndex((item) => item.id === query.cursor);
     const remainingItems =
-      cursor !== undefined && cursorIndex === -1
+      query.cursor !== undefined && cursorIndex === -1
         ? []
         : items.slice(cursorIndex + 1);
     const matchingItems = remainingItems.filter(
-      (item) => stage === undefined || item.stage === stage,
+      (item) => query.stage === undefined || item.stage === query.stage,
     );
-    const page = matchingItems.slice(0, limit);
+    const page = matchingItems.slice(0, query.limit);
     return context.json(
       {
         items: page.map(serializeWorkItem),
@@ -3091,19 +3152,12 @@ export const createWorkGraphApp = (
     );
   });
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
   app.openapi(createLeaseRoute, async (context) => {
     const request = context.req.valid("json");
     const selection =
       "workItemId" in request
         ? { workItemId: request.workItemId }
-        : {
-            ...(request.initiativeId
-              ? { initiativeId: request.initiativeId }
-              : {}),
-            ...(request.projectId ? { projectId: request.projectId } : {}),
-            ...(request.parentId ? { parentId: request.parentId } : {}),
-          };
+        : selectionScopeFrom(request);
     const claimed = await repository.claimWorkItem({
       leaseId: createLeaseId(),
       workerId: request.workerId,

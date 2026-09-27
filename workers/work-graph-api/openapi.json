@@ -2796,7 +2796,7 @@
       "get": {
         "operationId": "getCriticalPath",
         "summary": "Project the current delivery-critical path",
-        "description": "Returns one deterministic, bounded projection for global open roots, an initiative, a project, or one explicit root work item. Initiative and project filters may be combined. An explicit root cannot be combined with scope filters. Projections are limited to 1,000 nodes, 5,000 edges, and 5,000 blocking paths; larger projections return a conflict instead of a partial graph.",
+        "description": "Returns one deterministic, bounded projection for global open roots, selected scopes, or one explicit root work item. Scope arrays use repeated query parameters. Values within one inclusion dimension are ORed, initiative and project dimensions are ANDed, and exclusions win. Exclusions remove matching targets but retain cross-scope blockers required by included outcomes. The singular initiativeId and projectId parameters remain deprecated one-item inclusion aliases. An explicit root cannot be combined with scope filters. Projections are limited to 1,000 nodes, 5,000 edges, and 5,000 blocking paths; larger projections return a conflict instead of a partial graph.",
         "tags": [
           "work-items"
         ],
@@ -2809,11 +2809,86 @@
         "parameters": [
           {
             "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "maxItems": 100,
+              "description": "Repeat the query parameter to select more than one scope."
             },
             "required": false,
+            "description": "Repeat the query parameter to select more than one scope.",
+            "explode": true,
+            "style": "form",
+            "name": "includeInitiativeIds",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "maxItems": 100,
+              "description": "Repeat the query parameter to select more than one scope."
+            },
+            "required": false,
+            "description": "Repeat the query parameter to select more than one scope.",
+            "explode": true,
+            "style": "form",
+            "name": "excludeInitiativeIds",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "maxItems": 100,
+              "description": "Repeat the query parameter to select more than one scope."
+            },
+            "required": false,
+            "description": "Repeat the query parameter to select more than one scope.",
+            "explode": true,
+            "style": "form",
+            "name": "includeProjectIds",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "maxItems": 100,
+              "description": "Repeat the query parameter to select more than one scope."
+            },
+            "required": false,
+            "description": "Repeat the query parameter to select more than one scope.",
+            "explode": true,
+            "style": "form",
+            "name": "excludeProjectIds",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "deprecated": true,
+              "description": "Deprecated one-item alias for includeInitiativeIds."
+            },
+            "required": false,
+            "description": "Deprecated one-item alias for includeInitiativeIds.",
             "name": "initiativeId",
             "in": "query"
           },
@@ -2821,9 +2896,12 @@
             "schema": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 200
+              "maxLength": 200,
+              "deprecated": true,
+              "description": "Deprecated one-item alias for includeProjectIds."
             },
             "required": false,
+            "description": "Deprecated one-item alias for includeProjectIds.",
             "name": "projectId",
             "in": "query"
           },
@@ -4809,7 +4887,7 @@
       "post": {
         "operationId": "createLease",
         "summary": "Claim a specified or first eligible work item",
-        "description": "Creates a fenced lease for the requested item, including recovery of its expired lease after graph blockers changed. When workItemId is absent, claims only the highest-priority ready item within optional initiative, project, and direct-parent filters.",
+        "description": "Creates a fenced lease for the requested item, including recovery of its expired lease after graph blockers changed. When workItemId is absent, claims only the highest-priority ready item within the optional scope filters. Values within one inclusion dimension are ORed, initiative and project dimensions are ANDed, and exclusions win. Empty inclusion arrays impose no restriction. The singular initiativeId and projectId fields remain deprecated one-item inclusion aliases. Explicit claims by workItemId reject every selection filter.",
         "tags": [
           "leases"
         ],
@@ -4866,15 +4944,55 @@
                         "maximum": 86400,
                         "format": "int32"
                       },
+                      "includeInitiativeIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "maxItems": 100
+                      },
+                      "excludeInitiativeIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "maxItems": 100
+                      },
+                      "includeProjectIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "maxItems": 100
+                      },
+                      "excludeProjectIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "maxItems": 100
+                      },
                       "initiativeId": {
                         "type": "string",
                         "minLength": 1,
-                        "maxLength": 200
+                        "maxLength": 200,
+                        "deprecated": true,
+                        "description": "Deprecated one-item alias for includeInitiativeIds."
                       },
                       "projectId": {
                         "type": "string",
                         "minLength": 1,
-                        "maxLength": 200
+                        "maxLength": 200,
+                        "deprecated": true,
+                        "description": "Deprecated one-item alias for includeProjectIds."
                       },
                       "parentId": {
                         "type": "string",
@@ -5438,7 +5556,7 @@
       "get": {
         "operationId": "listWorkItems",
         "summary": "List work items with their derived stage",
-        "description": "Returns one bounded page in global priority order. Optional stage, initiative, project, and direct-parent filters preserve that relative order. Pass nextCursor to continue after the last observed item without offset drift during lease transitions.",
+        "description": "Returns one bounded page in global priority order. Scope arrays use repeated query parameters. Values within one inclusion dimension are ORed, initiative and project dimensions are ANDed, and exclusions win. Empty inclusion arrays impose no restriction. Optional stage and direct-parent filters preserve priority order. The singular initiativeId and projectId parameters remain deprecated one-item inclusion aliases. Pass nextCursor to continue after the last observed item without offset drift during lease transitions.",
         "tags": [
           "work-items"
         ],
@@ -5468,11 +5586,86 @@
           },
           {
             "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "maxItems": 100,
+              "description": "Repeat the query parameter to select more than one scope."
             },
             "required": false,
+            "description": "Repeat the query parameter to select more than one scope.",
+            "explode": true,
+            "style": "form",
+            "name": "includeInitiativeIds",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "maxItems": 100,
+              "description": "Repeat the query parameter to select more than one scope."
+            },
+            "required": false,
+            "description": "Repeat the query parameter to select more than one scope.",
+            "explode": true,
+            "style": "form",
+            "name": "excludeInitiativeIds",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "maxItems": 100,
+              "description": "Repeat the query parameter to select more than one scope."
+            },
+            "required": false,
+            "description": "Repeat the query parameter to select more than one scope.",
+            "explode": true,
+            "style": "form",
+            "name": "includeProjectIds",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "maxItems": 100,
+              "description": "Repeat the query parameter to select more than one scope."
+            },
+            "required": false,
+            "description": "Repeat the query parameter to select more than one scope.",
+            "explode": true,
+            "style": "form",
+            "name": "excludeProjectIds",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "deprecated": true,
+              "description": "Deprecated one-item alias for includeInitiativeIds."
+            },
+            "required": false,
+            "description": "Deprecated one-item alias for includeInitiativeIds.",
             "name": "initiativeId",
             "in": "query"
           },
@@ -5480,9 +5673,12 @@
             "schema": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 200
+              "maxLength": 200,
+              "deprecated": true,
+              "description": "Deprecated one-item alias for includeProjectIds."
             },
             "required": false,
+            "description": "Deprecated one-item alias for includeProjectIds.",
             "name": "projectId",
             "in": "query"
           },
