@@ -28,10 +28,60 @@ interface EffectivePriority {
 }
 
 export interface WorkItemSelectionScope {
+  readonly excludeInitiativeIds?: readonly string[];
+  readonly excludeProjectIds?: readonly string[];
+  readonly includeInitiativeIds?: readonly string[];
+  readonly includeProjectIds?: readonly string[];
+  /** @deprecated Use includeInitiativeIds. */
   readonly initiativeId?: string;
   readonly parentId?: string;
+  /** @deprecated Use includeProjectIds. */
   readonly projectId?: string;
 }
+
+interface LegacyWorkItemSelectionAliases {
+  readonly initiativeId?: string;
+  readonly projectId?: string;
+}
+
+export const normalizeWorkItemSelectionScope = (
+  scope: WorkItemSelectionScope,
+): WorkItemSelectionScope => {
+  const aliases: LegacyWorkItemSelectionAliases = scope;
+  const hasInitiativeInclusions =
+    scope.includeInitiativeIds !== undefined ||
+    aliases.initiativeId !== undefined;
+  const hasProjectInclusions =
+    scope.includeProjectIds !== undefined || aliases.projectId !== undefined;
+
+  return {
+    ...(scope.excludeInitiativeIds === undefined
+      ? {}
+      : { excludeInitiativeIds: scope.excludeInitiativeIds }),
+    ...(scope.excludeProjectIds === undefined
+      ? {}
+      : { excludeProjectIds: scope.excludeProjectIds }),
+    ...(hasInitiativeInclusions
+      ? {
+          includeInitiativeIds: [
+            ...(scope.includeInitiativeIds ?? []),
+            ...(aliases.initiativeId === undefined
+              ? []
+              : [aliases.initiativeId]),
+          ],
+        }
+      : {}),
+    ...(hasProjectInclusions
+      ? {
+          includeProjectIds: [
+            ...(scope.includeProjectIds ?? []),
+            ...(aliases.projectId === undefined ? [] : [aliases.projectId]),
+          ],
+        }
+      : {}),
+    ...(scope.parentId === undefined ? {} : { parentId: scope.parentId }),
+  };
+};
 
 export interface WorkItemPriorityProjection {
   readonly donatedFromWorkItemId: string | null;
@@ -106,15 +156,29 @@ export const isWorkItemInSelectionScope = (
   item: WorkItem,
   scope: WorkItemSelectionScope,
 ): boolean => {
-  if (scope.parentId !== undefined && item.parentId !== scope.parentId) {
+  const normalizedScope = normalizeWorkItemSelectionScope(scope);
+  if (
+    normalizedScope.parentId !== undefined &&
+    item.parentId !== normalizedScope.parentId
+  ) {
     return false;
   }
   const owner = getWorkItemSchedulingOwner(graph, item);
+  const includeInitiativeIds = normalizedScope.includeInitiativeIds ?? [];
+  const includeProjectIds = normalizedScope.includeProjectIds ?? [];
   return (
-    (scope.initiativeId === undefined ||
-      owner.schedulingInitiativeId === scope.initiativeId) &&
-    (scope.projectId === undefined ||
-      owner.schedulingProjectId === scope.projectId)
+    (includeInitiativeIds.length === 0 ||
+      (owner.schedulingInitiativeId !== null &&
+        includeInitiativeIds.includes(owner.schedulingInitiativeId))) &&
+    (includeProjectIds.length === 0 ||
+      (owner.schedulingProjectId !== null &&
+        includeProjectIds.includes(owner.schedulingProjectId))) &&
+    (owner.schedulingInitiativeId === null ||
+      !normalizedScope.excludeInitiativeIds?.includes(
+        owner.schedulingInitiativeId,
+      )) &&
+    (owner.schedulingProjectId === null ||
+      !normalizedScope.excludeProjectIds?.includes(owner.schedulingProjectId))
   );
 };
 

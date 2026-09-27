@@ -413,6 +413,19 @@ describe("Given a persisted delivery-critical path", () => {
         .targetOutcomeIds,
     ).toEqual(["schema", "other-outcome"]);
 
+    const excluded = await app.request(
+      "/api/critical-path?includeProjectIds=project-a&includeProjectIds=project-b&excludeProjectIds=project-b",
+    );
+    const excludedProjection = (await excluded.json()) as {
+      targetOutcomeIds: string[];
+      nodes: Array<{ item: { id: string } }>;
+    };
+    expect(excluded.status).toBe(200);
+    expect(excludedProjection.targetOutcomeIds).toEqual(["outcome"]);
+    expect(excludedProjection.nodes.map(({ item }) => item.id)).toContain(
+      "schema",
+    );
+
     const rooted = await app.request(
       "/api/critical-path?rootWorkItemId=outcome",
     );

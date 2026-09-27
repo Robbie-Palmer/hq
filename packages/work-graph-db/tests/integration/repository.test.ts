@@ -1863,6 +1863,22 @@ describe("critical-path projection persistence", () => {
     expect(
       scoped.nodes.find(({ item }) => item.id === "blocker")?.stage,
     ).toBe("in_progress");
+    const excludedTarget = await repository.projectCriticalPath({
+      includeProjectIds: ["project-a", "project-b"],
+      excludeProjectIds: ["project-b"],
+    });
+    expect(excludedTarget.targetOutcomeIds).toEqual(["outcome"]);
+    expect(
+      excludedTarget.nodes.map(({ item }) => item.id),
+    ).toContain("blocker");
+    await expect(
+      repository.projectCriticalPath({
+        includeInitiativeIds: [],
+        includeProjectIds: [],
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({ targetOutcomeIds: ["outcome", "blocker"] }),
+    );
 
     await expect(
       repository.projectCriticalPath({ initiativeId: "initiative" }),
@@ -1897,6 +1913,13 @@ describe("critical-path projection persistence", () => {
     );
     await expect(
       repository.projectCriticalPath({ projectId: "missing" }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "knowledge_scope_not_found",
+      }),
+    );
+    await expect(
+      repository.projectCriticalPath({ excludeProjectIds: ["missing"] }),
     ).rejects.toEqual(
       expect.objectContaining<Partial<WorkGraphError>>({
         code: "knowledge_scope_not_found",
@@ -2203,11 +2226,28 @@ describe("lease-backed claiming", () => {
       canonicalUrl: "https://example.test/projects/work-graph",
       markdownUrl: "https://example.test/projects/work-graph.md",
     });
+    await repository.putKnowledgeScope({
+      id: "other-project",
+      kind: "project",
+      title: "Other Project",
+      canonicalUrl: "https://example.test/projects/other-project",
+      markdownUrl: "https://example.test/projects/other-project.md",
+    });
     await repository.addKnowledgeScopeRelationship({
       parentKnowledgeScopeId: "initiative",
       childKnowledgeScopeId: "work-graph",
     });
+    await repository.addKnowledgeScopeRelationship({
+      parentKnowledgeScopeId: "initiative",
+      childKnowledgeScopeId: "other-project",
+    });
     await repository.createWorkItem({ id: "unscoped", title: "Unscoped" });
+    await repository.createWorkItem({
+      id: "other-plan",
+      title: "Other plan",
+      schedulingInitiativeId: "initiative",
+      schedulingProjectId: "other-project",
+    });
     await repository.createWorkItem({ id: "plan", title: "Plan" });
     await repository.setWorkItemSchedulingScope("plan", {
       schedulingInitiativeId: null,
@@ -2275,6 +2315,27 @@ describe("lease-backed claiming", () => {
       expect.objectContaining({ id: "child-a" }),
       expect.objectContaining({ id: "child-b" }),
     ]);
+    const includedProjects = await repository.listWorkItems({
+      includeProjectIds: ["work-graph", "other-project"],
+      excludeProjectIds: ["other-project"],
+    });
+    expect(includedProjects).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "plan" }),
+        expect.objectContaining({ id: "child-a" }),
+        expect.objectContaining({ id: "child-b" }),
+      ]),
+    );
+    expect(includedProjects.some(({ id }) => id === "other-plan")).toBe(
+      false,
+    );
+    expect(
+      (
+        await repository.listWorkItems({
+          excludeProjectIds: ["work-graph", "other-project"],
+        })
+      ).map(({ id }) => id),
+    ).toContain("unscoped");
 
     await expect(
       repository.claimWorkItem({
@@ -2303,6 +2364,22 @@ describe("lease-backed claiming", () => {
     ).rejects.toEqual(
       expect.objectContaining<Partial<WorkGraphError>>({
         code: "invalid_claim_scope",
+      }),
+    );
+    await expect(
+      repository.claimWorkItem({
+        leaseId: leaseId(27),
+        workerId: "worker-d",
+        leaseDurationSeconds: 300,
+        includeProjectIds: ["work-graph", "other-project"],
+        excludeProjectIds: ["work-graph"],
+      }),
+    ).resolves.toEqual(expect.objectContaining({ workItemId: "other-plan" }));
+    await expect(
+      repository.listWorkItems({ excludeProjectIds: ["missing"] }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "knowledge_scope_not_found",
       }),
     );
   });
