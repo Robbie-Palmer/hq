@@ -20,6 +20,8 @@ dev = [
 [tool.uv]
 environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
 package = false
+# torch 2.11.0 caps setuptools below 82, but 83.0.0 fixes CVE-2026-59890.
+override-dependencies = ["setuptools>=83.0.0"]
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu128" }
