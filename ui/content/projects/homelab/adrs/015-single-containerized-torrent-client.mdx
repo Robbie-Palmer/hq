@@ -1,0 +1,73 @@
+---
+title: "ADR 015: One torrent client, containerized"
+date: "2026-08-23"
+status: "Accepted"
+tech_stack: ["qBittorrent", "Docker", "Colima"]
+---
+
+# Context
+
+The \*arr apps need a client they can drive over an API: submit a magnet,
+watch progress, run a script on completion, tag by category. That rules out
+a desktop GUI app, no supervision under launchd, no pinned version, and an
+API transport whose settings live in a preferences pane.
+
+Sonarr and Radarr can each register their own download client, but running
+two would split versions, settings, and credentials across services for no
+benefit. One shared client, separated by categories, is the simpler shape.
+
+# Decision
+
+Run exactly **one** BitTorrent client on the hub: **qBittorrent in Docker**
+(linuxserver.io image), WebUI on port 8080 with a generated password stored
+in the gitignored `.env`, saving to `/Volumes/Expansion/Downloads`.
+
+* Downloads and the Jellyfin library share one physical volume, so Sonarr and
+  Radarr import finished files as fast same-volume moves.
+* First boot runs without a stored password: qBittorrent prints a temporary
+  one into its logs, and provisioning logs in with it once and sets the real
+  password through the API. No password ever lands in the repo or the image.
+  One operational scar worth recording: colima's config had `/Volumes` mounted
+  read-only into the VM, which only became visible when a *new* directory
+  (`Downloads`) appeared read-only to containers while the older `Media` mount
+  kept working. The fix was making `/Volumes` writable in colima's config and
+  restarting the VM. Any new host directory shared into containers depends on
+  that setting staying true.
+
+# Alternatives
+
+## Drive a desktop client instead
+
+* **Pros**: Zero new containers.
+* **Cons**: Its lifecycle belongs to macOS LaunchServices, not launchd;
+  version upgrades arrive whenever the app's updater feels like it; API
+  settings sit in a GUI preferences pane that can silently change.
+* **Decision**: Rejected. The API path needs headless determinism more than
+  it needs one fewer container.
+
+## Transmission daemon
+
+* **Pros**: Light, solid daemon mode.
+* **Decision**: Rejected. The Servarr apps integrate with qBittorrent far
+  more deeply (categories, per-torrent state, completion handling), and
+  keeping Transmission would mean a second client for no job at all.
+
+## Deluge / rtorrent / Whirlwind-of-the-week
+
+* **Pros**: Some are lighter still.
+* **Decision**: Rejected. qBittorrent's API matches the \*arr stack. A niche
+  client would add integration work without saving meaningful resources.
+
+# Consequences
+
+### Pros
+
+* One client, one config file, one log stream, pinned by Compose.
+* Credentials never touch disk unencrypted outside the gitignored `.env`,
+  and provisioning can rebuild the whole setup from scratch on a fresh hub.
+
+### Cons
+
+* Scripts must respect qBittorrent's ban-on-failed-logins: five bad
+  authentication attempts lock the client IP out for an hour, so provisioning
+  tries each credential at most once and fails loudly instead of retrying.

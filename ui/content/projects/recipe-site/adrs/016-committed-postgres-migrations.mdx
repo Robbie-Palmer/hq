@@ -1,0 +1,255 @@
+---
+title: "ADR 016: Committed PostgreSQL Migrations and Data Operations"
+date: "2026-07-17"
+status: "Deprecated"
+tech_stack: ["PostgreSQL", "Drizzle", "Neon"]
+---
+
+# Summary
+
+This decision was superseded by
+[ADR 017](/projects/recipe-site/adrs/017-fresh-migration-baseline-and-isolated-preview-database-project),
+which keeps committed migrations but replaces the adoption-safe baseline and
+schema-only preview-history restoration with a fresh cutover and an empty,
+dedicated Neon preview project.
+
+Adopt code-first, committed Drizzle migrations for every shared PostgreSQL
+environment, starting with one idempotent baseline of the current schema. Keep
+one-time data transforms and required reference data in migrations, and keep
+disposable QA data in preview-only seeds.
+
+# Context
+
+Early development used `drizzle-kit push`. That optimized for rapid iteration
+while production contained no irreplaceable recipe content, but it left no
+reviewable sequence connecting the repository schema to each database.
+
+The database now contains Better Auth identity and sessions, user-authored and
+imported recipes, households and invitations, notifications, diet settings,
+recipe-box state, rate limits, and import workflow records. More application
+features and parallel schema-changing pull requests make an implicit diff at
+deploy time too risky. Deployments need deterministic ordering, preview testing,
+an audit trail, and a recovery story.
+
+The adoption point also has two unusual constraints:
+
+* production already has the current tables but no Drizzle migration journal;
+* Neon schema-only preview branches copy database structure without table rows,
+  so their copied Drizzle journal table is empty.
+
+# Decision
+
+## Current aggregate map
+
+Keep a compact ER diagram with this ADR to make the main ownership and cascade
+boundaries discoverable. It intentionally omits support tables, authentication
+details, notification subtype tables, and some join tables; the Drizzle schema
+and committed migrations remain authoritative.
+
+<Mermaid
+  chart={`erDiagram
+USER {
+text id PK
+}
+RECIPE {
+uuid id PK
+text user_id FK
+}
+ORGANIZATION {
+text id PK
+}
+MEMBER {
+text id PK
+text user_id FK
+text organization_id FK
+}
+INVITATION {
+text id PK
+text organization_id FK
+text inviter_id FK
+}
+NOTIFICATION_EVENT {
+text id PK
+text actor_user_id FK "nullable"
+}
+NOTIFICATION_DELIVERY {
+text id PK
+text event_id FK
+text recipient_user_id FK
+}
+USER_DIET_PROFILE {
+text user_id PK, FK
+}
+USER_DIET_PRESET {
+text user_id PK, FK
+text preset_key PK, FK
+}
+DIET_PRESET {
+text key PK
+}
+INGREDIENT_GROUP {
+text key PK
+}
+INGREDIENT_GROUP_MEMBER {
+text group_key PK, FK
+text ingredient_slug PK, FK
+}
+INGREDIENT {
+text slug PK
+}
+RECIPE_IMPORT_JOB {
+uuid id PK
+text user_id FK
+}
+RECIPE_IMPORT_ARTIFACT {
+uuid id PK
+uuid job_id FK
+}
+RECIPE_IMPORT_ATTEMPT {
+uuid id PK
+uuid job_id FK
+}
+
+USER ||--o{ RECIPE : authors
+USER ||--o| MEMBER : joins_through
+ORGANIZATION ||--o{ MEMBER : contains
+USER ||--o{ INVITATION : sends
+ORGANIZATION ||--o{ INVITATION : receives
+USER o|--o{ NOTIFICATION_EVENT : acts_in
+USER ||--o{ NOTIFICATION_DELIVERY : receives
+NOTIFICATION_EVENT ||--o{ NOTIFICATION_DELIVERY : fans_out_as
+USER ||--o| USER_DIET_PROFILE : configures
+USER_DIET_PROFILE ||--o{ USER_DIET_PRESET : selects
+DIET_PRESET ||--o{ USER_DIET_PRESET : is_selected_by
+INGREDIENT_GROUP ||--o{ INGREDIENT_GROUP_MEMBER : contains
+INGREDIENT ||--o{ INGREDIENT_GROUP_MEMBER : belongs_to
+USER ||--o{ RECIPE_IMPORT_JOB : starts
+RECIPE_IMPORT_JOB ||--o{ RECIPE_IMPORT_ARTIFACT : produces
+RECIPE_IMPORT_JOB ||--o{ RECIPE_IMPORT_ATTEMPT : records`}
+/>
+
+## One baseline, then migrations by coherent change
+
+Create one generated `0000_baseline.sql` representing the entire current
+schema. Do not manufacture separate historical migrations for Better Auth,
+notifications, households, or recipe imports. Those changes were not deployed
+as an ordered migration sequence, so reconstructing one adds false history and
+extra failure points without improving recovery.
+
+After the baseline, create one migration per coherent, independently deployable
+change. A change can span several tables, indexes, constraints, and its required
+data backfill. Unrelated changes should not share a migration merely because
+they happen in the same pull request.
+
+The baseline is intentionally idempotent. It creates missing types, tables,
+constraints, and indexes while tolerating objects previously created by
+`drizzle-kit push`; it also registers existing users' canonical email rows. This
+allows the first production migration run to adopt the current database and
+allows a new empty database to be built from the same file. No later migration
+gets this tolerance: unexpected starting state must fail loudly.
+
+## Deployment ownership
+
+`recipe-api` CD owns schema deployment because it already deploys the Worker
+that first consumes the schema. The sequence is:
+
+1. run `drizzle-kit migrate` against the direct Neon migration URL;
+2. deploy the Worker.
+
+Migrations do not run inside Worker startup or through Hyperdrive. One
+serialized CI/CD migration runner exists, and its completion gates the application
+deployment.
+
+Schema changes must be backward-compatible with the Worker version already
+serving traffic. Renames, removals, and restrictive constraints use an
+expand-and-contract sequence: add the new shape, deploy code that supports it,
+backfill, then remove the old shape in a later deployment.
+
+## Preview migration history
+
+PR previews remain schema-only Neon branches because production identity,
+sessions, tokens, and private content must not be copied. Before migrating a new
+schema-only branch, the workflow restores the migration history represented by
+a cumulative `drizzle.__schema_migration_manifest` view. Neon copies this view
+as part of the parent schema even though it omits the Drizzle journal's rows.
+The workflow reconstructs the corresponding hashes from migration SQL at the
+current base commit, then runs the PR's unrecorded migrations normally. The
+migration checker requires the latest migration to refresh the view with every
+journal entry.
+
+A reused preview with a non-empty journal keeps its own history. This matters
+when `main` advances after the preview was created: those newer base migrations
+must run against the preview's older physical schema, not be marked as already
+applied.
+
+## Data management
+
+Data has three explicit owners:
+
+| Category                           | Owner                    | Examples                                            |
+| ---------------------------------- | ------------------------ | --------------------------------------------------- |
+| One-time shape-dependent transform | Versioned migration SQL  | canonical email backfill, future column conversions |
+| Required reference catalog         | Versioned data migration | ingredients, ingredient groups, diet presets        |
+| Disposable QA fixture              | Preview-only seed        | test users, households, authored recipes            |
+
+The initial catalog is `0001_diet_catalog.sql`. Later catalog changes use new
+custom migrations, so adding, renaming, or retiring a preset is reviewable and
+replayed in the same order everywhere. `db:migrate` alone must leave a fresh
+database operational; required rows do not depend on an out-of-band seed.
+
+Drizzle Studio is available for inspection and deliberate small corrections,
+but is not a repeatable deployment mechanism. Routine content administration
+should move through application/admin APIs as those are built.
+
+## Verification and recovery
+
+CI runs `drizzle-kit check` and generates from the current TypeScript schema. It
+fails if generation changes the checked-in migration directory, catching schema
+changes without a committed migration.
+
+The default correction strategy is roll-forward because Drizzle does not
+generate safe automatic down migrations and a schema rollback does not
+necessarily restore transformed data. Before a destructive or expensive
+migration, create a Neon snapshot. If data is damaged, restore to an isolated
+branch for inspection before finalizing production recovery; the restored
+migration journal then tells CD which later migrations need reapplying.
+
+# Alternatives Considered
+
+## Reconstruct migrations by feature area
+
+Rejected. It suggests Better Auth, household, notification, and import changes
+were independently deployed and tested in an order that never existed. Foreign
+keys cross those boundaries, making the artificial sequence harder to validate
+than one known current-state baseline.
+
+## Continue using `drizzle-kit push` until public launch
+
+Rejected. User-authored data and shared households make destructive or
+ambiguous automatic diffs costly now, even if the product is still pre-release.
+Delaying also makes the eventual baseline larger and more difficult to audit.
+
+## Copy production data into preview branches
+
+Rejected. It would preserve migration rows automatically but would also copy
+private recipes, identity data, sessions, and OAuth tokens into lower-trust QA
+environments.
+
+## Run migrations when the Worker starts
+
+Rejected. Serverless isolates can start concurrently, have request latency and
+execution limits, and should not receive schema-owner responsibilities. A
+single deployment job is easier to observe, retry, and gate.
+
+# Consequences
+
+* Schema changes are reviewable SQL with deterministic environment history.
+* Fresh databases can be created from committed migrations alone; preview
+  fixtures remain an optional environment-specific seed.
+* Preview deployments exercise PR migrations without receiving production data.
+* Authors must inspect generated SQL and plan expand-and-contract deployments
+  for breaking changes.
+* The preview workflow needs a small history-restoration step because
+  schema-only branches omit journal rows.
+* Recovery still requires operational judgment; a migration file is an audit
+  trail, not a backup.

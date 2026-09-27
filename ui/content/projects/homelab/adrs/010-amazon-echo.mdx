@@ -1,0 +1,89 @@
+---
+title: "ADR 010: Resurrecting the first-gen Amazon Echo"
+date: "2026-08-02"
+status: "Rejected"
+---
+
+# Context
+
+I have a first-generation Amazon Echo. It's long past Amazon's support
+window, and I tried to connect it to the home lab to give it a useful job,
+the same second-life treatment that worked for the 2011 printer and the 2016
+GPU.
+
+The first-gen Echo is notoriously closed. It will no longer join modern Wi-Fi
+networks: Amazon rejects the device on newer routers (the 2014-era radio and
+its provisioning flow are simply not accepted), so it can't get online at
+all. There's no firmware or "factory reset" route around that. The failure
+is at network join time, before anything else can be attempted.
+
+The only open path is replacing Alexa outright, which means opening the
+hardware: the EchoRoot project by André Hentschel
+([GitHub](https://github.com/AndreRH/EchoRoot) /
+[project site](https://andrerh.gitlab.io/echoroot/)) boots a tiny Linux from
+a microSD card
+and needs soldering to the bottom board (pogo pins, a device-tree change for
+the kernel). That is well beyond the reasonable effort for this device.
+
+# Decision
+
+**Rejected.** The first-gen Echo cannot be meaningfully connected to the
+home lab. It is unsupported hardware that is now, unfortunately, ewaste.
+
+The attempt is recorded here deliberately: the lab's whole reason for being
+includes keeping working hardware out of landfill. Here the lab cannot meet
+that goal because the device is architecturally closed, despite repeated
+attempts to recover it.
+
+# Alternatives
+
+## Use it as a plain speaker (Bluetooth/aux)
+
+* **Pros**: Keeps it out of landfill as a dumb speaker.
+* **Cons**: Not possible. The first-gen Echo has no aux jack at all. No
+  line-in, no line-out; its connectivity is Wi-Fi and Bluetooth only, and its
+  sole external connector is power. Bluetooth pairing is managed through the
+  Alexa app, which needs the device online, which it no longer can be.
+* **Decision**: Rejected because the device has no offline audio input.
+
+## Replace Alexa via the EchoRoot hardware hack
+
+* **Pros**: A genuine open-source second life; the community has done the
+  hard reverse-engineering.
+* **Cons**: Requires soldering/pogo pins into the bottom board, a microSD
+  adapter, and a custom rootfs and device tree; brick risk is high and
+  hardware access is destructive on a sealed speaker.
+* **Decision**: Rejected. It's a hardware-tinkering project, not a lab
+  integration, and the effort is better spent on devices that can be
+  salvaged without opening them up.
+
+## Keep trying community firmware routes
+
+* **Pros**: There's always a newer exploit.
+* **Cons**: High brick risk, zero upstream support, and time spent on a
+  device whose salvage value is minimal.
+* **Decision**: Rejected. The effort is better spent on supported devices.
+
+## Donate / recycle the device properly
+
+* **Pros**: Responsible disposal; aligns with the no-ewaste intent.
+* **Cons**: No functional reuse.
+* **Decision**: Accepted as the outcome. Proper recycling is the honest end
+  for this device.
+
+# Consequences
+
+### Pros
+
+* **An explicit record** that not every old device gets a second life, and
+  why.
+* **Lesson for future salvage**: closed firmware is the hard blocker, and a
+  device that can't even join the network is unrecoverable without hardware
+  surgery; check openness before buying or rescuing "unsupported" devices.
+
+### Cons
+
+* **The Echo joins the e-waste stream**, despite the lab's goal of avoiding
+  it, the boundary case this ADR documents.
+* **A slot in the home for a voice assistant** remains unfilled, if I ever
+  want one (would need to be an open/friendly device).

@@ -63,6 +63,15 @@ export const ADRSchema = z.object({
 
 export type ADR = z.infer<typeof ADRSchema>;
 
+export const LegacyADRAliasSchema = z.object({
+  alias: ADRRefSchema,
+  target: ADRRefSchema,
+  title: z.string().trim().min(1).optional(),
+  notes: z.string().min(1).optional(),
+});
+
+export type LegacyADRAlias = z.infer<typeof LegacyADRAliasSchema>;
+
 export const ADRRelationsSchema = z.object({
   project: ProjectSlugSchema,
   technologies: z.array(TechnologySlugSchema).default([]),

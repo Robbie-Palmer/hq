@@ -3,6 +3,7 @@ import path from "node:path";
 import { isValid, parse } from "date-fns";
 import readingTime from "reading-time";
 import { parse as parseYaml } from "yaml";
+import { legacyADRAliases } from "../../content/adr-aliases";
 import { experiences as definedExperiences } from "../../content/experience";
 import { technologies as definedTechnologies } from "../../content/technologies";
 import { parseFrontmatter } from "../content/frontmatter";
@@ -11,7 +12,10 @@ import {
   type ADRRef,
   type ADRRelations,
   ADRSchema,
+  type LegacyADRAlias,
+  LegacyADRAliasSchema,
   makeADRRef,
+  parseADRRef,
 } from "../domain/adr/adr";
 import {
   type BlogPost,
@@ -523,14 +527,17 @@ function loadProjectAdrRefs(projectSlug: string): ADRRef[] {
     .readdirSync(adrsDir)
     .filter((file) => file.endsWith(".mdx"))
     .sort((left, right) => left.localeCompare(right, "en"))
-    .flatMap((adrFile) => {
+    .map((adrFile) => {
       const adrSlug = adrFile.replace(/\.mdx$/, "");
       const { data } = parseFrontmatter(
         fs.readFileSync(path.join(adrsDir, adrFile), "utf-8"),
       );
-      return typeof data.inherits_from === "string"
-        ? []
-        : [makeADRRef(projectSlug, adrSlug)];
+      if (data.inherits_from !== undefined) {
+        throw new Error(
+          `ADR alias ${projectSlug}:${adrSlug} must be declared in content/adr-aliases.ts instead of an inherited stub file`,
+        );
+      }
+      return makeADRRef(projectSlug, adrSlug);
     });
 }
 
@@ -600,7 +607,7 @@ export function loadProjects(): ProjectLoadResult {
     const adrRefs = loadProjectAdrRefs(projectSlug);
     if (Array.isArray(data.inherits_adrs) && data.inherits_adrs.length > 0) {
       throw new Error(
-        `Project ${projectSlug} uses deprecated 'inherits_adrs'. Use inherited ADR stub files in ${projectSlug}/adrs/ with 'inherits_from' instead.`,
+        `Project ${projectSlug} uses deprecated 'inherits_adrs'. Register historical URLs in content/adr-aliases.ts and adopt platform layers explicitly instead.`,
       );
     }
 
@@ -715,17 +722,12 @@ function parseDefaultOverride(value: unknown): DefaultOverride | undefined {
   });
 }
 
-export function loadADRs(): ADRLoadResult {
+export function loadADRs(
+  aliasRecords: readonly LegacyADRAlias[] = legacyADRAliases,
+): ADRLoadResult {
   const entities = new Map<ADRRef, ADR>();
   const relations = new Map<ADRRef, ADRRelations>();
   const aliases = new Map<ADRRef, ADRRef>();
-  const inheritedStubRecords: Array<{
-    adrRef: ADRRef;
-    slug: string;
-    projectSlug: ProjectSlug;
-    data: Record<string, unknown>;
-    content: string;
-  }> = [];
 
   const projectDirs = projectDirectories();
 
@@ -742,15 +744,10 @@ export function loadADRs(): ADRLoadResult {
       const fileContent = fs.readFileSync(adrPath, "utf-8");
       const { data, content } = parseFrontmatter(fileContent);
 
-      if (typeof data.inherits_from === "string") {
-        inheritedStubRecords.push({
-          adrRef,
-          slug: adrSlug,
-          projectSlug,
-          data: data as Record<string, unknown>,
-          content,
-        });
-        return;
+      if (data.inherits_from !== undefined) {
+        throw new Error(
+          `ADR alias ${adrRef} must be declared in content/adr-aliases.ts instead of an inherited stub file`,
+        );
       }
 
       const technologies: TechnologySlug[] = (data.tech_stack || []).map(
@@ -790,47 +787,26 @@ export function loadADRs(): ADRLoadResult {
     });
   });
 
-  for (const record of inheritedStubRecords) {
-    const inheritsFromValue = record.data.inherits_from;
-    if (
-      typeof inheritsFromValue !== "string" ||
-      !/^[^:]+:[^:]+$/.test(inheritsFromValue)
-    ) {
+  for (const rawRecord of aliasRecords) {
+    const result = LegacyADRAliasSchema.safeParse(rawRecord);
+    if (!result.success) {
       throw new Error(
-        `Inherited ADR stub ${record.adrRef} has invalid inherits_from '${String(inheritsFromValue)}'. Expected format 'project:adr-slug'`,
+        `Legacy ADR alias '${String(rawRecord.alias)}' failed validation`,
       );
     }
-    const inheritsFrom = inheritsFromValue as ADRRef;
-    const sourceADR = entities.get(inheritsFrom);
-    if (!sourceADR) {
+    const { alias, target } = result.data;
+    if (entities.has(alias)) {
+      throw new Error(`Legacy ADR alias '${alias}' conflicts with a local ADR`);
+    }
+    if (aliases.has(alias)) {
+      throw new Error(`Legacy ADR alias '${alias}' is duplicated`);
+    }
+    if (!entities.has(target)) {
       throw new Error(
-        `Inherited ADR stub ${record.adrRef} references missing source ADR '${inheritsFrom}'`,
+        `Legacy ADR alias '${alias}' references missing source ADR '${target}'`,
       );
     }
-    if (sourceADR.inheritsFrom) {
-      throw new Error(
-        `Inherited ADR stub ${record.adrRef} cannot inherit from another inherited stub '${inheritsFrom}'`,
-      );
-    }
-    if (
-      Array.isArray(record.data.tech_stack) &&
-      record.data.tech_stack.length > 0
-    ) {
-      throw new Error(
-        `Inherited ADR stub ${record.adrRef} must not define tech_stack; technologies are derived from '${inheritsFrom}'`,
-      );
-    }
-    const titleOverride = record.data.title;
-    if (
-      titleOverride !== undefined &&
-      (typeof titleOverride !== "string" || titleOverride.trim().length === 0)
-    ) {
-      throw new Error(
-        `Inherited ADR stub ${record.adrRef} has invalid title override`,
-      );
-    }
-
-    aliases.set(record.adrRef, inheritsFrom);
+    aliases.set(alias, target);
   }
 
   return { entities, relations, aliases };
@@ -1563,6 +1539,16 @@ export function validateReferentialIntegrity(
   });
 
   input.adrAliases?.forEach((target, alias) => {
+    const { projectSlug } = parseADRRef(alias);
+    if (!input.projects.has(projectSlug)) {
+      errors.push({
+        type: "missing_reference",
+        entity: `ADRAlias[${alias}]`,
+        field: "alias",
+        value: projectSlug,
+        message: `Legacy ADR alias '${alias}' references missing project '${projectSlug}'`,
+      });
+    }
     if (!input.adrs.has(target)) {
       errors.push({
         type: "missing_reference",

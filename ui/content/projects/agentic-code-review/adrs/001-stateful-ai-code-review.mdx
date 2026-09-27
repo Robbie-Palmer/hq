@@ -1,0 +1,12 @@
+---
+title: "ADR 001: Stateful AI code review"
+date: "2026-07-25"
+status: "Proposed"
+supersedes: "agentic-code-review:000-custom-agentic-code-review"
+tech_stack: ["Cloudflare Workers", "Cloudflare Workflows", "Cloudflare R2"]
+---
+
+This is the current product decision and the first implementation scope for
+Agentic Code Review. The GitHub App owns Pull Request state, orchestration,
+finding lifecycle, budgets, and evaluation data while keeping model inference
+replaceable.

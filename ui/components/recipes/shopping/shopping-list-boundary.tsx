@@ -7,7 +7,13 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { isApiError } from "@/lib/api/http";
 import {
   type ShoppingListContents,
@@ -226,7 +232,7 @@ export function ShoppingListBoundary({
   }, [current.data, installedId, queryClient, userId]);
 
   const hasInstalledList = Boolean(installedId);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!hasInstalledList) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let syncTimer: ReturnType<typeof setTimeout> | undefined;

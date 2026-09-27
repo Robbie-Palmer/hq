@@ -1,7 +1,7 @@
 # Home Lab (code-as-config)
 
 This directory declares the home lab's machines as code, following the layout
-planned in [ADR 010](/projects/homelab/adrs/010-nixos-gpu-worker). The goal is
+planned in [ADR 007](/projects/homelab/adrs/007-nixos-gpu-worker). The goal is
 the same one that motivates the whole lab, the same config in produces the
 same system out, every change is reviewable and rollbackable, and nothing is
 hand-edited on a box that then forgets it.
@@ -10,7 +10,7 @@ All services are reachable only over the home LAN and the
 [Tailscale](/projects/homelab/adrs/000-tailscale) tailnet. The router
 forwards no ports, so nothing is ever public.
 
-[ADR 025](/projects/homelab/adrs/025-cloud-remote-development-plane) proposes
+[ADR 021](/projects/homelab/adrs/021-cloud-remote-development-plane) proposes
 an off-site t3-code environment for continuity during a home power or broadband
 outage. It is an independent, single-node K3s cluster on a NixOS VPS, not a
 remote member of the home cluster. The two environments share declarations and
@@ -419,7 +419,7 @@ confirms its checksum.
 
 ## Fleet inventory and checks
 
-[ADR 022](/projects/homelab/adrs/022-ansible-k3s-migration-bridge) introduces
+[ADR 019](/projects/homelab/adrs/019-ansible-k3s-migration-bridge) introduces
 Ansible as a temporary host-discovery and migration tool. mise installs the
 pinned Ansible Core release and remains the command interface:
 
@@ -531,7 +531,7 @@ mise run //homelab:verify
   on the LAN during the few seconds bootstrap runs.
 - **The drive must be mounted before bootstrap.** If the volume isn't
   connected or auto-mounted at login, the mount point won't exist.
-- The [Netdata](/projects/homelab/adrs/009-netdata) alerting on the hub now
+- The [Netdata](/projects/homelab/adrs/006-netdata) alerting on the hub now
   covers the Jellyfin container (see the media automation section below);
   the media drive itself is the remaining gap, so a dead disk is only
   noticed when playback fails.
@@ -539,13 +539,13 @@ mise run //homelab:verify
 ## Media automation on the Mac mini
 
 The *arr stack (ADRs 016–019) feeds the Jellyfin library automatically:
-[Prowlarr](/projects/homelab/adrs/017-prowlarr-indexer-management) manages
+[Prowlarr](/projects/homelab/adrs/014-prowlarr-indexer-management) manages
 the torrent indexers and syncs them to Sonarr (TV) and Radarr (movies), which
 send grabs to the containerized
-[qBittorrent](/projects/homelab/adrs/018-single-containerized-torrent-client)
+[qBittorrent](/projects/homelab/adrs/015-single-containerized-torrent-client)
 and import finished downloads into `/media/TV` and `/media/Movies` with
 Jellyfin-friendly names.
-[Recyclarr](/projects/homelab/adrs/019-recyclarr-trash-guides) keeps both
+[Recyclarr](/projects/homelab/adrs/016-recyclarr-trash-guides) keeps both
 apps' quality profiles on the TRaSH Guides with a nightly sync. A launchd
 agent (`homelab.media`) keeps all of it running across reboots, same as
 Jellyfin's.
@@ -591,7 +591,7 @@ mise run //homelab:media-provision   # re-run wiring; safe to repeat
   its own. See the recommendation-loop caveat below.
 - **Recommendation loop (Trakt)**: watchlist taps flow into Sonarr/Radarr
   via their native "Trakt User" import lists, and the Jellyfin Trakt plugin
-  scrobbles plays back so recommendations improve ([ADR 021](/projects/homelab/adrs/021-trakt-watchlist)).
+  scrobbles plays back so recommendations improve ([ADR 018](/projects/homelab/adrs/018-trakt-watchlist)).
   Each integration needs a one-time OAuth: in Radarr/Sonarr *Settings →
   Lists*, add "Trakt User", hit "Authenticate with Trakt"; in Jellyfin,
   Plugins → Trakt. Two traps: the list's username must match your profile
@@ -620,7 +620,7 @@ mise run //homelab:media-provision   # re-run wiring; safe to repeat
 - **The stack waits for the VPN.** Both provisioning and the keep-running
   agent refuse to start the containers until the hub's default route runs
   through a VPN tunnel interface, so torrent traffic never touches the
-  residential line during the boot race ([ADR 020](/projects/homelab/adrs/020-vpn-gated-stack)).
+  residential line during the boot race ([ADR 017](/projects/homelab/adrs/017-vpn-gated-stack)).
 - **Health gauges and alerts.** The keep-running agent probes every service
   endpoint each cycle (plus the VPN tunnel itself) and pushes 0/1 gauges into
   Netdata's local StatsD listener; it also restarts any container Docker marks

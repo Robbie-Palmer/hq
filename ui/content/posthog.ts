@@ -281,7 +281,7 @@ linkStyle default stroke:#1d1f1f,stroke-width:2px`,
       links: [
         {
           label: "Read the tracing decision",
-          href: "/projects/recipe-site/adrs/062-direct-otlp-export-to-posthog",
+          href: "/projects/recipe-site/adrs/020-direct-otlp-export-to-posthog",
         },
         {
           label: "Open the live product",
@@ -349,7 +349,7 @@ linkStyle default stroke:#1d1f1f,stroke-width:2px`,
       title: "t3-code runs the room",
       detail:
         "Repos, worktrees, terminals, browser tools, and agent sessions stay together while several coding harnesses work in parallel.",
-      href: "/projects/homelab/adrs/006-t3-code",
+      href: "/projects/homelab/adrs/004-t3-code",
       linkLabel: "Read the t3-code decision",
     },
     harnesses: [

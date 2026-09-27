@@ -102,7 +102,7 @@ describe("project platform components", () => {
     ).toBeGreaterThan(0);
     expect(
       screen.getAllByRole("link", {
-        name: "recipe-site:033-backend-platform-for-authenticated-features",
+        name: "recipe-site:004-backend-platform-for-authenticated-features",
       }).length,
     ).toBeGreaterThan(0);
     expect(container.querySelectorAll("a").length).toBeGreaterThan(1);
