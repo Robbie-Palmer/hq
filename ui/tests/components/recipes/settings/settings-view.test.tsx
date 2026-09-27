@@ -51,8 +51,14 @@ vi.mock("@/lib/api/households", async (importOriginal) => ({
 vi.mock("@/lib/api/agents", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/agents")>()),
   listAgents: mocks.listAgents,
-  listAgentMutations: mocks.listAgentMutations,
   revokeAgent: mocks.revokeAgent,
+}));
+
+vi.mock("@/lib/api/recipe-agent-mutations", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@/lib/api/recipe-agent-mutations")
+  >()),
+  listAgentMutations: mocks.listAgentMutations,
   undoAgentMutation: mocks.undoAgentMutation,
 }));
 

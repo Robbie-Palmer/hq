@@ -4,14 +4,12 @@ import { isAbortError } from "browser-base/errors";
 import { Bot, Clock, LoaderCircle, RotateCcw, ShieldX } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { type AgentSummary, listAgents, revokeAgent } from "@/lib/api/agents";
 import {
   type AgentMutationHistory,
-  type AgentSummary,
   listAgentMutations,
-  listAgents,
-  revokeAgent,
   undoAgentMutation,
-} from "@/lib/api/agents";
+} from "@/lib/api/recipe-agent-mutations";
 import { PanelHead } from "./panel-head";
 
 function dateLabel(value: string | null): string {
@@ -56,7 +54,7 @@ function loadWasAborted(result: LoadResult<unknown>): boolean {
 function loadFailure(
   agentResult: LoadResult<AgentSummary[]>,
   mutationResult: LoadResult<AgentMutationHistory[]>,
-): unknown | null {
+): unknown {
   if (!agentResult.success) return agentResult.error;
   if (!mutationResult.success) return mutationResult.error;
   return null;
