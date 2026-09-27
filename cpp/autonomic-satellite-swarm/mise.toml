@@ -1,6 +1,6 @@
 [tools]
 arduino-cli = "1.5.1"
-"npm:@types/node" = "26.5.1"
+"npm:@types/node" = "26.6.2"
 "npm:typescript" = "5.9.3"
 
 [tasks.configure]
