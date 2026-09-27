@@ -3,6 +3,15 @@ set +x
 set -euo pipefail
 umask 077
 
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+worker_dir="$(cd -- "$script_dir/.." && pwd)"
+wrangler="$worker_dir/node_modules/.bin/wrangler"
+
+if [[ ! -x "$wrangler" ]]; then
+  echo "Cannot deploy the observer: run the observer install task first." >&2
+  exit 1
+fi
+
 dry_run=false
 if [[ "${1:-}" == "--dry-run" && $# -eq 1 ]]; then
   dry_run=true
@@ -35,7 +44,7 @@ fi
 if [[ "$dry_run" == true ]]; then
   bundle_dir="$(mktemp -d "${TMPDIR:-/tmp}/work-graph-observer-bundle.XXXXXX")"
   trap 'find "$bundle_dir" -depth -delete 2>/dev/null || true' EXIT INT TERM
-  ./node_modules/.bin/wrangler deploy --dry-run --outdir "$bundle_dir"
+  (cd "$worker_dir" && "$wrangler" deploy --dry-run --outdir "$bundle_dir")
   exit
 fi
 
@@ -58,5 +67,5 @@ jq -n '{
 }' >"$secret_file"
 chmod 600 "$secret_file"
 
-./node_modules/.bin/wrangler secret bulk "$secret_file"
-./node_modules/.bin/wrangler deploy
+(cd "$worker_dir" && "$wrangler" secret bulk "$secret_file")
+(cd "$worker_dir" && "$wrangler" deploy)
