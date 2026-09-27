@@ -101,6 +101,9 @@ redirects browser logins straight to it, and sets the preview session to 30
 days. If you replace the provider, update the
 `cloudflare_account_identity_provider_id` default. A Cloudflare account that
 uses Google sign-in can then authenticate without the email-code round trip.
+Follow the runbook's
+[state-safe rollback procedure](../../docs/preview-environments.md#roll-back-terraform-ownership)
+before returning the application to dashboard ownership.
 
 ### Required Environment
 

@@ -97,6 +97,37 @@ mise run //infra/public-platform:plan
 mise run //infra/public-platform:apply
 ```
 
+Do not apply the import from an unmerged branch. Until the resource declaration
+exists on `main`, the next infrastructure deployment will treat the imported
+application as orphaned state and delete it. Let the first `main` deployment
+after the ownership change perform the import.
+
+#### Roll back Terraform ownership
+
+Do not remove the Access application resource and run a normal apply. Once
+Terraform has imported the Pages-generated application, that would delete the
+application and its preview login gate.
+
+To return the application to dashboard ownership, remove its resource and
+import blocks in the same change that restores the agent policy's
+`application_id` to `var.cloudflare_pages_preview_access_application_id`.
+Replace the resource with this block for one apply:
+
+```hcl
+removed {
+  from = cloudflare_zero_trust_access_application.pages_preview
+
+  lifecycle {
+    destroy = false
+  }
+}
+```
+
+The plan must report that Terraform will forget the application without
+destroying it. Apply that plan before removing the `removed` block in a later
+change. Keep the Pages preview access policy enabled in the Cloudflare
+dashboard throughout the rollback.
+
 Terraform creates a non-expiring `personal-site-preview-qa-agents` Access
 service-token identity and attaches it only to the Pages preview application.
 Its secret is rotated separately below. Terraform also adds
