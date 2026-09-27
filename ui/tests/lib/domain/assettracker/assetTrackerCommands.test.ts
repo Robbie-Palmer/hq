@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   AssetTrackerCommandError,
-  applyAddPlannedExpenditure,
-  applyAddRecurringFlow,
+  applyAddPlannedExpenditure as applyAddPlannedExpenditureDomain,
+  applyAddRecurringFlow as applyAddRecurringFlowDomain,
   applyClearAccountHistory,
   applyClearIncomeHistory,
   applyCloseAccount,
-  applyCreateAccount,
+  applyCreateAccount as applyCreateAccountDomain,
   applyDeleteCapitalFlow,
   applyDeletePlannedExpenditure,
   applyDeleteRecurringFlow,
@@ -27,6 +27,20 @@ import {
   AssetTrackerDataError,
 } from "@/lib/domain/assettracker/assetTrackerData";
 import { flowOccurrenceDates } from "@/lib/domain/assettracker/recurringFlow";
+
+const TEST_AS_OF_DATE = "2026-01-01";
+const applyCreateAccount = (
+  data: AssetTrackerData,
+  input: Parameters<typeof applyCreateAccountDomain>[1],
+) => applyCreateAccountDomain(data, input, TEST_AS_OF_DATE);
+const applyAddRecurringFlow = (
+  data: AssetTrackerData,
+  input: Parameters<typeof applyAddRecurringFlowDomain>[1],
+) => applyAddRecurringFlowDomain(data, input, TEST_AS_OF_DATE);
+const applyAddPlannedExpenditure = (
+  data: AssetTrackerData,
+  input: Parameters<typeof applyAddPlannedExpenditureDomain>[1],
+) => applyAddPlannedExpenditureDomain(data, input, TEST_AS_OF_DATE);
 
 function baseData(): AssetTrackerData {
   return {
@@ -117,6 +131,7 @@ describe("applyCreateAccount", () => {
     });
 
     expect(account.id).toBe("stocks-isa-2");
+    expect(account.createdAt).toBe(TEST_AS_OF_DATE);
   });
 
   it("records the opening balance as a snapshot", () => {

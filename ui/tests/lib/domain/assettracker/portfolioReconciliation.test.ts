@@ -283,7 +283,10 @@ describe("reconcilePortfolio", () => {
       { accountId: "pension", date: "2024-03-31", balance: 20_000 },
     );
 
-    const result = getPortfolioFinancialIndependence(buildRepository(data));
+    const result = getPortfolioFinancialIndependence(
+      buildRepository(data),
+      "2026-01-01",
+    );
     const expectedAnnualSavings = representativeAnnualSavings(result.periods);
 
     expect(result.savingsRate).toBeCloseTo(7_000 / 18_000);
@@ -368,7 +371,10 @@ describe("reconcilePortfolio", () => {
       },
     ];
 
-    const result = getPortfolioFinancialIndependence(buildRepository(data));
+    const result = getPortfolioFinancialIndependence(
+      buildRepository(data),
+      "2026-01-01",
+    );
     const annualExpenditure = result.representativeAnnualExpenditure ?? 0;
     const expectedTakeHomeSavings = 33_600 - annualExpenditure;
     const expectedAnnualSavings = expectedTakeHomeSavings + 12_600;
@@ -424,7 +430,7 @@ describe("reconcilePortfolio", () => {
     const repository = buildRepository(data);
     const currentNetWorth =
       getNetWorthTimeSeries(repository).at(-1)?.total ?? 0;
-    const result = getPortfolioFinancialIndependence(repository);
+    const result = getPortfolioFinancialIndependence(repository, "2026-01-01");
 
     expect(currentNetWorth).toBe(100_000);
     expect(result.progress).toBeGreaterThan(0);

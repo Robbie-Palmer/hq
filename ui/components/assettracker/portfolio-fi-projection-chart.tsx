@@ -17,11 +17,13 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import {
-  type Currency,
-  DEFAULT_BASE_CURRENCY,
   formatAnnualRate,
   formatCurrency,
   formatCurrencyAxisTick,
+} from "@/lib/assettracker";
+import {
+  type Currency,
+  DEFAULT_BASE_CURRENCY,
   type PortfolioFiProjectionPoint,
 } from "@/lib/domain/assettracker";
 

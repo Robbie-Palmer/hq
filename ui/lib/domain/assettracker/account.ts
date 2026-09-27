@@ -19,12 +19,6 @@ export type AssetType = z.infer<typeof AssetTypeSchema>;
 export const LiquidityTierSchema = z.enum(["cash", "liquid", "illiquid"]);
 export type LiquidityTier = z.infer<typeof LiquidityTierSchema>;
 
-export const LIQUIDITY_TIER_LABELS: Record<LiquidityTier, string> = {
-  cash: "Cash",
-  liquid: "Liquid investment",
-  illiquid: "Illiquid asset",
-};
-
 /** Liabilities carry negative balances; their rate is the interest charged */
 export function isLiability(assetType: AssetType): boolean {
   return assetType === "mortgage" || assetType === "debt";

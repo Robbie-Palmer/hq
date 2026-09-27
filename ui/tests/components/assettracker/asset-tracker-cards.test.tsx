@@ -27,11 +27,20 @@ import {
 } from "@/components/assettracker/runway-forecast";
 import { UpcomingFlows } from "@/components/assettracker/upcoming-flows";
 import {
-  type AccountDetailView,
-  buildFlowSankeyData,
-  type PortfolioFinancialIndependence,
+  buildFlowSankeyData as buildFlowSankeyDataAdapter,
   todayIsoDate,
+} from "@/lib/assettracker";
+import type {
+  AccountDetailView,
+  PortfolioFinancialIndependence,
 } from "@/lib/domain/assettracker";
+
+const buildFlowSankeyData = (
+  accounts: Parameters<typeof buildFlowSankeyDataAdapter>[0],
+  flows: Parameters<typeof buildFlowSankeyDataAdapter>[1],
+  liabilityBalances: Parameters<typeof buildFlowSankeyDataAdapter>[2],
+  asOfDate = "2026-01-01",
+) => buildFlowSankeyDataAdapter(accounts, flows, liabilityBalances, asOfDate);
 
 vi.mock("recharts", () => ({
   ResponsiveContainer: ({ children }: { children: ReactNode }) => (

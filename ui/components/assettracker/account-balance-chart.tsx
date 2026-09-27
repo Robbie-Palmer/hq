@@ -1,4 +1,5 @@
 "use client";
+
 import {
   CartesianGrid,
   Line,
@@ -22,10 +23,10 @@ import {
 } from "@/components/ui/chart";
 import {
   ACCOUNT_COLORS,
-  type AccountDetailView,
   formatAccountCurrency,
   formatAxisTick,
-} from "@/lib/domain/assettracker";
+} from "@/lib/assettracker";
+import type { AccountDetailView } from "@/lib/domain/assettracker";
 
 interface AccountBalanceChartProps {
   accounts: AccountDetailView[];

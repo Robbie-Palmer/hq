@@ -9,11 +9,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  formatAccountCurrency,
-  todayIsoDate,
-  upcomingFlowOccurrences,
-} from "@/lib/domain/assettracker";
+import { formatAccountCurrency, todayIsoDate } from "@/lib/assettracker";
+import { upcomingFlowOccurrences } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
 
 const UPCOMING_DAYS = 30;
