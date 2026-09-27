@@ -1206,6 +1206,38 @@ describe("Given agent-facing Work Graph commands", () => {
     expect(JSON.parse(full.stdout[0] ?? "null")).toEqual(claimResponse);
   });
 
+  it("reports when an explicit claim is neither ready nor stale recovery", async () => {
+    const test = harness(() =>
+      response(
+        {
+          error: {
+            code: "work_item_not_claimable",
+            message:
+              "Work item blocked is neither ready nor recoverable stale work.",
+          },
+        },
+        409,
+      ),
+    );
+
+    expect(
+      await test.run(["claim", "blocked", "--worker-id", "agent-a"]),
+    ).toBe(EXIT_CODES.conflict);
+    expect(test.requests[0]?.body).toEqual({
+      workerId: "agent-a",
+      leaseDurationSeconds: 900,
+      workItemId: "blocked",
+    });
+    expect(JSON.parse(test.stderr[0] ?? "null")).toEqual({
+      error: {
+        code: "work_item_not_claimable",
+        message:
+          "Work item blocked is neither ready nor recoverable stale work.",
+        status: 409,
+      },
+    });
+  });
+
   it("shows a work item with an encoded path identifier", async () => {
     const candidate = {
       id: UUID,

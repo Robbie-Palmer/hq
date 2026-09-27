@@ -1600,6 +1600,110 @@ describe("Given lease-backed work over HTTP", () => {
     expect(claim.workItem.id).toBe("z-high");
   });
 
+  it("recovers and releases stale child work after an ancestor gains a blocker", async () => {
+    await requestJson("/api/work-items", "POST", {
+      id: "parent",
+      title: "Parent",
+    });
+    await requestJson("/api/work-items", "POST", {
+      id: "child",
+      title: "Child",
+      parentId: "parent",
+    });
+    await requestJson("/api/work-items", "POST", {
+      id: "not-started",
+      title: "Not started",
+      parentId: "parent",
+    });
+    await requestJson("/api/work-items", "POST", {
+      id: "blocker",
+      title: "Blocker",
+    });
+    const firstClaimResponse = await requestJson("/api/leases", "POST", {
+      workItemId: "child",
+      workerId: "worker-a",
+      leaseDurationSeconds: 300,
+    });
+    const firstClaim = (await firstClaimResponse.json()) as {
+      lease: { id: string; epoch: number };
+    };
+    await requestJson("/api/dependencies", "POST", {
+      dependentWorkItemId: "parent",
+      blockerWorkItemId: "blocker",
+    });
+    await db.$client.unsafe(
+      'update "leases" set "acquired_at" = $1, "expires_at" = $2 where "id" = $3',
+      [
+        "2000-01-01T00:00:00Z",
+        "2000-01-01T00:01:00Z",
+        firstClaim.lease.id,
+      ],
+    );
+
+    const staleResponse = await app.request("/api/work-items/child");
+    const stale = (await staleResponse.json()) as { stage: string };
+    expect(stale.stage).toBe("stale");
+
+    const neverStarted = await requestJson("/api/leases", "POST", {
+      workItemId: "not-started",
+      workerId: "worker-b",
+      leaseDurationSeconds: 300,
+    });
+    expect(neverStarted.status).toBe(409);
+    expect(await neverStarted.json()).toEqual({
+      error: {
+        code: "work_item_not_claimable",
+        message:
+          "Work item not-started is neither ready nor recoverable stale work.",
+      },
+    });
+
+    const recoveryResponse = await requestJson("/api/leases", "POST", {
+      workItemId: "child",
+      workerId: "worker-b",
+      leaseDurationSeconds: 300,
+    });
+    const recovery = (await recoveryResponse.json()) as {
+      lease: { id: string; epoch: number };
+    };
+    expect(recoveryResponse.status).toBe(201);
+    expect(recovery.lease.epoch).toBe(firstClaim.lease.epoch + 1);
+
+    const fencedRelease = await requestJson(
+      "/api/work-items/child/releases",
+      "POST",
+      { leaseId: firstClaim.lease.id, epoch: firstClaim.lease.epoch, ...completionEvidence },
+    );
+    expect(fencedRelease.status).toBe(409);
+
+    const releaseResponse = await requestJson(
+      "/api/work-items/child/releases",
+      "POST",
+      { leaseId: recovery.lease.id, epoch: recovery.lease.epoch, ...completionEvidence },
+    );
+    expect(releaseResponse.status).toBe(201);
+    const released = (await releaseResponse.json()) as {
+      workItem: { lifecycle: string };
+    };
+    expect(released.workItem.lifecycle).toBe("released");
+
+    const dependenciesResponse = await app.request(
+      "/api/work-items/parent/dependencies",
+    );
+    const dependencies = (await dependenciesResponse.json()) as {
+      items: Array<{
+        dependentWorkItemId: string;
+        blockerWorkItemId: string;
+      }>;
+    };
+    expect(dependencies.items).toEqual([
+      {
+        dependentWorkItemId: "parent",
+        blockerWorkItemId: "blocker",
+      },
+    ]);
+  });
+
   it("assigns an existing plan and claims within its project scope", async () => {
     await requestJson(
       "/api/knowledge-scopes/initiative",

@@ -1892,7 +1892,33 @@ describe("Given a worker managing a lease", () => {
     expect(await responseJson(response)).toEqual({
       error: {
         code: "work_item_not_claimable",
-        message: "No work item is currently claimable.",
+        message:
+          "No ready work item is currently claimable. Specify a stale ticket to recover it.",
+      },
+    });
+  });
+
+  it("explains when a specified item cannot start or recover", async () => {
+    const repository = buildRepository();
+    vi.mocked(repository.claimWorkItem).mockResolvedValue(null);
+    const app = createWorkGraphApp(repository);
+
+    const response = await app.request("/api/leases", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workItemId: "blocked",
+        workerId: "worker-a",
+        leaseDurationSeconds: 300,
+      }),
+    });
+
+    expect(response.status).toBe(409);
+    expect(await responseJson(response)).toEqual({
+      error: {
+        code: "work_item_not_claimable",
+        message:
+          "Work item blocked is neither ready nor recoverable stale work.",
       },
     });
   });

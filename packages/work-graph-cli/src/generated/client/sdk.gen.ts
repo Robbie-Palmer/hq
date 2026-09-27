@@ -188,7 +188,7 @@ export const moveKnowledgeScopePriority = <ThrowOnError extends boolean = false>
 /**
  * Claim a specified or first eligible work item
  *
- * Creates a fenced lease for the requested item, or for the highest-priority eligible item within optional initiative, project, and direct-parent filters when workItemId is absent.
+ * Creates a fenced lease for the requested item, including recovery of its expired lease after graph blockers changed. When workItemId is absent, claims only the highest-priority ready item within optional initiative, project, and direct-parent filters.
  */
 export const createLease = <ThrowOnError extends boolean = false>(options: Options<CreateLeaseData, ThrowOnError>): RequestResult<CreateLeaseResponses, CreateLeaseErrors, ThrowOnError> => options.client.post<CreateLeaseResponses, CreateLeaseErrors, ThrowOnError>({
     url: '/api/leases',

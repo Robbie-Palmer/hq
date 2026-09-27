@@ -4899,7 +4899,12 @@ export class WorkGraphRepository {
       const [candidate] = await transaction
         .select({ id: workItem.id })
         .from(workItem)
-        .where(claimableWorkItemWhere(candidateId))
+        .where(
+          claimableWorkItemWhere(
+            candidateId,
+            requestedWorkItemId !== undefined,
+          ),
+        )
         .limit(1)
         .for("update", { of: workItem, skipLocked: true });
       if (!candidate) continue;
@@ -4910,7 +4915,12 @@ export class WorkGraphRepository {
       const [stillClaimable] = await transaction
         .select({ id: workItem.id })
         .from(workItem)
-        .where(claimableWorkItemWhere(candidate.id))
+        .where(
+          claimableWorkItemWhere(
+            candidate.id,
+            requestedWorkItemId !== undefined,
+          ),
+        )
         .limit(1);
       if (stillClaimable) return candidate.id;
     }

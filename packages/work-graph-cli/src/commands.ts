@@ -1597,7 +1597,9 @@ export const workGraphRouter = t.router({
     .input(queueInput)
     .query(({ ctx, input }) => listQueue(ctx, input)),
   claim: command
-    .meta({ description: "Claim the next ready ticket or a specified ticket" })
+    .meta({
+      description: "Claim the next ready ticket or recover a specified stale ticket",
+    })
     .input(claimInput)
     .mutation(async ({ ctx, input }) => {
       const workerId = input.workerId ?? workerIdentity(ctx.environment);
