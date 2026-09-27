@@ -9,18 +9,9 @@ _.file = ".env"
 [tasks.dvc]
 description = "Run DVC in the current pipeline with credentials from Doppler (e.g. mise run //ml-pipelines:dvc -- status)"
 dir = "{{cwd}}"
-run = "bash {{config_root}}/scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc"
+run = "bash {{config_root}}/scripts/doppler-pipeline-env {{config_root}}/scripts/dvc"
 
 [tasks.dvc-lock]
-description = "Compile the hash-pinned DVC requirements used by CI"
-dir = "{{config_root}}"
-run = '''
-uv pip compile dvc-requirements.in \
-  --output-file dvc-requirements.txt \
-  --generate-hashes \
-  --python-version 3.14 \
-  --python-platform x86_64-unknown-linux-gnu \
-  --only-binary :all: \
-  --no-binary antlr4-python3-runtime \
-  --custom-compile-command 'mise run //ml-pipelines:dvc-lock'
-'''
+description = "Update the locked DVC tool environment"
+dir = "{{config_root}}/dvc-tool"
+run = "uv lock"
