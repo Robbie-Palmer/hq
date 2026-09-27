@@ -3,6 +3,7 @@ import type { LegacyADRAlias } from "@/lib/domain/adr/adr";
 /**
  * Historical project-local ADR URLs. Notes preserve authored context from the
  * removed inherited stub files; aliases without notes were empty redirects.
+ * This is a data registry, so Sonar excludes its repeated record shape from CPD.
  */
 export const legacyADRAliases = [
   {

@@ -557,6 +557,71 @@ Canonical source content.`;
       );
     });
 
+    it("rejects a legacy alias that conflicts with a local ADR", () => {
+      const localADR = `---
+title: "ADR 000: React"
+date: "2025-10-18"
+status: "Accepted"
+---
+
+Canonical source content.`;
+
+      vi.mocked(fs.readdirSync).mockImplementation(((path: string) => {
+        if (path.endsWith("projects")) return [mockDirent("recipe-site")];
+        if (path.includes("recipe-site/adrs")) return ["000-react.mdx"];
+        return [];
+      }) as unknown as typeof fs.readdirSync);
+      vi.mocked(fs.readFileSync).mockReturnValue(localADR);
+
+      expect(() =>
+        loadADRs([
+          {
+            alias: "recipe-site:000-react",
+            target: "recipe-site:000-react",
+          },
+        ]),
+      ).toThrow("conflicts with a local ADR");
+    });
+
+    it("rejects a duplicate legacy alias", () => {
+      const sourceADR = `---
+title: "ADR 002: React"
+date: "2025-10-18"
+status: "Accepted"
+---
+
+Canonical source content.`;
+      const alias = {
+        alias: "recipe-site:000-react" as const,
+        target: "source:002-react" as const,
+      };
+
+      vi.mocked(fs.readdirSync).mockImplementation(((path: string) => {
+        if (path.endsWith("projects")) return [mockDirent("source")];
+        if (path.includes("source/adrs")) return ["002-react.mdx"];
+        return [];
+      }) as unknown as typeof fs.readdirSync);
+      vi.mocked(fs.readFileSync).mockReturnValue(sourceADR);
+
+      expect(() => loadADRs([alias, alias])).toThrow("is duplicated");
+    });
+
+    it("rejects a legacy alias whose target ADR is missing", () => {
+      vi.mocked(fs.readdirSync).mockImplementation(((path: string) => {
+        if (path.endsWith("projects")) return [mockDirent("source")];
+        return [];
+      }) as unknown as typeof fs.readdirSync);
+
+      expect(() =>
+        loadADRs([
+          {
+            alias: "recipe-site:000-react",
+            target: "source:002-react",
+          },
+        ]),
+      ).toThrow("references missing source ADR");
+    });
+
     it("rejects inherited ADR stub files", () => {
       const inheritedStub = `---
 inherits_from: "source:049-cloudflare-workflows"
