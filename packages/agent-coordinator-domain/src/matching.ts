@@ -24,7 +24,7 @@ import { WorkGraphWorkItemSchema } from "./work-graph";
 
 const TimestampSchema = z.iso.datetime();
 const RevisionSchema = z.string().trim().min(1).max(500);
-const ScoreSchema = z.number().finite().nonnegative();
+const ScoreSchema = z.number().nonnegative();
 
 export const AdvisoryScoreObservationSchema = z
   .object({
@@ -225,10 +225,10 @@ export const AdvisoryScoreInputsSchema = z
   .object({
     workGraphPriority: WorkGraphWorkItemSchema.shape.priority,
     expectedValue: ScoreSchema,
-    declaredCapabilityMargin: z.number().finite(),
-    observedCapabilityMargin: z.number().finite(),
+    declaredCapabilityMargin: z.number(),
+    observedCapabilityMargin: z.number(),
     estimatedCost: MoneySchema,
-    capacityHeadroom: z.number().finite().nonnegative(),
+    capacityHeadroom: z.number().nonnegative(),
     handoffCost: ScoreSchema,
     prepaidCapacityExpiresAt: z.union([TimestampSchema, z.null()]),
   })
@@ -362,8 +362,8 @@ export class AdvisoryMatchingError extends Error {
 
 const hash = (value: string): string => {
   let result = 0x811c9dc5;
-  for (let index = 0; index < value.length; index += 1) {
-    result ^= value.charCodeAt(index);
+  for (const character of value) {
+    result ^= character.codePointAt(0) ?? 0;
     result = Math.imul(result, 0x01000193);
   }
   return (result >>> 0).toString(16).padStart(8, "0");
@@ -390,8 +390,11 @@ const inputFingerprint = (
   input: z.infer<typeof AdvisoryMatchingInputSchema>,
 ): string => `snapshot:${hash(canonicalJson(input))}`;
 
-const pairingId = (taskId: string, actorId: string, adapterId: string): string =>
-  `pair:${hash(`${taskId}\n${actorId}\n${adapterId}`)}`;
+const pairingId = (
+  taskId: string,
+  actorId: string,
+  adapterId: string,
+): string => `pair:${hash([taskId, actorId, adapterId].join("\n"))}`;
 
 const stateFor = (
   worker: AdvisoryWorkerCandidate,
@@ -425,7 +428,7 @@ const capacityHeadroom = (
     const available = actor.resourceAvailability.find(
       ({ resource }) => resource === required.resource,
     );
-    if (!available || available.unit !== required.unit) return 0;
+    if (available?.unit !== required.unit) return 0;
     const denominator = required.amount === 0 ? 1 : required.amount;
     return (available.amount - required.amount) / denominator;
   });
@@ -511,7 +514,8 @@ const comparePrepaidExpiry = (
 const compareRankedPairs = (left: RankedPair, right: RankedPair): number => {
   const leftScore = left.evaluation.scoreInputs;
   const rightScore = right.evaluation.scoreInputs;
-  if (!leftScore || !rightScore) return leftScore ? -1 : rightScore ? 1 : 0;
+  if (!leftScore) return rightScore ? 1 : 0;
+  if (!rightScore) return -1;
   const primary = comparePrimaryScores(leftScore, rightScore);
   if (primary !== 0) return primary;
 
@@ -570,6 +574,11 @@ const evaluatePair = (
   });
   const eligible = compatibility.eligible;
   const aboveFloor = task.expectedValue.value >= input.settings.minimumExpectedValue;
+  let suitabilityReason: AdvisoryPairEvaluation["suitabilityReason"] =
+    "hard-exclusion";
+  if (eligible) {
+    suitabilityReason = aboveFloor ? "eligible" : "below-value-floor";
+  }
   const evaluation = AdvisoryPairEvaluationSchema.parse({
     pairingId: pairingId(
       task.task.taskId,
@@ -581,11 +590,7 @@ const evaluatePair = (
     adapterId: worker.adapter.adapterId,
     eligible,
     suitable: eligible && aboveFloor,
-    suitabilityReason: eligible
-      ? aboveFloor
-        ? "eligible"
-        : "below-value-floor"
-      : "hard-exclusion",
+    suitabilityReason,
     hardExclusions: compatibility.hardExclusions,
     scoreInputs: eligible ? scoreInputs(task, worker, compatibility) : null,
   });
