@@ -146,6 +146,7 @@ jobs:
             workers/recipe-api/coverage/lcov.info
             workers/recipe-ingest/coverage/lcov.info
             workers/work-graph-api/coverage/lcov.info
+            workers/work-graph-observer/coverage/lcov.info
           if-no-files-found: error
           retention-days: 1
 

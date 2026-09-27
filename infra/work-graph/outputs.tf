@@ -32,3 +32,23 @@ output "worker_name" {
   description = "Work Graph Worker service name"
   value       = cloudflare_workers_script.work_graph.name
 }
+
+output "github_observer_origin" {
+  description = "Public origin that accepts signed GitHub webhooks"
+  value       = "https://${var.github_observer_hostname}"
+}
+
+output "github_observer_worker_name" {
+  description = "GitHub observer Worker service name"
+  value       = cloudflare_workers_script.github_observer.name
+}
+
+output "github_deliveries_queue_name" {
+  description = "Queue for verified GitHub deliveries"
+  value       = cloudflare_queue.github_deliveries.name
+}
+
+output "github_deliveries_dead_letter_queue_name" {
+  description = "Dead-letter queue for failed GitHub delivery processing"
+  value       = cloudflare_queue.github_deliveries_dead_letter.name
+}

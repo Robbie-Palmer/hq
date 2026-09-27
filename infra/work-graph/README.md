@@ -3,8 +3,9 @@
 This Terraform root provisions the production Work Graph service. It owns the
 Worker service name, custom domain, Cloudflare Access application and policy,
 the dedicated R2 database-backup bucket, and the desired shape of the dedicated
-Neon project and Hyperdrive configuration. HCP Terraform stores its state in the
-`personal-site-work-graph` workspace.
+Neon project and Hyperdrive configuration. It also creates the separate public
+GitHub observer hostname, verified-delivery queue, and dead-letter queue. HCP
+Terraform stores its state in the `personal-site-work-graph` workspace.
 
 Production uses a Hyperdrive origin connection limit of 60. Neon permits 112
 connections and reserves four for superusers, so this leaves 48 ordinary
@@ -85,7 +86,7 @@ Create these before the first apply:
   `NEON_ORG_ID`, and `TF_API_TOKEN` in `prd_work_graph_infra`.
 
 The Cloudflare infrastructure token needs product-level Workers admin because
-the first apply creates the bootstrap Worker. It also needs Hyperdrive edit,
+the first apply creates the bootstrap Workers and delivery queues. It also needs Queues edit, Hyperdrive edit,
 Access Apps and Policies edit, and Access Service Tokens edit at the account
 scope, plus R2 Storage write for the dedicated backup bucket. Grant Zone read
 and Workers Routes edit only for `robbiepalmer.me`.
@@ -142,6 +143,13 @@ Terraform first deploys a 503 bootstrap Worker. Application deployment through
 `workers/work-graph-api` replaces that module and disables its `workers.dev`
 address. Until then, Access protects the custom domain and the Worker returns
 no application data.
+
+Terraform also deploys a fail-closed bootstrap at
+`work-graph-observer.robbiepalmer.me`. The observer hostname has no Access
+exemption because it is a separate Worker with only one application route.
+Deploy `workers/work-graph-observer` before activating its private GitHub App.
+The observer runbook documents App credentials, installation allowlists,
+retries, the dead-letter queue, and key rotation.
 
 The apply also creates `work-graph-database-backups` with Terraform deletion
 protection. Configure its lifecycle rules, object locks, read-only Neon login,
