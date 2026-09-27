@@ -62,17 +62,8 @@ supersedes: "000-earlier-publication-policy"
 evidence:
   - title: "Reader and agent access study"
     url: "https://example.com/study"
-outcome_metrics:
-  - name: "Project coverage"
-    target: "Every public project has a Markdown twin"
-    measurement: "Run the generated-route coverage test"
-    window: "At each production deployment"
-implementation_evidence:
-  - title: "Markdown route deployment"
-    url: "https://github.com/example/repository/pull/1"
 ideas: ["context-engineering"]
 affected_projects: ["personal-knowledge-graph"]
-adrs: ["personal-knowledge-graph:020-mdx"]
 ```
 
 `date` records when the PDR was opened. `decision_date` records when a proposal
@@ -80,16 +71,23 @@ was accepted or rejected. An accepted choice created in one step may use the
 same value for both. `deprecated_date` records when an accepted choice ended
 without a replacement.
 
-`evidence` supports the choice at decision time. `outcome_metrics` states the
-observable result and how to measure it. `implementation_evidence` links to
-proof that the chosen behaviour shipped. A merged pull request may prove
-delivery, but it does not prove that the product outcome occurred.
+`evidence` supports the choice at decision time. Evidence may be research,
+observed behaviour, user feedback, or an experiment. The record should link to
+what actually informed the choice instead of inventing a quantitative target
+to complete the frontmatter.
+
+Evaluation belongs in the PDR body when the decision has a real way to assess
+it. An optional `Evaluation` section can describe a signal, observation, or
+revisit condition in the terms used to make the choice. A measurable target is
+useful when the decision genuinely depends on one. The contract does not
+require a metric, target, measurement method, or time window.
+
+Delivery evidence belongs to the work that implements the decision, such as a
+linked ADR, ticket, pull request, or deployment. A merged pull request may
+prove delivery, but it does not prove that the product choice was sound.
 
 `ideas` preserves conceptual provenance. `affected_projects` names every
-project governed by the choice. `adrs` links architecture decisions that
-implement or constrain it. ADR frontmatter may link back through
-`product_decisions`; the content graph will derive backlinks, so neither side
-must duplicate every relation.
+project governed by the choice.
 
 ### Lifecycle and supersession
 
@@ -113,13 +111,19 @@ ADRs.
 
 ### Relationship to ADRs
 
+PDRs do not list ADRs that may implement them. Product decisions come first,
+and their technical consequences may not be known when the PDR is written.
+When an ADR follows a product decision, the ADR names the earlier PDR through
+`product_decisions` frontmatter. The content graph derives the reverse list for
+the PDR page.
+
 One product choice may govern several architecture decisions. For example, a
 PDR promising one canonical project narrative for people and agents could lead
 to the choices for [static generation](/projects/personal-knowledge-graph/adrs/015-ssg),
 [MDX content](/projects/personal-knowledge-graph/adrs/020-mdx), and the
 [in-memory content graph](/projects/personal-knowledge-graph/adrs/033-content-graph-indexes).
-The PDR owns the audience, promise, and coverage measure. Each ADR owns its
-technical trade-off.
+The PDR owns the audience and promise, including any genuine evaluation
+criterion. Each ADR owns its technical trade-off.
 
 An ADR does not need a PDR when its value is architectural and it does not
 change a product promise. The
@@ -141,23 +145,22 @@ The first adoption pass should preserve these live choices:
    remain outside the public graph.
 
 This ADR only identifies the candidates. The adoption work must give each one
-its own evidence, outcome measures, affected projects, and lifecycle dates.
+its own rationale, available evidence, affected projects, and lifecycle dates.
 
 ## Consequences
 
-Product intent gains a stable identity and can connect to ideas, projects,
-evidence, and the architecture that delivers it. Reviews can ask separately
-whether a feature shipped and whether it changed the stated outcome.
+Product intent gains a stable identity and can connect to ideas, projects, and
+the architecture that follows it. Reviews can ask separately whether a feature
+shipped and whether the underlying product choice still holds.
 
 The repository gains another content type, route family, validation path, and
 set of graph relations. Authors must decide whether a choice belongs in a PDR,
 an ADR, both, or neither. The boundary above makes that extra judgment useful,
 but it does not remove it.
 
-Existing ADRs remain valid. The initial adoption may link them from new PDRs
-without rewriting their historical text. Later pipeline work will load and
-validate the new files; later publication work will add views and the initial
-records.
+Existing ADRs remain valid and do not gain references to later PDRs. New ADRs
+can cite PDRs that predate them. Later pipeline work will load and validate the
+new files; later publication work will add views and the initial records.
 
 ## Alternatives
 

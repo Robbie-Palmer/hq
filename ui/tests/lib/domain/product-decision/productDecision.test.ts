@@ -15,22 +15,8 @@ const acceptedDecision = {
       url: "https://example.com/evidence/agent-markdown",
     },
   ],
-  outcome_metrics: [
-    {
-      name: "Project coverage",
-      target: "Every public project has a Markdown twin",
-      measurement: "Run the generated-route coverage test",
-    },
-  ],
-  implementation_evidence: [
-    {
-      title: "Markdown route pull request",
-      url: "https://github.com/example/repository/pull/1",
-    },
-  ],
   ideas: ["context-engineering"],
   affected_projects: ["personal-knowledge-graph"],
-  adrs: ["personal-knowledge-graph:020-mdx"],
 } as const;
 
 describe("ProductDecisionFrontmatterSchema", () => {
@@ -94,6 +80,21 @@ describe("ProductDecisionFrontmatterSchema", () => {
       ProductDecisionFrontmatterSchema.safeParse({
         ...acceptedDecision,
         affected_projects: [],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("keeps evaluation and downstream ADRs out of frontmatter", () => {
+    expect(
+      ProductDecisionFrontmatterSchema.safeParse({
+        ...acceptedDecision,
+        outcome_metrics: [{ name: "Coverage", target: "100%" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      ProductDecisionFrontmatterSchema.safeParse({
+        ...acceptedDecision,
+        adrs: ["personal-knowledge-graph:020-mdx"],
       }).success,
     ).toBe(false);
   });

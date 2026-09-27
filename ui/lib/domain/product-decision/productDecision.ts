@@ -1,6 +1,5 @@
 import { z } from "zod";
 import {
-  ADRRefSchema,
   IdeaSlugSchema,
   ProductDecisionSlugSchema,
   ProjectSlugSchema,
@@ -25,13 +24,6 @@ export const ProductDecisionEvidenceLinkSchema = z.object({
   url: z.url(),
 });
 
-export const ProductDecisionOutcomeMetricSchema = z.object({
-  name: z.string().min(1),
-  target: z.string().min(1),
-  measurement: z.string().min(1),
-  window: z.string().min(1).optional(),
-});
-
 export const ProductDecisionFrontmatterSchema = z
   .object({
     title: z.string().regex(/^PDR \d{3}: .+/),
@@ -41,13 +33,8 @@ export const ProductDecisionFrontmatterSchema = z
     deprecated_date: DateSchema.optional(),
     supersedes: ProductDecisionSlugSchema.optional(),
     evidence: z.array(ProductDecisionEvidenceLinkSchema).default([]),
-    outcome_metrics: z.array(ProductDecisionOutcomeMetricSchema).default([]),
-    implementation_evidence: z
-      .array(ProductDecisionEvidenceLinkSchema)
-      .default([]),
     ideas: z.array(IdeaSlugSchema).default([]),
     affected_projects: z.array(ProjectSlugSchema).min(1),
-    adrs: z.array(ADRRefSchema).default([]),
   })
   .strict()
   .superRefine((record, context) => {
