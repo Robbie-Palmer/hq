@@ -1068,7 +1068,7 @@ const listWorkItemsRoute = createRoute({
   operationId: "listWorkItems",
   summary: "List work items with their derived stage",
   description:
-    "Returns one bounded page in global priority order. Scope arrays use repeated query parameters. Values within one inclusion dimension are ORed, initiative and project dimensions are ANDed, and exclusions win. Empty inclusion arrays impose no restriction. Optional stage and direct-parent filters preserve priority order. The singular initiativeId and projectId parameters remain deprecated one-item inclusion aliases. Pass nextCursor to continue after the last observed item without offset drift during lease transitions.",
+    "Returns one bounded page in global priority order. Scope arrays use repeated query parameters. Values within one inclusion dimension are alternatives, initiative and project filters must both match, and exclusions win. Empty inclusion arrays impose no restriction. Optional stage and direct-parent filters preserve priority order. The singular initiativeId and projectId parameters remain deprecated one-item inclusion aliases. Pass nextCursor to continue after the last observed item without offset drift during lease transitions.",
   tags: ["work-items"],
   security: accessSecurity,
   request: { query: listWorkItemsQuerySchema },
@@ -1087,7 +1087,7 @@ const getCriticalPathRoute = createRoute({
   operationId: "getCriticalPath",
   summary: "Project the current delivery-critical path",
   description:
-    "Returns one deterministic, bounded projection for global open roots, selected scopes, or one explicit root work item. Scope arrays use repeated query parameters. Values within one inclusion dimension are ORed, initiative and project dimensions are ANDed, and exclusions win. Exclusions remove matching targets but retain cross-scope blockers required by included outcomes. The singular initiativeId and projectId parameters remain deprecated one-item inclusion aliases. An explicit root cannot be combined with scope filters. Projections are limited to 1,000 nodes, 5,000 edges, and 5,000 blocking paths; larger projections return a conflict instead of a partial graph.",
+    "Returns one deterministic, bounded projection for global open roots, selected scopes, or one explicit root work item. Scope arrays use repeated query parameters. Values within one inclusion dimension are alternatives, initiative and project filters must both match, and exclusions win. Exclusions remove matching targets but retain cross-scope blockers required by included outcomes. The singular initiativeId and projectId parameters remain deprecated one-item inclusion aliases. An explicit root cannot be combined with scope filters. Projections are limited to 1,000 nodes, 5,000 edges, and 5,000 blocking paths; larger projections return a conflict instead of a partial graph.",
   tags: ["work-items"],
   security: accessSecurity,
   request: { query: getCriticalPathQuerySchema },
@@ -1958,7 +1958,7 @@ const createLeaseRoute = createRoute({
   operationId: "createLease",
   summary: "Claim a specified or first eligible work item",
   description:
-    "Creates a fenced lease for the requested item, including recovery of its expired lease after graph blockers changed. When workItemId is absent, claims only the highest-priority ready item within the optional scope filters. Values within one inclusion dimension are ORed, initiative and project dimensions are ANDed, and exclusions win. Empty inclusion arrays impose no restriction. The singular initiativeId and projectId fields remain deprecated one-item inclusion aliases. Explicit claims by workItemId reject every selection filter.",
+    "Creates a fenced lease for the requested item, including recovery of its expired lease after graph blockers changed. When workItemId is absent, claims only the highest-priority ready item within the optional scope filters. Values within one inclusion dimension are alternatives, initiative and project filters must both match, and exclusions win. Empty inclusion arrays impose no restriction. The singular initiativeId and projectId fields remain deprecated one-item inclusion aliases. Explicit claims by workItemId reject every selection filter.",
   tags: ["leases"],
   security: accessSecurity,
   request: {

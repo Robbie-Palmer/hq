@@ -567,7 +567,33 @@ export type GetCriticalPathData = {
     body?: never;
     path?: never;
     query?: {
+        /**
+         * Repeat the query parameter to select more than one scope.
+         */
+        includeInitiativeIds?: Array<string>;
+        /**
+         * Repeat the query parameter to select more than one scope.
+         */
+        excludeInitiativeIds?: Array<string>;
+        /**
+         * Repeat the query parameter to select more than one scope.
+         */
+        includeProjectIds?: Array<string>;
+        /**
+         * Repeat the query parameter to select more than one scope.
+         */
+        excludeProjectIds?: Array<string>;
+        /**
+         * Deprecated one-item alias for includeInitiativeIds.
+         *
+         * @deprecated
+         */
         initiativeId?: string;
+        /**
+         * Deprecated one-item alias for includeProjectIds.
+         *
+         * @deprecated
+         */
         projectId?: string;
         rootWorkItemId?: string;
     };
@@ -1304,7 +1330,21 @@ export type CreateLeaseData = {
     } | {
         workerId: string;
         leaseDurationSeconds: number;
+        includeInitiativeIds?: Array<string>;
+        excludeInitiativeIds?: Array<string>;
+        includeProjectIds?: Array<string>;
+        excludeProjectIds?: Array<string>;
+        /**
+         * Deprecated one-item alias for includeInitiativeIds.
+         *
+         * @deprecated
+         */
         initiativeId?: string;
+        /**
+         * Deprecated one-item alias for includeProjectIds.
+         *
+         * @deprecated
+         */
         projectId?: string;
         parentId?: string;
     };
@@ -1494,7 +1534,33 @@ export type ListWorkItemsData = {
     path?: never;
     query?: {
         stage?: 'blocked' | 'ready' | 'in_progress' | 'stale' | 'needs_attention' | 'released' | 'cancelled';
+        /**
+         * Repeat the query parameter to select more than one scope.
+         */
+        includeInitiativeIds?: Array<string>;
+        /**
+         * Repeat the query parameter to select more than one scope.
+         */
+        excludeInitiativeIds?: Array<string>;
+        /**
+         * Repeat the query parameter to select more than one scope.
+         */
+        includeProjectIds?: Array<string>;
+        /**
+         * Repeat the query parameter to select more than one scope.
+         */
+        excludeProjectIds?: Array<string>;
+        /**
+         * Deprecated one-item alias for includeInitiativeIds.
+         *
+         * @deprecated
+         */
         initiativeId?: string;
+        /**
+         * Deprecated one-item alias for includeProjectIds.
+         *
+         * @deprecated
+         */
         projectId?: string;
         parentId?: string;
         limit?: number;

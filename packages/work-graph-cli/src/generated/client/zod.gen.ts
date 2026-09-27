@@ -548,8 +548,24 @@ export const zCreateAttentionResolutionPath = z.object({
 export const zCreateAttentionResolutionResponse = zAttentionResolutionResponse;
 
 export const zGetCriticalPathQuery = z.object({
-    initiativeId: z.string().min(1).max(200).optional(),
-    projectId: z.string().min(1).max(200).optional(),
+    includeInitiativeIds: z.array(z.string().min(1).max(200)).max(100).register(z.globalRegistry, {
+        description: 'Repeat the query parameter to select more than one scope.'
+    }).optional(),
+    excludeInitiativeIds: z.array(z.string().min(1).max(200)).max(100).register(z.globalRegistry, {
+        description: 'Repeat the query parameter to select more than one scope.'
+    }).optional(),
+    includeProjectIds: z.array(z.string().min(1).max(200)).max(100).register(z.globalRegistry, {
+        description: 'Repeat the query parameter to select more than one scope.'
+    }).optional(),
+    excludeProjectIds: z.array(z.string().min(1).max(200)).max(100).register(z.globalRegistry, {
+        description: 'Repeat the query parameter to select more than one scope.'
+    }).optional(),
+    initiativeId: z.string().min(1).max(200).register(z.globalRegistry, {
+        description: 'Deprecated one-item alias for includeInitiativeIds.'
+    }).optional(),
+    projectId: z.string().min(1).max(200).register(z.globalRegistry, {
+        description: 'Deprecated one-item alias for includeProjectIds.'
+    }).optional(),
     rootWorkItemId: z.string().min(1).max(200).optional()
 });
 
@@ -746,8 +762,16 @@ export const zCreateLeaseBody = z.union([
     z.object({
         workerId: z.string().min(1).max(200),
         leaseDurationSeconds: z.int().gte(1).lte(86400),
-        initiativeId: z.string().min(1).max(200).optional(),
-        projectId: z.string().min(1).max(200).optional(),
+        includeInitiativeIds: z.array(z.string().min(1).max(200)).max(100).optional(),
+        excludeInitiativeIds: z.array(z.string().min(1).max(200)).max(100).optional(),
+        includeProjectIds: z.array(z.string().min(1).max(200)).max(100).optional(),
+        excludeProjectIds: z.array(z.string().min(1).max(200)).max(100).optional(),
+        initiativeId: z.string().min(1).max(200).register(z.globalRegistry, {
+            description: 'Deprecated one-item alias for includeInitiativeIds.'
+        }).optional(),
+        projectId: z.string().min(1).max(200).register(z.globalRegistry, {
+            description: 'Deprecated one-item alias for includeProjectIds.'
+        }).optional(),
         parentId: z.string().min(1).max(200).optional()
     })
 ]);
@@ -825,8 +849,24 @@ export const zListWorkItemsQuery = z.object({
         'released',
         'cancelled'
     ]).optional(),
-    initiativeId: z.string().min(1).max(200).optional(),
-    projectId: z.string().min(1).max(200).optional(),
+    includeInitiativeIds: z.array(z.string().min(1).max(200)).max(100).register(z.globalRegistry, {
+        description: 'Repeat the query parameter to select more than one scope.'
+    }).optional(),
+    excludeInitiativeIds: z.array(z.string().min(1).max(200)).max(100).register(z.globalRegistry, {
+        description: 'Repeat the query parameter to select more than one scope.'
+    }).optional(),
+    includeProjectIds: z.array(z.string().min(1).max(200)).max(100).register(z.globalRegistry, {
+        description: 'Repeat the query parameter to select more than one scope.'
+    }).optional(),
+    excludeProjectIds: z.array(z.string().min(1).max(200)).max(100).register(z.globalRegistry, {
+        description: 'Repeat the query parameter to select more than one scope.'
+    }).optional(),
+    initiativeId: z.string().min(1).max(200).register(z.globalRegistry, {
+        description: 'Deprecated one-item alias for includeInitiativeIds.'
+    }).optional(),
+    projectId: z.string().min(1).max(200).register(z.globalRegistry, {
+        description: 'Deprecated one-item alias for includeProjectIds.'
+    }).optional(),
     parentId: z.string().min(1).max(200).optional(),
     limit: z.int().gte(1).lte(100).optional().default(50),
     cursor: z.string().min(1).max(200).optional()
