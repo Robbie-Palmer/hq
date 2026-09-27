@@ -56,6 +56,7 @@ import {
   LEASE_OUTCOMES,
   MAX_CRITICAL_PATH_BLOCKING_PATHS,
   MAX_CRITICAL_PATH_NODES,
+  normalizeWorkItemSelectionScope,
   PULL_REQUEST_CHECK_SUMMARIES,
   PULL_REQUEST_MERGEABILITIES,
   PULL_REQUEST_REVIEW_DECISIONS,
@@ -92,25 +93,7 @@ const MAX_URL_LENGTH = 2_048;
 
 const selectionScopeFrom = (
   input: WorkItemSelectionScope,
-): WorkItemSelectionScope => ({
-  ...(input.excludeInitiativeIds === undefined
-    ? {}
-    : { excludeInitiativeIds: input.excludeInitiativeIds }),
-  ...(input.excludeProjectIds === undefined
-    ? {}
-    : { excludeProjectIds: input.excludeProjectIds }),
-  ...(input.includeInitiativeIds === undefined
-    ? {}
-    : { includeInitiativeIds: input.includeInitiativeIds }),
-  ...(input.includeProjectIds === undefined
-    ? {}
-    : { includeProjectIds: input.includeProjectIds }),
-  ...(input.initiativeId === undefined
-    ? {}
-    : { initiativeId: input.initiativeId }),
-  ...(input.projectId === undefined ? {} : { projectId: input.projectId }),
-  ...(input.parentId === undefined ? {} : { parentId: input.parentId }),
-});
+): WorkItemSelectionScope => normalizeWorkItemSelectionScope(input);
 const MAX_RELATIONSHIP_CURSOR_LENGTH = 4_096;
 const MAX_METADATA_CURSOR_LENGTH = 4_096;
 const MAX_INT32 = 2_147_483_647;

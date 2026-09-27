@@ -39,6 +39,50 @@ export interface WorkItemSelectionScope {
   readonly projectId?: string;
 }
 
+interface LegacyWorkItemSelectionAliases {
+  readonly initiativeId?: string;
+  readonly projectId?: string;
+}
+
+export const normalizeWorkItemSelectionScope = (
+  scope: WorkItemSelectionScope,
+): WorkItemSelectionScope => {
+  const aliases: LegacyWorkItemSelectionAliases = scope;
+  const hasInitiativeInclusions =
+    scope.includeInitiativeIds !== undefined ||
+    aliases.initiativeId !== undefined;
+  const hasProjectInclusions =
+    scope.includeProjectIds !== undefined || aliases.projectId !== undefined;
+
+  return {
+    ...(scope.excludeInitiativeIds === undefined
+      ? {}
+      : { excludeInitiativeIds: scope.excludeInitiativeIds }),
+    ...(scope.excludeProjectIds === undefined
+      ? {}
+      : { excludeProjectIds: scope.excludeProjectIds }),
+    ...(hasInitiativeInclusions
+      ? {
+          includeInitiativeIds: [
+            ...(scope.includeInitiativeIds ?? []),
+            ...(aliases.initiativeId === undefined
+              ? []
+              : [aliases.initiativeId]),
+          ],
+        }
+      : {}),
+    ...(hasProjectInclusions
+      ? {
+          includeProjectIds: [
+            ...(scope.includeProjectIds ?? []),
+            ...(aliases.projectId === undefined ? [] : [aliases.projectId]),
+          ],
+        }
+      : {}),
+    ...(scope.parentId === undefined ? {} : { parentId: scope.parentId }),
+  };
+};
+
 export interface WorkItemPriorityProjection {
   readonly donatedFromWorkItemId: string | null;
   readonly effectiveExpedited: boolean;
@@ -112,18 +156,16 @@ export const isWorkItemInSelectionScope = (
   item: WorkItem,
   scope: WorkItemSelectionScope,
 ): boolean => {
-  if (scope.parentId !== undefined && item.parentId !== scope.parentId) {
+  const normalizedScope = normalizeWorkItemSelectionScope(scope);
+  if (
+    normalizedScope.parentId !== undefined &&
+    item.parentId !== normalizedScope.parentId
+  ) {
     return false;
   }
   const owner = getWorkItemSchedulingOwner(graph, item);
-  const includeInitiativeIds = [
-    ...(scope.includeInitiativeIds ?? []),
-    ...(scope.initiativeId === undefined ? [] : [scope.initiativeId]),
-  ];
-  const includeProjectIds = [
-    ...(scope.includeProjectIds ?? []),
-    ...(scope.projectId === undefined ? [] : [scope.projectId]),
-  ];
+  const includeInitiativeIds = normalizedScope.includeInitiativeIds ?? [];
+  const includeProjectIds = normalizedScope.includeProjectIds ?? [];
   return (
     (includeInitiativeIds.length === 0 ||
       (owner.schedulingInitiativeId !== null &&
@@ -132,11 +174,11 @@ export const isWorkItemInSelectionScope = (
       (owner.schedulingProjectId !== null &&
         includeProjectIds.includes(owner.schedulingProjectId))) &&
     (owner.schedulingInitiativeId === null ||
-      !scope.excludeInitiativeIds?.includes(
+      !normalizedScope.excludeInitiativeIds?.includes(
         owner.schedulingInitiativeId,
       )) &&
     (owner.schedulingProjectId === null ||
-      !scope.excludeProjectIds?.includes(owner.schedulingProjectId))
+      !normalizedScope.excludeProjectIds?.includes(owner.schedulingProjectId))
   );
 };
 

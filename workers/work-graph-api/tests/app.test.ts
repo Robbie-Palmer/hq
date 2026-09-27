@@ -293,8 +293,8 @@ describe("Given a requested delivery-critical path", () => {
 
     expect(response.status).toBe(200);
     expect(repository.projectCriticalPath).toHaveBeenCalledWith({
-      initiativeId: "initiative",
-      projectId: "project",
+      includeInitiativeIds: ["initiative"],
+      includeProjectIds: ["project"],
     });
     expect(await responseJson(response)).toEqual(projection);
   });
@@ -728,8 +728,8 @@ describe("Given work items with derived readiness", () => {
 
     expect(response.status).toBe(200);
     expect(repository.listWorkItems).toHaveBeenCalledWith({
-      initiativeId: "initiative",
-      projectId: "project",
+      includeInitiativeIds: ["initiative"],
+      includeProjectIds: ["project"],
       parentId: "parent",
     });
   });
@@ -1672,8 +1672,8 @@ describe("Given a worker managing a lease", () => {
       leaseId,
       workerId: "worker-a",
       leaseDurationSeconds: 300,
-      initiativeId: "initiative",
-      projectId: "project",
+      includeInitiativeIds: ["initiative"],
+      includeProjectIds: ["project"],
       parentId: "parent",
     });
   });

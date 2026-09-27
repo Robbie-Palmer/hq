@@ -23,6 +23,7 @@ import {
   normalizeCompletionPolicyRevision,
   normalizeEvidenceObservation,
   normalizeExternalDelivery,
+  normalizeWorkItemSelectionScope,
   orderWorkItemsByPriority,
   projectCriticalPath as projectDomainCriticalPath,
   projectWorkItemPriorities,
@@ -460,39 +461,38 @@ const selectionScopeIds = (
 ): readonly {
   readonly id: string;
   readonly kind: KnowledgeScope["kind"];
-}[] => [
-  ...(scope.initiativeId === undefined
-    ? []
-    : [{ id: scope.initiativeId, kind: "initiative" as const }]),
-  ...(scope.projectId === undefined
-    ? []
-    : [{ id: scope.projectId, kind: "project" as const }]),
-  ...(scope.includeInitiativeIds ?? []).map((id) => ({
-    id,
-    kind: "initiative" as const,
-  })),
-  ...(scope.excludeInitiativeIds ?? []).map((id) => ({
-    id,
-    kind: "initiative" as const,
-  })),
-  ...(scope.includeProjectIds ?? []).map((id) => ({
-    id,
-    kind: "project" as const,
-  })),
-  ...(scope.excludeProjectIds ?? []).map((id) => ({
-    id,
-    kind: "project" as const,
-  })),
-];
+}[] => {
+  const normalizedScope = normalizeWorkItemSelectionScope(scope);
+  return [
+    ...(normalizedScope.includeInitiativeIds ?? []).map((id) => ({
+      id,
+      kind: "initiative" as const,
+    })),
+    ...(normalizedScope.excludeInitiativeIds ?? []).map((id) => ({
+      id,
+      kind: "initiative" as const,
+    })),
+    ...(normalizedScope.includeProjectIds ?? []).map((id) => ({
+      id,
+      kind: "project" as const,
+    })),
+    ...(normalizedScope.excludeProjectIds ?? []).map((id) => ({
+      id,
+      kind: "project" as const,
+    })),
+  ];
+};
 
-const hasSelectionFilters = (scope: WorkItemSelectionScope): boolean =>
-  scope.initiativeId !== undefined ||
-  scope.projectId !== undefined ||
-  scope.parentId !== undefined ||
-  scope.includeInitiativeIds !== undefined ||
-  scope.excludeInitiativeIds !== undefined ||
-  scope.includeProjectIds !== undefined ||
-  scope.excludeProjectIds !== undefined;
+const hasSelectionFilters = (scope: WorkItemSelectionScope): boolean => {
+  const normalizedScope = normalizeWorkItemSelectionScope(scope);
+  return (
+    normalizedScope.parentId !== undefined ||
+    normalizedScope.includeInitiativeIds !== undefined ||
+    normalizedScope.excludeInitiativeIds !== undefined ||
+    normalizedScope.includeProjectIds !== undefined ||
+    normalizedScope.excludeProjectIds !== undefined
+  );
+};
 
 const selectionList = (values: readonly string[]): SQL =>
   sql.join(values.map((value) => sql`${value}`), sql`, `);
@@ -500,14 +500,9 @@ const selectionList = (values: readonly string[]): SQL =>
 const workItemSelectionWhere = (
   scope: WorkItemSelectionScope,
 ): SQL | undefined => {
-  const includeInitiativeIds = [
-    ...(scope.includeInitiativeIds ?? []),
-    ...(scope.initiativeId === undefined ? [] : [scope.initiativeId]),
-  ];
-  const includeProjectIds = [
-    ...(scope.includeProjectIds ?? []),
-    ...(scope.projectId === undefined ? [] : [scope.projectId]),
-  ];
+  const normalizedScope = normalizeWorkItemSelectionScope(scope);
+  const includeInitiativeIds = normalizedScope.includeInitiativeIds ?? [];
+  const includeProjectIds = normalizedScope.includeProjectIds ?? [];
   const ownerPredicates: SQL[] = [];
   if (includeInitiativeIds.length > 0) {
     ownerPredicates.push(
@@ -519,13 +514,13 @@ const workItemSelectionWhere = (
       sql`scheduling_project_id in (${selectionList(includeProjectIds)})`,
     );
   }
-  const excludeInitiativeIds = scope.excludeInitiativeIds ?? [];
+  const excludeInitiativeIds = normalizedScope.excludeInitiativeIds ?? [];
   if (excludeInitiativeIds.length > 0) {
     ownerPredicates.push(
       sql`(scheduling_initiative_id is null or scheduling_initiative_id not in (${selectionList(excludeInitiativeIds)}))`,
     );
   }
-  const excludeProjectIds = scope.excludeProjectIds ?? [];
+  const excludeProjectIds = normalizedScope.excludeProjectIds ?? [];
   if (excludeProjectIds.length > 0) {
     ownerPredicates.push(
       sql`(scheduling_project_id is null or scheduling_project_id not in (${selectionList(excludeProjectIds)}))`,
