@@ -53,6 +53,7 @@ Configs are split by environment and runtime/control boundary:
 | `prd_bootstrap_infra` | Production bootstrap Terraform credentials | `production-infra-bootstrap` |
 | `prd_bootstrap_plan` | Read-only bootstrap Terraform plan credentials | `production-infra-bootstrap-plan` |
 | `prd_database_backup` | Encrypted Neon-to-R2 backup credentials and public encryption recipient | `production-database-backup` |
+| `homelab/prd_remote_development_backup` | R2 credentials and restic password for the remote operator workspace | None |
 | `prd_ci_repo` | Repo-wide sensitive CI like AI review and DVC | `production-ci` |
 | `work-graph/prd_work_graph` | Work Graph runtime and deployment config | `production-work-graph` |
 | `work-graph/prd_work_graph_infra` | Work Graph Terraform/provider credentials | `production-work-graph-infra` |

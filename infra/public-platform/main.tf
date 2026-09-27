@@ -144,6 +144,19 @@ resource "cloudflare_r2_bucket" "database_backups" {
   }
 }
 
+# Restic encrypts every workspace object before upload. This bucket is separate
+# from database backups so the host receives no credential for another backup
+# set and can be recovered after loss of the Hetzner account or volume.
+resource "cloudflare_r2_bucket" "workspace_backups" {
+  account_id = var.cloudflare_account_id
+  name       = var.r2_workspace_backups_bucket_name
+  location   = "ENAM"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
 # Versioned review-run and finding outcomes for the standalone AI review
 # project. Worker bindings are owned by ai-review/wrangler.toml; Terraform owns
 # the bucket and prevents application deploys from deleting the corpus.
