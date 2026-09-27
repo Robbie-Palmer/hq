@@ -8,6 +8,7 @@ set -euo pipefail
 export PATH="${HOME}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 PROJECT_NAME="knowledge"
+# renovate: datasource=pypi depName=basic-memory versioning=pep440
 BM_VERSION="0.22.1"
 
 require_command() {

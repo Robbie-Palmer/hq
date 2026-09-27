@@ -632,6 +632,21 @@ test("the remote overlay isolates durable data from rebuildable caches", () => {
     "initContainers",
   ]);
   assert.ok(Array.isArray(initContainers));
+  const dockerImage = valueAt(operatorDeployment, [
+    "spec",
+    "template",
+    "spec",
+    "containers",
+    1,
+    "image",
+  ]);
+  if (typeof dockerImage !== "string") {
+    throw new TypeError("The Docker sidecar image must be a string");
+  }
+  assert.match(
+    dockerImage,
+    /^docker:\d+\.\d+\.\d+-dind-rootless@sha256:[a-f0-9]{64}$/,
+  );
   const dockerDataInit = initContainers.find(
     (container) =>
       typeof container === "object" &&
@@ -645,8 +660,7 @@ test("the remote overlay isolates durable data from rebuildable caches", () => {
       "-c",
       "chown 1000:1000 /home/rootless/.local/share/docker",
     ],
-    image:
-      "docker:29.8.0-dind-rootless@sha256:e17fa54c2ffd511d8407c746eec77f7814e6f74fe20caf822dad1870599984c0",
+    image: dockerImage,
     name: "prepare-docker-data",
     resources: {
       limits: { cpu: "100m", memory: "64Mi" },
@@ -684,8 +698,7 @@ test("the remote overlay isolates durable data from rebuildable caches", () => {
         value: "-p 127.0.0.1:2375:2375/tcp",
       },
     ],
-    image:
-      "docker:29.8.0-dind-rootless@sha256:e17fa54c2ffd511d8407c746eec77f7814e6f74fe20caf822dad1870599984c0",
+    image: dockerImage,
     name: "docker",
     startupProbe: {
       exec: {
