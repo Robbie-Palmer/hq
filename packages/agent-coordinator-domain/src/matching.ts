@@ -26,6 +26,24 @@ const TimestampSchema = z.iso.datetime();
 const RevisionSchema = z.string().trim().min(1).max(500);
 const ScoreSchema = z.number().nonnegative();
 
+export const AdvisorySuitabilityReasonSchema = z.enum([
+  "eligible",
+  "below-value-floor",
+  "hard-exclusion",
+]);
+export type AdvisorySuitabilityReason = z.infer<
+  typeof AdvisorySuitabilityReasonSchema
+>;
+
+export const AdvisoryIdleReasonSchema = z.enum([
+  "no-ready-work",
+  "no-workers",
+  "no-eligible-pair",
+  "below-value-floor",
+  "no-alternative",
+]);
+export type AdvisoryIdleReason = z.infer<typeof AdvisoryIdleReasonSchema>;
+
 export const AdvisoryScoreObservationSchema = z
   .object({
     value: ScoreSchema,
@@ -127,34 +145,51 @@ export type AdvisoryWorkerCandidate = z.infer<
   typeof AdvisoryWorkerCandidateSchema
 >;
 
-export const AdvisoryMatchingInputSchema = z
+export const AdvisoryWorkerInventorySnapshotSchema = z
   .object({
-    queue: ReadyQueueSnapshotSchema,
+    revision: RevisionSchema,
+    observedAt: TimestampSchema,
     workers: z.array(AdvisoryWorkerCandidateSchema),
-    complexityScales: z.array(ComplexityScaleSchema),
-    policy: OwnerPolicySchema,
-    settings: z
-      .object({
-        minimumExpectedValue: ScoreSchema,
-        leaseDurationSeconds: z.number().int().min(60).max(86_400),
-        rankingCurrency: CurrencySchema,
-      })
-      .strict(),
   })
   .strict()
-  .superRefine((input, context) => {
-    const workerKeys = input.workers.map(
+  .superRefine(({ workers }, context) => {
+    const workerKeys = workers.map(
       ({ actor, adapter }) => `${actor.actorId}::${adapter.adapterId}`,
     );
-    const duplicateWorkers = findDuplicates(workerKeys);
-    if (duplicateWorkers.length > 0) {
+    const duplicates = findDuplicates(workerKeys);
+    if (duplicates.length > 0) {
       context.addIssue({
         code: "custom",
-        message: `workers contains duplicate actor and adapter pairs: ${duplicateWorkers.join(", ")}`,
+        message: `workers contains duplicate actor and adapter pairs: ${duplicates.join(", ")}`,
         path: ["workers"],
       });
     }
+  });
+export type AdvisoryWorkerInventorySnapshot = z.infer<
+  typeof AdvisoryWorkerInventorySnapshotSchema
+>;
 
+export const AdvisoryMatchingSettingsSchema = z
+  .object({
+    minimumExpectedValue: ScoreSchema,
+    leaseDurationSeconds: z.number().int().min(60).max(86_400),
+    rankingCurrency: CurrencySchema,
+  })
+  .strict();
+export type AdvisoryMatchingSettings = z.infer<
+  typeof AdvisoryMatchingSettingsSchema
+>;
+
+export const AdvisoryMatchingInputSchema = z
+  .object({
+    queue: ReadyQueueSnapshotSchema,
+    workerInventory: AdvisoryWorkerInventorySnapshotSchema,
+    complexityScales: z.array(ComplexityScaleSchema),
+    policy: OwnerPolicySchema,
+    settings: AdvisoryMatchingSettingsSchema,
+  })
+  .strict()
+  .superRefine((input, context) => {
     const scaleKeys = input.complexityScales.map(
       ({ scaleId, revision }) => `${scaleId}:${revision}`,
     );
@@ -195,12 +230,12 @@ export const AdvisoryMatchingInputSchema = z
     const workClasses = new Set(
       input.queue.items.map(({ task }) => task.workClass),
     );
-    for (const [workerIndex, worker] of input.workers.entries()) {
+    for (const [workerIndex, worker] of input.workerInventory.workers.entries()) {
       if (worker.actor.cost.estimatedSessionCost.currency !== input.settings.rankingCurrency) {
         context.addIssue({
           code: "custom",
           message: `worker cost must use ranking currency ${input.settings.rankingCurrency}`,
-          path: ["workers", workerIndex, "actor", "cost"],
+          path: ["workerInventory", "workers", workerIndex, "actor", "cost"],
         });
       }
       const observedClasses = new Set(
@@ -211,7 +246,12 @@ export const AdvisoryMatchingInputSchema = z
           context.addIssue({
             code: "custom",
             message: `missing active-session observation for ${workClass}`,
-            path: ["workers", workerIndex, "activeSessionsByWorkClass"],
+            path: [
+              "workerInventory",
+              "workers",
+              workerIndex,
+              "activeSessionsByWorkClass",
+            ],
           });
         }
       }
@@ -227,7 +267,7 @@ export const AdvisoryScoreInputsSchema = z
     expectedValue: ScoreSchema,
     declaredCapabilityMargin: z.number(),
     observedCapabilityMargin: z.number(),
-    estimatedCost: MoneySchema,
+    declaredSessionCost: MoneySchema,
     capacityHeadroom: z.number().nonnegative(),
     handoffCost: ScoreSchema,
     prepaidCapacityExpiresAt: z.union([TimestampSchema, z.null()]),
@@ -235,18 +275,21 @@ export const AdvisoryScoreInputsSchema = z
   .strict();
 export type AdvisoryScoreInputs = z.infer<typeof AdvisoryScoreInputsSchema>;
 
-export const AdvisoryPairEvaluationSchema = z
+export const AdvisoryPairingSchema = z
   .object({
-    pairingId: IdentifierSchema,
     taskId: IdentifierSchema,
     actorId: IdentifierSchema,
     adapterId: IdentifierSchema,
+  })
+  .strict();
+export type AdvisoryPairing = z.infer<typeof AdvisoryPairingSchema>;
+
+export const AdvisoryPairEvaluationSchema = z
+  .object({
+    pairing: AdvisoryPairingSchema,
     eligible: z.boolean(),
     suitable: z.boolean(),
-    suitabilityReason: z.union([
-      z.enum(["eligible", "below-value-floor", "hard-exclusion"]),
-      z.null(),
-    ]),
+    suitabilityReason: AdvisorySuitabilityReasonSchema,
     hardExclusions: z.array(HardExclusionSchema),
     scoreInputs: z.union([AdvisoryScoreInputsSchema, z.null()]),
   })
@@ -273,7 +316,6 @@ export type AdvisoryPairEvaluation = z.infer<
 
 export const AdvisoryBudgetViewSchema = z
   .object({
-    estimate: MoneySchema,
     maximumPerSession: z.union([MoneySchema, z.null()]),
     remaining: z.union([MoneySchema, z.null()]),
   })
@@ -281,7 +323,7 @@ export const AdvisoryBudgetViewSchema = z
 
 export const AdvisoryProposalSchema = z
   .object({
-    pairingId: IdentifierSchema,
+    pairing: AdvisoryPairingSchema,
     task: z
       .object({
         id: IdentifierSchema,
@@ -311,16 +353,35 @@ export const AdvisoryProposalSchema = z
   .strict();
 export type AdvisoryProposal = z.infer<typeof AdvisoryProposalSchema>;
 
+const AdvisoryComplexityScaleRevisionSchema = z
+  .object({
+    scaleId: IdentifierSchema,
+    revision: z.number().int().positive(),
+  })
+  .strict();
+
+export const AdvisoryDecisionBasisSchema = z
+  .object({
+    queueRevision: RevisionSchema,
+    workerInventoryRevision: RevisionSchema,
+    policy: z
+      .object({
+        policyId: IdentifierSchema,
+        revision: z.number().int().positive(),
+      })
+      .strict(),
+    complexityScales: z.array(AdvisoryComplexityScaleRevisionSchema),
+    settings: AdvisoryMatchingSettingsSchema,
+  })
+  .strict();
+export type AdvisoryDecisionBasis = z.infer<typeof AdvisoryDecisionBasisSchema>;
+
 const DecisionBaseSchema = z
   .object({
-    decisionId: IdentifierSchema,
     createdAt: TimestampSchema,
     expiresAt: TimestampSchema,
-    inputFingerprint: IdentifierSchema,
-    queueRevision: RevisionSchema,
-    policyId: IdentifierSchema,
-    policyRevision: z.number().int().positive(),
-    ignoredPairingIds: z.array(IdentifierSchema),
+    basis: AdvisoryDecisionBasisSchema,
+    ignoredPairings: z.array(AdvisoryPairingSchema),
     evaluations: z.array(AdvisoryPairEvaluationSchema),
     exclusions: z.array(AdvisoryPairEvaluationSchema),
   })
@@ -334,13 +395,7 @@ export type AdvisoryDecisionView = z.infer<typeof AdvisoryDecisionViewSchema>;
 
 export const AdvisoryIdleDecisionSchema = DecisionBaseSchema.extend({
   status: z.literal("idle"),
-  reason: z.enum([
-    "no-ready-work",
-    "no-workers",
-    "no-eligible-pair",
-    "below-value-floor",
-    "no-alternative",
-  ]),
+  reason: AdvisoryIdleReasonSchema,
 }).strict();
 export type AdvisoryIdleDecision = z.infer<typeof AdvisoryIdleDecisionSchema>;
 
@@ -360,41 +415,18 @@ export class AdvisoryMatchingError extends Error {
   }
 }
 
-const hash = (value: string): string => {
-  let result = 0x811c9dc5;
-  for (const character of value) {
-    result ^= character.codePointAt(0) ?? 0;
-    result = Math.imul(result, 0x01000193);
-  }
-  return (result >>> 0).toString(16).padStart(8, "0");
-};
+const comparePairings = (
+  left: AdvisoryPairing,
+  right: AdvisoryPairing,
+): number =>
+  compareIdentifiers(left.taskId, right.taskId) ||
+  compareIdentifiers(left.actorId, right.actorId) ||
+  compareIdentifiers(left.adapterId, right.adapterId);
 
-const canonicalJson = (value: unknown): string => {
-  if (Array.isArray(value)) {
-    return `[${value
-      .map(canonicalJson)
-      .sort((left, right) => left.localeCompare(right, "en"))
-      .join(",")}]`;
-  }
-  if (value !== null && typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    return `{${Object.keys(record)
-      .sort((left, right) => left.localeCompare(right, "en"))
-      .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value);
-};
-
-const inputFingerprint = (
-  input: z.infer<typeof AdvisoryMatchingInputSchema>,
-): string => `snapshot:${hash(canonicalJson(input))}`;
-
-const pairingId = (
-  taskId: string,
-  actorId: string,
-  adapterId: string,
-): string => `pair:${hash([taskId, actorId, adapterId].join("\n"))}`;
+const samePairing = (
+  left: AdvisoryPairing,
+  right: AdvisoryPairing,
+): boolean => comparePairings(left, right) === 0;
 
 const stateFor = (
   worker: AdvisoryWorkerCandidate,
@@ -460,7 +492,7 @@ const scoreInputs = (
       compatibility,
       "observed-capability-margin",
     ),
-    estimatedCost: worker.actor.cost.estimatedSessionCost,
+    declaredSessionCost: worker.actor.cost.estimatedSessionCost,
     capacityHeadroom: capacityHeadroom(task.task, worker.actor),
     handoffCost: worker.handoffCost.value,
     prepaidCapacityExpiresAt: prepaidExpiry(worker.actor),
@@ -493,7 +525,7 @@ const comparePrimaryScores = (
       leftScore.observedCapabilityMargin,
     rightScore.declaredCapabilityMargin -
       leftScore.declaredCapabilityMargin,
-    leftScore.estimatedCost.amount - rightScore.estimatedCost.amount,
+    leftScore.declaredSessionCost.amount - rightScore.declaredSessionCost.amount,
     rightScore.capacityHeadroom - leftScore.capacityHeadroom,
     leftScore.handoffCost - rightScore.handoffCost,
   ];
@@ -540,14 +572,12 @@ const compareRankedPairs = (left: RankedPair, right: RankedPair): number => {
 
 const budgetView = (
   task: AdvisoryTaskCandidate,
-  worker: AdvisoryWorkerCandidate,
   policy: z.infer<typeof OwnerPolicySchema>,
 ) => {
   const budget = policy.budgets.find(
     ({ workClass }) => workClass === task.task.workClass,
   );
   return AdvisoryBudgetViewSchema.parse({
-    estimate: task.task.estimatedCost ?? worker.actor.cost.estimatedSessionCost,
     maximumPerSession: budget?.maximumPerSession ?? null,
     remaining: budget?.remaining ?? null,
   });
@@ -580,14 +610,11 @@ const evaluatePair = (
     suitabilityReason = aboveFloor ? "eligible" : "below-value-floor";
   }
   const evaluation = AdvisoryPairEvaluationSchema.parse({
-    pairingId: pairingId(
-      task.task.taskId,
-      worker.actor.actorId,
-      worker.adapter.adapterId,
-    ),
-    taskId: task.task.taskId,
-    actorId: worker.actor.actorId,
-    adapterId: worker.adapter.adapterId,
+    pairing: {
+      taskId: task.task.taskId,
+      actorId: worker.actor.actorId,
+      adapterId: worker.adapter.adapterId,
+    },
     eligible,
     suitable: eligible && aboveFloor,
     suitabilityReason,
@@ -600,10 +627,10 @@ const evaluatePair = (
 const idleReason = (
   input: z.infer<typeof AdvisoryMatchingInputSchema>,
   pairs: readonly RankedPair[],
-  ignoredPairingIds: ReadonlySet<string>,
+  ignoredPairings: readonly AdvisoryPairing[],
 ): AdvisoryIdleDecision["reason"] => {
   if (input.queue.items.length === 0) return "no-ready-work";
-  if (input.workers.length === 0) return "no-workers";
+  if (input.workerInventory.workers.length === 0) return "no-workers";
   if (!pairs.some(({ evaluation }) => evaluation.eligible)) {
     return "no-eligible-pair";
   }
@@ -613,7 +640,11 @@ const idleReason = (
   if (
     pairs
       .filter(({ evaluation }) => evaluation.suitable)
-      .every(({ evaluation }) => ignoredPairingIds.has(evaluation.pairingId))
+      .every(({ evaluation }) =>
+        ignoredPairings.some((ignored) =>
+          samePairing(ignored, evaluation.pairing),
+        ),
+      )
   ) {
     return "no-alternative";
   }
@@ -634,44 +665,60 @@ const assertFreshQueue = (
 
 export function createAdvisoryDecision(
   inputValue: AdvisoryMatchingInput,
-  options: { now?: number; ignoredPairingIds?: readonly string[] } = {},
+  options: {
+    now?: number;
+    ignoredPairings?: readonly AdvisoryPairing[];
+  } = {},
 ): AdvisoryDecision {
   const input = AdvisoryMatchingInputSchema.parse(inputValue);
   const now = options.now ?? Date.now();
   assertFreshQueue(input.queue, now);
-  const ignoredPairingIds = [...new Set(options.ignoredPairingIds ?? [])]
-    .map((id) => IdentifierSchema.parse(id))
-    .sort(compareIdentifiers);
-  const ignored = new Set(ignoredPairingIds);
+  const ignoredPairings = (options.ignoredPairings ?? [])
+    .map((pairing) => AdvisoryPairingSchema.parse(pairing))
+    .filter(
+      (pairing, index, all) =>
+        all.findIndex((candidate) => samePairing(candidate, pairing)) === index,
+    )
+    .sort(comparePairings);
   const pairs = input.queue.items
     .flatMap((task) =>
-      input.workers.map((worker) => evaluatePair(task, worker, input)),
+      input.workerInventory.workers.map((worker) =>
+        evaluatePair(task, worker, input),
+      ),
     )
     .sort((left, right) =>
-      compareIdentifiers(
-        left.evaluation.pairingId,
-        right.evaluation.pairingId,
-      ),
+      comparePairings(left.evaluation.pairing, right.evaluation.pairing),
     );
   const ranked = pairs
     .filter(
       ({ evaluation }) =>
-        evaluation.suitable && !ignored.has(evaluation.pairingId),
+        evaluation.suitable &&
+        !ignoredPairings.some((ignored) =>
+          samePairing(ignored, evaluation.pairing),
+        ),
     )
     .sort(compareRankedPairs);
-  const fingerprint = inputFingerprint(input);
   const selected = ranked[0];
   const common = {
-    decisionId: `decision:${hash(
-      `${fingerprint}\n${selected?.evaluation.pairingId ?? "idle"}\n${ignoredPairingIds.join("\n")}`,
-    )}`,
     createdAt: input.queue.observedAt,
     expiresAt: input.queue.validUntil,
-    inputFingerprint: fingerprint,
-    queueRevision: input.queue.revision,
-    policyId: input.policy.policyId,
-    policyRevision: input.policy.revision,
-    ignoredPairingIds,
+    basis: {
+      queueRevision: input.queue.revision,
+      workerInventoryRevision: input.workerInventory.revision,
+      policy: {
+        policyId: input.policy.policyId,
+        revision: input.policy.revision,
+      },
+      complexityScales: input.complexityScales
+        .map(({ scaleId, revision }) => ({ scaleId, revision }))
+        .sort(
+          (left, right) =>
+            compareIdentifiers(left.scaleId, right.scaleId) ||
+            left.revision - right.revision,
+        ),
+      settings: input.settings,
+    },
+    ignoredPairings,
     evaluations: pairs.map(({ evaluation }) => evaluation),
     exclusions: pairs
       .map(({ evaluation }) => evaluation)
@@ -682,7 +729,7 @@ export function createAdvisoryDecision(
     return AdvisoryIdleDecisionSchema.parse({
       ...common,
       status: "idle",
-      reason: idleReason(input, pairs, ignored),
+      reason: idleReason(input, pairs, ignoredPairings),
     });
   }
 
@@ -690,7 +737,7 @@ export function createAdvisoryDecision(
     ...common,
     status: "suggested",
     proposal: {
-      pairingId: selected.evaluation.pairingId,
+      pairing: selected.evaluation.pairing,
       task: {
         id: selected.task.task.taskId,
         title: selected.task.workItem.title,
@@ -702,7 +749,7 @@ export function createAdvisoryDecision(
         adapterVersion: selected.worker.adapter.adapterVersion,
       },
       scoreInputs: selected.evaluation.scoreInputs,
-      budget: budgetView(selected.task, selected.worker, input.policy),
+      budget: budgetView(selected.task, input.policy),
       claimEffect: {
         workItemId: selected.task.task.taskId,
         workerId: selected.worker.actor.actorId,
@@ -714,6 +761,24 @@ export function createAdvisoryDecision(
   });
 }
 
+const sameDecisionBasis = (
+  left: AdvisoryDecisionBasis,
+  right: AdvisoryDecisionBasis,
+): boolean =>
+  left.queueRevision === right.queueRevision &&
+  left.workerInventoryRevision === right.workerInventoryRevision &&
+  left.policy.policyId === right.policy.policyId &&
+  left.policy.revision === right.policy.revision &&
+  left.settings.minimumExpectedValue === right.settings.minimumExpectedValue &&
+  left.settings.leaseDurationSeconds === right.settings.leaseDurationSeconds &&
+  left.settings.rankingCurrency === right.settings.rankingCurrency &&
+  left.complexityScales.length === right.complexityScales.length &&
+  left.complexityScales.every(
+    (scale, index) =>
+      scale.scaleId === right.complexityScales[index]?.scaleId &&
+      scale.revision === right.complexityScales[index]?.revision,
+  );
+
 const assertCurrentDecision = (
   decision: AdvisoryDecisionView,
   input: AdvisoryMatchingInput,
@@ -721,12 +786,12 @@ const assertCurrentDecision = (
 ): AdvisoryDecisionView => {
   const current = createAdvisoryDecision(input, {
     now,
-    ignoredPairingIds: decision.ignoredPairingIds,
+    ignoredPairings: decision.ignoredPairings,
   });
   if (
     current.status !== "suggested" ||
-    current.decisionId !== decision.decisionId ||
-    current.inputFingerprint !== decision.inputFingerprint
+    !sameDecisionBasis(current.basis, decision.basis) ||
+    !samePairing(current.proposal.pairing, decision.proposal.pairing)
   ) {
     throw new AdvisoryMatchingError(
       "decision-stale",
@@ -738,14 +803,12 @@ const assertCurrentDecision = (
 
 export function declineAdvisoryDecision(decision: AdvisoryDecisionView): {
   status: "declined";
-  decisionId: string;
-  pairingId: string;
+  pairing: AdvisoryPairing;
 } {
   const parsed = AdvisoryDecisionViewSchema.parse(decision);
   return {
     status: "declined",
-    decisionId: parsed.decisionId,
-    pairingId: parsed.proposal.pairingId,
+    pairing: parsed.proposal.pairing,
   };
 }
 
@@ -759,9 +822,9 @@ export function requestAnotherAdvisoryDecision(
   assertCurrentDecision(decision, input, now);
   return createAdvisoryDecision(input, {
     now,
-    ignoredPairingIds: [
-      ...decision.ignoredPairingIds,
-      decision.proposal.pairingId,
+    ignoredPairings: [
+      ...decision.ignoredPairings,
+      decision.proposal.pairing,
     ],
   });
 }

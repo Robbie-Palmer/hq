@@ -154,7 +154,11 @@ const input = (
     validUntil: options.validUntil ?? VALID_UNTIL,
     items: options.tasks ?? [taskCandidate("work:matching")],
   },
-  workers: options.workers ?? [workerCandidate("actor:alpha")],
+  workerInventory: {
+    revision: "workers:17",
+    observedAt: OBSERVED_AT,
+    workers: options.workers ?? [workerCandidate("actor:alpha")],
+  },
   complexityScales: [complexityScale],
   policy,
   settings: {
@@ -182,8 +186,11 @@ describe("advisory matching", () => {
     expect(AdvisoryDecisionSchema.parse(first)).toEqual(first);
     expect(first).toMatchObject({
       status: "suggested",
-      queueRevision: "ready:42",
-      policyRevision: 1,
+      basis: {
+        queueRevision: "ready:42",
+        workerInventoryRevision: "workers:17",
+        policy: { revision: 1 },
+      },
       proposal: {
         task: {
           id: "work:matching",
@@ -195,11 +202,10 @@ describe("advisory matching", () => {
           expectedValue: 80,
           declaredCapabilityMargin: 1,
           observedCapabilityMargin: 0,
-          estimatedCost: { currency: "USD", amount: 2 },
+          declaredSessionCost: { currency: "USD", amount: 2 },
           handoffCost: 5,
         },
         budget: {
-          estimate: { currency: "USD", amount: 2.5 },
           maximumPerSession: { currency: "USD", amount: 5 },
           remaining: { currency: "USD", amount: 20 },
         },
@@ -252,7 +258,7 @@ describe("advisory matching", () => {
           hardExclusions: [{ code: "required-access-missing" }],
         },
       ],
-      exclusions: [{ actorId: "actor:no-access" }],
+      exclusions: [{ pairing: { actorId: "actor:no-access" } }],
     });
   });
 
@@ -417,7 +423,7 @@ describe("advisory matching", () => {
 
     expect(declineAdvisoryDecision(first)).toMatchObject({
       status: "declined",
-      decisionId: first.decisionId,
+      pairing: first.proposal.pairing,
     });
     const another = requestAnotherAdvisoryDecision(first, matchingInput, {
       now: NOW,
@@ -447,6 +453,7 @@ describe("advisory matching", () => {
       ...matchingInput,
       policy: {
         ...policy,
+        revision: policy.revision + 1,
         concurrency: {
           ...policy.concurrency,
           maximumActiveSessions: 3,
