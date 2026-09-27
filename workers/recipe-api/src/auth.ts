@@ -230,6 +230,7 @@ export function createAuth(
     }
 
     await db.transaction(async (tx) => {
+      await purgeMutationHistoryForUser(tx, deletedUser.id);
       const [lockedHousehold] = await tx
         .select({ id: schema.organization.id, name: schema.organization.name })
         .from(schema.organization)
@@ -265,7 +266,6 @@ export function createAuth(
             ),
           );
       }
-      await purgeMutationHistoryForUser(tx, deletedUser.id);
       await tx
         .delete(schema.organization)
         .where(eq(schema.organization.id, membership.householdId));

@@ -3407,7 +3407,10 @@ registerRoute(
             ? c.json(result)
             : c.json({ error: "Pantry changed after the agent mutation", ...result }, 409);
         } catch (error) {
-          if (error instanceof PantryMutationConflictError) {
+          if (
+            error instanceof PantryMutationConflictError ||
+            error instanceof PantryItemLimitError
+          ) {
             return c.json({ error: error.message }, 409);
           }
           throw error;
