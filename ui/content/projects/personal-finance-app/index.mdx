@@ -3,7 +3,7 @@ title: "Personal Finance App"
 description: "Data-entry-first financial planning, the missing tool between budgeting apps and advisor software"
 date: "2026-01-11"
 status: "idea"
-updated: "2026-09-24"
+updated: "2026-09-27"
 initiatives:
   - "digital-twins-for-everyday-life"
 ---
@@ -248,6 +248,66 @@ object storage in the current version.
 
 That constraint keeps the first-user experiment cheap and private, but it cannot support shared households,
 cross-device continuity, or account recovery.
+
+## Data flow and private-data boundaries
+
+The current prototype and the planned shared product have different security boundaries. Solid lines below are
+implemented flows. Dashed lines and orange nodes are planned. The labels describe data classes, not real financial
+records.
+
+<Mermaid
+  chart={`flowchart TB
+User["Person using Asset Tracker<br/>[External]"]
+ImportFiles["JSON or CSV import files<br/>[External, private]"]
+ExportFiles["JSON or CSV exports<br/>[External, private]"]
+Identity["Consumer identity provider<br/>[External, planned, not selected]"]
+Bank["Open Banking provider<br/>[External, later]"]
+
+subgraph device["Private-data boundary: one browser profile [current]"]
+Client["Next.js client and domain commands<br/>[Implemented]"]
+LocalStore[("Browser local storage<br/>[Implemented system of record]")]
+Client <-->|"financial state"| LocalStore
+end
+
+subgraph cloud["Private-data boundary: household-authorized service [planned]"]
+API["Cloudflare Worker REST API<br/>Authentication, authorization,<br/>validation, domain commands"]
+Postgres[("Neon PostgreSQL<br/>Structured financial records<br/>and audit history")]
+Objects[("Cloudflare R2<br/>Optional statements, receipts,<br/>encrypted export artifacts")]
+API <-->|"household-scoped records"| Postgres
+API -.->|"files, only when needed"| Objects
+end
+
+Pages["Cloudflare Pages<br/>[Implemented, public app assets only]"]
+
+User -->|"uses"| Client
+Pages -->|"serves code and PWA assets"| Client
+ImportFiles -->|"manual import"| Client
+Client -->|"user-requested export"| ExportFiles
+Client -.->|"authenticated HTTPS"| API
+Identity -.->|"identity and session claims"| API
+Bank -.->|"authorized account import"| API
+API -.->|"user-requested export"| ExportFiles
+
+classDef current fill:#dcfce7,color:#14532d,stroke:#16a34a
+classDef planned fill:#fff7ed,color:#9a3412,stroke:#ea580c,stroke-dasharray:5 5
+classDef external fill:#475569,color:#fff,stroke:#334155
+class Client,LocalStore,Pages current
+class API,Postgres,Objects planned
+class User,ImportFiles,ExportFiles external
+class Identity,Bank planned
+`}
+/>
+
+In the current version, Pages sends public application assets to the browser. The browser runs the domain commands
+and keeps all structured financial state inside that browser profile. A person can bring private JSON or CSV files
+into the browser and export a new private file. No financial record crosses a product API because that API does not
+exist yet.
+
+In the planned shared version, the browser sends authenticated requests to one Worker API. The Worker, not the
+browser or Pages, checks identity and household access. It stores structured records and audit history in PostgreSQL.
+R2 remains optional and stores files only, never the primary account or balance records. A future Open Banking
+provider may send authorized imports through the same API. User-requested JSON or CSV export remains an exit path
+from the private-data boundary. The identity provider and its recovery policy are still undecided.
 
 ## Target architecture
 
