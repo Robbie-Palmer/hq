@@ -40,6 +40,13 @@ import {
 } from "recipe-db";
 import { SavedRecipePayloadSchema } from "recipe-domain/serialization";
 import {
+  MAX_PANTRY_ITEMS,
+  MAX_PANTRY_MUTATION_CHANGES,
+  PantryItemLimitError,
+  PantryLocationSchema,
+  PantryMutationConflictError,
+} from "recipe-domain/pantry";
+import {
   isRecipeAppRouteSlug,
   LOWERCASE_KEBAB_CASE_PATTERN,
   RECIPE_SLUG_MAX_LENGTH,
@@ -89,7 +96,6 @@ import {
 } from "./notifications";
 import {
   findPantryAggregate,
-  MAX_PANTRY_ITEMS,
   pantryAggregateScopeFilter,
   type PantryLocation,
   type PantryResponse,
@@ -100,6 +106,10 @@ import {
   readPantry,
   resolvePantryScope,
 } from "./pantry";
+import { enforcePantryItemLimit } from "./pantry/repositories/pantry-repository";
+import { listPantryMutationHistory } from "./pantry/services/list-pantry-mutation-history";
+import { previewPantryMutationUndo } from "./pantry/services/preview-pantry-mutation-undo";
+import { undoPantryMutation } from "./pantry/services/undo-pantry-mutation";
 import { readableRecipeFilter } from "./recipe-access";
 import { fetchRecipePage, RecipeUrlImportError } from "./recipe-url-import";
 import {
@@ -204,7 +214,7 @@ const creatableRecipeSlugSchema = recipeSlugSchema.refine(
   { message: "Slug is reserved for a recipe application route" },
 );
 const dietRecipeMatchModeSchema = z.enum(["hide", "warn"]);
-const pantryLocationSchema = z.enum(schema.pantryLocationEnum.enumValues);
+const pantryLocationSchema = PantryLocationSchema;
 const pantryIngredientSlugSchema = z.string().min(1).max(200);
 const pantryResponseSchema = z
   .object({
@@ -228,6 +238,15 @@ const pantryResponseSchema = z
   .strict();
 const pantryOperationReceiptSchema = z
   .object({ version: z.literal(1), pantry: pantryResponseSchema })
+  .strict();
+const undoAgentMutationBodySchema = z
+  .object({
+    stableItemIds: z
+      .array(z.uuid().max(36))
+      .min(1)
+      .max(MAX_PANTRY_MUTATION_CHANGES)
+      .optional(),
+  })
   .strict();
 const feedScopeSchema = z.enum(["public", "following"]);
 const feedLimitSchema = z.coerce.number().int().min(1).max(30).default(12);
@@ -613,6 +632,12 @@ export const routeMetadata = {
   "GET /api/profile/bootstrap": {},
   "PUT /api/profile/recipe-box": { requestBodySchema: recipeBoxBodySchema },
   "GET /api/profile/cooking-insights": {},
+  "GET /api/profile/agent-mutations": {},
+  "GET /api/profile/agent-mutations/:changeSetId/undo-preview": {},
+  "POST /api/profile/agent-mutations/:changeSetId/undo": {
+    requestBodySchema: undoAgentMutationBodySchema,
+    headersSchema: pantryOperationHeadersSchema,
+  },
   "POST /api/profile/cooking-sessions": {
     requestBodySchema: cookingSessionBodySchema,
     successStatuses: [200, 201],
@@ -767,6 +792,7 @@ const UUID_PATH_PARAMETER_NAMES = new Set([
   "invitationId",
   "memberId",
   "notificationId",
+  "changeSetId",
 ]);
 
 const notificationActionKeySchema = z.enum([
@@ -1158,7 +1184,12 @@ function parseRecipeSlug(c: Context<AppEnv>) {
 
 function uuidParam(
   c: Context<AppEnv>,
-  name: "householdId" | "invitationId" | "memberId" | "notificationId",
+  name:
+    | "householdId"
+    | "invitationId"
+    | "memberId"
+    | "notificationId"
+    | "changeSetId",
   label: string,
 ): string | Response {
   const result = uuidIdSchema.safeParse(c.req.param(name));
@@ -1606,24 +1637,6 @@ class UnknownPantryIngredientError extends Error {
   }
 }
 
-class PantryItemLimitError extends Error {
-  constructor() {
-    super(`A pantry can contain at most ${MAX_PANTRY_ITEMS} ingredients`);
-  }
-}
-
-async function enforcePantryItemLimit(
-  tx: DbTransaction,
-  scope: PantryScope,
-): Promise<void> {
-  const items = await tx
-    .select({ ingredientSlug: schema.pantryItem.ingredientSlug })
-    .from(schema.pantryItem)
-    .where(pantryScopeFilter(scope))
-    .limit(MAX_PANTRY_ITEMS + 1);
-  if (items.length > MAX_PANTRY_ITEMS) throw new PantryItemLimitError();
-}
-
 function pantryOperationId(c: Context<AppEnv>): string | Response {
   const supplied = c.req.header("Idempotency-Key");
   if (!supplied) return crypto.randomUUID();
@@ -1683,6 +1696,12 @@ async function executePantryOperation(
     }
 
     await mutate(tx, scope);
+    // A human pantry command supersedes any agent-removal absence markers.
+    // Clearing them makes a later undo surface a conflict even if a recreated
+    // item has since been removed again.
+    await tx
+      .delete(schema.pantryItemAbsence)
+      .where(eq(schema.pantryItemAbsence.aggregateId, aggregate.id));
     await enforcePantryItemLimit(tx, scope);
     const [updatedAggregate] = await tx
       .update(schema.pantryAggregate)
@@ -3317,6 +3336,89 @@ registerRoute("put", "/api/profile/recipe-box", async (c) => {
     },
   );
 });
+
+registerRoute("get", "/api/profile/agent-mutations", async (c) => {
+  return withRecipeSession(
+    c,
+    "query",
+    "GET /api/profile/agent-mutations query failed",
+    async ({ db, session }) =>
+      c.json({ items: await listPantryMutationHistory(db, session.user.id) }),
+  );
+});
+
+registerRoute(
+  "get",
+  "/api/profile/agent-mutations/:changeSetId/undo-preview",
+  async (c) => {
+    const changeSetId = uuidParam(c, "changeSetId", "change-set ID");
+    if (changeSetId instanceof Response) return changeSetId;
+    return withRecipeSession(
+      c,
+      "query",
+      "GET agent mutation undo preview failed",
+      async ({ db, session }) => {
+        try {
+          const preview = await previewPantryMutationUndo(
+            db,
+            session.user.id,
+            changeSetId,
+          );
+          return preview
+            ? c.json(preview)
+            : c.json({ error: "Mutation change set not found" }, 404);
+        } catch (error) {
+          if (error instanceof PantryMutationConflictError) {
+            return c.json({ error: error.message }, 409);
+          }
+          throw error;
+        }
+      },
+    );
+  },
+);
+
+registerRoute(
+  "post",
+  "/api/profile/agent-mutations/:changeSetId/undo",
+  async (c) => {
+    const csrfFailure = validateCsrf(c);
+    if (csrfFailure) return csrfFailure;
+    const changeSetId = uuidParam(c, "changeSetId", "change-set ID");
+    if (changeSetId instanceof Response) return changeSetId;
+    const operationId = pantryOperationId(c);
+    if (operationId instanceof Response) return operationId;
+    const body = await parseJsonBody(c, undoAgentMutationBodySchema);
+    if (!body.success) return body.response;
+    return withRecipeSession(
+      c,
+      "mutation",
+      "POST agent mutation undo failed",
+      async ({ db, session }) => {
+        try {
+          const result = await undoPantryMutation(db, {
+            userId: session.user.id,
+            changeSetId,
+            idempotencyKey: operationId,
+            stableItemIds: body.data.stableItemIds,
+          });
+          if (!result) return c.json({ error: "Mutation change set not found" }, 404);
+          return result.applied
+            ? c.json(result)
+            : c.json({ error: "Pantry changed after the agent mutation", ...result }, 409);
+        } catch (error) {
+          if (
+            error instanceof PantryMutationConflictError ||
+            error instanceof PantryItemLimitError
+          ) {
+            return c.json({ error: error.message }, 409);
+          }
+          throw error;
+        }
+      },
+    );
+  },
+);
 
 registerRoute("get", "/api/profile/cooking-insights", async (c) => {
   return withRecipeSession(

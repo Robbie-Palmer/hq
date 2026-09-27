@@ -1,0 +1,22 @@
+[tasks.install]
+description = "Install recipe domain dependencies"
+depends = ["//:install"]
+
+[tasks.typecheck]
+description = "Typecheck the recipe domain package"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test the recipe domain package"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test the recipe domain package with coverage"
+depends = ["//:install"]
+run = "pnpm --filter ui exec vitest run --root ../packages/recipe-domain --coverage --config ../packages/recipe-domain/vitest.config.ts"
+
+[tasks.check]
+description = "Check the recipe domain package"
+depends = ["typecheck", "test"]

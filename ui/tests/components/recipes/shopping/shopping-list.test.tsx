@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ShoppingList } from "@/components/recipes/shopping/shopping-list";
 import type { ShoppingRecipe } from "@/lib/api/shopping";
+import type { KitchenStock } from "@/lib/domain/recipe/kitchen";
 import {
   addExtra,
   addRecipe,
@@ -20,7 +21,7 @@ const pantryState = vi.hoisted(() => ({
   error: null as Error | null,
   hasData: true,
   isPending: false,
-  stock: {} as Record<string, "fridge" | "cupboards" | "fresh">,
+  stock: {} as KitchenStock,
 }));
 
 vi.mock("@/lib/analytics/recipe-product", () => ({

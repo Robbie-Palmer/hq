@@ -3,10 +3,9 @@ import { requiredEnv } from "node-base/env";
 import { createAuth } from "../src/auth";
 import { createDb, schema } from "recipe-db";
 import { RecipeContentSchema } from "recipe-domain";
+import type { PantryLocation } from "recipe-domain/pantry";
 import { previewScenarios } from "../src/preview-scenarios";
 import { syncCanonicalUserEmail } from "../src/user-emails";
-
-type PantryLocation = (typeof schema.pantryLocationEnum.enumValues)[number];
 
 function previewRecipeBody(
   slug: string,

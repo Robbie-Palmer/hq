@@ -8,6 +8,8 @@
     "./ingredient": "./src/ingredient.ts",
     "./ingredient-normalization": "./src/ingredient-normalization.ts",
     "./import-storage": "./src/import-storage.ts",
+    "./mutation": "./src/mutation.ts",
+    "./pantry": "./src/pantry.ts",
     "./recipe": "./src/recipe.ts",
     "./serialization": "./src/serialization.ts",
     "./visibility": "./src/visibility.ts",
@@ -16,13 +18,20 @@
     "./pluralization": "./src/pluralization.ts",
     "./conversion": "./src/conversion.ts"
   },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
   "dependencies": {
     "entities": "^6.0.1",
     "pluralize": "^8.0.0",
     "zod": "^4.2.1"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^5.0.0",
     "@types/pluralize": "^0.0.33",
-    "typescript": "^6.0.0"
+    "typescript": "^6.0.0",
+    "vitest": "^5.0.0"
   }
 }

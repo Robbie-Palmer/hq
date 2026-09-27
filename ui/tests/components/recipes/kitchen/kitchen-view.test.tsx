@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { KitchenView } from "@/components/recipes/kitchen/kitchen-view";
+import type { KitchenStock } from "@/lib/domain/recipe/kitchen";
 
 const dietState = vi.hoisted(() => ({ mode: "hide" as "hide" | "warn" }));
 const kitchenStockState = vi.hoisted(() => ({
@@ -17,7 +18,7 @@ const kitchenStockState = vi.hoisted(() => ({
   pantry: {
     data: {
       scope: { type: "personal" as const },
-      stock: {} as Record<string, "fridge" | "cupboards" | "fresh">,
+      stock: {} as KitchenStock,
     },
     error: null as Error | null,
     isPending: false,

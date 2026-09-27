@@ -13,6 +13,10 @@ import {
 } from "vitest";
 import { createAuth } from "../../src/auth";
 import { executeRecipeAgentCapability } from "../../src/agent-auth";
+import { listPantryMutationHistory } from "../../src/pantry/services/list-pantry-mutation-history";
+import { previewPantryMutationUndo } from "../../src/pantry/services/preview-pantry-mutation-undo";
+import { reconcilePantry } from "../../src/pantry/services/reconcile-pantry";
+import { undoPantryMutation } from "../../src/pantry/services/undo-pantry-mutation";
 import { betterAuthSessionCookie } from "../../src/better-auth-session-cookie";
 import {
   cookingLogResponse,
@@ -185,8 +189,8 @@ beforeAll(async () => {
     where slug in ('almond-milk', 'cajun-powder', 'cajun-seasoning', 'salted-butter')
     order by slug
   `;
-  expect(migrationCount?.count).toBe(15);
-  expect(tableCount?.count).toBe(44);
+  expect(migrationCount?.count).toBe(16);
+  expect(tableCount?.count).toBe(47);
   expect(catalogRows).toEqual([
     { category: "dairy", slug: "almond-milk" },
     { category: "spice", slug: "cajun-seasoning" },
@@ -301,6 +305,209 @@ describe("recipe API PostgreSQL integration", () => {
       stock: { onion: "fresh" },
       itemVersions: { onion: "2" },
     });
+  });
+
+  it("records idempotent agent pantry mutations and compensates them", async () => {
+    const cook = await createUser("Ledger Cook", "ledger@example.test");
+    const mutation = {
+      actor: {
+        type: "agent" as const,
+        userId: cook.id,
+        agentId: "ledger-agent",
+        agentName: "Pantry helper",
+        hostId: "ledger-host",
+        hostName: "Kitchen terminal",
+      },
+      capability: "pantry.reconcile" as const,
+      reason: "Put away the grocery delivery",
+      idempotencyKey: "0198f1f0-5555-7555-8555-555555555555",
+      changes: [
+        {
+          ingredientSlug: "onion",
+          expectedVersion: null,
+          location: "fresh" as const,
+        },
+      ],
+    };
+
+    const applied = await reconcilePantry(db, mutation);
+    const replayed = await reconcilePantry(db, mutation);
+    expect(replayed).toMatchObject({
+      changeSetId: applied.changeSetId,
+      replayed: true,
+    });
+    expect(await listPantryMutationHistory(db, cook.id)).toMatchObject([
+      {
+        id: applied.changeSetId,
+        agentName: "Pantry helper",
+        hostName: "Kitchen terminal",
+        reason: "Put away the grocery delivery",
+        items: [
+          {
+            ingredientSlug: "onion",
+            beforeValue: null,
+            afterValue: { ingredientSlug: "onion", location: "fresh" },
+            beforeVersion: null,
+            afterVersion: "1",
+          },
+        ],
+      },
+    ]);
+    await expect(
+      previewPantryMutationUndo(db, cook.id, applied.changeSetId),
+    ).resolves.toMatchObject({ canUndo: true, items: [{ status: "ready" }] });
+
+    const undone = await undoPantryMutation(db, {
+      userId: cook.id,
+      changeSetId: applied.changeSetId,
+      idempotencyKey: "0198f1f0-6666-7666-8666-666666666666",
+    });
+    expect(undone).toMatchObject({ applied: true, replayed: false });
+    const pantry = await authenticatedRequest(cook, "/pantry");
+    expect(await json(pantry)).toMatchObject({ stock: {}, revision: "2" });
+  });
+
+  it("refuses to undo across a later human pantry edit", async () => {
+    const cook = await createUser(
+      "Ledger Conflict Cook",
+      "ledger-conflict@example.test",
+    );
+    const applied = await reconcilePantry(db, {
+      actor: {
+        type: "agent",
+        userId: cook.id,
+        agentId: "ledger-conflict-agent",
+        agentName: "Pantry helper",
+        hostId: "ledger-conflict-host",
+      },
+      capability: "pantry.reconcile",
+      reason: "Record the cupboard stock",
+      idempotencyKey: "0198f1f0-7777-7777-8777-777777777777",
+      changes: [
+        {
+          ingredientSlug: "onion",
+          expectedVersion: null,
+          location: "cupboards",
+        },
+      ],
+    });
+    const humanEdit = await authenticatedRequest(cook, "/pantry/items/onion", {
+      method: "PUT",
+      body: { location: "fresh" },
+    });
+    expect(humanEdit.status).toBe(200);
+
+    await expect(
+      previewPantryMutationUndo(db, cook.id, applied.changeSetId),
+    ).resolves.toMatchObject({ canUndo: false, items: [{ status: "conflict" }] });
+    await expect(
+      undoPantryMutation(db, {
+        userId: cook.id,
+        changeSetId: applied.changeSetId,
+        idempotencyKey: "0198f1f0-8888-7888-8888-888888888888",
+      }),
+    ).resolves.toMatchObject({ applied: false });
+    const pantry = await authenticatedRequest(cook, "/pantry");
+    expect(await json(pantry)).toMatchObject({ stock: { onion: "fresh" } });
+  });
+
+  it("invalidates an agent addition after a human deletes it", async () => {
+    const cook = await createUser(
+      "Ledger Delete Cook",
+      "ledger-delete@example.test",
+    );
+    const applied = await reconcilePantry(db, {
+      actor: {
+        type: "agent",
+        userId: cook.id,
+        agentId: "ledger-delete-agent",
+        agentName: "Pantry helper",
+        hostId: "ledger-delete-host",
+      },
+      capability: "pantry.reconcile",
+      reason: "Record the fresh stock",
+      idempotencyKey: "0198f1f0-9999-7999-8999-999999999999",
+      changes: [
+        {
+          ingredientSlug: "onion",
+          expectedVersion: null,
+          location: "fresh",
+        },
+      ],
+    });
+    const humanDelete = await authenticatedRequest(
+      cook,
+      "/pantry/items/onion",
+      { method: "DELETE" },
+    );
+    expect(humanDelete.status).toBe(200);
+
+    await expect(
+      previewPantryMutationUndo(db, cook.id, applied.changeSetId),
+    ).resolves.toMatchObject({ canUndo: false, items: [{ status: "conflict" }] });
+    await expect(
+      undoPantryMutation(db, {
+        userId: cook.id,
+        changeSetId: applied.changeSetId,
+        idempotencyKey: "0198f1f0-aaaa-7aaa-8aaa-aaaaaaaaaaaa",
+      }),
+    ).resolves.toMatchObject({ applied: false });
+  });
+
+  it("purges the mutation ledger when its actor deletes their account", async () => {
+    const cook = await createUser(
+      "Ledger Deletion Cook",
+      "ledger-account-delete@example.test",
+    );
+    const applied = await reconcilePantry(db, {
+      actor: {
+        type: "agent",
+        userId: cook.id,
+        agentId: "account-delete-agent",
+        agentName: "Pantry helper",
+        hostId: "account-delete-host",
+      },
+      capability: "pantry.reconcile",
+      reason: "Record stock before account deletion",
+      idempotencyKey: "0198f1f0-bbbb-7bbb-8bbb-bbbbbbbbbbbb",
+      changes: [
+        {
+          ingredientSlug: "onion",
+          expectedVersion: null,
+          location: "fresh",
+        },
+      ],
+    });
+    const undone = await undoPantryMutation(db, {
+      userId: cook.id,
+      changeSetId: applied.changeSetId,
+      idempotencyKey: "0198f1f0-cccc-7ccc-8ccc-cccccccccccc",
+    });
+    if (!undone?.changeSetId) throw new Error("Mutation could not be undone");
+
+    const deletion = await authenticatedRequest(cook, "/api/auth/delete-user", {
+      method: "POST",
+      body: { password },
+    });
+    expect(deletion.status).toBe(200);
+    expect(
+      await db
+        .select()
+        .from(schema.agentMutationChangeSet)
+        .where(eq(schema.agentMutationChangeSet.actorUserId, cook.id)),
+    ).toHaveLength(0);
+    expect(
+      await db
+        .select()
+        .from(schema.agentMutationChangeItem)
+        .where(eq(schema.agentMutationChangeItem.changeSetId, applied.changeSetId)),
+    ).toHaveLength(0);
+    expect(
+      await db
+        .select()
+        .from(schema.pantryItemAbsence)
+        .where(eq(schema.pantryItemAbsence.changeSetId, undone.changeSetId)),
+    ).toHaveLength(0);
   });
 
   it("resolves pantry ownership again when an agent reads it", async () => {
