@@ -103,7 +103,10 @@ describe("portfolio valuation", () => {
       (account) => account.id === "broker-usd",
     );
     const netWorth = getNetWorthTimeSeries(repository).at(-1);
-    const financialIndependence = getPortfolioFinancialIndependence(repository);
+    const financialIndependence = getPortfolioFinancialIndependence(
+      repository,
+      "2026-01-01",
+    );
 
     expect(brokerage?.latestBalance).toBe(1_000);
     expect(brokerage?.currency).toBe("USD");

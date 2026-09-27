@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { buildBaseCurrencyFlowSankeyData } from "@/lib/assettracker";
 import {
   AssetTrackerDataSchema,
-  buildBaseCurrencyFlowSankeyData,
   buildRepository,
   getAllAccountSummaries,
 } from "@/lib/domain/assettracker";
 
-describe("buildBaseCurrencyFlowSankeyData", () => {
+describe("buildBaseCurrencyFlowSankeyData adapter", () => {
   it("shows a conversion provider, fee, and spread using base-currency values", () => {
     const data = AssetTrackerDataSchema.parse({
       accounts: [

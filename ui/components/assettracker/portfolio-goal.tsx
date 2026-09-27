@@ -10,12 +10,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { computeTotalBalance, formatCurrency } from "@/lib/assettracker";
 import {
   type Currency,
-  computeTotalBalance,
   FI_PROJECTION_MAX_YEARS,
   formatAssetTrackerError,
-  formatCurrency,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
 import { FinancialRunwayChart } from "./financial-runway-chart";

@@ -15,6 +15,13 @@ import {
   createLocalAssetTrackerApi,
 } from "@/lib/api/assettracker";
 import {
+  buildBaseCurrencyFlowSankeyData,
+  type FlowSankeyData,
+  getDemoAssetTrackerData,
+  toBalancesCsv,
+  todayIsoDate,
+} from "@/lib/assettracker";
+import {
   type AccountDetailView,
   type AccountId,
   type AccountSummaryView,
@@ -23,23 +30,19 @@ import {
   type AssetAllocationDataPoint,
   type AssetTrackerData,
   type AssetType,
-  buildBaseCurrencyFlowSankeyData,
+  buildAccountReadModels,
   buildRepository,
   type ClearAccountHistoryInput,
   type CreateAccountInput,
   type Currency,
   type DeleteCapitalFlowInput,
   type DeleteSnapshotInput,
-  type FlowSankeyData,
-  getAllAccountDetails,
-  getAllAccountSummaries,
   getAssetAllocationTimeSeries,
   getLatestPortfolioValuation,
   getNetWorthTimeSeries,
   getPortfolioAnnualReturn,
   getPortfolioContributionTimeSeries,
   getPortfolioFinancialIndependence,
-  getSeedData,
   getTotalByAssetType,
   type ImportAccountHistoryInput,
   type ImportIncomeHistoryInput,
@@ -55,8 +58,6 @@ import {
   type SetAccountLiquidityInput,
   type SetExpectedReturnInput,
   type Transfer,
-  toBalancesCsv,
-  todayIsoDate,
   type ValuationIssue,
 } from "@/lib/domain/assettracker";
 
@@ -142,7 +143,7 @@ export function AssetTrackerProvider({
 }: Readonly<{ children: ReactNode }>) {
   // Seed synchronously so the static build renders the full demo dashboard;
   // locally saved changes are applied after mount to avoid hydration mismatch
-  const [data, setData] = useState<AssetTrackerData>(getSeedData);
+  const [data, setData] = useState<AssetTrackerData>(getDemoAssetTrackerData);
   const [hasLocalChanges, setHasLocalChanges] = useState(false);
   const apiRef = useRef<AssetTrackerApi | null>(null);
   // Once the user has mutated, a late-resolving load() must not clobber the
@@ -183,10 +184,10 @@ export function AssetTrackerProvider({
 
   const views = useMemo(() => {
     const repository = buildRepository(data);
-    const accounts = getAllAccountSummaries(repository);
+    const { summaries: accounts, details: accountDetails } =
+      buildAccountReadModels(repository);
     const netWorthData = getNetWorthTimeSeries(repository);
     const latestValuation = getLatestPortfolioValuation(repository);
-    const accountDetails = getAllAccountDetails(repository);
     const valuationDate = latestValuation?.date ?? todayIsoDate();
     return {
       accounts,
@@ -204,7 +205,10 @@ export function AssetTrackerProvider({
         accountDetails,
         valuationDate,
       ),
-      financialIndependence: getPortfolioFinancialIndependence(repository),
+      financialIndependence: getPortfolioFinancialIndependence(
+        repository,
+        valuationDate,
+      ),
       portfolioReturn: getPortfolioAnnualReturn(repository),
       inflation: repository.settings.expectedAnnualInflation,
       netWorthTarget: repository.settings.targetNetWorth ?? null,

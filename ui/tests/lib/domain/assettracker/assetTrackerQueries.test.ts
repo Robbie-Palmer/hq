@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AssetTrackerData } from "@/lib/domain/assettracker/assetTrackerData";
 import {
+  buildAccountReadModels,
   getAccountDetail,
   getAllAccountDetails,
   getAllAccountSummaries,
@@ -181,6 +182,21 @@ function mixedCurrencyData(): AssetTrackerData {
 }
 
 describe("multi-currency portfolio queries", () => {
+  it("builds valued account summaries and details from one read model", () => {
+    const models = buildAccountReadModels(buildRepository(mixedCurrencyData()));
+    const summary = models.summaries.find(
+      (account) => account.id === "broker-usd",
+    );
+    const detail = models.detailsById.get("broker-usd");
+
+    expect(summary?.latestBalance).toBe(1_000);
+    expect(detail?.latestBalance).toBe(summary?.latestBalance);
+    expect(detail?.latestSnapshotDate).toBe(summary?.latestSnapshotDate);
+    expect(detail).toBe(
+      models.details.find((account) => account.id === "broker-usd"),
+    );
+  });
+
   it("uses valued holdings and converted flows across every household query", () => {
     const repository = buildRepository(mixedCurrencyData());
 

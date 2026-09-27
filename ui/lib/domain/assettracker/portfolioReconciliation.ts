@@ -5,7 +5,6 @@ import {
   isLiability,
 } from "./account";
 import { realRate } from "./assetTrackerAnalytics";
-import { todayIsoDate } from "./assetTrackerCommands";
 import { DEFAULT_WITHDRAWAL_RATE } from "./assetTrackerData";
 import { getNetWorthTimeSeries } from "./assetTrackerQueries";
 import type { AssetTrackerRepository } from "./assetTrackerRepository";
@@ -475,6 +474,7 @@ function buildFiProjection(input: {
 
 export function getPortfolioFinancialIndependence(
   repository: AssetTrackerRepository,
+  asOfDate: string,
 ): PortfolioFinancialIndependence {
   const periods = reconcilePortfolio(repository);
   const annualExpenditure = representativeAnnualExpenditure(periods);
@@ -533,7 +533,7 @@ export function getPortfolioFinancialIndependence(
     annualCurrentExpenditure != null && annualCurrentExpenditure > 0
       ? (Math.max(balance, 0) * 12) / annualCurrentExpenditure
       : null;
-  const startDate = todayIsoDate();
+  const startDate = asOfDate;
   const compensation = currentCompensation(
     repository,
     annualExpenditure,

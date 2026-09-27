@@ -1,11 +1,19 @@
-import { type ExpectedReturnChange, effectiveExpectedReturn } from "./account";
-import { todayIsoDate } from "./assetTrackerCommands";
-import type { AssetTrackerRepository } from "./assetTrackerRepository";
-import type { AccountSummaryView } from "./assetTrackerViews";
-import { ACCOUNT_COLORS } from "./constants";
-import type { Money } from "./money";
-import { convertMoneyAtDate, latestValuedBalances } from "./portfolioValuation";
-import { monthlyAmount, type RecurringFlow } from "./recurringFlow";
+import {
+  type ExpectedReturnChange,
+  effectiveExpectedReturn,
+} from "@/lib/domain/assettracker/account";
+import type { AssetTrackerRepository } from "@/lib/domain/assettracker/assetTrackerRepository";
+import type { AccountSummaryView } from "@/lib/domain/assettracker/assetTrackerViews";
+import type { Money } from "@/lib/domain/assettracker/money";
+import {
+  convertMoneyAtDate,
+  latestValuedBalances,
+} from "@/lib/domain/assettracker/portfolioValuation";
+import {
+  monthlyAmount,
+  type RecurringFlow,
+} from "@/lib/domain/assettracker/recurringFlow";
+import { ACCOUNT_COLORS } from "./presentation";
 
 const EXTERNAL_INCOME_NODE = "__external_income";
 const EXTERNAL_SPENDING_NODE = "__external_spending";
@@ -337,7 +345,7 @@ export function buildFlowSankeyData(
   accounts: FlowSankeyAccount[],
   flows: RecurringFlow[],
   liabilityBalances: Record<string, number>,
-  asOfDate: string = todayIsoDate(),
+  asOfDate: string,
 ): FlowSankeyData {
   const openAccounts = accounts.filter((account) => account.isOpen);
   const openAccountIds = new Set(openAccounts.map((account) => account.id));

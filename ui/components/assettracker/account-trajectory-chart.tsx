@@ -16,11 +16,10 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
+import { formatAccountCurrency, formatAxisTick } from "@/lib/assettracker";
 import {
   type AccountDetailView,
   buildAccountHistorySeries,
-  formatAccountCurrency,
-  formatAxisTick,
   isLiability,
   type NetWorthDataPoint,
   selectAccountExternalFlows,

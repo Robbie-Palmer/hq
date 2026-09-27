@@ -1,4 +1,5 @@
 "use client";
+
 import { format, parseISO, subYears } from "date-fns";
 import { useMemo, useRef, useState } from "react";
 import {
@@ -27,12 +28,14 @@ import {
 } from "@/components/ui/chart";
 import {
   ACCOUNT_COLORS,
-  type Currency,
-  DEFAULT_BASE_CURRENCY,
   formatCurrency,
   formatCurrencyAxisTick,
-  type NetWorthDataPoint,
   todayIsoDate,
+} from "@/lib/assettracker";
+import {
+  type Currency,
+  DEFAULT_BASE_CURRENCY,
+  type NetWorthDataPoint,
 } from "@/lib/domain/assettracker";
 import { cn } from "@/lib/generic/styles";
 

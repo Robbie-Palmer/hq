@@ -1,13 +1,3 @@
-import { accounts as definedAccounts } from "../../../content/assettracker/accounts";
-import { recurringFlows as definedRecurringFlows } from "../../../content/assettracker/recurringFlows";
-import { snapshots as definedSnapshots } from "../../../content/assettracker/snapshots";
-import { transfers as definedTransfers } from "../../../content/assettracker/transfers";
-import {
-  exchangeRateObservations as definedExchangeRateObservations,
-  holdingObservations as definedHoldingObservations,
-  instruments as definedInstruments,
-  priceObservations as definedPriceObservations,
-} from "../../../content/assettracker/valuations";
 import {
   type Account,
   type AccountId,
@@ -45,31 +35,6 @@ export interface AssetTrackerRepository {
   priceObservations: PriceObservation[];
   exchangeRateObservations: ExchangeRateObservation[];
   settings: AssetTrackerData["settings"];
-}
-
-/**
- * The bundled demo dataset. Serves as the pristine starting state for the
- * client-side store and the content rendered into the static build.
- */
-export function getSeedData(): AssetTrackerData {
-  return AssetTrackerDataSchema.parse({
-    accounts: definedAccounts,
-    snapshots: definedSnapshots,
-    transfers: definedTransfers,
-    recurringFlows: definedRecurringFlows,
-    instruments: definedInstruments,
-    holdingObservations: definedHoldingObservations,
-    priceObservations: definedPriceObservations,
-    exchangeRateObservations: definedExchangeRateObservations,
-    settings: {
-      expectedAnnualInflation: 0.025,
-      targetNetWorth: { amount: 500_000, currency: "GBP" },
-      targetNetWorthIsReal: true,
-      withdrawalRate: 0.04,
-      baseCurrency: "GBP",
-      valuationMaxAgeDays: 7,
-    },
-  });
 }
 
 /** A persisted blank slate, distinct from the demo seed. */
@@ -407,20 +372,4 @@ export function buildRepository(
     exchangeRateObservations: [...(data.exchangeRateObservations ?? [])],
     settings: data.settings,
   };
-}
-
-let cachedRepository: AssetTrackerRepository | null = null;
-
-export function loadAssetTrackerRepository(): AssetTrackerRepository {
-  if (cachedRepository) return cachedRepository;
-  cachedRepository = buildRepository(getSeedData());
-  return cachedRepository;
-}
-
-export function resetRepositoryCache(): void {
-  if (process.env.NODE_ENV !== "test") {
-    throw new Error("resetRepositoryCache is only available in test env");
-  }
-
-  cachedRepository = null;
 }

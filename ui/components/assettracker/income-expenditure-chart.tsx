@@ -18,11 +18,10 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
+import { formatCurrency, formatCurrencyAxisTick } from "@/lib/assettracker";
 import {
   type Currency,
   DEFAULT_BASE_CURRENCY,
-  formatCurrency,
-  formatCurrencyAxisTick,
   type IncomeRecord,
   type PortfolioReconciliationPeriod,
 } from "@/lib/domain/assettracker";

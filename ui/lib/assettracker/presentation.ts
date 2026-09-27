@@ -1,6 +1,12 @@
-import type { AssetType } from "./account";
-import type { AccountSummaryView } from "./assetTrackerViews";
-import { type Currency, DEFAULT_BASE_CURRENCY } from "./currency";
+import type {
+  AssetType,
+  LiquidityTier,
+} from "@/lib/domain/assettracker/account";
+import type { AccountSummaryView } from "@/lib/domain/assettracker/assetTrackerViews";
+import {
+  type Currency,
+  DEFAULT_BASE_CURRENCY,
+} from "@/lib/domain/assettracker/currency";
 
 export const ASSET_TYPE_LABELS: Record<AssetType, string> = {
   cash: "Cash",
@@ -11,6 +17,12 @@ export const ASSET_TYPE_LABELS: Record<AssetType, string> = {
   property: "Property",
   mortgage: "Mortgage",
   debt: "Debt",
+};
+
+export const LIQUIDITY_TIER_LABELS: Record<LiquidityTier, string> = {
+  cash: "Cash",
+  liquid: "Liquid investment",
+  illiquid: "Illiquid asset",
 };
 
 export const ASSET_TYPE_COLORS: Record<AssetType, string> = {

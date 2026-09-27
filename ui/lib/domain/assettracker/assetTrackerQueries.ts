@@ -12,10 +12,9 @@ import type { AssetTrackerRepository } from "./assetTrackerRepository";
 import {
   type AccountDetailView,
   type AccountSummaryView,
+  buildAccountReadModel,
   buildLinkage,
   type NetWorthDataPoint,
-  toAccountDetailView,
-  toAccountSummaryView,
   toNetWorthTimeSeries,
 } from "./assetTrackerViews";
 import type { BalanceSnapshot } from "./balanceSnapshot";
@@ -42,94 +41,70 @@ function needsExplicitValuation(repository: AssetTrackerRepository): boolean {
 export function getAllAccountSummaries(
   repository: AssetTrackerRepository,
 ): AccountSummaryView[] {
-  const valuationDate = valuationDates(repository).at(-1);
-  return Array.from(repository.accounts.values()).map((account) => {
-    const summary = toAccountSummaryView(
-      account,
-      repository.snapshots,
-      repository.transfers,
-      repository.capitalFlows,
-    );
-    if (
-      valuationDate == null ||
-      !repository.holdingObservations.some(
-        (observation) => observation.accountId === account.id,
-      )
-    ) {
-      return summary;
-    }
-    const valuation = valueAccountAtDate(repository, account, valuationDate);
-    return {
-      ...summary,
-      latestBalance: valuation.nativeValue,
-      latestSnapshotDate: valuationDate,
-    };
-  });
+  return buildAccountReadModels(repository).summaries;
 }
 
 export function getAccountDetail(
   repository: AssetTrackerRepository,
   accountId: AccountId,
 ): AccountDetailView | null {
-  const account = repository.accounts.get(accountId);
-  if (!account) return null;
-  const detail = toAccountDetailView(
-    account,
-    repository.snapshots,
-    repository.transfers,
-    repository.capitalFlows,
-  );
-  const valuationDate = valuationDates(repository).at(-1);
-  if (
-    valuationDate == null ||
-    !repository.holdingObservations.some(
-      (observation) => observation.accountId === account.id,
-    )
-  ) {
-    return detail;
-  }
-  const valuation = valueAccountAtDate(repository, account, valuationDate);
-  return {
-    ...detail,
-    latestBalance: valuation.nativeValue,
-    latestSnapshotDate: valuationDate,
-    gainLoss:
-      valuation.nativeValue == null || detail.netContributed == null
-        ? null
-        : valuation.nativeValue - detail.netContributed,
-  };
+  return buildAccountReadModels(repository).detailsById.get(accountId) ?? null;
 }
 
 export function getAllAccountDetails(
   repository: AssetTrackerRepository,
 ): AccountDetailView[] {
+  return buildAccountReadModels(repository).details;
+}
+
+export type AccountReadModels = {
+  summaries: AccountSummaryView[];
+  details: AccountDetailView[];
+  detailsById: ReadonlyMap<AccountId, AccountDetailView>;
+};
+
+/** Builds summary and detail views through one snapshot and valuation pass. */
+export function buildAccountReadModels(
+  repository: AssetTrackerRepository,
+): AccountReadModels {
   const valuationDate = valuationDates(repository).at(-1);
-  return Array.from(repository.accounts.values()).map((account) => {
-    const detail = toAccountDetailView(
+  const accountsWithHoldings = new Set(
+    repository.holdingObservations.map((observation) => observation.accountId),
+  );
+  const summaries: AccountSummaryView[] = [];
+  const details: AccountDetailView[] = [];
+  const detailsById = new Map<AccountId, AccountDetailView>();
+
+  for (const account of repository.accounts.values()) {
+    let { summary, detail } = buildAccountReadModel(
       account,
       repository.snapshots,
       repository.transfers,
       repository.capitalFlows,
     );
-    if (
-      valuationDate == null ||
-      !repository.holdingObservations.some(
-        (observation) => observation.accountId === account.id,
-      )
-    ) {
-      return detail;
+    if (valuationDate != null && accountsWithHoldings.has(account.id)) {
+      const valuation = valueAccountAtDate(repository, account, valuationDate);
+      summary = {
+        ...summary,
+        latestBalance: valuation.nativeValue,
+        latestSnapshotDate: valuationDate,
+      };
+      detail = {
+        ...detail,
+        latestBalance: valuation.nativeValue,
+        latestSnapshotDate: valuationDate,
+        gainLoss:
+          valuation.nativeValue == null || detail.netContributed == null
+            ? null
+            : valuation.nativeValue - detail.netContributed,
+      };
     }
-    const valuation = valueAccountAtDate(repository, account, valuationDate);
-    return {
-      ...detail,
-      latestBalance: valuation.nativeValue,
-      latestSnapshotDate: valuationDate,
-      gainLoss:
-        valuation.nativeValue == null || detail.netContributed == null
-          ? null
-          : valuation.nativeValue - detail.netContributed,
-    };
-  });
+    summaries.push(summary);
+    details.push(detail);
+    detailsById.set(account.id, detail);
+  }
+
+  return { summaries, details, detailsById };
 }
 
 export function getAccountsByAssetType(

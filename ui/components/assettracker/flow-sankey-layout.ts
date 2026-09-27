@@ -3,7 +3,7 @@ import {
   layeredGraphNodeDepths,
   orderLayeredGraphNodes,
 } from "ts-base/layered-graph";
-import type { FlowSankeyData, FlowSankeyNode } from "@/lib/domain/assettracker";
+import type { FlowSankeyData, FlowSankeyNode } from "@/lib/assettracker";
 
 export const FLOW_SANKEY_NODE_WIDTH = 12;
 export const FLOW_SANKEY_LINK_COLOR = "hsl(220, 70%, 50%)";

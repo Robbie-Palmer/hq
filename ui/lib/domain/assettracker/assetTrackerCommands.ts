@@ -277,16 +277,6 @@ export type SetNetWorthTargetInput = z.infer<
   typeof SetNetWorthTargetInputSchema
 >;
 
-export function todayIsoDate(): string {
-  // Local calendar date, not UTC — toISOString() would roll over around
-  // local midnight and record the wrong day
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 function uniqueId(taken: Set<string>, base: string): string {
   if (!taken.has(base)) return base;
   let suffix = 2;
@@ -374,12 +364,13 @@ export function balanceAsOf(
 export function applyCreateAccount(
   data: AssetTrackerData,
   input: CreateAccountInput,
+  defaultDate: string,
 ): { data: AssetTrackerData; account: Account } {
   const parsed = CreateAccountInputSchema.parse(input);
   if (parsed.linkedAccountId != null) {
     requireAccount(data, parsed.linkedAccountId);
   }
-  const openingDate = parsed.openingDate ?? todayIsoDate();
+  const openingDate = parsed.openingDate ?? defaultDate;
   const account = AccountContentSchema.parse({
     id: uniqueAccountId(data, parsed.name),
     name: parsed.name,
@@ -762,8 +753,9 @@ export function applyClearAccountHistory(
 export function applyAddRecurringFlow(
   data: AssetTrackerData,
   input: AddRecurringFlowInput,
+  defaultStartDate: string,
 ): AssetTrackerData {
-  const startDate = input.startDate ?? todayIsoDate();
+  const startDate = input.startDate ?? defaultStartDate;
   const source =
     input.fromAccountId == null
       ? null
@@ -846,6 +838,7 @@ export function applyDeleteRecurringFlow(
 export function applyAddPlannedExpenditure(
   data: AssetTrackerData,
   input: AddPlannedExpenditureInput,
+  asOfDate: string,
 ): AssetTrackerData {
   const parsed = AddPlannedExpenditureInputSchema.parse(input);
   const source = requireAccount(data, parsed.fromAccountId);
@@ -864,7 +857,7 @@ export function applyAddPlannedExpenditure(
       "Planned expenditure must come from cash or a liquid investment",
     );
   }
-  if (parsed.date <= todayIsoDate()) {
+  if (parsed.date <= asOfDate) {
     throw new AssetTrackerCommandError(
       "INVALID_PLANNED_EXPENDITURE",
       "Planned expenditure must have a future date",

@@ -1,7 +1,7 @@
+import { formatCurrency } from "@/lib/assettracker";
 import {
   type Currency,
   DEFAULT_BASE_CURRENCY,
-  formatCurrency,
 } from "@/lib/domain/assettracker";
 import type { FinancialRunway } from "@/lib/domain/assettracker/portfolioReconciliation";
 

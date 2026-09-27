@@ -24,12 +24,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  type Currency,
   type FlowSankeyData,
   type FlowSankeyLink,
   type FlowSankeyNode,
   formatCurrency,
-} from "@/lib/domain/assettracker";
+} from "@/lib/assettracker";
+import type { Currency } from "@/lib/domain/assettracker";
 import {
   FLOW_SANKEY_LINK_COLOR,
   FLOW_SANKEY_NODE_WIDTH,

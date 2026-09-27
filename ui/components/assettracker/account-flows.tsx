@@ -11,12 +11,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatAccountCurrency } from "@/lib/assettracker";
 import {
   type AccountDetailView,
   type AccountSummaryView,
   type Currency,
   type FlowFrequency,
-  formatAccountCurrency,
   formatAssetTrackerError,
   isLiability,
   type MinimumPaymentFormula,

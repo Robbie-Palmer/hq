@@ -24,11 +24,10 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import {
-  ASSET_TYPE_COLORS,
-  ASSET_TYPE_LABELS,
-  type AssetAllocationDataPoint,
-  type AssetType,
+import { ASSET_TYPE_COLORS, ASSET_TYPE_LABELS } from "@/lib/assettracker";
+import type {
+  AssetAllocationDataPoint,
+  AssetType,
 } from "@/lib/domain/assettracker";
 
 const ASSET_TYPES = [

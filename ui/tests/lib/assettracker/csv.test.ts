@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toBalancesCsv } from "@/lib/domain/assettracker/assetTrackerCsv";
+import { toBalancesCsv } from "@/lib/assettracker/csv";
 import type { AssetTrackerData } from "@/lib/domain/assettracker/assetTrackerData";
 
 function csvData(): AssetTrackerData {
@@ -33,7 +33,7 @@ function csvData(): AssetTrackerData {
   };
 }
 
-describe("toBalancesCsv", () => {
+describe("toBalancesCsv adapter", () => {
   it("emits one date-sorted row per balance with account metadata", () => {
     const lines = toBalancesCsv(csvData()).split("\n");
 

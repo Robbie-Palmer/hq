@@ -6,7 +6,7 @@ import {
   nodeIdsForFlow,
   prepareFlowSankeyData,
 } from "@/components/assettracker/flow-sankey-layout";
-import type { FlowSankeyData } from "@/lib/domain/assettracker";
+import type { FlowSankeyData } from "@/lib/assettracker";
 
 function flowFixture(columns: number[], longNames = false): FlowSankeyData {
   const nodes = columns.flatMap((count, depth) =>

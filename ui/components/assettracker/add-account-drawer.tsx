@@ -22,15 +22,17 @@ import {
 } from "@/components/ui/select";
 import {
   ASSET_TYPE_LABELS,
+  LIQUIDITY_TIER_LABELS,
+  todayIsoDate,
+} from "@/lib/assettracker";
+import {
   type AssetType,
   CurrencySchema,
   defaultLiquidityForAssetType,
   formatAssetTrackerError,
   isLiability,
-  LIQUIDITY_TIER_LABELS,
   type LiquidityTier,
   SUPPORTED_CURRENCIES,
-  todayIsoDate,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
 

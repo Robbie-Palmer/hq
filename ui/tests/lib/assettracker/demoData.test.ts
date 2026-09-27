@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildBaseCurrencyFlowSankeyData,
+  getDemoAssetTrackerData,
+} from "@/lib/assettracker";
+import {
   getAllAccountDetails,
   getAssetAllocationTimeSeries,
   getLatestPortfolioValuation,
 } from "@/lib/domain/assettracker/assetTrackerQueries";
-import {
-  buildRepository,
-  getSeedData,
-} from "@/lib/domain/assettracker/assetTrackerRepository";
-import { buildBaseCurrencyFlowSankeyData } from "@/lib/domain/assettracker/flowSankeyData";
+import { buildRepository } from "@/lib/domain/assettracker/assetTrackerRepository";
 import { valueAccountAtDate } from "@/lib/domain/assettracker/portfolioValuation";
 
-describe("Asset Tracker demo data", () => {
+describe("Asset Tracker demo-data adapter", () => {
   it("loads a fully valued multi-currency portfolio", () => {
-    const repository = buildRepository(getSeedData());
+    const repository = buildRepository(getDemoAssetTrackerData());
     const valuation = getLatestPortfolioValuation(repository);
 
     expect(repository.accounts.get("us-brokerage")?.currency).toBe("USD");
@@ -40,7 +40,7 @@ describe("Asset Tracker demo data", () => {
   });
 
   it("uses the corrected USD market price in the latest valuation", () => {
-    const repository = buildRepository(getSeedData());
+    const repository = buildRepository(getDemoAssetTrackerData());
     const account = repository.accounts.get("us-brokerage");
 
     expect(account).toBeDefined();
@@ -59,7 +59,7 @@ describe("Asset Tracker demo data", () => {
   });
 
   it("includes a converted recurring contribution with a fee", () => {
-    const data = getSeedData();
+    const data = getDemoAssetTrackerData();
 
     expect(data.recurringFlows).toContainEqual(
       expect.objectContaining({

@@ -1,4 +1,5 @@
 "use client";
+
 import {
   Bar,
   BarChart,
@@ -21,14 +22,14 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import type { AssetType, Currency } from "@/lib/domain/assettracker";
 import {
   ASSET_TYPE_COLORS,
   ASSET_TYPE_LABELS,
-  DEFAULT_BASE_CURRENCY,
   formatCurrency,
   formatCurrencyAxisTick,
-} from "@/lib/domain/assettracker";
+} from "@/lib/assettracker";
+import type { AssetType, Currency } from "@/lib/domain/assettracker";
+import { DEFAULT_BASE_CURRENCY } from "@/lib/domain/assettracker";
 
 interface AssetAllocationChartProps {
   data: { assetType: AssetType; total: number }[];
