@@ -181,20 +181,20 @@ directly to the coordination store.
 ## System context and CLI deployment
 
 <Mermaid
-  chart={`flowchart LR
+  chart={`flowchart TB
 People["Owner and agent workers<br/>[People]"]
-Environment["Development environments<br/>[Deployment nodes]<br/>Local, remote, CI, or agent runtime<br/>Work Graph CLI installed"]
-WorkGraph["Work Graph<br/>[Software system]<br/>Work items, scope mirrors, leases, and evidence"]
-Knowledge["Public Knowledge Graph<br/>[External system]<br/>Canonical initiatives and projects"]
-GitHub["GitHub<br/>[External system]<br/>Pull requests, checks, and delivery events"]
-Automation["Planned GitHub automation<br/>[Containers]<br/>Observer, queue, and evidence ingestion"]
+Environment["Development environments<br/>[Deployment nodes]<br/>Local, remote, CI, or agent<br/>Work Graph CLI installed"]
+GitHub["GitHub<br/>[External system]<br/>Pull requests, checks,<br/>delivery events"]
+Automation["Planned GitHub automation<br/>[Containers]<br/>Observer, queue, ingestion"]
+WorkGraph["Work Graph<br/>[Software system]<br/>Work items, scope mirrors,<br/>leases, and evidence"]
+Knowledge["Public Knowledge Graph<br/>[External system]<br/>Canonical initiatives<br/>and projects"]
 
-People -->|"Use the installed CLI"| Environment
-Environment -->|"Authenticated commands and queries"| WorkGraph
-WorkGraph -->|"Uses canonical identifiers, links,<br/>and revisions for scope mirrors"| Knowledge
-Environment -->|"CLI reads pull-request<br/>status and checks"| GitHub
-GitHub -.->|"Planned signed webhooks"| Automation
-Automation -.->|"Validated evidence commands"| WorkGraph
+People -->|"uses CLI"| Environment
+Environment -->|"commands"| WorkGraph
+Environment -->|"reads PRs and checks"| GitHub
+GitHub -.->|"signed events"| Automation
+Automation -.->|"evidence commands"| WorkGraph
+WorkGraph -->|"mirrors scope"| Knowledge
 
 classDef person fill:#7c3aed,color:#fff,stroke:#6d28d9
 classDef external fill:#475569,color:#fff,stroke:#334155
@@ -223,12 +223,12 @@ subgraph workgraph["Work Graph [Software system]"]
 API["REST API<br/>[Container]<br/>Authenticated application boundary"]
 
 subgraph coordination["Coordination application [Container]"]
-  Policy["Owner policy<br/>[Component]<br/>Allowed transitions and evidence rules"]
-  Plan["Work items and dependency DAG<br/>[Component]<br/>Plan and executability"]
-  Scopes["Knowledge-scope mirrors<br/>[Component]<br/>Initiatives, projects, lifecycle, and rank"]
-  Priority["Priority projection<br/>[Component]<br/>Ready work and critical paths"]
-  Execution["Leases and attention<br/>[Component]<br/>Fencing, decisions, and access stops"]
-  Evidence["Context and delivery evidence<br/>[Component]<br/>Traceability and release gate"]
+Policy["Owner policy<br/>[Component]<br/>Allowed transitions and evidence rules"]
+Plan["Work items and dependency DAG<br/>[Component]<br/>Plan and executability"]
+Scopes["Knowledge-scope mirrors<br/>[Component]<br/>Initiatives, projects, lifecycle, and rank"]
+Priority["Priority projection<br/>[Component]<br/>Ready work and critical paths"]
+Execution["Leases and attention<br/>[Component]<br/>Fencing, decisions, and access stops"]
+Evidence["Context and delivery evidence<br/>[Component]<br/>Traceability and release gate"]
 end
 
 Store[("PostgreSQL<br/>[Container]<br/>Current records and immutable event history")]
