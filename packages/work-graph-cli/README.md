@@ -111,7 +111,9 @@ database commits it.
 Run `work-graph --help` for the compact command list. `queue` selects the
 `ready` stage unless `--stage` or `--all` changes it. Results follow the same
 priority order used by an unscoped `claim`. Lease duration defaults to 900
-seconds. `claim` also reads `WORK_GRAPH_WORKER_ID` when `--worker-id` is absent.
+seconds. An explicit `claim <ticket>` can recover previously claimed stale work
+after a graph blocker changed. Unscoped and filtered claims still start only
+ready work. `claim` also reads `WORK_GRAPH_WORKER_ID` when `--worker-id` is absent.
 Run `work-graph <command> --help` for schema-derived argument and option help.
 `ready` is the concise form of the default `queue`; `touch <ticket>` renews its
 active lease.

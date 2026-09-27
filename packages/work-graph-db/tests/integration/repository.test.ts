@@ -2493,6 +2493,134 @@ describe("lease-backed claiming", () => {
     );
   });
 
+  it("recovers stale child work after an ancestor gains a blocker", async () => {
+    await repository.createWorkItem({ id: "parent", title: "Parent" });
+    await repository.createWorkItem({
+      id: "started",
+      title: "Started child",
+      parentId: "parent",
+    });
+    await repository.createWorkItem({
+      id: "not-started",
+      title: "Not-started child",
+      parentId: "parent",
+    });
+    await repository.createWorkItem({ id: "blocker", title: "Blocker" });
+    const firstLease = await repository.claimWorkItem({
+      leaseId: leaseId(32),
+      workerId: "worker-a",
+      leaseDurationSeconds: 300,
+      workItemId: "started",
+    });
+    if (!firstLease) throw new Error("Expected the first claim to succeed.");
+
+    await repository.addDependency(dependency("parent", "blocker"));
+    await db
+      .update(schema.lease)
+      .set({
+        acquiredAt: new Date("2000-01-01T00:00:00Z"),
+        expiresAt: new Date("2000-01-01T00:01:00Z"),
+      })
+      .where(eq(schema.lease.id, firstLease.id));
+
+    expect(await repository.getWorkItem("started")).toEqual(
+      expect.objectContaining({ stage: "stale" }),
+    );
+    await expect(
+      repository.claimWorkItem({
+        leaseId: leaseId(33),
+        workerId: "scheduler",
+        leaseDurationSeconds: 300,
+        parentId: "parent",
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      repository.claimWorkItem({
+        leaseId: leaseId(34),
+        workerId: "worker-b",
+        leaseDurationSeconds: 300,
+        workItemId: "not-started",
+      }),
+    ).resolves.toBeNull();
+
+    const recoveryAttempts = await Promise.all([
+      repository.claimWorkItem({
+        leaseId: leaseId(35),
+        workerId: "worker-b",
+        leaseDurationSeconds: 300,
+        workItemId: "started",
+      }),
+      repository.claimWorkItem({
+        leaseId: leaseId(36),
+        workerId: "worker-c",
+        leaseDurationSeconds: 300,
+        workItemId: "started",
+      }),
+    ]);
+    const recovered = recoveryAttempts.find((claim) => claim !== null);
+    expect(recoveryAttempts.filter((claim) => claim !== null)).toHaveLength(1);
+    expect(recovered).toEqual(
+      expect.objectContaining({ workItemId: "started", epoch: 2 }),
+    );
+    if (!recovered) throw new Error("Expected one recovery to succeed.");
+
+    await expect(
+      repository.renewLease({
+        leaseId: firstLease.id,
+        epoch: firstLease.epoch,
+        leaseDurationSeconds: 300,
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "lease_not_current",
+      }),
+    );
+    await expect(
+      repository.terminateClaimedWorkItem({
+        leaseId: firstLease.id,
+        epoch: firstLease.epoch,
+        workItemId: "started",
+        outcome: "released",
+        ...completionEvidence,
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "lease_not_current",
+      }),
+    );
+
+    await repository.terminateClaimedWorkItem({
+      leaseId: recovered.id,
+      epoch: recovered.epoch,
+      workItemId: "started",
+      outcome: "released",
+      ...completionEvidence,
+    });
+
+    expect(await repository.listLeases("started")).toEqual([
+      expect.objectContaining({ epoch: 1, outcome: "expired" }),
+      expect.objectContaining({ epoch: 2, outcome: "released" }),
+    ]);
+    expect(
+      (await repository.listEvents({ workItemId: "started" })).map(
+        ({ type }) => type,
+      ),
+    ).toEqual([
+      "work_item.created",
+      "lease.claimed",
+      "lease.ended",
+      "lease.claimed",
+      "lease.ended",
+      "work_item.lifecycle_changed",
+    ]);
+    expect((await repository.getWorkItem("started")).lifecycle).toBe(
+      "released",
+    );
+    expect(await repository.listDependencies({ workItemId: "parent" })).toEqual(
+      [dependency("parent", "blocker")],
+    );
+  });
+
   it("renews only the active lease at the current epoch", async () => {
     await repository.createWorkItem({ id: "work", title: "Renewable work" });
     const claimed = await repository.claimWorkItem({
