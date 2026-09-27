@@ -106,4 +106,31 @@ describe("DataControls", () => {
 
     expect(setBaseCurrency).toHaveBeenCalledWith("USD");
   });
+
+  it("keeps portable data actions on imports", () => {
+    render(<DataControls mode="data" />);
+
+    expect(screen.getByRole("button", { name: "Export" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "CSV" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Import" })).toBeVisible();
+    expect(
+      screen.queryByRole("combobox", { name: "Household base currency" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Clear demo data" }),
+    ).toBeNull();
+  });
+
+  it("keeps assumptions and destructive actions on settings", () => {
+    render(<DataControls mode="settings" />);
+
+    expect(
+      screen.getByRole("combobox", { name: "Household base currency" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Clear demo data" }),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Export" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Import" })).toBeNull();
+  });
 });

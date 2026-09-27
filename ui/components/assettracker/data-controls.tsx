@@ -24,7 +24,11 @@ import {
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
 
-export function DataControls() {
+type DataControlsMode = "all" | "data" | "settings";
+
+export function DataControls({
+  mode = "all",
+}: Readonly<{ mode?: DataControlsMode }>) {
   const {
     hasLocalChanges,
     inflation,
@@ -43,6 +47,8 @@ export function DataControls() {
   const clearLabel = hasLocalChanges ? "Clear all data" : "Clear demo data";
   const clearButtonLabel =
     confirming === "clear" ? `${clearLabel}?` : clearLabel;
+  const showData = mode === "all" || mode === "data";
+  const showSettings = mode === "all" || mode === "settings";
 
   async function handleInflationChange(value: string) {
     if (value === "") return;
@@ -114,87 +120,101 @@ export function DataControls() {
             : "This is demo data. Log a balance or add an account to try it; changes are saved in your browser."}
         </p>
         <div className="flex flex-wrap items-center gap-1">
-          <label
-            htmlFor="expected-inflation"
-            className="flex items-center gap-1.5 pr-2 text-sm text-muted-foreground"
-          >
-            Inflation
-            <Input
-              id="expected-inflation"
-              type="number"
-              inputMode="decimal"
-              step="0.1"
-              min="-99"
-              className="h-8 w-16 text-right"
-              key={inflation}
-              defaultValue={(inflation * 100).toFixed(1)}
-              onBlur={(e) => handleInflationChange(e.target.value)}
-            />
-            %/yr
-          </label>
-          <div className="flex items-center gap-1.5 pr-2 text-sm text-muted-foreground">
-            <span>Base currency</span>
-            <Select
-              value={baseCurrency}
-              onValueChange={handleBaseCurrencyChange}
-            >
-              <SelectTrigger
-                className="h-8 w-20"
-                aria-label="Household base currency"
+          {showSettings && (
+            <>
+              <label
+                htmlFor="expected-inflation"
+                className="flex items-center gap-1.5 pr-2 text-sm text-muted-foreground"
               >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SUPPORTED_CURRENCIES.map((currency) => (
-                  <SelectItem key={currency} value={currency}>
-                    {currency}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button variant="ghost" size="sm" onClick={exportData}>
-            <DownloadIcon />
-            Export
-          </Button>
-          <Button variant="ghost" size="sm" onClick={exportCsv}>
-            <FileSpreadsheetIcon />
-            CSV
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <UploadIcon />
-            Import
-          </Button>
-          <Button
-            variant={confirming === "clear" ? "destructive" : "ghost"}
-            size="sm"
-            onClick={handleClear}
-          >
-            <Trash2Icon />
-            {clearButtonLabel}
-          </Button>
-          {hasLocalChanges && (
-            <Button
-              variant={confirming === "reset" ? "destructive" : "ghost"}
-              size="sm"
-              onClick={handleReset}
-            >
-              <RotateCcwIcon />
-              {confirming === "reset" ? "Discard my data?" : "Restore demo"}
-            </Button>
+                Inflation
+                <Input
+                  id="expected-inflation"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.1"
+                  min="-99"
+                  className="h-8 w-16 text-right"
+                  key={inflation}
+                  defaultValue={(inflation * 100).toFixed(1)}
+                  onBlur={(e) => handleInflationChange(e.target.value)}
+                />
+                %/yr
+              </label>
+              <div className="flex items-center gap-1.5 pr-2 text-sm text-muted-foreground">
+                <span>Base currency</span>
+                <Select
+                  value={baseCurrency}
+                  onValueChange={handleBaseCurrencyChange}
+                >
+                  <SelectTrigger
+                    className="h-8 w-20"
+                    aria-label="Household base currency"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SUPPORTED_CURRENCIES.map((currency) => (
+                      <SelectItem key={currency} value={currency}>
+                        {currency}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
           )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json,.json"
-            className="hidden"
-            aria-label="Import Asset Tracker JSON export"
-            onChange={handleImport}
-          />
+          {showData && (
+            <>
+              <Button variant="ghost" size="sm" onClick={exportData}>
+                <DownloadIcon />
+                Export
+              </Button>
+              <Button variant="ghost" size="sm" onClick={exportCsv}>
+                <FileSpreadsheetIcon />
+                CSV
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <UploadIcon />
+                Import
+              </Button>
+            </>
+          )}
+          {showSettings && (
+            <>
+              <Button
+                variant={confirming === "clear" ? "destructive" : "ghost"}
+                size="sm"
+                onClick={handleClear}
+              >
+                <Trash2Icon />
+                {clearButtonLabel}
+              </Button>
+              {hasLocalChanges && (
+                <Button
+                  variant={confirming === "reset" ? "destructive" : "ghost"}
+                  size="sm"
+                  onClick={handleReset}
+                >
+                  <RotateCcwIcon />
+                  {confirming === "reset" ? "Discard my data?" : "Restore demo"}
+                </Button>
+              )}
+            </>
+          )}
+          {showData && (
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              aria-label="Import Asset Tracker JSON export"
+              onChange={handleImport}
+            />
+          )}
         </div>
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}

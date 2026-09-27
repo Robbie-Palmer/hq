@@ -4,14 +4,7 @@ import { formatAccountCurrency, formatAnnualRate } from "@/lib/assettracker";
 import { realRate } from "@/lib/domain/assettracker";
 import { AccountBalanceChart } from "./account-balance-chart";
 import { AssetAllocationChart } from "./asset-allocation-chart";
-import { AssetAllocationHistoryChart } from "./asset-allocation-history-chart";
 import { useAssetTracker } from "./asset-tracker-provider";
-import { DataControls } from "./data-controls";
-import { FlowSankeyChart } from "./flow-sankey-chart";
-import { NetWorthChart } from "./net-worth-chart";
-import { PortfolioContributionChart } from "./portfolio-contribution-chart";
-import { PortfolioGoal } from "./portfolio-goal";
-import { UpcomingFlows } from "./upcoming-flows";
 
 function staleObservationMessage(
   count: number,
@@ -31,13 +24,11 @@ export function AssetTrackerDashboard() {
     netWorthData,
     contributionData,
     assetAllocation,
-    assetAllocationHistory,
     portfolioReturn,
     inflation,
     baseCurrency,
     valuationDate,
     valuationIssues,
-    flowSankeyData,
   } = useAssetTracker();
   const openAccounts = accounts.filter((a) => a.isOpen);
   const contributedCapital = contributionData.at(-1)?.contributedCapital;
@@ -65,7 +56,6 @@ export function AssetTrackerDashboard() {
           Track and visualise your portfolio across accounts.
         </p>
       </div>
-      <DataControls />
       {valuationIssues.length > 0 && (
         <div
           role="alert"
@@ -125,17 +115,6 @@ export function AssetTrackerDashboard() {
           <p className="text-sm text-muted-foreground">Asset Types</p>
           <p className="text-3xl font-bold mt-1">{assetAllocation.length}</p>
         </div>
-      </div>
-      <NetWorthChart data={netWorthData} currency={baseCurrency} />
-      <PortfolioContributionChart
-        data={contributionData}
-        currency={baseCurrency}
-      />
-      <AssetAllocationHistoryChart data={assetAllocationHistory} />
-      <PortfolioGoal />
-      <div className="grid gap-8 lg:grid-cols-2">
-        <UpcomingFlows />
-        <FlowSankeyChart data={flowSankeyData} currency={baseCurrency} />
       </div>
       <div className="grid gap-8 lg:grid-cols-2">
         <AssetAllocationChart data={assetAllocation} currency={baseCurrency} />

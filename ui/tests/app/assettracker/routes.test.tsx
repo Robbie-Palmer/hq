@@ -13,6 +13,26 @@ vi.mock("@/components/assettracker/accounts-route", () => ({
   AccountsRoute: () => <h1>Accounts</h1>,
 }));
 
+vi.mock("@/components/assettracker/history-route", () => ({
+  HistoryRoute: () => <h1>History</h1>,
+}));
+
+vi.mock("@/components/assettracker/cash-flow-route", () => ({
+  CashFlowRoute: () => <h1>Cash flow</h1>,
+}));
+
+vi.mock("@/components/assettracker/planning-route", () => ({
+  PlanningRoute: () => <h1>Planning</h1>,
+}));
+
+vi.mock("@/components/assettracker/imports-route", () => ({
+  ImportsRoute: () => <h1>Imports</h1>,
+}));
+
+vi.mock("@/components/assettracker/settings-route", () => ({
+  SettingsRoute: () => <h1>Settings</h1>,
+}));
+
 vi.mock("@/components/assettracker/asset-tracker-dashboard", () => ({
   AssetTrackerDashboard: () => <p>Overview dashboard</p>,
 }));
@@ -41,9 +61,12 @@ describe("Asset Tracker routes", () => {
     render(<Page />);
 
     expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Return to overview" }),
-    ).toHaveAttribute("href", "/assettracker");
+  });
+
+  it("states honestly that decision recording is unavailable", () => {
+    render(<DecisionsPage />);
+
+    expect(screen.getByText(/not available/)).toBeVisible();
   });
 
   it("keeps the existing dashboard on the overview", () => {
