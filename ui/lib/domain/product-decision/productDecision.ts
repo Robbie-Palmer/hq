@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  ADRRefSchema,
   IdeaSlugSchema,
   ProductDecisionSlugSchema,
   ProjectSlugSchema,
@@ -35,6 +36,7 @@ export const ProductDecisionFrontmatterSchema = z
     evidence: z.array(ProductDecisionEvidenceLinkSchema).default([]),
     ideas: z.array(IdeaSlugSchema).default([]),
     affected_projects: z.array(ProjectSlugSchema).min(1),
+    informed_by_adrs: z.array(ADRRefSchema).default([]),
   })
   .strict()
   .superRefine((record, context) => {

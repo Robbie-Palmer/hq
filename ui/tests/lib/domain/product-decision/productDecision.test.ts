@@ -17,6 +17,7 @@ const acceptedDecision = {
   ],
   ideas: ["context-engineering"],
   affected_projects: ["personal-knowledge-graph"],
+  informed_by_adrs: ["personal-knowledge-graph:033-content-graph-indexes"],
 } as const;
 
 describe("ProductDecisionFrontmatterSchema", () => {
@@ -84,7 +85,7 @@ describe("ProductDecisionFrontmatterSchema", () => {
     ).toBe(false);
   });
 
-  it("keeps evaluation and downstream ADRs out of frontmatter", () => {
+  it("keeps evaluation and ambiguous ADR links out of frontmatter", () => {
     expect(
       ProductDecisionFrontmatterSchema.safeParse({
         ...acceptedDecision,
@@ -97,6 +98,15 @@ describe("ProductDecisionFrontmatterSchema", () => {
         adrs: ["personal-knowledge-graph:020-mdx"],
       }).success,
     ).toBe(false);
+  });
+
+  it("accepts earlier ADRs that informed the product decision", () => {
+    expect(
+      ProductDecisionFrontmatterSchema.safeParse({
+        ...acceptedDecision,
+        informed_by_adrs: ["personal-knowledge-graph:020-mdx"],
+      }).success,
+    ).toBe(true);
   });
 
   it("validates supersession references as PDR slugs", () => {

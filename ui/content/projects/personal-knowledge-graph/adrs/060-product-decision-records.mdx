@@ -64,6 +64,7 @@ evidence:
     url: "https://example.com/study"
 ideas: ["context-engineering"]
 affected_projects: ["personal-knowledge-graph"]
+informed_by_adrs: ["personal-knowledge-graph:033-content-graph-indexes"]
 ```
 
 `date` records when the PDR was opened. `decision_date` records when a proposal
@@ -87,7 +88,8 @@ linked ADR, ticket, pull request, or deployment. A merged pull request may
 prove delivery, but it does not prove that the product choice was sound.
 
 `ideas` preserves conceptual provenance. `affected_projects` names every
-project governed by the choice.
+project governed by the choice. `informed_by_adrs` names earlier architecture
+decisions whose constraints or discoveries shaped this product choice.
 
 ### Lifecycle and supersession
 
@@ -111,11 +113,20 @@ ADRs.
 
 ### Relationship to ADRs
 
-PDRs do not list ADRs that may implement them. Product decisions come first,
-and their technical consequences may not be known when the PDR is written.
-When an ADR follows a product decision, the ADR names the earlier PDR through
-`product_decisions` frontmatter. The content graph derives the reverse list for
-the PDR page.
+The relationship can run in either direction because product and architecture
+decisions can expose work for each other. The later record owns the link to the
+earlier record, and the field name states why:
+
+* When a PDR comes first, a later ADR names it through
+  `implements_product_decisions`. The ADR explains the technical response to
+  that product choice.
+* When an ADR exposes a constraint that requires product judgment, a later PDR
+  names it through `informed_by_adrs`. The PDR explains how the product will
+  handle that constraint.
+
+The content graph derives reverse links. Authors do not add the same relation
+to both records, and a record does not predict a decision that has not been
+made yet.
 
 One product choice may govern several architecture decisions. For example, a
 PDR promising one canonical project narrative for people and agents could lead
@@ -124,6 +135,14 @@ to the choices for [static generation](/projects/personal-knowledge-graph/adrs/0
 [in-memory content graph](/projects/personal-knowledge-graph/adrs/033-content-graph-indexes).
 The PDR owns the audience and promise, including any genuine evaluation
 criterion. Each ADR owns its technical trade-off.
+
+The reverse sequence matters too. An ADR may discover that a viable design has
+a latency floor, eventual consistency, a licensing restriction, or a cost
+boundary. If choosing how users experience that limit changes the product, a
+new PDR records the product choice and names the ADR in `informed_by_adrs`. If
+the choice replaces an earlier PDR, it also uses `supersedes`. Any later ADR
+that changes the architecture in response then points to the new PDR through
+`implements_product_decisions`.
 
 An ADR does not need a PDR when its value is architectural and it does not
 change a product promise. The
@@ -158,9 +177,10 @@ set of graph relations. Authors must decide whether a choice belongs in a PDR,
 an ADR, both, or neither. The boundary above makes that extra judgment useful,
 but it does not remove it.
 
-Existing ADRs remain valid and do not gain references to later PDRs. New ADRs
-can cite PDRs that predate them. Later pipeline work will load and validate the
-new files; later publication work will add views and the initial records.
+Existing ADRs remain valid and do not gain references to later PDRs. A new PDR
+may cite an existing ADR that informed it, and a new ADR may cite an existing
+PDR that it implements. Later pipeline work will load and validate the new
+files; later publication work will add views and the initial records.
 
 ## Alternatives
 
