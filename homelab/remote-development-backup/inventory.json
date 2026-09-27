@@ -8,7 +8,7 @@
   },
   "destination": {
     "provider": "cloudflare-r2",
-    "bucket": "personal-site-workspace-backups",
+    "bucket": "remote-development-workspace-backups",
     "repositoryPrefix": "restic/operator",
     "credentialsFile": "/var/lib/remote-development-backup/restic.env",
     "passwordFile": "/var/lib/remote-development-backup/restic-password"

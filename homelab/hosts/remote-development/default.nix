@@ -30,6 +30,7 @@ let
     BACKUP_SOURCE=${workspaceBackupInventory.workspace.source}
     BACKUP_EXCLUDES_FILE=/etc/remote-development-workspace-backup/backup-excludes.txt
     BACKUP_STATUS_FILE=/var/lib/remote-development-backup/status.json
+    BACKUP_CREDENTIALS_FILE=${workspaceBackupInventory.destination.credentialsFile}
     BACKUP_PASSWORD_FILE=${workspaceBackupInventory.destination.passwordFile}
     MAXIMUM_AGE_SECONDS=${toString workspaceBackupInventory.schedule.maximumAgeSeconds}
     KEEP_HOURLY=${toString workspaceBackupInventory.retention.hourly}

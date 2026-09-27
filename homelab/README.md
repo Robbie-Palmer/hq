@@ -349,7 +349,7 @@ they would not protect the data that matters here. LUKS encryption and Hetzner
 volume replication are also not backups.
 
 The operator workspace now uses restic to send encrypted snapshots to the
-private `personal-site-workspace-backups` Cloudflare R2 bucket. The versioned
+private `remote-development-workspace-backups` Cloudflare R2 bucket. The versioned
 inventory in `remote-development-backup/inventory.json` fixes the workspace,
 destination, daily schedule, 36-hour freshness limit, and retention policy.
 The repository holds paths and policy only. The R2 access key and independent
@@ -366,7 +366,7 @@ status contains timestamps, state, and the failed step. It contains no source
 file names, endpoints, or credentials.
 
 Create an R2 Object Read & Write token scoped only to
-`personal-site-workspace-backups`, then store these masked Doppler secrets:
+`remote-development-workspace-backups`, then store these masked Doppler secrets:
 
 | Name | Purpose |
 | --- | --- |
@@ -374,6 +374,14 @@ Create an R2 Object Read & Write token scoped only to
 | `R2_ACCESS_KEY_ID` | Bucket-scoped R2 access key |
 | `R2_SECRET_ACCESS_KEY` | Bucket-scoped R2 secret |
 | `RESTIC_PASSWORD` | Encrypts repository metadata and contents |
+
+After Cloudflare creates the token, use the credential helper to enter the
+one-time S3 values without echoing them. It stores the values in the dedicated
+Doppler config and installs the resulting credential file on the host:
+
+```bash
+./homelab/scripts/store-remote-development-backup-credentials
+```
 
 Install credentials after a host replacement, then run and inspect the first
 backup:

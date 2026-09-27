@@ -164,7 +164,7 @@ Private bucket for age-encrypted PostgreSQL custom-format archives. Terraform
 creates the bucket with deletion protection; the scheduled backup and restore
 runbook lives in [`../backups/README.md`](../backups/README.md).
 
-### `personal-site-workspace-backups`
+### `remote-development-workspace-backups`
 
 Private bucket for restic-encrypted snapshots of the remote operator
 workspace. Terraform prevents bucket deletion. The host uses an R2 Object Read

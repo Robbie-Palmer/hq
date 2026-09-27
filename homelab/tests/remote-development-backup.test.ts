@@ -50,6 +50,7 @@ function createFixture(): Fixture {
   const config = join(directory, "config");
   const status = join(directory, "status.json");
   const password = join(directory, "password");
+  const credentials = join(directory, "restic.env");
   const calls = join(directory, "restic-calls");
   const repositoryMarker = join(directory, "repository-initialized");
   const fakeRestic = join(directory, "restic");
@@ -59,6 +60,16 @@ function createFixture(): Fixture {
   writeFileSync(join(source, "workspaces/repository/code.ts"), "code\n");
   writeFileSync(password, "test-password\n", { mode: 0o600 });
   writeFileSync(
+    credentials,
+    [
+      "AWS_ACCESS_KEY_ID=test-access-key",
+      "AWS_SECRET_ACCESS_KEY=test-secret-access-key",
+      `RESTIC_REPOSITORY=local:${join(directory, "repository")}`,
+      "",
+    ].join("\n"),
+    { mode: 0o600 },
+  );
+  writeFileSync(
     config,
     [
       "WORKSPACE_ID=operator",
@@ -66,6 +77,7 @@ function createFixture(): Fixture {
       `BACKUP_SOURCE=${source}`,
       `BACKUP_EXCLUDES_FILE=${committedBackupExcludes}`,
       `BACKUP_STATUS_FILE=${status}`,
+      `BACKUP_CREDENTIALS_FILE=${credentials}`,
       `BACKUP_PASSWORD_FILE=${password}`,
       "MAXIMUM_AGE_SECONDS=129600",
       "KEEP_HOURLY=24",
@@ -98,6 +110,9 @@ case "$1" in
     rm -f -- "\${FAKE_EXPIRED_SNAPSHOT:-/does-not-exist}"
     ;;
   restore)
+    test "$AWS_ACCESS_KEY_ID" = test-access-key
+    test "$AWS_SECRET_ACCESS_KEY" = test-secret-access-key
+    test -r "$RESTIC_PASSWORD_FILE"
     target=
     for argument in "$@"; do
       case "$argument" in
@@ -227,14 +242,17 @@ test("restore requires an empty target and checks durable paths", () => {
   const target = join(fixture.directory, "restore");
 
   try {
-    const first = run(restoreScript, [target], fixture.environment);
+    const restoreEnvironment = { ...fixture.environment };
+    delete restoreEnvironment.RESTIC_REPOSITORY;
+    const first = run(restoreScript, [target], restoreEnvironment);
     assert.equal(first.status, 0, first.stderr);
+    assert.equal(first.stdout.includes("required durable paths are present"), true);
     assert.equal(
       readFileSync(fixture.calls, "utf8").includes("restore latest"),
       true,
     );
 
-    const second = run(restoreScript, [target], fixture.environment);
+    const second = run(restoreScript, [target], restoreEnvironment);
     assert.equal(second.status, 1);
     assert.equal(second.stderr.trim(), "restore target must be empty");
   } finally {

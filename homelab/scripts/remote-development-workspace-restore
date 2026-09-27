@@ -17,6 +17,32 @@ fi
 # shellcheck source=/dev/null
 source "${config_file}"
 
+for name in WORKSPACE_ID BACKUP_SOURCE BACKUP_CREDENTIALS_FILE BACKUP_PASSWORD_FILE; do
+  if [ -z "${!name:-}" ]; then
+    echo "workspace backup configuration is missing ${name}" >&2
+    exit 1
+  fi
+done
+
+if [ ! -r "${BACKUP_CREDENTIALS_FILE}" ]; then
+  echo "workspace backup credentials are not readable" >&2
+  exit 1
+fi
+if [ ! -r "${BACKUP_PASSWORD_FILE}" ]; then
+  echo "workspace backup password file is not readable" >&2
+  exit 1
+fi
+
+# shellcheck source=/dev/null
+set -a
+source "${BACKUP_CREDENTIALS_FILE}"
+set +a
+if [ -z "${RESTIC_REPOSITORY:-}" ]; then
+  echo "RESTIC_REPOSITORY is not set" >&2
+  exit 1
+fi
+export RESTIC_PASSWORD_FILE="${BACKUP_PASSWORD_FILE}"
+
 if [ ! -d "${target}" ]; then
   install -d -m 0700 "${target}"
 fi
