@@ -432,6 +432,8 @@ describe("recipe Agent Auth capabilities", () => {
       "recipes.search",
       "recipes.read",
       "recipes.dataset.inspect",
+      "recipe_import.create",
+      "recipe_import.status",
       "pantry.read",
       "shopping_list.read",
       "cook_log.read",
@@ -489,6 +491,32 @@ describe("recipe Agent Auth capabilities", () => {
         },
       },
     });
+  });
+
+  it("separates bounded import creation from status access", () => {
+    const create = RECIPE_SITE_AGENT_CAPABILITIES.find(
+      (capability) => capability.name === "recipe_import.create",
+    );
+    const status = RECIPE_SITE_AGENT_CAPABILITIES.find(
+      (capability) => capability.name === "recipe_import.status",
+    );
+
+    expect(create?.input).toMatchObject({
+      additionalProperties: false,
+      required: ["imageUrls", "idempotencyKey", "reason"],
+      properties: {
+        imageUrls: { minItems: 1, maxItems: 6 },
+        idempotencyKey: { format: "uuid" },
+        reason: { minLength: 1, maxLength: 500 },
+      },
+    });
+    expect(status?.input).toMatchObject({
+      additionalProperties: false,
+      properties: { limit: { minimum: 1, maximum: 20, default: 10 } },
+    });
+    expect(JSON.stringify(status?.output)).not.toMatch(
+      /r2Key|prompt|preview|source/i,
+    );
   });
 
   it("bounds cooking log dates, cursors, and result size", () => {
@@ -691,6 +719,61 @@ describe("recipe Agent Auth capabilities", () => {
         truncated: true,
       },
     });
+  });
+
+  it("reads bounded import status without returning artifacts", async () => {
+    const result = await executeRecipeAgentCapability(
+      queryDb([
+        {
+          id: "00000000-0000-4000-8000-000000000091",
+          userId: "delegating-user",
+          status: "running",
+          currentStage: "normalize",
+          progressLabel: "Normalizing recipe",
+          errorType: null,
+          errorMessage: null,
+          workflowInstanceId: "private-workflow-id",
+          imageCount: 2,
+          createdAt: new Date("2026-09-27T12:00:00Z"),
+          updatedAt: new Date("2026-09-27T12:01:00Z"),
+          finishedAt: null,
+        },
+      ]),
+      "recipe_import.status",
+      { limit: 1 },
+      agentSession(),
+    );
+
+    expect(result).toEqual({
+      imports: [
+        expect.objectContaining({
+          id: "00000000-0000-4000-8000-000000000091",
+          status: "running",
+          imageCount: 2,
+        }),
+      ],
+    });
+    expect(JSON.stringify(result)).not.toContain("private-workflow-id");
+  });
+
+  it("rejects non-public agent import sources", async () => {
+    await expect(
+      executeRecipeAgentCapability(
+        queryDb([]),
+        "recipe_import.create",
+        {
+          imageUrls: ["http://127.0.0.1/recipe.jpg"],
+          idempotencyKey: "0198f1f0-dddd-7ddd-8ddd-dddddddddddd",
+          reason: "Import the cook's scanned recipe",
+        },
+        agentSession(),
+        {
+          artifacts: {} as R2Bucket,
+          workflow: {} as Workflow,
+          fetcher: vi.fn(),
+        },
+      ),
+    ).rejects.toThrow("cannot be accessed");
   });
 
   it("reads a repeatable household pantry snapshot with item versions", async () => {

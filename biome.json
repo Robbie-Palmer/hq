@@ -93,7 +93,10 @@
       }
     },
     {
-      "includes": ["workers/recipe-api/tests/agent-auth.test.ts"],
+      "includes": [
+        "workers/recipe-api/tests/agent-auth.test.ts",
+        "workers/recipe-api/tests/agent-recipe-imports.test.ts"
+      ],
       "linter": {
         "rules": {
           "suspicious": {

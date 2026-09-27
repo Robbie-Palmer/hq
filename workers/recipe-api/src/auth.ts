@@ -26,6 +26,8 @@ type AuthEnv = {
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
   BETTER_AUTH_SECRET: string;
+  ARTIFACTS?: R2Bucket;
+  RECIPE_INGEST_WORKFLOW?: Workflow;
 };
 
 type PreviewAuthEnv = Pick<AuthEnv, "BETTER_AUTH_URL" | "DEPLOYMENT_ENV">;
@@ -286,7 +288,10 @@ export function createAuth(
         plugins: [
           admin(),
           lastLoginMethod(),
-          createRecipeAgentAuthPlugin(db),
+          createRecipeAgentAuthPlugin(db, {
+            artifacts: env.ARTIFACTS,
+            workflow: env.RECIPE_INGEST_WORKFLOW,
+          }),
         ],
         emailAndPassword: {
           enabled: isPreview,
