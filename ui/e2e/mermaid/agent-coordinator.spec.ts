@@ -36,7 +36,14 @@ for (const width of [375, 1280]) {
       });
 
       return {
-        fontSizes: labels.map((label) => getComputedStyle(label).fontSize),
+        renderedFontSizes: labels.map((label) => {
+          const cssFontSize = Number.parseFloat(
+            getComputedStyle(label).fontSize,
+          );
+          const renderedHeight = label.getBoundingClientRect().height;
+          const scale = renderedHeight / label.offsetHeight;
+          return cssFontSize * scale;
+        }),
         overflowingLabels: overflowingLabels.map(
           (label) => label.textContent?.trim() ?? "",
         ),
@@ -49,9 +56,7 @@ for (const width of [375, 1280]) {
     expect(pageErrors).toEqual([]);
     expect(layout.pageOverflows).toBe(false);
     expect(layout.overflowingLabels).toEqual([]);
-    expect(layout.fontSizes).toHaveLength(5);
-    expect(
-      layout.fontSizes.every((fontSize) => Number.parseFloat(fontSize) >= 14),
-    ).toBe(true);
+    expect(layout.renderedFontSizes).toHaveLength(5);
+    expect(Math.min(...layout.renderedFontSizes)).toBeGreaterThanOrEqual(14);
   });
 }
