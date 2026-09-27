@@ -553,15 +553,18 @@ export class SessionOrchestrator {
       currency: checkpoint.binding.budget.limit.currency,
       amount: remainingBudget,
     };
-    const nextWorkerBudget = sameAdapter
-      ? checkpoint.workerBudget
-      : adapter.settlementCurrency
-        ? convertMoney(
-            remaining,
-            adapter.settlementCurrency,
-            currencyConversions,
-          )
-        : remaining;
+    let nextWorkerBudget: Money;
+    if (sameAdapter) {
+      nextWorkerBudget = checkpoint.workerBudget;
+    } else if (adapter.settlementCurrency) {
+      nextWorkerBudget = convertMoney(
+        remaining,
+        adapter.settlementCurrency,
+        currencyConversions,
+      );
+    } else {
+      nextWorkerBudget = remaining;
+    }
     if (!sameAdapter) {
       this.#adapters.requireCheckpointCompatibility(
         adapterId,
