@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   AuthenticationAllowlist,
+  CurrencyConversionRequiredError,
   SessionOrchestrator,
   WorkerAdapterRuntime,
   type AdapterSession,
@@ -19,6 +20,13 @@ const LEASE_IDS = [
 ] as const;
 const NOTE_ID = "841da305-0f50-4c15-a080-81c5d687c0ab";
 const NOW = "2026-09-27T08:00:00.000Z";
+const GBP_USD_CONVERSION = {
+  sourceCurrency: "GBP",
+  targetCurrency: "USD",
+  rate: 1.25,
+  source: "Bank of England daily rate",
+  observedAt: NOW,
+} as const;
 
 function claimedWork(index = 0): ClaimedWork {
   const lease = {
@@ -128,9 +136,8 @@ function adapterSession(
     }),
     cost: vi.fn().mockResolvedValue({
       kind: "cost",
-      funding: "prepaid",
-      currency: "USD",
-      amount: 1,
+      funding: "metered",
+      cost: { currency: "GBP", amount: 1 },
       routeId: authenticationEntry.authenticationPathId,
       providerId: "provider:test",
     }),
@@ -139,7 +146,10 @@ function adapterSession(
   };
 }
 
-function runtime(signals: WorkerSignal[] = []) {
+function runtime(
+  signals: WorkerSignal[] = [],
+  secondAdapterAvailable = true,
+) {
   const handoffAdapter = {
     ...adapter,
     adapterId: "adapter:second-native-client",
@@ -147,10 +157,12 @@ function runtime(signals: WorkerSignal[] = []) {
   } as const;
   const makeAdapter = (identity: typeof adapter): WorkerAdapter => ({
     identity,
-    discoverAvailability: vi.fn().mockResolvedValue({
-      state: "available",
-      observedAt: NOW,
-    }),
+    discoverAvailability: vi.fn().mockResolvedValue(
+      identity.adapterId === handoffAdapter.adapterId &&
+        !secondAdapterAvailable
+        ? { state: "unavailable", observedAt: NOW, reason: "Offline" }
+        : { state: "available", observedAt: NOW },
+    ),
     launch: vi
       .fn()
       .mockImplementation(async (_request, identity) =>
@@ -176,7 +188,11 @@ function runtime(signals: WorkerSignal[] = []) {
 }
 
 function apiRuntime() {
-  const apiIdentity = { ...adapter, adapterKind: "api-runner" as const };
+  const apiIdentity = {
+    ...adapter,
+    adapterKind: "api-runner" as const,
+    settlementCurrency: "USD",
+  };
   const apiAdapter: WorkerAdapter = {
     identity: apiIdentity,
     discoverAvailability: vi.fn().mockResolvedValue({
@@ -205,11 +221,18 @@ function startInput() {
     task,
     workerId: "worker:test",
     adapterId: adapter.adapterId,
-    policy,
+    policy: {
+      ...policy,
+      budgets: policy.budgets.map((budget) => ({
+        ...budget,
+        maximumPerSession: { currency: "GBP", amount: 5 },
+        remaining: { currency: "GBP", amount: 20 },
+      })),
+    },
     contextPackageVersion: "context:v1",
     leaseDurationSeconds: 600,
     launch: { input: "Implement the ticket", cwd: "/workspace" },
-    budgetUsd: 3,
+    budget: { currency: "GBP", amount: 3 },
   };
 }
 
@@ -229,15 +252,55 @@ describe("session orchestration", () => {
     expect(session.binding).toMatchObject({
       workerId: "worker:test",
       adapter,
-      policySnapshot: policy,
+      policySnapshot: {
+        budgets: [
+          {
+            maximumPerSession: { currency: "GBP" },
+            remaining: { currency: "GBP" },
+          },
+        ],
+      },
       contextPackageVersion: "context:v1",
-      budget: { limit: { amount: 3 }, spent: { amount: 1 } },
+      budget: {
+        limit: { currency: "GBP", amount: 3 },
+        spent: { currency: "GBP", amount: 1 },
+      },
       identity: { sessionId: "session:first" },
       lease: { id: LEASE_IDS[0] },
     });
     expect(heartbeat.state).toBe("renewed");
     expect(graph.renew).toHaveBeenCalledOnce();
     expect(graph.checkpoint).not.toHaveBeenCalled();
+  });
+
+  it("requires an explicit conversion before charging USD cost to a GBP budget", async () => {
+    const graph = workGraphPort();
+    const orchestrator = new SessionOrchestrator(graph, runtime(), {
+      now: () => new Date(NOW),
+      createNoteId: () => NOTE_ID,
+    });
+    const session = await orchestrator.start(startInput());
+    vi.mocked(session.worker.cost).mockResolvedValue({
+      kind: "cost",
+      funding: "metered",
+      cost: { currency: "USD", amount: 1.25 },
+      routeId: authenticationEntry.authenticationPathId,
+      providerId: "provider:test",
+    });
+
+    await expect(
+      orchestrator.heartbeat(session, { leaseDurationSeconds: 600 }),
+    ).rejects.toBeInstanceOf(CurrencyConversionRequiredError);
+
+    await orchestrator.heartbeat(session, {
+      leaseDurationSeconds: 600,
+      currencyConversions: [GBP_USD_CONVERSION],
+    });
+    expect(session.binding.budget.spent).toEqual({
+      currency: "GBP",
+      amount: 1,
+    });
+    expect(session.binding.currencyConversions).toHaveLength(1);
   });
 
   it("checkpoints instead of renewing after authorisation is revoked", async () => {
@@ -321,8 +384,7 @@ describe("session orchestration", () => {
       vi.mocked(session.worker.cost).mockResolvedValue({
         kind: "cost",
         funding: "metered",
-        currency: "USD",
-        amount: 3,
+        cost: { currency: "GBP", amount: 3 },
         routeId: authenticationEntry.authenticationPathId,
         providerId: "provider:test",
       });
@@ -403,13 +465,12 @@ describe("session orchestration", () => {
       predecessorSessionId: "session:first",
       adapterId: "adapter:second-native-client",
     });
-    expect(resumed.costBaselineUsd).toBe(1);
-    expect(resumed.workerBudgetUsd).toBe(2);
+    expect(resumed.costBaseline).toEqual({ currency: "GBP", amount: 1 });
+    expect(resumed.workerBudget).toEqual({ currency: "GBP", amount: 2 });
     vi.mocked(resumed.worker.cost).mockResolvedValue({
       kind: "cost",
       funding: "metered",
-      currency: "USD",
-      amount: 1.5,
+      cost: { currency: "GBP", amount: 1.5 },
       routeId: authenticationEntry.authenticationPathId,
       providerId: "provider:test",
     });
@@ -417,7 +478,7 @@ describe("session orchestration", () => {
     expect(resumed.binding.budget.spent.amount).toBe(2.5);
   });
 
-  it("rejects a mismatched resume before claiming and records launch failures", async () => {
+  it("rejects invalid resume inputs before claiming", async () => {
     const graph = workGraphPort();
     const orchestrator = new SessionOrchestrator(graph, runtime(), {
       now: () => new Date(NOW),
@@ -451,6 +512,34 @@ describe("session orchestration", () => {
         launch: { input: "Unavailable adapter", cwd: "/workspace" },
       }),
     ).rejects.toMatchObject({ code: "adapter-not-found" });
+    expect(graph.claim).toHaveBeenCalledOnce();
+    expect(graph.checkpoint).toHaveBeenCalledOnce();
+  });
+
+  it("records a diagnostic if an adapter fails after the resume claim", async () => {
+    const graph = workGraphPort();
+    const orchestrator = new SessionOrchestrator(graph, runtime([], false), {
+      now: () => new Date(NOW),
+      createNoteId: () => NOTE_ID,
+    });
+    const session = await orchestrator.start(startInput());
+    const { checkpoint } = await orchestrator.checkpoint(session, {
+      stopReason: "manual",
+      completedWork: [],
+      remainingWork: ["Resume"],
+      evidence: [],
+      artifacts: [],
+    });
+
+    await expect(
+      orchestrator.resume(checkpoint, {
+        task,
+        workerId: "worker:test",
+        adapterId: "adapter:second-native-client",
+        leaseDurationSeconds: 600,
+        launch: { input: "Unavailable adapter", cwd: "/workspace" },
+      }),
+    ).rejects.toMatchObject({ code: "adapter-unavailable" });
     expect(graph.claim).toHaveBeenCalledTimes(2);
     expect(graph.checkpoint).toHaveBeenCalledTimes(2);
   });
@@ -461,7 +550,10 @@ describe("session orchestration", () => {
       now: () => new Date(NOW),
       createNoteId: () => NOTE_ID,
     });
-    const session = await orchestrator.start(startInput());
+    const session = await orchestrator.start({
+      ...startInput(),
+      currencyConversions: [GBP_USD_CONVERSION],
+    });
 
     const fallback = await orchestrator.providerFallback(session, {
       input: "Retry through another provider",
@@ -470,6 +562,10 @@ describe("session orchestration", () => {
 
     expect(fallback.binding).toBe(session.binding);
     expect(fallback.worker.identity).toEqual(session.worker.identity);
+    expect(fallback.workerBudget).toEqual({
+      currency: "USD",
+      amount: 3.75,
+    });
     expect(graph.claim).toHaveBeenCalledOnce();
     expect(graph.renew).not.toHaveBeenCalled();
   });

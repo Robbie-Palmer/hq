@@ -51,7 +51,7 @@ describe("OpenRouter adapter", () => {
       taskId: "work:api",
       input: "",
       cwd: "/workspace",
-      budgetUsd: 1,
+      budget: { currency: "USD", amount: 1 },
     })) as OpenRouterSession;
 
     await session.execute({
@@ -66,7 +66,7 @@ describe("OpenRouter adapter", () => {
     );
     expect(await session.cost()).toMatchObject({
       funding: "metered",
-      amount: 0.35,
+      cost: { currency: "USD", amount: 0.35 },
     });
     expect(session.signals()).toContainEqual(
       expect.objectContaining({
@@ -74,7 +74,7 @@ describe("OpenRouter adapter", () => {
         providerId: "provider:inference-vendor",
         modelId: "vendor/model",
         requestId: "request:one",
-        amount: 0.35,
+        cost: { currency: "USD", amount: 0.35 },
       }),
     );
   });
@@ -98,7 +98,7 @@ describe("OpenRouter adapter", () => {
       taskId: "work:api",
       input: "",
       cwd: "/workspace",
-      budgetUsd: 0.25,
+      budget: { currency: "USD", amount: 0.25 },
     })) as OpenRouterSession;
 
     await expect(
@@ -146,7 +146,7 @@ describe("OpenRouter adapter", () => {
       taskId: "work:api",
       input: "",
       cwd: "/workspace",
-      budgetUsd: 0.5,
+      budget: { currency: "USD", amount: 0.5 },
     })) as OpenRouterSession;
 
     const first = session.execute({
@@ -201,7 +201,7 @@ describe("OpenRouter adapter", () => {
       taskId: "work:api",
       input: "",
       cwd: "/workspace",
-      budgetUsd: 1,
+      budget: { currency: "USD", amount: 1 },
     })) as OpenRouterSession;
     await first.execute({
       requestId: "request:first",
@@ -215,12 +215,12 @@ describe("OpenRouter adapter", () => {
       taskId: "work:api",
       input: "",
       cwd: "/workspace",
-      budgetUsd: 1,
+      budget: { currency: "USD", amount: 1 },
       identity: first.identity,
       checkpoint,
     })) as OpenRouterSession;
 
-    expect(await resumed.cost()).toMatchObject({ amount: 0.4 });
+    expect(await resumed.cost()).toMatchObject({ cost: { amount: 0.4 } });
     await expect(
       resumed.execute({
         requestId: "request:over-budget",
@@ -255,7 +255,7 @@ describe("OpenRouter adapter", () => {
       taskId: "work:api",
       input: "",
       cwd: "/workspace",
-      budgetUsd: 1,
+      budget: { currency: "USD", amount: 1 },
     })) as OpenRouterSession;
 
     await expect(
@@ -266,7 +266,7 @@ describe("OpenRouter adapter", () => {
         maximumCostUsd: 0.5,
       }),
     ).rejects.toThrow("exceeded the reserved request cost");
-    expect(await session.cost()).toMatchObject({ amount: 0.6 });
+    expect(await session.cost()).toMatchObject({ cost: { amount: 0.6 } });
   });
 
   it("reports quota and stop signals", async () => {
@@ -293,7 +293,7 @@ describe("OpenRouter adapter", () => {
       taskId: "work:api",
       input: "",
       cwd: "/workspace",
-      budgetUsd: 1,
+      budget: { currency: "USD", amount: 1 },
     })) as OpenRouterSession;
 
     await expect(session.quota()).resolves.toMatchObject({
@@ -340,7 +340,7 @@ describe("OpenRouter adapter", () => {
       taskId: "work:api",
       input: "",
       cwd: "/workspace",
-      budgetUsd: 1,
+      budget: { currency: "USD", amount: 1 },
     })) as OpenRouterSession;
     await expect(
       session.execute({
@@ -355,7 +355,7 @@ describe("OpenRouter adapter", () => {
         taskId: "work:api",
         input: "",
         cwd: "/workspace",
-        budgetUsd: 1,
+        budget: { currency: "USD", amount: 1 },
         identity: session.identity,
         checkpoint: {
           kind: "checkpoint",
@@ -368,7 +368,7 @@ describe("OpenRouter adapter", () => {
     ).rejects.toThrow("does not contain budget state");
   });
 
-  it("reports an unavailable transport and requires a positive budget", async () => {
+  it("reports an unavailable transport and requires a positive USD budget", async () => {
     const transport: OpenRouterTransport = {
       isAvailable: vi.fn().mockResolvedValue(false),
       execute: vi.fn(),
@@ -383,7 +383,12 @@ describe("OpenRouter adapter", () => {
     });
     await expect(
       adapter.launch(
-        { taskId: "work:api", input: "", cwd: "/workspace", budgetUsd: 0 },
+        {
+          taskId: "work:api",
+          input: "",
+          cwd: "/workspace",
+          budget: { currency: "USD", amount: 0 },
+        },
         {
           schemaVersion: 1,
           recordType: "execution-session",
@@ -397,5 +402,26 @@ describe("OpenRouter adapter", () => {
         },
       ),
     ).rejects.toBeInstanceOf(SessionBudgetExceededError);
+    await expect(
+      adapter.launch(
+        {
+          taskId: "work:api",
+          input: "",
+          cwd: "/workspace",
+          budget: { currency: "GBP", amount: 1 },
+        },
+        {
+          schemaVersion: 1,
+          recordType: "execution-session",
+          sessionId: "session:api",
+          taskId: "work:api",
+          actorId: adapter.identity.actorId,
+          adapterId: adapter.identity.adapterId,
+          adapterVersion: adapter.identity.adapterVersion,
+          authenticationPathId: adapter.identity.authenticationPathId,
+          startedAt: "2026-09-26T08:00:00.000Z",
+        },
+      ),
+    ).rejects.toThrow("requires a USD budget");
   });
 });

@@ -10,6 +10,7 @@ export const IdentifierSchema = z
   .regex(/^[a-z0-9][a-z0-9._:/-]*$/);
 
 export const CurrencySchema = z.string().regex(/^[A-Z]{3}$/);
+export type Currency = z.infer<typeof CurrencySchema>;
 
 export const MoneySchema = z
   .object({

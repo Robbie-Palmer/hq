@@ -128,8 +128,7 @@ class MeteredOpenRouterSession implements OpenRouterSession {
     this.#events.push({
       kind: "cost",
       funding: "metered",
-      currency: "USD",
-      amount: result.costUsd,
+      cost: { currency: "USD", amount: result.costUsd },
       routeId: this.#routeId,
       providerId: result.providerId,
       modelId: result.modelId,
@@ -172,8 +171,7 @@ class MeteredOpenRouterSession implements OpenRouterSession {
     const report: CostReport = {
       kind: "cost",
       funding: "metered",
-      currency: "USD",
-      amount: this.#spentUsd,
+      cost: { currency: "USD", amount: this.#spentUsd },
       routeId: this.#routeId,
       providerId: "provider:openrouter",
     };
@@ -210,6 +208,7 @@ export function createOpenRouterAdapter(
     tools: ["openrouter-api"],
     evidenceKinds: ["checkpoint", "metered-cost"],
     supportsCheckpointing: true,
+    settlementCurrency: "USD",
   };
 
   const start = (
@@ -217,7 +216,10 @@ export function createOpenRouterAdapter(
     sessionIdentity: ExecutionSessionIdentity,
     resumed?: { budgetUsd: number; spentUsd: number },
   ): OpenRouterSession => {
-    const budgetUsd = resumed?.budgetUsd ?? request.budgetUsd;
+    if (request.budget && request.budget.currency !== "USD") {
+      throw new TypeError("OpenRouter requires a USD budget");
+    }
+    const budgetUsd = resumed?.budgetUsd ?? request.budget?.amount;
     const spentUsd = resumed?.spentUsd ?? 0;
     if (
       budgetUsd === undefined ||
@@ -226,7 +228,8 @@ export function createOpenRouterAdapter(
       !Number.isFinite(spentUsd) ||
       spentUsd < 0 ||
       spentUsd > budgetUsd ||
-      (request.budgetUsd !== undefined && request.budgetUsd !== budgetUsd)
+      request.budget?.currency !== "USD" ||
+      request.budget.amount !== budgetUsd
     ) {
       throw new SessionBudgetExceededError(budgetUsd ?? 0, spentUsd, 0);
     }

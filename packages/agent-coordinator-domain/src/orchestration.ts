@@ -22,7 +22,13 @@ import {
   WorkGraphContextPackageSchema,
   WorkGraphWorkItemSchema,
 } from "./work-graph";
-import { IdentifierSchema, MoneySchema } from "./vocabulary";
+import {
+  CurrencySchema,
+  IdentifierSchema,
+  MoneySchema,
+  type Currency,
+  type Money,
+} from "./vocabulary";
 
 const TimestampSchema = z.iso.datetime();
 
@@ -37,7 +43,41 @@ export const SessionBudgetSchema = z
     path: ["spent", "currency"],
   });
 
-const SessionBindingBaseSchema = z.object({
+export const CurrencyConversionSchema = z
+  .object({
+    sourceCurrency: CurrencySchema,
+    targetCurrency: CurrencySchema,
+    rate: z.number().positive(),
+    source: z.string().trim().min(1).max(500),
+    observedAt: TimestampSchema,
+  })
+  .strict()
+  .refine(
+    ({ sourceCurrency, targetCurrency }) =>
+      sourceCurrency !== targetCurrency,
+    {
+      message: "Currency conversion must connect different currencies",
+      path: ["targetCurrency"],
+    },
+  );
+export type CurrencyConversion = z.infer<typeof CurrencyConversionSchema>;
+
+export class CurrencyConversionRequiredError extends Error {
+  readonly code = "currency-conversion-required";
+
+  constructor(
+    readonly sourceCurrency: Currency,
+    readonly targetCurrency: Currency,
+  ) {
+    super(
+      `No conversion is recorded from ${sourceCurrency} to ${targetCurrency}`,
+    );
+    this.name = "CurrencyConversionRequiredError";
+  }
+}
+
+const SessionBindingBaseSchema = z
+  .object({
     schemaVersion: z.literal(1),
     recordType: z.literal("session-binding"),
     workerId: IdentifierSchema,
@@ -49,7 +89,9 @@ const SessionBindingBaseSchema = z.object({
     contextPackageVersion: IdentifierSchema,
     context: WorkGraphContextPackageSchema,
     budget: SessionBudgetSchema,
-  }).strict();
+    currencyConversions: z.array(CurrencyConversionSchema).max(100),
+  })
+  .strict();
 
 export const SessionBindingSchema = SessionBindingBaseSchema
   .superRefine((binding, context) => {
@@ -114,8 +156,8 @@ export const DurableSessionCheckpointSchema = z
     noteId: z.uuid(),
     createdAt: TimestampSchema,
     stopReason: SessionStopReasonSchema,
-    costBaselineUsd: z.number().nonnegative(),
-    workerBudgetUsd: z.number().nonnegative(),
+    costBaseline: MoneySchema,
+    workerBudget: MoneySchema,
     binding: CheckpointBindingSchema,
     adapterCheckpoint: z.object({
       kind: z.literal("checkpoint"),
@@ -126,7 +168,26 @@ export const DurableSessionCheckpointSchema = z
     }),
     progress: ProgressSchema,
   })
-  .strict();
+  .strict()
+  .superRefine((checkpoint, context) => {
+    const budgetCurrency = checkpoint.binding.budget.limit.currency;
+    if (checkpoint.costBaseline.currency !== budgetCurrency) {
+      context.addIssue({
+        code: "custom",
+        message: "Cost baseline must use the session budget currency",
+        path: ["costBaseline", "currency"],
+      });
+    }
+    const workerCurrency =
+      checkpoint.binding.adapter.settlementCurrency ?? budgetCurrency;
+    if (checkpoint.workerBudget.currency !== workerCurrency) {
+      context.addIssue({
+        code: "custom",
+        message: "Worker budget must use the adapter settlement currency",
+        path: ["workerBudget", "currency"],
+      });
+    }
+  });
 export type DurableSessionCheckpoint = z.infer<
   typeof DurableSessionCheckpointSchema
 >;
@@ -134,8 +195,8 @@ export type DurableSessionCheckpoint = z.infer<
 export interface CoordinatedSession {
   binding: SessionBinding;
   worker: AdapterSession;
-  costBaselineUsd: number;
-  workerBudgetUsd: number;
+  costBaseline: Money;
+  workerBudget: Money;
 }
 
 export interface SessionWorkGraphPort {
@@ -168,8 +229,9 @@ export interface StartSessionInput {
   policy: OwnerPolicy;
   contextPackageVersion: string;
   leaseDurationSeconds: number;
-  launch: Omit<WorkerLaunchRequest, "taskId" | "budgetUsd">;
-  budgetUsd?: number;
+  launch: Omit<WorkerLaunchRequest, "taskId" | "budget">;
+  budget?: Money;
+  currencyConversions?: readonly CurrencyConversion[];
 }
 
 export interface CheckpointSessionInput extends SessionProgress {
@@ -197,15 +259,64 @@ function leaseHandle(claimed: ClaimedWork): LeaseHandle {
   });
 }
 
-function policyBudget(policy: OwnerPolicy, task: TaskRequirements): number {
+function policyBudget(policy: OwnerPolicy, task: TaskRequirements): Money {
   const configured = policy.budgets.find(
     ({ workClass }) => workClass === task.workClass,
   );
-  if (!configured) return task.estimatedCost?.amount ?? 0;
-  return Math.min(
-    configured.maximumPerSession.amount,
-    configured.remaining.amount,
+  if (!configured) {
+    if (task.estimatedCost) return task.estimatedCost;
+    throw new Error(`Policy has no budget for ${task.workClass}`);
+  }
+  return {
+    currency: configured.maximumPerSession.currency,
+    amount: Math.min(
+      configured.maximumPerSession.amount,
+      configured.remaining.amount,
+    ),
+  };
+}
+
+function mergeConversions(
+  existing: readonly CurrencyConversion[],
+  added: readonly CurrencyConversion[] = [],
+): CurrencyConversion[] {
+  const records = [...existing];
+  for (const input of added) {
+    const conversion = CurrencyConversionSchema.parse(input);
+    const index = records.findIndex(
+      (record) =>
+        record.sourceCurrency === conversion.sourceCurrency &&
+        record.targetCurrency === conversion.targetCurrency,
+    );
+    if (index === -1) records.push(conversion);
+    else records[index] = conversion;
+  }
+  return records;
+}
+
+function convertMoney(
+  money: Money,
+  targetCurrency: Currency,
+  conversions: readonly CurrencyConversion[],
+): Money {
+  if (money.currency === targetCurrency) return money;
+  const direct = conversions.find(
+    (record) =>
+      record.sourceCurrency === money.currency &&
+      record.targetCurrency === targetCurrency,
   );
+  if (direct) {
+    return { currency: targetCurrency, amount: money.amount * direct.rate };
+  }
+  const inverse = conversions.find(
+    (record) =>
+      record.sourceCurrency === targetCurrency &&
+      record.targetCurrency === money.currency,
+  );
+  if (inverse) {
+    return { currency: targetCurrency, amount: money.amount / inverse.rate };
+  }
+  throw new CurrencyConversionRequiredError(money.currency, targetCurrency);
 }
 
 function heartbeatStopReason(input: {
@@ -259,12 +370,23 @@ export class SessionOrchestrator {
     const task = TaskRequirementsSchema.parse(input.task);
     const policy = OwnerPolicySchema.parse(input.policy);
     const maximumBudget = policyBudget(policy, task);
-    const budgetUsd = input.budgetUsd ?? maximumBudget;
-    if (budgetUsd < 0 || budgetUsd > maximumBudget) {
+    const budget = MoneySchema.parse(input.budget ?? maximumBudget);
+    if (
+      budget.currency !== maximumBudget.currency ||
+      budget.amount > maximumBudget.amount
+    ) {
       throw new Error(
-        `Session budget ${budgetUsd} exceeds the policy limit ${maximumBudget}`,
+        `Session budget must not exceed ${maximumBudget.amount} ${maximumBudget.currency}`,
       );
     }
+    const adapter = this.#adapters.adapterIdentity(input.adapterId);
+    const currencyConversions = mergeConversions(
+      [],
+      input.currencyConversions,
+    );
+    const workerBudget = adapter.settlementCurrency
+      ? convertMoney(budget, adapter.settlementCurrency, currencyConversions)
+      : budget;
     const claimed = await this.#workGraph.claim(task, {
       workerId: input.workerId,
       leaseDurationSeconds: input.leaseDurationSeconds,
@@ -274,29 +396,30 @@ export class SessionOrchestrator {
       const worker = await this.#adapters.launch(input.adapterId, {
         ...input.launch,
         taskId: task.taskId,
-        budgetUsd,
+        budget: workerBudget,
       });
       const binding = SessionBindingSchema.parse({
         schemaVersion: 1,
         recordType: "session-binding",
         workerId: input.workerId,
         identity: worker.identity,
-        adapter: this.#adapters.adapterIdentity(input.adapterId),
+        adapter,
         workItem: claimed.workItem,
         lease: handle,
         policySnapshot: policy,
         contextPackageVersion: input.contextPackageVersion,
         context: claimed.context,
         budget: {
-          limit: { currency: "USD", amount: budgetUsd },
-          spent: { currency: "USD", amount: 0 },
+          limit: budget,
+          spent: { currency: budget.currency, amount: 0 },
         },
+        currencyConversions,
       });
       return {
         binding,
         worker,
-        costBaselineUsd: 0,
-        workerBudgetUsd: budgetUsd,
+        costBaseline: { currency: budget.currency, amount: 0 },
+        workerBudget,
       };
     } catch (error) {
       await this.#recordStartupFailure(handle, error);
@@ -310,6 +433,7 @@ export class SessionOrchestrator {
       leaseDurationSeconds: number;
       healthy?: boolean;
       progress?: Partial<SessionProgress>;
+      currencyConversions?: readonly CurrencyConversion[];
     },
   ): Promise<HeartbeatResult> {
     const authorised =
@@ -322,13 +446,29 @@ export class SessionOrchestrator {
     );
     const quota = await session.worker.quota();
     const cost = await session.worker.cost();
-    const totalSpent = session.costBaselineUsd + cost.amount;
+    const currencyConversions = mergeConversions(
+      session.binding.currencyConversions,
+      input.currencyConversions,
+    );
+    const currentCost =
+      cost.funding === "metered"
+        ? convertMoney(
+            cost.cost,
+            session.binding.budget.limit.currency,
+            currencyConversions,
+          )
+        : { currency: session.binding.budget.limit.currency, amount: 0 };
+    const totalSpent = session.costBaseline.amount + currentCost.amount;
     session.binding = SessionBindingSchema.parse({
       ...session.binding,
       budget: {
         ...session.binding.budget,
-        spent: { currency: "USD", amount: totalSpent },
+        spent: {
+          currency: session.binding.budget.limit.currency,
+          amount: totalSpent,
+        },
       },
+      currencyConversions,
     });
     const nearDeadline =
       Date.parse(session.binding.lease.expiresAt) - this.#now().getTime() <=
@@ -388,7 +528,8 @@ export class SessionOrchestrator {
       workerId: string;
       adapterId?: string;
       leaseDurationSeconds: number;
-      launch: Omit<WorkerLaunchRequest, "taskId" | "budgetUsd">;
+      launch: Omit<WorkerLaunchRequest, "taskId" | "budget">;
+      currencyConversions?: readonly CurrencyConversion[];
     },
   ): Promise<CoordinatedSession> {
     const checkpoint = DurableSessionCheckpointSchema.parse(checkpointInput);
@@ -396,22 +537,40 @@ export class SessionOrchestrator {
     if (task.taskId !== checkpoint.binding.identity.taskId) {
       throw new Error("Resume task does not match the checkpointed session");
     }
-    const claimed = await this.#workGraph.claim(task, {
-      workerId: input.workerId,
-      leaseDurationSeconds: input.leaseDurationSeconds,
-    });
-    const handle = leaseHandle(claimed);
     const adapterId = input.adapterId ?? checkpoint.binding.adapter.adapterId;
     const sameAdapter = adapterId === checkpoint.binding.adapter.adapterId;
+    const adapter = this.#adapters.adapterIdentity(adapterId);
+    const currencyConversions = mergeConversions(
+      checkpoint.binding.currencyConversions,
+      input.currencyConversions,
+    );
     const remainingBudget = Math.max(
       0,
       checkpoint.binding.budget.limit.amount -
         checkpoint.binding.budget.spent.amount,
     );
+    const remaining = {
+      currency: checkpoint.binding.budget.limit.currency,
+      amount: remainingBudget,
+    };
+    const nextWorkerBudget = sameAdapter
+      ? checkpoint.workerBudget
+      : adapter.settlementCurrency
+        ? convertMoney(
+            remaining,
+            adapter.settlementCurrency,
+            currencyConversions,
+          )
+        : remaining;
+    const claimed = await this.#workGraph.claim(task, {
+      workerId: input.workerId,
+      leaseDurationSeconds: input.leaseDurationSeconds,
+    });
+    const handle = leaseHandle(claimed);
     const request = {
       ...input.launch,
       taskId: task.taskId,
-      budgetUsd: sameAdapter ? checkpoint.workerBudgetUsd : remainingBudget,
+      budget: nextWorkerBudget,
       identity: checkpoint.binding.identity,
       checkpoint: checkpoint.adapterCheckpoint as CheckpointSignal,
     };
@@ -428,26 +587,25 @@ export class SessionOrchestrator {
       ...checkpoint.binding,
       workerId: input.workerId,
       identity: worker.identity,
-      adapter: this.#adapters.adapterIdentity(adapterId),
+      adapter,
       workItem: claimed.workItem,
       lease: handle,
       context: claimed.context,
+      currencyConversions,
     });
     return {
       binding,
       worker,
-      costBaselineUsd: sameAdapter
-        ? checkpoint.costBaselineUsd
-        : checkpoint.binding.budget.spent.amount,
-      workerBudgetUsd: sameAdapter
-        ? checkpoint.workerBudgetUsd
-        : remainingBudget,
+      costBaseline: sameAdapter
+        ? checkpoint.costBaseline
+        : checkpoint.binding.budget.spent,
+      workerBudget: nextWorkerBudget,
     };
   }
 
   async providerFallback(
     session: CoordinatedSession,
-    input: Omit<WorkerLaunchRequest, "taskId" | "budgetUsd">,
+    input: Omit<WorkerLaunchRequest, "taskId" | "budget">,
   ): Promise<CoordinatedSession> {
     if (session.binding.adapter.adapterKind !== "api-runner") {
       throw new Error("Provider fallback is only valid for API-runner sessions");
@@ -458,7 +616,7 @@ export class SessionOrchestrator {
       {
         ...input,
         taskId: session.binding.identity.taskId,
-        budgetUsd: session.workerBudgetUsd,
+        budget: session.workerBudget,
         identity: session.binding.identity,
         checkpoint,
       },
@@ -466,8 +624,8 @@ export class SessionOrchestrator {
     return {
       binding: session.binding,
       worker,
-      costBaselineUsd: session.costBaselineUsd,
-      workerBudgetUsd: session.workerBudgetUsd,
+      costBaseline: session.costBaseline,
+      workerBudget: session.workerBudget,
     };
   }
 
@@ -489,8 +647,8 @@ export class SessionOrchestrator {
       noteId,
       createdAt: this.#now().toISOString(),
       stopReason: input.stopReason,
-      costBaselineUsd: session.costBaselineUsd,
-      workerBudgetUsd: session.workerBudgetUsd,
+      costBaseline: session.costBaseline,
+      workerBudget: session.workerBudget,
       binding: {
         schemaVersion: session.binding.schemaVersion,
         recordType: session.binding.recordType,
@@ -501,6 +659,7 @@ export class SessionOrchestrator {
         policySnapshot: session.binding.policySnapshot,
         contextPackageVersion: session.binding.contextPackageVersion,
         budget: session.binding.budget,
+        currencyConversions: session.binding.currencyConversions,
       },
       adapterCheckpoint,
       progress,

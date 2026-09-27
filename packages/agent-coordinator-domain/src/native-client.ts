@@ -262,8 +262,7 @@ class NativeAdapterSession implements AdapterSession {
     const report: CostReport = {
       kind: "cost",
       funding: "prepaid",
-      currency: "USD",
-      amount: 0,
+      cost: null,
       routeId: this.#routeId,
       providerId: this.#providerId,
     };

@@ -36,6 +36,12 @@ inside quota, and inside budget. A deadline, shutdown, failed client, revoked
 authorisation, or exhausted limit writes a structured checkpoint to a Work
 Graph note before the worker stops.
 
+Session budgets retain the currency from owner policy. Metered adapters report
+their provider settlement currency. When those differ, the caller must supply
+a conversion with its rate, source, and observation time. The coordinator
+records it with the session. Missing conversions stop the heartbeat instead of
+comparing unlike amounts.
+
 Callers supply a UUID for retryable checkpoints. Concurrent calls share one
 in-flight operation. Later retries reach Work Graph with the same idempotency
 key, including after a process restart. `providerFallback` retains an API

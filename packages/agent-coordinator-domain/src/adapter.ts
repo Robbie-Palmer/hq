@@ -5,6 +5,7 @@ import {
   type ExecutionSessionIdentity,
   type WorkerAdapterIdentity,
 } from "./session";
+import type { Money } from "./vocabulary";
 
 export type AdapterAvailability =
   | { state: "available"; observedAt: string }
@@ -31,16 +32,17 @@ export interface QuotaSignal {
   resetsAt?: string;
 }
 
-export interface CostReport {
+interface CostReportBase {
   kind: "cost";
-  funding: "prepaid" | "metered";
-  currency: "USD";
-  amount: number;
   routeId: string;
   providerId: string;
   modelId?: string;
   requestId?: string;
 }
+
+export type CostReport =
+  | (CostReportBase & { funding: "prepaid"; cost: null })
+  | (CostReportBase & { funding: "metered"; cost: Money });
 
 export type WorkerSignal =
   | CheckpointSignal
@@ -53,7 +55,7 @@ export interface WorkerLaunchRequest {
   taskId: string;
   input: string;
   cwd: string;
-  budgetUsd?: number;
+  budget?: Money;
 }
 
 export interface WorkerResumeRequest extends WorkerLaunchRequest {
