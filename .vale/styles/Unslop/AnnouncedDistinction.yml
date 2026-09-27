@@ -1,0 +1,5 @@
+message: "State the competing positions directly instead of announcing a distinction"
+extends: existence
+level: error
+ignorecase: true
+raw: '(?:\b(?:the|this|that) distinction matters\b|\b(?:his|her|their|[A-Za-z][A-Za-z.-]+(?:''s|’s)) claim was (?:narrower|broader)\b|\b(?:he|she|they|[A-Za-z][A-Za-z.-]+) did not make [^.!?\n]{0,80}\bstronger claim\b)'

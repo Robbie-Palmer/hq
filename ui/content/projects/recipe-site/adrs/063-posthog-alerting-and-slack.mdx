@@ -79,8 +79,8 @@ PostHog log alerts support Slack, Microsoft Teams, Discord, and generic webhook 
 models Slack as an installed workspace integration selected by workspace and channel identifiers.
 Teams, Discord, and generic webhook destinations instead require a webhook URL.
 
-That distinction matters. A generic PostHog webhook currently has fixed headers and no
-sender-verifiable signature or configurable authentication header. A Cloudflare Worker or hosted
+Generic PostHog webhooks currently have fixed headers and no sender-verifiable signature or
+configurable authentication header. A Cloudflare Worker or hosted
 automation relay would therefore need to accept a high-entropy secret URL as a bearer credential.
 Strict schema validation, rate limiting, and rotation would reduce the impact of abuse but could not
 prove that a request came from PostHog. A hosted relay would move the same upstream authentication
