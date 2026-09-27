@@ -2,23 +2,23 @@ import type { AgentSession } from "@better-auth/agent-auth";
 import { and, count, desc, eq, gte, inArray } from "drizzle-orm";
 import type { Db } from "recipe-db";
 import * as schema from "recipe-db/schema";
-import { importJobPrefix, sourceImageKey } from "recipe-domain/import-storage";
+import {
+  importJobPrefix,
+  recipeImportImageExtension,
+  RECIPE_IMPORT_DAILY_JOB_LIMIT,
+  RECIPE_IMPORT_IMAGE_MIME_TYPES,
+  RECIPE_IMPORT_MAX_ACTIVE_JOBS,
+  RECIPE_IMPORT_MAX_IMAGE_BYTES,
+  RECIPE_IMPORT_MAX_IMAGES,
+  RECIPE_IMPORT_MAX_TOTAL_BYTES,
+  sourceImageKey,
+} from "recipe-domain/import-storage";
 import { hasExpectedImageSignature } from "./image-signature";
 import { insertMutationChangeSet } from "./pantry/repositories/mutation-ledger-repository";
 import { validateRecipeUrl } from "./recipe-url-import";
 
-export const RECIPE_IMPORT_MAX_IMAGES = 6;
-export const RECIPE_IMPORT_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
-export const RECIPE_IMPORT_MAX_TOTAL_BYTES = 30 * 1024 * 1024;
-const RECIPE_IMPORT_MAX_ACTIVE_JOBS = 2;
-const RECIPE_IMPORT_DAILY_JOB_LIMIT = 10;
 const MAX_REDIRECTS = 3;
 const FETCH_TIMEOUT_MS = 10_000;
-const IMAGE_EXTENSIONS: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-};
 
 export type AgentRecipeImportServices = {
   artifacts?: R2Bucket;
@@ -71,17 +71,20 @@ async function readImage(response: Response): Promise<Uint8Array> {
   return bytes;
 }
 
-function imageContentType(response: Response) {
+function imageMetadata(response: Response) {
   if (!response.ok) throw new Error("The image could not be fetched");
   const contentType = response.headers
     .get("content-type")
     ?.split(";", 1)[0]
     ?.trim()
     .toLowerCase();
-  if (!contentType || !IMAGE_EXTENSIONS[contentType]) {
+  const extension = contentType
+    ? recipeImportImageExtension(contentType)
+    : undefined;
+  if (!contentType || !extension) {
     throw new Error("Images must be JPEG, PNG, or WebP");
   }
-  return contentType;
+  return { contentType, extension };
 }
 
 function redirectTarget(response: Response, url: URL, redirect: number) {
@@ -99,15 +102,14 @@ async function fetchImage(rawUrl: string, fetcher: typeof fetch) {
     const response = await fetcher(url, {
       redirect: "manual",
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      headers: { accept: "image/jpeg,image/png,image/webp" },
+      headers: { accept: RECIPE_IMPORT_IMAGE_MIME_TYPES.join(",") },
     });
     const nextUrl = redirectTarget(response, url, redirect);
     if (nextUrl) {
       url = nextUrl;
       continue;
     }
-    const contentType = imageContentType(response);
-    const extension = IMAGE_EXTENSIONS[contentType] as string;
+    const { contentType, extension } = imageMetadata(response);
     const bytes = await readImage(response);
     if (bytes.byteLength === 0) throw new Error("Images must not be empty");
     const file = new File([bytes], `source.${extension}`, { type: contentType });

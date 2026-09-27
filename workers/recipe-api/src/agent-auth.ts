@@ -13,6 +13,11 @@ import { and, desc, eq, ilike, or } from "drizzle-orm";
 import type { Db } from "recipe-db";
 import * as schema from "recipe-db/schema";
 import { MAX_PANTRY_ITEMS, PANTRY_LOCATIONS } from "recipe-domain/pantry";
+import {
+  RECIPE_IMPORT_MAX_IMAGES,
+  RECIPE_IMPORT_STAGES,
+  RECIPE_IMPORT_STATUSES,
+} from "recipe-domain/import-storage";
 import { RECIPE_VISIBILITIES } from "recipe-domain/visibility";
 import { z } from "zod";
 import {
@@ -84,7 +89,7 @@ const recipeDatasetInspectInput = z
 
 const recipeImportCreateInput = z
   .object({
-    imageUrls: z.array(z.url()).min(1).max(6),
+    imageUrls: z.array(z.url()).min(1).max(RECIPE_IMPORT_MAX_IMAGES),
     idempotencyKey: z.uuid(),
     reason: z.string().trim().min(1).max(500),
   })
@@ -383,15 +388,19 @@ const recipeImportSchema = {
   ],
   properties: {
     id: { type: "string", format: "uuid" },
-    status: { enum: ["queued", "running", "succeeded", "failed"] },
+    status: { enum: RECIPE_IMPORT_STATUSES },
     currentStage: {
       anyOf: [
-        { enum: ["extract", "normalize", "canonicalize", "finalize"] },
+        { enum: RECIPE_IMPORT_STAGES },
         { type: "null" },
       ],
     },
     progressLabel: { type: ["string", "null"] },
-    imageCount: { type: "integer", minimum: 1, maximum: 6 },
+    imageCount: {
+      type: "integer",
+      minimum: 1,
+      maximum: RECIPE_IMPORT_MAX_IMAGES,
+    },
     error: {
       anyOf: [
         {
@@ -520,7 +529,7 @@ export const RECIPE_SITE_AGENT_CAPABILITIES = [
         imageUrls: {
           type: "array",
           minItems: 1,
-          maxItems: 6,
+          maxItems: RECIPE_IMPORT_MAX_IMAGES,
           items: { type: "string", format: "uri", maxLength: 2_048 },
         },
         idempotencyKey: { type: "string", format: "uuid" },
