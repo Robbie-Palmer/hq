@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,14 +40,14 @@ const ASSET_TYPE_VARIANT: Record<
 
 interface AccountsTableProps {
   accounts: AccountDetailView[];
-  onSelectAccount?: (accountId: string) => void;
+  initialShowClosed?: boolean;
 }
 
 export function AccountsTable({
   accounts,
-  onSelectAccount,
+  initialShowClosed = false,
 }: Readonly<AccountsTableProps>) {
-  const [showClosed, setShowClosed] = useState(false);
+  const [showClosed, setShowClosed] = useState(initialShowClosed);
   const openAccounts = accounts.filter((account) => account.isOpen);
   const closedAccounts = accounts.filter((account) => !account.isOpen);
   const visibleAccounts = showClosed ? accounts : openAccounts;
@@ -87,16 +88,8 @@ export function AccountsTable({
               </tr>
             </thead>
             <tbody>
-              <AccountsSection
-                label="Assets"
-                accounts={assets}
-                onSelectAccount={onSelectAccount}
-              />
-              <AccountsSection
-                label="Liabilities"
-                accounts={liabilities}
-                onSelectAccount={onSelectAccount}
-              />
+              <AccountsSection label="Assets" accounts={assets} />
+              <AccountsSection label="Liabilities" accounts={liabilities} />
             </tbody>
             <tfoot>
               <tr className="bg-muted/50">
@@ -119,11 +112,9 @@ export function AccountsTable({
 function AccountsSection({
   label,
   accounts,
-  onSelectAccount,
 }: Readonly<{
   label: string;
   accounts: AccountDetailView[];
-  onSelectAccount?: (accountId: string) => void;
 }>) {
   if (accounts.length === 0) return null;
   return (
@@ -137,11 +128,7 @@ function AccountsSection({
         </td>
       </tr>
       {accounts.map((account) => (
-        <AccountRow
-          key={account.id}
-          account={account}
-          onSelectAccount={onSelectAccount}
-        />
+        <AccountRow key={account.id} account={account} />
       ))}
       <tr className="border-b">
         <td colSpan={5} className="p-3 text-sm text-muted-foreground">
@@ -158,25 +145,18 @@ function AccountsSection({
 
 function AccountRow({
   account,
-  onSelectAccount,
 }: Readonly<{
   account: AccountDetailView;
-  onSelectAccount?: (accountId: string) => void;
 }>) {
   return (
     <tr className="border-b hover:bg-muted/30">
       <td className="p-3 font-medium">
-        {onSelectAccount ? (
-          <button
-            type="button"
-            className="text-left font-medium hover:underline"
-            onClick={() => onSelectAccount(account.id)}
-          >
-            {account.name}
-          </button>
-        ) : (
-          account.name
-        )}
+        <Link
+          href={`/assettracker/accounts?account=${encodeURIComponent(account.id)}`}
+          className="font-medium hover:underline"
+        >
+          {account.name}
+        </Link>
         <StaleBalanceNudge account={account} />
       </td>
       <td className="p-3 text-muted-foreground">{account.provider}</td>

@@ -1,23 +1,16 @@
 "use client";
 
-import { useState } from "react";
 import { formatAccountCurrency, formatAnnualRate } from "@/lib/assettracker";
 import { realRate } from "@/lib/domain/assettracker";
 import { AccountBalanceChart } from "./account-balance-chart";
-import { AccountDetailSheet } from "./account-detail-sheet";
-import { AccountHistoryImportDrawer } from "./account-history-import-drawer";
-import { AccountsTable } from "./accounts-table";
-import { AddAccountDrawer } from "./add-account-drawer";
 import { AssetAllocationChart } from "./asset-allocation-chart";
 import { AssetAllocationHistoryChart } from "./asset-allocation-history-chart";
 import { useAssetTracker } from "./asset-tracker-provider";
 import { DataControls } from "./data-controls";
 import { FlowSankeyChart } from "./flow-sankey-chart";
-import { LogBalanceDrawer } from "./log-balance-drawer";
 import { NetWorthChart } from "./net-worth-chart";
 import { PortfolioContributionChart } from "./portfolio-contribution-chart";
 import { PortfolioGoal } from "./portfolio-goal";
-import { RecordTransferDrawer } from "./record-transfer-drawer";
 import { UpcomingFlows } from "./upcoming-flows";
 
 function staleObservationMessage(
@@ -46,10 +39,6 @@ export function AssetTrackerDashboard() {
     valuationIssues,
     flowSankeyData,
   } = useAssetTracker();
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(
-    null,
-  );
-
   const openAccounts = accounts.filter((a) => a.isOpen);
   const contributedCapital = contributionData.at(-1)?.contributedCapital;
   const latestNetWorth = netWorthData.at(-1)?.total ?? null;
@@ -70,19 +59,11 @@ export function AssetTrackerDashboard() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-4xl font-bold mb-2">Asset Tracker</h1>
-          <p className="text-lg text-muted-foreground">
-            Track and visualise your portfolio across accounts.
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
-          <AccountHistoryImportDrawer />
-          <LogBalanceDrawer />
-          <RecordTransferDrawer />
-          <AddAccountDrawer />
-        </div>
+      <div>
+        <h1 className="text-4xl font-bold mb-2">Asset Tracker</h1>
+        <p className="text-lg text-muted-foreground">
+          Track and visualise your portfolio across accounts.
+        </p>
       </div>
       <DataControls />
       {valuationIssues.length > 0 && (
@@ -160,17 +141,6 @@ export function AssetTrackerDashboard() {
         <AssetAllocationChart data={assetAllocation} currency={baseCurrency} />
         <AccountBalanceChart accounts={accountDetails} />
       </div>
-      <div>
-        <h2 className="text-2xl font-semibold mb-4">Accounts</h2>
-        <AccountsTable
-          accounts={accountDetails}
-          onSelectAccount={setSelectedAccountId}
-        />
-      </div>
-      <AccountDetailSheet
-        accountId={selectedAccountId}
-        onClose={() => setSelectedAccountId(null)}
-      />
     </div>
   );
 }
