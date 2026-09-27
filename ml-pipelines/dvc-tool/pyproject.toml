@@ -9,7 +9,6 @@ dependencies = [
 
 [tool.uv]
 package = false
-environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
 
 [tool.uv.sources]
 # Upstream has no fixed release yet. Pin the focused fix from pull request #364.
