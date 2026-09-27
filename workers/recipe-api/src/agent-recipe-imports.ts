@@ -260,6 +260,8 @@ export async function createAgentRecipeImport(
   input: { imageUrls: string[]; idempotencyKey: string; reason: string },
 ) {
   if (!services.artifacts || !services.workflow) throw new Error("Recipe import is not configured");
+  const artifacts = services.artifacts;
+  const workflow = services.workflow;
   if (
     input.imageUrls.length < 1 ||
     input.imageUrls.length > RECIPE_IMPORT_MAX_IMAGES
@@ -284,24 +286,24 @@ export async function createAgentRecipeImport(
     }
     await Promise.all(
       images.map(({ file, extension }, index) =>
-        services.artifacts?.put(
+        artifacts.put(
           sourceImageKey(reserved.job.id, index, extension),
           file,
           { httpMetadata: { contentType: file.type } },
         ),
       ),
     );
-    await services.workflow.create({
+    await workflow.create({
       id: reserved.job.id,
       params: { jobId: reserved.job.id },
     });
   } catch {
-    await services.artifacts
+    await artifacts
       .list({ prefix: importJobPrefix(reserved.job.id) })
       .then((listed) =>
         Promise.all(
           listed.objects.map((object) =>
-            services.artifacts?.delete(object.key),
+            artifacts.delete(object.key),
           ),
         ),
       )
