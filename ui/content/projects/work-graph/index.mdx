@@ -2,7 +2,7 @@
 title: "Work Graph"
 description: "A public source of truth for outcomes, dependencies, evidence, leases, and the human decisions that keep work moving"
 date: "2026-09-04"
-updated: "2026-09-25"
+updated: "2026-09-27"
 status: "in_progress"
 repo_url: "https://github.com/Robbie-Palmer/hq"
 tech_stack:
@@ -155,6 +155,106 @@ The Work Graph owns:
 
 It does not choose the model, machine, subscription, or person that should do a
 work item. The [Agent Coordinator](/projects/agent-coordinator) owns that concern.
+
+# Architecture
+
+This view borrows C4's boundary and relationship conventions. It shows the Work
+Graph system, its main containers and components, the places where the CLI runs,
+and the external systems it uses. It is not a production deployment diagram.
+
+People and agents install the CLI in local workstations, remote development
+workspaces, or automation runtimes. The CLI sends authenticated commands and
+queries to the REST API. For pull-request commands, it also reads current status
+and checks from GitHub before attaching that snapshot to a work item.
+
+The public Knowledge Graph remains authoritative for initiative and project
+meaning. Owners and agents use its stable identifiers, URLs, relationships, and
+source revisions when they explicitly update Work Graph's knowledge-scope
+mirrors. Those mirrors add operational lifecycle and stack rank without copying
+the project prose.
+
+GitHub webhook observation is a planned, separate automation path. A dedicated
+observer will validate delivery events and place them on a queue before evidence
+ingestion reaches the same API boundary. It cannot bypass policy or write
+directly to the coordination store.
+
+## System context and CLI deployment
+
+<Mermaid
+  chart={`flowchart TB
+People["Owner and agent workers<br/>[People]"]
+Environment["Development environments<br/>[Deployment nodes]<br/>Local, remote, CI, or agent<br/>Work Graph CLI installed"]
+GitHub["GitHub<br/>[External system]<br/>Pull requests, checks,<br/>delivery events"]
+Automation["Planned GitHub automation<br/>[Containers]<br/>Observer, queue, ingestion"]
+WorkGraph["Work Graph<br/>[Software system]<br/>Work items, scope mirrors,<br/>leases, and evidence"]
+Knowledge["Public Knowledge Graph<br/>[External system]<br/>Canonical initiatives<br/>and projects"]
+
+People -->|"uses CLI"| Environment
+Environment -->|"commands"| WorkGraph
+Environment -->|"reads PRs and checks"| GitHub
+GitHub -.->|"signed events"| Automation
+Automation -.->|"evidence commands"| WorkGraph
+WorkGraph -->|"mirrors scope"| Knowledge
+
+classDef person fill:#7c3aed,color:#fff,stroke:#6d28d9
+classDef external fill:#475569,color:#fff,stroke:#334155
+classDef environment fill:#e0f2fe,color:#0c4a6e,stroke:#0284c7
+classDef system fill:#2563eb,color:#fff,stroke:#1d4ed8
+classDef plannedNode fill:#fff7ed,color:#9a3412,stroke:#ea580c,stroke-dasharray:5 5
+class People person
+class Knowledge,GitHub external
+class Environment environment
+class WorkGraph system
+class Automation plannedNode
+`}
+/>
+
+## Work Graph components
+
+Inside Work Graph, owner policy controls changes to the coordination model. Work
+items and dependencies define the plan. Scope mirrors and ticket rank feed the
+priority projection. Leases fence concurrent workers, evidence gates release,
+and attention requests stop work that needs a person. PostgreSQL keeps current
+records and immutable event history.
+
+<Mermaid
+  chart={`flowchart TB
+subgraph workgraph["Work Graph [Software system]"]
+API["REST API<br/>[Container]<br/>Authenticated application boundary"]
+
+subgraph coordination["Coordination application [Container]"]
+Policy["Owner policy<br/>[Component]<br/>Allowed transitions and evidence rules"]
+Plan["Work items and dependency DAG<br/>[Component]<br/>Plan and executability"]
+Scopes["Knowledge-scope mirrors<br/>[Component]<br/>Initiatives, projects, lifecycle, and rank"]
+Priority["Priority projection<br/>[Component]<br/>Ready work and critical paths"]
+Execution["Leases and attention<br/>[Component]<br/>Fencing, decisions, and access stops"]
+Evidence["Context and delivery evidence<br/>[Component]<br/>Traceability and release gate"]
+end
+
+Store[("PostgreSQL<br/>[Container]<br/>Current records and immutable event history")]
+
+API --> Policy
+Policy --> Plan
+Policy --> Scopes
+Policy --> Execution
+Policy --> Evidence
+Plan --> Priority
+Scopes --> Priority
+Plan --> Store
+Scopes --> Store
+Execution --> Store
+Evidence --> Store
+Store --> Priority
+end
+
+classDef container fill:#2563eb,color:#fff,stroke:#1d4ed8
+classDef component fill:#0f766e,color:#fff,stroke:#115e59
+classDef data fill:#334155,color:#fff,stroke:#1e293b
+class API container
+class Policy,Plan,Scopes,Priority,Execution,Evidence component
+class Store data
+`}
+/>
 
 # A constrained but adaptable graph
 
