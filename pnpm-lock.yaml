@@ -786,7 +786,7 @@ importers:
         version: 0.18.7(patch_hash=85b684e1c0e18dedb7ebd9e043c0c937dc04446f8417852c7f5af27b4b423ec7)
       '@cosmos.gl/graph':
         specifier: ^3.4.1
-        version: 3.4.1
+        version: 3.4.2
       '@posthog/brand':
         specifier: 0.12.2
         version: 0.12.2(react@19.3.0)
@@ -1619,8 +1619,8 @@ packages:
     peerDependencies:
       solid-js: ^1.8
 
-  '@cosmos.gl/graph@3.4.1':
-    resolution: {integrity: sha512-dPbc2g+Hbu2djVjd7fkMqth8lvcjzFM1/byCbzF45kqkRAx7snMm0zifPR3xFL+THVHfy3x4Ep9uuQgPaxrQDg==}
+  '@cosmos.gl/graph@3.4.2':
+    resolution: {integrity: sha512-BNGSpaabPG2KkhyVMVVrcBrHE02+dG/PUH1/WUKrLp4UEw1ETGJ0qI98UOdW3X4fHwqTROu3D44v2exp9NW/fA==}
     engines: {node: '>=22.0.0', npm: '>=10.0.0'}
 
   '@cspotcode/source-map-support@0.8.1':
@@ -9310,7 +9310,7 @@ snapshots:
       '@floating-ui/dom': 1.8.0
       solid-js: 1.9.15
 
-  '@cosmos.gl/graph@3.4.1':
+  '@cosmos.gl/graph@3.4.2':
     dependencies:
       '@luma.gl/core': 9.3.6
       '@luma.gl/engine': 9.3.6(@luma.gl/core@9.3.6)(@luma.gl/shadertools@9.3.6(@luma.gl/core@9.3.6))
