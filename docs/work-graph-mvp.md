@@ -261,10 +261,11 @@ is resolved, recompute the normal readiness predicates. The item returns to
 `ready` only when its dependencies are satisfied and it has no non-terminal
 direct children; otherwise it projects as `blocked`.
 
-The item becomes explicitly claimable after resolution. Automatic claims skip
-items with lease history, so they cannot silently take continuation work. A
-returning worker or a deliberate replacement names the item when claiming it.
-Stale recovery uses the same explicit path after an active worker disappears.
+After resolution, explicit continuation is available only when the normal
+readiness predicates pass. Automatic claims skip items with lease history, so
+they cannot silently take continuation work. A returning worker or a deliberate
+replacement names the item when claiming it. Stale recovery uses the same
+explicit path after an active worker disappears.
 
 ## Stored lifecycle and derived stages
 
