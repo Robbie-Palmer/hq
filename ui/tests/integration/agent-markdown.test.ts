@@ -151,6 +151,13 @@ describe("agent markdown generation", () => {
     expect(recipe.match(/Codex/g)).toHaveLength(1);
   });
 
+  it("includes effective override provenance in adopter project twins", () => {
+    const writing = read("projects/agent-first-writing.md");
+    expect(writing).toContain(
+      "- Platform overrides: Python for project.primary-language ([agent-first-writing:009-primary-language-python](https://robbiepalmer.me/projects/agent-first-writing/adrs/009-primary-language-python.md))",
+    );
+  });
+
   it("keeps Markdown routes for the previous project slug", () => {
     expect(read("projects/personal-site.md")).toContain(
       "[Personal Knowledge Graph](https://robbiepalmer.me/projects/personal-knowledge-graph.md)",

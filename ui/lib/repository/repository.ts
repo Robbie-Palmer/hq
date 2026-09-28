@@ -989,16 +989,52 @@ type TechnologyReferenceCheck = (
   field: string,
 ) => void;
 
-function periodsOverlap(
+function policyContainsUse(
   left: { adopted: string; until?: string },
   right: { effectiveFrom: string; effectiveUntil?: string },
 ): boolean {
   return (
+    compareUtcInstants(right.effectiveFrom, left.adopted) <= 0 &&
     (right.effectiveUntil === undefined ||
-      compareUtcInstants(left.adopted, right.effectiveUntil) < 0) &&
-    (left.until === undefined ||
-      compareUtcInstants(right.effectiveFrom, left.until) < 0)
+      (left.until !== undefined &&
+        compareUtcInstants(left.until, right.effectiveUntil) <= 0))
   );
+}
+
+function formatUseInterval(use: { adopted: string; until?: string }): string {
+  return `[${use.adopted}, ${use.until ?? "open"})`;
+}
+
+function periodContainsPeriod(
+  container: { adopted: string; until?: string },
+  contained: { adopted: string; until?: string },
+): boolean {
+  return (
+    compareUtcInstants(container.adopted, contained.adopted) <= 0 &&
+    (container.until === undefined ||
+      (contained.until !== undefined &&
+        compareUtcInstants(contained.until, container.until) <= 0))
+  );
+}
+
+function periodsOverlap(
+  left: { adopted: string; until?: string },
+  right: { adopted: string; until?: string },
+): boolean {
+  return (
+    (left.until === undefined ||
+      compareUtcInstants(right.adopted, left.until) < 0) &&
+    (right.until === undefined ||
+      compareUtcInstants(left.adopted, right.until) < 0)
+  );
+}
+
+function formatPolicyInterval(policy: {
+  id: string;
+  effectiveFrom: string;
+  effectiveUntil?: string;
+}): string {
+  return `'${policy.id}' [${policy.effectiveFrom}, ${policy.effectiveUntil ?? "open"})`;
 }
 
 function validatePlatformDecisions(
@@ -1175,19 +1211,23 @@ function validateProjectLayerUse(
         message: `Project '${projectSlug}' references missing default slot '${slotUse.slot}'`,
       });
     }
-    const belongsToLayer = manifest.policies.some(
-      (policy) =>
-        policy.layer === use.layer &&
-        policy.slot === slotUse.slot &&
-        periodsOverlap(slotUse, policy),
+    const matchingPolicies = manifest.policies.filter(
+      (policy) => policy.layer === use.layer && policy.slot === slotUse.slot,
     );
-    if (!belongsToLayer) {
+    const containingPolicy = matchingPolicies.some((policy) =>
+      policyContainsUse(slotUse, policy),
+    );
+    if (!containingPolicy) {
+      const policyDetails =
+        matchingPolicies.length === 0
+          ? "no matching policy exists"
+          : `available policies are ${matchingPolicies.map(formatPolicyInterval).join(", ")}`;
       errors.push({
         type: "invalid_reference",
         entity: `Project[${projectSlug}]`,
         field: "platformLayers.slots",
         value: slotUse.slot,
-        message: `Project '${projectSlug}' activates slot '${slotUse.slot}' outside layer '${use.layer}'`,
+        message: `Project '${projectSlug}' slot use '${slotUse.slot}' ${formatUseInterval(slotUse)} is not fully contained by a policy for layer '${use.layer}'; ${policyDetails}`,
       });
     }
   }
@@ -1224,6 +1264,156 @@ function validateProjectPlatformUses(
   });
 }
 
+type OverrideRecord = {
+  adrRef: ADRRef;
+  project: ProjectSlug;
+  status: ADR["status"];
+  override: DefaultOverride;
+};
+
+function overrideHasAdoption(
+  input: ValidationInput,
+  manifest: PlatformManifest,
+  record: OverrideRecord,
+): boolean {
+  const policies = manifest.policies.filter(
+    (policy) =>
+      policy.slot === record.override.slot &&
+      policyContainsUse(record.override, policy),
+  );
+  const projectLayers = input.projectRelations.get(
+    record.project,
+  )?.platformLayers;
+  return policies.some((policy) =>
+    projectLayers?.some(
+      (layerUse) =>
+        layerUse.layer === policy.layer &&
+        periodContainsPeriod(layerUse, record.override) &&
+        (policy.mode === "required" ||
+          layerUse.slots.some(
+            (slotUse) =>
+              slotUse.slot === record.override.slot &&
+              periodContainsPeriod(slotUse, record.override),
+          )),
+    ),
+  );
+}
+
+function validateOverrideRecord(
+  record: OverrideRecord,
+  input: ValidationInput,
+  manifest: PlatformManifest,
+  slotSlugs: ReadonlySet<string>,
+  errors: ReferentialIntegrityError[],
+  checkTech: TechnologyReferenceCheck,
+): void {
+  const { adrRef, override } = record;
+  if (!slotSlugs.has(override.slot)) {
+    errors.push({
+      type: "missing_reference",
+      entity: `ADR[${adrRef}]`,
+      field: "overridesDefault",
+      value: override.slot,
+      message: `ADR '${adrRef}' overrides missing slot '${override.slot}'`,
+    });
+  }
+  if (override.kind === "technology") {
+    checkTech(override.technology, `ADR[${adrRef}]`, "overridesDefault");
+  }
+  const slot = manifest.slots.find(
+    (candidate) => candidate.slug === override.slot,
+  );
+  if (slot && slot.kind !== override.kind) {
+    errors.push({
+      type: "invalid_reference",
+      entity: `ADR[${adrRef}]`,
+      field: "overridesDefault",
+      value: override.slot,
+      message: `ADR '${adrRef}' override kind '${override.kind}' does not match slot '${override.slot}' kind '${slot.kind}'`,
+    });
+  }
+  if (!overrideHasAdoption(input, manifest, record)) {
+    errors.push({
+      type: "invalid_reference",
+      entity: `ADR[${adrRef}]`,
+      field: "overridesDefault",
+      value: override.slot,
+      message: `ADR '${adrRef}' override for '${override.slot}' ${formatUseInterval(override)} is not fully contained by an active layer, slot, and policy adoption`,
+    });
+  }
+}
+
+function overridesHaveSameValue(
+  left: DefaultOverride,
+  right: DefaultOverride,
+): boolean {
+  if (left.kind === "technology" && right.kind === "technology") {
+    return left.technology === right.technology;
+  }
+  if (left.kind === "policy" && right.kind === "policy") {
+    return left.value === right.value;
+  }
+  return false;
+}
+
+function conflictingOverridePairs(
+  records: OverrideRecord[],
+  allowDistinctValues: boolean,
+): Array<[OverrideRecord, OverrideRecord]> {
+  const conflicts: Array<[OverrideRecord, OverrideRecord]> = [];
+  for (let leftIndex = 0; leftIndex < records.length; leftIndex += 1) {
+    const left = records[leftIndex];
+    if (!left) continue;
+    for (
+      let rightIndex = leftIndex + 1;
+      rightIndex < records.length;
+      rightIndex += 1
+    ) {
+      const right = records[rightIndex];
+      if (!right || !periodsOverlap(left.override, right.override)) continue;
+      if (
+        allowDistinctValues &&
+        !overridesHaveSameValue(left.override, right.override)
+      )
+        continue;
+      conflicts.push([left, right]);
+    }
+  }
+  return conflicts;
+}
+
+function validateOverrideHistories(
+  records: OverrideRecord[],
+  manifest: PlatformManifest,
+  errors: ReferentialIntegrityError[],
+): void {
+  const accepted = records.filter((record) => record.status === "Accepted");
+  const histories = Map.groupBy(
+    accepted,
+    ({ project, override }) => `${project}:${override.slot}`,
+  );
+
+  for (const [projectSlot, records] of histories) {
+    const slotSlug = records[0]?.override.slot;
+    const slot = manifest.slots.find(
+      (candidate) => candidate.slug === slotSlug,
+    );
+    const conflicts = conflictingOverridePairs(
+      records,
+      slot?.cardinality === "many",
+    );
+    for (const [left, right] of conflicts) {
+      errors.push({
+        type: "invalid_reference",
+        entity: `ADR[${right.adrRef}]`,
+        field: "overridesDefault",
+        value: right.override.slot,
+        message: `Overlapping overrides for '${projectSlot}': ADR '${left.adrRef}' ${formatUseInterval(left.override)} conflicts with ADR '${right.adrRef}' ${formatUseInterval(right.override)}`,
+      });
+    }
+  }
+}
+
 function validatePlatformOverrides(
   input: ValidationInput,
   manifest: PlatformManifest,
@@ -1231,51 +1421,27 @@ function validatePlatformOverrides(
   errors: ReferentialIntegrityError[],
   checkTech: TechnologyReferenceCheck,
 ): void {
-  input.adrs.forEach((adr, adrRef) => {
-    const override = adr.overridesDefault;
-    if (!override) return;
-    if (!slotSlugs.has(override.slot)) {
-      errors.push({
-        type: "missing_reference",
-        entity: `ADR[${adrRef}]`,
-        field: "overridesDefault",
-        value: override.slot,
-        message: `ADR '${adrRef}' overrides missing slot '${override.slot}'`,
-      });
-    }
-    if (override.kind === "technology") {
-      checkTech(override.technology, `ADR[${adrRef}]`, "overridesDefault");
-    }
-    const slot = manifest.slots.find(
-      (candidate) => candidate.slug === override.slot,
+  const records = Array.from(input.adrs, ([adrRef, adr]) =>
+    adr.overridesDefault
+      ? {
+          adrRef,
+          project: adr.projectSlug,
+          status: adr.status,
+          override: adr.overridesDefault,
+        }
+      : undefined,
+  ).filter((record): record is OverrideRecord => record !== undefined);
+  for (const record of records) {
+    validateOverrideRecord(
+      record,
+      input,
+      manifest,
+      slotSlugs,
+      errors,
+      checkTech,
     );
-    if (slot && slot.kind !== override.kind) {
-      errors.push({
-        type: "invalid_reference",
-        entity: `ADR[${adrRef}]`,
-        field: "overridesDefault",
-        value: override.slot,
-        message: `ADR '${adrRef}' override kind '${override.kind}' does not match slot '${override.slot}' kind '${slot.kind}'`,
-      });
-    }
-    const owningLayers = new Set(
-      manifest.policies
-        .filter((policy) => policy.slot === override.slot)
-        .map((policy) => policy.layer),
-    );
-    const projectLayers = input.projectRelations.get(
-      adr.projectSlug,
-    )?.platformLayers;
-    if (!projectLayers?.some((use) => owningLayers.has(use.layer))) {
-      errors.push({
-        type: "invalid_reference",
-        entity: `ADR[${adrRef}]`,
-        field: "overridesDefault",
-        value: override.slot,
-        message: `ADR '${adrRef}' cannot override a slot from a layer the project has not adopted`,
-      });
-    }
-  });
+  }
+  validateOverrideHistories(records, manifest, errors);
 }
 
 function validatePlatformReferences(

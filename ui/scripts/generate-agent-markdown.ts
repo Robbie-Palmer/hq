@@ -95,6 +95,44 @@ interface GeneratedPage {
   facts?: [string, string][];
 }
 
+function platformOverrideFact(
+  project: ProjectWithADRs,
+): [string, string] | undefined {
+  const overrides = [
+    ...(project.platformTechnologies ?? []).map((technology) => ({
+      value: technology.name,
+      source: technology.source,
+      slot: technology.slot,
+      decision: technology.decision,
+    })),
+    ...(project.platformPolicies ?? []).map((policy) => ({
+      value: policy.value,
+      source: policy.source,
+      slot: policy.slot,
+      decision: policy.decision,
+    })),
+  ].filter(
+    (record): record is typeof record & { decision: string } =>
+      record.source === "override" && record.decision !== undefined,
+  );
+  if (overrides.length === 0) return undefined;
+  const value = overrides
+    .map(({ value, slot, decision }) => {
+      const [projectSlug, adrSlug] = decision.split(":");
+      const decisionUrl = markdownUrl(
+        routePath(
+          "projects",
+          projectSlug ?? "",
+          "adrs",
+          adrSlug ?? "",
+        ),
+      );
+      return `${value} for ${slot} ([${decision}](${decisionUrl}))`;
+    })
+    .join(", ");
+  return ["Platform overrides", value];
+}
+
 function projectFacts(project: ProjectWithADRs): [string, string][] {
   const facts: [string, string][] = [
     ["Status", project.status],
@@ -130,6 +168,8 @@ function projectFacts(project: ProjectWithADRs): [string, string][] {
           .join(", "),
       ],
     );
+    const overrideFact = platformOverrideFact(project);
+    if (overrideFact) facts.push(overrideFact);
   }
   const ideas = getIdeasForProject(project.slug);
   if (ideas.length > 0) {

@@ -108,6 +108,28 @@ describe("project platform components", () => {
     expect(container.querySelectorAll("a").length).toBeGreaterThan(1);
   });
 
+  it("labels a project-local decision as an override", () => {
+    const project = getProjectWithADRs(
+      loadDomainRepository(),
+      "agent-first-writing",
+    );
+    expect(project).not.toBeNull();
+    if (!project) return;
+
+    render(
+      <PlatformSummary
+        builtOn={project.builtOn}
+        platformPolicies={project.platformPolicies}
+        platformTechnologies={project.platformTechnologies}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "override" })).toHaveAttribute(
+      "href",
+      "/projects/agent-first-writing/adrs/009-primary-language-python",
+    );
+  });
+
   it("does not present a future policy as current", () => {
     const project = getProjectWithADRs(
       loadDomainRepository(),

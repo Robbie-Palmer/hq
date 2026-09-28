@@ -480,6 +480,108 @@ export const ProjectLayerUseSchema = z
     }
   });
 
+type ProjectLayerUseInput = z.infer<typeof ProjectLayerUseSchema>;
+
+type IndexedUsePeriod = {
+  adopted: string;
+  until?: string;
+  location: string;
+};
+
+function formatUsePeriod(period: IndexedUsePeriod): string {
+  return `${period.location} [${period.adopted}, ${period.until ?? "open"})`;
+}
+
+function orderedUsePeriodsOverlap(
+  left: IndexedUsePeriod,
+  right: IndexedUsePeriod,
+): boolean {
+  return (
+    left.until === undefined ||
+    compareUtcInstants(right.adopted, left.until) < 0
+  );
+}
+
+function periodsAreEqual(
+  left: IndexedUsePeriod,
+  right: IndexedUsePeriod,
+): boolean {
+  const sameEnd =
+    (left.until === undefined && right.until === undefined) ||
+    (left.until !== undefined &&
+      right.until !== undefined &&
+      compareUtcInstants(left.until, right.until) === 0);
+  return compareUtcInstants(left.adopted, right.adopted) === 0 && sameEnd;
+}
+
+function validateUsePeriodHistory(
+  periods: IndexedUsePeriod[],
+  label: string,
+  context: z.RefinementCtx,
+): void {
+  const ordered = periods.toSorted((left, right) =>
+    compareUtcInstants(left.adopted, right.adopted),
+  );
+  for (let leftIndex = 0; leftIndex < ordered.length; leftIndex += 1) {
+    const left = ordered[leftIndex];
+    if (!left) continue;
+    for (
+      let rightIndex = leftIndex + 1;
+      rightIndex < ordered.length;
+      rightIndex += 1
+    ) {
+      const right = ordered[rightIndex];
+      if (!right) continue;
+      if (!orderedUsePeriodsOverlap(left, right)) break;
+      const duplicate = periodsAreEqual(left, right);
+      context.addIssue({
+        code: "custom",
+        message: `${duplicate ? "Duplicate" : "Overlapping"} ${label}: ${formatUsePeriod(left)} conflicts with ${formatUsePeriod(right)}`,
+      });
+    }
+  }
+}
+
+function validateProjectLayerUseHistory(
+  uses: ProjectLayerUseInput[],
+  context: z.RefinementCtx,
+): void {
+  const layers = Map.groupBy(
+    uses.map((use, useIndex) => ({
+      ...use,
+      location: `platformLayers[${useIndex}]`,
+    })),
+    (use) => use.layer,
+  );
+  for (const [layer, periods] of layers) {
+    validateUsePeriodHistory(
+      periods,
+      `project layer uses for '${layer}'`,
+      context,
+    );
+  }
+
+  const slotUses = uses.flatMap((use, useIndex) =>
+    use.slots.map((slotUse, slotIndex) => ({
+      ...slotUse,
+      layer: use.layer,
+      location: `platformLayers[${useIndex}].slots[${slotIndex}]`,
+    })),
+  );
+  const slots = Map.groupBy(slotUses, (use) => `${use.layer}:${use.slot}`);
+  for (const [layerSlot, periods] of slots) {
+    validateUsePeriodHistory(
+      periods,
+      `project slot uses for '${layerSlot}'`,
+      context,
+    );
+  }
+}
+
+export const ProjectLayerUsesSchema = z
+  .array(ProjectLayerUseSchema)
+  .superRefine(validateProjectLayerUseHistory);
+
 export function getSelectionLifecycleStatus(
   manifest: PlatformManifest,
   selection: DefaultSelection,

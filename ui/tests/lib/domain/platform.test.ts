@@ -9,12 +9,16 @@ import {
   type PlatformManifest,
   PlatformManifestSchema,
   ProjectLayerUseSchema,
+  ProjectLayerUsesSchema,
   previousUtcInstant,
   resolveEffectiveProjectStack,
   UtcInstantSchema,
 } from "@/lib/domain/platform";
 import { getProjectWithADRs } from "@/lib/domain/project/projectQueries";
-import { loadDomainRepository } from "@/lib/repository";
+import {
+  loadDomainRepository,
+  validateReferentialIntegrity,
+} from "@/lib/repository";
 
 function sameDayManifest(linkReplacement = true): PlatformManifest {
   return {
@@ -72,6 +76,97 @@ function sameDayManifest(linkReplacement = true): PlatformManifest {
 }
 
 describe("temporal platform layers", () => {
+  it("accepts a layer re-adoption at the prior period's exclusive boundary", () => {
+    const result = ProjectLayerUsesSchema.safeParse([
+      {
+        layer: "base",
+        adopted: "2026-09-12T09:00:00Z",
+        until: "2026-09-12T12:00:00Z",
+        tracking: false,
+        rationale: "Freeze the first adoption.",
+      },
+      {
+        layer: "base",
+        adopted: "2026-09-12T12:00:00Z",
+        tracking: true,
+        rationale: "Resume tracking after re-adoption.",
+      },
+    ]);
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects duplicate and overlapping layer-use periods with both records", () => {
+    const result = ProjectLayerUsesSchema.safeParse([
+      {
+        layer: "base",
+        adopted: "2026-09-12T09:00:00Z",
+        until: "2026-09-12T13:00:00Z",
+        tracking: false,
+        rationale: "First adoption.",
+      },
+      {
+        layer: "base",
+        adopted: "2026-09-12T12:00:00Z",
+        until: "2026-09-12T14:00:00Z",
+        tracking: false,
+        rationale: "Overlapping adoption.",
+      },
+      {
+        layer: "base",
+        adopted: "2026-09-12T12:00:00Z",
+        until: "2026-09-12T14:00:00Z",
+        tracking: false,
+        rationale: "Duplicate adoption.",
+      },
+    ]);
+
+    expect(result.success).toBe(false);
+    const messages = result.error?.issues.map((issue) => issue.message) ?? [];
+    expect(messages).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining(
+          "Overlapping project layer uses for 'base': platformLayers[0]",
+        ),
+        expect.stringContaining(
+          "Duplicate project layer uses for 'base': platformLayers[1]",
+        ),
+      ]),
+    );
+    expect(messages.join(" ")).toContain("platformLayers[2]");
+  });
+
+  it("rejects overlapping slot-use periods with both nested records", () => {
+    const result = ProjectLayerUsesSchema.safeParse([
+      {
+        layer: "database",
+        adopted: "2026-09-12T09:00:00Z",
+        tracking: true,
+        rationale: "Adopt database defaults.",
+        slots: [
+          {
+            slot: "database.relational-engine",
+            adopted: "2026-09-12T10:00:00Z",
+            until: "2026-09-12T13:00:00Z",
+            rationale: "Initial slot adoption.",
+          },
+          {
+            slot: "database.relational-engine",
+            adopted: "2026-09-12T12:00:00Z",
+            rationale: "Conflicting slot adoption.",
+          },
+        ],
+      },
+    ]);
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.message)).toContainEqual(
+      expect.stringContaining(
+        "platformLayers[0].slots[0] [2026-09-12T10:00:00Z, 2026-09-12T13:00:00Z) conflicts with platformLayers[0].slots[1] [2026-09-12T12:00:00Z, open)",
+      ),
+    );
+  });
+
   it("accepts half-open replacements on the same day and derives superseded status", () => {
     const result = PlatformManifestSchema.safeParse(sameDayManifest());
     expect(result.success).toBe(true);
@@ -542,6 +637,247 @@ describe("temporal platform layers", () => {
     );
     expect(stack.policies.map((policy) => policy.value)).not.toContain(
       "Public source",
+    );
+  });
+
+  it("returns to the platform default when an override closes", () => {
+    const repository = loadDomainRepository();
+    const overrideRef = "agent-first-writing:009-primary-language-python";
+    const override = repository.platform.adrOverrides.get(overrideRef);
+    expect(override).toBeDefined();
+    if (!override) return;
+    const adrOverrides = new Map(repository.platform.adrOverrides);
+    adrOverrides.set(overrideRef, {
+      ...override,
+      until: "2026-09-13T00:00:00Z",
+    });
+    const withClosedOverride = {
+      ...repository,
+      platform: { ...repository.platform, adrOverrides },
+    };
+
+    const during = resolveEffectiveProjectStack(
+      withClosedOverride,
+      "agent-first-writing",
+      "2026-09-12T12:00:00Z",
+    );
+    const after = resolveEffectiveProjectStack(
+      withClosedOverride,
+      "agent-first-writing",
+      "2026-09-13T00:00:00Z",
+    );
+
+    expect(during.technologies).toContainEqual(
+      expect.objectContaining({
+        slot: "project.primary-language",
+        technology: "python",
+        source: "override",
+      }),
+    );
+    expect(after.technologies).toContainEqual(
+      expect.objectContaining({
+        slot: "project.primary-language",
+        technology: "typescript",
+        source: "required-layer",
+      }),
+    );
+  });
+
+  it("rejects overlapping single-valued overrides and names both ADRs", () => {
+    const repository = loadDomainRepository();
+    const existingRef = "agent-first-writing:009-primary-language-python";
+    const existingADR = repository.adrs.get(existingRef);
+    expect(existingADR?.overridesDefault).toBeDefined();
+    if (existingADR?.overridesDefault?.kind !== "technology") return;
+    const conflictingRef = "agent-first-writing:010-primary-language-rust";
+    const adrs = new Map(repository.adrs);
+    adrs.set(conflictingRef, {
+      ...existingADR,
+      adrRef: conflictingRef,
+      slug: "010-primary-language-rust",
+      overridesDefault: {
+        ...existingADR.overridesDefault,
+        technology: "rust",
+        adopted: "2026-09-13T00:00:00Z",
+      },
+    });
+    const projectRelations = new Map(
+      Array.from(
+        repository.platform.projectLayerUses,
+        ([project, platformLayers]) => [
+          project,
+          {
+            technologies: [],
+            ideas: [],
+            adrs: [],
+            initiatives: [],
+            tags: [],
+            platformLayers,
+          },
+        ],
+      ),
+    );
+
+    const errors = validateReferentialIntegrity({
+      technologies: repository.technologies,
+      initiatives: repository.initiatives,
+      adrs,
+      projects: repository.projects,
+      blogRelations: new Map(),
+      projectRelations,
+      adrRelations: new Map(),
+      roleRelations: new Map(),
+      platformManifest: repository.platform.manifest,
+    });
+
+    expect(errors).toContainEqual(
+      expect.objectContaining({
+        entity: `ADR[${conflictingRef}]`,
+        field: "overridesDefault",
+        message: expect.stringContaining(
+          `ADR '${existingRef}' [2026-09-12T00:00:00Z, open) conflicts with ADR '${conflictingRef}' [2026-09-13T00:00:00Z, open)`,
+        ),
+      }),
+    );
+  });
+
+  it("allows distinct concurrent values but rejects duplicate multi-valued overrides", () => {
+    const repository = loadDomainRepository();
+    const template = repository.adrs.get(
+      "recipe-site:004-backend-platform-for-authenticated-features",
+    );
+    expect(template).toBeDefined();
+    if (!template) return;
+    const projectRelations = new Map(
+      Array.from(
+        repository.platform.projectLayerUses,
+        ([project, platformLayers]) => [
+          project,
+          {
+            technologies: [],
+            ideas: [],
+            adrs: [],
+            initiatives: [],
+            tags: [],
+            platformLayers,
+          },
+        ],
+      ),
+    );
+    const validate = (adrs: typeof repository.adrs) =>
+      validateReferentialIntegrity({
+        technologies: repository.technologies,
+        initiatives: repository.initiatives,
+        adrs,
+        projects: repository.projects,
+        blogRelations: new Map(),
+        projectRelations,
+        adrRelations: new Map(),
+        roleRelations: new Map(),
+        platformManifest: repository.platform.manifest,
+      });
+    const firstRef = "recipe-site:998-claude-code-override";
+    const secondRef = "recipe-site:999-codex-override";
+    const distinct = new Map(repository.adrs);
+    distinct.set(firstRef, {
+      ...template,
+      adrRef: firstRef,
+      slug: "998-claude-code-override",
+      overridesDefault: {
+        slot: "development.coding-agents",
+        kind: "technology",
+        technology: "claude-code",
+        adopted: "2026-09-15T00:00:00Z",
+      },
+    });
+    distinct.set(secondRef, {
+      ...template,
+      adrRef: secondRef,
+      slug: "999-codex-override",
+      overridesDefault: {
+        slot: "development.coding-agents",
+        kind: "technology",
+        technology: "codex",
+        adopted: "2026-09-15T00:00:00Z",
+      },
+    });
+
+    expect(
+      validate(distinct).filter((error) =>
+        error.message.includes("Overlapping overrides"),
+      ),
+    ).toEqual([]);
+
+    const duplicate = new Map(distinct);
+    const second = distinct.get(secondRef);
+    expect(second).toBeDefined();
+    if (!second) return;
+    duplicate.set(secondRef, {
+      ...second,
+      overridesDefault: {
+        slot: "development.coding-agents",
+        kind: "technology",
+        technology: "claude-code",
+        adopted: "2026-09-15T00:00:00Z",
+      },
+    });
+    expect(validate(duplicate)).toContainEqual(
+      expect.objectContaining({
+        entity: `ADR[${secondRef}]`,
+        message: expect.stringContaining("Overlapping overrides"),
+      }),
+    );
+  });
+
+  it("rejects an override that outlives its adopted layer", () => {
+    const repository = loadDomainRepository();
+    const projectLayerUses = new Map(repository.platform.projectLayerUses);
+    const uses = projectLayerUses.get("agent-first-writing") ?? [];
+    projectLayerUses.set(
+      "agent-first-writing",
+      uses.map((use) =>
+        use.layer === "base"
+          ? {
+              ...use,
+              until: "2026-09-13T00:00:00Z",
+              tracking: false,
+            }
+          : use,
+      ),
+    );
+    const projectRelations = new Map(
+      Array.from(projectLayerUses, ([project, platformLayers]) => [
+        project,
+        {
+          technologies: [],
+          ideas: [],
+          adrs: [],
+          initiatives: [],
+          tags: [],
+          platformLayers,
+        },
+      ]),
+    );
+
+    const errors = validateReferentialIntegrity({
+      technologies: repository.technologies,
+      initiatives: repository.initiatives,
+      adrs: repository.adrs,
+      projects: repository.projects,
+      blogRelations: new Map(),
+      projectRelations,
+      adrRelations: new Map(),
+      roleRelations: new Map(),
+      platformManifest: repository.platform.manifest,
+    });
+
+    expect(errors).toContainEqual(
+      expect.objectContaining({
+        entity: "ADR[agent-first-writing:009-primary-language-python]",
+        message: expect.stringContaining(
+          "is not fully contained by an active layer, slot, and policy adoption",
+        ),
+      }),
     );
   });
 

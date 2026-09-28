@@ -213,6 +213,17 @@ describe("extractGraphData", () => {
     expect(
       getOverridesForDefaultSlot(repository.graph, "project.primary-language"),
     ).toContain("agent-first-writing:009-primary-language-python");
+    expect(data.edges).toContainEqual(
+      expect.objectContaining({
+        source: "adr:agent-first-writing:009-primary-language-python",
+        target: "technology:python",
+        type: "OVERRIDES_DEFAULT",
+        provenance: expect.objectContaining({
+          slot: "project.primary-language",
+          decision: "agent-first-writing:009-primary-language-python",
+        }),
+      }),
+    );
   });
 
   it("uses effective layer-use provenance after re-adoption", () => {
