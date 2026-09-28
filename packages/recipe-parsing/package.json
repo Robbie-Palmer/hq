@@ -16,7 +16,7 @@
     "@cooklang/cooklang": "^0.18.0",
     "cheerio": "^1.2.0",
     "numeric-quantity": "^3.2.1",
-    "openai": "^7.0.0",
+    "openrouter-client": "workspace:*",
     "recipe-scrapers": "^3.0.0",
     "recipe-domain": "workspace:*",
     "ts-base": "workspace:*",

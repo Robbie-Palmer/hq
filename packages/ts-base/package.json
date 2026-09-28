@@ -7,7 +7,9 @@
   "exports": {
     "./crypto": "./src/crypto.ts",
     "./errors": "./src/errors.ts",
+    "./http": "./src/http.ts",
     "./layered-graph": "./src/layered-graph.ts",
+    "./numbers": "./src/numbers.ts",
     "./records": "./src/records.ts",
     "./strings": "./src/strings.ts",
     "./urls": "./src/urls.ts"

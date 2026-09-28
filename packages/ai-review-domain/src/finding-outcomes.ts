@@ -1,11 +1,12 @@
-import type { FindingOutcome } from "./env";
 import {
   FindingOutcomeRecordSchema,
+  type FindingOutcomeValue,
   type FindingOutcomeRecord,
-} from "ai-review-domain/records";
+} from "./records";
 import { isRecord } from "ts-base/records";
+type FindingOutcome = FindingOutcomeValue;
 
-export type { FindingOutcomeRecord } from "ai-review-domain/records";
+export type { FindingOutcomeRecord } from "./records";
 
 export const DEFAULT_FINDING_OUTCOME_EVALUATOR_VERSION =
   "deterministic-outcomes-v1";

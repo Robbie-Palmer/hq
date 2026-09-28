@@ -1,4 +1,10 @@
-import type { Env } from "./env";
+export interface GuardrailConfiguration {
+  AI_REVIEW_PUBLICATION_POLICY_VERSION?: string;
+  AI_REVIEW_MAX_VISIBLE_FINDINGS?: string;
+  AI_REVIEW_RELIABILITY_POLICY_VERSION?: string;
+  AI_REVIEW_MODEL_FAILURE_THRESHOLD?: string;
+  AI_REVIEW_MODEL_COOLDOWN_SECONDS?: string;
+}
 
 export const DEFAULT_PUBLICATION_POLICY_VERSION =
   "deterministic-publication-v1";
@@ -75,7 +81,9 @@ function configuredVersion(raw: string | undefined, fallback: string): string {
   return value ? value.slice(0, 100) : fallback;
 }
 
-export function guardrailPolicy(env: Partial<Env>): GuardrailPolicy {
+export function guardrailPolicy(
+  env: GuardrailConfiguration,
+): GuardrailPolicy {
   return {
     publication: {
       version: configuredVersion(

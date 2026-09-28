@@ -4,20 +4,22 @@ import { afterEach, test, vi } from "vitest";
 
 import {
   completionContent,
-  DEFAULT_MERGER,
-  duplicateScoutModels,
   ignored,
-  isCreditExhaustion,
-  JsonClient,
-  MERGER_MAX_TOKENS,
   markdownText,
   parseModelPayload,
   renderComment,
-  Reviewer,
-  selectFreeScoutModels,
   validateFindings,
   workflowStatusForCoverage,
-} from "../src/reviewer.ts";
+} from "ai-review-domain/reviewer";
+import { JsonClient } from "ts-base/http";
+import {
+  DEFAULT_MERGER,
+  MERGER_MAX_TOKENS,
+  Reviewer,
+  duplicateScoutModels,
+  isCreditExhaustion,
+  selectFreeScoutModels,
+} from "../src/reviewer";
 
 const finding = {
   severity: "high",
@@ -158,9 +160,59 @@ test("paid OpenRouter completions are never retried by the HTTP client", async (
 
   await assert.rejects(
     reviewer.callOpenRouterScout("model-a", "system", "user"),
-    /failed \(503\)/,
+    /503.*temporary upstream failure/,
   );
   assert.equal(attempts, 1);
+});
+
+test("OpenRouter calls use the review timeout unless one is supplied", async () => {
+  const create = vi.fn().mockResolvedValue({
+    choices: [{ finish_reason: "stop", message: { content: '{"findings":[]}' } }],
+    usage: { cost: 0 },
+  });
+  const reviewer = new Reviewer({
+    githubToken: "github-token",
+    openRouterKey: "openrouter-key",
+    repository: "Robbie-Palmer/hq",
+    prNumber: 837,
+    openRouterScouts: ["model-a"],
+    openCodeScouts: [],
+    merger: "model-b",
+    ignoredAuthors: [],
+    requireZdr: false,
+  });
+  Object.assign(reviewer, {
+    openRouter: { chat: { completions: { create } } },
+  });
+
+  await reviewer.callOpenRouterScout("model-a", "system", "user");
+  await reviewer.callOpenRouterScout("model-a", "system", "user", {
+    timeoutMs: 42,
+  });
+  await reviewer.callMerger(
+    "model-b",
+    "system",
+    "user",
+    "merged_findings",
+    { type: "object" },
+    MERGER_MAX_TOKENS,
+  );
+  await reviewer.callMerger(
+    "model-b",
+    "system",
+    "user",
+    "merged_findings",
+    { type: "object" },
+    MERGER_MAX_TOKENS,
+    43,
+  );
+
+  assert.deepEqual(create.mock.calls.map((call) => call[1]), [
+    { timeout: 120_000 },
+    { timeout: 42 },
+    { timeout: 120_000 },
+    { timeout: 43 },
+  ]);
 });
 
 test("GitHub comment creation is never retried", async () => {
@@ -187,15 +239,14 @@ test("GitHub comment creation is never retried", async () => {
 
 test("HTTP retries use bounded Web Crypto jitter", async () => {
   vi.useFakeTimers();
-  vi.spyOn(globalThis.crypto, "getRandomValues").mockImplementation((array) => {
-    (array as Uint32Array)[0] = 0;
-    return array;
-  });
   const fetchMock = vi.spyOn(globalThis, "fetch")
     .mockResolvedValueOnce(new Response("temporary upstream failure", { status: 503 }))
     .mockResolvedValueOnce(Response.json({ ok: true }));
 
-  const request = new JsonClient("https://example.com", {}, { retries: 2 }).request<{ ok: boolean }>(
+  const request = new JsonClient("https://example.com", {}, {
+    retries: 2,
+    random: () => 0,
+  }).request<{ ok: boolean }>(
     "GET",
     "/resource",
   );
@@ -207,15 +258,14 @@ test("HTTP retries use bounded Web Crypto jitter", async () => {
 
 test("HTTP transport failures retry with Web Crypto jitter", async () => {
   vi.useFakeTimers();
-  vi.spyOn(globalThis.crypto, "getRandomValues").mockImplementation((array) => {
-    (array as Uint32Array)[0] = 0;
-    return array;
-  });
   vi.spyOn(globalThis, "fetch")
     .mockRejectedValueOnce(new TypeError("network unavailable"))
     .mockResolvedValueOnce(Response.json({ ok: true }));
 
-  const request = new JsonClient("https://example.com", {}, { retries: 2 }).request<{ ok: boolean }>(
+  const request = new JsonClient("https://example.com", {}, {
+    retries: 2,
+    random: () => 0,
+  }).request<{ ok: boolean }>(
     "GET",
     "/resource",
   );

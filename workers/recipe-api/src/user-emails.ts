@@ -1,4 +1,5 @@
 import { and, eq, ne } from "drizzle-orm";
+import { GithubClient } from "github-client";
 import type { Db } from "recipe-db";
 import * as schema from "recipe-db/schema";
 type UserEmailIdentity = {
@@ -78,16 +79,16 @@ async function githubEmails(
   fetchImpl: Fetch,
 ): Promise<string[]> {
   if (!accessToken) return [];
-  const response = await fetchImpl("https://api.github.com/user/emails", {
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${accessToken}`,
-      "User-Agent": "personal-site-recipe-api",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-  });
-  if (!response.ok) return [];
-  const body: unknown = await response.json();
+  let body: unknown;
+  try {
+    body = await new GithubClient(accessToken, {
+      userAgent: "personal-site-recipe-api",
+      fetch: fetchImpl,
+      retries: 1,
+    }).request("GET", "/user/emails");
+  } catch {
+    return [];
+  }
   if (!Array.isArray(body)) return [];
   return body.flatMap((candidate) => {
     if (

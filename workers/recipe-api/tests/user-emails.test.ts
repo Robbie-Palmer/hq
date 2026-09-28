@@ -128,7 +128,7 @@ describe("linked account emails", () => {
 
     expect(emails).toEqual(["first@example.test", "second@example.test"]);
     expect(fetchImpl).toHaveBeenCalledWith(
-      "https://api.github.com/user/emails",
+      new URL("https://api.github.com/user/emails"),
       expect.objectContaining({
         headers: expect.objectContaining({ Authorization: "Bearer token" }),
       }),

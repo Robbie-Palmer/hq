@@ -11,9 +11,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@octokit/auth-app": "^8.2.0",
-    "@octokit/request": "^10.0.16",
     "ai-review-domain": "workspace:*",
+    "github-client": "workspace:*",
+    "openrouter-client": "workspace:*",
     "ts-base": "workspace:*",
     "zod": "^4.2.1"
   },
