@@ -6,6 +6,8 @@ versioned, strictly validated, and independent of provider product names.
 The public API is exported from `src/index.ts`. See
 `docs/compatibility-examples.md` for examples of eligibility and ranking, and
 `docs/worker-adapters.md` for native-client and API-funded session controls.
+See `docs/execution-telemetry.md` for the private event contract, access rules,
+retention policy, and public Work Graph projection.
 
 ## Work Graph integration
 
@@ -47,3 +49,16 @@ in-flight operation. Later retries reach Work Graph with the same idempotency
 key, including after a process restart. `providerFallback` retains an API
 session's identity, context, and lease. Resuming with another adapter uses the
 explicit handoff path and records the prior session as its predecessor.
+
+## Private execution telemetry
+
+`ExecutionTelemetryRecorder` emits routing decisions, provider requests,
+session outcomes, waits, handoffs, and interventions as named OpenTelemetry log
+events. Events correlate to the Work Graph item and fenced lease. Stable event
+IDs let analytics deduplicate retries, while query helpers report outcomes,
+waits, handoffs, interventions, and metered cost by currency.
+
+The coordinator sends these events to a private OTLP destination. Access,
+retention, and deletion are destination policies rather than an application
+ledger. Free text is redacted before export, and `toPublicWorkEvidence` omits
+session, account, route, provider, model, quota, cost, and free-text fields.

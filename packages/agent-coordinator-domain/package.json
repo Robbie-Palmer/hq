@@ -18,6 +18,7 @@
     "./orchestration": "./src/orchestration.ts",
     "./session": "./src/session.ts",
     "./task": "./src/task.ts",
+    "./telemetry": "./src/telemetry.ts",
     "./vocabulary": "./src/vocabulary.ts",
     "./work-graph": "./src/work-graph.ts"
   },
@@ -27,9 +28,13 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/api-logs": "^0.222.0",
+    "@opentelemetry/semantic-conventions": "^1.43.0",
     "zod": "^4.2.1"
   },
   "devDependencies": {
+    "@opentelemetry/sdk-logs": "^0.222.0",
     "@vitest/coverage-v8": "^5.0.0",
     "typescript": "^6.0.0",
     "vitest": "^5.0.0"
