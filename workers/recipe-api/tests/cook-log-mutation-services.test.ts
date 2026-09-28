@@ -218,4 +218,77 @@ describe("cook-log mutation services", () => {
       1n,
     );
   });
+
+  it("replays only the matching cook-log compensation", async () => {
+    const idempotencyKey = "0199a770-6666-7666-8666-666666666666";
+    mocks.findChangeSetByIdempotencyKey.mockResolvedValue({
+      ...changeSet,
+      id: "compensation-1",
+      actorType: "user",
+      actorAgentId: null,
+      actorAgentName: null,
+      actorHostId: null,
+      capability: "agent_mutation.undo",
+      targetType: "cook_log",
+      idempotencyKey,
+      compensatesChangeSetId: changeSet.id,
+      commandFingerprint: JSON.stringify([changeSet.id, "*"]),
+    });
+
+    await expect(
+      undoCookLogMutation(db, {
+        userId: "user-1",
+        changeSetId: changeSet.id,
+        idempotencyKey,
+      }),
+    ).resolves.toEqual({
+      applied: true,
+      changeSetId: "compensation-1",
+      replayed: true,
+    });
+
+    mocks.findChangeSetByIdempotencyKey.mockResolvedValue({
+      ...changeSet,
+      actorType: "user",
+      actorAgentId: null,
+      actorAgentName: null,
+      actorHostId: null,
+      capability: "agent_mutation.undo",
+      targetType: "cook_log",
+      idempotencyKey,
+      compensatesChangeSetId: "different-change-set",
+      commandFingerprint: JSON.stringify([changeSet.id, "*"]),
+    });
+    await expect(
+      undoCookLogMutation(db, {
+        userId: "user-1",
+        changeSetId: changeSet.id,
+        idempotencyKey,
+      }),
+    ).rejects.toThrow("Idempotency key was already used");
+  });
+
+  it("aborts compensation when a cook-log row changes during deletion", async () => {
+    mocks.findCookLogSessions.mockResolvedValue([
+      {
+        id: event.sessionId,
+        createdByChangeSetId: changeSet.id,
+        version: 1n,
+        recipeSlug: event.recipeSlug,
+        recipeTitle: event.recipeTitle,
+        servings: event.servings,
+        diners: event.diners,
+        completedAt: new Date(cookedAt),
+      },
+    ]);
+    mocks.deleteCookLogSession.mockResolvedValue(false);
+
+    await expect(
+      undoCookLogMutation(db, {
+        userId: "user-1",
+        changeSetId: changeSet.id,
+        idempotencyKey: "0199a770-7777-7777-8777-777777777777",
+      }),
+    ).rejects.toThrow("changed while the undo was being applied");
+  });
 });
