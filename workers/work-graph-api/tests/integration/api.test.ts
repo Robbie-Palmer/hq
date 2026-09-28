@@ -1518,6 +1518,19 @@ describe("Given claimed work that needs notes or attention", () => {
     expect(resolvedAttention.items.map(({ id }) => id)).toEqual([
       recordId(303),
     ]);
+    const automaticResume = await requestJson("/api/leases", "POST", {
+      workerId: "worker-b",
+      leaseDurationSeconds: 300,
+    });
+    expect(automaticResume.status).toBe(409);
+    expect(await automaticResume.json()).toEqual({
+      error: {
+        code: "work_item_not_claimable",
+        message:
+          "No never-started ready work item is currently claimable. Specify a ticket ID to continue or recover earlier work.",
+      },
+    });
+
     const resumed = await requestJson("/api/leases", "POST", {
       workItemId: "work",
       workerId: "worker-b",

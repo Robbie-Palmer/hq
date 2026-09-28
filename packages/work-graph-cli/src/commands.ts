@@ -1105,6 +1105,7 @@ export const workGraphRouter = t.router({
       ],
       rules: [
         "Codex thread identity is automatic; WORK_GRAPH_WORKER_ID overrides it.",
+        "An automatic claim selects only never-started work; specify a ticket ID for continuation or recovery.",
         "Ticket commands find the active lease and fencing epoch automatically.",
         "Use attention request for a blocking decision; use cancel only when the outcome is no longer wanted.",
         "After pulling a merged CLI change, run work-graph self-update from the checkout.",
@@ -1598,7 +1599,8 @@ export const workGraphRouter = t.router({
     .query(({ ctx, input }) => listQueue(ctx, input)),
   claim: command
     .meta({
-      description: "Claim the next ready ticket or recover a specified stale ticket",
+      description:
+        "Claim fresh ready work or explicitly continue a previously claimed ticket",
     })
     .input(claimInput)
     .mutation(async ({ ctx, input }) => {

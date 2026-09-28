@@ -1970,7 +1970,7 @@ describe("Given a worker managing a lease", () => {
       error: {
         code: "work_item_not_claimable",
         message:
-          "No ready work item is currently claimable. Specify a stale ticket to recover it.",
+          "No never-started ready work item is currently claimable. Specify a ticket ID to continue or recover earlier work.",
       },
     });
   });

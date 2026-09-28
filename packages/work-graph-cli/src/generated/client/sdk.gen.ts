@@ -188,7 +188,7 @@ export const moveKnowledgeScopePriority = <ThrowOnError extends boolean = false>
 /**
  * Claim a specified or first eligible work item
  *
- * Creates a fenced lease for the requested item, including recovery of its expired lease after graph blockers changed. When workItemId is absent, claims only the highest-priority ready item within the optional scope filters. Values within one inclusion dimension are alternatives, initiative and project filters must both match, and exclusions win. Empty inclusion arrays impose no restriction. The singular initiativeId and projectId fields remain deprecated one-item inclusion aliases. Explicit claims by workItemId reject every selection filter.
+ * Creates a fenced lease for the requested item, including continuation after resolved attention and recovery of its expired lease after graph blockers changed. When workItemId is absent, claims only the highest-priority ready item with no prior lease within the optional scope filters. Values within one inclusion dimension are alternatives, initiative and project filters must both match, and exclusions win. Empty inclusion arrays impose no restriction. The singular initiativeId and projectId fields remain deprecated one-item inclusion aliases. Explicit claims by workItemId reject every selection filter.
  */
 export const createLease = <ThrowOnError extends boolean = false>(options: Options<CreateLeaseData, ThrowOnError>): RequestResult<CreateLeaseResponses, CreateLeaseErrors, ThrowOnError> => options.client.post<CreateLeaseResponses, CreateLeaseErrors, ThrowOnError>({
     url: '/api/leases',

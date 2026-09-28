@@ -24,7 +24,8 @@ clients must set that variable to use the implicit active-lease workflow.
 
 1. Run `work-graph ready`. Inspect a candidate with `work-graph show <ticket>`.
 2. Run `work-graph claim [ticket]`. With no ticket, the server chooses the
-   highest-priority ready item.
+   highest-priority ready item that has never been claimed. Specify the ticket
+   ID to continue work after resolved attention or to recover a stale lease.
 3. Record durable findings or a handoff with
    `work-graph note <ticket> --content "..."`. The CLI finds the active lease
    and fencing epoch. Run `work-graph touch <ticket>` before a lease expires.

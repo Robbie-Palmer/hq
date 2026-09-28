@@ -1941,7 +1941,7 @@ const createLeaseRoute = createRoute({
   operationId: "createLease",
   summary: "Claim a specified or first eligible work item",
   description:
-    "Creates a fenced lease for the requested item, including recovery of its expired lease after graph blockers changed. When workItemId is absent, claims only the highest-priority ready item within the optional scope filters. Values within one inclusion dimension are alternatives, initiative and project filters must both match, and exclusions win. Empty inclusion arrays impose no restriction. The singular initiativeId and projectId fields remain deprecated one-item inclusion aliases. Explicit claims by workItemId reject every selection filter.",
+    "Creates a fenced lease for the requested item, including continuation after resolved attention and recovery of its expired lease after graph blockers changed. When workItemId is absent, claims only the highest-priority ready item with no prior lease within the optional scope filters. Values within one inclusion dimension are alternatives, initiative and project filters must both match, and exclusions win. Empty inclusion arrays impose no restriction. The singular initiativeId and projectId fields remain deprecated one-item inclusion aliases. Explicit claims by workItemId reject every selection filter.",
   tags: ["leases"],
   security: accessSecurity,
   request: {
@@ -3154,7 +3154,7 @@ export const createWorkGraphApp = (
             code: "work_item_not_claimable",
             message: "workItemId" in request
               ? `Work item ${request.workItemId} is neither ready nor recoverable stale work.`
-              : "No ready work item is currently claimable. Specify a stale ticket to recover it.",
+              : "No never-started ready work item is currently claimable. Specify a ticket ID to continue or recover earlier work.",
           },
         },
         409,

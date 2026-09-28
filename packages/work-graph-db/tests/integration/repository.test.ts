@@ -3301,7 +3301,7 @@ describe("lease-fenced notes and attention", () => {
     }
   });
 
-  it("ends a lease for blocking attention and allows another worker after resolution", async () => {
+  it("requires an explicit claim to resume work after attention resolution", async () => {
     await repository.createWorkItem({ id: "work", title: "Work" });
     const claimed = await repository.claimWorkItem({
       leaseId: recordId(206),
@@ -3385,8 +3385,26 @@ describe("lease-fenced notes and attention", () => {
       },
     ]);
     expect((await repository.getWorkItem("work")).stage).toBe("ready");
+    await expect(
+      repository.claimWorkItem({
+        leaseId: recordId(212),
+        workerId: "worker-b",
+        leaseDurationSeconds: 300,
+      }),
+    ).resolves.toBeNull();
+
+    await repository.createWorkItem({ id: "fresh", title: "Fresh work" });
+    const automaticClaim = await repository.claimWorkItem({
+      leaseId: recordId(213),
+      workerId: "worker-b",
+      leaseDurationSeconds: 300,
+    });
+    expect(automaticClaim).toEqual(
+      expect.objectContaining({ workItemId: "fresh", epoch: 1 }),
+    );
+
     const resumed = await repository.claimWorkItem({
-      leaseId: recordId(212),
+      leaseId: recordId(214),
       workerId: "worker-b",
       leaseDurationSeconds: 300,
       workItemId: "work",

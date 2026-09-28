@@ -233,7 +233,8 @@ Claiming and starting work is one transaction. A claim request contains a
 stable worker ID, optional scope filters, and optionally a specific work-item
 ID. The transaction should:
 
-1. Select an eligible item in queue order, including reclaimable stale work.
+1. Select an eligible never-started item in queue order for an automatic claim,
+   or validate the specified item for continuation or stale recovery.
 2. Lock the candidate with `FOR UPDATE SKIP LOCKED`.
 3. Create the lease and a monotonically increasing lease epoch.
 4. Append the claim event.
@@ -260,13 +261,10 @@ is resolved, recompute the normal readiness predicates. The item returns to
 `ready` only when its dependencies are satisfied and it has no non-terminal
 direct children; otherwise it projects as `blocked`.
 
-The item becomes claimable by any worker immediately after resolution. The
-lease history retains the previous worker ID, so later scheduling can prefer
-continuity without reserving the work or making it unavailable to others.
-
-The policy for choosing between a returning worker and another available
-worker is deliberately deferred. The MVP must retain enough information to add
-a soft preference without a schema migration.
+The item becomes explicitly claimable after resolution. Automatic claims skip
+items with lease history, so they cannot silently take continuation work. A
+returning worker or a deliberate replacement names the item when claiming it.
+Stale recovery uses the same explicit path after an active worker disappears.
 
 ## Stored lifecycle and derived stages
 
@@ -428,7 +426,8 @@ Pure domain scenarios should cover:
 - claim context ordering only the context that exists;
 - scope archiving preserving historical context while removing active rank;
 - attention removal from and readiness recomputation before queue return;
-- retention of the previous worker after attention resolution; and
+- explicit continuation after attention resolution;
+- automatic claims skipping items with lease history; and
 - pull requests informing work without becoming dependency edges.
 
 PostgreSQL integration scenarios should cover:
