@@ -11,5 +11,6 @@ export * from "./openrouter";
 export * from "./orchestration";
 export * from "./session";
 export * from "./task";
+export * from "./telemetry";
 export * from "./vocabulary";
 export * from "./work-graph";

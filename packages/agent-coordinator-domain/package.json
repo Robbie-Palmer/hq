@@ -18,6 +18,7 @@
     "./orchestration": "./src/orchestration.ts",
     "./session": "./src/session.ts",
     "./task": "./src/task.ts",
+    "./telemetry": "./src/telemetry.ts",
     "./vocabulary": "./src/vocabulary.ts",
     "./work-graph": "./src/work-graph.ts"
   },
