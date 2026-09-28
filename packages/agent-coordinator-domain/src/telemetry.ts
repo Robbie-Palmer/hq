@@ -6,10 +6,6 @@ import {
   type Logger,
 } from "@opentelemetry/api-logs";
 import { ATTR_ERROR_TYPE } from "@opentelemetry/semantic-conventions";
-import {
-  ATTR_GEN_AI_PROVIDER_NAME,
-  ATTR_GEN_AI_REQUEST_MODEL,
-} from "@opentelemetry/semantic-conventions/incubating";
 import { z } from "zod";
 
 import { redactAdapterText } from "./native-client";
@@ -21,6 +17,9 @@ import {
 
 const TimestampSchema = z.iso.datetime();
 const ReasonSchema = z.string().trim().min(1).max(2_000);
+// These attributes now live in the standalone OpenTelemetry GenAI conventions.
+const ATTR_GEN_AI_PROVIDER_NAME = "gen_ai.provider.name";
+const ATTR_GEN_AI_REQUEST_MODEL = "gen_ai.request.model";
 
 const TelemetryBaseSchema = z
   .object({
@@ -587,7 +586,7 @@ function providerRequestCost(
 function stringAttribute(attributes: LogAttributes, key: string): string {
   const value = attributes[key];
   if (typeof value !== "string") {
-    throw new Error(`Missing string attribute ${key}`);
+    throw new TypeError(`Missing string attribute ${key}`);
   }
   return value;
 }
@@ -595,7 +594,7 @@ function stringAttribute(attributes: LogAttributes, key: string): string {
 function numberAttribute(attributes: LogAttributes, key: string): number {
   const value = attributes[key];
   if (typeof value !== "number") {
-    throw new Error(`Missing number attribute ${key}`);
+    throw new TypeError(`Missing number attribute ${key}`);
   }
   return value;
 }
