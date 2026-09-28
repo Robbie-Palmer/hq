@@ -989,16 +989,28 @@ type TechnologyReferenceCheck = (
   field: string,
 ) => void;
 
-function periodsOverlap(
+function policyContainsUse(
   left: { adopted: string; until?: string },
   right: { effectiveFrom: string; effectiveUntil?: string },
 ): boolean {
   return (
+    compareUtcInstants(right.effectiveFrom, left.adopted) <= 0 &&
     (right.effectiveUntil === undefined ||
-      compareUtcInstants(left.adopted, right.effectiveUntil) < 0) &&
-    (left.until === undefined ||
-      compareUtcInstants(right.effectiveFrom, left.until) < 0)
+      (left.until !== undefined &&
+        compareUtcInstants(left.until, right.effectiveUntil) <= 0))
   );
+}
+
+function formatUseInterval(use: { adopted: string; until?: string }): string {
+  return `[${use.adopted}, ${use.until ?? "open"})`;
+}
+
+function formatPolicyInterval(policy: {
+  id: string;
+  effectiveFrom: string;
+  effectiveUntil?: string;
+}): string {
+  return `'${policy.id}' [${policy.effectiveFrom}, ${policy.effectiveUntil ?? "open"})`;
 }
 
 function validatePlatformDecisions(
@@ -1175,19 +1187,23 @@ function validateProjectLayerUse(
         message: `Project '${projectSlug}' references missing default slot '${slotUse.slot}'`,
       });
     }
-    const belongsToLayer = manifest.policies.some(
-      (policy) =>
-        policy.layer === use.layer &&
-        policy.slot === slotUse.slot &&
-        periodsOverlap(slotUse, policy),
+    const matchingPolicies = manifest.policies.filter(
+      (policy) => policy.layer === use.layer && policy.slot === slotUse.slot,
     );
-    if (!belongsToLayer) {
+    const containingPolicy = matchingPolicies.some((policy) =>
+      policyContainsUse(slotUse, policy),
+    );
+    if (!containingPolicy) {
+      const policyDetails =
+        matchingPolicies.length === 0
+          ? "no matching policy exists"
+          : `available policies are ${matchingPolicies.map(formatPolicyInterval).join(", ")}`;
       errors.push({
         type: "invalid_reference",
         entity: `Project[${projectSlug}]`,
         field: "platformLayers.slots",
         value: slotUse.slot,
-        message: `Project '${projectSlug}' activates slot '${slotUse.slot}' outside layer '${use.layer}'`,
+        message: `Project '${projectSlug}' slot use '${slotUse.slot}' ${formatUseInterval(slotUse)} is not fully contained by a policy for layer '${use.layer}'; ${policyDetails}`,
       });
     }
   }

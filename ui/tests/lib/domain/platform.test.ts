@@ -9,6 +9,7 @@ import {
   type PlatformManifest,
   PlatformManifestSchema,
   ProjectLayerUseSchema,
+  ProjectLayerUsesSchema,
   previousUtcInstant,
   resolveEffectiveProjectStack,
   UtcInstantSchema,
@@ -72,6 +73,97 @@ function sameDayManifest(linkReplacement = true): PlatformManifest {
 }
 
 describe("temporal platform layers", () => {
+  it("accepts a layer re-adoption at the prior period's exclusive boundary", () => {
+    const result = ProjectLayerUsesSchema.safeParse([
+      {
+        layer: "base",
+        adopted: "2026-09-12T09:00:00Z",
+        until: "2026-09-12T12:00:00Z",
+        tracking: false,
+        rationale: "Freeze the first adoption.",
+      },
+      {
+        layer: "base",
+        adopted: "2026-09-12T12:00:00Z",
+        tracking: true,
+        rationale: "Resume tracking after re-adoption.",
+      },
+    ]);
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects duplicate and overlapping layer-use periods with both records", () => {
+    const result = ProjectLayerUsesSchema.safeParse([
+      {
+        layer: "base",
+        adopted: "2026-09-12T09:00:00Z",
+        until: "2026-09-12T13:00:00Z",
+        tracking: false,
+        rationale: "First adoption.",
+      },
+      {
+        layer: "base",
+        adopted: "2026-09-12T12:00:00Z",
+        until: "2026-09-12T14:00:00Z",
+        tracking: false,
+        rationale: "Overlapping adoption.",
+      },
+      {
+        layer: "base",
+        adopted: "2026-09-12T12:00:00Z",
+        until: "2026-09-12T14:00:00Z",
+        tracking: false,
+        rationale: "Duplicate adoption.",
+      },
+    ]);
+
+    expect(result.success).toBe(false);
+    const messages = result.error?.issues.map((issue) => issue.message) ?? [];
+    expect(messages).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining(
+          "Overlapping project layer uses for 'base': platformLayers[0]",
+        ),
+        expect.stringContaining(
+          "Duplicate project layer uses for 'base': platformLayers[1]",
+        ),
+      ]),
+    );
+    expect(messages.join(" ")).toContain("platformLayers[2]");
+  });
+
+  it("rejects overlapping slot-use periods with both nested records", () => {
+    const result = ProjectLayerUsesSchema.safeParse([
+      {
+        layer: "database",
+        adopted: "2026-09-12T09:00:00Z",
+        tracking: true,
+        rationale: "Adopt database defaults.",
+        slots: [
+          {
+            slot: "database.relational-engine",
+            adopted: "2026-09-12T10:00:00Z",
+            until: "2026-09-12T13:00:00Z",
+            rationale: "Initial slot adoption.",
+          },
+          {
+            slot: "database.relational-engine",
+            adopted: "2026-09-12T12:00:00Z",
+            rationale: "Conflicting slot adoption.",
+          },
+        ],
+      },
+    ]);
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.message)).toContainEqual(
+      expect.stringContaining(
+        "platformLayers[0].slots[0] [2026-09-12T10:00:00Z, 2026-09-12T13:00:00Z) conflicts with platformLayers[0].slots[1] [2026-09-12T12:00:00Z, open)",
+      ),
+    );
+  });
+
   it("accepts half-open replacements on the same day and derives superseded status", () => {
     const result = PlatformManifestSchema.safeParse(sameDayManifest());
     expect(result.success).toBe(true);

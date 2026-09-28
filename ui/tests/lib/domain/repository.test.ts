@@ -1353,7 +1353,7 @@ Content`;
         );
       });
 
-      it("rejects a slot use outside its layer policy period", () => {
+      it("rejects a slot use that extends beyond its layer policy period", () => {
         const platformManifest = PlatformManifestSchema.parse({
           project: "platform",
           layers: [
@@ -1431,14 +1431,18 @@ Content`;
               platformLayers: [
                 {
                   layer: "base",
-                  adopted: "2026-01-03T00:00:00Z",
-                  tracking: true,
+                  adopted: "2026-01-01T12:00:00Z",
+                  until: "2026-01-03T00:00:00Z",
+                  tracking: false,
                   slots: [
                     {
                       slot: "tool.runner",
-                      adopted: "2026-01-03T00:00:00Z",
+                      adopted: "2026-01-01T12:00:00Z",
+                      until: "2026-01-03T00:00:00Z",
+                      rationale: "Use the runner while the project is active.",
                     },
                   ],
+                  rationale: "Freeze the project after delivery.",
                 },
               ],
             },
@@ -1487,6 +1491,9 @@ Content`;
             entity: "Project[test-project]",
             field: "platformLayers.slots",
             value: "tool.runner",
+            message: expect.stringContaining(
+              "'base-runner' [2026-01-01T00:00:00Z, 2026-01-02T00:00:00Z)",
+            ),
           }),
         );
       });
