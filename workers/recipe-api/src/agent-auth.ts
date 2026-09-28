@@ -13,8 +13,18 @@ import { and, desc, eq, ilike, or } from "drizzle-orm";
 import type { Db } from "recipe-db";
 import * as schema from "recipe-db/schema";
 import { MAX_PANTRY_ITEMS, PANTRY_LOCATIONS } from "recipe-domain/pantry";
+import {
+  RECIPE_IMPORT_MAX_IMAGES,
+  RECIPE_IMPORT_STAGES,
+  RECIPE_IMPORT_STATUSES,
+} from "recipe-domain/import-storage";
 import { RECIPE_VISIBILITIES } from "recipe-domain/visibility";
 import { z } from "zod";
+import {
+  type AgentRecipeImportServices,
+  createAgentRecipeImport,
+  readAgentRecipeImportStatus,
+} from "./agent-recipe-imports";
 import {
   cookingInsightsResponse,
   cookingLogResponse,
@@ -74,6 +84,21 @@ const recipeDatasetInspectInput = z
   .object({
     sampleSize: z.number().int().min(1).max(200).default(100),
     top: z.number().int().min(1).max(25).default(10),
+  })
+  .strict();
+
+const recipeImportCreateInput = z
+  .object({
+    imageUrls: z.array(z.url()).min(1).max(RECIPE_IMPORT_MAX_IMAGES),
+    idempotencyKey: z.uuid(),
+    reason: z.string().trim().min(1).max(500),
+  })
+  .strict();
+
+const recipeImportStatusInput = z
+  .object({
+    jobId: z.uuid().optional(),
+    limit: z.number().int().min(1).max(20).default(10),
   })
   .strict();
 
@@ -348,6 +373,53 @@ const shoppingListSnapshotSchema = {
   },
 } as const;
 
+const recipeImportSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "id",
+    "status",
+    "currentStage",
+    "progressLabel",
+    "imageCount",
+    "error",
+    "createdAt",
+    "finishedAt",
+  ],
+  properties: {
+    id: { type: "string", format: "uuid" },
+    status: { enum: RECIPE_IMPORT_STATUSES },
+    currentStage: {
+      anyOf: [
+        { enum: RECIPE_IMPORT_STAGES },
+        { type: "null" },
+      ],
+    },
+    progressLabel: { type: ["string", "null"] },
+    imageCount: {
+      type: "integer",
+      minimum: 1,
+      maximum: RECIPE_IMPORT_MAX_IMAGES,
+    },
+    error: {
+      anyOf: [
+        {
+          type: "object",
+          additionalProperties: false,
+          required: ["type", "message"],
+          properties: {
+            type: { type: ["string", "null"] },
+            message: { type: "string" },
+          },
+        },
+        { type: "null" },
+      ],
+    },
+    createdAt: { type: "string", format: "date-time" },
+    finishedAt: { type: ["string", "null"], format: "date-time" },
+  },
+} as const;
+
 export const RECIPE_SITE_AGENT_CAPABILITIES = [
   {
     name: "recipes.search",
@@ -442,6 +514,57 @@ export const RECIPE_SITE_AGENT_CAPABILITIES = [
       },
     },
     output: recipeDatasetInspectionSchema,
+  },
+  {
+    name: "recipe_import.create",
+    description:
+      "Create an attributed recipe-photo import from bounded public image URLs. The resulting draft is never published automatically.",
+    approvalStrength: "session",
+    grantTTL: READ_GRANT_TTL_SECONDS,
+    input: {
+      type: "object",
+      additionalProperties: false,
+      required: ["imageUrls", "idempotencyKey", "reason"],
+      properties: {
+        imageUrls: {
+          type: "array",
+          minItems: 1,
+          maxItems: RECIPE_IMPORT_MAX_IMAGES,
+          items: { type: "string", format: "uri", maxLength: 2_048 },
+        },
+        idempotencyKey: { type: "string", format: "uuid" },
+        reason: { type: "string", minLength: 1, maxLength: 500 },
+      },
+    },
+    output: {
+      type: "object",
+      additionalProperties: false,
+      required: ["import", "replayed"],
+      properties: { import: recipeImportSchema, replayed: { type: "boolean" } },
+    },
+  },
+  {
+    name: "recipe_import.status",
+    description:
+      "Read bounded import status for the delegated user without exposing source uploads, storage keys, prompts, or private extraction artifacts.",
+    approvalStrength: "session",
+    grantTTL: READ_GRANT_TTL_SECONDS,
+    input: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        jobId: { type: "string", format: "uuid" },
+        limit: { type: "integer", minimum: 1, maximum: 20, default: 10 },
+      },
+    },
+    output: {
+      type: "object",
+      additionalProperties: false,
+      required: ["imports"],
+      properties: {
+        imports: { type: "array", maxItems: 20, items: recipeImportSchema },
+      },
+    },
   },
   {
     name: "pantry.read",
@@ -608,6 +731,7 @@ type AgentCapabilityHandler = (
   db: Db,
   args: Record<string, unknown> | undefined,
   agentSession: AgentSession,
+  services: AgentRecipeImportServices,
 ) => Promise<AgentCapabilityResult>;
 
 async function searchRecipes(
@@ -666,6 +790,32 @@ async function inspectDataset(
 ) {
   const input = recipeDatasetInspectInput.parse(args ?? {});
   return inspectRecipeDataset(db, agentSession.user.id, input);
+}
+
+async function createRecipeImport(
+  db: Db,
+  args: Record<string, unknown> | undefined,
+  agentSession: AgentSession,
+  services: AgentRecipeImportServices,
+) {
+  return createAgentRecipeImport(
+    db,
+    services,
+    agentSession,
+    recipeImportCreateInput.parse(args ?? {}),
+  );
+}
+
+async function readRecipeImportStatus(
+  db: Db,
+  args: Record<string, unknown> | undefined,
+  agentSession: AgentSession,
+) {
+  return readAgentRecipeImportStatus(
+    db,
+    agentSession.user.id,
+    recipeImportStatusInput.parse(args ?? {}),
+  );
 }
 
 async function readPantryCapability(
@@ -742,6 +892,8 @@ type AgentCapabilityResult =
   | Awaited<ReturnType<typeof searchRecipes>>
   | Awaited<ReturnType<typeof readRecipe>>
   | Awaited<ReturnType<typeof inspectDataset>>
+  | Awaited<ReturnType<typeof createRecipeImport>>
+  | Awaited<ReturnType<typeof readRecipeImportStatus>>
   | Awaited<ReturnType<typeof readPantryCapability>>
   | Awaited<ReturnType<typeof readShoppingList>>
   | Awaited<ReturnType<typeof readCookLog>>
@@ -751,6 +903,8 @@ const agentCapabilityHandlers: Record<string, AgentCapabilityHandler> = {
   "recipes.search": searchRecipes,
   "recipes.read": readRecipe,
   "recipes.dataset.inspect": inspectDataset,
+  "recipe_import.create": createRecipeImport,
+  "recipe_import.status": readRecipeImportStatus,
   "pantry.read": readPantryCapability,
   "shopping_list.read": readShoppingList,
   "cook_log.read": readCookLog,
@@ -762,10 +916,11 @@ export async function executeRecipeAgentCapability(
   capability: string,
   args: Record<string, unknown> | undefined,
   agentSession: AgentSession,
+  services: AgentRecipeImportServices = {},
 ) {
   const handler = agentCapabilityHandlers[capability];
   if (!handler) throw new Error(`Unsupported agent capability: ${capability}`);
-  return handler(db, args, agentSession);
+  return handler(db, args, agentSession, services);
 }
 
 async function writeAgentAuthAuditRecord(
@@ -775,14 +930,17 @@ async function writeAgentAuthAuditRecord(
   await db.insert(schema.agentAuthAuditEvent).values(record);
 }
 
-export function createRecipeAgentAuthPlugin(db: Db) {
+export function createRecipeAgentAuthPlugin(
+  db: Db,
+  services: AgentRecipeImportServices = {},
+) {
   const onExecute = createAgentExecutionHandler({
     limits: AGENT_EXECUTION_RATE_LIMITS,
     consumeRateLimit: (key, rule) =>
       enforceRateLimit(db, key, { ...rule, failClosed: true }),
     audit: (event) => writeAgentAuthAuditRecord(db, event),
     execute: ({ capability, arguments: args, agentSession }) =>
-      executeRecipeAgentCapability(db, capability, args, agentSession),
+      executeRecipeAgentCapability(db, capability, args, agentSession, services),
   });
   return createAgentAuthPlugin({
     providerName: AGENT_AUTH_PROVIDER_NAME,

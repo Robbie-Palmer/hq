@@ -11,11 +11,16 @@ import {
   X,
 } from "lucide-react";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
+import {
+  RECIPE_IMPORT_IMAGE_MIME_TYPES,
+  RECIPE_IMPORT_MAX_IMAGE_BYTES,
+  RECIPE_IMPORT_MAX_IMAGES,
+  RECIPE_IMPORT_MAX_TOTAL_BYTES,
+  type RecipeImportStatus,
+} from "recipe-domain/import-storage";
 import { isRecord } from "ts-base/records";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/api/http";
-
-type PhotoImportStatus = "queued" | "running" | "succeeded" | "failed";
 
 export type PhotoRecipeImportDraft = {
   cooklang: {
@@ -41,7 +46,7 @@ export type PhotoRecipeImportDraft = {
 
 type PhotoImportJob = {
   id: string;
-  status: PhotoImportStatus;
+  status: RecipeImportStatus;
   progressLabel?: string | null;
   error?: { message?: string };
   draft?: PhotoRecipeImportDraft;
@@ -49,11 +54,8 @@ type PhotoImportJob = {
 
 const PHOTO_IMPORT_POLL_INTERVAL_MS = 1_500;
 const MAX_PHOTO_POLL_FAILURES = 3;
-const MAX_PHOTO_COUNT = 6;
-const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
-const MAX_TOTAL_PHOTO_BYTES = 30 * 1024 * 1024;
 const MAX_RECIPE_SOURCE_LENGTH = 10_000;
-const ACCEPTED_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const ACCEPTED_PHOTO_TYPES = new Set<string>(RECIPE_IMPORT_IMAGE_MIME_TYPES);
 
 function hasOptionalString(record: Record<string, unknown>, key: string) {
   return record[key] === undefined || typeof record[key] === "string";
@@ -134,7 +136,9 @@ async function fetchPhotoImportJob(
   return body;
 }
 
-function ImportStatusIcon({ status }: Readonly<{ status: PhotoImportStatus }>) {
+function ImportStatusIcon({
+  status,
+}: Readonly<{ status: RecipeImportStatus }>) {
   if (status === "succeeded") {
     return (
       <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[var(--sage)]" />
@@ -150,7 +154,7 @@ function ImportStatusIcon({ status }: Readonly<{ status: PhotoImportStatus }>) {
 
 function importButtonLabel(
   uploading: boolean,
-  status?: PhotoImportStatus,
+  status?: RecipeImportStatus,
 ): string {
   if (uploading) return "Uploading…";
   if (status === "queued" || status === "running") return "Reading recipe…";
@@ -345,20 +349,24 @@ export function PhotoRecipeImport({
       setError("Choose JPEG, PNG, or WebP images.");
       return;
     }
-    const oversized = incoming.find((file) => file.size > MAX_PHOTO_BYTES);
+    const oversized = incoming.find(
+      (file) => file.size > RECIPE_IMPORT_MAX_IMAGE_BYTES,
+    );
     if (oversized) {
       setError(`“${oversized.name}” is larger than 10 MB.`);
       return;
     }
-    if (files.length + incoming.length > MAX_PHOTO_COUNT) {
-      setError(`You can import up to ${MAX_PHOTO_COUNT} photos at once.`);
+    if (files.length + incoming.length > RECIPE_IMPORT_MAX_IMAGES) {
+      setError(
+        `You can import up to ${RECIPE_IMPORT_MAX_IMAGES} photos at once.`,
+      );
       return;
     }
     const totalBytes = [...files, ...incoming].reduce(
       (total, file) => total + file.size,
       0,
     );
-    if (totalBytes > MAX_TOTAL_PHOTO_BYTES) {
+    if (totalBytes > RECIPE_IMPORT_MAX_TOTAL_BYTES) {
       setError("Selected photos must total 30 MB or less.");
       return;
     }
@@ -418,14 +426,14 @@ export function PhotoRecipeImport({
       <div>
         <p className="rt-mono text-[var(--ink-3)]">Recipe photos</p>
         <p className="mt-1 text-xs text-[var(--ink-3)]">
-          Add up to six clear photos. Include every ingredient list and
-          instruction page.
+          Add up to {RECIPE_IMPORT_MAX_IMAGES} clear photos. Include every
+          ingredient list and instruction page.
         </p>
       </div>
       <input
         ref={cameraInputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        accept={RECIPE_IMPORT_IMAGE_MIME_TYPES.join(",")}
         capture="environment"
         className="sr-only"
         aria-label="Take a recipe photo"
@@ -435,7 +443,7 @@ export function PhotoRecipeImport({
       <input
         ref={photoInputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        accept={RECIPE_IMPORT_IMAGE_MIME_TYPES.join(",")}
         multiple
         className="sr-only"
         aria-label="Choose recipe photos"

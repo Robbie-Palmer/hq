@@ -19,7 +19,6 @@ import {
   eq,
   exists,
   gt,
-  gte,
   inArray,
   isNull,
   lt,
@@ -54,11 +53,16 @@ import {
 import { RecipeVisibilitySchema } from "recipe-domain/visibility";
 import {
   importJobPrefix,
+  recipeImportImageExtension,
+  RECIPE_IMPORT_MAX_IMAGE_BYTES,
+  RECIPE_IMPORT_MAX_IMAGES,
+  RECIPE_IMPORT_MAX_TOTAL_BYTES,
   sourceImageKey,
 } from "recipe-domain/import-storage";
 import { parseRecipeFile } from "recipe-parsing/recipe-file";
 import { parseSchemaOrgRecipeHtml } from "recipe-parsing/schema-org";
 import { recipeAgentConfiguration } from "./agent-auth";
+import { recipeImportQuotaReason } from "./agent-recipe-imports";
 import { createAuth, isPreviewAuthEnabled } from "./auth";
 import { verifyCloudflareAccess } from "./cloudflare-access";
 import { cookingInsightsResponse } from "./cooking-reads";
@@ -5772,17 +5776,6 @@ registerRoute("delete", "/recipes/:slug", async (c) => {
 // This API owns recipe photo import auth, quotas, job creation,
 // and status reads; the recipe-ingest Workflow owns the parsing chain.
 
-const RECIPE_IMPORT_MAX_IMAGES = 6;
-const RECIPE_IMPORT_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
-const RECIPE_IMPORT_MAX_ACTIVE_JOBS = 2;
-const RECIPE_IMPORT_DAILY_JOB_LIMIT = 10;
-const RECIPE_IMPORT_MAX_TOTAL_BYTES = 30 * 1024 * 1024;
-const RECIPE_IMPORT_IMAGE_EXTENSIONS: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-};
-
 const recipeImportIdSchema = z.string().uuid();
 
 function importJobResponse(job: RecipeImportJob) {
@@ -5835,7 +5828,7 @@ async function parseImportImages(
         response: c.json({ error: "images must be file uploads" }, 400),
       };
     }
-    const extension = RECIPE_IMPORT_IMAGE_EXTENSIONS[entry.type];
+    const extension = recipeImportImageExtension(entry.type);
     if (!extension) {
       return {
         success: false,
@@ -5927,9 +5920,6 @@ registerRoute("post", "/recipe-imports", async (c) => {
       if (!parsed.success) return parsed.response;
       const { images } = parsed;
 
-      const dayStart = new Date();
-      dayStart.setUTCHours(0, 0, 0, 0);
-
       type QuotaOutcome =
         | { ok: true; job: RecipeImportJob }
         | { ok: false; reason: "active" | "daily" };
@@ -5942,31 +5932,8 @@ registerRoute("post", "/recipe-imports", async (c) => {
           .where(eq(schema.user.id, userId))
           .for("update");
 
-        const [active] = await tx
-          .select({ value: count() })
-          .from(schema.recipeImportJob)
-          .where(
-            and(
-              eq(schema.recipeImportJob.userId, userId),
-              inArray(schema.recipeImportJob.status, ["queued", "running"]),
-            ),
-          );
-        if ((active?.value ?? 0) >= RECIPE_IMPORT_MAX_ACTIVE_JOBS) {
-          return { ok: false, reason: "active" };
-        }
-
-        const [today] = await tx
-          .select({ value: count() })
-          .from(schema.recipeImportJob)
-          .where(
-            and(
-              eq(schema.recipeImportJob.userId, userId),
-              gte(schema.recipeImportJob.createdAt, dayStart),
-            ),
-          );
-        if ((today?.value ?? 0) >= RECIPE_IMPORT_DAILY_JOB_LIMIT) {
-          return { ok: false, reason: "daily" };
-        }
+        const quotaReason = await recipeImportQuotaReason(tx, userId);
+        if (quotaReason) return { ok: false, reason: quotaReason };
 
         const [job] = await tx
           .insert(schema.recipeImportJob)

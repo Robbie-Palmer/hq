@@ -15,6 +15,10 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import {
+  RECIPE_IMPORT_STAGES,
+  RECIPE_IMPORT_STATUSES,
+} from "recipe-domain/import-storage";
 import { RECIPE_VISIBILITIES } from "recipe-domain/visibility";
 import { MUTATION_ACTOR_TYPES } from "recipe-domain/mutation";
 import {
@@ -1057,19 +1061,15 @@ export const appRateLimit = pgTable("app_rate_limit", {
 // Postgres is the source of truth for recipe import job state;
 // R2 holds the immutable source images and stage artifact snapshots.
 
-export const recipeImportStatusEnum = pgEnum("recipe_import_status", [
-  "queued",
-  "running",
-  "succeeded",
-  "failed",
-]);
+export const recipeImportStatusEnum = pgEnum(
+  "recipe_import_status",
+  RECIPE_IMPORT_STATUSES,
+);
 
-export const recipeImportStageEnum = pgEnum("recipe_import_stage", [
-  "extract",
-  "normalize",
-  "canonicalize",
-  "finalize",
-]);
+export const recipeImportStageEnum = pgEnum(
+  "recipe_import_stage",
+  RECIPE_IMPORT_STAGES,
+);
 
 export const recipeImportJob = pgTable(
   "recipe_import_job",

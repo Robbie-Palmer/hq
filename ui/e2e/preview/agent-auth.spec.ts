@@ -23,6 +23,8 @@ const requestedCapabilities = [
   "recipes.search",
   "recipes.read",
   "recipes.dataset.inspect",
+  "recipe_import.create",
+  "recipe_import.status",
   "pantry.read",
 ] as const;
 const jwtClockSkewSeconds = 5;
@@ -395,6 +397,19 @@ test.describe("deployed delegated Agent Auth", () => {
       );
       expect(JSON.stringify(dataset)).not.toContain(
         "preview-private-weeknight-pasta",
+      );
+
+      const importStatus = await executeCapability<{ imports: unknown[] }>(
+        agentContext,
+        discovery,
+        agentIdentity,
+        registration,
+        "recipe_import.status",
+        { limit: 20 },
+      );
+      expect(importStatus.imports).toHaveLength(0);
+      expect(JSON.stringify(importStatus)).not.toMatch(
+        /r2Key|prompt|preview|source/,
       );
 
       const pantry = await executeCapability<{

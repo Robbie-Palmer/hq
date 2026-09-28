@@ -239,6 +239,8 @@ const requestedCapabilities = [
   "recipes.search",
   "recipes.read",
   "recipes.dataset.inspect",
+  "recipe_import.create",
+  "recipe_import.status",
   "pantry.read",
   "cook_log.read",
   "cooking_insights.read",
@@ -493,6 +495,35 @@ if (
   dataset.data.sample.ingredients.distinct < 1
 ) {
   throw new Error("Recipe dataset inspection omitted seeded visible recipes");
+}
+
+const importStatusToken = await agentJWT(
+  agentKeys.privateKey,
+  agentKid,
+  registration.agent_id,
+  registration.host_id,
+  discovery.issuer,
+  "recipe_import.status",
+);
+const importStatusResponse = await execute(
+  discovery.endpoints.execute,
+  importStatusToken,
+  "recipe_import.status",
+  { limit: 20 },
+);
+if (!importStatusResponse.ok) {
+  throw new Error(
+    `Recipe import status failed: ${await importStatusResponse.text()}`,
+  );
+}
+const importStatus = (await importStatusResponse.json()) as {
+  data: { imports: unknown[] };
+};
+if (
+  importStatus.data.imports.length > 20 ||
+  /r2Key|prompt|preview|source/.test(JSON.stringify(importStatus.data))
+) {
+  throw new Error("Recipe import status exposed unbounded or private data");
 }
 
 const pantryToken = await agentJWT(
