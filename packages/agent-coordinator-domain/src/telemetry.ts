@@ -353,14 +353,7 @@ export type PublicWorkEvidence = z.infer<typeof PublicWorkEvidenceSchema>;
 export function toPublicWorkEvidence(
   event: ExecutionTelemetryEvent,
 ): PublicWorkEvidence {
-  const outcome =
-    event.eventType === "routing-decision"
-      ? event.decision
-      : event.eventType === "provider-request" ||
-          event.eventType === "session-outcome" ||
-          event.eventType === "intervention"
-        ? event.outcome
-        : undefined;
+  const outcome = publicOutcome(event);
   return PublicWorkEvidenceSchema.parse({
     schemaVersion: AGENT_COORDINATOR_CONTRACT_VERSION,
     recordType: "coordinator-work-evidence",
@@ -374,6 +367,18 @@ export function toPublicWorkEvidence(
     kind: event.eventType,
     ...(outcome ? { outcome } : {}),
   });
+}
+
+function publicOutcome(event: ExecutionTelemetryEvent): string | undefined {
+  if (event.eventType === "routing-decision") return event.decision;
+  if (
+    event.eventType === "provider-request" ||
+    event.eventType === "session-outcome" ||
+    event.eventType === "intervention"
+  ) {
+    return event.outcome;
+  }
+  return undefined;
 }
 
 function sanitizeEvent(event: ExecutionTelemetryEvent): ExecutionTelemetryEvent {
