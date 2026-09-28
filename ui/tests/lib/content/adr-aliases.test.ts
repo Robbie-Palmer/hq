@@ -5,8 +5,8 @@ import { legacyADRAliases } from "@/content/adr-aliases";
 
 describe("legacy ADR aliases", () => {
   it("inventories every historical ADR URL exactly once", () => {
-    expect(legacyADRAliases).toHaveLength(143);
-    expect(new Set(legacyADRAliases.map(({ alias }) => alias)).size).toBe(143);
+    expect(legacyADRAliases).toHaveLength(146);
+    expect(new Set(legacyADRAliases.map(({ alias }) => alias)).size).toBe(146);
   });
 
   it("preserves every authored stub body as migration evidence", () => {
@@ -30,7 +30,7 @@ describe("legacy ADR aliases", () => {
       return aliasProject === targetProject;
     });
 
-    expect(compactedAliases).toHaveLength(64);
+    expect(compactedAliases).toHaveLength(62);
   });
 
   it.each([
@@ -39,7 +39,7 @@ describe("legacy ADR aliases", () => {
     "personal-knowledge-graph",
     "recipe-site",
     "work-graph",
-  ])("keeps %s ADR numbers contiguous from 000", (projectSlug) => {
+  ])("keeps %s ADR numbers unique and ordered", (projectSlug) => {
     const adrDir = path.join(
       process.cwd(),
       "content",
@@ -52,10 +52,7 @@ describe("legacy ADR aliases", () => {
       .filter((file) => file.endsWith(".mdx"))
       .sort()
       .map((file) => file.slice(0, 3));
-    const expectedNumbers = actualNumbers.map((_, index) =>
-      String(index).padStart(3, "0"),
-    );
-
-    expect(actualNumbers).toEqual(expectedNumbers);
+    expect(new Set(actualNumbers).size).toBe(actualNumbers.length);
+    expect(actualNumbers).toEqual([...actualNumbers].sort());
   });
 });

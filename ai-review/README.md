@@ -1,9 +1,7 @@
 # Stateful AI review
 
 This top-level project is the deployable service proposed by
-[ADR 055](../ui/content/projects/personal-knowledge-graph/adrs/055-stateful-ai-code-review.mdx).
-The ADR remains in the Personal Knowledge Graph content tree for now, but the
-service is not a Personal Knowledge Graph runtime component.
+[Agentic Code Review ADR 001](../ui/content/projects/agentic-code-review/adrs/001-stateful-ai-code-review.mdx).
 
 The service is a visible, stateful publisher. A Worker verifies GitHub App
 webhook signatures and rejects other repositories. One SQLite Durable Object

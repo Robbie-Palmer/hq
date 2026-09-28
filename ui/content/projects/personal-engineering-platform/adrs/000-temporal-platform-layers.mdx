@@ -8,6 +8,8 @@ status: "Accepted"
 
 Shared ADR stubs made project histories read like dependency manifests and
 could not preserve which default applied before a project was completed.
+The Personal Knowledge Graph stores and renders these records, but that
+representation does not own the policies recorded here.
 
 ## Decision
 
@@ -15,6 +17,10 @@ Own shared defaults in this project. Record slot policy, technology selection,
 and project adoption as separate dated records with half-open UTC periods.
 Projects explicitly adopt each independent layer they use and keep local ADRs
 for their own choices and overrides.
+
+This project owns the layer and slot definitions, their default selections,
+and the contract for a project's dated adoption. The Personal Knowledge Graph
+owns loading, validating, querying, and rendering those records.
 
 ## Consequences
 

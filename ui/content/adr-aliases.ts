@@ -365,7 +365,7 @@ export const legacyADRAliases = [
   },
   {
     alias: "recipe-site:043-custom-agentic-code-review",
-    target: "personal-knowledge-graph:046-custom-agentic-code-review",
+    target: "agentic-code-review:000-custom-agentic-code-review",
   },
   {
     alias: "recipe-site:044-trivy",
@@ -414,6 +414,20 @@ export const legacyADRAliases = [
     target: "personal-knowledge-graph:034-shortcut",
     notes:
       "Shortcut remains the authoritative tracker outside any explicitly bounded Work\nGraph pilot while Work Graph proves that it can replace the existing capture,\nranking, and review workflow. Inheriting the decision here gives Work Graph\nownership of that eventual cutover without pretending it has already happened.\n",
+  },
+  // Canonical ownership redirects retained after moving domain decisions out
+  // of the Personal Knowledge Graph project.
+  {
+    alias: "personal-knowledge-graph:046-custom-agentic-code-review",
+    target: "agentic-code-review:000-custom-agentic-code-review",
+  },
+  {
+    alias: "personal-knowledge-graph:055-stateful-ai-code-review",
+    target: "agentic-code-review:001-stateful-ai-code-review",
+  },
+  {
+    alias: "personal-knowledge-graph:056-food-ontology-alignment",
+    target: "recipe-site:026-food-ontology-alignment",
   },
   // Canonical URLs retained after compacting project-local ADR sequences.
   {
@@ -538,11 +552,11 @@ export const legacyADRAliases = [
   },
   {
     alias: "personal-knowledge-graph:056-stateful-ai-code-review",
-    target: "personal-knowledge-graph:055-stateful-ai-code-review",
+    target: "agentic-code-review:001-stateful-ai-code-review",
   },
   {
     alias: "personal-knowledge-graph:057-food-ontology-alignment",
-    target: "personal-knowledge-graph:056-food-ontology-alignment",
+    target: "recipe-site:026-food-ontology-alignment",
   },
   {
     alias: "personal-knowledge-graph:058-project-pitch-decks",

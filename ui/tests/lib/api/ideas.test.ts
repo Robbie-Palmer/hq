@@ -135,9 +135,9 @@ describe("ideas API", () => {
       getIdeasForADR("recipe-site:002-openrouter").map((idea) => idea.slug),
     ).toEqual(["intelligent-document-processing", "nlp", "ocr"]);
     expect(
-      getIdeasForADR(
-        "personal-knowledge-graph:056-food-ontology-alignment",
-      ).map((idea) => idea.slug),
+      getIdeasForADR("recipe-site:026-food-ontology-alignment").map(
+        (idea) => idea.slug,
+      ),
     ).toEqual(["ontology-engineering"]);
     expect(
       getIdeasForADR("recipe-site:009-sonarqube").map((idea) => idea.slug),

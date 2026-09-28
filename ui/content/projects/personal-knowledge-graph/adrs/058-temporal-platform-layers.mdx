@@ -15,6 +15,12 @@ Project ADR lists will contain project-specific decisions and deliberate
 overrides. The knowledge graph will derive applicable platform technologies
 without copying dozens of inherited ADRs into each project.
 
+This record owns the knowledge graph representation and this project's dated
+adoption of that representation. The Personal Engineering Platform owns layer
+definitions, slot policy, default selections, and the adoption contract that
+projects consume. Keeping those responsibilities separate prevents a content
+model decision from becoming the owner of platform policy.
+
 ## Context
 
 The Personal Site is both a public project and the git-managed knowledge base
