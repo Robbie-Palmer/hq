@@ -493,6 +493,7 @@ test("execute mode blocks underpowered decisions unless an explicit pilot is all
     "../packages/openrouter-client/src/index.ts",
     "../packages/ts-base/src/http.ts",
     "../packages/ts-base/src/numbers.ts",
+    "../packages/ts-base/src/records.ts",
     "../packages/ts-base/src/strings.ts",
   ]) {
     const file = path.resolve(fakeAiReviewRoot, relative);

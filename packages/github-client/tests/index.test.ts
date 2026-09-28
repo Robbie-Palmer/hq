@@ -55,7 +55,7 @@ describe("GithubClient", () => {
     });
 
     await expect(
-      client.paginate<number>("/repos/acme/widgets/issues", {
+      client.paginateByPageNumber<number>("/repos/acme/widgets/issues", {
         perPage: 2,
         query: { state: "open" },
       }),
@@ -76,7 +76,7 @@ describe("GithubClient", () => {
     });
 
     await expect(
-      client.paginate<number>("/repos/acme/widgets/issues", {
+      client.paginateByPageNumber<number>("/repos/acme/widgets/issues", {
         perPage: 2,
         maxPages: 2,
       }),
@@ -89,10 +89,10 @@ describe("GithubClient", () => {
     });
 
     await expect(
-      client.paginate("/repos/acme/widgets/issues", { perPage: 101 }),
+      client.paginateByPageNumber("/repos/acme/widgets/issues", { perPage: 101 }),
     ).rejects.toThrow(RangeError);
     await expect(
-      client.paginate("/repos/acme/widgets/issues", { maxPages: 0 }),
+      client.paginateByPageNumber("/repos/acme/widgets/issues", { maxPages: 0 }),
     ).rejects.toThrow(RangeError);
   });
 
@@ -108,7 +108,7 @@ describe("GithubClient", () => {
 
   it("creates a GitHub App installation token with the bounded request", async () => {
     const fetch = vi.fn().mockResolvedValue(Response.json({ ok: true }));
-    const privateKey = ["-----BEGIN", "PRIVATE", "KEY-----"].join(" ") + "\ntest";
+    const privateKey = `${["-----BEGIN", "PRIVATE", "KEY-----"].join(" ")}\ntest`;
     mocks.authenticate.mockResolvedValue({ token: "installation-token" });
 
     await expect(
@@ -146,8 +146,8 @@ describe("GithubClient", () => {
       fetch,
     });
 
-    await expect(client.paginate("/repos/acme/widgets/issues")).rejects.toThrow(
-      "must return an array",
-    );
+    await expect(
+      client.paginateByPageNumber("/repos/acme/widgets/issues"),
+    ).rejects.toThrow("must return an array");
   });
 });

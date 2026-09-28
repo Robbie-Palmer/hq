@@ -46,6 +46,7 @@ const RUNNER_FILES = [
   "../packages/openrouter-client/src/index.ts",
   "../packages/ts-base/src/http.ts",
   "../packages/ts-base/src/numbers.ts",
+  "../packages/ts-base/src/records.ts",
   "../packages/ts-base/src/strings.ts",
 ];
 

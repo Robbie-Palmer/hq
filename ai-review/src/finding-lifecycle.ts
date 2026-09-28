@@ -100,7 +100,7 @@ async function existingFindingComments(options: {
   botLogin: string;
 }): Promise<Map<string, number>> {
   const byFinding = new Map<string, number>();
-  const collected = await options.client.paginate<ExistingReviewComment>(
+  const collected = await options.client.paginateByPageNumber<ExistingReviewComment>(
     `/repos/${options.repository}/pulls/${options.pullRequestNumber}/comments`,
     { maxPages: 10 },
   );

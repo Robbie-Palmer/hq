@@ -10,12 +10,14 @@ export interface JsonClientOptions {
   timeoutMs?: number;
   retries?: number;
   fetch?: typeof fetch;
+  now?: () => number;
   random?: () => number;
   wait?: (milliseconds: number) => Promise<void>;
 }
 
 const DEFAULT_TIMEOUT_MS = 300_000;
 const DEFAULT_RETRIES = 3;
+const IDEMPOTENT_METHODS = new Set(["DELETE", "GET", "HEAD", "OPTIONS", "PUT"]);
 const RETRYABLE_HTTP_STATUSES = new Set([408, 409, 429, 500, 502, 503, 504]);
 
 function webCryptoRandom(): number {
@@ -30,14 +32,20 @@ function defaultWait(milliseconds: number): Promise<void> {
 
 function retryDelay(
   attempt: number,
+  now: () => number,
   random: () => number,
   retryAfter?: string | null,
 ): number {
-  const retryAfterSeconds = Number.parseInt(retryAfter ?? "", 10);
-  const base = Number.isFinite(retryAfterSeconds)
-    ? retryAfterSeconds * 1_000
-    : 2 ** attempt * 1_000;
-  return Math.min(base + random() * 1_000, 15_000);
+  const value = retryAfter?.trim() ?? "";
+  const seconds = Number(value);
+  if (/^\d+$/.test(value) && Number.isSafeInteger(seconds)) {
+    return seconds * 1_000 + random() * 1_000;
+  }
+  const retryAt = Date.parse(value);
+  if (value && Number.isFinite(retryAt)) {
+    return Math.max(0, retryAt - now()) + random() * 1_000;
+  }
+  return Math.min(2 ** attempt * 1_000 + random() * 1_000, 15_000);
 }
 
 function requestError(error: unknown): Error {
@@ -74,6 +82,7 @@ export class JsonClient {
   readonly #timeoutMs: number;
   readonly #retries: number;
   readonly #fetch: typeof fetch;
+  readonly #now: () => number;
   readonly #random: () => number;
   readonly #wait: (milliseconds: number) => Promise<void>;
 
@@ -87,6 +96,7 @@ export class JsonClient {
     this.#timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.#retries = options.retries ?? DEFAULT_RETRIES;
     this.#fetch = options.fetch ?? fetch;
+    this.#now = options.now ?? Date.now;
     this.#random = options.random ?? webCryptoRandom;
     this.#wait = options.wait ?? defaultWait;
   }
@@ -96,7 +106,9 @@ export class JsonClient {
     path: string,
     options: JsonRequestOptions = {},
   ): Promise<T> {
-    const retries = options.retries ?? this.#retries;
+    const retries =
+      options.retries ??
+      (IDEMPOTENT_METHODS.has(method.toUpperCase()) ? this.#retries : 1);
     const url = requestUrl(this.#baseUrl, path, options.query);
     let lastError: Error | undefined;
     for (let attempt = 0; attempt < retries; attempt += 1) {
@@ -111,12 +123,12 @@ export class JsonClient {
         );
         if (result.complete) return result.value;
         await this.#wait(
-          retryDelay(attempt, this.#random, result.retryAfter),
+          retryDelay(attempt, this.#now, this.#random, result.retryAfter),
         );
       } catch (error) {
         lastError = requestError(error);
         if (shouldStopRetrying(lastError, attempt, retries)) throw lastError;
-        await this.#wait(retryDelay(attempt, this.#random));
+        await this.#wait(retryDelay(attempt, this.#now, this.#random));
       }
     }
     throw lastError ?? new Error(`${method} ${path} failed`);

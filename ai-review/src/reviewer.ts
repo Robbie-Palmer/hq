@@ -484,7 +484,9 @@ export class Reviewer {
   }
 
   private async pages<T>(path: string, limit?: number): Promise<T[]> {
-    const result = await this.github.paginate<T>(path, { maxPages: limit });
+    const result = await this.github.paginateByPageNumber<T>(path, {
+      maxPages: limit,
+    });
     return result.items;
   }
 
@@ -685,7 +687,7 @@ export class Reviewer {
           { role: "user", content: user },
         ],
       } as OpenRouterCompletionRequest,
-      options.timeoutMs === undefined ? {} : { timeout: options.timeoutMs },
+      { timeout: options.timeoutMs ?? SCOUT_TIMEOUT_MS },
     );
     return modelResult(response, model);
   }
@@ -714,7 +716,7 @@ export class Reviewer {
           { role: "user", content: user },
         ],
       } as OpenRouterCompletionRequest,
-      timeoutMs === undefined ? {} : { timeout: timeoutMs },
+      { timeout: timeoutMs ?? SCOUT_TIMEOUT_MS },
     );
     return modelResult(response, model);
   }

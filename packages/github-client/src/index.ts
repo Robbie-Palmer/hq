@@ -102,7 +102,8 @@ export class GithubClient extends JsonClient {
     );
   }
 
-  async paginate<T>(
+  /** Paginates endpoints documented to support GitHub's page/per_page parameters. */
+  async paginateByPageNumber<T>(
     path: string,
     options: GithubPaginationOptions = {},
   ): Promise<GithubPaginatedResult<T>> {

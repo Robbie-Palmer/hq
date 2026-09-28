@@ -165,6 +165,56 @@ test("paid OpenRouter completions are never retried by the HTTP client", async (
   assert.equal(attempts, 1);
 });
 
+test("OpenRouter calls use the review timeout unless one is supplied", async () => {
+  const create = vi.fn().mockResolvedValue({
+    choices: [{ finish_reason: "stop", message: { content: '{"findings":[]}' } }],
+    usage: { cost: 0 },
+  });
+  const reviewer = new Reviewer({
+    githubToken: "github-token",
+    openRouterKey: "openrouter-key",
+    repository: "Robbie-Palmer/hq",
+    prNumber: 837,
+    openRouterScouts: ["model-a"],
+    openCodeScouts: [],
+    merger: "model-b",
+    ignoredAuthors: [],
+    requireZdr: false,
+  });
+  Object.assign(reviewer, {
+    openRouter: { chat: { completions: { create } } },
+  });
+
+  await reviewer.callOpenRouterScout("model-a", "system", "user");
+  await reviewer.callOpenRouterScout("model-a", "system", "user", {
+    timeoutMs: 42,
+  });
+  await reviewer.callMerger(
+    "model-b",
+    "system",
+    "user",
+    "merged_findings",
+    { type: "object" },
+    MERGER_MAX_TOKENS,
+  );
+  await reviewer.callMerger(
+    "model-b",
+    "system",
+    "user",
+    "merged_findings",
+    { type: "object" },
+    MERGER_MAX_TOKENS,
+    43,
+  );
+
+  assert.deepEqual(create.mock.calls.map((call) => call[1]), [
+    { timeout: 120_000 },
+    { timeout: 42 },
+    { timeout: 120_000 },
+    { timeout: 43 },
+  ]);
+});
+
 test("GitHub comment creation is never retried", async () => {
   let attempts = 0;
   vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
