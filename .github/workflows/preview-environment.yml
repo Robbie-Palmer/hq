@@ -335,7 +335,7 @@ jobs:
           NEXT_PUBLIC_CF_IMAGES_ACCOUNT_HASH: ${{ vars.CF_IMAGES_ACCOUNT_HASH }}
           NEXT_PUBLIC_PREVIEW_BACKEND: ${{ needs.detect.outputs.backend }}
 
-  comment:
+  publish-preview-links:
     needs: [detect, backend, frontend]
     if: always() && needs.frontend.result == 'success'
     runs-on: ubuntu-latest
@@ -349,7 +349,7 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - name: Comment preview URL on PR
+      - name: Add preview links to PR description
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           PREVIEW_SITE_URL: https://pr-${{ github.event.pull_request.number }}.${{ vars.CLOUDFLARE_PAGES_HOST }}
@@ -359,7 +359,8 @@ jobs:
           BACKEND_RESULT: ${{ needs.backend.result }}
         with:
           script: |
-            const marker = '<!-- preview-environment -->';
+            const startMarker = '<!-- preview-environment:start -->';
+            const endMarker = '<!-- preview-environment:end -->';
             const requested = process.env.BACKEND_REQUESTED === 'true';
             const ok = process.env.BACKEND_RESULT === 'success';
 
@@ -382,8 +383,8 @@ jobs:
               ];
             }
 
-            const body = [
-              marker,
+            const previewSection = [
+              startMarker,
               '### Preview environment',
               '',
               `**Personal site:** ${process.env.PREVIEW_SITE_URL}`,
@@ -391,29 +392,27 @@ jobs:
               `**AssetTracker:** ${process.env.PREVIEW_SITE_URL}/assettracker`,
               `**Satellite swarm:** ${process.env.PREVIEW_SITE_URL}/satellite-swarm`,
               ...backendLines,
+              endMarker,
             ].join('\n');
 
-            const comments = await github.paginate(github.rest.issues.listComments, {
+            const { data: pullRequest } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
-              per_page: 100,
+              pull_number: context.issue.number,
             });
-            const existing = comments.find(comment =>
-              comment.user.type === 'Bot' && comment.body?.includes(marker)
+            const existingBody = pullRequest.body ?? '';
+            const managedSection = new RegExp(
+              `${startMarker}[\\s\\S]*?${endMarker}\\s*`,
+              'g',
             );
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body,
-              });
-            }
+            const description = existingBody.replace(managedSection, '').trimEnd();
+            const body = description
+              ? `${description}\n\n${previewSection}`
+              : previewSection;
+
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              body,
+            });
