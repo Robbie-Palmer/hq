@@ -213,6 +213,54 @@ describe("worker adapter runtime", () => {
       }),
     ).rejects.toBeInstanceOf(AdapterRuntimeError);
   });
+
+  it("rejects a handoff that changes tasks", async () => {
+    const first = testAdapter();
+    const second = {
+      ...testAdapter(),
+      identity: { ...adapter, adapterId: "adapter:second" },
+    };
+    const runtime = new WorkerAdapterRuntime({
+      adapters: [first, second],
+      allowlist: new AuthenticationAllowlist([authenticationEntry]),
+      createSessionId: () => "session:handoff",
+    });
+
+    await expect(
+      runtime.handoff(second.identity.adapterId, {
+        taskId: "work:other",
+        input: "test",
+        cwd: "/workspace",
+        identity: session,
+        checkpoint: {
+          kind: "checkpoint",
+          checkpointId: "checkpoint:one",
+          createdAt: "2026-09-26T08:01:00.000Z",
+          reason: "test",
+          state: {},
+        },
+      }),
+    ).rejects.toMatchObject({ code: "identity-mismatch" });
+    expect(second.resume).not.toHaveBeenCalled();
+
+    await expect(
+      runtime.handoff(second.identity.adapterId, {
+        taskId: session.taskId,
+        input: "test",
+        cwd: "/workspace",
+        identity: session,
+        checkpoint: {
+          kind: "checkpoint",
+          checkpointId: "checkpoint:one",
+          createdAt: "2026-09-26T08:01:00.000Z",
+          reason: "test",
+          state: {},
+        },
+      }),
+    ).rejects.toMatchObject({ code: "checkpoint-incompatible" });
+    expect(second.discoverAvailability).not.toHaveBeenCalled();
+    expect(second.resume).not.toHaveBeenCalled();
+  });
 });
 
 describe("authentication allowlist", () => {

@@ -5,6 +5,7 @@ import {
   type ExecutionSessionIdentity,
   type WorkerAdapterIdentity,
 } from "./session";
+import type { Money } from "./vocabulary";
 
 export type AdapterAvailability =
   | { state: "available"; observedAt: string }
@@ -31,16 +32,17 @@ export interface QuotaSignal {
   resetsAt?: string;
 }
 
-export interface CostReport {
+interface CostReportBase {
   kind: "cost";
-  funding: "prepaid" | "metered";
-  currency: "USD";
-  amount: number;
   routeId: string;
   providerId: string;
   modelId?: string;
   requestId?: string;
 }
+
+export type CostReport =
+  | (CostReportBase & { funding: "prepaid"; cost: null })
+  | (CostReportBase & { funding: "metered"; cost: Money });
 
 export type WorkerSignal =
   | CheckpointSignal
@@ -53,7 +55,7 @@ export interface WorkerLaunchRequest {
   taskId: string;
   input: string;
   cwd: string;
-  budgetUsd?: number;
+  budget?: Money;
 }
 
 export interface WorkerResumeRequest extends WorkerLaunchRequest {
@@ -72,6 +74,7 @@ export interface AdapterSession {
 
 export interface WorkerAdapter {
   readonly identity: WorkerAdapterIdentity;
+  canResumeCheckpoint?(checkpoint: CheckpointSignal): boolean;
   discoverAvailability(): Promise<AdapterAvailability>;
   launch(
     request: WorkerLaunchRequest,
@@ -85,6 +88,7 @@ export class AdapterRuntimeError extends Error {
     readonly code:
       | "adapter-not-found"
       | "adapter-unavailable"
+      | "checkpoint-incompatible"
       | "identity-mismatch",
     message: string,
   ) {
@@ -123,6 +127,30 @@ export class WorkerAdapterRuntime {
     const adapter = this.#adapter(adapterId);
     this.#allowlist.requireEnabled(adapter.identity.authenticationPathId);
     return adapter.discoverAvailability();
+  }
+
+  adapterIdentity(adapterId: string): WorkerAdapterIdentity {
+    return this.#adapter(adapterId).identity;
+  }
+
+  requireCheckpointCompatibility(
+    adapterId: string,
+    checkpoint: CheckpointSignal,
+  ): void {
+    const adapter = this.#adapter(adapterId);
+    this.#allowlist.requireEnabled(adapter.identity.authenticationPathId);
+    let compatible = false;
+    try {
+      compatible = adapter.canResumeCheckpoint?.(checkpoint) === true;
+    } catch {
+      compatible = false;
+    }
+    if (!compatible) {
+      throw new AdapterRuntimeError(
+        "checkpoint-incompatible",
+        `${adapterId} cannot resume this checkpoint`,
+      );
+    }
   }
 
   async launch(
@@ -176,6 +204,49 @@ export class WorkerAdapterRuntime {
     }
     const session = await adapter.resume(request);
     this.#assertIdentity(request.identity, session.identity);
+    return session;
+  }
+
+  async handoff(
+    adapterId: string,
+    request: WorkerResumeRequest,
+  ): Promise<AdapterSession> {
+    const adapter = this.#adapter(adapterId);
+    this.#allowlist.requireEnabled(adapter.identity.authenticationPathId);
+    if (adapter.identity.adapterId === request.identity.adapterId) {
+      throw new AdapterRuntimeError(
+        "identity-mismatch",
+        "A handoff must select a different adapter",
+      );
+    }
+    if (request.taskId !== request.identity.taskId) {
+      throw new AdapterRuntimeError(
+        "identity-mismatch",
+        "Handoff request task does not match the predecessor session",
+      );
+    }
+    this.requireCheckpointCompatibility(adapterId, request.checkpoint);
+    const availability = await adapter.discoverAvailability();
+    if (availability.state !== "available") {
+      throw new AdapterRuntimeError(
+        "adapter-unavailable",
+        `${adapterId} is ${availability.state}`,
+      );
+    }
+    const identity = ExecutionSessionIdentitySchema.parse({
+      schemaVersion: 1,
+      recordType: "execution-session",
+      sessionId: this.#createSessionId(),
+      taskId: request.taskId,
+      actorId: adapter.identity.actorId,
+      adapterId: adapter.identity.adapterId,
+      adapterVersion: adapter.identity.adapterVersion,
+      authenticationPathId: adapter.identity.authenticationPathId,
+      startedAt: this.#now().toISOString(),
+      predecessorSessionId: request.identity.sessionId,
+    });
+    const session = await adapter.resume({ ...request, identity });
+    this.#assertIdentity(identity, session.identity);
     return session;
   }
 

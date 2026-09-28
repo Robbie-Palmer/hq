@@ -262,8 +262,7 @@ class NativeAdapterSession implements AdapterSession {
     const report: CostReport = {
       kind: "cost",
       funding: "prepaid",
-      currency: "USD",
-      amount: 0,
+      cost: null,
       routeId: this.#routeId,
       providerId: this.#providerId,
     };
@@ -360,6 +359,14 @@ export function createNativeClientAdapter(
 
   return {
     identity: options.definition.identity,
+    canResumeCheckpoint(checkpoint) {
+      try {
+        options.definition.resumeArguments("", checkpoint);
+        return true;
+      } catch {
+        return false;
+      }
+    },
     async discoverAvailability(): Promise<AdapterAvailability> {
       const available = await options.launcher.isAvailable(
         options.definition.executable,

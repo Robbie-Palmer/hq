@@ -15,6 +15,7 @@
     "./policy": "./src/policy.ts",
     "./native-client": "./src/native-client.ts",
     "./openrouter": "./src/openrouter.ts",
+    "./orchestration": "./src/orchestration.ts",
     "./session": "./src/session.ts",
     "./task": "./src/task.ts",
     "./vocabulary": "./src/vocabulary.ts",

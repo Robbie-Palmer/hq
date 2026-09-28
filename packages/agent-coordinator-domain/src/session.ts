@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   AGENT_COORDINATOR_CONTRACT_VERSION,
+  CurrencySchema,
   findDuplicates,
   IdentifierSchema,
 } from "./vocabulary";
@@ -18,6 +19,7 @@ export const WorkerAdapterIdentitySchema = z
     tools: z.array(IdentifierSchema),
     evidenceKinds: z.array(IdentifierSchema),
     supportsCheckpointing: z.boolean(),
+    settlementCurrency: CurrencySchema.optional(),
   })
   .strict()
   .superRefine((adapter, context) => {

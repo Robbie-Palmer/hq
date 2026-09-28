@@ -231,6 +231,7 @@ describe("native client adapters", () => {
     ]);
     await expect(active.cost()).resolves.toMatchObject({
       funding: "prepaid",
+      cost: null,
       providerId: "provider:openai",
     });
     await active.stop("Bearer private-stop-token");
