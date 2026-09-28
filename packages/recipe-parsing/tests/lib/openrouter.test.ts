@@ -2,10 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { create } = vi.hoisted(() => ({ create: vi.fn() }));
 
-vi.mock("openai", () => ({
-  default: class {
-    chat = { completions: { create } };
-  },
+vi.mock("openrouter-client", () => ({
+  openRouterClient: () => ({ chat: { completions: { create } } }),
 }));
 
 const { disambiguateEquipment, disambiguateIngredients } = await import(

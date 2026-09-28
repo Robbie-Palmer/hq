@@ -1,0 +1,17 @@
+[tasks.install]
+description = "Install GitHub client dependencies"
+depends = ["//:install"]
+
+[tasks.typecheck]
+description = "Typecheck the shared GitHub client"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test the shared GitHub client"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks.check]
+description = "Check the shared GitHub client"
+depends = ["typecheck", "test"]

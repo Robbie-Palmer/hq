@@ -1,19 +1,6 @@
 import {
-  DEFAULT_IGNORED_AUTHORS,
-  DEFAULT_MERGER,
-  DEFAULT_OPENROUTER_SCOUTS,
-  MAX_OPENCODE_SCOUTS,
-  MAX_OPENROUTER_SCOUTS,
-  MERGER_MAX_TOKENS,
-  OPENROUTER_MERGER_MAX_PRICES,
-  OPENROUTER_SCOUT_MAX_PRICES,
-  Reviewer,
-  SCOUT_CONCURRENCY,
-  csv,
   dataPrompt,
-  duplicateScoutModels,
   ignored,
-  isEligibleFreeScoutModelId,
   mergerSchema,
   mergerSystem,
   renderComment,
@@ -25,8 +12,23 @@ import {
   type ModelResult,
   type ReviewState,
   type Scout,
-  type Settings,
 } from "ai-review-domain/reviewer";
+import {
+  DEFAULT_IGNORED_AUTHORS,
+  DEFAULT_MERGER,
+  DEFAULT_OPENROUTER_SCOUTS,
+  MAX_OPENCODE_SCOUTS,
+  MAX_OPENROUTER_SCOUTS,
+  MERGER_MAX_TOKENS,
+  OPENROUTER_MERGER_MAX_PRICES,
+  OPENROUTER_SCOUT_MAX_PRICES,
+  Reviewer,
+  SCOUT_CONCURRENCY,
+  duplicateScoutModels,
+  isEligibleFreeScoutModelId,
+  type Settings,
+} from "./reviewer";
+import { uniqueCsv as csv } from "ts-base/strings";
 import {
   TRUSTED_AUTHOR_ASSOCIATIONS,
   type Env,
@@ -38,7 +40,7 @@ import {
   selectPublishedFindings,
   type HiddenFinding,
   type PublicationPolicy,
-} from "./guardrails";
+} from "ai-review-domain/guardrails";
 import type {
   ChangeProfile,
   ModelMetric,

@@ -21,8 +21,8 @@ import {
   type FindingOutcomeBasis,
   type FindingOutcomeManualOverride,
   summarizeFindingInteractions,
-} from "./finding-outcomes";
-import { guardrailPolicy } from "./guardrails";
+} from "ai-review-domain/finding-outcomes";
+import { guardrailPolicy } from "ai-review-domain/guardrails";
 import { githubApiClient } from "./github-app";
 import type { FindingPublication } from "./finding-lifecycle";
 import {

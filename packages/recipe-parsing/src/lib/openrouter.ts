@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { type OpenAI, openRouterClient } from "openrouter-client";
 import { z } from "zod";
 import {
   parseRecipeJsonFromText,
@@ -17,25 +17,13 @@ import {
   type StructuredTextRecipe,
 } from "../schemas/stage-artifacts.js";
 
-const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
-
 const RECIPE_JSON_SCHEMA = z.toJSONSchema(RecipeSchema);
 const EXTRACTION_RECIPE_JSON_SCHEMA = z.toJSONSchema(ExtractionRecipeSchema);
 const STRUCTURED_TEXT_JSON_SCHEMA = z.toJSONSchema(StructuredTextRecipeSchema);
 // Omit `derived` — that field is computed by deriveRecipeFromCooklang, not authored by the LLM.
 const COOKLANG_JSON_SCHEMA = z.toJSONSchema(CooklangRecipeSchema.omit({ derived: true }));
-const openRouterClients = new Map<string, OpenAI>();
-
 function getOrCreateOpenRouterClient(apiKey: string): OpenAI {
-  const existing = openRouterClients.get(apiKey);
-  if (existing) return existing;
-
-  const client = new OpenAI({
-    apiKey,
-    baseURL: OPENROUTER_BASE_URL,
-  });
-  openRouterClients.set(apiKey, client);
-  return client;
+  return openRouterClient(apiKey);
 }
 
 export interface LlmUsage {
