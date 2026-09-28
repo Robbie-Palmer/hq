@@ -53,13 +53,21 @@ stages:
       - ../../ai-review/src/env.ts
       - ../../ai-review/src/finding-lifecycle.ts
       - ../../ai-review/src/github-app.ts
-      - ../../ai-review/src/guardrails.ts
       - ../../ai-review/src/replay-input.ts
       - ../../ai-review/src/replay-runner.ts
       - ../../ai-review/src/review-engine.ts
+      - ../../ai-review/src/reviewer.ts
+      - ../../packages/ai-review-domain/src/finding-outcomes.ts
+      - ../../packages/ai-review-domain/src/guardrails.ts
       - ../../packages/ai-review-domain/src/records.ts
       - ../../packages/ai-review-domain/src/pull-request-metadata.ts
       - ../../packages/ai-review-domain/src/replay.ts
+      - ../../packages/ai-review-domain/src/reviewer.ts
+      - ../../packages/github-client/src/index.ts
+      - ../../packages/openrouter-client/src/index.ts
+      - ../../packages/ts-base/src/http.ts
+      - ../../packages/ts-base/src/numbers.ts
+      - ../../packages/ts-base/src/strings.ts
       - outputs/frozen/cohort.json
       - outputs/frozen/experiment.json
       - outputs/frozen/readiness.json

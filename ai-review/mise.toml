@@ -1,6 +1,6 @@
 [tasks.install]
-description = "Install stateful AI review, domain, and evaluation dependencies"
-run = "pnpm install --frozen-lockfile --filter ai-review --filter ai-review-domain --filter ai-review-evaluation-pipeline"
+description = "Install stateful AI review and evaluation dependencies"
+run = "pnpm install --frozen-lockfile --filter ai-review... --filter ai-review-evaluation-pipeline..."
 
 [tasks.typecheck]
 description = "Typecheck the stateful AI review Worker"
