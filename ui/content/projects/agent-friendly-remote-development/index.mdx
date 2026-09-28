@@ -2,6 +2,7 @@
 title: "Agent-friendly Remote Development"
 description: "Persistent remote workspaces for directing coding agents across devices, repositories, and harnesses"
 date: "2026-09-06"
+updated: "2026-09-28"
 status: "in_progress"
 initiatives:
   - "semi-autonomous-software-development"
@@ -9,6 +10,18 @@ tags:
   - "agentic-engineering"
   - "developer-tools"
   - "infrastructure"
+platform_layers:
+  - layer: "build-runtime"
+    adopted: "2026-09-28T00:00:00Z"
+    tracking: true
+    decision: "agent-friendly-remote-development:001-nixos-host"
+    slots:
+      - slot: "build.reproducibility"
+        adopted: "2026-09-28T00:00:00Z"
+        decision: "agent-friendly-remote-development:001-nixos-host"
+      - slot: "host.configuration"
+        adopted: "2026-09-28T00:00:00Z"
+        decision: "agent-friendly-remote-development:001-nixos-host"
 ---
 
 # Vision

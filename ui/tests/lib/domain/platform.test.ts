@@ -1256,4 +1256,62 @@ describe("temporal platform layers", () => {
       expect.arrayContaining(["recipe-site", "agent-first-writing"]),
     );
   });
+
+  it("keeps build, artifact, host, workload, catalog, and deployment choices independent", () => {
+    const repository = loadDomainRepository();
+    const manifest = repository.platform.manifest;
+    expect(manifest).toBeDefined();
+    if (!manifest) return;
+
+    expect(manifest.slots.map((slot) => slot.slug)).toEqual(
+      expect.arrayContaining([
+        "build.reproducibility",
+        "artifact.contract",
+        "artifact.distribution",
+        "artifact.blob-provider",
+        "host.configuration",
+        "workload.orchestrator",
+        "deployment.target",
+        "catalog.integration",
+      ]),
+    );
+
+    const remoteDevelopment = resolveEffectiveProjectStack(
+      repository,
+      "agent-friendly-remote-development",
+      "2026-09-28T12:00:00Z",
+    );
+    expect(remoteDevelopment.technologies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          slot: "build.reproducibility",
+          technology: "nix",
+        }),
+        expect.objectContaining({
+          slot: "host.configuration",
+          technology: "nixos",
+        }),
+      ]),
+    );
+    expect(remoteDevelopment.technologies).not.toContainEqual(
+      expect.objectContaining({ slot: "workload.orchestrator" }),
+    );
+    expect(remoteDevelopment.policies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ slot: "artifact.identity" }),
+        expect.objectContaining({ slot: "catalog.metadata-authority" }),
+      ]),
+    );
+
+    const platform = getProjectWithADRs(
+      repository,
+      "personal-engineering-platform",
+    );
+    const reproducibleBuild = platform?.platformManifest?.slots.find(
+      (slot) => slot.slug === "build.reproducibility",
+    );
+    expect(reproducibleBuild?.adopters).toEqual(
+      expect.arrayContaining(["homelab", "agent-friendly-remote-development"]),
+    );
+  });
 });

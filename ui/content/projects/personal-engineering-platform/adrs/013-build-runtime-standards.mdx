@@ -1,0 +1,78 @@
+---
+title: "ADR 013: Separate build, artifact, host, workload, catalog, and deployment choices"
+date: "2026-09-28"
+status: "Accepted"
+tech_stack: ["Nix"]
+---
+
+## Context
+
+The platform model covers application and infrastructure tools, but it does
+not separate the decisions between source and a running workload. Home Lab and
+Agent-friendly Remote Development now provide evidence for reproducible host
+definitions and for the boundary between host and workload state. Future OCI
+repository work also needs artifact identity to survive a storage migration.
+
+Putting these concerns in one runtime slot would create false dependencies. A
+serverless project may publish an OCI artifact without operating Kubernetes. A
+NixOS machine may run host services without K3s. A project may also adopt a
+container image before it adopts any orchestrator.
+
+## Decision
+
+Add a build and runtime layer with separate slots for reproducible builds,
+artifact contract, artifact distribution, blob storage, container build
+definitions, host configuration, workload orchestration, workload packaging,
+rendered-manifest validation, deployment targets, and catalog integration.
+
+Artifact coordinates and digests do not include the blob provider. A registry
+may move its blobs between R2, S3, or local storage without changing the
+artifact contract seen by consumers.
+
+Accept Nix with locked flakes for the reproducible-build slot. Accept NixOS for
+declarative host configuration. Both choices recur in
+[Home Lab ADR 007](/projects/homelab/adrs/007-nixos-gpu-worker) and
+[Remote Development ADR 001](/projects/agent-friendly-remote-development/adrs/001-nixos-host).
+
+Accept OCI artifacts as the portable artifact contract. Home Lab already
+separates OCI workload images from host state in
+[ADR 020](/projects/homelab/adrs/020-k3s-declarative-workloads). Keep the
+repository implementation and blob provider unselected until the registry
+spike tests the candidates.
+
+Treat repository declarations as the source of catalog metadata. A future
+Backstage integration must generate or ingest records from those declarations.
+Edits made only in Backstage do not become project state.
+
+The remaining candidates are classified as follows.
+
+| Candidate                           | Classification              | Evidence and result                                                                                                                                                                                                                                                                                                                                                                       |
+| ----------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Nix and locked flakes               | Preferred capability        | Accepted from Home Lab ADR 007 and Remote Development ADR 001.                                                                                                                                                                                                                                                                                                                            |
+| OCI artifact types and distribution | Preferred capability        | Accept the OCI contract from Home Lab ADR 020. Leave repository software unselected pending its implementation spike.                                                                                                                                                                                                                                                                     |
+| Dockerfiles and shared base images  | Project-local choice        | Home Lab ADR 020 calls for one pinned Ente image, but no ADR chooses a shared base-image policy. The model has slots without a platform selection.                                                                                                                                                                                                                                        |
+| R2-backed artifact storage          | Preferred capability        | [Personal Knowledge Graph ADR 039](/projects/personal-knowledge-graph/adrs/039-cloudflare-r2) accepts R2 for object storage, not as an OCI repository backend. Leave this selection open.                                                                                                                                                                                                 |
+| NixOS host configuration            | Deployment-target selection | Accepted from Home Lab ADR 007 and Remote Development ADR 001 in a host slot separate from workload orchestration.                                                                                                                                                                                                                                                                        |
+| K3s and Kubernetes                  | Deployment-target selection | [Home Lab ADR 020](/projects/homelab/adrs/020-k3s-declarative-workloads), [Remote Development ADR 002](/projects/agent-friendly-remote-development/adrs/002-k3s-workloads), and [ADR 012](/projects/agent-friendly-remote-development/adrs/012-kube-hetzner-evaluation) remain Proposed. Keep the orchestrator slot unselected. A later K3s-to-Kubernetes change replaces only that slot. |
+| Helm packaging                      | Project-local choice        | [Remote Development ADR 009](/projects/agent-friendly-remote-development/adrs/009-flux-schema-validation) explicitly keeps Helm out of the current validation path.                                                                                                                                                                                                                       |
+| Rendered-manifest validation        | Project-local choice        | Remote Development ADR 009 accepts Flux Schema for one project. It has not recurred, so the stable slot has no platform selection.                                                                                                                                                                                                                                                        |
+| Backstage integration               | Preferred capability        | No project ADR adopts Backstage. Keep the integration unselected and require repository-derived metadata if it is adopted.                                                                                                                                                                                                                                                                |
+
+The Home Lab and Agent-friendly Remote Development adopt the accepted Nix and
+NixOS slots on the date of this platform decision. Their earlier ADR dates
+remain the evidence dates rather than backdating platform adoption.
+
+## Consequences
+
+A project can adopt Nix, publish OCI artifacts, choose an artifact repository
+and blob provider, and still deploy only to a serverless target. Container
+publication does not imply Kubernetes. NixOS adoption does not imply K3s.
+
+K3s, Kubernetes, Helm, Flux Schema, R2-backed registry storage, and Backstage
+remain visible candidates without becoming defaults before the evidence
+supports them. Later selections can use effective dates and replacement links
+without changing unrelated build, artifact, host, or catalog records.
+
+The model has more slots, and several intentionally have no selection. That is
+preferable to recording one composite platform choice that projects cannot
+adopt or replace independently.

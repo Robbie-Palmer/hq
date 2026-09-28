@@ -1314,6 +1314,14 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     type: "tool",
   },
   {
+    name: "Nix",
+    added: "2026-09-28",
+    description:
+      "Package manager and build system for reproducible environments and artifacts",
+    website: "https://nix.dev",
+    type: "tool",
+  },
+  {
     name: "NixOS",
     added: "2026-08-02",
     description:
