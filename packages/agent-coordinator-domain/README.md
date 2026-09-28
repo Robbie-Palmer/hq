@@ -52,13 +52,13 @@ explicit handoff path and records the prior session as its predecessor.
 
 ## Private execution telemetry
 
-`PrivateExecutionTelemetryLedger` records routing decisions, provider requests,
-session outcomes, waits, handoffs, and interventions. Events correlate to the
-Work Graph item and fenced lease. Semantic keys make request and outcome retries
-idempotent, while aggregate queries report outcome counts, waits, handoffs,
-interventions, and metered cost by currency.
+`ExecutionTelemetryRecorder` emits routing decisions, provider requests,
+session outcomes, waits, handoffs, and interventions as named OpenTelemetry log
+events. Events correlate to the Work Graph item and fenced lease. Stable event
+IDs let analytics deduplicate retries, while query helpers report outcomes,
+waits, handoffs, interventions, and metered cost by currency.
 
-The ledger enforces separate write, read, and privacy-maintenance permissions.
-It redacts sensitive routing details before deletion under an explicit retention
-policy. `toPublicWorkEvidence` omits session, account, route, provider, model,
-quota, cost, and free-text fields.
+The coordinator sends these events to a private OTLP destination. Access,
+retention, and deletion are destination policies rather than an application
+ledger. Free text is redacted before export, and `toPublicWorkEvidence` omits
+session, account, route, provider, model, quota, cost, and free-text fields.

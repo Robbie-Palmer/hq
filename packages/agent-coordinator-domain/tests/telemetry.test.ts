@@ -1,22 +1,22 @@
-import { describe, expect, it } from "vitest";
+import { ROOT_CONTEXT, trace } from "@opentelemetry/api";
+import { SeverityNumber } from "@opentelemetry/api-logs";
+import {
+  InMemoryLogRecordExporter,
+  LoggerProvider,
+  SimpleLogRecordProcessor,
+} from "@opentelemetry/sdk-logs";
+import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  EXECUTION_TELEMETRY_SCOPE,
   ExecutionTelemetryEventSchema,
-  PrivateExecutionTelemetryLedger,
-  TelemetryAccessError,
+  ExecutionTelemetryRecorder,
   TelemetryConflictError,
+  executionTelemetryMetrics,
+  queryExecutionTelemetry,
   toPublicWorkEvidence,
   type ExecutionTelemetryEvent,
-  type TelemetryAccessPolicy,
 } from "../src";
-
-const accessPolicy: TelemetryAccessPolicy = {
-  writerIds: ["service:coordinator"],
-  readerIds: ["owner:robbie"],
-  administratorIds: ["service:privacy-maintenance"],
-  redactAfterDays: 30,
-  deleteAfterDays: 90,
-};
 
 const common = {
   schemaVersion: 1 as const,
@@ -47,8 +47,8 @@ const request: ExecutionTelemetryEvent = {
   occurredAt: "2026-09-28T07:01:00.000Z",
   eventType: "provider-request",
   requestId: "request:provider-1",
-  providerId: "provider:anthropic",
-  modelId: "model:claude-sonnet",
+  providerId: "anthropic",
+  modelId: "claude-sonnet",
   quota: {
     state: "near-limit",
     observedAt: "2026-09-28T07:00:59.000Z",
@@ -61,172 +61,144 @@ const request: ExecutionTelemetryEvent = {
   outcome: "completed",
 };
 
-function ledger(): PrivateExecutionTelemetryLedger {
-  return new PrivateExecutionTelemetryLedger(accessPolicy);
+type Harness = ReturnType<typeof createHarness>;
+const providers: LoggerProvider[] = [];
+
+function createHarness() {
+  const exporter = new InMemoryLogRecordExporter();
+  const provider = new LoggerProvider({
+    processors: [new SimpleLogRecordProcessor({ exporter })],
+  });
+  providers.push(provider);
+  return {
+    exporter,
+    recorder: new ExecutionTelemetryRecorder(
+      provider.getLogger(EXECUTION_TELEMETRY_SCOPE),
+    ),
+  };
 }
 
+function records(harness: Harness) {
+  return harness.exporter.getFinishedLogRecords();
+}
+
+afterEach(async () => {
+  await Promise.all(providers.splice(0).map((provider) => provider.shutdown()));
+});
+
 describe("private execution telemetry", () => {
-  it("validates complete attribution and rejects secret-shaped extra fields", () => {
+  it("validates attribution and rejects unknown credential fields", () => {
     expect(ExecutionTelemetryEventSchema.parse(request)).toEqual(request);
     expect(
       ExecutionTelemetryEventSchema.safeParse({
         ...request,
-        apiKey: "should-never-be-stored",
+        apiKey: "should-never-be-exported",
       }).success,
     ).toBe(false);
     expect(
-      ExecutionTelemetryEventSchema.safeParse({
-        ...request,
-        cost: null,
-      }).success,
+      ExecutionTelemetryEventSchema.safeParse({ ...request, cost: null }).success,
     ).toBe(false);
   });
 
-  it("reconstructs routing and request events in time order", () => {
-    const store = ledger();
-    store.append("service:coordinator", request);
-    store.append("service:coordinator", decision);
+  it("exports a named OTel event with domain and GenAI attributes", () => {
+    const harness = createHarness();
+    harness.recorder.record(request);
+
+    expect(records(harness)).toHaveLength(1);
+    expect(records(harness)[0]).toMatchObject({
+      eventName: "agent_coordinator.provider.request",
+      severityNumber: SeverityNumber.INFO,
+      instrumentationScope: { name: EXECUTION_TELEMETRY_SCOPE },
+      attributes: {
+        "agent_coordinator.event.id": request.eventId,
+        "agent_coordinator.work_item.id": request.workItemId,
+        "agent_coordinator.lease.id": request.leaseId,
+        "agent_coordinator.lease.epoch": request.leaseEpoch,
+        "agent_coordinator.session.id": request.sessionId,
+        "agent_coordinator.request.id": request.requestId,
+        "gen_ai.provider.name": request.providerId,
+        "gen_ai.request.model": request.modelId,
+        "agent_coordinator.cost.amount": request.cost?.amount,
+      },
+    });
+  });
+
+  it("associates emitted events with an active trace context", () => {
+    const harness = createHarness();
+    const spanContext = {
+      traceId: "0af7651916cd43dd8448eb211c80319c",
+      spanId: "b7ad6b7169203331",
+      traceFlags: 1,
+    };
+    const context = trace.setSpanContext(ROOT_CONTEXT, spanContext);
+
+    harness.recorder.record(decision, context);
+
+    expect(records(harness)[0]?.spanContext).toEqual(spanContext);
+  });
+
+  it("reconstructs routing and request events in occurrence order", () => {
+    const harness = createHarness();
+    harness.recorder.record(request);
+    harness.recorder.record(decision);
+
     expect(
-      store.query("owner:robbie", { sessionId: common.sessionId }),
+      queryExecutionTelemetry(records(harness), {
+        sessionId: common.sessionId,
+      }),
     ).toEqual([decision, request]);
   });
 
-  it("keeps private routing, quota, provider, and cost data out of public evidence", () => {
-    const publicEvidence = toPublicWorkEvidence(request);
-    expect(publicEvidence).toEqual({
-      schemaVersion: 1,
-      recordType: "coordinator-work-evidence",
-      evidenceId: request.eventId,
-      occurredAt: request.occurredAt,
-      workItemId: request.workItemId,
-      leaseId: request.leaseId,
-      leaseEpoch: request.leaseEpoch,
-      adapterId: request.adapter.adapterId,
-      adapterVersion: request.adapter.adapterVersion,
-      kind: "provider-request",
-      outcome: "completed",
-    });
-    const encoded = JSON.stringify(publicEvidence);
-    for (const privateValue of [
-      common.sessionId,
-      common.accountClass,
-      common.route.routeId,
-      request.providerId,
-      request.modelId,
-      "near-limit",
-      "0.42",
-    ]) {
-      expect(encoded).not.toContain(privateValue);
-    }
-  });
+  it("deduplicates identical exported retries by event ID", () => {
+    const harness = createHarness();
+    harness.recorder.record(request);
+    harness.recorder.record(request);
 
-  it("enforces write, read, and maintenance access independently", () => {
-    const store = ledger();
-    expect(() => store.append("actor:intruder", decision)).toThrow(
-      TelemetryAccessError,
-    );
-    store.append("service:coordinator", decision);
-    expect(() => store.query("service:coordinator")).toThrow(
-      TelemetryAccessError,
-    );
-    expect(() =>
-      store.deleteExpired("owner:robbie", "2027-01-01T00:00:00.000Z"),
-    ).toThrow(TelemetryAccessError);
-  });
-
-  it("redacts sensitive details before deleting expired records", () => {
-    const store = ledger();
-    store.append("service:coordinator", request);
-    expect(
-      store.redactDue(
-        "service:privacy-maintenance",
-        "2026-10-29T07:01:00.000Z",
-      ),
-    ).toBe(1);
-    const [redacted] = store.query("owner:robbie");
-    expect(redacted).toMatchObject({
-      redacted: true,
-      accountClass: "account:redacted",
-      route: { routeId: "route:redacted" },
-      providerId: "provider:redacted",
-      modelId: "model:redacted",
-      quota: { state: "near-limit" },
-      cost: { currency: "USD", amount: 0.42 },
-    });
-    expect(redacted && "quota" in redacted && redacted.quota).not.toHaveProperty(
-      "remaining",
-    );
-    expect(
-      store.deleteExpired(
-        "service:privacy-maintenance",
-        "2026-12-28T07:01:00.000Z",
-      ),
-    ).toBe(1);
-    expect(store.query("owner:robbie")).toEqual([]);
-  });
-
-  it("does not double-count retried requests or outcomes", () => {
-    const store = ledger();
-    expect(store.append("service:coordinator", request).inserted).toBe(true);
-    expect(store.append("service:coordinator", request).inserted).toBe(false);
-    expect(
-      store.append("service:coordinator", {
-        ...request,
-        eventId: "d57b9659-f4d1-45f3-9977-c3557ed029a9",
-        occurredAt: "2026-09-28T07:01:02.000Z",
-      }).inserted,
-    ).toBe(false);
-
-    const outcome: ExecutionTelemetryEvent = {
-      ...common,
-      eventId: "fd826a76-7c1e-44fb-890e-b03595d238e7",
-      occurredAt: "2026-09-28T07:05:00.000Z",
-      eventType: "session-outcome",
-      outcome: "completed",
-    };
-    store.append("service:coordinator", outcome);
-    expect(
-      store.append("service:coordinator", {
-        ...outcome,
-        eventId: "e02595dc-99b6-4b95-b7a3-fefcf8295d6c",
-        occurredAt: "2026-09-28T07:05:01.000Z",
-      }).inserted,
-    ).toBe(false);
-    expect(store.metrics("owner:robbie")).toMatchObject({
-      completions: 1,
-      costByCurrency: { USD: 0.42 },
+    expect(records(harness)).toHaveLength(2);
+    expect(queryExecutionTelemetry(records(harness))).toEqual([request]);
+    expect(executionTelemetryMetrics(records(harness)).costByCurrency).toEqual({
+      USD: 0.42,
     });
   });
 
-  it("keeps failed request retries attributable without counting cost twice", () => {
-    const store = ledger();
+  it("rejects conflicting records with the same event ID", () => {
+    const harness = createHarness();
+    harness.recorder.record(request);
+    harness.recorder.record({
+      ...request,
+      cost: { currency: "USD", amount: 99 },
+    });
+
+    expect(() => queryExecutionTelemetry(records(harness))).toThrow(
+      TelemetryConflictError,
+    );
+  });
+
+  it("exports failures at error severity with attributable reasons", () => {
+    const harness = createHarness();
     const failed: ExecutionTelemetryEvent = {
       ...request,
       eventId: "69b4315d-2896-42c1-89fc-a7083cf522d2",
       requestId: "request:failed",
-      cost: { currency: "USD", amount: 0.08 },
       outcome: "failed",
       failureReason: "provider timeout",
     };
-    expect(store.append("service:coordinator", failed).inserted).toBe(true);
-    expect(store.append("service:coordinator", failed).inserted).toBe(false);
-    expect(store.query("owner:robbie")).toEqual([failed]);
-    expect(store.metrics("owner:robbie").costByCurrency).toEqual({ USD: 0.08 });
+    harness.recorder.record(failed);
+
+    expect(records(harness)[0]).toMatchObject({
+      severityNumber: SeverityNumber.ERROR,
+      attributes: {
+        "agent_coordinator.request.id": "request:failed",
+        "agent_coordinator.outcome": "failed",
+        "agent_coordinator.failure.reason": "provider timeout",
+        "error.type": "provider_request_failed",
+      },
+    });
+    expect(queryExecutionTelemetry(records(harness))).toEqual([failed]);
   });
 
-  it("rejects conflicting retries", () => {
-    const store = ledger();
-    store.append("service:coordinator", request);
-    expect(() =>
-      store.append("service:coordinator", {
-        ...request,
-        cost: { currency: "USD", amount: 99 },
-      }),
-    ).toThrow(TelemetryConflictError);
-  });
-
-  it("calculates outcome, wait, handoff, intervention, and currency metrics", () => {
-    const store = ledger();
+  it("calculates outcome, wait, handoff, intervention, and cost metrics", () => {
+    const harness = createHarness();
     const events: ExecutionTelemetryEvent[] = [
       request,
       {
@@ -281,8 +253,9 @@ describe("private execution telemetry", () => {
         reason: "Owner approval is required.",
       },
     ];
-    for (const event of events) store.append("service:coordinator", event);
-    expect(store.metrics("owner:robbie")).toEqual({
+    for (const event of events) harness.recorder.record(event);
+
+    expect(executionTelemetryMetrics(records(harness))).toEqual({
       completions: 1,
       abandonments: 1,
       reassignments: 1,
@@ -295,12 +268,46 @@ describe("private execution telemetry", () => {
     });
   });
 
-  it("redacts secret-shaped text before storage", () => {
-    const store = ledger();
-    const stored = store.append("service:coordinator", {
+  it("redacts secret-shaped text before export", () => {
+    const harness = createHarness();
+    harness.recorder.record({
       ...decision,
       reason: "authorization: Bearer secret-token",
-    }).event;
-    expect(JSON.stringify(stored)).not.toContain("secret-token");
+    });
+
+    const encoded = JSON.stringify(records(harness)[0]?.attributes);
+    expect(encoded).not.toContain("secret-token");
+    expect(queryExecutionTelemetry(records(harness))[0]).toMatchObject({
+      reason: "authorization: Bearer [REDACTED]",
+    });
+  });
+
+  it("keeps private attributes out of public Work Graph evidence", () => {
+    const publicEvidence = toPublicWorkEvidence(request);
+    expect(publicEvidence).toEqual({
+      schemaVersion: 1,
+      recordType: "coordinator-work-evidence",
+      evidenceId: request.eventId,
+      occurredAt: request.occurredAt,
+      workItemId: request.workItemId,
+      leaseId: request.leaseId,
+      leaseEpoch: request.leaseEpoch,
+      adapterId: request.adapter.adapterId,
+      adapterVersion: request.adapter.adapterVersion,
+      kind: "provider-request",
+      outcome: "completed",
+    });
+    const encoded = JSON.stringify(publicEvidence);
+    for (const privateValue of [
+      common.sessionId,
+      common.accountClass,
+      common.route.routeId,
+      request.providerId,
+      request.modelId,
+      "near-limit",
+      "0.42",
+    ]) {
+      expect(encoded).not.toContain(privateValue);
+    }
   });
 });

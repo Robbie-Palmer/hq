@@ -1,3 +1,15 @@
+import type { Context } from "@opentelemetry/api";
+import {
+  logs,
+  SeverityNumber,
+  type LogAttributes,
+  type Logger,
+} from "@opentelemetry/api-logs";
+import { ATTR_ERROR_TYPE } from "@opentelemetry/semantic-conventions";
+import {
+  ATTR_GEN_AI_PROVIDER_NAME,
+  ATTR_GEN_AI_REQUEST_MODEL,
+} from "@opentelemetry/semantic-conventions/incubating";
 import { z } from "zod";
 
 import { redactAdapterText } from "./native-client";
@@ -39,7 +51,6 @@ const TelemetryBaseSchema = z
         routeId: IdentifierSchema,
       })
       .strict(),
-    redacted: z.boolean().optional(),
   })
   .strict();
 
@@ -142,26 +153,28 @@ export type ExecutionTelemetryEvent = z.infer<
   typeof ExecutionTelemetryEventSchema
 >;
 
-export const TelemetryAccessPolicySchema = z
-  .object({
-    writerIds: z.array(IdentifierSchema).min(1),
-    readerIds: z.array(IdentifierSchema).min(1),
-    administratorIds: z.array(IdentifierSchema).min(1),
-    redactAfterDays: z.number().int().positive(),
-    deleteAfterDays: z.number().int().positive(),
-  })
-  .strict()
-  .refine(
-    ({ redactAfterDays, deleteAfterDays }) =>
-      redactAfterDays < deleteAfterDays,
-    {
-      message: "Telemetry must be redacted before it is deleted",
-      path: ["redactAfterDays"],
-    },
-  );
-export type TelemetryAccessPolicy = z.infer<
-  typeof TelemetryAccessPolicySchema
->;
+export const EXECUTION_TELEMETRY_SCOPE = "agent-coordinator-domain";
+
+const eventNames = {
+  "routing-decision": "agent_coordinator.routing.decision",
+  "provider-request": "agent_coordinator.provider.request",
+  "session-outcome": "agent_coordinator.session.outcome",
+  handoff: "agent_coordinator.session.handoff",
+  wait: "agent_coordinator.session.wait",
+  intervention: "agent_coordinator.intervention",
+} as const satisfies Record<ExecutionTelemetryEvent["eventType"], string>;
+
+const eventTypes = Object.fromEntries(
+  Object.entries(eventNames).map(([eventType, eventName]) => [
+    eventName,
+    eventType,
+  ]),
+) as Record<string, ExecutionTelemetryEvent["eventType"]>;
+
+export interface ExecutionTelemetryLogRecord {
+  eventName?: string;
+  attributes: LogAttributes;
+}
 
 export interface TelemetryQuery {
   workItemId?: string;
@@ -183,147 +196,89 @@ export interface TelemetryMetrics {
   costByCurrency: Readonly<Record<string, number>>;
 }
 
-export class TelemetryAccessError extends Error {
-  readonly code = "telemetry-access-denied";
-
-  constructor(readonly actorId: string, readonly operation: string) {
-    super(`${actorId} cannot ${operation} private execution telemetry`);
-    this.name = "TelemetryAccessError";
-  }
-}
-
 export class TelemetryConflictError extends Error {
   readonly code = "telemetry-conflict";
 
   constructor(readonly key: string) {
-    super(`Telemetry already contains a different event for ${key}`);
+    super(`Telemetry contains different events for ${key}`);
     this.name = "TelemetryConflictError";
   }
 }
 
-export interface AppendTelemetryResult {
-  inserted: boolean;
-  event: ExecutionTelemetryEvent;
+export class ExecutionTelemetryRecorder {
+  readonly #logger: Logger;
+
+  constructor(logger: Logger = logs.getLogger(EXECUTION_TELEMETRY_SCOPE)) {
+    this.#logger = logger;
+  }
+
+  record(
+    candidate: ExecutionTelemetryEvent,
+    context?: Context,
+  ): ExecutionTelemetryEvent {
+    const event = sanitizeEvent(ExecutionTelemetryEventSchema.parse(candidate));
+    const failed = isFailure(event);
+    this.#logger.emit({
+      eventName: eventNames[event.eventType],
+      timestamp: new Date(event.occurredAt),
+      observedTimestamp: new Date(),
+      severityNumber: failed ? SeverityNumber.ERROR : SeverityNumber.INFO,
+      severityText: failed ? "ERROR" : "INFO",
+      body: `Agent Coordinator ${event.eventType}`,
+      attributes: eventAttributes(event),
+      context,
+    });
+    return event;
+  }
 }
 
-export class PrivateExecutionTelemetryLedger {
-  readonly #policy: TelemetryAccessPolicy;
-  readonly #events = new Map<string, ExecutionTelemetryEvent>();
-  readonly #semanticKeys = new Map<string, string>();
+export function queryExecutionTelemetry(
+  records: readonly ExecutionTelemetryLogRecord[],
+  query: TelemetryQuery = {},
+): readonly ExecutionTelemetryEvent[] {
+  const eventTypesFilter = query.eventTypes && new Set(query.eventTypes);
+  const from = query.from
+    ? Date.parse(TimestampSchema.parse(query.from))
+    : undefined;
+  const to = query.to ? Date.parse(TimestampSchema.parse(query.to)) : undefined;
+  const events = records
+    .map(parseExecutionTelemetryLogRecord)
+    .filter((event): event is ExecutionTelemetryEvent => event !== undefined)
+    .filter(
+      (event) =>
+        (!query.workItemId || event.workItemId === query.workItemId) &&
+        (!query.sessionId || event.sessionId === query.sessionId) &&
+        (!eventTypesFilter || eventTypesFilter.has(event.eventType)) &&
+        (from === undefined || Date.parse(event.occurredAt) >= from) &&
+        (to === undefined || Date.parse(event.occurredAt) <= to),
+    );
+  return deduplicateEvents(events).sort(
+    (left, right) =>
+      left.occurredAt.localeCompare(right.occurredAt, "en") ||
+      left.eventId.localeCompare(right.eventId, "en"),
+  );
+}
 
-  constructor(policy: TelemetryAccessPolicy) {
-    this.#policy = TelemetryAccessPolicySchema.parse(policy);
+export function executionTelemetryMetrics(
+  records: readonly ExecutionTelemetryLogRecord[],
+  query: TelemetryQuery = {},
+): TelemetryMetrics {
+  const costByCurrency: Record<string, number> = {};
+  const metrics: TelemetryMetrics = {
+    completions: 0,
+    abandonments: 0,
+    reassignments: 0,
+    failures: 0,
+    waits: 0,
+    waitDurationMs: 0,
+    handoffs: 0,
+    interventions: 0,
+    costByCurrency,
+  };
+  for (const event of queryExecutionTelemetry(records, query)) {
+    recordEventMetrics(metrics, event);
   }
-
-  append(actorId: string, candidate: ExecutionTelemetryEvent): AppendTelemetryResult {
-    this.#require(actorId, "write", this.#policy.writerIds);
-    const event = sanitizeEvent(ExecutionTelemetryEventSchema.parse(candidate));
-    const existingById = this.#events.get(event.eventId);
-    if (existingById) return this.#replay(existingById, event, event.eventId);
-
-    const semanticKey = eventSemanticKey(event);
-    const existingId = this.#semanticKeys.get(semanticKey);
-    const existing = existingId ? this.#events.get(existingId) : undefined;
-    if (existing) return this.#replay(existing, event, semanticKey, true);
-
-    this.#events.set(event.eventId, event);
-    this.#semanticKeys.set(semanticKey, event.eventId);
-    return { inserted: true, event };
-  }
-
-  query(
-    actorId: string,
-    query: TelemetryQuery = {},
-  ): readonly ExecutionTelemetryEvent[] {
-    this.#require(actorId, "read", this.#policy.readerIds);
-    const eventTypes = query.eventTypes && new Set(query.eventTypes);
-    const from = query.from
-      ? Date.parse(TimestampSchema.parse(query.from))
-      : undefined;
-    const to = query.to
-      ? Date.parse(TimestampSchema.parse(query.to))
-      : undefined;
-    return [...this.#events.values()]
-      .filter(
-        (event) =>
-          (!query.workItemId || event.workItemId === query.workItemId) &&
-          (!query.sessionId || event.sessionId === query.sessionId) &&
-          (!eventTypes || eventTypes.has(event.eventType)) &&
-          (from === undefined || Date.parse(event.occurredAt) >= from) &&
-          (to === undefined || Date.parse(event.occurredAt) <= to),
-      )
-      .sort(
-        (left, right) =>
-          left.occurredAt.localeCompare(right.occurredAt, "en") ||
-          left.eventId.localeCompare(right.eventId, "en"),
-      );
-  }
-
-  metrics(actorId: string, query: TelemetryQuery = {}): TelemetryMetrics {
-    const events = this.query(actorId, query);
-    const costByCurrency: Record<string, number> = {};
-    const metrics: TelemetryMetrics = {
-      completions: 0,
-      abandonments: 0,
-      reassignments: 0,
-      failures: 0,
-      waits: 0,
-      waitDurationMs: 0,
-      handoffs: 0,
-      interventions: 0,
-      costByCurrency,
-    };
-    for (const event of events) {
-      recordEventMetrics(metrics, event);
-    }
-    return metrics;
-  }
-
-  redactDue(actorId: string, now: string): number {
-    this.#require(actorId, "redact", this.#policy.administratorIds);
-    const cutoff = retentionCutoff(now, this.#policy.redactAfterDays);
-    let count = 0;
-    for (const [eventId, event] of this.#events) {
-      if (event.redacted || Date.parse(event.occurredAt) > cutoff) continue;
-      this.#events.set(eventId, redactEvent(event));
-      count += 1;
-    }
-    return count;
-  }
-
-  deleteExpired(actorId: string, now: string): number {
-    this.#require(actorId, "delete", this.#policy.administratorIds);
-    const cutoff = retentionCutoff(now, this.#policy.deleteAfterDays);
-    let count = 0;
-    for (const [eventId, event] of this.#events) {
-      if (Date.parse(event.occurredAt) > cutoff) continue;
-      this.#events.delete(eventId);
-      this.#semanticKeys.delete(eventSemanticKey(event));
-      count += 1;
-    }
-    return count;
-  }
-
-  #replay(
-    existing: ExecutionTelemetryEvent,
-    candidate: ExecutionTelemetryEvent,
-    key: string,
-    ignoreEventIdentity = false,
-  ): AppendTelemetryResult {
-    if (!equivalentEvents(existing, candidate, ignoreEventIdentity)) {
-      throw new TelemetryConflictError(key);
-    }
-    return { inserted: false, event: existing };
-  }
-
-  #require(actorId: string, operation: string, allowed: readonly string[]): void {
-    if (
-      !allowed.includes(actorId) &&
-      !this.#policy.administratorIds.includes(actorId)
-    ) {
-      throw new TelemetryAccessError(actorId, operation);
-    }
-  }
+  return metrics;
 }
 
 export const PublicWorkEvidenceSchema = z
@@ -369,18 +324,6 @@ export function toPublicWorkEvidence(
   });
 }
 
-function publicOutcome(event: ExecutionTelemetryEvent): string | undefined {
-  if (event.eventType === "routing-decision") return event.decision;
-  if (
-    event.eventType === "provider-request" ||
-    event.eventType === "session-outcome" ||
-    event.eventType === "intervention"
-  ) {
-    return event.outcome;
-  }
-  return undefined;
-}
-
 function sanitizeEvent(event: ExecutionTelemetryEvent): ExecutionTelemetryEvent {
   const redact = (value: string): string => redactAdapterText(value);
   if (event.eventType === "routing-decision") {
@@ -389,10 +332,7 @@ function sanitizeEvent(event: ExecutionTelemetryEvent): ExecutionTelemetryEvent 
   if (event.eventType === "provider-request" && event.failureReason) {
     return { ...event, failureReason: redact(event.failureReason) };
   }
-  if (
-    event.eventType === "session-outcome" &&
-    event.reason
-  ) {
+  if (event.eventType === "session-outcome" && event.reason) {
     return { ...event, reason: redact(event.reason) };
   }
   if (
@@ -405,94 +345,313 @@ function sanitizeEvent(event: ExecutionTelemetryEvent): ExecutionTelemetryEvent 
   return event;
 }
 
-function eventSemanticKey(event: ExecutionTelemetryEvent): string {
-  if (event.eventType === "provider-request") {
-    return `${event.sessionId}:request:${event.requestId}`;
-  }
-  if (event.eventType === "routing-decision") {
-    return `${event.sessionId}:decision:${event.decisionId}`;
-  }
-  if (event.eventType === "session-outcome") {
-    return `${event.sessionId}:outcome`;
-  }
-  if (event.eventType === "handoff") {
-    return `${event.sessionId}:handoff:${event.successorSessionId}`;
-  }
-  if (event.eventType === "wait") {
-    return `${event.sessionId}:wait:${event.waitId}`;
-  }
-  return `${event.sessionId}:intervention:${event.interventionId}:${event.outcome}`;
-}
-
-function equivalentEvents(
-  existing: ExecutionTelemetryEvent,
-  candidate: ExecutionTelemetryEvent,
-  ignoreEventIdentity: boolean,
-): boolean {
-  const omitIdentity = (event: ExecutionTelemetryEvent): unknown => {
-    if (!ignoreEventIdentity) return event;
-    const { eventId: _eventId, occurredAt: _occurredAt, ...rest } = event;
-    return rest;
+function eventAttributes(event: ExecutionTelemetryEvent): LogAttributes {
+  const attributes: LogAttributes = {
+    "agent_coordinator.schema.version": event.schemaVersion,
+    "agent_coordinator.event.id": event.eventId,
+    "agent_coordinator.event.type": event.eventType,
+    "agent_coordinator.event.occurred_at": event.occurredAt,
+    "agent_coordinator.work_item.id": event.workItemId,
+    "agent_coordinator.lease.id": event.leaseId,
+    "agent_coordinator.lease.epoch": event.leaseEpoch,
+    "agent_coordinator.session.id": event.sessionId,
+    "agent_coordinator.policy.id": event.policy.policyId,
+    "agent_coordinator.policy.revision": event.policy.revision,
+    "agent_coordinator.adapter.id": event.adapter.adapterId,
+    "agent_coordinator.adapter.version": event.adapter.adapterVersion,
+    "agent_coordinator.account.class": event.accountClass,
+    "agent_coordinator.route.kind": event.route.kind,
+    "agent_coordinator.route.id": event.route.routeId,
   };
-  return JSON.stringify(omitIdentity(existing)) === JSON.stringify(omitIdentity(candidate));
+  addEventAttributes(attributes, event);
+  return attributes;
 }
 
-function retentionCutoff(now: string, days: number): number {
-  return Date.parse(TimestampSchema.parse(now)) - days * 86_400_000;
+function addEventAttributes(
+  attributes: LogAttributes,
+  event: ExecutionTelemetryEvent,
+): void {
+  switch (event.eventType) {
+    case "routing-decision":
+      attributes["agent_coordinator.decision.id"] = event.decisionId;
+      attributes["agent_coordinator.decision.outcome"] = event.decision;
+      attributes["agent_coordinator.decision.reason"] = event.reason;
+      return;
+    case "provider-request":
+      addProviderRequestAttributes(attributes, event);
+      return;
+    case "session-outcome":
+      attributes["agent_coordinator.outcome"] = event.outcome;
+      if (event.reason) {
+        attributes["agent_coordinator.outcome.reason"] = event.reason;
+      }
+      return;
+    case "handoff":
+      attributes["agent_coordinator.handoff.successor_session_id"] =
+        event.successorSessionId;
+      attributes["agent_coordinator.handoff.reason"] = event.reason;
+      return;
+    case "wait":
+      attributes["agent_coordinator.wait.id"] = event.waitId;
+      attributes["agent_coordinator.wait.duration_ms"] = event.durationMs;
+      attributes["agent_coordinator.wait.reason"] = event.reason;
+      return;
+    case "intervention":
+      attributes["agent_coordinator.intervention.id"] = event.interventionId;
+      attributes["agent_coordinator.intervention.outcome"] = event.outcome;
+      attributes["agent_coordinator.intervention.reason"] = event.reason;
+  }
 }
 
-function redactEvent(event: ExecutionTelemetryEvent): ExecutionTelemetryEvent {
-  const privacyFields = {
-    accountClass: "account:redacted",
-    route: { ...event.route, routeId: "route:redacted" },
-    redacted: true as const,
+function addProviderRequestAttributes(
+  attributes: LogAttributes,
+  event: Extract<ExecutionTelemetryEvent, { eventType: "provider-request" }>,
+): void {
+  attributes["agent_coordinator.request.id"] = event.requestId;
+  attributes["agent_coordinator.provider.id"] = event.providerId;
+  attributes[ATTR_GEN_AI_PROVIDER_NAME] = event.providerId;
+  attributes[ATTR_GEN_AI_REQUEST_MODEL] = event.modelId;
+  attributes["agent_coordinator.quota.state"] = event.quota.state;
+  attributes["agent_coordinator.quota.observed_at"] = event.quota.observedAt;
+  if (event.quota.remaining !== undefined) {
+    attributes["agent_coordinator.quota.remaining"] = event.quota.remaining;
+  }
+  if (event.quota.unit) {
+    attributes["agent_coordinator.quota.unit"] = event.quota.unit;
+  }
+  if (event.quota.resetsAt) {
+    attributes["agent_coordinator.quota.resets_at"] = event.quota.resetsAt;
+  }
+  attributes["agent_coordinator.funding"] = event.funding;
+  if (event.cost) {
+    attributes["agent_coordinator.cost.amount"] = event.cost.amount;
+    attributes["agent_coordinator.cost.currency"] = event.cost.currency;
+  }
+  attributes["agent_coordinator.outcome"] = event.outcome;
+  if (event.failureReason) {
+    attributes[ATTR_ERROR_TYPE] = "provider_request_failed";
+    attributes["agent_coordinator.failure.reason"] = event.failureReason;
+  }
+}
+
+function parseExecutionTelemetryLogRecord(
+  record: ExecutionTelemetryLogRecord,
+): ExecutionTelemetryEvent | undefined {
+  const eventType = record.eventName && eventTypes[record.eventName];
+  if (!eventType) return undefined;
+  const attributes = record.attributes;
+  const base = {
+    schemaVersion: numberAttribute(attributes, "agent_coordinator.schema.version"),
+    recordType: "execution-telemetry",
+    eventId: stringAttribute(attributes, "agent_coordinator.event.id"),
+    occurredAt: stringAttribute(attributes, "agent_coordinator.event.occurred_at"),
+    workItemId: stringAttribute(attributes, "agent_coordinator.work_item.id"),
+    leaseId: stringAttribute(attributes, "agent_coordinator.lease.id"),
+    leaseEpoch: numberAttribute(attributes, "agent_coordinator.lease.epoch"),
+    sessionId: stringAttribute(attributes, "agent_coordinator.session.id"),
+    policy: {
+      policyId: stringAttribute(attributes, "agent_coordinator.policy.id"),
+      revision: numberAttribute(attributes, "agent_coordinator.policy.revision"),
+    },
+    adapter: {
+      adapterId: stringAttribute(attributes, "agent_coordinator.adapter.id"),
+      adapterVersion: stringAttribute(
+        attributes,
+        "agent_coordinator.adapter.version",
+      ),
+    },
+    accountClass: stringAttribute(attributes, "agent_coordinator.account.class"),
+    route: {
+      kind: stringAttribute(attributes, "agent_coordinator.route.kind"),
+      routeId: stringAttribute(attributes, "agent_coordinator.route.id"),
+    },
   };
-  if (event.eventType === "routing-decision") {
-    return ExecutionTelemetryEventSchema.parse({
-      ...event,
-      ...privacyFields,
-      reason: "[redacted]",
-    });
-  }
-  if (event.eventType === "provider-request") {
-    return ExecutionTelemetryEventSchema.parse({
-      ...event,
-      ...privacyFields,
-      providerId: "provider:redacted",
-      modelId: "model:redacted",
-      quota: {
-        state: event.quota.state,
-        observedAt: event.quota.observedAt,
-      },
-      ...(event.failureReason ? { failureReason: "[redacted]" } : {}),
-    });
-  }
-  if (event.eventType === "session-outcome") {
-    return ExecutionTelemetryEventSchema.parse({
-      ...event,
-      ...privacyFields,
-      ...(event.reason ? { reason: "[redacted]" } : {}),
-    });
-  }
-  if (event.eventType === "handoff") {
-    return ExecutionTelemetryEventSchema.parse({
-      ...event,
-      ...privacyFields,
-      reason: "[redacted]",
-    });
-  }
-  if (event.eventType === "wait") {
-    return ExecutionTelemetryEventSchema.parse({
-      ...event,
-      ...privacyFields,
-      reason: "[redacted]",
-    });
-  }
   return ExecutionTelemetryEventSchema.parse({
-    ...event,
-    ...privacyFields,
-    reason: "[redacted]",
+    ...base,
+    ...specificEventFields(eventType, attributes),
   });
+}
+
+function specificEventFields(
+  eventType: ExecutionTelemetryEvent["eventType"],
+  attributes: LogAttributes,
+): Record<string, unknown> {
+  switch (eventType) {
+    case "routing-decision":
+      return {
+        eventType,
+        decisionId: stringAttribute(attributes, "agent_coordinator.decision.id"),
+        decision: stringAttribute(
+          attributes,
+          "agent_coordinator.decision.outcome",
+        ),
+        reason: stringAttribute(attributes, "agent_coordinator.decision.reason"),
+      };
+    case "provider-request":
+      return providerRequestFields(attributes);
+    case "session-outcome":
+      return {
+        eventType,
+        outcome: stringAttribute(attributes, "agent_coordinator.outcome"),
+        ...optionalStringField(
+          attributes,
+          "agent_coordinator.outcome.reason",
+          "reason",
+        ),
+      };
+    case "handoff":
+      return {
+        eventType,
+        successorSessionId: stringAttribute(
+          attributes,
+          "agent_coordinator.handoff.successor_session_id",
+        ),
+        reason: stringAttribute(attributes, "agent_coordinator.handoff.reason"),
+      };
+    case "wait":
+      return {
+        eventType,
+        waitId: stringAttribute(attributes, "agent_coordinator.wait.id"),
+        durationMs: numberAttribute(
+          attributes,
+          "agent_coordinator.wait.duration_ms",
+        ),
+        reason: stringAttribute(attributes, "agent_coordinator.wait.reason"),
+      };
+    case "intervention":
+      return {
+        eventType,
+        interventionId: stringAttribute(
+          attributes,
+          "agent_coordinator.intervention.id",
+        ),
+        outcome: stringAttribute(
+          attributes,
+          "agent_coordinator.intervention.outcome",
+        ),
+        reason: stringAttribute(
+          attributes,
+          "agent_coordinator.intervention.reason",
+        ),
+      };
+  }
+}
+
+function providerRequestFields(attributes: LogAttributes): Record<string, unknown> {
+  const funding = stringAttribute(attributes, "agent_coordinator.funding");
+  return {
+    eventType: "provider-request",
+    requestId: stringAttribute(attributes, "agent_coordinator.request.id"),
+    providerId: stringAttribute(attributes, "agent_coordinator.provider.id"),
+    modelId: stringAttribute(attributes, ATTR_GEN_AI_REQUEST_MODEL),
+    quota: {
+      state: stringAttribute(attributes, "agent_coordinator.quota.state"),
+      observedAt: stringAttribute(
+        attributes,
+        "agent_coordinator.quota.observed_at",
+      ),
+      ...optionalNumberField(
+        attributes,
+        "agent_coordinator.quota.remaining",
+        "remaining",
+      ),
+      ...optionalStringField(attributes, "agent_coordinator.quota.unit", "unit"),
+      ...optionalStringField(
+        attributes,
+        "agent_coordinator.quota.resets_at",
+        "resetsAt",
+      ),
+    },
+    funding,
+    cost: providerRequestCost(attributes, funding),
+    outcome: stringAttribute(attributes, "agent_coordinator.outcome"),
+    ...optionalStringField(
+      attributes,
+      "agent_coordinator.failure.reason",
+      "failureReason",
+    ),
+  };
+}
+
+function providerRequestCost(
+  attributes: LogAttributes,
+  funding: string,
+): Record<string, unknown> | null {
+  if (funding !== "metered") return null;
+  return {
+    amount: numberAttribute(attributes, "agent_coordinator.cost.amount"),
+    currency: stringAttribute(attributes, "agent_coordinator.cost.currency"),
+  };
+}
+
+function stringAttribute(attributes: LogAttributes, key: string): string {
+  const value = attributes[key];
+  if (typeof value !== "string") {
+    throw new Error(`Missing string attribute ${key}`);
+  }
+  return value;
+}
+
+function numberAttribute(attributes: LogAttributes, key: string): number {
+  const value = attributes[key];
+  if (typeof value !== "number") {
+    throw new Error(`Missing number attribute ${key}`);
+  }
+  return value;
+}
+
+function optionalStringField(
+  attributes: LogAttributes,
+  attribute: string,
+  field: string,
+): Record<string, string> {
+  const value = attributes[attribute];
+  return typeof value === "string" ? { [field]: value } : {};
+}
+
+function optionalNumberField(
+  attributes: LogAttributes,
+  attribute: string,
+  field: string,
+): Record<string, number> {
+  const value = attributes[attribute];
+  return typeof value === "number" ? { [field]: value } : {};
+}
+
+function deduplicateEvents(
+  events: readonly ExecutionTelemetryEvent[],
+): ExecutionTelemetryEvent[] {
+  const byEventId = new Map<string, ExecutionTelemetryEvent>();
+  for (const event of events) {
+    const existing = byEventId.get(event.eventId);
+    if (!existing) {
+      byEventId.set(event.eventId, event);
+      continue;
+    }
+    if (JSON.stringify(existing) !== JSON.stringify(event)) {
+      throw new TelemetryConflictError(event.eventId);
+    }
+  }
+  return [...byEventId.values()];
+}
+
+function isFailure(event: ExecutionTelemetryEvent): boolean {
+  return (
+    (event.eventType === "provider-request" && event.outcome === "failed") ||
+    (event.eventType === "session-outcome" && event.outcome === "failed")
+  );
+}
+
+function publicOutcome(event: ExecutionTelemetryEvent): string | undefined {
+  if (event.eventType === "routing-decision") return event.decision;
+  if (
+    event.eventType === "provider-request" ||
+    event.eventType === "session-outcome" ||
+    event.eventType === "intervention"
+  ) {
+    return event.outcome;
+  }
+  return undefined;
 }
 
 function recordEventMetrics(
