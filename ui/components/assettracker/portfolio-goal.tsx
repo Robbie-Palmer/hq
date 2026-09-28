@@ -91,7 +91,9 @@ function getEmptyReconciliationDescription(hasIncome: boolean): string {
   return "Income is saved, but there are not yet two usable balance-sheet dates around an income period. Add complete account balances at matching period ends.";
 }
 
-export function PortfolioGoal() {
+export function PortfolioGoal({
+  showIncomeTools = true,
+}: Readonly<{ showIncomeTools?: boolean }>) {
   const {
     accounts,
     netWorthData,
@@ -171,7 +173,7 @@ export function PortfolioGoal() {
             external contributions distinct.
           </CardDescription>
         </div>
-        <IncomeHistoryImportDrawer />
+        {showIncomeTools && <IncomeHistoryImportDrawer />}
       </CardHeader>
       <CardContent className="flex min-w-0 flex-col gap-5 px-4 sm:px-6">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -290,11 +292,13 @@ export function PortfolioGoal() {
 
         <RunwayForecast />
 
-        <IncomeExpenditureChart
-          incomeHistory={incomeHistory}
-          periods={periods}
-          currency={baseCurrency}
-        />
+        {showIncomeTools && (
+          <IncomeExpenditureChart
+            incomeHistory={incomeHistory}
+            periods={periods}
+            currency={baseCurrency}
+          />
+        )}
 
         {target != null &&
           representativeAnnualSavings != null &&

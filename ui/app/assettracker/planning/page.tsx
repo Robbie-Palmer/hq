@@ -1,13 +1,8 @@
 import type { Metadata } from "next";
-import { AssetTrackerRoutePlaceholder } from "@/components/assettracker/asset-tracker-route-placeholder";
+import { PlanningRoute } from "@/components/assettracker/planning-route";
 
 export const metadata: Metadata = { title: "Planning" };
 
 export default function AssetTrackerPlanningPage() {
-  return (
-    <AssetTrackerRoutePlaceholder
-      title="Planning"
-      description="Explore financial independence, runway, planned spending, and account projections."
-    />
-  );
+  return <PlanningRoute />;
 }

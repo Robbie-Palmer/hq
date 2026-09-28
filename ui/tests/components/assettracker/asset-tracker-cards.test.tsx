@@ -1061,6 +1061,9 @@ describe("AccountsTable", () => {
     );
 
     expect(screen.getByText("Current account")).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Current account" }),
+    ).toHaveAttribute("href", "/assettracker/accounts?account=current");
     expect(screen.queryByText("Old fund")).toBeNull();
 
     await user.click(
@@ -1072,6 +1075,39 @@ describe("AccountsTable", () => {
       screen.getByRole("button", { name: "Hide closed accounts" }),
     ).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Open-account net worth")).toBeVisible();
+  });
+
+  it("shows a selected closed account on first render", () => {
+    render(
+      <AccountsTable
+        initialShowClosed
+        accounts={[
+          {
+            id: "old-fund",
+            name: "Old fund",
+            provider: "Broker",
+            currency: "GBP",
+            assetType: "stocks",
+            expectedAnnualReturn: 0.05,
+            isOpen: false,
+            latestBalance: 0,
+            latestSnapshotDate: "2025-01-01",
+            cagr: null,
+            createdAt: "2023-01-01",
+            closedAt: "2025-01-01",
+            snapshots: [{ date: "2025-01-01", balance: 0 }],
+            capitalFlows: [],
+            netContributed: null,
+            gainLoss: null,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Old fund" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Hide closed accounts" }),
+    ).toHaveAttribute("aria-expanded", "true");
   });
 });
 

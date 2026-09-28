@@ -1,13 +1,22 @@
 import type { Metadata } from "next";
-import { AssetTrackerRoutePlaceholder } from "@/components/assettracker/asset-tracker-route-placeholder";
+import { Suspense } from "react";
+import { AccountsRoute } from "@/components/assettracker/accounts-route";
 
 export const metadata: Metadata = { title: "Accounts" };
 
 export default function AssetTrackerAccountsPage() {
   return (
-    <AssetTrackerRoutePlaceholder
-      title="Accounts"
-      description="Review each asset and liability, then record balances, transfers, expected flows, and account history."
-    />
+    <Suspense fallback={<AccountsRouteFallback />}>
+      <AccountsRoute />
+    </Suspense>
+  );
+}
+
+function AccountsRouteFallback() {
+  return (
+    <div className="space-y-2">
+      <h1 className="text-4xl font-bold">Accounts</h1>
+      <p className="text-lg text-muted-foreground">Loading accounts...</p>
+    </div>
   );
 }
