@@ -1347,11 +1347,13 @@ function overridesHaveSameValue(
   left: DefaultOverride,
   right: DefaultOverride,
 ): boolean {
-  if (left.kind !== right.kind) return false;
-  return left.kind === "technology"
-    ? left.technology ===
-        (right.kind === "technology" ? right.technology : undefined)
-    : left.value === (right.kind === "policy" ? right.value : undefined);
+  if (left.kind === "technology" && right.kind === "technology") {
+    return left.technology === right.technology;
+  }
+  if (left.kind === "policy" && right.kind === "policy") {
+    return left.value === right.value;
+  }
+  return false;
 }
 
 function conflictingOverridePairs(
