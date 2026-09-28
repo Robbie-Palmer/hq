@@ -435,8 +435,10 @@ describe("recipe Agent Auth capabilities", () => {
       "recipe_import.create",
       "recipe_import.status",
       "pantry.read",
+      "pantry.reconcile",
       "shopping_list.read",
       "cook_log.read",
+      "cook_log.append",
       "cooking_insights.read",
     ]);
     expect(

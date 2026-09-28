@@ -101,7 +101,7 @@ export function AgentsPanel() {
     const itemCount = change.items.length;
     if (
       !window.confirm(
-        `Undo ${itemCount} pantry ${itemCount === 1 ? "change" : "changes"} made by ${change.agentName ?? "this agent"}?`,
+        `Undo ${itemCount} ${change.targetType === "cook_log" ? "cook-log" : "pantry"} ${itemCount === 1 ? "change" : "changes"} made by ${change.agentName ?? "this agent"}?`,
       )
     ) {
       return;
@@ -212,7 +212,7 @@ export function AgentsPanel() {
           <p className="rt-display mt-3 text-3xl">No agents connected.</p>
           <p className="rt-body mx-auto mt-2 max-w-lg text-sm text-[var(--ink-2)]">
             Agents can help find recipes and make sense of your cooking history.
-            Access is read-only for now, so an agent cannot change anything.
+            Any write access appears as a separate grant and can be revoked.
           </p>
           <p className="rt-body mx-auto mt-3 max-w-lg text-sm text-[var(--ink-3)]">
             Start the connection from an Agent Auth-compatible app. You will get

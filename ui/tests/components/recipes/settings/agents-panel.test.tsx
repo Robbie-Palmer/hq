@@ -74,7 +74,9 @@ describe("AgentsPanel", () => {
     render(<AgentsPanel />);
 
     expect(await screen.findByText("No agents connected.")).toBeInTheDocument();
-    expect(screen.getByText(/Access is read-only for now/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Any write access appears as a separate grant/),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
         /Start the connection from an Agent Auth-compatible app/,

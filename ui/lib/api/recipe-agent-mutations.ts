@@ -18,6 +18,21 @@ export type AgentMutationHistoryItem = {
   afterVersion: string;
 };
 
+export type AgentCookLogMutationHistoryItem = {
+  sessionId: string;
+  beforeValue: {
+    sessionId: string;
+    recipeSlug: string;
+    recipeTitle: string;
+    servings: number;
+    diners: string[];
+    cookedAt: string;
+  } | null;
+  afterValue: AgentCookLogMutationHistoryItem["beforeValue"];
+  beforeVersion: string | null;
+  afterVersion: string;
+};
+
 export type AgentMutationHistory = {
   id: string;
   actorType: MutationActorType;
@@ -31,7 +46,7 @@ export type AgentMutationHistory = {
   reason: string;
   compensatesChangeSetId: string | null;
   createdAt: string;
-  items: AgentMutationHistoryItem[];
+  items: Array<AgentMutationHistoryItem | AgentCookLogMutationHistoryItem>;
 };
 
 const mutationValueSchema = z
@@ -52,6 +67,27 @@ const mutationItemSchema = z
   })
   .strict();
 
+const cookLogValueSchema = z
+  .object({
+    sessionId: z.uuid(),
+    recipeSlug: z.string(),
+    recipeTitle: z.string(),
+    servings: z.number().int().positive(),
+    diners: z.array(z.string()),
+    cookedAt: z.iso.datetime({ offset: true }),
+  })
+  .strict();
+
+const cookLogMutationItemSchema = z
+  .object({
+    sessionId: z.uuid(),
+    beforeValue: cookLogValueSchema.nullable(),
+    afterValue: cookLogValueSchema.nullable(),
+    beforeVersion: z.string().regex(/^\d+$/).nullable(),
+    afterVersion: z.string().regex(/^\d+$/),
+  })
+  .strict();
+
 const mutationHistorySchema = z
   .object({
     id: z.uuid(),
@@ -66,7 +102,7 @@ const mutationHistorySchema = z
     reason: z.string(),
     compensatesChangeSetId: z.uuid().nullable(),
     createdAt: z.iso.datetime({ offset: true }),
-    items: z.array(mutationItemSchema),
+    items: z.array(z.union([mutationItemSchema, cookLogMutationItemSchema])),
   })
   .strict();
 

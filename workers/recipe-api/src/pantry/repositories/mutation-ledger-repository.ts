@@ -91,6 +91,24 @@ export async function findPantryChangeSet(
   return changeSet;
 }
 
+export async function findMutationChangeSet(
+  tx: DbTransaction,
+  userId: string,
+  changeSetId: string,
+): Promise<MutationChangeSet | undefined> {
+  const [changeSet] = await tx
+    .select()
+    .from(schema.agentMutationChangeSet)
+    .where(
+      and(
+        eq(schema.agentMutationChangeSet.id, changeSetId),
+        eq(schema.agentMutationChangeSet.actorUserId, userId),
+      ),
+    )
+    .limit(1);
+  return changeSet;
+}
+
 export async function findMutationChangeItems(
   tx: DbTransaction,
   changeSetId: string,
@@ -156,6 +174,11 @@ export async function purgeMutationHistoryForUser(
   if (changeSets.length === 0) return;
   const changeSetIds = changeSets.map(({ id }) => id);
   await tx
+    .delete(schema.agentCookLogChangeItem)
+    .where(
+      inArray(schema.agentCookLogChangeItem.changeSetId, changeSetIds),
+    );
+  await tx
     .delete(schema.agentMutationChangeItem)
     .where(
       inArray(schema.agentMutationChangeItem.changeSetId, changeSetIds),
@@ -170,6 +193,15 @@ export async function purgeMutationHistoryForUser(
       inArray(
         schema.agentMutationChangeSet.compensatesChangeSetId,
         changeSetIds,
+      ),
+    );
+  await tx
+    .update(schema.cookingSession)
+    .set({ createdByChangeSetId: null })
+    .where(
+      and(
+        eq(schema.cookingSession.userId, userId),
+        inArray(schema.cookingSession.createdByChangeSetId, changeSetIds),
       ),
     );
   await tx

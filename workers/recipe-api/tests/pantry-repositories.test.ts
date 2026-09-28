@@ -408,12 +408,12 @@ describe("mutation ledger repository", () => {
     expect(emptyTx.delete).not.toHaveBeenCalled();
 
     const populatedTx = transaction({
-      deletes: [query(), query(), query()],
+      deletes: [query(), query(), query(), query()],
       selects: [query([{ id: "change-set-1" }])],
-      updates: [query()],
+      updates: [query(), query()],
     });
     await purgeMutationHistoryForUser(populatedTx, "user-1");
-    expect(populatedTx.delete).toHaveBeenCalledTimes(3);
-    expect(populatedTx.update).toHaveBeenCalledOnce();
+    expect(populatedTx.delete).toHaveBeenCalledTimes(4);
+    expect(populatedTx.update).toHaveBeenCalledTimes(2);
   });
 });

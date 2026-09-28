@@ -111,9 +111,14 @@ import {
   resolvePantryScope,
 } from "./pantry";
 import { enforcePantryItemLimit } from "./pantry/repositories/pantry-repository";
+import { findMutationChangeSet } from "./pantry/repositories/mutation-ledger-repository";
 import { listPantryMutationHistory } from "./pantry/services/list-pantry-mutation-history";
 import { previewPantryMutationUndo } from "./pantry/services/preview-pantry-mutation-undo";
 import { undoPantryMutation } from "./pantry/services/undo-pantry-mutation";
+import { previewCookLogMutationUndo } from "./cook-log/services/preview-cook-log-mutation-undo";
+import { undoCookLogMutation } from "./cook-log/services/undo-cook-log-mutation";
+import { listCookLogMutationHistory } from "./cook-log/services/list-cook-log-mutation-history";
+import { CookLogMutationConflictError } from "recipe-domain/cook-log";
 import { readableRecipeFilter } from "./recipe-access";
 import { fetchRecipePage, RecipeUrlImportError } from "./recipe-url-import";
 import {
@@ -250,6 +255,10 @@ const undoAgentMutationBodySchema = z
       .min(1)
       .max(MAX_PANTRY_MUTATION_CHANGES)
       .optional(),
+    sessionIds: z.array(z.uuid().max(36)).min(1).max(50).optional(),
+  })
+  .refine((body) => !(body.stableItemIds && body.sessionIds), {
+    message: "Choose pantry items or cooking sessions, not both",
   })
   .strict();
 const feedScopeSchema = z.enum(["public", "following"]);
@@ -3346,8 +3355,17 @@ registerRoute("get", "/api/profile/agent-mutations", async (c) => {
     c,
     "query",
     "GET /api/profile/agent-mutations query failed",
-    async ({ db, session }) =>
-      c.json({ items: await listPantryMutationHistory(db, session.user.id) }),
+    async ({ db, session }) => {
+      const [pantry, cookLog] = await Promise.all([
+        listPantryMutationHistory(db, session.user.id),
+        listCookLogMutationHistory(db, session.user.id),
+      ]);
+      return c.json({
+        items: [...pantry, ...cookLog]
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+          .slice(0, 50),
+      });
+    },
   );
 });
 
@@ -3363,11 +3381,21 @@ registerRoute(
       "GET agent mutation undo preview failed",
       async ({ db, session }) => {
         try {
-          const preview = await previewPantryMutationUndo(
-            db,
-            session.user.id,
-            changeSetId,
+          const changeSet = await db.transaction((tx) =>
+            findMutationChangeSet(tx, session.user.id, changeSetId),
           );
+          const preview =
+            changeSet?.targetType === "cook_log"
+              ? await previewCookLogMutationUndo(
+                  db,
+                  session.user.id,
+                  changeSetId,
+                )
+              : await previewPantryMutationUndo(
+                  db,
+                  session.user.id,
+                  changeSetId,
+                );
           return preview
             ? c.json(preview)
             : c.json({ error: "Mutation change set not found" }, 404);
@@ -3400,20 +3428,35 @@ registerRoute(
       "POST agent mutation undo failed",
       async ({ db, session }) => {
         try {
-          const result = await undoPantryMutation(db, {
-            userId: session.user.id,
-            changeSetId,
-            idempotencyKey: operationId,
-            stableItemIds: body.data.stableItemIds,
-          });
+          const changeSet = await db.transaction((tx) =>
+            findMutationChangeSet(tx, session.user.id, changeSetId),
+          );
+          const result =
+            changeSet?.targetType === "cook_log"
+              ? await undoCookLogMutation(db, {
+                  userId: session.user.id,
+                  changeSetId,
+                  idempotencyKey: operationId,
+                  sessionIds: body.data.sessionIds,
+                })
+              : await undoPantryMutation(db, {
+                  userId: session.user.id,
+                  changeSetId,
+                  idempotencyKey: operationId,
+                  stableItemIds: body.data.stableItemIds,
+                });
           if (!result) return c.json({ error: "Mutation change set not found" }, 404);
           return result.applied
             ? c.json(result)
-            : c.json({ error: "Pantry changed after the agent mutation", ...result }, 409);
+            : c.json(
+                { error: "Data changed after the agent mutation", ...result },
+                409,
+              );
         } catch (error) {
           if (
             error instanceof PantryMutationConflictError ||
-            error instanceof PantryItemLimitError
+            error instanceof PantryItemLimitError ||
+            error instanceof CookLogMutationConflictError
           ) {
             return c.json({ error: error.message }, 409);
           }
@@ -3464,7 +3507,10 @@ registerRoute("post", "/api/profile/cooking-sessions", async (c) => {
       if (!created && completedAt) {
         await db
           .update(schema.cookingSession)
-          .set({ completedAt })
+          .set({
+            completedAt,
+            version: sql`${schema.cookingSession.version} + 1`,
+          })
           .where(
             and(
               eq(schema.cookingSession.id, body.data.sessionId),
