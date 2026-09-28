@@ -134,7 +134,14 @@ export function PlatformSummary({
                     {technology.decision && (
                       <>
                         {", "}
-                        <ADRLink adrRef={technology.decision} label="default" />
+                        <ADRLink
+                          adrRef={technology.decision}
+                          label={
+                            technology.source === "override"
+                              ? "override"
+                              : "default"
+                          }
+                        />
                       </>
                     )}
                     {(technology.evidenceADRs?.length ?? 0) > 0 && (
@@ -194,7 +201,12 @@ export function PlatformSummary({
                   {policy.decision && (
                     <>
                       {", "}
-                      <ADRLink adrRef={policy.decision} label="default" />
+                      <ADRLink
+                        adrRef={policy.decision}
+                        label={
+                          policy.source === "override" ? "override" : "default"
+                        }
+                      />
                     </>
                   )}
                   {(policy.evidenceADRs?.length ?? 0) > 0 && (

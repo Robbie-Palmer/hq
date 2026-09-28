@@ -136,6 +136,28 @@ replacement technology or policy value and its effective period. It leaves the
 rest of the layer intact and makes the departure visible instead of quietly
 drifting from the shared setup.
 
+The local ADR frontmatter is the authoring path. This illustrative override is
+not an active product decision:
+
+```yaml
+title: "ADR 012: Use Python for model training"
+date: "2026-09-20"
+status: "Accepted"
+overrides_default:
+  slot: "project.primary-language"
+  kind: "technology"
+  technology: "Python"
+  adopted: "2026-09-20T00:00:00Z"
+  until: "2026-10-01T00:00:00Z"
+```
+
+The project must adopt the layer throughout that half-open period. Preferred
+slots also need a slot-use record for the same period. At `until`, the project
+returns to the accepted platform selection unless another local ADR starts at
+that exact boundary. Single-valued slots allow only one active override.
+Multi-valued slots may carry different values concurrently, but duplicate
+values may not overlap.
+
 Tracking projects follow accepted replacements. Completed or deliberately
 frozen projects close their adoption periods and keep the stack they last used.
 The platform has no coordinated version number. Each policy and selection
