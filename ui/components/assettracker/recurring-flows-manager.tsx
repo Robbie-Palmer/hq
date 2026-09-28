@@ -73,7 +73,7 @@ export function RecurringFlowsManager() {
           </Select>
         </div>
       </div>
-      <AccountFlows account={selectedAccount} />
+      <AccountFlows key={selectedAccount.id} account={selectedAccount} />
     </section>
   );
 }
