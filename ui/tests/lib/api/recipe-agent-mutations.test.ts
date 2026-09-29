@@ -70,4 +70,52 @@ describe("recipe agent mutations API", () => {
       /^[0-9a-f-]{36}$/,
     );
   });
+
+  it("parses reversible cook-log history", async () => {
+    const changeSetId = "0199a770-1111-7111-8111-111111111111";
+    const sessionId = "0199a770-2222-7222-8222-222222222222";
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        items: [
+          {
+            id: changeSetId,
+            actorType: "agent",
+            agentId: "agent-1",
+            agentName: "Meal planner",
+            hostId: "host-1",
+            hostName: null,
+            capability: "cook_log.append",
+            targetType: "cook_log",
+            targetId: "user-1",
+            reason: "Record dinner",
+            compensatesChangeSetId: null,
+            createdAt: "2026-09-27T18:31:00.000Z",
+            items: [
+              {
+                sessionId,
+                beforeValue: null,
+                afterValue: {
+                  sessionId,
+                  recipeSlug: "tomato-soup",
+                  recipeTitle: "Tomato Soup",
+                  servings: 2,
+                  diners: ["Alex", "Sam"],
+                  cookedAt: "2026-09-27T18:30:00.000Z",
+                },
+                beforeVersion: null,
+                afterVersion: "1",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    await expect(listAgentMutations()).resolves.toMatchObject([
+      {
+        targetType: "cook_log",
+        items: [{ sessionId, afterValue: { diners: ["Alex", "Sam"] } }],
+      },
+    ]);
+  });
 });

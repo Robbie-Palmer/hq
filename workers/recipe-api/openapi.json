@@ -4864,6 +4864,16 @@
                     },
                     "minItems": 1,
                     "maxItems": 100
+                  },
+                  "sessionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 36,
+                      "format": "uuid"
+                    },
+                    "minItems": 1,
+                    "maxItems": 50
                   }
                 },
                 "additionalProperties": false

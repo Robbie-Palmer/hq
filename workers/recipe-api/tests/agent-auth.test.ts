@@ -2,6 +2,27 @@ import type { AgentAuthEvent, AgentSession } from "@better-auth/agent-auth";
 import type { Db } from "recipe-db";
 import * as schema from "recipe-db/schema";
 import { describe, expect, it, vi } from "vitest";
+
+const mutationMocks = vi.hoisted(() => ({
+  appendCookLog: vi.fn(),
+  previewCookLogMutationUndo: vi.fn(),
+  previewPantryMutationUndo: vi.fn(),
+  reconcilePantry: vi.fn(),
+}));
+
+vi.mock("../src/cook-log/services/append-cook-log", () => ({
+  appendCookLog: mutationMocks.appendCookLog,
+}));
+vi.mock("../src/cook-log/services/preview-cook-log-mutation-undo", () => ({
+  previewCookLogMutationUndo: mutationMocks.previewCookLogMutationUndo,
+}));
+vi.mock("../src/pantry/services/preview-pantry-mutation-undo", () => ({
+  previewPantryMutationUndo: mutationMocks.previewPantryMutationUndo,
+}));
+vi.mock("../src/pantry/services/reconcile-pantry", () => ({
+  reconcilePantry: mutationMocks.reconcilePantry,
+}));
+
 import {
   createRecipeAgentAuthPlugin,
   escapedLikePattern,
@@ -435,8 +456,10 @@ describe("recipe Agent Auth capabilities", () => {
       "recipe_import.create",
       "recipe_import.status",
       "pantry.read",
+      "pantry.reconcile",
       "shopping_list.read",
       "cook_log.read",
+      "cook_log.append",
       "cooking_insights.read",
     ]);
     expect(
@@ -535,6 +558,107 @@ describe("recipe Agent Auth capabilities", () => {
     });
     expect(cookLog?.output).toMatchObject({
       properties: { items: { maxItems: 50 } },
+    });
+  });
+
+  it("executes pantry reconciliation with delegated-agent attribution", async () => {
+    mutationMocks.reconcilePantry.mockResolvedValueOnce({
+      changeSetId: "0199a770-1111-7111-8111-111111111111",
+      replayed: false,
+      pantry: {
+        scope: { type: "personal", userId: "delegating-user" },
+        revision: "2",
+        items: [],
+      },
+    });
+    mutationMocks.previewPantryMutationUndo.mockResolvedValueOnce({
+      changeSetId: "0199a770-1111-7111-8111-111111111111",
+      canUndo: true,
+      items: [],
+    });
+
+    const result = await executeRecipeAgentCapability(
+      {} as Db,
+      "pantry.reconcile",
+      {
+        idempotencyKey: "0199a770-2222-7222-8222-222222222222",
+        reason: "Use the latest pantry count",
+        changes: [
+          {
+            ingredientSlug: "tomato",
+            expectedVersion: "1",
+            location: "cupboards",
+          },
+        ],
+      },
+      agentSession(),
+    );
+
+    expect(mutationMocks.reconcilePantry).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        capability: "pantry.reconcile",
+        actor: {
+          type: "agent",
+          userId: "delegating-user",
+          agentId: "agent-1",
+          agentName: "Recipe helper",
+          hostId: "host-1",
+        },
+      }),
+    );
+    expect(result).toMatchObject({
+      pantry: { scope: "personal" },
+      undoPreview: { canUndo: true },
+    });
+  });
+
+  it("appends cook-log events with delegated-agent attribution", async () => {
+    mutationMocks.appendCookLog.mockResolvedValueOnce({
+      changeSetId: "0199a770-3333-7333-8333-333333333333",
+      replayed: false,
+    });
+    mutationMocks.previewCookLogMutationUndo.mockResolvedValueOnce({
+      changeSetId: "0199a770-3333-7333-8333-333333333333",
+      canUndo: true,
+      items: [],
+    });
+    const event = {
+      sessionId: "0199a770-4444-7444-8444-444444444444",
+      recipeSlug: "tomato-soup",
+      recipeTitle: "Tomato Soup",
+      servings: 2,
+      diners: ["Alex"],
+      cookedAt: "2026-09-27T18:30:00.000Z",
+    };
+
+    const result = await executeRecipeAgentCapability(
+      {} as Db,
+      "cook_log.append",
+      {
+        idempotencyKey: "0199a770-5555-7555-8555-555555555555",
+        reason: "Record dinner",
+        events: [event],
+      },
+      agentSession(),
+    );
+
+    expect(mutationMocks.appendCookLog).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        events: [event],
+        actor: {
+          type: "agent",
+          userId: "delegating-user",
+          agentId: "agent-1",
+          agentName: "Recipe helper",
+          hostId: "host-1",
+        },
+      }),
+    );
+    expect(result).toMatchObject({
+      changeSetId: "0199a770-3333-7333-8333-333333333333",
+      undoPreview: { canUndo: true },
     });
   });
 

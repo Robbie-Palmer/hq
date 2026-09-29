@@ -19,6 +19,7 @@ import {
   RECIPE_IMPORT_STAGES,
   RECIPE_IMPORT_STATUSES,
 } from "recipe-domain/import-storage";
+import type { CookLogMutationValue } from "recipe-domain/cook-log";
 import { RECIPE_VISIBILITIES } from "recipe-domain/visibility";
 import { MUTATION_ACTOR_TYPES } from "recipe-domain/mutation";
 import {
@@ -27,6 +28,7 @@ import {
 } from "recipe-domain/pantry";
 
 export type { PantryMutationValue } from "recipe-domain/pantry";
+export type { CookLogMutationValue } from "recipe-domain/cook-log";
 
 export const user = pgTable("user", {
   id: text().primaryKey(),
@@ -1032,8 +1034,14 @@ export const cookingSession = pgTable(
     recipeSlug: text().notNull(),
     recipeTitle: text().notNull(),
     servings: integer().notNull(),
+    diners: text().array().notNull().default(sql`'{}'::text[]`),
     startedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp({ withTimezone: true }),
+    version: bigint({ mode: "bigint" }).notNull().default(sql`1`),
+    createdByChangeSetId: uuid().references(
+      () => agentMutationChangeSet.id,
+      { onDelete: "restrict" },
+    ),
   },
   (table) => [
     index("cooking_session_user_started_idx").on(
@@ -1049,6 +1057,34 @@ export const cookingSession = pgTable(
       table.recipeSlug,
       table.completedAt.desc(),
     ),
+  ],
+);
+
+/** Structured cook-log snapshots used to preview and apply compensation. */
+export const agentCookLogChangeItem = pgTable(
+  "agent_cook_log_change_item",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    changeSetId: uuid()
+      .notNull()
+      .references(() => agentMutationChangeSet.id, { onDelete: "restrict" }),
+    ordinal: integer().notNull(),
+    sessionId: uuid().notNull(),
+    beforeValue: jsonb().$type<CookLogMutationValue>(),
+    afterValue: jsonb().$type<CookLogMutationValue>(),
+    beforeVersion: bigint({ mode: "bigint" }),
+    afterVersion: bigint({ mode: "bigint" }).notNull(),
+  },
+  (table) => [
+    check(
+      "agent_cook_log_change_item_value_check",
+      sql`num_nonnulls(${table.beforeValue}, ${table.afterValue}) >= 1`,
+    ),
+    uniqueIndex("agent_cook_log_change_item_ordinal_uidx").on(
+      table.changeSetId,
+      table.ordinal,
+    ),
+    index("agent_cook_log_change_item_session_idx").on(table.sessionId),
   ],
 );
 

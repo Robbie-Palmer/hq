@@ -12,12 +12,21 @@ import { APIError } from "better-auth";
 import { and, desc, eq, ilike, or } from "drizzle-orm";
 import type { Db } from "recipe-db";
 import * as schema from "recipe-db/schema";
-import { MAX_PANTRY_ITEMS, PANTRY_LOCATIONS } from "recipe-domain/pantry";
 import {
   RECIPE_IMPORT_MAX_IMAGES,
   RECIPE_IMPORT_STAGES,
   RECIPE_IMPORT_STATUSES,
 } from "recipe-domain/import-storage";
+import {
+  CookLogMutationEventSchema,
+  MAX_COOK_LOG_MUTATION_EVENTS,
+} from "recipe-domain/cook-log";
+import {
+  MAX_PANTRY_ITEMS,
+  MAX_PANTRY_MUTATION_CHANGES,
+  PANTRY_LOCATIONS,
+  PantryLocationSchema,
+} from "recipe-domain/pantry";
 import { RECIPE_VISIBILITIES } from "recipe-domain/visibility";
 import { z } from "zod";
 import {
@@ -25,12 +34,16 @@ import {
   createAgentRecipeImport,
   readAgentRecipeImportStatus,
 } from "./agent-recipe-imports";
+import { appendCookLog } from "./cook-log/services/append-cook-log";
+import { previewCookLogMutationUndo } from "./cook-log/services/preview-cook-log-mutation-undo";
 import {
   cookingInsightsResponse,
   cookingLogResponse,
   decodeCookingLogCursor,
 } from "./cooking-reads";
 import { readPantry } from "./pantry";
+import { previewPantryMutationUndo } from "./pantry/services/preview-pantry-mutation-undo";
+import { reconcilePantry } from "./pantry/services/reconcile-pantry";
 import { readableRecipeFilter } from "./recipe-access";
 import { inspectRecipeDataset } from "./recipe-dataset";
 import { enforceRateLimit } from "./http/rate-limit";
@@ -114,6 +127,36 @@ const cookLogReadInput = z
         message: "Cursor is invalid",
       })
       .optional(),
+  })
+  .strict();
+
+const pantryReconcileInput = z
+  .object({
+    idempotencyKey: z.uuid(),
+    reason: z.string().trim().min(1).max(500),
+    changes: z
+      .array(
+        z
+          .object({
+            ingredientSlug: z.string().trim().min(1).max(200),
+            expectedVersion: z.string().regex(/^\d+$/).nullable(),
+            location: PantryLocationSchema.nullable(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(MAX_PANTRY_MUTATION_CHANGES),
+  })
+  .strict();
+
+const cookLogAppendInput = z
+  .object({
+    idempotencyKey: z.uuid(),
+    reason: z.string().trim().min(1).max(500),
+    events: z
+      .array(CookLogMutationEventSchema)
+      .min(1)
+      .max(MAX_COOK_LOG_MUTATION_EVENTS),
   })
   .strict();
 
@@ -580,6 +623,51 @@ export const RECIPE_SITE_AGENT_CAPABILITIES = [
     output: pantrySnapshotSchema,
   },
   {
+    name: "pantry.reconcile",
+    description:
+      "Apply an attributed, idempotent pantry change set with row-version conflict checks and a compensating undo preview.",
+    approvalStrength: "session",
+    grantTTL: READ_GRANT_TTL_SECONDS,
+    input: {
+      type: "object",
+      additionalProperties: false,
+      required: ["idempotencyKey", "reason", "changes"],
+      properties: {
+        idempotencyKey: { type: "string", format: "uuid" },
+        reason: { type: "string", minLength: 1, maxLength: 500 },
+        changes: {
+          type: "array",
+          minItems: 1,
+          maxItems: MAX_PANTRY_MUTATION_CHANGES,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["ingredientSlug", "expectedVersion", "location"],
+            properties: {
+              ingredientSlug: { type: "string", minLength: 1, maxLength: 200 },
+              expectedVersion: {
+                type: ["string", "null"],
+                pattern: "^[0-9]+$",
+              },
+              location: { enum: [...PANTRY_LOCATIONS, null] },
+            },
+          },
+        },
+      },
+    },
+    output: {
+      type: "object",
+      additionalProperties: false,
+      required: ["changeSetId", "replayed", "pantry", "undoPreview"],
+      properties: {
+        changeSetId: { type: "string", format: "uuid" },
+        replayed: { type: "boolean" },
+        pantry: pantrySnapshotSchema,
+        undoPreview: { type: "object" },
+      },
+    },
+  },
+  {
     name: "shopping_list.read",
     description:
       "Read the current shopping list belonging to the delegated user or their household.",
@@ -652,6 +740,61 @@ export const RECIPE_SITE_AGENT_CAPABILITIES = [
           items: completedCookingSessionSchema,
         },
         nextCursor: { type: ["string", "null"] },
+      },
+    },
+  },
+  {
+    name: "cook_log.append",
+    description:
+      "Append an attributed, idempotent batch of completed cooking events with a compensating undo preview.",
+    approvalStrength: "session",
+    grantTTL: READ_GRANT_TTL_SECONDS,
+    input: {
+      type: "object",
+      additionalProperties: false,
+      required: ["idempotencyKey", "reason", "events"],
+      properties: {
+        idempotencyKey: { type: "string", format: "uuid" },
+        reason: { type: "string", minLength: 1, maxLength: 500 },
+        events: {
+          type: "array",
+          minItems: 1,
+          maxItems: MAX_COOK_LOG_MUTATION_EVENTS,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: [
+              "sessionId",
+              "recipeSlug",
+              "recipeTitle",
+              "servings",
+              "diners",
+              "cookedAt",
+            ],
+            properties: {
+              sessionId: { type: "string", format: "uuid" },
+              recipeSlug: { type: "string", minLength: 1, maxLength: 120 },
+              recipeTitle: { type: "string", minLength: 1, maxLength: 120 },
+              servings: { type: "integer", minimum: 1, maximum: 1_000 },
+              diners: {
+                type: "array",
+                maxItems: 20,
+                items: { type: "string", minLength: 1, maxLength: 120 },
+              },
+              cookedAt: { type: "string", format: "date-time" },
+            },
+          },
+        },
+      },
+    },
+    output: {
+      type: "object",
+      additionalProperties: false,
+      required: ["changeSetId", "replayed", "undoPreview"],
+      properties: {
+        changeSetId: { type: "string", format: "uuid" },
+        replayed: { type: "boolean" },
+        undoPreview: { type: "object" },
       },
     },
   },
@@ -828,6 +971,57 @@ async function readPantryCapability(
   return { ...pantry, scope: pantry.scope.type };
 }
 
+function mutationActor(agentSession: AgentSession) {
+  return {
+    type: "agent" as const,
+    userId: agentSession.user.id,
+    agentId: agentSession.agent.id,
+    agentName: agentSession.agent.name,
+    hostId: agentSession.agent.hostId,
+  };
+}
+
+async function reconcilePantryCapability(
+  db: Db,
+  args: Record<string, unknown> | undefined,
+  agentSession: AgentSession,
+) {
+  const input = pantryReconcileInput.parse(args ?? {});
+  const result = await reconcilePantry(db, {
+    ...input,
+    actor: mutationActor(agentSession),
+    capability: "pantry.reconcile",
+  });
+  const undoPreview = await previewPantryMutationUndo(
+    db,
+    agentSession.user.id,
+    result.changeSetId,
+  );
+  return {
+    ...result,
+    pantry: { ...result.pantry, scope: result.pantry.scope.type },
+    undoPreview,
+  };
+}
+
+async function appendCookLogCapability(
+  db: Db,
+  args: Record<string, unknown> | undefined,
+  agentSession: AgentSession,
+) {
+  const input = cookLogAppendInput.parse(args ?? {});
+  const result = await appendCookLog(db, {
+    ...input,
+    actor: mutationActor(agentSession),
+  });
+  const undoPreview = await previewCookLogMutationUndo(
+    db,
+    agentSession.user.id,
+    result.changeSetId,
+  );
+  return { ...result, undoPreview };
+}
+
 async function readShoppingList(
   db: Db,
   args: Record<string, unknown> | undefined,
@@ -895,8 +1089,10 @@ type AgentCapabilityResult =
   | Awaited<ReturnType<typeof createRecipeImport>>
   | Awaited<ReturnType<typeof readRecipeImportStatus>>
   | Awaited<ReturnType<typeof readPantryCapability>>
+  | Awaited<ReturnType<typeof reconcilePantryCapability>>
   | Awaited<ReturnType<typeof readShoppingList>>
   | Awaited<ReturnType<typeof readCookLog>>
+  | Awaited<ReturnType<typeof appendCookLogCapability>>
   | Awaited<ReturnType<typeof readCookingInsights>>;
 
 const agentCapabilityHandlers: Record<string, AgentCapabilityHandler> = {
@@ -906,8 +1102,10 @@ const agentCapabilityHandlers: Record<string, AgentCapabilityHandler> = {
   "recipe_import.create": createRecipeImport,
   "recipe_import.status": readRecipeImportStatus,
   "pantry.read": readPantryCapability,
+  "pantry.reconcile": reconcilePantryCapability,
   "shopping_list.read": readShoppingList,
   "cook_log.read": readCookLog,
+  "cook_log.append": appendCookLogCapability,
   "cooking_insights.read": readCookingInsights,
 };
 

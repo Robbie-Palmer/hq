@@ -13,6 +13,7 @@ import {
 } from "vitest";
 import { createAuth } from "../../src/auth";
 import { executeRecipeAgentCapability } from "../../src/agent-auth";
+import { undoCookLogMutation } from "../../src/cook-log/services/undo-cook-log-mutation";
 import { listPantryMutationHistory } from "../../src/pantry/services/list-pantry-mutation-history";
 import { previewPantryMutationUndo } from "../../src/pantry/services/preview-pantry-mutation-undo";
 import { reconcilePantry } from "../../src/pantry/services/reconcile-pantry";
@@ -189,8 +190,8 @@ beforeAll(async () => {
     where slug in ('almond-milk', 'cajun-powder', 'cajun-seasoning', 'salted-butter')
     order by slug
   `;
-  expect(migrationCount?.count).toBe(16);
-  expect(tableCount?.count).toBe(47);
+  expect(migrationCount?.count).toBe(17);
+  expect(tableCount?.count).toBe(48);
   expect(catalogRows).toEqual([
     { category: "dairy", slug: "almond-milk" },
     { category: "spice", slug: "cajun-seasoning" },
@@ -551,6 +552,131 @@ describe("recipe API PostgreSQL integration", () => {
       revision: "1",
       stock: { onion: "fresh" },
       itemVersions: { onion: "1" },
+    });
+  });
+
+  it("executes pantry reconciliation as a separately attributed capability", async () => {
+    const cook = await createUser(
+      "Delegated Pantry Writer",
+      "delegated-pantry-writer@example.test",
+    );
+    const input = {
+      idempotencyKey: "0199a770-5111-7111-8111-111111111111",
+      reason: "Put away the onions",
+      changes: [
+        {
+          ingredientSlug: "onion",
+          expectedVersion: null,
+          location: "fresh",
+        },
+      ],
+    };
+    const applied = await executeRecipeAgentCapability(
+      db,
+      "pantry.reconcile",
+      input,
+      delegatedAgentSession(cook),
+    );
+    expect(applied).toMatchObject({
+      replayed: false,
+      pantry: { resourceId: cook.id, scope: "personal" },
+      undoPreview: { canUndo: true },
+    });
+    await expect(
+      executeRecipeAgentCapability(
+        db,
+        "pantry.reconcile",
+        input,
+        delegatedAgentSession(cook),
+      ),
+    ).resolves.toMatchObject({ replayed: true });
+  });
+
+  it("appends cook events idempotently and compensates only safe rows", async () => {
+    const cook = await createUser(
+      "Delegated Cook Log Cook",
+      "delegated-cook-log@example.test",
+    );
+    const session = delegatedAgentSession(cook);
+    const firstSessionId = "0199a770-6111-7111-8111-111111111111";
+    const secondSessionId = "0199a770-6222-7222-8222-222222222222";
+    const input = {
+      idempotencyKey: "0199a770-6333-7333-8333-333333333333",
+      reason: "Record a shared dinner",
+      events: [
+        {
+          sessionId: firstSessionId,
+          recipeSlug: "tomato-soup",
+          recipeTitle: "Tomato Soup",
+          servings: 2,
+          diners: ["Alex", "Sam"],
+          cookedAt: "2026-09-27T18:30:00.000Z",
+        },
+        {
+          sessionId: secondSessionId,
+          recipeSlug: "lentil-soup",
+          recipeTitle: "Lentil Soup",
+          servings: 4,
+          diners: ["Alex", "Sam", "Jo"],
+          cookedAt: "2026-09-26T18:30:00.000Z",
+        },
+      ],
+    };
+    const applied = await executeRecipeAgentCapability(
+      db,
+      "cook_log.append",
+      input,
+      session,
+    );
+    if (!("changeSetId" in applied)) throw new Error("Cook log was not appended");
+    expect(applied).toMatchObject({
+      replayed: false,
+      undoPreview: { canUndo: true },
+    });
+    await expect(
+      executeRecipeAgentCapability(db, "cook_log.append", input, session),
+    ).resolves.toMatchObject({
+      changeSetId: applied.changeSetId,
+      replayed: true,
+    });
+
+    await db
+      .update(schema.cookingSession)
+      .set({ recipeTitle: "Human correction", version: 2n })
+      .where(eq(schema.cookingSession.id, secondSessionId));
+    await expect(
+      undoCookLogMutation(db, {
+        userId: cook.id,
+        changeSetId: applied.changeSetId,
+        idempotencyKey: "0199a770-6444-7444-8444-444444444444",
+      }),
+    ).resolves.toMatchObject({ applied: false });
+    await expect(
+      undoCookLogMutation(db, {
+        userId: cook.id,
+        changeSetId: applied.changeSetId,
+        idempotencyKey: "0199a770-6555-7555-8555-555555555555",
+        sessionIds: [firstSessionId],
+      }),
+    ).resolves.toMatchObject({ applied: true, replayed: false });
+
+    const remaining = await db
+      .select()
+      .from(schema.cookingSession)
+      .where(eq(schema.cookingSession.userId, cook.id));
+    expect(remaining).toMatchObject([
+      { id: secondSessionId, recipeTitle: "Human correction", version: 2n },
+    ]);
+    const historyResponse = await authenticatedRequest(
+      cook,
+      "/api/profile/agent-mutations",
+    );
+    expect(historyResponse.status).toBe(200);
+    await expect(json<{ items: unknown[] }>(historyResponse)).resolves.toMatchObject({
+      items: [
+        { targetType: "cook_log", compensatesChangeSetId: applied.changeSetId },
+        { id: applied.changeSetId, capability: "cook_log.append" },
+      ],
     });
   });
 
