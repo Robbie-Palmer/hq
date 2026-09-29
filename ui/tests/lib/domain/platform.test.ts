@@ -512,6 +512,55 @@ describe("temporal platform layers", () => {
     ).toBe("2026-09-12T00:00:00Z");
   });
 
+  it("requires OpenAPI linting while keeping compatibility checks opt-in", () => {
+    const repository = loadDomainRepository();
+    const manifest = repository.platform.manifest;
+
+    expect(
+      manifest?.layers.find((layer) => layer.slug === "api-governance")
+        ?.activatedBy,
+    ).toEqual({
+      slot: "backend-api.contract-format",
+      technology: "openapi",
+    });
+
+    const recipe = resolveEffectiveProjectStack(
+      repository,
+      "recipe-site",
+      "2026-09-29T12:00:00Z",
+    );
+    expect(recipe.technologies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          slot: "api-governance.contract-linter",
+          technology: "spectral",
+        }),
+        expect.objectContaining({
+          slot: "api-governance.compatibility-check",
+          technology: "oasdiff",
+        }),
+      ]),
+    );
+
+    const workGraph = resolveEffectiveProjectStack(
+      repository,
+      "work-graph",
+      "2026-09-29T12:00:00Z",
+    );
+    expect(workGraph.technologies).toContainEqual(
+      expect.objectContaining({
+        slot: "api-governance.contract-linter",
+        technology: "spectral",
+      }),
+    );
+    expect(workGraph.technologies).not.toContainEqual(
+      expect.objectContaining({
+        slot: "api-governance.compatibility-check",
+        technology: "oasdiff",
+      }),
+    );
+  });
+
   it("resolves the repository, language, web, and infrastructure baseline", () => {
     const repository = loadDomainRepository();
     const recipe = resolveEffectiveProjectStack(
