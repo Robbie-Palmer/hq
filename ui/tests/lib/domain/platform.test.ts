@@ -855,6 +855,74 @@ describe("temporal platform layers", () => {
     ).not.toContain("tanstack-query");
   });
 
+  it("promotes Tailscale only with an explicit public-ingress boundary", () => {
+    const repository = loadDomainRepository();
+    const manifest = repository.platform.manifest;
+
+    expect(
+      manifest?.policies.find(
+        (policy) => policy.slot === "network.private-overlay",
+      ),
+    ).toMatchObject({
+      mode: "preferred",
+      prerequisites: [{ slot: "network.public-ingress" }],
+    });
+    expect(
+      manifest?.selections.find(
+        (selection) => selection.slot === "network.public-ingress",
+      ),
+    ).toMatchObject({
+      kind: "policy",
+      value:
+        "Declare services private-only or govern their public ingress separately",
+      status: "Accepted",
+      decision:
+        "personal-engineering-platform:022-tailscale-private-networking",
+    });
+    expect(
+      manifest?.selections.find(
+        (selection) => selection.slot === "network.private-overlay",
+      ),
+    ).toMatchObject({
+      kind: "technology",
+      technology: "tailscale",
+      status: "Accepted",
+      decision:
+        "personal-engineering-platform:022-tailscale-private-networking",
+      originProjects: ["homelab", "agent-friendly-remote-development"],
+      evidenceADRs: [
+        "homelab:000-tailscale",
+        "agent-friendly-remote-development:011-single-user-host-boundary",
+      ],
+    });
+
+    for (const project of ["homelab", "agent-friendly-remote-development"]) {
+      const stack = resolveEffectiveProjectStack(
+        repository,
+        project,
+        "2026-09-29T12:00:00Z",
+      );
+      expect(stack.policies).toContainEqual(
+        expect.objectContaining({ slot: "network.public-ingress" }),
+      );
+      expect(stack.technologies).toContainEqual(
+        expect.objectContaining({
+          slot: "network.private-overlay",
+          technology: "tailscale",
+          source: "preferred-layer",
+        }),
+      );
+    }
+
+    expect(
+      resolveEffectiveProjectStack(
+        repository,
+        "personal-knowledge-graph",
+        "2026-09-29T12:00:00Z",
+      ).technologies.map((use) => use.technology),
+    ).not.toContain("tailscale");
+  });
+
   it("resolves the repository, language, web, and infrastructure baseline", () => {
     const repository = loadDomainRepository();
     const recipe = resolveEffectiveProjectStack(
