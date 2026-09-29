@@ -1314,4 +1314,63 @@ describe("temporal platform layers", () => {
       expect.arrayContaining(["homelab", "agent-friendly-remote-development"]),
     );
   });
+
+  it("promotes R2 as object storage with exact origin evidence", () => {
+    const repository = loadDomainRepository();
+    const manifest = repository.platform.manifest;
+    expect(manifest).toBeDefined();
+    if (!manifest) return;
+
+    const selection = manifest.selections.find(
+      (candidate) =>
+        candidate.slot === "storage.object-store" &&
+        candidate.kind === "technology" &&
+        candidate.technology === "cloudflare-r2",
+    );
+    expect(selection).toMatchObject({
+      status: "Accepted",
+      decision:
+        "personal-engineering-platform:015-cloudflare-r2-object-storage",
+      originProjects: [
+        "personal-knowledge-graph",
+        "recipe-site",
+        "agentic-code-review",
+      ],
+      evidenceADRs: [
+        "personal-knowledge-graph:039-cloudflare-r2",
+        "recipe-site:012-cloudflare-workflows-recipe-ingestion",
+        "recipe-site:014-neon-database-snapshots-and-backups",
+        "agentic-code-review:001-stateful-ai-code-review",
+      ],
+    });
+
+    const platform = getProjectWithADRs(
+      repository,
+      "personal-engineering-platform",
+    );
+    const objectStore = platform?.platformManifest?.slots.find(
+      (slot) => slot.slug === "storage.object-store",
+    );
+    expect(objectStore?.adopters).toEqual([
+      "agentic-code-review",
+      "personal-knowledge-graph",
+      "recipe-site",
+    ]);
+
+    for (const project of objectStore?.adopters ?? []) {
+      expect(
+        resolveEffectiveProjectStack(
+          repository,
+          project,
+          "2026-09-29T12:00:00Z",
+        ).technologies,
+      ).toContainEqual(
+        expect.objectContaining({
+          slot: "storage.object-store",
+          technology: "cloudflare-r2",
+          source: "preferred-layer",
+        }),
+      );
+    }
+  });
 });
