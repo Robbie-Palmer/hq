@@ -9,25 +9,20 @@ output "control_plane_tailscale_hostnames" {
   value       = module.candidate_cluster.tailscale_control_plane_magicdns_hosts
 }
 
-output "agent_tailscale_hostnames" {
-  description = "MagicDNS names for the two statically assigned workspace agents"
-  value       = module.candidate_cluster.tailscale_agent_magicdns_hosts
-}
-
 output "workspace_inventory" {
   description = "Non-secret placement data mirrored by workspaces/inventory.json"
   value = {
     operator = {
-      nodepool     = "workspace-operator"
+      nodepool     = "workspace-elastic"
       location     = "nbg1"
       volume_claim = "workspace-data"
-      endpoint     = "operator.tailnet"
+      local_port   = 3773
     }
     pilot = {
-      nodepool     = "workspace-pilot"
-      location     = "fsn1"
+      nodepool     = "workspace-elastic"
+      location     = "nbg1"
       volume_claim = "workspace-data"
-      endpoint     = "pilot.tailnet"
+      local_port   = 3774
     }
   }
 }

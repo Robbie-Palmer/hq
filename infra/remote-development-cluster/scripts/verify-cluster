@@ -3,37 +3,72 @@ set -euo pipefail
 
 kubeconfig="${REMOTE_DEVELOPMENT_CLUSTER_KUBECONFIG:-$PWD/.kubeconfig}"
 export KUBECONFIG="$kubeconfig"
+workspaces=(operator pilot)
+
+sleep_workspaces() {
+  for workspace in "${workspaces[@]}"; do
+    kubectl -n "t3-$workspace" scale deployment/t3-code --replicas=0 >/dev/null || true
+  done
+}
 
 kubectl wait --for=condition=Ready nodes --all --timeout=10m
 
 control_plane_count="$(kubectl get nodes -l 'remote-development.robbiepalmer.dev/role=control-plane' -o name | wc -l | tr -d ' ')"
-agent_count="$(kubectl get nodes -l 'remote-development.robbiepalmer.dev/role=workspace' -o name | wc -l | tr -d ' ')"
-
-if [ "$control_plane_count" != "3" ]; then
-  echo "Expected 3 control-plane nodes, found $control_plane_count" >&2
+if [[ "$control_plane_count" != "1" ]]; then
+  echo "Expected 1 control-plane node, found $control_plane_count" >&2
   exit 1
 fi
 
-if [ "$agent_count" != "2" ]; then
-  echo "Expected 2 workspace agents, found $agent_count" >&2
-  exit 1
-fi
-
-kubectl -n kube-system rollout status daemonset/hcloud-csi-node --timeout=5m
-kubectl -n t3-operator rollout status deployment/t3-code --timeout=10m
-kubectl -n t3-pilot rollout status deployment/t3-code --timeout=10m
-
-for workspace in operator pilot; do
-  namespace="t3-$workspace"
-  phase="$(kubectl -n "$namespace" get pvc workspace-data -o jsonpath='{.status.phase}')"
-  node="$(kubectl -n "$namespace" get pod -l app.kubernetes.io/name=t3-code -o jsonpath='{.items[0].spec.nodeName}')"
-  assigned_workspace="$(kubectl get node "$node" -o jsonpath='{.metadata.labels.remote-development\.robbiepalmer\.dev/workspace}')"
-
-  if [ "$phase" != "Bound" ] || [ "$assigned_workspace" != "$workspace" ]; then
-    echo "$workspace failed volume or node-placement verification" >&2
+for workspace in "${workspaces[@]}"; do
+  replicas="$(kubectl -n "t3-$workspace" get deployment t3-code -o jsonpath='{.spec.replicas}')"
+  if [[ "$replicas" != "0" ]]; then
+    echo "$workspace must be asleep before running acceptance verification" >&2
     exit 1
   fi
 done
 
+trap sleep_workspaces EXIT
+kubectl -n kube-system rollout status daemonset/hcloud-csi-node --timeout=5m
+
+for workspace in "${workspaces[@]}"; do
+  kubectl -n "t3-$workspace" scale deployment/t3-code --replicas=1
+done
+for workspace in "${workspaces[@]}"; do
+  kubectl -n "t3-$workspace" rollout status deployment/t3-code --timeout=10m
+done
+
+agent_count="$(kubectl get nodes -l 'remote-development.robbiepalmer.dev/role=workspace' -o name | wc -l | tr -d ' ')"
+if [[ "$agent_count" != "2" ]]; then
+  echo "Expected 2 dedicated elastic workers, found $agent_count" >&2
+  exit 1
+fi
+
+declare -a assigned_nodes=()
+for workspace in "${workspaces[@]}"; do
+  namespace="t3-$workspace"
+  phase="$(kubectl -n "$namespace" get pvc workspace-data -o jsonpath='{.status.phase}')"
+  node="$(kubectl -n "$namespace" get pod -l app.kubernetes.io/name=t3-code -o jsonpath='{.items[0].spec.nodeName}')"
+  node_role="$(kubectl get node "$node" -o jsonpath='{.metadata.labels.remote-development\.robbiepalmer\.dev/role}')"
+
+  if [[ "$phase" != "Bound" || "$node_role" != "workspace" ]]; then
+    echo "$workspace failed volume or worker-placement verification" >&2
+    exit 1
+  fi
+  assigned_nodes+=("$node")
+done
+
+if [[ "${assigned_nodes[0]}" == "${assigned_nodes[1]}" ]]; then
+  echo "Operator and pilot workspaces share a worker node" >&2
+  exit 1
+fi
+
 kubectl get --raw='/readyz?verbose' >/dev/null
-echo "Candidate cluster topology, CSI volumes, workspace placement, and API health passed."
+sleep_workspaces
+trap - EXIT
+
+for workspace in "${workspaces[@]}"; do
+  kubectl -n "t3-$workspace" rollout status deployment/t3-code --timeout=5m
+done
+kubectl wait --for=delete nodes -l 'remote-development.robbiepalmer.dev/role=workspace' --timeout=15m
+
+echo "Single control plane, scale-from-zero, dedicated workers, retained volumes, and scale-to-zero passed."

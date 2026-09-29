@@ -6,9 +6,9 @@
       "id": "operator",
       "owner": "operator",
       "namespace": "t3-operator",
-      "nodePool": "workspace-operator",
+      "nodePool": "workspace-elastic",
       "nodeSelector": {
-        "remote-development.robbiepalmer.dev/workspace": "operator"
+        "remote-development.robbiepalmer.dev/role": "workspace"
       },
       "location": "nbg1",
       "volumeClaim": "workspace-data",
@@ -16,28 +16,28 @@
       "volumeSizeGiB": 90,
       "backupSet": "remote-development-candidate/operator",
       "endpoint": {
-        "kind": "tailnet-node-port",
-        "nodePool": "workspace-operator",
-        "port": 30773
+        "kind": "kubectl-port-forward",
+        "localPort": 3773,
+        "targetPort": 3773
       }
     },
     {
       "id": "pilot",
       "owner": "pilot-user",
       "namespace": "t3-pilot",
-      "nodePool": "workspace-pilot",
+      "nodePool": "workspace-elastic",
       "nodeSelector": {
-        "remote-development.robbiepalmer.dev/workspace": "pilot"
+        "remote-development.robbiepalmer.dev/role": "workspace"
       },
-      "location": "fsn1",
+      "location": "nbg1",
       "volumeClaim": "workspace-data",
       "storageClass": "hcloud-volumes-retain",
       "volumeSizeGiB": 90,
       "backupSet": "remote-development-candidate/pilot",
       "endpoint": {
-        "kind": "tailnet-node-port",
-        "nodePool": "workspace-pilot",
-        "port": 30774
+        "kind": "kubectl-port-forward",
+        "localPort": 3774,
+        "targetPort": 3773
       }
     }
   ],

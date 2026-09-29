@@ -2,59 +2,77 @@
 
 This Terraform root creates the Kube-Hetzner candidate from
 [ADR 012](../../ui/content/projects/agent-friendly-remote-development/adrs/012-kube-hetzner-evaluation.mdx).
-It has separate Terraform state and must use a separate Hetzner project. Nothing
-in this root imports, reads, or changes the current `remote-development` server,
-volume, firewall, or Terraform workspace.
+It has separate Terraform state and uses a separate Hetzner project. It does
+not read or change the current remote-development VPS.
 
 ## Topology
 
-Kube-Hetzner `3.1.0` creates three `cx23` control-plane nodes across `nbg1`,
-`fsn1`, and `hel1`. Two `cx33` agents each have a stable workspace label and a
-`NoSchedule` taint. The committed workspace manifests bind each T3 Code pod to
-its assigned agent.
+The cluster keeps one `cx23` control plane in `nbg1` online. A `cx33` worker
+pool scales from zero to two nodes. The control plane runs the Kubernetes API,
+Cluster Autoscaler, and system services, but never tenant workspaces.
 
-Nodes keep public IPs for outbound package traffic and direct Tailscale
-transport. Hetzner firewalls expose neither SSH nor the Kubernetes API. There
-is no ingress load balancer. Operators reach the API, SSH, and NodePort
-workspace endpoints through Tailscale MagicDNS.
+```mermaid
+flowchart TD
+    CLI[CLI over tailnet] --> API[Kubernetes API<br/>one cx23 control plane]
+    API -->|scale Deployment to 1| Pending[Pending workspace Pod]
+    Pending --> Autoscaler[Cluster Autoscaler]
+    Autoscaler -->|create when needed| Worker[cx33 dedicated worker]
+    Worker --> Pod[T3 Code Pod]
+    Volume[Retained workspace volume] --> Pod
+    API -->|kubectl port-forward| Pod
+```
 
-Each workspace requests a 90 GiB Hetzner CSI volume through a storage class
-with `Retain` reclaim policy. Its 20 GiB cache is an `emptyDir` and may disappear
-with the pod or node. The durable volume contains T3 state, authentication
-homes, and worktrees. [`workspaces/inventory.json`](workspaces/inventory.json)
-records placement, endpoint, volume, owner, and backup-set names without
-credentials.
+Operator and pilot workspaces start with zero replicas. Every workspace Pod has
+a hard anti-affinity rule covering all namespaces. Two tenant workspaces cannot
+share a node. The autoscaler pool also has a `NoSchedule` taint, so unrelated
+workloads cannot use tenant workers.
 
-K3s encrypts Kubernetes Secrets before it writes them to etcd. It uploads a
-compressed etcd snapshot every six hours to S3-compatible storage outside the
-cluster and retains 14 snapshots. Workspace backups remain independent of etcd
-snapshots.
+Cluster system DaemonSets still run on each worker. The tenancy promise is one
+user workspace per worker, not an empty Kubernetes host. After a workspace
+stops, the autoscaler deletes its worker. A later user gets a newly created
+server rather than the previous tenant's local disk.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Asleep: replicas 0
+    Asleep --> Pending: workspace-wake
+    Pending --> Running: worker joins and volume attaches
+    Running --> Asleep: workspace-sleep
+    Asleep --> ZeroWorkers: autoscaler removes empty worker
+    ZeroWorkers --> Pending: next wake
+```
+
+Each workspace requests a 90 GiB Hetzner CSI volume with `Retain` reclaim
+policy. T3 state, authentication homes, and worktrees live there. The 20 GiB
+cache is disposable. Hibernation restarts processes, so it preserves files and
+recorded session history but not live terminals or in-memory state.
+
+K3s encrypts Kubernetes Secrets in etcd. It uploads a compressed snapshot every
+six hours to external S3-compatible storage and retains 14 snapshots. Workspace
+data needs its own backup because etcd snapshots do not contain volume data.
 
 ## Prerequisites
 
 Create these resources before the first plan:
 
-1. A separate Hetzner project and a read/write API token. Do not reuse the
-   project that contains the current NixOS VPS.
-2. Terraform Cloud workspace `personal-site-remote-development-cluster`, using
-   local execution. This workspace already exists.
-3. A Tailscale OAuth client that may create
-   `tag:remote-dev-control-plane`, `tag:remote-dev-agent`, and
-   `tag:remote-dev-build-agent` devices. Tailnet ACLs must let the operator
-   reach tagged devices on TCP 22, 6443, 30773, and 30774.
-4. An S3-compatible bucket and credentials scoped to the
+1. A separate Hetzner project and read/write API token.
+2. Terraform Cloud workspace `personal-site-remote-development-cluster` with
+   local execution. It already exists.
+3. A Tailscale OAuth client allowed to create
+   `tag:remote-dev-control-plane` and `tag:remote-dev-agent` devices. Tailnet
+   policy must allow the operator to reach the control plane on TCP 22 and
+   6443, and allow the tagged cluster nodes to communicate.
+4. An S3-compatible bucket with credentials restricted to the
    `remote-development-candidate/` prefix.
-5. Doppler config `homelab/prd_remote_development_cluster`. The config already
-   exists with the Terraform token, SSH public key, tailnet domain, and S3
-   region. Add the missing credentials below before provisioning:
+5. Doppler config `homelab/prd_remote_development_cluster` with these values:
 
    | Name | Exposure | Purpose |
    | --- | --- | --- |
-   | `HCLOUD_TOKEN` | secret | Candidate Hetzner project only |
+   | `HCLOUD_TOKEN` | secret | Candidate Hetzner project |
    | `TF_API_TOKEN` | secret | Candidate Terraform Cloud workspace |
    | `SSH_PUBLIC_KEY` | plain | Recovery public key |
-   | `SSH_PRIVATE_KEY` | secret | Provisioner key, or omit when using `ssh-agent` |
-   | `LEAPMICRO_X86_SNAPSHOT_ID` | plain | Set by the snapshot task |
+   | `SSH_PRIVATE_KEY` | secret | Provisioner key, or omit with `ssh-agent` |
+   | `LEAPMICRO_X86_SNAPSHOT_ID` | plain | Image ID written by the snapshot task |
    | `TAILSCALE_OAUTH_CLIENT_SECRET` | secret | Tagged node enrolment |
    | `TAILSCALE_MAGICDNS_DOMAIN` | plain | Tailnet `*.ts.net` domain |
    | `ETCD_S3_ENDPOINT` | plain | Snapshot endpoint |
@@ -63,13 +81,12 @@ Create these resources before the first plan:
    | `ETCD_S3_BUCKET` | plain | Snapshot bucket |
    | `ETCD_S3_REGION` | plain | S3 region, normally `auto` for R2 |
 
-Do not store a kubeconfig, API token, SSH key, or S3 key in Git. Terraform state
-contains sensitive bootstrap material, so access to the candidate workspace
-must stay restricted.
+Do not commit kubeconfigs or credentials. Terraform state contains bootstrap
+material and must remain restricted.
 
 ## Create and verify
 
-Run all tasks through mise:
+Run tasks through mise from the repository root:
 
 ```bash
 mise run //infra/remote-development-cluster:check
@@ -81,79 +98,102 @@ mise run //infra/remote-development-cluster:deploy-workspaces
 mise run //infra/remote-development-cluster:verify
 ```
 
-Review `.planfile` before apply. A valid candidate plan must mention only
-resources in the separate candidate project. The apply needs an SSH key through
-`SSH_PRIVATE_KEY` or a loaded `ssh-agent`, plus access to the tailnet once nodes
-finish cloud-init.
+Review `.planfile` before applying it. The snapshot task builds the pinned Leap
+Micro image once per reviewed Kube-Hetzner update.
 
-The snapshot task builds the x86 Leap Micro image from the Kube-Hetzner `3.1.0`
-template downloaded by Terraform init. It queries the newest matching snapshot
-in the candidate project and writes only its numeric ID back to Doppler. Run it
-once per reviewed Kube-Hetzner image update, not before every plan.
+The verification task requires both workspaces to start asleep. It wakes them
+together, proves that the autoscaler creates two different workers, checks both
+volumes, then sleeps them and waits for the worker pool to return to zero.
 
-The verification waits for five Ready nodes, checks the CSI daemon, confirms
-both PVCs are Bound, and proves each pod landed on its assigned agent. Inspect
-etcd snapshot uploads separately in the S3 provider before calling the backup
-gate complete.
+## Use a workspace
 
-## Private-access recovery
-
-The generated kubeconfig uses the first control-plane MagicDNS name. If that
-node fails, list the alternative names without exposing credentials:
+The short path wakes a workspace and forwards T3 Code to localhost:
 
 ```bash
-mise run //infra/remote-development-cluster:output-control-planes
+mise run //infra/remote-development-cluster:workspace-connect -- operator
 ```
 
-Copy the kubeconfig, replace only its server host with another listed
-control-plane name, then run `kubectl get --raw=/readyz`. Keep the original CA
-data and credentials.
+Open `http://127.0.0.1:3773`. The pilot workspace defaults to port 3774:
 
-If Tailscale enrolment fails on every node, use Hetzner's browser console in the
-candidate project. Check `tailscaled`, verify the OAuth client and tag owners,
-then rerun the saved Terraform plan after restoring tailnet access. Public SSH
-and API rules stay closed during recovery. The provider console is the recovery
-path, not a temporary `0.0.0.0/0` firewall rule.
+```bash
+mise run //infra/remote-development-cluster:workspace-connect -- pilot
+```
 
-For etcd disaster recovery, follow K3s snapshot restore procedure with one of
-the objects under `remote-development-candidate/`. Stop the other server nodes,
-restore the selected snapshot on one server with the original cluster token,
-start that server, then rejoin or replace the other two. Test this on a copied
-candidate before using it after real data loss.
+Pass a third argument to choose another local port. `Ctrl-C` closes the tunnel
+but leaves the workspace running. Stop active agents and terminals, then sleep
+the workspace explicitly:
+
+```bash
+mise run //infra/remote-development-cluster:workspace-sleep -- operator
+```
+
+Other commands are available when no tunnel is needed:
+
+```bash
+mise run //infra/remote-development-cluster:workspace-wake -- operator
+mise run //infra/remote-development-cluster:workspace-status -- operator
+```
+
+The wrappers run these Kubernetes operations:
+
+```bash
+kubectl -n t3-operator scale deployment/t3-code --replicas=1
+kubectl -n t3-operator rollout status deployment/t3-code --timeout=10m
+kubectl -n t3-operator port-forward service/t3-code 3773:3773
+kubectl -n t3-operator scale deployment/t3-code --replicas=0
+```
+
+A pending Pod is the demand signal. Cluster Autoscaler sees that the Pod needs
+a tainted workspace node and creates one. The first wake normally takes longer
+than reconnecting to a running workspace because Hetzner must create the server,
+K3s must join it, and CSI must attach the volume.
+
+There is no automatic idle detector yet. Forgetting the sleep command leaves
+the worker bill running until Hetzner's monthly price cap.
+
+## Single-control-plane recovery
+
+One control plane is intentionally not highly available. If it reboots, running
+workspaces may continue, but `kubectl`, port forwarding, scheduling, and
+autoscaling remain unavailable until it returns. Automatic OS upgrades are
+disabled so maintenance happens at a chosen time.
+
+If the server is lost, recreate it with Terraform and restore an external etcd
+snapshot using the original K3s server token. The token must be backed up with
+the snapshot credentials. If cluster state can be rebuilt from Git, reapply the
+manifests and reconnect the retained volumes instead. Test both recovery paths
+before storing irreplaceable workspace data.
+
+If Tailscale enrolment fails, use the Hetzner browser console. Do not open SSH
+or the Kubernetes API to `0.0.0.0/0` as a workaround.
+
+## Cost
+
+These are Hetzner list prices from 2026-09-29, before VAT. They include one
+public IPv4 per running server and exclude S3 usage and outbound overages.
+
+| State | Monthly equivalent |
+| --- | ---: |
+| One control plane, one retained 90 GiB workspace, no worker | €11.14 |
+| One control plane, two retained workspaces, no workers | €16.29 |
+| One control plane, one continuously running worker, one volume | €20.13 |
+| One control plane, two continuously running workers and volumes | €34.27 |
+| Two independent `cx33` VPSs with 100 GiB each | €29.42 |
+
+For one user, this design beats a €14.71 VPS when its worker runs for less than
+about 248 hours per month. With two users it breaks even when each dedicated
+worker averages less than about 456 hours per month. Hetzner bills stopped
+servers, so only deletion by the autoscaler stops worker compute charges.
+
+The control plane itself cannot scale to zero because it receives the wake
+command and runs the autoscaler.
 
 ## Destroy
-
-The current VPS remains untouched when this candidate is destroyed:
 
 ```bash
 mise run //infra/remote-development-cluster:destroy-plan
 mise run //infra/remote-development-cluster:destroy
 ```
 
-Review `.destroy-planfile`. The CSI storage class uses `Retain`, so delete or
-export retained workspace volumes explicitly after checking their backup sets.
-Deleting the cluster must not become an accidental workspace-data deletion.
-
-## Cost and operating comparison
-
-The figures below use the Hetzner project pricing API on 2026-09-26. They are
-monthly list prices before VAT. R2 usage and outbound overages are not included.
-
-| Design | Compute | IPv4 | Durable volumes | Monthly total |
-| --- | ---: | ---: | ---: | ---: |
-| Candidate cluster | 3 × `cx23` at €5.49, 2 × `cx33` at €8.49 | 5 × €0.50 | 2 × 90 GiB at €0.0572/GiB | €46.25 |
-| Current single-user VPS | 1 × `cx33` at €8.49 | 1 × €0.50 | 100 GiB at €0.0572/GiB | €14.71 |
-| Two per-user VPSs | 2 × `cx33` at €8.49 | 2 × €0.50 | 2 × 100 GiB at €0.0572/GiB | €29.42 |
-
-The candidate costs €31.54 more than the current host and €16.83 more than two
-independent VPSs. At idle it keeps six control-plane vCPUs, eight agent vCPUs,
-12 GiB of control-plane memory, and 16 GiB of agent memory running. The two T3
-pods request only one vCPU and 2 GiB between them, before system workloads.
-
-Kube-Hetzner owns Leap Micro images, K3s bootstrap, node replacement, CSI,
-firewalls, and automated OS upgrades. The repository owner still owns module
-upgrades, exact K3s upgrades, Tailscale policy, snapshot restores, CSI volume
-backups, workload manifests, and replacement drills. A per-user VPS costs less
-and has a smaller failure domain. Keep it as the fallback unless the cluster's
-shared control plane and node replacement save enough operator time to justify
-the difference.
+Review `.destroy-planfile`. The storage class retains workspace volumes. Export
+or delete them separately after checking their backups.

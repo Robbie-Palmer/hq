@@ -61,14 +61,38 @@ description = "Write the tailnet-only candidate kubeconfig to a gitignored file"
 run = "bash scripts/write-kubeconfig"
 
 [tasks.deploy-workspaces]
-description = "Apply the two statically placed candidate workspaces"
+description = "Apply the dormant elastic workspace definitions"
 run = '''
 export KUBECONFIG="${REMOTE_DEVELOPMENT_CLUSTER_KUBECONFIG:-$PWD/.kubeconfig}"
 kubectl apply -k workspaces
 '''
 
+[tasks.workspace-wake]
+description = "Wake a workspace on a dedicated elastic worker"
+run = '''
+bash scripts/workspace wake "$@"
+'''
+
+[tasks.workspace-connect]
+description = "Wake a workspace and forward T3 Code to localhost"
+run = '''
+bash scripts/workspace connect "$@"
+'''
+
+[tasks.workspace-sleep]
+description = "Stop a workspace so its dedicated worker can scale to zero"
+run = '''
+bash scripts/workspace sleep "$@"
+'''
+
+[tasks.workspace-status]
+description = "Show a workspace deployment, pod, and persistent volume claim"
+run = '''
+bash scripts/workspace status "$@"
+'''
+
 [tasks.verify]
-description = "Verify candidate cluster topology, storage, placement, and API health"
+description = "Exercise scale-from-zero, tenant isolation, storage, and API health"
 run = "bash scripts/verify-cluster"
 
 [tasks.workspace-check]

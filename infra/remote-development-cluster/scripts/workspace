@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+action="${1:-}"
+workspace="${2:-}"
+requested_port="${3:-}"
+inventory="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/workspaces/inventory.json"
+kubeconfig="${REMOTE_DEVELOPMENT_CLUSTER_KUBECONFIG:-$(dirname "$inventory")/../.kubeconfig}"
+export KUBECONFIG="$kubeconfig"
+
+usage() {
+  echo "Usage: $0 {wake|connect|sleep|status} {operator|pilot} [local-port]" >&2
+  exit 2
+}
+
+[[ -n "$action" && -n "$workspace" ]] || usage
+
+if [[ ! -f "$kubeconfig" ]]; then
+  echo "Missing $kubeconfig. Run the kubeconfig mise task first." >&2
+  exit 1
+fi
+
+record="$(jq -er --arg id "$workspace" '.workspaces[] | select(.id == $id)' "$inventory")" || {
+  echo "Unknown workspace: $workspace" >&2
+  exit 2
+}
+namespace="$(jq -r '.namespace' <<<"$record")"
+local_port="${requested_port:-$(jq -r '.endpoint.localPort' <<<"$record")}"
+
+if [[ ! "$local_port" =~ ^[0-9]+$ ]] || ((local_port < 1 || local_port > 65535)); then
+  echo "Local port must be an integer from 1 to 65535." >&2
+  exit 2
+fi
+
+wake() {
+  kubectl -n "$namespace" scale deployment/t3-code --replicas=1
+  echo "Waiting for a dedicated worker, volume attachment, and T3 Code readiness..."
+  kubectl -n "$namespace" rollout status deployment/t3-code --timeout=10m
+}
+
+case "$action" in
+  wake)
+    wake
+    ;;
+  connect)
+    wake
+    echo "Forwarding http://127.0.0.1:$local_port. Press Ctrl-C to disconnect; run the sleep task when finished."
+    kubectl -n "$namespace" port-forward service/t3-code "$local_port:3773"
+    ;;
+  sleep)
+    kubectl -n "$namespace" scale deployment/t3-code --replicas=0
+    kubectl -n "$namespace" rollout status deployment/t3-code --timeout=5m
+    echo "Workspace stopped. The autoscaler can now delete its empty worker."
+    ;;
+  status)
+    kubectl -n "$namespace" get deployment/t3-code pvc/workspace-data -o wide
+    kubectl -n "$namespace" get pods -l app.kubernetes.io/name=t3-code -o wide
+    ;;
+  *)
+    usage
+    ;;
+esac

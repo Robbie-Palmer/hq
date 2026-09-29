@@ -27,7 +27,7 @@ metadata:
   name: t3-code
   namespace: t3-pilot
 spec:
-  replicas: 1
+  replicas: 0
   strategy:
     type: Recreate
   selector:
@@ -36,18 +36,29 @@ spec:
       remote-development.robbiepalmer.dev/workspace: pilot
   template:
     metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
       labels:
         app.kubernetes.io/name: t3-code
+        remote-development.robbiepalmer.dev/tenant-workspace: "true"
         remote-development.robbiepalmer.dev/workspace: pilot
     spec:
       automountServiceAccountToken: false
       nodeSelector:
-        remote-development.robbiepalmer.dev/workspace: pilot
+        remote-development.robbiepalmer.dev/role: workspace
       tolerations:
-        - key: remote-development.robbiepalmer.dev/workspace
+        - key: remote-development.robbiepalmer.dev/role
           operator: Equal
-          value: pilot
+          value: workspace
           effect: NoSchedule
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  remote-development.robbiepalmer.dev/tenant-workspace: "true"
+              namespaceSelector: {}
+              topologyKey: kubernetes.io/hostname
       securityContext:
         fsGroup: 2000
         fsGroupChangePolicy: OnRootMismatch
@@ -134,7 +145,6 @@ metadata:
   name: t3-code
   namespace: t3-pilot
 spec:
-  type: NodePort
   selector:
     app.kubernetes.io/name: t3-code
     remote-development.robbiepalmer.dev/workspace: pilot
@@ -142,4 +152,3 @@ spec:
     - name: http
       port: 3773
       targetPort: http
-      nodePort: 30774
