@@ -666,6 +666,71 @@ describe("temporal platform layers", () => {
     }
   });
 
+  it("keeps preview access and service authentication separate", () => {
+    const repository = loadDomainRepository();
+    const manifest = repository.platform.manifest;
+
+    expect(
+      manifest?.policies.find(
+        (policy) => policy.slot === "security.preview-access",
+      )?.prerequisites,
+    ).toEqual([{ slot: "delivery.preview-environment" }]);
+    expect(
+      manifest?.policies.find(
+        (policy) => policy.slot === "security.service-auth",
+      )?.mode,
+    ).toBe("preferred");
+
+    const previewSelection = manifest?.selections.find(
+      (selection) => selection.slot === "security.preview-access",
+    );
+    expect(previewSelection).toMatchObject({
+      kind: "technology",
+      technology: "cloudflare-access",
+      status: "Accepted",
+      decision: "personal-engineering-platform:019-cloudflare-access-boundaries",
+      originProjects: ["recipe-site"],
+      evidenceADRs: ["recipe-site:013-cloudflare-access-preview-gates"],
+    });
+
+    const serviceSelection = manifest?.selections.find(
+      (selection) => selection.slot === "security.service-auth",
+    );
+    expect(serviceSelection).toMatchObject({
+      kind: "technology",
+      technology: "cloudflare-access",
+      status: "Accepted",
+      decision: "personal-engineering-platform:019-cloudflare-access-boundaries",
+      originProjects: ["work-graph"],
+      evidenceADRs: ["work-graph:004-cloudflare-access-service-auth"],
+    });
+
+    expect(
+      resolveEffectiveProjectStack(
+        repository,
+        "recipe-site",
+        "2026-09-29T12:00:00Z",
+      ).technologies,
+    ).toContainEqual(
+      expect.objectContaining({
+        slot: "security.preview-access",
+        technology: "cloudflare-access",
+      }),
+    );
+    expect(
+      resolveEffectiveProjectStack(
+        repository,
+        "work-graph",
+        "2026-09-29T12:00:00Z",
+      ).technologies,
+    ).toContainEqual(
+      expect.objectContaining({
+        slot: "security.service-auth",
+        technology: "cloudflare-access",
+      }),
+    );
+  });
+
   it("resolves the repository, language, web, and infrastructure baseline", () => {
     const repository = loadDomainRepository();
     const recipe = resolveEffectiveProjectStack(
