@@ -619,6 +619,53 @@ describe("temporal platform layers", () => {
     }
   });
 
+  it("promotes isolated pull-request preview environments", () => {
+    const repository = loadDomainRepository();
+    const manifest = repository.platform.manifest;
+
+    expect(
+      manifest?.policies.find(
+        (policy) => policy.slot === "delivery.preview-environment",
+      ),
+    ).toMatchObject({
+      mode: "preferred",
+      prerequisites: [{ slot: "delivery.ci" }],
+    });
+    expect(
+      manifest?.selections.find(
+        (selection) => selection.slot === "delivery.preview-environment",
+      ),
+    ).toMatchObject({
+      kind: "policy",
+      value:
+        "Isolated pull-request deployments with scoped resources and automatic cleanup",
+      status: "Accepted",
+      decision:
+        "personal-engineering-platform:018-pull-request-preview-environments",
+      originProjects: ["recipe-site"],
+      evidenceADRs: [
+        "recipe-site:017-fresh-migration-baseline-and-isolated-preview-database-project",
+      ],
+    });
+
+    for (const project of ["personal-knowledge-graph", "recipe-site"]) {
+      expect(
+        resolveEffectiveProjectStack(
+          repository,
+          project,
+          "2026-09-29T12:00:00Z",
+        ).policies,
+      ).toContainEqual(
+        expect.objectContaining({
+          slot: "delivery.preview-environment",
+          value:
+            "Isolated pull-request deployments with scoped resources and automatic cleanup",
+          source: "preferred-layer",
+        }),
+      );
+    }
+  });
+
   it("resolves the repository, language, web, and infrastructure baseline", () => {
     const repository = loadDomainRepository();
     const recipe = resolveEffectiveProjectStack(

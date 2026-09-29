@@ -87,6 +87,11 @@ slots:
     title: "Continuous integration"
     description: "The service that runs repository checks and delivery workflows."
     rationale: "GitHub Actions, GitLab CI, CircleCI, Buildkite, and other runners can execute the same project tasks."
+  - slug: "delivery.preview-environment"
+    title: "Pull-request preview environment"
+    description: "A disposable deployment for reviewing a pull request before it reaches production."
+    rationale: "Shared staging, frontend host previews, and fully isolated per-pull-request stacks make different trade-offs in fidelity, cost, and resource isolation."
+    kind: "policy"
   - slug: "delivery.dependency-updates"
     title: "Dependency update automation"
     description: "Automated discovery and proposal of dependency updates."
@@ -393,6 +398,14 @@ policies:
     mode: "required"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
+  - id: "base-preview-environment-2026-09-29"
+    layer: "base"
+    slot: "delivery.preview-environment"
+    mode: "preferred"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:018-pull-request-preview-environments"
+    prerequisites:
+      - slot: "delivery.ci"
   - id: "base-dependency-updates-2026-09-15"
     layer: "base"
     slot: "delivery.dependency-updates"
@@ -907,6 +920,16 @@ selections:
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
     origin_projects: ["personal-knowledge-graph"]
     evidence_adrs: ["personal-knowledge-graph:016-github-actions"]
+  - id: "delivery-preview-environment-isolated-2026-09-29"
+    slot: "delivery.preview-environment"
+    kind: "policy"
+    value: "Isolated pull-request deployments with scoped resources and automatic cleanup"
+    status: "Accepted"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:018-pull-request-preview-environments"
+    origin_projects: ["recipe-site"]
+    evidence_adrs:
+      - "recipe-site:017-fresh-migration-baseline-and-isolated-preview-database-project"
   - id: "delivery-dependency-updates-renovate-2026-09-15"
     slot: "delivery.dependency-updates"
     technology: "Renovate"

@@ -22,6 +22,9 @@ platform_layers:
       - slot: "secrets.ci-store"
         adopted: "2026-09-15T00:00:00Z"
         rationale: "Preview and production workflows need deployment credentials."
+      - slot: "delivery.preview-environment"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:017-fresh-migration-baseline-and-isolated-preview-database-project"
   - layer: "web-app"
     adopted: "2026-09-12T00:00:00Z"
     tracking: true

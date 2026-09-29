@@ -131,6 +131,7 @@ describe("agent markdown generation", () => {
     expect(platform).toContain("## Current layer manifest");
     expect(platform).toContain("### Backend API");
     expect(platform).toContain("backend-api.runtime: preferred");
+    expect(platform).toContain("delivery.preview-environment: preferred");
     expect(platform).toContain("### Storage");
     expect(platform).toContain("storage.object-store: preferred");
     expect(platform).toContain("## Default history");
