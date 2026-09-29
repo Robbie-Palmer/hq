@@ -2,7 +2,7 @@
 title: "Home Lab"
 description: "A private home fleet that backs up personal data, runs coding agents, filters DNS, monitors itself, and gives old hardware a useful job"
 date: "2026-08-02"
-updated: "2026-09-14"
+updated: "2026-09-28"
 status: "live"
 tech_stack:
   - "Ansible"
@@ -30,6 +30,21 @@ tech_stack:
   - "qBittorrent"
   - "Recyclarr"
   - "Trakt"
+platform_layers:
+  - layer: "build-runtime"
+    adopted: "2026-09-28T00:00:00Z"
+    tracking: true
+    decision: "homelab:007-nixos-gpu-worker"
+    slots:
+      - slot: "build.reproducibility"
+        adopted: "2026-09-28T00:00:00Z"
+        decision: "homelab:007-nixos-gpu-worker"
+      - slot: "artifact.contract"
+        adopted: "2026-09-28T00:00:00Z"
+        decision: "homelab:020-k3s-declarative-workloads"
+      - slot: "host.configuration"
+        adopted: "2026-09-28T00:00:00Z"
+        decision: "homelab:007-nixos-gpu-worker"
 ---
 
 # Vision
