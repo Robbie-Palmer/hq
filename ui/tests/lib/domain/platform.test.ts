@@ -561,6 +561,64 @@ describe("temporal platform layers", () => {
     );
   });
 
+  it("resolves the PostgreSQL access, connection, and recovery controls", () => {
+    const repository = loadDomainRepository();
+    const connectionPolicy = repository.platform.manifest?.policies.find(
+      (policy) => policy.slot === "backend-api.relational-connection",
+    );
+
+    expect(connectionPolicy?.prerequisites).toEqual([
+      {
+        slot: "backend-api.runtime",
+        technology: "cloudflare-workers",
+      },
+      {
+        slot: "database.relational-engine",
+        technology: "postgresql",
+      },
+    ]);
+    expect(
+      repository.platform.manifest?.policies.find(
+        (policy) => policy.slot === "database.backup-restore",
+      )?.prerequisites,
+    ).toEqual([
+      {
+        slot: "database.relational-engine",
+        technology: "postgresql",
+      },
+      {
+        slot: "storage.object-store",
+      },
+    ]);
+
+    for (const project of ["recipe-site", "work-graph"]) {
+      const stack = resolveEffectiveProjectStack(
+        repository,
+        project,
+        "2026-09-29T12:00:00Z",
+      );
+
+      expect(stack.technologies).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            slot: "database.relational-access",
+            technology: "drizzle",
+          }),
+          expect.objectContaining({
+            slot: "backend-api.relational-connection",
+            technology: "hyperdrive",
+          }),
+        ]),
+      );
+      expect(stack.policies).toContainEqual(
+        expect.objectContaining({
+          slot: "database.backup-restore",
+          value: "Encrypted PostgreSQL archives with tested restores",
+        }),
+      );
+    }
+  });
+
   it("resolves the repository, language, web, and infrastructure baseline", () => {
     const repository = loadDomainRepository();
     const recipe = resolveEffectiveProjectStack(
@@ -1379,7 +1437,7 @@ describe("temporal platform layers", () => {
     expect(selection).toMatchObject({
       status: "Accepted",
       decision:
-        "personal-engineering-platform:015-cloudflare-r2-object-storage",
+        "personal-engineering-platform:016-cloudflare-r2-object-storage",
       originProjects: [
         "personal-knowledge-graph",
         "recipe-site",
@@ -1404,6 +1462,7 @@ describe("temporal platform layers", () => {
       "agentic-code-review",
       "personal-knowledge-graph",
       "recipe-site",
+      "work-graph",
     ]);
 
     for (const project of objectStore?.adopters ?? []) {

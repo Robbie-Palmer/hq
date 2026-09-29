@@ -44,6 +44,9 @@ platform_layers:
       - slot: "backend-api.contract-format"
         adopted: "2026-09-29T00:00:00Z"
         decision: "recipe-site:023-spectral"
+      - slot: "backend-api.relational-connection"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:004-backend-platform-for-authenticated-features"
   - layer: "api-governance"
     adopted: "2026-09-29T00:00:00Z"
     tracking: true
@@ -63,6 +66,12 @@ platform_layers:
       - slot: "database.relational-host"
         adopted: "2026-09-12T00:00:00Z"
         decision: "recipe-site:004-backend-platform-for-authenticated-features"
+      - slot: "database.relational-access"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:016-committed-postgres-migrations"
+      - slot: "database.backup-restore"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:014-neon-database-snapshots-and-backups"
   - layer: "infrastructure"
     adopted: "2026-09-12T00:00:00Z"
     tracking: true
