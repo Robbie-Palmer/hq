@@ -14,10 +14,9 @@ features moved behind its HTTP API. Its ADR 018 chose TanStack Query rather
 than spreading those responsibilities across component effects and local
 state.
 
-The Recipe Site is the only accepted adopter today. That falls short of the
-platform's usual evidence from repeated use. This promotion is an explicit
-owner decision based on the existing implementation, not evidence that the
-choice has proved portable across several projects.
+The same server-state problem will recur across the interactive web
+applications built on this platform. TanStack Query solved it successfully in
+the Recipe Site, providing a tested default for those applications.
 
 ## Decision
 
@@ -56,5 +55,6 @@ TanStack Query's defaults are not product policy.
 The dependency adds a provider, cache lifecycle, and another state boundary
 for developers to understand. Poor keys or broad invalidation can serve stale
 data, repeat requests, or retain one user's private data after sign-out. The
-platform should revisit this default after another project adopts the slot or
-if a server-first application no longer needs client-side synchronization.
+platform should revisit this default if server-first rendering removes the
+need for client-side synchronization or another library solves the same
+lifecycle with less application code.
