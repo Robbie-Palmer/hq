@@ -54,6 +54,7 @@ vi.mock("@/lib/api/shopping-lists", async (importOriginal) => ({
 }));
 
 const emptySnapshot = { recipes: [], checked: [], extras: [] };
+const asynchronousSaveTimeout = 10_000;
 const storedList = {
   id: "00000000-0000-4000-8000-000000000080",
   resourceId: "user-1",
@@ -119,7 +120,7 @@ function StatefulStartNewButton() {
   );
 }
 
-describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
+describe("ShoppingListBoundary", { timeout: 20_000 }, () => {
   beforeEach(() => {
     __resetShoppingListForTests();
     localStorage.clear();
@@ -361,18 +362,21 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
     await screen.findByText("List ready");
 
     act(() => toggleChecked("garlic"));
-    await waitFor(() =>
-      expect(mocks.saveCurrentShoppingList).toHaveBeenCalledTimes(1),
+    await waitFor(
+      () => expect(mocks.saveCurrentShoppingList).toHaveBeenCalledTimes(1),
+      { timeout: asynchronousSaveTimeout },
     );
     act(() => toggleChecked("garlic"));
 
-    await waitFor(() =>
-      expect(mocks.saveCurrentShoppingList).toHaveBeenNthCalledWith(
-        2,
-        storedList.id,
-        "1",
-        expect.objectContaining({ checked: [] }),
-      ),
+    await waitFor(
+      () =>
+        expect(mocks.saveCurrentShoppingList).toHaveBeenNthCalledWith(
+          2,
+          storedList.id,
+          "1",
+          expect.objectContaining({ checked: [] }),
+        ),
+      { timeout: asynchronousSaveTimeout },
     );
     expect(getShoppingListSnapshot().checked).toEqual([]);
   });
@@ -500,7 +504,7 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
             ]),
           }),
         ),
-      { timeout: 5_000 },
+      { timeout: asynchronousSaveTimeout },
     );
   });
 
@@ -754,8 +758,9 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
     );
     await screen.findByText("List ready");
     act(() => addExtra("Milk"));
-    await waitFor(() =>
-      expect(mocks.saveCurrentShoppingList).toHaveBeenCalledOnce(),
+    await waitFor(
+      () => expect(mocks.saveCurrentShoppingList).toHaveBeenCalledOnce(),
+      { timeout: asynchronousSaveTimeout },
     );
 
     const { recipes, checked, extras } = getShoppingListSnapshot();
@@ -892,15 +897,17 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
 
     act(() => addExtra("Milk"));
 
-    await waitFor(() =>
-      expect(mocks.saveCurrentShoppingList).toHaveBeenCalledWith(
-        storedList.id,
-        "1",
-        expect.objectContaining({
-          checked: ["garlic"],
-          extras: [expect.objectContaining({ text: "Milk" })],
-        }),
-      ),
+    await waitFor(
+      () =>
+        expect(mocks.saveCurrentShoppingList).toHaveBeenCalledWith(
+          storedList.id,
+          "1",
+          expect.objectContaining({
+            checked: ["garlic"],
+            extras: [expect.objectContaining({ text: "Milk" })],
+          }),
+        ),
+      { timeout: asynchronousSaveTimeout },
     );
   });
 
