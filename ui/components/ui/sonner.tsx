@@ -39,6 +39,7 @@ export function Toaster({ theme: propsTheme, ...props }: ToasterProps) {
       theme={propsTheme ?? theme}
       className="toaster group"
       position="bottom-center"
+      swipeDirections={["left", "right", "bottom"]}
       toastOptions={toastOptions}
       {...props}
     />
