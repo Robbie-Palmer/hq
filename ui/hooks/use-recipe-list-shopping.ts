@@ -76,10 +76,10 @@ async function updateShoppingListRecipes(
   userId: string,
   request: RecipeListShoppingRequest,
 ) {
-  const latest = await queryClient.fetchQuery({
-    ...shoppingListQuery(userId),
-    staleTime: 0,
-  });
+  const queryKey = recipeQueryKeys.shoppingList(userId);
+  const latest =
+    queryClient.getQueryData<StoredShoppingList>(queryKey) ??
+    (await queryClient.fetchQuery(shoppingListQuery(userId)));
   const changed = changedRecipes(request, latest);
   if (changed.length === 0) {
     return { updated: latest, changed, request };
@@ -178,18 +178,27 @@ export function useRecipeListShopping(userId: string) {
     onError: (error, request) =>
       handleRecipeUpdateError(queryClient, queryKey, error, request),
   });
-  const recipesOnList = useMemo(
-    () =>
-      new Set(
-        current.data?.snapshot.recipes.map((recipe) => recipe.slug) ?? [],
-      ),
-    [current.data?.snapshot.recipes],
-  );
+  const recipesOnList = useMemo(() => {
+    const slugs = new Set(
+      current.data?.snapshot.recipes.map((recipe) => recipe.slug) ?? [],
+    );
+    if (mutation.isPending && mutation.variables) {
+      for (const recipe of mutation.variables.recipes) {
+        if (mutation.variables.add) slugs.add(recipe.slug);
+        else slugs.delete(recipe.slug);
+      }
+    }
+    return slugs;
+  }, [current.data?.snapshot.recipes, mutation.isPending, mutation.variables]);
 
   return {
     recipesOnList,
     isLoading: current.isPending,
     isError: current.isError,
+    pendingRecipeSlug:
+      mutation.isPending && mutation.variables?.recipes.length === 1
+        ? mutation.variables.recipes[0]?.slug
+        : undefined,
     mutation,
   };
 }

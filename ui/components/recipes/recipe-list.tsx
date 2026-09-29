@@ -7,14 +7,11 @@ import {
   Globe,
   House,
   Leaf,
-  ListChecks,
   Loader2,
   Plus,
-  ShoppingBasket,
   Timer,
   UserRound,
   UtensilsCrossed,
-  X,
 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -29,7 +26,6 @@ import {
 import { DietListNotice, DietWarning } from "@/components/recipes/diet-notice";
 import { useDiet } from "@/components/recipes/diet-provider";
 import { RecipePageLink } from "@/components/recipes/recipe-page-link";
-import { ShoppingCheckbox } from "@/components/recipes/shopping/shopping-checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -240,11 +236,9 @@ type RecipeCardShopping = {
   inList: boolean;
   isLoading: boolean;
   isError: boolean;
+  isDisabled: boolean;
   isPending: boolean;
-  selectionMode: boolean;
-  selectedForBatch: boolean;
   onToggleList: () => void;
-  onToggleBatch: () => void;
 };
 
 function RecipeCardShoppingActions({
@@ -271,22 +265,12 @@ function RecipeCardShoppingActions({
 
   return (
     <div className="mt-4 space-y-2 border-t border-[var(--line)] pt-3">
-      {shopping.selectionMode && (
-        <button
-          type="button"
-          aria-pressed={shopping.selectedForBatch}
-          onClick={shopping.onToggleBatch}
-          className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-[var(--ink-2)] hover:bg-[var(--paper-warm)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[var(--ring)]/50"
-        >
-          <ShoppingCheckbox checked={shopping.selectedForBatch} />
-          Select {recipeTitle}
-        </button>
-      )}
       <Button
         type="button"
         variant="outline"
         size="sm"
-        disabled={shopping.isLoading || shopping.isError || shopping.isPending}
+        disabled={shopping.isLoading || shopping.isError || shopping.isDisabled}
+        aria-busy={shopping.isPending}
         aria-pressed={shopping.inList}
         aria-label={actionLabel}
         onClick={shopping.onToggleList}
@@ -474,10 +458,6 @@ function RecipeListContent({
   const filterParams = useFilterParams({ filters: RECIPE_FILTER_PARAMS });
   const router = useRouter();
   const [showHidden, setShowHidden] = useState(false);
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedForShopping, setSelectedForShopping] = useState<Set<string>>(
-    () => new Set(),
-  );
   const dietMatches = useMemo(
     () =>
       buildDietRecipeMatches(recipes, matchRecipe, (recipe) => ({
@@ -543,39 +523,6 @@ function RecipeListContent({
     () => new Map(shoppingRecipes.map((recipe) => [recipe.slug, recipe])),
     [shoppingRecipes],
   );
-  const selectedShoppingRecipes = useMemo(
-    () =>
-      Array.from(selectedForShopping).flatMap((slug) => {
-        const recipe = shoppingRecipeBySlug.get(slug);
-        return recipe ? [recipe] : [];
-      }),
-    [selectedForShopping, shoppingRecipeBySlug],
-  );
-
-  const toggleBatchRecipe = useCallback((slug: string) => {
-    setSelectedForShopping((current) => {
-      const next = new Set(current);
-      if (next.has(slug)) next.delete(slug);
-      else next.add(slug);
-      return next;
-    });
-  }, []);
-  const closeSelectionMode = useCallback(() => {
-    setSelectionMode(false);
-    setSelectedForShopping(new Set());
-  }, []);
-  const addSelectedRecipes = useCallback(() => {
-    if (selectedShoppingRecipes.length === 0) return;
-    shopping?.mutation.mutate(
-      {
-        recipes: selectedShoppingRecipes,
-        add: true,
-        source: "recipe-list-selection",
-      },
-      { onSuccess: closeSelectionMode },
-    );
-  }, [closeSelectionMode, selectedShoppingRecipes, shopping]);
-
   // Stable toggle callbacks: useFilterParams returns fresh functions each render
   // (they close over searchParams), so route them through a ref to keep the
   // identities passed to the memoized cards constant. The ref is updated in a
@@ -657,58 +604,6 @@ function RecipeListContent({
           onToggleHidden={() => setShowHidden((current) => !current)}
         />
       )}
-      {shopping && (
-        <div className="mb-5 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--line-strong)] bg-[var(--paper-warm)] p-3">
-          {selectionMode ? (
-            <>
-              <output
-                aria-live="polite"
-                className="mr-auto text-sm font-medium text-[var(--ink-2)]"
-              >
-                {selectedForShopping.size} selected
-              </output>
-              <Button
-                type="button"
-                size="sm"
-                disabled={
-                  selectedShoppingRecipes.length === 0 ||
-                  shopping.isLoading ||
-                  shopping.isError ||
-                  shopping.mutation.isPending
-                }
-                onClick={addSelectedRecipes}
-              >
-                {shopping.mutation.isPending ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <ShoppingBasket className="size-4" />
-                )}
-                Add selected to shopping list
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={shopping.mutation.isPending}
-                onClick={closeSelectionMode}
-              >
-                <X className="size-4" />
-                Cancel selection
-              </Button>
-            </>
-          ) : (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectionMode(true)}
-            >
-              <ListChecks className="size-4" />
-              Select recipes for shopping list
-            </Button>
-          )}
-        </div>
-      )}
       <FilterableCardGrid
         items={visibleRecipes}
         getItemKey={(recipe) => recipe.slug}
@@ -737,9 +632,8 @@ function RecipeListContent({
                     inList: shopping.recipesOnList.has(recipe.slug),
                     isLoading: shopping.isLoading,
                     isError: shopping.isError,
-                    isPending: shopping.mutation.isPending,
-                    selectionMode,
-                    selectedForBatch: selectedForShopping.has(recipe.slug),
+                    isDisabled: shopping.mutation.isPending,
+                    isPending: shopping.pendingRecipeSlug === recipe.slug,
                     onToggleList: () =>
                       shopping.mutation.mutate({
                         recipes: [
@@ -752,7 +646,6 @@ function RecipeListContent({
                         add: !shopping.recipesOnList.has(recipe.slug),
                         source: "recipe-list-card",
                       }),
-                    onToggleBatch: () => toggleBatchRecipe(recipe.slug),
                   }
                 : undefined
             }

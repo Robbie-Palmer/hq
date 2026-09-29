@@ -201,19 +201,22 @@ describe("RecipeList", () => {
     );
   });
 
-  it("keeps selected recipes while searching and adds them together", async () => {
+  it("updates the clicked card immediately and disables the other actions", async () => {
     const updated = {
       ...emptyShoppingList,
       revision: "1",
       snapshot: {
         ...emptyShoppingList.snapshot,
-        recipes: [
-          { slug: "slow-cooker-mexican-chicken", servings: 4 },
-          { slug: "creamy-pesto-risotto", servings: 4 },
-        ],
+        recipes: [{ slug: recipes[0]?.slug ?? "missing", servings: 4 }],
       },
     };
-    shoppingMocks.saveCurrentShoppingList.mockResolvedValue(updated);
+    let finishSave: ((value: StoredShoppingList) => void) | undefined;
+    shoppingMocks.saveCurrentShoppingList.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishSave = resolve;
+        }),
+    );
     const user = userEvent.setup();
 
     renderWithShoppingList(
@@ -221,74 +224,39 @@ describe("RecipeList", () => {
     );
     await user.click(
       await screen.findByRole("button", {
-        name: "Select recipes for shopping list",
-      }),
-    );
-    await user.click(
-      screen.getByRole("button", {
-        name: "Select Slow Cooker Mexican Chicken",
-      }),
-    );
-    await user.type(
-      screen.getByPlaceholderText("Search 3 recipes…"),
-      "risotto",
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Select Creamy Pesto Risotto" }),
-    );
-
-    expect(screen.getByText("2 selected")).toBeInTheDocument();
-    await user.click(
-      screen.getByRole("button", {
-        name: "Add selected to shopping list",
+        name: "Add Slow Cooker Mexican Chicken to the shopping list",
       }),
     );
 
-    expect(shoppingMocks.saveCurrentShoppingList).toHaveBeenCalledWith(
-      emptyShoppingList.id,
-      emptyShoppingList.revision,
-      updated.snapshot,
-    );
-    expect(shoppingMocks.toastSuccess).toHaveBeenCalledWith(
-      "Slow Cooker Mexican Chicken, Creamy Pesto Risotto added to your shopping list.",
-    );
+    const pendingButton = await screen.findByRole("button", {
+      name: "Remove Slow Cooker Mexican Chicken from the shopping list",
+    });
+    const otherButton = screen.getByRole("button", {
+      name: "Add Creamy Pesto Risotto to the shopping list",
+    });
+    expect(pendingButton).toBeDisabled();
+    expect(pendingButton).toHaveAttribute("aria-busy", "true");
+    expect(otherButton).toBeDisabled();
+    expect(otherButton).toHaveAttribute("aria-busy", "false");
+    expect(shoppingMocks.getCurrentShoppingList).toHaveBeenCalledTimes(1);
+
+    finishSave?.(updated);
+    await waitFor(() => expect(pendingButton).toBeEnabled());
   });
 
-  it("does not duplicate a recipe already on the shopping list", async () => {
-    const selectedList = {
-      ...emptyShoppingList,
-      snapshot: {
-        ...emptyShoppingList.snapshot,
-        recipes: [{ slug: "slow-cooker-mexican-chicken", servings: 4 }],
-      },
-    };
-    shoppingMocks.getCurrentShoppingList.mockResolvedValue(selectedList);
-    const user = userEvent.setup();
-
+  it("does not offer bulk selection", async () => {
     renderWithShoppingList(
-      <RecipeList
-        recipes={[recipes[0] as RecipeCardView]}
-        shoppingListUserId="user-1"
-      />,
+      <RecipeList recipes={recipes} shoppingListUserId="user-1" />,
     );
-    await user.click(
-      await screen.findByRole("button", {
+
+    await screen.findByRole("button", {
+      name: "Add Slow Cooker Mexican Chicken to the shopping list",
+    });
+    expect(
+      screen.queryByRole("button", {
         name: "Select recipes for shopping list",
       }),
-    );
-    await user.click(
-      screen.getByRole("button", {
-        name: "Select Slow Cooker Mexican Chicken",
-      }),
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Add selected to shopping list" }),
-    );
-
-    expect(shoppingMocks.saveCurrentShoppingList).not.toHaveBeenCalled();
-    expect(shoppingMocks.toastInfo).toHaveBeenCalledWith(
-      "Slow Cooker Mexican Chicken is already on your shopping list.",
-    );
+    ).not.toBeInTheDocument();
   });
 
   it("removes a recipe from the shopping list through its card", async () => {
@@ -374,7 +342,7 @@ describe("RecipeList", () => {
     );
 
     await waitFor(() =>
-      expect(shoppingMocks.getCurrentShoppingList).toHaveBeenCalledTimes(3),
+      expect(shoppingMocks.getCurrentShoppingList).toHaveBeenCalledTimes(2),
     );
     expect(shoppingMocks.toastError).toHaveBeenCalledWith(
       "Slow Cooker Mexican Chicken could not be added to your shopping list.",
