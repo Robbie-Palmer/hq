@@ -74,7 +74,7 @@ platform_layers:
     slots:
       - slot: "storage.object-store"
         adopted: "2026-09-29T00:00:00Z"
-        rationale: "A private R2 bucket stores immutable review records from public repository activity for longitudinal analysis; Worker credentials restrict access, records are retained while the benchmark remains active, and lifecycle deletion applies when a run or corpus is retired."
+        rationale: "The private R2 bucket stores versioned review records derived from public repository activity. Only the review Worker and operators with bucket credentials may access it; records expire after 365 days, and incomplete multipart uploads abort after seven days."
 ---
 
 # Vision
