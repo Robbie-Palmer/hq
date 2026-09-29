@@ -5005,7 +5005,9 @@ export class WorkGraphRepository {
             .from(workItem)
             .where(
               and(
-                claimableWorkItemWhere(),
+                claimableWorkItemWhere(undefined, {
+                  requireNoLeaseHistory: true,
+                }),
                 workItemSelectionWhere(scope),
               ),
             )
@@ -5029,7 +5031,10 @@ export class WorkGraphRepository {
         .where(
           claimableWorkItemWhere(
             candidateId,
-            requestedWorkItemId !== undefined,
+            {
+              allowStaleRecovery: requestedWorkItemId !== undefined,
+              requireNoLeaseHistory: requestedWorkItemId === undefined,
+            },
           ),
         )
         .limit(1)
@@ -5045,7 +5050,10 @@ export class WorkGraphRepository {
         .where(
           claimableWorkItemWhere(
             candidate.id,
-            requestedWorkItemId !== undefined,
+            {
+              allowStaleRecovery: requestedWorkItemId !== undefined,
+              requireNoLeaseHistory: requestedWorkItemId === undefined,
+            },
           ),
         )
         .limit(1);

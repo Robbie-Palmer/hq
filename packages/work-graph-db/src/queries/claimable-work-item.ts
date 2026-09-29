@@ -14,7 +14,10 @@ const childWorkItem = alias(workItem, "child_work_item");
 
 export const claimableWorkItemWhere = (
   workItemId?: string,
-  allowStaleRecovery = false,
+  options: {
+    allowStaleRecovery?: boolean;
+    requireNoLeaseHistory?: boolean;
+  } = {},
 ) =>
   and(
     eq(workItem.lifecycle, "open"),
@@ -61,7 +64,7 @@ export const claimableWorkItemWhere = (
           where ${blockingWorkItem.lifecycle} = 'open'
         )`,
       ),
-      allowStaleRecovery
+      options.allowStaleRecovery
         ? sql`exists (
             select 1
             from ${lease}
@@ -78,4 +81,11 @@ export const claimableWorkItemWhere = (
         and ${lease.endedAt} is null
         and ${lease.expiresAt} > clock_timestamp()
     )`,
+    options.requireNoLeaseHistory
+      ? sql`not exists (
+          select 1
+          from ${lease}
+          where ${lease.workItemId} = ${workItem.id}
+        )`
+      : undefined,
   );

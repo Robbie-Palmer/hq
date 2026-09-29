@@ -390,9 +390,10 @@ Attention requests should collect:
 
 Each item should include the decision needed, why it is needed now, options the
 actor considered, the affected critical path, and the consequence of waiting.
-A response should update the graph and allow eligible work to resume. The
-previous worker remains visible in lease history so a later scheduler can
-prefer continuity without reserving the work indefinitely.
+A response should update the graph and allow eligible work to resume. Work with
+lease history requires an explicit claim, which keeps automatic selection on
+never-started tickets. A returning worker or a deliberate replacement can name
+the ticket to continue it, including stale recovery after a worker disappears.
 
 # Public work, private telemetry
 
