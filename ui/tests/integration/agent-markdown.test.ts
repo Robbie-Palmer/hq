@@ -134,6 +134,9 @@ describe("agent markdown generation", () => {
     expect(platform).toContain("delivery.preview-environment: preferred");
     expect(platform).toContain("security.preview-access: preferred");
     expect(platform).toContain("security.service-auth: preferred");
+    expect(platform).toContain("### Identity");
+    expect(platform).toContain("identity.authentication-library: preferred");
+    expect(platform).toContain("identity.login-provider: preferred");
     expect(platform).toContain("### Storage");
     expect(platform).toContain("storage.object-store: preferred");
     expect(platform).toContain("## Default history");

@@ -1,0 +1,72 @@
+---
+title: "ADR 020: Better Auth and Google OIDC for user authentication"
+date: "2026-09-29"
+status: "Accepted"
+tech_stack: ["Better Auth", "Google OAuth"]
+---
+
+## Context
+
+Applications with private user state need durable identities and sessions. The
+Recipe Site chose Better Auth in its ADR 003 and Google OIDC as its primary
+sign-in provider in ADR 007. Better Auth keeps configuration in TypeScript and
+stores sessions in the application's database. Google handles the primary
+credential, account recovery, and multi-factor authentication for users who
+sign in through it.
+
+This is the platform's first accepted adopter for both choices. That falls
+short of the usual evidence from repeated use across projects. The promotion is
+an explicit owner decision based on the Recipe Site implementation, not a claim
+that either choice has proved portable across the portfolio.
+
+The library and provider solve different problems. Better Auth owns the
+application session and account linkage. Google authenticates one external
+identity. Other providers can sit beside Google without replacing the session
+library.
+
+## Decision
+
+Prefer Better Auth as the user authentication library for applications that
+have a server runtime and a durable session store. Keep its configuration in
+the repository, store provider credentials through the approved secret flow,
+and persist sessions in the application's transactional database. Treat
+authorization as a separate application concern.
+
+Prefer Google OIDC as the initial login provider through Better Auth. Register
+an OAuth web client for each stable environment, restrict its callback and
+origin allowlists to the application's owned URLs, and document how users
+recover access through Google or an intentionally configured alternative. The
+OAuth client secret belongs in the runtime secret store, never in source.
+
+The login-provider slot accepts multiple choices. Projects may add GitHub,
+Apple, passkeys, magic links, or another suitable method without superseding
+Google. Each added method needs its own registration, callback, recovery, and
+account-linking policy.
+
+## Alternatives
+
+Auth.js has a familiar TypeScript API, but its maintainers direct new projects
+toward Better Auth. A managed service such as Clerk, Auth0, WorkOS, or Kinde
+would remove some runtime ownership while adding a hosted control plane and a
+usage-sensitive cost model. A project may still override the default when those
+operational features matter more than portability.
+
+Email and password authentication avoids an external identity provider, but it
+makes the application responsible for password storage, resets, verification,
+abuse controls, and breach response. Passkeys offer stronger phishing
+resistance and remain a credible additive or replacement provider once a
+project can support their enrolment and recovery paths.
+
+## Consequences
+
+New applications can reuse one code-owned authentication library and begin
+with a sign-in method familiar to most intended users. They still need a server
+runtime, database-backed sessions, secret delivery, provider registration,
+stable callback origins, and an explicit recovery policy.
+
+Google becomes a sign-in dependency, and its standard web OAuth client still
+requires console-owned setup. Per-pull-request URLs cannot complete the normal
+Google callback unless a project provides a stable callback broker or registers
+those URLs through another bounded mechanism. The platform must revisit both
+defaults after another project adopts them or if Better Auth's maintenance,
+Google's terms, or the recovery model no longer fits.

@@ -733,6 +733,73 @@ describe("temporal platform layers", () => {
     );
   });
 
+  it("promotes Better Auth and Google OIDC with their operating constraints", () => {
+    const repository = loadDomainRepository();
+    const manifest = repository.platform.manifest;
+
+    expect(
+      manifest?.policies.find(
+        (policy) => policy.slot === "identity.authentication-library",
+      )?.prerequisites,
+    ).toEqual([
+      { slot: "backend-api.runtime" },
+      { slot: "database.relational-engine" },
+    ]);
+    expect(
+      manifest?.policies.find(
+        (policy) => policy.slot === "identity.login-provider",
+      )?.prerequisites,
+    ).toEqual([
+      {
+        slot: "identity.authentication-library",
+        technology: "better-auth",
+      },
+    ]);
+
+    const authSelection = manifest?.selections.find(
+      (selection) => selection.slot === "identity.authentication-library",
+    );
+    expect(authSelection).toMatchObject({
+      kind: "technology",
+      technology: "better-auth",
+      status: "Accepted",
+      decision: "personal-engineering-platform:020-better-auth-and-google-oidc",
+      originProjects: ["recipe-site"],
+      evidenceADRs: ["recipe-site:003-better-auth"],
+    });
+
+    const providerSelection = manifest?.selections.find(
+      (selection) => selection.slot === "identity.login-provider",
+    );
+    expect(providerSelection).toMatchObject({
+      kind: "technology",
+      technology: "google-oauth",
+      status: "Accepted",
+      decision: "personal-engineering-platform:020-better-auth-and-google-oidc",
+      originProjects: ["recipe-site"],
+      evidenceADRs: ["recipe-site:007-google-oidc-login"],
+    });
+
+    expect(
+      resolveEffectiveProjectStack(
+        repository,
+        "recipe-site",
+        "2026-09-29T12:00:00Z",
+      ).technologies,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          slot: "identity.authentication-library",
+          technology: "better-auth",
+        }),
+        expect.objectContaining({
+          slot: "identity.login-provider",
+          technology: "google-oauth",
+        }),
+      ]),
+    );
+  });
+
   it("resolves the repository, language, web, and infrastructure baseline", () => {
     const repository = loadDomainRepository();
     const recipe = resolveEffectiveProjectStack(

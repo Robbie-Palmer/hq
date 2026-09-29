@@ -53,6 +53,17 @@ platform_layers:
       - slot: "backend-api.relational-connection"
         adopted: "2026-09-29T00:00:00Z"
         decision: "recipe-site:004-backend-platform-for-authenticated-features"
+  - layer: "identity"
+    adopted: "2026-09-29T00:00:00Z"
+    tracking: true
+    decision: "recipe-site:003-better-auth"
+    slots:
+      - slot: "identity.authentication-library"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:003-better-auth"
+      - slot: "identity.login-provider"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:007-google-oidc-login"
   - layer: "api-governance"
     adopted: "2026-09-29T00:00:00Z"
     tracking: true
