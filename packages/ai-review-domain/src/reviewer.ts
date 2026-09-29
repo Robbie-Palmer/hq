@@ -126,6 +126,19 @@ const IGNORED_VENDOR_PATHS = [
   ".vale/styles/write-good/",
 ];
 
+// CI checks these machine-generated artifacts against their authored schemas
+// and route definitions. Review the inputs rather than regenerated output.
+const IGNORED_GENERATED_PATHS = [
+  "packages/work-graph-db/drizzle/meta/",
+  "workers/recipe-api/drizzle/meta/",
+  "packages/work-graph-cli/src/generated/",
+];
+
+const IGNORED_GENERATED_FILES = new Set([
+  "workers/recipe-api/openapi.json",
+  "workers/work-graph-api/openapi.json",
+]);
+
 const SCOUT_FINDINGS_LIMIT = 25;
 const MERGED_FINDINGS_LIMIT = 100;
 
@@ -214,6 +227,8 @@ export function ignored(path: string): boolean {
   const basename = parts.at(-1) ?? normalized;
   return (
     IGNORED_VENDOR_PATHS.some((prefix) => normalized.startsWith(prefix)) ||
+    IGNORED_GENERATED_PATHS.some((prefix) => normalized.startsWith(prefix)) ||
+    IGNORED_GENERATED_FILES.has(normalized) ||
     IGNORED_FILENAMES.has(basename) ||
     IGNORED_EXTENSIONS.some((extension) => basename.endsWith(extension)) ||
     parts.slice(0, -1).some((directory) => IGNORED_DIRECTORIES.has(directory)) ||

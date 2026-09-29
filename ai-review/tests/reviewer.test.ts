@@ -49,9 +49,15 @@ test("ignore patterns match paths and basenames", () => {
   assert.equal(ignored("dist/server.js"), true);
   assert.equal(ignored("ui/.next/server/app.js"), true);
   assert.equal(ignored("generated/client.generated.ts"), true);
+  assert.equal(ignored("packages/work-graph-db/drizzle/meta/0015_snapshot.json"), true);
+  assert.equal(ignored("workers/recipe-api/drizzle/meta/_journal.json"), true);
+  assert.equal(ignored("packages/work-graph-cli/src/generated/client/types.gen.ts"), true);
+  assert.equal(ignored("workers/work-graph-api/openapi.json"), true);
+  assert.equal(ignored("workers/recipe-api/openapi.json"), true);
   assert.equal(ignored(".env.production"), true);
   assert.equal(ignored("ui/components/card.tsx"), false);
   assert.equal(ignored("workers/recipe-api/src/db/schema.ts"), false);
+  assert.equal(ignored("workers/recipe-api/drizzle/0015_agent_mutation_ledger.sql"), false);
   assert.equal(ignored(".vale/styles/proselint/Passive.yml"), true);
   assert.equal(ignored(".vale/styles/write-good/E-Prime.yml"), true);
   assert.equal(ignored(".vale/styles/Unslop/AIVocabulary.yml"), false);
