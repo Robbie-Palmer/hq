@@ -6,7 +6,8 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { CircleMinus, CirclePlus } from "lucide-react";
+import { createElement, useMemo } from "react";
 import { toast } from "sonner";
 import { captureRecipeProductActivity } from "@/lib/analytics/recipe-product";
 import { isApiError } from "@/lib/api/http";
@@ -139,6 +140,12 @@ function notifyRecipeUpdate({ changed, request }: ShoppingListRecipeUpdate) {
     request.add
       ? `${names} added to your shopping list.`
       : `${names} removed from your shopping list.`,
+    {
+      icon: createElement(request.add ? CirclePlus : CircleMinus, {
+        "aria-hidden": true,
+        className: "size-4",
+      }),
+    },
   );
 }
 

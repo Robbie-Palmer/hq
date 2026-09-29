@@ -7,6 +7,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { CircleMinus, CirclePlus } from "lucide-react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RecipeList } from "@/components/recipes/recipe-list";
@@ -198,6 +199,9 @@ describe("RecipeList", () => {
     ).toBeInTheDocument();
     expect(shoppingMocks.toastSuccess).toHaveBeenCalledWith(
       "Slow Cooker Mexican Chicken added to your shopping list.",
+      expect.objectContaining({
+        icon: expect.objectContaining({ type: CirclePlus }),
+      }),
     );
   });
 
@@ -294,6 +298,9 @@ describe("RecipeList", () => {
     );
     expect(shoppingMocks.toastSuccess).toHaveBeenCalledWith(
       "Slow Cooker Mexican Chicken removed from your shopping list.",
+      expect.objectContaining({
+        icon: expect.objectContaining({ type: CircleMinus }),
+      }),
     );
   });
 
