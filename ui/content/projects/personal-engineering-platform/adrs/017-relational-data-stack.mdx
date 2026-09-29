@@ -1,0 +1,79 @@
+---
+title: "ADR 017: PostgreSQL access, connections, and recovery"
+date: "2026-09-29"
+status: "Accepted"
+tech_stack: ["Drizzle", "Hyperdrive", "age"]
+---
+
+## Context
+
+[ADR 005](/projects/personal-engineering-platform/adrs/005-database-defaults)
+selects PostgreSQL and Neon when a project needs transactional storage. That
+choice does not define how application code owns the schema, how Cloudflare
+Workers reach PostgreSQL, or how a project recovers after provider or account
+loss.
+
+The Recipe Site and Work Graph answer those questions the same way. Both keep
+Drizzle schemas and migrations in the repository and connect Workers through
+Hyperdrive. Both also run the shared backup scripts in scheduled CI. The
+scripts stream PostgreSQL custom-format archives through `age` before writing
+the ciphertext and its checksum to the R2 storage selected by
+[ADR 016](/projects/personal-engineering-platform/adrs/016-cloudflare-r2-object-storage).
+
+These parts have different conditions. Drizzle follows a PostgreSQL choice.
+Hyperdrive only fits the combination of Cloudflare Workers and PostgreSQL.
+Independent backups require object storage and operational ownership of keys,
+retention, and restore testing.
+
+## Decision
+
+Prefer Drizzle for PostgreSQL schema ownership, committed migrations, and typed
+queries. Projects remain free to use direct SQL where it expresses a query more
+clearly, but the repository owns the schema and migration history.
+
+Prefer Hyperdrive only when a Cloudflare Worker connects to PostgreSQL. A
+project on another runtime should use the connection method that fits that
+runtime instead of adopting Hyperdrive as a database-wide default.
+
+Prefer the shared encrypted PostgreSQL backup and restore control when a
+project has PostgreSQL and object storage. Each adopter must:
+
+* create custom-format archives with a pinned PostgreSQL client in scheduled CI;
+* encrypt each archive with an `age` recipient before upload;
+* keep the private identity outside CI, the database provider, and the
+  object-store account, with a separate recovery copy;
+* define retention and deletion-lock rules for its own bucket or prefixes;
+* alert when the scheduled workflow fails; and
+* restore an archive into a scratch database periodically, verify application
+  data, record the drill, and delete the scratch database.
+
+Provider restore history and snapshots remain the fast path for recent errors.
+They do not replace the independent encrypted archive.
+
+## Alternatives
+
+Prisma provides a broader client and migration system, while Kysely and direct
+SQL keep the query layer closer to SQL. Replacing Drizzle would discard working
+schemas, migrations, and shared patterns in both adopted services without
+solving a current limitation.
+
+Direct PostgreSQL connections or a provider's serverless driver suit runtimes
+that manage their own connection pools or cannot use Hyperdrive. They are not
+the default for Workers because both current services already use the managed
+pooling boundary.
+
+Neon restore history and snapshots recover recent mistakes quickly, but they
+remain inside the same provider account. Physical replication and continuous
+archiving would shorten recovery points at the cost of infrastructure that the
+current database size and recovery objectives do not require.
+
+## Consequences
+
+PostgreSQL adopters get one schema and migration convention. Worker services
+also get a shared connection boundary without imposing it on other runtimes.
+
+The backup control can recover into ordinary PostgreSQL after a Neon,
+Cloudflare, or account failure, provided the failure does not also destroy the
+separately held `age` identity. That independence adds real work: scoped
+credentials, retention configuration, failure alerts, key custody, and restore
+drills. A successful upload alone is not evidence that recovery works.

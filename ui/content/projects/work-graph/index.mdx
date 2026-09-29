@@ -45,6 +45,9 @@ platform_layers:
       - slot: "backend-api.contract-format"
         adopted: "2026-09-29T00:00:00Z"
         decision: "work-graph:003-rest-api-and-cli-first"
+      - slot: "backend-api.relational-connection"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "work-graph:001-postgresql-coordination-boundary"
   - layer: "database"
     adopted: "2026-09-13T00:00:00Z"
     tracking: true
@@ -56,6 +59,12 @@ platform_layers:
       - slot: "database.relational-host"
         adopted: "2026-09-13T00:00:00Z"
         rationale: "The coordination database needs a managed PostgreSQL host."
+      - slot: "database.relational-access"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "work-graph:001-postgresql-coordination-boundary"
+      - slot: "database.backup-restore"
+        adopted: "2026-09-29T00:00:00Z"
+        rationale: "Scheduled CI writes age-encrypted PostgreSQL archives to a dedicated R2 bucket, retains weekly and monthly copies, and requires scratch-database restore drills."
   - layer: "infrastructure"
     adopted: "2026-09-13T00:00:00Z"
     tracking: true
@@ -75,6 +84,14 @@ platform_layers:
       - slot: "observability.application-telemetry"
         adopted: "2026-09-13T00:00:00Z"
         rationale: "API errors and work-state transitions need application telemetry."
+  - layer: "storage"
+    adopted: "2026-09-29T00:00:00Z"
+    tracking: true
+    rationale: "The coordination database needs provider-independent encrypted backups outside Neon."
+    slots:
+      - slot: "storage.object-store"
+        adopted: "2026-09-29T00:00:00Z"
+        rationale: "A dedicated R2 bucket stores encrypted PostgreSQL archives and their checksums under retention and deletion-lock policies."
 initiatives:
   - "semi-autonomous-software-development"
 ideas:
