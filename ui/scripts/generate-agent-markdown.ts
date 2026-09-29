@@ -336,7 +336,20 @@ function buildPlatformManifestSection(project: ProjectWithADRs): string[] {
       "",
       `${layer.description}${activation}`,
       "",
-      ...policies.map((policy) => `- ${policy.slot}: ${policy.mode}`),
+      ...policies.map((policy) => {
+        const prerequisites = policy.prerequisites
+          .map((prerequisite) =>
+            "requirement" in prerequisite
+              ? prerequisite.requirement
+              : prerequisite.technology
+                ? `${prerequisite.slot} = ${prerequisite.technology}`
+                : prerequisite.slot,
+          )
+          .join(", ");
+        return `- ${policy.slot}: ${policy.mode}${
+          prerequisites ? `; prerequisites: ${prerequisites}` : ""
+        }`;
+      }),
       ...(policies.length > 0 ? [""] : []),
     ];
   });

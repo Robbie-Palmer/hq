@@ -137,6 +137,13 @@ describe("agent markdown generation", () => {
     expect(platform).toContain("web-app.server-state-client: preferred");
     expect(platform).toContain("network.public-ingress: preferred");
     expect(platform).toContain("network.private-overlay: preferred");
+    expect(platform).toContain("observability.telemetry-protocol: preferred");
+    expect(platform).toContain("observability.alert-evaluation: preferred");
+    expect(platform).toContain("observability.alert-delivery: preferred");
+    expect(platform).toContain(
+      "prerequisites: instrumented-runtime, telemetry-redaction, bounded-exporter-failure",
+    );
+    expect(platform).toContain("project-owned-slack-credentials");
     expect(platform).toContain("### Identity");
     expect(platform).toContain("identity.authentication-library: preferred");
     expect(platform).toContain("identity.login-provider: preferred");
