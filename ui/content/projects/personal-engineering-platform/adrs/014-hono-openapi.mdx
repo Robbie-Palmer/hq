@@ -1,0 +1,57 @@
+---
+title: "ADR 014: Hono and OpenAPI for backend APIs"
+date: "2026-09-29"
+status: "Accepted"
+tech_stack: ["Hono", "OpenAPI"]
+---
+
+## Context
+
+The Recipe Site and Work Graph both expose HTTP APIs from Cloudflare Workers.
+They use Hono for routing and middleware, and they publish OpenAPI 3.1 contracts
+from their route and schema definitions. The shared runtime decision in
+[ADR 002](/projects/personal-engineering-platform/adrs/002-cloudflare-workers)
+does not define API implementation or how clients and checks discover its
+contract.
+
+The two jobs need separate defaults. Hono can route an API that publishes no
+contract, while another framework or runtime can still produce OpenAPI.
+
+## Decision
+
+Prefer Hono for the backend API layer's HTTP framework slot when a project has
+adopted a backend runtime. Hono already runs in the repository's Workers
+services and can move to Node.js, Deno, or Bun without changing the API's
+routing model.
+
+Prefer OpenAPI 3.1 for the HTTP contract slot. Generate the contract from the
+same route and schema declarations used by the service, or enforce automated
+route parity. Commit the generated document when repository checks and clients
+need a stable input.
+
+Keep both slots preferred. A service may use a framework that fits its runtime
+better, and an internal endpoint may not need a published contract. API
+governance remains a separate layer because linting and compatibility policy
+apply to the contract after a project chooses to publish one.
+
+## Alternatives
+
+Fastify and Express have larger Node.js ecosystems, but they do not match the
+current Workers deployments as closely. Runtime-specific routers reduce a
+dependency at the cost of portability and shared middleware conventions.
+
+A hand-maintained OpenAPI document separates the contract from runtime code and
+can drift. TypeSpec offers a credible authoring format, but the current services
+already generate OpenAPI directly from their route schemas, so adding another
+source language would create a second generation step without removing work.
+
+## Consequences
+
+Projects that need an HTTP framework or contract can adopt each choice without
+claiming the other. The Recipe Site and Work Graph now record both preferred
+slots against their existing local decisions.
+
+Generated contracts add a checked artifact to API changes. Route parity and
+contract generation must fail in CI when an implementation changes without a
+matching contract. Projects using a different framework can still adopt
+OpenAPI, and projects with a different contract need only override that slot.
