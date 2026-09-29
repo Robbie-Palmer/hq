@@ -688,7 +688,8 @@ describe("temporal platform layers", () => {
       kind: "technology",
       technology: "cloudflare-access",
       status: "Accepted",
-      decision: "personal-engineering-platform:019-cloudflare-access-boundaries",
+      decision:
+        "personal-engineering-platform:019-cloudflare-access-boundaries",
       originProjects: ["recipe-site"],
       evidenceADRs: ["recipe-site:013-cloudflare-access-preview-gates"],
     });
@@ -700,7 +701,8 @@ describe("temporal platform layers", () => {
       kind: "technology",
       technology: "cloudflare-access",
       status: "Accepted",
-      decision: "personal-engineering-platform:019-cloudflare-access-boundaries",
+      decision:
+        "personal-engineering-platform:019-cloudflare-access-boundaries",
       originProjects: ["work-graph"],
       evidenceADRs: ["work-graph:004-cloudflare-access-service-auth"],
     });
