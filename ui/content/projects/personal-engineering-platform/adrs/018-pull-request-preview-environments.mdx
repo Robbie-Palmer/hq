@@ -1,0 +1,69 @@
+---
+title: "ADR 018: Isolated pull-request preview environments"
+date: "2026-09-29"
+status: "Accepted"
+---
+
+## Context
+
+Pull requests need a deployed review surface before they reach production. A
+shared staging environment makes concurrent changes interfere with one another,
+while a frontend preview alone cannot exercise a change that also affects an
+API, database schema, background worker, or object storage.
+
+The repository already runs both forms. Every internal pull request can receive
+a Cloudflare Pages preview. Backend-affecting Recipe Site changes also receive
+isolated Workers and a fresh Neon branch, with synthetic fixtures and a shared
+preview-only R2 bucket. [Recipe Site ADR 017](/projects/recipe-site/adrs/017-fresh-migration-baseline-and-isolated-preview-database-project)
+keeps that database separate from production and rebuilds it from committed
+migrations on each update.
+
+Provisioning the full stack for a content or frontend-only change would add
+latency, consume scarce managed-service resources, and expose more credentials
+without improving the review. The default therefore needs one preview contract
+with resource isolation proportional to the change.
+
+## Decision
+
+Prefer an isolated pull-request preview environment when a project has a
+deployable review surface. Its delivery path must:
+
+* run from CI and publish to a deployment host under a pull-request-specific
+  identity;
+* give unmerged code only preview-scoped, least-privilege credentials;
+* use synthetic or explicitly disposable data rather than production data;
+* create separate backend resources when the change exercises mutable state or
+  backend services; and
+* remove pull-request resources automatically when the pull request closes,
+  with provider expiry or lifecycle rules as a backstop.
+
+A frontend-only change may use only the host's isolated frontend preview. CI
+should provision databases, Workers, queues, buckets, or other backend
+resources only when affected paths or an explicit review request require them.
+Fork pull requests must not receive credentials capable of provisioning or
+reaching internal preview resources.
+
+## Alternatives
+
+A permanent shared staging environment costs less per pull request, but
+concurrent schema, API, and data changes can overwrite each other and make the
+review result depend on deployment order. Local review avoids cloud resources,
+but does not exercise managed integrations or provide a stable surface for
+remote reviewers and automated browser checks.
+
+Provisioning the complete production topology for every pull request provides
+stronger fidelity. It is unnecessary for frontend-only work and increases
+setup time, credential exposure, cleanup risk, and consumption of provider
+quotas.
+
+## Consequences
+
+Reviewers get a stable deployment for each internal pull request, and backend
+changes can be tested without sharing production data or mutable state. Simple
+changes retain the faster frontend-only path.
+
+Projects must maintain change detection, scoped CI environments, synthetic
+fixtures, deterministic naming, and idempotent cleanup. Preview behaviour can
+still differ from production where OAuth, production data, or costly services
+are deliberately disabled, so a successful preview does not replace production
+deployment checks.
