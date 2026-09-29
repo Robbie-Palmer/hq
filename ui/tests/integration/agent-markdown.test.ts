@@ -131,6 +131,8 @@ describe("agent markdown generation", () => {
     expect(platform).toContain("## Current layer manifest");
     expect(platform).toContain("### Backend API");
     expect(platform).toContain("backend-api.runtime: preferred");
+    expect(platform).toContain("### Storage");
+    expect(platform).toContain("storage.object-store: preferred");
     expect(platform).toContain("## Default history");
     expect(platform).toContain("### Primary language");
     expect(platform).toContain("### Source licence");
@@ -140,6 +142,9 @@ describe("agent markdown generation", () => {
     );
     expect(platform).toContain(
       "driven by [personal-knowledge-graph](https://robbiepalmer.me/projects/personal-knowledge-graph.md)",
+    );
+    expect(platform).toContain(
+      "[cloudflare-r2](https://robbiepalmer.me/technologies/cloudflare-r2.md): Accepted",
     );
   });
 

@@ -42,6 +42,9 @@ layers:
   - slug: "database"
     title: "Database"
     description: "Conditional defaults for transactional and analytical data."
+  - slug: "storage"
+    title: "Storage"
+    description: "Conditional defaults for durable files, uploads, backups, and artifact bytes."
 slots:
   - slug: "governance.repository-visibility"
     title: "Repository visibility"
@@ -318,6 +321,10 @@ slots:
     title: "OLAP engine"
     description: "Analytical SQL processing when a project needs it."
     rationale: "DuckDB, ClickHouse, BigQuery, Redshift, and other warehouse services answer analytical workloads."
+  - slug: "storage.object-store"
+    title: "Object store"
+    description: "Durable storage for files, uploads, backups, datasets, and immutable artifact bytes."
+    rationale: "Cloudflare R2, Amazon S3, Backblaze B2, and other S3-compatible services provide different cost, access, lifecycle, and integration models."
 policies:
   - id: "governance-repository-visibility-2026-09-15"
     layer: "governance"
@@ -743,6 +750,12 @@ policies:
     mode: "preferred"
     effective_from: "2026-09-12T00:00:00Z"
     decision: "personal-engineering-platform:005-database-defaults"
+  - id: "storage-object-store-2026-09-29"
+    layer: "storage"
+    slot: "storage.object-store"
+    mode: "preferred"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:015-cloudflare-r2-object-storage"
 selections:
   - id: "governance-repository-visibility-public-2026-09-15"
     slot: "governance.repository-visibility"
@@ -1181,6 +1194,18 @@ selections:
     decision: "personal-engineering-platform:005-database-defaults"
     origin_projects: ["agentic-code-review"]
     evidence_adrs: ["agentic-code-review:002-duckdb-ai-review-scorecard"]
+  - id: "storage-object-store-cloudflare-r2-2026-09-29"
+    slot: "storage.object-store"
+    technology: "Cloudflare R2"
+    status: "Accepted"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:015-cloudflare-r2-object-storage"
+    origin_projects: ["personal-knowledge-graph", "recipe-site", "agentic-code-review"]
+    evidence_adrs:
+      - "personal-knowledge-graph:039-cloudflare-r2"
+      - "recipe-site:012-cloudflare-workflows-recipe-ingestion"
+      - "recipe-site:014-neon-database-snapshots-and-backups"
+      - "agentic-code-review:001-stateful-ai-code-review"
   - id: "build-reproducibility-nix-2026-09-28"
     slot: "build.reproducibility"
     technology: "Nix"

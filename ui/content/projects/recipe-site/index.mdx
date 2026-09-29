@@ -82,6 +82,14 @@ platform_layers:
       - slot: "observability.application-telemetry"
         adopted: "2026-09-12T00:00:00Z"
         decision: "recipe-site:010-posthog-logs"
+  - layer: "storage"
+    adopted: "2026-09-29T00:00:00Z"
+    tracking: true
+    rationale: "Private buckets separate user uploads and immutable ingestion artifacts from encrypted database backups; ADRs 012 and 014 define their access, retention, and lifecycle rules."
+    slots:
+      - slot: "storage.object-store"
+        adopted: "2026-09-29T00:00:00Z"
+        rationale: "R2 stores private user uploads, immutable stage artifacts, and encrypted backups under use-case-specific access, retention, deletion, and lifecycle policies."
 initiatives:
   - "digital-twins-for-everyday-life"
 ideas:

@@ -2,7 +2,7 @@
 title: "Agentic Code Review"
 description: "A stateful, model-agnostic GitHub App for high-signal code review at agentic development velocity"
 date: "2026-08-08"
-updated: "2026-09-06"
+updated: "2026-09-29"
 initiatives:
   - "semi-autonomous-software-development"
 ideas:
@@ -67,6 +67,14 @@ platform_layers:
       - slot: "observability.application-telemetry"
         adopted: "2026-09-12T00:00:00Z"
         rationale: "Review requests and failures need application telemetry."
+  - layer: "storage"
+    adopted: "2026-09-29T00:00:00Z"
+    tracking: true
+    decision: "agentic-code-review:001-stateful-ai-code-review"
+    slots:
+      - slot: "storage.object-store"
+        adopted: "2026-09-29T00:00:00Z"
+        rationale: "The private R2 bucket stores versioned review records derived from public repository activity. Only the review Worker and operators with bucket credentials may access it; records expire after 365 days, and incomplete multipart uploads abort after seven days."
 ---
 
 # Vision

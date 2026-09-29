@@ -1,0 +1,69 @@
+---
+title: "ADR 015: Cloudflare R2 for object storage"
+date: "2026-09-29"
+status: "Accepted"
+tech_stack: ["Cloudflare R2"]
+---
+
+## Context
+
+Three projects use object storage for different jobs. The Personal Knowledge
+Graph stores public map tiles and private DVC data in R2. The Recipe Site stores
+uploaded source images, immutable ingestion artifacts, and encrypted database
+backups there. Agentic Code Review writes immutable review records for later
+analysis. Their local decisions cover public delivery, private application
+data, backups, and analytical artifacts.
+
+The platform already separates relational and analytical databases. It also
+has `artifact.blob-provider`, which is only the backing store behind an artifact
+repository. Neither slot describes a general object store used directly by an
+application or data pipeline.
+
+## Decision
+
+Add `storage.object-store` as a preferred slot and select Cloudflare R2. Adopt
+it when a project needs durable file or artifact bytes that do not belong in a
+relational database or Git. This selection does not make R2 the system of
+record for queryable application state, and it does not select R2 as an OCI
+repository's blob provider.
+
+Every adopter must record four policies in its adoption decision or operating
+documentation:
+
+* the data classification and the object types allowed in each bucket;
+* the access model, including whether objects are public and which identities
+  may read, write, or delete private objects;
+* retention and deletion rules, including user-driven deletion and recovery
+  needs where they apply; and
+* the object lifecycle, including key immutability, version replacement,
+  expiry, archival, and cleanup of incomplete writes where relevant.
+
+Use separate buckets or prefixes when access and lifecycle rules differ. Scope
+credentials to the narrowest required bucket and operations. Provision buckets
+and enforce supported controls through reviewed infrastructure configuration.
+Store queryable ownership, status, checksums, and object keys in the relevant
+system of record when an application needs them.
+
+## Alternatives
+
+Amazon S3 has the broadest service and tooling ecosystem, but it would add an
+AWS account, IAM boundary, and egress pricing to projects already deployed on
+Cloudflare. Backblaze B2 is S3-compatible and inexpensive, but adds another
+provider without a current requirement that offsets the extra operations.
+
+Git and relational databases remain better for small reviewed source files and
+queryable transactional state. They become expensive or awkward for large,
+immutable bytes. The slot stays preferred because a project with no files,
+uploads, backups, datasets, or binary artifacts does not need an object store.
+
+## Consequences
+
+Projects can reuse one S3-compatible service across public assets, private
+artifacts, and encrypted backups while keeping each use case's policy local.
+The Personal Knowledge Graph, Recipe Site, and Agentic Code Review adopt the
+slot on this decision's date. Their earlier ADR dates remain evidence dates.
+
+Each new R2 use now carries explicit data-governance work. A bucket cannot
+inherit a safe retention or access policy merely because another project also
+uses R2. Cloudflare remains a concentration risk, while S3 compatibility keeps
+the object interface portable enough for a later provider change.

@@ -2,7 +2,7 @@
 title: "Personal Knowledge Graph"
 description: "The connected source of truth for my work and an incubator for ideas, projects, and products"
 date: "2025-11-02"
-updated: "2026-09-13"
+updated: "2026-09-29"
 aliases:
   - "personal-site"
 initiatives:
@@ -58,6 +58,14 @@ platform_layers:
       - slot: "observability.application-telemetry"
         adopted: "2026-09-12T00:00:00Z"
         decision: "personal-knowledge-graph:058-temporal-platform-layers"
+  - layer: "storage"
+    adopted: "2026-09-29T00:00:00Z"
+    tracking: true
+    decision: "personal-knowledge-graph:039-cloudflare-r2"
+    slots:
+      - slot: "storage.object-store"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "personal-knowledge-graph:039-cloudflare-r2"
 ---
 
 # Vision
