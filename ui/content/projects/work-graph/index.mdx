@@ -2,7 +2,7 @@
 title: "Work Graph"
 description: "A public source of truth for outcomes, dependencies, evidence, leases, and the human decisions that keep work moving"
 date: "2026-09-04"
-updated: "2026-09-27"
+updated: "2026-09-29"
 status: "in_progress"
 repo_url: "https://github.com/Robbie-Palmer/hq"
 tech_stack:
@@ -39,6 +39,12 @@ platform_layers:
       - slot: "backend-api.runtime"
         adopted: "2026-09-13T00:00:00Z"
         rationale: "The REST service runs beside the existing Cloudflare-hosted applications."
+      - slot: "backend-api.http-framework"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "work-graph:003-rest-api-and-cli-first"
+      - slot: "backend-api.contract-format"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "work-graph:003-rest-api-and-cli-first"
   - layer: "database"
     adopted: "2026-09-13T00:00:00Z"
     tracking: true
