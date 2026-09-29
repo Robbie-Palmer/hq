@@ -1,0 +1,60 @@
+---
+title: "ADR 021: TanStack Query for client-side server state"
+date: "2026-09-29"
+status: "Accepted"
+tech_stack: ["TanStack Query"]
+---
+
+## Context
+
+Interactive client components often read remote state after the initial page
+load, then need to coordinate loading, errors, freshness, retries, pagination,
+and mutation invalidation. The Recipe Site reached that point as authenticated
+features moved behind its HTTP API. Its ADR 018 chose TanStack Query rather
+than spreading those responsibilities across component effects and local
+state.
+
+The Recipe Site is the only accepted adopter today. That falls short of the
+platform's usual evidence from repeated use. This promotion is an explicit
+owner decision based on the existing implementation, not evidence that the
+choice has proved portable across several projects.
+
+## Decision
+
+Add `web-app.server-state-client` as a preferred platform slot and select
+TanStack Query. A project activates the slot only when interactive client
+components read or mutate state through an HTTP data source. Static content
+sites, applications whose remote data stays in server components, and
+server-only services do not activate it.
+
+TanStack Query owns the browser lifecycle of remote reads and writes. The
+application still owns its HTTP client, schemas, query keys, freshness rules,
+authorization handling, and cache cleanup when identity changes. Local
+interface state remains in component, context, or URL state. Canonical data
+remains in the remote system of record.
+
+## Alternatives
+
+SWR is a credible default for applications dominated by reads and a small
+mutation surface. Its smaller API is attractive, but TanStack Query better
+fits the Recipe Site's pagination, mutation, invalidation, and optimistic
+update needs.
+
+Native `fetch` in server components remains the simpler choice when remote
+state does not need a browser lifecycle. Component effects and a bespoke
+cache avoid a dependency for a handful of stable requests, but become
+application-owned synchronization code once requests share data or mutations
+must reconcile cached results.
+
+## Consequences
+
+Projects with interactive HTTP-backed state can reuse one query and mutation
+model without applying it to every web application. They must still define
+query-key scope, stale times, retries, invalidation, and private-cache cleanup;
+TanStack Query's defaults are not product policy.
+
+The dependency adds a provider, cache lifecycle, and another state boundary
+for developers to understand. Poor keys or broad invalidation can serve stale
+data, repeat requests, or retain one user's private data after sign-out. The
+platform should revisit this default after another project adopts the slot or
+if a server-first application no longer needs client-side synchronization.

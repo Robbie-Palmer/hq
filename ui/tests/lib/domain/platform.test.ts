@@ -800,6 +800,61 @@ describe("temporal platform layers", () => {
     );
   });
 
+  it("promotes TanStack Query only for web apps that activate client-side server state", () => {
+    const repository = loadDomainRepository();
+    const manifest = repository.platform.manifest;
+
+    expect(
+      manifest?.policies.find(
+        (policy) => policy.slot === "web-app.server-state-client",
+      ),
+    ).toMatchObject({
+      mode: "preferred",
+      prerequisites: [{ slot: "web-app.ui-library", technology: "react" }],
+    });
+    expect(
+      manifest?.selections.find(
+        (selection) => selection.slot === "web-app.server-state-client",
+      ),
+    ).toMatchObject({
+      kind: "technology",
+      technology: "tanstack-query",
+      status: "Accepted",
+      decision:
+        "personal-engineering-platform:021-tanstack-query-for-client-server-state",
+      originProjects: ["recipe-site"],
+      evidenceADRs: ["recipe-site:018-tanstack-query-for-client-server-state"],
+    });
+
+    expect(
+      resolveEffectiveProjectStack(
+        repository,
+        "recipe-site",
+        "2026-09-29T12:00:00Z",
+      ).technologies,
+    ).toContainEqual(
+      expect.objectContaining({
+        slot: "web-app.server-state-client",
+        technology: "tanstack-query",
+        source: "preferred-layer",
+      }),
+    );
+    expect(
+      resolveEffectiveProjectStack(
+        repository,
+        "personal-knowledge-graph",
+        "2026-09-29T12:00:00Z",
+      ).technologies.map((use) => use.technology),
+    ).not.toContain("tanstack-query");
+    expect(
+      resolveEffectiveProjectStack(
+        repository,
+        "work-graph",
+        "2026-09-29T12:00:00Z",
+      ).technologies.map((use) => use.technology),
+    ).not.toContain("tanstack-query");
+  });
+
   it("resolves the repository, language, web, and infrastructure baseline", () => {
     const repository = loadDomainRepository();
     const recipe = resolveEffectiveProjectStack(

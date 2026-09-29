@@ -207,6 +207,10 @@ slots:
     title: "Web component starting point"
     description: "Accessible interface components that projects can own and adapt."
     rationale: "shadcn/ui, Material UI, Chakra UI, and headless libraries trade ownership against packaged behavior."
+  - slug: "web-app.server-state-client"
+    title: "Client-side server-state library"
+    description: "Browser-side synchronization of remote state for interactive client components."
+    rationale: "TanStack Query, SWR, framework data APIs, and bespoke caches differ in query lifecycle, mutation coordination, and invalidation support."
   - slug: "web-app.host"
     title: "Managed web application host"
     description: "Preview and production hosting for a browser-delivered application."
@@ -605,6 +609,15 @@ policies:
     prerequisites:
       - slot: "web-app.styling"
         technology: "tailwind-css"
+  - id: "web-app-server-state-client-2026-09-29"
+    layer: "web-app"
+    slot: "web-app.server-state-client"
+    mode: "preferred"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:021-tanstack-query-for-client-server-state"
+    prerequisites:
+      - slot: "web-app.ui-library"
+        technology: "react"
   - id: "web-app-host-2026-09-15"
     layer: "web-app"
     slot: "web-app.host"
@@ -1214,6 +1227,14 @@ selections:
     decision: "personal-engineering-platform:008-web-application-defaults"
     origin_projects: ["personal-knowledge-graph"]
     evidence_adrs: ["personal-knowledge-graph:019-shadcn"]
+  - id: "web-app-server-state-client-tanstack-query-2026-09-29"
+    slot: "web-app.server-state-client"
+    technology: "TanStack Query"
+    status: "Accepted"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:021-tanstack-query-for-client-server-state"
+    origin_projects: ["recipe-site"]
+    evidence_adrs: ["recipe-site:018-tanstack-query-for-client-server-state"]
   - id: "web-app-host-cloudflare-pages-2026-09-15"
     slot: "web-app.host"
     technology: "Cloudflare Pages"
