@@ -1,0 +1,58 @@
+---
+title: "ADR 015: Spectral and oasdiff for API governance"
+date: "2026-09-29"
+status: "Accepted"
+tech_stack: ["Spectral", "oasdiff"]
+---
+
+## Context
+
+[ADR 014](/projects/personal-engineering-platform/adrs/014-hono-openapi)
+made OpenAPI 3.1 the preferred HTTP contract format. A committed contract can
+still contain invalid operations, omit security rules, or introduce an
+incompatible change. The Recipe Site and Work Graph already lint their OpenAPI
+contracts with the shared rules under `api-governance/`. The Recipe Site also
+compares proposed contracts with a committed baseline.
+
+Contract correctness applies to every OpenAPI adopter. Compatibility checks
+apply only after an API promises stability to independent clients. Combining
+those policies would either leave stable APIs unprotected or force pre-stable
+services to preserve contracts they still need to change.
+
+## Decision
+
+Add an API governance layer that activates when a project selects OpenAPI.
+Require Spectral for contract linting. Use the repository's shared correctness,
+OWASP, and naming rules so the same contract receives the same checks in every
+project.
+
+Prefer oasdiff when an API makes a compatibility promise. The project must keep
+a versioned OpenAPI baseline and run the comparison in CI. Each project owns
+its stability policy, including which changes it permits and when it may reset
+the baseline.
+
+Keep contract linting and compatibility checks in separate slots. The Recipe
+Site adopts both. Work Graph adopts required linting through its OpenAPI choice
+but will not adopt the compatibility slot until an independent client requires
+a stable contract.
+
+## Alternatives
+
+Redocly CLI and Vacuum can lint OpenAPI documents, but replacing the existing
+Spectral rules would discard repository checks that both APIs already run.
+Project-specific scripts could enforce the same rules, but they would duplicate
+configuration and produce different results as the scripts drift.
+
+Optic can detect compatibility changes and observe traffic, but the current
+projects already commit OpenAPI documents and need a deterministic file-to-file
+CI check. oasdiff fits that boundary without adding a hosted service.
+
+## Consequences
+
+Selecting OpenAPI now activates one required linting path. A project can still
+override the linter without replacing its HTTP framework or contract format.
+
+Compatibility remains opt-in. Projects that adopt oasdiff must retain a
+baseline and decide which contract changes count as breaking. This adds CI time
+and baseline maintenance, but it avoids imposing a versioning promise on every
+internal or pre-stable API.
