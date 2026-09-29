@@ -1,0 +1,109 @@
+---
+title: "ADR 003: Borrow OpenCodeReview Selection and Rule Contracts"
+date: "2026-09-29"
+status: "Accepted"
+---
+
+## Context
+
+[ADR 001](/projects/agentic-code-review/adrs/001-stateful-ai-code-review) chose a
+stateful GitHub App whose Durable Object and Workflow own the pull-request
+lifecycle. [ADR 002](/projects/agentic-code-review/adrs/002-duckdb-ai-review-scorecard)
+then established controlled replay as the route for changing that reviewer.
+
+Alibaba's [OpenCodeReview](https://github.com/alibaba/open-code-review) is a
+well-maintained Apache-2.0 Go CLI with useful
+mechanisms around deterministic file selection, layered per-file rules,
+semantic grouping, bounded tool use, and inspectable sessions. It can also
+delegate selection and rule preparation to a host agent. Its normal execution
+model, however, is a stateless review of a workspace, commit, or range. It does
+not provide our GitHub App's durable pull-request state, debounce and risk
+policy, incremental review, multi-scout attribution, reconciled publication,
+or outcome-learning loop.
+
+We evaluated OpenCodeReview v1.12.11 at commit
+`a758d9cbfb689937c7857ad64b2dd66adb58c0c2`. The upstream test suite passed.
+The project has 24 direct and 61 indirect Go module dependencies, stores full
+prompt and response transcripts locally by default, and sends review content
+to the configured model provider. Adopting it would therefore add a Go/native
+binary supply chain and a second execution and retention model to the existing
+TypeScript and Cloudflare system.
+
+### Cohort evidence
+
+We ran its deterministic preview over four fixed pull requests chosen from our
+production scorecard, including reviews with accepted findings and reviews our
+reviewer got wrong.
+
+| Pull request | Files in diff | Selected |         Excluded | Existing adjudication                                     |
+| ------------ | ------------: | -------: | ---------------: | --------------------------------------------------------- |
+| 1010         |             2 |        0 | 2 Markdown files | 12 accepted or acknowledged, 1 rejected, 2 unanswered     |
+| 1036         |             2 |        1 |      1 test file | 1 accepted, 18 rejected, 2 unanswered                     |
+| 1037         |             4 |        2 |     2 test files | 4 accepted, 8 rejected, 4 unanswered                      |
+| 1045         |             4 |        4 |                0 | 1 acknowledged, 8 rejected, remaining outcomes incomplete |
+
+The default selector therefore excluded five of twelve changed files. Markdown
+and tests are important review surfaces in this repository, so those defaults
+are not suitable for us.
+
+Live runs used a current zero-priced, tool-capable model because the funded
+provider account had no available balance. That makes the quality comparison
+directional rather than a model-parity benchmark, but selection, budgeting,
+and session behaviour remain observable:
+
+* One of seven selected files completed under a 60,000-token cap.
+* The completed file produced three comments. All three duplicated themes
+  already raised by our reviewer; two aligned with rejected findings, while
+  the third proposed a questionable response to a valid runtime concern.
+* One four-file run stopped before review after grouping and projected-budget
+  checks. Another single-file run was aborted after six minutes, 64,301
+  reported input and output tokens, and no final finding output.
+* The trial incurred no provider charge because the comparison model was free.
+
+These results do not support replacing the current reviewer or adding a
+parallel publisher. They do show that OpenCodeReview makes selection,
+exclusion, effective rules, tool history, token use, and incomplete coverage
+more inspectable than our current pipeline.
+
+## Decision
+
+We will not adopt OpenCodeReview as the production reviewer, run it as a
+sidecar, or add its CLI as a runtime dependency. A second reviewer would bypass
+the lifecycle chosen in ADR 001 and create duplicate findings outside the
+existing reconciler and outcome model.
+
+We will instead adapt two contracts within the current service:
+
+1. A deterministic review manifest will record every changed path as selected,
+   excluded, completed, failed, or waived, with a stable reason. Its defaults
+   must explicitly support Markdown, MDX, and test files. The manifest will be
+   persisted with the existing review record and evaluated through the frozen
+   cohort before it affects prompting or publication.
+2. File-scoped review rules will resolve through a documented precedence chain
+   and expose the effective rules in a preview. Rule resolution must remain
+   deterministic and provider-independent.
+
+Semantic grouping and host-agent delegation remain candidates for later
+experiments, not commitments. If delegation is tested, it may submit candidate
+findings only through the existing finding contract, reconciler, and single
+publication path. We will adapt the ideas and contracts rather than copy the
+Go implementation; any future source reuse must retain Apache-2.0 notices and
+be reviewed separately.
+
+## Consequences
+
+The current GitHub App, multi-scout review, durable state, and evaluation loop
+remain authoritative. We gain an auditable account of review coverage and a
+predictable way to explain which rules governed each file without introducing
+a second reviewer.
+
+This choice adds schema and replay work. Coverage must be measured rather than
+inferred from a successful workflow, and selector or rule changes must be
+versioned so historical results remain reproducible.
+
+We will revisit direct adoption only if OpenCodeReview exposes its selector and
+rule engine as a stable embeddable interface, its defaults can cover our
+Markdown and test surfaces, and a funded model-parity replay beats the current
+reviewer on incremental accepted findings, duplicate rate, coverage, latency,
+and cost. Any replacement must still preserve reconciled publication and the
+outcome-learning records.
