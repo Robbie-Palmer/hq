@@ -127,7 +127,11 @@ function parseStored(raw: string): AssetTrackerData {
 }
 
 function promiseFromSync<T>(operation: () => T): Promise<T> {
-  return new Promise((resolve) => resolve(operation()));
+  try {
+    return Promise.resolve(operation());
+  } catch (error) {
+    return Promise.reject(error);
+  }
 }
 
 export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {

@@ -16,7 +16,11 @@ import type {
 } from "./session";
 
 function promiseFromSync<T>(operation: () => T): Promise<T> {
-  return new Promise((resolve) => resolve(operation()));
+  try {
+    return Promise.resolve(operation());
+  } catch (error) {
+    return Promise.reject(error);
+  }
 }
 
 export class SessionBudgetExceededError extends Error {

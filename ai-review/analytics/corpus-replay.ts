@@ -21,7 +21,11 @@ import {
 import { exclusiveClaim } from "./replay-claim";
 
 function promiseFromSync<T>(operation: () => T): Promise<T> {
-  return new Promise((resolve) => resolve(operation()));
+  try {
+    return Promise.resolve(operation());
+  } catch (error) {
+    return Promise.reject(error);
+  }
 }
 
 function option<T>(schema: ZodType<T>, value: unknown, name: string): T {
