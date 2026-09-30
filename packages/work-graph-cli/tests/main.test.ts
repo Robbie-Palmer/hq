@@ -2108,6 +2108,15 @@ describe("scope selection lists", () => {
     ).toBe(EXIT_CODES.success);
     expect(JSON.parse(test.stdout.join(""))).toEqual(projection);
   });
+  it("treats empty JSON inclusion arrays as unrestricted in GET requests", async () => {
+    const test = harness(() => response(criticalPathProjection()));
+    expect(await test.run(["critical-path", "--json", JSON.stringify({
+      includeProjectIds: [], includeInitiativeIds: [],
+    })])).toBe(EXIT_CODES.success);
+    expect(test.requests[0]?.url.search).toBe("");
+    expect(test.stdout.join("")).toContain("Critical path (global)");
+  });
+
   it("preserves literal IDs and combines deprecated aliases with lists", async () => {
     const test = harness();
     expect(

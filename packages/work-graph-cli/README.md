@@ -329,7 +329,7 @@ literal ID. IDs do not use CSV parsing or exclusion sigils. Inclusion IDs match
 with OR within one kind. Project and initiative inclusion kinds combine with
 AND. Exclusions take precedence, including when an ID also appears in an
 inclusion list. Filtering only by exclusions starts with the global queue.
-An explicitly empty inclusion array in JSON selects no tickets for that kind.
+An empty inclusion array in JSON imposes no restriction for that kind.
 The deprecated `--project-id` and `--initiative-id` aliases each accept one
 included ID and add it to the corresponding inclusion list. Filtering preserves
 the relative global priority order. A claim that

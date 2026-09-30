@@ -51,13 +51,6 @@ const scopeLabel = (scope: CriticalPathScope): string => {
   if (initiatives.length > 0)
     parts.push(`initiative ${initiatives.join(" OR ")}`);
   if (projects.length > 0) parts.push(`project ${projects.join(" OR ")}`);
-  if (
-    scope.includeInitiativeIds?.length === 0 &&
-    scope.initiativeId === undefined
-  )
-    parts.push("no initiatives");
-  if (scope.includeProjectIds?.length === 0 && scope.projectId === undefined)
-    parts.push("no projects");
   if (scope.excludeInitiativeIds?.length)
     parts.push(
       `excluding initiatives ${scope.excludeInitiativeIds.join(", ")}`,

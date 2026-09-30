@@ -192,7 +192,7 @@ describe("Given a critical-path projection", () => {
         includeProjectIds: [],
         includeInitiativeIds: [],
       }),
-    ).toContain("Critical path (no initiatives, no projects)");
+    ).toContain("Critical path (global)");
     expect(
       renderCriticalPath(projection, {
         excludeProjectIds: ["recipe-site"],
