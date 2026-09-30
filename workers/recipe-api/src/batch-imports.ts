@@ -14,6 +14,7 @@ import {
   batchSourceKey,
   CreateBatchSchema,
 } from "recipe-domain/batch-import";
+import { SavedRecipePayloadSchema } from "recipe-domain/serialization";
 import { sha256Hex } from "ts-base/crypto";
 import { validateRecipeUrl } from "./recipe-url-import";
 
@@ -407,6 +408,47 @@ export async function readBatchItem(
   return { ...item, ...(await readBatchDrafts(db, [jobId])).get(jobId) };
 }
 
+function assertAcceptanceSnapshot(
+  input: Parameters<typeof acceptDraft>[4],
+  draft: BatchDraft,
+  canonical: string | undefined,
+  defaultVisibility: string | undefined,
+) {
+  const payload = SavedRecipePayloadSchema.parse(JSON.parse(input.recipe.body));
+  const expectedMetadata = [
+    draft.title.trim(),
+    draft.description.trim(),
+    draft.cuisine
+      .split(",")
+      .map((label) => label.trim())
+      .filter(Boolean),
+    draft.servings,
+    draft.prepTime,
+    draft.cookTime,
+    canonical,
+  ];
+  const actualMetadata = [
+    payload.recipe.title,
+    payload.recipe.description,
+    payload.recipe.cuisine,
+    payload.recipe.servings,
+    payload.recipe.prepTime,
+    payload.recipe.cookTime,
+    payload.recipe.canonical,
+  ];
+  if (
+    payload.source !== draft.source ||
+    input.recipe.title !== draft.title.trim() ||
+    (input.recipe.description ?? "") !== draft.description.trim() ||
+    input.recipe.visibility !== (draft.visibility ?? defaultVisibility) ||
+    JSON.stringify(actualMetadata) !== JSON.stringify(expectedMetadata)
+  )
+    throw new BatchImportError(
+      "Save the current draft before accepting it",
+      409,
+    );
+}
+
 export async function acceptDraft(
   db: Db,
   userId: string,
@@ -447,16 +489,16 @@ export async function acceptDraft(
       !draft
     )
       throw new BatchImportError("Draft changed. Reload before saving.", 409);
-    const payload = JSON.parse(input.recipe.body);
-    if (
-      payload.source !== draft.source ||
-      input.recipe.title !== draft.title.trim() ||
-      payload.recipe.canonical !== stored?.generatedDraft?.url
-    )
-      throw new BatchImportError(
-        "Save the current draft before accepting it",
-        409,
-      );
+    const [batch] = await tx
+      .select({ visibility: batches.visibility })
+      .from(batches)
+      .where(eq(batches.id, batchId));
+    assertAcceptanceSnapshot(
+      input,
+      draft,
+      stored?.generatedDraft?.url,
+      batch?.visibility,
+    );
     const [saved] = await tx
       .insert(recipe)
       .values({ ...input.recipe, userId })

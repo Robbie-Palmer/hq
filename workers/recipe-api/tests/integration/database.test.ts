@@ -1980,8 +1980,12 @@ describe("durable recipe batches", () => {
     expect((await draftResource.json() as { draft: unknown }).draft).toEqual(edits);
     expect(await db.select().from(schema.recipeImportDraftCuisine)).toHaveLength(2);
     const payload = JSON.parse(savedRecipeBody("edited-salt", "Edited salt"));
+    Object.assign(payload.recipe, { description: edits.description, cuisine: ["Mexican", "European"], prepTime: 5 });
     const accept = { version: 2, idempotencyKey: crypto.randomUUID(), recipe: { slug: "edited-salt", title: "Edited salt", description: edits.description, body: JSON.stringify(payload), visibility: "private" } };
     expect((await authenticatedRequest(cook, `${path}/acceptance`, { method: "PUT", body: { ...accept, version: 1 }, env: service.env })).status).toBe(409);
+    const differentMetadata = { ...payload, recipe: { ...payload.recipe, servings: 9 } };
+    expect((await authenticatedRequest(cook, `${path}/acceptance`, { method: "PUT", body: { ...accept, recipe: { ...accept.recipe, body: JSON.stringify(differentMetadata) } }, env: service.env })).status).toBe(409);
+    expect((await authenticatedRequest(cook, `${path}/acceptance`, { method: "PUT", body: { ...accept, recipe: { ...accept.recipe, visibility: "public" } }, env: service.env })).status).toBe(409);
     const accepted = await Promise.all([1, 2].map(() => authenticatedRequest(cook, `${path}/acceptance`, { method: "PUT", body: accept, env: service.env })));
     expect(accepted.map(response => response.status)).toEqual([200, 200]);
     expect(await db.select().from(schema.recipe)).toHaveLength(1);
