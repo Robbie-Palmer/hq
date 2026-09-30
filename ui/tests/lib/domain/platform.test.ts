@@ -1040,6 +1040,64 @@ describe("temporal platform layers", () => {
     );
   });
 
+  it("promotes DVC for projects with versioned data artifacts and an external remote", () => {
+    const repository = loadDomainRepository();
+    const manifest = repository.platform.manifest;
+
+    expect(
+      manifest?.policies.find(
+        (policy) => policy.slot === "data.artifact-versioning",
+      ),
+    ).toMatchObject({
+      layer: "data",
+      mode: "preferred",
+      prerequisites: [
+        { requirement: "git-repository" },
+        { requirement: "external-blob-remote" },
+      ],
+    });
+    expect(
+      manifest?.selections.find(
+        (selection) => selection.slot === "data.artifact-versioning",
+      ),
+    ).toMatchObject({
+      kind: "technology",
+      technology: "dvc",
+      status: "Accepted",
+      decision: "personal-engineering-platform:024-dvc-artifact-versioning",
+      originProjects: ["recipe-site", "agent-first-writing", "homelab"],
+      evidenceADRs: [
+        "recipe-site:000-dvc",
+        "agent-first-writing:004-dvc-writing-evaluation-pipeline",
+        "homelab:007-nixos-gpu-worker",
+      ],
+    });
+
+    for (const project of ["recipe-site", "agent-first-writing", "homelab"]) {
+      expect(
+        resolveEffectiveProjectStack(
+          repository,
+          project,
+          "2026-09-30T12:00:00Z",
+        ).technologies,
+      ).toContainEqual(
+        expect.objectContaining({
+          slot: "data.artifact-versioning",
+          technology: "dvc",
+          source: "preferred-layer",
+        }),
+      );
+    }
+
+    expect(
+      resolveEffectiveProjectStack(
+        repository,
+        "work-graph",
+        "2026-09-30T12:00:00Z",
+      ).technologies.map((use) => use.technology),
+    ).not.toContain("dvc");
+  });
+
   it("rejects unknown operational prerequisites", () => {
     const manifest = sameDayManifest();
     manifest.policies[0]?.prerequisites.push({

@@ -5,7 +5,7 @@ date: "2026-02-14"
 repo_url: "https://github.com/Robbie-Palmer/hq"
 demo_url: "https://robbiepalmer.me/recipes"
 status: "in_progress"
-updated: "2026-09-29"
+updated: "2026-09-30"
 platform_layers:
   - layer: "governance"
     adopted: "2026-09-15T00:00:00Z"
@@ -132,6 +132,14 @@ platform_layers:
       - slot: "storage.object-store"
         adopted: "2026-09-29T00:00:00Z"
         rationale: "R2 stores private user uploads, immutable stage artifacts, and encrypted backups under use-case-specific access, retention, deletion, and lifecycle policies."
+  - layer: "data"
+    adopted: "2026-09-30T00:00:00Z"
+    tracking: true
+    decision: "recipe-site:000-dvc"
+    slots:
+      - slot: "data.artifact-versioning"
+        adopted: "2026-09-30T00:00:00Z"
+        decision: "recipe-site:000-dvc"
 initiatives:
   - "digital-twins-for-everyday-life"
 ideas:

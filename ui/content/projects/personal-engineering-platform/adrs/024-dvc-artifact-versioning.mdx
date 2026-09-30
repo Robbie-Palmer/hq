@@ -1,0 +1,75 @@
+---
+title: "ADR 024: DVC for dataset and evaluation artifact versioning"
+date: "2026-09-30"
+status: "Accepted"
+tech_stack: ["DVC"]
+---
+
+## Context
+
+Datasets and evaluation outputs need identities that follow the code and
+parameters that produced them. Git records the small declarations well, but
+large or private artifacts do not belong in repository history. Storing those
+files under mutable object keys would separate them from the commit that used
+them and leave each project to rebuild versioning and cache invalidation.
+
+I have used DVC extensively for six years, and it has served this work well.
+Recipe Site [ADR 000](/projects/recipe-site/adrs/000-dvc) records the accepted
+project decision for dataset versions, cached pipeline stages, and experiment
+comparisons backed by a private R2 remote. Agent-first Writing
+[ADR 004](/projects/agent-first-writing/adrs/004-dvc-writing-evaluation-pipeline)
+applies the same pattern to editorial evaluation, but that ADR remains
+Proposed. Home Lab keeps a local DVC cache for batch jobs, recorded in its
+[NixOS worker decision](/projects/homelab/adrs/007-nixos-gpu-worker), while its
+older project-local DVC record is now an alias to the Recipe Site decision.
+
+Promote DVC on that operating history and the current project use. The
+repository evidence has one accepted project-local DVC ADR, one proposed ADR,
+and one inherited alias. That status mix limits what the manifest can claim
+about accepted project-local coverage; it does not limit this decision.
+
+## Decision
+
+Add `data.artifact-versioning` as a preferred slot in a new data layer and
+select DVC. Projects activate it when datasets, model inputs, evaluation
+outputs, or other reproducibility artifacts must be versioned outside Git.
+
+Every adopter must have a Git repository and an external blob remote. Commit
+the DVC pointers, pipeline definitions, lock data, parameters, and compact
+metrics needed to bind artifact hashes to a Git revision. Keep the artifact
+bytes in a separately governed remote such as an S3-compatible object store or
+a machine-owned cache. DVC does not choose the provider, retention policy,
+access boundary, or backup policy for that remote.
+
+Do not activate this slot for ordinary application uploads, database backups,
+or build packages merely because they use object storage. Those artifacts have
+different identity and lifecycle rules.
+
+## Alternatives
+
+Git LFS can keep large bytes out of ordinary Git objects, but it does not model
+pipeline dependencies, cached stages, metrics, or experiment comparisons. It
+fits repositories that only need large-file versioning.
+
+Git plus handwritten manifests and object-store keys could preserve artifact
+hashes without another tool. Each project would then own pointer formats,
+cache invalidation, lineage, remote transfer, and comparison scripts that DVC
+already supplies.
+
+A hosted experiment tracker can provide richer review interfaces and managed
+metadata. It adds another control plane and does not remove the need for
+dataset versions or reproducible local pipelines. A project can add one when
+its review workflow needs it.
+
+## Consequences
+
+Projects can reproduce a dataset or evaluation run from the Git revision and
+DVC metadata while keeping large and private bytes out of the public
+repository. The same CLI and remote pattern now applies across the existing ML
+and evaluation pipelines.
+
+Adopters must operate a blob remote, protect its credentials, and keep DVC
+dependencies accurate. An omitted dependency can produce a stale cache hit,
+and a missing remote object can make an old Git revision unreproducible. The
+platform should revisit this default if projects need formal artifact approval,
+cross-repository lineage, or a review interface that DVC cannot supply.

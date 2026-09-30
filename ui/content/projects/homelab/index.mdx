@@ -2,7 +2,7 @@
 title: "Home Lab"
 description: "A private home fleet that backs up personal data, runs coding agents, filters DNS, monitors itself, and gives old hardware a useful job"
 date: "2026-08-02"
-updated: "2026-09-28"
+updated: "2026-09-30"
 status: "live"
 tech_stack:
   - "Ansible"
@@ -51,6 +51,14 @@ platform_layers:
       - slot: "network.private-overlay"
         adopted: "2026-09-29T00:00:00Z"
         decision: "homelab:000-tailscale"
+  - layer: "data"
+    adopted: "2026-09-30T00:00:00Z"
+    tracking: true
+    decision: "homelab:007-nixos-gpu-worker"
+    slots:
+      - slot: "data.artifact-versioning"
+        adopted: "2026-09-30T00:00:00Z"
+        decision: "homelab:007-nixos-gpu-worker"
 ---
 
 # Vision

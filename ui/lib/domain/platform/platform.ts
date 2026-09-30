@@ -81,6 +81,8 @@ export const OperationalRequirementSchema = z.enum([
   "responder-ownership",
   "alert-routing",
   "project-owned-slack-credentials",
+  "git-repository",
+  "external-blob-remote",
 ]);
 
 export const OperationalPrerequisiteSchema = z.object({
