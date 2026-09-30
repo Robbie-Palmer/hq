@@ -509,7 +509,7 @@ export function RecipeContent({
               >
                 the original recipe
               </a>
-              .
+              {"."}
             </span>
           </p>
         )}

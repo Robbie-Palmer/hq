@@ -1,4 +1,5 @@
-import { act, render } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TechOrbit } from "@/components/ui/tech-icon-orbit";
 
@@ -133,5 +134,21 @@ describe("TechOrbit", () => {
     expect(disconnect).toHaveBeenCalled();
     // A frame left queued here would write state for a component that is gone.
     expect(frames.size).toBe(0);
+  });
+
+  it("clears the selected technology through a native button", async () => {
+    const user = userEvent.setup();
+    render(<TechOrbit technologies={technologies} />);
+
+    const clearButton = screen.getByRole("button", {
+      name: "Clear selected technology",
+    });
+    expect(clearButton).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "TypeScript" }));
+    expect(clearButton).toBeEnabled();
+
+    await user.click(clearButton);
+    expect(clearButton).toBeDisabled();
   });
 });

@@ -135,7 +135,7 @@ export function Mermaid({ chart, className = "" }: Readonly<MermaidProps>) {
       }
     };
 
-    renderDiagram();
+    void renderDiagram();
 
     return () => {
       isCancelled = true;

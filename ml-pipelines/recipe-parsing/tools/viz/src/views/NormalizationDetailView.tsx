@@ -200,7 +200,7 @@ export function NormalizationDetailView({
     function onKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
-        if (dirty) handleSave();
+        if (dirty) void handleSave();
         return;
       }
       if (

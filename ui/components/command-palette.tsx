@@ -489,7 +489,7 @@ export function CommandPaletteDialog({
                         {active && (
                           <span className="ml-auto flex items-center gap-1 text-xs text-primary">
                             <span className="size-1.5 rounded-full bg-primary" />
-                            Active
+                            <span>Active</span>
                           </span>
                         )}
                       </Command.Item>

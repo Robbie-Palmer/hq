@@ -22,7 +22,7 @@ function hookVisibility(): void {
   visibilityHooked = true;
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && holders.size > 0) {
-      acquire();
+      void acquire();
     }
   });
 }
@@ -47,7 +47,7 @@ async function acquire(): Promise<void> {
         typeof document !== "undefined" &&
         document.visibilityState === "visible"
       ) {
-        acquire();
+        void acquire();
       }
     });
   } catch {
@@ -58,7 +58,7 @@ async function acquire(): Promise<void> {
 export function retainWakeLock(key: string): void {
   holders.add(key);
   hookVisibility();
-  acquire();
+  void acquire();
 }
 
 export function releaseWakeLock(key: string): void {

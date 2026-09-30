@@ -205,7 +205,7 @@ function weightedAverage(values: Array<{ value: number; weight: number }>): numb
 
 function editDistance<T>(predicted: T[], expected: T[]): number {
   const dp = Array.from({ length: predicted.length + 1 }, () =>
-    Array<number>(expected.length + 1).fill(0),
+    new Array<number>(expected.length + 1).fill(0),
   );
 
   for (let i = 0; i <= predicted.length; i++) dp[i]![0] = i;
@@ -227,7 +227,7 @@ function editDistance<T>(predicted: T[], expected: T[]): number {
 
 function longestCommonSubsequenceLength<T>(predicted: T[], expected: T[]): number {
   const dp = Array.from({ length: predicted.length + 1 }, () =>
-    Array<number>(expected.length + 1).fill(0),
+    new Array<number>(expected.length + 1).fill(0),
   );
 
   for (let i = 1; i <= predicted.length; i++) {
