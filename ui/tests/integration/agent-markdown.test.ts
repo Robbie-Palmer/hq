@@ -182,6 +182,13 @@ describe("agent markdown generation", () => {
     expect(writing).toContain(
       "- Platform overrides: Python for project.primary-language ([agent-first-writing:009-primary-language-python](https://robbiepalmer.me/projects/agent-first-writing/adrs/009-primary-language-python.md))",
     );
+    expect(writing).toContain("## Editorial data flow");
+    expect(writing).toContain("```mermaid");
+    expect(writing).toContain("Deterministic findings");
+    expect(writing).toContain("Local suggestions");
+    expect(writing).toContain("Passage rewrites");
+    expect(writing).toContain("Human review");
+    expect(writing).toContain("Decision-backed evidence");
   });
 
   it("keeps Markdown routes for the previous project slug", () => {
