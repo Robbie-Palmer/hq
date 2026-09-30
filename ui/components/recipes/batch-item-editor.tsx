@@ -35,14 +35,14 @@ export function BatchItemEditor({
     autosave.flush,
     afterSave,
   );
-  const onNavigate = useBatchEditorNavigation(
+  useBatchEditorNavigation(
     autosave.flush,
     autosave.dirty,
     acceptance.request,
     flushRef,
   );
   return (
-    <div onClickCapture={onNavigate}>
+    <div>
       <output className="block px-4 text-sm text-[var(--ink-3)]">
         {autosave.status}
       </output>
