@@ -2003,3 +2003,187 @@ describe("Given CLI and HTTP failures", () => {
     expect(test.fetch).not.toHaveBeenCalled();
   });
 });
+
+describe("scope selection lists", () => {
+  const selection = {
+    includeProjectIds: ["alpha", "beta"],
+    excludeProjectIds: ["beta", "recipe-site"],
+    includeInitiativeIds: ["one", "two"],
+    excludeInitiativeIds: ["two", "three"],
+  };
+  const flags = [
+    "--project",
+    "alpha",
+    "--project",
+    "beta",
+    "--exclude-project",
+    "beta",
+    "--exclude-project",
+    "recipe-site",
+    "--initiative",
+    "one",
+    "--initiative",
+    "two",
+    "--exclude-initiative",
+    "two",
+    "--exclude-initiative",
+    "three",
+  ];
+  it.each(["ready", "queue", "claim", "critical-path"])(
+    "encodes repeated %s filters and leaves exclusion precedence to the API",
+    async (command) => {
+      const test = harness(
+        () =>
+          response(
+            command === "critical-path"
+              ? criticalPathProjection()
+              : { context: [] },
+          ),
+        { WORK_GRAPH_API_URL: API_URL, WORK_GRAPH_WORKER_ID: "agent-a" },
+      );
+      expect(await test.run([command, ...flags])).toBe(EXIT_CODES.success);
+      const request = test.requests[0];
+      if (request === undefined) throw new Error("Expected an HTTP request");
+      if (command === "claim") expect(request.body).toMatchObject(selection);
+      else
+        for (const [key, ids] of Object.entries(selection)) {
+          expect(request.url.searchParams.getAll(key)).toEqual(ids);
+        }
+      if (command === "critical-path") {
+        expect(test.stdout.join("")).toContain("project alpha OR beta");
+        expect(test.stdout.join("")).toContain(
+          "excluding projects beta, recipe-site",
+        );
+        expect(test.stdout.join("")).toContain("initiative one OR two");
+        expect(test.stdout.join("")).toContain(
+          "excluding initiatives two, three",
+        );
+      }
+    },
+  );
+  it.each(["ready", "queue", "claim", "critical-path"])(
+    "accepts contract-shaped complete JSON input for %s",
+    async (command) => {
+      const test = harness(
+        () =>
+          response(
+            command === "critical-path"
+              ? criticalPathProjection()
+              : { context: [] },
+          ),
+        { WORK_GRAPH_API_URL: API_URL, WORK_GRAPH_WORKER_ID: "agent-a" },
+      );
+      expect(
+        await test.run([command, "--json", JSON.stringify(selection)]),
+      ).toBe(EXIT_CODES.success);
+      const request = test.requests[0];
+      if (request === undefined) throw new Error("Expected an HTTP request");
+      if (command === "claim") expect(request.body).toMatchObject(selection);
+      else
+        for (const [key, ids] of Object.entries(selection))
+          expect(request.url.searchParams.getAll(key)).toEqual(ids);
+    },
+  );
+  it.each([
+    ["--api-url", API_URL],
+    [`--api-url=${API_URL}`],
+    ["--cf-access-allowed-origin", "https://work.example.test"],
+    ["--cf-access-allowed-origin=https://work.example.test"],
+  ])("preserves bare critical-path JSON output after global options %j", async (...globalFlags) => {
+    const projection = criticalPathProjection();
+    const test = harness(() => response(projection));
+    expect(await test.run([...globalFlags, "critical-path", "--json"])).toBe(EXIT_CODES.success);
+    expect(JSON.parse(test.stdout.join(""))).toEqual(projection);
+  });
+
+  it("supports JSON output from complete critical-path input", async () => {
+    const projection = criticalPathProjection();
+    const test = harness(() => response(projection));
+    expect(
+      await test.run([
+        "critical-path",
+        "--json",
+        JSON.stringify({ ...selection, outputJson: true }),
+      ]),
+    ).toBe(EXIT_CODES.success);
+    expect(JSON.parse(test.stdout.join(""))).toEqual(projection);
+  });
+  it("preserves literal IDs and combines deprecated aliases with lists", async () => {
+    const test = harness();
+    expect(
+      await test.run([
+        "ready",
+        "--project",
+        "a,b",
+        "--exclude-project=!literal",
+        "--project-id",
+        "legacy",
+      ]),
+    ).toBe(EXIT_CODES.success);
+    expect(
+      test.requests[0]?.url.searchParams.getAll("includeProjectIds"),
+    ).toEqual(["a,b"]);
+    expect(
+      test.requests[0]?.url.searchParams.getAll("excludeProjectIds"),
+    ).toEqual(["!literal"]);
+    expect(test.requests[0]?.url.searchParams.get("projectId")).toBe("legacy");
+  });
+  it.each([
+    "--project",
+    "--exclude-project",
+    "--initiative",
+    "--exclude-initiative",
+  ])("rejects %s with a direct claim or root projection", async (flag) => {
+    for (const args of [
+      ["claim", "ticket"],
+      ["critical-path", "--root-work-item-id", "ticket"],
+    ]) {
+      const test = harness();
+      expect(await test.run([...args, flag, "scope"])).toBe(EXIT_CODES.usage);
+      expect(test.requests).toEqual([]);
+    }
+  });
+  it.each([
+    ["ready", "--project"],
+    ["ready", "--project", ""],
+    ["ready", "--project", "x".repeat(201)],
+    [
+      "ready",
+      "--json",
+      JSON.stringify({ excludeProjectIds: Array(101).fill("x") }),
+    ],
+    [
+      "claim",
+      "--json",
+      JSON.stringify({ workItemId: "ticket", excludeProjectIds: [] }),
+    ],
+    [
+      "critical-path",
+      "--json",
+      JSON.stringify({ rootWorkItemId: "ticket", includeProjectIds: [] }),
+    ],
+  ])("validates selection before HTTP: %j", async (...args) => {
+    const test = harness();
+    expect(await test.run(args)).toBe(EXIT_CODES.usage);
+    expect(test.requests).toEqual([]);
+  });
+  it.each(["ready", "queue", "claim", "critical-path"])(
+    "documents selection rules in %s help",
+    async (command) => {
+      const test = harness();
+      expect(await test.run([command, "--help"])).toBe(EXIT_CODES.success);
+      const help = test.stdout.join("");
+      for (const flag of [
+        "--project <id>",
+        "--exclude-project <id>",
+        "--initiative <id>",
+        "--exclude-initiative <id>",
+      ])
+        expect(help).toContain(flag);
+      expect(help).toContain("OR within each inclusion kind");
+      expect(help).toContain("AND across project and initiative");
+      expect(help).toContain("Exclusions take precedence");
+      expect(help).toContain("Deprecated one-value alias");
+    },
+  );
+});

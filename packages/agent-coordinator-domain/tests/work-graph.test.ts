@@ -293,6 +293,21 @@ const expectIntegrationError = async (
 };
 
 describe("Work Graph coordinator integration", () => {
+  it("passes symmetric selection arrays to the client without losing values", async () => {
+    const client = new FakeWorkGraphClient();
+    const selection = {
+      includeProjectIds: ["alpha", "beta"],
+      excludeProjectIds: ["beta"],
+      includeInitiativeIds: ["one", "two"],
+      excludeInitiativeIds: ["two"],
+    };
+    await coordinator(client).listReadyCandidates(selection, { limit: 5 });
+    expect(JSON.parse(client.reads[0]?.slice(5) ?? "null")).toMatchObject(
+      selection,
+    );
+    expect(client.mutations).toEqual([]);
+  });
+
   it("reads scoped ready work and requirements without changing graph state", async () => {
     const client = new FakeWorkGraphClient();
     const integration = coordinator(client);

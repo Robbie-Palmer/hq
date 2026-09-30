@@ -702,6 +702,47 @@ const dependencyInput = z.object({
   ),
 });
 
+const selectionFields = {
+  includeProjectIds: described(
+    zListWorkItemsQuery.shape.includeProjectIds,
+    "Include a project ID; repeatable, OR within projects",
+  ),
+  excludeProjectIds: described(
+    zListWorkItemsQuery.shape.excludeProjectIds,
+    "Exclude a project ID; repeatable, exclusions take precedence",
+  ),
+  includeInitiativeIds: described(
+    zListWorkItemsQuery.shape.includeInitiativeIds,
+    "Include an initiative ID; repeatable, OR within initiatives, AND with projects",
+  ),
+  excludeInitiativeIds: described(
+    zListWorkItemsQuery.shape.excludeInitiativeIds,
+    "Exclude an initiative ID; repeatable, exclusions take precedence",
+  ),
+  initiativeId: described(
+    zListWorkItemsQuery.shape.initiativeId,
+    "Deprecated one-value alias for --initiative",
+  ),
+  projectId: described(
+    zListWorkItemsQuery.shape.projectId,
+    "Deprecated one-value alias for --project",
+  ),
+};
+
+type Selection = z.infer<z.ZodObject<typeof selectionFields>>;
+
+const hasSelection = (input: Selection): boolean =>
+  Object.keys(selectionFields).some(
+    (key) => input[key as keyof Selection] !== undefined,
+  );
+
+const selectionQuery = (input: Selection): Selection =>
+  Object.fromEntries(
+    Object.keys(selectionFields)
+      .filter((key) => input[key as keyof Selection] !== undefined)
+      .map((key) => [key, input[key as keyof Selection]]),
+  );
+
 const queueInput = z
   .object({
     stage: optional(zListWorkItemsQuery.shape.stage.unwrap(), "Stage to list"),
@@ -717,14 +758,7 @@ const queueInput = z
       zListWorkItemsQuery.shape.cursor.unwrap(),
       "Pagination cursor",
     ),
-    initiativeId: optional(
-      zListWorkItemsQuery.shape.initiativeId.unwrap(),
-      "Only tickets scheduled in this initiative",
-    ),
-    projectId: optional(
-      zListWorkItemsQuery.shape.projectId.unwrap(),
-      "Only tickets scheduled in this project",
-    ),
+    ...selectionFields,
     parentId: optional(
       zListWorkItemsQuery.shape.parentId.unwrap(),
       "Only direct children of this ticket",
@@ -744,14 +778,7 @@ const readyInput = z.object({
     zListWorkItemsQuery.shape.cursor.unwrap(),
     "Pagination cursor",
   ),
-  initiativeId: optional(
-    zListWorkItemsQuery.shape.initiativeId.unwrap(),
-    "Only tickets scheduled in this initiative",
-  ),
-  projectId: optional(
-    zListWorkItemsQuery.shape.projectId.unwrap(),
-    "Only tickets scheduled in this project",
-  ),
+  ...selectionFields,
   parentId: optional(
     zListWorkItemsQuery.shape.parentId.unwrap(),
     "Only direct children of this ticket",
@@ -760,70 +787,53 @@ const readyInput = z.object({
 
 const criticalPathInput = z
   .object({
-    initiativeId: optional(
-      zGetCriticalPathQuery.shape.initiativeId.unwrap(),
-      "Only outcomes scheduled in this initiative",
-    ),
-    projectId: optional(
-      zGetCriticalPathQuery.shape.projectId.unwrap(),
-      "Only outcomes scheduled in this project",
-    ),
+    ...selectionFields,
     rootWorkItemId: optional(
       zGetCriticalPathQuery.shape.rootWorkItemId.unwrap(),
       "Project this root ticket as the exact outcome",
     ),
-    json: z
+    outputJson: z
       .boolean()
       .optional()
       .default(false)
       .describe("Print the complete API response as JSON"),
   })
   .refine(
-    ({ initiativeId, projectId, rootWorkItemId }) =>
-      rootWorkItemId === undefined ||
-      (initiativeId === undefined && projectId === undefined),
+    (input) => input.rootWorkItemId === undefined || !hasSelection(input),
     {
-      message:
-        "--root-work-item-id cannot be combined with --initiative-id or --project-id.",
+      message: "--root-work-item-id cannot be combined with scope filters.",
       path: ["rootWorkItemId"],
     },
   );
 
-const claimInput = z.object({
-  workItemId: positional(
-    optional(directLeaseBodySchema.shape.workItemId, "Ticket ID"),
-    "Ticket ID",
-  ),
-  workerId: optional(directLeaseBodySchema.shape.workerId, "Worker identity"),
-  leaseDurationSeconds: leaseDuration,
-  initiativeId: optional(
-    scheduledLeaseBodySchema.shape.initiativeId.unwrap(),
-    "Claim within this initiative",
-  ),
-  projectId: optional(
-    scheduledLeaseBodySchema.shape.projectId.unwrap(),
-    "Claim within this project",
-  ),
-  parentId: optional(
-    scheduledLeaseBodySchema.shape.parentId.unwrap(),
-    "Claim a direct child of this ticket",
-  ),
-  fullPrContext: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe("Include full pull-request snapshots in claim context"),
-}).refine(
-  ({ initiativeId, parentId, projectId, workItemId }) =>
-    workItemId === undefined ||
-    (initiativeId === undefined &&
-      parentId === undefined &&
-      projectId === undefined),
-  {
-    message: "A specified ticket cannot be combined with scope filters.",
-    path: ["workItemId"],
-  },
-);
+const claimInput = z
+  .object({
+    workItemId: positional(
+      optional(directLeaseBodySchema.shape.workItemId, "Ticket ID"),
+      "Ticket ID",
+    ),
+    workerId: optional(directLeaseBodySchema.shape.workerId, "Worker identity"),
+    leaseDurationSeconds: leaseDuration,
+    ...selectionFields,
+    parentId: optional(
+      scheduledLeaseBodySchema.shape.parentId.unwrap(),
+      "Claim a direct child of this ticket",
+    ),
+    fullPrContext: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe("Include full pull-request snapshots in claim context"),
+  })
+  .refine(
+    (input) =>
+      input.workItemId === undefined ||
+      (!hasSelection(input) && input.parentId === undefined),
+    {
+      message: "A specified ticket cannot be combined with scope filters.",
+      path: ["workItemId"],
+    },
+  );
 
 const noteInput = z.object({
   workItemId: positional(zGetWorkItemPath.shape.workItemId, "Ticket ID"),
@@ -1078,12 +1088,7 @@ const listQueue = (
     ...(input.all ? {} : { stage: input.stage ?? "ready" }),
     ...(input.limit === undefined ? {} : { limit: input.limit }),
     ...(input.cursor === undefined ? {} : { cursor: input.cursor }),
-    ...(input.initiativeId === undefined
-      ? {}
-      : { initiativeId: input.initiativeId }),
-    ...(input.projectId === undefined
-      ? {}
-      : { projectId: input.projectId }),
+    ...selectionQuery(input),
     ...(input.parentId === undefined ? {} : { parentId: input.parentId }),
   });
 
@@ -1133,18 +1138,15 @@ export const workGraphRouter = t.router({
     .input(criticalPathInput)
     .query(async ({ ctx, input }) => {
       const query = {
-        ...(input.initiativeId === undefined
-          ? {}
-          : { initiativeId: input.initiativeId }),
-        ...(input.projectId === undefined
-          ? {}
-          : { projectId: input.projectId }),
+        ...selectionQuery(input),
         ...(input.rootWorkItemId === undefined
           ? {}
           : { rootWorkItemId: input.rootWorkItemId }),
       };
       const projection = await resolveClient(ctx).getCriticalPath(query);
-      return input.json ? projection : renderCriticalPath(projection, query);
+      return input.outputJson
+        ? projection
+        : renderCriticalPath(projection, query);
     }),
   metadata: t.router({
     notes: command
@@ -1613,12 +1615,7 @@ export const workGraphRouter = t.router({
           ? {
               workerId,
               leaseDurationSeconds: input.leaseDurationSeconds,
-              ...(input.initiativeId === undefined
-                ? {}
-                : { initiativeId: input.initiativeId }),
-              ...(input.projectId === undefined
-                ? {}
-                : { projectId: input.projectId }),
+              ...selectionQuery(input),
               ...(input.parentId === undefined
                 ? {}
                 : { parentId: input.parentId }),

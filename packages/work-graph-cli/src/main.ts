@@ -1,6 +1,6 @@
 import {
   CliValidationError,
-  Command,
+  type Command,
   createCli,
   FailedToExitError,
 } from "trpc-cli";
@@ -31,7 +31,7 @@ export interface CliDependencies {
   workingDirectory?: string;
 }
 
-const collect = (value: string, previous: string[]): string[] => [
+const collect = (value: string, previous: string[] = []): string[] => [
   ...previous,
   value,
 ];
@@ -49,6 +49,42 @@ const compactHelp = (command: HelpCommand): void => {
     option.description = option.description.replace(schemaDetail, "");
   }
   for (const child of command.commands) compactHelp(child);
+};
+
+// Keep contract field names for JSON input while exposing one ID per flag.
+const selectionFlags: Record<string, string> = {
+  includeProjectIds: "project",
+  excludeProjectIds: "exclude-project",
+  includeInitiativeIds: "initiative",
+  excludeInitiativeIds: "exclude-initiative",
+};
+
+const configureSelectionFlags = (program: Command): void => {
+  for (const command of program.commands) {
+    if (!["ready", "queue", "claim", "critical-path"].includes(command.name()))
+      continue;
+    for (const option of command.options) {
+      const key = option.attributeName();
+      const flag = selectionFlags[key];
+      if (flag === undefined) continue;
+      option.flags = `--${flag} <id>`;
+      option.short = `--${flag}`;
+      option.required = true;
+      option.optional = false;
+      option.variadic = false;
+      option.argParser(collect);
+    }
+    if (command.name() === "critical-path") {
+      command.addHelpText(
+        "after",
+        "\nA bare --json prints JSON output. --json '<object>' supplies complete input; set outputJson to true for JSON output.\n",
+      );
+    }
+    command.addHelpText(
+      "after",
+      "\nSelection: OR within each inclusion kind; AND across project and initiative inclusions.\nExclusions take precedence. Repeat a flag for each ID; IDs are literal, without CSV or sigils.\n",
+    );
+  }
 };
 
 const nestedCause = (error: unknown): unknown =>
@@ -97,10 +133,36 @@ const toCliError = (cause: unknown): CliError => {
   );
 };
 
+const rootCommand = (args: readonly string[]): string | undefined => {
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--api-url" || arg === "--cf-access-allowed-origin") {
+      index += 1;
+    } else if (
+      !arg?.startsWith("--api-url=") &&
+      !arg?.startsWith("--cf-access-allowed-origin=")
+    ) {
+      return arg;
+    }
+  }
+  return undefined;
+};
+
 export const runCli = async (
-  args: string[],
+  originalArgs: string[],
   dependencies: CliDependencies = {},
 ): Promise<ExitCode> => {
+  // The existing bare critical-path --json flag selects output format.
+  // A value after --json supplies complete input through trpc-cli.
+  const commandName = rootCommand(originalArgs);
+  const args = originalArgs.map((arg, index) =>
+    commandName === "critical-path" &&
+    arg === "--json" &&
+    (originalArgs[index + 1] === undefined ||
+      originalArgs[index + 1]?.startsWith("--"))
+      ? "--output-json"
+      : arg,
+  );
   const stdout =
     dependencies.stdout ?? ((text: string) => process.stdout.write(text));
   const stderr =
@@ -159,6 +221,7 @@ export const runCli = async (
       "Production credentials load from Doppler automatically when needed.",
     ].join("\n"),
   );
+  configureSelectionFlags(program);
   compactHelp(program);
 
   try {

@@ -177,6 +177,32 @@ describe("Given a critical-path projection", () => {
     );
   });
 
+  it("describes empty inclusions and exclusion-only projections", () => {
+    const projection: CriticalPathProjection = {
+      targetOutcomeIds: [],
+      nodes: [],
+      edges: [],
+      blockingPaths: [],
+      readyLeafIds: [],
+      blockingAttentionIds: [],
+      parallelBranches: [],
+    };
+    expect(
+      renderCriticalPath(projection, {
+        includeProjectIds: [],
+        includeInitiativeIds: [],
+      }),
+    ).toContain("Critical path (no initiatives, no projects)");
+    expect(
+      renderCriticalPath(projection, {
+        excludeProjectIds: ["recipe-site"],
+        excludeInitiativeIds: ["paused"],
+      }),
+    ).toContain(
+      "Critical path (excluding initiatives paused, excluding projects recipe-site)",
+    );
+  });
+
   it("reports when no blocking branch is claimable", () => {
     const attentionOnly: CriticalPathProjection = {
       targetOutcomeIds: ["review"],
