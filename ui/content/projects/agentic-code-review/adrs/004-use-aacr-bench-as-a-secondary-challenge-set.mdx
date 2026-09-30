@@ -1,0 +1,86 @@
+---
+title: "ADR 004: Use AACR-Bench as a Secondary Challenge Set"
+date: "2026-09-30"
+status: "Accepted"
+---
+
+## Context
+
+[ADR 002](/projects/agentic-code-review/adrs/002-duckdb-ai-review-scorecard)
+uses outcomes from this project's real reviews to compare reviewer changes.
+Those outcomes measure whether a finding was useful to this repository and its
+owner. They are the right source for product decisions, but they can reward a
+reviewer that has learned one person's preferences without generalising to
+other repositories, languages, or defect classes.
+
+Alibaba Aone's [AACR-Bench](https://github.com/alibaba/aacr-bench) offers a
+useful external check. At inspected commit
+`68a569759289a83654a59d06db2a72910edf0a4a`, it contains 2,145 comments on 200
+Pull Requests from 50 repositories in ten languages. The committed files
+contain 1,506 comments labelled correct and 639 labelled incorrect. The labels
+cover issue category, required context, file, side, and line range. The project
+is licensed under Apache-2.0.
+
+AACR-Bench is not a preference dataset in the pairwise sense. It labels whether
+an individual comment is technically correct. Its annotation process uses
+original review comments, model-generated candidates, and expert verification.
+In the inspected data, models seeded 1,597 comments and humans seeded 548.
+Several named source models may also belong to a model family under test. The
+dataset can therefore measure agreement with its annotation policy, but it
+cannot stand in for this project's definition of a useful finding.
+
+The published Hugging Face card reports 1,505 correct and 640 incorrect
+comments, while the current repository contains 1,506 and 639. The total is
+unchanged, but the class counts moved. Reproducible use requires an immutable
+source revision and content hashes.
+
+## Decision
+
+We will add AACR-Bench to the DVC evaluation pipeline as a secondary challenge
+set. The production corpus and its accepted, rejected, censored, duplicate, and
+unanswered outcomes remain the primary evidence for changing review policy.
+We will not merge external and local labels into one score, use AACR-Bench as
+training data, or treat its labels as a model of the owner's preferences.
+
+The import will pin the source commit and hashes for both positive and negative
+samples. Replays will use the existing production-isolated runner and record
+the same model, prompt, coverage, token, latency, and cost provenance as local
+experiments.
+
+The external report will keep these measures separate:
+
+* positive-reference recall and line-location recall;
+* overlap with known negative comments;
+* unmatched generated findings, reported as unadjudicated rather than noise;
+* coverage, failures, latency, tokens, and cost; and
+* results by language, issue category, context level, and human or AI seed.
+
+Model-family overlap with an AI-seeded label will be flagged and excluded from
+the human-seeded robustness slice. A fixed sample of unmatched findings will
+receive blind manual adjudication before anyone interprets reference-match
+rate as precision. Baseline and candidate runs must use the same pinned cohort,
+runner, budgets, and matching policy.
+
+AACR-Bench may block a change that causes a clear, predeclared generalisation
+regression. It cannot by itself promote a candidate that loses on local
+accepted findings or adds local noise. We will set regression thresholds only
+after a baseline pilot establishes run-to-run variance and usable coverage.
+
+## Consequences
+
+The scorecard gains evidence beyond a single repository and owner without
+pretending that expert consensus and personal usefulness are interchangeable.
+The human-seeded slice offers the cleanest external check. The larger
+AI-seeded slice still helps test language, category, and context coverage, but
+its provenance must stay visible.
+
+The pipeline must reconstruct and cache 200 external repository states, map a
+new label schema, and add semantic matching plus manual adjudication. This adds
+runtime and storage cost. Reference recall also understates novel correct
+findings, while reference-match rate overstates noise when the benchmark is
+incomplete. Reports must use those narrower names rather than claiming ground
+truth precision.
+
+We will reconsider the dataset if its pinned commits become unavailable, its
+license changes, the repositories cannot be reproduced, or a pilot shows that
+matching uncertainty and model-family contamination swamp the external signal.
