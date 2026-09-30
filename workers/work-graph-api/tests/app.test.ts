@@ -2172,7 +2172,7 @@ describe("Given a transient database failure", () => {
       },
     });
     expect(warn).toHaveBeenCalledWith(
-      JSON.stringify({
+      {
         message: "Work Graph lease claim outcome is uncertain",
         code: "claim_outcome_uncertain",
         requestId: "request-after-claim",
@@ -2182,7 +2182,7 @@ describe("Given a transient database failure", () => {
         status: 500,
         workerVersion: "local",
         exceptionClass: "claim_outcome_uncertain",
-      }),
+      },
     );
     warn.mockRestore();
   });
@@ -2241,7 +2241,7 @@ describe("Given a transient database failure", () => {
         },
       });
       expect(warn).toHaveBeenCalledWith(
-        JSON.stringify({
+        {
           message: "Work Graph database request can be retried",
           code: responseCode,
           requestId: "request-123",
@@ -2251,7 +2251,7 @@ describe("Given a transient database failure", () => {
           status: 503,
           workerVersion: "local",
           exceptionClass: responseCode,
-        }),
+        },
       );
       warn.mockRestore();
     },
@@ -2267,7 +2267,7 @@ describe("Given a transient database failure", () => {
     const response = await app.request("/api/work-items/SECRET?token=SECRET", { headers: { "CF-Access-Client-Secret": "SECRET" } });
     expect(response.status).toBe(500);
     expect(response.headers.get("x-request-id")).toBe("request-safe");
-    const record = JSON.parse(error.mock.calls[0]?.[0] as string);
+    const record = error.mock.calls[0]?.[0];
     expect(record).toMatchObject({ requestId: "request-safe", route: "/api/work-items/:workItemId", outcome: "error", status: 500, workerVersion: "version-safe", exceptionClass: "internal_error" });
     expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET");
     expect(await response.text()).not.toContain("SECRET");

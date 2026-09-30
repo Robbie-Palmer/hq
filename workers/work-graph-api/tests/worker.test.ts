@@ -102,7 +102,7 @@ describe("Given a Worker lifecycle failure", () => {
     );
     expect(response.status).toBe(500);
     expect(error).toHaveBeenCalledWith(
-      expect.stringContaining('"exceptionClass":"worker_lifecycle_error"'),
+      expect.objectContaining({ exceptionClass: "worker_lifecycle_error" }),
     );
     expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET");
     expect(await response.text()).not.toContain("SECRET");

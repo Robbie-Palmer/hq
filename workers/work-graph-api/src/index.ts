@@ -32,17 +32,15 @@ export default {
     } catch {
       // Startup and cleanup failures bypass Hono. Never log their raw errors.
       const requestId = crypto.randomUUID();
-      console.error(
-        JSON.stringify({
-          message: "Work Graph Worker failed",
-          requestId,
-          route: "worker.fetch",
-          outcome: "error",
-          status: 500,
-          workerVersion: env.WORKER_VERSION?.id ?? "local",
-          exceptionClass: "worker_lifecycle_error",
-        }),
-      );
+      console.error({
+        message: "Work Graph Worker failed",
+        requestId,
+        route: "worker.fetch",
+        outcome: "error",
+        status: 500,
+        workerVersion: env.WORKER_VERSION?.id ?? "local",
+        exceptionClass: "worker_lifecycle_error",
+      });
       return Response.json(
         {
           error: {

@@ -2486,19 +2486,17 @@ export const createWorkGraphApp = (
     const requestId = createRequestId();
     context.header("X-Request-Id", requestId);
     const logFailure = (message: string, code: string, status: number) => {
-      console.error(
-        JSON.stringify({
-          message,
-          code,
-          requestId,
-          method: context.req.method,
-          route: routePath(context) || "unmatched",
-          outcome: "error",
-          status,
-          workerVersion: options.workerVersion ?? "local",
-          exceptionClass: code,
-        }),
-      );
+      console.error({
+        message,
+        code,
+        requestId,
+        method: context.req.method,
+        route: routePath(context) || "unmatched",
+        outcome: "error",
+        status,
+        workerVersion: options.workerVersion ?? "local",
+        exceptionClass: code,
+      });
     };
     if (error instanceof UncertainClaimOutcomeError) {
       logFailure(
