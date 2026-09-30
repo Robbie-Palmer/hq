@@ -24,7 +24,8 @@ clients must set that variable to use the implicit active-lease workflow.
 
 1. Run `work-graph ready`. Inspect a candidate with `work-graph show <ticket>`.
 2. Run `work-graph claim [ticket]`. With no ticket, the server chooses the
-   highest-priority ready item that has never been claimed. Specify the ticket
+   highest-priority ready item that has never been claimed. Use repeatable
+   `--exclude-project` or `--exclude-initiative` to avoid scopes. Specify the ticket
    ID to continue work after resolved attention or to recover a stale lease.
 3. Record durable findings or a handoff with
    `work-graph note <ticket> --content "..."`. The CLI finds the active lease
@@ -45,9 +46,18 @@ script already has both values.
 ## Plan with the critical path
 
 Run `work-graph critical-path` for the global plan. Narrow an owner review with
-`--initiative-id <initiative>` or `--project-id <project>`. Use
+repeatable `--initiative <initiative>` or `--project <project>`. Use
 `--root-work-item-id <ticket>` to explain one exact outcome. Do not combine a
-root filter with an initiative or project filter.
+root filter with any inclusion or exclusion filter.
+
+`ready`, `queue`, implicit `claim`, and `critical-path` accept repeatable
+`--project`, `--exclude-project`, `--initiative`, and `--exclude-initiative`.
+Each occurrence adds one literal ID. Inclusions use OR within one kind and AND
+across project and initiative kinds. Exclusions take precedence. An explicit
+ticket claim rejects selection flags. Complete JSON input uses
+`includeProjectIds`, `excludeProjectIds`, `includeInitiativeIds`, and
+`excludeInitiativeIds`. Deprecated `--project-id` and `--initiative-id` each
+add one inclusion ID.
 
 Read a blocking path from its priority outcome to the unresolved leaf. Paths
 can cross decomposition and dependency edges. `ready` leaves can start now,

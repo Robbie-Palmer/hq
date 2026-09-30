@@ -4,11 +4,9 @@ import type {
   CriticalPathProjection,
 } from "./generated/client/types.gen.js";
 
-export interface CriticalPathScope {
-  readonly initiativeId?: string;
-  readonly projectId?: string;
-  readonly rootWorkItemId?: string;
-}
+export type CriticalPathScope = NonNullable<
+  import("./generated/client/types.gen.js").GetCriticalPathData["query"]
+>;
 
 const compact = (value: string): string =>
   value.replaceAll(/\s+/gu, " ").trim();
@@ -41,14 +39,25 @@ const scopeLabel = (scope: CriticalPathScope): string => {
   if (scope.rootWorkItemId !== undefined) {
     return `root ${scope.rootWorkItemId}`;
   }
-  if (scope.initiativeId !== undefined && scope.projectId !== undefined) {
-    return `initiative ${scope.initiativeId}, project ${scope.projectId}`;
-  }
-  if (scope.initiativeId !== undefined) {
-    return `initiative ${scope.initiativeId}`;
-  }
-  if (scope.projectId !== undefined) return `project ${scope.projectId}`;
-  return "global";
+  const parts: string[] = [];
+  const initiatives = [
+    ...(scope.includeInitiativeIds ?? []),
+    ...(scope.initiativeId === undefined ? [] : [scope.initiativeId]),
+  ];
+  const projects = [
+    ...(scope.includeProjectIds ?? []),
+    ...(scope.projectId === undefined ? [] : [scope.projectId]),
+  ];
+  if (initiatives.length > 0)
+    parts.push(`initiative ${initiatives.join(" OR ")}`);
+  if (projects.length > 0) parts.push(`project ${projects.join(" OR ")}`);
+  if (scope.excludeInitiativeIds?.length)
+    parts.push(
+      `excluding initiatives ${scope.excludeInitiativeIds.join(", ")}`,
+    );
+  if (scope.excludeProjectIds?.length)
+    parts.push(`excluding projects ${scope.excludeProjectIds.join(", ")}`);
+  return parts.join(", ") || "global";
 };
 
 const renderNodeSection = (

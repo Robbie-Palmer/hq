@@ -174,6 +174,10 @@ export type WorkGraphContextPackage = z.infer<
 
 export const WorkGraphScopeSchema = z
   .object({
+    includeInitiativeIds: z.array(IdentifierSchema).max(100).optional(),
+    excludeInitiativeIds: z.array(IdentifierSchema).max(100).optional(),
+    includeProjectIds: z.array(IdentifierSchema).max(100).optional(),
+    excludeProjectIds: z.array(IdentifierSchema).max(100).optional(),
     initiativeId: IdentifierSchema.optional(),
     projectId: IdentifierSchema.optional(),
     parentId: IdentifierSchema.optional(),
@@ -258,14 +262,13 @@ export class WorkGraphIntegrationError extends Error {
  * port here leaves authentication and HTTP retry policy in that client.
  */
 export interface WorkGraphClientPort {
-  listWorkItems(query: {
-    stage: "ready";
-    initiativeId?: string;
-    projectId?: string;
-    parentId?: string;
-    limit: number;
-    cursor?: string;
-  }): Promise<unknown>;
+  listWorkItems(
+    query: WorkGraphScope & {
+      stage: "ready";
+      limit: number;
+      cursor?: string;
+    },
+  ): Promise<unknown>;
   getWorkItem(workItemId: string): Promise<unknown>;
   listWorkItemContexts(workItemId: string): Promise<unknown>;
   listWorkItemDependencies(
