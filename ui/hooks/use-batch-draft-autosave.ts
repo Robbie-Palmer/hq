@@ -54,7 +54,8 @@ export function useBatchDraftAutosave(
   const onChange = useCallback(
     (value: BatchDraft) => {
       latest.current = value;
-      dirty.current = saved.current !== JSON.stringify(value);
+      dirty.current =
+        pending.current !== null || saved.current !== JSON.stringify(value);
       if (!dirty.current) return;
       setStatus("Saving edits...");
       void flush().catch(() => undefined);
