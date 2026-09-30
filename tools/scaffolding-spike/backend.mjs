@@ -11,14 +11,13 @@ const execute = promisify(execFile);
 const runtime = resolve(process.env.SPIKE_RUNTIME ?? '.runtime');
 const template = resolve(runtime, 'template');
 const origin = 'http://127.0.0.1:7483';
-// Local stand-in for repository hosting. Only catalog declarations are served.
-createServer(async (req, res) => {
-  const project = /^\/projects\/([a-z][a-z0-9-]{0,39})\/catalog-info.yaml$/.exec(req.url);
-  const path = req.url === '/template.yaml' ? resolve('template.yaml')
-    : project ? resolve(runtime, 'projects', project[1], 'catalog-info.yaml') : undefined;
-  if (!path) { res.writeHead(404).end(); return; }
-  try { res.setHeader('Content-Type', 'text/yaml'); res.end(await readFile(path)); }
-  catch { res.writeHead(404).end(); }
+// Local stand-in for repository hosting. Requests only select published content.
+const publishedFiles = new Map([['/template.yaml', await readFile(resolve('template.yaml'))]]);
+createServer((req, res) => {
+  const content = publishedFiles.get(req.url);
+  if (!content) { res.writeHead(404).end(); return; }
+  res.setHeader('Content-Type', 'text/yaml');
+  res.end(content);
 }).listen(7484, '127.0.0.1');
 
 async function checkExistingProfile(profilePath, inputs) {
@@ -29,6 +28,8 @@ async function checkExistingProfile(profilePath, inputs) {
   }
 }
 async function registerComponent(name) {
+  publishedFiles.set(`/projects/${name}/catalog-info.yaml`,
+    await readFile(resolve(runtime, 'projects', name, 'catalog-info.yaml')));
   const existing = await fetch(`${origin}/api/catalog/entities/by-name/component/default/${name}`);
   if (existing.status === 404) {
     const response = await fetch(`${origin}/api/catalog/locations`, {

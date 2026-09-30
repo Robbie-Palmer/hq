@@ -53,6 +53,7 @@ async function until(fn, message) {
 try {
   await until(() => request('scaffolder/v2/actions'), 'Backend did not start');
   assert.equal((await fetch('http://127.0.0.1:7484/forbidden')).status, 404);
+  assert.equal((await fetch('http://127.0.0.1:7484/projects/%2e%2e%2f/catalog-info.yaml')).status, 404);
   assert.equal((await fetch('http://127.0.0.1:7484/projects/missing/catalog-info.yaml')).status, 404);
   const registration = await request('catalog/locations', { type: 'url', target: 'http://127.0.0.1:7484/template.yaml' });
   const template = await until(() => request('catalog/entities/by-name/template/default/pep-minimal-project'), 'Template not ingested');
