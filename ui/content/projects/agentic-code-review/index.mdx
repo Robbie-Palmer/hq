@@ -2,7 +2,7 @@
 title: "Agentic Code Review"
 description: "A stateful, model-agnostic GitHub App for high-signal code review at agentic development velocity"
 date: "2026-08-08"
-updated: "2026-09-29"
+updated: "2026-09-30"
 initiatives:
   - "semi-autonomous-software-development"
 ideas:
@@ -201,9 +201,10 @@ should change upstream.
    schema.
 3. **Use the Pull Request as the unit of work.** Durable PR state should prevent
    each push from purchasing a full review of repeated context.
-4. **Optimise for accepted findings and low noise.** Product outcomes come from
-   useful findings and safer changes. Finding count, model calls, and reviewer
-   count provide diagnostic evidence.
+4. **Minimise human attention through agent triage.** Divergent reviewers
+   should uncover issues the authoring model missed. Coding agents absorb the
+   first pass of investigation, even at higher token, latency, and edit cost,
+   when that trade reduces owner review or future repair work.
 5. **Make learning portable.** Review policy, dispositions, evaluation data,
    and scorecards belong to the product. Vendor-private "learnings" remain
    optional inputs.
@@ -344,22 +345,24 @@ will be inherited only when those decisions are actually adopted.
 
 # Success Measures
 
-The scorecard keeps quality, cost, coverage, latency, and noise visible together
-so improvement in one dimension cannot conceal damage elsewhere.
+The scorecard treats owner attention as the objective. It keeps useful
+discovery, cost, coverage, latency, agent work, and final-patch quality visible
+as explanations and constraints.
 
 <div className="overflow-x-auto">
-  | Outcome                 | Measure                                                                                                                  |
-  | ----------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-  | Useful findings         | Adjudicated acceptance rate and fix-through rate, with no-response outcomes reported separately                          |
-  | Low noise               | Rejected and duplicate findings as a share of published findings                                                         |
-  | Efficient spend         | Total inference, evaluation, runtime, and storage cost per accepted finding                                              |
-  | Efficient review        | Model calls and uncached input tokens per PR versus the stateless baseline                                               |
-  | Fast feedback           | Time from PR readiness or material change to the first published finding or terminal no-finding result                   |
-  | Adjudication latency    | Time from a published finding to acceptance, with rejected and no-response outcomes reported separately                  |
-  | Preserved coverage      | Downstream defects in review scope that no reviewer raised, used as an imperfect missed-defect proxy                     |
-  | Compounding improvement | Recurrence of a failure class before and after adding a test, rule, skill, or agent change                               |
-  | Operational fitness     | Monthly spend, failed runs, manual interventions, and maintenance time                                                   |
-  | Delivery system         | Change lead time, deployment frequency, failed deployment recovery time, change failure rate, and deployment rework rate |
+  | Outcome                 | Measure                                                                                                                                  |
+  | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+  | Human attention         | Owner review and triage time, interventions, review-driven rework, and later work attributable to escaped defects                        |
+  | Useful discovery        | Direct accepted findings and independently useful improvements prompted by review, reported separately                                   |
+  | Incremental recall      | Marginal useful contribution from each scout after reconciliation, external positive-reference recall, and the local missed-defect proxy |
+  | Agent-mediated noise    | Rejected findings, investigations with no material change, harmful churn, and findings escalated to the owner                            |
+  | Agent-resource cost     | Inference spend, tokens, elapsed time, and discarded edits accepted in exchange for lower owner attention                                |
+  | Efficient review        | Model calls and uncached input tokens per PR versus the stateless baseline                                                               |
+  | Fast feedback           | Time from PR readiness or material change to the first published finding or terminal no-finding result                                   |
+  | Adjudication latency    | Time from a published finding to a classified disposition and downstream effect                                                          |
+  | Compounding improvement | Recurrence of a failure class before and after adding a test, rule, skill, or agent change                                               |
+  | Operational fitness     | Monthly spend, failed runs, manual interventions, and maintenance time                                                                   |
+  | Delivery system         | Change lead time, deployment frequency, failed deployment recovery time, change failure rate, and deployment rework rate                 |
 </div>
 
 Comparisons must be stratified by change size, risk, language, task type,
@@ -464,9 +467,9 @@ generalisation.
   customization.
 * **Open-weight progress may stall or inference may consolidate.** The
   provider-neutral boundary supports closed models and direct APIs as well.
-* **An ensemble can create correlated noise.** Retention and outcome data must
-  be able to remove scouts as readily as add them; model count alone has no
-  value.
+* **An ensemble can create correlated noise.** Remove a scout when it fails to
+  reduce expected owner attention within the money, latency, and safety limits.
+  Model count alone has no value.
 * **Evaluation data can mislead.** Sparse dispositions, changing task mix, and
   subjective outcomes make controlled replays and stratification necessary.
 * **Owned infrastructure can become a hobby.** Dashboard work, general platform
