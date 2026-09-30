@@ -1,0 +1,36 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: pep-minimal-project
+  title: Minimal platform project
+spec:
+  owner: user:default/robbie
+  type: service
+  parameters:
+    - title: Project inputs
+      type: object
+      additionalProperties: false
+      required: [name, owner]
+      properties:
+        name:
+          type: string
+          pattern: '^[a-z](?:[a-z0-9-]{0,38}[a-z0-9])?$(?![\s\S])'
+        owner:
+          type: string
+          pattern: '^[a-z][a-z0-9-]{0,39}$(?![\s\S])'
+  steps:
+    - id: generate
+      name: Generate with Copier
+      action: pep:project:generate
+      input:
+        name: ${{ parameters.name }}
+        owner: ${{ parameters.owner }}
+    - id: register
+      name: Register repository declaration
+      action: pep:catalog:register
+      input:
+        name: ${{ parameters.name }}
+  output:
+    entityRef: ${{ steps.register.output.entityRef }}
+    profilePath: ${{ steps.generate.output.profilePath }}
+    reused: ${{ steps.generate.output.reused }}

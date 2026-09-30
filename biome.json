@@ -19,7 +19,8 @@
       "!**/.venv",
       "!**/coverage",
       "!**/dist",
-      "!packages/work-graph-cli/src/generated"
+      "!packages/work-graph-cli/src/generated",
+      "!tools/scaffolding-spike/.runtime"
     ]
   },
   "formatter": {

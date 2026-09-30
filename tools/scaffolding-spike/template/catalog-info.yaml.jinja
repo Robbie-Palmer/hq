@@ -1,0 +1,10 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: '{{ name }}'
+  annotations:
+    pep.robbiepalmer.me/profile: platform-profile.yaml
+spec:
+  type: service
+  lifecycle: experimental
+  owner: user:default/{{ owner }}

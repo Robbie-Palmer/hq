@@ -1,0 +1,7 @@
+_min_copier_version: '9.18.2'
+name:
+  type: str
+owner:
+  type: str
+effective_date:
+  type: str
