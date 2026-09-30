@@ -43,9 +43,9 @@ export function BatchItemEditor({
   );
   return (
     <div onClickCapture={onNavigate}>
-      <p role="status" className="px-4 text-sm text-[var(--ink-3)]">
+      <output className="block px-4 text-sm text-[var(--ink-3)]">
         {autosave.status}
-      </p>
+      </output>
       {autosave.error && (
         <div className="px-4">
           <p role="alert" className="text-destructive">

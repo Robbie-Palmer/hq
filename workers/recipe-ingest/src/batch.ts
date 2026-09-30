@@ -63,13 +63,15 @@ export async function runBatchItem(
   try {
     // Workflow sleeps are durable. Waiting sources reserve no provider or parsing slot.
     let admitted = false;
-    for (let check = 0; !admitted; check++) {
+    let check = 0;
+    while (!admitted) {
       const outcome = await step.do(`admit-${check}`, () =>
         withDb(env, (db) => admitJob(db, current(), instanceId)),
       );
       if (outcome === "obsolete") return;
       admitted = outcome === "admitted";
       if (!admitted) await step.sleep(`wait-${check}`, "5 seconds");
+      check++;
     }
     const source = await step.do("read-source", async () => {
       const object = await env.ARTIFACTS.get(batchSourceKey(jobId));
@@ -81,7 +83,7 @@ export async function runBatchItem(
       const [item] = await withDb(env, (db) =>
         db.select().from(jobs).where(current()),
       );
-      if (!item || (await sha256Hex(body)) !== item.sourceChecksum)
+      if ((await sha256Hex(body)) !== item?.sourceChecksum)
         throw new Error("Recipe source checksum does not match");
       return BatchSourceSchema.parse(JSON.parse(body));
     });

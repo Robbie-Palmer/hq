@@ -110,7 +110,7 @@ export function BatchImportCapture({
           saving.
         </p>
         <label className="grid gap-2">
-          Recipe URLs, one per line
+          <span>Recipe URLs, one per line</span>
           <textarea
             className="min-h-32 rounded-md border border-[var(--line)] bg-[var(--card)] p-2"
             value={urls}
@@ -155,7 +155,7 @@ export function BatchImportCapture({
           </p>
         ))}
         <label className="my-3 grid gap-2">
-          Default visibility
+          <span>Default visibility</span>
           <select
             value={visibility}
             onChange={(event) => {

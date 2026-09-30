@@ -18,7 +18,7 @@ export const BatchSourceSchema = z.discriminatedUnion("type", [
   }),
 ]);
 export const CreateBatchSchema = z.object({
-  idempotencyKey: z.string().uuid().max(36),
+  idempotencyKey: z.uuid().max(36),
   sources: z.array(BatchSourceSchema).min(1).max(50),
   visibility: RecipeVisibilitySchema.default("private"),
 });
@@ -31,7 +31,7 @@ export const BatchDraftSchema = z.object({
   prepTime: z.number().int().min(0).max(1_000_000).optional(),
   cookTime: z.number().int().min(0).max(1_000_000).optional(),
   source: z.string().min(1).max(10000),
-  url: z.string().url().max(2048).optional(),
+  url: z.url().max(2048).optional(),
 });
 export const MutableBatchDraftSchema = BatchDraftSchema.extend({
   title: z.string().max(120),

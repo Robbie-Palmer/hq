@@ -41,14 +41,25 @@ export async function insertGeneratedDraft(
   jobId: string,
   draft: BatchDraft,
 ) {
-  for (const kind of ["generated", "editable"] as const) {
-    const [inserted] = await db
-      .insert(drafts)
-      .values({ jobId, kind, ...draftColumns(draft) })
-      .onConflictDoNothing()
-      .returning();
-    if (inserted) await insertCuisines(db, inserted.id, draft.cuisine);
-  }
+  const inserted = await db
+    .insert(drafts)
+    .values(
+      (["generated", "editable"] as const).map((kind) => ({
+        jobId,
+        kind,
+        ...draftColumns(draft),
+      })),
+    )
+    .onConflictDoNothing()
+    .returning();
+  const labels = draft.cuisine
+    .split(",")
+    .map((label) => label.trim())
+    .filter(Boolean);
+  const rows = inserted.flatMap((row) =>
+    labels.map((label, position) => ({ draftId: row.id, position, label })),
+  );
+  if (rows.length) await db.insert(cuisines).values(rows).onConflictDoNothing();
 }
 
 export async function updateEditableDraft(

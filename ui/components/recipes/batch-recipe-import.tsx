@@ -104,11 +104,11 @@ function BatchItemReview({
 }
 function BatchProgress({ batch }: Readonly<{ batch: ImportBatch }>) {
   return (
-    <p role="status" className="my-3 text-sm">
+    <output className="my-3 block text-sm">
       {batch.counts.processing} processing · {batch.counts.ready} ready ·{" "}
       {batch.counts.failed} failed · {batch.counts.accepted} saved ·{" "}
       {batch.counts.skipped} skipped
-    </p>
+    </output>
   );
 }
 
@@ -116,11 +116,7 @@ export function BatchRecipeImport() {
   const { data: session, isPending } = authClient.useSession();
   const workspace = useRecipeImportBatch(session?.user.id);
   if (isPending)
-    return (
-      <p role="status" className="p-6">
-        Loading imports...
-      </p>
-    );
+    return <output className="block p-6">Loading imports...</output>;
   if (!session)
     return (
       <RecipeAuthRequired

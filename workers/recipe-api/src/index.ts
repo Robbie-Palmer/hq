@@ -410,7 +410,7 @@ const autosaveBatchBodySchema = AutosaveBatchDraftSchema.extend({
 });
 const acceptBatchBodySchema = z.object({
   version: batchVersionSchema,
-  idempotencyKey: z.string().uuid().max(36),
+  idempotencyKey: z.uuid().max(36),
   recipe: createRecipeBodySchema,
 });
 
@@ -6122,9 +6122,13 @@ function batchHandler(action: (c: Context<AppEnv>, context: RecipeSessionContext
     if (mutation) { const failure = validateCsrf(c); if (failure) return failure; }
     const batchId = c.req.param("batchId");
     const jobId = c.req.param("jobId");
-    if ((batchId && !z.string().uuid().safeParse(batchId).success) || (jobId && !z.string().uuid().safeParse(jobId).success)) return c.json({ error: "Batch item not found" }, 404);
+    if ((batchId && !z.uuid().safeParse(batchId).success) || (jobId && !z.uuid().safeParse(jobId).success)) return c.json({ error: "Batch item not found" }, 404);
     return withRecipeSession(c, mutation ? "mutation" : "lookup", "Batch import request failed", context => action(c, context), {
-      onError: error => error instanceof BatchImportError ? c.json({ error: error.message }, error.status) : isUniqueViolation(error) ? c.json({ error: "A recipe with this name already exists. Choose another title." }, 409) : undefined,
+      onError: error => {
+        if (error instanceof BatchImportError) return c.json({ error: error.message }, error.status);
+        if (isUniqueViolation(error)) return c.json({ error: "A recipe with this name already exists. Choose another title." }, 409);
+        return undefined;
+      },
     });
   };
 }

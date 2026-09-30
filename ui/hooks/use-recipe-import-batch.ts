@@ -88,7 +88,7 @@ export function useRecipeImportBatch(userId: string | undefined) {
       window.clearInterval(interval);
     };
   }, [batchId]);
-  async function perform(operation: () => Promise<void>) {
+  async function perform(operation: () => void | Promise<void>) {
     setBusy(true);
     setError(null);
     try {
@@ -102,7 +102,7 @@ export function useRecipeImportBatch(userId: string | undefined) {
     }
   }
   function choose(id: string) {
-    return perform(async () => {
+    return perform(() => {
       setSelected(id);
       if (batchId) updateLocation(batchId, id);
     });

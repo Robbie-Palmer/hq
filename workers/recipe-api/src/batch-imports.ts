@@ -209,11 +209,9 @@ export function batchProgress(
     else if (item.status === "failed") counts.failed++;
     else counts.ready++;
   }
-  const status = counts.processing
-    ? "processing"
-    : counts.ready || counts.failed
-      ? "awaiting_review"
-      : "completed";
+  let status = "completed";
+  if (counts.ready || counts.failed) status = "awaiting_review";
+  if (counts.processing) status = "processing";
   return { counts, status };
 }
 
