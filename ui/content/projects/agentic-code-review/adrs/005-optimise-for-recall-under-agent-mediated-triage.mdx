@@ -1,5 +1,5 @@
 ---
-title: "ADR 005: Optimise for Recall Under Agent-Mediated Triage"
+title: "ADR 005: Minimise Human Attention With Recall-First Review"
 date: "2026-09-30"
 status: "Accepted"
 ---
@@ -13,11 +13,12 @@ made those outcomes reproducible, while
 [ADR 004](/projects/agentic-code-review/adrs/004-use-aacr-bench-as-a-secondary-challenge-set)
 added an external benchmark whose authors explicitly optimise for precision.
 
-That objective does not fit this development loop. Local coding agents consume
-most review comments and can investigate them before the owner spends any
-attention. A false positive still costs inference, latency, and authoring-agent
-work, but it does not impose the same interruption as a mistaken comment sent
-straight to a human team.
+That objective does not fit this development loop. Human attention is the
+scarce resource. Local coding agents consume most review comments and can
+investigate them before the owner needs to intervene. Extra inference,
+latency, and authoring-agent work are worthwhile when they reduce the owner's
+review time now or avoid future time spent debugging, repairing, or
+maintaining a missed problem.
 
 The reviewer also exists to find issues that the authoring model missed.
 Selecting divergent scouts should increase the chance of an uncorrelated
@@ -33,11 +34,19 @@ finding as accepted would be equally misleading.
 
 ## Decision
 
-We will optimise reviewer policy for recall and incremental useful discovery,
-subject to limits on agent work, cost, latency, regressions, and human
-escalation. Raw comment precision and rejection rate remain diagnostics. They
-will not block a candidate merely because a divergent scout produces more
-investigable false positives.
+We will optimise reviewer policy to minimise the owner's expected attention
+over the life of a change. Recall and incremental useful discovery are the
+main means of doing that. Raw comment precision and rejection rate remain
+diagnostics. They will not block a candidate merely because a divergent scout
+uses more agent work to investigate false positives without involving the
+owner.
+
+The attention measure includes manual review and triage, interventions needed
+to unblock agents, rework after review, and later debugging or incident work
+attributable to escaped defects. Automated investigation, retries, and
+discarded edit attempts consume money and elapsed time, but not human
+attention unless they require an intervention or delay work enough to demand
+one.
 
 Model comparisons will report each scout's marginal contribution after
 reconciliation. The primary comparison asks how many useful issues or
@@ -62,31 +71,32 @@ This distinction prevents an authoring agent from manufacturing busywork to
 make noisy review look productive.
 
 For AACR-Bench, positive comments test issue recall. Negative comments become a
-separate authoring-agent resilience test. The useful behaviours are rejecting
-the bad premise, requesting evidence, or finding an independently justified
+separate test of whether the authoring agent can absorb noisy review without
+passing it to the owner. The useful behaviours are rejecting the bad premise,
+requesting evidence from another agent, or finding an independently justified
 improvement without introducing a regression. Following a negative comment
 without verification is a failure, even if the patch changes.
 
-The guardrails are human escalations, unnecessary churn, introduced defects,
-review-to-ready latency, tokens, and total cost. A precision loss is acceptable
-when incremental useful discovery increases and those costs stay within their
-predeclared limits. Findings still pass through the existing reconciler and
-single publication path.
+Human attention is the objective. Spend, latency, and agent work are operating
+constraints. Final-patch quality and introduced defects remain safety
+constraints. A precision loss is acceptable when it lowers expected human
+attention and stays within predeclared money, time, and safety limits. Findings
+still pass through the existing reconciler and single publication path.
 
 ## Consequences
 
 The reviewer can use genuinely different models instead of converging on the
-safest consensus comment. The scorecard also captures a class of review value
-that acceptance rate currently throws away.
+safest consensus comment. The system deliberately spends more agent resources
+when that is likely to save owner attention. The scorecard also captures a
+class of review value that acceptance rate currently throws away.
 
-This policy spends more compute and authoring-agent effort. It may slow a Pull
-Request or encourage needless edits if the agent treats every comment as an
-instruction. Evaluation must therefore inspect the resulting patch, not reward
-compliance or finding count. Human attention remains the hard limit: if noisy
-comments routinely escape agent triage and reach the owner, the system has
-failed even when benchmark recall rises.
+This policy spends more compute and authoring-agent effort. That trade is
+intentional. It can still fail by creating unsafe edits, exceeding the budget,
+or making the owner wait for little benefit. Evaluation must inspect the
+resulting patch and record owner interventions rather than reward compliance or
+finding count. If noisy comments routinely escape agent triage and reach the
+owner, the system has failed even when benchmark recall rises.
 
 We will reconsider the recall-first policy if marginal findings rarely survive
-adjudication, agent-mediated triage increases regressions or lead time, or the
-cost of investigating false positives exceeds the value of the additional
-issues found.
+adjudication, agent-mediated triage increases the owner's total attention, or
+the money, delay, or safety cost breaches its declared limit.
