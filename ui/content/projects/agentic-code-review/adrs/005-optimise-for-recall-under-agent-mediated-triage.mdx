@@ -1,0 +1,92 @@
+---
+title: "ADR 005: Optimise for Recall Under Agent-Mediated Triage"
+date: "2026-09-30"
+status: "Accepted"
+---
+
+## Context
+
+[ADR 001](/projects/agentic-code-review/adrs/001-stateful-ai-code-review)
+defined acceptance and noise metrics for a reviewer that publishes findings to
+a Pull Request. [ADR 002](/projects/agentic-code-review/adrs/002-duckdb-ai-review-scorecard)
+made those outcomes reproducible, while
+[ADR 004](/projects/agentic-code-review/adrs/004-use-aacr-bench-as-a-secondary-challenge-set)
+added an external benchmark whose authors explicitly optimise for precision.
+
+That objective does not fit this development loop. Local coding agents consume
+most review comments and can investigate them before the owner spends any
+attention. A false positive still costs inference, latency, and authoring-agent
+work, but it does not impose the same interruption as a mistaken comment sent
+straight to a human team.
+
+The reviewer also exists to find issues that the authoring model missed.
+Selecting divergent scouts should increase the chance of an uncorrelated
+finding, even when it lowers comment precision. A technically wrong comment
+can still make the authoring agent inspect an assumption and discover a
+different improvement. This resembles a senior engineer reconsidering a design
+after receiving an imperfect review comment from a junior engineer. The
+original claim remains wrong, but the exchange can still improve the change.
+
+The current single outcome cannot represent both facts. A rejected finding is
+treated as noise even if it caused a useful adjacent change. Counting that
+finding as accepted would be equally misleading.
+
+## Decision
+
+We will optimise reviewer policy for recall and incremental useful discovery,
+subject to limits on agent work, cost, latency, regressions, and human
+escalation. Raw comment precision and rejection rate remain diagnostics. They
+will not block a candidate merely because a divergent scout produces more
+investigable false positives.
+
+Model comparisons will report each scout's marginal contribution after
+reconciliation. The primary comparison asks how many useful issues or
+improvements disappear when that scout is removed from an otherwise identical
+replay. Duplicate comments do not count as recall gains.
+
+The evaluation record will separate finding correctness from downstream
+utility. Existing dispositions continue to record whether the cited claim was
+fixed, acknowledged, rejected, censored, or unanswered. A separate,
+evidence-backed effect records whether the review caused:
+
+* a direct fix for the cited issue;
+* a different useful improvement prompted by the investigation;
+* no material change;
+* unnecessary or harmful churn; or
+* an effect that cannot be determined.
+
+A different improvement counts only when the response links the review to a
+specific change and adjudication confirms that the change is useful on its own
+merits. It does not convert the original false claim into a correct finding.
+This distinction prevents an authoring agent from manufacturing busywork to
+make noisy review look productive.
+
+For AACR-Bench, positive comments test issue recall. Negative comments become a
+separate authoring-agent resilience test. The useful behaviours are rejecting
+the bad premise, requesting evidence, or finding an independently justified
+improvement without introducing a regression. Following a negative comment
+without verification is a failure, even if the patch changes.
+
+The guardrails are human escalations, unnecessary churn, introduced defects,
+review-to-ready latency, tokens, and total cost. A precision loss is acceptable
+when incremental useful discovery increases and those costs stay within their
+predeclared limits. Findings still pass through the existing reconciler and
+single publication path.
+
+## Consequences
+
+The reviewer can use genuinely different models instead of converging on the
+safest consensus comment. The scorecard also captures a class of review value
+that acceptance rate currently throws away.
+
+This policy spends more compute and authoring-agent effort. It may slow a Pull
+Request or encourage needless edits if the agent treats every comment as an
+instruction. Evaluation must therefore inspect the resulting patch, not reward
+compliance or finding count. Human attention remains the hard limit: if noisy
+comments routinely escape agent triage and reach the owner, the system has
+failed even when benchmark recall rises.
+
+We will reconsider the recall-first policy if marginal findings rarely survive
+adjudication, agent-mediated triage increases regressions or lead time, or the
+cost of investigating false positives exceeds the value of the additional
+issues found.
