@@ -583,7 +583,7 @@ importers:
     dependencies:
       openai:
         specifier: ^7.0.0
-        version: 7.22.0(undici@7.29.1)(ws@8.22.0)(zod@4.6.5)
+        version: 7.23.0(undici@7.29.1)(ws@8.22.0)(zod@4.6.5)
     devDependencies:
       '@vitest/coverage-v8':
         specifier: ^5.0.0
@@ -7264,8 +7264,8 @@ packages:
     resolution: {integrity: sha512-7x81NCL719oNbsq/3mh+hVrAWmFuEYUqrq/Iw3kUzH8ReypT9QQ0BLoJS7/G9k6N81XjW4qHWtjWwe/9eLy1EQ==}
     engines: {node: '>=12'}
 
-  openai@7.22.0:
-    resolution: {integrity: sha512-C4bv09YtQQb1qcFrEAENJXkuCZA72kGRwws6QIXgf0oJW6pDOmDC2WaZpQVII3Rl+RNE3Z+TQI92uNfetGwY3w==}
+  openai@7.23.0:
+    resolution: {integrity: sha512-0ecOXnFSMNWZq6cUBcTV6Lf93y+fm8BH/+QzFvpoP1UGNOE5pnytRa6HAPGCw+3IS9SIAW7rc1M8yyzN1PiBAQ==}
     engines: {node: '>=22.0.0'}
     peerDependencies:
       '@aws-sdk/credential-provider-node': '>=3.972.0 <4'
@@ -15196,7 +15196,7 @@ snapshots:
       is-docker: 2.2.1
       is-wsl: 2.2.0
 
-  openai@7.22.0(undici@7.29.1)(ws@8.22.0)(zod@4.6.5):
+  openai@7.23.0(undici@7.29.1)(ws@8.22.0)(zod@4.6.5):
     optionalDependencies:
       undici: 7.29.1
       ws: 8.22.0
