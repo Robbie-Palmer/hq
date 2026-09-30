@@ -8,6 +8,15 @@ import type { ProjectWithADRsView } from "@/lib/domain/project/projectViews";
 
 type Manifest = NonNullable<ProjectWithADRsView["platformManifest"]>;
 
+function prerequisiteLabel(
+  prerequisite: Manifest["policies"][number]["prerequisites"][number],
+): string {
+  if ("requirement" in prerequisite) return prerequisite.requirement;
+  return prerequisite.technology
+    ? `${prerequisite.slot} = ${prerequisite.technology}`
+    : prerequisite.slot;
+}
+
 function adrHref(adrRef: string): string {
   const [project, adr] = adrRef.split(":");
   return `/projects/${project}/adrs/${adr}`;
@@ -62,13 +71,27 @@ export function PlatformManifest({
                   <ul className="mt-3 space-y-1 text-sm">
                     {policies.map((policy) => (
                       <li key={policy.id}>
-                        <Link
-                          href={`#slot-${policy.slot}`}
-                          className="underline underline-offset-4"
-                        >
-                          {policy.slot}
-                        </Link>{" "}
-                        <Badge variant="outline">{policy.mode}</Badge>
+                        <div>
+                          <Link
+                            href={`#slot-${policy.slot}`}
+                            className="underline underline-offset-4"
+                          >
+                            {policy.slot}
+                          </Link>{" "}
+                          <Badge variant="outline">{policy.mode}</Badge>
+                        </div>
+                        {policy.prerequisites.length > 0 && (
+                          <ul
+                            aria-label={`${policy.slot} prerequisites`}
+                            className="ml-5 mt-1 list-disc text-xs text-muted-foreground"
+                          >
+                            {policy.prerequisites.map((prerequisite) => (
+                              <li key={prerequisiteLabel(prerequisite)}>
+                                {prerequisiteLabel(prerequisite)}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </li>
                     ))}
                   </ul>

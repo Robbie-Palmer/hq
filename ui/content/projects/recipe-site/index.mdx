@@ -108,9 +108,22 @@ platform_layers:
     tracking: true
     decision: "recipe-site:010-posthog-logs"
     slots:
+      - slot: "observability.telemetry-protocol"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:020-direct-otlp-export-to-posthog"
       - slot: "observability.application-telemetry"
         adopted: "2026-09-12T00:00:00Z"
+        until: "2026-09-29T00:00:00Z"
         decision: "recipe-site:010-posthog-logs"
+      - slot: "observability.application-telemetry"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:010-posthog-logs"
+      - slot: "observability.alert-evaluation"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:021-posthog-alerting-and-slack"
+      - slot: "observability.alert-delivery"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:021-posthog-alerting-and-slack"
   - layer: "storage"
     adopted: "2026-09-29T00:00:00Z"
     tracking: true

@@ -68,10 +68,29 @@ export const DefaultSlotSchema = z
     { message: "A slot lifecycle end requires an earlier lifecycle start" },
   );
 
-export const SlotPrerequisiteSchema = z.object({
+export const SlotDependencyPrerequisiteSchema = z.object({
   slot: DefaultSlotSlugSchema,
   technology: TechnologySlugSchema.optional(),
 });
+
+export const OperationalRequirementSchema = z.enum([
+  "instrumented-runtime",
+  "telemetry-redaction",
+  "bounded-exporter-failure",
+  "telemetry-retention",
+  "responder-ownership",
+  "alert-routing",
+  "project-owned-slack-credentials",
+]);
+
+export const OperationalPrerequisiteSchema = z.object({
+  requirement: OperationalRequirementSchema,
+});
+
+export const SlotPrerequisiteSchema = z.union([
+  SlotDependencyPrerequisiteSchema,
+  OperationalPrerequisiteSchema,
+]);
 
 export const LayerSlotPolicySchema = TemporalPeriodSchema.extend({
   id: z.string().min(1),
@@ -146,26 +165,36 @@ function validatePolicyReferences(
         `Slot policy '${policy.id}' references an unknown layer or slot`,
       );
     }
-    for (const prerequisite of policy.prerequisites) {
-      if (!slots.has(prerequisite.slot)) {
-        addManifestIssue(
-          context,
-          `Slot policy '${policy.id}' references unknown prerequisite '${prerequisite.slot}'`,
-        );
-      }
-      const hasSelection = manifest.selections.some(
-        (selection) =>
-          selection.kind === "technology" &&
-          selection.slot === prerequisite.slot &&
-          selection.technology === prerequisite.technology &&
-          effectivePeriodsOverlap(policy, selection),
+    validatePrerequisiteReferences(manifest, policy, slots, context);
+  }
+}
+
+function validatePrerequisiteReferences(
+  manifest: PlatformManifestInput,
+  policy: PlatformManifestInput["policies"][number],
+  slots: ReadonlyMap<string, unknown>,
+  context: z.RefinementCtx,
+): void {
+  for (const prerequisite of policy.prerequisites) {
+    if ("requirement" in prerequisite) continue;
+    if (!slots.has(prerequisite.slot)) {
+      addManifestIssue(
+        context,
+        `Slot policy '${policy.id}' references unknown prerequisite '${prerequisite.slot}'`,
       );
-      if (prerequisite.technology && !hasSelection) {
-        addManifestIssue(
-          context,
-          `Slot policy '${policy.id}' references a technology not selected by prerequisite '${prerequisite.slot}'`,
-        );
-      }
+    }
+    const hasSelection = manifest.selections.some(
+      (selection) =>
+        selection.kind === "technology" &&
+        selection.slot === prerequisite.slot &&
+        selection.technology === prerequisite.technology &&
+        effectivePeriodsOverlap(policy, selection),
+    );
+    if (prerequisite.technology && !hasSelection) {
+      addManifestIssue(
+        context,
+        `Slot policy '${policy.id}' references a technology not selected by prerequisite '${prerequisite.slot}'`,
+      );
     }
   }
 }

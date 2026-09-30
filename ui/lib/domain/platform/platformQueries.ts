@@ -90,10 +90,11 @@ function currentSelections(
 }
 
 function prerequisitesMet(
-  prerequisites: { slot: DefaultSlotSlug; technology?: TechnologySlug }[],
+  prerequisites: LayerSlotPolicy["prerequisites"],
   resolvedSlots: ReadonlyMap<DefaultSlotSlug, ReadonlySet<string>>,
 ): boolean {
   return prerequisites.every((prerequisite) => {
+    if ("requirement" in prerequisite) return true;
     const selected = resolvedSlots.get(prerequisite.slot);
     return (
       selected !== undefined &&

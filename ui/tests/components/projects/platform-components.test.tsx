@@ -36,6 +36,18 @@ describe("project platform components", () => {
       }).length,
     ).toBeGreaterThan(0);
     expect(screen.getAllByText(/originated in/).length).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("list", {
+        name: "observability.telemetry-protocol prerequisites",
+      }),
+    ).toHaveTextContent(
+      "instrumented-runtimetelemetry-redactionbounded-exporter-failure",
+    );
+    expect(
+      screen.getByRole("list", {
+        name: "observability.alert-delivery prerequisites",
+      }),
+    ).toHaveTextContent("project-owned-slack-credentials");
   }, 10_000);
 
   it("keeps adopters and layer consumers under their labels", () => {

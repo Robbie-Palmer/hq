@@ -319,6 +319,20 @@ function buildProjectPage(
   };
 }
 
+type PlatformPrerequisite = NonNullable<
+  ProjectWithADRs["platformManifest"]
+>["policies"][number]["prerequisites"][number];
+
+function platformPrerequisiteLabel(
+  prerequisite: PlatformPrerequisite,
+): string {
+  if ("requirement" in prerequisite) return prerequisite.requirement;
+  if (prerequisite.technology) {
+    return `${prerequisite.slot} = ${prerequisite.technology}`;
+  }
+  return prerequisite.slot;
+}
+
 function buildPlatformManifestSection(project: ProjectWithADRs): string[] {
   const manifest = project.platformManifest;
   if (!manifest) return [];
@@ -336,7 +350,14 @@ function buildPlatformManifestSection(project: ProjectWithADRs): string[] {
       "",
       `${layer.description}${activation}`,
       "",
-      ...policies.map((policy) => `- ${policy.slot}: ${policy.mode}`),
+      ...policies.map((policy) => {
+        const prerequisites = policy.prerequisites
+          .map(platformPrerequisiteLabel)
+          .join(", ");
+        return `- ${policy.slot}: ${policy.mode}${
+          prerequisites ? `; prerequisites: ${prerequisites}` : ""
+        }`;
+      }),
       ...(policies.length > 0 ? [""] : []),
     ];
   });

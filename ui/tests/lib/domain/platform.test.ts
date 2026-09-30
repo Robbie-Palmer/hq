@@ -798,6 +798,22 @@ describe("temporal platform layers", () => {
         }),
       ]),
     );
+
+    for (const project of [
+      "agentic-code-review",
+      "personal-knowledge-graph",
+      "work-graph",
+    ] as const) {
+      expect(
+        resolveEffectiveProjectStack(
+          repository,
+          project,
+          "2026-09-29T12:00:00Z",
+        ).technologies.some(
+          (use) => use.slot === "observability.application-telemetry",
+        ),
+      ).toBe(false);
+    }
   });
 
   it("promotes TanStack Query only for web apps that activate client-side server state", () => {
@@ -921,6 +937,125 @@ describe("temporal platform layers", () => {
         "2026-09-29T12:00:00Z",
       ).technologies.map((use) => use.technology),
     ).not.toContain("tailscale");
+  });
+
+  it("models the application observability jobs and their operating requirements separately", () => {
+    const repository = loadDomainRepository();
+    const manifest = repository.platform.manifest;
+    const policies = new Map(
+      manifest?.policies.map((policy) => [policy.slot, policy]),
+    );
+    const selections = new Map(
+      manifest?.selections
+        .filter(
+          (selection) =>
+            selection.decision ===
+            "personal-engineering-platform:023-application-observability-stack",
+        )
+        .map((selection) => [selection.slot, selection]),
+    );
+
+    expect(policies.get("observability.telemetry-protocol")).toMatchObject({
+      mode: "preferred",
+      prerequisites: [
+        { requirement: "instrumented-runtime" },
+        { requirement: "telemetry-redaction" },
+        { requirement: "bounded-exporter-failure" },
+      ],
+    });
+    expect(policies.get("observability.application-telemetry")).toMatchObject({
+      mode: "preferred",
+      prerequisites: [
+        {
+          slot: "observability.telemetry-protocol",
+          technology: "opentelemetry",
+        },
+        { requirement: "telemetry-retention" },
+      ],
+    });
+    expect(policies.get("observability.alert-evaluation")).toMatchObject({
+      prerequisites: [
+        {
+          slot: "observability.application-telemetry",
+          technology: "posthog",
+        },
+        { requirement: "responder-ownership" },
+      ],
+    });
+    expect(policies.get("observability.alert-delivery")).toMatchObject({
+      prerequisites: [
+        {
+          slot: "observability.alert-evaluation",
+          technology: "posthog",
+        },
+        { requirement: "alert-routing" },
+        { requirement: "project-owned-slack-credentials" },
+      ],
+    });
+
+    expect(selections.get("observability.telemetry-protocol")).toMatchObject({
+      technology: "opentelemetry",
+      status: "Accepted",
+    });
+    expect(selections.get("observability.application-telemetry")).toMatchObject(
+      {
+        technology: "posthog",
+        status: "Accepted",
+      },
+    );
+    expect(selections.get("observability.alert-evaluation")).toMatchObject({
+      technology: "posthog",
+      status: "Accepted",
+    });
+    expect(selections.get("observability.alert-delivery")).toMatchObject({
+      technology: "slack",
+      status: "Accepted",
+    });
+
+    expect(
+      resolveEffectiveProjectStack(
+        repository,
+        "recipe-site",
+        "2026-09-29T12:00:00Z",
+      ).technologies,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          slot: "observability.telemetry-protocol",
+          technology: "opentelemetry",
+        }),
+        expect.objectContaining({
+          slot: "observability.application-telemetry",
+          technology: "posthog",
+        }),
+        expect.objectContaining({
+          slot: "observability.alert-evaluation",
+          technology: "posthog",
+        }),
+        expect.objectContaining({
+          slot: "observability.alert-delivery",
+          technology: "slack",
+        }),
+      ]),
+    );
+  });
+
+  it("rejects unknown operational prerequisites", () => {
+    const manifest = sameDayManifest();
+    manifest.policies[0]?.prerequisites.push({
+      // @ts-expect-error Exercises runtime validation of manifest input.
+      requirement: "unowned-alerts",
+    });
+
+    const result = PlatformManifestSchema.safeParse(manifest);
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual([
+      "policies",
+      0,
+      "prerequisites",
+      0,
+    ]);
   });
 
   it("resolves the repository, language, web, and infrastructure baseline", () => {
