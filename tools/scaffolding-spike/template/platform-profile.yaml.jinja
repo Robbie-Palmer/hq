@@ -1,0 +1,15 @@
+# Spike profile, pending the executable profile schema ticket.
+schemaVersion: pep-spike/v1
+project: {{ name }}
+owner: {{ owner }}
+effectiveDate: '{{ effective_date }}'
+layers: [governance, base, typescript, python]
+capabilities: []
+environments: [development]
+deploymentStage: local
+artifactClasses: [source]
+overrides: {}
+generation:
+  engine: copier
+  version: 9.18.2
+  templateRef: v1.0.0

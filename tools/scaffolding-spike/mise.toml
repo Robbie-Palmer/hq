@@ -1,0 +1,15 @@
+[tools]
+uv = "0.12.5"
+
+[tasks.install]
+description = "Install the isolated Backstage spike"
+run = "pnpm install --frozen-lockfile"
+
+[tasks.resolve]
+description = "Resolve the isolated spike lockfile after dependency edits"
+run = "pnpm install"
+
+[tasks.test]
+description = "Run disposable Backstage API and Copier experiments"
+depends = ["install"]
+run = "pnpm exec c8 --include backend.mjs --reporter=text --reporter=lcov --check-coverage --lines=80 --branches=80 node tests/verify.mjs"

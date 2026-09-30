@@ -16,7 +16,8 @@
       ],
       "ignore": [
         "infra/work-graph/bootstrap-worker.mjs",
-        "infra/work-graph/observer-bootstrap-worker.mjs"
+        "infra/work-graph/observer-bootstrap-worker.mjs",
+        "tools/scaffolding-spike/**"
       ],
       "ignoreDependencies": ["lint-staged", "markdownlint-cli", "remark-cli", "remark-lint", "tsx", "yaml-lint"]
     },

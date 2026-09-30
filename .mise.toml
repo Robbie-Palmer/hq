@@ -7,6 +7,7 @@ config_roots = [
     "infra/public-platform",
     "infra/remote-development",
     "infra/work-graph",
+    "tools/scaffolding-spike",
     "backups",
     "ml-pipelines",
     "ml-pipelines/ai-review-evaluation",
@@ -360,6 +361,7 @@ run = "pnpm install"
 [tasks."sonar:coverage"]
 description = "Generate all coverage reports imported by SonarQube Cloud"
 depends = [
+    "//tools/scaffolding-spike:test",
     "//ai-review:test:coverage",
     "//cpp/autonomic-satellite-swarm:coverage",
     "//ui:test:coverage",

@@ -1,0 +1,9 @@
+packages: []
+allowBuilds:
+  better-sqlite3: true
+  '@scarf/scarf': false
+  core-js: false
+  esbuild: false
+  isolated-vm: false
+  keytar: false
+  protobufjs: false

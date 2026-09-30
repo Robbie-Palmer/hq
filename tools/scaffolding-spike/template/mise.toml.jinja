@@ -1,0 +1,5 @@
+[tools]
+node = '24.18.0'
+uv = '0.12.5'
+[tasks.check]
+run = ['node --check src/index.mjs', 'uv run python -c "import sys; assert sys.version_info >= (3, 12)"']

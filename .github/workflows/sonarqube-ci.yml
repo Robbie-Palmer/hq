@@ -123,6 +123,7 @@ jobs:
         with:
           name: sonar-coverage-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
+            tools/scaffolding-spike/coverage/lcov.info
             ai-review/coverage/lcov.info
             cpp/autonomic-satellite-swarm/coverage/sonarqube.xml
             ui/coverage/lcov.info

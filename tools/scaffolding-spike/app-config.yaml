@@ -1,0 +1,22 @@
+app:
+  title: PEP scaffolding spike
+  baseUrl: http://127.0.0.1:7483
+backend:
+  baseUrl: http://127.0.0.1:7483
+  listen:
+    host: 127.0.0.1
+    port: 7483
+  auth:
+    dangerouslyDisableDefaultAuthPolicy: true
+  database:
+    client: better-sqlite3
+    connection: ':memory:'
+  reading:
+    allow:
+      - host: 127.0.0.1:7484
+catalog:
+  rules:
+    - allow: [Component, Template, Location]
+  processingInterval: { seconds: 1 }
+scaffolder:
+  workingDirectory: .runtime/tasks
