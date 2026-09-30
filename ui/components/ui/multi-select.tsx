@@ -3,7 +3,7 @@
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { CheckIcon, ChevronDownIcon, Minus, Search, X } from "lucide-react";
 import type * as React from "react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useId, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -70,6 +70,7 @@ export function MultiSelect({
 }: Readonly<MultiSelectProps>) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const listboxId = useId();
   const isTri = triState && typeof onSetState === "function";
 
   const filteredOptions = useMemo(() => {
@@ -181,6 +182,7 @@ export function MultiSelect({
       <PopoverPrimitive.Trigger asChild>
         <div
           role="combobox"
+          aria-controls={listboxId}
           aria-expanded={open}
           aria-haspopup="listbox"
           data-slot="multi-select-trigger"
@@ -259,7 +261,11 @@ export function MultiSelect({
             </p>
           )}
 
-          <div className="max-h-[300px] overflow-y-auto p-1">
+          <div
+            id={listboxId}
+            role="listbox"
+            className="max-h-[300px] overflow-y-auto p-1"
+          >
             {filteredOptions.length === 0 ? (
               <div className="py-6 text-center text-sm text-muted-foreground">
                 No options found

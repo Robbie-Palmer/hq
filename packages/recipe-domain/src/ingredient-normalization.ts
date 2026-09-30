@@ -50,7 +50,7 @@ export function normalizeIngredientSlugForOutput(rawSlug: string): string {
   if (exactAlias) return exactAlias;
 
   const singularSlug = normalizeSlug(
-    singularizeIngredientTerm(fixedSlug.replace(/-/g, " ")),
+    singularizeIngredientTerm(fixedSlug.replaceAll("-", " ")),
   );
   const singularAlias = EXACT_ALIASES[singularSlug];
   if (singularAlias) return singularAlias;

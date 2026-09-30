@@ -175,7 +175,7 @@ export function CanonicalizeDetailView({
       const totalEntries = groundTruth?.entries.length ?? 0;
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
-        if (dirty) handleSave();
+        if (dirty) void handleSave();
         return;
       }
       if (

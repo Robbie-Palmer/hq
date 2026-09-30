@@ -277,7 +277,7 @@ function inferStructuredTextServings(
 }
 
 function ingredientToCooklang(item: RecipeIngredient): string {
-  const name = item.ingredient.replace(/-/g, " ");
+  const name = item.ingredient.replaceAll("-", " ");
   let quantity = "";
   if (item.amount !== undefined || item.unit) {
     const amount = item.amount === undefined ? "" : String(item.amount);
@@ -618,7 +618,7 @@ function findDeclaredIngredientSlugs(parsed: CkParsedRecipe): Set<string> {
 
 function resolveQuantityValue(ingredient: CkIngredient): number | undefined {
   const value = getQuantityValue(ingredient.quantity);
-  if (value !== null && !isNaN(value)) return value;
+  if (value !== null && !Number.isNaN(value)) return value;
   // Fallback for fractions (getQuantityValue returns NaN for them)
   const inner = (ingredient.quantity as Record<string, unknown> | null)?.value;
   if (inner && typeof inner === "object" && "type" in inner) {
