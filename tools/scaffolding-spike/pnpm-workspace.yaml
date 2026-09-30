@@ -7,3 +7,7 @@ allowBuilds:
   isolated-vm: false
   keytar: false
   protobufjs: false
+
+# Trivy CVE-2026-55553, patched without changing the Backstage API.
+overrides:
+  urllib: '4.9.1'

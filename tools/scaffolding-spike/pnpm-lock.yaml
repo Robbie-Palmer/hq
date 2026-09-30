@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  urllib: 4.9.1
+
 importers:
 
   .:
@@ -3122,8 +3125,8 @@ packages:
   urijs@1.19.11:
     resolution: {integrity: sha512-HXgFDgDommxn5/bIv0cnQZsPhHDA90NPHD6+c/v21U5+Sx5hoP8+dP9IZXBU1gIfvdRfhG8cel9QNPeionfcCQ==}
 
-  urllib@4.9.0:
-    resolution: {integrity: sha512-Rp3DBvVqy9arSTMH6oN5N7OAN01U3dQ2xc19AadP86MzC4j67MDeqOup5shpWnjkDVGWfLfWPOd8CyqOtd6u3w==}
+  urllib@4.9.1:
+    resolution: {integrity: sha512-Pi9NgRXZYpcLJIZQZiX7F7Bc41JeYxHygITWug5omCfI9+cgcRU0rSxpqHfLtfy3eaRrhi1q89Xh8IF0GVGItw==}
     engines: {node: '>= 18.19.0'}
 
   urlpattern-polyfill@8.0.2:
@@ -6006,7 +6009,7 @@ snapshots:
       log4js: 6.9.1(supports-color@7.2.0)
       protobufjs: 7.6.6
       underscore: 1.13.8
-      urllib: 4.9.0
+      urllib: 4.9.1
     transitivePeerDependencies:
       - supports-color
 
@@ -7355,7 +7358,7 @@ snapshots:
 
   urijs@1.19.11: {}
 
-  urllib@4.9.0:
+  urllib@4.9.1:
     dependencies:
       form-data: 4.0.6
       formstream: 1.5.2
