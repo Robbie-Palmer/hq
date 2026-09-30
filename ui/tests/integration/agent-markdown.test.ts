@@ -189,6 +189,19 @@ describe("agent markdown generation", () => {
     expect(writing).toContain("Passage rewrites");
     expect(writing).toContain("Human review");
     expect(writing).toContain("Decision-backed evidence");
+    for (const relationship of [
+      'Source -->|"exact source bytes"| Rules',
+      'Rules -->|"detection-only records"| Findings',
+      'Findings -->|"finding IDs and published diffs"| Evidence',
+      'Source -.->|"bounded source spans"| Local',
+      'Source -.->|"wider document context"| Rewrite',
+      'Local -.->|"one-suggestion proposals"| Review',
+      'Rewrite -.->|"multi-edit proposals"| Review',
+      'Review -.->|"recorded editorial decisions"| Outcomes',
+      'Evidence -.->|"baseline comparisons"| Outcomes',
+    ]) {
+      expect(writing).toContain(relationship);
+    }
   });
 
   it("keeps Markdown routes for the previous project slug", () => {
