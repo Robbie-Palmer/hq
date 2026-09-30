@@ -87,7 +87,7 @@ export class RecipeIngestWorkflow extends WorkflowEntrypoint<Env, IngestParams> 
     const env = this.env;
     const traceStep = <T>(
       name: string,
-      operation: () => Promise<T>,
+      operation: () => Promise<T> | T,
     ): Promise<T> =>
       withPostHogSpan(
         {
@@ -218,7 +218,7 @@ export class RecipeIngestWorkflow extends WorkflowEntrypoint<Env, IngestParams> 
         // Normalization failed outright — fall back to the deterministic draft,
         // mirroring the evaluation pipeline's behaviour.
         cooklang = await step.do("normalize-fallback", async () =>
-          traceStep("normalize-fallback", async () => {
+          traceStep("normalize-fallback", () => {
             const draft = buildCooklangDraftFromExtraction(extraction);
             if (!draft.derived) {
               throw new NonRetryableError(
@@ -270,7 +270,7 @@ export class RecipeIngestWorkflow extends WorkflowEntrypoint<Env, IngestParams> 
       const { entry, decisions, cookwareDecisions } = await step.do(
         "canonicalize",
         async () =>
-          traceStep("canonicalize", async () => {
+          traceStep("canonicalize", () => {
             const recipe = cooklang.derived;
             if (!recipe) {
               throw new NonRetryableError(
@@ -478,7 +478,7 @@ export default {
         request,
         waitUntil: ctx,
       },
-      async () => {
+      () => {
         const url = new URL(request.url);
         if (url.pathname === "/health") {
           return Response.json({ status: "ok", service: "recipe-ingest" });

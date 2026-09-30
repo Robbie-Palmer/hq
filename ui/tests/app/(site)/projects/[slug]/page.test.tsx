@@ -116,8 +116,8 @@ const fixture = {
 } as ProjectWithADRs;
 
 describe("project page", () => {
-  it("generates the legacy project route", async () => {
-    await expect(generateStaticParams()).resolves.toContainEqual({
+  it("generates the legacy project route", () => {
+    expect(generateStaticParams()).toContainEqual({
       slug: "old-homelab",
     });
   });

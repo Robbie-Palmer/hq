@@ -274,40 +274,59 @@ const defaultCurlRunner: CurlRunner = (binary, arguments_, options) => {
   execFileSync(binary, arguments_, options);
 };
 
-export async function downloadCheckpoint(
+export function downloadCheckpoint(
   url: URL,
   partialFile: string,
   options: DownloadOptions,
   runCurl: CurlRunner = defaultCurlRunner,
 ): Promise<void> {
-  if (url.protocol !== "https:") {
-    throw new Error(`refusing non-HTTPS checkpoint URL: ${url}`);
-  }
-  const startByte = fs.existsSync(partialFile) ? fs.statSync(partialFile).size : 0;
-  if (startByte > options.expectedBytes) {
-    throw new Error(
-      `partial checkpoint is larger than declared size: ${startByte} > ${options.expectedBytes}`,
-    );
-  }
-  if (startByte === options.expectedBytes) return;
+  return new Promise((resolve) => {
+    if (url.protocol !== "https:") {
+      throw new Error(`refusing non-HTTPS checkpoint URL: ${url}`);
+    }
+    const startByte = fs.existsSync(partialFile)
+      ? fs.statSync(partialFile).size
+      : 0;
+    if (startByte > options.expectedBytes) {
+      throw new Error(
+        `partial checkpoint is larger than declared size: ${startByte} > ${options.expectedBytes}`,
+      );
+    }
+    if (startByte === options.expectedBytes) {
+      resolve();
+      return;
+    }
 
-  process.stdout.write(
-    `Downloading checkpoint from byte ${startByte} of ${options.expectedBytes}\n`,
-  );
-  runCurl("curl", [
-    "--proto", "=https",
-    "--proto-redir", "=https",
-    "--fail",
-    "--location",
-    "--retry", "5",
-    "--retry-all-errors",
-    "--continue-at", "-",
-    "--speed-limit", "1",
-    "--speed-time", String(Math.ceil(options.timeoutMs / 1000)),
-    "--output", partialFile,
-    url.toString(),
-  ], { stdio: "inherit" });
-  process.stdout.write(`Checkpoint download complete; verifying SHA-256\n`);
+    process.stdout.write(
+      `Downloading checkpoint from byte ${startByte} of ${options.expectedBytes}\n`,
+    );
+    runCurl(
+      "curl",
+      [
+        "--proto",
+        "=https",
+        "--proto-redir",
+        "=https",
+        "--fail",
+        "--location",
+        "--retry",
+        "5",
+        "--retry-all-errors",
+        "--continue-at",
+        "-",
+        "--speed-limit",
+        "1",
+        "--speed-time",
+        String(Math.ceil(options.timeoutMs / 1000)),
+        "--output",
+        partialFile,
+        url.toString(),
+      ],
+      { stdio: "inherit" },
+    );
+    process.stdout.write("Checkpoint download complete; verifying SHA-256\n");
+    resolve();
+  });
 }
 
 async function verifyArtifact(

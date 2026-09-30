@@ -107,6 +107,10 @@ export interface NativeClientAdapterOptions {
   createCheckpointId?: () => string;
 }
 
+function promiseFromSync<T>(operation: () => T): Promise<T> {
+  return new Promise((resolve) => resolve(operation()));
+}
+
 function appendBounded(current: string, chunk: Buffer, maximumBytes: number): string {
   if (Buffer.byteLength(current) >= maximumBytes) return current;
   return (current + chunk.toString("utf8")).slice(0, maximumBytes);
@@ -156,49 +160,55 @@ export function createNodeNativeProcessLauncher(options?: {
     isAvailable(executable) {
       return executableExists(executable, options?.path ?? process.env.PATH);
     },
-    async launch(request) {
-      let stdout = "";
-      let stderr = "";
-      const child = spawn(request.executable, [...request.arguments], {
-        cwd: request.cwd,
-        env: request.environment,
-        shell: false,
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-      child.stdout.on("data", (chunk: Buffer) => {
-        stdout = appendBounded(stdout, chunk, maximumOutputBytes);
-      });
-      child.stderr.on("data", (chunk: Buffer) => {
-        stderr = appendBounded(stderr, chunk, maximumOutputBytes);
-      });
-      const completion = new Promise<NativeProcessResult>((resolve, reject) => {
-        child.once("error", reject);
-        child.once("close", (exitCode) => {
-          resolve({
-            exitCode: exitCode ?? 1,
-            stdout: redactAdapterText(stdout),
-            stderr: redactAdapterText(stderr),
+    launch(request) {
+      return promiseFromSync(() => {
+        let stdout = "";
+        let stderr = "";
+        const child = spawn(request.executable, [...request.arguments], {
+          cwd: request.cwd,
+          env: request.environment,
+          shell: false,
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+        child.stdout.on("data", (chunk: Buffer) => {
+          stdout = appendBounded(stdout, chunk, maximumOutputBytes);
+        });
+        child.stderr.on("data", (chunk: Buffer) => {
+          stderr = appendBounded(stderr, chunk, maximumOutputBytes);
+        });
+        const completion = new Promise<NativeProcessResult>((resolve, reject) => {
+          child.once("error", reject);
+          child.once("close", (exitCode) => {
+            resolve({
+              exitCode: exitCode ?? 1,
+              stdout: redactAdapterText(stdout),
+              stderr: redactAdapterText(stderr),
+            });
           });
         });
+        return {
+          processId: child.pid,
+          completion,
+          stop() {
+            return promiseFromSync(() => {
+              child.kill("SIGTERM");
+            });
+          },
+          checkpoint() {
+            return promiseFromSync(() => findSessionState(stdout));
+          },
+          quota() {
+            return promiseFromSync(() => {
+              const combined = `${stdout}\n${stderr}`;
+              return /(?:rate|usage) limit|quota (?:exhausted|exceeded)/iu.test(
+                combined,
+              )
+                ? { state: "exhausted" as const }
+                : { state: "unknown" as const };
+            });
+          },
+        };
       });
-      return {
-        processId: child.pid,
-        completion,
-        async stop() {
-          child.kill("SIGTERM");
-        },
-        async checkpoint() {
-          return findSessionState(stdout);
-        },
-        async quota() {
-          const combined = `${stdout}\n${stderr}`;
-          return /(?:rate|usage) limit|quota (?:exhausted|exceeded)/iu.test(
-            combined,
-          )
-            ? { state: "exhausted" as const }
-            : { state: "unknown" as const };
-        },
-      };
     },
   };
 }
@@ -258,16 +268,18 @@ class NativeAdapterSession implements AdapterSession {
     return signal;
   }
 
-  async cost(): Promise<CostReport> {
-    const report: CostReport = {
-      kind: "cost",
-      funding: "prepaid",
-      cost: null,
-      routeId: this.#routeId,
-      providerId: this.#providerId,
-    };
-    this.#events.push(report);
-    return report;
+  cost(): Promise<CostReport> {
+    return promiseFromSync(() => {
+      const report: CostReport = {
+        kind: "cost",
+        funding: "prepaid",
+        cost: null,
+        routeId: this.#routeId,
+        providerId: this.#providerId,
+      };
+      this.#events.push(report);
+      return report;
+    });
   }
 
   async stop(reason: string): Promise<void> {

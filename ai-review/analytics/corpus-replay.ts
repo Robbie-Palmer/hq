@@ -9,6 +9,7 @@ import {
   runControlledReplay,
   type ReplayCorpusStore,
 } from "../src/replay-runner";
+
 import {
   ReplayExperimentSchema,
   ReplayLimitsSchema,
@@ -18,6 +19,10 @@ import {
   type ReplayProvider,
 } from "ai-review-domain/replay";
 import { exclusiveClaim } from "./replay-claim";
+
+function promiseFromSync<T>(operation: () => T): Promise<T> {
+  return new Promise((resolve) => resolve(operation()));
+}
 
 function option<T>(schema: ZodType<T>, value: unknown, name: string): T {
   const result = schema.safeParse(value);
@@ -97,26 +102,31 @@ async function main(): Promise<void> {
     maxRepetitions,
   }, "replay limits");
   const store: ReplayCorpusStore = {
-    loadSnapshot: async (requestedCorpusId) => {
-      if (requestedCorpusId !== corpusId) return null;
-      const content = fs.readFileSync(snapshotFile, "utf8");
-      const digest = createHash("sha256").update(content).digest("hex");
-      if (digest !== corpusId) throw new Error("snapshot content does not match --corpus-id");
-      return content;
-    },
-    get: async (key) => {
-      const file = path.join(outputRoot, key);
-      return fs.existsSync(file) ? fs.readFileSync(file, "utf8") : null;
-    },
-    claim: async (key, staleAfterMs) => exclusiveClaim(
-      path.join(outputRoot, `${key}.claim`),
-      staleAfterMs,
-    ),
-    put: async (key, value) => {
-      const file = path.join(outputRoot, key);
-      fs.mkdirSync(path.dirname(file), { recursive: true });
-      fs.writeFileSync(file, `${value}\n`, { flag: "wx" });
-    },
+    loadSnapshot: (requestedCorpusId) =>
+      promiseFromSync(() => {
+        if (requestedCorpusId !== corpusId) return null;
+        const content = fs.readFileSync(snapshotFile, "utf8");
+        const digest = createHash("sha256").update(content).digest("hex");
+        if (digest !== corpusId) {
+          throw new Error("snapshot content does not match --corpus-id");
+        }
+        return content;
+      }),
+    get: (key) =>
+      promiseFromSync(() => {
+        const file = path.join(outputRoot, key);
+        return fs.existsSync(file) ? fs.readFileSync(file, "utf8") : null;
+      }),
+    claim: (key, staleAfterMs) =>
+      promiseFromSync(() =>
+        exclusiveClaim(path.join(outputRoot, `${key}.claim`), staleAfterMs),
+      ),
+    put: (key, value) =>
+      promiseFromSync(() => {
+        const file = path.join(outputRoot, key);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, `${value}\n`, { flag: "wx" });
+      }),
   };
   const params: ReviewWorkflowParams = {
     deliveryId: `replay-${corpusId}`,
