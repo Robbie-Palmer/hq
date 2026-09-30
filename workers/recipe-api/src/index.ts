@@ -4,14 +4,6 @@ import {
   OpenAPIHono,
   type RouteConfig,
 } from "@hono/zod-openapi";
-import type { Context, Handler } from "hono";
-import {
-  injectTraceContext,
-  traceCarrierFromHeaders,
-  traceCarrierFromSpan,
-  withPostHogRequest,
-  withPostHogSpan,
-} from "observability";
 import {
   and,
   count,
@@ -24,20 +16,36 @@ import {
   lt,
   notInArray,
   or,
-  sql,
   type SQL,
+  sql,
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { z } from "zod";
+import type { Context, Handler } from "hono";
+import {
+  injectTraceContext,
+  traceCarrierFromHeaders,
+  traceCarrierFromSpan,
+  withPostHogRequest,
+  withPostHogSpan,
+} from "observability";
 import {
   closeDbClient,
   createDb,
-  databaseConnection,
   type Db,
   type DbClient,
+  databaseConnection,
   schema,
 } from "recipe-db";
-import { SavedRecipePayloadSchema } from "recipe-domain/serialization";
+import { AutosaveBatchDraftSchema, CreateBatchSchema } from "recipe-domain/batch-import";
+import { CookLogMutationConflictError } from "recipe-domain/cook-log";
+import {
+  importJobPrefix,
+  RECIPE_IMPORT_MAX_IMAGE_BYTES,
+  RECIPE_IMPORT_MAX_IMAGES,
+  RECIPE_IMPORT_MAX_TOTAL_BYTES,
+  recipeImportImageExtension,
+  sourceImageKey,
+} from "recipe-domain/import-storage";
 import {
   MAX_PANTRY_ITEMS,
   MAX_PANTRY_MUTATION_CHANGES,
@@ -45,26 +53,24 @@ import {
   PantryLocationSchema,
   PantryMutationConflictError,
 } from "recipe-domain/pantry";
+import { SavedRecipePayloadSchema } from "recipe-domain/serialization";
 import {
   isRecipeAppRouteSlug,
   LOWERCASE_KEBAB_CASE_PATTERN,
   RECIPE_SLUG_MAX_LENGTH,
 } from "recipe-domain/slugs";
 import { RecipeVisibilitySchema } from "recipe-domain/visibility";
-import {
-  importJobPrefix,
-  recipeImportImageExtension,
-  RECIPE_IMPORT_MAX_IMAGE_BYTES,
-  RECIPE_IMPORT_MAX_IMAGES,
-  RECIPE_IMPORT_MAX_TOTAL_BYTES,
-  sourceImageKey,
-} from "recipe-domain/import-storage";
 import { parseRecipeFile } from "recipe-parsing/recipe-file";
 import { parseSchemaOrgRecipeHtml } from "recipe-parsing/schema-org";
+import { z } from "zod";
 import { recipeAgentConfiguration } from "./agent-auth";
 import { recipeImportQuotaReason } from "./agent-recipe-imports";
 import { createAuth, isPreviewAuthEnabled } from "./auth";
+import { acceptDraft, autosaveDraft, BatchImportError, createBatch, listBatches, readBatch, readBatchItem, reviewAction, startBatch } from "./batch-imports";
 import { verifyCloudflareAccess } from "./cloudflare-access";
+import { listCookLogMutationHistory } from "./cook-log/services/list-cook-log-mutation-history";
+import { previewCookLogMutationUndo } from "./cook-log/services/preview-cook-log-mutation-undo";
+import { undoCookLogMutation } from "./cook-log/services/undo-cook-log-mutation";
 import { cookingInsightsResponse } from "./cooking-reads";
 import { hasPostgresErrorCode } from "./db/errors";
 import {
@@ -100,37 +106,33 @@ import {
 } from "./notifications";
 import {
   findPantryAggregate,
-  pantryAggregateScopeFilter,
   type PantryLocation,
   type PantryResponse,
+  type PantryScope,
+  pantryAggregateScopeFilter,
   pantryResourceId,
   pantryResponseForScope,
-  type PantryScope,
   pantryScopeFilter,
   readPantry,
   resolvePantryScope,
 } from "./pantry";
-import { enforcePantryItemLimit } from "./pantry/repositories/pantry-repository";
 import { findMutationChangeSet } from "./pantry/repositories/mutation-ledger-repository";
+import { enforcePantryItemLimit } from "./pantry/repositories/pantry-repository";
 import { listPantryMutationHistory } from "./pantry/services/list-pantry-mutation-history";
 import { previewPantryMutationUndo } from "./pantry/services/preview-pantry-mutation-undo";
 import { undoPantryMutation } from "./pantry/services/undo-pantry-mutation";
-import { previewCookLogMutationUndo } from "./cook-log/services/preview-cook-log-mutation-undo";
-import { undoCookLogMutation } from "./cook-log/services/undo-cook-log-mutation";
-import { listCookLogMutationHistory } from "./cook-log/services/list-cook-log-mutation-history";
-import { CookLogMutationConflictError } from "recipe-domain/cook-log";
-import { readableRecipeFilter } from "./recipe-access";
-import { fetchRecipePage, RecipeUrlImportError } from "./recipe-url-import";
+import {
+  findPreviewScenario,
+  previewScenarios,
+} from "./preview-scenarios";
 import {
   type PantryChangeKind,
   type PantryRealtimeEvent,
   REALTIME_AUTHORIZATION_LIFETIME_MS,
   realtimeRoomRequestHeaders,
 } from "./realtime-room";
-import {
-  findPreviewScenario,
-  previewScenarios,
-} from "./preview-scenarios";
+import { readableRecipeFilter } from "./recipe-access";
+import { fetchRecipePage, RecipeUrlImportError } from "./recipe-url-import";
 import {
   normalizeEmail,
   userOwnsVerifiedEmail,
@@ -394,6 +396,22 @@ const createRecipeBodySchema = z.object({
   description: z.string().trim().min(1).max(500).optional(),
   body: savedRecipeBodySchema,
   visibility: RecipeVisibilitySchema.default("private"),
+});
+
+const batchVersionSchema = AutosaveBatchDraftSchema.shape.version.openapi({ format: "int32" });
+const mutableBatchDraftSchema = AutosaveBatchDraftSchema.shape.draft;
+const autosaveBatchBodySchema = AutosaveBatchDraftSchema.extend({
+  version: batchVersionSchema,
+  draft: mutableBatchDraftSchema.extend({
+    servings: mutableBatchDraftSchema.shape.servings.openapi({ format: "int32" }),
+    prepTime: mutableBatchDraftSchema.shape.prepTime.openapi({ format: "int32" }),
+    cookTime: mutableBatchDraftSchema.shape.cookTime.openapi({ format: "int32" }),
+  }),
+});
+const acceptBatchBodySchema = z.object({
+  version: batchVersionSchema,
+  idempotencyKey: z.string().uuid().max(36),
+  recipe: createRecipeBodySchema,
 });
 
 const importRecipeUrlBodySchema = z
@@ -771,6 +789,19 @@ export const routeMetadata = {
   },
   "GET /recipe-imports": {},
   "GET /recipe-imports/:jobId": {},
+  "POST /recipe-import-batches": { requestBodySchema: CreateBatchSchema, successStatuses: [201] },
+  "GET /recipe-import-batches": {},
+  "GET /recipe-import-batches/:batchId": {},
+  "GET /recipe-import-batches/:batchId/execution": {},
+  "PUT /recipe-import-batches/:batchId/execution": { requestBodySchema: z.object({ state: z.literal("started") }) },
+  "GET /recipe-import-batches/:batchId/items/:jobId/draft": {},
+  "GET /recipe-import-batches/:batchId/items/:jobId/review": {},
+  "GET /recipe-import-batches/:batchId/items/:jobId/acceptance": {},
+  "GET /recipe-import-batches/:batchId/items/:jobId/attempts/:attemptNumber": {},
+  "PUT /recipe-import-batches/:batchId/items/:jobId/draft": { requestBodySchema: autosaveBatchBodySchema },
+  "PUT /recipe-import-batches/:batchId/items/:jobId/review": { requestBodySchema: z.object({ state: z.literal("skipped") }) },
+  "POST /recipe-import-batches/:batchId/items/:jobId/attempts": { successStatuses: [201] },
+  "PUT /recipe-import-batches/:batchId/items/:jobId/acceptance": { requestBodySchema: acceptBatchBodySchema },
 } as const satisfies Record<RouteKey, RouteMetadata>;
 
 type RegisteredRouteKey = keyof typeof routeMetadata;
@@ -806,6 +837,7 @@ const UUID_PATH_PARAMETER_NAMES = new Set([
   "memberId",
   "notificationId",
   "changeSetId",
+  "batchId",
 ]);
 
 const notificationActionKeySchema = z.enum([
@@ -6078,6 +6110,91 @@ registerRoute("get", "/recipe-imports", async (c) => {
     },
   );
 });
+
+function batchParam(c: Context<AppEnv>, name: "batchId" | "jobId"): string {
+  const value = c.req.param(name);
+  if (!value) throw new BatchImportError("Batch item not found", 404);
+  return value;
+}
+
+function batchHandler(action: (c: Context<AppEnv>, context: RecipeSessionContext) => Promise<Response>, mutation = true): Handler<AppEnv> {
+  return async c => {
+    if (mutation) { const failure = validateCsrf(c); if (failure) return failure; }
+    const batchId = c.req.param("batchId");
+    const jobId = c.req.param("jobId");
+    if ((batchId && !z.string().uuid().safeParse(batchId).success) || (jobId && !z.string().uuid().safeParse(jobId).success)) return c.json({ error: "Batch item not found" }, 404);
+    return withRecipeSession(c, mutation ? "mutation" : "lookup", "Batch import request failed", context => action(c, context), {
+      onError: error => error instanceof BatchImportError ? c.json({ error: error.message }, error.status) : isUniqueViolation(error) ? c.json({ error: "A recipe with this name already exists. Choose another title." }, 409) : undefined,
+    });
+  };
+}
+
+registerRoute("post", "/recipe-import-batches", batchHandler(async (c, { db, session }) => {
+  const body = await parseJsonBody(c, CreateBatchSchema);
+  if (!body.success) return body.response;
+  if (!c.env.ARTIFACTS) throw new BatchImportError("Batch import is not configured", 503);
+  const batch = await createBatch(db, session.user.id, body.data, c.env.ARTIFACTS);
+  c.header("Location", `/api/recipe-import-batches/${batch.id}`);
+  return c.json(await readBatch(db, session.user.id, batch.id), 201);
+}));
+registerRoute("get", "/recipe-import-batches", batchHandler(async (c, { db, session }) => c.json({ batches: await listBatches(db, session.user.id) }), false));
+registerRoute("get", "/recipe-import-batches/:batchId", batchHandler(async (c, { db, session }) => c.json(await readBatch(db, session.user.id, batchParam(c, "batchId"))), false));
+registerRoute("get", "/recipe-import-batches/:batchId/execution", batchHandler(async (c, { db, session }) => {
+  const batch = await readBatch(db, session.user.id, batchParam(c, "batchId"));
+  return c.json({ state: batch.startedAt ? "started" : "pending", startedAt: batch.startedAt });
+}, false));
+registerRoute("put", "/recipe-import-batches/:batchId/execution", batchHandler(async (c, { db, session }) => {
+  const body = await parseJsonBody(c, z.object({ state: z.literal("started") }));
+  if (!body.success) return body.response;
+  if (!c.env.RECIPE_INGEST_WORKFLOW) throw new BatchImportError("Batch import is not configured", 503);
+  await startBatch(db, session.user.id, batchParam(c, "batchId"), c.env.RECIPE_INGEST_WORKFLOW);
+  const batch = await readBatch(db, session.user.id, batchParam(c, "batchId"));
+  return c.json({ state: "started", startedAt: batch.startedAt });
+}));
+registerRoute("get", "/recipe-import-batches/:batchId/items/:jobId/draft", batchHandler(async (c, { db, session }) => {
+  const item = await readBatchItem(db, session.user.id, batchParam(c, "batchId"), batchParam(c, "jobId"));
+  if (!item.draft) throw new BatchImportError("Draft not found", 404);
+  return c.json({ draftVersion: item.draftVersion, draft: item.draft });
+}, false));
+registerRoute("get", "/recipe-import-batches/:batchId/items/:jobId/review", batchHandler(async (c, { db, session }) => {
+  const item = await readBatchItem(db, session.user.id, batchParam(c, "batchId"), batchParam(c, "jobId"));
+  return c.json({ state: item.reviewState });
+}, false));
+registerRoute("get", "/recipe-import-batches/:batchId/items/:jobId/acceptance", batchHandler(async (c, { db, session }) => {
+  const item = await readBatchItem(db, session.user.id, batchParam(c, "batchId"), batchParam(c, "jobId"));
+  if (item.reviewState !== "accepted") throw new BatchImportError("Acceptance not found", 404);
+  return c.json({ recipeId: item.acceptedRecipeId, version: item.acceptedVersion, idempotencyKey: item.acceptKey });
+}, false));
+registerRoute("get", "/recipe-import-batches/:batchId/items/:jobId/attempts/:attemptNumber", batchHandler(async (c, { db, session }) => {
+  const item = await readBatchItem(db, session.user.id, batchParam(c, "batchId"), batchParam(c, "jobId"));
+  const attempt = z.coerce.number().int().min(1).max(item.executionAttempt).safeParse(c.req.param("attemptNumber"));
+  if (!attempt.success) throw new BatchImportError("Attempt not found", 404);
+  return c.json({ attempt: attempt.data, workflowInstanceId: `${item.id}-${attempt.data}`, status: attempt.data === item.executionAttempt ? item.status : "failed" });
+}, false));
+registerRoute("put", "/recipe-import-batches/:batchId/items/:jobId/draft", batchHandler(async (c, { db, session }) => {
+  const body = await parseJsonBody(c, autosaveBatchBodySchema);
+  if (!body.success) return body.response;
+  return c.json(await autosaveDraft(db, session.user.id, batchParam(c, "batchId"), batchParam(c, "jobId"), body.data.version, body.data.draft));
+}));
+registerRoute("put", "/recipe-import-batches/:batchId/items/:jobId/review", batchHandler(async (c, { db, session }) => {
+  const body = await parseJsonBody(c, z.object({ state: z.literal("skipped") }));
+  if (!body.success) return body.response;
+  await reviewAction(db, session.user.id, batchParam(c, "batchId"), batchParam(c, "jobId"), "skip");
+  return c.json({ state: "skipped" });
+}));
+registerRoute("post", "/recipe-import-batches/:batchId/items/:jobId/attempts", batchHandler(async (c, { db, session }) => {
+  await reviewAction(db, session.user.id, batchParam(c, "batchId"), batchParam(c, "jobId"), "retry");
+  if (c.env.RECIPE_INGEST_WORKFLOW) await startBatch(db, session.user.id, batchParam(c, "batchId"), c.env.RECIPE_INGEST_WORKFLOW).catch(() => undefined);
+  const item = await readBatchItem(db, session.user.id, batchParam(c, "batchId"), batchParam(c, "jobId"));
+  c.header("Location", `/api/recipe-import-batches/${item.batchId}/items/${item.id}/attempts/${item.executionAttempt}`);
+  return c.json({ attempt: item.executionAttempt, status: item.status }, 201);
+}));
+registerRoute("put", "/recipe-import-batches/:batchId/items/:jobId/acceptance", batchHandler(async (c, { db, session }) => {
+  const body = await parseJsonBody(c, acceptBatchBodySchema);
+  if (!body.success) return body.response;
+  if (body.data.recipe.visibility === "household" && !await findUserHouseholdMembership(db, session.user.id)) return authorizationResponse(c, forbidden());
+  return c.json(await acceptDraft(db, session.user.id, batchParam(c, "batchId"), batchParam(c, "jobId"), body.data));
+}));
 
 registerRoute("get", "/recipe-imports/:jobId", async (c) => {
   const jobId = recipeImportIdSchema.safeParse(c.req.param("jobId"));

@@ -5,9 +5,9 @@ export default defineConfig({
     coverage: {
       allowExternal: true,
       include: [
-        "workers/recipe-ingest/src/**/*.ts",
-        "packages/recipe-db/src/index.ts",
-        "packages/recipe-domain/src/import-storage.ts",
+        "src/**/*.ts",
+        "../../packages/recipe-db/src/index.ts",
+        "../../packages/recipe-domain/src/import-storage.ts",
       ],
       provider: "v8",
       reporter: ["text", ["lcovonly", { projectRoot: "../.." }]],

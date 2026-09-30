@@ -80,4 +80,4 @@ else
 fi
 
 pnpm db:migrate
-pnpm exec vitest run --config vitest.integration.config.ts
+pnpm exec vitest run --config vitest.integration.config.ts "$@"

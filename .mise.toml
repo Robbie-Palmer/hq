@@ -381,6 +381,7 @@ depends = [
     "//ml-pipelines/wsi-analysis:test:coverage",
     "//ml-pipelines/writing-editor-evaluation:test:coverage",
     "//workers/recipe-api:test:coverage",
+    "//workers/recipe-api:test:integration:coverage",
     "//workers/recipe-ingest:test:coverage",
     "//workers/work-graph-api:test:coverage",
     "//workers/work-graph-observer:test:coverage",

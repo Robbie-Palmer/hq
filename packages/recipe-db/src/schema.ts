@@ -8,27 +8,27 @@ import {
   integer,
   jsonb,
   pgEnum,
-  primaryKey,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { CookLogMutationValue } from "recipe-domain/cook-log";
 import {
   RECIPE_IMPORT_STAGES,
   RECIPE_IMPORT_STATUSES,
 } from "recipe-domain/import-storage";
-import type { CookLogMutationValue } from "recipe-domain/cook-log";
-import { RECIPE_VISIBILITIES } from "recipe-domain/visibility";
 import { MUTATION_ACTOR_TYPES } from "recipe-domain/mutation";
 import {
   PANTRY_LOCATIONS,
   type PantryMutationValue,
 } from "recipe-domain/pantry";
+import { RECIPE_VISIBILITIES } from "recipe-domain/visibility";
 
-export type { PantryMutationValue } from "recipe-domain/pantry";
 export type { CookLogMutationValue } from "recipe-domain/cook-log";
+export type { PantryMutationValue } from "recipe-domain/pantry";
 
 export const user = pgTable("user", {
   id: text().primaryKey(),
@@ -1107,6 +1107,18 @@ export const recipeImportStageEnum = pgEnum(
   RECIPE_IMPORT_STAGES,
 );
 
+export const recipeImportDraftKindEnum = pgEnum("recipe_import_draft_kind", ["generated", "editable"]);
+
+export const recipeImportBatch = pgTable("recipe_import_batch", {
+  id: uuid().primaryKey().defaultRandom(),
+  userId: text().notNull().references(() => user.id, { onDelete: "cascade" }),
+  idempotencyKey: uuid().notNull(),
+  fingerprint: text().notNull(),
+  startedAt: timestamp({ withTimezone: true }),
+  visibility: visibilityEnum().notNull().default("private"),
+  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+}, table => [uniqueIndex("recipe_import_batch_owner_key_unique").on(table.userId, table.idempotencyKey)]);
+
 export const recipeImportJob = pgTable(
   "recipe_import_job",
   {
@@ -1121,6 +1133,18 @@ export const recipeImportJob = pgTable(
     errorMessage: text(),
     workflowInstanceId: text(),
     imageCount: integer().notNull(),
+    batchId: uuid().references(() => recipeImportBatch.id, { onDelete: "cascade" }),
+    position: integer(),
+    sourceType: text().notNull().default("photo"),
+    sourceLabel: text(),
+    sourceChecksum: text(),
+    reviewState: text().notNull().default("waiting"),
+    draftVersion: integer().notNull().default(1),
+    executionAttempt: integer().notNull().default(1),
+    acceptedRecipeId: uuid().references(() => recipe.id, { onDelete: "set null" }),
+    acceptKey: uuid(),
+    acceptFingerprint: text(),
+    acceptedVersion: integer(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp({ withTimezone: true })
       .notNull()
@@ -1129,6 +1153,7 @@ export const recipeImportJob = pgTable(
     finishedAt: timestamp({ withTimezone: true }),
   },
   (table) => [
+    uniqueIndex("recipe_import_job_batch_position_unique").on(table.batchId, table.position),
     index("recipe_import_job_user_id_idx").on(table.userId),
     index("recipe_import_job_user_status_idx").on(table.userId, table.status),
     index("recipe_import_job_user_created_idx").on(
@@ -1196,3 +1221,36 @@ export const recipeImportAttempt = pgTable(
     ),
   ],
 );
+
+export const recipeImportReviewEvent = pgTable("recipe_import_review_event", {
+  id: uuid().primaryKey().defaultRandom(),
+  jobId: uuid().notNull().references(() => recipeImportJob.id, { onDelete: "cascade" }),
+  action: text().notNull(),
+  draftVersion: integer().notNull(),
+  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+}, table => [index("recipe_import_review_event_job_idx").on(table.jobId)]);
+
+export const recipeImportDraft = pgTable("recipe_import_draft", {
+  id: uuid().primaryKey().defaultRandom(),
+  jobId: uuid().notNull().references(() => recipeImportJob.id, { onDelete: "cascade" }),
+  kind: recipeImportDraftKindEnum().notNull(),
+  title: text().notNull(),
+  description: text().notNull(),
+  servings: integer().notNull(),
+  prepTime: integer(),
+  cookTime: integer(),
+  source: text().notNull(),
+  sourceUrl: text(),
+  visibility: visibilityEnum(),
+}, table => [
+  uniqueIndex("recipe_import_draft_job_kind_unique").on(table.jobId, table.kind),
+  check("recipe_import_draft_servings_positive", sql`${table.servings} > 0`),
+  check("recipe_import_draft_prep_time_nonnegative", sql`${table.prepTime} >= 0`),
+  check("recipe_import_draft_cook_time_nonnegative", sql`${table.cookTime} >= 0`),
+]);
+
+export const recipeImportDraftCuisine = pgTable("recipe_import_draft_cuisine", {
+  draftId: uuid().notNull().references(() => recipeImportDraft.id, { onDelete: "cascade" }),
+  position: integer().notNull(),
+  label: text().notNull(),
+}, table => [primaryKey({ columns: [table.draftId, table.position] }), check("recipe_import_draft_cuisine_position_nonnegative", sql`${table.position} >= 0`)]);

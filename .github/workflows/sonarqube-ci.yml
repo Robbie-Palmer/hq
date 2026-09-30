@@ -144,6 +144,7 @@ jobs:
             ml-pipelines/writing-editor-evaluation/coverage/lcov.info
             ml-pipelines/wsi-analysis/coverage.xml
             workers/recipe-api/coverage/lcov.info
+            workers/recipe-api/coverage-integration/lcov.info
             workers/recipe-ingest/coverage/lcov.info
             workers/work-graph-api/coverage/lcov.info
             workers/work-graph-observer/coverage/lcov.info

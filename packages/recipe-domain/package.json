@@ -17,7 +17,8 @@
     "./slugs": "./src/slugs.ts",
     "./pluralization": "./src/pluralization.ts",
     "./conversion": "./src/conversion.ts",
-    "./cook-log": "./src/cook-log.ts"
+    "./cook-log": "./src/cook-log.ts",
+    "./batch-import": "./src/batch-import.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -167,6 +167,7 @@ export async function recipeImportQuotaReason(
       .where(
         and(
           eq(schema.recipeImportJob.userId, userId),
+          eq(schema.recipeImportJob.sourceType, "photo"),
           inArray(schema.recipeImportJob.status, ["queued", "running"]),
         ),
       ),
@@ -176,6 +177,7 @@ export async function recipeImportQuotaReason(
       .where(
         and(
           eq(schema.recipeImportJob.userId, userId),
+          eq(schema.recipeImportJob.sourceType, "photo"),
           gte(schema.recipeImportJob.createdAt, dayStart),
         ),
       ),
@@ -336,6 +338,7 @@ export async function readAgentRecipeImportStatus(
         .where(
           and(
             eq(schema.recipeImportJob.userId, userId),
+          eq(schema.recipeImportJob.sourceType, "photo"),
             eq(schema.recipeImportJob.id, input.jobId),
           ),
         )
