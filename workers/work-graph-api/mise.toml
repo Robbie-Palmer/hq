@@ -55,3 +55,18 @@ run = "pnpm lint:api"
 [tasks.check]
 description = "Check the Work Graph API"
 depends = ["typecheck", "test", "lint:api", "deploy:check"]
+
+[tasks."diagnostics:query"]
+depends = ["install"]
+description = "Query historical Work Graph failures and Hyperdrive pool metrics"
+run = "bash scripts/diagnostics.sh"
+
+[tasks."diagnostics:monitor"]
+depends = ["install"]
+description = "Fail on recent production 5XX, Hyperdrive errors, or pool contention"
+run = "bash scripts/diagnostics.sh --monitor"
+
+[tasks."diagnostics:test"]
+description = "Test diagnostic queries, sanitization, and failure detection"
+depends = ["install"]
+run = "pnpm exec vitest run tests/diagnostics.test.ts"

@@ -4,6 +4,7 @@ import {
   type Hook,
 } from "@hono/zod-openapi";
 import type { Env } from "hono";
+import { routePath } from "hono/route";
 import {
   classifyRetryableDatabaseFailure,
   type AttentionRequestReadModel,
@@ -2211,6 +2212,7 @@ export interface WorkGraphApiRepository {
 export interface WorkGraphAppOptions {
   readonly createLeaseId?: () => string;
   readonly createRequestId?: () => string;
+  readonly workerVersion?: string;
 }
 
 const idempotencyOptions = (
@@ -2481,17 +2483,28 @@ export const createWorkGraphApp = (
         statusForWorkGraphError(error),
       );
     }
-    if (error instanceof UncertainClaimOutcomeError) {
-      const requestId = createRequestId();
-      context.header("X-Request-Id", requestId);
-      console.warn(
+    const requestId = createRequestId();
+    context.header("X-Request-Id", requestId);
+    const logFailure = (message: string, code: string, status: number) => {
+      console.error(
         JSON.stringify({
-          message: "Work Graph lease claim outcome is uncertain",
-          code: "claim_outcome_uncertain",
+          message,
+          code,
           requestId,
           method: context.req.method,
-          path: context.req.path,
+          route: routePath(context) || "unmatched",
+          outcome: "error",
+          status,
+          workerVersion: options.workerVersion ?? "local",
+          exceptionClass: code,
         }),
+      );
+    };
+    if (error instanceof UncertainClaimOutcomeError) {
+      logFailure(
+        "Work Graph lease claim outcome is uncertain",
+        "claim_outcome_uncertain",
+        500,
       );
       return context.json(
         {
@@ -2507,18 +2520,12 @@ export const createWorkGraphApp = (
     }
     const retryableDatabaseFailure = classifyRetryableDatabaseFailure(error);
     if (retryableDatabaseFailure !== undefined) {
-      const requestId = createRequestId();
       const responseError = retryableDatabaseErrors[retryableDatabaseFailure];
       context.header("Retry-After", "1");
-      context.header("X-Request-Id", requestId);
-      console.warn(
-        JSON.stringify({
-          message: "Work Graph database request can be retried",
-          code: responseError.code,
-          requestId,
-          method: context.req.method,
-          path: context.req.path,
-        }),
+      logFailure(
+        "Work Graph database request can be retried",
+        responseError.code,
+        503,
       );
       return context.json(
         {
@@ -2530,17 +2537,13 @@ export const createWorkGraphApp = (
         503,
       );
     }
-    console.error(
-      JSON.stringify({
-        message: "Work Graph request failed",
-        error: error instanceof Error ? error.message : String(error),
-      }),
-    );
+    logFailure("Work Graph request failed", "internal_error", 500);
     return context.json(
       {
         error: {
           code: "internal_error",
           message: "The Work Graph request failed.",
+          requestId,
         },
       },
       500,
