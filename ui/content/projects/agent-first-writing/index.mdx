@@ -2,6 +2,7 @@
 title: "Agent-first Writing Editor"
 description: "A layered writing system that turns dense agent output into prose people can absorb without erasing the author's voice"
 date: "2026-09-04"
+updated: "2026-09-30"
 status: "in_progress"
 platform_layers:
   - layer: "governance"
@@ -16,12 +17,21 @@ platform_layers:
       - slot: "secrets.runtime-store"
         adopted: "2026-09-15T00:00:00Z"
         rationale: "Evaluation services need credentials from the shared runtime secret store."
+  - layer: "data"
+    adopted: "2026-09-30T00:00:00Z"
+    tracking: true
+    decision: "agent-first-writing:004-dvc-writing-evaluation-pipeline"
+    slots:
+      - slot: "data.artifact-versioning"
+        adopted: "2026-09-30T00:00:00Z"
+        decision: "agent-first-writing:004-dvc-writing-evaluation-pipeline"
 initiatives:
   - "semi-autonomous-software-development"
 tech_stack:
   - "Python"
   - "PyTorch"
   - "Hugging Face"
+  - "DVC"
 tags:
   - "machine-learning"
   - "agentic-engineering"
