@@ -1,7 +1,7 @@
 "use client";
 
 import { type RefObject, useCallback, useRef } from "react";
-import { apiRequest } from "@/lib/api/http";
+import { apiRequest, isApiError } from "@/lib/api/http";
 import type { BatchRecipeSave } from "@/lib/api/recipe-import-batches";
 
 export function useBatchDraftAcceptance(
@@ -27,14 +27,27 @@ export function useBatchDraftAcceptance(
         };
       }
       const current = request.current;
-      await apiRequest(`${itemUrl}/acceptance`, {
-        method: "PUT",
-        json: {
-          idempotencyKey: current.key,
-          version: current.version,
-          recipe: current.recipe,
-        },
-      });
+      try {
+        await apiRequest(`${itemUrl}/acceptance`, {
+          method: "PUT",
+          json: {
+            idempotencyKey: current.key,
+            version: current.version,
+            recipe: current.recipe,
+          },
+        });
+      } catch (error) {
+        // A definitive rejection allows the cook to correct the draft and submit again.
+        // Timeout, network and server failures may follow a committed acceptance.
+        if (
+          isApiError(error) &&
+          error.status >= 400 &&
+          error.status < 500 &&
+          error.status !== 408
+        )
+          request.current = null;
+        throw error;
+      }
       request.current = null;
       await afterSave(next);
     },

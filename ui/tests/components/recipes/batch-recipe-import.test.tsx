@@ -1,9 +1,13 @@
 import type { BatchDraft } from "recipe-domain/batch-import";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/api/http";
 import { fireEvent, render, screen, waitFor } from "@/tests/test-utils";
 
 const mocks = vi.hoisted(() => ({ apiRequest: vi.fn(), useSession: vi.fn() }));
-vi.mock("@/lib/api/http", () => ({ apiRequest: mocks.apiRequest }));
+vi.mock("@/lib/api/http", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/http")>()),
+  apiRequest: mocks.apiRequest,
+}));
 vi.mock("@/lib/auth-client", () => ({
   authClient: { useSession: mocks.useSession },
 }));
@@ -299,5 +303,40 @@ describe("batch workspace", () => {
       expect.stringContaining("/review"),
       expect.objectContaining({ method: "PUT", json: { state: "skipped" } }),
     );
+  });
+
+  it("allows a corrected title after a definitive acceptance rejection", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      `/recipes/import?batch=${batchId}&item=item-1`,
+    );
+    let attempts = 0;
+    mocks.apiRequest.mockImplementation(async (url: string) => {
+      if (url.endsWith("/acceptance")) {
+        if (++attempts === 1) throw new ApiError("Title already exists", 409);
+        return { recipeId: "recipe-1" };
+      }
+      if (url.endsWith("/draft")) return { draftVersion: 2 };
+      return url.endsWith(batchId) ? batch() : { batches: [] };
+    });
+    render(<BatchRecipeImport />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Save and next" }),
+    );
+    await waitFor(() => expect(attempts).toBe(1));
+    fireEvent.change(screen.getByLabelText("Editor title"), {
+      target: { value: "New title" },
+    });
+    await screen.findByText("All edits saved");
+    fireEvent.click(screen.getByRole("button", { name: "Save and next" }));
+    await waitFor(() => expect(attempts).toBe(2));
+    const requests = mocks.apiRequest.mock.calls.filter(([url]) =>
+      url.endsWith("/acceptance"),
+    );
+    expect(requests[1]?.[1].json.idempotencyKey).not.toEqual(
+      requests[0]?.[1].json.idempotencyKey,
+    );
+    expect(requests[1]?.[1].json.version).toBe(2);
   });
 });
