@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { MultiSelect } from "@/components/ui/multi-select";
 
 describe("MultiSelect", () => {
-  it("connects the combobox to its listbox", async () => {
+  it("connects the combobox to its options dialog", async () => {
     const user = userEvent.setup();
     render(
       <MultiSelect
@@ -19,7 +19,7 @@ describe("MultiSelect", () => {
 
     expect(combobox).toHaveAttribute(
       "aria-controls",
-      screen.getByRole("listbox").id,
+      screen.getByRole("dialog", { name: "Select options" }).id,
     );
   });
 
