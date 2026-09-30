@@ -55,8 +55,8 @@ backend.add(createBackendModule({
           id: 'pep:project:generate',
           supportsDryRun: true,
           schema: { input: {
-            name: z => z.string().regex(/^[a-z][a-z0-9-]{0,39}$/),
-            owner: z => z.string().regex(/^[a-z][a-z0-9-]{0,39}$/),
+            name: z => z.string().regex(/^[a-z](?:[a-z0-9-]{0,38}[a-z0-9])?$(?![\s\S])/),
+            owner: z => z.string().regex(/^[a-z][a-z0-9-]{0,39}$(?![\s\S])/),
           } },
           async handler(ctx) {
             const destination = resolve(runtime, 'projects', ctx.input.name);
@@ -90,7 +90,7 @@ backend.add(createBackendModule({
         }), createTemplateAction({
           id: 'pep:catalog:register',
           supportsDryRun: true,
-          schema: { input: { name: z => z.string().regex(/^[a-z][a-z0-9-]{0,39}$/) } },
+          schema: { input: { name: z => z.string().regex(/^[a-z](?:[a-z0-9-]{0,38}[a-z0-9])?$(?![\s\S])/) } },
           async handler(ctx) {
             const entityRef = `component:default/${ctx.input.name}`;
             if (!ctx.isDryRun) {

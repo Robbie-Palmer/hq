@@ -89,6 +89,24 @@ try {
   const changedInputs = await task({ ...values, owner: 'other' });
   assert.equal(changedInputs.status, 'failed');
   await assert.rejects(request('scaffolder/v2/tasks', { templateRef: 'template:default/pep-minimal-project', values: { ...values, name: '../escape' } }));
+  for (const name of ['demo-', 'demo\n', 'a'.repeat(41)]) {
+    await assert.rejects(request('scaffolder/v2/tasks', {
+      templateRef: 'template:default/pep-minimal-project', values: { ...values, name },
+    }));
+  }
+  await assert.rejects(request('scaffolder/v2/tasks', {
+    templateRef: 'template:default/pep-minimal-project', values: { ...values, owner: 'robbie\n' },
+  }));
+  for (const name of ['null', 'true', 'false', 'a', 'a'.repeat(40)]) {
+    const typedValues = { name, owner: 'true' };
+    assert.equal((await task(typedValues)).status, 'completed');
+    const typedEntity = await until(() => request(`catalog/entities/by-name/component/default/${name}`), 'Typed entity not ingested');
+    assert.equal(typedEntity.metadata.name, name);
+    const typedProfile = parse(await readFile(resolve(runtime, 'projects', name, 'platform-profile.yaml'), 'utf8'));
+    assert.equal(typedProfile.project, name);
+    assert.equal(typedProfile.owner, 'true');
+    assert.equal((await task(typedValues)).status, 'completed');
+  }
   const projectGit = (...args) => exec('git', ['-C', destination, ...args]);
   await projectGit('init');
   await projectGit('add', '.');
