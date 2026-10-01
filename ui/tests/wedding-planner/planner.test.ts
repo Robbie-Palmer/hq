@@ -251,7 +251,7 @@ describe("wedding planner accommodation", () => {
     expect(moneyPence(amount, "Price")).toBe(expected);
   });
 
-  it.each(["10.005", "-1", "abc"])(
+  it.each(["10.005", "100000000000.005", "-1", "abc"])(
     "rejects invalid money %s before allocation",
     (amount) => {
       expect(() => moneyPence(amount, "Price")).toThrow("whole pence");

@@ -75,7 +75,7 @@ export function moneyPence(value: unknown, label: string): number | null {
     amount < 0 ||
     !Number.isSafeInteger(pence) ||
     Math.abs(scaled - pence) >
-      Number.EPSILON * Math.max(1, Math.abs(scaled)) * 4
+      Math.min(1e-6, Number.EPSILON * Math.max(1, Math.abs(scaled)) * 4)
   ) {
     throw new Error(`${label} must be a non-negative amount in whole pence`);
   }
