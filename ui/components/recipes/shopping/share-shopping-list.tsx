@@ -142,6 +142,9 @@ export function ShareShoppingList({
           >
             <Link2 /> Copy link
           </Button>
+          <p className="rt-body mt-1 text-xs text-[var(--ink-3)]">
+            Only household members can open this link.
+          </p>
         </div>
       </PopoverContent>
     </Popover>
