@@ -1,5 +1,6 @@
 [tasks.install]
 description = "Install Work Graph API dependencies"
+depends = ["//:install"]
 run = "pnpm install --frozen-lockfile --filter work-graph-api..."
 
 [tasks.typecheck]
