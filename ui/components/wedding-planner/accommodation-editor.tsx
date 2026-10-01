@@ -2095,7 +2095,10 @@ export function AccommodationEditor({
                       }
                     />
                   </Field>
-                  <Field label="Guest charge cap">
+                  <Field
+                    label="Guest charge cap"
+                    hint="Maximum each paying guest contributes toward venue rooms and cottages."
+                  >
                     <Input
                       aria-label="Guest charge cap"
                       type="number"

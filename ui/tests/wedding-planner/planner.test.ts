@@ -335,6 +335,54 @@ describe("wedding planner accommodation", () => {
     });
   });
 
+  it.each<{
+    name: string;
+    firstGuest: Partial<Guest>;
+    expected: number[];
+  }>([
+    { name: "both guests pay", firstGuest: {}, expected: [5000, 5000] },
+    {
+      name: "one guest is exempt from the cap",
+      firstGuest: { charge_cap_exempt: true },
+      expected: [7500, 5000],
+    },
+    {
+      name: "one guest stays free",
+      firstGuest: {
+        free_stay_reasons: ["immediate_family"],
+        include_partner_in_free_stay: false,
+      },
+      expected: [0, 5000],
+    },
+  ])(
+    "applies a £50 cap per paying guest when $name",
+    async ({ firstGuest, expected }) => {
+      const state = plan([
+        ...linenCouple(),
+        guest("cap-a", {
+          fixed_bed_group_id: "cap-a",
+          fixed_room_id: "riverside_double_1",
+          ...firstGuest,
+        }),
+        guest("cap-b", {
+          fixed_bed_group_id: "cap-a",
+          fixed_room_id: "riverside_double_1",
+        }),
+      ]);
+      state.payment_modes.venue = "guests";
+      state.suite_billing_modes.riverside_double_1 = "full_room";
+      state.guest_charge_cap_gbp = "50";
+
+      const { result } = await calculateRooms(state);
+      expect(result.billing.member_amounts_pence_by_party["cap-a"]).toEqual(
+        expected,
+      );
+      expect(result.billing.guest_pence_by_party["cap-a"]).toBe(
+        expected.reduce((total, amount) => total + amount, 0),
+      );
+    },
+  );
+
   it("keeps selected sharing choices limited to each agreed bed group", () => {
     const state = plan([
       ...linenCouple(),

@@ -159,24 +159,15 @@ export function allocateBills(
     const share = (venue.charges.get(id) ?? 0) + (cottage.charges.get(id) ?? 0);
     const quotedByMember = split(share, party.guests.length);
     const freeIndexes = new Set(party.free_guest_indexes);
-    const payingIndexes = quotedByMember.flatMap((_, index) =>
-      freeIndexes.has(index) ? [] : [index],
-    );
-    const chargeable = payingIndexes.reduce(
-      (sum, index) => sum + quotedByMember[index]!,
-      0,
-    );
-    const finalCharge =
-      cap !== null && !party.charge_cap_exempt
-        ? Math.min(chargeable, cap)
-        : chargeable;
-    const amounts = new Array<number>(party.guests.length).fill(0);
-    for (const [index, amount] of split(
-      finalCharge,
-      payingIndexes.length,
-    ).entries()) {
-      amounts[payingIndexes[index]!] = amount;
-    }
+    const exemptIndexes = party.charge_cap_exempt_guest_indexes;
+    const amounts = quotedByMember.map((amount, index) => {
+      if (freeIndexes.has(index)) return 0;
+      const exempt = exemptIndexes
+        ? exemptIndexes.includes(index)
+        : party.charge_cap_exempt;
+      return cap !== null && !exempt ? Math.min(amount, cap) : amount;
+    });
+    const finalCharge = amounts.reduce((total, amount) => total + amount, 0);
     memberByParty[id] = amounts;
     if (finalCharge) guestByParty[id] = finalCharge;
   }

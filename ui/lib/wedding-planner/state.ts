@@ -331,7 +331,10 @@ function guestParty(
       (member) => member.cottage_share_mode !== "none",
     ),
     outside_cost_gbp: costs[0] || state.default_outside_cost_gbp || null,
-    charge_cap_exempt: members.some((member) => member.charge_cap_exempt),
+    charge_cap_exempt: members.every((member) => member.charge_cap_exempt),
+    charge_cap_exempt_guest_indexes: members.flatMap((member, index) =>
+      member.charge_cap_exempt ? [index] : [],
+    ),
     safe_for_our_booking: members.every(
       (member) => member.safe_for_our_booking,
     ),

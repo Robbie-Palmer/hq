@@ -173,6 +173,7 @@ export type Party = {
   can_share_cottage: boolean;
   outside_cost_gbp: string | number | null;
   charge_cap_exempt: boolean;
+  charge_cap_exempt_guest_indexes?: number[];
   safe_for_our_booking: boolean;
   fixed_room_id?: string;
   allowed_room_ids?: string[];
