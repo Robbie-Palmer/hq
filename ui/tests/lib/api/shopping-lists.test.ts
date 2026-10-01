@@ -3,6 +3,7 @@ import {
   getCurrentShoppingList,
   type ShoppingListContents,
   saveCurrentShoppingList,
+  shareCurrentShoppingList,
   startNewShoppingList,
 } from "@/lib/api/shopping-lists";
 
@@ -62,6 +63,25 @@ describe("shopping-list API client", () => {
           previousRevision: "3",
           snapshot,
         }),
+        credentials: "same-origin",
+        method: "POST",
+      }),
+    );
+  });
+
+  it("shares the current list with a household member", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(Response.json({ shared: true }, { status: 201 }));
+
+    await expect(
+      shareCurrentShoppingList("member-user"),
+    ).resolves.toBeUndefined();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/shopping-lists/current/shares",
+      expect.objectContaining({
+        body: JSON.stringify({ recipientUserId: "member-user" }),
         credentials: "same-origin",
         method: "POST",
       }),

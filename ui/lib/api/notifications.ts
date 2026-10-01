@@ -6,7 +6,8 @@ export type HouseholdNotificationKind =
   | "household_deleted"
   | "household_invite_accepted"
   | "household_invite_declined"
-  | "household_member_left";
+  | "household_member_left"
+  | "shopping_list_shared";
 
 type NotificationBase = {
   id: string;

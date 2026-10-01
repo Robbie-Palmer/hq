@@ -10,6 +10,7 @@
     "./http": "./src/http.ts",
     "./layered-graph": "./src/layered-graph.ts",
     "./numbers": "./src/numbers.ts",
+    "./promises": "./src/promises.ts",
     "./records": "./src/records.ts",
     "./strings": "./src/strings.ts",
     "./urls": "./src/urls.ts"

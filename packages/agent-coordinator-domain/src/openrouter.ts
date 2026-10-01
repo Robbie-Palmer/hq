@@ -1,3 +1,4 @@
+import { promiseFromSync } from "ts-base/promises";
 import type {
   AdapterAvailability,
   AdapterSession,
@@ -142,47 +143,52 @@ class MeteredOpenRouterSession implements OpenRouterSession {
     return result;
   }
 
-  async checkpoint(reason: string): Promise<CheckpointSignal> {
-    const signal: CheckpointSignal = {
-      kind: "checkpoint",
-      checkpointId: this.#createCheckpointId(),
-      createdAt: this.#now().toISOString(),
-      reason,
-      state: { spentUsd: this.#spentUsd, budgetUsd: this.#budgetUsd },
-    };
-    this.#events.push(signal);
-    return signal;
+  checkpoint(reason: string): Promise<CheckpointSignal> {
+    return promiseFromSync(() => {
+      const signal: CheckpointSignal = {
+        kind: "checkpoint",
+        checkpointId: this.#createCheckpointId(),
+        createdAt: this.#now().toISOString(),
+        reason,
+        state: { spentUsd: this.#spentUsd, budgetUsd: this.#budgetUsd },
+      };
+      this.#events.push(signal);
+      return signal;
+    });
   }
 
-  async quota(): Promise<QuotaSignal> {
-    const remaining = Math.max(0, this.#budgetUsd - this.#spentUsd);
-    const signal: QuotaSignal = {
-      kind: "quota",
-      state: remaining === 0 ? "exhausted" : "available",
-      remaining,
-      unit: "USD",
-      observedAt: this.#now().toISOString(),
-    };
-    this.#events.push(signal);
-    return signal;
+  quota(): Promise<QuotaSignal> {
+    return promiseFromSync(() => {
+      const remaining = Math.max(0, this.#budgetUsd - this.#spentUsd);
+      const signal: QuotaSignal = {
+        kind: "quota",
+        state: remaining === 0 ? "exhausted" : "available",
+        remaining,
+        unit: "USD",
+        observedAt: this.#now().toISOString(),
+      };
+      this.#events.push(signal);
+      return signal;
+    });
   }
 
-  async cost(): Promise<CostReport> {
-    const report: CostReport = {
+  cost(): Promise<CostReport> {
+    return promiseFromSync(() => ({
       kind: "cost",
       funding: "metered",
       cost: { currency: "USD", amount: this.#spentUsd },
       routeId: this.#routeId,
       providerId: "provider:openrouter",
-    };
-    return report;
+    }));
   }
 
-  async stop(reason: string): Promise<void> {
-    this.#events.push({
-      kind: "stopped",
-      reason: redactAdapterText(reason),
-      stoppedAt: this.#now().toISOString(),
+  stop(reason: string): Promise<void> {
+    return promiseFromSync(() => {
+      this.#events.push({
+        kind: "stopped",
+        reason: redactAdapterText(reason),
+        stoppedAt: this.#now().toISOString(),
+      });
     });
   }
 
@@ -266,17 +272,19 @@ export function createOpenRouterAdapter(
             reason: "OpenRouter transport is unavailable",
           };
     },
-    async launch(request, sessionIdentity) {
-      return start(request, sessionIdentity);
+    launch(request, sessionIdentity) {
+      return promiseFromSync(() => start(request, sessionIdentity));
     },
-    async resume(request: WorkerResumeRequest) {
-      const { budgetUsd, spentUsd } = request.checkpoint.state;
-      if (typeof budgetUsd !== "number" || typeof spentUsd !== "number") {
-        throw new TypeError(
-          "OpenRouter checkpoint does not contain budget state",
-        );
-      }
-      return start(request, request.identity, { budgetUsd, spentUsd });
+    resume(request: WorkerResumeRequest) {
+      return promiseFromSync(() => {
+        const { budgetUsd, spentUsd } = request.checkpoint.state;
+        if (typeof budgetUsd !== "number" || typeof spentUsd !== "number") {
+          throw new TypeError(
+            "OpenRouter checkpoint does not contain budget state",
+          );
+        }
+        return start(request, request.identity, { budgetUsd, spentUsd });
+      });
     },
   };
 }

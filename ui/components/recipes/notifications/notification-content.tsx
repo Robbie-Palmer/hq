@@ -1,4 +1,4 @@
-import { Bell, BookHeart, Bot, House } from "lucide-react";
+import { Bell, BookHeart, Bot, House, ShoppingBasket } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import type {
@@ -42,6 +42,8 @@ function copyForHousehold(item: HouseholdNotification) {
       return `${actor} declined your invitation to ${household}.`;
     case "household_member_left":
       return `${actor} left ${household}.`;
+    case "shopping_list_shared":
+      return `${actor} shared ${household}'s shopping list with you.`;
   }
 }
 
@@ -52,15 +54,21 @@ function HouseholdNotificationContent({
 }: RendererProps<HouseholdNotification>) {
   const status =
     item.kind === "household_invited" ? item.detail.invitationStatus : null;
+  const Icon = item.kind === "shopping_list_shared" ? ShoppingBasket : House;
   return (
     <>
       <span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-[var(--ink)] bg-[var(--sage)] text-white">
-        <House className="size-5" />
+        <Icon className="size-5" />
       </span>
       <div className="min-w-0 flex-1">
         <p className="rt-body text-[0.95rem] text-[var(--ink-2)]">
           {copyForHousehold(item)}
         </p>
+        {item.kind === "shopping_list_shared" && (
+          <Button asChild className="mt-2" size="sm">
+            <Link href="/recipes/shopping">View shopping list</Link>
+          </Button>
+        )}
         {item.actions.length > 0 && (
           <div className="mt-2 flex gap-2">
             {item.actions.map((actionKey) => (

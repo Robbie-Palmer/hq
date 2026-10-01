@@ -5114,6 +5114,128 @@ describe("shopping list flows", () => {
       organizationId: HOUSEHOLD_ID,
     });
   });
+
+  it("shares a household list through the recipient's notifications", async () => {
+    seedHousehold();
+    authzMock.session = sessionFor({
+      id: "owner-user",
+      email: "owner@example.test",
+      name: "Owner",
+    });
+
+    const shareResponse = await app.request(
+      "/shopping-lists/current/shares",
+      {
+        method: "POST",
+        headers: mutationHeaders,
+        body: JSON.stringify({ recipientUserId: "member-user" }),
+      },
+      env,
+    );
+
+    expect(shareResponse.status).toBe(201);
+    expect(await shareResponse.json()).toEqual({ shared: true });
+
+    authzMock.session = sessionFor({
+      id: "member-user",
+      email: "member@example.test",
+      name: "Member",
+    });
+    const notificationsResponse = await app.request("/notifications", {}, env);
+    expect(notificationsResponse.status).toBe(200);
+    expect(await notificationsResponse.json()).toMatchObject({
+      items: [
+        {
+          kind: "shopping_list_shared",
+          actor: { id: "owner-user", name: "Owner" },
+          actions: [],
+          detail: {
+            type: "household",
+            household: { id: HOUSEHOLD_ID, name: "Owner household" },
+          },
+        },
+      ],
+      unreadCount: 1,
+    });
+  });
+
+  it("rate limits shopping-list notifications per sender", async () => {
+    seedHousehold();
+    authzMock.session = sessionFor({
+      id: "owner-user",
+      email: "owner@example.test",
+      name: "Owner",
+    });
+    dbMock.state.rateLimitCounts.set("shopping-list-share:owner-user", 30);
+    const response = await app.request(
+      "/shopping-lists/current/shares",
+      {
+        method: "POST",
+        headers: mutationHeaders,
+        body: JSON.stringify({ recipientUserId: "member-user" }),
+      },
+      env,
+    );
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBeTruthy();
+    expect(dbMock.state.notificationDeliveries).toHaveLength(0);
+  });
+
+  it("rejects invalid share bodies without notifying anyone", async () => {
+    seedHousehold();
+    authzMock.session = sessionFor({
+      id: "owner-user",
+      email: "owner@example.test",
+      name: "Owner",
+    });
+    for (const body of [
+      {},
+      { recipientUserId: " " },
+      { recipientUserId: "member-user", extra: true },
+    ]) {
+      const response = await app.request(
+        "/shopping-lists/current/shares",
+        {
+          method: "POST",
+          headers: mutationHeaders,
+          body: JSON.stringify(body),
+        },
+        env,
+      );
+      expect(response.status).toBe(400);
+    }
+    expect(dbMock.state.notificationDeliveries).toHaveLength(0);
+  });
+
+  it("only shares shopping lists with another member of the household", async () => {
+    seedHousehold();
+    const request = (recipientUserId: string) =>
+      app.request(
+        "/shopping-lists/current/shares",
+        {
+          method: "POST",
+          headers: mutationHeaders,
+          body: JSON.stringify({ recipientUserId }),
+        },
+        env,
+      );
+
+    authzMock.session = sessionFor({
+      id: "owner-user",
+      email: "owner@example.test",
+      name: "Owner",
+    });
+    expect((await request("owner-user")).status).toBe(400);
+    expect((await request("outsider-user")).status).toBe(403);
+
+    authzMock.session = sessionFor({
+      id: "outsider-user",
+      email: "outsider@example.test",
+      name: "Outsider",
+    });
+    expect((await request("member-user")).status).toBe(409);
+    expect(dbMock.state.notificationDeliveries).toHaveLength(0);
+  });
 });
 
 describe("pantry mutation flows", () => {

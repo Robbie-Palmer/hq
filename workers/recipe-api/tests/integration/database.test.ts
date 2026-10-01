@@ -1091,6 +1091,57 @@ describe("recipe API PostgreSQL integration", () => {
     });
   });
 
+  it("delivers shared-list notifications only to the selected household member", async () => {
+    const owner = await createUser("List Owner", "owner@example.test");
+    const recipient = await createUser("List Recipient", "recipient@example.test");
+    const householdId = "integration-shopping-household";
+    await db.insert(schema.organization).values({
+      id: householdId,
+      name: "Shopping household",
+      slug: householdId,
+    });
+    await db.insert(schema.member).values([
+      {
+        id: "shopping-owner",
+        organizationId: householdId,
+        userId: owner.id,
+        role: "owner",
+      },
+      {
+        id: "shopping-recipient",
+        organizationId: householdId,
+        userId: recipient.id,
+      },
+    ]);
+    const response = await authenticatedRequest(
+      owner,
+      "/shopping-lists/current/shares",
+      { method: "POST", body: { recipientUserId: recipient.id } },
+    );
+    expect(response.status).toBe(201);
+    const notifications = await authenticatedRequest(recipient, "/notifications");
+    expect(notifications.status).toBe(200);
+    expect(await notifications.json()).toMatchObject({
+      unreadCount: 1,
+      items: [
+        {
+          kind: "shopping_list_shared",
+          actor: { id: owner.id, name: "List Owner" },
+          actions: [],
+          detail: {
+            type: "household",
+            household: { id: householdId, name: "Shopping household" },
+          },
+        },
+      ],
+    });
+    const ownerNotifications = await authenticatedRequest(owner, "/notifications");
+    expect(await ownerNotifications.json()).toMatchObject({
+      unreadCount: 0,
+      items: [],
+    });
+  });
+
   it("persists household membership and preserves notification snapshots", async () => {
     const owner = await createUser("Household Owner", "owner@example.test");
     const invitee = await createUser("Household Member", "member@example.test");

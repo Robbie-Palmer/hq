@@ -1,3 +1,4 @@
+import { promiseFromSync } from "ts-base/promises";
 import { todayIsoDate } from "@/lib/assettracker/date";
 import { getDemoAssetTrackerData } from "@/lib/assettracker/demoData";
 import {
@@ -150,87 +151,127 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
   }
 
   return {
-    async load() {
-      const stored = readStored();
-      return {
-        data: stored ?? getDemoAssetTrackerData(),
-        persisted: stored !== null,
-      };
+    load() {
+      return promiseFromSync(() => {
+        const stored = readStored();
+        return {
+          data: stored ?? getDemoAssetTrackerData(),
+          persisted: stored !== null,
+        };
+      });
     },
-    async createAccount(input) {
-      return write(applyCreateAccount(current(), input, currentDate()).data);
+    createAccount(input) {
+      return promiseFromSync(() =>
+        write(applyCreateAccount(current(), input, currentDate()).data),
+      );
     },
-    async recordBalance(input) {
-      return write(applyRecordBalance(current(), input));
+    recordBalance(input) {
+      return promiseFromSync(() => write(applyRecordBalance(current(), input)));
     },
-    async recordTransfer(input) {
-      return write(applyRecordTransfer(current(), input));
+    recordTransfer(input) {
+      return promiseFromSync(() =>
+        write(applyRecordTransfer(current(), input)),
+      );
     },
-    async closeAccount(input) {
-      return write(applyCloseAccount(current(), input));
+    closeAccount(input) {
+      return promiseFromSync(() => write(applyCloseAccount(current(), input)));
     },
-    async clearAccountHistory(input) {
-      return write(applyClearAccountHistory(current(), input));
+    clearAccountHistory(input) {
+      return promiseFromSync(() =>
+        write(applyClearAccountHistory(current(), input)),
+      );
     },
-    async deleteSnapshot(input) {
-      return write(applyDeleteSnapshot(current(), input));
+    deleteSnapshot(input) {
+      return promiseFromSync(() =>
+        write(applyDeleteSnapshot(current(), input)),
+      );
     },
-    async deleteCapitalFlow(input) {
-      return write(applyDeleteCapitalFlow(current(), input));
+    deleteCapitalFlow(input) {
+      return promiseFromSync(() =>
+        write(applyDeleteCapitalFlow(current(), input)),
+      );
     },
-    async importAccountHistory(input) {
-      return write(applyImportAccountHistory(current(), input));
+    importAccountHistory(input) {
+      return promiseFromSync(() =>
+        write(applyImportAccountHistory(current(), input)),
+      );
     },
-    async importIncomeHistory(input) {
-      return write(applyImportIncomeHistory(current(), input));
+    importIncomeHistory(input) {
+      return promiseFromSync(() =>
+        write(applyImportIncomeHistory(current(), input)),
+      );
     },
-    async clearIncomeHistory() {
-      return write(applyClearIncomeHistory(current()));
+    clearIncomeHistory() {
+      return promiseFromSync(() => write(applyClearIncomeHistory(current())));
     },
-    async addRecurringFlow(input) {
-      return write(applyAddRecurringFlow(current(), input, currentDate()));
+    addRecurringFlow(input) {
+      return promiseFromSync(() =>
+        write(applyAddRecurringFlow(current(), input, currentDate())),
+      );
     },
-    async addPlannedExpenditure(input) {
-      return write(applyAddPlannedExpenditure(current(), input, currentDate()));
+    addPlannedExpenditure(input) {
+      return promiseFromSync(() =>
+        write(applyAddPlannedExpenditure(current(), input, currentDate())),
+      );
     },
-    async deleteRecurringFlow(input) {
-      return write(applyDeleteRecurringFlow(current(), input));
+    deleteRecurringFlow(input) {
+      return promiseFromSync(() =>
+        write(applyDeleteRecurringFlow(current(), input)),
+      );
     },
-    async deletePlannedExpenditure(input) {
-      return write(applyDeletePlannedExpenditure(current(), input));
+    deletePlannedExpenditure(input) {
+      return promiseFromSync(() =>
+        write(applyDeletePlannedExpenditure(current(), input)),
+      );
     },
-    async materializeFlow(input) {
-      return write(applyMaterializeFlow(current(), input));
+    materializeFlow(input) {
+      return promiseFromSync(() =>
+        write(applyMaterializeFlow(current(), input)),
+      );
     },
-    async setExpectedReturn(input) {
-      return write(applySetExpectedReturn(current(), input));
+    setExpectedReturn(input) {
+      return promiseFromSync(() =>
+        write(applySetExpectedReturn(current(), input)),
+      );
     },
-    async setAccountLiquidity(input) {
-      return write(applySetAccountLiquidity(current(), input));
+    setAccountLiquidity(input) {
+      return promiseFromSync(() =>
+        write(applySetAccountLiquidity(current(), input)),
+      );
     },
-    async setBaseCurrency(input) {
-      return write(applySetBaseCurrency(current(), input));
+    setBaseCurrency(input) {
+      return promiseFromSync(() =>
+        write(applySetBaseCurrency(current(), input)),
+      );
     },
-    async setInflation(input) {
-      return write(applySetInflation(current(), input));
+    setInflation(input) {
+      return promiseFromSync(() => write(applySetInflation(current(), input)));
     },
-    async setNetWorthTarget(input) {
-      return write(applySetNetWorthTarget(current(), input));
+    setNetWorthTarget(input) {
+      return promiseFromSync(() =>
+        write(applySetNetWorthTarget(current(), input)),
+      );
     },
-    async setWithdrawalRate(input) {
-      return write(applySetWithdrawalRate(current(), input));
+    setWithdrawalRate(input) {
+      return promiseFromSync(() =>
+        write(applySetWithdrawalRate(current(), input)),
+      );
     },
-    async importData(raw) {
-      const data = AssetTrackerDataSchema.parse(raw);
-      buildRepository(data);
-      return write(data);
+    importData(raw) {
+      return promiseFromSync(() => {
+        const data = AssetTrackerDataSchema.parse(raw);
+        buildRepository(data);
+        return write(data);
+      });
     },
-    async clear() {
-      return write(getEmptyData());
+    clear() {
+      return promiseFromSync(() => write(getEmptyData()));
     },
-    async reset() {
-      storage.removeItem(ASSET_TRACKER_STORAGE_KEY);
-      return getDemoAssetTrackerData();
+    reset() {
+      return promiseFromSync(() => {
+        storage.removeItem(ASSET_TRACKER_STORAGE_KEY);
+        return getDemoAssetTrackerData();
+      });
     },
   };
 }
