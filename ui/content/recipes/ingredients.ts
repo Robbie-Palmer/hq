@@ -126,6 +126,7 @@ export const ingredients = [
   { name: "lime juice", category: "condiment" },
   { name: "peanut butter", category: "condiment" },
   { name: "honey", category: "condiment" },
+  { name: "maple syrup", category: "condiment" },
   { name: "sweet chilli sauce", category: "condiment" },
   { name: "chipotle paste", category: "condiment" },
   { name: "mayonnaise", category: "condiment" },
@@ -149,6 +150,7 @@ export const ingredients = [
   { name: "dulce de leche", category: "sweets" },
 
   // Oils & Fats
+  { name: "chilli oil", category: "oil-fat" },
   { name: "vegetable oil", category: "oil-fat" },
   { name: "olive oil", category: "oil-fat" },
   { name: "extra virgin olive oil", category: "oil-fat" },
