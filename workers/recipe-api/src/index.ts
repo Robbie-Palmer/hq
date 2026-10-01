@@ -1511,7 +1511,7 @@ async function findOwnedRecipeBySlug(
 }
 
 async function usersShareHousehold(
-  db: Db,
+  db: Pick<Db, "select">,
   firstUserId: string,
   secondUserId: string,
 ): Promise<boolean> {
@@ -5738,7 +5738,7 @@ registerRoute("post", "/recipes", async (c) => {
       const recipe = await db.transaction(async tx => {
         if (body.data.parentRecipeId) {
           const [parent] = await tx.select().from(schema.recipe).where(eq(schema.recipe.id, body.data.parentRecipeId)).for("update");
-          if (!parent || !authorizeRecipeRead(session.user, parent, { userSharesHouseholdWithOwner: await usersShareHousehold(db, parent.userId, session.user.id) }).allowed) return undefined;
+          if (!parent || !authorizeRecipeRead(session.user, parent, { userSharesHouseholdWithOwner: await usersShareHousehold(tx, parent.userId, session.user.id) }).allowed) return undefined;
         }
         const [saved] = await tx.insert(schema.recipe).values({ ...body.data, userId: session.user.id }).returning();
         return saved;
@@ -6235,8 +6235,10 @@ registerRoute("put", "/recipe-import-batches/:batchId/undo", batchHandler(async 
   const body = await parseJsonBody(c, z.object({ state: z.literal("started") }));
   if (!body.success) return body.response;
   const id = batchParam(c, "batchId");
+  const executionCtx = requestExecutionContext(c);
+  if (!executionCtx) return c.json({ error: "Undo execution is unavailable" }, 503);
   await beginBatchUndo(db, session.user.id, id);
-  c.executionCtx.waitUntil(withDb(c.env, database => executeBatchUndo(database, session.user.id, id)));
+  executionCtx.waitUntil(withDb(c.env, database => executeBatchUndo(database, session.user.id, id)));
   return c.json({ state: "running" }, 202);
 }));
 registerRoute("get", "/recipe-import-batches/:batchId/execution", batchHandler(async (c, { db, session }) => {

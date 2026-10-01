@@ -2010,6 +2010,10 @@ describe("durable recipe batches", () => {
     expect((await authenticatedRequest(stranger, `/recipe-import-batches/${batch.id}/undo`, { env: service.env })).status).toBe(404);
     await db.update(schema.recipeImportJob).set({ status: "failed", reviewState: "needs_attention" }).where(eq(schema.recipeImportJob.id, batch.items[2]!.id));
     expect((await previewBatchUndo(db, cook.id, batch.id)).items[0]?.outcome).toBe("eligible");
+    const unavailable = await authenticatedRequest(cook, `/recipe-import-batches/${batch.id}/undo`, { method: "PUT", body: { state: "started" }, env: service.env });
+    expect(unavailable.status).toBe(503);
+    expect((await previewBatchUndo(db, cook.id, batch.id)).state).toBe("preview");
+    expect(await db.select().from(schema.recipe)).toHaveLength(1);
     const background: Promise<unknown>[] = [];
     const executionCtx = { waitUntil: (promise: Promise<unknown>) => { background.push(promise); }, passThroughOnException: vi.fn() } as unknown as ExecutionContext;
     const undo = await authenticatedRequest(cook, `/recipe-import-batches/${batch.id}/undo`, { method: "PUT", body: { state: "started" }, env: service.env, executionCtx });
@@ -2060,7 +2064,9 @@ describe("durable recipe batches", () => {
     const transaction = vi.spyOn(db, "transaction").mockRejectedValueOnce(new Error("Temporary database failure"));
     await executeBatchUndo(db, cook.id, batch.id);
     transaction.mockRestore();
-    expect((await previewBatchUndo(db, cook.id, batch.id)).items.map(item => item.outcome)).toEqual(["failed", "deleted"]);
+    const attempt = await previewBatchUndo(db, cook.id, batch.id);
+    expect(attempt.state).toBe("completed");
+    expect(attempt.items.map(item => item.outcome)).toEqual(["failed", "deleted"]);
     await beginBatchUndo(db, cook.id, batch.id);
     await executeBatchUndo(db, cook.id, batch.id);
     expect((await previewBatchUndo(db, cook.id, batch.id)).items.map(item => item.outcome)).toEqual(["deleted", "deleted"]);
@@ -2084,7 +2090,7 @@ describe("durable recipe batches", () => {
     payload.recipe.description = draft.description;
     const acceptance = await authenticatedRequest(cook, `/recipe-import-batches/${second.id}/items/${second.items[0]!.id}/acceptance`, { method: "PUT", body: { version: 1, idempotencyKey: crypto.randomUUID(), recipe: { slug: "second-copy", title: draft.title, description: draft.description, body: JSON.stringify(payload), visibility: "private" } }, env: service.env });
     expect(acceptance.status).toBe(409);
-    expect((await authenticatedRequest(other, `/recipe-import-batches/${first.id}/undo`, { method: "PUT", body: { state: "started" }, env: service.env })).status).toBe(404);
+    expect((await authenticatedRequest(other, `/recipe-import-batches/${first.id}/undo`, { method: "PUT", body: { state: "started" }, env: service.env, executionCtx: { waitUntil: vi.fn(), passThroughOnException: vi.fn() } as unknown as ExecutionContext })).status).toBe(404);
     const ordinary = await authenticatedRequest(cook, "/recipe-import-batches", { method: "POST", body: { idempotencyKey: crypto.randomUUID(), sources: sources().slice(0, 1) }, env: service.env });
     const ordinaryBatch = await ordinary.json() as { id: string };
     expect((await authenticatedRequest(cook, `/recipe-import-batches/${ordinaryBatch.id}/undo`, { env: service.env })).status).toBe(409);
