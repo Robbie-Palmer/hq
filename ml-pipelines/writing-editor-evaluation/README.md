@@ -63,8 +63,8 @@ blobs in an image layout or registry and generic ModelPack tooling can pull it.
 
 The upstream checkpoint does not state a license. Keep it restricted to this
 evaluation project and its private DVC remote until that ambiguity is resolved.
-`run_gector` uses a Python 3.12 environment locked by `uv.lock`. PyTorch 2.11.0
-comes from the CUDA 12.8 wheel index and runs on the laptop's RTX 40-series
+`run_gector` uses a Python 3.14 environment locked by `uv.lock`. PyTorch 2.13.0
+comes from the CUDA 12.6 wheel index and runs on the laptop's RTX 40-series
 GPU. The adapter loads the old state dict with `weights_only=True`, maps its
 RoBERTa and projection keys into current Transformers modules, and imports no
 AllenNLP code. Inference stays offline after DVC restores the model directory.
