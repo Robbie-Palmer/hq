@@ -1,11 +1,10 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Share2, Trash2 } from "lucide-react";
+import { Share2, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { DietListNotice } from "@/components/recipes/diet-notice";
 import { useDiet } from "@/components/recipes/diet-provider";
-import { MealPlanner } from "@/components/recipes/shopping/meal-planner";
 import { RecipePicker } from "@/components/recipes/shopping/recipe-picker";
 import { ShareShoppingList } from "@/components/recipes/shopping/share-shopping-list";
 import { ShoppingList } from "@/components/recipes/shopping/shopping-list";
@@ -20,13 +19,6 @@ import {
   applyDietRecipeVisibility,
   buildDietRecipeMatches,
 } from "@/lib/domain/diet";
-
-type Step = "plan" | "list";
-
-const STEPS: { id: Step; label: string }[] = [
-  { id: "plan", label: "Plan meals" },
-  { id: "list", label: "Shopping list" },
-];
 
 export function ShoppingView({
   recipes,
@@ -43,7 +35,6 @@ function ShoppingViewContent({
 }: Readonly<{ recipes: ShoppingRecipe[] }>) {
   const { diet, matchRecipe } = useDiet();
   const { recipes: selected, plan, extras } = useShoppingList();
-  const [step, setStep] = useState<Step>("plan");
   const [showHidden, setShowHidden] = useState(false);
   const startNewList = useStartNewShoppingList();
   const scope = useShoppingListScope();
@@ -77,16 +68,12 @@ function ShoppingViewContent({
   const pickerRecipes = availableRecipes;
   const count = selected.length;
   const recipeNoun = count === 1 ? "recipe" : "recipes";
-  const plannedCount = plan.length;
-  const plannedNoun = plannedCount === 1 ? "meal" : "meals";
   const itemNoun = extras.length === 1 ? "item" : "items";
-  const hasListContent = count > 0 || plannedCount > 0 || extras.length > 0;
+  const hasListContent = count > 0 || plan.length > 0 || extras.length > 0;
   let summary =
     "Add items directly, or choose recipes and we'll gather their ingredients.";
   if (count > 0) {
-    summary = `${count} ${recipeNoun} selected · ${plannedCount} ${plannedNoun} scheduled.`;
-  } else if (plannedCount > 0) {
-    summary = `${plannedCount} ${plannedNoun} scheduled.`;
+    summary = `${count} ${recipeNoun} selected for this list.`;
   } else if (extras.length > 0) {
     summary = `${extras.length} ${itemNoun} on the shopping list.`;
   }
@@ -95,11 +82,9 @@ function ShoppingViewContent({
     <div className="container mx-auto px-4 pt-5 pb-16 md:pt-7 max-w-5xl">
       <div className="flex flex-wrap items-end justify-between gap-4 mb-4">
         <div>
-          <p className="rt-mono text-[var(--terracotta)]">
-            {step === "plan" ? "Shopping · meal plan" : "Shopping"}
-          </p>
+          <p className="rt-mono text-[var(--terracotta)]">Shopping</p>
           <h1 className="rt-display text-5xl md:text-6xl mt-2">
-            {step === "plan" ? "What's the plan?" : "Shopping list."}
+            Shopping list.
           </h1>
           <p className="rt-body mt-2 text-[var(--ink-2)]">{summary}</p>
         </div>
@@ -137,81 +122,36 @@ function ShoppingViewContent({
         </p>
       )}
 
-      {diet.active && (
-        <DietListNotice
-          hiddenCount={hiddenCount}
-          labels={diet.labels}
-          mode={diet.mode}
-          showingHidden={showHidden}
-          onToggleHidden={() => setShowHidden((current) => !current)}
-        />
-      )}
+      <div className="space-y-10">
+        <ShoppingList recipes={recipes} />
 
-      {/* Step tabs — mirror the recipe read-view tabs so the two feel of a piece. */}
-      <div className="flex items-center border-b border-[var(--line)] mb-6">
-        {STEPS.map((s) => {
-          const active = step === s.id;
-          return (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => setStep(s.id)}
-              className={[
-                "px-3.5 py-2.5 rt-body text-[0.95rem] -mb-px border-b-2 transition-colors",
-                active
-                  ? "border-[var(--terracotta)] text-[var(--ink)] font-bold"
-                  : "border-transparent text-[var(--ink-3)] hover:text-[var(--ink-2)]",
-              ].join(" ")}
-              aria-current={active ? "step" : undefined}
-            >
-              {s.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {step === "plan" ? (
-        <div className="space-y-8">
-          <MealPlanner recipes={recipes} availableRecipes={availableRecipes} />
-          <div>
-            <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-              <div>
-                <p className="rt-mono text-[var(--terracotta)]">
-                  Recipe picker
-                </p>
-                <h2 className="rt-display text-3xl text-[var(--ink)]">
-                  Add anything else.
-                </h2>
-              </div>
-              <p className="rt-body text-sm text-[var(--ink-3)]">
-                Selected recipes appear in the plan pool and shopping list.
-              </p>
+        <section aria-labelledby="recipe-picker-heading">
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-2 border-t border-[var(--line)] pt-8">
+            <div>
+              <p className="rt-mono text-[var(--terracotta)]">Recipe picker</p>
+              <h2
+                id="recipe-picker-heading"
+                className="rt-display text-3xl text-[var(--ink)]"
+              >
+                Add recipes.
+              </h2>
             </div>
-            <RecipePicker recipes={pickerRecipes} dietMatches={dietMatches} />
+            <p className="rt-body text-sm text-[var(--ink-3)]">
+              Pick a recipe to add its ingredients to the list above.
+            </p>
           </div>
-          <div className="mt-6 flex justify-end">
-            <button
-              type="button"
-              onClick={() => setStep("list")}
-              className="inline-flex items-center gap-2 rounded-md bg-[var(--terracotta)] px-4 py-2 text-white font-medium hover:bg-[var(--terracotta-deep)] transition-colors"
-            >
-              View shopping list
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div>
-          <button
-            type="button"
-            onClick={() => setStep("plan")}
-            className="inline-flex items-center gap-1.5 rt-mono text-[var(--ink-3)] hover:text-[var(--terracotta)] mb-3 transition-colors"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" /> back to plan
-          </button>
-          <ShoppingList recipes={recipes} />
-        </div>
-      )}
+          {diet.active && (
+            <DietListNotice
+              hiddenCount={hiddenCount}
+              labels={diet.labels}
+              mode={diet.mode}
+              showingHidden={showHidden}
+              onToggleHidden={() => setShowHidden((current) => !current)}
+            />
+          )}
+          <RecipePicker recipes={pickerRecipes} dietMatches={dietMatches} />
+        </section>
+      </div>
     </div>
   );
 }
