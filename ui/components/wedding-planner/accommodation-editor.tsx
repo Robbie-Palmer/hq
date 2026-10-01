@@ -1908,7 +1908,7 @@ export function AccommodationEditor({
                     )}
                     <div className="rate-row">
                       <span>
-                        Linen Cottage
+                        Linen Cottage{" "}
                         <small>
                           {
                             weddingAccommodationSetup.input.properties.find(
