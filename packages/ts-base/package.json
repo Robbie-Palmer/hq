@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     "./crypto": "./src/crypto.ts",
+    "./dates": "./src/dates.ts",
     "./errors": "./src/errors.ts",
     "./http": "./src/http.ts",
     "./layered-graph": "./src/layered-graph.ts",

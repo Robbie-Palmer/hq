@@ -1,0 +1,54 @@
+{
+  "datasetVersion": "2026.10.0",
+  "releasedAt": "2026-10-01",
+  "supersedes": null,
+  "corrections": [],
+  "dataLicence": {
+    "name": "Open Government Licence v3.0",
+    "url": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+    "copyright": "Crown copyright",
+    "attribution": "Contains public sector information from the Office for National Statistics licensed under the Open Government Licence v3.0."
+  },
+  "artifacts": [
+    {
+      "path": "artifacts/releases/2026.10.0.json",
+      "sha256": "cd71d2aee5e1c4ca2a9f263c74886b332fec3035d2e8fe2b29f5e154602e7b8b"
+    },
+    {
+      "path": "artifacts/coverage-matrix/2026.10.0.json",
+      "sha256": "488a191e667e89c0960ce0be15d5575dce22406ea9f1494e925afd7cdbc8dfb8"
+    }
+  ],
+  "sources": [
+    {
+      "index": "CPI",
+      "versionId": "2026-09-16:27a2473f8184",
+      "datasetId": "MM23",
+      "seriesId": "D7BT",
+      "sourceUrl": "https://www.ons.gov.uk/economy/inflationandpriceindices/timeseries/d7bt/mm23",
+      "releaseVersion": "2026-09-16",
+      "retrievedAt": "2026-10-01T13:40:58.478Z",
+      "sourceContentSha256": "27a2473f818423a499fce4be23a2816d6670b1ae93b8eaaa11687c2237322865"
+    },
+    {
+      "index": "CPIH",
+      "versionId": "2026-09-16:24836db6b2e0",
+      "datasetId": "MM23",
+      "seriesId": "L522",
+      "sourceUrl": "https://www.ons.gov.uk/economy/inflationandpriceindices/timeseries/l522/mm23",
+      "releaseVersion": "2026-09-16",
+      "retrievedAt": "2026-10-01T13:40:58.478Z",
+      "sourceContentSha256": "24836db6b2e0929e44de954369999e934789e2ec4c1919f1bdfccf61689aaf19"
+    },
+    {
+      "index": "RPI",
+      "versionId": "2026-09-16:259a40ecc5d6",
+      "datasetId": "MM23",
+      "seriesId": "CHAW",
+      "sourceUrl": "https://www.ons.gov.uk/economy/inflationandpriceindices/timeseries/chaw/mm23",
+      "releaseVersion": "2026-09-16",
+      "retrievedAt": "2026-10-01T13:40:58.478Z",
+      "sourceContentSha256": "259a40ecc5d6594e6ab68e1b13a5c84432078aa531c170ea047dac5c7ad75b08"
+    }
+  ]
+}

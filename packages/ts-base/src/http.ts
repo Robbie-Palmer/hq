@@ -15,10 +15,43 @@ export interface JsonClientOptions {
   wait?: (milliseconds: number) => Promise<void>;
 }
 
+export interface FetchWithRetryOptions {
+  attempts?: number;
+  fetch?: typeof fetch;
+  init?: RequestInit;
+  retryable?: (response: Response) => boolean;
+}
+
 const DEFAULT_TIMEOUT_MS = 300_000;
 const DEFAULT_RETRIES = 3;
 const IDEMPOTENT_METHODS = new Set(["DELETE", "GET", "HEAD", "OPTIONS", "PUT"]);
 const RETRYABLE_HTTP_STATUSES = new Set([408, 409, 429, 500, 502, 503, 504]);
+
+const defaultRetryableResponse = (response: Response): boolean =>
+  response.status === 429 || response.status >= 500;
+
+export async function fetchWithRetry(
+  input: RequestInfo | URL,
+  options: FetchWithRetryOptions = {},
+): Promise<Response> {
+  const attempts = options.attempts ?? 3;
+  if (!Number.isSafeInteger(attempts) || attempts < 1) {
+    throw new RangeError("Fetch attempts must be a positive integer");
+  }
+  const fetchImpl = options.fetch ?? fetch;
+  const retryable = options.retryable ?? defaultRetryableResponse;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await fetchImpl(input, options.init);
+      if (!retryable(response) || attempt === attempts) return response;
+    } catch (error) {
+      lastError = error;
+      if (attempt === attempts) throw requestError(error);
+    }
+  }
+  throw requestError(lastError ?? "Fetch retry loop ended without a response");
+}
 
 function webCryptoRandom(): number {
   const sample = new Uint32Array(1);

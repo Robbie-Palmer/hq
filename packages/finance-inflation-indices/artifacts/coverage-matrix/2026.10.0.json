@@ -1,0 +1,71 @@
+{
+  "datasetVersion": "2026.10.0",
+  "releasedAt": "2026-10-01",
+  "supersedes": null,
+  "corrections": [],
+  "dataLicence": {
+    "name": "Open Government Licence v3.0",
+    "url": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+    "copyright": "Crown copyright",
+    "attribution": "Contains public sector information from the Office for National Statistics licensed under the Open Government Licence v3.0."
+  },
+  "currency": "GBP",
+  "indices": [
+    {
+      "index": "CPI",
+      "role": "alternative",
+      "available": true,
+      "datasetId": "MM23",
+      "seriesId": "D7BT",
+      "frequency": "monthly",
+      "baseDefinition": "2015=100",
+      "geography": "United Kingdom",
+      "requiredFrom": "1988-01",
+      "coverageThrough": "2026-08",
+      "releaseVersion": "2026-09-16",
+      "releaseVersionId": "2026-09-16:27a2473f8184",
+      "apiStatus": "not-configured",
+      "fallback": "ONS time-series CSV"
+    },
+    {
+      "index": "CPIH",
+      "role": "primary",
+      "available": true,
+      "datasetId": "MM23",
+      "seriesId": "L522",
+      "frequency": "monthly",
+      "baseDefinition": "2015=100",
+      "geography": "United Kingdom",
+      "requiredFrom": "1988-01",
+      "coverageThrough": "2026-08",
+      "releaseVersion": "2026-09-16",
+      "releaseVersionId": "2026-09-16:24836db6b2e0",
+      "apiStatus": "retired",
+      "fallback": "ONS time-series CSV"
+    },
+    {
+      "index": "RPI",
+      "role": "legacy",
+      "available": true,
+      "datasetId": "MM23",
+      "seriesId": "CHAW",
+      "frequency": "monthly",
+      "baseDefinition": "January 1987=100",
+      "geography": "United Kingdom",
+      "requiredFrom": "1987-01",
+      "coverageThrough": "2026-08",
+      "releaseVersion": "2026-09-16",
+      "releaseVersionId": "2026-09-16:259a40ecc5d6",
+      "apiStatus": "not-configured",
+      "fallback": "ONS time-series CSV"
+    }
+  ],
+  "adjustment": {
+    "method": "reference-index-level / source-index-level",
+    "monthlyDates": "calendar-month observation",
+    "annualDates": "calendar-year observation",
+    "missingPeriods": "unavailable",
+    "futurePeriods": "unavailable",
+    "indexSubstitution": "never"
+  }
+}
