@@ -1,0 +1,16 @@
+---
+title: "Wedding planner"
+description: "Allocate wedding guests across beds, rooms and cottages, then work out what everyone pays"
+date: "2026-10-01"
+status: "in_progress"
+---
+
+# Wedding planner
+
+The planner starts with accommodation. A room may have two beds, but the people in those beds must agree to share the room. Cottages add another layer: a guest may accept someone in a separate bedroom but not next to their own bed. Prices also depend on who books and who gets a free stay.
+
+[Open the planner](/wedding-planner)
+
+The planner stores guests and choices in your browser. Import a JSON plan to start, and export a backup if you want to move it to another browser. It does not sync between devices.
+
+It models couples as one bed group, allows individual yes or no sharing choices at bed, room and cottage level, and allocates higher priority guests to the included Riverside suites before cottages. The room plan separates rent already paid, rent still due, guest reimbursements and the couple's final cost. The allocation and billing code run in browser TypeScript.
