@@ -1,5 +1,5 @@
+import { parseMoneyToMinorUnits } from "@/lib/generic/money";
 import { propertyStayPrice } from "./prices";
-import { moneyPence } from "./state";
 import type {
   Allocation,
   Placement,
@@ -71,7 +71,10 @@ function venueCharges(input: PlannerInput, placement: Placement) {
   for (const room of input.rooms) {
     const property = properties.get(room.property_id)!;
     if (property.kind !== "venue") continue;
-    const nightly = moneyPence(room.rate_per_night_gbp, `${room.id} rate`);
+    const nightly = parseMoneyToMinorUnits(
+      room.rate_per_night_gbp,
+      `${room.id} rate`,
+    );
     if (nightly === null) continue;
     const price = nightly * input.nights;
     addAmount(quoted, property.id, price);
@@ -143,7 +146,10 @@ export function allocateBills(
   const parties = new Map(input.parties.map((party) => [party.id, party]));
   const guestByParty: Record<string, number> = {};
   const memberByParty: Record<string, number[]> = {};
-  const cap = moneyPence(input.guest_charge_cap_gbp, "Guest charge cap");
+  const cap = parseMoneyToMinorUnits(
+    input.guest_charge_cap_gbp,
+    "Guest charge cap",
+  );
   const chargedIds = new Set([
     ...venue.charges.keys(),
     ...cottage.charges.keys(),
@@ -238,7 +244,10 @@ function outsideFlow(input: PlannerInput, placement: Placement) {
   const members: Record<string, number[]> = {};
   for (const id of placement.outside_parties) {
     const party = parties.get(id)!;
-    const estimate = moneyPence(party.outside_cost_gbp, `${id} outside`);
+    const estimate = parseMoneyToMinorUnits(
+      party.outside_cost_gbp,
+      `${id} outside`,
+    );
     if (estimate === null) continue;
     const amounts = split(estimate, party.guests.length).map((amount, index) =>
       party.free_guest_indexes.includes(index) ? 0 : amount,
@@ -296,7 +305,10 @@ export function cashFlow(
     (item) => item.kind === "cottage",
   )) {
     const paid =
-      moneyPence(property.paid_by_us_gbp ?? 0, `${property.id} paid`) ?? 0;
+      parseMoneyToMinorUnits(
+        property.paid_by_us_gbp ?? 0,
+        `${property.id} paid`,
+      ) ?? 0;
     alreadyPaid += paid;
     if (!placement.booked_cottages.includes(property.id)) {
       paidWithoutRoom += paid;

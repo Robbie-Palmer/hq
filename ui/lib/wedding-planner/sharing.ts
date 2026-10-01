@@ -6,8 +6,8 @@ import type {
   SharingLevel,
   State,
 } from "./types";
+import type { ShareMode } from "./values";
 
-type ShareMode = "none" | "selected" | "any";
 type PairField =
   | "may_share_bed_with"
   | "may_share_room_with"

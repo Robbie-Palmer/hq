@@ -13,11 +13,7 @@ import {
   setPartner,
   setShareMode,
 } from "@/lib/wedding-planner/sharing";
-import {
-  buildInput,
-  moneyPence,
-  parseState,
-} from "@/lib/wedding-planner/state";
+import { buildInput, parseState } from "@/lib/wedding-planner/state";
 import type { Guest, State } from "@/lib/wedding-planner/types";
 
 function guest(id: string, changes: Partial<Guest> = {}): Guest {
@@ -243,18 +239,25 @@ describe("wedding planner accommodation", () => {
     );
   });
 
-  it.each([
-    ["19.99", 1999],
-    ["0.29", 29],
-    ["1.1", 110],
-  ])("accepts %s as whole-pence money", (amount, expected) => {
-    expect(moneyPence(amount, "Price")).toBe(expected);
+  it("rejects unsupported saved choices before building a plan", () => {
+    const state = plan(linenCouple());
+    expect(() =>
+      parseState({
+        ...state,
+        suite_billing_modes: { riverside_double_1: "per_person" },
+      }),
+    ).toThrow("suite_billing_modes");
+    expect(() =>
+      parseState({ ...state, optimization_mode: "nearest_first" }),
+    ).toThrow("optimization_mode");
+    expect(() =>
+      parseState({ ...state, payment_modes: { venue: "family" } }),
+    ).toThrow("payment_modes");
   });
 
   it.each(["10.005", "100000000000.005", "-1", "abc"])(
     "rejects invalid money %s before allocation",
     (amount) => {
-      expect(() => moneyPence(amount, "Price")).toThrow("whole pence");
       expect(() =>
         parseState(
           plan([
@@ -262,7 +265,7 @@ describe("wedding planner accommodation", () => {
             guest("visitor", { outside_cost_gbp: amount }),
           ]),
         ),
-      ).toThrow("whole pence");
+      ).toThrow("two decimal places");
     },
   );
 

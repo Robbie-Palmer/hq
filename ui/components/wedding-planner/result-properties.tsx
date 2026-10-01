@@ -5,14 +5,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { formatMinorCurrency } from "@/lib/generic/money";
 import type { AccommodationSetup } from "@/lib/wedding-planner/setup";
-import { pounds } from "@/lib/wedding-planner/state";
 import type {
   Allocation,
   Property,
   PropertyPayment,
   Room,
 } from "@/lib/wedding-planner/types";
+import type { BookingParty } from "@/lib/wedding-planner/values";
 
 function propertyDescription(
   property: Property,
@@ -62,7 +63,7 @@ function PropertyPaymentSummary({
 }: Readonly<{
   property: Property;
   payment?: PropertyPayment;
-  bookingBy?: "guests" | "couple";
+  bookingBy?: BookingParty;
 }>) {
   if (!payment || (property.kind !== "venue" && payment.quoted_pence === 0))
     return null;
@@ -72,7 +73,7 @@ function PropertyPaymentSummary({
         <span>
           {property.kind === "venue" ? "Room rate value" : "Cottage rent"}
         </span>
-        <strong>{pounds(payment.quoted_pence)}</strong>
+        <strong>{formatMinorCurrency(payment.quoted_pence)}</strong>
       </div>
       <div className="result-room">
         <span>
@@ -80,13 +81,13 @@ function PropertyPaymentSummary({
             ? "Guests reimburse us"
             : "Guests pay"}
         </span>
-        <strong>{pounds(payment.guest_pence)}</strong>
+        <strong>{formatMinorCurrency(payment.guest_pence)}</strong>
       </div>
       <div className="result-room">
         <span>
           {property.kind === "venue" ? "Value not charged" : "We cover"}
         </span>
-        <strong>{pounds(payment.covered_pence)}</strong>
+        <strong>{formatMinorCurrency(payment.covered_pence)}</strong>
       </div>
     </div>
   );

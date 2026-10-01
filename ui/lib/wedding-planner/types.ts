@@ -1,19 +1,34 @@
+import type {
+  BookingParty,
+  FreeStayReason,
+  OptimizationMode,
+  OvernightStatus,
+  PlacementStatus,
+  PropertyAvailability,
+  PropertyKind,
+  RoomBillingMode,
+  ShareMode,
+  UnknownCostKind,
+} from "./values";
+
+export type { PairDecision, SharingLevel } from "./values";
+
 export type Guest = {
   id: string;
   name: string;
   source_party: string;
   tags: string;
-  overnight: "unknown" | "yes" | "no";
+  overnight: OvernightStatus;
   fixed_bed_group_id: string;
   requires_own_bed: boolean;
   safe_for_our_booking: boolean;
   may_share_bed_with: string[];
   avoid_bed_with: string[];
   can_share_room: boolean;
-  room_share_mode: "none" | "selected" | "any";
+  room_share_mode: ShareMode;
   may_share_room_with: string[];
   can_share_cottage: boolean;
-  cottage_share_mode: "none" | "selected" | "any";
+  cottage_share_mode: ShareMode;
   may_share_cottage_with: string[];
   avoid_room_with: string[];
   avoid_cottage_with: string[];
@@ -22,18 +37,18 @@ export type Guest = {
   preferred_property_ids: string[];
   outside_cost_gbp: string;
   charge_cap_exempt: boolean;
-  free_stay_reasons: ("immediate_family" | "wedding_party" | "other")[];
+  free_stay_reasons: FreeStayReason[];
   include_partner_in_free_stay: boolean;
 };
 export type State = {
   nights?: number;
   guests: Guest[];
-  payment_modes: Record<string, "couple" | "guests">;
+  payment_modes: Record<string, BookingParty>;
   cottage_options: Record<
     string,
     {
-      availability: "unknown" | "available" | "unavailable";
-      booking_by: "guests" | "couple";
+      availability: PropertyAvailability;
+      booking_by: BookingParty;
     }
   >;
   reviewed_non_couples: string[][];
@@ -41,12 +56,12 @@ export type State = {
     string,
     { guest_ids: string[]; approved_guest_ids: string[] }
   >;
-  suite_billing_modes: Record<string, string>;
+  suite_billing_modes: Record<string, RoomBillingMode>;
   cottage_paid_by_us_gbp: Record<string, string>;
   guest_charge_cap_gbp: string;
   max_cottage_spend_gbp: string;
   default_outside_cost_gbp: string;
-  optimization_mode: string;
+  optimization_mode: OptimizationMode;
   [key: string]: unknown;
 };
 export type PropertyPayment = {
@@ -54,10 +69,8 @@ export type PropertyPayment = {
   guest_pence: number;
   covered_pence: number;
 };
-export type SharingLevel = "bed" | "room" | "cottage";
-export type PairDecision = "yes" | "no" | "unset";
 export type Allocation = {
-  status: string;
+  status: PlacementStatus;
   rooms: Record<string, string[]>;
   single_bed_assignments: { room_id: string; party_id: string }[];
   outside_parties: string[];
@@ -66,8 +79,8 @@ export type Allocation = {
   cottage_details: Record<
     string,
     {
-      availability: string;
-      booking_by: "guests" | "couple";
+      availability: PropertyAvailability | "booked";
+      booking_by: BookingParty;
       cost_gbp: string | null;
       discount_gbp: string | null;
     }
@@ -77,7 +90,7 @@ export type Allocation = {
   known_cottage_cost_gbp: string;
   known_outside_cost_gbp: string;
   venue_suite_package_value_gbp: string | null;
-  unknown_costs: { kind: "cottage" | "outside"; id: string }[];
+  unknown_costs: { kind: UnknownCostKind; id: string }[];
   billing: {
     total_guest_pence: number;
     venue_unrecovered_pence: number;
@@ -128,13 +141,13 @@ export type Property = {
   id: string;
   name?: string;
   room_summary?: string;
-  kind: "venue" | "cottage";
+  kind: PropertyKind;
   rate_per_night_gbp?: number;
   booking_cost_gbp?: number;
   couple_booking_discount_percent?: number;
-  booking_by?: "couple" | "guests";
+  booking_by?: BookingParty;
   charge_guests?: boolean;
-  availability?: "unknown" | "available" | "unavailable";
+  availability?: PropertyAvailability;
   already_booked?: boolean;
   paid_by_us_gbp?: string | number;
 };
@@ -147,7 +160,7 @@ export type Room = {
   double_beds: number;
   single_beds?: number;
   rate_per_night_gbp?: number;
-  billing_mode?: "by_bed" | "full_room" | "couple";
+  billing_mode?: RoomBillingMode;
 };
 
 export type Party = {
@@ -178,14 +191,14 @@ export type PlannerInput = {
   venue_suite_package_value_gbp: string | number | null;
   max_cottage_spend_gbp: string | number | null;
   guest_charge_cap_gbp: string | number | null;
-  optimization_mode: "priority_first" | "lowest_total_price";
+  optimization_mode: OptimizationMode;
   properties: Property[];
   rooms: Room[];
   parties: Party[];
 };
 
 export type Placement = {
-  status: "optimal" | "provisional";
+  status: PlacementStatus;
   stages: { stage: string; status: string }[];
   rooms: Record<string, string[]>;
   shared_beds: { room_id: string; parties: [string, string] }[];

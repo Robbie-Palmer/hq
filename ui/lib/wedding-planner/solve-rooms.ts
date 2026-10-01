@@ -1,6 +1,6 @@
 import { Model, type Solution, sum, type Var } from "@bubblyworld/highs-ts";
+import { parseMoneyToMinorUnits } from "@/lib/generic/money";
 import { incrementalCottagePrice } from "./prices";
-import { moneyPence } from "./state";
 import type { Party, Placement, PlannerInput, Property, Room } from "./types";
 
 type Assignment = { party: string; room: string; variable: Var };
@@ -313,7 +313,7 @@ async function runObjectives(
       ),
     ),
   );
-  const budget = moneyPence(
+  const budget = parseMoneyToMinorUnits(
     input.max_cottage_spend_gbp,
     "Maximum cottage spend",
   );
@@ -321,8 +321,10 @@ async function runObjectives(
   const outsideCost = sum(
     [...outside].map(([id, variable]) =>
       variable.times(
-        moneyPence(parties.get(id)?.outside_cost_gbp, `${id} outside cost`) ??
-          0,
+        parseMoneyToMinorUnits(
+          parties.get(id)?.outside_cost_gbp,
+          `${id} outside cost`,
+        ) ?? 0,
       ),
     ),
   );

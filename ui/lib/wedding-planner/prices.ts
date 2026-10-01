@@ -1,17 +1,20 @@
-import { moneyPence } from "./state";
+import { parseMoneyToMinorUnits } from "@/lib/generic/money";
 import type { Property } from "./types";
 
 export function propertyStayPrice(
   property: Property,
   nights: number,
 ): number | null {
-  const nightly = moneyPence(
+  const nightly = parseMoneyToMinorUnits(
     property.rate_per_night_gbp,
     `${property.id} rate`,
   );
   const base =
     nightly === null
-      ? moneyPence(property.booking_cost_gbp, `${property.id} booking cost`)
+      ? parseMoneyToMinorUnits(
+          property.booking_cost_gbp,
+          `${property.id} booking cost`,
+        )
       : nightly * nights;
   if (base === null) return null;
   const discount =

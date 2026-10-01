@@ -5,8 +5,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { formatMinorCurrency } from "@/lib/generic/money";
 import type { AccommodationSetup } from "@/lib/wedding-planner/setup";
-import { pounds } from "@/lib/wedding-planner/state";
 import type { Allocation, PartyName } from "@/lib/wedding-planner/types";
 import { propertyName } from "./room-data";
 
@@ -44,7 +44,7 @@ function GuestPayments({
         {payments.map((payment) => (
           <div className="result-room" key={payment.id}>
             <span>{payment.name}</span>
-            <strong>{pounds(payment.amount)}</strong>
+            <strong>{formatMinorCurrency(payment.amount)}</strong>
           </div>
         ))}
         {!payments.length && (
@@ -82,7 +82,7 @@ function OutsideAccommodation({
                 <span>{names[id] ?? id}</span>
                 <strong>
                   {estimate
-                    ? `Guests ${pounds(estimate.guest_pence)} · We cover ${pounds(estimate.covered_pence)}`
+                    ? `Guests ${formatMinorCurrency(estimate.guest_pence)} · We cover ${formatMinorCurrency(estimate.covered_pence)}`
                     : "Estimate needed"}
                 </strong>
               </div>
@@ -126,30 +126,32 @@ function PaymentBreakdown({
           .map(([propertyId, amounts]) => (
             <div className="result-room" key={propertyId}>
               <span>{propertyName(propertyId, setup)} still due</span>
-              <strong>{pounds(amounts.still_to_pay_pence)}</strong>
+              <strong>{formatMinorCurrency(amounts.still_to_pay_pence)}</strong>
             </div>
           ))}
         {flow.outside_we_cover_pence > 0 && (
           <div className="result-room">
             <span>Outside stays we cover, estimated</span>
-            <strong>{pounds(flow.outside_we_cover_pence)}</strong>
+            <strong>{formatMinorCurrency(flow.outside_we_cover_pence)}</strong>
           </div>
         )}
         <div className="result-room">
           <span>Cottage reimbursements expected from guests</span>
-          <strong>{pounds(flow.cottage_guest_reimbursements_pence)}</strong>
+          <strong>
+            {formatMinorCurrency(flow.cottage_guest_reimbursements_pence)}
+          </strong>
         </div>
         {flow.guest_direct_pence > 0 && (
           <div className="result-room">
             <span>Guests pay directly to cottage or outside providers</span>
-            <strong>{pounds(flow.guest_direct_pence)}</strong>
+            <strong>{formatMinorCurrency(flow.guest_direct_pence)}</strong>
           </div>
         )}
         {included.map((property) => (
           <div className="result-room" key={property.id}>
             <span>{property.name ?? property.id} rate total</span>
             <strong>
-              {pounds(
+              {formatMinorCurrency(
                 allocation.billing.by_property[property.id]?.quoted_pence ?? 0,
               )}
             </strong>
@@ -163,19 +165,23 @@ function PaymentBreakdown({
         )}
         <div className="result-room">
           <span>Included room value not charged to guests</span>
-          <strong>{pounds(allocation.billing.venue_unrecovered_pence)}</strong>
+          <strong>
+            {formatMinorCurrency(allocation.billing.venue_unrecovered_pence)}
+          </strong>
         </div>
         {flow.venue_guest_contributions_pence > 0 && (
           <div className="result-room">
             <span>Guest contributions toward the room package</span>
-            <strong>{pounds(flow.venue_guest_contributions_pence)}</strong>
+            <strong>
+              {formatMinorCurrency(flow.venue_guest_contributions_pence)}
+            </strong>
           </div>
         )}
         {flow.paid_without_room_pence > 0 && (
           <p className="editor-hint">
-            {pounds(flow.paid_without_room_pence)} has been paid toward cottages
-            with no guests in this plan. The total assumes that payment is not
-            refunded.
+            {formatMinorCurrency(flow.paid_without_room_pence)} has been paid
+            toward cottages with no guests in this plan. The total assumes that
+            payment is not refunded.
           </p>
         )}
         {allocation.unknown_costs.length > 0 && (

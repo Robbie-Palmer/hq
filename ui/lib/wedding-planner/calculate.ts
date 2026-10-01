@@ -1,10 +1,31 @@
+import {
+  formatMinorCurrency,
+  parseMoneyToMinorUnits,
+} from "@/lib/generic/money";
 import { allocateBills, cashFlow } from "./billing";
 import { incrementalCottagePrice, propertyStayPrice } from "./prices";
 import { type AccommodationSetup, weddingAccommodationSetup } from "./setup";
 import { solveRooms } from "./solve-rooms";
 import type { SolvePayload } from "./source";
-import { buildInput, moneyPence, pounds } from "./state";
-import type { Allocation, Placement, PlannerInput, State } from "./types";
+import { buildInput } from "./state";
+import type {
+  Allocation,
+  Placement,
+  PlannerInput,
+  Property,
+  State,
+} from "./types";
+
+function sumCottagePrices(
+  properties: Property[],
+  nights: number,
+  price: (property: Property, nights: number) => number | null,
+): number {
+  return properties.reduce(
+    (total, property) => total + (price(property, nights) ?? 0),
+    0,
+  );
+}
 
 function detailForCottage(
   input: PlannerInput,
@@ -21,53 +42,53 @@ function detailForCottage(
       ? "booked"
       : (property.availability ?? "unknown"),
     booking_by: property.booking_by ?? "guests",
-    cost_gbp: price === null ? null : pounds(price),
-    discount_gbp: price === null || full === null ? null : pounds(full - price),
+    cost_gbp: price === null ? null : formatMinorCurrency(price),
+    discount_gbp:
+      price === null || full === null
+        ? null
+        : formatMinorCurrency(full - price),
   };
 }
 
 function fullResult(input: PlannerInput, placement: Placement): Allocation {
   const billing = allocateBills(input, placement);
   const flow = cashFlow(input, placement, billing);
-  const newBookings = placement.booked_cottages.filter(
-    (id) => !input.properties.find((item) => item.id === id)?.already_booked,
+  const bookedCottages = placement.booked_cottages.map(
+    (id) => input.properties.find((property) => property.id === id)!,
   );
-  const newCost = newBookings.reduce((total, id) => {
-    const property = input.properties.find((item) => item.id === id)!;
-    return (
-      total +
-      (property.booking_by === "couple"
-        ? (propertyStayPrice(property, input.nights) ?? 0)
-        : 0)
-    );
-  }, 0);
-  const coupleCost = placement.booked_cottages.reduce((total, id) => {
-    const property = input.properties.find((item) => item.id === id)!;
-    return (
-      total +
-      (property.booking_by === "couple"
-        ? (propertyStayPrice(property, input.nights) ?? 0)
-        : 0)
-    );
-  }, 0);
+  const newCottages = bookedCottages.filter(
+    (property) => !property.already_booked,
+  );
+  const newBookings = newCottages.map((property) => property.id);
+  const coupleCottages = bookedCottages.filter(
+    (property) => property.booking_by === "couple",
+  );
+  const newCost = sumCottagePrices(
+    coupleCottages.filter((property) => !property.already_booked),
+    input.nights,
+    propertyStayPrice,
+  );
+  const coupleCost = sumCottagePrices(
+    coupleCottages,
+    input.nights,
+    propertyStayPrice,
+  );
   const outsideCost = placement.outside_parties.reduce((total, id) => {
     const party = input.parties.find((item) => item.id === id)!;
-    return total + (moneyPence(party.outside_cost_gbp, `${id} outside`) ?? 0);
+    return (
+      total +
+      (parseMoneyToMinorUnits(party.outside_cost_gbp, `${id} outside`) ?? 0)
+    );
   }, 0);
-  const knownCottageCost = placement.booked_cottages.reduce((total, id) => {
-    const property = input.properties.find((item) => item.id === id)!;
-    return total + (incrementalCottagePrice(property, input.nights) ?? 0);
-  }, 0);
+  const knownCottageCost = sumCottagePrices(
+    bookedCottages,
+    input.nights,
+    incrementalCottagePrice,
+  );
   const unknownCosts = [
-    ...newBookings
-      .filter(
-        (id) =>
-          propertyStayPrice(
-            input.properties.find((item) => item.id === id)!,
-            input.nights,
-          ) === null,
-      )
-      .map((id) => ({ kind: "cottage" as const, id })),
+    ...newCottages
+      .filter((property) => propertyStayPrice(property, input.nights) === null)
+      .map((property) => ({ kind: "cottage" as const, id: property.id })),
     ...placement.outside_parties
       .filter(
         (id) =>
@@ -82,23 +103,21 @@ function fullResult(input: PlannerInput, placement: Placement): Allocation {
     single_bed_assignments: placement.single_bed_assignments,
     outside_parties: placement.outside_parties,
     new_cottage_bookings: newBookings,
-    tentative_cottage_bookings: newBookings.filter(
-      (id) =>
-        input.properties.find((item) => item.id === id)?.availability ===
-        "unknown",
-    ),
+    tentative_cottage_bookings: newCottages
+      .filter((property) => property.availability === "unknown")
+      .map((property) => property.id),
     cottage_details: Object.fromEntries(
       placement.booked_cottages.map((id) => [id, detailForCottage(input, id)]),
     ),
-    couple_booking_outlay_gbp: pounds(coupleCost),
-    new_couple_booking_cost_gbp: pounds(newCost),
-    known_cottage_cost_gbp: pounds(knownCottageCost),
-    known_outside_cost_gbp: pounds(outsideCost),
+    couple_booking_outlay_gbp: formatMinorCurrency(coupleCost),
+    new_couple_booking_cost_gbp: formatMinorCurrency(newCost),
+    known_cottage_cost_gbp: formatMinorCurrency(knownCottageCost),
+    known_outside_cost_gbp: formatMinorCurrency(outsideCost),
     venue_suite_package_value_gbp:
       input.venue_suite_package_value_gbp === null
         ? null
-        : pounds(
-            moneyPence(
+        : formatMinorCurrency(
+            parseMoneyToMinorUnits(
               input.venue_suite_package_value_gbp,
               "suite reference",
             ) ?? 0,
@@ -125,18 +144,18 @@ function formatReport(
   lines.push(
     `Outside accommodation: ${placement.outside_parties.flatMap((id) => parties.get(id)?.guests ?? []).join(", ") || "none"}`,
     "",
-    `Cottage bills still due from us: ${pounds(result.cash_flow.still_to_pay_pence)}`,
+    `Cottage bills still due from us: ${formatMinorCurrency(result.cash_flow.still_to_pay_pence)}`,
   );
   for (const [id, detail] of Object.entries(result.cash_flow.by_property)) {
     lines.push(
-      `  ${id}: ${pounds(detail.still_to_pay_pence)} due, ${pounds(detail.guest_reimbursements_pence)} expected back from guests`,
+      `  ${id}: ${formatMinorCurrency(detail.still_to_pay_pence)} due, ${formatMinorCurrency(detail.guest_reimbursements_pence)} expected back from guests`,
     );
   }
   lines.push(
-    `Already paid by us: ${pounds(result.cash_flow.already_paid_pence)}`,
-    `Expected guest reimbursements: ${pounds(result.cash_flow.cottage_guest_reimbursements_pence)}`,
-    `Our final cost beyond the package: ${pounds(result.cash_flow.our_final_cost_pence)}`,
-    `Guests expected to pay: ${pounds(result.cash_flow.guest_expected_total_pence)}`,
+    `Already paid by us: ${formatMinorCurrency(result.cash_flow.already_paid_pence)}`,
+    `Expected guest reimbursements: ${formatMinorCurrency(result.cash_flow.cottage_guest_reimbursements_pence)}`,
+    `Our final cost beyond the package: ${formatMinorCurrency(result.cash_flow.our_final_cost_pence)}`,
+    `Guests expected to pay: ${formatMinorCurrency(result.cash_flow.guest_expected_total_pence)}`,
   );
   for (const property of input.properties.filter(
     (item) => item.kind === "venue",

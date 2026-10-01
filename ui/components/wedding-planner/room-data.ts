@@ -1,9 +1,13 @@
+import {
+  formatMinorCurrency,
+  parseMoneyToMinorUnits,
+} from "@/lib/generic/money";
 import { propertyStayPrice } from "@/lib/wedding-planner/prices";
 import {
   type AccommodationSetup,
   weddingAccommodationSetup,
 } from "@/lib/wedding-planner/setup";
-import { moneyPence, pounds } from "@/lib/wedding-planner/state";
+import type { BookingParty } from "@/lib/wedding-planner/values";
 
 export function propertyName(
   id: string,
@@ -44,7 +48,8 @@ export const includedRoomRateGroups = Object.values(
     .reduce<Record<string, { label: string; count: number; price: number }>>(
       (groups, room) => {
         const price =
-          moneyPence(room.rate_per_night_gbp, `${room.id} rate`) ?? 0;
+          parseMoneyToMinorUnits(room.rate_per_night_gbp, `${room.id} rate`) ??
+          0;
         const label = room.rate_group ?? "rooms";
         const key = `${label}:${price}`;
         const group = groups[key] ?? { label, count: 0, price };
@@ -56,7 +61,7 @@ export const includedRoomRateGroups = Object.values(
     ),
 );
 
-export const includedRoomRateTotal = pounds(
+export const includedRoomRateTotal = formatMinorCurrency(
   includedRoomRateGroups.reduce(
     (total, group) => total + group.price * group.count,
     0,
@@ -66,17 +71,14 @@ export const includedRoomRateTotal = pounds(
 export const includedPackageFigure =
   weddingAccommodationSetup.input.venue_suite_package_value_gbp === null
     ? null
-    : pounds(
-        moneyPence(
+    : formatMinorCurrency(
+        parseMoneyToMinorUnits(
           weddingAccommodationSetup.input.venue_suite_package_value_gbp,
           "package room figure",
         ) ?? 0,
       );
 
-export function propertyPrice(
-  id: string,
-  bookingBy: "couple" | "guests",
-): string {
+export function propertyPrice(id: string, bookingBy: BookingParty): string {
   const property = weddingAccommodationSetup.input.properties.find(
     (item) => item.id === id,
   );
@@ -85,7 +87,7 @@ export function propertyPrice(
     { ...property, booking_by: bookingBy },
     weddingAccommodationSetup.input.nights,
   );
-  return price === null ? "Price unknown" : pounds(price);
+  return price === null ? "Price unknown" : formatMinorCurrency(price);
 }
 
 export function bookingDiscountPercent(id: string): number {

@@ -23,6 +23,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { formatMinorCurrency } from "@/lib/generic/money";
 import { cn } from "@/lib/generic/styles";
 import { browserPlannerSource } from "@/lib/wedding-planner/browser-source";
 import { weddingAccommodationSetup } from "@/lib/wedding-planner/setup";
@@ -35,7 +36,7 @@ import {
   setShareMode as setShareModeInState,
 } from "@/lib/wedding-planner/sharing";
 import type { PlannerSource } from "@/lib/wedding-planner/source";
-import { parseState, pounds } from "@/lib/wedding-planner/state";
+import { parseState } from "@/lib/wedding-planner/state";
 import type {
   Allocation,
   BedGroup,
@@ -45,6 +46,15 @@ import type {
   SharingLevel,
   State,
 } from "@/lib/wedding-planner/types";
+import {
+  type BookingParty,
+  BookingPartySchema,
+  OptimizationModeSchema,
+  PropertyAvailabilitySchema,
+  RoomBillingModeSchema,
+  type ShareMode,
+  ShareModeSchema,
+} from "@/lib/wedding-planner/values";
 import { DataControls } from "./data-controls";
 import { ResultPlan } from "./result-plan";
 import {
@@ -130,8 +140,8 @@ function PaymentChoice({
   hint,
 }: Readonly<{
   propertyId: keyof State["payment_modes"];
-  value: "couple" | "guests";
-  onChange: (value: "couple" | "guests") => void;
+  value: BookingParty;
+  onChange: (value: BookingParty) => void;
   hint?: string;
 }>) {
   return (
@@ -139,7 +149,7 @@ function PaymentChoice({
       <Select
         label={`${propertyNames[propertyId]} payment`}
         value={value}
-        onChange={(choice) => onChange(choice as "couple" | "guests")}
+        onChange={(choice) => onChange(BookingPartySchema.parse(choice))}
       >
         <option value="guests">Guests pay</option>
         <option value="couple">We cover it</option>
@@ -610,7 +620,7 @@ export function AccommodationEditor({
   const setShareMode = (
     id: string,
     level: "room" | "cottage",
-    mode: "none" | "selected" | "any",
+    mode: ShareMode,
   ) => update((draft) => setShareModeInState(draft, id, level, mode));
   const setPairDecision = (
     level: SharingLevel,
@@ -1296,7 +1306,7 @@ export function AccommodationEditor({
                                 setShareMode(
                                   selected.id,
                                   "room",
-                                  value as Guest["room_share_mode"],
+                                  ShareModeSchema.parse(value),
                                 )
                               }
                             >
@@ -1320,7 +1330,7 @@ export function AccommodationEditor({
                                 setShareMode(
                                   selected.id,
                                   "cottage",
-                                  value as Guest["cottage_share_mode"],
+                                  ShareModeSchema.parse(value),
                                 )
                               }
                             >
@@ -1762,7 +1772,7 @@ export function AccommodationEditor({
                         <span>
                           {group.count} {group.label}
                         </span>
-                        <strong>{pounds(group.price)} each</strong>
+                        <strong>{formatMinorCurrency(group.price)} each</strong>
                       </div>
                     ))}
                     <div className="rate-row">
@@ -1838,7 +1848,7 @@ export function AccommodationEditor({
                                       booking_by: "couple",
                                     };
                                     option.availability =
-                                      value as State["cottage_options"][string]["availability"];
+                                      PropertyAvailabilitySchema.parse(value);
                                     draft.cottage_options[propertyId] = option;
                                   })
                                 }
@@ -1864,7 +1874,7 @@ export function AccommodationEditor({
                                       booking_by: "couple",
                                     };
                                     option.booking_by =
-                                      value as State["cottage_options"][string]["booking_by"];
+                                      BookingPartySchema.parse(value);
                                     draft.cottage_options[propertyId] = option;
                                   })
                                 }
@@ -1994,7 +2004,8 @@ export function AccommodationEditor({
                           value={state.suite_billing_modes[id] ?? "by_bed"}
                           onChange={(value) =>
                             update((draft) => {
-                              draft.suite_billing_modes[id] = value;
+                              draft.suite_billing_modes[id] =
+                                RoomBillingModeSchema.parse(value);
                             })
                           }
                         >
@@ -2056,7 +2067,8 @@ export function AccommodationEditor({
                       value={state.optimization_mode}
                       onChange={(value) =>
                         update((draft) => {
-                          draft.optimization_mode = value;
+                          draft.optimization_mode =
+                            OptimizationModeSchema.parse(value);
                         })
                       }
                     >

@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
+import { formatMinorCurrency } from "@/lib/generic/money";
 import type { AccommodationSetup } from "@/lib/wedding-planner/setup";
-import { pounds } from "@/lib/wedding-planner/state";
 import type { Allocation } from "@/lib/wedding-planner/types";
 import { propertyName } from "./room-data";
 
@@ -25,13 +25,13 @@ export function ResultSummary({
         <Card>
           <CardContent>
             <small>Our total cost beyond the wedding package</small>
-            <strong>{pounds(flow.our_final_cost_pence)}</strong>
+            <strong>{formatMinorCurrency(flow.our_final_cost_pence)}</strong>
           </CardContent>
         </Card>
         <Card>
           <CardContent>
             <small>Already paid by us to cottages</small>
-            <strong>{pounds(flow.already_paid_pence)}</strong>
+            <strong>{formatMinorCurrency(flow.already_paid_pence)}</strong>
           </CardContent>
         </Card>
         <Card>
@@ -41,23 +41,25 @@ export function ResultSummary({
                 ? "Net still to cover after guest reimbursements"
                 : "Expected back after remaining bills"}
             </small>
-            <strong>{pounds(Math.abs(netStillToCover))}</strong>
+            <strong>{formatMinorCurrency(Math.abs(netStillToCover))}</strong>
           </CardContent>
         </Card>
         <Card>
           <CardContent>
             <small>Guests expected to pay</small>
-            <strong>{pounds(flow.guest_expected_total_pence)}</strong>
+            <strong>
+              {formatMinorCurrency(flow.guest_expected_total_pence)}
+            </strong>
           </CardContent>
         </Card>
       </div>
       <p className="result-finance-note">
         Nothing extra is due for {includedNames}. We still owe{" "}
-        {pounds(flow.still_to_pay_pence)} for cottage bookings and any outside
-        stays we cover. We expect{" "}
-        {pounds(flow.cottage_guest_reimbursements_pence)} back from cottage
-        guests. Our total cost is what we have paid plus bills still due, less
-        those reimbursements.
+        {formatMinorCurrency(flow.still_to_pay_pence)} for cottage bookings and
+        any outside stays we cover. We expect{" "}
+        {formatMinorCurrency(flow.cottage_guest_reimbursements_pence)} back from
+        cottage guests. Our total cost is what we have paid plus bills still
+        due, less those reimbursements.
       </p>
       <div className="result-note">
         {allocation.status === "optimal"

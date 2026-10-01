@@ -1,10 +1,20 @@
 import { z } from "zod";
+import { parseMoneyToMinorUnits } from "@/lib/generic/money";
 import {
   type AccommodationSetup,
   validateAccommodationSetup,
   weddingAccommodationSetup,
 } from "./setup";
 import type { Guest, Party, PlannerInput, State } from "./types";
+import {
+  BookingPartySchema,
+  FreeStayReasonSchema,
+  OptimizationModeSchema,
+  OvernightStatusSchema,
+  PropertyAvailabilitySchema,
+  RoomBillingModeSchema,
+  ShareModeSchema,
+} from "./values";
 
 const idList = z.array(z.string());
 const money = z.union([z.string(), z.number()]).transform(String);
@@ -13,17 +23,17 @@ const guestSchema = z.looseObject({
   name: z.string().min(1),
   source_party: z.string().default(""),
   tags: z.string().default(""),
-  overnight: z.enum(["unknown", "yes", "no"]),
+  overnight: OvernightStatusSchema,
   fixed_bed_group_id: z.string().default(""),
   requires_own_bed: z.boolean().default(false),
   safe_for_our_booking: z.boolean().default(false),
   may_share_bed_with: idList.default([]),
   avoid_bed_with: idList.default([]),
   can_share_room: z.boolean().default(false),
-  room_share_mode: z.enum(["none", "selected", "any"]).default("none"),
+  room_share_mode: ShareModeSchema.default("none"),
   may_share_room_with: idList.default([]),
   can_share_cottage: z.boolean().default(true),
-  cottage_share_mode: z.enum(["none", "selected", "any"]).default("any"),
+  cottage_share_mode: ShareModeSchema.default("any"),
   may_share_cottage_with: idList.default([]),
   avoid_room_with: idList.default([]),
   avoid_cottage_with: idList.default([]),
@@ -32,21 +42,19 @@ const guestSchema = z.looseObject({
   preferred_property_ids: idList.default([]),
   outside_cost_gbp: z.string().default(""),
   charge_cap_exempt: z.boolean().default(false),
-  free_stay_reasons: z
-    .array(z.enum(["immediate_family", "wedding_party", "other"]))
-    .default([]),
+  free_stay_reasons: z.array(FreeStayReasonSchema).default([]),
   include_partner_in_free_stay: z.boolean().default(true),
 });
 
 const cottageChoice = z.object({
-  availability: z.enum(["unknown", "available", "unavailable"]),
-  booking_by: z.enum(["guests", "couple"]),
+  availability: PropertyAvailabilitySchema,
+  booking_by: BookingPartySchema,
 });
 
 const stateSchema = z.looseObject({
   nights: z.number().int().positive().default(1),
   guests: z.array(guestSchema).min(1),
-  payment_modes: z.record(z.string(), z.enum(["couple", "guests"])),
+  payment_modes: z.record(z.string(), BookingPartySchema),
   cottage_options: z.record(z.string(), cottageChoice),
   cottage_paid_by_us_gbp: z.record(z.string(), money),
   reviewed_non_couples: z.array(z.tuple([z.string(), z.string()])).default([]),
@@ -56,38 +64,12 @@ const stateSchema = z.looseObject({
       z.object({ guest_ids: idList, approved_guest_ids: idList }),
     )
     .default({}),
-  suite_billing_modes: z.record(z.string(), z.string()).default({}),
+  suite_billing_modes: z.record(z.string(), RoomBillingModeSchema).default({}),
   guest_charge_cap_gbp: z.string().default(""),
   max_cottage_spend_gbp: z.string().default(""),
   default_outside_cost_gbp: z.string().default(""),
-  optimization_mode: z
-    .enum(["priority_first", "lowest_total_price"])
-    .default("priority_first"),
+  optimization_mode: OptimizationModeSchema.default("priority_first"),
 });
-
-export function moneyPence(value: unknown, label: string): number | null {
-  if (value === null || value === undefined || value === "") return null;
-  const amount = Number(value);
-  const scaled = amount * 100;
-  const pence = Math.round(scaled);
-  if (
-    !Number.isFinite(amount) ||
-    amount < 0 ||
-    !Number.isSafeInteger(pence) ||
-    Math.abs(scaled - pence) >
-      Math.min(1e-6, Number.EPSILON * Math.max(1, Math.abs(scaled)) * 4)
-  ) {
-    throw new Error(`${label} must be a non-negative amount in whole pence`);
-  }
-  return pence;
-}
-
-export function pounds(pence: number): string {
-  return new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency: "GBP",
-  }).format(pence / 100);
-}
 
 function stringList(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((id) => typeof id === "string");
@@ -178,13 +160,22 @@ export function parseState(
   validateGuestLinks(normalized, ids);
   validateReservations(normalized, ids, setup);
   for (const [id, paid] of Object.entries(normalized.cottage_paid_by_us_gbp)) {
-    moneyPence(paid, `${id} already paid`);
+    parseMoneyToMinorUnits(paid, `${id} already paid`);
   }
-  moneyPence(normalized.max_cottage_spend_gbp, "Maximum cottage spend");
-  moneyPence(normalized.default_outside_cost_gbp, "Default outside cost");
-  moneyPence(normalized.guest_charge_cap_gbp, "Guest charge cap");
+  parseMoneyToMinorUnits(
+    normalized.max_cottage_spend_gbp,
+    "Maximum cottage spend",
+  );
+  parseMoneyToMinorUnits(
+    normalized.default_outside_cost_gbp,
+    "Default outside cost",
+  );
+  parseMoneyToMinorUnits(normalized.guest_charge_cap_gbp, "Guest charge cap");
   for (const guest of normalized.guests)
-    moneyPence(guest.outside_cost_gbp, `${guest.name} outside cost`);
+    parseMoneyToMinorUnits(
+      guest.outside_cost_gbp,
+      `${guest.name} outside cost`,
+    );
   return normalized;
 }
 
@@ -400,12 +391,10 @@ export function buildInput(
   input.nights = state.nights ?? input.nights;
   input.guest_charge_cap_gbp = state.guest_charge_cap_gbp || null;
   input.max_cottage_spend_gbp = state.max_cottage_spend_gbp || null;
-  input.optimization_mode =
-    state.optimization_mode as PlannerInput["optimization_mode"];
+  input.optimization_mode = state.optimization_mode;
   for (const room of input.rooms) {
     if (room.rate_per_night_gbp !== undefined) {
-      room.billing_mode = (state.suite_billing_modes[room.id] ??
-        "by_bed") as typeof room.billing_mode;
+      room.billing_mode = state.suite_billing_modes[room.id] ?? "by_bed";
     }
   }
   configureProperties(input, state);
