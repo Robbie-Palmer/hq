@@ -45,10 +45,6 @@ vi.mock("@/components/recipes/diet-provider", () => ({
   }),
 }));
 
-vi.mock("@/components/recipes/shopping/meal-planner", () => ({
-  MealPlanner: () => <div>Meal planner</div>,
-}));
-
 vi.mock("@/components/recipes/shopping/recipe-picker", () => ({
   RecipePicker: () => <div>Recipe picker</div>,
 }));
@@ -68,31 +64,35 @@ describe("ShoppingView", () => {
     });
   });
 
-  it("opens an empty shopping list without requiring a meal plan", async () => {
+  it("shows the shopping list followed by the recipe picker", () => {
     mocks.extras.splice(0);
-    const user = userEvent.setup();
     render(<ShoppingView recipes={[]} />);
-
-    const viewList = screen.getByRole("button", {
-      name: "View shopping list",
-    });
-    expect(viewList).toBeEnabled();
-    await user.click(viewList);
 
     expect(
       screen.getByRole("heading", { name: "Shopping list." }),
     ).toBeInTheDocument();
     expect(screen.getByText("List contents")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Add recipes." }),
+    ).toBeInTheDocument();
+    expect(
+      screen
+        .getByText("List contents")
+        .compareDocumentPosition(
+          screen.getByRole("heading", { name: "Add recipes." }),
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Plan meals" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Shopping list" }),
+    ).not.toBeInTheDocument();
   });
 
-  it("stays on the shopping-list screen when starting a new list", async () => {
+  it("starts a new list without changing the page", async () => {
     const user = userEvent.setup();
     render(<ShoppingView recipes={[]} />);
-
-    await user.click(screen.getByRole("button", { name: "Shopping list" }));
-    expect(
-      screen.getByRole("heading", { name: "Shopping list." }),
-    ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /start a new list/i }));
 
@@ -108,13 +108,13 @@ describe("ShoppingView", () => {
     expect(screen.getByRole("button", { name: "share" })).toBeInTheDocument();
   });
 
-  it("does not offer a shared link for a personal shopping list", () => {
+  it("links personal shopping lists to household setup", () => {
     mocks.household = false;
 
     render(<ShoppingView recipes={[]} />);
 
     expect(
-      screen.queryByRole("button", { name: "share" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("link", { name: "share with a household" }),
+    ).toHaveAttribute("href", "/recipes/settings?section=household");
   });
 });
