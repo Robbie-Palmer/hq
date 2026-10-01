@@ -172,13 +172,16 @@ export function inflationDatasetDisclosure(
     warning =
       "RPI is a legacy measure and is not interchangeable with CPI or CPIH.";
   }
+  let indexLabel: string;
+  if (release.index === "CPIH") {
+    indexLabel = "CPIH, including owner occupiers' housing costs";
+  } else if (release.index === "CPI") {
+    indexLabel = "CPI, excluding owner occupiers' housing costs";
+  } else {
+    indexLabel = "RPI, Retail Prices Index";
+  }
   return {
-    indexLabel:
-      release.index === "CPIH"
-        ? "CPIH, including owner occupiers' housing costs"
-        : release.index === "CPI"
-          ? "CPI, excluding owner occupiers' housing costs"
-          : "RPI, Retail Prices Index",
+    indexLabel,
     referencePeriod,
     releaseLabel: `ONS ${release.source.releaseVersion}, dataset ${release.versionId}`,
     sourceLabel: `${release.source.seriesId}, ${release.source.frequency}, ${release.source.geography}`,

@@ -70,7 +70,9 @@ export const InflationDatasetReleaseSchema = z
         path: ["observations"],
       });
     }
-    const sorted = periods.toSorted();
+    const sorted = periods.toSorted((left, right) =>
+      left.localeCompare(right),
+    );
     if (periods.some((period, index) => period !== sorted[index])) {
       context.addIssue({
         code: "custom",

@@ -40,9 +40,10 @@ async function main(): Promise<void> {
       fetchOnsInflationRelease(source, { retrievedAt }),
     ),
   );
-  const archive = fetched.reduce(ingestInflationRelease, {
-    releases: current.releases,
-  });
+  const archive = fetched.reduce(
+    (existing, release) => ingestInflationRelease(existing, release),
+    { releases: current.releases },
+  );
 
   if (archive.releases.length === current.releases.length) {
     process.stdout.write("ONS inflation archive is already current.\n");
@@ -60,11 +61,13 @@ async function main(): Promise<void> {
     releases: archive.releases,
   });
   const generated = buildArtifacts(packageRoot, updated);
-  for (const [relativePath, content] of generated) {
-    const outputPath = resolve(packageRoot, relativePath);
-    await mkdir(dirname(outputPath), { recursive: true });
-    await writeFile(outputPath, content);
-  }
+  await Promise.all(
+    Array.from(generated, async ([relativePath, content]) => {
+      const outputPath = resolve(packageRoot, relativePath);
+      await mkdir(dirname(outputPath), { recursive: true });
+      await writeFile(outputPath, content);
+    }),
+  );
   await writeFile(
     dataModulePath,
     dataModule.replace(
@@ -77,7 +80,9 @@ async function main(): Promise<void> {
   );
 }
 
-main().catch((error: unknown) => {
+try {
+  await main();
+} catch (error: unknown) {
   console.error(error);
   process.exitCode = 1;
-});
+}

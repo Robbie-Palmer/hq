@@ -15,9 +15,9 @@ export function InflationDatasetDisclosure({
 }>) {
   if (release == null) {
     return (
-      <p role="status" className="text-sm text-destructive">
+      <output className="text-sm text-destructive">
         The selected inflation index is unavailable.
-      </p>
+      </output>
     );
   }
   const disclosure = inflationDatasetDisclosure(
