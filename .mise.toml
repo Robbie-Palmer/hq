@@ -84,7 +84,7 @@ depends = ["//:lint:finance-contract", "//workers/recipe-api:lint:api", "//worke
 description = "Check the Asset Tracker shared-system SQL and OpenAPI contracts"
 depends = ["//workers/work-graph-api:install"]
 run = """
-node docs/personal-finance/verify-shared-system-contract.mjs
+node docs/personal-finance/scripts/verify-shared-system-contract.mjs
 pnpm --filter work-graph-api exec spectral lint \
   ../../docs/personal-finance/shared-system-openapi.yaml \
   --ruleset ../../docs/personal-finance/.spectral.yaml \

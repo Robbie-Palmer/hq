@@ -15,7 +15,7 @@ The machine-readable parts are:
 * [`shared-system-schema.sql`](shared-system-schema.sql), the PostgreSQL schema;
 * [`shared-system-openapi.yaml`](shared-system-openapi.yaml), the HTTP contract;
   and
-* [`verify-shared-system-contract.mjs`](verify-shared-system-contract.mjs),
+* [`verify-shared-system-contract.mjs`](scripts/verify-shared-system-contract.mjs),
   which checks command coverage, required write protections, and schema
   references.
 

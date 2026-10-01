@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import process from "node:process";
 import { parse } from "yaml";
 
-const contractDirectory = new URL("./", import.meta.url);
+const contractDirectory = new URL("../", import.meta.url);
 const openapi = parse(
   readFileSync(new URL("shared-system-openapi.yaml", contractDirectory), "utf8"),
 );
