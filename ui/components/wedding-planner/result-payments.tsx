@@ -13,10 +13,10 @@ import { propertyName } from "./room-data";
 function GuestPayments({
   allocation,
   parties,
-}: {
+}: Readonly<{
   allocation: Allocation;
   parties: PartyName[];
-}) {
+}>) {
   const payments = parties
     .flatMap((party) =>
       (allocation.billing.member_amounts_pence_by_party[party.id] ?? []).map(
@@ -63,10 +63,10 @@ function GuestPayments({
 function OutsideAccommodation({
   allocation,
   names,
-}: {
+}: Readonly<{
   allocation: Allocation;
   names: Record<string, string>;
-}) {
+}>) {
   return (
     <Card className="result-property">
       <CardHeader>
@@ -102,11 +102,11 @@ function PaymentBreakdown({
   allocation,
   names,
   setup,
-}: {
+}: Readonly<{
   allocation: Allocation;
   names: Record<string, string>;
   setup: AccommodationSetup;
-}) {
+}>) {
   const flow = allocation.cash_flow;
   const included = setup.input.properties.filter(
     (property) => property.kind === "venue",
@@ -194,12 +194,12 @@ export function ResultPayments({
   parties,
   names,
   setup,
-}: {
+}: Readonly<{
   allocation: Allocation;
   parties: PartyName[];
   names: Record<string, string>;
   setup: AccommodationSetup;
-}) {
+}>) {
   return (
     <div>
       <GuestPayments allocation={allocation} parties={parties} />

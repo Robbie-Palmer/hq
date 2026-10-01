@@ -164,7 +164,7 @@ export function allocateBills(
       cap !== null && !party.charge_cap_exempt
         ? Math.min(chargeable, cap)
         : chargeable;
-    const amounts = Array(party.guests.length).fill(0) as number[];
+    const amounts = new Array<number>(party.guests.length).fill(0);
     for (const [index, amount] of split(
       finalCharge,
       payingIndexes.length,

@@ -8,68 +8,62 @@ import type { Guest, Party, PlannerInput, State } from "./types";
 
 const idList = z.array(z.string());
 const money = z.union([z.string(), z.number()]).transform(String);
-const guestSchema = z
-  .object({
-    id: z.string().min(1),
-    name: z.string().min(1),
-    source_party: z.string().default(""),
-    tags: z.string().default(""),
-    overnight: z.enum(["unknown", "yes", "no"]),
-    fixed_bed_group_id: z.string().default(""),
-    requires_own_bed: z.boolean().default(false),
-    safe_for_our_booking: z.boolean().default(false),
-    may_share_bed_with: idList.default([]),
-    avoid_bed_with: idList.default([]),
-    can_share_room: z.boolean().default(false),
-    room_share_mode: z.enum(["none", "selected", "any"]).default("none"),
-    may_share_room_with: idList.default([]),
-    can_share_cottage: z.boolean().default(true),
-    cottage_share_mode: z.enum(["none", "selected", "any"]).default("any"),
-    may_share_cottage_with: idList.default([]),
-    avoid_room_with: idList.default([]),
-    avoid_cottage_with: idList.default([]),
-    priority: z.number().int().min(0).default(3),
-    fixed_room_id: z.string().default(""),
-    preferred_property_ids: idList.default([]),
-    outside_cost_gbp: z.string().default(""),
-    charge_cap_exempt: z.boolean().default(false),
-    free_stay_reasons: z
-      .array(z.enum(["immediate_family", "wedding_party", "other"]))
-      .default([]),
-    include_partner_in_free_stay: z.boolean().default(true),
-  })
-  .passthrough();
+const guestSchema = z.looseObject({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  source_party: z.string().default(""),
+  tags: z.string().default(""),
+  overnight: z.enum(["unknown", "yes", "no"]),
+  fixed_bed_group_id: z.string().default(""),
+  requires_own_bed: z.boolean().default(false),
+  safe_for_our_booking: z.boolean().default(false),
+  may_share_bed_with: idList.default([]),
+  avoid_bed_with: idList.default([]),
+  can_share_room: z.boolean().default(false),
+  room_share_mode: z.enum(["none", "selected", "any"]).default("none"),
+  may_share_room_with: idList.default([]),
+  can_share_cottage: z.boolean().default(true),
+  cottage_share_mode: z.enum(["none", "selected", "any"]).default("any"),
+  may_share_cottage_with: idList.default([]),
+  avoid_room_with: idList.default([]),
+  avoid_cottage_with: idList.default([]),
+  priority: z.number().int().min(0).default(3),
+  fixed_room_id: z.string().default(""),
+  preferred_property_ids: idList.default([]),
+  outside_cost_gbp: z.string().default(""),
+  charge_cap_exempt: z.boolean().default(false),
+  free_stay_reasons: z
+    .array(z.enum(["immediate_family", "wedding_party", "other"]))
+    .default([]),
+  include_partner_in_free_stay: z.boolean().default(true),
+});
 
 const cottageChoice = z.object({
   availability: z.enum(["unknown", "available", "unavailable"]),
   booking_by: z.enum(["guests", "couple"]),
 });
 
-const stateSchema = z
-  .object({
-    nights: z.number().int().positive().default(1),
-    guests: z.array(guestSchema).min(1),
-    payment_modes: z.record(z.string(), z.enum(["couple", "guests"])),
-    cottage_options: z.record(z.string(), cottageChoice),
-    cottage_paid_by_us_gbp: z.record(z.string(), money),
-    reviewed_non_couples: z
-      .array(z.tuple([z.string(), z.string()]))
-      .default([]),
-    reservations: z
-      .record(
-        z.string(),
-        z.object({ guest_ids: idList, approved_guest_ids: idList }),
-      )
-      .default({}),
-    suite_billing_modes: z.record(z.string(), z.string()).default({}),
-    guest_charge_cap_gbp: z.string().default(""),
-    max_cottage_spend_gbp: z.string().default(""),
-    default_outside_cost_gbp: z.string().default(""),
-    optimization_mode: z
-      .enum(["priority_first", "lowest_total_price"])
-      .default("priority_first"),
-  })
-  .passthrough();
+const stateSchema = z.looseObject({
+  nights: z.number().int().positive().default(1),
+  guests: z.array(guestSchema).min(1),
+  payment_modes: z.record(z.string(), z.enum(["couple", "guests"])),
+  cottage_options: z.record(z.string(), cottageChoice),
+  cottage_paid_by_us_gbp: z.record(z.string(), money),
+  reviewed_non_couples: z.array(z.tuple([z.string(), z.string()])).default([]),
+  reservations: z
+    .record(
+      z.string(),
+      z.object({ guest_ids: idList, approved_guest_ids: idList }),
+    )
+    .default({}),
+  suite_billing_modes: z.record(z.string(), z.string()).default({}),
+  guest_charge_cap_gbp: z.string().default(""),
+  max_cottage_spend_gbp: z.string().default(""),
+  default_outside_cost_gbp: z.string().default(""),
+  optimization_mode: z
+    .enum(["priority_first", "lowest_total_price"])
+    .default("priority_first"),
+});
 
 export function moneyPence(value: unknown, label: string): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -222,9 +216,10 @@ function selectedMates(
           .filter((id): id is string => Boolean(id)),
       ),
   );
-  return choices.reduce((common, choice) => {
-    return new Set([...common].filter((id) => choice.has(id)));
-  });
+  return choices.reduce(
+    (common, choice) => new Set([...common].filter((id) => choice.has(id))),
+    new Set(choices[0]),
+  );
 }
 
 function freeGuestIndexes(members: Guest[]): number[] {
@@ -261,7 +256,7 @@ function bedMates(
         return [];
       return guestToParty.get(id) ?? [];
     })
-    .sort();
+    .sort((first, second) => first.localeCompare(second));
 }
 
 function setSharingRules(
@@ -292,7 +287,7 @@ function setSharingRules(
     if (allowed)
       party[`allowed_${level}_mates`] = [...allowed]
         .filter((id) => id !== party.id)
-        .sort();
+        .sort((first, second) => first.localeCompare(second));
     party[`avoid_${level}_with`] = [
       ...new Set(
         members.flatMap((member) =>
@@ -301,7 +296,7 @@ function setSharingRules(
             .filter((id): id is string => Boolean(id) && id !== party.id),
         ),
       ),
-    ].sort();
+    ].sort((first, second) => first.localeCompare(second));
   }
 }
 
@@ -350,7 +345,10 @@ function guestParty(
   const preferred = new Set(
     members.flatMap((member) => member.preferred_property_ids),
   );
-  if (preferred.size) party.preferred_property_ids = [...preferred].sort();
+  if (preferred.size)
+    party.preferred_property_ids = [...preferred].sort((first, second) =>
+      first.localeCompare(second),
+    );
   if (members.length === 1)
     party.can_share_bed_with = bedMates(members[0]!, groups, guestToParty);
   return party;

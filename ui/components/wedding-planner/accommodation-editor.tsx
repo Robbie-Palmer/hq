@@ -85,13 +85,13 @@ function Select({
   children,
   disabled,
   label,
-}: {
+}: Readonly<{
   value: string;
   onChange: (value: string) => void;
   children: React.ReactNode;
   disabled?: boolean;
   label: string;
-}) {
+}>) {
   return (
     <select
       aria-label={label}
@@ -109,11 +109,11 @@ function Field({
   label,
   hint,
   children,
-}: {
+}: Readonly<{
   label: string;
   hint?: string;
   children: React.ReactNode;
-}) {
+}>) {
   return (
     <div className="editor-field">
       <span className="editor-label">{label}</span>
@@ -128,12 +128,12 @@ function PaymentChoice({
   value,
   onChange,
   hint,
-}: {
+}: Readonly<{
   propertyId: keyof State["payment_modes"];
   value: "couple" | "guests";
   onChange: (value: "couple" | "guests") => void;
   hint?: string;
-}) {
+}>) {
   return (
     <Field label="Who pays?" hint={hint}>
       <Select
@@ -153,12 +153,12 @@ function Toggle({
   onChange,
   title,
   description,
-}: {
+}: Readonly<{
   checked: boolean;
   onChange: (checked: boolean) => void;
   title: string;
   description?: string;
-}) {
+}>) {
   return (
     <label className="editor-toggle">
       <input
@@ -174,17 +174,193 @@ function Toggle({
   );
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: The score counts conditional JSX across five planner sections; allocation and sharing decisions live in focused domain modules.
+const plannerSections = [
+  { id: "bed_groups", label: "Bed groups", icon: BedDouble },
+  { id: "guests", label: "Guests", icon: Users },
+  { id: "sharing", label: "Sharing map", icon: Waypoints },
+  { id: "plan", label: "Rooms & costs", icon: House },
+  { id: "result", label: "Room plan", icon: Sparkles },
+] as const;
+
+type EditorView = (typeof plannerSections)[number]["id"];
+
+function PlannerNavigation({
+  view,
+  onViewChange,
+  pendingPairCount,
+  guestCount,
+}: Readonly<{
+  view: EditorView;
+  onViewChange: (view: EditorView) => void;
+  pendingPairCount: number;
+  guestCount: number;
+}>) {
+  const counts: Partial<Record<EditorView, number>> = {
+    bed_groups: pendingPairCount,
+    guests: guestCount,
+  };
+  return (
+    <nav className="editor-nav" aria-label="Planner sections">
+      {plannerSections.map(({ id, label, icon: Icon }) => (
+        <button
+          key={id}
+          type="button"
+          className={view === id ? "active" : ""}
+          onClick={() => onViewChange(id)}
+        >
+          <Icon size={18} /> {label}
+          {counts[id] !== undefined && <span>{counts[id] || ""}</span>}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+function selectedGuestConnections(selected: Guest | null, guests: Guest[]) {
+  const partner = selected?.fixed_bed_group_id
+    ? guests.find(
+        (guest) =>
+          guest.id !== selected.id &&
+          guest.fixed_bed_group_id === selected.fixed_bed_group_id,
+      )
+    : null;
+  const companions = selected?.source_party
+    ? guests.filter(
+        (guest) =>
+          guest.id !== selected.id &&
+          guest.source_party === selected.source_party,
+      )
+    : [];
+  return { partner, companions };
+}
+
+function canFocusGroup(
+  group: BedGroup,
+  guests: Guest[],
+  sharingLevel: SharingLevel,
+  isLinenGuest: (id: string) => boolean,
+): boolean {
+  if (
+    !group.guestIds.some(
+      (id) => guests.find((guest) => guest.id === id)?.overnight !== "no",
+    )
+  )
+    return false;
+  if (sharingLevel === "bed") return group.guestIds.length === 1;
+  if (sharingLevel === "room") return !group.guestIds.some(isLinenGuest);
+  return true;
+}
+
+function bedGroupKind(group: BedGroup, guests: Guest[]): string {
+  if (group.guestIds.length === 2) return "Couple";
+  if (guests.find((guest) => guest.id === group.guestIds[0])?.requires_own_bed)
+    return "Own double bed";
+  return "Unpaired guest";
+}
+
+function pairingCardTitle(guest: Guest | null): string {
+  if (!guest) return "All guests paired";
+  return guest.requires_own_bed
+    ? `${guest.name} has their own bed`
+    : `Pair ${guest.name} with…`;
+}
+
+const overnightLabels: Record<Guest["overnight"], string> = {
+  yes: "Staying",
+  no: "Not staying",
+  unknown: "Undecided",
+};
+
+function groupShareMode(
+  group: BedGroup,
+  guests: Guest[],
+  level: SharingLevel,
+): Guest["room_share_mode"] | Guest["cottage_share_mode"] | undefined {
+  const guest = guests.find((member) => member.id === group.guestIds[0]);
+  if (level === "room") return guest?.room_share_mode;
+  if (level === "cottage") return guest?.cottage_share_mode;
+  return undefined;
+}
+
+const sharingLevelLabels: Record<SharingLevel, string> = {
+  bed: "BED",
+  room: "SEPARATE BEDS",
+  cottage: "COTTAGE",
+};
+
+function ResultView({
+  state,
+  busy,
+  warnings,
+  allocation,
+  partyNames,
+  report,
+  onCalculate,
+}: Readonly<{
+  state: State | null;
+  busy: boolean;
+  warnings: string[];
+  allocation: Allocation | null;
+  partyNames: PartyName[];
+  report: string;
+  onCalculate: () => void;
+}>) {
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <span className="eyebrow">ROOM PLAN</span>
+          <h2>See where everyone lands.</h2>
+          <p>
+            Calculate after you update guest choices to compare assignments and
+            costs.
+          </p>
+        </div>
+        <Button onClick={onCalculate} disabled={!state || busy}>
+          {busy ? "Calculating…" : "Calculate rooms"} <ArrowRight size={16} />
+        </Button>
+      </div>
+      {warnings.length > 0 && (
+        <div className="editor-warning">
+          {warnings.map((warning) => (
+            <p key={warning}>{warning}</p>
+          ))}
+        </div>
+      )}
+      {allocation ? (
+        <ResultPlan
+          allocation={allocation}
+          parties={partyNames}
+          report={report}
+        />
+      ) : (
+        <Card className="result-empty">
+          <CardContent>
+            <Sparkles size={30} />
+            <h3>Your room plan will appear here</h3>
+            <p>
+              Answer what you can for guests, then calculate a first draft. You
+              can refine it later.
+            </p>
+            <Button onClick={onCalculate} disabled={!state || busy}>
+              Calculate first draft <ArrowRight size={16} />
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+    </>
+  );
+}
+
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: View-specific JSX remains in one editor while navigation and results are separate components.
 export function AccommodationEditor({
   source = browserPlannerSource,
-}: {
+}: Readonly<{
   source?: PlannerSource;
-}) {
+}>) {
   const [state, setState] = useState<State | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [view, setView] = useState<
-    "bed_groups" | "guests" | "sharing" | "plan" | "result"
-  >("bed_groups");
+  const [view, setView] = useState<EditorView>("bed_groups");
   const [bedSearch, setBedSearch] = useState("");
   const [partnerSearch, setPartnerSearch] = useState("");
   const [sharingLevel, setSharingLevel] = useState<SharingLevel>("room");
@@ -434,31 +610,9 @@ export function AccommodationEditor({
     update((draft) =>
       markNotCoupleInState(draft, firstId, secondId, notCouple),
     );
-  const partner = selected?.fixed_bed_group_id
-    ? guests.find(
-        (guest) =>
-          guest.id !== selected.id &&
-          guest.fixed_bed_group_id === selected.fixed_bed_group_id,
-      )
-    : null;
-  const companions = selected?.source_party
-    ? guests.filter(
-        (guest) =>
-          guest.id !== selected.id &&
-          guest.source_party === selected.source_party,
-      )
-    : [];
-
-  const focusChoices = bedGroups.filter(
-    (group) =>
-      group.guestIds.some(
-        (id) => guests.find((guest) => guest.id === id)?.overnight !== "no",
-      ) &&
-      (sharingLevel === "bed"
-        ? group.guestIds.length === 1
-        : sharingLevel === "room"
-          ? !group.guestIds.some((id) => isLinenGuest(id))
-          : true),
+  const { partner, companions } = selectedGuestConnections(selected, guests);
+  const focusChoices = bedGroups.filter((group) =>
+    canFocusGroup(group, guests, sharingLevel, isLinenGuest),
   );
   const focusGroup =
     focusChoices.find((group) => group.id === selectedGroupId) ??
@@ -518,44 +672,12 @@ export function AccommodationEditor({
               where and what they pay.
             </p>
           </div>
-          <nav className="editor-nav" aria-label="Planner sections">
-            <button
-              type="button"
-              className={view === "bed_groups" ? "active" : ""}
-              onClick={() => setView("bed_groups")}
-            >
-              <BedDouble size={18} /> Bed groups
-              <span>{pendingInvitationPairs.length || ""}</span>
-            </button>
-            <button
-              type="button"
-              className={view === "guests" ? "active" : ""}
-              onClick={() => setView("guests")}
-            >
-              <Users size={18} /> Guests <span>{guests.length}</span>
-            </button>
-            <button
-              type="button"
-              className={view === "sharing" ? "active" : ""}
-              onClick={() => setView("sharing")}
-            >
-              <Waypoints size={18} /> Sharing map
-            </button>
-            <button
-              type="button"
-              className={view === "plan" ? "active" : ""}
-              onClick={() => setView("plan")}
-            >
-              <House size={18} /> Rooms & costs
-            </button>
-            <button
-              type="button"
-              className={view === "result" ? "active" : ""}
-              onClick={() => setView("result")}
-            >
-              <Sparkles size={18} /> Room plan
-            </button>
-          </nav>
+          <PlannerNavigation
+            view={view}
+            onViewChange={setView}
+            pendingPairCount={pendingInvitationPairs.length}
+            guestCount={guests.length}
+          />
           {state && (
             <DataControls hasData onImport={importPlan} onExport={exportPlan} />
           )}
@@ -748,13 +870,7 @@ export function AccommodationEditor({
                 </Card>
                 <Card>
                   <CardHeader>
-                    <CardTitle>
-                      {selectedUnpaired
-                        ? selectedUnpaired.requires_own_bed
-                          ? `${selectedUnpaired.name} has their own bed`
-                          : `Pair ${selectedUnpaired.name} with…`
-                        : "All guests paired"}
-                    </CardTitle>
+                    <CardTitle>{pairingCardTitle(selectedUnpaired)}</CardTitle>
                     <CardDescription>
                       These are unpaired guests. Sharing a bed here makes a
                       fixed couple. Flexible singles belong in the Sharing map.
@@ -945,11 +1061,7 @@ export function AccommodationEditor({
                         <span className="guest-row-name">
                           <strong>{guest.name}</strong>
                           <small>
-                            {guest.overnight === "unknown"
-                              ? "Undecided"
-                              : guest.overnight === "yes"
-                                ? "Staying"
-                                : "Not staying"}
+                            {overnightLabels[guest.overnight]}
                             {isFreeGuest(guest) && " · We cover"}
                           </small>
                         </span>
@@ -1397,15 +1509,7 @@ export function AccommodationEditor({
                           </span>
                           <span>
                             {group.name}
-                            <small>
-                              {group.guestIds.length === 2
-                                ? "Couple"
-                                : guests.find(
-                                      (guest) => guest.id === group.guestIds[0],
-                                    )?.requires_own_bed
-                                  ? "Own double bed"
-                                  : "Unpaired guest"}
-                            </small>
+                            <small>{bedGroupKind(group, guests)}</small>
                           </span>
                           <ChevronRight size={15} />
                         </button>
@@ -1415,11 +1519,7 @@ export function AccommodationEditor({
                 <Card className="sharing-matches-card">
                   <CardHeader>
                     <Badge variant="outline">
-                      {sharingLevel === "bed"
-                        ? "BED"
-                        : sharingLevel === "room"
-                          ? "SEPARATE BEDS"
-                          : "COTTAGE"}
+                      {sharingLevelLabels[sharingLevel]}
                     </Badge>
                     <CardTitle className="sharing-focus-title">
                       {focusGroup?.name ?? "Choose a guest"}
@@ -1454,14 +1554,11 @@ export function AccommodationEditor({
                               key={mode}
                               size="sm"
                               variant={
-                                guests.find(
-                                  (guest) =>
-                                    guest.id === focusGroup.guestIds[0],
-                                )?.[
-                                  sharingLevel === "room"
-                                    ? "room_share_mode"
-                                    : "cottage_share_mode"
-                                ] === mode
+                                groupShareMode(
+                                  focusGroup,
+                                  guests,
+                                  sharingLevel,
+                                ) === mode
                                   ? "default"
                                   : "outline"
                               }
@@ -1654,7 +1751,7 @@ export function AccommodationEditor({
                     {includedPackageFigure && (
                       <div className="rate-row">
                         <span>
-                          Reported suite figure within your package
+                          Reported suite figure within your package{" "}
                           <small>Reference value, not another bill</small>
                         </span>
                         <strong>{includedPackageFigure}</strong>
@@ -2001,50 +2098,15 @@ export function AccommodationEditor({
             </>
           )}
           {view === "result" && (
-            <>
-              <div className="page-heading">
-                <div>
-                  <span className="eyebrow">ROOM PLAN</span>
-                  <h2>See where everyone lands.</h2>
-                  <p>
-                    Calculate after you update guest choices to compare
-                    assignments and costs.
-                  </p>
-                </div>
-                <Button onClick={calculate} disabled={!state || busy}>
-                  {busy ? "Calculating…" : "Calculate rooms"}{" "}
-                  <ArrowRight size={16} />
-                </Button>
-              </div>
-              {warnings.length > 0 && (
-                <div className="editor-warning">
-                  {warnings.map((warning) => (
-                    <p key={warning}>{warning}</p>
-                  ))}
-                </div>
-              )}
-              {allocation ? (
-                <ResultPlan
-                  allocation={allocation}
-                  parties={partyNames}
-                  report={report}
-                />
-              ) : (
-                <Card className="result-empty">
-                  <CardContent>
-                    <Sparkles size={30} />
-                    <h3>Your room plan will appear here</h3>
-                    <p>
-                      Answer what you can for guests, then calculate a first
-                      draft. You can refine it later.
-                    </p>
-                    <Button onClick={calculate} disabled={!state || busy}>
-                      Calculate first draft <ArrowRight size={16} />
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
-            </>
+            <ResultView
+              state={state}
+              busy={busy}
+              warnings={warnings}
+              allocation={allocation}
+              partyNames={partyNames}
+              report={report}
+              onCalculate={calculate}
+            />
           )}
         </main>
       </div>

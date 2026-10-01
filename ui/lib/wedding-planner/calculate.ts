@@ -124,9 +124,7 @@ function formatReport(
   }
   lines.push(
     `Outside accommodation: ${placement.outside_parties.flatMap((id) => parties.get(id)?.guests ?? []).join(", ") || "none"}`,
-  );
-  lines.push("");
-  lines.push(
+    "",
     `Cottage bills still due from us: ${pounds(result.cash_flow.still_to_pay_pence)}`,
   );
   for (const [id, detail] of Object.entries(result.cash_flow.by_property)) {
@@ -136,14 +134,8 @@ function formatReport(
   }
   lines.push(
     `Already paid by us: ${pounds(result.cash_flow.already_paid_pence)}`,
-  );
-  lines.push(
     `Expected guest reimbursements: ${pounds(result.cash_flow.cottage_guest_reimbursements_pence)}`,
-  );
-  lines.push(
     `Our final cost beyond the package: ${pounds(result.cash_flow.our_final_cost_pence)}`,
-  );
-  lines.push(
     `Guests expected to pay: ${pounds(result.cash_flow.guest_expected_total_pence)}`,
   );
   for (const property of input.properties.filter(

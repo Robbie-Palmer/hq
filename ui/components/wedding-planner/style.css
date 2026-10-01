@@ -1,27 +1,23 @@
 .editor-app {
   --ink: #23352e;
-  --soft-ink: #6f7b71;
+  --soft-ink: #59675d;
   --sage: #dbe9dd;
   --paper: #f8f8f3;
   --line: #e5e9e0;
   color-scheme: light;
-}
-.editor-app * {
-  box-sizing: border-box;
-}
-.editor-app {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  min-height: 100vh;
+}
+.editor-app * {
+  box-sizing: border-box;
 }
 .editor-app button,
 .editor-app input,
 .editor-app select {
   font: inherit;
-}
-.editor-app {
-  min-height: 100vh;
 }
 .editor-data-controls {
   display: flex;
@@ -398,12 +394,12 @@
   display: grid;
   place-items: center;
   background: #e5eadf;
-  color: #56745d;
+  color: #3f6049;
   font-size: 13px;
   font-weight: 700;
 }
 .guest-row.selected .guest-avatar {
-  background: #658b6b;
+  background: #486c50;
   color: #fff;
 }
 .guest-row-name {
@@ -453,7 +449,7 @@
   place-items: center;
   border-radius: 16px;
   background: #e5efe3;
-  color: #638569;
+  color: #45684d;
   font-family: Georgia, serif;
   font-size: 27px;
 }
@@ -469,7 +465,7 @@
 .step-number {
   border-radius: 50%;
   background: #eaf2e9;
-  color: #608263;
+  color: #45684d;
   display: grid;
   place-items: center;
   flex: none;

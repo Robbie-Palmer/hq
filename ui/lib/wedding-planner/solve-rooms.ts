@@ -391,14 +391,8 @@ async function runObjectives(
       ),
     ),
   );
-  solution = await optimize(
-    solver,
-    preference,
-    true,
-    "building preferences",
-    stages,
-  );
-  solution = await optimize(
+  await optimize(solver, preference, true, "building preferences", stages);
+  await optimize(
     solver,
     sum(bedShares.map((item) => item.variable)),
     false,

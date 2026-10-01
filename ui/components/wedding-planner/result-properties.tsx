@@ -21,7 +21,9 @@ function propertyDescription(
   if (property.kind === "venue") return "Included in the wedding package";
   const detail = allocation.cottage_details[property.id];
   if (property.already_booked)
-    return `Already booked by us${detail?.cost_gbp ? ` · ${detail.cost_gbp} after discount` : ""}`;
+    return detail?.cost_gbp
+      ? `Already booked by us · ${detail.cost_gbp} after discount`
+      : "Already booked by us";
   if (!allocation.new_cottage_bookings.includes(property.id))
     return "Not needed in this plan";
   const availability =
@@ -57,11 +59,11 @@ function PropertyPaymentSummary({
   property,
   payment,
   bookingBy,
-}: {
+}: Readonly<{
   property: Property;
   payment?: PropertyPayment;
   bookingBy?: "guests" | "couple";
-}) {
+}>) {
   if (!payment || (property.kind !== "venue" && payment.quoted_pence === 0))
     return null;
   return (
@@ -94,11 +96,11 @@ export function ResultProperties({
   allocation,
   names,
   setup,
-}: {
+}: Readonly<{
   allocation: Allocation;
   names: Record<string, string>;
   setup: AccommodationSetup;
-}) {
+}>) {
   const singleBeds = new Set(
     allocation.single_bed_assignments.map(
       (assignment) => `${assignment.room_id}:${assignment.party_id}`,

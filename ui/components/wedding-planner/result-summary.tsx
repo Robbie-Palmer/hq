@@ -7,10 +7,10 @@ import { propertyName } from "./room-data";
 export function ResultSummary({
   allocation,
   setup,
-}: {
+}: Readonly<{
   allocation: Allocation;
   setup: AccommodationSetup;
-}) {
+}>) {
   const flow = allocation.cash_flow;
   const netStillToCover =
     flow.still_to_pay_pence - flow.cottage_guest_reimbursements_pence;

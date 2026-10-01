@@ -6,8 +6,11 @@ import { browserPlannerSource } from "@/lib/wedding-planner/browser-source";
 import { calculateRooms } from "@/lib/wedding-planner/calculate";
 import type { AccommodationSetup } from "@/lib/wedding-planner/setup";
 import {
+  markNotCouple,
   pairDecision,
+  setOwnBed,
   setPairDecision,
+  setPartner,
   setShareMode,
 } from "@/lib/wedding-planner/sharing";
 import { buildInput, parseState } from "@/lib/wedding-planner/state";
@@ -276,6 +279,86 @@ describe("wedding planner accommodation", () => {
     expect(
       state.guests.find((member) => member.id === "b")?.may_share_room_with,
     ).toEqual([]);
+  });
+
+  it("requires reciprocal sharing and clears bed links for an own-bed guest", () => {
+    const state = plan([
+      ...linenCouple(),
+      guest("a", { may_share_bed_with: ["b"] }),
+      guest("b", { may_share_bed_with: ["a"] }),
+      guest("not-staying", { overnight: "no" }),
+    ]);
+    const a = { id: "a", name: "a", guestIds: ["a"] };
+    const b = { id: "b", name: "b", guestIds: ["b"] };
+
+    expect(pairDecision(state, a, b, "bed")).toBe("yes");
+    setOwnBed(state, "not-staying", true);
+    expect(
+      state.guests.find((person) => person.id === "not-staying")
+        ?.requires_own_bed,
+    ).toBe(false);
+    setOwnBed(state, "a", true);
+    expect(pairDecision(state, a, b, "bed")).toBe("unset");
+    expect(
+      state.guests.find((person) => person.id === "b")?.may_share_bed_with,
+    ).toEqual([]);
+    setPairDecision(state, "bed", "a", "b", "yes");
+    expect(pairDecision(state, a, b, "bed")).toBe("unset");
+    setOwnBed(state, "a", false);
+    setPairDecision(state, "bed", "a", "b", "no");
+    expect(pairDecision(state, a, b, "bed")).toBe("no");
+    setPairDecision(state, "bed", "a", "b", "unset");
+    expect(pairDecision(state, a, b, "bed")).toBe("unset");
+  });
+
+  it("updates Linen approvals from the cottage sharing map", () => {
+    const state = plan([...linenCouple(), guest("visitor"), guest("other")]);
+    const linen = {
+      id: "linen-a",
+      name: "Linen",
+      guestIds: ["linen-a", "linen-b"],
+    };
+    const visitor = { id: "visitor", name: "visitor", guestIds: ["visitor"] };
+
+    setPairDecision(state, "cottage", "visitor", "linen-a", "yes");
+    expect(state.reservations.linen_1?.approved_guest_ids).toEqual(["visitor"]);
+    expect(pairDecision(state, linen, visitor, "cottage")).toBe("yes");
+    setPairDecision(state, "cottage", "linen-a", "visitor", "no");
+    expect(state.reservations.linen_1?.approved_guest_ids).toEqual([]);
+    expect(pairDecision(state, linen, visitor, "cottage")).toBe("no");
+    setPairDecision(state, "cottage", "linen-a", "visitor", "yes");
+    setShareMode(state, "visitor", "cottage", "none");
+    expect(state.reservations.linen_1?.approved_guest_ids).toEqual([]);
+    expect(pairDecision(state, linen, visitor, "cottage")).toBe("unset");
+  });
+
+  it("pairs and unpairs guests while respecting own-bed choices", () => {
+    const state = plan([
+      ...linenCouple(),
+      guest("a", { may_share_bed_with: ["b"] }),
+      guest("b", { may_share_bed_with: ["a"] }),
+      guest("c", { requires_own_bed: true }),
+    ]);
+    markNotCouple(state, "a", "b", true);
+    setPartner(state, "a", "c");
+    expect(
+      state.guests.find((person) => person.id === "a")?.fixed_bed_group_id,
+    ).toBe("");
+    setPartner(state, "a", "b");
+    expect(
+      state.guests.filter((person) => person.fixed_bed_group_id === "a"),
+    ).toHaveLength(2);
+    expect(state.reviewed_non_couples).toEqual([]);
+    expect(
+      state.guests.find((person) => person.id === "b")?.may_share_bed_with,
+    ).toEqual([]);
+    setPartner(state, "a", "");
+    expect(
+      state.guests.find((person) => person.id === "a")?.fixed_bed_group_id,
+    ).toBe("");
+    expect(
+      state.guests.find((person) => person.id === "b")?.fixed_bed_group_id,
+    ).toBe("");
   });
 
   it("uses the Black Sheep single bed for two singles in its third bedroom", async () => {

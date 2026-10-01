@@ -10,7 +10,7 @@ type Props = {
   onExport(): void;
 };
 
-export function DataControls({ hasData, onImport, onExport }: Props) {
+export function DataControls({ hasData, onImport, onExport }: Readonly<Props>) {
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
 

@@ -13,12 +13,12 @@ export function ResultPlan({
   parties,
   report,
   setup = weddingAccommodationSetup,
-}: {
+}: Readonly<{
   allocation: Allocation;
   parties: PartyName[];
   report: string;
   setup?: AccommodationSetup;
-}) {
+}>) {
   const names = Object.fromEntries(
     parties.map((party) => [party.id, party.guests.join(" & ")]),
   );
