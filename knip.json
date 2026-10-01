@@ -46,6 +46,7 @@
     "ui": {
       "ignore": [
         "content/**",
+        "lib/wedding-planner/browser-node-module.ts",
         "public/recipes-sw.js",
         "public/simulations/autonomic-satellite-swarm/**/*.mjs"
       ],

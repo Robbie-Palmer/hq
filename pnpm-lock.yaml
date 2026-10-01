@@ -809,6 +809,9 @@ importers:
 
   ui:
     dependencies:
+      '@bubblyworld/highs-ts':
+        specifier: ^1.4.1
+        version: 1.4.1
       '@cooklang/cooklang':
         specifier: ^0.18.0
         version: 0.18.7(patch_hash=85b684e1c0e18dedb7ebd9e043c0c937dc04446f8417852c7f5af27b4b423ec7)
@@ -1520,6 +1523,9 @@ packages:
   '@bramus/specificity@2.4.2':
     resolution: {integrity: sha512-ctxtJ/eA+t+6q2++vj5j7FYX3nRu311q1wfYH3xjlLOsczhlhxAg2FWNUXhpGvAw3BWo1xBcvOV6/YLc2r5FJw==}
     hasBin: true
+
+  '@bubblyworld/highs-ts@1.4.1':
+    resolution: {integrity: sha512-6C8aa6AxgoJq4QHICilti4oHmhb6WCLv3PFZ8ce8Uvkgw2l54DmCL5Zgiw9pVYdzpBd6+fcMAs6Mp3yiW51xcQ==}
 
   '@cesium/engine@26.3.0':
     resolution: {integrity: sha512-jtgOewm/IZoypmqpbeTlYhMOKhQg+XPwUXoYat84vhIU8l8SfVSEat4Lc/Y4Fb7ypi3z1YmElKjVYvoI5CH6Pw==}
@@ -9226,6 +9232,8 @@ snapshots:
   '@bramus/specificity@2.4.2':
     dependencies:
       css-tree: 3.2.1
+
+  '@bubblyworld/highs-ts@1.4.1': {}
 
   '@cesium/engine@26.3.0':
     dependencies:

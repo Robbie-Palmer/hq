@@ -40,6 +40,7 @@ const NOINDEX_PAGES = new Set([
   "recipes/settings",
   "recipes/settings/agents/approve",
   "recipes/shopping",
+  "wedding-planner",
 ]);
 
 function expectedUrlForFile(

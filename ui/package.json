@@ -29,6 +29,7 @@
     "lighthouse": "LIGHTHOUSE_DEVICE=both node scripts/lighthouse.mjs"
   },
   "dependencies": {
+    "@bubblyworld/highs-ts": "^1.4.1",
     "@cooklang/cooklang": "^0.18.0",
     "@cosmos.gl/graph": "^3.4.1",
     "@posthog/brand": "0.12.3",

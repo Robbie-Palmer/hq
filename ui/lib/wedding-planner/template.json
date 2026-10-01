@@ -1,0 +1,159 @@
+{
+  "nights": 1,
+  "venue_lodging_value_gbp": null,
+  "venue_suite_package_value_gbp": 900,
+  "max_cottage_spend_gbp": null,
+  "guest_charge_cap_gbp": null,
+  "optimization_mode": "priority_first",
+  "properties": [
+    {
+      "id": "venue",
+      "name": "Riverside suites",
+      "kind": "venue",
+      "booking_cost_gbp": 0
+    },
+    {
+      "id": "black_sheep",
+      "name": "Black Sheep Cottage",
+      "room_summary": "2 double rooms · room 3 has a double and a single bed",
+      "kind": "cottage",
+      "rate_per_night_gbp": 450,
+      "couple_booking_discount_percent": 10
+    },
+    {
+      "id": "river_side",
+      "name": "River Side Cottage",
+      "room_summary": "3 double bedrooms",
+      "kind": "cottage",
+      "rate_per_night_gbp": 450,
+      "couple_booking_discount_percent": 10
+    },
+    {
+      "id": "linen",
+      "name": "Linen Cottage",
+      "room_summary": "2 bedrooms · already booked by us",
+      "kind": "cottage",
+      "rate_per_night_gbp": 250,
+      "couple_booking_discount_percent": 10,
+      "already_booked": true,
+      "booking_by": "couple",
+      "availability": "available"
+    }
+  ],
+  "rooms": [
+    {
+      "id": "bridal_suite",
+      "name": "Bridal suite",
+      "property_id": "venue",
+      "double_beds": 1
+    },
+    {
+      "id": "riverside_double_1",
+      "name": "Double suite 1",
+      "rate_group": "double suites",
+      "property_id": "venue",
+      "double_beds": 1,
+      "rate_per_night_gbp": 150
+    },
+    {
+      "id": "riverside_double_2",
+      "name": "Double suite 2",
+      "rate_group": "double suites",
+      "property_id": "venue",
+      "double_beds": 1,
+      "rate_per_night_gbp": 150
+    },
+    {
+      "id": "riverside_double_3",
+      "name": "Double suite 3",
+      "rate_group": "double suites",
+      "property_id": "venue",
+      "double_beds": 1,
+      "rate_per_night_gbp": 150
+    },
+    {
+      "id": "riverside_family_1",
+      "name": "Family suite 1",
+      "rate_group": "family suites · two double beds each",
+      "property_id": "venue",
+      "double_beds": 2,
+      "rate_per_night_gbp": 220
+    },
+    {
+      "id": "riverside_family_2",
+      "name": "Family suite 2",
+      "rate_group": "family suites · two double beds each",
+      "property_id": "venue",
+      "double_beds": 2,
+      "rate_per_night_gbp": 220
+    },
+    {
+      "id": "riverside_family_3",
+      "name": "Family suite 3",
+      "rate_group": "family suites · two double beds each",
+      "property_id": "venue",
+      "double_beds": 2,
+      "rate_per_night_gbp": 220
+    },
+    {
+      "id": "black_sheep_1",
+      "name": "Black Sheep room 1",
+      "property_id": "black_sheep",
+      "double_beds": 1
+    },
+    {
+      "id": "black_sheep_2",
+      "name": "Black Sheep room 2",
+      "property_id": "black_sheep",
+      "double_beds": 1
+    },
+    {
+      "id": "black_sheep_3",
+      "name": "Black Sheep room 3 · double + single",
+      "property_id": "black_sheep",
+      "double_beds": 1,
+      "single_beds": 1
+    },
+    {
+      "id": "river_side_1",
+      "name": "River Side room 1",
+      "property_id": "river_side",
+      "double_beds": 1
+    },
+    {
+      "id": "river_side_2",
+      "name": "River Side room 2",
+      "property_id": "river_side",
+      "double_beds": 1
+    },
+    {
+      "id": "river_side_3",
+      "name": "River Side room 3",
+      "property_id": "river_side",
+      "double_beds": 1
+    },
+    {
+      "id": "linen_1",
+      "name": "Linen room 1",
+      "property_id": "linen",
+      "double_beds": 1
+    },
+    {
+      "id": "linen_2",
+      "name": "Linen room 2",
+      "property_id": "linen",
+      "double_beds": 1
+    }
+  ],
+  "parties": [
+    {
+      "id": "couple",
+      "guests": ["You", "Your fiancé"],
+      "priority": 5,
+      "fixed_room_id": "bridal_suite",
+      "can_share_room": false,
+      "can_share_cottage": true,
+      "outside_cost_gbp": null
+    }
+  ]
+}
