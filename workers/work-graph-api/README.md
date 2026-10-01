@@ -153,6 +153,6 @@ and unauthorized requests before they reach the Worker with HTTP 401 or 403.
 
 ## Production diagnostics
 
-See [the incident runbook](OBSERVABILITY.md) for the dedicated diagnostic token,
+See [the incident runbook](../../docs/runbooks/work-graph-production-observability.md) for the dedicated diagnostic token,
 historical 5XX queries, Hyperdrive correlation, retention, and scheduled health
 checks.

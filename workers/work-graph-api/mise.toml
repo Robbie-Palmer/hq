@@ -54,7 +54,7 @@ run = "pnpm lint:api"
 
 [tasks.check]
 description = "Check the Work Graph API"
-depends = ["typecheck", "test", "lint:api", "deploy:check"]
+depends = ["typecheck", "test", "lint:api", "lint:queries", "deploy:check"]
 
 [tasks."diagnostics:query"]
 depends = ["install"]
@@ -70,3 +70,8 @@ run = "bash scripts/diagnostics.sh --monitor"
 description = "Test diagnostic queries, sanitization, and failure detection"
 depends = ["install"]
 run = "pnpm exec vitest run tests/diagnostics.test.ts"
+
+[tasks."lint:queries"]
+description = "Check GraphQL query syntax, lint rules, and formatting"
+depends = ["//:install"]
+run = "pnpm exec biome check --config-path ../../biome.json queries"

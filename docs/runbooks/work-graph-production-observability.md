@@ -6,32 +6,15 @@ the repository root. All diagnostic requests go to `api.cloudflare.com`.
 
 ## Diagnostic access
 
-Create a dedicated token named `work-graph-diagnostics` scoped to the Work Graph
-Cloudflare account, with these permissions only:
-
-- Workers Observability Write. Cloudflare requires this permission to execute
-  historical telemetry queries, even though the query reads logs.
-- Account Analytics Read, for Hyperdrive GraphQL analytics.
-
-Do not grant Workers Scripts Edit, Hyperdrive Edit, Access, R2, zone access,
-or account administration. Observability queries are account-scoped, so this
-token can read other Workers' logs in that account. The checked-in queries
-filter to `work-graph-api`; that filter is not an authorization boundary.
-
-Store the token as `CLOUDFLARE_DIAGNOSTICS_API_TOKEN` in Doppler project
-`work-graph`, config `prd_work_graph`. Sync that one secret to the GitHub
-`production-work-graph` environment. The health workflow also uses existing
-account and Hyperdrive IDs and the production smoke-test Access pair.
-Do not replace or expand the deployment or infrastructure token.
-Never print the token or pass it as a command-line argument.
+The dedicated `CLOUDFLARE_DIAGNOSTICS_API_TOKEN` lives in Doppler config
+`work-graph/prd_work_graph` and the GitHub `production-work-graph` environment.
+See [infrastructure prerequisites](../../infra/work-graph/README.md#diagnostic-access)
+for permissions and credential provisioning.
 
 The diagnostic helper loads Doppler if the dedicated token is absent. In CI,
 all required values come from environment secrets. Missing credentials, API
 errors, and unexpected response schemas fail the query instead of recording
 a healthy result.
-
-Cloudflare documents the required permission in its
-[telemetry query API](https://developers.cloudflare.com/api/resources/workers/subresources/observability/subresources/telemetry/methods/query/).
 
 ## Reproduce an incident query
 
@@ -42,8 +25,24 @@ mise //workers/work-graph-api:diagnostics:query -- \
 
 The query selects native invocation events with HTTP status `>= 500` and
 `< 600`, plus structured application error records in the same time window.
-It queries Hyperdrive pool size, waiting clients, available slots, and failed
-queries for the production Hyperdrive configuration over that exact window.
+The Hyperdrive query is GraphQL and lives in
+[`hyperdrive-pools.graphql`](../../workers/work-graph-api/queries/hyperdrive-pools.graphql).
+The diagnostic helper loads that file directly. Workers Logs uses the telemetry
+API's JSON filter format, constructed in
+[`diagnostics.ts`](../../workers/work-graph-api/src/diagnostics.ts).
+
+Check GraphQL syntax, lint rules, and formatting with:
+
+```sh
+mise //workers/work-graph-api:lint:queries
+```
+
+This check also runs in API CI. It does not validate Cloudflare's remote schema;
+the live diagnostic query checks API compatibility.
+
+The GraphQL query selects Hyperdrive pool size, waiting clients, available
+slots, and failed queries for the production Hyperdrive configuration over
+that exact window.
 Output includes sanitized application records and pool metrics. It does not
 print native URLs, headers, stacks, SQL, or historical exception messages.
 

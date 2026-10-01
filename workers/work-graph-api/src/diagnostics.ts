@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { URL } from "node:url";
+
 /** Account-scoped incident queries, using a dedicated diagnostic token. */
 export interface DiagnosticConfig {
   accountId: string;
@@ -20,21 +23,10 @@ type Pool = {
   dimensions: { coloCode: string };
 };
 
-export const poolQuery = `
-query WorkGraphPools($accountTag: string!, $configId: string!, $start: Time!, $end: Time!) {
-  viewer { accounts(filter: {accountTag: $accountTag}) {
-    hyperdrivePoolSizesAdaptiveGroups(limit: 10000, filter: {
-      configId: $configId, datetime_geq: $start, datetime_leq: $end
-    }) {
-      avg { currentPoolSize availablePoolSlots waitingClients }
-      max { maxPoolSize currentPoolSize waitingClients }
-      dimensions { coloCode }
-    }
-    hyperdriveQueriesAdaptiveGroups(limit: 10000, filter: {
-      configId: $configId, datetime_geq: $start, datetime_leq: $end, eventStatus: "error"
-    }) { count }
-  } }
-}`;
+export const poolQuery = readFileSync(
+  new URL("../queries/hyperdrive-pools.graphql", import.meta.url),
+  "utf8",
+);
 
 export async function diagnose(
   config: DiagnosticConfig,
