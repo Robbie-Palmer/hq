@@ -110,6 +110,38 @@ and the credential boundary without provider credentials. Merges that change
 from protected `main`. Manual dispatch from `main` reruns the same
 plan-and-apply flow.
 
+## Diagnostic access
+
+Create a dedicated token named `work-graph-diagnostics` scoped to the Work Graph
+Cloudflare account, with these permissions only:
+
+- Workers Observability Write. Cloudflare requires this permission to execute
+  historical telemetry queries, even though the query reads logs.
+- Account Analytics Read, for Hyperdrive GraphQL analytics.
+
+Do not grant Workers Scripts Edit, Hyperdrive Edit, Access, R2, zone access,
+or account administration. Observability queries are account-scoped, so this
+token can read other Workers' logs in that account. The checked-in queries
+filter to `work-graph-api`; that filter is not an authorization boundary.
+
+Store the token as `CLOUDFLARE_DIAGNOSTICS_API_TOKEN` in Doppler project
+`work-graph`, config `prd_work_graph`. Sync that one secret to the GitHub
+`production-work-graph` environment. The health workflow also uses existing
+account and Hyperdrive IDs and the production smoke-test Access pair.
+Do not replace or expand the deployment or infrastructure token.
+Never print the token or pass it as a command-line argument.
+
+Cloudflare documents the historical query permission in its
+[telemetry query API](https://developers.cloudflare.com/api/resources/workers/subresources/observability/subresources/telemetry/methods/query/).
+
+This token is an operator-provisioned prerequisite. The existing infrastructure
+credential does not have API token creation authority. Automating its creation
+would require a token-management credential and a direct-to-Doppler handoff to
+keep the generated secret out of Terraform state, as described above.
+
+For incident queries and monitoring, use the
+[production observability runbook](../../docs/runbooks/work-graph-production-observability.md).
+
 ## Plan and apply
 
 Run every command through mise:

@@ -2143,7 +2143,7 @@ describe("Given a transient database failure", () => {
     vi.mocked(repository.getWorkItem).mockRejectedValue(
       Object.assign(new Error("too many connections"), { code: "53300" }),
     );
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const app = createWorkGraphApp(repository, {
       createLeaseId: () => leaseId,
       createRequestId: () => "request-after-claim",
@@ -2172,13 +2172,17 @@ describe("Given a transient database failure", () => {
       },
     });
     expect(warn).toHaveBeenCalledWith(
-      JSON.stringify({
+      {
         message: "Work Graph lease claim outcome is uncertain",
         code: "claim_outcome_uncertain",
         requestId: "request-after-claim",
         method: "POST",
-        path: "/api/leases",
-      }),
+        route: "/api/leases",
+        outcome: "error",
+        status: 500,
+        workerVersion: "local",
+        exceptionClass: "claim_outcome_uncertain",
+      },
     );
     warn.mockRestore();
   });
@@ -2219,7 +2223,7 @@ describe("Given a transient database failure", () => {
       vi.mocked(repository.listWorkItems).mockRejectedValue(
         new Error("database request failed", { cause: databaseError }),
       );
-      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      const warn = vi.spyOn(console, "error").mockImplementation(() => undefined);
       const app = createWorkGraphApp(repository, {
         createRequestId: () => "request-123",
       });
@@ -2237,15 +2241,36 @@ describe("Given a transient database failure", () => {
         },
       });
       expect(warn).toHaveBeenCalledWith(
-        JSON.stringify({
+        {
           message: "Work Graph database request can be retried",
           code: responseCode,
           requestId: "request-123",
           method: "GET",
-          path: "/api/work-items",
-        }),
+          route: "/api/work-items",
+          outcome: "error",
+          status: 503,
+          workerVersion: "local",
+          exceptionClass: responseCode,
+        },
       );
       warn.mockRestore();
     },
   );
+});
+
+ describe("Given an unexpected production exception", () => {
+  it("records correlation fields without request or exception secrets", async () => {
+    const repository = buildRepository();
+    vi.mocked(repository.getWorkItem).mockRejectedValue(new Error("postgresql://owner:SECRET@db.invalid/database"));
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const app = createWorkGraphApp(repository, { createRequestId: () => "request-safe", workerVersion: "version-safe" });
+    const response = await app.request("/api/work-items/SECRET?token=SECRET", { headers: { "CF-Access-Client-Secret": "SECRET" } });
+    expect(response.status).toBe(500);
+    expect(response.headers.get("x-request-id")).toBe("request-safe");
+    const record = error.mock.calls[0]?.[0];
+    expect(record).toMatchObject({ requestId: "request-safe", route: "/api/work-items/:workItemId", outcome: "error", status: 500, workerVersion: "version-safe", exceptionClass: "internal_error" });
+    expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET");
+    expect(await response.text()).not.toContain("SECRET");
+    error.mockRestore();
+  });
 });

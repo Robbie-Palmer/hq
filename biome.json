@@ -14,6 +14,7 @@
       "**/*.cjs",
       "**/*.ts",
       "**/*.tsx",
+      "**/*.graphql",
       "!ui",
       "!**/node_modules",
       "!**/.venv",
@@ -38,6 +39,9 @@
         }
       }
     }
+  },
+  "graphql": {
+    "formatter": { "enabled": true, "indentStyle": "space" }
   },
   "overrides": [
     {

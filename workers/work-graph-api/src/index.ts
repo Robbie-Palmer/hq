@@ -9,6 +9,7 @@ import { createWorkGraphApp } from "./app";
 
 export interface WorkGraphBindings {
   HYPERDRIVE: Hyperdrive;
+  WORKER_VERSION?: { id: string };
 }
 
 export default {
@@ -16,15 +17,54 @@ export default {
     // A Worker invocation uses one sequential repository transaction. Keep its
     // client to one connection so concurrent requests, rather than one request,
     // consume the Hyperdrive pool.
-    const db = createDb(env.HYPERDRIVE.connectionString, {
-      maxConnections: 1,
-    });
+    let db: ReturnType<typeof createDb> | undefined;
     try {
-      return await createWorkGraphApp(
-        new WorkGraphRepository(db),
-      ).fetch(request, env, context);
-    } finally {
-      await closeDb(db);
+      try {
+        db = createDb(env.HYPERDRIVE.connectionString, {
+          maxConnections: 1,
+        });
+        return await createWorkGraphApp(new WorkGraphRepository(db), {
+          workerVersion: env.WORKER_VERSION?.id,
+        }).fetch(request, env, context);
+      } finally {
+        if (db !== undefined) {
+          try {
+            await closeDb(db);
+          } catch {
+            console.error({
+              message: "Work Graph Worker cleanup failed",
+              requestId: crypto.randomUUID(),
+              route: "worker.fetch",
+              outcome: "error",
+              status: 500,
+              workerVersion: env.WORKER_VERSION?.id ?? "local",
+              exceptionClass: "worker_cleanup_error",
+            });
+          }
+        }
+      }
+    } catch {
+      // Startup failures bypass Hono. Never log their raw errors.
+      const requestId = crypto.randomUUID();
+      console.error({
+        message: "Work Graph Worker failed",
+        requestId,
+        route: "worker.fetch",
+        outcome: "error",
+        status: 500,
+        workerVersion: env.WORKER_VERSION?.id ?? "local",
+        exceptionClass: "worker_lifecycle_error",
+      });
+      return Response.json(
+        {
+          error: {
+            code: "internal_error",
+            message: "The Work Graph request failed.",
+            requestId,
+          },
+        },
+        { status: 500, headers: { "X-Request-Id": requestId } },
+      );
     }
   },
 } satisfies ExportedHandler<WorkGraphBindings>;
