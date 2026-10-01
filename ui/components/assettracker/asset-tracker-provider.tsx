@@ -43,6 +43,7 @@ import {
   getPortfolioAnnualReturn,
   getPortfolioContributionTimeSeries,
   getPortfolioFinancialIndependence,
+  getPortfolioPositionSummary,
   getTotalByAssetType,
   type ImportAccountHistoryInput,
   type ImportIncomeHistoryInput,
@@ -52,6 +53,7 @@ import {
   type PlannedExpenditure,
   type PortfolioContributionDataPoint,
   type PortfolioFinancialIndependence,
+  type PortfolioPositionSummary,
   type RecordBalanceInput,
   type RecordTransferInput,
   type RecurringFlow,
@@ -76,6 +78,7 @@ interface AssetTrackerContextValue {
   financialIndependence: PortfolioFinancialIndependence;
   /** Annualised portfolio growth, excluding recorded external money in/out */
   portfolioReturn: number | null;
+  positionSummary: PortfolioPositionSummary | null;
   /** Expected annual inflation used to express values in today's money */
   inflation: number;
   /** The net worth the user is aiming for, if set */
@@ -210,6 +213,7 @@ export function AssetTrackerProvider({
         valuationDate,
       ),
       portfolioReturn: getPortfolioAnnualReturn(repository),
+      positionSummary: getPortfolioPositionSummary(repository),
       inflation: repository.settings.expectedAnnualInflation,
       netWorthTarget: repository.settings.targetNetWorth ?? null,
       netWorthTargetIsReal: repository.settings.targetNetWorthIsReal ?? false,

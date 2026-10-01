@@ -19,20 +19,17 @@ function staleObservationMessage(
 
 export function AssetTrackerDashboard() {
   const {
-    accounts,
     accountDetails,
-    netWorthData,
     contributionData,
     assetAllocation,
     portfolioReturn,
+    positionSummary,
     inflation,
     baseCurrency,
     valuationDate,
     valuationIssues,
   } = useAssetTracker();
-  const openAccounts = accounts.filter((a) => a.isOpen);
   const contributedCapital = contributionData.at(-1)?.contributedCapital;
-  const latestNetWorth = netWorthData.at(-1)?.total ?? null;
   const missingPrices = valuationIssues.filter(
     (issue) => issue.kind === "missing_price" || issue.kind === "stale_price",
   ).length;
@@ -70,37 +67,65 @@ export function AssetTrackerDashboard() {
           </p>
         </div>
       )}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div className="border rounded-lg p-6">
-          <p className="text-sm text-muted-foreground">Market net worth</p>
+          <p className="text-sm text-muted-foreground">Total assets</p>
           <p className="text-3xl font-bold mt-1">
-            {latestNetWorth == null
+            {positionSummary == null
               ? "Unavailable"
-              : formatAccountCurrency(latestNetWorth, baseCurrency)}
+              : formatAccountCurrency(
+                  positionSummary.grossAssets,
+                  baseCurrency,
+                )}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Latest valuations less liabilities
+            Before liabilities
           </p>
         </div>
         <div className="border rounded-lg p-6">
-          <p className="text-sm text-muted-foreground">Portfolio Growth</p>
+          <p className="text-sm text-muted-foreground">Liabilities</p>
           <p className="text-3xl font-bold mt-1">
-            {portfolioReturn != null
-              ? `${formatAnnualRate(portfolioReturn)}/yr`
-              : "—"}
+            {positionSummary == null
+              ? "Unavailable"
+              : formatAccountCurrency(
+                  positionSummary.liabilities,
+                  baseCurrency,
+                )}
           </p>
-          {portfolioReturn != null && (
-            <p className="text-xs text-muted-foreground mt-1">
-              {formatAnnualRate(realRate(portfolioReturn, inflation))}/yr after
-              inflation · excludes recorded contributions
-            </p>
-          )}
+          <p className="text-xs text-muted-foreground mt-1">
+            Debt across open accounts
+          </p>
+        </div>
+        <div className="border rounded-lg p-6">
+          <p className="text-sm text-muted-foreground">Net worth</p>
+          <p className="text-3xl font-bold mt-1">
+            {positionSummary == null
+              ? "Unavailable"
+              : formatAccountCurrency(positionSummary.netWorth, baseCurrency)}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Assets less liabilities
+          </p>
+        </div>
+        <div className="border rounded-lg p-6">
+          <p className="text-sm text-muted-foreground">Liquid assets</p>
+          <p className="text-3xl font-bold mt-1">
+            {positionSummary == null
+              ? "Unavailable"
+              : formatAccountCurrency(
+                  positionSummary.liquidAssets,
+                  baseCurrency,
+                )}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Cash and investments without access restrictions
+          </p>
         </div>
         <div className="border rounded-lg p-6">
           <p className="text-sm text-muted-foreground">Contributed capital</p>
           <p className="text-3xl font-bold mt-1">
             {contributedCapital == null
-              ? "—"
+              ? "Unavailable"
               : formatAccountCurrency(contributedCapital, baseCurrency)}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
@@ -108,12 +133,18 @@ export function AssetTrackerDashboard() {
           </p>
         </div>
         <div className="border rounded-lg p-6">
-          <p className="text-sm text-muted-foreground">Open Accounts</p>
-          <p className="text-3xl font-bold mt-1">{openAccounts.length}</p>
-        </div>
-        <div className="border rounded-lg p-6">
-          <p className="text-sm text-muted-foreground">Asset Types</p>
-          <p className="text-3xl font-bold mt-1">{assetAllocation.length}</p>
+          <p className="text-sm text-muted-foreground">Portfolio growth</p>
+          <p className="text-3xl font-bold mt-1">
+            {portfolioReturn != null
+              ? `${formatAnnualRate(portfolioReturn)}/yr`
+              : "Unavailable"}
+          </p>
+          {portfolioReturn != null && (
+            <p className="text-xs text-muted-foreground mt-1">
+              {formatAnnualRate(realRate(portfolioReturn, inflation))}/yr after
+              inflation · excludes recorded contributions
+            </p>
+          )}
         </div>
       </div>
       <div className="grid gap-8 lg:grid-cols-2">

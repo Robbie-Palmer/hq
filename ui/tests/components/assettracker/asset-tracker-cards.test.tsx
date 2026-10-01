@@ -15,6 +15,7 @@ import {
 import { AccountFlows } from "@/components/assettracker/account-flows";
 import { AccountsTable } from "@/components/assettracker/accounts-table";
 import { AssetAllocationHistoryChart } from "@/components/assettracker/asset-allocation-history-chart";
+import { AssetTrackerDashboard } from "@/components/assettracker/asset-tracker-dashboard";
 import { useAssetTracker } from "@/components/assettracker/asset-tracker-provider";
 import { FlowSankeyChart } from "@/components/assettracker/flow-sankey-chart";
 import { PortfolioContributionChart } from "@/components/assettracker/portfolio-contribution-chart";
@@ -147,6 +148,14 @@ vi.mock("@/components/assettracker/asset-tracker-provider", () => ({
   useAssetTracker: vi.fn(),
 }));
 
+vi.mock("@/components/assettracker/asset-allocation-chart", () => ({
+  AssetAllocationChart: () => <p>Net worth composition</p>,
+}));
+
+vi.mock("@/components/assettracker/account-balance-chart", () => ({
+  AccountBalanceChart: () => <p>Account balances</p>,
+}));
+
 const mockUseAssetTracker = vi.mocked(useAssetTracker);
 const FIXED_NOW = new Date("2026-07-03T12:00:00+01:00");
 const originalScrollIntoView = Element.prototype.scrollIntoView;
@@ -215,7 +224,11 @@ function mockAssetTracker(
     incomeHistory: [],
     financialIndependence: EMPTY_FI,
     portfolioReturn: null,
+    positionSummary: null,
     inflation: 0.025,
+    baseCurrency: "GBP" as const,
+    valuationDate: null,
+    valuationIssues: [],
     netWorthTarget: null,
     netWorthTargetIsReal: false,
     withdrawalRate: 0.04,
@@ -248,6 +261,45 @@ function mockAssetTracker(
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+describe("AssetTrackerDashboard", () => {
+  it("shows the household position instead of account and type counts", () => {
+    mockAssetTracker({
+      positionSummary: {
+        date: "2026-01-31",
+        grossAssets: 361_750,
+        liabilities: 199_000,
+        liquidAssets: 10_000,
+        netWorth: 162_750,
+      },
+    });
+
+    render(<AssetTrackerDashboard />);
+
+    expect(screen.getByText("Total assets")).toBeVisible();
+    expect(screen.getByText("£361,750.00")).toBeVisible();
+    expect(screen.getByText("Liabilities")).toBeVisible();
+    expect(screen.getByText("£199,000.00")).toBeVisible();
+    expect(screen.getByText("Net worth")).toBeVisible();
+    expect(screen.getByText("£162,750.00")).toBeVisible();
+    expect(screen.getByText("Liquid assets")).toBeVisible();
+    expect(screen.getByText("£10,000.00")).toBeVisible();
+    expect(screen.queryByText("Open Accounts")).not.toBeInTheDocument();
+    expect(screen.queryByText("Asset Types")).not.toBeInTheDocument();
+  });
+
+  it("marks position values unavailable when the portfolio cannot be valued", () => {
+    mockAssetTracker();
+
+    render(<AssetTrackerDashboard />);
+
+    expect(screen.getByText("Total assets")).toBeVisible();
+    expect(screen.getByText("Liabilities")).toBeVisible();
+    expect(screen.getByText("Net worth")).toBeVisible();
+    expect(screen.getByText("Liquid assets")).toBeVisible();
+    expect(screen.getAllByText("Unavailable")).toHaveLength(6);
+  });
 });
 
 describe("PortfolioGoal", () => {
