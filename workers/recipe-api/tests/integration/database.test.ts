@@ -1,3 +1,5 @@
+import { strToU8, zipSync } from "fflate";
+import { beginBatchUndo, executeBatchUndo, previewBatchUndo } from "../../src/batch-undo";
 import type { AgentSession } from "@better-auth/agent-auth";
 import { and, eq } from "drizzle-orm";
 import { createDb, schema } from "recipe-db";
@@ -120,6 +122,7 @@ function authenticatedRequest(
     env?: Bindings;
     method?: "DELETE" | "GET" | "PATCH" | "POST" | "PUT";
     operationId?: string;
+    executionCtx?: ExecutionContext;
   } = {},
 ) {
   const method = options.method ?? "GET";
@@ -138,6 +141,7 @@ function authenticatedRequest(
     path,
     { method, headers, body },
     options.env ?? baseEnv,
+    options.executionCtx,
   );
 }
 
@@ -191,8 +195,8 @@ beforeAll(async () => {
     where slug in ('almond-milk', 'cajun-powder', 'cajun-seasoning', 'salted-butter')
     order by slug
   `;
-  expect(migrationCount?.count).toBe(18);
-  expect(tableCount?.count).toBe(52);
+  expect(migrationCount?.count).toBe(19);
+  expect(tableCount?.count).toBe(53);
   expect(catalogRows).toEqual([
     { category: "dairy", slug: "almond-milk" },
     { category: "spice", slug: "cajun-seasoning" },
@@ -1926,6 +1930,116 @@ describe("durable recipe batches", () => {
     await db.transaction(tx => insertGeneratedDraft(tx, id, draft));
     await db.update(schema.recipeImportJob).set({ status: "succeeded", reviewState: "ready" }).where(eq(schema.recipeImportJob.id, id));
   }
+
+  function collectionSource(files: Record<string, string> = { "salt.cook": draft.source }) {
+    return { type: "archive", filename: "collection.zip", content: Buffer.from(zipSync(Object.fromEntries(Object.entries(files).map(([path, text]) => [path, strToU8(text)])))).toString("base64") };
+  }
+  async function acceptItem(cook: TestUser, service: ReturnType<typeof batchServices>, batchId: string, itemId: string, slug: string) {
+    await readyItem(itemId);
+    const payload = JSON.parse(savedRecipeBody(slug, draft.title));
+    payload.recipe.description = draft.description;
+    const response = await authenticatedRequest(cook, `/recipe-import-batches/${batchId}/items/${itemId}/acceptance`, { method: "PUT", body: { version: 1, idempotencyKey: crypto.randomUUID(), recipe: { slug, title: draft.title, description: draft.description, body: JSON.stringify(payload), visibility: "private" } }, env: service.env });
+    expect(response.status).toBe(200);
+    return (await response.json() as { recipeId: string }).recipeId;
+  }
+  it("reviews collection entries, skips duplicates across imports, and retains provenance after undo", async () => {
+    const cook = await createUser("Collection Cook", "collection@example.test");
+    const stranger = await createUser("Stranger", "stranger@example.test");
+    const service = batchServices();
+    const body = { idempotencyKey: crypto.randomUUID(), sources: [collectionSource({ "salt.cook": draft.source, "same.cook": draft.source, "bad.cook": " " })] };
+    const response = await authenticatedRequest(cook, "/recipe-import-batches", { method: "POST", body, env: service.env });
+    expect(response.status).toBe(201);
+    const batch = await response.json() as { id: string; items: { id: string; reviewState: string; archive: { entryPath: string; archiveChecksum: string } }[] };
+    expect(batch.items[0]?.archive.entryPath).toBe("salt.cook");
+    expect(batch.items[1]?.reviewState).toBe("skipped");
+    expect(await db.select().from(schema.recipe)).toHaveLength(0);
+    const recipeId = await acceptItem(cook, service, batch.id, batch.items[0]!.id, "collection-salt");
+    const duplicate = await authenticatedRequest(cook, "/recipe-import-batches", { method: "POST", body: { idempotencyKey: crypto.randomUUID(), sources: [collectionSource()] }, env: service.env });
+    expect((await duplicate.json() as { items: { reviewState: string }[] }).items[0]?.reviewState).toBe("skipped");
+    expect((await authenticatedRequest(stranger, `/recipe-import-batches/${batch.id}/undo`, { env: service.env })).status).toBe(404);
+    await db.update(schema.recipeImportJob).set({ status: "failed", reviewState: "needs_attention" }).where(eq(schema.recipeImportJob.id, batch.items[2]!.id));
+    expect((await previewBatchUndo(db, cook.id, batch.id)).items[0]?.outcome).toBe("eligible");
+    const background: Promise<unknown>[] = [];
+    const executionCtx = { waitUntil: (promise: Promise<unknown>) => { background.push(promise); }, passThroughOnException: vi.fn() } as unknown as ExecutionContext;
+    const undo = await authenticatedRequest(cook, `/recipe-import-batches/${batch.id}/undo`, { method: "PUT", body: { state: "started" }, env: service.env, executionCtx });
+    expect(undo.status).toBe(202);
+    expect(background).toHaveLength(1);
+    await Promise.all(background);
+    await executeBatchUndo(db, cook.id, batch.id);
+    expect(await db.select().from(schema.recipe)).toHaveLength(0);
+    const [receipt] = await db.select().from(schema.recipeImportJob).where(eq(schema.recipeImportJob.id, batch.items[0]!.id));
+    expect(receipt?.acceptedRecipeId).toBeNull();
+    expect(receipt?.acceptedRecipeSnapshotId).toBe(recipeId);
+    expect(receipt?.undoOutcome).toBe("deleted");
+    expect((await previewBatchUndo(db, cook.id, batch.id)).items[0]?.outcome).toBe("deleted");
+    expect(await db.select().from(schema.recipeImportArchiveEntry)).toHaveLength(4);
+    expect((await authenticatedRequest(cook, `/recipe-import-batches/${batch.id}/items/${batch.items[2]!.id}/acceptance`, { method: "PUT", body: { version: 1, idempotencyKey: crypto.randomUUID(), recipe: { slug: "blocked", title: draft.title, body: savedRecipeBody("blocked", draft.title) } }, env: service.env })).status).toBe(409);
+  });
+  it("preserves transferred, forked, changed, and cooked recipes and rechecks after preview", async () => {
+    const cook = await createUser("Collection Cook", "collection@example.test");
+    const other = await createUser("Other Cook", "other@example.test");
+    const service = batchServices();
+    const response = await authenticatedRequest(cook, "/recipe-import-batches", { method: "POST", body: { idempotencyKey: crypto.randomUUID(), duplicatePolicy: "allow", sources: [collectionSource(Object.fromEntries(Array.from({ length: 5 }, (_, i) => [`${i}.cook`, draft.source])))] }, env: service.env });
+    const batch = await response.json() as { id: string; items: { id: string }[] };
+    const ids = [];
+    for (const [i, item] of batch.items.entries()) ids.push(await acceptItem(cook, service, batch.id, item.id, `collection-${i}`));
+    expect((await previewBatchUndo(db, cook.id, batch.id)).items.every(item => item.outcome === "eligible")).toBe(true);
+    await db.update(schema.recipe).set({ userId: other.id }).where(eq(schema.recipe.id, ids[0]!));
+    const forkBody = { slug: "fork", title: "Fork", body: savedRecipeBody("fork", "Fork"), parentRecipeId: ids[1] };
+    expect((await authenticatedRequest(other, "/recipes", { method: "POST", body: forkBody, env: service.env })).status).toBe(404);
+    expect((await authenticatedRequest(cook, "/recipes", { method: "POST", body: forkBody, env: service.env })).status).toBe(201);
+    expect((await authenticatedRequest(cook, "/recipes/collection-1", { method: "DELETE", env: service.env })).status).toBe(409);
+    await db.update(schema.recipe).set({ title: "Edited" }).where(eq(schema.recipe.id, ids[2]!));
+    await db.insert(schema.cookingSession).values({ id: crypto.randomUUID(), userId: cook.id, recipeSlug: "collection-3", recipeTitle: draft.title, servings: 2 });
+    await beginBatchUndo(db, cook.id, batch.id);
+    await executeBatchUndo(db, cook.id, batch.id);
+    const results = await previewBatchUndo(db, cook.id, batch.id);
+    expect(results.items.map(item => item.outcome)).toEqual(["preserved", "preserved", "preserved", "preserved", "deleted"]);
+    expect(await db.select().from(schema.recipe)).toHaveLength(5);
+  });
+
+  it("records per-item undo failures and retries without deleting a recipe twice", async () => {
+    const cook = await createUser("Collection Cook", "collection@example.test");
+    const service = batchServices();
+    const response = await authenticatedRequest(cook, "/recipe-import-batches", { method: "POST", body: { idempotencyKey: crypto.randomUUID(), duplicatePolicy: "allow", sources: [collectionSource({ "a.cook": draft.source, "b.cook": draft.source })] }, env: service.env });
+    const batch = await response.json() as { id: string; items: { id: string }[] };
+    await expect(beginBatchUndo(db, cook.id, batch.id)).rejects.toThrow("Wait for processing");
+    for (const [i, item] of batch.items.entries()) await acceptItem(cook, service, batch.id, item.id, `failure-${i}`);
+    await beginBatchUndo(db, cook.id, batch.id);
+    const transaction = vi.spyOn(db, "transaction").mockRejectedValueOnce(new Error("Temporary database failure"));
+    await executeBatchUndo(db, cook.id, batch.id);
+    transaction.mockRestore();
+    expect((await previewBatchUndo(db, cook.id, batch.id)).items.map(item => item.outcome)).toEqual(["failed", "deleted"]);
+    await beginBatchUndo(db, cook.id, batch.id);
+    await executeBatchUndo(db, cook.id, batch.id);
+    expect((await previewBatchUndo(db, cook.id, batch.id)).items.map(item => item.outcome)).toEqual(["deleted", "deleted"]);
+    expect(await db.select().from(schema.recipe)).toHaveLength(0);
+  });
+
+  it("guards duplicates at acceptance and rejects ordinary batches and malformed archives for undo", async () => {
+    const cook = await createUser("Collection Cook", "collection@example.test");
+    const other = await createUser("Other Cook", "other@example.test");
+    const service = batchServices();
+    const ids = [];
+    for (let i = 0; i < 2; i++) {
+      const response = await authenticatedRequest(cook, "/recipe-import-batches", { method: "POST", body: { idempotencyKey: crypto.randomUUID(), sources: [collectionSource()] }, env: service.env });
+      ids.push(await response.json() as { id: string; items: { id: string }[] });
+    }
+    const first = ids[0]!;
+    const second = ids[1]!;
+    await acceptItem(cook, service, first.id, first.items[0]!.id, "first-copy");
+    await readyItem(second.items[0]!.id);
+    const payload = JSON.parse(savedRecipeBody("second-copy", draft.title));
+    payload.recipe.description = draft.description;
+    const acceptance = await authenticatedRequest(cook, `/recipe-import-batches/${second.id}/items/${second.items[0]!.id}/acceptance`, { method: "PUT", body: { version: 1, idempotencyKey: crypto.randomUUID(), recipe: { slug: "second-copy", title: draft.title, description: draft.description, body: JSON.stringify(payload), visibility: "private" } }, env: service.env });
+    expect(acceptance.status).toBe(409);
+    expect((await authenticatedRequest(other, `/recipe-import-batches/${first.id}/undo`, { method: "PUT", body: { state: "started" }, env: service.env })).status).toBe(404);
+    const ordinary = await authenticatedRequest(cook, "/recipe-import-batches", { method: "POST", body: { idempotencyKey: crypto.randomUUID(), sources: sources().slice(0, 1) }, env: service.env });
+    const ordinaryBatch = await ordinary.json() as { id: string };
+    expect((await authenticatedRequest(cook, `/recipe-import-batches/${ordinaryBatch.id}/undo`, { env: service.env })).status).toBe(409);
+    const malformed = await authenticatedRequest(cook, "/recipe-import-batches", { method: "POST", body: { idempotencyKey: crypto.randomUUID(), sources: [{ type: "archive", filename: "bad.zip", content: "AAAA" }] }, env: service.env });
+    expect(malformed.status).toBe(400);
+  });
 
   it("persists 20 mixed sources once, resumes dispatch, and isolates owners", async () => {
     const cook = await createUser("Batch Cook", "batch@example.test");

@@ -2,6 +2,7 @@
 
 import type { RefObject } from "react";
 import { BatchImportCapture } from "@/components/recipes/batch-import-capture";
+import { BatchImportUndo } from "@/components/recipes/batch-import-undo";
 import { BatchItemEditor } from "@/components/recipes/batch-item-editor";
 import { RecipeAuthRequired } from "@/components/recipes/recipe-auth-required";
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,17 @@ function BatchItemReview({
 }>) {
   return (
     <>
+      {item.archive && (
+        <p className="my-3 text-sm text-[var(--ink-3)]">
+          Imported from {item.archive.archiveName} / {item.archive.entryPath}.
+          Archive checksum: {item.archive.archiveChecksum}
+        </p>
+      )}
+      {item.undoOutcome && (
+        <p className="my-3 text-sm">
+          {item.undoOutcome}: {item.undoMessage}
+        </p>
+      )}
       {item.errorMessage && (
         <p role="alert" className="my-3 text-destructive">
           {item.errorMessage}
@@ -167,6 +179,9 @@ export function BatchRecipeImport() {
       {batch && (
         <>
           <BatchProgress batch={batch} />
+          {batch.items.some((value) => value.archive) && (
+            <BatchImportUndo key={batch.id} batch={batch} busy={busy} />
+          )}
           {batch.counts.processing > 0 && (
             <Button
               variant="outline"
@@ -182,7 +197,7 @@ export function BatchRecipeImport() {
             busy={busy}
             choose={choose}
           />
-          {item && (
+          {item && !["undoing", "undone"].includes(batch.status) && (
             <BatchItemReview
               batch={batch}
               item={item}

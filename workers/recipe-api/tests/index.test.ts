@@ -279,6 +279,7 @@ const dbMock = vi.hoisted(() => {
     recipe.visibility,
     recipe.createdAt,
     recipe.updatedAt,
+    null,
   ];
   // Emulates the paginated recipe list query: newest-first ordering, an
   // optional keyset cursor (three params), a limit param, and the trailing

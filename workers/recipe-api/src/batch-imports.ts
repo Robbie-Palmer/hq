@@ -3,6 +3,7 @@ import type { Db } from "recipe-db";
 import { readBatchDrafts, updateEditableDraft } from "recipe-db/batch-drafts";
 import {
   recipeImportBatch as batches,
+  recipeImportArchiveEntry as archiveEntries,
   recipeImportReviewEvent as events,
   recipeImportJob as jobs,
   recipe,
@@ -16,6 +17,7 @@ import {
 } from "recipe-domain/batch-import";
 import { SavedRecipePayloadSchema } from "recipe-domain/serialization";
 import { sha256Hex } from "ts-base/crypto";
+import { expandCooklangArchive, type ArchiveEntry } from "./collection-archive";
 import { validateRecipeUrl } from "./recipe-url-import";
 
 export class BatchImportError extends Error {
@@ -51,6 +53,32 @@ export function preflightSources(sources: BatchSource[]) {
   });
 }
 
+async function expandSource(source: ReturnType<typeof CreateBatchSchema.parse>["sources"][number]): Promise<{ source: BatchSource; provenance?: ArchiveEntry }[]> {
+  if (source.type !== "archive") return [{ source }];
+  try { return (await expandCooklangArchive(source)).map(entry => ({ source: entry.source, provenance: entry })); }
+  catch (error) { throw new BatchImportError(error instanceof Error ? error.message : "Invalid archive", 400); }
+}
+function sourceState(error: string | undefined) {
+  if (!error) return { status: "queued" as const, reviewState: "waiting", errorType: null, errorMessage: null, finishedAt: null };
+  return { status: "failed" as const, reviewState: error.startsWith("Duplicate archive recipe") ? "skipped" : "needs_attention", errorType: "PreflightError", errorMessage: error, finishedAt: new Date() };
+}
+
+async function prepareSources(input: ReturnType<typeof CreateBatchSchema.parse>) {
+  const expanded: { source: BatchSource; provenance?: ArchiveEntry }[] = [];
+  for (const source of input.sources) expanded.push(...await expandSource(source));
+  if (expanded.length > 50) throw new BatchImportError("A batch can contain at most 50 recipes", 400);
+  const sources = expanded.map(value => value.source);
+  const preflight = preflightSources(sources);
+  for (const [index, value] of expanded.entries()) {
+    const check = preflight[index];
+    if (value.provenance && check) {
+      check.label = `${value.provenance.archiveName} / ${value.provenance.entryPath}`;
+      check.error = value.provenance.error;
+    }
+  }
+  return { expanded, sources, preflight };
+}
+
 export async function createBatch(
   db: Db,
   userId: string,
@@ -58,9 +86,9 @@ export async function createBatch(
   artifacts: R2Bucket,
 ) {
   const input = CreateBatchSchema.parse(raw);
-  const preflight = preflightSources(input.sources);
+  const { expanded, sources, preflight } = await prepareSources(input);
   const fingerprint = await sha256Hex(
-    JSON.stringify([input.sources, input.visibility]),
+    JSON.stringify([input.sources, input.visibility, input.duplicatePolicy]),
   );
   return db.transaction(async (tx) => {
     await tx
@@ -98,7 +126,7 @@ export async function createBatch(
           gte(jobs.createdAt, since),
         ),
       );
-    if ((daily?.value ?? 0) + input.sources.length > 100)
+    if ((daily?.value ?? 0) + sources.length > 100)
       throw new BatchImportError(
         "Daily batch limit of 100 sources reached",
         429,
@@ -110,6 +138,7 @@ export async function createBatch(
         idempotencyKey: input.idempotencyKey,
         fingerprint,
         visibility: input.visibility,
+        duplicatePolicy: input.duplicatePolicy,
       })
       .returning();
     if (!batch) throw new Error("Batch insert returned no row");
@@ -118,11 +147,31 @@ export async function createBatch(
       artifacts,
       userId,
       batch.id,
-      input.sources,
+      sources,
       preflight,
+      expanded.map(value => value.provenance),
+      input.duplicatePolicy,
     );
     return batch;
   });
+}
+
+async function archiveDuplicateError(tx: Tx, userId: string, entry: ArchiveEntry, seen: Set<string>) {
+  const duplicate = await hasAcceptedArchiveRecipe(tx, userId, entry.contentChecksum);
+  const repeated = seen.has(entry.contentChecksum);
+  seen.add(entry.contentChecksum);
+  return repeated || duplicate ? "Duplicate archive recipe. Skipped by batch policy." : undefined;
+}
+async function hasAcceptedArchiveRecipe(tx: Tx, userId: string, checksum: string) {
+  const [duplicate] = await tx.select({ id: jobs.id }).from(archiveEntries).innerJoin(jobs, eq(jobs.id, archiveEntries.jobId))
+    .where(and(eq(jobs.userId, userId), eq(archiveEntries.contentChecksum, checksum), eq(jobs.reviewState, "accepted"), sql`${jobs.acceptedRecipeId} is not null`)).limit(1);
+  return Boolean(duplicate);
+}
+async function assertArchiveAcceptance(tx: Tx, userId: string, jobId: string, policy: string) {
+  if (policy !== "skip") return;
+  const [entry] = await tx.select().from(archiveEntries).where(eq(archiveEntries.jobId, jobId));
+  if (entry && await hasAcceptedArchiveRecipe(tx, userId, entry.contentChecksum))
+    throw new BatchImportError("This archive recipe was already imported. Skip it or use a new batch that allows duplicates.", 409);
 }
 
 async function storeBatchSources(
@@ -132,11 +181,18 @@ async function storeBatchSources(
   batchId: string,
   sources: BatchSource[],
   preflight: ReturnType<typeof preflightSources>,
+  provenance: (ArchiveEntry | undefined)[],
+  duplicatePolicy: "skip" | "allow",
 ) {
+  const seen = new Set<string>();
   for (const [position, source] of sources.entries()) {
     const id = crypto.randomUUID();
     const check = preflight[position];
     if (!check) throw new Error("Missing preflight result");
+    const entry = provenance[position];
+    if (entry && duplicatePolicy === "skip" && !check.error) {
+      check.error = await archiveDuplicateError(tx, userId, entry, seen);
+    }
     const sourceBody = JSON.stringify(source);
     const sourceChecksum = await sha256Hex(sourceBody);
     await artifacts.put(batchSourceKey(id), sourceBody, {
@@ -151,12 +207,9 @@ async function storeBatchSources(
       sourceLabel: check.label,
       sourceChecksum,
       imageCount: 0,
-      status: check.error ? "failed" : "queued",
-      reviewState: check.error ? "needs_attention" : "waiting",
-      errorType: check.error ? "PreflightError" : null,
-      errorMessage: check.error,
-      finishedAt: check.error ? new Date() : null,
+      ...sourceState(check.error),
     });
+    if (entry) await tx.insert(archiveEntries).values({ jobId: id, archiveName: entry.archiveName, archiveChecksum: entry.archiveChecksum, entryPath: entry.entryPath, contentChecksum: entry.contentChecksum });
   }
 }
 
@@ -180,15 +233,18 @@ export async function readBatch(db: Db, userId: string, batchId: string) {
     .from(jobs)
     .where(eq(jobs.batchId, batch.id))
     .orderBy(jobs.position);
+  const provenance = await db.select().from(archiveEntries).innerJoin(jobs, eq(jobs.id, archiveEntries.jobId)).where(eq(jobs.batchId, batchId));
+  const provenanceByJob = new Map(provenance.map(value => [value.recipe_import_archive_entry.jobId, value.recipe_import_archive_entry]));
   const draftByJob = await readBatchDrafts(
     db,
     items.map((item) => item.id),
   );
   return {
     ...batch,
-    items: items.map((item) => ({ ...item, ...draftByJob.get(item.id) })),
+    items: items.map((item) => ({ ...item, ...draftByJob.get(item.id), archive: provenanceByJob.get(item.id) })),
     ...batchProgress(items),
     ...(!batch.startedAt ? { status: "preparing" } : {}),
+    ...(batch.undoStartedAt ? { status: batch.undoCompletedAt ? "undone" : "undoing" } : {}),
   };
 }
 
@@ -256,6 +312,7 @@ export async function startBatch(
     .update(batches)
     .set({ startedAt: sql`coalesce(${batches.startedAt}, now())` })
     .where(eq(batches.id, batchId));
+  if (batch.undoStartedAt) return;
   for (const item of batch.items) {
     if (item.reviewState !== "waiting") continue;
     const id = `${item.id}-${item.executionAttempt}`;
@@ -470,6 +527,10 @@ export async function acceptDraft(
     JSON.stringify([input.version, input.recipe]),
   );
   return db.transaction(async (tx) => {
+    await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for("update");
+    const [batch] = await tx.select().from(batches).where(and(eq(batches.id, batchId), eq(batches.userId, userId))).for("update");
+    if (!batch) throw new BatchImportError("Batch not found", 404);
+    if (batch.undoStartedAt) throw new BatchImportError("This batch is being undone", 409);
     const item = await lockedItem(tx, userId, batchId, jobId);
     if (item.reviewState === "accepted") {
       if (
@@ -489,15 +550,12 @@ export async function acceptDraft(
       !draft
     )
       throw new BatchImportError("Draft changed. Reload before saving.", 409);
-    const [batch] = await tx
-      .select({ visibility: batches.visibility })
-      .from(batches)
-      .where(eq(batches.id, batchId));
+    await assertArchiveAcceptance(tx, userId, jobId, batch.duplicatePolicy);
     assertAcceptanceSnapshot(
       input,
       draft,
       stored?.generatedDraft?.url,
-      batch?.visibility,
+      batch.visibility,
     );
     const [saved] = await tx
       .insert(recipe)
@@ -509,6 +567,8 @@ export async function acceptDraft(
       .set({
         reviewState: "accepted",
         acceptedRecipeId: saved.id,
+        acceptedRecipeSnapshotId: saved.id,
+        acceptedRecipeUpdatedAt: saved.updatedAt,
         acceptKey: input.idempotencyKey,
         acceptedVersion: input.version,
         acceptFingerprint: fingerprint,
