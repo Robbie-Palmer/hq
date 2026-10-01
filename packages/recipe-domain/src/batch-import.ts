@@ -17,10 +17,16 @@ export const BatchSourceSchema = z.discriminatedUnion("type", [
       .refine((value) => new TextEncoder().encode(value).byteLength <= 100_000),
   }),
 ]);
+export const ArchiveSourceSchema = z.object({
+  type: z.literal("archive"),
+  filename: z.string().min(1).max(255).regex(/\.zip$/i),
+  content: z.string().min(1).max(1_400_000).regex(/^[A-Za-z0-9+/]*={0,2}$/),
+});
 export const CreateBatchSchema = z.object({
   idempotencyKey: z.uuid().max(36),
-  sources: z.array(BatchSourceSchema).min(1).max(50),
+  sources: z.array(z.discriminatedUnion("type", [...BatchSourceSchema.options, ArchiveSourceSchema])).min(1).max(50),
   visibility: RecipeVisibilitySchema.default("private"),
+  duplicatePolicy: z.enum(["skip", "allow"]).default("skip"),
 });
 export const BatchDraftSchema = z.object({
   visibility: RecipeVisibilitySchema.optional(),

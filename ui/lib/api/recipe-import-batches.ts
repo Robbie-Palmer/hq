@@ -12,6 +12,9 @@ export type ImportBatchItem = {
   errorMessage?: string;
   draft?: BatchDraft;
   draftVersion: number;
+  archive?: { archiveName: string; archiveChecksum: string; entryPath: string };
+  undoOutcome?: string;
+  undoMessage?: string;
 };
 export type ImportBatch = {
   id: string;

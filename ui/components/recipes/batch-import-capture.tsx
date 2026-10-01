@@ -2,10 +2,12 @@
 
 import { useRef, useState } from "react";
 import {
+  type ArchiveSourceSchema,
   type BatchSource,
   CreateBatchSchema,
 } from "recipe-domain/batch-import";
 import type { RecipeVisibility } from "recipe-domain/visibility";
+import type { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api/http";
@@ -15,11 +17,19 @@ import {
   recipeImportBatchesPath,
 } from "@/lib/api/recipe-import-batches";
 
-async function readRecipeFile(file: File): Promise<BatchSource> {
+type CaptureSource = BatchSource | z.infer<typeof ArchiveSourceSchema>;
+async function readRecipeFile(file: File): Promise<CaptureSource> {
+  if (/\.zip$/i.test(file.name)) {
+    if (file.size > 1_000_000) throw new Error(`${file.name} exceeds 1 MB`);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let binary = "";
+    for (const value of bytes) binary += String.fromCodePoint(value);
+    return { type: "archive", filename: file.name, content: btoa(binary) };
+  }
   if (file.size > 100000) throw new Error(`${file.name} exceeds 100 KB`);
   return { type: "file", filename: file.name, content: await file.text() };
 }
-function mixedSources(urls: string, files: BatchSource[]): BatchSource[] {
+function mixedSources(urls: string, files: CaptureSource[]): CaptureSource[] {
   return [
     ...urls
       .split(/\r?\n/)
@@ -38,8 +48,11 @@ export function BatchImportCapture({
   onStart: (batchId: string) => Promise<void>;
 }>) {
   const [urls, setUrls] = useState("");
-  const [sources, setSources] = useState<BatchSource[]>([]);
+  const [sources, setSources] = useState<CaptureSource[]>([]);
   const [visibility, setVisibility] = useState<RecipeVisibility>("private");
+  const [duplicatePolicy, setDuplicatePolicy] = useState<"skip" | "allow">(
+    "skip",
+  );
   const [prepared, setPrepared] = useState<ImportBatch | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,13 +80,14 @@ export function BatchImportCapture({
   }
   async function createPreparation() {
     const mixed = mixedSources(urls, sources);
-    const input = JSON.stringify([mixed, visibility]);
+    const input = JSON.stringify([mixed, visibility, duplicatePolicy]);
     if (submission.current?.input !== input)
       submission.current = { key: crypto.randomUUID(), input };
     const body = CreateBatchSchema.parse({
       idempotencyKey: submission.current.key,
       sources: mixed,
       visibility,
+      duplicatePolicy,
     });
     const value = await apiRequest<ImportBatch>(recipeImportBatchesPath, {
       method: "POST",
@@ -106,8 +120,9 @@ export function BatchImportCapture({
       >
         <summary className="cursor-pointer">New batch</summary>
         <p className="my-2 text-sm text-[var(--ink-3)]">
-          One URL or file per recipe. Up to 50 sources. Review each draft before
-          saving.
+          Import URLs, recipe files, or a ZIP of Cooklang files. Up to 50
+          recipes. ZIP limits: 1 MB compressed, 5 MB expanded, 100 entries, and
+          100 KB per recipe. Review each draft before saving.
         </p>
         <label className="grid gap-2">
           <span>Recipe URLs, one per line</span>
@@ -122,12 +137,12 @@ export function BatchImportCapture({
           />
         </label>
         <label htmlFor="batch-recipe-files" className="my-3 grid gap-2">
-          Cooklang or schema.org files
+          Cooklang, schema.org files, or Cooklang collection ZIP
           <Input
             id="batch-recipe-files"
             type="file"
             multiple
-            accept=".cook,.cooklang,.json,.jsonld"
+            accept=".cook,.cooklang,.json,.jsonld,.zip"
             disabled={busy}
             onChange={(event) => {
               const files = Array.from(event.target.files ?? []);
@@ -138,10 +153,10 @@ export function BatchImportCapture({
         </label>
         {sources.map((source, index) => (
           <p
-            key={`${source.type === "file" ? source.filename : source.url}-${index}`}
+            key={`${source.type === "url" ? source.url : source.filename}-${index}`}
             className="text-sm"
           >
-            {source.type === "file" ? source.filename : source.url}{" "}
+            {source.type === "url" ? source.url : source.filename}{" "}
             <Button
               variant="ghost"
               disabled={busy}
@@ -167,6 +182,23 @@ export function BatchImportCapture({
             <option value="private">Private</option>
             <option value="household">Household</option>
             <option value="public">Public</option>
+          </select>
+        </label>
+        <label className="my-3 grid gap-2">
+          <span>Duplicate archive recipes</span>
+          <select
+            value={duplicatePolicy}
+            disabled={busy}
+            onChange={(event) => {
+              setDuplicatePolicy(event.target.value as "skip" | "allow");
+              clearPreparation();
+            }}
+            className="rounded-md border border-[var(--line)] p-2"
+          >
+            <option value="skip">
+              Skip identical recipes from this or previous imports
+            </option>
+            <option value="allow">Create separate copies after review</option>
           </select>
         </label>
         <Button disabled={busy} onClick={() => void prepare(false)}>

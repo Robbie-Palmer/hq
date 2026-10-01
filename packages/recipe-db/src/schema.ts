@@ -501,8 +501,10 @@ export const recipe = pgTable(
       .notNull()
       .defaultNow()
       .$onUpdate(() => new Date()),
+    parentRecipeId: uuid().references((): AnyPgColumn => recipe.id, { onDelete: "restrict" }),
   },
   (table) => [
+    index("recipe_parent_recipe_idx").on(table.parentRecipeId),
     index("recipe_user_id_idx").on(table.userId),
     index("recipe_public_feed_idx").on(
       table.visibility,
@@ -1109,11 +1111,22 @@ export const recipeImportStageEnum = pgEnum(
 
 export const recipeImportDraftKindEnum = pgEnum("recipe_import_draft_kind", ["generated", "editable"]);
 
+export const recipeImportArchiveEntry = pgTable("recipe_import_archive_entry", {
+  jobId: uuid().primaryKey().references(() => recipeImportJob.id, { onDelete: "cascade" }),
+  archiveName: text().notNull(),
+  archiveChecksum: text().notNull(),
+  entryPath: text().notNull(),
+  contentChecksum: text().notNull(),
+}, table => [index("recipe_import_archive_entry_content_idx").on(table.contentChecksum)]);
+
 export const recipeImportBatch = pgTable("recipe_import_batch", {
   id: uuid().primaryKey().defaultRandom(),
   userId: text().notNull().references(() => user.id, { onDelete: "cascade" }),
   idempotencyKey: uuid().notNull(),
   fingerprint: text().notNull(),
+  duplicatePolicy: text().notNull().default("skip"),
+  undoStartedAt: timestamp({ withTimezone: true }),
+  undoCompletedAt: timestamp({ withTimezone: true }),
   startedAt: timestamp({ withTimezone: true }),
   visibility: visibilityEnum().notNull().default("private"),
   createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
@@ -1142,6 +1155,10 @@ export const recipeImportJob = pgTable(
     draftVersion: integer().notNull().default(1),
     executionAttempt: integer().notNull().default(1),
     acceptedRecipeId: uuid().references(() => recipe.id, { onDelete: "set null" }),
+    acceptedRecipeSnapshotId: uuid(),
+    acceptedRecipeUpdatedAt: timestamp({ withTimezone: true }),
+    undoOutcome: text(),
+    undoMessage: text(),
     acceptKey: uuid(),
     acceptFingerprint: text(),
     acceptedVersion: integer(),

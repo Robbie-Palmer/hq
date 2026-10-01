@@ -21,6 +21,7 @@ import {
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Context, Handler } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import {
   injectTraceContext,
   traceCarrierFromHeaders,
@@ -29,6 +30,7 @@ import {
   withPostHogSpan,
 } from "observability";
 import {
+  withDb,
   closeDbClient,
   createDb,
   type Db,
@@ -36,6 +38,7 @@ import {
   databaseConnection,
   schema,
 } from "recipe-db";
+import { beginBatchUndo, executeBatchUndo, previewBatchUndo } from "./batch-undo";
 import { AutosaveBatchDraftSchema, CreateBatchSchema } from "recipe-domain/batch-import";
 import { CookLogMutationConflictError } from "recipe-domain/cook-log";
 import {
@@ -205,6 +208,7 @@ type SpanAttributes = Record<string, boolean | number | string>;
 extendZodWithOpenApi(z);
 
 const app = new OpenAPIHono<AppEnv>();
+app.use("/recipe-import-batches", bodyLimit({ maxSize: 8_000_000, onError: c => c.json({ error: "Batch request exceeds 8 MB" }, 413) }));
 
 const previewSignInBodySchema = z.object({
   scenario: z.string().trim().min(1).max(100),
@@ -398,6 +402,7 @@ const RECIPE_FILE_IMPORT_RATE_LIMIT = { max: 20, windowSeconds: 60 * 60 };
 const RECIPE_PHOTO_IMPORT_RATE_LIMIT = { max: 20, windowSeconds: 60 * 60 };
 
 const createRecipeBodySchema = z.object({
+  parentRecipeId: z.uuid().max(36).optional(),
   slug: creatableRecipeSlugSchema,
   title: z.string().trim().min(1).max(120),
   description: z.string().trim().min(1).max(500).optional(),
@@ -405,20 +410,20 @@ const createRecipeBodySchema = z.object({
   visibility: RecipeVisibilitySchema.default("private"),
 });
 
-const batchVersionSchema = AutosaveBatchDraftSchema.shape.version.openapi({ format: "int32" });
+const batchVersionSchema = AutosaveBatchDraftSchema.shape.version.meta({ format: "int32" });
 const mutableBatchDraftSchema = AutosaveBatchDraftSchema.shape.draft;
 const autosaveBatchBodySchema = AutosaveBatchDraftSchema.extend({
   version: batchVersionSchema,
   draft: mutableBatchDraftSchema.extend({
-    servings: mutableBatchDraftSchema.shape.servings.openapi({ format: "int32" }),
-    prepTime: mutableBatchDraftSchema.shape.prepTime.openapi({ format: "int32" }),
-    cookTime: mutableBatchDraftSchema.shape.cookTime.openapi({ format: "int32" }),
+    servings: mutableBatchDraftSchema.shape.servings.meta({ format: "int32" }),
+    prepTime: mutableBatchDraftSchema.shape.prepTime.meta({ format: "int32" }),
+    cookTime: mutableBatchDraftSchema.shape.cookTime.meta({ format: "int32" }),
   }),
 });
 const acceptBatchBodySchema = z.object({
   version: batchVersionSchema,
   idempotencyKey: z.uuid().max(36),
-  recipe: createRecipeBodySchema,
+  recipe: createRecipeBodySchema.omit({ parentRecipeId: true }),
 });
 
 const importRecipeUrlBodySchema = z
@@ -807,7 +812,9 @@ export const routeMetadata = {
   },
   "GET /recipe-imports": {},
   "GET /recipe-imports/:jobId": {},
-  "POST /recipe-import-batches": { requestBodySchema: CreateBatchSchema, successStatuses: [201] },
+  "POST /recipe-import-batches": { requestBodySchema: CreateBatchSchema, successStatuses: [201], additionalErrorStatuses: [413] },
+  "GET /recipe-import-batches/:batchId/undo": {},
+  "PUT /recipe-import-batches/:batchId/undo": { requestBodySchema: z.object({ state: z.literal("started") }), successStatuses: [202] },
   "GET /recipe-import-batches": {},
   "GET /recipe-import-batches/:batchId": {},
   "GET /recipe-import-batches/:batchId/execution": {},
@@ -1504,7 +1511,7 @@ async function findOwnedRecipeBySlug(
 }
 
 async function usersShareHousehold(
-  db: Db,
+  db: Pick<Db, "select">,
   firstUserId: string,
   secondUserId: string,
 ): Promise<boolean> {
@@ -5728,15 +5735,16 @@ registerRoute("post", "/recipes", async (c) => {
         if (!membership) return authorizationResponse(c, forbidden());
       }
 
-      const [recipe] = await db
-        .insert(schema.recipe)
-        .values({
-          ...body.data,
-          userId: session.user.id,
-        })
-        .returning();
+      const recipe = await db.transaction(async tx => {
+        if (body.data.parentRecipeId) {
+          const [parent] = await tx.select().from(schema.recipe).where(eq(schema.recipe.id, body.data.parentRecipeId)).for("update");
+          if (!parent || !authorizeRecipeRead(session.user, parent, { userSharesHouseholdWithOwner: await usersShareHousehold(tx, parent.userId, session.user.id) }).allowed) return undefined;
+        }
+        const [saved] = await tx.insert(schema.recipe).values({ ...body.data, userId: session.user.id }).returning();
+        return saved;
+      });
 
-      if (!recipe) return c.json({ error: "Database mutation failed" }, 502);
+      if (!recipe) return c.notFound();
 
       return c.json(recipeResponse(recipe), 201);
     },
@@ -5926,6 +5934,7 @@ registerRoute("delete", "/recipes/:slug", async (c) => {
 
       return c.body(null, 204);
     },
+    { onError: error => isForeignKeyViolation(error) ? c.json({ error: "This recipe has forks and cannot be deleted." }, 409) : undefined },
   );
 });
 
@@ -6221,6 +6230,17 @@ registerRoute("post", "/recipe-import-batches", batchHandler(async (c, { db, ses
 }));
 registerRoute("get", "/recipe-import-batches", batchHandler(async (c, { db, session }) => c.json({ batches: await listBatches(db, session.user.id) }), false));
 registerRoute("get", "/recipe-import-batches/:batchId", batchHandler(async (c, { db, session }) => c.json(await readBatch(db, session.user.id, batchParam(c, "batchId"))), false));
+registerRoute("get", "/recipe-import-batches/:batchId/undo", batchHandler(async (c, { db, session }) => c.json(await previewBatchUndo(db, session.user.id, batchParam(c, "batchId"))), false));
+registerRoute("put", "/recipe-import-batches/:batchId/undo", batchHandler(async (c, { db, session }) => {
+  const body = await parseJsonBody(c, z.object({ state: z.literal("started") }));
+  if (!body.success) return body.response;
+  const id = batchParam(c, "batchId");
+  const executionCtx = requestExecutionContext(c);
+  if (!executionCtx) return c.json({ error: "Undo execution is unavailable" }, 503);
+  await beginBatchUndo(db, session.user.id, id);
+  executionCtx.waitUntil(withDb(c.env, database => executeBatchUndo(database, session.user.id, id)));
+  return c.json({ state: "running" }, 202);
+}));
 registerRoute("get", "/recipe-import-batches/:batchId/execution", batchHandler(async (c, { db, session }) => {
   const batch = await readBatch(db, session.user.id, batchParam(c, "batchId"));
   return c.json({ state: batch.startedAt ? "started" : "pending", startedAt: batch.startedAt });
