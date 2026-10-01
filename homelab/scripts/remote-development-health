@@ -108,7 +108,21 @@ else
 fi
 tailscale status --json | jq -e '.BackendState == "Running"' >/dev/null
 tailscale serve status --json \
-  | jq -e '.TCP | keys | sort == ["3000", "3001", "3002", "3003", "3004", "443"]' \
+  | jq -e '
+      if .TCP | has("19999") then
+        if .TCP["19999"].HTTPS == true
+          and ([
+            (.Web // {}) | to_entries[]
+            | select(.key | endswith(":19999"))
+            | .value.Handlers
+          ] == [{"/": {"Proxy": "http://127.0.0.1:19999"}}])
+        then del(.TCP["19999"])
+        else error("unexpected Netdata Serve route")
+        end
+      else .
+      end
+      | .TCP | keys | sort == ["3000", "3001", "3002", "3003", "3004", "443"]
+    ' \
   >/dev/null
 k3s_ready=0
 for _ in $(seq 1 60); do

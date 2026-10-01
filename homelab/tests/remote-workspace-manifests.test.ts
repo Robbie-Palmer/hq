@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { type SpawnSyncReturns, spawnSync } from "node:child_process";
 import {
   mkdirSync,
   mkdtempSync,
@@ -45,6 +45,75 @@ const overlays = {
   remote: "k3s/overlays/remote-development",
 } as const;
 const renderedOverlays = new Map<string, string>();
+
+test("Serve health accepts the private Netdata route and rejects unexpected routes", () => {
+  const healthCheck = readFileSync(
+    new URL("../scripts/remote-development-health", import.meta.url),
+    "utf8",
+  );
+  const filter = healthCheck.match(
+    /tailscale serve status --json\s*\\\s*\| jq -e '([\s\S]*?)'/,
+  )?.[1];
+  assert.ok(filter, "the live health check must contain a Serve filter");
+  const workspacePorts = ["443", "3000", "3001", "3002", "3003", "3004"];
+  const base = {
+    TCP: Object.fromEntries(workspacePorts.map((port) => [port, { HTTPS: true }])),
+    Web: {},
+  };
+  const netdata = {
+    TCP: { ...base.TCP, "19999": { HTTPS: true } },
+    Web: {
+      "remote-development.example.ts.net:19999": {
+        Handlers: { "/": { Proxy: "http://127.0.0.1:19999" } },
+      },
+    },
+  };
+  const cases = [
+    { name: "workspace only", config: base, expected: true },
+    { name: "private Netdata", config: netdata, expected: true },
+    {
+      name: "retired pilot",
+      config: { ...netdata, TCP: { ...netdata.TCP, "8443": { HTTPS: true } } },
+      expected: false,
+    },
+    {
+      name: "missing workspace port",
+      config: { ...base, TCP: { ...base.TCP, "3004": undefined } },
+      expected: false,
+    },
+    {
+      name: "missing Netdata proxy",
+      config: { ...netdata, Web: {} },
+      expected: false,
+    },
+    {
+      name: "non-HTTPS Netdata",
+      config: { ...netdata, TCP: { ...netdata.TCP, "19999": { HTTPS: false } } },
+      expected: false,
+    },
+    {
+      name: "unexpected Netdata proxy",
+      config: {
+        ...netdata,
+        Web: {
+          "remote-development.example.ts.net:19999": {
+            Handlers: { "/": { Proxy: "http://192.0.2.1:19999" } },
+          },
+        },
+      },
+      expected: false,
+    },
+  ];
+  for (const { name, config, expected } of cases) {
+    const result: SpawnSyncReturns<string> = spawnSync("jq", ["-e", filter], {
+      encoding: "utf8",
+      input: JSON.stringify(config),
+      timeout: 5000,
+    });
+    assert.equal(result.error, undefined, name);
+    assert.equal(result.status === 0, expected, `${name}: ${result.stderr}`);
+  }
+});
 
 function run(
   command: string,
