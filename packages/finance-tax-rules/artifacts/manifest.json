@@ -1,0 +1,84 @@
+{
+  "datasetVersion": "2026.10.0",
+  "releasedAt": "2026-10-01",
+  "supersedes": null,
+  "corrections": [],
+  "dataLicence": {
+    "name": "Open Government Licence v3.0",
+    "url": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+    "copyright": "Crown copyright",
+    "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0."
+  },
+  "artifacts": [
+    {
+      "path": "artifacts/enacted/2026.10.0.json",
+      "sha256": "a3eb84b2eb8fdb5f8e12d92e105dca4842918cfbc3b119c0df9ee906ac5a37e9"
+    },
+    {
+      "path": "artifacts/coverage-matrix/2026.10.0.json",
+      "sha256": "4cecaa4df9ad8a5dad1398c5ea16b0b0ffe15569b5953733b5678b73cae7a39e"
+    }
+  ],
+  "sourceSnapshots": [
+    {
+      "id": "hmrc-income-tax-current-and-past",
+      "path": "source-snapshots/income-tax-current-and-past.md",
+      "snapshotSha256": "25ce7045c82d2c4636405af82844dc97c913304146750a6c2c07b6890ef6e2f0",
+      "sourceContentSha256": "89b4d254fc3303af663cd405c1f5a880400e4890364fd774e851557c4fa67263"
+    },
+    {
+      "id": "hmrc-employer-2022-23",
+      "path": "source-snapshots/employer-2022-23.md",
+      "snapshotSha256": "668cae811aa7b21c300c47c758e940b9fec4fad4dcbb823b743047afeebde6f6",
+      "sourceContentSha256": "33bd9fa84534216d2a6a4fd5e35273f9c989eba771f845e9bdcfa8e3ce014c64"
+    },
+    {
+      "id": "hmrc-employer-2023-24",
+      "path": "source-snapshots/employer-2023-24.md",
+      "snapshotSha256": "7c6ae112f750e8d6d06f8534d7cf552a4a307d8e4248dc22bff48fcf44c750d8",
+      "sourceContentSha256": "42b48eb2abd884ac3997b9a073f5b04ccb2a97ccfb43150fdc6e5d181e86cae7"
+    },
+    {
+      "id": "hmrc-employer-2024-25",
+      "path": "source-snapshots/employer-2024-25.md",
+      "snapshotSha256": "1a0d817e4aad8e9e13ef3e007de0e86433e538f5adc705ef91e4505cc1c23cbc",
+      "sourceContentSha256": "cc3304f6650804bc9578557f8897e713cd1dcd22e4bc1b27a234c5f191a80943"
+    },
+    {
+      "id": "hmrc-employer-2025-26",
+      "path": "source-snapshots/employer-2025-26.md",
+      "snapshotSha256": "f58deeb17bc77f0bcc73263690331789090fc09e38d5384d36b33643e9aa6f6b",
+      "sourceContentSha256": "a62aea50942fdf008f7a2afad9dd1746354df7e3b98edce03fe7db596e540eca"
+    },
+    {
+      "id": "hmrc-employer-2026-27",
+      "path": "source-snapshots/employer-2026-27.md",
+      "snapshotSha256": "1fab96b72464b3a512ab1a02eb9d5a1e9a4f96112a1bd18815ea7a6e0089120b",
+      "sourceContentSha256": "a6315ba6c7166c712c66094523334ab27b1f94f9922af74a223c6380d20fc7d0"
+    },
+    {
+      "id": "hmrc-pension-scheme-rates",
+      "path": "source-snapshots/pension-scheme-rates.md",
+      "snapshotSha256": "d9e43a6e4ecfdcc4796086c9cde97d43978f1d8260dc918bf5bd358b75ed1116",
+      "sourceContentSha256": "90652c9268a5e0e1f46fa27bfc3549cc01d23c45ae340916c2c6561409c78ef8"
+    },
+    {
+      "id": "hmrc-pension-relief-at-source",
+      "path": "source-snapshots/pension-relief-at-source.md",
+      "snapshotSha256": "debf47a9b3d5bd35f72d50bf86103859242033888f8e60a52e3ffed9320f65dc",
+      "sourceContentSha256": "554eb9d33a0f76ba18b11dd466988c9f0b3042b5e7c5a7b2d059019a3d16405b"
+    },
+    {
+      "id": "hmrc-pension-net-pay",
+      "path": "source-snapshots/pension-net-pay.md",
+      "snapshotSha256": "5a5430bf95155cb9c057f126ca25c6a4214af550097ac4c2ba8accf4e6aa3c51",
+      "sourceContentSha256": "aade57fbc5948c3f3a21c9392502c71414099e53fe98e7f6ceb1a4283080a34b"
+    },
+    {
+      "id": "hmrc-salary-sacrifice",
+      "path": "source-snapshots/salary-sacrifice.md",
+      "snapshotSha256": "ffc3963ac389507f19450d63168ea87b567c38206f43d8593a849fb9277d8aea",
+      "sourceContentSha256": "bd8fa64edd90b24e7a21008ba84b8ab71aaac1db48e902b3141b6ebd7a1e6857"
+    }
+  ]
+}
