@@ -24,7 +24,7 @@ export const ArchiveSourceSchema = z.object({
 });
 export const CreateBatchSchema = z.object({
   idempotencyKey: z.uuid().max(36),
-  sources: z.array(z.union([BatchSourceSchema, ArchiveSourceSchema])).min(1).max(50),
+  sources: z.array(z.discriminatedUnion("type", [...BatchSourceSchema.options, ArchiveSourceSchema])).min(1).max(50),
   visibility: RecipeVisibilitySchema.default("private"),
   duplicatePolicy: z.enum(["skip", "allow"]).default("skip"),
 });

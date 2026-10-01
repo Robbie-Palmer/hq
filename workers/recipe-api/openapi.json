@@ -6787,7 +6787,7 @@
                   "sources": {
                     "type": "array",
                     "items": {
-                      "anyOf": [
+                      "oneOf": [
                         {
                           "type": "object",
                           "properties": {
