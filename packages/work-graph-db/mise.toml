@@ -35,3 +35,8 @@ run = "pnpm db:migrate"
 [tasks.check]
 description = "Check Work Graph persistence"
 depends = ["typecheck", "db:check"]
+
+[tasks."analytics:report"]
+description = "Read private operational aggregates from immutable events"
+depends = ["install"]
+run = 'pnpm --filter ui exec tsx ../packages/work-graph-db/scripts/operational-report.ts "$@"'

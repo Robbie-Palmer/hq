@@ -6,3 +6,4 @@ export {
 } from "./errors";
 export * from "./repository";
 export * as schema from "./schema";
+export { readOperationalReport } from "./analytics";

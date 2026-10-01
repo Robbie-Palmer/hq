@@ -13,6 +13,8 @@ import {
   isRetryableDatabaseTimeout,
   schema,
   WorkGraphRepository,
+  readOperationalReport,
+  type Db,
 } from "../../src/index";
 
 const databaseURL = process.env.DATABASE_URL;
@@ -4300,5 +4302,81 @@ describe("immutable event history", () => {
       )?.code,
     ).toBe("55000");
     await expect(repository.listEvents()).resolves.toEqual([storedEvent]);
+  });
+});
+
+describe("private operational report", () => {
+  it("inherits child scope and excludes free text and worker telemetry", async () => {
+    await db
+      .insert(schema.knowledgeScope)
+      .values({
+        id: "analytics-project",
+        kind: "project",
+        title: "Analytics",
+        canonicalUrl: "https://example.test/project",
+        markdownUrl: "https://example.test/project.md",
+        rank: 1024,
+      });
+    await repository.createWorkItem({
+      id: "analytics-parent",
+      title: "Parent",
+      schedulingProjectId: "analytics-project",
+    });
+    await repository.createWorkItem({
+      id: "analytics-child",
+      title: "Child",
+      parentId: "analytics-parent",
+    });
+    await db
+      .insert(schema.event)
+      .values({
+        type: "attention.requested",
+        workItemId: "analytics-child",
+        occurredAt: new Date("2026-10-01T01:00:00Z"),
+        data: {
+          attentionRequestId: "request",
+          kind: "private-category",
+          blocking: true,
+          question: "private-question",
+          note: "private-log",
+          workerId: "private-worker",
+          tokens: 99,
+        },
+      });
+    const report = await readOperationalReport(db, {
+      start: "2026-10-01T00:00:00Z",
+      end: "2026-10-01T03:00:00Z",
+    });
+    expect(report.metrics).toEqual([
+      expect.objectContaining({
+        projectId: "analytics-project",
+        cause: "attention:other",
+        waitMilliseconds: 7200000,
+        interventionRequests: 1,
+      }),
+    ]);
+    expect(JSON.stringify(report)).not.toContain("private-");
+    expect(await readOperationalReport(db, report.period)).toEqual(report);
+  });
+
+  it("requires database permission and cannot bypass event access", async () => {
+    await db.execute(sql`create role analytics_denied nologin`);
+    try {
+      const restrictedDb = {
+        transaction: (callback, options) =>
+          db.transaction(async (transaction) => {
+            await transaction.execute(sql`set local role analytics_denied`);
+            return callback(transaction);
+          }, options),
+      } as Db;
+      await expect(
+        readOperationalReport(restrictedDb, {
+          start: "2026-10-01T00:00:00Z",
+          end: "2026-10-01T03:00:00Z",
+        }),
+      ).rejects.toThrow();
+    } finally {
+      await db.execute(sql`drop role analytics_denied`);
+    }
   });
 });
