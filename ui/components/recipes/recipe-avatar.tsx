@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { cn } from "@/lib/generic/styles";
 
 export function RecipeAvatar({
@@ -13,6 +16,7 @@ export function RecipeAvatar({
   size?: number;
   className?: string;
 }>) {
+  const [failedImage, setFailedImage] = useState<string | null>(null);
   const initial = (
     name?.trim()?.[0] ??
     email?.trim()?.[0] ??
@@ -28,7 +32,7 @@ export function RecipeAvatar({
       )}
       style={{ width: size, height: size, fontSize: Math.round(size * 0.55) }}
     >
-      {image ? (
+      {image && failedImage !== image ? (
         // Avatar hosts vary, so a plain <img> avoids configuring next/image
         // remotePatterns for each one.
         // biome-ignore lint/performance/noImgElement: small, external avatar
@@ -37,6 +41,7 @@ export function RecipeAvatar({
           alt=""
           width={size}
           height={size}
+          onError={() => setFailedImage(image)}
           className="h-full w-full object-cover"
         />
       ) : (

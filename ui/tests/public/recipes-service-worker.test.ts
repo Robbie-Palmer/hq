@@ -92,7 +92,7 @@ function serviceWorkerHarness(fetchMock: typeof fetch) {
       });
       await pending;
     },
-    async request(request: Request) {
+    async dispatch(request: Request) {
       let response: Promise<Response> | undefined;
       listeners.get("fetch")?.({
         request,
@@ -101,6 +101,10 @@ function serviceWorkerHarness(fetchMock: typeof fetch) {
         },
         waitUntil: vi.fn(),
       });
+      return response;
+    },
+    async request(request: Request) {
+      const response = await this.dispatch(request);
       if (!response) throw new Error("The worker did not handle the request");
       return response;
     },
@@ -113,6 +117,7 @@ describe("recipe service worker", () => {
     const worker = serviceWorkerHarness(vi.fn<typeof fetch>());
     worker.stores.set("recipe-shell-v4", new MemoryCache());
     worker.stores.set("recipe-assets-v4", new MemoryCache());
+    worker.stores.set("recipe-images-v1", new MemoryCache());
     worker.stores.set("recipe-shell-v5", new MemoryCache());
 
     await worker.activate();
@@ -295,7 +300,7 @@ describe("recipe service worker", () => {
     const imageRequest = {
       destination: "image",
       method: "GET",
-      url: "https://images.example.test/recipe.jpg",
+      url: "https://imagedelivery.net/account/recipe/public",
     } as Request;
     const fetchMock = vi
       .fn<typeof fetch>()
@@ -312,7 +317,7 @@ describe("recipe service worker", () => {
     await worker.request(sessionRequest);
     await worker.request(imageRequest);
     expect([...worker.stores.keys()]).toEqual(
-      expect.arrayContaining(["recipe-session-v1", "recipe-images-v1"]),
+      expect.arrayContaining(["recipe-session-v1", "recipe-images-v2"]),
     );
 
     await expect(worker.request(sessionRequest)).resolves.toHaveProperty(
@@ -320,7 +325,21 @@ describe("recipe service worker", () => {
       401,
     );
     expect([...worker.stores.keys()]).not.toContain("recipe-session-v1");
-    expect([...worker.stores.keys()]).not.toContain("recipe-images-v1");
+    expect([...worker.stores.keys()]).not.toContain("recipe-images-v2");
+  });
+
+  it("leaves third-party profile images to the browser", async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+    const worker = serviceWorkerHarness(fetchMock);
+    const avatarRequest = {
+      destination: "image",
+      method: "GET",
+      url: "https://lh3.googleusercontent.com/a/profile-photo",
+    } as Request;
+
+    await expect(worker.dispatch(avatarRequest)).resolves.toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(worker.stores.has("recipe-images-v2")).toBe(false);
   });
 
   it("never serves a React Server Components payload as a document", async () => {
