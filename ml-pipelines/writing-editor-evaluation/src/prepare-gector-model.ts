@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import type { FileHandle } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -345,7 +346,7 @@ async function fetchWithHttpsRedirects(
     if (!RedirectStatuses.has(response.status)) return response;
 
     const location = response.headers.get("location");
-    await response.body?.cancel();
+    void response.body?.cancel().catch(() => undefined);
     if (location === null) {
       throw new CheckpointDownloadError(
         `checkpoint redirect from ${url} has no location`,
@@ -397,26 +398,37 @@ async function writeResponse(
   const output = await fs.promises.open(partialFile, append ? "a" : "w");
   let complete = false;
   try {
-    while (true) {
-      const result = await withStallTimeout(reader.read(), timeoutMs, controller);
-      if (result.done) break;
-      let written = 0;
-      while (written < result.value.byteLength) {
-        const write = await output.write(result.value.subarray(written));
-        if (write.bytesWritten === 0) {
-          throw new CheckpointDownloadError(
-            "checkpoint download could not write response data",
-            true,
-          );
-        }
-        written += write.bytesWritten;
-      }
-    }
+    await writeResponseChunks(reader, output, timeoutMs, controller);
     complete = true;
   } finally {
     await output.close();
     if (!complete) await reader.cancel().catch(() => undefined);
   }
+}
+
+async function writeChunk(output: FileHandle, chunk: Uint8Array): Promise<void> {
+  const result = await output.write(chunk);
+  if (result.bytesWritten === 0) {
+    throw new CheckpointDownloadError(
+      "checkpoint download could not write response data",
+      true,
+    );
+  }
+  if (result.bytesWritten < chunk.byteLength) {
+    await writeChunk(output, chunk.subarray(result.bytesWritten));
+  }
+}
+
+async function writeResponseChunks(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  output: FileHandle,
+  timeoutMs: number,
+  controller: AbortController,
+): Promise<void> {
+  const result = await withStallTimeout(reader.read(), timeoutMs, controller);
+  if (result.done) return;
+  await writeChunk(output, result.value);
+  await writeResponseChunks(reader, output, timeoutMs, controller);
 }
 
 async function downloadAttempt(
@@ -476,6 +488,31 @@ function wait(delayMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
+async function downloadWithRetries(
+  url: URL,
+  partialFile: string,
+  options: DownloadOptions,
+  fetchRequest: typeof globalThis.fetch,
+  waitForRetry: (delayMs: number) => Promise<void>,
+  attempt: number = 1,
+): Promise<void> {
+  try {
+    await downloadAttempt(url, partialFile, options, fetchRequest);
+  } catch (error) {
+    const retryable = !(error instanceof CheckpointDownloadError) || error.retryable;
+    if (!retryable || attempt === MaximumDownloadAttempts) throw error;
+    await waitForRetry(Math.min(2 ** (attempt - 1) * 1_000, 10_000));
+    await downloadWithRetries(
+      url,
+      partialFile,
+      options,
+      fetchRequest,
+      waitForRetry,
+      attempt + 1,
+    );
+  }
+}
+
 export async function downloadCheckpoint(
   url: URL,
   partialFile: string,
@@ -486,17 +523,8 @@ export async function downloadCheckpoint(
   const waitForRetry = dependencies.wait ?? wait;
   assertHttps(url);
   if (partialSize(partialFile, options.expectedBytes) === options.expectedBytes) return;
-  for (let attempt = 1; attempt <= MaximumDownloadAttempts; attempt += 1) {
-    try {
-      await downloadAttempt(url, partialFile, options, fetchRequest);
-      process.stdout.write("Checkpoint download complete; verifying SHA-256\n");
-      return;
-    } catch (error) {
-      const retryable = !(error instanceof CheckpointDownloadError) || error.retryable;
-      if (!retryable || attempt === MaximumDownloadAttempts) throw error;
-      await waitForRetry(Math.min(2 ** (attempt - 1) * 1_000, 10_000));
-    }
-  }
+  await downloadWithRetries(url, partialFile, options, fetchRequest, waitForRetry);
+  process.stdout.write("Checkpoint download complete; verifying SHA-256\n");
 }
 
 async function verifyArtifact(
