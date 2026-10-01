@@ -9,3 +9,4 @@ export * from "./notes";
 export * from "./priority";
 export * from "./readiness";
 export * from "./vocabulary";
+export * from "./analytics";

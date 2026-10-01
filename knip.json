@@ -40,7 +40,7 @@
       "ignore": ["src/generated/**"]
     },
     "packages/work-graph-db": {
-      "entry": ["vitest.integration.config.ts"]
+      "entry": ["vitest.integration.config.ts", "scripts/operational-report.ts"]
     },
     "packages/writing-editor-domain": {},
     "ui": {

@@ -2249,3 +2249,15 @@ describe("Given a transient database failure", () => {
     },
   );
 });
+
+describe("private analytics access boundary", () => {
+  it.each(["/api/analytics", "/api/analytics/report", "/api/operational-report"])(
+    "does not expose a report through %s",
+    async (path) => {
+      const repository = buildRepository();
+      const response = await createWorkGraphApp(repository).request(path);
+      expect(response.status).toBe(404);
+      expect(repository.listEvents).not.toHaveBeenCalled();
+    },
+  );
+});
