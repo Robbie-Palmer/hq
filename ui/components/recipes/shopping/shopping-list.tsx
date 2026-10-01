@@ -343,7 +343,7 @@ export function ShoppingList({
   const stock = pantry.data?.stock ?? {};
   const stockActions = useKitchenStockActions();
   const [system] = useUnitPreference();
-  const [view, setView] = useState<ListView>("aisle");
+  const [view, setView] = useState<ListView>("flat");
 
   const bySlug = useMemo(() => {
     const map = new Map<string, ShoppingRecipe>();
