@@ -1,6 +1,7 @@
 import type { AgentSession } from "@better-auth/agent-auth";
 import { and, eq } from "drizzle-orm";
 import { createDb, schema } from "recipe-db";
+import { insertGeneratedDraft, readBatchDrafts } from "recipe-db/batch-drafts";
 import { artifactKey, sourceImageKey } from "recipe-domain/import-storage";
 import {
   afterAll,
@@ -11,19 +12,19 @@ import {
   it,
   vi,
 } from "vitest";
-import { createAuth } from "../../src/auth";
 import { executeRecipeAgentCapability } from "../../src/agent-auth";
-import { undoCookLogMutation } from "../../src/cook-log/services/undo-cook-log-mutation";
-import { listPantryMutationHistory } from "../../src/pantry/services/list-pantry-mutation-history";
-import { previewPantryMutationUndo } from "../../src/pantry/services/preview-pantry-mutation-undo";
-import { reconcilePantry } from "../../src/pantry/services/reconcile-pantry";
-import { undoPantryMutation } from "../../src/pantry/services/undo-pantry-mutation";
+import { createAuth } from "../../src/auth";
 import { betterAuthSessionCookie } from "../../src/better-auth-session-cookie";
+import { undoCookLogMutation } from "../../src/cook-log/services/undo-cook-log-mutation";
 import {
   cookingLogResponse,
   decodeCookingLogCursor,
 } from "../../src/cooking-reads";
 import { app, type Bindings } from "../../src/index";
+import { listPantryMutationHistory } from "../../src/pantry/services/list-pantry-mutation-history";
+import { previewPantryMutationUndo } from "../../src/pantry/services/preview-pantry-mutation-undo";
+import { reconcilePantry } from "../../src/pantry/services/reconcile-pantry";
+import { undoPantryMutation } from "../../src/pantry/services/undo-pantry-mutation";
 import { syncCanonicalUserEmail } from "../../src/user-emails";
 
 const databaseURL = process.env.DATABASE_URL;
@@ -190,8 +191,8 @@ beforeAll(async () => {
     where slug in ('almond-milk', 'cajun-powder', 'cajun-seasoning', 'salted-butter')
     order by slug
   `;
-  expect(migrationCount?.count).toBe(17);
-  expect(tableCount?.count).toBe(48);
+  expect(migrationCount?.count).toBe(18);
+  expect(tableCount?.count).toBe(52);
   expect(catalogRows).toEqual([
     { category: "dairy", slug: "almond-milk" },
     { category: "spice", slug: "cajun-seasoning" },
@@ -1905,5 +1906,128 @@ describe("recipe API PostgreSQL integration", () => {
         .from(schema.userDietExcludedGroup)
         .where(eq(schema.userDietExcludedGroup.userId, cook.id)),
     ).toHaveLength(0);
+  });
+});
+
+describe("durable recipe batches", () => {
+  function batchServices() {
+    const objects = new Map<string, string>();
+    const put = vi.fn(async (key: string, value: string) => { objects.set(key, value); });
+    const create = vi.fn().mockResolvedValue({});
+    const status = vi.fn().mockResolvedValue({ status: "queued" });
+    const get = vi.fn().mockResolvedValue({ status });
+    return { objects, create, get, status, env: { ...baseEnv, ARTIFACTS: { put } as unknown as R2Bucket, RECIPE_INGEST_WORKFLOW: { create, get } as unknown as Workflow } };
+  }
+  const draft = { title: "Batch salt", description: "A test recipe", source: "Mix the @salt{1%tsp} into the dish.", cuisine: "", servings: 2 };
+  function sources() {
+    return Array.from({ length: 20 }, (_, index) => index % 2 === 0 ? { type: "url", url: `https://recipes.example.test/${index}` } : { type: "file", filename: `recipe-${index}.cook`, content: `Mix @salt{${index}%tsp}.` });
+  }
+  async function readyItem(id: string) {
+    await db.transaction(tx => insertGeneratedDraft(tx, id, draft));
+    await db.update(schema.recipeImportJob).set({ status: "succeeded", reviewState: "ready" }).where(eq(schema.recipeImportJob.id, id));
+  }
+
+  it("persists 20 mixed sources once, resumes dispatch, and isolates owners", async () => {
+    const cook = await createUser("Batch Cook", "batch@example.test");
+    const stranger = await createUser("Other Cook", "other@example.test");
+    const service = batchServices();
+    const body = { idempotencyKey: crypto.randomUUID(), sources: sources() };
+    const response = await authenticatedRequest(cook, "/recipe-import-batches", { method: "POST", body, env: service.env });
+    expect(response.status).toBe(201);
+    expect(response.headers.get("Location")).toMatch(/\/api\/recipe-import-batches\//);
+    const batch = await response.json() as { id: string; items: { id: string; position: number }[] };
+    expect(batch.items).toHaveLength(20);
+    expect(batch.items.map(item => item.position)).toEqual(Array.from({ length: 20 }, (_, index) => index));
+    expect(service.objects.size).toBe(20);
+    expect(service.create).not.toHaveBeenCalled();
+    const pending = await authenticatedRequest(cook, `/recipe-import-batches/${batch.id}/execution`, { env: service.env });
+    expect((await pending.json() as { state: string }).state).toBe("pending");
+    expect((await authenticatedRequest(cook, `/recipe-import-batches/${batch.id}/execution`, { method: "PUT", body: { state: "started" }, env: service.env })).status).toBe(200);
+    expect(service.create).toHaveBeenCalledTimes(20);
+    const replay = await authenticatedRequest(cook, "/recipe-import-batches", { method: "POST", body, env: service.env });
+    expect((await replay.json() as { id: string }).id).toBe(batch.id);
+    expect(service.objects.size).toBe(20);
+    expect(await db.select().from(schema.recipeImportJob)).toHaveLength(20);
+    const mismatch = await authenticatedRequest(cook, "/recipe-import-batches", { method: "POST", body: { ...body, sources: body.sources.slice(1) }, env: service.env });
+    expect(mismatch.status).toBe(409);
+    expect((await authenticatedRequest(stranger, `/recipe-import-batches/${batch.id}`, { env: service.env })).status).toBe(404);
+    expect((await authenticatedRequest(cook, `/recipe-import-batches/${batch.id}`, { env: service.env })).status).toBe(200);
+    service.create.mockRejectedValueOnce(new Error("dispatch down"));
+    service.get.mockRejectedValueOnce(new Error("workflow unavailable"));
+    expect((await authenticatedRequest(cook, `/recipe-import-batches/${batch.id}/execution`, { method: "PUT", body: { state: "started" }, env: service.env })).status).toBe(502);
+    expect((await authenticatedRequest(cook, `/recipe-import-batches/${batch.id}/execution`, { method: "PUT", body: { state: "started" }, env: service.env })).status).toBe(200);
+  });
+
+  it("rejects stale autosaves and accepts a version only once", async () => {
+    const cook = await createUser("Batch Cook", "batch@example.test");
+    const service = batchServices();
+    const response = await authenticatedRequest(cook, "/recipe-import-batches", { method: "POST", body: { idempotencyKey: crypto.randomUUID(), sources: sources().slice(0, 2) }, env: service.env });
+    const batch = await response.json() as { id: string; items: { id: string }[] };
+    const item = batch.items[0]!;
+    await readyItem(item.id);
+    const path = `/recipe-import-batches/${batch.id}/items/${item.id}`;
+    const edits = { ...draft, title: "Edited salt", cuisine: "Mexican, European", prepTime: 5 };
+    const autosaves = await Promise.all([1, 2].map(() => authenticatedRequest(cook, `${path}/draft`, { method: "PUT", body: { version: 1, draft: edits }, env: service.env })));
+    expect(autosaves.map(response => response.status).sort()).toEqual([200, 409]);
+    const [stored] = await db.select().from(schema.recipeImportJob).where(eq(schema.recipeImportJob.id, item.id));
+    expect((await readBatchDrafts(db, [item.id])).get(item.id)?.generatedDraft).toEqual(draft);
+    expect(stored?.draftVersion).toBe(2);
+    await db.transaction(tx => insertGeneratedDraft(tx, item.id, draft));
+    const current = (await readBatchDrafts(db, [item.id])).get(item.id);
+    expect(current?.draft).toEqual(edits);
+    expect(current?.generatedDraft).toEqual(draft);
+    const draftResource = await authenticatedRequest(cook, `${path}/draft`, { env: service.env });
+    expect((await draftResource.json() as { draft: unknown }).draft).toEqual(edits);
+    expect(await db.select().from(schema.recipeImportDraftCuisine)).toHaveLength(2);
+    const payload = JSON.parse(savedRecipeBody("edited-salt", "Edited salt"));
+    Object.assign(payload.recipe, { description: edits.description, cuisine: ["Mexican", "European"], prepTime: 5 });
+    const accept = { version: 2, idempotencyKey: crypto.randomUUID(), recipe: { slug: "edited-salt", title: "Edited salt", description: edits.description, body: JSON.stringify(payload), visibility: "private" } };
+    expect((await authenticatedRequest(cook, `${path}/acceptance`, { method: "PUT", body: { ...accept, version: 1 }, env: service.env })).status).toBe(409);
+    const differentMetadata = { ...payload, recipe: { ...payload.recipe, servings: 9 } };
+    expect((await authenticatedRequest(cook, `${path}/acceptance`, { method: "PUT", body: { ...accept, recipe: { ...accept.recipe, body: JSON.stringify(differentMetadata) } }, env: service.env })).status).toBe(409);
+    expect((await authenticatedRequest(cook, `${path}/acceptance`, { method: "PUT", body: { ...accept, recipe: { ...accept.recipe, visibility: "public" } }, env: service.env })).status).toBe(409);
+    const accepted = await Promise.all([1, 2].map(() => authenticatedRequest(cook, `${path}/acceptance`, { method: "PUT", body: accept, env: service.env })));
+    expect(accepted.map(response => response.status)).toEqual([200, 200]);
+    expect(await db.select().from(schema.recipe)).toHaveLength(1);
+    expect((await authenticatedRequest(cook, `${path}/acceptance`, { method: "PUT", body: { ...accept, recipe: { ...accept.recipe, title: "Different request" } }, env: service.env })).status).toBe(409);
+    expect((await authenticatedRequest(cook, `${path}/acceptance`, { method: "PUT", body: { ...accept, idempotencyKey: crypto.randomUUID() }, env: service.env })).status).toBe(409);
+    expect((await authenticatedRequest(cook, `${path}/draft`, { method: "PUT", body: { version: 2, draft: edits }, env: service.env })).status).toBe(409);
+    expect((await authenticatedRequest(cook, `${path}/review`, { method: "PUT", body: { state: "skipped" }, env: service.env })).status).toBe(409);
+    expect(await db.select().from(schema.recipeImportReviewEvent)).toHaveLength(2);
+    const [provenance] = await db.select().from(schema.recipeImportJob).where(eq(schema.recipeImportJob.id, item.id));
+    expect(provenance?.acceptedRecipeId).toBeTruthy();
+    expect(provenance?.batchId).toBe(batch.id);
+    const receipt = await authenticatedRequest(cook, `${path}/acceptance`, { env: service.env });
+    expect((await receipt.json() as { recipeId: string }).recipeId).toBe(provenance?.acceptedRecipeId);
+  });
+
+  it("keeps partial failures independent and fences repeated retries", async () => {
+    const cook = await createUser("Batch Cook", "batch@example.test");
+    const service = batchServices();
+    const response = await authenticatedRequest(cook, "/recipe-import-batches", { method: "POST", body: { idempotencyKey: crypto.randomUUID(), sources: [...sources().slice(0, 2), { type: "url", url: "http://localhost/private" }, sources()[0]] }, env: service.env });
+    const batch = await response.json() as { id: string; items: { id: string; status: string; errorType: string }[] };
+    expect(batch.items.map(item => item.status)).toEqual(["queued", "queued", "failed", "failed"]);
+    expect(service.create).not.toHaveBeenCalled();
+    const failed = batch.items[0]!;
+    await db.update(schema.recipeImportJob).set({ status: "running", workflowInstanceId: `${failed.id}-1` }).where(eq(schema.recipeImportJob.id, failed.id));
+    service.status.mockResolvedValueOnce({ status: "errored" });
+    expect((await authenticatedRequest(cook, `/recipe-import-batches/${batch.id}/execution`, { method: "PUT", body: { state: "started" }, env: service.env })).status).toBe(200);
+    const [recovered] = await db.select().from(schema.recipeImportJob).where(eq(schema.recipeImportJob.id, failed.id));
+    expect(recovered?.errorType).toBe("WorkflowError");
+    await db.update(schema.recipeImportJob).set({ status: "failed", reviewState: "needs_attention", errorType: "ParseError" }).where(eq(schema.recipeImportJob.id, failed.id));
+    const path = `/recipe-import-batches/${batch.id}/items/${failed.id}`;
+    expect((await authenticatedRequest(cook, `${path}/attempts`, { method: "POST", env: service.env })).status).toBe(201);
+    expect((await authenticatedRequest(cook, `${path}/attempts`, { method: "POST", env: service.env })).status).toBe(409);
+    expect(service.create).toHaveBeenCalledWith({ id: `${failed.id}-2`, params: { jobId: failed.id, batchAttempt: 2 } });
+    const attempt = await authenticatedRequest(cook, `${path}/attempts/2`, { env: service.env });
+    expect((await attempt.json() as { attempt: number }).attempt).toBe(2);
+    const badPath = `/recipe-import-batches/${batch.id}/items/${batch.items[2]!.id}`;
+    expect((await authenticatedRequest(cook, `${badPath}/attempts`, { method: "POST", env: service.env })).status).toBe(409);
+    expect((await authenticatedRequest(cook, `${badPath}/review`, { method: "PUT", body: { state: "skipped" }, env: service.env })).status).toBe(200);
+    const beforeReplay = (await db.select().from(schema.recipeImportReviewEvent)).length;
+    expect((await authenticatedRequest(cook, `${badPath}/review`, { method: "PUT", body: { state: "skipped" }, env: service.env })).status).toBe(200);
+    expect(await db.select().from(schema.recipeImportReviewEvent)).toHaveLength(beforeReplay);
+    const resumed = await authenticatedRequest(cook, `/recipe-import-batches/${batch.id}`, { env: service.env });
+    expect((await resumed.json() as { counts: { skipped: number } }).counts.skipped).toBe(1);
   });
 });

@@ -36,6 +36,7 @@ const document = app.getOpenAPIDocument({
     "profile",
     "recipe-drafts",
     "recipe-imports",
+    "recipe-import-batches",
     "recipes",
     "health",
   ].map((name) => ({

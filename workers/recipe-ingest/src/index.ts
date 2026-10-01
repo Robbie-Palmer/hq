@@ -7,10 +7,11 @@ import {
 import { NonRetryableError } from "cloudflare:workflows";
 import {
   SpanKind,
+  type TraceCarrier,
   withPostHogRequest,
   withPostHogSpan,
-  type TraceCarrier,
 } from "observability";
+import { withDb } from "recipe-db";
 import { canonicalEquipment } from "recipe-parsing/canonical-equipment-data";
 import { canonicalIngredients } from "recipe-parsing/canonical-ingredients-data";
 import {
@@ -28,21 +29,21 @@ import {
 } from "recipe-parsing/disambiguation";
 import { canonicalizePredictionEntry } from "recipe-parsing/ingredient-canonicalization";
 import {
-  buildOntology,
-  buildOntologyIndex,
-} from "recipe-parsing/slug-matching";
-import {
+  type DisambiguationChoice,
   disambiguateEquipment,
   disambiguateIngredients,
   extractRecipeFromImages,
   normalizeExtractionToCooklang,
-  type DisambiguationChoice,
 } from "recipe-parsing/openrouter";
 import type { ExtractionRecipe } from "recipe-parsing/schemas/ground-truth";
 import type { CooklangRecipe } from "recipe-parsing/schemas/stage-artifacts";
-import { withDb } from "recipe-db";
+import {
+  buildOntology,
+  buildOntologyIndex,
+} from "recipe-parsing/slug-matching";
 import { writeArtifact } from "./artifacts";
 import { runLlmCall } from "./attempts";
+import { runBatchItem } from "./batch";
 import { buildFinalDraft } from "./draft";
 import type { Env } from "./env";
 import { listSourceImageKeys, loadImageDataUrls } from "./images";
@@ -52,10 +53,11 @@ import {
   markJobSucceeded,
   updateJobStage,
 } from "./jobs";
-import { stageParams, type StageParams } from "./params";
+import { type StageParams, stageParams } from "./params";
 
 export type IngestParams = {
   jobId: string;
+  batchAttempt?: number;
   traceContext?: TraceCarrier;
 };
 
@@ -76,6 +78,10 @@ export class RecipeIngestWorkflow extends WorkflowEntrypoint<Env, IngestParams> 
     event: WorkflowEvent<IngestParams>,
     step: WorkflowStep,
   ): Promise<void> {
+    if (event.payload.batchAttempt !== undefined) {
+      await runBatchItem(this.env, event.payload.jobId, event.payload.batchAttempt, event.instanceId, step);
+      return;
+    }
     await this.runTraced(event, step);
   }
 

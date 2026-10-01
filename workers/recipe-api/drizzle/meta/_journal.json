@@ -120,6 +120,13 @@
       "when": 1790578850537,
       "tag": "0016_reversible_cook_log_writes",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790802284772,
+      "tag": "0017_durable_recipe_batches",
+      "breakpoints": true
     }
   ]
 }

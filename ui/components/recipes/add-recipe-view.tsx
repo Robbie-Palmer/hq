@@ -27,6 +27,7 @@ import {
   useRef,
   useState,
 } from "react";
+import type { BatchDraft } from "recipe-domain/batch-import";
 import type { RecipeVisibility } from "recipe-domain/visibility";
 import {
   PhotoRecipeImport,
@@ -639,13 +640,55 @@ function RecipePreviewPanel({
   );
 }
 
+function initialEditorDraft(
+  initialRecipe: SavedRecipeApiRecord | undefined,
+  payload: ReturnType<typeof parseSavedRecipePayload>,
+  imported: BatchDraft | undefined,
+): BatchDraft {
+  if (imported) return imported;
+  return {
+    title: initialRecipe?.title ?? "",
+    description: initialRecipe?.description ?? "",
+    cuisine: payload?.recipe.cuisine.join(", ") ?? "",
+    servings: payload?.recipe.servings ?? 2,
+    prepTime: payload?.recipe.prepTime,
+    cookTime: payload?.recipe.cookTime,
+    source: payload?.source ?? "",
+    url: payload?.recipe.canonical,
+  };
+}
+
 export function AddRecipeView({
   initialRecipe,
-}: Readonly<{ initialRecipe?: SavedRecipeApiRecord }>) {
+  batchImport,
+}: Readonly<{
+  initialRecipe?: SavedRecipeApiRecord;
+  batchImport?: {
+    draft: BatchDraft;
+    visibility: RecipeVisibility;
+    onChange: (draft: BatchDraft) => void;
+    onSave: (
+      recipe: {
+        slug: string;
+        title: string;
+        description: string;
+        body: string;
+        visibility: RecipeVisibility;
+      },
+      next: boolean,
+    ) => Promise<void>;
+  };
+}>) {
   const initialPayload = useMemo(
     () => (initialRecipe ? parseSavedRecipePayload(initialRecipe) : null),
     [initialRecipe],
   );
+  const initialDraft = initialEditorDraft(
+    initialRecipe,
+    initialPayload,
+    batchImport?.draft,
+  );
+  const batchEditing = Boolean(batchImport);
   const editing = Boolean(initialRecipe);
   const editorCopy = recipeEditorCopy(editing);
   const unreadableRecipe = editing && !initialPayload;
@@ -665,27 +708,26 @@ export function AddRecipeView({
   const [urlImportSuccess, setUrlImportSuccess] = useState(false);
   const [importedFileName, setImportedFileName] = useState<string | null>(null);
   const [importedUrl, setImportedUrl] = useState<string | null>(
-    initialPayload?.recipe.canonical ?? null,
+    initialDraft.url ?? null,
   );
-  const [title, setTitle] = useState(initialRecipe?.title ?? "");
-  const [description, setDescription] = useState(
-    initialRecipe?.description ?? "",
-  );
-  const [cuisine, setCuisine] = useState(
-    initialPayload?.recipe.cuisine.join(", ") ?? "",
-  );
+  const [title, setTitle] = useState(initialDraft.title);
+  const [description, setDescription] = useState(initialDraft.description);
+  const [cuisine, setCuisine] = useState(initialDraft.cuisine);
   const [servings, setServings] = useState<number | undefined>(
-    initialPayload?.recipe.servings ?? 2,
+    initialDraft.servings,
   );
   const [prepTime, setPrepTime] = useState<number | undefined>(
-    initialPayload?.recipe.prepTime,
+    initialDraft.prepTime,
   );
   const [cookTime, setCookTime] = useState<number | undefined>(
-    initialPayload?.recipe.cookTime,
+    initialDraft.cookTime,
   );
-  const [source, setSource] = useState(initialPayload?.source ?? "");
+  const [source, setSource] = useState(initialDraft.source);
   const [visibility, setVisibility] = useState<RecipeVisibility>(
-    initialRecipe?.visibility ?? "private",
+    initialRecipe?.visibility ??
+      initialDraft.visibility ??
+      batchImport?.visibility ??
+      "private",
   );
   const [householdPending, setHouseholdPending] = useState(true);
   const [hasHousehold, setHasHousehold] = useState(false);
@@ -709,7 +751,7 @@ export function AddRecipeView({
     }
 
     const controller = new AbortController();
-    visibilityTouchedRef.current = editing;
+    visibilityTouchedRef.current = editing || batchEditing;
     setHouseholdPending(true);
     void getHouseholds(controller.signal)
       .then((households) => {
@@ -728,7 +770,7 @@ export function AddRecipeView({
         if (!controller.signal.aborted) setHouseholdPending(false);
       });
     return () => controller.abort();
-  }, [editing, sessionPending, sessionUserId]);
+  }, [editing, batchEditing, sessionPending, sessionUserId]);
 
   const previewResult = useMemo(() => {
     if (!parse.recipe || !title.trim() || !description.trim() || !servings)
@@ -868,12 +910,53 @@ export function AddRecipeView({
     setImportedFileName(null);
   }, []);
 
-  async function saveRecipe() {
+  const batchOnChange = batchImport?.onChange;
+  useEffect(() => {
+    if (!batchOnChange) return;
+    batchOnChange({
+      visibility,
+      title,
+      description,
+      cuisine,
+      servings: servings ?? 1,
+      prepTime,
+      cookTime,
+      source,
+      ...(importedUrl ? { url: importedUrl } : {}),
+    });
+  }, [
+    batchOnChange,
+    visibility,
+    title,
+    description,
+    cuisine,
+    servings,
+    prepTime,
+    cookTime,
+    source,
+    importedUrl,
+  ]);
+
+  async function saveRecipe(next = false) {
     if (!preview || savingRef.current) return;
     savingRef.current = true;
     setSaving(true);
     setSaveError(null);
     try {
+      if (batchImport) {
+        await batchImport.onSave(
+          {
+            slug: normalizeSlug(title),
+            title: title.trim(),
+            description: description.trim(),
+            body: serializeSavedRecipe(source, preview),
+            visibility,
+          },
+          next,
+        );
+        await queryClient.invalidateQueries({ queryKey: recipeQueryKeys.all });
+        return;
+      }
       const saved = await persistRecipe({
         description,
         initialRecipe,
@@ -928,18 +1011,34 @@ export function AddRecipeView({
             {editorCopy.heading}{" "}
             <span className="text-[var(--terracotta)]">recipe</span>
           </h1>
+          {!editing && !batchImport && (
+            <Link
+              href="/recipes/import"
+              className="rt-body mt-2 block text-[var(--terracotta)] underline"
+            >
+              Import a batch of URLs and files
+            </Link>
+          )}
           <p className="rt-body mt-2 text-[var(--ink-2)]">
             {editorCopy.description}
           </p>
         </div>
         <Button
-          onClick={saveRecipe}
+          onClick={() => void saveRecipe()}
           disabled={!preview || saving || householdPending}
           className="rounded-full bg-[var(--ink)] px-5 text-[var(--paper)] hover:bg-[var(--terracotta-deep)]"
         >
           {saving ? <Loader2 className="animate-spin" /> : <Save />}{" "}
           {editorCopy.action}
         </Button>
+        {batchImport && (
+          <Button
+            onClick={() => void saveRecipe(true)}
+            disabled={!preview || saving || householdPending}
+          >
+            Save and next
+          </Button>
+        )}
       </div>
 
       {saveError && (
@@ -955,32 +1054,34 @@ export function AddRecipeView({
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(380px,0.8fr)_minmax(540px,1.2fr)]">
         <section className="rounded-xl border-[1.25px] border-[var(--line-strong)] bg-[var(--card)] p-4 shadow-[var(--paper-shadow)] xl:sticky xl:top-24">
           <div className="grid gap-4">
-            <RecipeImportControls
-              editing={editing}
-              fileInputId={recipeFileId}
-              importError={importError}
-              importedFileName={importedFileName}
-              importing={importing}
-              method={method}
-              onFileChange={(file) => {
-                invalidateImportRequest();
-                setRecipeFile(file);
-                setImportError(null);
-                setImportedFileName(null);
-              }}
-              onFileImport={importRecipeFile}
-              onMethodChange={selectMethod}
-              onPhotoDraft={applyPhotoDraft}
-              onUrlChange={(url) => {
-                invalidateImportRequest();
-                setRecipeUrl(url);
-                setImportError(null);
-              }}
-              onUrlImport={importRecipeUrl}
-              recipeFile={recipeFile}
-              recipeUrl={recipeUrl}
-              urlImportSuccess={urlImportSuccess}
-            />
+            {!batchImport && (
+              <RecipeImportControls
+                editing={editing}
+                fileInputId={recipeFileId}
+                importError={importError}
+                importedFileName={importedFileName}
+                importing={importing}
+                method={method}
+                onFileChange={(file) => {
+                  invalidateImportRequest();
+                  setRecipeFile(file);
+                  setImportError(null);
+                  setImportedFileName(null);
+                }}
+                onFileImport={importRecipeFile}
+                onMethodChange={selectMethod}
+                onPhotoDraft={applyPhotoDraft}
+                onUrlChange={(url) => {
+                  invalidateImportRequest();
+                  setRecipeUrl(url);
+                  setImportError(null);
+                }}
+                onUrlImport={importRecipeUrl}
+                recipeFile={recipeFile}
+                recipeUrl={recipeUrl}
+                urlImportSuccess={urlImportSuccess}
+              />
+            )}
 
             <label htmlFor={titleId} className="grid gap-1.5">
               <span className="rt-mono text-[var(--ink-3)]">Recipe name</span>
