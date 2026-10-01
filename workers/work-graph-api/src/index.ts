@@ -27,10 +27,24 @@ export default {
           workerVersion: env.WORKER_VERSION?.id,
         }).fetch(request, env, context);
       } finally {
-        if (db !== undefined) await closeDb(db);
+        if (db !== undefined) {
+          try {
+            await closeDb(db);
+          } catch {
+            console.error({
+              message: "Work Graph Worker cleanup failed",
+              requestId: crypto.randomUUID(),
+              route: "worker.fetch",
+              outcome: "error",
+              status: 500,
+              workerVersion: env.WORKER_VERSION?.id ?? "local",
+              exceptionClass: "worker_cleanup_error",
+            });
+          }
+        }
       }
     } catch {
-      // Startup and cleanup failures bypass Hono. Never log their raw errors.
+      // Startup failures bypass Hono. Never log their raw errors.
       const requestId = crypto.randomUUID();
       console.error({
         message: "Work Graph Worker failed",

@@ -92,7 +92,7 @@ The capacity threshold requires average waiting clients of at least one and
 peak open connections at the configured pool maximum. Brief waiting remains
 in the diagnostic output. Exit 2 means the monitor itself failed. Both fail the workflow.
 The smoke step runs even when diagnostics fail and checks the production
-Access boundary and queue behavior. The deployment workflow also runs that
+Access boundary and queue reads without changing production tickets. The deployment workflow also runs that
 smoke test after every deployment.
 
 GitHub Actions schedules can be delayed. Workflow failure notifications are

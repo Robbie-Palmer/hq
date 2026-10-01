@@ -100,12 +100,44 @@ describe("Given a Worker lifecycle failure", () => {
       env,
       context,
     );
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(phase === "startup" ? 500 : 204);
     expect(error).toHaveBeenCalledWith(
-      expect.objectContaining({ exceptionClass: "worker_lifecycle_error" }),
+      expect.objectContaining({
+        exceptionClass:
+          phase === "startup"
+            ? "worker_lifecycle_error"
+            : "worker_cleanup_error",
+      }),
     );
     expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET");
     expect(await response.text()).not.toContain("SECRET");
     error.mockRestore();
+  });
+});
+
+describe("Given database cleanup fails after the app completes", () => {
+  it.each([201, 503])("preserves the app's %s response", async (status) => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    fakes.createDb.mockReset().mockReturnValue(db);
+    fakes.closeDb.mockReset().mockRejectedValue(new Error("private details"));
+    const expected = Response.json(
+      { outcome: "app response" },
+      {
+        status,
+        headers: { "X-Request-Id": "app-request-id" },
+      },
+    );
+    fakes.appFetch.mockResolvedValue(expected);
+    fakes.createWorkGraphApp.mockReturnValue({ fetch: fakes.appFetch });
+    const response = await worker.fetch(
+      new Request("https://work-graph.example/api/work-items") as WorkerRequest,
+      env,
+      context,
+    );
+    expect(response).toBe(expected);
+    expect(response.headers.get("x-request-id")).toBe("app-request-id");
+    expect(await response.json()).toEqual({ outcome: "app response" });
+    expect(JSON.stringify(log.mock.calls)).not.toContain("private details");
+    log.mockRestore();
   });
 });
