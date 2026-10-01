@@ -21,11 +21,12 @@ Those rates produce the same overall 20%, 40%, and 45% rates in every supported 
 Scotland has different rates and bands for employment income.
 
 The package does not approximate missing data. `resolveRules` returns an unavailable
-result for dates outside the supported range, NI categories other than A, directors,
-annual or irregular NI pay periods, and unknown jurisdictions. It also does not
-model PAYE tax codes or withholding, multiple employments, savings, dividends,
-Marriage Allowance, or Blind Person's Allowance. Those cases need more facts and
-rules than this dataset contains.
+result for dates outside the supported range, NI categories other than A, annual or
+irregular NI pay periods, and unknown jurisdictions. The NI rules apply only to
+employees who are not directors; callers must exclude directors. The package also
+does not model PAYE tax codes or withholding, multiple employments, savings,
+dividends, Marriage Allowance, or Blind Person's Allowance. Those cases need more
+facts and rules than this dataset contains.
 
 The 2022/23 NI data has separate intervals for the July threshold change and the
 November rate reversal. The 2023/24 data has a separate interval for the January
