@@ -1,0 +1,32 @@
+[tasks.install]
+description = "Install finance tax rule dependencies"
+depends = ["//:install"]
+
+[tasks.build]
+description = "Build versioned UK tax rule artifacts"
+depends = ["install"]
+run = "pnpm build"
+
+[tasks."build:check"]
+description = "Check generated UK tax rule artifacts"
+depends = ["install"]
+run = "pnpm build:check"
+
+[tasks.typecheck]
+description = "Typecheck UK tax rule data"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test UK tax rule data"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test UK tax rule data with coverage"
+depends = ["install"]
+run = "pnpm test:coverage"
+
+[tasks.check]
+description = "Validate and test UK tax rule data"
+depends = ["build:check", "typecheck", "test"]
