@@ -81,18 +81,33 @@ const threshold = (weekly: number, monthly: number) => ({
   monthly: gbp(monthly),
 });
 
-const niRule = (
-  id: string,
-  taxYear: string,
-  effectiveFrom: string,
-  effectiveTo: string,
-  sourceId: string,
-  lowerEarningsLimit: { weekly: number; monthly: number },
-  primaryThreshold: { weekly: number; monthly: number },
-  upperEarningsLimit: { weekly: number; monthly: number },
-  mainRate: number,
-  upperRate: number,
-): RuleDataset["nationalInsurance"][number] => ({
+type PayPeriodThreshold = { weekly: number; monthly: number };
+
+type NationalInsuranceRuleInput = {
+  id: string;
+  taxYear: string;
+  effectiveFrom: string;
+  effectiveTo: string;
+  sourceId: string;
+  lowerEarningsLimit: PayPeriodThreshold;
+  primaryThreshold: PayPeriodThreshold;
+  upperEarningsLimit: PayPeriodThreshold;
+  mainRate: number;
+  upperRate: number;
+};
+
+const niRule = ({
+  id,
+  taxYear,
+  effectiveFrom,
+  effectiveTo,
+  sourceId,
+  lowerEarningsLimit,
+  primaryThreshold,
+  upperEarningsLimit,
+  mainRate,
+  upperRate,
+}: NationalInsuranceRuleInput): RuleDataset["nationalInsurance"][number] => ({
   ...common,
   id,
   version: "1",
@@ -478,14 +493,102 @@ export const ruleDataset = {
     ),
   ],
   nationalInsurance: [
-    niRule("ni-2022-23-a", "2022-23", "2022-04-06", "2022-07-05", "hmrc-employer-2022-23", { weekly: 123, monthly: 533 }, { weekly: 190, monthly: 823 }, { weekly: 967, monthly: 4_189 }, 1_325, 325),
-    niRule("ni-2022-23-b", "2022-23", "2022-07-06", "2022-11-05", "hmrc-employer-2022-23", { weekly: 123, monthly: 533 }, { weekly: 242, monthly: 1_048 }, { weekly: 967, monthly: 4_189 }, 1_325, 325),
-    niRule("ni-2022-23-c", "2022-23", "2022-11-06", "2023-04-05", "hmrc-employer-2022-23", { weekly: 123, monthly: 533 }, { weekly: 242, monthly: 1_048 }, { weekly: 967, monthly: 4_189 }, 1_200, 200),
-    niRule("ni-2023-24-a", "2023-24", "2023-04-06", "2024-01-05", "hmrc-employer-2023-24", { weekly: 123, monthly: 533 }, { weekly: 242, monthly: 1_048 }, { weekly: 967, monthly: 4_189 }, 1_200, 200),
-    niRule("ni-2023-24-b", "2023-24", "2024-01-06", "2024-04-05", "hmrc-employer-2023-24", { weekly: 123, monthly: 533 }, { weekly: 242, monthly: 1_048 }, { weekly: 967, monthly: 4_189 }, 1_000, 200),
-    niRule("ni-2024-25", "2024-25", "2024-04-06", "2025-04-05", "hmrc-employer-2024-25", { weekly: 123, monthly: 533 }, { weekly: 242, monthly: 1_048 }, { weekly: 967, monthly: 4_189 }, 800, 200),
-    niRule("ni-2025-26", "2025-26", "2025-04-06", "2026-04-05", "hmrc-employer-2025-26", { weekly: 125, monthly: 542 }, { weekly: 242, monthly: 1_048 }, { weekly: 967, monthly: 4_189 }, 800, 200),
-    niRule("ni-2026-27", "2026-27", "2026-04-06", "2027-04-05", "hmrc-employer-2026-27", { weekly: 129, monthly: 559 }, { weekly: 242, monthly: 1_048 }, { weekly: 967, monthly: 4_189 }, 800, 200),
+    niRule({
+      id: "ni-2022-23-a",
+      taxYear: "2022-23",
+      effectiveFrom: "2022-04-06",
+      effectiveTo: "2022-07-05",
+      sourceId: "hmrc-employer-2022-23",
+      lowerEarningsLimit: { weekly: 123, monthly: 533 },
+      primaryThreshold: { weekly: 190, monthly: 823 },
+      upperEarningsLimit: { weekly: 967, monthly: 4_189 },
+      mainRate: 1_325,
+      upperRate: 325,
+    }),
+    niRule({
+      id: "ni-2022-23-b",
+      taxYear: "2022-23",
+      effectiveFrom: "2022-07-06",
+      effectiveTo: "2022-11-05",
+      sourceId: "hmrc-employer-2022-23",
+      lowerEarningsLimit: { weekly: 123, monthly: 533 },
+      primaryThreshold: { weekly: 242, monthly: 1_048 },
+      upperEarningsLimit: { weekly: 967, monthly: 4_189 },
+      mainRate: 1_325,
+      upperRate: 325,
+    }),
+    niRule({
+      id: "ni-2022-23-c",
+      taxYear: "2022-23",
+      effectiveFrom: "2022-11-06",
+      effectiveTo: "2023-04-05",
+      sourceId: "hmrc-employer-2022-23",
+      lowerEarningsLimit: { weekly: 123, monthly: 533 },
+      primaryThreshold: { weekly: 242, monthly: 1_048 },
+      upperEarningsLimit: { weekly: 967, monthly: 4_189 },
+      mainRate: 1_200,
+      upperRate: 200,
+    }),
+    niRule({
+      id: "ni-2023-24-a",
+      taxYear: "2023-24",
+      effectiveFrom: "2023-04-06",
+      effectiveTo: "2024-01-05",
+      sourceId: "hmrc-employer-2023-24",
+      lowerEarningsLimit: { weekly: 123, monthly: 533 },
+      primaryThreshold: { weekly: 242, monthly: 1_048 },
+      upperEarningsLimit: { weekly: 967, monthly: 4_189 },
+      mainRate: 1_200,
+      upperRate: 200,
+    }),
+    niRule({
+      id: "ni-2023-24-b",
+      taxYear: "2023-24",
+      effectiveFrom: "2024-01-06",
+      effectiveTo: "2024-04-05",
+      sourceId: "hmrc-employer-2023-24",
+      lowerEarningsLimit: { weekly: 123, monthly: 533 },
+      primaryThreshold: { weekly: 242, monthly: 1_048 },
+      upperEarningsLimit: { weekly: 967, monthly: 4_189 },
+      mainRate: 1_000,
+      upperRate: 200,
+    }),
+    niRule({
+      id: "ni-2024-25",
+      taxYear: "2024-25",
+      effectiveFrom: "2024-04-06",
+      effectiveTo: "2025-04-05",
+      sourceId: "hmrc-employer-2024-25",
+      lowerEarningsLimit: { weekly: 123, monthly: 533 },
+      primaryThreshold: { weekly: 242, monthly: 1_048 },
+      upperEarningsLimit: { weekly: 967, monthly: 4_189 },
+      mainRate: 800,
+      upperRate: 200,
+    }),
+    niRule({
+      id: "ni-2025-26",
+      taxYear: "2025-26",
+      effectiveFrom: "2025-04-06",
+      effectiveTo: "2026-04-05",
+      sourceId: "hmrc-employer-2025-26",
+      lowerEarningsLimit: { weekly: 125, monthly: 542 },
+      primaryThreshold: { weekly: 242, monthly: 1_048 },
+      upperEarningsLimit: { weekly: 967, monthly: 4_189 },
+      mainRate: 800,
+      upperRate: 200,
+    }),
+    niRule({
+      id: "ni-2026-27",
+      taxYear: "2026-27",
+      effectiveFrom: "2026-04-06",
+      effectiveTo: "2027-04-05",
+      sourceId: "hmrc-employer-2026-27",
+      lowerEarningsLimit: { weekly: 129, monthly: 559 },
+      primaryThreshold: { weekly: 242, monthly: 1_048 },
+      upperEarningsLimit: { weekly: 967, monthly: 4_189 },
+      mainRate: 800,
+      upperRate: 200,
+    }),
   ],
   pensions: [
     pensionRule("2022-23", "2022-04-06", "2023-04-05", 40_000, 240_000, 4_000, 4_000),
