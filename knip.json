@@ -13,6 +13,7 @@
         "homelab/images/t3-code/bootstrap-settings.mjs",
         "homelab/scripts/codex-add-provider.mjs",
         "homelab/tests/**/*.test.ts",
+        "infra/remote-development-cluster/scripts/check-workspaces.mjs",
         "scripts/prose-lint.ts"
       ],
       "ignore": [
