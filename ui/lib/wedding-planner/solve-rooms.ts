@@ -1,5 +1,6 @@
 import { Model, type Solution, sum, type Var } from "@bubblyworld/highs-ts";
 import { incrementalCottagePrice } from "./prices";
+import { moneyPence } from "./state";
 import type { Party, Placement, PlannerInput, Property, Room } from "./types";
 
 type Assignment = { party: string; room: string; variable: Var };
@@ -312,14 +313,17 @@ async function runObjectives(
       ),
     ),
   );
-  const budget =
-    input.max_cottage_spend_gbp === null
-      ? null
-      : Number(input.max_cottage_spend_gbp) * 100;
+  const budget = moneyPence(
+    input.max_cottage_spend_gbp,
+    "Maximum cottage spend",
+  );
   if (budget !== null) model.addConstraint(cottageCost.leq(budget));
   const outsideCost = sum(
     [...outside].map(([id, variable]) =>
-      variable.times(Number(parties.get(id)?.outside_cost_gbp ?? 0) * 100),
+      variable.times(
+        moneyPence(parties.get(id)?.outside_cost_gbp, `${id} outside cost`) ??
+          0,
+      ),
     ),
   );
   const stages: Placement["stages"] = [];

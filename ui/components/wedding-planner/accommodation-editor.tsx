@@ -381,6 +381,7 @@ export function AccommodationEditor({
   const [loading, setLoading] = useState(true);
   const editVersion = useRef(0);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  const pendingSaveTimer = useRef<number | null>(null);
 
   useEffect(() => {
     source
@@ -415,6 +416,7 @@ export function AccommodationEditor({
     if (!state || saveStatus !== "Saving…") return;
     const version = editVersion.current;
     const timer = window.setTimeout(() => {
+      pendingSaveTimer.current = null;
       saveQueue.current = saveQueue.current.then(() =>
         persistPlan(
           source,
@@ -429,17 +431,38 @@ export function AccommodationEditor({
         ),
       );
     }, 500);
-    return () => window.clearTimeout(timer);
+    pendingSaveTimer.current = timer;
+    return () => {
+      window.clearTimeout(timer);
+      if (pendingSaveTimer.current === timer) pendingSaveTimer.current = null;
+    };
   }, [state, saveStatus, source]);
+
+  function cancelPendingSave() {
+    if (pendingSaveTimer.current === null) return;
+    window.clearTimeout(pendingSaveTimer.current);
+    pendingSaveTimer.current = null;
+  }
 
   async function calculate() {
     if (!state) return;
+    const version = editVersion.current;
+    cancelPendingSave();
     setBusy(true);
     setError("");
     setView("result");
     try {
       await saveQueue.current;
+      try {
+        await source.save(state);
+      } catch (cause) {
+        setSaveStatus("Save failed");
+        throw cause;
+      }
+      if (editVersion.current === version)
+        setSaveStatus("Saved in this browser");
       const result = await source.solve(state);
+      if (editVersion.current !== version) return;
       setReport(result.report);
       setAllocation(result.result as Allocation);
       setPartyNames(result.parties as PartyName[]);
@@ -448,7 +471,6 @@ export function AccommodationEditor({
           (warning) => !warning.startsWith("0 "),
         ),
       );
-      setSaveStatus("Saved in this browser");
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Could not calculate rooms",
@@ -460,6 +482,7 @@ export function AccommodationEditor({
 
   async function importPlan(file: File) {
     const imported = parseState(JSON.parse(await file.text()));
+    cancelPendingSave();
     await saveQueue.current;
     await source.save(imported);
     editVersion.current += 1;

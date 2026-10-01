@@ -68,14 +68,18 @@ const stateSchema = z.looseObject({
 export function moneyPence(value: unknown, label: string): number | null {
   if (value === null || value === undefined || value === "") return null;
   const amount = Number(value);
+  const scaled = amount * 100;
+  const pence = Math.round(scaled);
   if (
     !Number.isFinite(amount) ||
     amount < 0 ||
-    !Number.isInteger(amount * 100)
+    !Number.isSafeInteger(pence) ||
+    Math.abs(scaled - pence) >
+      Number.EPSILON * Math.max(1, Math.abs(scaled)) * 4
   ) {
     throw new Error(`${label} must be a non-negative amount in whole pence`);
   }
-  return Math.round(amount * 100);
+  return pence;
 }
 
 export function pounds(pence: number): string {
@@ -176,6 +180,11 @@ export function parseState(
   for (const [id, paid] of Object.entries(normalized.cottage_paid_by_us_gbp)) {
     moneyPence(paid, `${id} already paid`);
   }
+  moneyPence(normalized.max_cottage_spend_gbp, "Maximum cottage spend");
+  moneyPence(normalized.default_outside_cost_gbp, "Default outside cost");
+  moneyPence(normalized.guest_charge_cap_gbp, "Guest charge cap");
+  for (const guest of normalized.guests)
+    moneyPence(guest.outside_cost_gbp, `${guest.name} outside cost`);
   return normalized;
 }
 

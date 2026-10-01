@@ -13,7 +13,11 @@ import {
   setPartner,
   setShareMode,
 } from "@/lib/wedding-planner/sharing";
-import { buildInput, parseState } from "@/lib/wedding-planner/state";
+import {
+  buildInput,
+  moneyPence,
+  parseState,
+} from "@/lib/wedding-planner/state";
 import type { Guest, State } from "@/lib/wedding-planner/types";
 
 function guest(id: string, changes: Partial<Guest> = {}): Guest {
@@ -164,6 +168,51 @@ describe("wedding planner accommodation", () => {
     expect(html).toContain("Annex");
   });
 
+  it("names both unknown cottage and outside costs in the result", async () => {
+    const setup: AccommodationSetup = {
+      input: {
+        nights: 1,
+        venue_lodging_value_gbp: null,
+        venue_suite_package_value_gbp: null,
+        max_cottage_spend_gbp: null,
+        guest_charge_cap_gbp: null,
+        optimization_mode: "priority_first",
+        properties: [{ id: "annex", name: "Annex", kind: "cottage" }],
+        rooms: [{ id: "annex-room", property_id: "annex", double_beds: 1 }],
+        parties: [],
+      },
+    };
+    const state = plan(
+      [
+        guest("a", { name: "Avery", priority: 4 }),
+        guest("b", { name: "Beryl", priority: 3 }),
+      ],
+      {
+        payment_modes: { annex: "guests" },
+        cottage_options: {
+          annex: { availability: "available", booking_by: "couple" },
+        },
+        cottage_paid_by_us_gbp: { annex: "0" },
+        reservations: {},
+      },
+    );
+    const { result, parties } = await calculateRooms(state, setup);
+    expect(result.unknown_costs).toEqual([
+      { kind: "cottage", id: "annex" },
+      { kind: "outside", id: "b" },
+    ]);
+    const html = renderToStaticMarkup(
+      createElement(ResultPlan, {
+        allocation: result,
+        parties,
+        report: "",
+        setup,
+      }),
+    );
+    expect(html).toContain("Prices still needed for: Annex, Beryl");
+    expect(html).not.toContain("annex cottage booking");
+  });
+
   it("copies a saved wedding rooms plan to the wedding planner key", async () => {
     const legacy = {
       ...plan(linenCouple()),
@@ -191,6 +240,42 @@ describe("wedding planner accommodation", () => {
   it("explains why an unrelated JSON file cannot be imported", () => {
     expect(() => parseState({})).toThrow(
       "not a compatible wedding planner plan",
+    );
+  });
+
+  it.each([
+    ["19.99", 1999],
+    ["0.29", 29],
+    ["1.1", 110],
+  ])("accepts %s as whole-pence money", (amount, expected) => {
+    expect(moneyPence(amount, "Price")).toBe(expected);
+  });
+
+  it.each(["10.005", "-1", "abc"])(
+    "rejects invalid money %s before allocation",
+    (amount) => {
+      expect(() => moneyPence(amount, "Price")).toThrow("whole pence");
+      expect(() =>
+        parseState(
+          plan([
+            ...linenCouple(),
+            guest("visitor", { outside_cost_gbp: amount }),
+          ]),
+        ),
+      ).toThrow("whole pence");
+    },
+  );
+
+  it("validates optional cost limits when loading a plan", () => {
+    const state = plan(linenCouple());
+    expect(() =>
+      parseState({ ...state, default_outside_cost_gbp: "10.005" }),
+    ).toThrow("Default outside cost");
+    expect(() =>
+      parseState({ ...state, max_cottage_spend_gbp: "abc" }),
+    ).toThrow("Maximum cottage spend");
+    expect(() => parseState({ ...state, guest_charge_cap_gbp: "-1" })).toThrow(
+      "Guest charge cap",
     );
   });
 

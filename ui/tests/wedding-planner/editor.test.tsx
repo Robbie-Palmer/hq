@@ -171,4 +171,37 @@ describe("accommodation editor", () => {
     expect(save).toHaveBeenCalledWith(state);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+
+  it("flushes a pending edit before calculating", async () => {
+    const save = vi.fn<PlannerSource["save"]>().mockResolvedValue();
+    const solve = vi
+      .fn<PlannerSource["solve"]>()
+      .mockImplementation(async (state) => {
+        expect(save).toHaveBeenCalledWith(state);
+        return calculateRooms(state);
+      });
+    const source: PlannerSource = {
+      load: vi.fn().mockResolvedValue(sampleState()),
+      save,
+      solve,
+    };
+    render(<AccommodationEditor source={source} />);
+    await screen.findByText("Who shares a bed?");
+    fireEvent.click(screen.getByRole("button", { name: /Rooms & costs/ }));
+    fireEvent.change(
+      screen.getByRole("spinbutton", { name: "Guest charge cap" }),
+      { target: { value: "19.99" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Room plan/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Calculate rooms" }));
+
+    expect(
+      await screen.findByText("Guests expected to pay"),
+    ).toBeInTheDocument();
+    expect(solve).toHaveBeenCalledTimes(1);
+    expect(save.mock.lastCall?.[0].guest_charge_cap_gbp).toBe("19.99");
+    expect(screen.getByText("Saved in this browser")).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 550));
+    expect(save).toHaveBeenCalledTimes(1);
+  });
 });

@@ -67,14 +67,14 @@ function fullResult(input: PlannerInput, placement: Placement): Allocation {
             input.nights,
           ) === null,
       )
-      .map((id) => `${id} cottage booking`),
+      .map((id) => ({ kind: "cottage" as const, id })),
     ...placement.outside_parties
       .filter(
         (id) =>
           input.parties.find((item) => item.id === id)?.outside_cost_gbp ===
           null,
       )
-      .map((id) => `${id} outside stay`),
+      .map((id) => ({ kind: "outside" as const, id })),
   ];
   return {
     status: placement.status,

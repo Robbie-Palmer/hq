@@ -77,7 +77,7 @@ export type Allocation = {
   known_cottage_cost_gbp: string;
   known_outside_cost_gbp: string;
   venue_suite_package_value_gbp: string | null;
-  unknown_costs: string[];
+  unknown_costs: { kind: "cottage" | "outside"; id: string }[];
   billing: {
     total_guest_pence: number;
     venue_unrecovered_pence: number;

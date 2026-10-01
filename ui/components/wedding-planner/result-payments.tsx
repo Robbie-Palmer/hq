@@ -180,8 +180,14 @@ function PaymentBreakdown({
         )}
         {allocation.unknown_costs.length > 0 && (
           <p className="editor-hint">
-            Outside prices still needed for:{" "}
-            {allocation.unknown_costs.map((id) => names[id] ?? id).join(", ")}
+            Prices still needed for:{" "}
+            {allocation.unknown_costs
+              .map(({ kind, id }) =>
+                kind === "cottage"
+                  ? propertyName(id, setup)
+                  : (names[id] ?? id),
+              )
+              .join(", ")}
           </p>
         )}
       </CardContent>
