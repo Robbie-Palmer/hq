@@ -78,7 +78,18 @@ pnpm exec biome lint --config-path biome.json --no-errors-on-unmatched "$@"
 
 [tasks."lint:api"]
 description = "Generate-check and lint committed OpenAPI contracts"
-depends = ["//workers/recipe-api:lint:api", "//workers/work-graph-api:lint:api"]
+depends = ["//:lint:finance-contract", "//workers/recipe-api:lint:api", "//workers/work-graph-api:lint:api"]
+
+[tasks."lint:finance-contract"]
+description = "Check the Asset Tracker shared-system SQL and OpenAPI contracts"
+depends = ["//workers/work-graph-api:install"]
+run = """
+node docs/personal-finance/verify-shared-system-contract.mjs
+pnpm --filter work-graph-api exec spectral lint \
+  ../../docs/personal-finance/shared-system-openapi.yaml \
+  --ruleset ../../docs/personal-finance/.spectral.yaml \
+  --fail-severity error
+"""
 
 [tasks."lint:markdown"]
 description = "Lint and fix Markdown files (optionally pass files as args)"

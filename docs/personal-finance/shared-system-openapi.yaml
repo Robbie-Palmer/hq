@@ -1,0 +1,2143 @@
+openapi: 3.1.0
+info:
+  title: Asset Tracker shared household API
+  version: 1.0.0
+  contact:
+    name: Robbie Palmer
+    url: https://robbiepalmer.me
+  description: Version 1 contract for authenticated household financial data. Financial writes require
+    an idempotency key and the household revision last seen by the client.
+servers:
+  - url: https://finance.robbiepalmer.me
+    description: Production
+    x-internal: false
+security:
+  - sessionCookie: []
+tags:
+  - name: Households
+  - name: Accounts
+  - name: Facts
+  - name: Plans
+  - name: Migration
+paths:
+  /api/v1/households:
+    get:
+      operationId: listHouseholds
+      summary: List the caller's household memberships
+      tags:
+        - Households
+      responses:
+        "200":
+          description: Active household memberships
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - households
+                properties:
+                  households:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/HouseholdMembership"
+                    maxItems: 10000
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      description: List the caller's household memberships
+  /api/v1/households/{householdId}/workspace:
+    parameters:
+      - $ref: "#/components/parameters/HouseholdId"
+    get:
+      operationId: getHouseholdWorkspace
+      x-browser-commands:
+        - load
+      summary: Load the complete Asset Tracker browser read model
+      tags:
+        - Households
+      responses:
+        "200":
+          description: Current household workspace
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HouseholdWorkspace"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      description: Load the complete Asset Tracker browser read model
+  /api/v1/households/{householdId}/accounts:
+    parameters:
+      - $ref: "#/components/parameters/HouseholdId"
+    post:
+      operationId: createAccount
+      x-browser-commands:
+        - createAccount
+      summary: Create a financial account
+      tags:
+        - Accounts
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAccountRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/MutationSucceeded"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/StaleRevision"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      description: Create a financial account
+  /api/v1/households/{householdId}/accounts/{accountId}:
+    parameters:
+      - $ref: "#/components/parameters/HouseholdId"
+      - $ref: "#/components/parameters/AccountId"
+    get:
+      operationId: getAccount
+      summary: Load one account detail read model
+      tags:
+        - Accounts
+      responses:
+        "200":
+          description: Account detail at the current household revision
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      description: Load one account detail read model
+    patch:
+      operationId: updateAccount
+      x-browser-commands:
+        - closeAccount
+        - setAccountLiquidity
+      summary: Close an account or change its liquidity
+      tags:
+        - Accounts
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAccountRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/MutationSucceeded"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/StaleRevision"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      description: Close an account or change its liquidity
+  /api/v1/households/{householdId}/accounts/{accountId}/balance-snapshots/{date}:
+    parameters:
+      - $ref: "#/components/parameters/HouseholdId"
+      - $ref: "#/components/parameters/AccountId"
+      - $ref: "#/components/parameters/Date"
+    put:
+      operationId: recordBalance
+      x-browser-commands:
+        - recordBalance
+      summary: Record or correct an account balance
+      tags:
+        - Facts
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordBalanceRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/MutationSucceeded"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/StaleRevision"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      description: Record or correct an account balance
+    delete:
+      operationId: deleteBalanceSnapshot
+      x-browser-commands:
+        - deleteSnapshot
+      summary: Void an account balance observation
+      tags:
+        - Facts
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200":
+          $ref: "#/components/responses/MutationSucceeded"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/StaleRevision"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      description: Void an account balance observation
+  /api/v1/households/{householdId}/accounts/{accountId}/history/{historyKind}:
+    parameters:
+      - $ref: "#/components/parameters/HouseholdId"
+      - $ref: "#/components/parameters/AccountId"
+      - $ref: "#/components/parameters/HistoryKind"
+    delete:
+      operationId: clearAccountHistory
+      x-browser-commands:
+        - clearAccountHistory
+      summary: Void one complete account history series
+      tags:
+        - Facts
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200":
+          $ref: "#/components/responses/MutationSucceeded"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/StaleRevision"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      description: Void one complete account history series
+  /api/v1/households/{householdId}/accounts/{accountId}/capital-flows/{date}/{flowKind}:
+    parameters:
+      - $ref: "#/components/parameters/HouseholdId"
+      - $ref: "#/components/parameters/AccountId"
+      - $ref: "#/components/parameters/Date"
+      - $ref: "#/components/parameters/CapitalFlowKind"
+    delete:
+      operationId: deleteCapitalFlow
+      x-browser-commands:
+        - deleteCapitalFlow
+      summary: Void one classified capital-flow observation
+      tags:
+        - Facts
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200":
+          $ref: "#/components/responses/MutationSucceeded"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/StaleRevision"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      description: Void one classified capital-flow observation
+  /api/v1/households/{householdId}/transfers:
+    parameters:
+      - $ref: "#/components/parameters/HouseholdId"
+    post:
+      operationId: recordTransfer
+      x-browser-commands:
+        - recordTransfer
+      summary: Record a transfer, external income, or external spending
+      tags:
+        - Facts
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordTransferRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/MutationSucceeded"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/StaleRevision"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      description: Record a transfer, external income, or external spending
+  /api/v1/households/{householdId}/account-history-imports:
+    parameters:
+      - $ref: "#/components/parameters/HouseholdId"
+    post:
+      operationId: importAccountHistory
+      x-browser-commands:
+        - importAccountHistory
+      summary: Apply one atomic account-history import
+      tags:
+        - Facts
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportAccountHistoryRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/MutationSucceeded"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/StaleRevision"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      description: Apply one atomic account-history import
+  /api/v1/households/{householdId}/income-history:
+    parameters:
+      - $ref: "#/components/parameters/HouseholdId"
+    put:
+      operationId: replaceIncomeHistory
+      x-browser-commands:
+        - importIncomeHistory
+      summary: Replace the complete income history atomically
+      tags:
+        - Facts
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportIncomeHistoryRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/MutationSucceeded"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/StaleRevision"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      description: Replace the complete income history atomically
+    delete:
+      operationId: clearIncomeHistory
+      x-browser-commands:
+        - clearIncomeHistory
+      summary: Void the complete income history
+      tags:
+        - Facts
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200":
+          $ref: "#/components/responses/MutationSucceeded"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/StaleRevision"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      description: Void the complete income history
+  /api/v1/households/{householdId}/recurring-flows:
+    parameters:
+      - $ref: "#/components/parameters/HouseholdId"
+    post:
+      operationId: addRecurringFlow
+      x-browser-commands:
+        - addRecurringFlow
+      summary: Add a recurring-flow plan
+      tags:
+        - Plans
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecurringFlowRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/MutationSucceeded"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/StaleRevision"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      description: Add a recurring-flow plan
+  /api/v1/households/{householdId}/recurring-flows/{flowId}:
+    parameters:
+      - $ref: "#/components/parameters/HouseholdId"
+      - $ref: "#/components/parameters/FlowId"
+    delete:
+      operationId: deleteRecurringFlow
+      x-browser-commands:
+        - deleteRecurringFlow
+      summary: Delete a recurring-flow plan by appending a tombstone version
+      tags:
+        - Plans
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200":
+          $ref: "#/components/responses/MutationSucceeded"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/StaleRevision"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      description: Delete a recurring-flow plan by appending a tombstone version
+  /api/v1/households/{householdId}/recurring-flows/{flowId}/materializations:
+    parameters:
+      - $ref: "#/components/parameters/HouseholdId"
+      - $ref: "#/components/parameters/FlowId"
+    post:
+      operationId: materializeRecurringFlow
+      x-browser-commands:
+        - materializeFlow
+      summary: Record due occurrences from one recurring flow
+      tags:
+        - Plans
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - throughDate
+              properties:
+                throughDate:
+                  type: string
+                  format: date
+                  maxLength: 10
+      responses:
+        "200":
+          $ref: "#/components/responses/MutationSucceeded"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/StaleRevision"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      description: Record due occurrences from one recurring flow
+  /api/v1/households/{householdId}/planned-expenditures:
+    parameters:
+      - $ref: "#/components/parameters/HouseholdId"
+    post:
+      operationId: addPlannedExpenditure
+      x-browser-commands:
+        - addPlannedExpenditure
+      summary: Add a planned expenditure
+      tags:
+        - Plans
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlannedExpenditureRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/MutationSucceeded"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/StaleRevision"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      description: Add a planned expenditure
+  /api/v1/households/{householdId}/planned-expenditures/{expenditureId}:
+    parameters:
+      - $ref: "#/components/parameters/HouseholdId"
+      - $ref: "#/components/parameters/ExpenditureId"
+    delete:
+      operationId: deletePlannedExpenditure
+      x-browser-commands:
+        - deletePlannedExpenditure
+      summary: Delete a planned expenditure by appending a tombstone version
+      tags:
+        - Plans
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200":
+          $ref: "#/components/responses/MutationSucceeded"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/StaleRevision"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      description: Delete a planned expenditure by appending a tombstone version
+  /api/v1/households/{householdId}/accounts/{accountId}/expected-returns/{effectiveFrom}:
+    parameters:
+      - $ref: "#/components/parameters/HouseholdId"
+      - $ref: "#/components/parameters/AccountId"
+      - name: effectiveFrom
+        in: path
+        required: true
+        description: First date on which the rate applies
+        schema:
+          type: string
+          format: date
+          maxLength: 10
+    put:
+      operationId: setExpectedReturn
+      x-browser-commands:
+        - setExpectedReturn
+      summary: Set an account's expected return from a date
+      tags:
+        - Plans
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - rate
+              properties:
+                rate:
+                  type: number
+                  exclusiveMinimum: -1
+      responses:
+        "200":
+          $ref: "#/components/responses/MutationSucceeded"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/StaleRevision"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      description: Set an account's expected return from a date
+  /api/v1/households/{householdId}/settings:
+    parameters:
+      - $ref: "#/components/parameters/HouseholdId"
+    patch:
+      operationId: updateHouseholdSettings
+      x-browser-commands:
+        - setBaseCurrency
+        - setInflation
+        - setNetWorthTarget
+        - setWithdrawalRate
+      summary: Change one or more household planning settings
+      tags:
+        - Plans
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSettingsRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/MutationSucceeded"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/StaleRevision"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      description: Change one or more household planning settings
+  /api/v1/households/{householdId}/local-json-imports:
+    parameters:
+      - $ref: "#/components/parameters/HouseholdId"
+    post:
+      operationId: validateLocalJsonImport
+      x-browser-commands:
+        - importData
+      summary: Validate browser JSON without changing financial state
+      tags:
+        - Migration
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocalJsonImportRequest"
+      responses:
+        "200":
+          description: Import validation report
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalJsonImportValidation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/StaleRevision"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      description: Validate browser JSON without changing financial state
+  /api/v1/households/{householdId}/local-json-imports/{importId}/commits:
+    parameters:
+      - $ref: "#/components/parameters/HouseholdId"
+      - $ref: "#/components/parameters/ImportId"
+    post:
+      operationId: commitLocalJsonImport
+      summary: Commit a previously validated local JSON import
+      tags:
+        - Migration
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - sourceSha256
+              properties:
+                sourceSha256:
+                  type: string
+                  pattern: ^[a-f0-9]{64}$
+                  maxLength: 500
+      responses:
+        "200":
+          $ref: "#/components/responses/MutationSucceeded"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/StaleRevision"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      description: Commit a previously validated local JSON import
+  /api/v1/households/{householdId}/financial-data:
+    parameters:
+      - $ref: "#/components/parameters/HouseholdId"
+    delete:
+      operationId: clearFinancialData
+      x-browser-commands:
+        - clear
+      summary: Delete financial data while retaining the household
+      description: Requires an owner role and a sign-in from the previous 15 minutes.
+      tags:
+        - Households
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200":
+          $ref: "#/components/responses/MutationSucceeded"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/StaleRevision"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /api/v1/households/{householdId}/exports:
+    parameters:
+      - $ref: "#/components/parameters/HouseholdId"
+    post:
+      operationId: exportHousehold
+      summary: Export the household in a selected portable format
+      tags:
+        - Migration
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - format
+              properties:
+                format:
+                  type: string
+                  enum:
+                    - complete-v1
+                    - assettracker-data-v1
+      responses:
+        "200":
+          description: Portable export or a list of records that block legacy rollback
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - revision
+                  - format
+                  - status
+                properties:
+                  revision:
+                    type: integer
+                    minimum: 0
+                    format: int64
+                    maximum: 9007199254740991
+                  format:
+                    type: string
+                    maxLength: 500
+                  status:
+                    type: string
+                    enum:
+                      - ready
+                      - incompatible
+                  data:
+                    type: object
+                    additionalProperties: true
+                  blockingRecordTypes:
+                    type: array
+                    items:
+                      type: string
+                      maxLength: 500
+                    maxItems: 10000
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/StaleRevision"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      description: Export the household in a selected portable format
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: asset_tracker_session
+  headers:
+    ETag:
+      description: Quoted household revision, for example `"42"`.
+      schema:
+        type: string
+        pattern: ^"[0-9]+"$
+        maxLength: 500
+    RetryAfter:
+      description: Seconds before the caller should retry.
+      schema:
+        type: integer
+        minimum: 1
+        format: int64
+        maximum: 9007199254740991
+  parameters:
+    HouseholdId:
+      name: householdId
+      in: path
+      required: true
+      description: Household authorization boundary
+      schema:
+        type: string
+        format: uuid
+        maxLength: 36
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      description: Financial account ID
+      schema:
+        type: string
+        format: uuid
+        maxLength: 36
+    FlowId:
+      name: flowId
+      in: path
+      required: true
+      description: Logical recurring-flow ID
+      schema:
+        type: string
+        format: uuid
+        maxLength: 36
+    ExpenditureId:
+      name: expenditureId
+      in: path
+      required: true
+      description: Logical planned-expenditure ID
+      schema:
+        type: string
+        format: uuid
+        maxLength: 36
+    ImportId:
+      name: importId
+      in: path
+      required: true
+      description: Validated local JSON import ID
+      schema:
+        type: string
+        format: uuid
+        maxLength: 36
+    Date:
+      name: date
+      in: path
+      required: true
+      description: Financial fact valid date
+      schema:
+        type: string
+        format: date
+        maxLength: 10
+    HistoryKind:
+      name: historyKind
+      in: path
+      required: true
+      description: Account history series to clear
+      schema:
+        type: string
+        enum:
+          - balances
+          - capital-flows
+    CapitalFlowKind:
+      name: flowKind
+      in: path
+      required: true
+      description: Capital-flow classification
+      schema:
+        $ref: "#/components/schemas/CapitalFlowKind"
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: UUID reused only when retrying this exact request
+      schema:
+        type: string
+        format: uuid
+        maxLength: 36
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: Quoted household revision last seen by the client
+      schema:
+        type: string
+        pattern: ^"[0-9]+"$
+        maxLength: 500
+  responses:
+    MutationSucceeded:
+      description: The command committed or an earlier committed response was replayed.
+      headers:
+        ETag:
+          $ref: "#/components/headers/ETag"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MutationResult"
+    BadRequest:
+      description: Malformed request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Missing or invalid consumer session
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: The household role cannot perform this operation
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Household or resource not found for this caller
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Conflict:
+      description: Idempotency key, domain state, or concurrent request conflict
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    StaleRevision:
+      description: If-Match does not equal the current household revision
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ValidationFailed:
+      description: Request JSON is well formed but violates a domain rule
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    PreconditionRequired:
+      description: If-Match was not supplied
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    RateLimited:
+      description: Request rate limit exceeded
+      headers:
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ServerError:
+      description: Unexpected server failure
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Error:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - message
+        - requestId
+      properties:
+        code:
+          type: string
+          pattern: ^[A-Z][A-Z0-9_]+$
+          maxLength: 80
+        message:
+          type: string
+          maxLength: 500
+        requestId:
+          type: string
+          maxLength: 80
+        details:
+          type: object
+          additionalProperties: true
+    HouseholdMembership:
+      type: object
+      additionalProperties: false
+      required:
+        - householdId
+        - householdName
+        - role
+      properties:
+        householdId:
+          type: string
+          format: uuid
+          maxLength: 36
+        householdName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        role:
+          type: string
+          enum:
+            - owner
+            - editor
+            - viewer
+    Currency:
+      type: string
+      enum:
+        - GBP
+        - USD
+    Money:
+      type: object
+      additionalProperties: false
+      required:
+        - amount
+        - currency
+      properties:
+        amount:
+          type: number
+        currency:
+          $ref: "#/components/schemas/Currency"
+    AssetType:
+      type: string
+      enum:
+        - cash
+        - stocks
+        - bonds
+        - reits
+        - crypto
+        - property
+        - mortgage
+        - debt
+    LiquidityTier:
+      type: string
+      enum:
+        - cash
+        - liquid
+        - illiquid
+    CapitalFlowKind:
+      type: string
+      enum:
+        - personalSaving
+        - debtPrincipal
+        - external
+    CreateAccountRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - provider
+        - currency
+        - assetType
+        - expectedAnnualReturn
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        provider:
+          type: string
+          minLength: 1
+          maxLength: 200
+        currency:
+          $ref: "#/components/schemas/Currency"
+        assetType:
+          $ref: "#/components/schemas/AssetType"
+        liquidity:
+          $ref: "#/components/schemas/LiquidityTier"
+        expectedAnnualReturn:
+          type: number
+          exclusiveMinimum: -1
+        linkedAccountId:
+          type: string
+          format: uuid
+          maxLength: 36
+        openingBalance:
+          type: number
+        openingDate:
+          type: string
+          format: date
+          maxLength: 10
+    UpdateAccountRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        closedAt:
+          type: string
+          format: date
+          maxLength: 10
+        transferToAccountId:
+          type: string
+          format: uuid
+          maxLength: 36
+        liquidity:
+          $ref: "#/components/schemas/LiquidityTier"
+    RecordBalanceRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - balance
+      properties:
+        balance:
+          type: number
+    RecordTransferRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - date
+        - amount
+      anyOf:
+        - required:
+            - fromAccountId
+        - required:
+            - toAccountId
+      properties:
+        date:
+          type: string
+          format: date
+          maxLength: 10
+        fromAccountId:
+          type: string
+          format: uuid
+          maxLength: 36
+        toAccountId:
+          type: string
+          format: uuid
+          maxLength: 36
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        receivedAmount:
+          type: number
+          exclusiveMinimum: 0
+        feeAmount:
+          type: number
+          minimum: 0
+        conversionProvider:
+          type: string
+          minLength: 1
+          maxLength: 200
+        flowId:
+          type: string
+          format: uuid
+          maxLength: 36
+    HistoryValue:
+      type: object
+      additionalProperties: false
+      required:
+        - date
+        - value
+      properties:
+        date:
+          type: string
+          format: date
+          maxLength: 10
+        value:
+          type: number
+    ImportAccountHistoryRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - accountId
+      properties:
+        accountId:
+          type: string
+          format: uuid
+          maxLength: 36
+        balances:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryValue"
+          maxItems: 10000
+        capitalFlows:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryValue"
+          maxItems: 10000
+        capitalFlowKind:
+          $ref: "#/components/schemas/CapitalFlowKind"
+        replaceCapitalFlows:
+          type: boolean
+    ImportIncomeHistoryRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - income
+      properties:
+        income:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - date
+              - amount
+            properties:
+              date:
+                type: string
+                format: date
+                maxLength: 10
+              amount:
+                type: number
+                minimum: 0
+          maxItems: 10000
+    FlowConversion:
+      type: object
+      additionalProperties: false
+      required:
+        - received
+      properties:
+        received:
+          allOf:
+            - $ref: "#/components/schemas/Money"
+            - type: object
+              properties:
+                amount:
+                  type: number
+                  exclusiveMinimum: 0
+        fee:
+          allOf:
+            - $ref: "#/components/schemas/Money"
+            - type: object
+              properties:
+                amount:
+                  type: number
+                  minimum: 0
+        provider:
+          type: string
+          minLength: 1
+          maxLength: 200
+    RecurringFlowRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - currency
+        - frequency
+      anyOf:
+        - required:
+            - fromAccountId
+        - required:
+            - toAccountId
+      oneOf:
+        - required:
+            - amount
+        - required:
+            - formula
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        fromAccountId:
+          type: string
+          format: uuid
+          maxLength: 36
+        toAccountId:
+          type: string
+          format: uuid
+          maxLength: 36
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        currency:
+          $ref: "#/components/schemas/Currency"
+        conversion:
+          $ref: "#/components/schemas/FlowConversion"
+        grossAmount:
+          type: number
+          exclusiveMinimum: 0
+        formula:
+          type: object
+          additionalProperties: false
+          required:
+            - kind
+            - percentOfBalance
+            - floor
+          properties:
+            kind:
+              type: string
+              const: minimumPayment
+            percentOfBalance:
+              type: number
+              exclusiveMinimum: 0
+              exclusiveMaximum: 1
+            floor:
+              type: number
+              minimum: 0
+        compensationKind:
+          type: string
+          enum:
+            - takeHomeIncome
+            - employeePension
+            - employerPension
+        frequency:
+          type: string
+          enum:
+            - weekly
+            - monthly
+            - quarterly
+            - yearly
+        startDate:
+          type: string
+          format: date
+          maxLength: 10
+        endDate:
+          type: string
+          format: date
+          maxLength: 10
+    PlannedExpenditureRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - amount
+        - date
+        - fromAccountId
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        date:
+          type: string
+          format: date
+          maxLength: 10
+        fromAccountId:
+          type: string
+          format: uuid
+          maxLength: 36
+    UpdateSettingsRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        baseCurrency:
+          $ref: "#/components/schemas/Currency"
+        expectedAnnualInflation:
+          type: number
+          exclusiveMinimum: -1
+        targetNetWorth:
+          oneOf:
+            - $ref: "#/components/schemas/Money"
+            - type: "null"
+        targetNetWorthIsReal:
+          type: boolean
+        withdrawalRate:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 1
+        valuationMaxAgeDays:
+          type: integer
+          minimum: 0
+          format: int64
+          maximum: 9007199254740991
+    AccountSummary:
+      type: object
+      description: Current account projection. Responses may add fields within API v1.
+      required:
+        - id
+        - name
+        - provider
+        - currency
+        - assetType
+        - expectedAnnualReturn
+        - isOpen
+        - latestBalance
+        - latestSnapshotDate
+        - cagr
+      properties:
+        id:
+          type: string
+          format: uuid
+          maxLength: 36
+        name:
+          type: string
+          maxLength: 500
+        provider:
+          type: string
+          maxLength: 500
+        currency:
+          $ref: "#/components/schemas/Currency"
+        assetType:
+          $ref: "#/components/schemas/AssetType"
+        liquidity:
+          $ref: "#/components/schemas/LiquidityTier"
+        expectedAnnualReturn:
+          type: number
+        isOpen:
+          type: boolean
+        latestBalance:
+          type:
+            - number
+            - "null"
+        latestSnapshotDate:
+          type:
+            - string
+            - "null"
+          format: date
+          maxLength: 10
+        cagr:
+          type:
+            - number
+            - "null"
+    AccountDetail:
+      allOf:
+        - $ref: "#/components/schemas/AccountSummary"
+        - type: object
+          required:
+            - createdAt
+            - snapshots
+            - capitalFlows
+            - netContributed
+            - gainLoss
+          properties:
+            createdAt:
+              type: string
+              format: date
+              maxLength: 10
+            closedAt:
+              type: string
+              format: date
+              maxLength: 10
+            linkedAccountId:
+              type: string
+              format: uuid
+              maxLength: 36
+            expectedReturnChanges:
+              type: array
+              items:
+                type: object
+                required:
+                  - date
+                  - rate
+                properties:
+                  date:
+                    type: string
+                    format: date
+                    maxLength: 10
+                  rate:
+                    type: number
+              maxItems: 10000
+            snapshots:
+              type: array
+              items:
+                type: object
+                required:
+                  - date
+                  - balance
+                properties:
+                  date:
+                    type: string
+                    format: date
+                    maxLength: 10
+                  balance:
+                    type: number
+              maxItems: 10000
+            capitalFlows:
+              type: array
+              items:
+                type: object
+                required:
+                  - date
+                  - amount
+                properties:
+                  date:
+                    type: string
+                    format: date
+                    maxLength: 10
+                  amount:
+                    type: number
+                  kind:
+                    $ref: "#/components/schemas/CapitalFlowKind"
+              maxItems: 10000
+            netContributed:
+              type:
+                - number
+                - "null"
+            gainLoss:
+              type:
+                - number
+                - "null"
+    DatedSeriesPoint:
+      type: object
+      required:
+        - date
+      properties:
+        date:
+          type: string
+          format: date
+          maxLength: 10
+      additionalProperties:
+        type:
+          - number
+          - string
+          - "null"
+        maxLength: 500
+    Transfer:
+      type: object
+      description: Accepted transfer fact. Responses may add fields within API v1.
+      required: [id, date, amount]
+      properties:
+        id:
+          type: string
+          format: uuid
+          maxLength: 36
+        date:
+          type: string
+          format: date
+          maxLength: 10
+        fromAccountId:
+          type: string
+          format: uuid
+          maxLength: 36
+        toAccountId:
+          type: string
+          format: uuid
+          maxLength: 36
+        amount:
+          type: number
+        fromAmount:
+          type: number
+        toAmount:
+          type: number
+        feeAmount:
+          type: number
+        conversionProvider:
+          type: string
+          maxLength: 200
+        flowId:
+          type: string
+          format: uuid
+          maxLength: 36
+    RecurringFlow:
+      type: object
+      description: Current recurring-flow plan. Responses may add fields within API v1.
+      required: [id, name, currency, frequency, startDate]
+      properties:
+        id:
+          type: string
+          format: uuid
+          maxLength: 36
+        name:
+          type: string
+          maxLength: 200
+        fromAccountId:
+          type: string
+          format: uuid
+          maxLength: 36
+        toAccountId:
+          type: string
+          format: uuid
+          maxLength: 36
+        amount:
+          type: number
+        currency:
+          $ref: "#/components/schemas/Currency"
+        conversion:
+          $ref: "#/components/schemas/FlowConversion"
+        grossAmount:
+          type: number
+        formula:
+          type: object
+          additionalProperties: false
+          required: [kind, percentOfBalance, floor]
+          properties:
+            kind:
+              type: string
+              const: minimumPayment
+            percentOfBalance:
+              type: number
+            floor:
+              type: number
+        compensationKind:
+          type: string
+          enum: [takeHomeIncome, employeePension, employerPension]
+        frequency:
+          type: string
+          enum: [weekly, monthly, quarterly, yearly]
+        startDate:
+          type: string
+          format: date
+          maxLength: 10
+        endDate:
+          type: string
+          format: date
+          maxLength: 10
+    PlannedExpenditure:
+      type: object
+      description: Current planned expenditure. Responses may add fields within API v1.
+      required: [id, name, amount, date, fromAccountId]
+      properties:
+        id:
+          type: string
+          format: uuid
+          maxLength: 36
+        name:
+          type: string
+          maxLength: 200
+        amount:
+          type: number
+        date:
+          type: string
+          format: date
+          maxLength: 10
+        fromAccountId:
+          type: string
+          format: uuid
+          maxLength: 36
+    IncomeRecord:
+      type: object
+      additionalProperties: false
+      required:
+        - date
+        - amount
+        - currency
+      properties:
+        date:
+          type: string
+          format: date
+          maxLength: 10
+        amount:
+          type: number
+          minimum: 0
+        currency:
+          $ref: "#/components/schemas/Currency"
+    ValuationIssue:
+      type: object
+      additionalProperties: false
+      required:
+        - kind
+        - date
+      properties:
+        kind:
+          type: string
+          enum:
+            - missing_price
+            - stale_price
+            - missing_exchange_rate
+            - stale_exchange_rate
+        date:
+          type: string
+          format: date
+          maxLength: 10
+        accountId:
+          type: string
+          format: uuid
+          maxLength: 36
+        instrumentId:
+          type: string
+          format: uuid
+          maxLength: 36
+        currency:
+          $ref: "#/components/schemas/Currency"
+        observedAt:
+          type: string
+          format: date
+          maxLength: 10
+    HouseholdWorkspace:
+      type: object
+      additionalProperties: false
+      required:
+        - householdId
+        - revision
+        - role
+        - accounts
+        - accountDetails
+        - netWorthData
+        - contributionData
+        - assetAllocation
+        - assetAllocationHistory
+        - transfers
+        - recurringFlows
+        - plannedExpenditures
+        - incomeHistory
+        - flowSankeyData
+        - financialIndependence
+        - portfolioReturn
+        - inflation
+        - netWorthTarget
+        - netWorthTargetIsReal
+        - withdrawalRate
+        - baseCurrency
+        - valuationMaxAgeDays
+        - valuationDate
+        - valuationIssues
+      properties:
+        householdId:
+          type: string
+          format: uuid
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 0
+          format: int64
+          maximum: 9007199254740991
+        role:
+          type: string
+          enum:
+            - owner
+            - editor
+            - viewer
+        accounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccountSummary"
+          maxItems: 10000
+        accountDetails:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccountDetail"
+          maxItems: 10000
+        netWorthData:
+          type: array
+          items:
+            $ref: "#/components/schemas/DatedSeriesPoint"
+          maxItems: 10000
+        contributionData:
+          type: array
+          items:
+            $ref: "#/components/schemas/DatedSeriesPoint"
+          maxItems: 10000
+        assetAllocation:
+          type: array
+          items:
+            type: object
+            required:
+              - assetType
+              - total
+            properties:
+              assetType:
+                $ref: "#/components/schemas/AssetType"
+              total:
+                type: number
+          maxItems: 10000
+        assetAllocationHistory:
+          type: array
+          items:
+            $ref: "#/components/schemas/DatedSeriesPoint"
+          maxItems: 10000
+        transfers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transfer"
+          maxItems: 10000
+        recurringFlows:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecurringFlow"
+          maxItems: 10000
+        plannedExpenditures:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlannedExpenditure"
+          maxItems: 10000
+        incomeHistory:
+          type: array
+          items:
+            $ref: "#/components/schemas/IncomeRecord"
+          maxItems: 10000
+        flowSankeyData:
+          type: object
+          description: Sankey nodes and links in the household base currency.
+          additionalProperties: true
+        financialIndependence:
+          type: object
+          description: Reconciliation, runway, target, and projection read model.
+          additionalProperties: true
+        portfolioReturn:
+          type:
+            - number
+            - "null"
+        inflation:
+          type: number
+        netWorthTarget:
+          oneOf:
+            - $ref: "#/components/schemas/Money"
+            - type: "null"
+        netWorthTargetIsReal:
+          type: boolean
+        withdrawalRate:
+          type: number
+        baseCurrency:
+          $ref: "#/components/schemas/Currency"
+        valuationMaxAgeDays:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        valuationDate:
+          type:
+            - string
+            - "null"
+          format: date
+          maxLength: 10
+        valuationIssues:
+          type: array
+          items:
+            $ref: "#/components/schemas/ValuationIssue"
+          maxItems: 10000
+    MutationResult:
+      type: object
+      additionalProperties: false
+      required:
+        - revision
+        - workspace
+      properties:
+        revision:
+          type: integer
+          minimum: 1
+          format: int64
+          maximum: 9007199254740991
+        workspace:
+          $ref: "#/components/schemas/HouseholdWorkspace"
+    LocalJsonImportRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - sourceSha256
+        - data
+      properties:
+        schemaVersion:
+          type: integer
+          const: 1
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        sourceSha256:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+          maxLength: 500
+        data:
+          type: object
+          description: An AssetTrackerData v1 document validated by the importer.
+          additionalProperties: true
+    LocalJsonImportValidation:
+      type: object
+      additionalProperties: false
+      required:
+        - importId
+        - sourceSha256
+        - expiresAt
+        - counts
+        - defaultsApplied
+        - warnings
+      properties:
+        importId:
+          type: string
+          format: uuid
+          maxLength: 36
+        sourceSha256:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+          maxLength: 500
+        expiresAt:
+          type: string
+          format: date-time
+          maxLength: 500
+        counts:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 0
+            format: int64
+            maximum: 9007199254740991
+        defaultsApplied:
+          type: array
+          items:
+            type: string
+            maxLength: 500
+          maxItems: 10000
+        warnings:
+          type: array
+          items:
+            type: string
+            maxLength: 500
+          maxItems: 10000
