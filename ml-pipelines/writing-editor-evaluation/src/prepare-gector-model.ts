@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -47,6 +46,10 @@ const GectorRuntimeLayerMediaTypes = new Map<string, string>([
   ["vocabulary/non_padded_namespaces.txt", ModelPackWeightConfigMediaType],
   ["verb-form-vocab.txt", ModelPackWeightConfigMediaType],
 ]);
+const RedirectStatuses = new Set([301, 302, 303, 307, 308]);
+const RetryableStatuses = new Set([408, 425, 429, 500, 502, 503, 504]);
+const MaximumRedirects = 10;
+const MaximumDownloadAttempts = 6;
 
 const ConfigAnnotationsSchema = z.object({
   [OciTitleAnnotation]: RelativeFileSchema,
@@ -216,11 +219,10 @@ export interface DownloadOptions {
   timeoutMs: number;
 }
 
-export type CurlRunner = (
-  binary: string,
-  arguments_: string[],
-  options: { stdio: "inherit" },
-) => void;
+export interface CheckpointDownloadDependencies {
+  fetch?: typeof globalThis.fetch;
+  wait?: (delayMs: number) => Promise<void>;
+}
 
 export type CheckpointDownloader = (
   url: URL,
@@ -270,63 +272,231 @@ function sha256Bytes(value: Buffer): string {
   return `sha256:${createHash("sha256").update(value).digest("hex")}`;
 }
 
-const defaultCurlRunner: CurlRunner = (binary, arguments_, options) => {
-  execFileSync(binary, arguments_, options);
-};
+class CheckpointDownloadError extends Error {
+  constructor(message: string, readonly retryable: boolean) {
+    super(message);
+    this.name = "CheckpointDownloadError";
+  }
+}
 
-export function downloadCheckpoint(
+function assertHttps(url: URL): void {
+  if (url.protocol !== "https:") {
+    throw new CheckpointDownloadError(
+      `refusing non-HTTPS checkpoint URL: ${url}`,
+      false,
+    );
+  }
+}
+
+function partialSize(partialFile: string, expectedBytes: number): number {
+  const bytes = fs.existsSync(partialFile) ? fs.statSync(partialFile).size : 0;
+  if (bytes > expectedBytes) {
+    throw new CheckpointDownloadError(
+      `partial checkpoint is larger than declared size: ${bytes} > ${expectedBytes}`,
+      false,
+    );
+  }
+  return bytes;
+}
+
+async function withStallTimeout<T>(
+  operation: Promise<T>,
+  timeoutMs: number,
+  controller: AbortController,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const stalled = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      const error = new CheckpointDownloadError(
+        `checkpoint download stalled for ${timeoutMs}ms`,
+        true,
+      );
+      controller.abort(error);
+      reject(error);
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([operation, stalled]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchWithHttpsRedirects(
+  initialUrl: URL,
+  startByte: number,
+  timeoutMs: number,
+  fetchRequest: typeof globalThis.fetch,
+  controller: AbortController,
+): Promise<Response> {
+  let url = initialUrl;
+  for (let redirectCount = 0; redirectCount <= MaximumRedirects; redirectCount += 1) {
+    assertHttps(url);
+    const headers = startByte === 0 ? undefined : { Range: `bytes=${startByte}-` };
+    const response = await withStallTimeout(
+      fetchRequest(url, {
+        headers,
+        redirect: "manual",
+        signal: controller.signal,
+      }),
+      timeoutMs,
+      controller,
+    );
+    if (!RedirectStatuses.has(response.status)) return response;
+
+    const location = response.headers.get("location");
+    await response.body?.cancel();
+    if (location === null) {
+      throw new CheckpointDownloadError(
+        `checkpoint redirect from ${url} has no location`,
+        false,
+      );
+    }
+    url = new URL(location, url);
+  }
+  throw new CheckpointDownloadError(
+    `checkpoint download exceeded ${MaximumRedirects} redirects`,
+    false,
+  );
+}
+
+function validatePartialResponse(
+  response: Response,
+  startByte: number,
+  expectedBytes: number,
+): void {
+  const value = response.headers.get("content-range");
+  const match = /^bytes (\d+)-(\d+)\/(\d+|\*)$/u.exec(value ?? "");
+  const responseStart = Number(match?.[1]);
+  const responseEnd = Number(match?.[2]);
+  const responseTotal = match?.[3] === "*" ? undefined : Number(match?.[3]);
+  if (
+    match === null ||
+    responseStart !== startByte ||
+    responseEnd < responseStart ||
+    (responseTotal !== undefined && responseTotal !== expectedBytes)
+  ) {
+    throw new CheckpointDownloadError(
+      `invalid checkpoint content-range: ${value ?? "missing"}`,
+      false,
+    );
+  }
+}
+
+async function writeResponse(
+  response: Response,
+  partialFile: string,
+  append: boolean,
+  timeoutMs: number,
+  controller: AbortController,
+): Promise<void> {
+  if (response.body === null) {
+    throw new CheckpointDownloadError("checkpoint response has no body", true);
+  }
+  const reader = response.body.getReader();
+  const output = await fs.promises.open(partialFile, append ? "a" : "w");
+  let complete = false;
+  try {
+    while (true) {
+      const result = await withStallTimeout(reader.read(), timeoutMs, controller);
+      if (result.done) break;
+      let written = 0;
+      while (written < result.value.byteLength) {
+        const write = await output.write(result.value.subarray(written));
+        if (write.bytesWritten === 0) {
+          throw new CheckpointDownloadError(
+            "checkpoint download could not write response data",
+            true,
+          );
+        }
+        written += write.bytesWritten;
+      }
+    }
+    complete = true;
+  } finally {
+    await output.close();
+    if (!complete) await reader.cancel().catch(() => undefined);
+  }
+}
+
+async function downloadAttempt(
   url: URL,
   partialFile: string,
   options: DownloadOptions,
-  runCurl: CurlRunner = defaultCurlRunner,
+  fetchRequest: typeof globalThis.fetch,
 ): Promise<void> {
-  return new Promise((resolve) => {
-    if (url.protocol !== "https:") {
-      throw new Error(`refusing non-HTTPS checkpoint URL: ${url}`);
-    }
-    const startByte = fs.existsSync(partialFile)
-      ? fs.statSync(partialFile).size
-      : 0;
-    if (startByte > options.expectedBytes) {
-      throw new Error(
-        `partial checkpoint is larger than declared size: ${startByte} > ${options.expectedBytes}`,
-      );
-    }
-    if (startByte === options.expectedBytes) {
-      resolve();
-      return;
-    }
+  const startByte = partialSize(partialFile, options.expectedBytes);
+  if (startByte === options.expectedBytes) return;
 
-    process.stdout.write(
-      `Downloading checkpoint from byte ${startByte} of ${options.expectedBytes}\n`,
+  process.stdout.write(
+    `Downloading checkpoint from byte ${startByte} of ${options.expectedBytes}\n`,
+  );
+  const controller = new AbortController();
+  const response = await fetchWithHttpsRedirects(
+    url,
+    startByte,
+    options.timeoutMs,
+    fetchRequest,
+    controller,
+  );
+  if (response.status !== 200 && response.status !== 206) {
+    await response.body?.cancel();
+    throw new CheckpointDownloadError(
+      `checkpoint download failed with HTTP ${response.status}`,
+      RetryableStatuses.has(response.status),
     );
-    runCurl(
-      "curl",
-      [
-        "--proto",
-        "=https",
-        "--proto-redir",
-        "=https",
-        "--fail",
-        "--location",
-        "--retry",
-        "5",
-        "--retry-all-errors",
-        "--continue-at",
-        "-",
-        "--speed-limit",
-        "1",
-        "--speed-time",
-        String(Math.ceil(options.timeoutMs / 1000)),
-        "--output",
-        partialFile,
-        url.toString(),
-      ],
-      { stdio: "inherit" },
+  }
+
+  if (response.status === 206) {
+    try {
+      validatePartialResponse(response, startByte, options.expectedBytes);
+    } catch (error) {
+      await response.body?.cancel();
+      throw error;
+    }
+  }
+  await writeResponse(
+    response,
+    partialFile,
+    response.status === 206 && startByte > 0,
+    options.timeoutMs,
+    controller,
+  );
+
+  const downloadedBytes = partialSize(partialFile, options.expectedBytes);
+  if (downloadedBytes !== options.expectedBytes) {
+    throw new CheckpointDownloadError(
+      `checkpoint download ended early: ${downloadedBytes} of ${options.expectedBytes} bytes`,
+      true,
     );
-    process.stdout.write("Checkpoint download complete; verifying SHA-256\n");
-    resolve();
-  });
+  }
+}
+
+function wait(delayMs: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+export async function downloadCheckpoint(
+  url: URL,
+  partialFile: string,
+  options: DownloadOptions,
+  dependencies: CheckpointDownloadDependencies = {},
+): Promise<void> {
+  const fetchRequest = dependencies.fetch ?? globalThis.fetch;
+  const waitForRetry = dependencies.wait ?? wait;
+  assertHttps(url);
+  if (partialSize(partialFile, options.expectedBytes) === options.expectedBytes) return;
+  for (let attempt = 1; attempt <= MaximumDownloadAttempts; attempt += 1) {
+    try {
+      await downloadAttempt(url, partialFile, options, fetchRequest);
+      process.stdout.write("Checkpoint download complete; verifying SHA-256\n");
+      return;
+    } catch (error) {
+      const retryable = !(error instanceof CheckpointDownloadError) || error.retryable;
+      if (!retryable || attempt === MaximumDownloadAttempts) throw error;
+      await waitForRetry(Math.min(2 ** (attempt - 1) * 1_000, 10_000));
+    }
+  }
 }
 
 async function verifyArtifact(
