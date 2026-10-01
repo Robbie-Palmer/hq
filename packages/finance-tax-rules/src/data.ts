@@ -30,6 +30,42 @@ const sourceLicence = {
   attribution: dataLicence.attribution,
 };
 
+type SourceRecord = RuleDataset["sources"][number];
+type SourceInput = Omit<
+  SourceRecord,
+  | "publisher"
+  | "retrievalDate"
+  | "licence"
+  | "licenceUrl"
+  | "copyright"
+  | "attribution"
+>;
+
+const hmrcSource = ({
+  id,
+  title,
+  url,
+  archiveUrl,
+  publicationDate,
+  coverageFrom,
+  coverageTo,
+  sourceContentSha256,
+  snapshotPath,
+}: SourceInput): SourceRecord => ({
+  id,
+  title,
+  publisher: "HM Revenue & Customs",
+  url,
+  archiveUrl,
+  publicationDate,
+  retrievalDate: "2026-10-01",
+  coverageFrom,
+  coverageTo,
+  sourceContentSha256,
+  snapshotPath,
+  ...sourceLicence,
+});
+
 const standardAllowance = {
   standardPersonalAllowancePence: gbp(12_570),
   personalAllowanceTaper: {
@@ -47,6 +83,23 @@ const mainRateBands = (additionalRateThreshold: number) => [
     widthPence: gbp(additionalRateThreshold - 37_700),
   },
   { name: "additional", rateBasisPoints: 4_500, widthPence: null },
+];
+
+const scottishBandsFrom2024 = (
+  starterWidth: number,
+  basicWidth: number,
+  intermediateWidth: number,
+): RuleDataset["incomeTax"][number]["bands"] => [
+  { name: "starter", rateBasisPoints: 1_900, widthPence: gbp(starterWidth) },
+  { name: "basic", rateBasisPoints: 2_000, widthPence: gbp(basicWidth) },
+  {
+    name: "intermediate",
+    rateBasisPoints: 2_100,
+    widthPence: gbp(intermediateWidth),
+  },
+  { name: "higher", rateBasisPoints: 4_200, widthPence: gbp(31_338) },
+  { name: "advanced", rateBasisPoints: 4_500, widthPence: gbp(62_710) },
+  { name: "top", rateBasisPoints: 4_800, widthPence: null },
 ];
 
 const taxRule = (
@@ -223,104 +276,86 @@ export const ruleDataset = {
   corrections: [],
   dataLicence,
   sources: [
-    {
+    hmrcSource({
       id: "hmrc-income-tax-current-and-past",
       title: "Income Tax rates and allowances for current and previous tax years",
-      publisher: "HM Revenue & Customs",
       url: "https://www.gov.uk/government/publications/rates-and-allowances-income-tax/income-tax-rates-and-allowances-current-and-past",
       archiveUrl: null,
       publicationDate: "2014-02-01",
-      retrievalDate: "2026-10-01",
       coverageFrom: "2022-04-06",
       coverageTo: "2027-04-05",
       sourceContentSha256:
         "89b4d254fc3303af663cd405c1f5a880400e4890364fd774e851557c4fa67263",
       snapshotPath: "source-snapshots/income-tax-current-and-past.md",
-      ...sourceLicence,
-    },
+    }),
     ...[
       ["2022-23", "2022-02-07", "2022-04-06", "2023-04-05", "33bd9fa84534216d2a6a4fd5e35273f9c989eba771f845e9bdcfa8e3ce014c64"],
       ["2023-24", "2023-02-27", "2023-04-06", "2024-04-05", "42b48eb2abd884ac3997b9a073f5b04ccb2a97ccfb43150fdc6e5d181e86cae7"],
       ["2024-25", "2024-02-06", "2024-04-06", "2025-04-05", "cc3304f6650804bc9578557f8897e713cd1dcd22e4bc1b27a234c5f191a80943"],
       ["2025-26", "2025-01-31", "2025-04-06", "2026-04-05", "a62aea50942fdf008f7a2afad9dd1746354df7e3b98edce03fe7db596e540eca"],
       ["2026-27", "2026-01-30", "2026-04-06", "2027-04-05", "a6315ba6c7166c712c66094523334ab27b1f94f9922af74a223c6380d20fc7d0"],
-    ].map(([year, publicationDate, coverageFrom, coverageTo, sourceContentSha256]) => ({
+    ].map(([year, publicationDate, coverageFrom, coverageTo, sourceContentSha256]) => hmrcSource({
       id: `hmrc-employer-${year}`,
       title: `Rates and thresholds for employers ${year?.slice(0, 4)} to 20${year?.slice(5)}`,
-      publisher: "HM Revenue & Customs",
       url: `https://www.gov.uk/guidance/rates-and-thresholds-for-employers-${year?.slice(0, 4)}-to-20${year?.slice(5)}`,
       archiveUrl:
         year === "2022-23"
           ? "https://webarchive.nationalarchives.gov.uk/ukgwa/*/https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2022-to-2023"
           : null,
       publicationDate: publicationDate ?? "",
-      retrievalDate: "2026-10-01",
       coverageFrom: coverageFrom ?? "",
       coverageTo: coverageTo ?? "",
       sourceContentSha256: sourceContentSha256 ?? "",
       snapshotPath: `source-snapshots/employer-${year}.md`,
-      ...sourceLicence,
     })),
-    {
+    hmrcSource({
       id: "hmrc-pension-scheme-rates",
       title: "Pension schemes rates",
-      publisher: "HM Revenue & Customs",
       url: "https://www.gov.uk/government/publications/rates-and-allowances-pension-schemes/pension-schemes-rates",
       archiveUrl: null,
       publicationDate: "2014-02-01",
-      retrievalDate: "2026-10-01",
       coverageFrom: "2022-04-06",
       coverageTo: "2027-04-05",
       sourceContentSha256:
         "90652c9268a5e0e1f46fa27bfc3549cc01d23c45ae340916c2c6561409c78ef8",
       snapshotPath: "source-snapshots/pension-scheme-rates.md",
-      ...sourceLicence,
-    },
-    {
+    }),
+    hmrcSource({
       id: "hmrc-pension-relief-at-source",
       title: "PTM044220: relief at source",
-      publisher: "HM Revenue & Customs",
       url: "https://www.gov.uk/hmrc-internal-manuals/pensions-tax-manual/ptm044220",
       archiveUrl: null,
       publicationDate: "2015-03-27",
-      retrievalDate: "2026-10-01",
       coverageFrom: "2022-04-06",
       coverageTo: null,
       sourceContentSha256:
         "554eb9d33a0f76ba18b11dd466988c9f0b3042b5e7c5a7b2d059019a3d16405b",
       snapshotPath: "source-snapshots/pension-relief-at-source.md",
-      ...sourceLicence,
-    },
-    {
+    }),
+    hmrcSource({
       id: "hmrc-pension-net-pay",
       title: "PTM044230: net pay",
-      publisher: "HM Revenue & Customs",
       url: "https://www.gov.uk/hmrc-internal-manuals/pensions-tax-manual/ptm044230",
       archiveUrl: null,
       publicationDate: "2015-03-27",
-      retrievalDate: "2026-10-01",
       coverageFrom: "2022-04-06",
       coverageTo: null,
       sourceContentSha256:
         "aade57fbc5948c3f3a21c9392502c71414099e53fe98e7f6ceb1a4283080a34b",
       snapshotPath: "source-snapshots/pension-net-pay.md",
-      ...sourceLicence,
-    },
-    {
+    }),
+    hmrcSource({
       id: "hmrc-salary-sacrifice",
       title: "Salary sacrifice for employers",
-      publisher: "HM Revenue & Customs",
       url: "https://www.gov.uk/guidance/salary-sacrifice-and-the-effects-on-paye",
       archiveUrl: null,
       publicationDate: "2014-06-12",
-      retrievalDate: "2026-10-01",
       coverageFrom: "2022-04-06",
       coverageTo: null,
       sourceContentSha256:
         "bd8fa64edd90b24e7a21008ba84b8ab71aaac1db48e902b3141b6ebd7a1e6857",
       snapshotPath: "source-snapshots/salary-sacrifice.md",
-      ...sourceLicence,
-    },
+    }),
   ],
   incomeTax: [
     taxRule(
@@ -413,14 +448,7 @@ export const ruleDataset = {
       "2024-04-06",
       "2025-04-05",
       ["scotland"],
-      [
-        { name: "starter", rateBasisPoints: 1_900, widthPence: gbp(2_306) },
-        { name: "basic", rateBasisPoints: 2_000, widthPence: gbp(11_685) },
-        { name: "intermediate", rateBasisPoints: 2_100, widthPence: gbp(17_101) },
-        { name: "higher", rateBasisPoints: 4_200, widthPence: gbp(31_338) },
-        { name: "advanced", rateBasisPoints: 4_500, widthPence: gbp(62_710) },
-        { name: "top", rateBasisPoints: 4_800, widthPence: null },
-      ],
+      scottishBandsFrom2024(2_306, 11_685, 17_101),
       "hmrc-employer-2024-25",
     ),
     taxRule(
@@ -447,14 +475,7 @@ export const ruleDataset = {
       "2025-04-06",
       "2026-04-05",
       ["scotland"],
-      [
-        { name: "starter", rateBasisPoints: 1_900, widthPence: gbp(2_827) },
-        { name: "basic", rateBasisPoints: 2_000, widthPence: gbp(12_094) },
-        { name: "intermediate", rateBasisPoints: 2_100, widthPence: gbp(16_171) },
-        { name: "higher", rateBasisPoints: 4_200, widthPence: gbp(31_338) },
-        { name: "advanced", rateBasisPoints: 4_500, widthPence: gbp(62_710) },
-        { name: "top", rateBasisPoints: 4_800, widthPence: null },
-      ],
+      scottishBandsFrom2024(2_827, 12_094, 16_171),
       "hmrc-employer-2025-26",
     ),
     taxRule(
@@ -481,14 +502,7 @@ export const ruleDataset = {
       "2026-04-06",
       "2027-04-05",
       ["scotland"],
-      [
-        { name: "starter", rateBasisPoints: 1_900, widthPence: gbp(3_967) },
-        { name: "basic", rateBasisPoints: 2_000, widthPence: gbp(12_989) },
-        { name: "intermediate", rateBasisPoints: 2_100, widthPence: gbp(14_136) },
-        { name: "higher", rateBasisPoints: 4_200, widthPence: gbp(31_338) },
-        { name: "advanced", rateBasisPoints: 4_500, widthPence: gbp(62_710) },
-        { name: "top", rateBasisPoints: 4_800, widthPence: null },
-      ],
+      scottishBandsFrom2024(3_967, 12_989, 14_136),
       "hmrc-employer-2026-27",
     ),
   ],
