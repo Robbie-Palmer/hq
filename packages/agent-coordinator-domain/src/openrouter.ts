@@ -1,3 +1,4 @@
+import { promiseFromSync } from "ts-base/promises";
 import type {
   AdapterAvailability,
   AdapterSession,
@@ -14,14 +15,6 @@ import type {
   ExecutionSessionIdentity,
   WorkerAdapterIdentity,
 } from "./session";
-
-function promiseFromSync<T>(operation: () => T): Promise<T> {
-  try {
-    return Promise.resolve(operation());
-  } catch (error) {
-    return Promise.reject(error);
-  }
-}
 
 export class SessionBudgetExceededError extends Error {
   readonly code = "session-budget-exhausted";

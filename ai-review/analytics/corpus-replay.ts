@@ -2,6 +2,7 @@ import fs from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { parseArgs } from "node:util";
+import { promiseFromSync } from "ts-base/promises";
 import { z, type ZodType } from "zod";
 import type { Env, ReviewWorkflowParams } from "../src/env";
 import {
@@ -19,14 +20,6 @@ import {
   type ReplayProvider,
 } from "ai-review-domain/replay";
 import { exclusiveClaim } from "./replay-claim";
-
-function promiseFromSync<T>(operation: () => T): Promise<T> {
-  try {
-    return Promise.resolve(operation());
-  } catch (error) {
-    return Promise.reject(error);
-  }
-}
 
 function option<T>(schema: ZodType<T>, value: unknown, name: string): T {
   const result = schema.safeParse(value);

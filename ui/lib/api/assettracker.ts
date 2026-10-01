@@ -1,3 +1,4 @@
+import { promiseFromSync } from "ts-base/promises";
 import { todayIsoDate } from "@/lib/assettracker/date";
 import { getDemoAssetTrackerData } from "@/lib/assettracker/demoData";
 import {
@@ -124,14 +125,6 @@ function parseStored(raw: string): AssetTrackerData {
         };
   buildRepository(data); // referential integrity (duplicate IDs, orphan snapshots)
   return data;
-}
-
-function promiseFromSync<T>(operation: () => T): Promise<T> {
-  try {
-    return Promise.resolve(operation());
-  } catch (error) {
-    return Promise.reject(error);
-  }
 }
 
 export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {

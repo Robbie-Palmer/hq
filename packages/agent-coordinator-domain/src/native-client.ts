@@ -1,3 +1,4 @@
+import { promiseFromSync } from "ts-base/promises";
 import type {
   AdapterAvailability,
   AdapterSession,
@@ -105,14 +106,6 @@ export interface NativeClientAdapterOptions {
   environment?: NodeJS.ProcessEnv;
   now?: () => Date;
   createCheckpointId?: () => string;
-}
-
-function promiseFromSync<T>(operation: () => T): Promise<T> {
-  try {
-    return Promise.resolve(operation());
-  } catch (error) {
-    return Promise.reject(error);
-  }
 }
 
 function appendBounded(current: string, chunk: Buffer, maximumBytes: number): string {
