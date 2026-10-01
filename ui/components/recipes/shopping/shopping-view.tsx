@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Share2, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { DietListNotice } from "@/components/recipes/diet-notice";
 import { useDiet } from "@/components/recipes/diet-provider";
@@ -103,7 +104,16 @@ function ShoppingViewContent({
           <p className="rt-body mt-2 text-[var(--ink-2)]">{summary}</p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
-          {scope.type === "household" && <ShareShoppingList scope={scope} />}
+          {scope.type === "household" ? (
+            <ShareShoppingList scope={scope} />
+          ) : (
+            <Link
+              href="/recipes/settings?section=household"
+              className="inline-flex items-center gap-1.5 rt-mono text-[var(--ink-3)] hover:text-[var(--terracotta)] transition-colors"
+            >
+              <Share2 className="h-3.5 w-3.5" /> share with a household
+            </Link>
+          )}
           {hasListContent && (
             <button
               type="button"

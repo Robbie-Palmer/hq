@@ -108,13 +108,13 @@ describe("ShoppingView", () => {
     expect(screen.getByRole("button", { name: "share" })).toBeInTheDocument();
   });
 
-  it("does not offer a shared link for a personal shopping list", () => {
+  it("links personal shopping lists to household setup", () => {
     mocks.household = false;
 
     render(<ShoppingView recipes={[]} />);
 
     expect(
-      screen.queryByRole("button", { name: "share" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("link", { name: "share with a household" }),
+    ).toHaveAttribute("href", "/recipes/settings?section=household");
   });
 });
