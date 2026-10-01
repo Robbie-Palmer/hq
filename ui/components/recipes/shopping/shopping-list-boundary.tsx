@@ -8,7 +8,9 @@ import {
 } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import {
+  createContext,
   type ReactNode,
+  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -17,6 +19,7 @@ import {
 import { isApiError } from "@/lib/api/http";
 import {
   type ShoppingListContents,
+  type ShoppingListScope,
   type StoredShoppingList,
   saveCurrentShoppingList,
   startNewShoppingList,
@@ -122,6 +125,18 @@ function restoreSavedShoppingList(
 
 const PLAN_RESOURCE_KEY = "recipe-shopping-plan-resource";
 const pendingShoppingListSaves = new Map<string, Promise<void>>();
+
+const ShoppingListScopeContext = createContext<ShoppingListScope | null>(null);
+
+export function useShoppingListScope(): ShoppingListScope {
+  const scope = useContext(ShoppingListScopeContext);
+  if (!scope) {
+    throw new Error(
+      "useShoppingListScope must be used inside ShoppingListBoundary",
+    );
+  }
+  return scope;
+}
 
 function readPlanResource(): string | null {
   try {
@@ -323,7 +338,7 @@ export function ShoppingListBoundary({
     );
   }
   return (
-    <>
+    <ShoppingListScopeContext.Provider value={current.data.scope}>
       {saveFailed ? (
         <p className="rt-body bg-[var(--cream-dark)] px-4 py-2 text-center">
           Your latest shopping-list changes have not been saved. They remain on
@@ -331,7 +346,7 @@ export function ShoppingListBoundary({
         </p>
       ) : null}
       {children}
-    </>
+    </ShoppingListScopeContext.Provider>
   );
 }
 

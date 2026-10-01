@@ -56,3 +56,13 @@ export function startNewShoppingList(
     fallbackMessage: "A new shopping list could not be started.",
   });
 }
+
+export async function shareCurrentShoppingList(
+  recipientUserId: string,
+): Promise<void> {
+  await apiRequest<{ shared: true }>("/api/shopping-lists/current/shares", {
+    method: "POST",
+    json: { recipientUserId },
+    fallbackMessage: "The shopping list could not be shared.",
+  });
+}

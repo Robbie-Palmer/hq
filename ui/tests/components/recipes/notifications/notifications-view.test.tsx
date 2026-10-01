@@ -180,6 +180,39 @@ describe("NotificationsView", () => {
     });
   });
 
+  it("links a shared shopping-list notification to the household list", async () => {
+    const sharedList = {
+      id: "notification-shopping-1",
+      eventId: "event-shopping-1",
+      kind: "shopping_list_shared",
+      actor: { id: "user-alex", name: "Alex" },
+      actions: [],
+      detail: {
+        type: "household",
+        household: { id: "household-1", name: "Park Road" },
+        invitationStatus: null,
+      },
+      readAt: null,
+      occurredAt: "2026-09-07T12:00:00.000Z",
+    } satisfies HouseholdNotification;
+    mocks.getNotificationPage.mockResolvedValue({
+      items: [sharedList],
+      nextOffset: null,
+      unreadCount: 1,
+    });
+
+    renderNotifications();
+
+    expect(
+      await screen.findByText(
+        "Alex shared Park Road's shopping list with you.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "View shopping list" }),
+    ).toHaveAttribute("href", "/recipes/shopping");
+  });
+
   it("links a pending agent request to the approval page", async () => {
     const approval = {
       id: "notification-agent-1",

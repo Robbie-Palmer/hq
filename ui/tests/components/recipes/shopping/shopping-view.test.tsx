@@ -6,6 +6,7 @@ import { ShoppingView } from "@/components/recipes/shopping/shopping-view";
 const mocks = vi.hoisted(() => ({
   start: vi.fn(),
   extras: [{ id: "extra-milk", text: "Milk", checked: false }],
+  household: true,
 }));
 
 vi.mock("@/components/recipes/shopping/shopping-list-boundary", () => ({
@@ -16,6 +17,17 @@ vi.mock("@/components/recipes/shopping/shopping-list-boundary", () => ({
     isPending: false,
     isError: false,
   }),
+  useShoppingListScope: () =>
+    mocks.household
+      ? {
+          type: "household",
+          household: { id: "household-1", name: "Park Road" },
+        }
+      : { type: "personal" },
+}));
+
+vi.mock("@/components/recipes/shopping/share-shopping-list", () => ({
+  ShareShoppingList: () => <button type="button">share</button>,
 }));
 
 vi.mock("@/hooks/use-shopping-list", () => ({
@@ -47,7 +59,8 @@ vi.mock("@/components/recipes/shopping/shopping-list", () => ({
 
 describe("ShoppingView", () => {
   beforeEach(() => {
-    mocks.start.mockClear();
+    vi.clearAllMocks();
+    mocks.household = true;
     mocks.extras.splice(0, mocks.extras.length, {
       id: "extra-milk",
       text: "Milk",
@@ -87,5 +100,21 @@ describe("ShoppingView", () => {
     expect(
       screen.getByRole("heading", { name: "Shopping list." }),
     ).toBeInTheDocument();
+  });
+
+  it("offers sharing for a household shopping list", () => {
+    render(<ShoppingView recipes={[]} />);
+
+    expect(screen.getByRole("button", { name: "share" })).toBeInTheDocument();
+  });
+
+  it("does not offer a shared link for a personal shopping list", () => {
+    mocks.household = false;
+
+    render(<ShoppingView recipes={[]} />);
+
+    expect(
+      screen.queryByRole("button", { name: "share" }),
+    ).not.toBeInTheDocument();
   });
 });
