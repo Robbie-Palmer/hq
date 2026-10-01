@@ -1,4 +1,4 @@
-import { closeDb, createDb } from "../src/connection";
+import { closeDb, createDb, type Db } from "../src/connection";
 import { readOperationalReport } from "../src/analytics";
 
 const [start, end] = process.argv.slice(2);
@@ -8,8 +8,9 @@ if (!start || !end || process.argv.length !== 4 || !process.env.DATABASE_URL) {
   );
   process.exitCode = 1;
 } else {
-  const db = createDb(process.env.DATABASE_URL, { maxConnections: 1 });
+  let db: Db | undefined;
   try {
+    db = createDb(process.env.DATABASE_URL, { maxConnections: 1 });
     console.log(
       JSON.stringify(await readOperationalReport(db, { start, end }), null, 2),
     );
@@ -20,6 +21,11 @@ if (!start || !end || process.argv.length !== 4 || !process.env.DATABASE_URL) {
     );
     process.exitCode = 1;
   } finally {
-    await closeDb(db);
+    try {
+      await closeDb(db);
+    } catch {
+      console.error("Operational report database cleanup failed.");
+      process.exitCode = 1;
+    }
   }
 }

@@ -1,3 +1,5 @@
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import {
   getDirectChildren,
   projectWorkItemStage,
@@ -4306,6 +4308,21 @@ describe("immutable event history", () => {
 });
 
 describe("private operational report", () => {
+  it("suppresses connection details when the batch runner fails", () => {
+    const child = spawnSync(process.execPath, [
+      "--import", "tsx",
+      fileURLToPath(new URL("../../scripts/operational-report.ts", import.meta.url)),
+      "2026-10-01T00:00:00Z", "2026-10-01T03:00:00Z",
+    ], {
+      env: { ...process.env, DATABASE_URL: "invalid-private-secret" },
+      encoding: "utf8",
+    });
+    expect(child.status).toBe(1);
+    expect(child.stdout).toBe("");
+    expect(child.stderr).toContain("Operational report failed");
+    expect(child.stderr).not.toContain("private-secret");
+  });
+
   it("inherits child scope and excludes free text and worker telemetry", async () => {
     await db
       .insert(schema.knowledgeScope)
