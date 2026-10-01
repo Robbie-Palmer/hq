@@ -88,8 +88,10 @@ days or a trace spanning Work Graph and another service. The shared
 `Work Graph production health` runs every 15 minutes and can run manually.
 Its diagnostic window spans 30 minutes to overlap adjacent runs.
 The diagnostic step exits 1 if the window contains HTTP 5XX, an application
-error record, a Hyperdrive query error, or waiting clients in a connection
-pool. Exit 2 means the monitor itself failed. Both fail the workflow.
+error record, a Hyperdrive query error, or sustained waiting at pool capacity.
+The capacity threshold requires average waiting clients of at least one and
+peak open connections at the configured pool maximum. Brief waiting remains
+in the diagnostic output. Exit 2 means the monitor itself failed. Both fail the workflow.
 The smoke step runs even when diagnostics fail and checks the production
 Access boundary and queue behavior. The deployment workflow also runs that
 smoke test after every deployment.

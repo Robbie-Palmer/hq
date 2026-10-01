@@ -148,7 +148,15 @@ export async function diagnose(
   if (
     !Array.isArray(pools) ||
     !Array.isArray(queryRows) ||
-    pools.some((row) => !validCount(row.max.waitingClients)) ||
+    pools.some(
+      (row) =>
+        ![
+          row.max.waitingClients,
+          row.max.currentPoolSize,
+          row.max.maxPoolSize,
+          row.avg.waitingClients,
+        ].every(validCount),
+    ) ||
     queryRows.some((row) => !validCount(row.count))
   ) {
     throw new Error("Unexpected Hyperdrive metrics response");
@@ -188,6 +196,19 @@ export async function diagnose(
       invocations.length > 0 ||
       records.length > 0 ||
       queryErrors > 0 ||
-      pools.some((row) => row.max.waitingClients > 0),
+      pools.some(
+        (row) =>
+          row.avg.waitingClients >= 1 &&
+          row.max.currentPoolSize >= row.max.maxPoolSize,
+      ),
   };
+}
+
+/** Keep server-provided text on one JSON line in terminal and workflow logs. */
+export function formatDiagnosticOutput(result: unknown): string {
+  return JSON.stringify(result)
+    .replaceAll("\r", "\\r")
+    .replaceAll("\n", "\\n")
+    .replaceAll("\u2028", "\\u2028")
+    .replaceAll("\u2029", "\\u2029");
 }

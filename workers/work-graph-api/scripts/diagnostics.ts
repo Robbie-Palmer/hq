@@ -1,5 +1,5 @@
 import { parseArgs } from "node:util";
-import { diagnose } from "../src/diagnostics";
+import { diagnose, formatDiagnosticOutput } from "../src/diagnostics";
 
 try {
   const { values } = parseArgs({
@@ -10,9 +10,10 @@ try {
     },
   });
   const end = values.to ? new Date(values.to) : new Date();
+  const windowMinutes = values.monitor ? 30 : 15;
   const start = values.from
     ? new Date(values.from)
-    : new Date(end.getTime() - (values.monitor ? 30 : 15) * 60000);
+    : new Date(end.getTime() - windowMinutes * 60000);
   for (const value of [values.from, values.to]) {
     if (value && !/(Z|[+-]\d{2}:\d{2})$/.test(value))
       throw new Error("Use timestamps with timezones");
@@ -26,7 +27,7 @@ try {
     start,
     end,
   );
-  console.log(JSON.stringify(result, null, 2));
+  console.log(formatDiagnosticOutput(result));
   process.exitCode = values.monitor && result.unhealthy ? 1 : 0;
 } catch {
   console.error(

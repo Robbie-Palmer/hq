@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { diagnose } from "../src/diagnostics";
+import { diagnose, formatDiagnosticOutput } from "../src/diagnostics";
 
 const config = {
   accountId: "a".repeat(32),
@@ -12,11 +12,15 @@ function responses({
   invocations = [],
   records = [],
   waiting = 0,
+  peakWaiting = waiting,
+  poolSize = waiting > 0 ? 12 : 2,
   queryErrors = 0,
 }: {
   invocations?: unknown[];
   records?: unknown[];
   waiting?: number;
+  peakWaiting?: number;
+  poolSize?: number;
   queryErrors?: number;
 } = {}) {
   return [
@@ -29,7 +33,16 @@ function responses({
             {
               hyperdrivePoolSizesAdaptiveGroups: [
                 {
-                  max: { waitingClients: waiting },
+                  avg: {
+                    waitingClients: waiting,
+                    currentPoolSize: poolSize,
+                    availablePoolSlots: 12 - poolSize,
+                  },
+                  max: {
+                    waitingClients: peakWaiting,
+                    currentPoolSize: poolSize,
+                    maxPoolSize: 12,
+                  },
                   dimensions: { coloCode: "DUB" },
                 },
               ],
@@ -222,4 +235,33 @@ describe("production diagnostics", () => {
   ])("rejects invalid time windows", async (from, to) => {
     await expect(diagnose(config, from, to)).rejects.toThrow("positive window");
   });
+});
+
+describe("diagnostic terminal output", () => {
+  it("escapes remote line separators and terminal controls while retaining valid JSON", () => {
+    const remote = {
+      requestId: "safe\r\nforged\u2028line\u2029line\u001b[31m",
+    };
+    const formatted = formatDiagnosticOutput(remote);
+    for (const separator of ["\r", "\n", "\u2028", "\u2029", "\u001b"]) {
+      expect(formatted).not.toContain(separator);
+    }
+    expect(JSON.parse(formatted)).toEqual(remote);
+  });
+});
+
+describe("pool-capacity alert threshold", () => {
+  it.each([
+    { waiting: 0.0006, peakWaiting: 1, poolSize: 2 },
+    { waiting: 1, peakWaiting: 1, poolSize: 2 },
+    { waiting: 0.1, peakWaiting: 1, poolSize: 12 },
+  ])(
+    "keeps brief or non-capacity waiting as diagnostic context %j",
+    async (input) => {
+      expect(
+        (await diagnose(config, start, end, sender(responses(input))))
+          .unhealthy,
+      ).toBe(false);
+    },
+  );
 });
