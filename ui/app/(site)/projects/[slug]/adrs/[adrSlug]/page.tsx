@@ -51,7 +51,7 @@ interface PageProps {
   params: Promise<{ slug: string; adrSlug: string }>;
 }
 
-export async function generateStaticParams() {
+export function generateStaticParams() {
   const projects = getAllProjects();
   const projectADRs = projects.flatMap((project) =>
     project.adrs.map((adr) => ({

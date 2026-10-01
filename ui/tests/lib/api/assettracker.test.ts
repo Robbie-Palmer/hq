@@ -249,6 +249,125 @@ describe("createLocalAssetTrackerApi", () => {
       date: "2099-08-01",
       fromAccountId: source.id,
     });
+
+    const withoutExpenditure = await api.deletePlannedExpenditure({
+      id: "wedding",
+    });
+    expect(withoutExpenditure.plannedExpenditures).toEqual([]);
+  });
+
+  it("persists transfers and history deletions", async () => {
+    const api = createApi();
+    const seed = getDemoAssetTrackerData();
+    const accountId = seed.accounts.find((account) => !account.closedAt)?.id;
+    if (!accountId) throw new Error("seed data has no open account");
+
+    const transferred = await api.recordTransfer({
+      date: "2099-01-01",
+      toAccountId: accountId,
+      amount: 100,
+    });
+    expect(transferred.transfers).toContainEqual(
+      expect.objectContaining({ toAccountId: accountId, amount: 100 }),
+    );
+
+    const withoutSnapshot = await api.deleteSnapshot({
+      accountId,
+      date: "2099-01-01",
+    });
+    expect(withoutSnapshot.snapshots).not.toContainEqual(
+      expect.objectContaining({ accountId, date: "2099-01-01" }),
+    );
+
+    await api.importAccountHistory({
+      accountId,
+      capitalFlows: [{ date: "2098-01-01", value: 50 }],
+      balances: [],
+    });
+    const withoutCapitalFlow = await api.deleteCapitalFlow({
+      accountId,
+      date: "2098-01-01",
+    });
+    expect(withoutCapitalFlow.capitalFlows).not.toContainEqual(
+      expect.objectContaining({ accountId, date: "2098-01-01" }),
+    );
+
+    const withoutIncome = await api.clearIncomeHistory();
+    expect(withoutIncome.incomeHistory).toEqual([]);
+  });
+
+  it("persists account lifecycle and portfolio settings", async () => {
+    const api = createApi();
+    const accountId = getDemoAssetTrackerData().accounts.find(
+      (account) => !account.closedAt,
+    )?.id;
+    if (!accountId) throw new Error("seed data has no open account");
+
+    await api.setExpectedReturn({
+      accountId,
+      rate: 0.05,
+      effectiveFrom: "2099-01-01",
+    });
+    await api.setAccountLiquidity({ accountId, liquidity: "liquid" });
+    await api.setInflation({ rate: 0.025 });
+    const configured = await api.setNetWorthTarget({
+      target: 1_000_000,
+      inTodaysMoney: true,
+    });
+    expect(configured.settings).toMatchObject({
+      expectedAnnualInflation: 0.025,
+      targetNetWorth: { amount: 1_000_000, currency: "GBP" },
+      targetNetWorthIsReal: true,
+    });
+
+    await api.createAccount({
+      name: "Temporary account",
+      provider: "Test provider",
+      currency: "GBP",
+      assetType: "cash",
+      expectedAnnualReturn: 0,
+    });
+    const closed = await api.closeAccount({
+      accountId: "temporary-account",
+      closedAt: "2099-01-01",
+    });
+    expect(
+      closed.accounts.find((account) => account.id === "temporary-account"),
+    ).toMatchObject({ closedAt: "2099-01-01" });
+  });
+
+  it("persists and materializes recurring flows", async () => {
+    const api = createApi();
+    const accountId = getDemoAssetTrackerData().accounts.find(
+      (account) => !account.closedAt,
+    )?.id;
+    if (!accountId) throw new Error("seed data has no open account");
+
+    const withFlow = await api.addRecurringFlow({
+      name: "Test income",
+      toAccountId: accountId,
+      amount: 100,
+      frequency: "monthly",
+      startDate: "2099-01-01",
+    });
+    expect(withFlow.recurringFlows).toContainEqual(
+      expect.objectContaining({ id: "test-income" }),
+    );
+
+    const materialized = await api.materializeFlow({
+      flowId: "test-income",
+      throughDate: "2099-02-01",
+    });
+    expect(
+      materialized.transfers.filter(
+        (transfer) => transfer.flowId === "test-income",
+      ),
+    ).toHaveLength(2);
+
+    const withoutFlow = await api.deleteRecurringFlow({ id: "test-income" });
+    expect(withoutFlow.recurringFlows).not.toContainEqual(
+      expect.objectContaining({ id: "test-income" }),
+    );
   });
 
   it("rejects importing data that fails validation", async () => {

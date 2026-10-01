@@ -7,7 +7,6 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 
 import {
   type CheckpointDownloader,
-  type CurlRunner,
   downloadCheckpoint,
   GectorModelManifestSchema,
   prepareGectorModel,
@@ -251,28 +250,152 @@ describe("GECToR model preparation", () => {
       .toEqual(receipt);
   });
 
-  test("uses hardened curl options while preserving a partial download", async () => {
+  test("resumes a partial download with a native range request", async () => {
     const payload = Buffer.from("official-checkpoint-fixture");
     const directory = temporaryDirectory();
     const partialFile = path.join(directory, "checkpoint.th.partial");
     fs.writeFileSync(partialFile, payload.subarray(0, 8));
-    const runCurl: CurlRunner = vi.fn((_binary, arguments_) => {
-      expect(arguments_).toContain("=https");
-      expect(arguments_).toContain("--continue-at");
-      expect(arguments_).toContain("--retry-all-errors");
-      expect(arguments_).toContain("60");
-      fs.appendFileSync(partialFile, payload.subarray(8));
-    });
+    const fetchRequest = vi.fn<typeof fetch>().mockResolvedValue(new Response(
+      payload.subarray(8),
+      {
+        status: 206,
+        headers: {
+          "content-range": `bytes 8-${payload.length - 1}/${payload.length}`,
+        },
+      },
+    ));
 
     await downloadCheckpoint(
       new URL("https://example.invalid/checkpoint.th"),
       partialFile,
       { expectedBytes: payload.length, timeoutMs: 60_000 },
-      runCurl,
+      { fetch: fetchRequest },
     );
 
-    expect(runCurl).toHaveBeenCalledOnce();
+    expect(fetchRequest).toHaveBeenCalledOnce();
+    const [requestUrl, request] = fetchRequest.mock.calls.at(0) ?? [];
+    expect(String(requestUrl)).toBe("https://example.invalid/checkpoint.th");
+    expect(request?.redirect).toBe("manual");
+    expect(new Headers(request?.headers).get("range")).toBe("bytes=8-");
     expect(fs.readFileSync(partialFile)).toEqual(payload);
+  });
+
+  test("restarts when a server ignores the range request", async () => {
+    const payload = Buffer.from("official-checkpoint-fixture");
+    const directory = temporaryDirectory();
+    const partialFile = path.join(directory, "checkpoint.th.partial");
+    fs.writeFileSync(partialFile, "obsolete");
+    const fetchRequest = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(payload, { status: 200 }),
+    );
+
+    await downloadCheckpoint(
+      new URL("https://example.invalid/checkpoint.th"),
+      partialFile,
+      { expectedBytes: payload.length, timeoutMs: 60_000 },
+      { fetch: fetchRequest },
+    );
+
+    expect(new Headers(fetchRequest.mock.calls[0]?.[1]?.headers).get("range"))
+      .toBe("bytes=8-");
+    expect(fs.readFileSync(partialFile)).toEqual(payload);
+  });
+
+  test("follows HTTPS redirects but rejects an insecure redirect", async () => {
+    const payload = Buffer.from("checkpoint");
+    const directory = temporaryDirectory();
+    const partialFile = path.join(directory, "checkpoint.th.partial");
+    const fetchRequest = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, {
+        status: 302,
+        headers: { location: "https://cdn.example.invalid/checkpoint.th" },
+      }))
+      .mockResolvedValueOnce(new Response(payload));
+
+    await downloadCheckpoint(
+      new URL("https://example.invalid/checkpoint.th"),
+      partialFile,
+      { expectedBytes: payload.length, timeoutMs: 60_000 },
+      { fetch: fetchRequest },
+    );
+
+    expect(fetchRequest.mock.calls.map(([requestUrl]) => String(requestUrl))).toEqual([
+      "https://example.invalid/checkpoint.th",
+      "https://cdn.example.invalid/checkpoint.th",
+    ]);
+
+    fetchRequest.mockReset();
+    fetchRequest.mockResolvedValueOnce(new Response(null, {
+      status: 302,
+      headers: { location: "http://cdn.example.invalid/checkpoint.th" },
+    }));
+    fs.rmSync(partialFile);
+    await expect(downloadCheckpoint(
+      new URL("https://example.invalid/checkpoint.th"),
+      partialFile,
+      { expectedBytes: payload.length, timeoutMs: 60_000 },
+      { fetch: fetchRequest },
+    )).rejects.toThrow("refusing non-HTTPS checkpoint URL");
+    expect(fetchRequest).toHaveBeenCalledOnce();
+  });
+
+  test("retries an interrupted response from the last written byte", async () => {
+    const payload = Buffer.from("checkpoint");
+    const directory = temporaryDirectory();
+    const partialFile = path.join(directory, "checkpoint.th.partial");
+    let firstRead = true;
+    const interruptedBody = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (firstRead) {
+          firstRead = false;
+          controller.enqueue(payload.subarray(0, 4));
+        } else {
+          controller.error(new Error("connection interrupted"));
+        }
+      },
+    });
+    const fetchRequest = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(interruptedBody))
+      .mockResolvedValueOnce(new Response(payload.subarray(4), {
+        status: 206,
+        headers: { "content-range": `bytes 4-${payload.length - 1}/${payload.length}` },
+      }));
+    const wait = vi.fn(async () => undefined);
+
+    await downloadCheckpoint(
+      new URL("https://example.invalid/checkpoint.th"),
+      partialFile,
+      { expectedBytes: payload.length, timeoutMs: 60_000 },
+      { fetch: fetchRequest, wait },
+    );
+
+    expect(fetchRequest).toHaveBeenCalledTimes(2);
+    expect(wait).toHaveBeenCalledWith(1_000);
+    expect(new Headers(fetchRequest.mock.calls[1]?.[1]?.headers).get("range"))
+      .toBe("bytes=4-");
+    expect(fs.readFileSync(partialFile)).toEqual(payload);
+  });
+
+  test("rejects a mismatched range response", async () => {
+    const payload = Buffer.from("checkpoint");
+    const directory = temporaryDirectory();
+    const partialFile = path.join(directory, "checkpoint.th.partial");
+    fs.writeFileSync(partialFile, payload.subarray(0, 3));
+    const fetchRequest = vi.fn<typeof fetch>().mockResolvedValue(new Response(
+      payload.subarray(3),
+      {
+        status: 206,
+        headers: { "content-range": `bytes 0-${payload.length - 1}/${payload.length}` },
+      },
+    ));
+
+    await expect(downloadCheckpoint(
+      new URL("https://example.invalid/checkpoint.th"),
+      partialFile,
+      { expectedBytes: payload.length, timeoutMs: 60_000 },
+      { fetch: fetchRequest },
+    )).rejects.toThrow("invalid checkpoint content-range");
+    expect(fs.readFileSync(partialFile)).toEqual(payload.subarray(0, 3));
   });
 
   test("does not download a complete partial file", async () => {
@@ -280,16 +403,16 @@ describe("GECToR model preparation", () => {
     const directory = temporaryDirectory();
     const partialFile = path.join(directory, "checkpoint.th.partial");
     fs.writeFileSync(partialFile, payload);
-    const runCurl = vi.fn<CurlRunner>();
+    const fetchRequest = vi.fn<typeof fetch>();
 
     await downloadCheckpoint(
       new URL("https://example.invalid/checkpoint.th"),
       partialFile,
       { expectedBytes: payload.length, timeoutMs: 60_000 },
-      runCurl,
+      { fetch: fetchRequest },
     );
 
-    expect(runCurl).not.toHaveBeenCalled();
+    expect(fetchRequest).not.toHaveBeenCalled();
   });
 
   test("rejects an oversized partial file", async () => {

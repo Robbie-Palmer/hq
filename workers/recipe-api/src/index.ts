@@ -1044,7 +1044,7 @@ app.notFound((c) => c.json({ error: "Not found" }, 404));
 
 registerRoute("get", "/health", (c) => c.json({ status: "ok" }));
 
-registerRoute("get", "/.well-known/agent-configuration", async (c) => {
+registerRoute("get", "/.well-known/agent-configuration", (c) => {
   if (!hasAuthConfiguration(c.env)) {
     return c.json({ error: "Auth configuration is incomplete" }, 503);
   }
@@ -1324,7 +1324,7 @@ type WithDbOptions = {
 function withRecipeApiSpan<T>(
   c: Context<AppEnv>,
   spanName: string,
-  operation: () => Promise<T>,
+  operation: () => Promise<T> | T,
   attributes?: SpanAttributes,
   options?: { flush?: boolean },
 ): Promise<T> {
@@ -1367,7 +1367,7 @@ async function withDatabase(
     const connection = await withRecipeApiSpan(
       c,
       "db.client.create",
-      async () => createDb(connectionString),
+      () => createDb(connectionString),
       { "db.system.name": "postgresql" },
     );
     client = connection.client;
@@ -3694,7 +3694,7 @@ registerRoute("get", "/pantry", async (c) => {
       const pantry = await withRecipeApiSpan(c, "pantry.read.query", () =>
         readPantry(db, session.user.id),
       );
-      return withRecipeApiSpan(c, "http.response.serialize", async () =>
+      return withRecipeApiSpan(c, "http.response.serialize", () =>
         c.json(pantry),
       );
     },
@@ -5026,7 +5026,7 @@ registerRoute("get", "/recipes", async (c) => {
         c,
         !queryResult.authenticated && !hasSessionSignal(c),
       );
-      return withRecipeApiSpan(c, "http.response.serialize", async () =>
+      return withRecipeApiSpan(c, "http.response.serialize", () =>
         c.json(paginated ? { items, nextCursor: page.nextCursor } : items),
       );
     },
@@ -5501,7 +5501,7 @@ registerRoute("get", "/recipes/:slug", async (c) => {
           !queryResult.session &&
           !hasSessionSignal(c),
       );
-      return withRecipeApiSpan(c, "http.response.serialize", async () =>
+      return withRecipeApiSpan(c, "http.response.serialize", () =>
         c.json({
           ...recipeResponse(queryResult.recipe),
           owned: queryResult.session?.user.id === queryResult.recipe.userId,

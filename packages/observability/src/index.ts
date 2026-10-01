@@ -267,7 +267,7 @@ async function flushAfter(
 
 async function runWithoutTelemetry<T>(
   serviceName: string,
-  operation: (span: Span) => Promise<T>,
+  operation: (span: Span) => Promise<T> | T,
 ): Promise<T> {
   const span = trace.getTracer(serviceName).startSpan("noop");
   try {
@@ -353,7 +353,7 @@ export async function withPostHogRequest<T extends Response>(
     waitUntil?: WaitUntilContext;
     attributes?: Attributes;
   },
-  operation: (span: Span) => Promise<T>,
+  operation: (span: Span) => Promise<T> | T,
 ): Promise<T> {
   const state = safelyGetTelemetry(options.env, options.serviceName);
   if (!state) {
@@ -442,7 +442,7 @@ export async function withPostHogSpan<T>(
      */
     flush?: boolean;
   },
-  operation: (span: Span) => Promise<T>,
+  operation: (span: Span) => Promise<T> | T,
 ): Promise<T> {
   const state = safelyGetTelemetry(options.env, options.serviceName);
   if (!state) {

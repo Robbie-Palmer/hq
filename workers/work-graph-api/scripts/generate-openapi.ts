@@ -5,9 +5,10 @@ import { createWorkGraphApp, type WorkGraphApiRepository } from "../src/index";
 const outputPath = fileURLToPath(
   new URL("../openapi.json", import.meta.url).href,
 );
-const unavailable = async (): Promise<never> => {
-  throw new Error("The OpenAPI generator cannot execute repository operations.");
-};
+const unavailable = (): Promise<never> =>
+  Promise.reject(
+    new Error("The OpenAPI generator cannot execute repository operations."),
+  );
 const repository: WorkGraphApiRepository = {
   projectCriticalPath: unavailable,
   listKnowledgeScopes: unavailable,

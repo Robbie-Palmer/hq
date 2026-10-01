@@ -75,8 +75,8 @@ function createNextConfig(phase: string): NextConfig {
     // In production the Cloudflare Pages Function (functions/api/auth/) handles this.
     ...(phase === PHASE_DEVELOPMENT_SERVER
       ? {
-          async rewrites() {
-            return [
+          rewrites() {
+            return Promise.resolve([
               {
                 source: "/.well-known/agent-configuration",
                 destination:
@@ -140,7 +140,7 @@ function createNextConfig(phase: string): NextConfig {
                 source: "/api/recipe-imports/:path*",
                 destination: "http://localhost:8787/recipe-imports/:path*",
               },
-            ];
+            ]);
           },
         }
       : {}),
