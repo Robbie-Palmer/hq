@@ -23,7 +23,8 @@ Cooklang `.cook` or `.cooklang` files, including files in subdirectories.
 Attachments are ignored. Recipe entries use the existing file workflows and
 require independent review and acceptance at `/recipes/import`.
 
-Limits are 1 MB compressed, 5 MB of expanded recipe text, 100 archive entries,
+Upload requests are limited to 8 MB before JSON parsing. The adapter checks the
+50-recipe batch budget after each archive. Limits are 1 MB compressed, 5 MB of expanded recipe text, 100 archive entries,
 50 recipes per batch, 100 KB per recipe, and a 100:1 expansion ratio. Unsafe or
 duplicate paths reject the archive. Oversized or invalid UTF-8 recipe entries
 receive individual diagnostics. Archive names, SHA-256 checksums, entry paths,

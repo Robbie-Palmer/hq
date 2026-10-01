@@ -17,7 +17,7 @@ async function inspectItem(tx: Tx, userId: string, item: typeof jobs.$inferSelec
   const [saved] = await tx.select().from(recipe).where(eq(recipe.id, item.acceptedRecipeId)).for("update");
   if (!saved) return { outcome: "deleted", message: "Recipe already deleted" };
   if (saved.userId !== userId) return { outcome: "preserved", message: "Recipe has been transferred" };
-  if (!item.acceptedRecipeUpdatedAt || saved.updatedAt.getTime() !== item.acceptedRecipeUpdatedAt.getTime()) return { outcome: "preserved", message: "Recipe has been changed since import" };
+  if (saved.updatedAt.getTime() !== item.acceptedRecipeUpdatedAt?.getTime()) return { outcome: "preserved", message: "Recipe has been changed since import" };
   // The recipe lock conflicts with FK insertion by a concurrent fork. Slug-based
   // references are checked under SERIALIZABLE isolation by the caller.
   const references = await tx.execute(sql`select
@@ -38,7 +38,10 @@ export async function previewBatchUndo(db: Db, userId: string, batchId: string) 
     const items = await tx.select().from(jobs).where(and(eq(jobs.batchId, batchId), eq(jobs.reviewState, "accepted"))).orderBy(jobs.position);
     const results = [];
     for (const item of items) results.push({ itemId: item.id, label: item.sourceLabel, recipeId: item.acceptedRecipeSnapshotId, ...(item.undoOutcome ? { outcome: item.undoOutcome, message: item.undoMessage } : await inspectItem(tx, userId, item)) });
-    return { state: batch.undoCompletedAt ? "completed" : batch.undoStartedAt ? "running" : "preview", items: results };
+    let state = "preview";
+    if (batch.undoStartedAt) state = "running";
+    if (batch.undoCompletedAt) state = "completed";
+    return { state, items: results };
   });
 }
 

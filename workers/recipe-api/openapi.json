@@ -6965,6 +6965,16 @@
               }
             }
           },
+          "413": {
+            "description": "Error (413)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "415": {
             "description": "Error (415)",
             "content": {

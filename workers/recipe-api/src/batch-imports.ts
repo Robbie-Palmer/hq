@@ -65,8 +65,11 @@ function sourceState(error: string | undefined) {
 
 async function prepareSources(input: ReturnType<typeof CreateBatchSchema.parse>) {
   const expanded: { source: BatchSource; provenance?: ArchiveEntry }[] = [];
-  for (const source of input.sources) expanded.push(...await expandSource(source));
-  if (expanded.length > 50) throw new BatchImportError("A batch can contain at most 50 recipes", 400);
+  for (const source of input.sources) {
+    const entries = await expandSource(source);
+    if (expanded.length + entries.length > 50) throw new BatchImportError("A batch can contain at most 50 recipes", 400);
+    expanded.push(...entries);
+  }
   const sources = expanded.map(value => value.source);
   const preflight = preflightSources(sources);
   for (const [index, value] of expanded.entries()) {
@@ -147,10 +150,7 @@ export async function createBatch(
       artifacts,
       userId,
       batch.id,
-      sources,
-      preflight,
-      expanded.map(value => value.provenance),
-      input.duplicatePolicy,
+      { sources, preflight, provenance: expanded.map(value => value.provenance), duplicatePolicy: input.duplicatePolicy },
     );
     return batch;
   });
@@ -179,11 +179,14 @@ async function storeBatchSources(
   artifacts: R2Bucket,
   userId: string,
   batchId: string,
-  sources: BatchSource[],
-  preflight: ReturnType<typeof preflightSources>,
-  provenance: (ArchiveEntry | undefined)[],
-  duplicatePolicy: "skip" | "allow",
+  preparation: {
+    sources: BatchSource[];
+    preflight: ReturnType<typeof preflightSources>;
+    provenance: (ArchiveEntry | undefined)[];
+    duplicatePolicy: "skip" | "allow";
+  },
 ) {
+  const { sources, preflight, provenance, duplicatePolicy } = preparation;
   const seen = new Set<string>();
   for (const [position, source] of sources.entries()) {
     const id = crypto.randomUUID();

@@ -2037,6 +2037,14 @@ describe("durable recipe batches", () => {
     const ordinary = await authenticatedRequest(cook, "/recipe-import-batches", { method: "POST", body: { idempotencyKey: crypto.randomUUID(), sources: sources().slice(0, 1) }, env: service.env });
     const ordinaryBatch = await ordinary.json() as { id: string };
     expect((await authenticatedRequest(cook, `/recipe-import-batches/${ordinaryBatch.id}/undo`, { env: service.env })).status).toBe(409);
+    const oversized = await app.request("/recipe-import-batches", { method: "POST", headers: { "content-type": "application/json", "content-length": "8000001", origin: authOrigin, cookie: cook.cookie }, body: "{}" }, service.env);
+    expect(oversized.status).toBe(413);
+    const oversizedStream = await app.request("/recipe-import-batches", { method: "POST", headers: { "content-type": "application/json", origin: authOrigin, cookie: cook.cookie }, body: "a".repeat(8_000_001) }, service.env);
+    expect(oversizedStream.status).toBe(413);
+    const fullCollection = collectionSource(Object.fromEntries(Array.from({ length: 50 }, (_, i) => [`${i}.cook`, draft.source])));
+    const tooMany = await authenticatedRequest(cook, "/recipe-import-batches", { method: "POST", body: { idempotencyKey: crypto.randomUUID(), sources: [fullCollection, fullCollection, { type: "archive", filename: "invalid.zip", content: "AAAA" }] }, env: service.env });
+    expect(tooMany.status).toBe(400);
+    expect(await tooMany.json()).toMatchObject({ error: "A batch can contain at most 50 recipes" });
     const malformed = await authenticatedRequest(cook, "/recipe-import-batches", { method: "POST", body: { idempotencyKey: crypto.randomUUID(), sources: [{ type: "archive", filename: "bad.zip", content: "AAAA" }] }, env: service.env });
     expect(malformed.status).toBe(400);
   });

@@ -21,6 +21,7 @@ import {
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Context, Handler } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import {
   injectTraceContext,
   traceCarrierFromHeaders,
@@ -207,6 +208,7 @@ type SpanAttributes = Record<string, boolean | number | string>;
 extendZodWithOpenApi(z);
 
 const app = new OpenAPIHono<AppEnv>();
+app.use("/recipe-import-batches", bodyLimit({ maxSize: 8_000_000, onError: c => c.json({ error: "Batch request exceeds 8 MB" }, 413) }));
 
 const previewSignInBodySchema = z.object({
   scenario: z.string().trim().min(1).max(100),
@@ -792,7 +794,7 @@ export const routeMetadata = {
   },
   "GET /recipe-imports": {},
   "GET /recipe-imports/:jobId": {},
-  "POST /recipe-import-batches": { requestBodySchema: CreateBatchSchema, successStatuses: [201] },
+  "POST /recipe-import-batches": { requestBodySchema: CreateBatchSchema, successStatuses: [201], additionalErrorStatuses: [413] },
   "GET /recipe-import-batches/:batchId/undo": {},
   "PUT /recipe-import-batches/:batchId/undo": { requestBodySchema: z.object({ state: z.literal("started") }), successStatuses: [202] },
   "GET /recipe-import-batches": {},

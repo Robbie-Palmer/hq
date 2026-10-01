@@ -23,7 +23,7 @@ async function readRecipeFile(file: File): Promise<CaptureSource> {
     if (file.size > 1_000_000) throw new Error(`${file.name} exceeds 1 MB`);
     const bytes = new Uint8Array(await file.arrayBuffer());
     let binary = "";
-    for (const value of bytes) binary += String.fromCharCode(value);
+    for (const value of bytes) binary += String.fromCodePoint(value);
     return { type: "archive", filename: file.name, content: btoa(binary) };
   }
   if (file.size > 100000) throw new Error(`${file.name} exceeds 100 KB`);

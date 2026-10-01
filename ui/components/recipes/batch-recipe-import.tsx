@@ -65,7 +65,7 @@ function BatchItemReview({
   return (
     <>
       {item.archive && (
-        <p className="my-3 text-sm text-[var(--ink-3)]">
+        <p className="my-3 break-all text-sm text-[var(--ink-3)]">
           Imported from {item.archive.archiveName} / {item.archive.entryPath}.
           Archive checksum: {item.archive.archiveChecksum}
         </p>

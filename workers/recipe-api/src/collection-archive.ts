@@ -25,7 +25,7 @@ function appendText(entry: { content: string; error?: string }, decoder: TextDec
 
 // Only recipe text is retained, using the existing import-source retention policy.
 export async function expandCooklangArchive(input: z.infer<typeof ArchiveSourceSchema>): Promise<ArchiveEntry[]> {
-  const bytes = Uint8Array.from(atob(input.content), value => value.charCodeAt(0));
+  const bytes = Uint8Array.from(atob(input.content), value => value.codePointAt(0) ?? 0);
   if (bytes.length > 1_000_000) throw new Error("Archive exceeds 1 MB");
   const checksum = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), value => value.toString(16).padStart(2, "0")).join("");
   const entries: { path: string; content: string; error?: string }[] = [];
@@ -36,7 +36,7 @@ export async function expandCooklangArchive(input: z.infer<typeof ArchiveSourceS
   const unzip = new Unzip(file => {
     if (++count > 100) throw new Error("Archive exceeds 100 entries");
     const path = file.name.normalize("NFC");
-    if (path.length > 255 || (path.includes("\\") || path.includes(":") || Array.from(path).some(character => character.charCodeAt(0) < 32)) || path.startsWith("/") || path.split("/").some(part => part === "." || part === "..")) throw new Error("Unsafe archive entry path");
+    if (path.length > 255 || (path.includes("\\") || path.includes(":") || Array.from(path).some(character => (character.codePointAt(0) ?? 0) < 32)) || path.startsWith("/") || path.split("/").some(part => part === "." || part === "..")) throw new Error("Unsafe archive entry path");
     if (paths.has(path.toLowerCase())) throw new Error("Duplicate archive entry path");
     paths.add(path.toLowerCase());
     if (!/\.(cook|cooklang)$/i.test(path)) return;
