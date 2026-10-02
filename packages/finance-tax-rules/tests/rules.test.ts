@@ -50,6 +50,19 @@ describe("salary validation corpus", () => {
     ).toBe(true);
   });
 
+  it("rejects source hosts that merely end with the government suffix", () => {
+    const maliciousCorpus = {
+      ...validationCorpus,
+      sources: validationCorpus.sources.map((source, index) =>
+        index === 0 ? { ...source, url: "https://notgov.uk/payroll-rules" } : source,
+      ),
+    };
+
+    expect(() => validateValidationCorpus(maliciousCorpus)).toThrow(
+      "is not an official government source",
+    );
+  });
+
   it("reports component mismatches and refuses annual precision for payroll", () => {
     const fixture = validationCorpus.fixtures.find(
       ({ id }) => id === "payroll-monthly-br",

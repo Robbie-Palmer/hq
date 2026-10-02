@@ -159,8 +159,9 @@ export function validateValidationCorpus(input: unknown): ValidationCorpus {
   const sourceIds = new Set(corpus.sources.map(({ id }) => id));
   assert(sourceIds.size === corpus.sources.length, "Validation source IDs must be unique");
   for (const source of corpus.sources) {
+    const hostname = new URL(source.url).hostname;
     assert(
-      new URL(source.url).hostname.endsWith("gov.uk"),
+      hostname === "gov.uk" || hostname.endsWith(".gov.uk"),
       `${source.id} is not an official government source`,
     );
   }
