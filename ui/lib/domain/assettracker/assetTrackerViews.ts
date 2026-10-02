@@ -80,7 +80,7 @@ export type AccountDetailView = AccountSummaryView & {
   closedAt?: string;
   expectedReturnChanges?: ExpectedReturnChange[];
   linkedAccountId?: string;
-  mortgageTerms?: Account["mortgageTerms"];
+  mortgageTerms?: NonNullable<Account["mortgageTerms"]>;
   snapshots: BalanceSnapshotView[];
   capitalFlows: { date: string; amount: number; kind?: CapitalFlowKind }[];
   /** Deposits minus withdrawals recorded across the account history */

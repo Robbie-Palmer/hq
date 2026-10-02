@@ -184,7 +184,7 @@ function portfolioMortgageCashFlow(
     ),
     payoffDate: summaries
       .map((summary) => summary.payoffDate)
-      .toSorted()
+      .toSorted((a, b) => a.localeCompare(b))
       .at(-1) as string,
   };
 }
