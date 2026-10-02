@@ -290,11 +290,17 @@ function requestUrl(
   return url.toString();
 }
 
-function retryMilliseconds(response: Response, attempt: number): number {
+const MAX_RETRY_DELAY_MS = 60_000;
+const REQUEST_TIMEOUT_MS = 30_000;
+
+function retryMilliseconds(response: Response, attempt: number): number | null {
   const retryAfter = response.headers.get("retry-after");
   const seconds = retryAfter == null ? Number.NaN : Number(retryAfter);
-  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1_000;
-  return 250 * 2 ** attempt;
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    const milliseconds = seconds * 1_000;
+    return milliseconds <= MAX_RETRY_DELAY_MS ? milliseconds : null;
+  }
+  return Math.min(250 * 2 ** attempt, MAX_RETRY_DELAY_MS);
 }
 
 async function fetchWithRetry(input: {
@@ -307,11 +313,14 @@ async function fetchWithRetry(input: {
   while (true) {
     const response = await input.fetch(input.url, {
       headers: { accept: "application/json" },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     const canRetry = response.status === 429 || response.status === 503;
     if (!canRetry || attempt >= input.maxRetries) return response;
+    const delay = retryMilliseconds(response, attempt);
+    if (delay == null) return response;
     // NOSONAR: each retry must wait for the provider's backoff interval.
-    await input.retryDelay(retryMilliseconds(response, attempt));
+    await input.retryDelay(delay);
     attempt += 1;
   }
 }

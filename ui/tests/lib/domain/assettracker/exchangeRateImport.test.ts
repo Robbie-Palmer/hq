@@ -211,8 +211,36 @@ describe("historical exchange-rate import", () => {
     });
 
     expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
     expect(retryDelay).toHaveBeenCalledWith(2_000);
     expect(result.observations).toHaveLength(1);
+  });
+
+  it("returns excessive retry-after responses without waiting", async () => {
+    const fetch = vi.fn(async () =>
+      jsonResponse({ error: "slow down" }, 429, {
+        "retry-after": "61",
+      }),
+    );
+    const retryDelay = vi.fn(async () => undefined);
+
+    const result = await importHistoricalExchangeRates({
+      pairs: [{ fromCurrency: "GBP", toCurrency: "USD" }],
+      from: "2026-09-30",
+      to: "2026-09-30",
+      retrievedAt,
+      fetch,
+      retryDelay,
+    });
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(retryDelay).not.toHaveBeenCalled();
+    expect(result.failures).toEqual([
+      expect.objectContaining({
+        kind: "quota_exceeded",
+        retryAfter: "61",
+      }),
+    ]);
   });
 
   it("returns quota and provider outage states without changing observations", async () => {
