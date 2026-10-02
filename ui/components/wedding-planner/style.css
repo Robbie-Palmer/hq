@@ -1048,6 +1048,82 @@
   max-width: 310px;
   margin: 0 0 20px;
 }
+.table-setup-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: 20px;
+  align-items: start;
+}
+.table-capacities {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+  max-height: 300px;
+  overflow: auto;
+}
+.table-apply-capacity {
+  grid-column: 1 / -1;
+}
+.table-guest-list {
+  max-height: 400px;
+  overflow: auto;
+  margin-top: 12px;
+}
+.table-guest-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 135px 90px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+.table-guest-row small {
+  display: block;
+  color: var(--soft-ink);
+}
+.table-top-choice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.table-preferences {
+  margin-top: 20px;
+}
+.table-results {
+  margin: 20px 0;
+}
+.table-preferences .sharing-decisions .pair-choice {
+  min-height: 34px;
+}
+.table-results h3 {
+  font-family: Georgia, serif;
+  font-size: 25px;
+  font-weight: 400;
+}
+.table-result-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin: 16px 0;
+}
+.table-result-top {
+  border-color: var(--ink);
+}
+.table-seat-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  font-size: 13px;
+}
+.table-seat-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 @media (max-width: 1000px) {
   .editor-shell {
     grid-template-columns: 210px minmax(0, 1fr);
@@ -1063,6 +1139,9 @@
   }
   .guest-layout {
     grid-template-columns: 220px minmax(0, 1fr);
+  }
+  .table-setup-grid {
+    grid-template-columns: 1fr;
   }
 }
 @media (max-width: 760px) {
@@ -1156,6 +1235,12 @@
   .result-summary,
   .result-columns {
     grid-template-columns: 1fr;
+  }
+  .table-guest-row {
+    grid-template-columns: minmax(0, 1fr) 130px;
+  }
+  .table-top-choice {
+    grid-column: 1 / -1;
   }
   .save-status {
     font-size: 0;

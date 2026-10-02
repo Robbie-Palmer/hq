@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { AccommodationEditor } from "@/components/wedding-planner/accommodation-editor";
+import type { PlannerApplication } from "@/lib/wedding-planner/application";
 import { calculateRooms } from "@/lib/wedding-planner/calculate";
-import type { PlannerSource } from "@/lib/wedding-planner/source";
+import {
+  editorStateToPlan,
+  toEditorState,
+} from "@/lib/wedding-planner/editor-projection";
+import { solveTables } from "@/lib/wedding-planner/solve-tables";
+import { buildTableInput } from "@/lib/wedding-planner/table-state";
 import type { Guest, State } from "@/lib/wedding-planner/types";
 import { fireEvent, render, screen, waitFor, within } from "@/tests/test-utils";
 
@@ -37,52 +43,289 @@ function guest(id: string, name: string, changes: Partial<Guest> = {}): Guest {
 }
 
 function sampleState(): State {
-  return {
-    nights: 1,
-    guests: [
-      guest("linen-a", "Alex", {
-        fixed_bed_group_id: "linen-a",
-        fixed_room_id: "linen_1",
-      }),
-      guest("linen-b", "Blair", {
-        fixed_bed_group_id: "linen-a",
-        fixed_room_id: "linen_1",
-      }),
-      guest("casey", "Casey", { source_party: "friends" }),
-      guest("drew", "Drew", { source_party: "friends" }),
-    ],
-    payment_modes: {
-      venue: "couple",
-      black_sheep: "guests",
-      river_side: "guests",
-      linen: "guests",
-    },
-    cottage_options: {
-      black_sheep: { availability: "available", booking_by: "couple" },
-      river_side: { availability: "available", booking_by: "couple" },
-    },
-    cottage_paid_by_us_gbp: { black_sheep: "0", river_side: "0", linen: "150" },
-    reservations: {
-      linen_1: { guest_ids: ["linen-a", "linen-b"], approved_guest_ids: [] },
-    },
-    reviewed_non_couples: [],
-    suite_billing_modes: {},
-    guest_charge_cap_gbp: "",
-    max_cottage_spend_gbp: "",
-    default_outside_cost_gbp: "",
-    optimization_mode: "priority_first",
-  };
+  return toEditorState(
+    editorStateToPlan({
+      nights: 1,
+      guests: [
+        guest("linen-a", "Alex", {
+          fixed_bed_group_id: "linen-a",
+          fixed_room_id: "linen_1",
+        }),
+        guest("linen-b", "Blair", {
+          fixed_bed_group_id: "linen-a",
+          fixed_room_id: "linen_1",
+        }),
+        guest("casey", "Casey", { source_party: "friends" }),
+        guest("drew", "Drew", { source_party: "friends" }),
+      ],
+      payment_modes: {
+        venue: "couple",
+        black_sheep: "guests",
+        river_side: "guests",
+        linen: "guests",
+      },
+      cottage_options: {
+        black_sheep: { availability: "available", booking_by: "couple" },
+        river_side: { availability: "available", booking_by: "couple" },
+      },
+      cottage_paid_by_us_gbp: {
+        black_sheep: "0",
+        river_side: "0",
+        linen: "150",
+      },
+      reservations: {
+        linen_1: { guest_ids: ["linen-a", "linen-b"], approved_guest_ids: [] },
+      },
+      reviewed_non_couples: [],
+      suite_billing_modes: {},
+      guest_charge_cap_gbp: "",
+      max_cottage_spend_gbp: "",
+      default_outside_cost_gbp: "",
+      optimization_mode: "priority_first",
+    }),
+  );
 }
 
 describe("accommodation editor", () => {
-  it("records bed, guest, sharing, and price choices across its sections", async () => {
-    const save = vi.fn<PlannerSource["save"]>().mockResolvedValue();
-    const source: PlannerSource = {
+  it("reviews sharing suggestions and preserves manual seating decisions", async () => {
+    const state = sampleState();
+    state.guests.find(
+      (person) => person.id === "casey",
+    )!.may_share_cottage_with = ["drew", "linen-a"];
+    state.guests.find(
+      (person) => person.id === "drew",
+    )!.may_share_cottage_with = ["linen-b"];
+    state.guests[0]!.avoid_table_with = ["casey"];
+    const save = vi.fn<PlannerApplication["save"]>().mockResolvedValue();
+    const application: PlannerApplication = {
+      load: vi.fn().mockResolvedValue(state),
+      save,
+      calculateRooms,
+      calculateTables: (state) => solveTables(buildTableInput(state)),
+    };
+    render(<AccommodationEditor application={application} />);
+    await screen.findByText("Who shares a bed?");
+    fireEvent.click(screen.getByRole("button", { name: "Tables" }));
+    expect(
+      screen.getByRole("button", { name: "Accept all 2 sharing suggestions" }),
+    ).toBeInTheDocument();
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Table preferences for guest" }),
+      { target: { value: "casey" } },
+    );
+    expect(
+      screen.getByText("Suggested from cottage sharing"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Accept sharing suggestion for Casey and Drew",
+      }),
+    );
+    const pair = screen.getByRole("group", {
+      name: "Casey and Drew table preference",
+    });
+    expect(
+      within(pair).getByRole("button", { name: "Love to sit together" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(
+      within(pair).getByRole("button", { name: "No preference" }),
+    );
+    expect(
+      screen.queryByText("Suggested from cottage sharing"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Accept all 1 sharing suggestion" }),
+    );
+    await waitFor(() => expect(save).toHaveBeenCalled());
+    const saved = save.mock.lastCall![0];
+    expect(
+      saved.guests.find((person) => person.id === "drew")?.prefer_table_with,
+    ).toEqual(["linen-b"]);
+    expect(saved.guests[0]?.avoid_table_with).toEqual(["casey"]);
+    expect(saved.dismissed_accommodation_suggestions).toEqual([
+      ["casey", "drew"],
+    ]);
+    expect(
+      saved.guests.find((person) => person.id === "casey")
+        ?.may_share_cottage_with,
+    ).toEqual(["drew", "linen-a"]);
+  });
+  it("saves and calculates tables from shared guest choices and clears stale results", async () => {
+    const state = sampleState();
+    for (const person of state.guests) person.attendance = "yes";
+    const save = vi.fn<PlannerApplication["save"]>().mockResolvedValue();
+    const application: PlannerApplication = {
+      calculateTables: (state) => solveTables(buildTableInput(state)),
+      load: vi.fn().mockResolvedValue(state),
+      save,
+      calculateRooms: calculateRooms,
+    };
+    render(<AccommodationEditor application={application} />);
+    await screen.findByText("Who shares a bed?");
+    fireEvent.click(screen.getByRole("button", { name: "Tables" }));
+    fireEvent.change(
+      screen.getByRole("spinbutton", { name: "Number of guest tables" }),
+      { target: { value: "2" } },
+    );
+    fireEvent.change(
+      screen.getByRole("spinbutton", { name: "Seats per guest table" }),
+      { target: { value: "2" } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Apply to all guest tables" }),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Casey at top table" }),
+    );
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Table preferences for guest" }),
+      { target: { value: "linen-a" } },
+    );
+    fireEvent.click(
+      within(
+        screen.getByRole("group", { name: "Alex and Drew table preference" }),
+      ).getByRole("button", { name: "Keep apart" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Calculate tables" }));
+    const result = await screen.findByRole("region", {
+      name: "Calculated table plan",
+    });
+    expect(within(result).getByText("Top table")).toBeInTheDocument();
+    expect(within(result).getByText("Casey")).toBeInTheDocument();
+    const saved = save.mock.lastCall?.[0];
+    expect(saved?.table_plan?.top_table_guest_ids).toEqual(["casey"]);
+    expect(saved?.table_plan?.table_capacities).toEqual([2, 2]);
+    expect(
+      saved?.guests.find((person) => person.id === "drew")?.avoid_table_with,
+    ).toEqual(["linen-a"]);
+    expect(saved?.guests[0]?.fixed_bed_group_id).toBe("linen-a");
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Casey wedding attendance" }),
+      { target: { value: "no" } },
+    );
+    expect(
+      screen.queryByRole("region", { name: "Calculated table plan" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "Casey at top table" }),
+    ).not.toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Calculate tables" }));
+    await screen.findByRole("region", { name: "Calculated table plan" });
+    expect(save.mock.lastCall?.[0].table_plan?.top_table_guest_ids).toEqual([]);
+  });
+
+  it("explains insufficient table capacity and recalculates after adding tables", async () => {
+    const state = sampleState();
+    for (const person of state.guests) person.attendance = "yes";
+    state.table_plan = {
+      top_table_capacity: 2,
+      top_table_guest_ids: [],
+      table_capacities: [2],
+    };
+    const application: PlannerApplication = {
+      calculateTables: (state) => solveTables(buildTableInput(state)),
+      load: vi.fn().mockResolvedValue(state),
+      save: vi.fn<PlannerApplication["save"]>().mockResolvedValue(),
+      calculateRooms: calculateRooms,
+    };
+    render(<AccommodationEditor application={application} />);
+    await screen.findByText("Who shares a bed?");
+    fireEvent.click(screen.getByRole("button", { name: "Tables" }));
+    fireEvent.click(screen.getByRole("button", { name: "Calculate tables" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("only 2");
+    fireEvent.change(
+      screen.getByRole("spinbutton", { name: "Number of guest tables" }),
+      { target: { value: "2" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Calculate tables" }));
+    expect(
+      await screen.findByRole("region", { name: "Calculated table plan" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("loads the sample from the empty-state action and persists wedding roles", async () => {
+    const save = vi.fn<PlannerApplication["save"]>().mockResolvedValue();
+    const application: PlannerApplication = {
+      load: vi.fn().mockResolvedValue(null),
+      save,
+      calculateRooms,
+      calculateTables: (state) => solveTables(buildTableInput(state)),
+    };
+    render(<AccommodationEditor application={application} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Try sample plan" }),
+    );
+    await screen.findByText(/26 fictional guests/);
+    expect(save.mock.lastCall?.[0].guests).toHaveLength(26);
+    fireEvent.click(screen.getByRole("button", { name: /Guests/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Casey Brooks.*Staying/ }),
+    );
+    expect(
+      screen.getByRole("checkbox", { name: "Casey Brooks: Bridesmaid" }),
+    ).toBeChecked();
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: "Casey Brooks: Parent of the groom",
+      }),
+    );
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    expect(
+      save.mock.lastCall?.[0].guests.find((guest) => guest.id === "casey")
+        ?.wedding_roles,
+    ).toEqual(["bridesmaid", "parent_of_groom"]);
+    fireEvent.click(screen.getByRole("button", { name: "Tables" }));
+    expect(
+      screen.getByText("Bridesmaid · Parent of the groom"),
+    ).toBeInTheDocument();
+  });
+
+  it("records partners independently of their own-bed choices", async () => {
+    const save = vi.fn<PlannerApplication["save"]>().mockResolvedValue();
+    const application: PlannerApplication = {
       load: vi.fn().mockResolvedValue(sampleState()),
       save,
-      solve: calculateRooms,
+      calculateRooms,
+      calculateTables: (state) => solveTables(buildTableInput(state)),
     };
-    render(<AccommodationEditor source={source} />);
+    render(<AccommodationEditor application={application} />);
+    await screen.findByText("Who shares a bed?");
+    fireEvent.click(screen.getByRole("button", { name: /Guests/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Casey.*Staying/ }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Casey partner" }), {
+      target: { value: "drew" },
+    });
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /Needs their own double bed/ }),
+    );
+    expect(screen.getByRole("combobox", { name: "Casey partner" })).toHaveValue(
+      "drew",
+    );
+    await waitFor(() => expect(save).toHaveBeenCalled());
+    const saved = save.mock.lastCall![0];
+    expect(
+      saved.guests.find((person) => person.id === "casey")?.requires_own_bed,
+    ).toBe(true);
+    expect(saved.couples).toContainEqual({
+      id: JSON.stringify(["casey", "drew"]),
+      guest_ids: ["casey", "drew"],
+    });
+    expect(
+      buildTableInput(saved).guests.find((person) => person.id === "drew")
+        ?.partner_id,
+    ).toBe("casey");
+  });
+
+  it("records bed, guest, sharing, and price choices across its sections", async () => {
+    const save = vi.fn<PlannerApplication["save"]>().mockResolvedValue();
+    const application: PlannerApplication = {
+      calculateTables: (state) => solveTables(buildTableInput(state)),
+      load: vi.fn().mockResolvedValue(sampleState()),
+      save,
+      calculateRooms: calculateRooms,
+    };
+    render(<AccommodationEditor application={application} />);
 
     expect(await screen.findByText("Casey & Drew")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Not a couple" }));
@@ -140,15 +383,16 @@ describe("accommodation editor", () => {
   });
 
   it("imports a plan after reporting an invalid file", async () => {
-    const save = vi.fn<PlannerSource["save"]>().mockResolvedValue();
-    const source: PlannerSource = {
+    const save = vi.fn<PlannerApplication["save"]>().mockResolvedValue();
+    const application: PlannerApplication = {
+      calculateTables: (state) => solveTables(buildTableInput(state)),
       load: vi.fn().mockResolvedValue(null),
       save,
-      solve: vi.fn(),
+      calculateRooms: vi.fn(),
     };
-    render(<AccommodationEditor source={source} />);
+    render(<AccommodationEditor application={application} />);
     expect(
-      await screen.findByText("Bring in your room plan"),
+      await screen.findByText("Start your wedding plan"),
     ).toBeInTheDocument();
     const input = screen.getByLabelText("Choose a wedding room plan");
     const invalid = Object.assign(new File(["{}"], "invalid.json"), {
@@ -173,19 +417,20 @@ describe("accommodation editor", () => {
   });
 
   it("flushes a pending edit before calculating", async () => {
-    const save = vi.fn<PlannerSource["save"]>().mockResolvedValue();
+    const save = vi.fn<PlannerApplication["save"]>().mockResolvedValue();
     const solve = vi
-      .fn<PlannerSource["solve"]>()
+      .fn<PlannerApplication["calculateRooms"]>()
       .mockImplementation(async (state) => {
         expect(save).toHaveBeenCalledWith(state);
         return calculateRooms(state);
       });
-    const source: PlannerSource = {
+    const application: PlannerApplication = {
+      calculateTables: (state) => solveTables(buildTableInput(state)),
       load: vi.fn().mockResolvedValue(sampleState()),
       save,
-      solve,
+      calculateRooms: solve,
     };
-    render(<AccommodationEditor source={source} />);
+    render(<AccommodationEditor application={application} />);
     await screen.findByText("Who shares a bed?");
     fireEvent.click(screen.getByRole("button", { name: /Rooms & costs/ }));
     fireEvent.change(

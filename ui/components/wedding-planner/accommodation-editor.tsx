@@ -13,6 +13,7 @@ import {
   Waypoints,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { weddingRolesLabel } from "wedding-planner-domain";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +26,21 @@ import {
 import { Input } from "@/components/ui/input";
 import { formatMinorCurrency } from "@/lib/generic/money";
 import { cn } from "@/lib/generic/styles";
-import { browserPlannerSource } from "@/lib/wedding-planner/browser-source";
+import {
+  browserPlannerApplication,
+  type PlannerApplication,
+} from "@/lib/wedding-planner/application";
+import { loadEditorPlan } from "@/lib/wedding-planner/bootstrap";
+import {
+  editorStateToPlan,
+  toEditorState,
+} from "@/lib/wedding-planner/editor-projection";
+import { setWeddingRoles } from "@/lib/wedding-planner/guest-state";
+import {
+  decodeWeddingPlan,
+  encodeWeddingPlan,
+} from "@/lib/wedding-planner/plan-codec";
+import { createSampleWeddingPlan } from "@/lib/wedding-planner/sample-plan";
 import { weddingAccommodationSetup } from "@/lib/wedding-planner/setup";
 import {
   pairDecision as getPairDecision,
@@ -35,8 +50,7 @@ import {
   setPartner as setPartnerInState,
   setShareMode as setShareModeInState,
 } from "@/lib/wedding-planner/sharing";
-import type { PlannerSource } from "@/lib/wedding-planner/source";
-import { parseState } from "@/lib/wedding-planner/state";
+import { setCouple } from "@/lib/wedding-planner/table-state";
 import type {
   Allocation,
   BedGroup,
@@ -45,6 +59,7 @@ import type {
   PartyName,
   SharingLevel,
   State,
+  TableAllocation,
 } from "@/lib/wedding-planner/types";
 import {
   type BookingParty,
@@ -56,6 +71,7 @@ import {
   ShareModeSchema,
 } from "@/lib/wedding-planner/values";
 import { DataControls } from "./data-controls";
+import { GuestRoles } from "./guest-roles";
 import { ResultPlan } from "./result-plan";
 import {
   bookingDiscountPercent,
@@ -67,11 +83,12 @@ import {
   roomName,
   venueRooms,
 } from "./room-data";
+import { TableEditor } from "./table-editor";
 
 const initialFilter = "all";
 
 async function persistPlan(
-  source: PlannerSource,
+  application: PlannerApplication,
   state: State,
   version: number,
   currentVersion: () => number,
@@ -79,7 +96,7 @@ async function persistPlan(
   onFailure: (message: string) => void,
 ): Promise<void> {
   try {
-    await source.save(state);
+    await application.save(state);
     if (currentVersion() === version) onSaved();
   } catch (cause) {
     if (currentVersion() === version)
@@ -190,6 +207,7 @@ const plannerSections = [
   { id: "sharing", label: "Sharing map", icon: Waypoints },
   { id: "plan", label: "Rooms & costs", icon: House },
   { id: "result", label: "Room plan", icon: Sparkles },
+  { id: "tables", label: "Tables", icon: Users },
 ] as const;
 
 type EditorView = (typeof plannerSections)[number]["id"];
@@ -227,12 +245,8 @@ function PlannerNavigation({
 }
 
 function selectedGuestConnections(selected: Guest | null, guests: Guest[]) {
-  const partner = selected?.fixed_bed_group_id
-    ? guests.find(
-        (guest) =>
-          guest.id !== selected.id &&
-          guest.fixed_bed_group_id === selected.fixed_bed_group_id,
-      )
+  const partner = selected?.partner_id
+    ? guests.find((guest) => guest.id === selected.partner_id)
     : null;
   const companions = selected?.source_party
     ? guests.filter(
@@ -241,7 +255,14 @@ function selectedGuestConnections(selected: Guest | null, guests: Guest[]) {
           guest.source_party === selected.source_party,
       )
     : [];
-  return { partner, companions };
+  const bedPartner = selected?.fixed_bed_group_id
+    ? guests.find(
+        (guest) =>
+          guest.id !== selected.id &&
+          guest.fixed_bed_group_id === selected.fixed_bed_group_id,
+      )
+    : null;
+  return { partner, bedPartner, companions };
 }
 
 function canFocusGroup(
@@ -364,9 +385,9 @@ function ResultView({
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: View-specific JSX remains in one editor while navigation and results are separate components.
 export function AccommodationEditor({
-  source = browserPlannerSource,
+  application = browserPlannerApplication,
 }: Readonly<{
-  source?: PlannerSource;
+  application?: PlannerApplication;
 }>) {
   const [state, setState] = useState<State | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -388,14 +409,19 @@ export function AccommodationEditor({
   const [partyNames, setPartyNames] = useState<PartyName[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [tableAllocation, setTableAllocation] =
+    useState<TableAllocation | null>(null);
+  const [tableBusy, setTableBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const editVersion = useRef(0);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const pendingSaveTimer = useRef<number | null>(null);
 
   useEffect(() => {
-    source
-      .load()
+    loadEditorPlan(
+      application,
+      new URLSearchParams(window.location.search).get("demo") === "1",
+    )
       .then((data) => {
         setState(data);
         setSelectedId(data?.guests[0]?.id ?? null);
@@ -405,16 +431,35 @@ export function AccommodationEditor({
       })
       .catch((cause: Error) => setError(cause.message))
       .finally(() => setLoading(false));
-  }, [source]);
+  }, [application]);
+
+  async function loadSamplePlan() {
+    const sample = toEditorState(createSampleWeddingPlan());
+    try {
+      await application.save(sample);
+      setState(sample);
+      setSelectedId(sample.guests[0]?.id ?? null);
+      setSaveStatus("Saved in this browser");
+      setError("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
 
   function update(change: (draft: State) => void) {
+    setTableAllocation(null);
     setAllocation(null);
     setReport("");
     setWarnings([]);
     setState((previous) => {
       if (!previous) return previous;
       const draft = structuredClone(previous);
-      change(draft);
+      try {
+        change(draft);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+        return previous;
+      }
       editVersion.current += 1;
       setSaveStatus("Saving…");
       setError("");
@@ -429,7 +474,7 @@ export function AccommodationEditor({
       pendingSaveTimer.current = null;
       saveQueue.current = saveQueue.current.then(() =>
         persistPlan(
-          source,
+          application,
           state,
           version,
           () => editVersion.current,
@@ -446,12 +491,24 @@ export function AccommodationEditor({
       window.clearTimeout(timer);
       if (pendingSaveTimer.current === timer) pendingSaveTimer.current = null;
     };
-  }, [state, saveStatus, source]);
+  }, [state, saveStatus, application]);
 
   function cancelPendingSave() {
     if (pendingSaveTimer.current === null) return;
     window.clearTimeout(pendingSaveTimer.current);
     pendingSaveTimer.current = null;
+  }
+
+  async function saveBeforeCalculation(plan: State, version: number) {
+    cancelPendingSave();
+    await saveQueue.current;
+    try {
+      await application.save(plan);
+    } catch (cause) {
+      if (editVersion.current === version) setSaveStatus("Save failed");
+      throw cause;
+    }
+    if (editVersion.current === version) setSaveStatus("Saved in this browser");
   }
 
   async function calculate() {
@@ -462,16 +519,8 @@ export function AccommodationEditor({
     setError("");
     setView("result");
     try {
-      await saveQueue.current;
-      try {
-        await source.save(state);
-      } catch (cause) {
-        setSaveStatus("Save failed");
-        throw cause;
-      }
-      if (editVersion.current === version)
-        setSaveStatus("Saved in this browser");
-      const result = await source.solve(state);
+      await saveBeforeCalculation(state, version);
+      const result = await application.calculateRooms(state);
       if (editVersion.current !== version) return;
       setReport(result.report);
       setAllocation(result.result as Allocation);
@@ -491,14 +540,17 @@ export function AccommodationEditor({
   }
 
   async function importPlan(file: File) {
-    const imported = parseState(JSON.parse(await file.text()));
+    const imported = toEditorState(
+      decodeWeddingPlan(JSON.parse(await file.text())),
+    );
     cancelPendingSave();
     await saveQueue.current;
-    await source.save(imported);
+    await application.save(imported);
     editVersion.current += 1;
     setState(imported);
     setSelectedId(imported.guests[0]?.id ?? null);
     setAllocation(null);
+    setTableAllocation(null);
     setReport("");
     setWarnings([]);
     setError("");
@@ -506,9 +558,29 @@ export function AccommodationEditor({
     setView("bed_groups");
   }
 
+  async function calculateTablePlan() {
+    if (!state) return;
+    const version = editVersion.current;
+    cancelPendingSave();
+    setTableBusy(true);
+    setError("");
+    try {
+      await saveBeforeCalculation(state, version);
+      const result = await application.calculateTables(state);
+      if (editVersion.current === version) setTableAllocation(result);
+    } catch (cause) {
+      if (editVersion.current === version)
+        setError(
+          cause instanceof Error ? cause.message : "Could not calculate tables",
+        );
+    } finally {
+      setTableBusy(false);
+    }
+  }
+
   function exportPlan() {
     if (!state) return;
-    const file = new Blob([JSON.stringify(state, null, 2)], {
+    const file = new Blob([encodeWeddingPlan(editorStateToPlan(state))], {
       type: "application/json",
     });
     const url = URL.createObjectURL(file);
@@ -531,11 +603,10 @@ export function AccommodationEditor({
   );
   const isFreeGuest = (guest: Guest) =>
     guest.free_stay_reasons.length > 0 ||
-    (guest.fixed_bed_group_id !== "" &&
+    (guest.partner_id !== undefined &&
       guests.some(
         (other) =>
-          other.id !== guest.id &&
-          other.fixed_bed_group_id === guest.fixed_bed_group_id &&
+          other.id === guest.partner_id &&
           other.free_stay_reasons.length > 0 &&
           other.include_partner_in_free_stay,
       ));
@@ -595,6 +666,8 @@ export function AccommodationEditor({
     ([first, second]) =>
       !first.fixed_bed_group_id &&
       !second.fixed_bed_group_id &&
+      !first.partner_id &&
+      !second.partner_id &&
       !pairIsNotCouple(first.id, second.id),
   );
   const unpairedGuests = guests.filter((guest) => !guest.fixed_bed_group_id);
@@ -605,6 +678,7 @@ export function AccommodationEditor({
   const availablePartners = unpairedGuests.filter(
     (guest) =>
       guest.id !== selectedUnpaired?.id &&
+      (!guest.partner_id || guest.partner_id === selectedUnpaired?.id) &&
       !guest.requires_own_bed &&
       !isLinenGuest(guest.id) &&
       guest.name.toLowerCase().includes(partnerSearch.toLowerCase()),
@@ -643,7 +717,10 @@ export function AccommodationEditor({
     update((draft) =>
       markNotCoupleInState(draft, firstId, secondId, notCouple),
     );
-  const { partner, companions } = selectedGuestConnections(selected, guests);
+  const { partner, bedPartner, companions } = selectedGuestConnections(
+    selected,
+    guests,
+  );
   const focusChoices = bedGroups.filter((group) =>
     canFocusGroup(group, guests, sharingLevel, isLinenGuest),
   );
@@ -684,7 +761,7 @@ export function AccommodationEditor({
             <Heart size={18} fill="currentColor" />
           </span>
           <span>
-            Wedding planner <small>Accommodation</small>
+            Wedding planner <small>Rooms &amp; tables</small>
           </span>
         </div>
         <span className="save-status">
@@ -698,12 +775,9 @@ export function AccommodationEditor({
             <h1>
               Find everyone
               <br />
-              <em>a place to stay.</em>
+              <em>a place.</em>
             </h1>
-            <p>
-              Pair bed partners, answer overnight questions, then see who fits
-              where and what they pay.
-            </p>
+            <p>Plan where guests stay, what they pay and who sits together.</p>
           </div>
           <PlannerNavigation
             view={view}
@@ -728,14 +802,18 @@ export function AccommodationEditor({
           {!loading && !state && (
             <Card className="editor-start-card">
               <CardHeader>
-                <CardTitle>Bring in your room plan</CardTitle>
+                <CardTitle>Start your wedding plan</CardTitle>
                 <CardDescription>
-                  Import your existing accommodation-state.json. The guest list
-                  and choices stay in this browser. Export a backup before
-                  switching devices or clearing browser data.
+                  Try the sample with fictional guests, or import your existing
+                  JSON plan. The guest list and choices stay in this browser.
+                  Export a backup before switching devices or clearing browser
+                  data.
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                <Button className="mb-4" onClick={loadSamplePlan}>
+                  Try sample plan
+                </Button>
                 <DataControls
                   hasData={false}
                   onImport={importPlan}
@@ -744,10 +822,26 @@ export function AccommodationEditor({
               </CardContent>
             </Card>
           )}
+          {state?.sample_plan === true && (
+            <output className="editor-hint mb-5 block">
+              Sample plan · 26 fictional guests. Edit roles, stays and seating
+              preferences, then calculate rooms or tables. Your changes are
+              saved in this browser.
+            </output>
+          )}
           {error && (
             <div role="alert" className="editor-error">
               {error}
             </div>
+          )}
+          {view === "tables" && state && (
+            <TableEditor
+              state={state}
+              allocation={tableAllocation}
+              busy={tableBusy}
+              onUpdate={update}
+              onCalculate={calculateTablePlan}
+            />
           )}
           {view === "bed_groups" && state && (
             <>
@@ -756,8 +850,9 @@ export function AccommodationEditor({
                   <span className="eyebrow">START HERE</span>
                   <h2>Who shares a bed?</h2>
                   <p>
-                    Confirm couples first. Each couple then appears as one bed
-                    group when you choose who can share a bedroom or cottage.
+                    Confirm couples first. A shared bed appears as one group
+                    when you choose who can share a bedroom or cottage. Couples
+                    can also be recorded separately in Guests.
                   </p>
                 </div>
                 <Button onClick={() => setView("sharing")}>
@@ -772,7 +867,7 @@ export function AccommodationEditor({
                         .length
                     }
                   </strong>{" "}
-                  couples
+                  shared beds
                 </span>
                 <span>
                   <strong>{unpairedGuests.length}</strong> currently unpaired
@@ -905,8 +1000,9 @@ export function AccommodationEditor({
                   <CardHeader>
                     <CardTitle>{pairingCardTitle(selectedUnpaired)}</CardTitle>
                     <CardDescription>
-                      These are unpaired guests. Sharing a bed here makes a
-                      fixed couple. Flexible singles belong in the Sharing map.
+                      Confirm a couple sharing one bed here. Record couples who
+                      use separate beds in Guests. Flexible bed sharing belongs
+                      in the Sharing map.
                     </CardDescription>
                     {!selectedUnpaired?.requires_own_bed && (
                       <div className="search-wrap">
@@ -933,7 +1029,7 @@ export function AccommodationEditor({
                       selectedUnpaired.overnight !== "no" && (
                         <Toggle
                           title="Needs their own double bed"
-                          description="They can still share a bedroom or cottage if they have a separate double bed."
+                          description="This separates a shared bed group. Their couple relationship stays recorded for table seating."
                           checked={selectedUnpaired.requires_own_bed}
                           onChange={(value) =>
                             setOwnBed(selectedUnpaired.id, value)
@@ -994,7 +1090,7 @@ export function AccommodationEditor({
                                 setPartner(group.guestIds[0] ?? "", "")
                               }
                             >
-                              Remove pairing
+                              Remove bed pairing
                             </Button>
                           )}
                         </div>
@@ -1096,6 +1192,12 @@ export function AccommodationEditor({
                           <small>
                             {overnightLabels[guest.overnight]}
                             {isFreeGuest(guest) && " · We cover"}
+                            {!!guest.wedding_roles?.length && (
+                              <span>
+                                {" "}
+                                · {weddingRolesLabel(guest.wedding_roles)}
+                              </span>
+                            )}
                           </small>
                         </span>
                         <ChevronRight size={16} />
@@ -1133,6 +1235,42 @@ export function AccommodationEditor({
                         </div>
                       </CardHeader>
                       <CardContent className="detail-content">
+                        <GuestRoles
+                          guest={selected}
+                          onChange={(roles) =>
+                            update((draft) =>
+                              setWeddingRoles(draft, selected.id, roles),
+                            )
+                          }
+                        />
+                        <Field
+                          label="Partner"
+                          hint="A couple stays together for seating even when they need separate beds."
+                        >
+                          <Select
+                            label={`${selected.name} partner`}
+                            value={selected.partner_id ?? ""}
+                            onChange={(id) =>
+                              update((draft) =>
+                                setCouple(draft, selected.id, id),
+                              )
+                            }
+                          >
+                            <option value="">No partner recorded</option>
+                            {guests
+                              .filter(
+                                (guest) =>
+                                  guest.id !== selected.id &&
+                                  (!guest.partner_id ||
+                                    guest.partner_id === selected.id),
+                              )
+                              .map((guest) => (
+                                <option key={guest.id} value={guest.id}>
+                                  {guest.name}
+                                </option>
+                              ))}
+                          </Select>
+                        </Field>
                         <div className="section-title">
                           <span className="step-number">01</span>
                           <div>
@@ -1188,14 +1326,13 @@ export function AccommodationEditor({
                           <h3>Free accommodation</h3>
                           <p className="editor-hint">
                             We cover this person's share in a cottage or an
-                            outside stay. Their fixed bed partner is included by
-                            default.
+                            outside stay. Their partner is included by default.
                           </p>
                           {isFreeGuest(selected) &&
                             selected.free_stay_reasons.length === 0 &&
                             partner && (
                               <p className="editor-hint">
-                                Covered as {partner.name}'s bed partner.
+                                Covered as {partner.name}'s partner.
                               </p>
                             )}
                           <div className="toggle-grid">
@@ -1251,7 +1388,9 @@ export function AccommodationEditor({
                         <div className="field-grid">
                           <Field label="Fixed bed partner">
                             <div className="bed-partner-summary">
-                              <span>{partner?.name ?? "No fixed partner"}</span>
+                              <span>
+                                {bedPartner?.name ?? "No fixed bed partner"}
+                              </span>
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -1282,11 +1421,11 @@ export function AccommodationEditor({
                             </Select>
                           </Field>
                         </div>
-                        {!partner && selected.overnight !== "no" && (
+                        {selected.overnight !== "no" && (
                           <div className="own-bed-control">
                             <Toggle
                               title="Needs their own double bed"
-                              description="They can still share a bedroom or cottage if they have a separate double bed."
+                              description="This separates a shared bed group. Their couple relationship stays recorded for table seating."
                               checked={selected.requires_own_bed}
                               onChange={(value) =>
                                 setOwnBed(selected.id, value)

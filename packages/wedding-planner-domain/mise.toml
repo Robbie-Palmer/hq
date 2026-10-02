@@ -1,0 +1,27 @@
+[tasks.install]
+description = "Install wedding planner domain dependencies"
+depends = ["//:install"]
+
+[tasks.typecheck]
+description = "Typecheck the wedding planner domain"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test the wedding planner domain"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test the wedding planner domain with coverage"
+depends = ["install"]
+run = "pnpm test:coverage"
+
+[tasks.check]
+description = "Check the wedding planner domain"
+depends = ["typecheck", "test"]
+
+[tasks.format]
+description = "Format wedding planner domain source and tests"
+depends = ["install"]
+run = "pnpm exec biome check --write --formatter-enabled=true --indent-style=space --linter-enabled=false --assist-enabled=false src tests vitest.config.ts"

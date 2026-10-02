@@ -1,4 +1,4 @@
-import { parseMoneyToMinorUnits } from "@/lib/generic/money";
+import { parseMoneyToMinorUnits } from "../money";
 import type { Property } from "./types";
 
 export function propertyStayPrice(

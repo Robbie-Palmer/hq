@@ -1,7 +1,13 @@
 import { Model, type Solution, sum, type Var } from "@bubblyworld/highs-ts";
+import type {
+  Party,
+  Placement,
+  PlannerInput,
+  Property,
+  Room,
+} from "wedding-planner-domain/accommodation";
+import { incrementalCottagePrice } from "wedding-planner-domain/accommodation";
 import { parseMoneyToMinorUnits } from "@/lib/generic/money";
-import { incrementalCottagePrice } from "./prices";
-import type { Party, Placement, PlannerInput, Property, Room } from "./types";
 
 type Assignment = { party: string; room: string; variable: Var };
 type BedShare = { first: string; second: string; room: string; variable: Var };
