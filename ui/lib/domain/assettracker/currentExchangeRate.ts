@@ -202,7 +202,7 @@ function observationFromQuote(input: {
   sequence: number;
 }): ExchangeRateObservation {
   const quote = input.quote;
-  const idTime = input.retrievedAt.replaceAll(/[^0-9]/g, "");
+  const idTime = input.retrievedAt.replaceAll(/\D/g, "");
   return {
     id: `fx-current-${input.provider.id}-${quote.fromCurrency.toLowerCase()}-${quote.toCurrency.toLowerCase()}-${idTime}-${input.sequence}`,
     fromCurrency: quote.fromCurrency,
@@ -370,6 +370,7 @@ export async function refreshCurrentExchangeRates(
   for (const [providerIndex, provider] of input.providers.entries()) {
     if (pending.size === 0) break;
     const requested = [...pending.values()];
+    // NOSONAR: ordered fallbacks must only receive pairs the earlier provider missed.
     const response = await requestProvider({
       provider,
       pairs: requested,
