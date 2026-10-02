@@ -48,6 +48,30 @@ export const ExchangeRateObservationSchema = z
     fromCurrency: CurrencySchema,
     toCurrency: CurrencySchema,
     rate: z.number().positive(),
+    rateDecimal: z
+      .string()
+      .regex(/^\d+(?:\.\d+)?$/)
+      .optional(),
+    rateClass: z.enum(["reference", "executable"]).optional(),
+    retrievedAt: z.iso.datetime({ offset: true }).optional(),
+    sourceReference: z.string().min(1).optional(),
+    providerObservations: z
+      .array(
+        z.object({
+          provider: z.string().min(1),
+          observedDate: z.iso.date(),
+          rate: z.number().positive(),
+          excluded: z.boolean().default(false),
+          carried: z.boolean().default(false),
+        }),
+      )
+      .optional(),
+    derivation: z
+      .object({
+        method: z.enum(["direct", "inverse", "triangulated"]),
+        legs: z.array(z.string().min(1)).min(1).max(2),
+      })
+      .optional(),
   })
   .refine(
     (observation) => observation.fromCurrency !== observation.toCurrency,
