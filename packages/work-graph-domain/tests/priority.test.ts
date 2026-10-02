@@ -139,6 +139,44 @@ describe("priority projection", () => {
     ).toBe(true);
   });
 
+  it("matches titles case-insensitively across a ticket lineage and gives exclusions precedence", () => {
+    const graph = createWorkGraph({
+      workItems: [
+        { id: "outcome", title: "Ship Work Graph", priorityRank: 1_024 },
+        { id: "api", title: "Build API", parentId: "outcome", rank: 1 },
+        { id: "cli", title: "Build CLI", parentId: "outcome", rank: 2 },
+        { id: "leaf", title: "Add filters", parentId: "cli", rank: 1 },
+      ],
+    });
+
+    expect(
+      isWorkItemInSelectionScope(graph, getWorkItem(graph, "leaf"), {
+        includeParentTitles: ["Ship Work Graph"],
+      }),
+    ).toBe(true);
+    expect(
+      isWorkItemInSelectionScope(graph, getWorkItem(graph, "outcome"), {
+        includeParentTitles: ["Ship Work Graph"],
+      }),
+    ).toBe(true);
+    expect(
+      isWorkItemInSelectionScope(graph, getWorkItem(graph, "api"), {
+        includeParentTitles: ["Ship Work Graph"],
+        excludeParentTitles: ["Build API"],
+      }),
+    ).toBe(false);
+    expect(
+      isWorkItemInSelectionScope(graph, getWorkItem(graph, "leaf"), {
+        includeParentTitles: ["ship work graph"],
+      }),
+    ).toBe(true);
+    expect(
+      isWorkItemInSelectionScope(graph, getWorkItem(graph, "leaf"), {
+        includeParentTitles: ["Ship Work"],
+      }),
+    ).toBe(false);
+  });
+
   it("treats singular scope fields as one-element inclusion aliases", () => {
     const graph = createWorkGraph({
       workItems: [

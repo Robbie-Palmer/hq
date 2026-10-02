@@ -2796,7 +2796,7 @@
       "get": {
         "operationId": "getCriticalPath",
         "summary": "Project the current delivery-critical path",
-        "description": "Returns one deterministic, bounded projection for global open roots, selected scopes, or one explicit root work item. Scope arrays use repeated query parameters. Values within one inclusion dimension are alternatives, initiative and project filters must both match, and exclusions win. Exclusions remove matching targets but retain cross-scope blockers required by included outcomes. The singular initiativeId and projectId parameters remain deprecated one-item inclusion aliases. An explicit root cannot be combined with scope filters. Projections are limited to 1,000 nodes, 5,000 edges, and 5,000 blocking paths; larger projections return a conflict instead of a partial graph.",
+        "description": "Returns one deterministic, bounded projection for global open roots, selected scopes, or one explicit root work item. Scope arrays use repeated query parameters. Values within one inclusion dimension are alternatives, initiative, project, and parent-title filters must all match, and exclusions win. Parent titles match the candidate ticket or any ancestor by exact title without regard to case. Exclusions remove matching targets but retain cross-scope blockers required by included outcomes. The singular initiativeId and projectId parameters remain deprecated one-item inclusion aliases. An explicit root cannot be combined with scope filters. Projections are limited to 1,000 nodes, 5,000 edges, and 5,000 blocking paths; larger projections return a conflict instead of a partial graph.",
         "tags": [
           "work-items"
         ],
@@ -2841,6 +2841,42 @@
             "explode": true,
             "style": "form",
             "name": "excludeInitiativeIds",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 10000
+              },
+              "maxItems": 100,
+              "description": "Repeat the query parameter to select more than one exact ticket title, ignoring case."
+            },
+            "required": false,
+            "description": "Repeat the query parameter to select more than one exact ticket title, ignoring case.",
+            "explode": true,
+            "style": "form",
+            "name": "includeParentTitles",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 10000
+              },
+              "maxItems": 100,
+              "description": "Repeat the query parameter to select more than one exact ticket title, ignoring case."
+            },
+            "required": false,
+            "description": "Repeat the query parameter to select more than one exact ticket title, ignoring case.",
+            "explode": true,
+            "style": "form",
+            "name": "excludeParentTitles",
             "in": "query"
           },
           {
@@ -4962,6 +4998,24 @@
                         },
                         "maxItems": 100
                       },
+                      "includeParentTitles": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 10000
+                        },
+                        "maxItems": 100
+                      },
+                      "excludeParentTitles": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 10000
+                        },
+                        "maxItems": 100
+                      },
                       "includeProjectIds": {
                         "type": "array",
                         "items": {
@@ -5556,7 +5610,7 @@
       "get": {
         "operationId": "listWorkItems",
         "summary": "List work items with their derived stage",
-        "description": "Returns one bounded page in global priority order. Scope arrays use repeated query parameters. Values within one inclusion dimension are alternatives, initiative and project filters must both match, and exclusions win. Empty inclusion arrays impose no restriction. Optional stage and direct-parent filters preserve priority order. The singular initiativeId and projectId parameters remain deprecated one-item inclusion aliases. Pass nextCursor to continue after the last observed item without offset drift during lease transitions.",
+        "description": "Returns one bounded page in global priority order. Scope arrays use repeated query parameters. Values within one inclusion dimension are alternatives, initiative, project, and parent-title filters must all match, and exclusions win. Parent titles match the candidate ticket or any ancestor by exact title without regard to case. Empty inclusion arrays impose no restriction. Optional stage and direct-parent filters preserve priority order. The singular initiativeId and projectId parameters remain deprecated one-item inclusion aliases. Pass nextCursor to continue after the last observed item without offset drift during lease transitions.",
         "tags": [
           "work-items"
         ],
@@ -5618,6 +5672,42 @@
             "explode": true,
             "style": "form",
             "name": "excludeInitiativeIds",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 10000
+              },
+              "maxItems": 100,
+              "description": "Repeat the query parameter to select more than one exact ticket title, ignoring case."
+            },
+            "required": false,
+            "description": "Repeat the query parameter to select more than one exact ticket title, ignoring case.",
+            "explode": true,
+            "style": "form",
+            "name": "includeParentTitles",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 10000
+              },
+              "maxItems": 100,
+              "description": "Repeat the query parameter to select more than one exact ticket title, ignoring case."
+            },
+            "required": false,
+            "description": "Repeat the query parameter to select more than one exact ticket title, ignoring case.",
+            "explode": true,
+            "style": "form",
+            "name": "excludeParentTitles",
             "in": "query"
           },
           {

@@ -719,6 +719,14 @@ const selectionFields = {
     zListWorkItemsQuery.shape.excludeInitiativeIds,
     "Exclude an initiative ID; repeatable, exclusions take precedence",
   ),
+  includeParentTitles: described(
+    zListWorkItemsQuery.shape.includeParentTitles,
+    "Include a ticket lineage by parent title, ignoring case; repeatable, OR within titles",
+  ),
+  excludeParentTitles: described(
+    zListWorkItemsQuery.shape.excludeParentTitles,
+    "Exclude a ticket lineage by parent title, ignoring case; repeatable, exclusions take precedence",
+  ),
   initiativeId: described(
     zListWorkItemsQuery.shape.initiativeId,
     "Deprecated one-value alias for --initiative",

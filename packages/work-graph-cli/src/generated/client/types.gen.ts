@@ -576,6 +576,14 @@ export type GetCriticalPathData = {
          */
         excludeInitiativeIds?: Array<string>;
         /**
+         * Repeat the query parameter to select more than one exact ticket title, ignoring case.
+         */
+        includeParentTitles?: Array<string>;
+        /**
+         * Repeat the query parameter to select more than one exact ticket title, ignoring case.
+         */
+        excludeParentTitles?: Array<string>;
+        /**
          * Repeat the query parameter to select more than one scope.
          */
         includeProjectIds?: Array<string>;
@@ -1332,6 +1340,8 @@ export type CreateLeaseData = {
         leaseDurationSeconds: number;
         includeInitiativeIds?: Array<string>;
         excludeInitiativeIds?: Array<string>;
+        includeParentTitles?: Array<string>;
+        excludeParentTitles?: Array<string>;
         includeProjectIds?: Array<string>;
         excludeProjectIds?: Array<string>;
         /**
@@ -1542,6 +1552,14 @@ export type ListWorkItemsData = {
          * Repeat the query parameter to select more than one scope.
          */
         excludeInitiativeIds?: Array<string>;
+        /**
+         * Repeat the query parameter to select more than one exact ticket title, ignoring case.
+         */
+        includeParentTitles?: Array<string>;
+        /**
+         * Repeat the query parameter to select more than one exact ticket title, ignoring case.
+         */
+        excludeParentTitles?: Array<string>;
         /**
          * Repeat the query parameter to select more than one scope.
          */

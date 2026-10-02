@@ -29,8 +29,10 @@ interface EffectivePriority {
 
 export interface WorkItemSelectionScope {
   readonly excludeInitiativeIds?: readonly string[];
+  readonly excludeParentTitles?: readonly string[];
   readonly excludeProjectIds?: readonly string[];
   readonly includeInitiativeIds?: readonly string[];
+  readonly includeParentTitles?: readonly string[];
   readonly includeProjectIds?: readonly string[];
   /** @deprecated Use includeInitiativeIds. */
   readonly initiativeId?: string;
@@ -58,6 +60,9 @@ export const normalizeWorkItemSelectionScope = (
     ...(scope.excludeInitiativeIds === undefined
       ? {}
       : { excludeInitiativeIds: scope.excludeInitiativeIds }),
+    ...(scope.excludeParentTitles === undefined
+      ? {}
+      : { excludeParentTitles: scope.excludeParentTitles }),
     ...(scope.excludeProjectIds === undefined
       ? {}
       : { excludeProjectIds: scope.excludeProjectIds }),
@@ -71,6 +76,9 @@ export const normalizeWorkItemSelectionScope = (
           ],
         }
       : {}),
+    ...(scope.includeParentTitles === undefined
+      ? {}
+      : { includeParentTitles: scope.includeParentTitles }),
     ...(hasProjectInclusions
       ? {
           includeProjectIds: [
@@ -164,7 +172,12 @@ export const isWorkItemInSelectionScope = (
     return false;
   }
   const owner = getWorkItemSchedulingOwner(graph, item);
+  const lineageTitles = new Set([
+    item.title.toLowerCase(),
+    ...getAncestors(graph, item.id).map(({ title }) => title.toLowerCase()),
+  ]);
   const includeInitiativeIds = normalizedScope.includeInitiativeIds ?? [];
+  const includeParentTitles = normalizedScope.includeParentTitles ?? [];
   const includeProjectIds = normalizedScope.includeProjectIds ?? [];
   return (
     (includeInitiativeIds.length === 0 ||
@@ -173,12 +186,19 @@ export const isWorkItemInSelectionScope = (
     (includeProjectIds.length === 0 ||
       (owner.schedulingProjectId !== null &&
         includeProjectIds.includes(owner.schedulingProjectId))) &&
+    (includeParentTitles.length === 0 ||
+      includeParentTitles.some((title) =>
+        lineageTitles.has(title.toLowerCase()),
+      )) &&
     (owner.schedulingInitiativeId === null ||
       !normalizedScope.excludeInitiativeIds?.includes(
         owner.schedulingInitiativeId,
       )) &&
     (owner.schedulingProjectId === null ||
-      !normalizedScope.excludeProjectIds?.includes(owner.schedulingProjectId))
+      !normalizedScope.excludeProjectIds?.includes(owner.schedulingProjectId)) &&
+    !normalizedScope.excludeParentTitles?.some((title) =>
+      lineageTitles.has(title.toLowerCase()),
+    )
   );
 };
 
