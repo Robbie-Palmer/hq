@@ -31,6 +31,10 @@ vi.mock("@/components/assettracker/asset-allocation-history-chart", () => ({
   AssetAllocationHistoryChart: () => <p>Allocation history</p>,
 }));
 
+vi.mock("@/components/assettracker/real-income-history-chart", () => ({
+  RealIncomeHistoryChart: () => <p>Real income history</p>,
+}));
+
 vi.mock("@/components/assettracker/upcoming-flows", () => ({
   UpcomingFlows: () => <p>Upcoming flows</p>,
 }));
@@ -82,6 +86,7 @@ describe("Asset Tracker feature routes", () => {
     expect(screen.getByText("Account history import")).toBeVisible();
     expect(screen.getByText("Net worth history")).toBeVisible();
     expect(screen.getByText("Contribution history")).toBeVisible();
+    expect(screen.getByText("Real income history")).toBeVisible();
     expect(screen.getByText("Allocation history")).toBeVisible();
   });
 

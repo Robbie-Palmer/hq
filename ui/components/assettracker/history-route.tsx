@@ -5,6 +5,7 @@ import { AssetAllocationHistoryChart } from "./asset-allocation-history-chart";
 import { useAssetTracker } from "./asset-tracker-provider";
 import { NetWorthChart } from "./net-worth-chart";
 import { PortfolioContributionChart } from "./portfolio-contribution-chart";
+import { RealIncomeHistoryChart } from "./real-income-history-chart";
 
 export function HistoryRoute() {
   const {
@@ -12,6 +13,7 @@ export function HistoryRoute() {
     contributionData,
     assetAllocationHistory,
     baseCurrency,
+    incomeHistory,
   } = useAssetTracker();
 
   return (
@@ -28,6 +30,10 @@ export function HistoryRoute() {
       <NetWorthChart data={netWorthData} currency={baseCurrency} />
       <PortfolioContributionChart
         data={contributionData}
+        currency={baseCurrency}
+      />
+      <RealIncomeHistoryChart
+        incomeHistory={incomeHistory}
         currency={baseCurrency}
       />
       <AssetAllocationHistoryChart data={assetAllocationHistory} />

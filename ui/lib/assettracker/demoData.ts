@@ -1,4 +1,5 @@
 import { accounts } from "@/content/assettracker/accounts";
+import { incomeHistory } from "@/content/assettracker/incomeHistory";
 import { recurringFlows } from "@/content/assettracker/recurringFlows";
 import { snapshots } from "@/content/assettracker/snapshots";
 import { transfers } from "@/content/assettracker/transfers";
@@ -18,6 +19,7 @@ export function getDemoAssetTrackerData(): AssetTrackerData {
   return AssetTrackerDataSchema.parse({
     accounts,
     snapshots,
+    incomeHistory,
     transfers,
     recurringFlows,
     instruments,
