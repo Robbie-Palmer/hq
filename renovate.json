@@ -293,14 +293,15 @@
       "automerge": true
     },
     {
-      "description": "Keep the bundled Claude Code, Codex, and Grok CLIs in one update",
+      "description": "Keep the bundled Claude Code, Codex, Grok, and OpenCode CLIs in one update",
       "matchFileNames": [
         "homelab/images/t3-code/package.json"
       ],
       "matchPackageNames": [
         "@anthropic-ai/claude-code",
         "@openai/codex",
-        "@xai-official/grok"
+        "@xai-official/grok",
+        "opencode-ai"
       ],
       "groupName": "coding agent CLIs"
     },
