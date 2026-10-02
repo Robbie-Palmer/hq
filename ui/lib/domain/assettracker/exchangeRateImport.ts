@@ -134,7 +134,8 @@ function fractionDecimal(fraction: Fraction, scale = 18): string {
     (scaledNumerator + fraction.denominator / BigInt(2)) / fraction.denominator;
   const digits = rounded.toString().padStart(scale + 1, "0");
   const whole = digits.slice(0, -scale);
-  const decimals = digits.slice(-scale).replace(/0+$/, "");
+  let decimals = digits.slice(-scale);
+  while (decimals.endsWith("0")) decimals = decimals.slice(0, -1);
   return decimals.length === 0 ? whole : `${whole}.${decimals}`;
 }
 
@@ -278,7 +279,7 @@ export function deriveExchangeRateObservation(input: {
 
   const acceptedAt = input.legs
     .map((leg) => leg.acceptedAt)
-    .toSorted()
+    .toSorted((left, right) => left.localeCompare(right, "en"))
     .at(-1);
   const validAt = input.legs[0]?.validAt;
   if (acceptedAt == null || validAt == null) {
@@ -314,8 +315,8 @@ function defaultClassifyDate(date: string): CalendarDay {
 
 function stableHash(value: string): string {
   let hash = 2_166_136_261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
+  for (const character of value) {
+    hash ^= character.codePointAt(0) ?? 0;
     hash = Math.imul(hash, 16_777_619);
   }
   return (hash >>> 0).toString(16).padStart(8, "0");
@@ -387,6 +388,7 @@ async function fetchWithRetry(input: {
     });
     const canRetry = response.status === 429 || response.status === 503;
     if (!canRetry || attempt >= input.maxRetries) return response;
+    // NOSONAR: each retry must wait for the provider's backoff interval.
     await input.retryDelay(retryMilliseconds(response, attempt));
     attempt += 1;
   }
@@ -430,7 +432,10 @@ function groupPairsByBase(
     grouped.set(pair.fromCurrency, quotes);
   }
   return new Map(
-    [...grouped].map(([base, quotes]) => [base, [...quotes].toSorted()]),
+    [...grouped].map(([base, quotes]) => [
+      base,
+      [...quotes].toSorted((left, right) => left.localeCompare(right, "en")),
+    ]),
   );
 }
 
@@ -559,8 +564,9 @@ function observationFromRow(input: {
 }): ExchangeRateObservation {
   const rateDecimal = input.row.rate.toString();
   const sourceReference = `${input.url}#row=${input.rowIndex}&body=${stableHash(input.raw)}`;
+  const versionHash = stableHash(`${rateDecimal}\0${input.retrievedAt}`);
   return {
-    id: `fx-frankfurter-${input.row.date}-${input.fromCurrency.toLowerCase()}-${input.toCurrency.toLowerCase()}-${stableHash(`${rateDecimal}\0${input.retrievedAt}`)}`,
+    id: `fx-frankfurter-${input.row.date}-${input.fromCurrency.toLowerCase()}-${input.toCurrency.toLowerCase()}-${versionHash}`,
     fromCurrency: input.fromCurrency,
     toCurrency: input.toCurrency,
     rate: input.row.rate,
@@ -685,6 +691,7 @@ export async function importHistoricalExchangeRates(
     for (const window of windows) {
       const url = requestUrl(endpoint, base, quotes, window.from, window.to);
       requestUrls.push(url);
+      // NOSONAR: historical windows stay sequential to respect provider quotas.
       const fetched = await fetchRates({
         fetcher,
         url,
