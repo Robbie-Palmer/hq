@@ -559,24 +559,28 @@ const workItemSelectionWhere = (
           where ${sql.join(ownerPredicates, sql` and `)}
         )`;
 
-  const lineageTitleWhere = (titles: readonly string[], exclude: boolean) =>
-    titles.length === 0
-      ? undefined
-      : sql`${exclude ? sql`not ` : sql``}exists (
-          with recursive selection_lineage(work_item_id) as (
-            select ${workItem.id}
-            union all
-            select ${workItemHierarchy.parentWorkItemId}
-            from ${workItemHierarchy}
-            inner join selection_lineage
-              on ${workItemHierarchy.childWorkItemId} = selection_lineage.work_item_id
-          )
-          select 1
-          from selection_lineage
-          inner join ${workItem} as selection_lineage_work_item
-            on ${selectionLineageWorkItem.id} = selection_lineage.work_item_id
-          where lower(${selectionLineageWorkItem.title}) in (${caseInsensitiveSelectionList(titles)})
-        )`;
+  const lineageTitleWhere = (
+    titles: readonly string[],
+    exclude: boolean,
+  ): SQL | undefined => {
+    if (titles.length === 0) return undefined;
+    const lineageExists = sql`exists (
+      with recursive selection_lineage(work_item_id) as (
+        select ${workItem.id}
+        union all
+        select ${workItemHierarchy.parentWorkItemId}
+        from ${workItemHierarchy}
+        inner join selection_lineage
+          on ${workItemHierarchy.childWorkItemId} = selection_lineage.work_item_id
+      )
+      select 1
+      from selection_lineage
+      inner join ${workItem} as selection_lineage_work_item
+        on ${selectionLineageWorkItem.id} = selection_lineage.work_item_id
+      where lower(${selectionLineageWorkItem.title}) in (${caseInsensitiveSelectionList(titles)})
+    )`;
+    return exclude ? sql`not ${lineageExists}` : lineageExists;
+  };
 
   return and(
     scope.parentId === undefined
