@@ -34,6 +34,22 @@ function sampleSharingPair(
   return [];
 }
 
+function sampleAttendance(id: string) {
+  if (id === "wren") return "no";
+  if (["uma", "vale"].includes(id)) return "unknown";
+  return "yes";
+}
+
+function sampleFreeStay(
+  id: string,
+  roles: WeddingRole[],
+  parents: Set<string>,
+) {
+  if (parents.has(id)) return ["immediate_family"];
+  if (roles.length) return ["wedding_party"];
+  return [];
+}
+
 /** Fictional guests for trying both planners, with no personal guest information. */
 export function createSampleWeddingPlan(): WeddingPlan {
   const people: [string, string, WeddingRole[]][] = [
@@ -95,8 +111,7 @@ export function createSampleWeddingPlan(): WeddingPlan {
     id,
     name,
     wedding_roles,
-    attendance:
-      id === "wren" ? "no" : ["uma", "vale"].includes(id) ? "unknown" : "yes",
+    attendance: sampleAttendance(id),
     source_party:
       couples.find((pair) => pair.includes(id))?.[0] ??
       (["oak", "parker"].includes(id) ? "friends-oak-parker" : id),
@@ -130,11 +145,7 @@ export function createSampleWeddingPlan(): WeddingPlan {
             can_share_cottage: true,
             cottage_share_mode: "any",
             may_share_cottage_with: sampleSharingPair(id, "drew", "sasha"),
-            free_stay_reasons: parents.has(id)
-              ? ["immediate_family"]
-              : roles.length
-                ? ["wedding_party"]
-                : [],
+            free_stay_reasons: sampleFreeStay(id, roles, parents),
             may_share_bed_with: sampleSharingPair(id, "oak", "parker"),
           },
         ]),

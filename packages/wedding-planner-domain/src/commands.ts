@@ -1,5 +1,6 @@
 import {
   partnerId,
+  orderedGuestPair,
   weddingRolesSchema,
   isWeddingPartyMember,
   type Attendance,
@@ -84,7 +85,7 @@ export function setCouple(
     (couple) => !couple.guest_ids.includes(id),
   );
   if (partner !== null) {
-    const guestIds = [id, partner].sort() as [string, string];
+    const guestIds = orderedGuestPair(id, partner);
     plan.couples.push({ id: JSON.stringify(guestIds), guest_ids: guestIds });
     plan.reviewed_non_couples = plan.reviewed_non_couples.filter(
       (pair) => !(pair.includes(id) && pair.includes(partner)),

@@ -43,6 +43,29 @@ function storage(initial: Record<string, string>) {
 }
 
 describe("wedding plan persistence and migrations", () => {
+  it("captures a save before the caller changes the supplied plan", async () => {
+    const repository = createBrowserWeddingPlanRepository(storage({}));
+    const wedding = decodeWeddingPlan(legacy());
+    const saved = repository.save(wedding);
+    wedding.guests[0]!.name = "Changed after saving";
+    await saved;
+    expect((await repository.load())?.guests[0]?.name).toBe("a");
+  });
+  it("rejects storage failures through the asynchronous repository contract", async () => {
+    const error = new Error("Storage unavailable");
+    const repository = createBrowserWeddingPlanRepository({
+      getItem: () => {
+        throw error;
+      },
+      setItem: () => {
+        throw error;
+      },
+    });
+    await expect(repository.load()).rejects.toBe(error);
+    await expect(repository.save(decodeWeddingPlan(legacy()))).rejects.toBe(
+      error,
+    );
+  });
   it("keeps dismissed sharing suggestions through the editor and browser repository", async () => {
     const repository = createBrowserWeddingPlanRepository(storage({}));
     const state = toEditorState(decodeWeddingPlan(legacy()));

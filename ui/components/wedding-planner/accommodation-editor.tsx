@@ -823,11 +823,11 @@ export function AccommodationEditor({
             </Card>
           )}
           {state?.sample_plan === true && (
-            <p className="editor-hint mb-5" role="status">
+            <output className="editor-hint mb-5 block">
               Sample plan · 26 fictional guests. Edit roles, stays and seating
               preferences, then calculate rooms or tables. Your changes are
               saved in this browser.
-            </p>
+            </output>
           )}
           {error && (
             <div role="alert" className="editor-error">

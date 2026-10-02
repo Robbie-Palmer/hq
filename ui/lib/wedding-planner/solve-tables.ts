@@ -1,12 +1,10 @@
 import { Model, type Solution, sum, type Var } from "@bubblyworld/highs-ts";
-import type {
-  SeatingGuest as Guest,
-  TableAllocation,
-  TableInput,
-} from "wedding-planner-domain/seating";
 import {
+  type SeatingGuest as Guest,
   type TablePair as Pair,
   prepareTableProblem,
+  type TableAllocation,
+  type TableInput,
 } from "wedding-planner-domain/seating";
 
 function assignGroups(

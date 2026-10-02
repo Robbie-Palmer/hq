@@ -56,6 +56,30 @@ function setup(): AccommodationSetup {
 }
 
 describe("shared wedding domain", () => {
+  it.each([
+    ["10", "2"],
+    ["\u00e9", "e\u0301"],
+  ])(
+    "keeps opaque IDs %s and %s in one couple regardless of selection order",
+    (first, second) => {
+      const wedding = parseWeddingPlan({
+        ...plan(),
+        guests: [first, second].map((id) => ({
+          id,
+          name: id,
+          attendance: "yes",
+        })),
+        accommodation: {},
+      });
+      setCouple(wedding, first, second);
+      const couple = structuredClone(wedding.couples[0]);
+      setCouple(wedding, second, first);
+      expect(wedding.couples).toEqual([couple]);
+      const groups = prepareTableProblem(tableInput(wedding)).groups;
+      expect(groups).toHaveLength(1);
+      expect(groups[0]?.map((guest) => guest.id)).toEqual([first, second]);
+    },
+  );
   it("records multiple roles independently of accommodation and top-table seats", () => {
     const wedding = plan();
     const originalAccommodation = structuredClone(wedding.accommodation);

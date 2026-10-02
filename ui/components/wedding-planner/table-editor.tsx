@@ -78,6 +78,11 @@ function TableSetup({
   const [defaultCapacity, setDefaultCapacity] = useState(
     plan.table_capacities[0] ?? 8,
   );
+  const tables = plan.table_capacities.map((capacity, index) => ({
+    id: `table-${index + 1}`,
+    capacity,
+    index,
+  }));
   return (
     <Card>
       <CardHeader>
@@ -133,9 +138,9 @@ function TableSetup({
           </Button>
         </div>
         <div className="table-capacities">
-          {plan.table_capacities.map((capacity, index) => (
+          {tables.map(({ id, capacity, index }) => (
             <SeatInput
-              key={index}
+              key={id}
               label={`Table ${index + 1} capacity`}
               value={capacity}
               onChange={(value) =>
@@ -440,10 +445,16 @@ function TableResults({
             <CardContent>
               <ul className="table-seat-list">
                 {[
-                  ...table.fixed_guests,
-                  ...table.guest_ids.map((id) => names.get(id) ?? id),
-                ].map((name, index) => (
-                  <li key={index}>
+                  ...table.fixed_guests.map((name, position) => ({
+                    id: `host-${position}`,
+                    name,
+                  })),
+                  ...table.guest_ids.map((id) => ({
+                    id: `guest-${id}`,
+                    name: names.get(id) ?? id,
+                  })),
+                ].map(({ id, name }) => (
+                  <li key={id}>
                     <Users size={14} />
                     {name}
                   </li>

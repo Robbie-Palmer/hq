@@ -1,6 +1,5 @@
 import type { WeddingGuest } from "../core/guests";
-import type { PairDecision } from "../values";
-export type { PairDecision };
+export type { PairDecision } from "../values";
 
 export type SeatingPreferences = {
   prefer_table_with: string[];

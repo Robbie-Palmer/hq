@@ -10,16 +10,12 @@ import {
   setTopTableGuest as weddingParty,
 } from "wedding-planner-domain";
 import { tablePairDecision as decision } from "wedding-planner-domain/seating";
-import {
-  defaultTablePlan,
-  editDomain,
-  editorStateToPlan,
-} from "./editor-projection";
+import { editDomain, editorStateToPlan } from "./editor-projection";
 import type { Guest, PairDecision, State } from "./types";
 
 export { tablePlanSchema } from "wedding-planner-domain/seating";
 
-export const getTablePlan = defaultTablePlan;
+export { defaultTablePlan as getTablePlan } from "./editor-projection";
 export function accommodationSeatingSuggestions(state: State) {
   return suggestions(editorStateToPlan(state));
 }

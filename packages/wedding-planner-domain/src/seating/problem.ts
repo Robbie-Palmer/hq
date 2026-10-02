@@ -1,4 +1,5 @@
 import { tablePairDecision, tablePlanSchema } from "./preferences";
+import { orderedGuestPair } from "../core/guests";
 import type { SeatingGuest, TableInput } from "./types";
 export type TablePair = {
   first: SeatingGuest;
@@ -20,7 +21,7 @@ function tableGroups(guests: SeatingGuest[]): SeatingGuest[][] {
   for (const guest of guests) {
     // Couple keys cannot collide with individual guest IDs.
     const key = guest.partner_id
-      ? `couple:${JSON.stringify([guest.id, guest.partner_id].sort())}`
+      ? `couple:${JSON.stringify(orderedGuestPair(guest.id, guest.partner_id))}`
       : `guest:${guest.id}`;
     groups.set(key, [...(groups.get(key) ?? []), guest]);
   }

@@ -68,6 +68,14 @@ export const coupleSchema = z.object({
 });
 export type Couple = z.infer<typeof coupleSchema>;
 
+/** Opaque guest IDs have a locale-independent canonical order. */
+export function orderedGuestPair(
+  first: string,
+  second: string,
+): [string, string] {
+  return first < second ? [first, second] : [second, first];
+}
+
 export function partnerId(
   couples: readonly Couple[],
   guestId: string,

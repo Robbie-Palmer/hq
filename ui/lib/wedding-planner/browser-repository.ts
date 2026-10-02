@@ -1,3 +1,4 @@
+import { promiseFromSync } from "ts-base/promises";
 import {
   parseWeddingPlan,
   type WeddingPlanRepository,
@@ -15,21 +16,23 @@ export function createBrowserWeddingPlanRepository(
   setup: AccommodationSetup = weddingAccommodationSetup,
 ): WeddingPlanRepository {
   return {
-    async load() {
-      const saved = storage.getItem(key);
-      if (saved !== null) return decodeWeddingPlan(JSON.parse(saved), setup);
-      for (const legacyKey of legacyKeys) {
-        const legacy = storage.getItem(legacyKey);
-        if (legacy === null) continue;
-        const plan = decodeWeddingPlan(JSON.parse(legacy), setup);
-        storage.setItem(key, JSON.stringify(plan));
-        return plan;
-      }
-      return null;
-    },
-    async save(plan) {
-      storage.setItem(key, JSON.stringify(parseWeddingPlan(plan)));
-    },
+    load: () =>
+      promiseFromSync(() => {
+        const saved = storage.getItem(key);
+        if (saved !== null) return decodeWeddingPlan(JSON.parse(saved), setup);
+        for (const legacyKey of legacyKeys) {
+          const legacy = storage.getItem(legacyKey);
+          if (legacy === null) continue;
+          const plan = decodeWeddingPlan(JSON.parse(legacy), setup);
+          storage.setItem(key, JSON.stringify(plan));
+          return plan;
+        }
+        return null;
+      }),
+    save: (plan) =>
+      promiseFromSync(() => {
+        storage.setItem(key, JSON.stringify(parseWeddingPlan(plan)));
+      }),
   };
 }
 
