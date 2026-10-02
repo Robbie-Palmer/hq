@@ -49,7 +49,7 @@ run = "bash scripts/smoke-gector.sh"
 [tasks."run:gector"]
 description = "Run the DVC GECToR stage over the frozen cohort"
 depends = ["install", "runtime:sync"]
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc repro run_gector"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro run_gector"
 
 [tasks."model:prepare"]
 description = "Download and verify the pinned GECToR-2024 checkpoint"
@@ -69,19 +69,19 @@ run = "bash scripts/match-edits.sh"
 [tasks.repro]
 description = "Reproduce the local writing evaluation stages through DVC"
 depends = ["install"]
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc repro"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro"
 
 [tasks.pull]
 description = "Pull the writing evaluation corpus and outputs from R2"
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc pull"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc pull"
 
 [tasks.push]
 description = "Push the writing evaluation cache to its R2 prefix"
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc push"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc push"
 
 [tasks.dvc]
 description = "Run a DVC command in the writing evaluation project"
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc"
 
 [tasks.typecheck]
 description = "Typecheck the writing editor evaluation pipeline"

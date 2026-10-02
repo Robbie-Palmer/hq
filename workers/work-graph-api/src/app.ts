@@ -4,44 +4,60 @@ import {
   type Hook,
 } from "@hono/zod-openapi";
 import type { Env } from "hono";
-import type {
-  AttentionRequestReadModel,
-  ClaimWorkItemInput,
-  CreateAttentionRequestInput,
-  CreateAttentionRequestResult,
-  CreateNoteInput,
-  CreatePostReleaseNoteInput,
-  DecomposeClaimedWorkItemInput,
-  DecomposeClaimedWorkItemResult,
-  IdempotentMutationOptions,
-  KnowledgeScopeRelationshipCursor,
-  ListAttentionRequestsInput,
-  ListEventsInput,
-  ListKnowledgeScopeRelationshipsInput,
-  ListKnowledgeScopesInput,
-  ListWorkItemsInput,
-  ListWorkItemDependenciesInput,
-  ListWorkItemLeasesInput,
-  ListWorkItemNotesInput,
-  PriorityMoveInput,
-  ResolveAttentionRequestInput,
-  ResolveAttentionRequestResult,
-  RenewLeaseInput,
-  StoredAttentionRequest,
-  StoredAttentionResolution,
-  StoredEvent,
-  StoredLease,
-  StoredNote,
-  TerminateClaimedWorkItemInput,
-  WorkItemDependencyCursor,
-  WorkItemReadModel,
-  WorkItemSchedulingScopeInput,
+import { routePath } from "hono/route";
+import {
+  classifyRetryableDatabaseFailure,
+  type AttentionRequestReadModel,
+  type ArchiveKnowledgeScopeInput,
+  type ClaimWorkItemInput,
+  type CreateAttentionRequestInput,
+  type CreateAttentionRequestResult,
+  type CreateNoteInput,
+  type CreatePostReleaseNoteInput,
+  type DecomposeClaimedWorkItemInput,
+  type DecomposeClaimedWorkItemResult,
+  type IdempotentMutationOptions,
+  type KnowledgeScopeRelationshipCursor,
+  type ListAttentionRequestsInput,
+  type ListWorkItemDeliveryEvidenceInput,
+  type ListEventsInput,
+  type ListKnowledgeScopeRelationshipsInput,
+  type ListKnowledgeScopesInput,
+  type ListWorkItemDependenciesInput,
+  type ListWorkItemLeasesInput,
+  type ListWorkItemNotesInput,
+  type ListWorkItemsInput,
+  type PriorityMoveInput,
+  type ProjectCriticalPathInput,
+  type RenewLeaseInput,
+  type ResolveAttentionRequestInput,
+  type ResolveAttentionRequestResult,
+  type RetryableDatabaseFailure,
+  type StoredAttentionRequest,
+  type StoredAttentionResolution,
+  type StoredEvent,
+  type StoredLease,
+  type StoredNote,
+  type StoredCompletionCandidateEvaluation,
+  type StoredWorkItemDeliveryEvidence,
+  type TerminateClaimedWorkItemInput,
+  type WorkItemDependencyCursor,
+  type WorkItemReadModel,
+  type WorkItemSchedulingScopeInput,
+  type WORK_GRAPH_EVENT_TYPES,
 } from "work-graph-db";
-import { WORK_GRAPH_EVENT_TYPES } from "work-graph-db";
 import {
   ARCHITECTURE_DECISION_ROLES,
+  COMPLETION_CANDIDATE_REASONS,
+  DELIVERY_EVIDENCE_KINDS,
+  DELIVERY_EVIDENCE_STATES,
+  EVIDENCE_CORRELATION_KINDS,
   KNOWLEDGE_SCOPE_KINDS,
+  KNOWLEDGE_SCOPE_LIFECYCLES,
   LEASE_OUTCOMES,
+  MAX_CRITICAL_PATH_BLOCKING_PATHS,
+  MAX_CRITICAL_PATH_NODES,
+  normalizeWorkItemSelectionScope,
   PULL_REQUEST_CHECK_SUMMARIES,
   PULL_REQUEST_MERGEABILITIES,
   PULL_REQUEST_REVIEW_DECISIONS,
@@ -51,6 +67,7 @@ import {
   WORK_ITEM_CONTEXT_KINDS,
   WORK_STAGES,
   WorkGraphError,
+  type CriticalPathProjection,
   type KnowledgeScope,
   type KnowledgeScopeInput,
   type KnowledgeScopeRelationship,
@@ -63,6 +80,7 @@ import {
   type WorkItemDependency,
   type WorkItemReference,
   type WorkItemPullRequest,
+  type WorkItemSelectionScope,
 } from "work-graph-domain";
 import { z } from "zod";
 
@@ -73,9 +91,14 @@ const MAX_DECOMPOSITION_CHILDREN = 100;
 const MAX_DECOMPOSITION_DEPENDENCIES = 1_000;
 const DEFAULT_LIST_LIMIT = 50;
 const MAX_URL_LENGTH = 2_048;
+
+const selectionScopeFrom = (
+  input: WorkItemSelectionScope,
+): WorkItemSelectionScope => normalizeWorkItemSelectionScope(input);
 const MAX_RELATIONSHIP_CURSOR_LENGTH = 4_096;
 const MAX_METADATA_CURSOR_LENGTH = 4_096;
 const MAX_INT32 = 2_147_483_647;
+const MAX_CRITICAL_PATH_EDGES = 5_000;
 const WORK_ITEM_EVENT_TYPES = [
   "attention.requested",
   "attention.resolved",
@@ -134,6 +157,7 @@ const errorSchema = z
     error: z.object({
       code: z.string().min(1).max(100),
       message: z.string().min(1).max(500),
+      requestId: z.string().min(1).max(128).optional(),
       details: z
         .array(
           z.object({
@@ -160,7 +184,7 @@ const leaseSchema = z
   })
   .openapi("Lease");
 
-const workItemSchema = z
+const storedWorkItemSchema = z
   .object({
     id: identifierSchema,
     title: z.string().min(1).max(MAX_TITLE_LENGTH),
@@ -175,14 +199,21 @@ const workItemSchema = z
       z.string().trim().min(1).max(MAX_TITLE_LENGTH),
       z.null(),
     ]),
-    priority: z.object({
-      initiativeRank: childRankSchema,
-      projectRank: childRankSchema,
-      ticketRank: childRankSchema,
-      expedited: z.boolean(),
-      effectiveExpedited: z.boolean(),
-      donatedFromWorkItemId: z.union([identifierSchema, z.null()]),
-    }),
+  })
+  .openapi("StoredWorkItem");
+const workItemPrioritySchema = z
+  .object({
+    initiativeRank: childRankSchema,
+    projectRank: childRankSchema,
+    ticketRank: childRankSchema,
+    expedited: z.boolean(),
+    effectiveExpedited: z.boolean(),
+    donatedFromWorkItemId: z.union([identifierSchema, z.null()]),
+  })
+  .openapi("WorkItemPriority");
+const workItemSchema = storedWorkItemSchema
+  .extend({
+    priority: workItemPrioritySchema,
     stage: z.enum(WORK_STAGES),
     currentLease: z.union([leaseSchema, z.null()]),
   })
@@ -194,6 +225,82 @@ const workItemListSchema = z
     nextCursor: z.union([identifierSchema, z.null()]),
   })
   .openapi("WorkItemList");
+const criticalPathInclusionReasonSchema = z
+  .discriminatedUnion("kind", [
+    z.object({ kind: z.literal("target_outcome") }),
+    z.object({
+      kind: z.literal("decomposition_child"),
+      fromWorkItemId: identifierSchema,
+    }),
+    z.object({
+      kind: z.literal("dependency_blocker"),
+      fromWorkItemId: identifierSchema,
+      dependencyDeclaredByWorkItemId: identifierSchema,
+    }),
+  ])
+  .openapi("CriticalPathInclusionReason");
+const criticalPathNodeSchema = z
+  .object({
+    item: storedWorkItemSchema,
+    stage: z.enum(WORK_STAGES),
+    claimable: z.boolean(),
+    priority: workItemPrioritySchema,
+    inclusionReasons: z
+      .array(criticalPathInclusionReasonSchema)
+      .min(1)
+      .max(MAX_CRITICAL_PATH_EDGES + 1),
+  })
+  .openapi("CriticalPathNode");
+const criticalPathEdgeSchema = z
+  .discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("decomposition"),
+      fromWorkItemId: identifierSchema,
+      toWorkItemId: identifierSchema,
+    }),
+    z.object({
+      kind: z.literal("dependency"),
+      fromWorkItemId: identifierSchema,
+      toWorkItemId: identifierSchema,
+      dependencyDeclaredByWorkItemId: identifierSchema,
+    }),
+  ])
+  .openapi("CriticalPathEdge");
+const criticalPathPathSchema = z
+  .array(identifierSchema)
+  .min(1)
+  .max(MAX_CRITICAL_PATH_NODES)
+  .openapi("CriticalPathWorkItemPath");
+const criticalPathParallelBranchSchema = z
+  .object({
+    workItemId: identifierSchema,
+    stage: z.enum(WORK_STAGES),
+    claimable: z.boolean(),
+    targetWorkItemIds: z
+      .array(identifierSchema)
+      .max(MAX_CRITICAL_PATH_NODES),
+    paths: z
+      .array(criticalPathPathSchema)
+      .max(MAX_CRITICAL_PATH_BLOCKING_PATHS),
+  })
+  .openapi("CriticalPathParallelBranch");
+const criticalPathProjectionSchema = z
+  .object({
+    targetOutcomeIds: z.array(identifierSchema).max(MAX_CRITICAL_PATH_NODES),
+    nodes: z.array(criticalPathNodeSchema).max(MAX_CRITICAL_PATH_NODES),
+    edges: z.array(criticalPathEdgeSchema).max(MAX_CRITICAL_PATH_EDGES),
+    blockingPaths: z
+      .array(criticalPathPathSchema)
+      .max(MAX_CRITICAL_PATH_BLOCKING_PATHS),
+    readyLeafIds: z.array(identifierSchema).max(MAX_CRITICAL_PATH_NODES),
+    blockingAttentionIds: z
+      .array(identifierSchema)
+      .max(MAX_CRITICAL_PATH_NODES),
+    parallelBranches: z
+      .array(criticalPathParallelBranchSchema)
+      .max(MAX_CRITICAL_PATH_NODES),
+  })
+  .openapi("CriticalPathProjection");
 const knowledgeScopeUrlSchema = z
   .url()
   .max(MAX_URL_LENGTH)
@@ -207,6 +314,11 @@ const knowledgeScopeSchema = z
     canonicalUrl: knowledgeScopeUrlSchema,
     markdownUrl: knowledgeScopeUrlSchema,
     sourceRevision: z.union([identifierSchema, z.null()]),
+    lifecycle: z.enum(KNOWLEDGE_SCOPE_LIFECYCLES),
+    archiveReason: z.union([
+      z.string().min(1).max(MAX_TITLE_LENGTH),
+      z.null(),
+    ]),
     rank: z.union([childRankSchema, z.null()]),
   })
   .openapi("KnowledgeScope");
@@ -221,6 +333,7 @@ const inheritanceDepthSchema = z
   .min(0)
   .max(MAX_INT32)
   .openapi({ format: "int32" });
+const commitShaSchema = z.string().max(40).regex(/^[0-9a-f]{40}$/);
 const workItemTextContextSchema = z.object({
   workItemId: identifierSchema,
   kind: z.enum(WORK_ITEM_CONTEXT_KINDS),
@@ -238,7 +351,9 @@ const pullRequestSnapshotSchema = z
     repository: identifierSchema,
     number: z.number().int().min(1).max(MAX_INT32).openapi({ format: "int32" }),
     url: contextUrlSchema,
-    headSha: z.string().max(40).regex(/^[0-9a-f]{40}$/),
+    headSha: commitShaSchema,
+    acceptedHeadSha: z.union([commitShaSchema, z.null()]),
+    mergeCommitSha: z.union([commitShaSchema, z.null()]),
     state: z.enum(PULL_REQUEST_STATES),
     draft: z.boolean(),
     mergeability: z.enum(PULL_REQUEST_MERGEABILITIES),
@@ -259,6 +374,52 @@ const resolvedPullRequestSchema = z
     inheritanceDepth: inheritanceDepthSchema,
   })
   .openapi("ResolvedPullRequest");
+const deliveryEvidenceSchema = z
+  .object({
+    id: z.uuid().max(36),
+    deliveryProvider: z.string().trim().min(1).max(MAX_TITLE_LENGTH),
+    deliveryExternalId: z.string().trim().min(1).max(MAX_TITLE_LENGTH),
+    provider: z.string().trim().min(1).max(MAX_TITLE_LENGTH),
+    externalId: z.string().trim().min(1).max(MAX_TITLE_LENGTH),
+    repository: identifierSchema,
+    commitSha: commitShaSchema,
+    kind: z.enum(DELIVERY_EVIDENCE_KINDS),
+    state: z.enum(DELIVERY_EVIDENCE_STATES),
+    name: z.union([z.string().trim().min(1).max(MAX_TITLE_LENGTH), z.null()]),
+    environment: z.union([
+      z.string().trim().min(1).max(MAX_TITLE_LENGTH),
+      z.null(),
+    ]),
+    sourceUrl: contextUrlSchema,
+    providerObservedAt: timestampSchema,
+    ingestedAt: timestampSchema,
+    correlationKind: z.enum(EVIDENCE_CORRELATION_KINDS),
+    pullRequestRepository: z.union([identifierSchema, z.null()]),
+    pullRequestNumber: z.union([
+      z.number().int().min(1).max(MAX_INT32).openapi({ format: "int32" }),
+      z.null(),
+    ]),
+    current: z.boolean(),
+    projectedAt: z.union([timestampSchema, z.null()]),
+  })
+  .openapi("DeliveryEvidence");
+const completionCandidateSchema = z
+  .object({
+    id: z.uuid().max(36),
+    workItemId: identifierSchema,
+    policyId: identifierSchema,
+    policyRevision: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_INT32)
+      .openapi({ format: "int32" }),
+    candidate: z.boolean(),
+    reasons: z.array(z.enum(COMPLETION_CANDIDATE_REASONS)).max(9),
+    evidenceObservationIds: z.array(z.uuid().max(36)).max(1_000),
+    evaluatedAt: timestampSchema,
+  })
+  .openapi("CompletionCandidate");
 const workItemContextRecordSchema = z
   .union([workItemTextContextSchema, workItemArchitectureDecisionSchema])
   .openapi("WorkItemContextRecord");
@@ -290,6 +451,12 @@ const resolvedWorkItemContextSchema = z
       inheritanceDepth: inheritanceDepthSchema,
     }),
     resolvedPullRequestSchema,
+    z.object({
+      kind: z.literal("delivery_evidence"),
+      evidence: deliveryEvidenceSchema,
+      sourceWorkItemId: identifierSchema,
+      inheritanceDepth: inheritanceDepthSchema,
+    }),
   ])
   .openapi("ResolvedWorkItemContext");
 const resolvedWorkItemContextListSchema = z
@@ -313,6 +480,15 @@ const workItemPullRequestSchema = z
 const resolvedPullRequestListSchema = z
   .object({ items: z.array(resolvedPullRequestSchema).max(1_000) })
   .openapi("ResolvedPullRequestList");
+const deliveryEvidenceListSchema = z
+  .object({
+    items: z.array(deliveryEvidenceSchema).max(100),
+    nextCursor: z.union([z.uuid().max(36), z.null()]),
+  })
+  .openapi("DeliveryEvidenceList");
+const completionCandidateResponseSchema = z
+  .object({ candidate: z.union([completionCandidateSchema, z.null()]) })
+  .openapi("CompletionCandidateResponse");
 const knowledgeScopeListSchema = z
   .object({
     items: z.array(knowledgeScopeSchema).max(100),
@@ -453,10 +629,33 @@ const leaseResponseSchema = z
   .object({ lease: leaseSchema })
   .openapi("LeaseResponse");
 
+const repeatedScopeIdsSchema = z
+  .preprocess(
+    (value) => (typeof value === "string" ? [value] : value),
+    z.array(identifierSchema).max(100),
+  )
+  .openapi({
+    description: "Repeat the query parameter to select more than one scope.",
+    param: { explode: true, style: "form" },
+  });
+const deprecatedInitiativeIdSchema = identifierSchema.optional().openapi({
+  deprecated: true,
+  description:
+    "Deprecated one-item alias for includeInitiativeIds.",
+});
+const deprecatedProjectIdSchema = identifierSchema.optional().openapi({
+  deprecated: true,
+  description: "Deprecated one-item alias for includeProjectIds.",
+});
+
 const listWorkItemsQuerySchema = z.object({
   stage: z.enum(WORK_STAGES).optional(),
-  initiativeId: identifierSchema.optional(),
-  projectId: identifierSchema.optional(),
+  includeInitiativeIds: repeatedScopeIdsSchema.optional(),
+  excludeInitiativeIds: repeatedScopeIdsSchema.optional(),
+  includeProjectIds: repeatedScopeIdsSchema.optional(),
+  excludeProjectIds: repeatedScopeIdsSchema.optional(),
+  initiativeId: deprecatedInitiativeIdSchema,
+  projectId: deprecatedProjectIdSchema,
   parentId: identifierSchema.optional(),
   limit: z.coerce
     .number()
@@ -467,6 +666,38 @@ const listWorkItemsQuerySchema = z.object({
     .openapi({ format: "int32" }),
   cursor: identifierSchema.optional(),
 });
+const getCriticalPathQuerySchema = z
+  .object({
+    includeInitiativeIds: repeatedScopeIdsSchema.optional(),
+    excludeInitiativeIds: repeatedScopeIdsSchema.optional(),
+    includeProjectIds: repeatedScopeIdsSchema.optional(),
+    excludeProjectIds: repeatedScopeIdsSchema.optional(),
+    initiativeId: deprecatedInitiativeIdSchema,
+    projectId: deprecatedProjectIdSchema,
+    rootWorkItemId: identifierSchema.optional(),
+  })
+  .refine(
+    ({
+      excludeInitiativeIds,
+      excludeProjectIds,
+      includeInitiativeIds,
+      includeProjectIds,
+      initiativeId,
+      projectId,
+      rootWorkItemId,
+    }) =>
+      rootWorkItemId === undefined ||
+      (initiativeId === undefined &&
+        projectId === undefined &&
+        includeInitiativeIds === undefined &&
+        excludeInitiativeIds === undefined &&
+        includeProjectIds === undefined &&
+        excludeProjectIds === undefined),
+    {
+      message: "rootWorkItemId cannot be combined with scope filters",
+      path: ["rootWorkItemId"],
+    },
+  );
 const listAttentionRequestsQuerySchema = z.object({
   workItemId: identifierSchema.optional(),
   state: z.enum(["all", "unresolved", "resolved"]).default("unresolved"),
@@ -529,6 +760,7 @@ const listWorkItemLeasesQuerySchema = z.object({
 });
 const listKnowledgeScopesQuerySchema = z.object({
   kind: z.enum(KNOWLEDGE_SCOPE_KINDS).optional(),
+  includeArchived: z.enum(["true"]).optional(),
   limit: z.coerce
     .number()
     .int()
@@ -539,6 +771,7 @@ const listKnowledgeScopesQuerySchema = z.object({
   cursor: identifierSchema.optional(),
 });
 const listKnowledgeScopeRelationshipsQuerySchema = z.object({
+  includeArchived: z.enum(["true"]).optional(),
   limit: z.coerce
     .number()
     .int()
@@ -553,6 +786,17 @@ const listKnowledgeScopeRelationshipsQuerySchema = z.object({
     .optional(),
 });
 const workItemParamsSchema = z.object({ workItemId: identifierSchema });
+const listWorkItemEvidenceQuerySchema = z.object({
+  currentOnly: z.enum(["true"]).optional(),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .default(DEFAULT_LIST_LIMIT)
+    .openapi({ format: "int32" }),
+  cursor: z.uuid().max(36).optional(),
+});
 const knowledgeScopeParamsSchema = z.object({
   knowledgeScopeId: identifierSchema,
 });
@@ -578,14 +822,33 @@ const putWorkItemContextBodySchema = z.union([
 const putWorkItemReferenceBodySchema = workItemReferenceSchema
   .omit({ workItemId: true })
   .strict();
-const refreshPullRequestBodySchema = pullRequestSnapshotSchema.strict();
+const refreshPullRequestBodySchema = pullRequestSnapshotSchema
+  .extend({
+    acceptedHeadSha: pullRequestSnapshotSchema.shape.acceptedHeadSha
+      .optional()
+      .default(null),
+    mergeCommitSha: pullRequestSnapshotSchema.shape.mergeCommitSha
+      .optional()
+      .default(null),
+  })
+  .strict();
 const putWorkItemPullRequestBodySchema = workItemPullRequestSchema
   .omit({ workItemId: true })
   .strict();
 const putKnowledgeScopeBodySchema = knowledgeScopeSchema
-  .omit({ id: true, rank: true })
+  .omit({
+    id: true,
+    lifecycle: true,
+    archiveReason: true,
+    rank: true,
+  })
   .extend({
     sourceRevision: z.union([identifierSchema, z.null()]).optional(),
+  })
+  .strict();
+const archiveKnowledgeScopeBodySchema = z
+  .object({
+    reason: z.string().min(1).max(MAX_TITLE_LENGTH),
   })
   .strict();
 const priorityMoveBodySchema = z.union([
@@ -655,8 +918,12 @@ const createLeaseBodySchema = z.union([
     .object({
       workerId: identifierSchema,
       leaseDurationSeconds: leaseDurationSchema,
-      initiativeId: identifierSchema.optional(),
-      projectId: identifierSchema.optional(),
+      includeInitiativeIds: z.array(identifierSchema).max(100).optional(),
+      excludeInitiativeIds: z.array(identifierSchema).max(100).optional(),
+      includeProjectIds: z.array(identifierSchema).max(100).optional(),
+      excludeProjectIds: z.array(identifierSchema).max(100).optional(),
+      initiativeId: deprecatedInitiativeIdSchema,
+      projectId: deprecatedProjectIdSchema,
       parentId: identifierSchema.optional(),
     })
     .strict(),
@@ -748,6 +1015,23 @@ const errorResponse = (description: string) => ({
   description,
   content: { "application/json": { schema: errorSchema } },
 });
+const retryableDatabaseErrorResponse = {
+  ...errorResponse("Database request can be retried after a transient failure"),
+  headers: {
+    "Retry-After": {
+      description: "Seconds until the request may be retried",
+      schema: {
+        type: "string" as const,
+        pattern: "^[1-9][0-9]*$",
+        maxLength: 10,
+      },
+    },
+    "X-Request-Id": {
+      description: "Request correlation identifier",
+      schema: { type: "string" as const, minLength: 1, maxLength: 128 },
+    },
+  },
+};
 const standardErrors = {
   400: errorResponse("Invalid request"),
   401: errorResponse("Cloudflare Access authentication required"),
@@ -756,6 +1040,7 @@ const standardErrors = {
   409: errorResponse("Request conflicts with current Work Graph state"),
   422: errorResponse("Request validation failed"),
   500: errorResponse("Unexpected server error"),
+  503: retryableDatabaseErrorResponse,
 };
 const accessSecurity = [
   { cloudflareAccessClientId: [], cloudflareAccessClientSecret: [] },
@@ -767,7 +1052,7 @@ const listWorkItemsRoute = createRoute({
   operationId: "listWorkItems",
   summary: "List work items with their derived stage",
   description:
-    "Returns one bounded page in global priority order. Optional stage, initiative, project, and direct-parent filters preserve that relative order. Pass nextCursor to continue after the last observed item without offset drift during lease transitions.",
+    "Returns one bounded page in global priority order. Scope arrays use repeated query parameters. Values within one inclusion dimension are alternatives, initiative and project filters must both match, and exclusions win. Empty inclusion arrays impose no restriction. Optional stage and direct-parent filters preserve priority order. The singular initiativeId and projectId parameters remain deprecated one-item inclusion aliases. Pass nextCursor to continue after the last observed item without offset drift during lease transitions.",
   tags: ["work-items"],
   security: accessSecurity,
   request: { query: listWorkItemsQuerySchema },
@@ -780,13 +1065,35 @@ const listWorkItemsRoute = createRoute({
   },
 });
 
+const getCriticalPathRoute = createRoute({
+  method: "get",
+  path: "/api/critical-path",
+  operationId: "getCriticalPath",
+  summary: "Project the current delivery-critical path",
+  description:
+    "Returns one deterministic, bounded projection for global open roots, selected scopes, or one explicit root work item. Scope arrays use repeated query parameters. Values within one inclusion dimension are alternatives, initiative and project filters must both match, and exclusions win. Exclusions remove matching targets but retain cross-scope blockers required by included outcomes. The singular initiativeId and projectId parameters remain deprecated one-item inclusion aliases. An explicit root cannot be combined with scope filters. Projections are limited to 1,000 nodes, 5,000 edges, and 5,000 blocking paths; larger projections return a conflict instead of a partial graph.",
+  tags: ["work-items"],
+  security: accessSecurity,
+  request: { query: getCriticalPathQuerySchema },
+  responses: {
+    200: {
+      description:
+        "Critical-path targets, included nodes and edges, blocking paths, and claimable parallel branches",
+      content: {
+        "application/json": { schema: criticalPathProjectionSchema },
+      },
+    },
+    ...standardErrors,
+  },
+});
+
 const listKnowledgeScopesRoute = createRoute({
   method: "get",
   path: "/api/knowledge-scopes",
   operationId: "listKnowledgeScopes",
   summary: "List knowledge-scope mirrors",
   description:
-    "Returns initiative and project mirrors in stable source-key order. The optional kind filter does not change that order.",
+    "Returns active initiative and project mirrors in stable source-key order. The optional kind filter does not change that order. Set includeArchived=true for an audit view.",
   tags: ["knowledge-scopes"],
   security: accessSecurity,
   request: { query: listKnowledgeScopesQuerySchema },
@@ -844,6 +1151,56 @@ const putKnowledgeScopeRoute = createRoute({
   },
 });
 
+const archiveKnowledgeScopeRoute = createRoute({
+  method: "post",
+  path: "/api/knowledge-scopes/{knowledgeScopeId}/archival",
+  operationId: "archiveKnowledgeScope",
+  summary: "Archive a knowledge-scope mirror",
+  description:
+    "Removes a scope from active scheduling and priority order while retaining its source snapshot, relationships, and historical work-item context. Open work must move or terminate first.",
+  tags: ["knowledge-scopes"],
+  security: accessSecurity,
+  request: {
+    params: knowledgeScopeParamsSchema,
+    headers: idempotencyHeadersSchema,
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: archiveKnowledgeScopeBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Knowledge scope archived or matching mutation replayed",
+      content: { "application/json": { schema: knowledgeScopeSchema } },
+    },
+    ...standardErrors,
+  },
+});
+
+const restoreKnowledgeScopeRoute = createRoute({
+  method: "delete",
+  path: "/api/knowledge-scopes/{knowledgeScopeId}/archival",
+  operationId: "restoreKnowledgeScope",
+  summary: "Restore an archived knowledge-scope mirror",
+  description:
+    "Returns an archived scope to active scheduling at the median position for its kind.",
+  tags: ["knowledge-scopes"],
+  security: accessSecurity,
+  request: {
+    params: knowledgeScopeParamsSchema,
+    headers: idempotencyHeadersSchema,
+  },
+  responses: {
+    200: {
+      description: "Knowledge scope restored or matching mutation replayed",
+      content: { "application/json": { schema: knowledgeScopeSchema } },
+    },
+    ...standardErrors,
+  },
+});
+
 const moveKnowledgeScopePriorityRoute = createRoute({
   method: "post",
   path: "/api/knowledge-scopes/{knowledgeScopeId}/priority-moves",
@@ -876,7 +1233,7 @@ const listKnowledgeScopeRelationshipsRoute = createRoute({
   operationId: "listKnowledgeScopeRelationships",
   summary: "List knowledge-scope relationships",
   description:
-    "Returns a bounded page of directed parent-to-child scope edges in stable order. Pass nextCursor unchanged to continue.",
+    "Returns a bounded page of directed parent-to-child edges between active scopes in stable order. Set includeArchived=true for an audit view. Pass nextCursor unchanged to continue.",
   tags: ["knowledge-scopes"],
   security: accessSecurity,
   request: { query: listKnowledgeScopeRelationshipsQuerySchema },
@@ -963,6 +1320,49 @@ const getWorkItemRoute = createRoute({
     200: {
       description: "Current work-item projection",
       content: { "application/json": { schema: workItemSchema } },
+    },
+    ...standardErrors,
+  },
+});
+
+const listWorkItemEvidenceRoute = createRoute({
+  method: "get",
+  path: "/api/work-items/{workItemId}/evidence",
+  operationId: "listWorkItemEvidence",
+  summary: "List delivery evidence for a work item",
+  description:
+    "Returns immutable evidence correlated through the work item's pull requests. Each record identifies whether it is the current provider projection. Set currentOnly=true for claim context and pass nextCursor unchanged to continue.",
+  tags: ["work-items"],
+  security: accessSecurity,
+  request: {
+    params: workItemParamsSchema,
+    query: listWorkItemEvidenceQuerySchema,
+  },
+  responses: {
+    200: {
+      description: "Delivery evidence in stable observation-ID order",
+      content: { "application/json": { schema: deliveryEvidenceListSchema } },
+    },
+    ...standardErrors,
+  },
+});
+
+const getWorkItemCompletionCandidateRoute = createRoute({
+  method: "get",
+  path: "/api/work-items/{workItemId}/completion-candidate",
+  operationId: "getWorkItemCompletionCandidate",
+  summary: "Read the current completion candidacy",
+  description:
+    "Returns the latest immutable completion evaluation and its policy revision, or null when the work item has not been evaluated.",
+  tags: ["work-items"],
+  security: accessSecurity,
+  request: { params: workItemParamsSchema },
+  responses: {
+    200: {
+      description: "Current completion-candidate projection",
+      content: {
+        "application/json": { schema: completionCandidateResponseSchema },
+      },
     },
     ...standardErrors,
   },
@@ -1542,7 +1942,7 @@ const createLeaseRoute = createRoute({
   operationId: "createLease",
   summary: "Claim a specified or first eligible work item",
   description:
-    "Creates a fenced lease for the requested item, or for the highest-priority eligible item within optional initiative, project, and direct-parent filters when workItemId is absent.",
+    "Creates a fenced lease for the requested item, including continuation after resolved attention and recovery of its expired lease after graph blockers changed. When workItemId is absent, claims only the highest-priority ready item with no prior lease within the optional scope filters. Values within one inclusion dimension are alternatives, initiative and project filters must both match, and exclusions win. Empty inclusion arrays impose no restriction. The singular initiativeId and projectId fields remain deprecated one-item inclusion aliases. Explicit claims by workItemId reject every selection filter.",
   tags: ["leases"],
   security: accessSecurity,
   request: {
@@ -1664,12 +2064,24 @@ const createDecompositionRoute = createRoute({
 });
 
 export interface WorkGraphApiRepository {
+  projectCriticalPath(
+    input?: ProjectCriticalPathInput,
+  ): Promise<CriticalPathProjection>;
   listKnowledgeScopes(
     input?: ListKnowledgeScopesInput,
   ): Promise<readonly KnowledgeScope[]>;
   getKnowledgeScope(id: string): Promise<KnowledgeScope>;
   putKnowledgeScope(
     input: KnowledgeScopeInput,
+    options?: IdempotentMutationOptions,
+  ): Promise<KnowledgeScope>;
+  archiveKnowledgeScope(
+    id: string,
+    input: ArchiveKnowledgeScopeInput,
+    options?: IdempotentMutationOptions,
+  ): Promise<KnowledgeScope>;
+  restoreKnowledgeScope(
+    id: string,
     options?: IdempotentMutationOptions,
   ): Promise<KnowledgeScope>;
   moveKnowledgeScopePriority(
@@ -1694,6 +2106,12 @@ export interface WorkGraphApiRepository {
     input?: ListWorkItemsInput,
   ): Promise<readonly WorkItemReadModel[]>;
   getWorkItem(workItemId: string): Promise<WorkItemReadModel>;
+  listWorkItemDeliveryEvidence(
+    input: ListWorkItemDeliveryEvidenceInput,
+  ): Promise<readonly StoredWorkItemDeliveryEvidence[]>;
+  getCompletionCandidate(
+    workItemId: string,
+  ): Promise<StoredCompletionCandidateEvaluation | null>;
   resolveWorkItemContext(
     workItemId: string,
   ): Promise<readonly ResolvedWorkItemContext[]>;
@@ -1793,6 +2211,8 @@ export interface WorkGraphApiRepository {
 
 export interface WorkGraphAppOptions {
   readonly createLeaseId?: () => string;
+  readonly createRequestId?: () => string;
+  readonly workerVersion?: string;
 }
 
 const idempotencyOptions = (
@@ -1943,6 +2363,7 @@ const statusForWorkGraphError = (error: WorkGraphError): 400 | 404 | 409 => {
   if (
     error.code === "work_item_not_found" ||
     error.code === "attention_request_not_found" ||
+    error.code === "external_delivery_not_found" ||
     error.code === "knowledge_scope_not_found" ||
     error.code === "pull_request_not_found"
   ) {
@@ -1952,12 +2373,87 @@ const statusForWorkGraphError = (error: WorkGraphError): 400 | 404 | 409 => {
   return 409;
 };
 
+const retryableDatabaseErrors: Record<
+  RetryableDatabaseFailure,
+  { code: string; message: string }
+> = {
+  timeout: {
+    code: "database_timeout",
+    message: "The Work Graph database request timed out. Retry it.",
+  },
+  capacity: {
+    code: "database_capacity",
+    message: "The Work Graph database is at connection capacity. Retry it.",
+  },
+  infrastructure: {
+    code: "database_unavailable",
+    message: "The Work Graph database is temporarily unavailable. Retry it.",
+  },
+};
+
+class UncertainClaimOutcomeError extends Error {
+  constructor(cause: unknown) {
+    super("A lease claim may have committed before its response failed.", {
+      cause,
+    });
+    this.name = "UncertainClaimOutcomeError";
+  }
+}
+
+const requireBoundedCriticalPath = (
+  projection: CriticalPathProjection,
+): CriticalPathProjection => {
+  const parallelPathCount = projection.parallelBranches.reduce(
+    (total, branch) => total + branch.paths.length,
+    0,
+  );
+  const tooLarge =
+    projection.nodes.length > MAX_CRITICAL_PATH_NODES ||
+    projection.edges.length > MAX_CRITICAL_PATH_EDGES ||
+    projection.blockingPaths.length > MAX_CRITICAL_PATH_BLOCKING_PATHS ||
+    projection.blockingPaths.some(
+      (path) => path.length > MAX_CRITICAL_PATH_NODES,
+    ) ||
+    projection.parallelBranches.length > MAX_CRITICAL_PATH_NODES ||
+    parallelPathCount > MAX_CRITICAL_PATH_BLOCKING_PATHS ||
+    projection.parallelBranches.some((branch) =>
+      branch.paths.some((path) => path.length > MAX_CRITICAL_PATH_NODES),
+    );
+  if (tooLarge) {
+    throw new WorkGraphError(
+      "critical_path_projection_too_large",
+      `The critical-path projection exceeds the response limit of ${MAX_CRITICAL_PATH_NODES} nodes, ${MAX_CRITICAL_PATH_EDGES} edges, or ${MAX_CRITICAL_PATH_BLOCKING_PATHS} paths. Narrow the request by initiative, project, or root work item.`,
+    );
+  }
+  return projection;
+};
+
 export const createWorkGraphApp = (
   repository: WorkGraphApiRepository,
   options: WorkGraphAppOptions = {},
 ) => {
   const app = new OpenAPIHono({ defaultHook: validationHook });
   const createLeaseId = options.createLeaseId ?? (() => crypto.randomUUID());
+  const createRequestId = options.createRequestId ?? (() => crypto.randomUUID());
+  const resolveContextWithEvidence = async (workItemId: string) => {
+    const resolved = [...(await repository.resolveWorkItemContext(workItemId))];
+    const remaining = Math.max(0, 1_000 - resolved.length);
+    if (remaining === 0) return resolved;
+    const evidence = await repository.listWorkItemDeliveryEvidence({
+      workItemId,
+      currentOnly: true,
+      limit: remaining,
+    });
+    return [
+      ...resolved,
+      ...evidence.map((item) => ({
+        kind: "delivery_evidence" as const,
+        evidence: item,
+        sourceWorkItemId: workItemId,
+        inheritanceDepth: 0,
+      })),
+    ];
+  };
 
   app.openAPIRegistry.registerComponent(
     "securitySchemes",
@@ -1987,17 +2483,65 @@ export const createWorkGraphApp = (
         statusForWorkGraphError(error),
       );
     }
-    console.error(
-      JSON.stringify({
-        message: "Work Graph request failed",
-        error: error instanceof Error ? error.message : String(error),
-      }),
-    );
+    const requestId = createRequestId();
+    context.header("X-Request-Id", requestId);
+    const logFailure = (message: string, code: string, status: number) => {
+      console.error({
+        message,
+        code,
+        requestId,
+        method: context.req.method,
+        route: routePath(context) || "unmatched",
+        outcome: "error",
+        status,
+        workerVersion: options.workerVersion ?? "local",
+        exceptionClass: code,
+      });
+    };
+    if (error instanceof UncertainClaimOutcomeError) {
+      logFailure(
+        "Work Graph lease claim outcome is uncertain",
+        "claim_outcome_uncertain",
+        500,
+      );
+      return context.json(
+        {
+          error: {
+            code: "claim_outcome_uncertain",
+            message:
+              "The lease claim may have succeeded, but its response could not be completed. Inspect the work item before claiming again.",
+            requestId,
+          },
+        },
+        500,
+      );
+    }
+    const retryableDatabaseFailure = classifyRetryableDatabaseFailure(error);
+    if (retryableDatabaseFailure !== undefined) {
+      const responseError = retryableDatabaseErrors[retryableDatabaseFailure];
+      context.header("Retry-After", "1");
+      logFailure(
+        "Work Graph database request can be retried",
+        responseError.code,
+        503,
+      );
+      return context.json(
+        {
+          error: {
+            ...responseError,
+            requestId,
+          },
+        },
+        503,
+      );
+    }
+    logFailure("Work Graph request failed", "internal_error", 500);
     return context.json(
       {
         error: {
           code: "internal_error",
           message: "The Work Graph request failed.",
+          requestId,
         },
       },
       500,
@@ -2010,26 +2554,37 @@ export const createWorkGraphApp = (
     ),
   );
 
-  app.openapi(listWorkItemsRoute, async (context) => {
-    const { cursor, initiativeId, limit, parentId, projectId, stage } =
-      context.req.valid("query");
-    const items = await repository.listWorkItems({
-      ...(initiativeId === undefined ? {} : { initiativeId }),
-      ...(projectId === undefined ? {} : { projectId }),
-      ...(parentId === undefined ? {} : { parentId }),
+  app.openapi(getCriticalPathRoute, async (context) => {
+    const query = context.req.valid("query");
+    const projection = await repository.projectCriticalPath({
+      ...selectionScopeFrom(query),
+      ...(query.rootWorkItemId === undefined
+        ? {}
+        : { rootWorkItemId: query.rootWorkItemId }),
     });
+    return context.json(
+      criticalPathProjectionSchema.parse(
+        requireBoundedCriticalPath(projection),
+      ),
+      200,
+    );
+  });
+
+  app.openapi(listWorkItemsRoute, async (context) => {
+    const query = context.req.valid("query");
+    const items = await repository.listWorkItems(selectionScopeFrom(query));
     const cursorIndex =
-      cursor === undefined
+      query.cursor === undefined
         ? -1
-        : items.findIndex((item) => item.id === cursor);
+        : items.findIndex((item) => item.id === query.cursor);
     const remainingItems =
-      cursor !== undefined && cursorIndex === -1
+      query.cursor !== undefined && cursorIndex === -1
         ? []
         : items.slice(cursorIndex + 1);
     const matchingItems = remainingItems.filter(
-      (item) => stage === undefined || item.stage === stage,
+      (item) => query.stage === undefined || item.stage === query.stage,
     );
-    const page = matchingItems.slice(0, limit);
+    const page = matchingItems.slice(0, query.limit);
     return context.json(
       {
         items: page.map(serializeWorkItem),
@@ -2043,9 +2598,11 @@ export const createWorkGraphApp = (
   });
 
   app.openapi(listKnowledgeScopesRoute, async (context) => {
-    const { cursor, kind, limit } = context.req.valid("query");
+    const { cursor, includeArchived, kind, limit } =
+      context.req.valid("query");
     const scopes = await repository.listKnowledgeScopes({
       ...(kind === undefined ? {} : { kind }),
+      ...(includeArchived === undefined ? {} : { includeArchived: true }),
       ...(cursor === undefined ? {} : { cursor }),
       limit: limit + 1,
     });
@@ -2080,6 +2637,32 @@ export const createWorkGraphApp = (
     );
   });
 
+  app.openapi(archiveKnowledgeScopeRoute, async (context) => {
+    const { knowledgeScopeId } = context.req.valid("param");
+    const request = context.req.valid("json");
+    const headers = context.req.valid("header");
+    return context.json(
+      await repository.archiveKnowledgeScope(
+        knowledgeScopeId,
+        request,
+        idempotencyOptions(headers["idempotency-key"]),
+      ),
+      200,
+    );
+  });
+
+  app.openapi(restoreKnowledgeScopeRoute, async (context) => {
+    const { knowledgeScopeId } = context.req.valid("param");
+    const headers = context.req.valid("header");
+    return context.json(
+      await repository.restoreKnowledgeScope(
+        knowledgeScopeId,
+        idempotencyOptions(headers["idempotency-key"]),
+      ),
+      200,
+    );
+  });
+
   app.openapi(moveKnowledgeScopePriorityRoute, async (context) => {
     const { knowledgeScopeId } = context.req.valid("param");
     const request = context.req.valid("json");
@@ -2095,8 +2678,9 @@ export const createWorkGraphApp = (
   });
 
   app.openapi(listKnowledgeScopeRelationshipsRoute, async (context) => {
-    const { cursor, limit } = context.req.valid("query");
+    const { cursor, includeArchived, limit } = context.req.valid("query");
     const relationships = await repository.listKnowledgeScopeRelationships({
+      ...(includeArchived === undefined ? {} : { includeArchived: true }),
       ...(cursor === undefined
         ? {}
         : { cursor: decodeKnowledgeScopeRelationshipCursor(cursor) }),
@@ -2144,10 +2728,50 @@ export const createWorkGraphApp = (
     );
   });
 
+  app.openapi(listWorkItemEvidenceRoute, async (context) => {
+    const { workItemId } = context.req.valid("param");
+    const { currentOnly, cursor, limit } = context.req.valid("query");
+    await repository.getWorkItem(workItemId);
+    const evidence = await repository.listWorkItemDeliveryEvidence({
+      workItemId,
+      currentOnly: currentOnly === "true",
+      ...(cursor === undefined ? {} : { cursor }),
+      limit: limit + 1,
+    });
+    const page = evidence.slice(0, limit);
+    return context.json(
+      {
+        items: page,
+        nextCursor:
+          evidence.length > limit ? (page.at(-1)?.id ?? null) : null,
+      },
+      200,
+    );
+  });
+
+  app.openapi(getWorkItemCompletionCandidateRoute, async (context) => {
+    const { workItemId } = context.req.valid("param");
+    await repository.getWorkItem(workItemId);
+    const candidate = await repository.getCompletionCandidate(workItemId);
+    return context.json(
+      {
+        candidate:
+          candidate === null
+            ? null
+            : {
+                ...candidate,
+                reasons: [...candidate.reasons],
+                evidenceObservationIds: [...candidate.evidenceObservationIds],
+              },
+      },
+      200,
+    );
+  });
+
   app.openapi(listWorkItemContextsRoute, async (context) => {
     const { workItemId } = context.req.valid("param");
     return context.json(
-      { items: [...(await repository.resolveWorkItemContext(workItemId))] },
+      { items: await resolveContextWithEvidence(workItemId) },
       200,
     );
   });
@@ -2517,13 +3141,7 @@ export const createWorkGraphApp = (
     const selection =
       "workItemId" in request
         ? { workItemId: request.workItemId }
-        : {
-            ...(request.initiativeId
-              ? { initiativeId: request.initiativeId }
-              : {}),
-            ...(request.projectId ? { projectId: request.projectId } : {}),
-            ...(request.parentId ? { parentId: request.parentId } : {}),
-          };
+        : selectionScopeFrom(request);
     const claimed = await repository.claimWorkItem({
       leaseId: createLeaseId(),
       workerId: request.workerId,
@@ -2536,24 +3154,31 @@ export const createWorkGraphApp = (
           error: {
             code: "work_item_not_claimable",
             message: "workItemId" in request
-              ? `Work item ${request.workItemId} is not claimable.`
-              : "No work item is currently claimable.",
+              ? `Work item ${request.workItemId} is neither ready nor recoverable stale work.`
+              : "No never-started ready work item is currently claimable. Specify a ticket ID to continue or recover earlier work.",
           },
         },
         409,
       );
     }
-    const item = await repository.getWorkItem(claimed.workItemId);
-    return context.json(
-      {
-        lease: serializeLease(claimed),
-        workItem: serializeWorkItem(item),
-        context: [
-          ...(await repository.resolveWorkItemContext(claimed.workItemId)),
-        ],
-      },
-      201,
-    );
+    try {
+      const item = await repository.getWorkItem(claimed.workItemId);
+      return context.json(
+        {
+          lease: serializeLease(claimed),
+          workItem: serializeWorkItem(item),
+          context: [
+            ...(await resolveContextWithEvidence(claimed.workItemId)),
+          ],
+        },
+        201,
+      );
+    } catch (error) {
+      if (classifyRetryableDatabaseFailure(error) !== undefined) {
+        throw new UncertainClaimOutcomeError(error);
+      }
+      throw error;
+    }
   });
 
   app.openapi(renewLeaseRoute, async (context) => {

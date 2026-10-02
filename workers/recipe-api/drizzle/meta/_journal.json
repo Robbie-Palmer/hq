@@ -99,6 +99,48 @@
       "when": 1788028705375,
       "tag": "0013_add_account_issuer",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790421865867,
+      "tag": "0014_agent_execution_rate_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1790431034646,
+      "tag": "0015_agent_mutation_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790578850537,
+      "tag": "0016_reversible_cook_log_writes",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790802284772,
+      "tag": "0017_durable_recipe_batches",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790839306581,
+      "tag": "0018_collection_archive_import",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790893214000,
+      "tag": "0019_reconcile_recipe_ingredients",
+      "breakpoints": true
     }
   ]
 }

@@ -30,9 +30,8 @@ Secrets and config mirrored from Doppler:
       - Account.Workers R2 Storage: Edit
       - Account.Hyperdrive: Edit
       - Account.Account Rulesets: Edit
-      - Account.Access Apps: Read
+      - Account.Access Apps and Policies: Edit
       - Account.Access Organizations: Read
-      - Account.Access Policies: Edit
       - Account.Access: Service Tokens: Edit
       - Zone.DNS: Edit, scoped to `robbiepalmer.me`
       - Zone.Cache Settings: Edit, scoped to `robbiepalmer.me`
@@ -89,11 +88,11 @@ Secrets and config mirrored from Doppler:
     - Mark unmasked in Doppler so the GitHub sync publishes it as an Actions
       variable, not a secret. Terraform requires a non-empty value and has no
       production default.
-12. **`CF_PAGES_PREVIEW_ACCESS_APPLICATION_ID`**
-    - Find in: Cloudflare Zero Trust → Access → Applications → the Pages
-      preview application → application overview or URL
-    - Mark unmasked in Doppler because it identifies a public resource
-    - Passed as `TF_VAR_cloudflare_pages_preview_access_application_id`
+
+The Pages preview application uses the account-restricted `Cloudflare` identity
+provider. See the
+[PR preview environment runbook](../../docs/runbooks/preview-environments.md)
+for bootstrap, import, and recovery procedures.
 
 ### Required Environment
 
@@ -108,8 +107,8 @@ Create GitHub environments that match the Doppler config boundaries:
 
 PR infrastructure uses the `preview-*` environments with least-privilege
 credentials. Follow the
-[preview environment runbook](../docs/preview-environments.md); do not copy the
-production Cloudflare token or production database URL into them.
+[preview environment runbook](../../docs/runbooks/preview-environments.md); do
+not copy the production Cloudflare token or production database URL into them.
 `preview-agent-access` is used only by trusted default-branch workflows to
 rotate the coding-agent Access secret and issue short-lived preview QA
 credentials. Restrict it to the default branch and follow the same runbook.
@@ -163,6 +162,15 @@ See [`ml-pipelines/README.md`](/ml-pipelines/README.md) for developer setup.
 Private bucket for age-encrypted PostgreSQL custom-format archives. Terraform
 creates the bucket with deletion protection; the scheduled backup and restore
 runbook lives in [`../backups/README.md`](../backups/README.md).
+
+### `remote-development-workspace-backups`
+
+Private bucket for restic-encrypted snapshots of the remote operator
+workspace. Terraform prevents bucket deletion. The host uses an R2 Object Read
+& Write token scoped only to this bucket, while restic applies snapshot
+retention and encrypts both data and metadata before upload. The backup,
+restore, status, and credential-safe export runbook lives in
+[`../../homelab/README.md`](../../homelab/README.md#updates-rollback-and-backups).
 
 ## PostHog
 

@@ -334,6 +334,7 @@ function ExtraItemRow({
   );
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function ShoppingList({
   recipes,
 }: Readonly<{ recipes: ShoppingRecipe[] }>) {
@@ -342,7 +343,7 @@ export function ShoppingList({
   const stock = pantry.data?.stock ?? {};
   const stockActions = useKitchenStockActions();
   const [system] = useUnitPreference();
-  const [view, setView] = useState<ListView>("aisle");
+  const [view, setView] = useState<ListView>("flat");
 
   const bySlug = useMemo(() => {
     const map = new Map<string, ShoppingRecipe>();

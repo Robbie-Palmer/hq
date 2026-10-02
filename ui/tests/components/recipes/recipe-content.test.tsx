@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   tokenizeInstructionSdk: vi.fn(),
   recordCookingSession: vi.fn().mockResolvedValue({}),
   recordCookingCompletionReliably: vi.fn().mockResolvedValue({}),
+  renderShoppingListButton: vi.fn(),
   authState: {
     data: { user: { id: "cook-1" } } as {
       user: { id: string };
@@ -61,6 +62,17 @@ vi.mock("@/lib/api/cooking-insights", () => ({
   recordCookingSession: mocks.recordCookingSession,
 }));
 
+vi.mock("@/components/recipes/recipe-shopping-list-button", () => ({
+  RecipeShoppingListButton: (props: {
+    recipeSlug: string;
+    servings: number;
+    userId: string;
+  }) => {
+    mocks.renderShoppingListButton(props);
+    return <button type="button">Add to shopping list</button>;
+  },
+}));
+
 vi.mock("@/lib/analytics/recipe-product", () => ({
   captureRecipeProductActivity: mocks.captureRecipeProductActivity,
   captureRecipeValue: mocks.captureRecipeValue,
@@ -88,6 +100,7 @@ describe("RecipeContent", () => {
     mocks.setUnitPreference.mockClear();
     mocks.recordCookingSession.mockReset().mockResolvedValue({});
     mocks.recordCookingCompletionReliably.mockReset().mockResolvedValue({});
+    mocks.renderShoppingListButton.mockClear();
     mocks.authState.data = { user: { id: "cook-1" } };
     mocks.authState.isPending = false;
     window.history.replaceState(null, "", "/recipes/saved?slug=weeknight");
@@ -126,12 +139,43 @@ describe("RecipeContent", () => {
   });
 
   it("renders timers as disabled in an unsaved recipe preview", () => {
-    render(<RecipeContent recipe={recipe} timersEnabled={false} />);
+    render(
+      <RecipeContent
+        recipe={recipe}
+        timersEnabled={false}
+        shoppingListEnabled={false}
+      />,
+    );
 
     expect(screen.getByRole("button", { name: "10 minutes" })).toBeDisabled();
     expect(
+      screen.queryByRole("button", { name: "Add to shopping list" }),
+    ).not.toBeInTheDocument();
+    expect(
       screen.queryByRole("button", { name: /start 10 minutes timer/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("passes the selected servings to the shopping-list action", async () => {
+    const user = userEvent.setup();
+    render(<RecipeContent recipe={recipe} />);
+
+    expect(
+      screen.getByRole("button", { name: "Add to shopping list" }),
+    ).toBeInTheDocument();
+    expect(mocks.renderShoppingListButton).toHaveBeenLastCalledWith({
+      recipeSlug: "weeknight",
+      servings: 2,
+      userId: "cook-1",
+    });
+
+    await user.click(screen.getByRole("button", { name: "Increase portions" }));
+
+    expect(mocks.renderShoppingListButton).toHaveBeenLastCalledWith({
+      recipeSlug: "weeknight",
+      servings: 3,
+      userId: "cook-1",
+    });
   });
 
   it("retains native list markers for Safari accessibility", () => {

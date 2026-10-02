@@ -1,10 +1,15 @@
+import {
+  PANTRY_LOCATIONS,
+  type PantryLocation,
+  PantryLocationSchema,
+} from "recipe-domain/pantry";
 import type {
   Ingredient,
   IngredientCategory,
   IngredientSlug,
 } from "./ingredient";
 
-export type KitchenLocation = "fridge" | "cupboards" | "fresh";
+export type KitchenLocation = PantryLocation;
 
 export type KitchenStock = Record<string, KitchenLocation>;
 
@@ -14,23 +19,24 @@ export type KitchenLocationView = {
   description: string;
 };
 
-export const KITCHEN_LOCATIONS: KitchenLocationView[] = [
-  {
-    id: "fridge",
+const KITCHEN_LOCATION_DETAILS = {
+  fridge: {
     label: "Fridge",
     description: "Dairy, eggs, proteins, opened jars.",
   },
-  {
-    id: "cupboards",
+  cupboards: {
     label: "Cupboards",
     description: "Pasta, tins, oils, spices, dry goods.",
   },
-  {
-    id: "fresh",
+  fresh: {
     label: "Fresh",
     description: "Fruit, vegetables, herbs.",
   },
-];
+} satisfies Record<KitchenLocation, Omit<KitchenLocationView, "id">>;
+
+export const KITCHEN_LOCATIONS: KitchenLocationView[] = PANTRY_LOCATIONS.map(
+  (id) => ({ id, ...KITCHEN_LOCATION_DETAILS[id] }),
+);
 
 export type KitchenIngredientView = {
   slug: IngredientSlug;
@@ -63,7 +69,7 @@ export type KitchenRecipeMatch = KitchenRecipeView & {
 };
 
 export function isKitchenLocation(value: unknown): value is KitchenLocation {
-  return KITCHEN_LOCATIONS.some((location) => location.id === value);
+  return PantryLocationSchema.safeParse(value).success;
 }
 
 export function toKitchenIngredientView(

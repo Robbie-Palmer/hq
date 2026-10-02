@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ShoppingList } from "@/components/recipes/shopping/shopping-list";
 import type { ShoppingRecipe } from "@/lib/api/shopping";
+import type { KitchenStock } from "@/lib/domain/recipe/kitchen";
 import {
   addExtra,
   addRecipe,
@@ -20,7 +21,7 @@ const pantryState = vi.hoisted(() => ({
   error: null as Error | null,
   hasData: true,
   isPending: false,
-  stock: {} as Record<string, "fridge" | "cupboards" | "fresh">,
+  stock: {} as KitchenStock,
 }));
 
 vi.mock("@/lib/analytics/recipe-product", () => ({
@@ -232,6 +233,7 @@ describe("ShoppingList aisle view section completion", () => {
   it("sinks a fully-checked aisle below aisles still to buy and strikes its header", async () => {
     const user = userEvent.setup();
     render(<ShoppingList recipes={twoAisleRecipes} />);
+    await user.click(screen.getByText("by aisle"));
 
     const [first, second] = aisleHeadings();
     expect(first).toHaveTextContent("Fruit & veg");
@@ -386,8 +388,7 @@ describe("ShoppingList extras", () => {
     const user = userEvent.setup();
     render(<ShoppingList recipes={recipes} />);
 
-    await user.click(screen.getByText("just ingredients"));
-
+    expect(screen.getByText("Just ingredients · A–Z")).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: /extras/i }),
     ).not.toBeInTheDocument();
@@ -411,13 +412,11 @@ describe("ShoppingList extras", () => {
     ).toEqual([expect.stringMatching(/bread/i)]);
   });
 
-  it("keeps kitchen-stocked ingredients out of the flat list", async () => {
+  it("keeps kitchen-stocked ingredients out of the default flat list", () => {
     pantryState.stock = { garlic: "fridge" };
-    const user = userEvent.setup();
     render(<ShoppingList recipes={recipes} />);
 
-    await user.click(screen.getByText("just ingredients"));
-
+    expect(screen.getByText("Just ingredients · A–Z")).toBeInTheDocument();
     expect(
       screen
         .getAllByRole("button", { pressed: false })

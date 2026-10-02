@@ -9,17 +9,17 @@ import {
   validatedArduinoCliPath,
 } from "./compile-firmware.ts";
 
-describe("boundedInteger", () => {
-  it("uses the default when the environment setting is absent", () => {
+void describe("boundedInteger", () => {
+  void it("uses the default when the environment setting is absent", () => {
     assert.equal(boundedInteger("SETTING", undefined, 7, 0, 10), 7);
   });
 
-  it("accepts both bounds", () => {
+  void it("accepts both bounds", () => {
     assert.equal(boundedInteger("SETTING", "0", 7, 0, 10), 0);
     assert.equal(boundedInteger("SETTING", "10", 7, 0, 10), 10);
   });
 
-  it("rejects malformed and out-of-range values", () => {
+  void it("rejects malformed and out-of-range values", () => {
     const message = "SETTING must be an integer from 0 to 10";
     for (const value of ["", "-1", "11", "1.5", "not-a-number"]) {
       assert.throws(() => boundedInteger("SETTING", value, 7, 0, 10), {
@@ -29,15 +29,15 @@ describe("boundedInteger", () => {
   });
 });
 
-describe("validatedArduinoCliPath", () => {
-  it("accepts an absolute path to the expected executable", () => {
+void describe("validatedArduinoCliPath", () => {
+  void it("accepts an absolute path to the expected executable", () => {
     assert.equal(
       validatedArduinoCliPath("/opt/mise/arduino-cli/1.5.1/arduino-cli"),
       "/opt/mise/arduino-cli/1.5.1/arduino-cli",
     );
   });
 
-  it("rejects PATH lookup and a different executable", () => {
+  void it("rejects PATH lookup and a different executable", () => {
     const message =
       "Mise must provide the absolute path to its pinned arduino-cli executable";
     assert.throws(() => validatedArduinoCliPath("arduino-cli"), { message });
@@ -45,8 +45,8 @@ describe("validatedArduinoCliPath", () => {
   });
 });
 
-describe("Uno compile reports", () => {
-  it("extracts compiler output and the remaining SRAM", () => {
+void describe("Uno compile reports", () => {
+  void it("extracts compiler output and the remaining SRAM", () => {
     const report = parseCompileReport(
       JSON.stringify({
         builder_result: {
@@ -66,20 +66,20 @@ describe("Uno compile reports", () => {
     assert.equal(unoFreeBytes(report), 835);
   });
 
-  it("rejects malformed JSON", () => {
+  void it("rejects malformed JSON", () => {
     assert.throws(() => parseCompileReport("{"), {
       message: /^Unable to parse the Arduino CLI JSON report:/,
     });
   });
 
-  it("requires a successful report with a data section", () => {
+  void it("requires a successful report with a data section", () => {
     const report = parseCompileReport(JSON.stringify({ success: false }));
     assert.throws(() => unoFreeBytes(report), {
       message: "Arduino CLI did not report a successful Uno SRAM measurement.",
     });
   });
 
-  it("rejects a report below the configured SRAM floor", () => {
+  void it("rejects a report below the configured SRAM floor", () => {
     const report = parseCompileReport(
       JSON.stringify({
         builder_result: {

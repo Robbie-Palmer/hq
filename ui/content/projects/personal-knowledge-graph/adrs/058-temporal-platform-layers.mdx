@@ -1,0 +1,528 @@
+---
+title: "ADR 058: Model Shared Defaults as Temporal Platform Layers"
+date: "2026-09-12"
+status: "Accepted"
+---
+
+## Summary
+
+Move shared engineering defaults out of individual project histories and into a
+Personal Engineering Platform project. Represent that platform as composable
+layers with stable default slots, dated technology selections, and explicit
+project usage periods.
+
+Project ADR lists will contain project-specific decisions and deliberate
+overrides. The knowledge graph will derive applicable platform technologies
+without copying dozens of inherited ADRs into each project.
+
+This record owns the knowledge graph representation and this project's dated
+adoption of that representation. The Personal Engineering Platform owns layer
+definitions, slot policy, default selections, and the adoption contract that
+projects consume. Keeping those responsibilities separate prevents a content
+model decision from becoming the owner of platform policy.
+
+## Context
+
+The Personal Site is both a public project and the git-managed knowledge base
+that describes other projects. Its MDX and frontmatter files provide the
+canonical records from which the in-memory content graph, backlinks, filters,
+technology pages, and graph visualization are built. This follows
+[ADR 015](/projects/personal-knowledge-graph/adrs/015-ssg),
+[ADR 033](/projects/personal-knowledge-graph/adrs/033-content-graph-indexes), and
+[ADR 038](/projects/personal-knowledge-graph/adrs/038-content-graph).
+
+The site was also the first test bed for much of the shared development setup.
+Its ADR history therefore mixes two kinds of decision:
+
+* decisions about publishing, MDX, search, the knowledge graph, the resume,
+  pitch decks, and the Personal Site deployment; and
+* defaults later reused across projects, such as repository automation, task
+  running, TypeScript validation, testing, security checks, and deployment
+  conventions.
+
+Other projects currently create one inherited stub for each reused ADR. As of
+this proposal, Recipe Site has 67 ADR entries, of which 42 are inherited, and
+Agentic Code Review has 34 entries, of which 33 are inherited. Those lists read
+like expanded platform manifests rather than accounts of the projects'
+architectural choices. Routine defaults such as GitHub or Mise distract from
+the decisions that explain a recipe application, an asset tracker, or an
+autonomic satellite swarm.
+
+ADR inheritance also conflates several different facts:
+
+* a project first created the need for a decision;
+* the decision later became a shared default;
+* another project uses the default;
+* a project deliberately differs from the default; and
+* a completed project used a default that has since changed.
+
+The platform will not have coordinated releases in which every default forms a
+single coherent version. It will change one decision at a time. A project may
+use a base layer, a language layer, and selected application layers without
+using every part of the platform.
+
+Applicability also depends on time and authority. A completed project must not
+acquire later platform changes. A project that predates the platform must not
+be linked retroactively because its technology happens to match. Work projects
+are governed by their organisations and should not appear to inherit a
+personal platform, although lessons from them may drive later platform
+decisions.
+
+The current `USES_TECHNOLOGY` graph edge cannot distinguish a technology
+declared by a project from one supplied by a shared default. Nor can an
+ordinary edge preserve the status and effective period needed to show the
+history of a changing default.
+
+## Decision
+
+### Create a Personal Engineering Platform project
+
+Create a first-class Personal Engineering Platform project as the owner of
+shared engineering policy, manifests, and ADRs.
+
+Move generally applicable ADRs from Personal Site and other incubating
+projects into the platform during a one-time content migration. Preserve their
+original dates and record the project that created the need. Renumbering is
+allowed because git retains the file history, but old public references must
+continue to resolve through aliases or redirects.
+
+A platform ADR may declare an `origin_project` or several `origin_projects`.
+This relation records provenance only. It does not imply that the originating
+project adopted the finished platform layer.
+
+Personal Site will retain decisions that explain the site itself. Other
+projects will likewise retain only their own architectural decisions and
+explicit departures from platform defaults.
+
+### Describe the platform with composable layers
+
+Store current platform policy in machine-readable layer manifests. The layer
+taxonomy will emerge from the migration rather than being fixed by this ADR.
+Expected areas include:
+
+* `base` for repository, task-running, CI, and common security defaults;
+* `typescript` and `python` for language-ecosystem defaults selected by the
+  project's primary language;
+* `web-app` and `backend-api` for application-shape defaults;
+* `infrastructure` for provisioning and infrastructure management;
+* `observability` for application telemetry and node monitoring; and
+* `database` for projects that need one or more forms of data storage or
+  retrieval.
+
+Projects combine these layers independently and explicitly adopt every layer
+that applies. Layers do not extend one another: sharing one layer never
+silently opts a project into another.
+
+All temporal policy and usage fields, including `effective_from`,
+`effective_until`, `adopted`, and `until`, use RFC 3339 UTC instants rather
+than calendar dates. Effective periods are half-open: the start is included
+and the end is excluded. A replacement can therefore end the previous record
+and begin the next one at the same instant without an overlap or gap. An ADR's
+frontmatter `date` remains publication metadata and does not participate in
+temporal resolution.
+
+The list is open-ended. A new layer is justified when it groups defaults with
+the same applicability. The manifests describe current policy rather than the
+complete package inventory of a built artifact.
+
+For example, the TypeScript layer may require Zod. The Python layer may require
+Pydantic and pytest-cases. The infrastructure layer may prefer Terraform for
+provisioning. The observability layer may prefer PostHog for application
+telemetry and Netdata for node monitoring. The backend API layer may currently
+prefer Cloudflare Workers.
+
+The database layer groups several conditional choices rather than assuming
+that every database-backed project has the same data model. Its stable slots
+may include:
+
+* `database.relational-engine`, which may select PostgreSQL;
+* `database.relational-host`, which may select Neon when PostgreSQL needs a
+  managed host;
+* `database.olap-engine`, which may select DuckDB.
+
+A slot may declare prerequisites on another slot or selection. For example,
+the Neon hosting default applies only when `database.relational-engine`
+selects PostgreSQL.
+
+At any point in time, a dated layer-slot policy assigns a stable slot to a
+layer with one of two activation modes:
+
+* `required` means every project using the layer receives the technology in
+  its effective stack; and
+* `preferred` means the technology is the platform choice when the project
+  needs that capability. It does not claim that every project uses it.
+
+A project using a layer automatically activates its required slots. It must
+explicitly activate each preferred slot that matches its needs. The selected
+technology then enters the project's effective stack. A direct technology
+declaration can also establish actual use without activating a platform
+default.
+
+### Give each default a stable slot
+
+Identify a default by its architectural role rather than its current
+technology or deciding ADR. Example slots include:
+
+* `typescript.schema-validation`;
+* `python.data-validation`;
+* `python.test-cases`;
+* `project.primary-language`;
+* `backend-api.runtime`;
+* `database.relational-engine`;
+* `database.relational-host`;
+* `database.olap-engine`.
+
+A slot must describe a meaningful choice between credible alternatives. It
+must not be named so narrowly around the selected technology that the choice
+becomes self-evident. `database.olap-engine` can express an opinion in favour
+of DuckDB for OLAP work. `database.embedded-olap` would weaken that opinion by
+making one of DuckDB's distinguishing properties part of the question.
+
+The opposite error is making a slot so broad that its candidates answer
+different requirements. A single `database.engine` default would conflate
+transactional storage and analytical processing. Choose the broadest scope for
+which the platform can defend one default against real alternatives under
+substantially shared forces.
+
+The base layer has a required `project.primary-language` slot whose initial
+selection is TypeScript. The TypeScript layer declares that a resolved
+TypeScript choice activates it. A project that needs Python's machine-learning
+ecosystem records a local override of `project.primary-language`; the Python
+layer declares the corresponding activation condition. A project may still
+declare supplemental languages directly without replacing its primary
+language.
+
+The slot remains stable when the selected technology changes. A layer-slot
+policy records the owning layer, activation mode, `effective_from`, optional
+`effective_until`, and deciding ADR. Changing the owner or mode closes that
+policy period and creates another. Each technology selection is also a
+first-class, dated record with at least:
+
+```yaml
+slot:
+  slug: "backend-api.runtime"
+policies:
+  - layer: "backend-api"
+    mode: "preferred"
+    effective_from: "2025-11-12T00:00:00Z"
+    decision: "personal-engineering-platform:002-cloudflare-workers"
+selections:
+  - technology: "cloudflare-workers"
+    status: "Accepted"
+    effective_from: "2025-11-12T00:00:00Z"
+    decision: "personal-engineering-platform:002-cloudflare-workers"
+    origin_projects: ["personal-knowledge-graph"]
+```
+
+Selection status uses the existing ADR vocabulary: `Proposed`, `Accepted`,
+`Rejected`, and `Deprecated`. A `Proposed` selection is visible as a candidate
+but does not replace the current default. Accepting a later selection requires
+it to identify the current selection through `supersedes`. The replacement's
+`effective_from` becomes the earlier selection's exclusive `effective_until`.
+
+Validation enforces exactly one non-superseded `Accepted` selection for every
+active slot policy that expresses a default. It rejects overlapping effective
+periods and multiple unlinked accepted selections. `Deprecated` closes a
+selection's effective period and may leave the slot with no current default.
+That empty state must be explicit. `Superseded` is derived when a later
+selection or its ADR points back through `supersedes`.
+
+The slot may have its own lifecycle if the platform stops expressing an
+opinion about that architectural role. That lifecycle is separate from the
+more common replacement or deprecation of a technology selection.
+
+### Make project use of a layer explicit and temporal
+
+Projects opt into layers through dated relationship records. Do not infer
+adoption from matching technologies, project type, role, or creation date.
+
+An active personal project may declare:
+
+```yaml
+platform_layers:
+  - layer: "base"
+    adopted: "2026-09-12T00:00:00Z"
+    tracking: true
+  - layer: "database"
+    adopted: "2026-10-03T00:00:00Z"
+    tracking: true
+    slots:
+      - slot: "database.relational-engine"
+        adopted: "2026-10-03T00:00:00Z"
+      - slot: "database.relational-host"
+        adopted: "2026-10-03T00:00:00Z"
+```
+
+The TypeScript layer is derived from the base layer's effective
+`project.primary-language` selection, so it is not repeated in this manifest.
+Explicitly selected shape and capability layers remain independent of that
+language choice.
+
+An open relationship tracks current accepted defaults. A completed or frozen
+project closes the relationship with `until` and sets `tracking` to `false`.
+Historical queries resolve the defaults that were effective during that
+period. Resolution includes the layer-slot policies, technology selections,
+project layer uses, and project slot uses effective at the query timestamp.
+The final stack for a completed or frozen project uses its closure timestamp.
+Later platform decisions do not alter it.
+Preferred-slot activation also carries an adoption date and optional end date
+when it differs from the containing layer's usage period. The database example
+therefore resolves PostgreSQL and Neon while leaving DuckDB as an unused
+recommendation.
+
+Projects that predate the platform have no layer relationship unless they
+consciously adopt one later. Work projects also have no personal-platform
+relationship by default because an employer's policies hold authority. A work
+project may still appear as the origin of evidence for a personal-platform
+decision.
+
+### Record divergence as a project-local override
+
+When a platform default applies but does not fit a project, write a local ADR
+that targets the stable slot through `overrides_default`. The local ADR records
+the selected alternative or the decision to retain an older technology.
+
+An override is not a global supersession. The platform selection remains
+current for other projects. Targeting the stable slot rather than one platform
+ADR also allows validation to flag the override for review after later changes
+to that slot.
+
+A project that never adopted the relevant layer is not overriding it. Its
+local choice is independent.
+
+For example, a machine-learning project may override
+`project.primary-language` from TypeScript to Python because the required
+libraries and model tooling live in Python's ecosystem. That local decision
+activates the Python layer without changing the default for other projects.
+
+### Preserve provenance in derived graph relationships
+
+Keep platform layers and the temporal policy, selection, and usage records in
+the content model so queries retain their dates and provenance. Present the
+reader-facing knowledge graph through direct relationships:
+
+```text
+Platform OWNS_LAYER Layer
+Project USES_PLATFORM_LAYER Layer
+Layer REQUIRES_TECHNOLOGY Technology
+Layer PREFERS_TECHNOLOGY Technology
+ADR DRIVEN_BY Project
+```
+
+Layer-slot policies, default selections, layer uses, and slot uses keep their
+identity in the query model because they carry status or time. They are edge
+provenance in the serialized visualization, not graph nodes. This preserves
+the evidence without forcing readers to traverse implementation vocabulary
+such as slot policy, default selection, and layer use.
+
+At a given timestamp, an effective project stack combines directly declared
+project technologies, required selections from applicable layer-slot policies,
+applicable preferred selections, and local overrides. Every derived technology
+relation retains its source layer, slot policy, selection, and deciding ADR.
+Direct project technologies and platform-provided technologies remain
+distinguishable in queries and views.
+
+### Borrow selectively from adjacent models
+
+No existing model found during this decision represents the full combination
+of defaults, rationale, provenance, temporal adoption, and project-local
+divergence. Several provide useful parts:
+
+* [Backstage's Software Catalog](https://backstage.io/docs/features/software-catalog/system-model/)
+  models software entities and their relationships in version-controlled
+  metadata. Its
+  [catalog graph](https://backstage.io/docs/features/software-catalog/creating-the-catalog-graph/)
+  also treats relations as a navigable view of a human mental model rather
+  than attempting to inventory every fact.
+* The [Score specification](https://docs.score.dev/docs/score-specification/score-spec-reference/)
+  lets a workload request an abstract resource by type and class while a
+  platform-specific provisioner resolves the implementation. This is the
+  closest precedent for a project activating a capability slot without
+  restating its current technology.
+* The [Thoughtworks Technology Radar](https://www.thoughtworks.com/en-us/insights/blog/how-we-create-technology-radar)
+  scopes an `Adopt` recommendation to a particular use case and records
+  movement as experience changes. That principle informs both selection
+  status and the rule that slots must frame a real, defensible choice.
+* [Crossplane Composition Revisions](https://docs.crossplane.io/v2.2/composition/composition-revisions/)
+  distinguish automatic adoption of the latest revision from manual pinning.
+  Project layer uses need an equivalent distinction between tracking projects
+  and completed or deliberately frozen projects, without adopting Crossplane's
+  coordinated revision model.
+* The [Software Ontology](https://github.com/allysonlister/swo) provides a
+  vocabulary for software, tasks, versions, licences, and provenance. Its
+  identifiers and terms may be reused where they fit, but its bioinformatics
+  focus does not cover normative platform defaults.
+* [SPDX relationships](https://spdx.github.io/spdx-spec/v3.0.1/model/Core/Classes/Relationship/)
+  show the value of making a relationship a first-class assertion with its
+  own properties. SPDX describes actual software composition and lifecycle
+  scope, while this model must also describe policy and intent.
+
+Use these as vocabulary and interaction precedents. This decision does not
+require another catalog or its serialization format.
+
+### Support explainable upgrade recommendations
+
+Treat future recommendation and migration tooling as an intended consumer of
+the graph. When an accepted selection supersedes or deprecates another, a
+query can identify active projects that track the layer and resolve the older
+selection. The result can explain the affected layer and slot, the deciding
+ADRs, the project's adoption period, and any local override.
+
+The same query must exclude completed and frozen projects from upgrade
+recommendations. Organisation-governed projects remain outside the personal
+platform's authority. A changed default may prompt review of a local override,
+but it does not invalidate that project-specific decision automatically.
+
+This evidence could support suggested upgrade plans and, in a later
+semi-autonomous software-development system, migration execution. This ADR
+does not authorise an agent to change a project. Automated execution requires
+a later decision covering project authority, compatibility evidence, risk,
+approval, verification, rollback, and audit records.
+
+### Keep project pages focused on the project
+
+Project ADR lists show local ADRs only. Inherited platform ADR stubs will no
+longer appear in project numbering or navigation.
+
+An applicable project page shows a compact `Built on` section linking to its
+platform layers. Project-specific technologies remain the primary badges.
+Technologies supplied by platform layers appear separately and are collapsed
+or visually secondary by default. Preferred technologies must not appear as
+actual project dependencies until the project uses the relevant capability.
+
+Completed projects show the platform state at completion. Projects without an
+explicit layer relationship, including pre-platform and organisation-governed
+projects, omit the section.
+
+The Platform project shows the current manifest for each layer and the history
+of each stable slot. Its views link to the ADRs that established selections,
+the projects that drove them, current and historical layer users, and local
+overrides.
+
+## Alternatives
+
+### Continue with inherited ADR stubs
+
+This preserves explicit per-decision links and interleaves adoption with local
+history. It also duplicates a growing manifest into every project, obscures
+project-specific reasoning, and uses the source ADR date rather than the child
+project's adoption date.
+
+Rejected. Inheritance is too detailed for shared defaults and cannot express
+their temporal applicability cleanly.
+
+### Add one unqualified project-to-platform link
+
+This removes the inherited stubs and gives readers a route to the platform. It
+does not say which parts apply, distinguish required dependencies from
+conditional preferences, record overrides, or protect completed projects from
+future changes.
+
+Rejected. Explicit layers and dated usage retain those distinctions without
+copying ADRs.
+
+### Publish versioned platform baselines
+
+Projects could pin a named release containing a fixed set of platform
+decisions. The platform does not change as one coherent unit, and projects do
+not adopt every default together. Release numbers would impose a lifecycle
+that does not match how the work develops.
+
+Rejected. Dated selections and layer-use periods provide historical resolution
+without artificial releases.
+
+### Keep only direct project-to-technology relationships
+
+This is the smallest graph and accurately lists technologies already in use.
+It loses the difference between a shared default and a local choice, cannot
+answer what should be used for a new capability, and does not connect changes
+to their rationale.
+
+Rejected. The knowledge graph should preserve policy, provenance, and actual
+use as different facts.
+
+## Consequences
+
+### Positive
+
+* Project histories concentrate on the decisions that distinguish each
+  project.
+* The platform can change one default at a time without producing coordinated
+  releases or rewriting completed projects.
+* Stable slots preserve the history of proposed, accepted, rejected,
+  deprecated, and superseded selections.
+* The graph can explain why a technology appears in an effective project stack
+  and where the choice originated.
+* Changes to defaults can produce targeted and explainable upgrade candidates
+  without treating every platform user as mutable.
+* Required dependencies and conditional preferences no longer make the same
+  claim.
+* Work projects can inform the personal platform without appearing governed by
+  it.
+
+### Negative
+
+* Slot policies, layer uses, and default selections become association records
+  with their own schemas, validation, indexes, and queries.
+* Temporal resolution is more complex than copying technology slugs onto each
+  project.
+* Layer boundaries and slot scope require editorial judgment. A slot that is
+  too narrow states a tautology; one that is too broad hides materially
+  different requirements.
+* Moving existing ADRs requires redirect handling and a careful rewrite of
+  cross-project references.
+* Readers who want the full effective stack need a secondary view beyond the
+  project-specific ADR list.
+
+## Validation before acceptance
+
+The representative migration used these acceptance checks:
+
+1. Schemas validate platform layers, stable slots, dated layer-slot policies,
+   slot prerequisites, default selections, selection status, supersession,
+   language-layer activation, and dated project layer and slot uses. They
+   reject date-only temporal values.
+2. Graph queries resolve exactly one current default for an active opinionated
+   slot. Accepting a replacement requires a `supersedes` link, closes the prior
+   effective period, and cannot create overlapping or unlinked current
+   selections. Tests cover two successive changes on the same calendar day and
+   their shared half-open boundary.
+3. Historical queries resolve slot policies, selections, and project uses at
+   the requested timestamp. They keep completed projects fixed at closure and
+   do not link pre-platform or organisation-governed projects implicitly.
+4. Effective technology queries distinguish project-specific, required-layer,
+   preferred-layer, and override sources.
+5. The base layer resolves TypeScript as the default primary language and
+   activates the TypeScript layer. A project-local primary-language override
+   resolves Python and activates the Python layer for a project that needs the
+   machine-learning ecosystem.
+6. Database resolution can select PostgreSQL with Neon hosting or DuckDB for
+   OLAP without implying that every database-backed project uses all three
+   technologies. Observability resolution likewise distinguishes application
+   telemetry from node monitoring.
+7. Each opinionated slot is reviewed at a scope where credible alternatives
+   answer substantially shared requirements. Technology-shaped or excessively
+   broad slots fail validation or require an explicit rationale.
+8. At least one TypeScript project, one Python project, one completed project,
+   one pre-platform or work project, and one local override pass repository
+   tests.
+9. Personal Site, Recipe Site, Agentic Code Review, the asset tracker, and the
+   autonomic satellite swarm have readable project ADR lists after inherited
+   platform stubs are removed from the rendered project history.
+10. Project pages show project-specific technology badges separately from a
+    quiet `Built on` metadata line and secondary platform-provided
+    technologies.
+11. Platform pages show each layer's current manifest and each slot's decision
+    history, origin projects, users, and overrides.
+12. Legacy ADR references and published URLs resolve after shared ADR files are
+    moved and renumbered.
+13. A simulated supersession query recommends review for affected tracking
+    projects, explains the applicable slot and decisions, and excludes frozen,
+    completed, and organisation-governed projects.
+14. Repository content validation, type checking, linting, and relevant tests
+    pass through the prescribed Mise tasks.
+
+Acceptance authorises the new knowledge model and migration away from inherited
+ADR stubs. It does not make platform layers apply implicitly, force preferred
+technologies into projects that do not use their capabilities, or place work
+projects under the authority of the personal platform.

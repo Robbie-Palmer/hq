@@ -112,9 +112,14 @@ depends = ["//ui:install"]
 run = "pnpm test:watch"
 
 [tasks.lint]
-description = "Lint and format check with Biome"
+description = "Lint with Biome and the frontend design-system rules"
 depends = ["//ui:install"]
 run = "pnpm lint"
+
+[tasks."lint:design"]
+description = "Lint frontend design-system rules with @shadcn/lint (optionally pass files as args)"
+depends = ["//ui:install"]
+run = "pnpm lint:design"
 
 [tasks.format]
 description = "Format and fix issues with Biome"

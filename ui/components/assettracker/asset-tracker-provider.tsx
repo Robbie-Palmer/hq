@@ -15,6 +15,13 @@ import {
   createLocalAssetTrackerApi,
 } from "@/lib/api/assettracker";
 import {
+  buildBaseCurrencyFlowSankeyData,
+  type FlowSankeyData,
+  getDemoAssetTrackerData,
+  toBalancesCsv,
+  todayIsoDate,
+} from "@/lib/assettracker";
+import {
   type AccountDetailView,
   type AccountId,
   type AccountSummaryView,
@@ -23,36 +30,37 @@ import {
   type AssetAllocationDataPoint,
   type AssetTrackerData,
   type AssetType,
+  buildAccountReadModels,
   buildRepository,
   type ClearAccountHistoryInput,
   type CreateAccountInput,
-  DEFAULT_WITHDRAWAL_RATE,
+  type Currency,
   type DeleteCapitalFlowInput,
   type DeleteSnapshotInput,
-  getAllAccountDetails,
-  getAllAccountSummaries,
   getAssetAllocationTimeSeries,
+  getLatestPortfolioValuation,
   getNetWorthTimeSeries,
   getPortfolioAnnualReturn,
   getPortfolioContributionTimeSeries,
   getPortfolioFinancialIndependence,
-  getSeedData,
+  getPortfolioPositionSummary,
   getTotalByAssetType,
   type ImportAccountHistoryInput,
   type ImportIncomeHistoryInput,
   type IncomeRecord,
+  type Money,
   type NetWorthDataPoint,
   type PlannedExpenditure,
   type PortfolioContributionDataPoint,
   type PortfolioFinancialIndependence,
+  type PortfolioPositionSummary,
   type RecordBalanceInput,
   type RecordTransferInput,
   type RecurringFlow,
   type SetAccountLiquidityInput,
   type SetExpectedReturnInput,
   type Transfer,
-  toBalancesCsv,
-  todayIsoDate,
+  type ValuationIssue,
 } from "@/lib/domain/assettracker";
 
 interface AssetTrackerContextValue {
@@ -66,17 +74,23 @@ interface AssetTrackerContextValue {
   recurringFlows: RecurringFlow[];
   plannedExpenditures: PlannedExpenditure[];
   incomeHistory: IncomeRecord[];
+  flowSankeyData: FlowSankeyData;
   financialIndependence: PortfolioFinancialIndependence;
   /** Annualised portfolio growth, excluding recorded external money in/out */
   portfolioReturn: number | null;
+  positionSummary: PortfolioPositionSummary | null;
   /** Expected annual inflation used to express values in today's money */
   inflation: number;
   /** The net worth the user is aiming for, if set */
-  netWorthTarget: number | null;
+  netWorthTarget: Money | null;
   /** Whether the target is expressed in today's money (inflation-adjusted) */
   netWorthTargetIsReal: boolean;
   /** Sustainable annual withdrawal used to derive the FI target */
   withdrawalRate: number;
+  /** Currency used for every household-level value. */
+  baseCurrency: Currency;
+  valuationDate: string | null;
+  valuationIssues: ValuationIssue[];
   /** True once the user has made changes that are persisted in this browser */
   hasLocalChanges: boolean;
   createAccount(input: CreateAccountInput): Promise<void>;
@@ -100,6 +114,7 @@ interface AssetTrackerContextValue {
   setExpectedReturn(input: SetExpectedReturnInput): Promise<void>;
   setAccountLiquidity(input: SetAccountLiquidityInput): Promise<void>;
   setInflation(rate: number): Promise<void>;
+  setBaseCurrency(currency: Currency): Promise<void>;
   setWithdrawalRate(rate: number): Promise<void>;
   setNetWorthTarget(
     target: number | null,
@@ -131,7 +146,7 @@ export function AssetTrackerProvider({
 }: Readonly<{ children: ReactNode }>) {
   // Seed synchronously so the static build renders the full demo dashboard;
   // locally saved changes are applied after mount to avoid hydration mismatch
-  const [data, setData] = useState<AssetTrackerData>(getSeedData);
+  const [data, setData] = useState<AssetTrackerData>(getDemoAssetTrackerData);
   const [hasLocalChanges, setHasLocalChanges] = useState(false);
   const apiRef = useRef<AssetTrackerApi | null>(null);
   // Once the user has mutated, a late-resolving load() must not clobber the
@@ -172,11 +187,14 @@ export function AssetTrackerProvider({
 
   const views = useMemo(() => {
     const repository = buildRepository(data);
-    const accounts = getAllAccountSummaries(repository);
+    const { summaries: accounts, details: accountDetails } =
+      buildAccountReadModels(repository);
     const netWorthData = getNetWorthTimeSeries(repository);
+    const latestValuation = getLatestPortfolioValuation(repository);
+    const valuationDate = latestValuation?.date ?? todayIsoDate();
     return {
       accounts,
-      accountDetails: getAllAccountDetails(repository),
+      accountDetails,
       netWorthData,
       contributionData: getPortfolioContributionTimeSeries(repository),
       assetAllocation: getTotalByAssetType(repository),
@@ -185,13 +203,24 @@ export function AssetTrackerProvider({
       recurringFlows: repository.recurringFlows,
       plannedExpenditures: repository.plannedExpenditures,
       incomeHistory: repository.incomeHistory,
-      financialIndependence: getPortfolioFinancialIndependence(repository),
+      flowSankeyData: buildBaseCurrencyFlowSankeyData(
+        repository,
+        accountDetails,
+        valuationDate,
+      ),
+      financialIndependence: getPortfolioFinancialIndependence(
+        repository,
+        valuationDate,
+      ),
       portfolioReturn: getPortfolioAnnualReturn(repository),
+      positionSummary: getPortfolioPositionSummary(repository),
       inflation: repository.settings.expectedAnnualInflation,
       netWorthTarget: repository.settings.targetNetWorth ?? null,
       netWorthTargetIsReal: repository.settings.targetNetWorthIsReal ?? false,
-      withdrawalRate:
-        repository.settings.withdrawalRate ?? DEFAULT_WITHDRAWAL_RATE,
+      withdrawalRate: repository.settings.withdrawalRate,
+      baseCurrency: repository.settings.baseCurrency,
+      valuationDate: latestValuation?.date ?? null,
+      valuationIssues: latestValuation?.issues ?? [],
     };
   }, [data]);
 
@@ -236,6 +265,8 @@ export function AssetTrackerProvider({
       setAccountLiquidity: (input) =>
         mutate((api) => api.setAccountLiquidity(input)),
       setInflation: (rate) => mutate((api) => api.setInflation({ rate })),
+      setBaseCurrency: (currency) =>
+        mutate((api) => api.setBaseCurrency({ currency })),
       setWithdrawalRate: (rate) =>
         mutate((api) => api.setWithdrawalRate({ rate })),
       setNetWorthTarget: (target, inTodaysMoney) =>

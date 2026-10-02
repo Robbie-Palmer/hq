@@ -18,9 +18,10 @@ durable personal environment that can contain related repositories, local
 services, worktrees, credentials, and multiple coding harnesses. A person should
 be able to change client devices while agents and terminals continue running.
 
-The first shared-host pilot also needs an explicit tenant boundary. Informal
-process separation would make backup, removal, resource control, and later
-migration hard to test.
+The current single-user deployment still needs an explicit workspace boundary.
+Informal process separation would make backup, removal, resource control, and
+later migration hard to test. A future second user also needs dedicated compute;
+a namespace on the current host is not enough.
 
 # Decision
 
@@ -28,7 +29,7 @@ Make one persistent workspace the unit of ownership, access, backup, export,
 and billing. The workspace belongs to one user and may contain multiple
 repositories and concurrent agent sessions.
 
-For the trusted pilot, define each workspace as a K3s namespace containing:
+Define each workspace as a K3s namespace containing:
 
 * one T3 Code workload and private Service;
 * a persistent-volume claim mounted as the user's home;
@@ -41,8 +42,9 @@ The container runs as a non-root user. It receives no host filesystem mount,
 container-runtime socket, or cluster administrator credential. Source-control
 and model-provider sessions remain owned by the workspace user.
 
-This is a trusted-user container boundary. Users who require protection from a
-host compromise or a hostile neighbour need a separate virtual machine or
+This is a trusted-user container boundary. In a multi-user cluster, place each
+active user's workspace on dedicated compute. Users who require protection from
+a host compromise or a hostile neighbour need a separate virtual machine or
 microVM.
 
 # Portable workspace contract
@@ -66,9 +68,9 @@ ephemeral process state are recreated.
 # Alternative boundaries
 
 A separate VPS per user provides a stronger and simpler security boundary. It
-also repeats the operating-system and control-plane overhead for a pilot whose
-users trust the operator and one another. Keep it as the fallback when the
-trust model changes.
+also repeats the operating-system and control-plane overhead. Keep it as the
+fallback if dedicated workers in a shared cluster do not provide an operable
+resource and recovery boundary.
 
 A fresh sandbox per task improves isolation and elasticity. It fragments the
 multi-repository home and makes long-running terminals, local services, and
@@ -83,11 +85,11 @@ or removal, so it fails the product contract.
 
 The pilot must pass these checks:
 
-1. Provision a second user's workspace from the repository.
+1. Provision a second user's workspace on dedicated compute from the repository.
 2. Complete GitHub and model-provider login as that user.
 3. Reach only that user's T3 Code endpoint through Tailscale.
-4. Run simultaneous builds in both workspaces and observe their resource
-   limits.
+4. Run simultaneous builds in both workspaces and prove that pressure on one
+   node does not interrupt the other.
 5. Restart the T3 Code workload and confirm the home directory is intact.
 6. Confirm that each workspace cannot read the other's volume or ordinary
    service traffic.
@@ -109,6 +111,7 @@ control plane proves it can take over those jobs.
 
 # Review point
 
-Keep this ADR Proposed until both pilot workspaces complete the acceptance test.
+Keep this ADR Proposed until both dedicated pilot workspaces complete the
+acceptance test.
 Revisit the workspace-per-person unit if observation shows that fresh per-task
 environments preserve the continuity users value.

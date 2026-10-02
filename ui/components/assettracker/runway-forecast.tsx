@@ -28,15 +28,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatCurrency, todayIsoDate } from "@/lib/assettracker";
 import {
   accountLiquidity,
+  type Currency,
+  DEFAULT_BASE_CURRENCY,
   formatAssetTrackerError,
-  formatCurrency,
   isLiability,
   type PlannedExpenditure,
   RUNWAY_FORECAST_MAX_YEARS,
   type RunwayForecastPoint,
-  todayIsoDate,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
 
@@ -127,9 +128,11 @@ export function plannedExpenditureSourceId(
 export function RunwayChartTooltip({
   active,
   payload,
+  baseCurrency = DEFAULT_BASE_CURRENCY,
 }: Readonly<{
   active?: boolean;
   payload?: RunwayTooltipPayload[];
+  baseCurrency?: Currency;
 }>) {
   if (!active || !payload?.length) return null;
   const point = payload.find((item) => item.payload != null)?.payload;
@@ -177,7 +180,7 @@ export function RunwayChartTooltip({
                 {format(parseISO(expenditure.date), "d MMM")}
               </span>
               <span className="font-mono tabular-nums">
-                {formatCurrency(expenditure.amount)}
+                {formatCurrency(expenditure.amount, baseCurrency)}
               </span>
             </div>
           ))}
@@ -208,6 +211,7 @@ function buildChartData(
 export function RunwayForecast() {
   const {
     accounts,
+    baseCurrency,
     financialIndependence,
     plannedExpenditures,
     addPlannedExpenditure,
@@ -338,7 +342,7 @@ export function RunwayForecast() {
             flows, and{" "}
             {representativeAnnualExpenditure == null
               ? "reconciled long-term spending"
-              : `${formatCurrency(Math.round(representativeAnnualExpenditure))}/yr long-term spending`}
+              : `${formatCurrency(Math.round(representativeAnnualExpenditure), baseCurrency)}/yr long-term spending`}
             . Planned spending is deducted on its date.
           </p>
         </div>
@@ -385,7 +389,9 @@ export function RunwayForecast() {
                   }
                 />
                 <YAxis width={48} tickFormatter={formatAxisRunway} />
-                <ChartTooltip content={<RunwayChartTooltip />} />
+                <ChartTooltip
+                  content={<RunwayChartTooltip baseCurrency={baseCurrency} />}
+                />
                 <ChartLegend content={<ChartLegendContent />} />
                 {visiblePlannedExpenditures.map((expenditure) => (
                   <ReferenceLine
@@ -395,7 +401,7 @@ export function RunwayForecast() {
                     strokeDasharray="4 3"
                     strokeWidth={1.5}
                     label={{
-                      value: formatCurrency(expenditure.amount),
+                      value: formatCurrency(expenditure.amount, baseCurrency),
                       position: "insideTopRight",
                       fill: PLANNED_SPENDING_COLOR,
                       fontSize: 10,
@@ -492,7 +498,7 @@ export function RunwayForecast() {
                       {formatRunway(item.months)}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {formatCurrency(Math.round(item.balance))}
+                      {formatCurrency(Math.round(item.balance), baseCurrency)}
                     </p>
                     <p className="mt-2 text-xs text-muted-foreground">
                       {impactDescription(item.months, item.baseline)}
@@ -532,7 +538,7 @@ export function RunwayForecast() {
                   </p>
                 </div>
                 <span className="ml-auto shrink-0 font-mono">
-                  {formatCurrency(expenditure.amount)}
+                  {formatCurrency(expenditure.amount, baseCurrency)}
                 </span>
                 <Button
                   type="button"

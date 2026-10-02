@@ -41,15 +41,21 @@ describe("sitemap", () => {
       "https://robbiepalmer.me/ideas/adaptive-planning",
     );
     expect(ideaUrls).toContain("https://robbiepalmer.me/ideas/epistemology");
-    expect(ideaUrls).toHaveLength(29);
+    expect(ideaUrls).toContain(
+      "https://robbiepalmer.me/ideas/theory-ladenness",
+    );
+    expect(ideaUrls).toContain("https://robbiepalmer.me/ideas/falsifiability");
+    expect(ideaUrls).toContain("https://robbiepalmer.me/ideas/paradigm-shift");
+    expect(ideaUrls).toContain(
+      "https://robbiepalmer.me/ideas/incommensurability",
+    );
+    expect(ideaUrls).toContain("https://robbiepalmer.me/ideas/postpositivism");
+    expect(ideaUrls).toHaveLength(34);
   });
 
-  it("uses the source ADR date for legacy ADR paths", () => {
-    expect(sitemap()).toContainEqual(
-      expect.objectContaining({
-        url: "https://robbiepalmer.me/projects/recipe-site/adrs/000-github-public-repo",
-        lastModified: "2025-10-18",
-      }),
+  it("excludes legacy ADR aliases", () => {
+    expect(sitemap().map((entry) => entry.url)).not.toContain(
+      "https://robbiepalmer.me/projects/recipe-site/adrs/000-github-public-repo",
     );
   });
 

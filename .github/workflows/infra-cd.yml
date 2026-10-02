@@ -45,7 +45,6 @@ jobs:
           TF_VAR_neon_org_id: ${{ secrets.NEON_ORG_ID }}
           POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
           TF_VAR_posthog_project_id: ${{ vars.POSTHOG_PROJECT_ID }}
-          TF_VAR_cloudflare_pages_preview_access_application_id: ${{ vars.CF_PAGES_PREVIEW_ACCESS_APPLICATION_ID }}
           TF_VAR_slack_webhook_url: ${{ secrets.CLOUDFLARE_SLACK_WEBHOOK_URL }}
 
       - name: Add Terraform Plan to Summary
@@ -68,5 +67,4 @@ jobs:
           TF_VAR_neon_org_id: ${{ secrets.NEON_ORG_ID }}
           POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
           TF_VAR_posthog_project_id: ${{ vars.POSTHOG_PROJECT_ID }}
-          TF_VAR_cloudflare_pages_preview_access_application_id: ${{ vars.CF_PAGES_PREVIEW_ACCESS_APPLICATION_ID }}
           TF_VAR_slack_webhook_url: ${{ secrets.CLOUDFLARE_SLACK_WEBHOOK_URL }}

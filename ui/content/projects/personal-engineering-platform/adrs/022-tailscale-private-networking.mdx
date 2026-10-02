@@ -1,0 +1,68 @@
+---
+title: "ADR 022: Tailscale for private networking"
+date: "2026-09-29"
+status: "Accepted"
+tech_stack: ["Tailscale"]
+---
+
+## Context
+
+Operated machines and private services need stable connectivity without opening
+their administration ports or application endpoints to the public internet.
+The Home Lab has used Tailscale for this since ADR 000. The remote development
+host also uses Tailscale as the private path to its single-user workspace.
+Both projects need encrypted connectivity across changing networks, name-based
+addressing, and NAT traversal without operating a VPN control plane.
+
+A private overlay does not answer whether a service should be public. Web
+applications, APIs, and other intentionally public endpoints still need their
+own ingress, identity, and service-authentication decisions. Treating the
+tailnet as the answer for every networked application would hide that boundary
+and make public delivery depend on membership in a personal network.
+
+## Decision
+
+Add `network.private-overlay` as a preferred platform slot and select
+Tailscale. A project activates it only for an operated host or a service that
+must remain private. Each adopter must also activate
+`network.public-ingress`, which records whether its network services are
+private-only or identifies the separately governed public ingress path.
+
+Tailscale carries private operator access and private service traffic. Public
+services remain outside this choice. They use their delivery host or edge
+ingress, with the applicable authentication and exposure controls, even when
+an operator also reaches their machines through Tailscale.
+
+Tailnet membership is not blanket authorization. Adopters must still define
+device enrollment, identity, access-control policy, key expiry, and removal.
+They must not expose an endpoint publicly as a fallback for missing tailnet
+access.
+
+## Alternatives
+
+Plain WireGuard would remove the managed coordination dependency. It would
+also leave peer configuration, key exchange, name resolution, endpoint
+changes, and NAT traversal to each project. That work has no current benefit
+for this small fleet.
+
+Cloudflare Tunnel and authenticated edge proxies suit HTTP services that need
+controlled access without joining a device network. They do not provide the
+general host connectivity needed for SSH, cluster operations, and other
+private protocols. They remain valid public or service-specific ingress
+choices.
+
+A publicly reachable host with application-level authentication can work for
+services intended for internet access. It creates an unnecessary public
+network boundary for operator ports and private services.
+
+## Consequences
+
+Projects can reuse one private-networking default across home and cloud hosts.
+The separate ingress declaration stops that default from absorbing public web
+delivery or silently turning a private service into a public one.
+
+Adopters depend on Tailscale's coordination service and must operate another
+device identity and access policy. Existing peer connections may survive a
+control-plane outage, but enrollment and policy changes may not. A future need
+for self-hosted coordination, incompatible devices, or a different trust
+boundary should trigger a new platform decision.

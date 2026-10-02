@@ -1,0 +1,51 @@
+---
+title: "ADR 003: Keep shared financial writes online"
+date: "2026-09-24"
+status: "Proposed"
+---
+
+## Context
+
+The installable web app can load without a network connection, but shared writes need more than a
+cached interface. Household members may change the same financial record from different devices,
+and a connection may fail after the service commits a write but before the client receives the
+result.
+
+A general offline outbox would therefore need conflict, ordering, revocation, and recovery semantics
+for each kind of financial command. The first shared release does not yet need that complexity.
+
+## Decision
+
+Require connectivity for shared financial writes. Offline use may include cached read-only views and
+local drafts, but the interface must not present a draft as committed household state.
+
+Online commands must be safe to retry after an uncertain network result and must detect edits based
+on stale state. Conflicts are shown to the user rather than resolved through last-write-wins or a
+client timestamp. The API specification and implementation tests will define the transport and
+storage mechanics for those guarantees.
+
+Offline writes remain a future capability, not an assumed extension of the cache. Introducing them
+requires a bounded set of commands with explicit conflict and ordering rules, plus a user experience
+for pending and rejected changes.
+
+## Consequences
+
+The first shared release avoids silent overwrites and the hardest synchronization failures. Users
+can still view cached data or prepare a draft during an outage, but they cannot commit shared changes
+until the service is reachable.
+
+Every write path must support safe retry and stale-state detection. If offline mutation becomes a
+real product need, it will require another architecture decision rather than only a client-side
+queue.
+
+## Alternatives considered
+
+### Queue all writes while offline
+
+This was rejected because financial corrections, imports, membership changes, and multi-record
+commands do not share one safe conflict rule.
+
+### Last write wins
+
+This was rejected because it can silently discard another household member's accepted change. The
+product prefers an explicit conflict over an invented ordering based on device time.

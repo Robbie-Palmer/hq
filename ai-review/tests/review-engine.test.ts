@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_OPENROUTER_SCOUTS,
   Reviewer,
-} from "ai-review-domain/reviewer";
+} from "../src/reviewer";
 import type { Env, ReviewWorkflowParams } from "../src/env";
 import {
   STATEFUL_REVIEW_MARKER,
@@ -1492,6 +1492,7 @@ describe("stateful review engine", () => {
     let rollingComment = "";
     vi.stubGlobal(
       "fetch",
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = new URL(String(input));
         if (url.pathname === "/app/installations/456/access_tokens") {
@@ -1602,6 +1603,7 @@ describe("stateful review engine", () => {
 
   it("runs and visibly publishes the same OpenRouter plus OpenCode ensemble", async () => {
     const publishedBodies: string[] = [];
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(String(input));
       if (url.pathname === "/app/installations/456/access_tokens") {

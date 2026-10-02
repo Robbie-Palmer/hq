@@ -62,35 +62,117 @@
       }
     },
     "schemas": {
-      "WorkItemList": {
+      "CriticalPathProjection": {
         "type": "object",
         "properties": {
-          "items": {
+          "targetOutcomeIds": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/WorkItem"
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
             },
-            "maxItems": 100
+            "maxItems": 1000
           },
-          "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 200
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CriticalPathNode"
+            },
+            "maxItems": 1000
+          },
+          "edges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CriticalPathEdge"
+            },
+            "maxItems": 5000
+          },
+          "blockingPaths": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CriticalPathWorkItemPath"
+            },
+            "maxItems": 5000
+          },
+          "readyLeafIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "maxItems": 1000
+          },
+          "blockingAttentionIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "maxItems": 1000
+          },
+          "parallelBranches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CriticalPathParallelBranch"
+            },
+            "maxItems": 1000
           }
         },
         "required": [
-          "items",
-          "nextCursor"
+          "targetOutcomeIds",
+          "nodes",
+          "edges",
+          "blockingPaths",
+          "readyLeafIds",
+          "blockingAttentionIds",
+          "parallelBranches"
         ]
       },
-      "WorkItem": {
+      "CriticalPathNode": {
+        "type": "object",
+        "properties": {
+          "item": {
+            "$ref": "#/components/schemas/StoredWorkItem"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "blocked",
+              "ready",
+              "in_progress",
+              "stale",
+              "needs_attention",
+              "released",
+              "cancelled"
+            ]
+          },
+          "claimable": {
+            "type": "boolean"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/WorkItemPriority"
+          },
+          "inclusionReasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CriticalPathInclusionReason"
+            },
+            "minItems": 1,
+            "maxItems": 5001
+          }
+        },
+        "required": [
+          "item",
+          "stage",
+          "claimable",
+          "priority",
+          "inclusionReasons"
+        ]
+      },
+      "StoredWorkItem": {
         "type": "object",
         "properties": {
           "id": {
@@ -187,55 +269,213 @@
                 "type": "null"
               }
             ]
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "lifecycle",
+          "parentId",
+          "rank",
+          "priorityRank",
+          "schedulingInitiativeId",
+          "schedulingProjectId",
+          "expedited",
+          "expediteReason"
+        ]
+      },
+      "WorkItemPriority": {
+        "type": "object",
+        "properties": {
+          "initiativeRank": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "format": "int32"
           },
-          "priority": {
+          "projectRank": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "format": "int32"
+          },
+          "ticketRank": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "format": "int32"
+          },
+          "expedited": {
+            "type": "boolean"
+          },
+          "effectiveExpedited": {
+            "type": "boolean"
+          },
+          "donatedFromWorkItemId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "initiativeRank",
+          "projectRank",
+          "ticketRank",
+          "expedited",
+          "effectiveExpedited",
+          "donatedFromWorkItemId"
+        ]
+      },
+      "CriticalPathInclusionReason": {
+        "oneOf": [
+          {
             "type": "object",
             "properties": {
-              "initiativeRank": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 2147483647,
-                "format": "int32"
-              },
-              "projectRank": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 2147483647,
-                "format": "int32"
-              },
-              "ticketRank": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 2147483647,
-                "format": "int32"
-              },
-              "expedited": {
-                "type": "boolean"
-              },
-              "effectiveExpedited": {
-                "type": "boolean"
-              },
-              "donatedFromWorkItemId": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200
-                  },
-                  {
-                    "type": "null"
-                  }
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "target_outcome"
                 ]
               }
             },
             "required": [
-              "initiativeRank",
-              "projectRank",
-              "ticketRank",
-              "expedited",
-              "effectiveExpedited",
-              "donatedFromWorkItemId"
+              "kind"
             ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "decomposition_child"
+                ]
+              },
+              "fromWorkItemId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "required": [
+              "kind",
+              "fromWorkItemId"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "dependency_blocker"
+                ]
+              },
+              "fromWorkItemId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "dependencyDeclaredByWorkItemId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "required": [
+              "kind",
+              "fromWorkItemId",
+              "dependencyDeclaredByWorkItemId"
+            ]
+          }
+        ]
+      },
+      "CriticalPathEdge": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "decomposition"
+                ]
+              },
+              "fromWorkItemId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "toWorkItemId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "required": [
+              "kind",
+              "fromWorkItemId",
+              "toWorkItemId"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "dependency"
+                ]
+              },
+              "fromWorkItemId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "toWorkItemId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "dependencyDeclaredByWorkItemId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "required": [
+              "kind",
+              "fromWorkItemId",
+              "toWorkItemId",
+              "dependencyDeclaredByWorkItemId"
+            ]
+          }
+        ]
+      },
+      "CriticalPathWorkItemPath": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "minItems": 1,
+        "maxItems": 1000
+      },
+      "CriticalPathParallelBranch": {
+        "type": "object",
+        "properties": {
+          "workItemId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
           },
           "stage": {
             "type": "string",
@@ -249,10 +489,114 @@
               "cancelled"
             ]
           },
-          "currentLease": {
+          "claimable": {
+            "type": "boolean"
+          },
+          "targetWorkItemIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "maxItems": 1000
+          },
+          "paths": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CriticalPathWorkItemPath"
+            },
+            "maxItems": 5000
+          }
+        },
+        "required": [
+          "workItemId",
+          "stage",
+          "claimable",
+          "targetWorkItemIds",
+          "paths"
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "requestId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "details": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 200
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      },
+                      "maxItems": 20
+                    },
+                    "message": {
+                      "type": "string",
+                      "maxLength": 500
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "message"
+                  ]
+                },
+                "maxItems": 100
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "WorkItemList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkItem"
+            },
+            "maxItems": 100
+          },
+          "nextCursor": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Lease"
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
               },
               {
                 "type": "null"
@@ -261,19 +605,50 @@
           }
         },
         "required": [
-          "id",
-          "title",
-          "lifecycle",
-          "parentId",
-          "rank",
-          "priorityRank",
-          "schedulingInitiativeId",
-          "schedulingProjectId",
-          "expedited",
-          "expediteReason",
-          "priority",
-          "stage",
-          "currentLease"
+          "items",
+          "nextCursor"
+        ]
+      },
+      "WorkItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/StoredWorkItem"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "priority": {
+                "$ref": "#/components/schemas/WorkItemPriority"
+              },
+              "stage": {
+                "type": "string",
+                "enum": [
+                  "blocked",
+                  "ready",
+                  "in_progress",
+                  "stale",
+                  "needs_attention",
+                  "released",
+                  "cancelled"
+                ]
+              },
+              "currentLease": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Lease"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "priority",
+              "stage",
+              "currentLease"
+            ]
+          }
         ]
       },
       "Lease": {
@@ -351,65 +726,6 @@
           "outcome"
         ]
       },
-      "Error": {
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "object",
-            "properties": {
-              "code": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 100
-              },
-              "message": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 500
-              },
-              "details": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "path": {
-                      "type": "array",
-                      "items": {
-                        "anyOf": [
-                          {
-                            "type": "string",
-                            "maxLength": 200
-                          },
-                          {
-                            "type": "number"
-                          }
-                        ]
-                      },
-                      "maxItems": 20
-                    },
-                    "message": {
-                      "type": "string",
-                      "maxLength": 500
-                    }
-                  },
-                  "required": [
-                    "path",
-                    "message"
-                  ]
-                },
-                "maxItems": 100
-              }
-            },
-            "required": [
-              "code",
-              "message"
-            ]
-          }
-        },
-        "required": [
-          "error"
-        ]
-      },
       "KnowledgeScopeList": {
         "type": "object",
         "properties": {
@@ -482,6 +798,25 @@
               }
             ]
           },
+          "lifecycle": {
+            "type": "string",
+            "enum": [
+              "active",
+              "archived"
+            ]
+          },
+          "archiveReason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "rank": {
             "anyOf": [
               {
@@ -503,6 +838,8 @@
           "canonicalUrl",
           "markdownUrl",
           "sourceRevision",
+          "lifecycle",
+          "archiveReason",
           "rank"
         ]
       },
@@ -551,6 +888,289 @@
         "required": [
           "parentKnowledgeScopeId",
           "childKnowledgeScopeId"
+        ]
+      },
+      "DeliveryEvidenceList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeliveryEvidence"
+            },
+            "maxItems": 100
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 36,
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ]
+      },
+      "DeliveryEvidence": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 36,
+            "format": "uuid"
+          },
+          "deliveryProvider": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "deliveryExternalId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "provider": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "externalId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "repository": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "commitSha": {
+            "type": "string",
+            "maxLength": 40,
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "pull_request",
+              "ci",
+              "deployment"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "success",
+              "failure",
+              "cancelled"
+            ]
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "environment": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceUrl": {
+            "type": "string",
+            "maxLength": 2048,
+            "format": "uri",
+            "pattern": "^[hH][tT][tT][pP][sS]?:\\/\\/(?![^/?#]*@)"
+          },
+          "providerObservedAt": {
+            "type": "string",
+            "maxLength": 30,
+            "format": "date-time"
+          },
+          "ingestedAt": {
+            "type": "string",
+            "maxLength": 30,
+            "format": "date-time"
+          },
+          "correlationKind": {
+            "type": "string",
+            "enum": [
+              "unmatched",
+              "pull_request_head",
+              "pull_request_merge"
+            ]
+          },
+          "pullRequestRepository": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pullRequestNumber": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2147483647,
+                "format": "int32"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "current": {
+            "type": "boolean"
+          },
+          "projectedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 30,
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "deliveryProvider",
+          "deliveryExternalId",
+          "provider",
+          "externalId",
+          "repository",
+          "commitSha",
+          "kind",
+          "state",
+          "name",
+          "environment",
+          "sourceUrl",
+          "providerObservedAt",
+          "ingestedAt",
+          "correlationKind",
+          "pullRequestRepository",
+          "pullRequestNumber",
+          "current",
+          "projectedAt"
+        ]
+      },
+      "CompletionCandidateResponse": {
+        "type": "object",
+        "properties": {
+          "candidate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompletionCandidate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "candidate"
+        ]
+      },
+      "CompletionCandidate": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 36,
+            "format": "uuid"
+          },
+          "workItemId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "policyId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "policyRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "format": "int32"
+          },
+          "candidate": {
+            "type": "boolean"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "missing_implementation_pull_request",
+                "pull_request_not_merged",
+                "missing_accepted_head",
+                "missing_merge_commit",
+                "missing_pull_request_evidence",
+                "missing_required_ci",
+                "missing_production_deployment",
+                "unfinished_children",
+                "unresolved_blocking_attention"
+              ]
+            },
+            "maxItems": 9
+          },
+          "evidenceObservationIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 36,
+              "format": "uuid"
+            },
+            "maxItems": 1000
+          },
+          "evaluatedAt": {
+            "type": "string",
+            "maxLength": 30,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "workItemId",
+          "policyId",
+          "policyRevision",
+          "candidate",
+          "reasons",
+          "evidenceObservationIds",
+          "evaluatedAt"
         ]
       },
       "ResolvedWorkItemContextList": {
@@ -726,6 +1346,37 @@
           },
           {
             "$ref": "#/components/schemas/ResolvedPullRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "delivery_evidence"
+                ]
+              },
+              "evidence": {
+                "$ref": "#/components/schemas/DeliveryEvidence"
+              },
+              "sourceWorkItemId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "inheritanceDepth": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 2147483647,
+                "format": "int32"
+              }
+            },
+            "required": [
+              "kind",
+              "evidence",
+              "sourceWorkItemId",
+              "inheritanceDepth"
+            ]
           }
         ]
       },
@@ -794,6 +1445,30 @@
             "maxLength": 40,
             "pattern": "^[0-9a-f]{40}$"
           },
+          "acceptedHeadSha": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40,
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mergeCommitSha": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40,
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "state": {
             "type": "string",
             "enum": [
@@ -849,6 +1524,8 @@
           "number",
           "url",
           "headSha",
+          "acceptedHeadSha",
+          "mergeCommitSha",
           "state",
           "draft",
           "mergeability",
@@ -1707,6 +2384,34 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -1878,6 +2583,34 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -2027,6 +2760,270 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/critical-path": {
+      "get": {
+        "operationId": "getCriticalPath",
+        "summary": "Project the current delivery-critical path",
+        "description": "Returns one deterministic, bounded projection for global open roots, selected scopes, or one explicit root work item. Scope arrays use repeated query parameters. Values within one inclusion dimension are alternatives, initiative and project filters must both match, and exclusions win. Exclusions remove matching targets but retain cross-scope blockers required by included outcomes. The singular initiativeId and projectId parameters remain deprecated one-item inclusion aliases. An explicit root cannot be combined with scope filters. Projections are limited to 1,000 nodes, 5,000 edges, and 5,000 blocking paths; larger projections return a conflict instead of a partial graph.",
+        "tags": [
+          "work-items"
+        ],
+        "security": [
+          {
+            "cloudflareAccessClientId": [],
+            "cloudflareAccessClientSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "maxItems": 100,
+              "description": "Repeat the query parameter to select more than one scope."
+            },
+            "required": false,
+            "description": "Repeat the query parameter to select more than one scope.",
+            "explode": true,
+            "style": "form",
+            "name": "includeInitiativeIds",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "maxItems": 100,
+              "description": "Repeat the query parameter to select more than one scope."
+            },
+            "required": false,
+            "description": "Repeat the query parameter to select more than one scope.",
+            "explode": true,
+            "style": "form",
+            "name": "excludeInitiativeIds",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "maxItems": 100,
+              "description": "Repeat the query parameter to select more than one scope."
+            },
+            "required": false,
+            "description": "Repeat the query parameter to select more than one scope.",
+            "explode": true,
+            "style": "form",
+            "name": "includeProjectIds",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "maxItems": 100,
+              "description": "Repeat the query parameter to select more than one scope."
+            },
+            "required": false,
+            "description": "Repeat the query parameter to select more than one scope.",
+            "explode": true,
+            "style": "form",
+            "name": "excludeProjectIds",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "deprecated": true,
+              "description": "Deprecated one-item alias for includeInitiativeIds."
+            },
+            "required": false,
+            "description": "Deprecated one-item alias for includeInitiativeIds.",
+            "name": "initiativeId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "deprecated": true,
+              "description": "Deprecated one-item alias for includeProjectIds."
+            },
+            "required": false,
+            "description": "Deprecated one-item alias for includeProjectIds.",
+            "name": "projectId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": false,
+            "name": "rootWorkItemId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Critical-path targets, included nodes and edges, blocking paths, and claimable parallel branches",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CriticalPathProjection"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Cloudflare Access authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cloudflare Access denied the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current Work Graph state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -2159,6 +3156,34 @@
           },
           "500": {
             "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2303,6 +3328,34 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -2311,7 +3364,7 @@
       "get": {
         "operationId": "listKnowledgeScopeRelationships",
         "summary": "List knowledge-scope relationships",
-        "description": "Returns a bounded page of directed parent-to-child scope edges in stable order. Pass nextCursor unchanged to continue.",
+        "description": "Returns a bounded page of directed parent-to-child edges between active scopes in stable order. Set includeArchived=true for an audit view. Pass nextCursor unchanged to continue.",
         "tags": [
           "knowledge-scopes"
         ],
@@ -2322,6 +3375,17 @@
           }
         ],
         "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            },
+            "required": false,
+            "name": "includeArchived",
+            "in": "query"
+          },
           {
             "schema": {
               "type": "integer",
@@ -2418,6 +3482,34 @@
           },
           "500": {
             "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2562,6 +3654,34 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -2699,6 +3819,34 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -2707,7 +3855,7 @@
       "get": {
         "operationId": "listKnowledgeScopes",
         "summary": "List knowledge-scope mirrors",
-        "description": "Returns initiative and project mirrors in stable source-key order. The optional kind filter does not change that order.",
+        "description": "Returns active initiative and project mirrors in stable source-key order. The optional kind filter does not change that order. Set includeArchived=true for an audit view.",
         "tags": [
           "knowledge-scopes"
         ],
@@ -2728,6 +3876,17 @@
             },
             "required": false,
             "name": "kind",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            },
+            "required": false,
+            "name": "includeArchived",
             "in": "query"
           },
           {
@@ -2826,6 +3985,34 @@
           },
           "500": {
             "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2936,6 +4123,34 @@
           },
           "500": {
             "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3118,6 +4333,353 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/knowledge-scopes/{knowledgeScopeId}/archival": {
+      "post": {
+        "operationId": "archiveKnowledgeScope",
+        "summary": "Archive a knowledge-scope mirror",
+        "description": "Removes a scope from active scheduling and priority order while retaining its source snapshot, relationships, and historical work-item context. Open work must move or terminate first.",
+        "tags": [
+          "knowledge-scopes"
+        ],
+        "security": [
+          {
+            "cloudflareAccessClientId": [],
+            "cloudflareAccessClientSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": true,
+            "name": "knowledgeScopeId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 36,
+              "format": "uuid",
+              "description": "Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict."
+            },
+            "required": false,
+            "description": "Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.",
+            "name": "idempotency-key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 10000
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Knowledge scope archived or matching mutation replayed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeScope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Cloudflare Access authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cloudflare Access denied the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current Work Graph state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "restoreKnowledgeScope",
+        "summary": "Restore an archived knowledge-scope mirror",
+        "description": "Returns an archived scope to active scheduling at the median position for its kind.",
+        "tags": [
+          "knowledge-scopes"
+        ],
+        "security": [
+          {
+            "cloudflareAccessClientId": [],
+            "cloudflareAccessClientSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": true,
+            "name": "knowledgeScopeId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 36,
+              "format": "uuid",
+              "description": "Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict."
+            },
+            "required": false,
+            "description": "Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.",
+            "name": "idempotency-key",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Knowledge scope restored or matching mutation replayed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeScope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Cloudflare Access authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cloudflare Access denied the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current Work Graph state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -3289,6 +4851,34 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -3297,7 +4887,7 @@
       "post": {
         "operationId": "createLease",
         "summary": "Claim a specified or first eligible work item",
-        "description": "Creates a fenced lease for the requested item, or for the highest-priority eligible item within optional initiative, project, and direct-parent filters when workItemId is absent.",
+        "description": "Creates a fenced lease for the requested item, including continuation after resolved attention and recovery of its expired lease after graph blockers changed. When workItemId is absent, claims only the highest-priority ready item with no prior lease within the optional scope filters. Values within one inclusion dimension are alternatives, initiative and project filters must both match, and exclusions win. Empty inclusion arrays impose no restriction. The singular initiativeId and projectId fields remain deprecated one-item inclusion aliases. Explicit claims by workItemId reject every selection filter.",
         "tags": [
           "leases"
         ],
@@ -3354,15 +4944,55 @@
                         "maximum": 86400,
                         "format": "int32"
                       },
+                      "includeInitiativeIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "maxItems": 100
+                      },
+                      "excludeInitiativeIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "maxItems": 100
+                      },
+                      "includeProjectIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "maxItems": 100
+                      },
+                      "excludeProjectIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "maxItems": 100
+                      },
                       "initiativeId": {
                         "type": "string",
                         "minLength": 1,
-                        "maxLength": 200
+                        "maxLength": 200,
+                        "deprecated": true,
+                        "description": "Deprecated one-item alias for includeInitiativeIds."
                       },
                       "projectId": {
                         "type": "string",
                         "minLength": 1,
-                        "maxLength": 200
+                        "maxLength": 200,
+                        "deprecated": true,
+                        "description": "Deprecated one-item alias for includeProjectIds."
                       },
                       "parentId": {
                         "type": "string",
@@ -3454,6 +5084,34 @@
           },
           "500": {
             "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3600,6 +5258,34 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -3660,6 +5346,32 @@
                     "type": "string",
                     "maxLength": 40,
                     "pattern": "^[0-9a-f]{40}$"
+                  },
+                  "acceptedHeadSha": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 40,
+                        "pattern": "^[0-9a-f]{40}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null
+                  },
+                  "mergeCommitSha": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 40,
+                        "pattern": "^[0-9a-f]{40}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null
                   },
                   "state": {
                     "type": "string",
@@ -3808,6 +5520,34 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -3816,7 +5556,7 @@
       "get": {
         "operationId": "listWorkItems",
         "summary": "List work items with their derived stage",
-        "description": "Returns one bounded page in global priority order. Optional stage, initiative, project, and direct-parent filters preserve that relative order. Pass nextCursor to continue after the last observed item without offset drift during lease transitions.",
+        "description": "Returns one bounded page in global priority order. Scope arrays use repeated query parameters. Values within one inclusion dimension are alternatives, initiative and project filters must both match, and exclusions win. Empty inclusion arrays impose no restriction. Optional stage and direct-parent filters preserve priority order. The singular initiativeId and projectId parameters remain deprecated one-item inclusion aliases. Pass nextCursor to continue after the last observed item without offset drift during lease transitions.",
         "tags": [
           "work-items"
         ],
@@ -3846,11 +5586,86 @@
           },
           {
             "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "maxItems": 100,
+              "description": "Repeat the query parameter to select more than one scope."
             },
             "required": false,
+            "description": "Repeat the query parameter to select more than one scope.",
+            "explode": true,
+            "style": "form",
+            "name": "includeInitiativeIds",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "maxItems": 100,
+              "description": "Repeat the query parameter to select more than one scope."
+            },
+            "required": false,
+            "description": "Repeat the query parameter to select more than one scope.",
+            "explode": true,
+            "style": "form",
+            "name": "excludeInitiativeIds",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "maxItems": 100,
+              "description": "Repeat the query parameter to select more than one scope."
+            },
+            "required": false,
+            "description": "Repeat the query parameter to select more than one scope.",
+            "explode": true,
+            "style": "form",
+            "name": "includeProjectIds",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "maxItems": 100,
+              "description": "Repeat the query parameter to select more than one scope."
+            },
+            "required": false,
+            "description": "Repeat the query parameter to select more than one scope.",
+            "explode": true,
+            "style": "form",
+            "name": "excludeProjectIds",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "deprecated": true,
+              "description": "Deprecated one-item alias for includeInitiativeIds."
+            },
+            "required": false,
+            "description": "Deprecated one-item alias for includeInitiativeIds.",
             "name": "initiativeId",
             "in": "query"
           },
@@ -3858,9 +5673,12 @@
             "schema": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 200
+              "maxLength": 200,
+              "deprecated": true,
+              "description": "Deprecated one-item alias for includeProjectIds."
             },
             "required": false,
+            "description": "Deprecated one-item alias for includeProjectIds.",
             "name": "projectId",
             "in": "query"
           },
@@ -3970,6 +5788,34 @@
           },
           "500": {
             "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4150,6 +5996,34 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -4253,6 +6127,34 @@
           },
           "500": {
             "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4391,6 +6293,34 @@
           },
           "500": {
             "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4553,6 +6483,172 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/work-items/{workItemId}/completion-candidate": {
+      "get": {
+        "operationId": "getWorkItemCompletionCandidate",
+        "summary": "Read the current completion candidacy",
+        "description": "Returns the latest immutable completion evaluation and its policy revision, or null when the work item has not been evaluated.",
+        "tags": [
+          "work-items"
+        ],
+        "security": [
+          {
+            "cloudflareAccessClientId": [],
+            "cloudflareAccessClientSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": true,
+            "name": "workItemId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current completion-candidate projection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompletionCandidateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Cloudflare Access authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cloudflare Access denied the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current Work Graph state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -4656,6 +6752,34 @@
           },
           "500": {
             "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4845,6 +6969,34 @@
           },
           "500": {
             "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -5086,6 +7238,34 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -5211,6 +7391,34 @@
           },
           "500": {
             "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -5392,6 +7600,205 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/work-items/{workItemId}/evidence": {
+      "get": {
+        "operationId": "listWorkItemEvidence",
+        "summary": "List delivery evidence for a work item",
+        "description": "Returns immutable evidence correlated through the work item's pull requests. Each record identifies whether it is the current provider projection. Set currentOnly=true for claim context and pass nextCursor unchanged to continue.",
+        "tags": [
+          "work-items"
+        ],
+        "security": [
+          {
+            "cloudflareAccessClientId": [],
+            "cloudflareAccessClientSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": true,
+            "name": "workItemId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            },
+            "required": false,
+            "name": "currentOnly",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "format": "int32"
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 36,
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Delivery evidence in stable observation-ID order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryEvidenceList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Cloudflare Access authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cloudflare Access denied the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current Work Graph state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -5535,6 +7942,34 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -5648,6 +8083,34 @@
           },
           "500": {
             "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -5781,6 +8244,34 @@
           },
           "500": {
             "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -5950,6 +8441,34 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -6073,6 +8592,34 @@
           },
           "500": {
             "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -6223,6 +8770,34 @@
           },
           "500": {
             "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -6401,6 +8976,34 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -6505,6 +9108,34 @@
           },
           "500": {
             "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -6670,6 +9301,34 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -6813,6 +9472,34 @@
           },
           "500": {
             "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -6965,6 +9652,34 @@
           },
           "500": {
             "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -7128,6 +9843,34 @@
           },
           "500": {
             "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {

@@ -140,5 +140,29 @@ describe("work-item readiness", () => {
     });
 
     expect(projectWorkItemStage(graph, "child")).toBe("blocked");
+    expect(isWorkItemClaimable(graph, "child")).toBe(false);
+  });
+
+  it("keeps stale work recoverable after an ancestor gains a blocker", () => {
+    const graph = createWorkGraph({
+      workItems: [
+        { id: "parent", title: "Parent" },
+        { id: "child", title: "Child", parentId: "parent" },
+        { id: "blocker", title: "Ancestor blocker" },
+      ],
+      dependencies: [
+        {
+          dependentWorkItemId: "parent",
+          blockerWorkItemId: "blocker",
+        },
+      ],
+    });
+    const staleState = {
+      currentLease: { expiresAt: 1_000 },
+      now: 1_000,
+    };
+
+    expect(projectWorkItemStage(graph, "child", staleState)).toBe("stale");
+    expect(isWorkItemClaimable(graph, "child", staleState)).toBe(true);
   });
 });

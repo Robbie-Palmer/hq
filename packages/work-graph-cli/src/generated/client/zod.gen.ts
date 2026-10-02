@@ -2,6 +2,117 @@
 
 import * as z from 'zod';
 
+export const zStoredWorkItem = z.object({
+    id: z.string().min(1).max(200),
+    title: z.string().min(1).max(10000),
+    lifecycle: z.enum([
+        'open',
+        'released',
+        'cancelled'
+    ]),
+    parentId: z.string().min(1).max(200).nullable(),
+    rank: z.int().gte(1).lte(2147483647).nullable(),
+    priorityRank: z.int().gte(1).lte(2147483647).nullable(),
+    schedulingInitiativeId: z.string().min(1).max(200).nullable(),
+    schedulingProjectId: z.string().min(1).max(200).nullable(),
+    expedited: z.boolean(),
+    expediteReason: z.string().min(1).max(10000).nullable()
+});
+
+export const zWorkItemPriority = z.object({
+    initiativeRank: z.int().gte(1).lte(2147483647),
+    projectRank: z.int().gte(1).lte(2147483647),
+    ticketRank: z.int().gte(1).lte(2147483647),
+    expedited: z.boolean(),
+    effectiveExpedited: z.boolean(),
+    donatedFromWorkItemId: z.string().min(1).max(200).nullable()
+});
+
+export const zCriticalPathInclusionReason = z.union([
+    z.object({
+        kind: z.enum(['target_outcome'])
+    }),
+    z.object({
+        kind: z.enum(['decomposition_child']),
+        fromWorkItemId: z.string().min(1).max(200)
+    }),
+    z.object({
+        kind: z.enum(['dependency_blocker']),
+        fromWorkItemId: z.string().min(1).max(200),
+        dependencyDeclaredByWorkItemId: z.string().min(1).max(200)
+    })
+]);
+
+export const zCriticalPathNode = z.object({
+    item: zStoredWorkItem,
+    stage: z.enum([
+        'blocked',
+        'ready',
+        'in_progress',
+        'stale',
+        'needs_attention',
+        'released',
+        'cancelled'
+    ]),
+    claimable: z.boolean(),
+    priority: zWorkItemPriority,
+    inclusionReasons: z.array(zCriticalPathInclusionReason).min(1).max(5001)
+});
+
+export const zCriticalPathEdge = z.union([
+    z.object({
+        kind: z.enum(['decomposition']),
+        fromWorkItemId: z.string().min(1).max(200),
+        toWorkItemId: z.string().min(1).max(200)
+    }),
+    z.object({
+        kind: z.enum(['dependency']),
+        fromWorkItemId: z.string().min(1).max(200),
+        toWorkItemId: z.string().min(1).max(200),
+        dependencyDeclaredByWorkItemId: z.string().min(1).max(200)
+    })
+]);
+
+export const zCriticalPathWorkItemPath = z.array(z.string().min(1).max(200)).min(1).max(1000);
+
+export const zCriticalPathParallelBranch = z.object({
+    workItemId: z.string().min(1).max(200),
+    stage: z.enum([
+        'blocked',
+        'ready',
+        'in_progress',
+        'stale',
+        'needs_attention',
+        'released',
+        'cancelled'
+    ]),
+    claimable: z.boolean(),
+    targetWorkItemIds: z.array(z.string().min(1).max(200)).max(1000),
+    paths: z.array(zCriticalPathWorkItemPath).max(5000)
+});
+
+export const zCriticalPathProjection = z.object({
+    targetOutcomeIds: z.array(z.string().min(1).max(200)).max(1000),
+    nodes: z.array(zCriticalPathNode).max(1000),
+    edges: z.array(zCriticalPathEdge).max(5000),
+    blockingPaths: z.array(zCriticalPathWorkItemPath).max(5000),
+    readyLeafIds: z.array(z.string().min(1).max(200)).max(1000),
+    blockingAttentionIds: z.array(z.string().min(1).max(200)).max(1000),
+    parallelBranches: z.array(zCriticalPathParallelBranch).max(1000)
+});
+
+export const zError = z.object({
+    error: z.object({
+        code: z.string().min(1).max(100),
+        message: z.string().min(1).max(500),
+        requestId: z.string().min(1).max(128).optional(),
+        details: z.array(z.object({
+            path: z.array(z.union([z.string().max(200), z.number()])).max(20),
+            message: z.string().max(500)
+        })).max(100).optional()
+    })
+});
+
 export const zLease = z.object({
     id: z.uuid().max(36),
     workItemId: z.string().min(1).max(200),
@@ -19,29 +130,8 @@ export const zLease = z.object({
     ]).nullable()
 });
 
-export const zWorkItem = z.object({
-    id: z.string().min(1).max(200),
-    title: z.string().min(1).max(10000),
-    lifecycle: z.enum([
-        'open',
-        'released',
-        'cancelled'
-    ]),
-    parentId: z.string().min(1).max(200).nullable(),
-    rank: z.int().gte(1).lte(2147483647).nullable(),
-    priorityRank: z.int().gte(1).lte(2147483647).nullable(),
-    schedulingInitiativeId: z.string().min(1).max(200).nullable(),
-    schedulingProjectId: z.string().min(1).max(200).nullable(),
-    expedited: z.boolean(),
-    expediteReason: z.string().min(1).max(10000).nullable(),
-    priority: z.object({
-        initiativeRank: z.int().gte(1).lte(2147483647),
-        projectRank: z.int().gte(1).lte(2147483647),
-        ticketRank: z.int().gte(1).lte(2147483647),
-        expedited: z.boolean(),
-        effectiveExpedited: z.boolean(),
-        donatedFromWorkItemId: z.string().min(1).max(200).nullable()
-    }),
+export const zWorkItem = zStoredWorkItem.and(z.object({
+    priority: zWorkItemPriority,
     stage: z.enum([
         'blocked',
         'ready',
@@ -52,22 +142,11 @@ export const zWorkItem = z.object({
         'cancelled'
     ]),
     currentLease: zLease.nullable()
-});
+}));
 
 export const zWorkItemList = z.object({
     items: z.array(zWorkItem).max(100),
     nextCursor: z.string().min(1).max(200).nullable()
-});
-
-export const zError = z.object({
-    error: z.object({
-        code: z.string().min(1).max(100),
-        message: z.string().min(1).max(500),
-        details: z.array(z.object({
-            path: z.array(z.union([z.string().max(200), z.number()])).max(20),
-            message: z.string().max(500)
-        })).max(100).optional()
-    })
 });
 
 export const zKnowledgeScope = z.object({
@@ -77,6 +156,8 @@ export const zKnowledgeScope = z.object({
     canonicalUrl: z.url().max(2048).regex(/^[hH][tT][tT][pP][sS]?:\/\/(?![^\/?#]*@)/),
     markdownUrl: z.url().max(2048).regex(/^[hH][tT][tT][pP][sS]?:\/\/(?![^\/?#]*@)/),
     sourceRevision: z.string().min(1).max(200).nullable(),
+    lifecycle: z.enum(['active', 'archived']),
+    archiveReason: z.string().min(1).max(10000).nullable(),
     rank: z.int().gte(1).lte(2147483647).nullable()
 });
 
@@ -95,11 +176,78 @@ export const zKnowledgeScopeRelationshipList = z.object({
     nextCursor: z.string().min(1).max(4096).nullable()
 });
 
+export const zDeliveryEvidence = z.object({
+    id: z.uuid().max(36),
+    deliveryProvider: z.string().min(1).max(10000),
+    deliveryExternalId: z.string().min(1).max(10000),
+    provider: z.string().min(1).max(10000),
+    externalId: z.string().min(1).max(10000),
+    repository: z.string().min(1).max(200),
+    commitSha: z.string().max(40).regex(/^[0-9a-f]{40}$/),
+    kind: z.enum([
+        'pull_request',
+        'ci',
+        'deployment'
+    ]),
+    state: z.enum([
+        'pending',
+        'success',
+        'failure',
+        'cancelled'
+    ]),
+    name: z.string().min(1).max(10000).nullable(),
+    environment: z.string().min(1).max(10000).nullable(),
+    sourceUrl: z.url().max(2048).regex(/^[hH][tT][tT][pP][sS]?:\/\/(?![^\/?#]*@)/),
+    providerObservedAt: z.iso.datetime().max(30),
+    ingestedAt: z.iso.datetime().max(30),
+    correlationKind: z.enum([
+        'unmatched',
+        'pull_request_head',
+        'pull_request_merge'
+    ]),
+    pullRequestRepository: z.string().min(1).max(200).nullable(),
+    pullRequestNumber: z.int().gte(1).lte(2147483647).nullable(),
+    current: z.boolean(),
+    projectedAt: z.iso.datetime().max(30).nullable()
+});
+
+export const zDeliveryEvidenceList = z.object({
+    items: z.array(zDeliveryEvidence).max(100),
+    nextCursor: z.uuid().max(36).nullable()
+});
+
+export const zCompletionCandidate = z.object({
+    id: z.uuid().max(36),
+    workItemId: z.string().min(1).max(200),
+    policyId: z.string().min(1).max(200),
+    policyRevision: z.int().gte(1).lte(2147483647),
+    candidate: z.boolean(),
+    reasons: z.array(z.enum([
+        'missing_implementation_pull_request',
+        'pull_request_not_merged',
+        'missing_accepted_head',
+        'missing_merge_commit',
+        'missing_pull_request_evidence',
+        'missing_required_ci',
+        'missing_production_deployment',
+        'unfinished_children',
+        'unresolved_blocking_attention'
+    ])).max(9),
+    evidenceObservationIds: z.array(z.uuid().max(36)).max(1000),
+    evaluatedAt: z.iso.datetime().max(30)
+});
+
+export const zCompletionCandidateResponse = z.object({
+    candidate: zCompletionCandidate.nullable()
+});
+
 export const zPullRequestSnapshot = z.object({
     repository: z.string().min(1).max(200),
     number: z.int().gte(1).lte(2147483647),
     url: z.url().max(2048).regex(/^[hH][tT][tT][pP][sS]?:\/\/(?![^\/?#]*@)/),
     headSha: z.string().max(40).regex(/^[0-9a-f]{40}$/),
+    acceptedHeadSha: z.string().max(40).regex(/^[0-9a-f]{40}$/).nullable(),
+    mergeCommitSha: z.string().max(40).regex(/^[0-9a-f]{40}$/).nullable(),
     state: z.enum([
         'open',
         'closed',
@@ -166,7 +314,13 @@ export const zResolvedWorkItemContext = z.union([
         sourceWorkItemId: z.string().min(1).max(200),
         inheritanceDepth: z.int().gte(0).lte(2147483647)
     }),
-    zResolvedPullRequest
+    zResolvedPullRequest,
+    z.object({
+        kind: z.enum(['delivery_evidence']),
+        evidence: zDeliveryEvidence,
+        sourceWorkItemId: z.string().min(1).max(200),
+        inheritanceDepth: z.int().gte(0).lte(2147483647)
+    })
 ]);
 
 export const zResolvedWorkItemContextList = z.object({
@@ -393,6 +547,33 @@ export const zCreateAttentionResolutionPath = z.object({
  */
 export const zCreateAttentionResolutionResponse = zAttentionResolutionResponse;
 
+export const zGetCriticalPathQuery = z.object({
+    includeInitiativeIds: z.array(z.string().min(1).max(200)).max(100).register(z.globalRegistry, {
+        description: 'Repeat the query parameter to select more than one scope.'
+    }).optional(),
+    excludeInitiativeIds: z.array(z.string().min(1).max(200)).max(100).register(z.globalRegistry, {
+        description: 'Repeat the query parameter to select more than one scope.'
+    }).optional(),
+    includeProjectIds: z.array(z.string().min(1).max(200)).max(100).register(z.globalRegistry, {
+        description: 'Repeat the query parameter to select more than one scope.'
+    }).optional(),
+    excludeProjectIds: z.array(z.string().min(1).max(200)).max(100).register(z.globalRegistry, {
+        description: 'Repeat the query parameter to select more than one scope.'
+    }).optional(),
+    initiativeId: z.string().min(1).max(200).register(z.globalRegistry, {
+        description: 'Deprecated one-item alias for includeInitiativeIds.'
+    }).optional(),
+    projectId: z.string().min(1).max(200).register(z.globalRegistry, {
+        description: 'Deprecated one-item alias for includeProjectIds.'
+    }).optional(),
+    rootWorkItemId: z.string().min(1).max(200).optional()
+});
+
+/**
+ * Critical-path targets, included nodes and edges, blocking paths, and claimable parallel branches
+ */
+export const zGetCriticalPathResponse = zCriticalPathProjection;
+
 export const zDeleteDependencyBody = z.object({
     dependentWorkItemId: z.string().min(1).max(200),
     blockerWorkItemId: z.string().min(1).max(200)
@@ -442,6 +623,7 @@ export const zDeleteKnowledgeScopeRelationshipHeaders = z.object({
 export const zDeleteKnowledgeScopeRelationshipResponse = zKnowledgeScopeRelationship;
 
 export const zListKnowledgeScopeRelationshipsQuery = z.object({
+    includeArchived: z.enum(['true']).optional(),
     limit: z.int().gte(1).lte(100).optional().default(50),
     cursor: z.string().min(1).max(4096).optional()
 });
@@ -469,6 +651,7 @@ export const zCreateKnowledgeScopeRelationshipResponse = zKnowledgeScopeRelation
 
 export const zListKnowledgeScopesQuery = z.object({
     kind: z.enum(['initiative', 'project']).optional(),
+    includeArchived: z.enum(['true']).optional(),
     limit: z.int().gte(1).lte(100).optional().default(50),
     cursor: z.string().min(1).max(200).optional()
 });
@@ -510,6 +693,40 @@ export const zPutKnowledgeScopePath = z.object({
  */
 export const zPutKnowledgeScopeResponse = zKnowledgeScope;
 
+export const zRestoreKnowledgeScopeHeaders = z.object({
+    'idempotency-key': z.uuid().max(36).register(z.globalRegistry, {
+        description: 'Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.'
+    }).optional()
+});
+
+export const zRestoreKnowledgeScopePath = z.object({
+    knowledgeScopeId: z.string().min(1).max(200)
+});
+
+/**
+ * Knowledge scope restored or matching mutation replayed
+ */
+export const zRestoreKnowledgeScopeResponse = zKnowledgeScope;
+
+export const zArchiveKnowledgeScopeBody = z.object({
+    reason: z.string().min(1).max(10000)
+});
+
+export const zArchiveKnowledgeScopeHeaders = z.object({
+    'idempotency-key': z.uuid().max(36).register(z.globalRegistry, {
+        description: 'Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.'
+    }).optional()
+});
+
+export const zArchiveKnowledgeScopePath = z.object({
+    knowledgeScopeId: z.string().min(1).max(200)
+});
+
+/**
+ * Knowledge scope archived or matching mutation replayed
+ */
+export const zArchiveKnowledgeScopeResponse = zKnowledgeScope;
+
 export const zMoveKnowledgeScopePriorityBody = z.union([
     z.object({
         higherThanId: z.string().min(1).max(200),
@@ -545,8 +762,16 @@ export const zCreateLeaseBody = z.union([
     z.object({
         workerId: z.string().min(1).max(200),
         leaseDurationSeconds: z.int().gte(1).lte(86400),
-        initiativeId: z.string().min(1).max(200).optional(),
-        projectId: z.string().min(1).max(200).optional(),
+        includeInitiativeIds: z.array(z.string().min(1).max(200)).max(100).optional(),
+        excludeInitiativeIds: z.array(z.string().min(1).max(200)).max(100).optional(),
+        includeProjectIds: z.array(z.string().min(1).max(200)).max(100).optional(),
+        excludeProjectIds: z.array(z.string().min(1).max(200)).max(100).optional(),
+        initiativeId: z.string().min(1).max(200).register(z.globalRegistry, {
+            description: 'Deprecated one-item alias for includeInitiativeIds.'
+        }).optional(),
+        projectId: z.string().min(1).max(200).register(z.globalRegistry, {
+            description: 'Deprecated one-item alias for includeProjectIds.'
+        }).optional(),
         parentId: z.string().min(1).max(200).optional()
     })
 ]);
@@ -575,6 +800,8 @@ export const zRefreshPullRequestBody = z.object({
     number: z.int().gte(1).lte(2147483647),
     url: z.url().max(2048).regex(/^[hH][tT][tT][pP][sS]?:\/\/(?![^\/?#]*@)/),
     headSha: z.string().max(40).regex(/^[0-9a-f]{40}$/),
+    acceptedHeadSha: z.string().max(40).regex(/^[0-9a-f]{40}$/).nullish().default(null),
+    mergeCommitSha: z.string().max(40).regex(/^[0-9a-f]{40}$/).nullish().default(null),
     state: z.enum([
         'open',
         'closed',
@@ -622,8 +849,24 @@ export const zListWorkItemsQuery = z.object({
         'released',
         'cancelled'
     ]).optional(),
-    initiativeId: z.string().min(1).max(200).optional(),
-    projectId: z.string().min(1).max(200).optional(),
+    includeInitiativeIds: z.array(z.string().min(1).max(200)).max(100).register(z.globalRegistry, {
+        description: 'Repeat the query parameter to select more than one scope.'
+    }).optional(),
+    excludeInitiativeIds: z.array(z.string().min(1).max(200)).max(100).register(z.globalRegistry, {
+        description: 'Repeat the query parameter to select more than one scope.'
+    }).optional(),
+    includeProjectIds: z.array(z.string().min(1).max(200)).max(100).register(z.globalRegistry, {
+        description: 'Repeat the query parameter to select more than one scope.'
+    }).optional(),
+    excludeProjectIds: z.array(z.string().min(1).max(200)).max(100).register(z.globalRegistry, {
+        description: 'Repeat the query parameter to select more than one scope.'
+    }).optional(),
+    initiativeId: z.string().min(1).max(200).register(z.globalRegistry, {
+        description: 'Deprecated one-item alias for includeInitiativeIds.'
+    }).optional(),
+    projectId: z.string().min(1).max(200).register(z.globalRegistry, {
+        description: 'Deprecated one-item alias for includeProjectIds.'
+    }).optional(),
     parentId: z.string().min(1).max(200).optional(),
     limit: z.int().gte(1).lte(100).optional().default(50),
     cursor: z.string().min(1).max(200).optional()
@@ -696,6 +939,15 @@ export const zCreatePostReleaseWorkItemNotePath = z.object({
  * Post-release note appended or matching mutation replayed
  */
 export const zCreatePostReleaseWorkItemNoteResponse = zWorkItemNote;
+
+export const zGetWorkItemCompletionCandidatePath = z.object({
+    workItemId: z.string().min(1).max(200)
+});
+
+/**
+ * Current completion-candidate projection
+ */
+export const zGetWorkItemCompletionCandidateResponse = zCompletionCandidateResponse;
 
 export const zListWorkItemContextsPath = z.object({
     workItemId: z.string().min(1).max(200)
@@ -817,6 +1069,21 @@ export const zListWorkItemEventsQuery = z.object({
  * Work-item events in stable sequence order
  */
 export const zListWorkItemEventsResponse = zWorkItemEventList;
+
+export const zListWorkItemEvidencePath = z.object({
+    workItemId: z.string().min(1).max(200)
+});
+
+export const zListWorkItemEvidenceQuery = z.object({
+    currentOnly: z.enum(['true']).optional(),
+    limit: z.int().gte(1).lte(100).optional().default(50),
+    cursor: z.uuid().max(36).optional()
+});
+
+/**
+ * Delivery evidence in stable observation-ID order
+ */
+export const zListWorkItemEvidenceResponse = zDeliveryEvidenceList;
 
 export const zUnexpediteWorkItemHeaders = z.object({
     'idempotency-key': z.uuid().max(36).register(z.globalRegistry, {

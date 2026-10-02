@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { getAllPosts } from "@/lib/api/blog";
 import { getAllIdeas } from "@/lib/api/ideas";
 import { getAllInitiatives } from "@/lib/api/initiatives";
-import { getAllLegacyADRPaths, getAllProjects } from "@/lib/api/projects";
+import { getAllProjects } from "@/lib/api/projects";
 import { siteConfig } from "@/lib/config/site-config";
 import { getAllTechnologySlugs, loadDomainRepository } from "@/lib/domain";
 
@@ -52,13 +52,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: adr.date,
       priority: 0.8,
     })),
-  );
-  const legacyAdrPages = getAllLegacyADRPaths().map(
-    ({ projectSlug, adrSlug, lastModified }) => ({
-      url: `${siteConfig.url}/projects/${projectSlug}/adrs/${adrSlug}`,
-      lastModified,
-      priority: 0.1,
-    }),
   );
   const technologyPages = technologySlugs.map((slug) => ({
     url: `${siteConfig.url}/technologies/${slug}`,
@@ -128,7 +121,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...projectPages,
     ...pitchDeckPages,
     ...adrPages,
-    ...legacyAdrPages,
     ...ideaPages,
     ...technologyPages,
     {

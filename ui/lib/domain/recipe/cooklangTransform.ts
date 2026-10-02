@@ -117,7 +117,7 @@ function resolveQuantityValue(
   quantity: Ingredient["quantity"],
 ): number | undefined {
   const value = getQuantityValue(quantity);
-  if (value !== null && !isNaN(value)) return value;
+  if (value !== null && !Number.isNaN(value)) return value;
 
   const inner = (quantity as Record<string, unknown> | null)?.value;
   if (inner && typeof inner === "object" && "type" in inner) {

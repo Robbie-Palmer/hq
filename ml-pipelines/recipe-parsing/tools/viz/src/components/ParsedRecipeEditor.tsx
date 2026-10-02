@@ -499,6 +499,7 @@ export function ParsedRecipeEditor({
 
             {/* Ingredient rows */}
             <div className="divide-y divide-gray-100">
+              {/** biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited. */}
               {group.items.map((item, itemIndex) => {
                 const rowKey = groupKeys.itemKeys[itemIndex]!;
                 const isExpanded = expandedRows.has(rowKey);

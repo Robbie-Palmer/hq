@@ -1,0 +1,147 @@
+---
+title: "ADR 017: Fresh Migration Baseline and Isolated Preview Database Project"
+date: "2026-07-18"
+status: "Accepted"
+supersedes: "recipe-site:016-committed-postgres-migrations"
+tech_stack: ["PostgreSQL", "Drizzle", "Neon", "Cloudflare Access"]
+---
+
+# Summary
+
+Start committed Drizzle migration history from a genuinely empty production
+schema instead of adopting the schema previously managed by `drizzle-kit
+push`. Provision PR databases as ordinary child branches of an empty root in a
+dedicated Neon preview project, rebuild them from every committed migration on
+each PR update, and then load synthetic QA fixtures.
+
+# Context
+
+[ADR 016](/projects/recipe-site/adrs/016-committed-postgres-migrations)
+correctly moved shared databases from implicit `drizzle-kit push` diffs to
+reviewable migrations, but it assumed that the existing production schema and
+rows had to survive the adoption.
+
+That assumption is false at this stage of the project. Production contains no
+irreplaceable user data, so preserving its push-managed objects adds migration
+tolerance, a canonical-email backfill, and recovery machinery without
+protecting anything valuable. A one-time reset is simpler and gives the
+migration history an honest starting point: an empty database followed by
+`0000_baseline.sql`.
+
+ADR 016 also selected schema-only Neon branches for previews. Schema-only
+branches copy database objects but omit table rows, including Drizzle's
+database migration log. Restoring that log required a custom cumulative view,
+hash reconstruction from Git, and a privileged preparation script before every
+preview migration. Schema-only branches are also Neon root branches. The Free
+plan permits three root branches per project, leaving room for only two
+concurrent previews beside production.
+
+Cloudflare Access remains valuable for controlling who can reach preview HTTP
+applications, but it is not a database isolation boundary. It does not sit in
+front of the Neon Postgres endpoint, GitHub Actions, Worker secrets, or code in
+the pull request.
+
+# Decision
+
+## Keep committed Drizzle migrations
+
+The TypeScript schema in `packages/recipe-db/src/schema.ts` remains the schema
+model. Drizzle-generated SQL migrations and the complete generated `meta`
+directory are committed together. With the currently pinned Drizzle 0.x
+toolchain, snapshots are the inputs used to calculate later schema diffs and
+`meta/_journal.json` orders migration execution.
+
+Production deployment remains serialized and ordered:
+
+1. apply committed migrations using the direct Neon connection;
+2. deploy the Worker that consumes the resulting schema.
+
+Once a migration reaches `main`, correct it with a later migration rather than
+editing deployed history.
+
+## Replace adoption with a fresh production cutover
+
+`0000_baseline.sql` is a normal strict initial migration generated from the
+current TypeScript schema. It creates the complete application schema in an
+empty database and fails if conflicting objects already exist. It contains no
+`IF NOT EXISTS` adoption behavior and no backfill for rows created before
+migrations.
+
+Before the first migration-based production deployment, remove the existing
+push-managed `public` and `drizzle` schemas, recreate `public` under the
+application owner, and apply every committed migration. This is an explicit
+one-time cutover while all data remains disposable, not a recurring deployment
+step.
+
+Required reference data remains migration-owned. The initial diet and
+ingredient catalogue is installed by `0001_diet_catalog.sql`; preview-only
+users and recipes remain seed-owned.
+
+## Use a dedicated empty Neon preview project
+
+Create a separate, Terraform-managed Neon project for preview databases. Its
+default root branch is named `preview-base` and contains an empty `recipes`
+database plus the preview-only `recipes_owner` role, but no application tables,
+production rows, or Drizzle migration history. Terraform also creates the
+project-scoped API key supplied to the GitHub preview environment through
+Doppler.
+
+Each backend PR preview is an ordinary child branch named
+`preview-pr-<number>` whose parent is `preview-base`. The workflow deletes any
+previous branch for that PR and recreates it on every update, then:
+
+1. applies every committed migration from `0000` onward;
+2. loads deterministic synthetic QA fixtures;
+3. deploys the isolated API and ingestion Workers.
+
+Rebuilding on every update is deliberate. Migration files may be edited before
+they reach `main`; retaining a previous preview's database migration log could
+cause Drizzle to skip the edited SQL. QA changes made inside a preview are
+therefore disposable between pushes.
+
+Ordinary child branches use Neon's general branch allowance instead of the
+smaller root-branch allowance. With one root in a Free-plan project, the
+current ten-branch allowance leaves room for up to nine simultaneous PR
+databases.
+
+# Alternatives Considered
+
+## Adopt the existing production schema
+
+Rejected. It preserves disposable state at the cost of making the permanent
+baseline more permissive and harder to reason about.
+
+## Continue using schema-only preview branches
+
+Rejected. It requires custom migration-log reconstruction and consumes one
+scarce root branch per PR.
+
+## Create child branches from production with all data
+
+Rejected as the default. It would preserve Drizzle history automatically and
+is harmless while production is empty, but it silently becomes unsafe when
+identity records, sessions, OAuth credentials, or private recipes appear.
+Cloudflare Access protects preview HTTP traffic, not the database or CI
+credential boundary.
+
+## Create one Neon project per pull request
+
+Rejected. It offers strong isolation and high concurrency, but requires
+broader project-creation credentials and more lifecycle automation than one
+dedicated preview project with short-lived child branches.
+
+# Consequences
+
+* The migration history starts from an empty database and contains no invented
+  adoption semantics.
+* Production must be reset once before the first migration-based deployment.
+* Every preview validates the complete migration chain and reference catalogue.
+* Preview database credentials and data are isolated from the production Neon
+  project.
+* The schema-level migration manifest and history-restoration helper are no
+  longer required.
+* Preview QA changes are discarded on every PR update.
+* Preview concurrency rises from two schema-only roots to as many as nine child
+  branches on the current Free-plan allowance.
+* Cloudflare Access remains defence in depth for the deployed HTTP surface,
+  rather than being treated as protection for copied production data.

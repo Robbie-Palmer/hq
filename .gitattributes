@@ -2,3 +2,11 @@
 # not hand-authored app code. Collapse in diffs and exclude from language stats.
 ui/content/projects/*/designs/** linguist-vendored
 ui/public/recipe-site-design/** linguist-generated
+
+# Machine-generated database and API artifacts. Keep their authored inputs and
+# SQL migrations visible while collapsing regenerated output in GitHub diffs.
+packages/work-graph-db/drizzle/meta/** linguist-generated
+workers/recipe-api/drizzle/meta/** linguist-generated
+packages/work-graph-cli/src/generated/** linguist-generated
+workers/work-graph-api/openapi.json linguist-generated
+workers/recipe-api/openapi.json linguist-generated

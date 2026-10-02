@@ -8,6 +8,20 @@ import type { ProjectWithADRsView } from "@/lib/domain/project/projectViews";
 
 type Manifest = NonNullable<ProjectWithADRsView["platformManifest"]>;
 
+function prerequisiteLabel(
+  prerequisite: Manifest["policies"][number]["prerequisites"][number],
+): string {
+  if ("requirement" in prerequisite) return prerequisite.requirement;
+  return prerequisite.technology
+    ? `${prerequisite.slot} = ${prerequisite.technology}`
+    : prerequisite.slot;
+}
+
+function adrHref(adrRef: string): string {
+  const [project, adr] = adrRef.split(":");
+  return `/projects/${project}/adrs/${adr}`;
+}
+
 export function PlatformManifest({
   manifest,
 }: Readonly<{ manifest: Manifest }>) {
@@ -57,13 +71,27 @@ export function PlatformManifest({
                   <ul className="mt-3 space-y-1 text-sm">
                     {policies.map((policy) => (
                       <li key={policy.id}>
-                        <Link
-                          href={`#slot-${policy.slot}`}
-                          className="underline underline-offset-4"
-                        >
-                          {policy.slot}
-                        </Link>{" "}
-                        <Badge variant="outline">{policy.mode}</Badge>
+                        <div>
+                          <Link
+                            href={`#slot-${policy.slot}`}
+                            className="underline underline-offset-4"
+                          >
+                            {policy.slot}
+                          </Link>{" "}
+                          <Badge variant="outline">{policy.mode}</Badge>
+                        </div>
+                        {policy.prerequisites.length > 0 && (
+                          <ul
+                            aria-label={`${policy.slot} prerequisites`}
+                            className="ml-5 mt-1 list-disc text-xs text-muted-foreground"
+                          >
+                            {policy.prerequisites.map((prerequisite) => (
+                              <li key={prerequisiteLabel(prerequisite)}>
+                                {prerequisiteLabel(prerequisite)}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -120,14 +148,14 @@ export function PlatformManifest({
                           : " to present"}
                       </span>{" "}
                       <Link
-                        href={`/projects/${selection.decision.split(":")[0]}/adrs/${selection.decision.split(":")[1]}`}
+                        href={adrHref(selection.decision)}
                         className="underline underline-offset-4"
                       >
                         decision
                       </Link>
                       {selection.originProjects.length > 0 && (
                         <span className="text-muted-foreground">
-                          {" driven by "}
+                          {" originated in "}
                           {selection.originProjects.map((project, index) => (
                             <span key={project}>
                               <Link
@@ -143,15 +171,33 @@ export function PlatformManifest({
                           ))}
                         </span>
                       )}
+                      <span className="text-muted-foreground">
+                        {" with evidence "}
+                        {selection.evidenceADRs.map((adrRef, index) => (
+                          <span key={adrRef}>
+                            <Link
+                              href={adrHref(adrRef)}
+                              className="underline underline-offset-4"
+                            >
+                              {adrRef}
+                            </Link>
+                            {index < selection.evidenceADRs.length - 1
+                              ? ", "
+                              : ""}
+                          </span>
+                        ))}
+                      </span>
                     </li>
                   ))}
               </ol>
-              {(slot.users.length > 0 || slot.overrides.length > 0) && (
+              {(slot.adopters.length > 0 ||
+                slot.layerConsumers.length > 0 ||
+                slot.overrides.length > 0) && (
                 <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-                  {slot.users.length > 0 && (
+                  {slot.adopters.length > 0 && (
                     <p>
-                      Users:{" "}
-                      {slot.users.map((project, index) => (
+                      Adopters:{" "}
+                      {slot.adopters.map((project, index) => (
                         <span key={project}>
                           <Link
                             href={`/projects/${project}`}
@@ -159,7 +205,23 @@ export function PlatformManifest({
                           >
                             {project}
                           </Link>
-                          {index < slot.users.length - 1 ? ", " : "."}
+                          {index < slot.adopters.length - 1 ? ", " : "."}
+                        </span>
+                      ))}
+                    </p>
+                  )}
+                  {slot.layerConsumers.length > 0 && (
+                    <p>
+                      Layer consumers:{" "}
+                      {slot.layerConsumers.map((project, index) => (
+                        <span key={project}>
+                          <Link
+                            href={`/projects/${project}`}
+                            className="underline underline-offset-4"
+                          >
+                            {project}
+                          </Link>
+                          {index < slot.layerConsumers.length - 1 ? ", " : "."}
                         </span>
                       ))}
                     </p>

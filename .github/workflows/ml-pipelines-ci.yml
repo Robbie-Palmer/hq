@@ -68,21 +68,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: "3.14"
-
-      - name: Install DVC
-        # Install the fully resolved, hash-pinned dependency set. Wheels are
-        # required except for antlr4-python3-runtime, whose 4.9.* release has no
-        # wheel. Quotes keep the ":all:" colon from parsing as YAML.
-        run: "pip install --only-binary :all: --no-binary antlr4-python3-runtime --require-hashes --requirement ../dvc-requirements.txt"
+      - uses: $/.github/actions/setup-mise
 
       - name: Validate DVC remote
-        run: dvc pull
-
-      - uses: $/.github/actions/setup-mise
-        if: matrix.pipeline == 'recipe-parsing'
+        run: mise run //ml-pipelines:dvc -- pull
 
       - name: Get pnpm store directory
         if: matrix.pipeline == 'recipe-parsing'
@@ -115,7 +104,7 @@ jobs:
           git fetch origin main:refs/remotes/origin/main || echo "Failed to fetch origin/main"
           
           echo "Debug: Running dvc metrics diff..."
-          DIFF=$(dvc metrics diff --md origin/main || echo "DVC diff failed")
+          DIFF=$(mise run //ml-pipelines:dvc -- metrics diff --md origin/main || echo "DVC diff failed")
           echo "Debug: DIFF Content:"
           echo "$DIFF"
           
@@ -127,7 +116,7 @@ jobs:
           else
              echo "Debug: Running dvc metrics show..."
              # Note: --all is not valid for 'show', removing it.
-             SHOW=$(dvc metrics show --md || echo "DVC show failed")
+             SHOW=$(mise run //ml-pipelines:dvc -- metrics show --md || echo "DVC show failed")
              echo "Debug: SHOW Content:"
              echo "$SHOW"
              BODY="## ${{ matrix.pipeline }} metrics"$'\n\n'"$SHOW"

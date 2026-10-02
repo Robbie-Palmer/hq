@@ -205,6 +205,7 @@ interface AccountHistoryImportDrawerProps {
   trigger?: ReactNode;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function AccountHistoryImportDrawer({
   account: fixedAccount,
   trigger,

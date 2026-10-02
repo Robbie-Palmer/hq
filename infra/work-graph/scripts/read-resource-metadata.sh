@@ -147,12 +147,16 @@ if [[ "$hyperdrive_count" -ne 1 ]]; then
   exit 1
 fi
 hyperdrive_id=$(jq -er --arg name "$hyperdrive_name" '.result[] | select(.name == $name) | .id' "$work_dir/hyperdrives.json")
+hyperdrive_origin_connection_limit=$(jq -er --arg name "$hyperdrive_name" \
+  '.result[] | select(.name == $name) | .origin_connection_limit | tostring' \
+  "$work_dir/hyperdrives.json")
 
 jq -n \
   --arg database_host "$database_host" \
   --arg database_name "$neon_database_name" \
   --arg database_user "$database_user" \
   --arg hyperdrive_id "$hyperdrive_id" \
+  --arg hyperdrive_origin_connection_limit "$hyperdrive_origin_connection_limit" \
   --arg neon_branch_id "$neon_branch_id" \
   --arg neon_project_id "$neon_project_id" \
   --arg service_token_id "$service_token_id" \
@@ -161,6 +165,7 @@ jq -n \
     database_name: $database_name,
     database_user: $database_user,
     hyperdrive_id: $hyperdrive_id,
+    hyperdrive_origin_connection_limit: $hyperdrive_origin_connection_limit,
     neon_branch_id: $neon_branch_id,
     neon_project_id: $neon_project_id,
     service_token_id: $service_token_id

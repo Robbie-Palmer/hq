@@ -83,6 +83,7 @@ function pullRequestMetadata(
   return recorded ? completePullRequestMetadata(recorded) : undefined;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function extractCorpus({
   input,
   output,

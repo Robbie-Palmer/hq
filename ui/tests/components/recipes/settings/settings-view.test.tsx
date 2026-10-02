@@ -22,7 +22,9 @@ const mocks = vi.hoisted(() => ({
   getHouseholdInvitations: vi.fn(),
   getIncomingHouseholdInvitations: vi.fn(),
   listAgents: vi.fn(),
+  listAgentMutations: vi.fn(),
   revokeAgent: vi.fn(),
+  undoAgentMutation: vi.fn(),
 }));
 
 vi.mock("@/lib/auth-client", () => ({
@@ -50,6 +52,14 @@ vi.mock("@/lib/api/agents", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/agents")>()),
   listAgents: mocks.listAgents,
   revokeAgent: mocks.revokeAgent,
+}));
+
+vi.mock("@/lib/api/recipe-agent-mutations", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@/lib/api/recipe-agent-mutations")
+  >()),
+  listAgentMutations: mocks.listAgentMutations,
+  undoAgentMutation: mocks.undoAgentMutation,
 }));
 
 function renderSettingsView() {
@@ -100,7 +110,9 @@ describe("SettingsView", () => {
     mocks.getHouseholdInvitations.mockResolvedValue([]);
     mocks.getIncomingHouseholdInvitations.mockResolvedValue([]);
     mocks.listAgents.mockResolvedValue([]);
+    mocks.listAgentMutations.mockResolvedValue([]);
     mocks.revokeAgent.mockResolvedValue(undefined);
+    mocks.undoAgentMutation.mockResolvedValue(undefined);
     mocks.createHousehold.mockResolvedValue({});
   });
 

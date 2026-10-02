@@ -1,0 +1,608 @@
+---
+title: "ADR 022: Realtime Household Collaboration with Durable Objects"
+date: "2026-07-30"
+status: "Proposed"
+tech_stack: ["Cloudflare Workers", "Neon", "TanStack Query", "React"]
+---
+
+# Summary
+
+Add realtime household collaboration without replacing the existing application stack.
+
+Neon Postgres remains the canonical store for shared pantry and shopping-list data. The
+`recipe-api` Worker remains the trust boundary for authentication, household authorization,
+validation, and transactional mutations. Add one Cloudflare Durable Object per household to own
+WebSocket connections, post-commit change fan-out, and ephemeral presence.
+
+The realtime protocol sends canonical resource snapshots with monotonic revisions. The Durable
+Object forwards committed results but does not store them. TanStack Query keeps the last confirmed
+snapshot, while the UI replays pending local commands over it. Other connected clients install a
+newer WebSocket snapshot without another database read. Initial connection, reconnection, window
+focus, and a low-frequency active-page poll repair missed publications.
+
+Realtime delivery therefore reduces latency while Postgres remains the data-correctness boundary. A
+committed Postgres mutation remains successful even if its subsequent broadcast fails. The UI
+eventually converges by reading the canonical snapshot and revision.
+
+Do not adopt Convex, move the existing relational data model, introduce a Postgres change-data
+capture service, or add CRDTs for the initial pantry and shopping-list features. A future PWA may
+cache the application shell and canonical snapshots for offline reading without changing this
+decision. Limited shared-data edits may later use the same idempotent commands through an
+IndexedDB-backed outbox. Revisit a CRDT or Postgres-native sync engine only if unrestricted offline
+shared editing, many independent writers, or automatic conflict merging makes explicit operations
+and post-commit publication disproportionately complex.
+
+# Context
+
+[ADR 004](/projects/recipe-site/adrs/004-backend-platform-for-authenticated-features) selects a
+static React/Next.js frontend, a Cloudflare Worker API, Hyperdrive, and Neon Postgres for
+authenticated state. [ADR 005](/projects/recipe-site/adrs/005-authorization-model) makes the
+household the first shared authorization boundary, while
+[ADR 018](/projects/recipe-site/adrs/018-tanstack-query-for-client-server-state) gives TanStack Query
+ownership of browser-side server-state caching, invalidation, and selected optimistic updates.
+
+Shared pantry and shopping-list features introduce a different freshness expectation from recipe
+CRUD:
+
+* two household members may have the same shopping list open while shopping in different places;
+* checking, adding, removing, or correcting an item should appear on the other device within roughly
+  one network round trip;
+* the initiating device should respond immediately rather than waiting for the round trip;
+* reconnecting after changing networks or suspending a phone must recover the current list;
+* a pantry reconciliation may update several items atomically and should become visible as one
+  committed change;
+* future agent-authenticated pantry changes from
+  [ADR 019](/projects/recipe-site/adrs/019-agent-auth) must use the same authorization, revision, and
+  publication path as human changes.
+
+Ordinary request/response reads plus focus refetching are correct but do not provide the desired live
+experience. Aggressive polling would approximate it, but spends requests while nothing changes and
+still creates a visible delay between clients.
+
+The application is also expected to become an installable PWA with useful offline behavior. That
+does not imply that every shared feature must remain writable offline. Offline application loading,
+cached recipe and household reads, local-only drafts, queued constrained commands, and unrestricted
+concurrent editing are separate capabilities with different consistency requirements. This
+decision preserves a path through those capabilities without paying the complexity of the most
+advanced one before its product semantics are known.
+
+## WebSockets Are Necessary but Insufficient
+
+A WebSocket is a bidirectional transport. It does not decide:
+
+* which committed database changes affect a connected client;
+* whether the sender was authorized to mutate the household resource;
+* whether a transaction committed or rolled back;
+* how concurrent updates to the same item should resolve;
+* what a disconnected client missed;
+* whether a received event is older than the client's current state;
+* how an optimistic local change is confirmed or rolled back.
+
+Convex combines those responsibilities into one database, function runtime, subscription engine,
+client cache, and WebSocket protocol. A Convex React query creates a subscription; Convex tracks the
+database dependencies read by the query, reruns affected queries after mutations, and pushes
+consistent results to the client. Its client also reconnects and re-establishes the session
+automatically. See the Convex
+[architecture overview](https://docs.convex.dev/understanding/overview) and
+[React client documentation](https://docs.convex.dev/client/react/overview).
+
+That is a useful product abstraction, but it does not mean a WebSocket makes a conventional
+database reactive by itself. Reproducing the relevant UX in this application requires an explicit
+coordination and recovery layer around Postgres.
+
+# Decision
+
+## Ownership Boundaries
+
+| Responsibility                                      | Owner                                      |
+| --------------------------------------------------- | ------------------------------------------ |
+| Users, sessions, households, pantry, and list data  | Neon Postgres                              |
+| Authentication, authorization, and input validation | `recipe-api` Worker                        |
+| Transactional mutations and revision allocation     | `recipe-api` + Postgres                    |
+| Active household connections and change fan-out     | Per-household Durable Object               |
+| Ephemeral presence and viewing/editing indicators   | Per-household Durable Object               |
+| Query snapshots, local cache, and optimistic UI     | TanStack Query in the React application    |
+| Reconnection and revision-gap recovery              | Realtime client + canonical snapshot API   |
+| Background processing                               | Existing Workflows/Queues where applicable |
+
+Do not copy canonical pantry or shopping-list rows into Durable Object SQLite. Durable Object
+storage may later hold small coordination metadata that cannot be reconstructed safely, but it is
+not part of the initial data model.
+
+Cloudflare describes Durable Objects as the coordination primitive for strong consistency,
+persistent connections, and realtime collaboration. Its current guidance recommends designing each
+object around an "atom of coordination" and using hibernatable WebSockets for sparse realtime
+traffic. See the
+[Rules of Durable Objects](https://developers.cloudflare.com/durable-objects/best-practices/rules-of-durable-objects/)
+and [WebSocket guidance](https://developers.cloudflare.com/durable-objects/best-practices/websockets/).
+
+## One Realtime Room per Household
+
+Create a `HouseholdRealtimeRoom` Durable Object class in the `recipe-api` Worker. Resolve its ID
+deterministically from the immutable household ID:
+
+```ts
+const roomId = env.HOUSEHOLD_REALTIME.idFromName(householdId);
+const room = env.HOUSEHOLD_REALTIME.get(roomId);
+```
+
+The household is the right initial coordination unit because:
+
+* it is already the shared authorization boundary;
+* pantry and shopping lists belong to the same small group of users;
+* one browser connection can receive changes for all currently visible household resources;
+* expected household sizes and event rates are far below one Durable Object's practical capacity;
+* presence is naturally scoped to the people who may collaborate.
+
+Messages still include a resource type and resource ID. If a future household can contain a
+large number of independently active lists or untrusted public collaborators, split rooms by
+resource without changing the Postgres model or client revision protocol.
+
+## Connection Establishment and Authorization
+
+The browser opens a same-origin WebSocket endpoint exposed by `recipe-api`.
+
+1. The outer Worker validates the request origin and the Better Auth session.
+2. It verifies current membership of the requested household.
+3. It strips any client-supplied internal identity headers.
+4. It routes the upgrade to the household Durable Object through its binding with server-derived
+   user, household, session-expiry, and connection metadata.
+5. The Durable Object accepts the server side of the connection through Cloudflare's WebSocket
+   Hibernation API and stores the minimum reconstruction data in the socket attachment.
+6. The client fetches a canonical resource snapshot containing its current revision before treating
+   the subscription as synchronized.
+
+The Durable Object is not directly Internet-addressable. It trusts only identity context produced
+by the outer Worker. Do not place session tokens or durable bearer credentials in a WebSocket query
+string.
+
+A connection's authorization to receive household data expires.
+Sockets must have a bounded authorization lifetime. Membership removal, household deletion, or
+session revocation should publish an authorization-change signal that closes affected connections;
+the server must also re-check authorization when a connection is renewed. A later WebSocket command
+path would require authorization on every command, but client mutations remain HTTP requests in the
+initial design.
+
+The membership/session mutation path sends a typed `revokeAccess` call to the household Durable
+Object through its Worker binding after the database commit. The room enumerates `getWebSockets()`,
+matches server-authored socket attachments by user or session, and closes those connections. Each
+attachment includes `authorizationExpiresAt`; the room schedules its alarm for the earliest
+expiration, closes expired sockets when the alarm fires, and schedules the next expiration.
+Reconnection always passes through the outer Worker again. A missed revocation signal is therefore
+bounded by the authorization lifetime rather than granting access indefinitely.
+
+The socket authorization lifetime is shorter than the underlying browser session. Start at five
+minutes, cap it at fifteen minutes without a separate review, and reconnect proactively before
+expiry. Apply the same bounded retry and operational-error policy to the post-commit revocation call
+as to ordinary change publication.
+
+## Mutation and Publication Flow
+
+Keep writes on the existing typed HTTP API. WebSockets initially carry server-to-client change
+notifications and low-risk presence messages, not canonical mutation commands.
+
+<Mermaid
+  chart={`sequenceDiagram
+participant A as React client A
+participant API as recipe-api
+participant DB as Neon Postgres
+participant Room as Household Durable Object
+participant B as React client B
+
+A->>A: Record pending local command
+A->>API: Explicit command + operation ID
+API->>API: Authenticate and authorize household access
+API->>DB: Begin transaction
+DB->>DB: Apply mutation and increment resource revision
+DB-->>API: Commit + canonical result + revision
+API-->>A: Canonical result + revision
+API->>Room: Publish committed snapshot in waitUntil
+Room-->>A: resource.changed + snapshot
+Room-->>B: resource.changed + snapshot
+A->>A: Install snapshot and replay pending commands
+B->>B: Install snapshot
+`}
+/>
+
+Every code path that mutates a collaborative resource must invoke the same domain-level
+post-commit publisher, including human API calls, delegated agent calls, administrative corrections,
+and workflow completions. Do not scatter direct Durable Object calls across route handlers.
+
+The publication call occurs only after the database commit. Broadcasting before commit could expose
+state that later rolls back. The publisher makes a small bounded number of idempotent retry attempts
+with jitter through `waitUntil`, outside response latency. Failure to broadcast after those attempts
+must:
+
+* not convert the committed mutation into an apparent failed mutation;
+* return the canonical committed response and revision to the caller;
+* emit a correlated operational error containing the resource, revision, and operation ID but not
+  sensitive item contents;
+* rely on subscription, focus, reconnect, and active-page refetch paths to heal other clients.
+
+The design intentionally uses no distributed transaction between Neon and the Durable Object. If later
+requirements demand durable delivery of every intermediate event, add a Postgres transactional
+outbox or adopt a change-data capture service in a separate decision. The normal-path latency target
+assumes a successful publish; bounded repair is the exceptional fallback and its observed duration
+must be measured.
+
+## Revisions and the Wire Protocol
+
+Each independently fetched collaborative aggregate has a monotonic `bigint` revision:
+
+* a shopping list has a shopping-list revision;
+* a household pantry has a pantry revision;
+* a mutation that changes multiple rows increments the aggregate revision once in the same
+  transaction;
+* the mutation response and subsequent snapshot contain the committed revision;
+* the broadcast identifies that revision.
+
+Each mutable pantry/list row also has a distinct per-row version used for optimistic concurrency.
+`expectedVersion` compares against that stored item version, never the aggregate revision. A
+successful transaction increments every affected row version and increments the aggregate revision
+exactly once, whether it changes one row or many. The aggregate revision orders snapshots and
+notifications; row versions detect conflicts for commands targeting a particular item.
+
+Allocate a revision with a locked or atomic aggregate-row update such as
+`revision = revision + 1 RETURNING revision`. Do not derive it from client time, `updated_at`, or
+WebSocket arrival order. Serialize `bigint` revisions as decimal strings at the JSON boundary.
+
+The pantry event contains the shaped canonical snapshot:
+
+```json
+{
+  "type": "resource.changed",
+  "resourceType": "pantry",
+  "resourceId": "550e8400-e29b-41d4-a716-446655440000",
+  "revision": "42",
+  "operationId": "0198b26e-43dc-7d7f-8cb2-acde48001122",
+  "changeKind": "pantry.item-set",
+  "pantry": {
+    "resourceId": "550e8400-e29b-41d4-a716-446655440000",
+    "revision": "42",
+    "operationId": "0198b26e-43dc-7d7f-8cb2-acde48001122",
+    "scope": { "type": "household", "household": { "id": "550e8400-e29b-41d4-a716-446655440000", "name": "Home" } },
+    "stock": { "onion": "fresh" },
+    "itemVersions": { "onion": "7" }
+  }
+}
+```
+
+Do not include session tokens, user details, or fields outside the authorized HTTP response.
+`publishPantryChange` resolves the current household-member user IDs. The room filters delivery
+against that supplied list and closes sockets for users who are no longer members.
+
+Clients maintain the highest accepted revision for each resource:
+
+* an event with a revision lower than or equal to the cached revision is stale or duplicate and may
+  be ignored;
+* any newer complete snapshot replaces the confirmed resource;
+* an initial connection or reconnection always obtains a canonical snapshot;
+* window focus and network reconnect retain TanStack Query's safety refetch;
+* while a collaborative screen is active, a low-frequency poll provides bounded repair when the
+  only post-commit notification was lost and no later revision exposes a gap.
+
+The revision guard applies to every cache installation, not only WebSocket messages. A mutation
+response, refetch result, or socket snapshot with a revision lower than the highest confirmed
+revision must never replace newer cached state. Pending local commands stay separate from that
+confirmed snapshot and are replayed in submission order whenever it changes.
+
+Measure the exact active-page interval in the product instead of guaranteeing it in the protocol. Start around
+30–60 seconds with per-client jitter and no background polling when the page is hidden. WebSockets
+provide normal low-latency updates; socket close/error, browser `online`, and window focus trigger
+immediate reconnection and snapshot recovery. Polling only bounds otherwise silent failure and its
+interval remains configurable from observed reliability.
+
+## Optimistic UI
+
+Use TanStack Query's pending mutation journal for interactions whose local result is obvious and
+reversible:
+
+* check or uncheck an item;
+* add a simple item;
+* change an uncomplicated quantity;
+* remove an item when restoration is deterministic.
+
+The mutation response remains canonical. Render pending commands over the confirmed snapshot rather
+than writing optimistic data into the canonical query cache. When a command fails or succeeds, it
+leaves the pending journal and the UI derives itself again. TanStack Query documents the related
+[optimistic update and rollback model](https://tanstack.com/query/latest/docs/framework/react/guides/optimistic-updates).
+
+Do not speculate when the server result may differ from the command. Those operations remain pending
+until a mutation response or socket snapshot supplies the shaped canonical result.
+
+## Concurrency Semantics
+
+Use explicit, idempotent domain commands rather than ambiguous CRUD or UI gestures:
+
+| Intent                         | Command shape                                              | Initial conflict rule                                   |
+| ------------------------------ | ---------------------------------------------------------- | ------------------------------------------------------- |
+| Check an item                  | `setItemChecked(itemId, true, operationId)`                | Last committed explicit value wins                      |
+| Uncheck an item                | `setItemChecked(itemId, false, operationId)`               | Last committed explicit value wins                      |
+| Add a quantity                 | `adjustQuantity(itemId, delta, operationId)`               | Atomic delta; concurrent additions accumulate           |
+| Correct an absolute quantity   | `setQuantity(itemId, value, expectedVersion, operationId)` | Reject or return conflict when the row version is stale |
+| Add a normalized duplicate     | `addOrMergeItem(item, operationId)`                        | Unique key plus transactional merge policy              |
+| Reconcile several pantry items | `reconcilePantry(changes, operationId)`                    | One transaction and one aggregate revision              |
+
+Do not implement a `toggle` command. Retrying a toggle can reverse an already successful operation,
+whereas retrying `setItemChecked(true)` is safe.
+
+Every mutation carries a globally unique client-generated UUIDv7 or equivalent sortable
+high-entropy operation ID. Persist it and its canonical outcome in Neon in the same transaction
+that applies the mutation, protected by a unique
+`(household_id, operation_id)` constraint or equivalent scoped key. A concurrent or later retry
+returns the committed recorded outcome rather than applying the command again. This provides
+retry-safe application semantics without claiming transport-level exactly-once delivery.
+
+These commands also form the compatibility boundary for a future offline outbox. Operations such as
+adding distinct items, setting a checkbox to an explicit value, and applying quantity deltas can be
+stored locally and replayed safely after reconnection. Commands that depend on fresh server state,
+perform normalization, or span several aggregates may remain online-only. Designing that boundary
+now avoids treating generic row replacement as an offline merge strategy.
+
+Structured shopping-list and pantry rows do not initially need a CRDT. Explicit operations,
+Postgres transactions, row/aggregate versions, and a documented conflict policy are simpler and
+preserve the relational model. Reconsider CRDTs only for offline concurrent edits that cannot be
+expressed as commutative operations, or for a future rich-text/document collaboration feature.
+
+## Presence
+
+Presence provides ephemeral coordination state. Never store it as durable business data.
+
+The Durable Object may derive "viewing this list", "actively shopping", or short-lived edit
+indicators from connected sockets and tagged WebSocket attachments. Presence:
+
+* is never written to Neon as canonical user history;
+* may disappear during disconnect detection, deployment, or exceptional recovery;
+* must not affect whether a pantry/list mutation is accepted;
+* contains only the minimum identity/display metadata authorized for household members;
+* expires automatically and is reconstructed from live connections after hibernation.
+
+Cloudflare's hibernation API keeps sockets connected while allowing the Durable Object's in-memory
+state to be discarded. Attachments and `getWebSockets()` provide the reconstruction mechanism; see
+the [WebSocket hibernation documentation](https://developers.cloudflare.com/durable-objects/best-practices/websockets/).
+On activation, reconstruct the current presence set from all live sockets and their attachments
+before emitting a snapshot or subsequent deltas. Do not add a separate durable presence record:
+duplicating connection state in storage would introduce another stale-state cleanup path without
+making presence authoritative.
+
+## Offline Boundary
+
+This decision supports temporary disconnects and reconnection. It is compatible with a
+progressively offline-capable PWA, but it does not promise unrestricted offline editing of shared
+state.
+
+| Offline capability                         | Intended direction                                                                                                        | Effect on this decision                                                                                                 |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Application shell loads offline            | Cache versioned static assets through the PWA service worker.                                                             | No change to the realtime or canonical-data architecture.                                                               |
+| Previously viewed data remains readable    | Persist selected, privacy-reviewed query snapshots in IndexedDB with age and user/household ownership metadata.           | Revalidate against the canonical API after authentication and reconnection.                                             |
+| Local-only work continues                  | Keep recipe drafts or other unpublished state in a clearly local workspace.                                               | Synchronization begins only when the user explicitly publishes or shares it.                                            |
+| Selected shared commands work offline      | Queue an allowlist of idempotent, domain-level operations and replay them after reconnecting.                             | Requires a follow-up ADR for persistence, authorization expiry, conflict UX, and per-command merge/rejection semantics. |
+| Arbitrary shared edits merge automatically | Allow multiple disconnected clients to modify the same complete structure and converge without bespoke conflict handling. | This is a materially different local-first system and is the threshold for evaluating Automerge, Yjs, or a sync engine. |
+
+Disabling presence and live fan-out while disconnected does not by itself remove the merge problem.
+If users can still change shared data offline, another household member may change the same data
+before the first device reconnects. The product must either restrict offline mutations, replay
+well-defined operations with documented server conflict rules, or adopt a synchronization model
+that can merge those concurrent histories.
+
+An IndexedDB-backed operation outbox is the preferred next step if a small set of shopping-list
+interactions needs offline writes. Each entry retains the operation ID, household/resource identity,
+command payload, originating schema version, and creation time. The Worker remains authoritative:
+it rechecks the current session and household membership, deduplicates the operation, applies or
+rejects it under current business rules, and returns the canonical revision. The UI must distinguish
+pending local intent from confirmed shared state.
+
+The server advertises an explicit compatibility window for queued command schema versions. The
+client may migrate a queued command before replay; the server rejects unknown or expired versions
+without partially applying them, and the UI exposes an actionable discard or manual-reapply path.
+
+Durable offline shared mutations additionally require:
+
+* an IndexedDB-backed operation queue;
+* operation retention and privacy policy on shared devices;
+* tombstones or equivalent deletion revisions;
+* deterministic conflict and merge behavior for every operation;
+* UX for rejected, superseded, and partially reconciled operations;
+* testing across reloads, session expiry, membership removal, and schema upgrades.
+
+Pantry reconciliation, normalized ingredient merging, cross-aggregate transactions, and operations
+with irreversible side effects should remain online-only until separately designed. If the outbox
+grows into a generic replicated database, or users require arbitrary edits across long network
+partitions, stop extending it incrementally and evaluate a local-first CRDT or sync engine in a
+follow-up decision.
+
+## PostgreSQL `LISTEN`/`NOTIFY`
+
+Do not keep a dedicated Postgres listener inside the Worker or Durable Object.
+
+PostgreSQL registrations belong to a database session and are cleared when the session ends. The
+documentation also describes a race when establishing a listener: the application must commit
+`LISTEN`, inspect current state in a new transaction, and then treat notifications as signals to
+read the database. `NOTIFY` is useful interprocess signalling, but it is not a durable browser replay
+log. See PostgreSQL's [LISTEN](https://www.postgresql.org/docs/current/sql-listen.html) and
+[NOTIFY](https://www.postgresql.org/docs/current/sql-notify.html) documentation.
+
+Those semantics are awkward with Worker lifecycles and Hyperdrive connection pooling. They would
+still require a persistent fan-out service and the same snapshot/recovery protocol. Explicit
+post-commit publication is smaller for the current set of controlled mutation paths.
+
+# Security and Abuse Controls
+
+Realtime transport does not weaken the authorization model:
+
+* authenticate and authorize the WebSocket upgrade in the Worker;
+* require an allowed same-origin `Origin` and the established secure session-cookie policy;
+* derive the household room ID only after membership validation;
+* never accept a household or user identity from an untrusted forwarded header;
+* bound message size, connection count per session/user, and presence update rate;
+* validate every message against a versioned schema and close malformed or abusive connections;
+* coalesce superseded invalidations for the same resource and never grow an unbounded per-socket
+  queue;
+* close a persistently slow socket with a retryable application close code rather than delaying the
+  room; its reconnect snapshot repairs any dropped invalidations;
+* do not log WebSocket payloads containing pantry/list contents;
+* close or expire sockets after membership, household, session, or authorization changes;
+* treat realtime receipt as a view permission only. Writes continue through the existing
+  authorization and CSRF-protected API;
+* expose connection, rejection, broadcast-failure, and revision-gap metrics without high-cardinality
+  ingredient names or user content.
+
+The room identifier only routes messages. Knowing a household ID must never authorize
+a subscription.
+
+# Alternatives Considered
+
+| Alternative                                            | Strengths                                                                                                                                                                                                                | Costs / mismatch here                                                                                                                                                                                                                                                                                        | Decision                                                                                                                                                                                                              |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Convex**                                             | Integrated reactive database, transactional functions, dependency-tracked subscriptions, WebSocket client, consistent query cache, and optimistic-update support.                                                        | It is a backend/database platform rather than a drop-in realtime layer for Neon. Migration would move or duplicate household, auth-adjacent, and recipe-domain state and replace mature Worker/Drizzle/Postgres paths. Using it only for lists creates cross-system membership and source-of-truth problems. | Do not adopt for the initial collaboration features. Reconsider if reactive collaborative state becomes most of the product and a backend migration is independently justified.                                       |
+| **Per-household Durable Object + Neon**                | Reuses the current provider, trust boundary, relational model, deployment path, and TanStack Query cache; provides WebSocket fan-out and presence close to the existing Worker.                                          | Requires a small custom protocol, revision model, reconnect logic, publication discipline, and operational monitoring. Broadcast after Postgres commit is not atomic with the commit.                                                                                                                        | **Adopt.** Keep correctness in Postgres and make missed delivery recoverable.                                                                                                                                         |
+| **Polling only**                                       | Simple; no connection state; correctness comes directly from canonical reads.                                                                                                                                            | Low intervals waste requests and still delay collaboration; high intervals feel stale. Cannot provide efficient presence.                                                                                                                                                                                    | Retain only as low-frequency repair and as an incremental implementation fallback.                                                                                                                                    |
+| **Postgres `LISTEN`/`NOTIFY`**                         | Transaction-aware notification signal generated close to the data; triggers can cover otherwise forgotten write paths.                                                                                                   | Session-bound, non-replayable to disconnected clients, awkward behind pooled/serverless connections, and still needs a persistent browser fan-out and recovery service.                                                                                                                                      | Reject as the primary transport.                                                                                                                                                                                      |
+| **ElectricSQL or another Postgres sync engine**        | Preserves Postgres as source of truth, observes writes through logical replication, and streams filtered data to clients; useful when writes originate in many systems.                                                  | Adds a sync service, logical-replication operations, shape authorization/proxying, client sync semantics, and cost. Electric's current architecture is primarily the read path, so writes still use the API. An active Neon replication subscriber also prevents scale-to-zero.                              | Defer until offline-first or broad automatic synchronization justifies the service.                                                                                                                                   |
+| **Durable Object SQLite as canonical list store**      | Co-locates ordered commands, strongly consistent storage, and WebSocket fan-out; avoids post-commit signalling failure for list data.                                                                                    | Splits business data between Neon and per-object SQLite, complicating relational queries, household deletion, backups, analytics, agent access, migrations, and cross-domain transactions.                                                                                                                   | Reject while Neon remains the canonical application database.                                                                                                                                                         |
+| **PartyKit over Durable Objects**                      | Reduces room, socket, reconnection, broadcast, local-development, and deployment boilerplate; offers a first-party Yjs integration and can deploy to the existing Cloudflare account without an additional platform fee. | PartyKit provides an implementation framework only. The application still owns Better Auth integration, household authorization, Neon commit ordering, conflict policy, recovery, and business validation. Its deployment/configuration must fit the existing Worker and preview topology.                   | Permit a thin spike before implementing the room. Adopt only if it materially reduces code and operations while preserving this ADR's trust, mutation, and recovery boundaries.                                       |
+| **Liveblocks or another hosted collaboration service** | Supplies hosted rooms, presence, client SDKs, and optional storage/conflict-resolution features with fast initial setup.                                                                                                 | Introduces another data processor, permission model, availability dependency, client protocol, and metered service. Persisted collaborative documents can also create a second source of truth or require projection back into Neon.                                                                         | Defer while the workload fits the existing paid Cloudflare platform; reconsider if operating the collaboration layer becomes disproportionate.                                                                        |
+| **Automerge for structured shared state**              | JSON-like document model, local persistence, change history, and deterministic convergence make it a strong fit for unrestricted offline edits to a bounded shopping-list document.                                      | Convergence does not enforce pantry invariants or choose the product-correct result for concurrent scalar edits. Production Cloudflare networking/storage adapters, authorization, schema evolution, compaction, and Neon projection remain application responsibilities.                                    | Reject initially. Reconsider for a bounded aggregate if durable arbitrary offline editing becomes a firm requirement; choose one authoritative representation rather than dual-writing Neon rows and a CRDT document. |
+| **Yjs for pantry and list rows**                       | Mature provider and editor ecosystem, shared collection types, awareness support, and first-class PartyKit integration.                                                                                                  | Its strongest fit is collaborative documents and editor models. It still adds CRDT encoding, persistence, garbage collection, authorization, and relational projection complexity for structured pantry invariants.                                                                                          | Reject for initial pantry/list rows; reconsider for collaborative recipe text or rich-document authoring.                                                                                                             |
+
+Electric is a Postgres read-path sync engine that consumes logical replication and exposes
+client-selected shapes over HTTP; writes continue through an application API. See the
+[Electric repository](https://github.com/electric-sql/electric) and Neon's
+[Electric/TanStack integration overview](https://neon.com/blog/tanstack-db-and-electricsql).
+Neon documents that an active logical-replication subscriber prevents compute scale-to-zero in its
+[logical replication guide](https://neon.com/docs/guides/logical-replication-neon).
+
+PartyKit is built on Durable Objects and can deploy to the project's Cloudflare account; see its
+[Cloudflare deployment guide](https://docs.partykit.io/guides/deploy-to-cloudflare/) and
+[Yjs integration](https://docs.partykit.io/reference/y-partykit-api/). Automerge separates its
+document CRDT from repository storage and networking adapters; see its
+[document model](https://automerge.org/docs/reference/documents/),
+[conflict semantics](https://automerge.org/docs/reference/documents/conflicts/), and
+[repository adapters](https://automerge.org/docs/reference/repositories/). Liveblocks provides a
+representative hosted alternative with
+[usage-based collaboration pricing](https://liveblocks.io/pricing/).
+
+# Consequences
+
+## Positive
+
+* Pantry and shopping-list updates can feel immediate to the actor and appear quickly on other
+  household devices without replacing the database or API.
+* Neon remains the sole canonical store and preserves relational constraints, transactions,
+  backups, migrations, analytics, and agent access.
+* Existing household authorization remains in one server-side trust boundary.
+* One hibernatable household room supplies both fan-out and presence while remaining inexpensive
+  for sparse usage.
+* Revisioned snapshots make correctness independent of WebSocket reliability or message ordering.
+* Explicit idempotent commands define concurrent behavior more clearly than generic CRUD endpoints.
+* The same commands and operation IDs provide a controlled extension point for a future offline
+  outbox without committing the whole application to a replicated-document model.
+* Complete snapshot events avoid a database read for every connected client after each command.
+
+## Negative
+
+* The project owns a realtime wire protocol, connection lifecycle, revision policy, client
+  reconciliation, and more runtime tests.
+* Postgres commit and Durable Object publication cannot be atomic. A low-frequency repair path is
+  necessary unless a durable outbox or CDC system is added later.
+* Each collaborative mutation adds a Postgres write plus a Durable Object invocation and fan-out.
+* WebSocket auth expiry, household membership removal, mobile network changes, backpressure, and
+  deployment behavior expand the security and operational surface.
+* Complete snapshots make events larger than invalidations, though pantry payloads remain bounded.
+* The design tolerates reconnection but does not provide full offline-first behaviour.
+* Offline persistence, queued shared mutations, conflict UX, and CRDT-based local-first editing each
+  require separate product and architecture decisions.
+* Presence can occasionally be stale and must never be treated as durable fact.
+
+# Rollout
+
+## Implementation Spike Status
+
+The first candidate is a raw `HouseholdRealtimeRoom` Durable Object in the existing `recipe-api`
+Worker. It exercises authenticated upgrade routing, hibernatable socket attachments, bounded
+authorization alarms, and post-commit snapshot broadcasts without making the room canonical.
+
+This candidate is not a transport-framework decision. Automated tests cover the raw implementation,
+but PartyKit has not yet been implemented and neither candidate has completed comparative manual
+preview QA. The spike must still deploy and exercise the PartyKit alternative described below, then
+record the evidence and selection. Until that comparison is complete, the raw implementation is a
+candidate rather than the preferred approach.
+
+1. **Canonical domain model:** add household pantry and shopping-list aggregates, row versions,
+   aggregate revisions, explicit commands, idempotency constraints, and transactional authorization.
+2. **Correct request/response UX:** implement TanStack Query reads and mutations, canonical mutation
+   responses, selected optimistic updates, rollback, and focus/reconnect refetch. Use short polling
+   during the spike so multi-device behavior can be tested before WebSockets.
+3. **Realtime implementation spike:** compare a minimal raw
+   `HouseholdRealtimeRoom` with PartyKit deployed to the project Cloudflare account. Exercise
+   same-origin Better Auth authorization, hibernation, preview isolation, post-commit publication,
+   reconnect recovery, and observability; select the smaller operational fit without changing the
+   protocol or ownership boundaries in this ADR.
+4. **Post-commit publication:** centralize the publisher in the shared domain mutation path and emit
+   revisioned snapshots only after successful commits, outside response latency.
+5. **Client recovery:** add subscription readiness, highest-revision tracking, reconnect snapshots,
+   visibility-aware repair polling, pending-command replay, and stale-result rejection across every
+   cache write path.
+6. **Presence:** derive household/list presence from authenticated connections after the core change
+   path is reliable.
+7. **Broader writers:** route agent and workflow pantry/list changes through the same mutation and
+   publication abstraction; test a missed publication and verify bounded repair.
+8. **Operational hardening:** add metrics and alerts for connection failures, rejected upgrades,
+   broadcast failures, reconnect frequency, revision gaps, invalid messages, and abnormal per-room
+   connection or event rates.
+9. **Remove aggressive polling:** once realtime reliability is measured, retain only the
+   low-frequency hidden-failure repair interval justified by observed behavior.
+10. **PWA extension:** cache only privacy-reviewed snapshots for offline reading. Design an
+    IndexedDB operation outbox in a follow-up ADR if selected shared commands must remain available
+    offline; keep unrestricted offline collaboration out of scope until its merge semantics are
+    explicitly required.
+
+# Acceptance Criteria
+
+Accept this proposal when an implementation spike demonstrates that:
+
+* two authenticated members of one household see a committed checkbox or item addition on both
+  devices without manual refresh;
+* the initiating device updates immediately and rolls back or reconciles correctly after rejection;
+* a user outside the household cannot connect, infer presence, or receive resource notifications;
+* reconnecting after a network interruption obtains the canonical snapshot and current revision;
+* duplicate operation delivery does not apply a mutation twice;
+* a delayed mutation response or refetch at revision N cannot overwrite cached state already
+  confirmed at revision N+1;
+* out-of-order, duplicate, stale, and revision-gap notifications converge to the current Postgres
+  snapshot;
+* a successful Postgres commit followed by a simulated publication failure remains successful and
+  becomes visible to another active client through the bounded repair path;
+* household membership removal prevents new subscriptions and closes or expires existing access
+  within the documented authorization lifetime;
+* a simulated missed revocation signal still closes the socket at its bounded authorization expiry;
+* an atomic multi-item pantry reconciliation is never rendered as a partially committed database
+  state;
+* the Durable Object can hibernate and resume connections without relying on lost in-memory state;
+* a deliberately slow socket is disconnected without blocking room fan-out and converges after
+  reconnecting;
+* preview deployments have isolated Durable Object namespaces and cannot join production rooms;
+* connection and message costs remain proportionate to the small household workload;
+* the implementation spike records whether raw Durable Objects or PartyKit better fits the existing
+  Worker, authentication, preview, and observability topology.
+
+# When to Revisit
+
+Revisit this decision when:
+
+* users need selected shared commands to survive offline reloads, triggering a separate outbox and
+  conflict-UX decision;
+* users need arbitrary shared edits across long network partitions, triggering a CRDT/local-first
+  evaluation rather than continued expansion of the operation outbox;
+* collaborative writes routinely originate outside the shared `recipe-api` mutation abstraction;
+* lost post-commit notifications or repair reads create a material reliability or cost problem;
+* invalidation/refetch traffic becomes large enough to justify row-level patches or query-aware
+  subscriptions;
+* one household becomes too large or active for a single coordination room;
+* the application adds rich-text/document editing with conflicts that explicit domain operations
+  cannot resolve;
+* ElectricSQL or another Postgres sync engine can remove more project-owned machinery than it adds;
+* most application state becomes reactive and collaborative, making a broader Convex-style backend
+  migration economically and operationally attractive;
+* authorization, presence, or protocol maintenance exceeds the value of keeping realtime
+  infrastructure inside the existing Cloudflare stack.

@@ -9,12 +9,47 @@ let
   dataMapper = "remote-development-data";
   dataMount = "/srv/remote-development";
   dataKeyFile = "/var/lib/remote-development-secrets/data-volume.key";
-  pilotDataPath = "${dataMount}/t3-code-pilot";
-  pilotProjectId = "2001";
-  pilotBlockHardLimit = "10G";
-  pilotBlockHardLimitKiB = "10485760";
-  pilotInodeHardLimit = "1000000";
+  operatorDataPath = "${dataMount}/t3-code";
+  cacheDataPath = "${dataMount}/t3-code-cache";
+  operatorProjectId = "2000";
+  cacheProjectId = "2002";
+  operatorBlockHardLimit = "55G";
+  operatorBlockHardLimitKiB = "57671680";
+  operatorInodeHardLimit = "3000000";
+  cacheBlockHardLimit = "30G";
+  cacheBlockHardLimitKiB = "31457280";
+  cacheInodeHardLimit = "2000000";
+  projectQuotaLayoutVersion = "2";
   operatorKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIj4+tNshoonWcOZFnSV0YcXgKuGqfcmn5HyIvLCfdQe robbiepalmer@live.co.uk";
+  workspaceBackupInventory = builtins.fromJSON (
+    builtins.readFile ../../remote-development-backup/inventory.json
+  );
+  workspaceBackupConfig = pkgs.writeText "remote-development-workspace-backup-config" ''
+    WORKSPACE_ID=${workspaceBackupInventory.workspace.id}
+    DESTINATION_PROVIDER=${workspaceBackupInventory.destination.provider}
+    BACKUP_SOURCE=${workspaceBackupInventory.workspace.source}
+    BACKUP_EXCLUDES_FILE=/etc/remote-development-workspace-backup/backup-excludes.txt
+    BACKUP_STATUS_FILE=/var/lib/remote-development-backup/status.json
+    BACKUP_CREDENTIALS_FILE=${workspaceBackupInventory.destination.credentialsFile}
+    BACKUP_PASSWORD_FILE=${workspaceBackupInventory.destination.passwordFile}
+    MAXIMUM_AGE_SECONDS=${toString workspaceBackupInventory.schedule.maximumAgeSeconds}
+    KEEP_HOURLY=${toString workspaceBackupInventory.retention.hourly}
+    KEEP_DAILY=${toString workspaceBackupInventory.retention.daily}
+    KEEP_WEEKLY=${toString workspaceBackupInventory.retention.weekly}
+    KEEP_MONTHLY=${toString workspaceBackupInventory.retention.monthly}
+  '';
+  workspaceBackup = pkgs.writeShellScriptBin "remote-development-workspace-backup" (
+    builtins.readFile ../../scripts/remote-development-workspace-backup
+  );
+  workspaceBackupStatus = pkgs.writeShellScriptBin "remote-development-workspace-backup-status" (
+    builtins.readFile ../../scripts/remote-development-workspace-backup-status
+  );
+  workspaceRestore = pkgs.writeShellScriptBin "remote-development-workspace-restore" (
+    builtins.readFile ../../scripts/remote-development-workspace-restore
+  );
+  workspaceExport = pkgs.writeShellScriptBin "remote-development-workspace-export" (
+    builtins.readFile ../../scripts/remote-development-workspace-export
+  );
 in
 {
   imports = [
@@ -26,6 +61,14 @@ in
     {
       assertion = dataDevice != "/dev/sda";
       message = "The persistent data volume must not be the disko-managed root disk.";
+    }
+    {
+      assertion = workspaceBackupInventory.workspace.source == operatorDataPath;
+      message = "The workspace backup source must match the durable operator data path.";
+    }
+    {
+      assertion = workspaceBackupInventory.workspace.rebuildableCache == cacheDataPath;
+      message = "The workspace backup inventory must name the separate rebuildable cache path.";
     }
   ];
 
@@ -47,16 +90,30 @@ in
     tmp.cleanOnBoot = true;
   };
 
+  zramSwap = {
+    enable = true;
+    algorithm = "zstd";
+    memoryPercent = 25;
+    priority = 100;
+  };
+
   environment.etc = {
     crypttab.text = ''
       ${dataMapper} ${dataDevice} ${dataKeyFile} luks,nofail
     '';
     projects.text = ''
-      ${pilotProjectId}:${pilotDataPath}
+      ${operatorProjectId}:${operatorDataPath}
+      ${cacheProjectId}:${cacheDataPath}
     '';
     projid.text = ''
-      t3-code-pilot:${pilotProjectId}
+      t3-code-operator:${operatorProjectId}
+      t3-code-cache:${cacheProjectId}
     '';
+    "remote-development-workspace-backup/config".source = workspaceBackupConfig;
+    "remote-development-workspace-backup/backup-excludes.txt".source =
+      ../../remote-development-backup/backup-excludes.txt;
+    "remote-development-workspace-backup/export-excludes.txt".source =
+      ../../remote-development-backup/export-excludes.txt;
   };
 
   fileSystems.${dataMount} = {
@@ -72,6 +129,7 @@ in
 
   systemd.tmpfiles.rules = [
     "d /var/lib/remote-development-secrets 0700 root root -"
+    "d /var/lib/remote-development-backup 0700 root root -"
   ];
 
   users = {
@@ -89,7 +147,7 @@ in
         isSystemUser = true;
         uid = 2000;
         group = "t3code";
-        home = "${dataMount}/t3-code/home";
+        home = "${operatorDataPath}/home";
         createHome = false;
       };
     };
@@ -132,7 +190,6 @@ in
         "traefik"
       ];
       extraFlags = [
-        "--data-dir=${dataMount}/k3s"
         "--secrets-encryption"
         "--write-kubeconfig-mode=0640"
       ];
@@ -140,6 +197,8 @@ in
       extraKubeletConfig = {
         containerLogMaxFiles = 3;
         containerLogMaxSize = "20Mi";
+        failSwapOn = false;
+        memorySwap.swapBehavior = "NoSwap";
       };
     };
 
@@ -161,19 +220,17 @@ in
       RemainAfterExit = true;
     };
     script = ''
-      install -d -m 0700 -o root -g root ${dataMount}/k3s
-      install -d -m 0750 -o t3code -g t3code ${dataMount}/t3-code
-      install -d -m 0750 -o t3code -g t3code ${dataMount}/t3-code/home
-      install -d -m 0700 -o t3code -g t3code ${dataMount}/t3-code/home/.t3
-      install -d -m 0700 -o t3code -g t3code ${dataMount}/t3-code/home/.codex
-      install -d -m 0700 -o t3code -g t3code ${dataMount}/t3-code/home/.codex-personal
-      install -d -m 0750 -o t3code -g t3code ${dataMount}/t3-code/workspaces
-      install -d -m 0700 -o t3code -g t3code ${pilotDataPath}
-      install -d -m 0700 -o t3code -g t3code ${pilotDataPath}/home
-      install -d -m 0700 -o t3code -g t3code ${pilotDataPath}/home/.t3
-      install -d -m 0700 -o t3code -g t3code ${pilotDataPath}/home/.codex
-      install -d -m 0700 -o t3code -g t3code ${pilotDataPath}/home/.codex-personal
-      install -d -m 0700 -o t3code -g t3code ${pilotDataPath}/workspaces
+      install -d -m 2770 -o t3code -g t3code ${operatorDataPath}
+      install -d -m 0750 -o t3code -g t3code ${operatorDataPath}/home
+      install -d -m 0700 -o t3code -g t3code ${operatorDataPath}/home/.t3
+      install -d -m 0700 -o t3code -g t3code ${operatorDataPath}/home/.codex
+      install -d -m 0700 -o t3code -g t3code ${operatorDataPath}/home/.codex-personal
+      install -d -m 0750 -o t3code -g t3code ${operatorDataPath}/workspaces
+      install -d -m 2770 -o t3code -g t3code ${cacheDataPath}
+      install -d -m 0750 -o t3code -g t3code ${cacheDataPath}/home-cache
+      install -d -m 0750 -o t3code -g t3code ${cacheDataPath}/mise
+      install -d -m 0750 -o t3code -g t3code ${cacheDataPath}/pnpm
+      install -d -m 0750 -o t3code -g t3code ${cacheDataPath}/arduino15
     '';
   };
 
@@ -184,13 +241,19 @@ in
     before = [ "k3s.service" ];
     wantedBy = [ "multi-user.target" ];
     path = [
+      pkgs.coreutils
       pkgs.e2fsprogs
+      pkgs.findutils
+      pkgs.gawk
+      pkgs.gnugrep
       pkgs.quota
       pkgs.util-linux
     ];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
+      StateDirectory = "remote-development";
+      StateDirectoryMode = "0700";
     };
     script = ''
       test "$(findmnt --noheadings --output FSTYPE --target ${dataMount})" = ext4
@@ -202,18 +265,171 @@ in
         quotaon --project ${dataMount}
       fi
 
-      chattr -R -p ${pilotProjectId} ${pilotDataPath}
-      chattr +P ${pilotDataPath}
-      setquota --project ${pilotProjectId} 0 ${pilotBlockHardLimit} 0 ${pilotInodeHardLimit} ${dataMount}
+      quota_state="${projectQuotaLayoutVersion}:$(findmnt --noheadings --output UUID --target ${dataMount} | tr -d ' ')"
+      quota_state_file=/var/lib/remote-development/project-quota-layout
+      if [ "$(cat "$quota_state_file" 2>/dev/null || true)" != "$quota_state" ]; then
+        find "${operatorDataPath}" -xdev ! -type l -exec chattr -p "${operatorProjectId}" {} +
+        find "${cacheDataPath}" -xdev ! -type l -exec chattr -p "${cacheProjectId}" {} +
+      fi
 
-      test "$(lsattr -dp ${pilotDataPath} | awk '{ print $1 }')" = ${pilotProjectId}
-      lsattr -d ${pilotDataPath} | awk '{ print $1 }' | grep -F P >/dev/null
+      chattr +P ${operatorDataPath}
+      setquota --project ${operatorProjectId} 0 ${operatorBlockHardLimit} 0 ${operatorInodeHardLimit} ${dataMount}
+
+      chattr +P ${cacheDataPath}
+      setquota --project ${cacheProjectId} 0 ${cacheBlockHardLimit} 0 ${cacheInodeHardLimit} ${dataMount}
+
+      test "$(lsattr -dp ${operatorDataPath} | awk '{ print $1 }')" = ${operatorProjectId}
+      lsattr -d ${operatorDataPath} | awk '{ print $1 }' | grep -F P >/dev/null
+      test "$(lsattr -dp ${cacheDataPath} | awk '{ print $1 }')" = ${cacheProjectId}
+      lsattr -d ${cacheDataPath} | awk '{ print $1 }' | grep -F P >/dev/null
       repquota --project --verbose --no-names --output=csv ${dataMount} \
-        | awk -F, '$1 == "#${pilotProjectId}" {
-            found = 1
-            if ($6 != "${pilotBlockHardLimitKiB}" || $10 != "${pilotInodeHardLimit}") exit 1
+        | awk -F, '
+          $1 == "#${operatorProjectId}" {
+            operator_found = 1
+            if ($6 != "${operatorBlockHardLimitKiB}" || $10 != "${operatorInodeHardLimit}") exit 1
           }
-          END { if (!found) exit 1 }'
+          $1 == "#${cacheProjectId}" {
+            cache_found = 1
+            if ($6 != "${cacheBlockHardLimitKiB}" || $10 != "${cacheInodeHardLimit}") exit 1
+          }
+          END { if (!operator_found || !cache_found) exit 1 }'
+      quota_state_tmp="$(mktemp "$quota_state_file.XXXXXX")"
+      trap 'rm -f -- "$quota_state_tmp"' EXIT
+      printf '%s\n' "$quota_state" >"$quota_state_tmp"
+      chmod 0600 "$quota_state_tmp"
+      mv -f -- "$quota_state_tmp" "$quota_state_file"
+      trap - EXIT
+    '';
+  };
+
+  systemd.services.remote-development-workspace-backup = {
+    description = "Back up the operator workspace to encrypted off-provider storage";
+    after = [
+      "network-online.target"
+      "srv-remote\\x2ddevelopment.mount"
+    ];
+    wants = [ "network-online.target" ];
+    requires = [ "srv-remote\\x2ddevelopment.mount" ];
+    path = [
+      pkgs.coreutils
+      pkgs.findutils
+      pkgs.jq
+      pkgs.restic
+    ];
+    environment.WORKSPACE_BACKUP_CONFIG =
+      "/etc/remote-development-workspace-backup/config";
+    serviceConfig = {
+      Type = "oneshot";
+      EnvironmentFile = workspaceBackupInventory.destination.credentialsFile;
+      ExecStart = "${workspaceBackup}/bin/remote-development-workspace-backup";
+      Nice = 10;
+      IOSchedulingClass = "idle";
+      PrivateTmp = true;
+      ProtectHome = true;
+      ProtectSystem = "strict";
+      ReadOnlyPaths = [ operatorDataPath ];
+      ReadWritePaths = [ "/var/lib/remote-development-backup" ];
+    };
+    unitConfig.ConditionPathExists = workspaceBackupInventory.destination.credentialsFile;
+  };
+
+  systemd.timers.remote-development-workspace-backup = {
+    description = "Run the encrypted operator workspace backup every day";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = workspaceBackupInventory.schedule.onCalendar;
+      Persistent = true;
+      RandomizedDelaySec = workspaceBackupInventory.schedule.randomizedDelaySeconds;
+      Unit = "remote-development-workspace-backup.service";
+    };
+  };
+
+  systemd.services.remote-development-k3s-state-migration = {
+    description = "Migrate legacy K3s state to the root disk";
+    after = [ "srv-remote\\x2ddevelopment.mount" ];
+    requires = [ "srv-remote\\x2ddevelopment.mount" ];
+    before = [
+      "k3s.service"
+      "remote-development-k3s-local-links.service"
+    ];
+    wantedBy = [ "multi-user.target" ];
+    path = [ pkgs.coreutils ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      legacy=${dataMount}/k3s
+      target=/var/lib/rancher/k3s
+      staging=/var/lib/rancher/k3s.migrating
+
+      if [ -e "$target" ] || [ ! -d "$legacy" ]; then
+        exit 0
+      fi
+
+      test -s "$legacy/server/db/state.db"
+      install -d -m 0755 /var/lib/rancher
+      cleanup_staging() {
+        rm -rf -- "$staging"
+      }
+      trap cleanup_staging EXIT
+      rm -rf -- "$staging"
+      cp -a -- "$legacy" "$staging"
+      test -s "$staging/server/db/state.db"
+      sync -f "$staging"
+      mv -- "$staging" "$target"
+      test -s "$target/server/db/state.db"
+      trap - EXIT
+    '';
+  };
+
+  systemd.services.remote-development-k3s-local-links = {
+    description = "Keep migrated K3s symlinks on the root disk";
+    after = [ "remote-development-k3s-state-migration.service" ];
+    requires = [ "remote-development-k3s-state-migration.service" ];
+    before = [ "k3s.service" ];
+    wantedBy = [ "multi-user.target" ];
+    path = [
+      pkgs.coreutils
+      pkgs.findutils
+      pkgs.gnugrep
+      pkgs.gnused
+    ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      if [ ! -d /var/lib/rancher/k3s ]; then
+        exit 0
+      fi
+
+      while IFS= read -r -d "" link; do
+        target="$(readlink -f "$link" || true)"
+        case "$target" in
+          /srv/remote-development/k3s/*)
+            replacement="/var/lib/rancher/k3s/''${target#/srv/remote-development/k3s/}"
+            test -e "$replacement"
+            ln -sfn -- "$replacement" "$link"
+            ;;
+        esac
+      done < <(find /var/lib/rancher/k3s -type l -print0)
+
+      if [ -d /var/lib/rancher/k3s/server/cred ]; then
+        while IFS= read -r -d "" kubeconfig; do
+          if grep -qF /srv/remote-development/k3s "$kubeconfig"; then
+            sed -E -i \
+              's#^([[:space:]]*(certificate-authority|client-certificate|client-key):[[:space:]]*)/srv/remote-development/k3s#\1/var/lib/rancher/k3s#' \
+              "$kubeconfig"
+            ! grep -qF /srv/remote-development/k3s "$kubeconfig"
+          fi
+        done < <(
+          find /var/lib/rancher/k3s/server/cred \
+            -type f \
+            -name '*.kubeconfig' \
+            -print0
+        )
+      fi
     '';
   };
 
@@ -221,11 +437,13 @@ in
     after = [
       "srv-remote\\x2ddevelopment.mount"
       "remote-development-data-layout.service"
+      "remote-development-k3s-local-links.service"
       "remote-development-project-quotas.service"
     ];
     requires = [
       "srv-remote\\x2ddevelopment.mount"
       "remote-development-data-layout.service"
+      "remote-development-k3s-local-links.service"
       "remote-development-project-quotas.service"
     ];
   };
@@ -247,8 +465,8 @@ in
     ];
     script = ''
       if tailscale status --json | jq --exit-status '.BackendState == "Running"' >/dev/null; then
+        tailscale serve reset
         tailscale serve --bg --https=443 http://127.0.0.1:30773
-        tailscale serve --bg --https=8443 http://127.0.0.1:30774
         tailscale serve --bg --https=3000 http://127.0.0.1:31000
         tailscale serve --bg --https=3001 http://127.0.0.1:31001
         tailscale serve --bg --https=3002 http://127.0.0.1:31002
@@ -284,10 +502,15 @@ in
     mtr
     neovim
     quota
+    restic
     ripgrep
     rsync
     tmux
     tree
+    workspaceBackup
+    workspaceBackupStatus
+    workspaceExport
+    workspaceRestore
   ];
 
   nix = {

@@ -37,6 +37,8 @@ describe("Given a Work Graph CLI source checkout", () => {
         CF_ACCESS_CLIENT_SECRET: "client-secret",
         DOPPLER_TOKEN: "token",
         WORK_GRAPH_API_URL: "https://work.example.test",
+        WORK_GRAPH_CF_ACCESS_CLIENT_ID: "work-graph-id",
+        WORK_GRAPH_CF_ACCESS_CLIENT_SECRET: "work-graph-secret",
         WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS: "https://work.example.test",
         WORK_GRAPH_DOPPLER_BOOTSTRAPPED: "1",
       }),

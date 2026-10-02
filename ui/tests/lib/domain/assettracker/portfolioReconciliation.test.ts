@@ -37,13 +37,18 @@ function portfolioData(): AssetTrackerData {
       { accountId: "portfolio", date: "2024-03-15", amount: 2_000 },
     ],
     incomeHistory: [
-      { date: "2024-02-29", amount: 10_000 },
-      { date: "2024-03-31", amount: 8_000 },
+      { date: "2024-02-29", amount: 10_000, currency: "GBP" },
+      { date: "2024-03-31", amount: 8_000, currency: "GBP" },
     ],
     transfers: [],
     recurringFlows: [],
     plannedExpenditures: [],
-    settings: { expectedAnnualInflation: 0.025, withdrawalRate: 0.04 },
+    settings: {
+      expectedAnnualInflation: 0.025,
+      withdrawalRate: 0.04,
+      baseCurrency: "GBP",
+      valuationMaxAgeDays: 7,
+    },
   };
 }
 
@@ -85,6 +90,27 @@ describe("reconcilePortfolio", () => {
     }
   });
 
+  it("converts historical income into the selected base currency", () => {
+    const data = portfolioData();
+    data.settings.baseCurrency = "USD";
+    data.settings.valuationMaxAgeDays = 90;
+    data.exchangeRateObservations = [
+      {
+        id: "gbp-usd",
+        fromCurrency: "GBP",
+        toCurrency: "USD",
+        rate: 1.25,
+        validAt: "2024-01-31",
+        acceptedAt: "2024-01-31T12:00:00Z",
+        source: { kind: "manual", id: "test" },
+      },
+    ];
+
+    const periods = reconcilePortfolio(buildRepository(data));
+
+    expect(periods.map((period) => period.income)).toEqual([12_500, 10_000]);
+  });
+
   it("falls back to balance changes for balances-only spreadsheet data", () => {
     const data = portfolioData();
     data.snapshots = [
@@ -95,9 +121,9 @@ describe("reconcilePortfolio", () => {
     ];
     data.capitalFlows = [];
     data.incomeHistory = [
-      { date: "2017-11-28", amount: 1_574.36 },
-      { date: "2017-12-28", amount: 1_574.36 },
-      { date: "2018-01-28", amount: 1_574.36 },
+      { date: "2017-11-28", amount: 1_574.36, currency: "GBP" },
+      { date: "2017-12-28", amount: 1_574.36, currency: "GBP" },
+      { date: "2018-01-28", amount: 1_574.36, currency: "GBP" },
     ];
 
     const periods = reconcilePortfolio(buildRepository(data));
@@ -257,7 +283,10 @@ describe("reconcilePortfolio", () => {
       { accountId: "pension", date: "2024-03-31", balance: 20_000 },
     );
 
-    const result = getPortfolioFinancialIndependence(buildRepository(data));
+    const result = getPortfolioFinancialIndependence(
+      buildRepository(data),
+      "2026-01-01",
+    );
     const expectedAnnualSavings = representativeAnnualSavings(result.periods);
 
     expect(result.savingsRate).toBeCloseTo(7_000 / 18_000);
@@ -299,7 +328,13 @@ describe("reconcilePortfolio", () => {
         id: "salary",
         name: "Salary",
         toAccountId: "portfolio",
-        amount: 2_800,
+        amount: 3_500,
+        currency: "USD",
+        conversion: {
+          received: { amount: 2_800, currency: "GBP" },
+          fee: { amount: 5, currency: "USD" },
+          provider: "Current account",
+        },
         compensationKind: "takeHomeIncome",
         frequency: "monthly",
         startDate: "2025-01-01",
@@ -309,6 +344,7 @@ describe("reconcilePortfolio", () => {
         name: "Employee pension",
         toAccountId: "portfolio",
         amount: 700,
+        currency: "GBP",
         compensationKind: "employeePension",
         frequency: "monthly",
         startDate: "2025-01-01",
@@ -318,6 +354,7 @@ describe("reconcilePortfolio", () => {
         name: "Employer pension",
         toAccountId: "portfolio",
         amount: 350,
+        currency: "GBP",
         compensationKind: "employerPension",
         frequency: "monthly",
         startDate: "2025-01-01",
@@ -327,13 +364,17 @@ describe("reconcilePortfolio", () => {
         name: "Closed pension contribution",
         toAccountId: "closed-pension",
         amount: 1_000,
+        currency: "GBP",
         compensationKind: "employerPension",
         frequency: "monthly",
         startDate: "2025-01-01",
       },
     ];
 
-    const result = getPortfolioFinancialIndependence(buildRepository(data));
+    const result = getPortfolioFinancialIndependence(
+      buildRepository(data),
+      "2026-01-01",
+    );
     const annualExpenditure = result.representativeAnnualExpenditure ?? 0;
     const expectedTakeHomeSavings = 33_600 - annualExpenditure;
     const expectedAnnualSavings = expectedTakeHomeSavings + 12_600;
@@ -383,11 +424,13 @@ describe("reconcilePortfolio", () => {
       { accountId: "mortgage", date: "2024-02-29", balance: -200_000 },
     ];
     data.capitalFlows = [];
-    data.incomeHistory = [{ date: "2024-02-29", amount: 3_200 }];
+    data.incomeHistory = [
+      { date: "2024-02-29", amount: 3_200, currency: "GBP" },
+    ];
     const repository = buildRepository(data);
     const currentNetWorth =
       getNetWorthTimeSeries(repository).at(-1)?.total ?? 0;
-    const result = getPortfolioFinancialIndependence(repository);
+    const result = getPortfolioFinancialIndependence(repository, "2026-01-01");
 
     expect(currentNetWorth).toBe(100_000);
     expect(result.progress).toBeGreaterThan(0);

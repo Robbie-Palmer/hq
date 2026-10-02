@@ -1,7 +1,28 @@
 import type { AgentAuthEvent, AgentSession } from "@better-auth/agent-auth";
 import type { Db } from "recipe-db";
-import type * as schema from "recipe-db/schema";
+import * as schema from "recipe-db/schema";
 import { describe, expect, it, vi } from "vitest";
+
+const mutationMocks = vi.hoisted(() => ({
+  appendCookLog: vi.fn(),
+  previewCookLogMutationUndo: vi.fn(),
+  previewPantryMutationUndo: vi.fn(),
+  reconcilePantry: vi.fn(),
+}));
+
+vi.mock("../src/cook-log/services/append-cook-log", () => ({
+  appendCookLog: mutationMocks.appendCookLog,
+}));
+vi.mock("../src/cook-log/services/preview-cook-log-mutation-undo", () => ({
+  previewCookLogMutationUndo: mutationMocks.previewCookLogMutationUndo,
+}));
+vi.mock("../src/pantry/services/preview-pantry-mutation-undo", () => ({
+  previewPantryMutationUndo: mutationMocks.previewPantryMutationUndo,
+}));
+vi.mock("../src/pantry/services/reconcile-pantry", () => ({
+  reconcilePantry: mutationMocks.reconcilePantry,
+}));
+
 import {
   createRecipeAgentAuthPlugin,
   escapedLikePattern,
@@ -128,6 +149,42 @@ function agentSession(userId = "delegating-user"): AgentSession {
   };
 }
 
+function agentExecutionDb(...queryResults: unknown[][]) {
+  const state = {
+    auditValues: [] as Record<string, unknown>[],
+    counts: new Map<string, number>(),
+  };
+  const db = Object.assign(queryDb(...queryResults), {
+    insert: vi.fn((table: unknown) => {
+      if (table === schema.appRateLimit) {
+        return {
+          values: (values: { key: string; windowStart: Date }) => ({
+            onConflictDoUpdate: () => ({
+              returning: () => {
+                const count = (state.counts.get(values.key) ?? 0) + 1;
+                state.counts.set(values.key, count);
+                return Promise.resolve([
+                  { count, windowStart: values.windowStart },
+                ]);
+              },
+            }),
+          }),
+        };
+      }
+      if (table === schema.agentAuthAuditEvent) {
+        return {
+          values: (values: Record<string, unknown>) => {
+            state.auditValues.push(values);
+            return Promise.resolve();
+          },
+        };
+      }
+      throw new Error("Unexpected insert table");
+    }),
+  }) as Db;
+  return { db, state };
+}
+
 function recipe(
   overrides: Partial<typeof schema.recipe.$inferSelect> = {},
 ): typeof schema.recipe.$inferSelect {
@@ -141,6 +198,7 @@ function recipe(
     visibility: "private",
     createdAt: new Date("2026-08-20T08:00:00Z"),
     updatedAt: new Date("2026-08-21T08:00:00Z"),
+    parentRecipeId: null,
     ...overrides,
   };
 }
@@ -396,9 +454,13 @@ describe("recipe Agent Auth capabilities", () => {
       "recipes.search",
       "recipes.read",
       "recipes.dataset.inspect",
+      "recipe_import.create",
+      "recipe_import.status",
       "pantry.read",
+      "pantry.reconcile",
       "shopping_list.read",
       "cook_log.read",
+      "cook_log.append",
       "cooking_insights.read",
     ]);
     expect(
@@ -455,6 +517,32 @@ describe("recipe Agent Auth capabilities", () => {
     });
   });
 
+  it("separates bounded import creation from status access", () => {
+    const create = RECIPE_SITE_AGENT_CAPABILITIES.find(
+      (capability) => capability.name === "recipe_import.create",
+    );
+    const status = RECIPE_SITE_AGENT_CAPABILITIES.find(
+      (capability) => capability.name === "recipe_import.status",
+    );
+
+    expect(create?.input).toMatchObject({
+      additionalProperties: false,
+      required: ["imageUrls", "idempotencyKey", "reason"],
+      properties: {
+        imageUrls: { minItems: 1, maxItems: 6 },
+        idempotencyKey: { format: "uuid" },
+        reason: { minLength: 1, maxLength: 500 },
+      },
+    });
+    expect(status?.input).toMatchObject({
+      additionalProperties: false,
+      properties: { limit: { minimum: 1, maximum: 20, default: 10 } },
+    });
+    expect(JSON.stringify(status?.output)).not.toMatch(
+      /r2Key|prompt|preview|source/i,
+    );
+  });
+
   it("bounds cooking log dates, cursors, and result size", () => {
     const cookLog = RECIPE_SITE_AGENT_CAPABILITIES.find(
       (capability) => capability.name === "cook_log.read",
@@ -471,6 +559,107 @@ describe("recipe Agent Auth capabilities", () => {
     });
     expect(cookLog?.output).toMatchObject({
       properties: { items: { maxItems: 50 } },
+    });
+  });
+
+  it("executes pantry reconciliation with delegated-agent attribution", async () => {
+    mutationMocks.reconcilePantry.mockResolvedValueOnce({
+      changeSetId: "0199a770-1111-7111-8111-111111111111",
+      replayed: false,
+      pantry: {
+        scope: { type: "personal", userId: "delegating-user" },
+        revision: "2",
+        items: [],
+      },
+    });
+    mutationMocks.previewPantryMutationUndo.mockResolvedValueOnce({
+      changeSetId: "0199a770-1111-7111-8111-111111111111",
+      canUndo: true,
+      items: [],
+    });
+
+    const result = await executeRecipeAgentCapability(
+      {} as Db,
+      "pantry.reconcile",
+      {
+        idempotencyKey: "0199a770-2222-7222-8222-222222222222",
+        reason: "Use the latest pantry count",
+        changes: [
+          {
+            ingredientSlug: "tomato",
+            expectedVersion: "1",
+            location: "cupboards",
+          },
+        ],
+      },
+      agentSession(),
+    );
+
+    expect(mutationMocks.reconcilePantry).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        capability: "pantry.reconcile",
+        actor: {
+          type: "agent",
+          userId: "delegating-user",
+          agentId: "agent-1",
+          agentName: "Recipe helper",
+          hostId: "host-1",
+        },
+      }),
+    );
+    expect(result).toMatchObject({
+      pantry: { scope: "personal" },
+      undoPreview: { canUndo: true },
+    });
+  });
+
+  it("appends cook-log events with delegated-agent attribution", async () => {
+    mutationMocks.appendCookLog.mockResolvedValueOnce({
+      changeSetId: "0199a770-3333-7333-8333-333333333333",
+      replayed: false,
+    });
+    mutationMocks.previewCookLogMutationUndo.mockResolvedValueOnce({
+      changeSetId: "0199a770-3333-7333-8333-333333333333",
+      canUndo: true,
+      items: [],
+    });
+    const event = {
+      sessionId: "0199a770-4444-7444-8444-444444444444",
+      recipeSlug: "tomato-soup",
+      recipeTitle: "Tomato Soup",
+      servings: 2,
+      diners: ["Alex"],
+      cookedAt: "2026-09-27T18:30:00.000Z",
+    };
+
+    const result = await executeRecipeAgentCapability(
+      {} as Db,
+      "cook_log.append",
+      {
+        idempotencyKey: "0199a770-5555-7555-8555-555555555555",
+        reason: "Record dinner",
+        events: [event],
+      },
+      agentSession(),
+    );
+
+    expect(mutationMocks.appendCookLog).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        events: [event],
+        actor: {
+          type: "agent",
+          userId: "delegating-user",
+          agentId: "agent-1",
+          agentName: "Recipe helper",
+          hostId: "host-1",
+        },
+      }),
+    );
+    expect(result).toMatchObject({
+      changeSetId: "0199a770-3333-7333-8333-333333333333",
+      undoPreview: { canUndo: true },
     });
   });
 
@@ -655,6 +844,61 @@ describe("recipe Agent Auth capabilities", () => {
         truncated: true,
       },
     });
+  });
+
+  it("reads bounded import status without returning artifacts", async () => {
+    const result = await executeRecipeAgentCapability(
+      queryDb([
+        {
+          id: "00000000-0000-4000-8000-000000000091",
+          userId: "delegating-user",
+          status: "running",
+          currentStage: "normalize",
+          progressLabel: "Normalizing recipe",
+          errorType: null,
+          errorMessage: null,
+          workflowInstanceId: "private-workflow-id",
+          imageCount: 2,
+          createdAt: new Date("2026-09-27T12:00:00Z"),
+          updatedAt: new Date("2026-09-27T12:01:00Z"),
+          finishedAt: null,
+        },
+      ]),
+      "recipe_import.status",
+      { limit: 1 },
+      agentSession(),
+    );
+
+    expect(result).toEqual({
+      imports: [
+        expect.objectContaining({
+          id: "00000000-0000-4000-8000-000000000091",
+          status: "running",
+          imageCount: 2,
+        }),
+      ],
+    });
+    expect(JSON.stringify(result)).not.toContain("private-workflow-id");
+  });
+
+  it("rejects non-public agent import sources", async () => {
+    await expect(
+      executeRecipeAgentCapability(
+        queryDb([]),
+        "recipe_import.create",
+        {
+          imageUrls: ["http://127.0.0.1/recipe.jpg"],
+          idempotencyKey: "0198f1f0-dddd-7ddd-8ddd-dddddddddddd",
+          reason: "Import the cook's scanned recipe",
+        },
+        agentSession(),
+        {
+          artifacts: {} as R2Bucket,
+          workflow: {} as Workflow,
+          fetcher: vi.fn(),
+        },
+      ),
+    ).rejects.toThrow("cannot be accessed");
   });
 
   it("reads a repeatable household pantry snapshot with item versions", async () => {
@@ -933,15 +1177,7 @@ describe("recipe Agent Auth capabilities", () => {
   });
 
   it("validates, executes, and audits through the Agent Auth callbacks", async () => {
-    const auditValues: Record<string, unknown>[] = [];
-    const db = Object.assign(queryDb([], [recipe()]), {
-      insert: vi.fn(() => ({
-        values: (values: Record<string, unknown>) => {
-          auditValues.push(values);
-          return Promise.resolve();
-        },
-      })),
-    }) as Db;
+    const { db, state } = agentExecutionDb([], [recipe()]);
     const plugin = createRecipeAgentAuthPlugin(db);
     const options = plugin.options;
     if (!options) throw new Error("Agent Auth options were not exposed");
@@ -956,7 +1192,17 @@ describe("recipe Agent Auth capabilities", () => {
       await options.validateCapabilities?.(["recipes.delete"]),
     ).toBe(false);
 
+    const responseHeaders = new Headers();
     const executed = await options.onExecute?.({
+      ctx: {
+        headers: new Headers({
+          "cf-connecting-ip": "203.0.113.9",
+          "x-request-id": "agent-request-123",
+        }),
+        responseHeaders,
+        setHeader: (key: string, value: string) =>
+          responseHeaders.set(key, value),
+      },
       capability: "recipes.read",
       arguments: { slug: "tomato-soup" },
       agentSession: agentSession(),
@@ -983,18 +1229,20 @@ describe("recipe Agent Auth capabilities", () => {
     ];
     for (const event of events) await options.onEvent?.(event);
 
-    expect(auditValues).toEqual([
+    expect(responseHeaders.get("x-request-id")).toBe("agent-request-123");
+    expect(state.auditValues).toEqual([
       expect.objectContaining({
         eventType: "capability.executed",
         userId: "delegating-user",
         capability: "recipes.read",
         outcome: "success",
-        durationMs: 12,
+        correlationId: "agent-request-123",
       }),
       expect.objectContaining({
         eventType: "capability.approved",
         userId: "delegating-user",
       }),
     ]);
+    expect(state.auditValues[0]).not.toHaveProperty("arguments");
   });
 });

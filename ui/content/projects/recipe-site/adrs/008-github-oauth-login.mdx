@@ -1,0 +1,158 @@
+---
+title: "ADR 008: GitHub OAuth Login"
+date: "2026-06-19"
+status: "Accepted"
+tech_stack: ["GitHub OAuth"]
+---
+
+# Summary
+
+Offer **Sign in with GitHub** (GitHub's OAuth 2.0 implementation) as a secondary sign-in method
+alongside Google.
+
+[ADR 003](/projects/recipe-site/adrs/003-better-auth) chose Better Auth and named GitHub as a
+"useful secondary path for technical friends". [ADR 007](/projects/recipe-site/adrs/007-google-oidc-login)
+formalised Google OIDC as the *default*. This ADR formalises GitHub as the *second* provider, with
+its own pros, cons, IaC story, and cost.
+
+Like ADR 007, this is a decision about an **identity provider for sign-in**. It does not decide the
+auth library ([Better Auth, ADR 003](/projects/recipe-site/adrs/003-better-auth)), the backend
+runtime ([ADR 004](/projects/recipe-site/adrs/004-backend-platform-for-authenticated-features)), the
+authorization model ([ADR 005](/projects/recipe-site/adrs/005-authorization-model)), or the security
+baseline ([ADR 006](/projects/recipe-site/adrs/006-application-security-baseline)).
+
+# Context
+
+The same two goals that drove Google as the default ([ADR 007](/projects/recipe-site/adrs/007-google-oidc-login)),
+frictionless sign-up and keeping password handling with someone else, also argue for a second
+federated provider rather than email/password. GitHub is that second provider for two reasons:
+
+1. **It fits the technical-friend slice of the audience.** Developers are usually already
+   authenticated to GitHub, so for them "Sign in with GitHub" is the lowest-friction path,
+   the same one-gesture sign-up Google gives the rest of the audience.
+2. **It is the native front door to the Cooklang community.** The recipe format is Cooklang
+   ([ADR 001](/projects/recipe-site/adrs/001-cooklang)), whose spec, parsers, and tooling all live
+   on GitHub. If the site ever reaches beyond the household and inner circle, that GitHub-centric
+   enthusiast community is the most plausible early audience, and offering GitHub sign-in removes a
+   step for exactly those users.
+
+GitHub remains a **secondary** method. Most household members and friends are reached
+through Google; GitHub widens the door rather than replacing it. The reasoning for why a federated
+provider beats email/password, magic links, or passkeys as the *default* is in
+[ADR 007](/projects/recipe-site/adrs/007-google-oidc-login#how-google-compares-to-the-alternatives)
+and is not repeated here.
+
+# Decision
+
+Offer **GitHub OAuth** as a secondary sign-in method, wired through Better Auth's `github` social
+provider:
+
+```ts
+socialProviders: {
+  github: {
+    clientId: env.GITHUB_CLIENT_ID,
+    clientSecret: env.GITHUB_CLIENT_SECRET,
+  },
+}
+```
+
+The supporting setup is:
+
+* A **GitHub OAuth App** holds the client credentials and the callback URL.
+* The client ID and secret live in the project's secret-management layer, not in the repo.
+* The OAuth App's *Authorization callback URL* points at the backend's OAuth callback route.
+* Better Auth requests the `user:email` scope so it can read a verified primary email even when the
+  user keeps their email private on GitHub.
+
+As with Google, sign-up and sign-in are the same gesture: a returning user lands on their existing
+account; a new user gets one created on first sign-in.
+
+## Infrastructure as Code
+
+The IaC story mirrors Google's ([ADR 007](/projects/recipe-site/adrs/007-google-oidc-login#infrastructure-as-code)):
+the credential the sign-in flow depends on **cannot be created via Terraform**, so it is a manual
+step, but the resulting secrets are code-owned.
+
+| Element                                   | IaC status                                                                                                                                      |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **GitHub OAuth App (client ID / secret)** | **No Terraform resource exists.** The `integrations/github` provider authenticates *to* GitHub but has no resource that *creates* an OAuth App. |
+| Client ID / secret stored as app secrets  | Terraformable via the project's secret-management layer.                                                                                        |
+
+GitHub OAuth Apps cannot be created through the API at all, only through GitHub's developer
+settings UI. (A manifest flow does exist, but only for *GitHub Apps*, a different installation-level
+product, not the OAuth App that "Sign in with GitHub" uses.)
+
+The upside is that the manual surface is **smaller than Google's**: there is no separate cloud
+project to create, no APIs to enable, and no OAuth consent screen to configure or verify, just one
+registration form that yields a client ID, a secret, and a callback URL. That happens once per
+environment and produces values the rest of the pipeline consumes as code.
+
+## Same-Origin Proxy
+
+GitHub OAuth has the **same same-origin requirement** as Google. The reasoning, that the Better
+Auth session cookie must stay first-party between the static Cloudflare Pages frontend and the auth
+Worker, and that Cloudflare's default `*.pages.dev` / `*.workers.dev` hosts are cross-site and force
+the fragile `SameSite=None` path, is set out in full in
+[ADR 007](/projects/recipe-site/adrs/007-google-oidc-login#same-origin-proxy) and applies unchanged.
+
+This is not extra infrastructure: the proxy is needed for Google regardless, and every Better Auth
+social provider shares the one callback origin. Adding GitHub registers a second client against the
+same origin; it does not add a second proxy.
+
+# Cost
+
+GitHub OAuth Apps are **free** at the provider layer for normal sign-in use, with **no
+developer-program membership fee**. This is the same cost shape as Google, and a contrast with Apple,
+which requires a paid Apple Developer Program membership ($99/year) as noted in
+[ADR 007](/projects/recipe-site/adrs/007-google-oidc-login#how-google-compares-to-the-alternatives).
+Adding GitHub introduces no new monthly line item.
+
+# Consequences
+
+## Positive
+
+* **Lowest-friction path for technical users.** Developers are typically already signed in to
+  GitHub, so sign-up is a single click with no password and no email step.
+* **Opens the door to the Cooklang community.** The most plausible audience beyond the inner circle
+  is GitHub-native ([ADR 001](/projects/recipe-site/adrs/001-cooklang)); GitHub sign-in removes a
+  step for them.
+* **No password complexity and a smaller security surface.** Storage, resets, recovery, and breach
+  response stay with GitHub; there is no password store to leak.
+* **Cheap.** No provider cost and no membership fee.
+* **Additive and reuses existing infrastructure.** A few lines of Better Auth config, registered
+  against the same-origin proxy that Google already requires. No new routing infrastructure.
+
+## Negative
+
+* **Smaller relevant audience than Google.** Most household members and friends are reached through
+  Google; GitHub mainly serves the technical slice. It earns its place as a secondary path, not as a
+  driver of mainstream sign-ups.
+* **Email can be private.** Unlike Google, a GitHub user may hide their email, so the flow must
+  request the `user:email` scope to obtain a verified primary email, a small amount of extra
+  handling.
+* **The OAuth App cannot be created via IaC.** As above, registering the OAuth App is a manual
+  GitHub-settings step (though simpler than Google's), mitigated by storing the resulting credentials
+  in the code-owned secret layer.
+* **No preview-environment story.** OAuth requires pre-registered, static redirect URIs, so
+  ephemeral per-PR preview URLs cannot complete a GitHub sign-in out of the box, the same limitation
+  documented for Google in
+  [ADR 007](/projects/recipe-site/adrs/007-google-oidc-login#consequences).
+* **Hard dependency on GitHub for this path.** Users without a GitHub account use Google instead; a
+  GitHub outage blocks only this one method, not sign-in overall.
+
+# When To Revisit
+
+Revisit this ADR if any of the following become true:
+
+* the technical-friend and Cooklang-community audience never materialises, making GitHub sign-in
+  unused maintenance surface worth removing
+* GitHub changes OAuth terms, scopes, or email-privacy behaviour in a way that affects this use
+* the manual OAuth App setup becomes painful enough to justify scripting it, or GitHub ships an
+  API/Terraform path for creating OAuth Apps
+* preview environments need real sign-in and the missing callback-URL story (shared with Google)
+  starts to hurt
+
+This ADR stays **Accepted** for as long as GitHub is offered as a sign-in option. It would only move
+to **Deprecated** if GitHub sign-in were removed entirely; Better Auth
+([ADR 003](/projects/recipe-site/adrs/003-better-auth)) keeps the underlying auth layer stable
+through any such change.

@@ -24,8 +24,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The dependency detector reads the event's base and head revisions
-          # directly, which may be older than GitHub's synthetic merge parents.
+          # The dependency detector reads the PR's recorded base SHA, which can
+          # predate the current base branch when a PR has been open for a while.
           fetch-depth: 0
           persist-credentials: false
 

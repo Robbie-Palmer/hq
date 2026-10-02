@@ -4,6 +4,7 @@
   "ignoreBinaries": ["mise", "typecheck", "wrangler", "duckdb", "flux-schema", "codex"],
   "workspaces": {
     ".": {
+      "ignoreBinaries": ["jq"],
       "entry": [
         "functions/**/*.ts",
         "api-governance/spectral-functions/*.js",
@@ -14,7 +15,10 @@
         "homelab/tests/**/*.test.ts",
         "scripts/prose-lint.ts"
       ],
-      "ignore": ["infra/work-graph/bootstrap-worker.mjs"],
+      "ignore": [
+        "infra/work-graph/bootstrap-worker.mjs",
+        "infra/work-graph/observer-bootstrap-worker.mjs"
+      ],
       "ignoreDependencies": ["lint-staged", "markdownlint-cli", "remark-cli", "remark-lint", "tsx", "yaml-lint"]
     },
     "ai-review": {
@@ -26,6 +30,7 @@
       ],
       "ignoreDependencies": ["cloudflare"]
     },
+    "packages/agent-coordinator-domain": {},
     "packages/ai-review-domain": {},
     "packages/work-graph-domain": {
       "ignoreBinaries": ["vitest"]
@@ -41,6 +46,7 @@
     "ui": {
       "ignore": [
         "content/**",
+        "lib/wedding-planner/browser-node-module.ts",
         "public/recipes-sw.js",
         "public/simulations/autonomic-satellite-swarm/**/*.mjs"
       ],
@@ -62,6 +68,9 @@
         "scripts/**/*.ts"
       ],
       "ignoreDependencies": ["@stoplight/spectral-owasp-ruleset", "wrangler"]
+    },
+    "workers/work-graph-observer": {
+      "ignoreDependencies": ["wrangler"]
     },
     "ml-pipelines/recipe-dataset": {
       "entry": ["src/stages/*.mjs", "scripts/*.mjs"]

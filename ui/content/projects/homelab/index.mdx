@@ -2,7 +2,7 @@
 title: "Home Lab"
 description: "A private home fleet that backs up personal data, runs coding agents, filters DNS, monitors itself, and gives old hardware a useful job"
 date: "2026-08-02"
-updated: "2026-09-09"
+updated: "2026-09-30"
 status: "live"
 tech_stack:
   - "Ansible"
@@ -30,6 +30,35 @@ tech_stack:
   - "qBittorrent"
   - "Recyclarr"
   - "Trakt"
+platform_layers:
+  - layer: "build-runtime"
+    adopted: "2026-09-28T00:00:00Z"
+    tracking: true
+    decision: "homelab:007-nixos-gpu-worker"
+    slots:
+      - slot: "build.reproducibility"
+        adopted: "2026-09-28T00:00:00Z"
+        decision: "homelab:007-nixos-gpu-worker"
+      - slot: "artifact.contract"
+        adopted: "2026-09-28T00:00:00Z"
+        decision: "homelab:020-k3s-declarative-workloads"
+      - slot: "host.configuration"
+        adopted: "2026-09-28T00:00:00Z"
+        decision: "homelab:007-nixos-gpu-worker"
+      - slot: "network.public-ingress"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "homelab:000-tailscale"
+      - slot: "network.private-overlay"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "homelab:000-tailscale"
+  - layer: "data"
+    adopted: "2026-09-30T00:00:00Z"
+    tracking: true
+    decision: "homelab:007-nixos-gpu-worker"
+    slots:
+      - slot: "data.artifact-versioning"
+        adopted: "2026-09-30T00:00:00Z"
+        decision: "homelab:007-nixos-gpu-worker"
 ---
 
 # Vision
@@ -391,11 +420,11 @@ owns the photo backup pipeline, the lab's two most important jobs.
 
 * **Agentic development hub.** It runs [Claude Code](/projects/homelab/adrs/002-claude-code),
   [Codex](/projects/homelab/adrs/003-codex) (both subscriptions),
-  [OpenCode](/projects/homelab/adrs/005-opencode) and
-  [Grok Build](/projects/homelab/adrs/004-grok-build), all orchestrated from
-  [t3-code](/projects/homelab/adrs/006-t3-code) so I can drive remote,
+  [OpenCode](/projects/homelab/adrs/003-opencode) and
+  [Grok Build](/projects/homelab/adrs/002-grok-build), all orchestrated from
+  [t3-code](/projects/homelab/adrs/004-t3-code) so I can drive remote,
   mobile-friendly, agentic development.
-* **Photo backup.** It connects to [Ente](/projects/homelab/adrs/007-ente-photo-backup),
+* **Photo backup.** It connects to [Ente](/projects/homelab/adrs/005-ente-photo-backup),
   the end-to-end encrypted cloud photo provider, and regularly syncs my
   library down to a connected 10TB HDD as an offline backup.
 * **DNS privacy.** It runs [AdGuard Home](/projects/homelab/adrs/001-adguard-home)
@@ -412,33 +441,35 @@ owns the photo backup pipeline, the lab's two most important jobs.
   resolving under the tunnel. The upstreams are now plain UDP Quad9
   (9.9.9.9), which passes through untouched. LAN devices keep their filtering
   either way; only the mini's own traffic is tunnelled.
-* **Monitoring.** It runs [Netdata](/projects/homelab/adrs/009-netdata),
+* **Monitoring.** It runs [Netdata](/projects/homelab/adrs/006-netdata),
   connected to my Slack workspace via a Slack app, to alarm on anything
   going wrong. The media stack feeds it per-service health gauges through
   its StatsD listener, and the supervisor that keeps that stack alive
   restarts containers Docker marks unhealthy, the hung-process case a
   restart policy can never catch.
-* **Media.** It runs [Jellyfin](/projects/homelab/adrs/011-jellyfin) to serve
+* **Media.** It runs [Jellyfin](/projects/homelab/adrs/008-jellyfin) to serve
   TV shows and movies to my Fire TV Stick, in Docker Compose under colima
   with its config declared in `homelab/hosts/mac-mini/jellyfin/` in this
   repo. The library lives on the 10TB HDD and is served over the LAN and the
   tailnet only.
 * **Media acquisition.** It runs an automated
-  [arr stack](/projects/homelab/adrs/016-media-automation-arr-stack),
-  [Prowlarr](/projects/homelab/adrs/017-prowlarr-indexer-management),
-  Sonarr, Radarr, [qBittorrent](/projects/homelab/adrs/018-single-containerized-torrent-client),
-  and [Recyclarr](/projects/homelab/adrs/019-recyclarr-trash-guides), in
+  [arr stack](/projects/homelab/adrs/013-media-automation-arr-stack),
+  [Prowlarr](/projects/homelab/adrs/014-prowlarr-indexer-management),
+  Sonarr, Radarr, [qBittorrent](/projects/homelab/adrs/015-single-containerized-torrent-client),
+  and [Recyclarr](/projects/homelab/adrs/016-recyclarr-trash-guides), in
   Docker Compose under colima, supervised by a launchd agent that only starts
-  it while the VPN tunnel is up ([ADR 020](/projects/homelab/adrs/020-vpn-gated-stack)).
+  it while the VPN tunnel is up ([ADR 017](/projects/homelab/adrs/017-vpn-gated-stack)).
   Trakt watchlist taps become monitored titles, and finished downloads land
-  straight in Jellyfin ([ADR 021](/projects/homelab/adrs/021-trakt-watchlist)).
+  straight in Jellyfin ([ADR 018](/projects/homelab/adrs/018-trakt-watchlist)).
 
 ## Remote development plane, proposed
 
-[ADR 025](/projects/homelab/adrs/025-cloud-remote-development-plane) proposes
+[ADR 021](/projects/homelab/adrs/021-cloud-remote-development-plane) proposes
 a long-lived Hetzner VPS so a home power or broadband outage does not remove
 all coding capacity. Terraform provisions it, the repository's NixOS flake
-declares the host, and an independent single-node K3s cluster runs t3-code.
+declares the host, and an independent single-node K3s cluster runs t3-code for
+one operator. Multi-user capacity belongs on dedicated workspace nodes in a
+separately tested cluster, not on this VPS.
 
 It does not extend the home cluster across the internet. Home and cloud share
 Kustomize bases where useful, but retain separate control planes, overlays,
@@ -463,7 +494,7 @@ the whole house depends on: DNS and monitoring.
 ## Asus desktop, the NixOS GPU worker
 
 A headless batch-CV box, configured declaratively with
-[NixOS](/projects/homelab/adrs/010-nixos-gpu-worker). The host config lives in
+[NixOS](/projects/homelab/adrs/007-nixos-gpu-worker). The host config lives in
 `homelab/hosts/asus-desktop` in this repo, defined by a flake locked to the
 pinned nixpkgs channel and deployed with `nixos-rebuild`.
 
@@ -499,7 +530,7 @@ targets for the coding agents. Wired connections to the Mac mini provide the
 most reliable control. Together they cover an old Android release, a newer
 Android release, and iOS 15 WebKit.
 
-The [phone device lab ADR](/projects/homelab/adrs/015-phone-device-lab) also
+The [phone device lab ADR](/projects/homelab/adrs/012-phone-device-lab) also
 proposes a second job for the View 20. A cheap data SIM, Tailscale, and a small
 Termux watchdog would let it check both DNS servers and the hub from cellular.
 That closes the monitoring gap where Netdata cannot send a Slack alert because
@@ -567,7 +598,7 @@ The Mac mini and broadband router share one power and network failure domain.
 When both disappear, the agent subscriptions still exist but their prepared
 host, repositories, authentication, and t3-code interface are unreachable.
 
-**Mitigation.** ADR 025 proposes an independent cloud t3-code installation
+**Mitigation.** ADR 021 proposes an independent cloud t3-code installation
 behind Tailscale. The two installations keep separate mutable state and hand
 work off through pushed Git branches. An outage drill must prove the cloud
 environment works from mobile data before it is treated as continuity.

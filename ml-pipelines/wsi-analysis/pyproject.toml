@@ -59,10 +59,13 @@ line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["A", "ANN", "ARG", "B", "C4", "E", "F", "I", "N", "PERF", "PTH", "RUF", "S", "SIM", "T20", "TRY", "UP"]
+select = ["A", "ANN", "ARG", "B", "C4", "C90", "E", "F", "I", "N", "PERF", "PTH", "RUF", "S", "SIM", "T20", "TRY", "UP"]
 ignore = [
     "T201", # stdout is the CLI's interface.
 ]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]

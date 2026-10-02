@@ -1,0 +1,75 @@
+---
+title: "ADR 023: OpenTelemetry, PostHog, and Slack for application observability"
+date: "2026-09-29"
+status: "Accepted"
+tech_stack: ["OpenTelemetry", "Slack"]
+---
+
+## Context
+
+[ADR 004](/projects/personal-engineering-platform/adrs/004-observability)
+separates application telemetry from node monitoring, but its application slot
+combines instrumentation, storage, alert evaluation, and delivery. Those jobs
+change independently. An application can keep OpenTelemetry while changing its
+telemetry store, or keep PostHog alerts while sending them somewhere other than
+Slack.
+
+Recipe Site ADRs
+[010](/projects/recipe-site/adrs/010-posthog-logs),
+[020](/projects/recipe-site/adrs/020-direct-otlp-export-to-posthog), and
+[021](/projects/recipe-site/adrs/021-posthog-alerting-and-slack) provide an
+accepted implementation of the complete path. Agent-friendly Remote
+Development ADR
+[010](/projects/agent-friendly-remote-development/adrs/010-layered-workspace-observability)
+applies the same technologies to agent workspaces, though that decision remains
+proposed. The platform owner accepts the stack based on the working Recipe Site
+path and the deliberate fit with the remote-development design. This is an
+owner decision, not a claim that every part has two accepted adopters.
+
+## Decision
+
+Model application observability as four preferred jobs:
+
+* `observability.telemetry-protocol` selects OpenTelemetry. An adopter must
+  instrument its runtime, redact exported records, and bound exporter failure
+  so telemetry cannot exhaust memory or break the application path.
+* `observability.application-telemetry` selects PostHog Logs. It depends on the
+  OpenTelemetry protocol slot, and each project must define retention and cost
+  limits for the signals it sends.
+* `observability.alert-evaluation` selects PostHog alerts. It depends on the
+  PostHog telemetry slot, and every alert must have a named responder.
+* `observability.alert-delivery` selects Slack. It depends on PostHog alert
+  evaluation. Each project owns its channel routing and Slack credentials.
+
+Projects activate only the jobs they use. Product analytics alone does not
+activate the application-telemetry slot. Node monitoring remains separate and
+continues to use the existing `observability.node-monitoring` default.
+
+## Alternatives
+
+A single PostHog observability slot would match the first implementation but
+would make OpenTelemetry and Slack look inseparable from the storage product.
+That would hide which contract a replacement must preserve.
+
+Cloudflare-native logs and notifications reduce application setup for Workers.
+They tie the complete path to one runtime and do not cover applications running
+elsewhere. Grafana Cloud could store signals and evaluate alerts behind the
+same OpenTelemetry contract, but the current projects already operate PostHog
+and have no requirement that justifies a second hosted telemetry system.
+
+A custom alert relay could add retries, escalation, and acknowledgement. The
+current solo-owner workflow does not need those controls. It would add another
+service and credential path between the evaluator and the inbox.
+
+## Consequences
+
+Applications get a portable instrumentation contract and a small hosted path
+from emitted records to an operator's Slack inbox. Each job can be overridden
+without replacing the rest of the path.
+
+Adopters must now configure instrumentation, redaction, failure bounds,
+retention, ownership, routing, and credentials. PostHog remains a shared
+failure point for storage and alert evaluation, while Slack delivery proves
+neither acknowledgement nor response. A project that needs paging guarantees
+or independent telemetry-loss detection must choose additional controls or
+override the relevant job.

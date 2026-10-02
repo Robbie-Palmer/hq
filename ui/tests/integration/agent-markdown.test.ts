@@ -16,6 +16,7 @@ const RECIPE_APP_PAGES = new Set([
   "cooks",
   "discover",
   "edit",
+  "import",
   "kitchen",
   "log",
   "notifications",
@@ -77,7 +78,12 @@ describe("agent markdown generation", () => {
     expect(htmlPages).toContain("context-engineering.html");
     expect(htmlPages).toContain("commit-log.html");
     expect(htmlPages).toContain("stream-table-duality.html");
-    expect(htmlPages).toHaveLength(28);
+    expect(htmlPages).toContain("theory-ladenness.html");
+    expect(htmlPages).toContain("falsifiability.html");
+    expect(htmlPages).toContain("paradigm-shift.html");
+    expect(htmlPages).toContain("incommensurability.html");
+    expect(htmlPages).toContain("postpositivism.html");
+    expect(htmlPages).toHaveLength(33);
     for (const htmlPage of htmlPages) {
       const mdPage = htmlPage.replace(/\.html$/, ".md");
       expect(fs.existsSync(path.join(OUT_DIR, "ideas", mdPage))).toBe(true);
@@ -126,6 +132,29 @@ describe("agent markdown generation", () => {
     expect(platform).toContain("## Current layer manifest");
     expect(platform).toContain("### Backend API");
     expect(platform).toContain("backend-api.runtime: preferred");
+    expect(platform).toContain("delivery.preview-environment: preferred");
+    expect(platform).toContain("security.preview-access: preferred");
+    expect(platform).toContain("security.service-auth: preferred");
+    expect(platform).toContain("web-app.server-state-client: preferred");
+    expect(platform).toContain("network.public-ingress: preferred");
+    expect(platform).toContain("network.private-overlay: preferred");
+    expect(platform).toContain("observability.telemetry-protocol: preferred");
+    expect(platform).toContain("observability.alert-evaluation: preferred");
+    expect(platform).toContain("observability.alert-delivery: preferred");
+    expect(platform).toContain("### Data");
+    expect(platform).toContain("data.artifact-versioning: preferred");
+    expect(platform).toContain(
+      "prerequisites: instrumented-runtime, telemetry-redaction, bounded-exporter-failure",
+    );
+    expect(platform).toContain("project-owned-slack-credentials");
+    expect(platform).toContain(
+      "prerequisites: git-repository, external-blob-remote",
+    );
+    expect(platform).toContain("### Identity");
+    expect(platform).toContain("identity.authentication-library: preferred");
+    expect(platform).toContain("identity.login-provider: preferred");
+    expect(platform).toContain("### Storage");
+    expect(platform).toContain("storage.object-store: preferred");
     expect(platform).toContain("## Default history");
     expect(platform).toContain("### Primary language");
     expect(platform).toContain("### Source licence");
@@ -135,6 +164,9 @@ describe("agent markdown generation", () => {
     );
     expect(platform).toContain(
       "driven by [personal-knowledge-graph](https://robbiepalmer.me/projects/personal-knowledge-graph.md)",
+    );
+    expect(platform).toContain(
+      "[cloudflare-r2](https://robbiepalmer.me/technologies/cloudflare-r2.md): Accepted",
     );
   });
 
@@ -146,12 +178,41 @@ describe("agent markdown generation", () => {
     expect(recipe.match(/Codex/g)).toHaveLength(1);
   });
 
+  it("includes effective override provenance in adopter project twins", () => {
+    const writing = read("projects/agent-first-writing.md");
+    expect(writing).toContain(
+      "- Platform overrides: Python for project.primary-language ([agent-first-writing:009-primary-language-python](https://robbiepalmer.me/projects/agent-first-writing/adrs/009-primary-language-python.md))",
+    );
+  });
+
   it("keeps Markdown routes for the previous project slug", () => {
     expect(read("projects/personal-site.md")).toContain(
       "[Personal Knowledge Graph](https://robbiepalmer.me/projects/personal-knowledge-graph.md)",
     );
     expect(read("projects/personal-site/adrs/038-content-graph.md")).toContain(
       "https://robbiepalmer.me/projects/personal-knowledge-graph/adrs/038-content-graph.md",
+    );
+  });
+
+  it("keeps Markdown routes for legacy ADR aliases", () => {
+    const legacyAdr = read(
+      "projects/recipe-site/adrs/000-github-public-repo.md",
+    );
+    expect(legacyAdr).toContain(
+      "https://robbiepalmer.me/projects/personal-knowledge-graph/adrs/000-github-public-repo.md",
+    );
+    expect(read("llms.txt")).not.toContain(
+      "/projects/recipe-site/adrs/000-github-public-repo.md",
+    );
+
+    const compactedAdr = read(
+      "projects/agentic-code-review/adrs/031-custom-agentic-code-review.md",
+    );
+    expect(compactedAdr).toContain(
+      "https://robbiepalmer.me/projects/agentic-code-review/adrs/000-custom-agentic-code-review.md",
+    );
+    expect(read("llms.txt")).not.toContain(
+      "/projects/agentic-code-review/adrs/031-custom-agentic-code-review.md",
     );
   });
 

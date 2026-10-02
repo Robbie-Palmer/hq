@@ -1,5 +1,6 @@
 import {
   createKnowledgeScope,
+  normalizeKnowledgeScopeArchiveReason,
   type KnowledgeScopeInput,
   validateKnowledgeScopeRelationships,
   WorkGraphError,
@@ -22,6 +23,8 @@ describe("knowledge scope mirrors", () => {
       canonicalUrl: "https://example.test/projects/work-graph",
       markdownUrl: "https://example.test/projects/work-graph.md",
       sourceRevision: null,
+      lifecycle: "active",
+      archiveReason: null,
       rank: null,
     });
   });
@@ -58,6 +61,25 @@ describe("knowledge scope mirrors", () => {
       ),
     ).toThrowError(expect.objectContaining<Partial<WorkGraphError>>({ code }));
   });
+});
+
+describe("knowledge scope lifecycle", () => {
+  it("keeps a specific reason for removing a scope from active scheduling", () => {
+    expect(normalizeKnowledgeScopeArchiveReason("Completed project")).toBe(
+      "Completed project",
+    );
+  });
+
+  it.each(["", "   ", "a".repeat(10_001)])(
+    "rejects an invalid archive reason",
+    (reason) => {
+      expect(() => normalizeKnowledgeScopeArchiveReason(reason)).toThrowError(
+        expect.objectContaining<Partial<WorkGraphError>>({
+          code: "invalid_knowledge_scope_archive_reason",
+        }),
+      );
+    },
+  );
 });
 
 describe("knowledge scope relationships", () => {

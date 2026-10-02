@@ -1,0 +1,65 @@
+---
+title: "ADR 000: Use bitemporal financial records with calculation lineage"
+date: "2026-09-24"
+status: "Proposed"
+---
+
+## Context
+
+Asset Tracker combines observations made at different times and received from different sources.
+A balance may apply to the end of January but arrive in February. A provider may later revise an
+import, and a user may correct an earlier entry. Tax rules, exchange rates, and calculation code also
+change after the application has produced a forecast or estimate.
+
+The product needs to answer two separate questions: what applied at a given time, and
+what did Asset Tracker know at a given time. It must also explain which inputs produced a durable
+calculation.
+
+## Decision
+
+Use a bitemporal model. Valid time records when a financial observation applies. Transaction time
+records when Asset Tracker accepted it. The distinction lets the application incorporate late and
+corrected data without rewriting what it previously knew.
+
+Accepted financial records are immutable. Corrections, reversals, and revised source interpretations
+create new records linked to the records they change. Each record retains enough source identity to
+trace it to a manual entry, import, provider observation, exchange-rate release, or rule set.
+
+Durable calculations retain references to the exact financial records and the versions of the
+rules, rates, assumptions, and calculation code they used. A later correction can produce a new
+result without changing the old one.
+
+Current views may be materialized for performance, but historical queries operate over the
+bitemporal records. This decision does not adopt event sourcing. Asset Tracker will not require an
+ordered event stream for each aggregate or require all application state to be reconstructed by
+replaying domain events. State that does not need financial history may use ordinary mutable records.
+
+## Consequences
+
+Asset Tracker can show both the latest financial view and the view it would have shown at an earlier
+recorded time. Saved forecasts and estimates remain explainable after their inputs change.
+
+Temporal queries and corrections are more complex than updating a current row. The data model must
+also preserve source references and calculation inputs for as long as the related financial history
+is retained.
+
+## Alternatives considered
+
+### Mutable records with an audit log
+
+This keeps current-state reads simple. It was rejected because a generic write log does not provide
+the valid-time model or domain relationships needed to interpret corrections and reproduce earlier
+calculations.
+
+### Event sourcing
+
+An event-sourced model would make an ordered stream of domain events authoritative and derive state
+through replay or projections. That is a valid design, but Asset Tracker currently needs temporal
+financial facts rather than a replay model for every domain transition. Event ordering, projection
+management, and event-schema evolution would add constraints without solving an additional known
+requirement.
+
+### Recalculate old results on demand
+
+This avoids retaining calculation lineage. It was rejected because changed rates, rules, source
+interpretations, or calculation code could produce a different answer from the same visible inputs.

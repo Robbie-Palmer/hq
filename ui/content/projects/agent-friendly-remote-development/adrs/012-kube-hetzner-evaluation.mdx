@@ -1,0 +1,131 @@
+---
+title: "ADR 012: Kube-Hetzner multi-node evaluation"
+date: "2026-09-14"
+status: "Proposed"
+tech_stack: ["Kube-Hetzner", "K3s", "Hetzner Cloud", "Tailscale"]
+---
+
+# Context
+
+[ADR 011](/projects/agent-friendly-remote-development/adrs/011-single-user-host-boundary)
+makes the current VPS single-user and requires dedicated compute before another
+person is onboarded. The next design must scale workspace capacity across
+machines and replace failed nodes without risking the only copy of the current
+workspace.
+
+[Kube-Hetzner](https://github.com/mysticaltech/terraform-hcloud-kube-hetzner)
+can provision K3s clusters with private networking, firewalls, Hetzner CSI
+volumes, immutable openSUSE Leap Micro nodes, automated upgrades, multi-location
+node pools, and
+[Cluster Autoscaler integration](https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/cloudprovider/hetzner/README.md).
+Its normal high-availability topology uses an odd number of control-plane nodes
+and at least two agents. K3s likewise
+[requires three or more server nodes](https://docs.k3s.io/datastore/ha-embedded)
+for embedded etcd high availability.
+
+[Hetzner Volumes](https://docs.hetzner.com/cloud/volumes/overview/) are
+replicated within Hetzner, but one volume can attach to only one server at a
+time and remains tied to its location. Hetzner's
+[Volume FAQ](https://docs.hetzner.com/cloud/volumes/faq/) says that Volume
+backups and snapshots are unavailable and server backups exclude attached
+Volumes. Worker replacement, location loss, and data backup are separate
+recovery cases.
+
+# Proposed decision
+
+Evaluate Kube-Hetzner in a separate Hetzner project and cluster. Keep the
+working VPS unchanged throughout the evaluation. The candidate topology is:
+
+* three small control-plane nodes, distributed across locations where latency
+  and Hetzner placement permit stable etcd quorum;
+* at least two agent nodes, with one static workspace node allocated to each
+  active user during the pilot;
+* one dynamically provisioned Hetzner CSI volume per durable workspace, with
+  node placement constrained to the volume's location;
+* rebuildable caches on a distinct volume or ephemeral storage with an explicit
+  size and retention policy; and
+* an optional autoscaled agent pool only for disposable build or task workloads.
+
+Do not scale a durable workspace node to zero. T3 Code processes, terminals,
+and provider sessions are part of the availability promise even when no browser
+is connected. Autoscaling is useful only where losing the node cannot lose
+work-in-progress state.
+
+Use Tailscale for operator and application access. Keep the Kubernetes API,
+SSH, and workspace endpoints off the public internet. Kube-Hetzner's Tailscale
+node transport is a candidate whose behavior and recovery path need direct
+testing.
+
+Back up cluster and workspace state independently:
+
+* send encrypted K3s etcd snapshots to S3-compatible object storage outside the
+  cluster;
+* back up each workspace volume, including T3 state, worktrees, repositories,
+  and authentication homes, to a second failure domain;
+* exclude documented rebuildable caches; and
+* retain a machine-readable inventory that maps a workspace to its volume,
+  backup set, endpoint, and owner without storing credentials in Git.
+
+Automatic cache housekeeping starts with reporting and native package-manager
+garbage collection. It may delete only an allowlist of cache roots. Crossing a
+warning threshold must produce an alert before a hard quota blocks writes. T3
+state, worktrees, repositories, credentials, and session metadata are outside
+that allowlist.
+
+# Migration and recovery gates
+
+The current VPS remains the source and rollback environment until all gates
+pass:
+
+1. Create the candidate cluster without changing the current DNS, Tailscale
+   Serve routes, volume, pod, or quota.
+2. Restore a backup copy of the operator workspace to a new volume and start it
+   under a temporary private endpoint.
+3. Verify repositories, uncommitted work, T3 threads, retained session state,
+   and both Codex authentication homes. Record exceptions instead of silently
+   accepting lost state.
+4. Delete and replace the workspace worker in the same location. Prove that the
+   volume detaches, reattaches, mounts with the expected ownership, and serves
+   T3 Code again.
+5. Simulate location loss. Restore the workspace backup to a new volume in
+   another location; do not treat CSI reattachment as cross-location recovery.
+6. Remove one control-plane node and restore one etcd snapshot. Prove quorum and
+   the documented disaster-recovery procedure separately.
+7. Run representative concurrent work on two dedicated workspace nodes and
+   show that pressure or eviction on one does not interrupt the other.
+8. Stop writes briefly, take a final backup, restore it to the candidate, and
+   switch the private endpoint only after both copies have been verified.
+9. Keep the old VPS and volume unchanged until the new environment completes
+   two successful backup cycles, one restore check, and explicit operator
+   sign-off. Remove it through a separate reviewed change.
+
+# Alternatives
+
+One complete VPS per user would give strong resource and failure isolation with
+simple reasoning. It repeats NixOS, K3s, monitoring, public-cloud resources, and
+updates. It remains the fallback if the multi-node cluster costs more operator
+time than it saves.
+
+A shared cluster with multiple user pods on arbitrary workers would use
+capacity efficiently. Without node-level placement and eviction isolation, it
+recreates the contention that ended the single-host pilot.
+
+Running active workspaces in an autoscaled pool would reduce idle compute cost.
+It conflicts with unattended sessions and makes node startup, volume
+attachment, and application recovery part of every reconnect. Restrict
+autoscaling to disposable workloads until hibernation is an explicit product
+feature.
+
+# Consequences
+
+The proposed cluster has a higher baseline cost and more components than one
+VPS. Three control-plane nodes protect the Kubernetes API; they do not make an
+RWO workspace volume active-active. A workspace can pause while its node is
+replaced and its volume reattaches. A location failure requires restoration
+from the independent backup.
+
+Kube-Hetzner also changes host ownership from this repository's NixOS module to
+the module's immutable openSUSE nodes. The parallel evaluation must measure
+that trade. Reject the migration if it cannot preserve T3 state, authenticate
+privately, restore from independent backups, and recover with less risk than
+the current single host.

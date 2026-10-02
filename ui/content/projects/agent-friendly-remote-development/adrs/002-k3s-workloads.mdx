@@ -20,36 +20,39 @@ host.
 
 # Application to this project
 
-Each user gets a namespace, T3 Code workload, persistent-volume claim, private
-Service, runtime identity, and resource allocation. Checked-in manifests own
-those resources. The host configuration owns K3s installation, node identity,
-storage mounts, and backup of cluster state.
+The current operator gets a namespace, T3 Code workload, persistent-volume
+claim, private Service, runtime identity, and resource allocation. Checked-in
+manifests own those resources. The host configuration owns K3s installation,
+node identity, storage mounts, and backup of cluster state.
 
 The first cluster has one server. A control-plane outage stops reconciliation
 until that host recovers, so encrypted workspace backups must remain usable on a
-replacement machine. Namespace and container boundaries suit the trusted
-pilot. Hostile tenant isolation requires a virtual-machine or microVM boundary.
+replacement machine. Do not add a second user to this single-node cluster.
+Namespace and container boundaries do not isolate node capacity or remove the
+shared host as a failure domain.
 
 # kube-hetzner
 
-[kube-hetzner](https://github.com/kube-hetzner/terraform-hcloud-kube-hetzner)
+[Kube-Hetzner](https://github.com/mysticaltech/terraform-hcloud-kube-hetzner)
 can build K3s or RKE2 clusters on Hetzner with openSUSE MicroOS or Leap Micro.
 It also manages private networking, load balancers, storage drivers, upgrades,
 and autoscaling.
 
 The module would replace the NixOS host choice and own more cluster machinery
-than one pilot node needs. Use direct K3s configuration for the first host.
-Reconsider kube-hetzner when a new cluster needs three or more nodes, automated node
-replacement, or autoscaling.
+than one personal node needs. Use direct K3s configuration for the current
+host. Evaluate Kube-Hetzner in a separate cluster when multi-user capacity
+needs three or more control-plane nodes, dedicated workspace workers, automated
+node replacement, or autoscaling for disposable workloads.
 
 # Project checks
 
-Keep this decision Proposed until the workspace pilot proves that:
+Keep this decision Proposed until the operator workspace and a disposable
+multi-node evaluation prove that:
 
 * checked-in manifests converge without unexplained changes;
 * persistent state survives pod and K3s restarts;
 * private endpoints remain reachable through Tailscale;
 * resource limits contain a busy workspace;
-* one namespace cannot read another namespace's storage or ordinary service
-  traffic; and
-* cluster and workspace backups restore onto a replacement NixOS host.
+* a failed worker can be replaced and its workspace volume reattached;
+* pressure on one workspace node does not interrupt another workspace; and
+* cluster and workspace backups restore onto replacement infrastructure.

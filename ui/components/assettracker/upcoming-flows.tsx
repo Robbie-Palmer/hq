@@ -9,11 +9,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  formatCurrency,
-  todayIsoDate,
-  upcomingFlowOccurrences,
-} from "@/lib/domain/assettracker";
+import { formatAccountCurrency, todayIsoDate } from "@/lib/assettracker";
+import { upcomingFlowOccurrences } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
 
 const UPCOMING_DAYS = 30;
@@ -46,6 +43,24 @@ export function UpcomingFlows() {
 
   const shown = occurrences.slice(0, MAX_ROWS);
   const overflow = occurrences.length - shown.length;
+
+  function formatOccurrenceAmount(
+    occurrence: (typeof occurrences)[number],
+  ): string {
+    const sent = formatAccountCurrency(
+      Math.round(occurrence.amount * 100) / 100,
+      occurrence.flow.currency,
+    );
+    if (occurrence.flow.conversion == null) return sent;
+    const received = formatAccountCurrency(
+      occurrence.flow.conversion.received.amount,
+      occurrence.flow.conversion.received.currency,
+    );
+    const fee = occurrence.flow.conversion.fee;
+    return fee == null || fee.amount === 0
+      ? `${sent} → ${received}`
+      : `${sent} → ${received}, ${formatAccountCurrency(fee.amount, fee.currency)} fee`;
+  }
 
   return (
     <Card className="min-w-0">
@@ -80,7 +95,7 @@ export function UpcomingFlows() {
                   </p>
                 </div>
                 <span className="col-span-2 font-mono sm:col-span-1 sm:ml-auto sm:shrink-0">
-                  {formatCurrency(Math.round(occurrence.amount * 100) / 100)}
+                  {formatOccurrenceAmount(occurrence)}
                 </span>
               </li>
             ))}

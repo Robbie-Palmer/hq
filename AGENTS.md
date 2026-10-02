@@ -14,6 +14,9 @@ to be set; any non-empty value works for verification builds:
 NEXT_PUBLIC_CF_IMAGES_ACCOUNT_HASH=placeholder pnpm build
 ```
 
+After changing frontend code, run `mise //ui:lint`. The `@shadcn/lint` policy lives in
+`ui/.oxlintrc.json`; keep recipe-specific color and class guidance scoped to the recipe overrides.
+
 ## Agent-Friendly Markdown
 
 Every major page has a plain-Markdown twin at the same URL with a `.md` suffix (e.g.

@@ -1,6 +1,7 @@
 import type { DomainRepository } from "@/lib/domain";
 import { normalizeADRTitle, parseADRRef } from "@/lib/domain/adr/adr";
 import {
+  type DefaultOverride,
   type DefaultSelection,
   isEffectiveAt,
   isUseEffectiveAt,
@@ -191,6 +192,23 @@ function addPlatformNodes(
       connections: 0,
     });
   }
+  for (const [adrRef, override] of repository.platform.adrOverrides) {
+    const adr = repository.adrs.get(adrRef);
+    if (
+      override.kind !== "policy" ||
+      adr?.status !== "Accepted" ||
+      !isUseEffectiveAt(override, instant)
+    ) {
+      continue;
+    }
+    state.nodes.push({
+      id: `platform-policy:override:${adrRef}`,
+      name: override.value,
+      type: "platform-policy",
+      href: `/projects/${adr.projectSlug}/adrs/${adr.slug}`,
+      connections: 0,
+    });
+  }
 }
 
 function platformSelectionTarget(selection: DefaultSelection): string {
@@ -198,6 +216,15 @@ function platformSelectionTarget(selection: DefaultSelection): string {
     return `technology:${selection.technology}`;
   }
   return `platform-policy:${selection.id}`;
+}
+
+function platformOverrideTarget(
+  adrRef: string,
+  override: DefaultOverride,
+): string {
+  return override.kind === "technology"
+    ? `technology:${override.technology}`
+    : `platform-policy:override:${adrRef}`;
 }
 
 function platformSelectionEdgeType(
@@ -221,10 +248,17 @@ function addTechnologyAndTagNodes(
       (selection) =>
         selection.kind === "technology" && selection.technology === techSlug,
     );
+    const selectedByOverride = Array.from(
+      repository.platform?.adrOverrides.values() ?? [],
+    ).some(
+      (override) =>
+        override.kind === "technology" && override.technology === techSlug,
+    );
     if (
       usedBy.size === 0 &&
       (!ideas || ideas.size === 0) &&
-      !selectedByPlatform
+      !selectedByPlatform &&
+      !selectedByOverride
     )
       continue;
     const tech = repository.technologies.get(techSlug);
@@ -503,6 +537,32 @@ function addProjectPlatformLayerEdges(
   }
 }
 
+function addPlatformOverrideEdges(
+  repository: DomainRepository,
+  state: GraphBuildState,
+  instant: string,
+): void {
+  if (!repository.platform) return;
+  for (const [adrRef, override] of repository.platform.adrOverrides) {
+    const adr = repository.adrs.get(adrRef);
+    if (adr?.status !== "Accepted" || !isUseEffectiveAt(override, instant)) {
+      continue;
+    }
+    addEdge(
+      state,
+      `adr:${adrRef}`,
+      platformOverrideTarget(adrRef, override),
+      "OVERRIDES_DEFAULT",
+      {
+        slot: override.slot,
+        decision: adrRef,
+        adopted: override.adopted,
+        until: override.until,
+      },
+    );
+  }
+}
+
 function addPlatformEdges(
   repository: DomainRepository,
   state: GraphBuildState,
@@ -512,6 +572,7 @@ function addPlatformEdges(
   addPlatformPolicyEdges(repository, state, instant);
   addPlatformOriginEdges(repository, state);
   addProjectPlatformLayerEdges(repository, state, instant);
+  addPlatformOverrideEdges(repository, state, instant);
 }
 
 function addTagEdges(

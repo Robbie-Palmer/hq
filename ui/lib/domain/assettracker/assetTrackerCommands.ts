@@ -7,7 +7,6 @@ import {
   AccountIdSchema,
   AssetTypeSchema,
   accountLiquidity,
-  CurrencySchema,
   isLiability,
   LiquidityTierSchema,
 } from "./account";
@@ -21,6 +20,7 @@ import {
   CapitalFlowKindSchema,
   capitalFlowKind,
 } from "./capitalFlow";
+import { CurrencySchema } from "./currency";
 import {
   flowOccurrenceDates,
   monthlyAmount,
@@ -32,7 +32,7 @@ import {
  * Commands are the write-side of the tracker: zod-validated inputs applied
  * by pure functions that return the next state. The browser store runs them
  * against local data today; a future Worker endpoint validates the same
- * schemas and runs the same appliers against D1.
+ * schemas and domain rules before committing changes to PostgreSQL.
  */
 
 export type AssetTrackerCommandErrorCode =
@@ -46,7 +46,9 @@ export type AssetTrackerCommandErrorCode =
   | "FLOW_NOT_FOUND"
   | "PLANNED_EXPENDITURE_NOT_FOUND"
   | "INVALID_PLANNED_EXPENDITURE"
+  | "INVALID_RECURRING_FLOW_CONVERSION"
   | "DUPLICATE_INCOME_DATE"
+  | "RECEIVED_AMOUNT_REQUIRED"
   | "INVALID_ACCOUNT_NAME";
 
 export class AssetTrackerCommandError extends Error {
@@ -172,6 +174,11 @@ export const RecordTransferInputSchema = z
     /** Omit for external spending */
     toAccountId: AccountIdSchema.optional(),
     amount: z.number().positive("Amount must be positive"),
+    /** Native amount received when the two accounts use different currencies. */
+    receivedAmount: z.number().positive().optional(),
+    /** Fee charged in the source account's native currency. */
+    feeAmount: z.number().nonnegative().optional(),
+    conversionProvider: z.string().trim().min(1).optional(),
     /** Links the transfer back to the recurring flow that produced it */
     flowId: z.string().min(1).optional(),
   })
@@ -183,6 +190,11 @@ export const RecordTransferInputSchema = z
   });
 export type RecordTransferInput = z.infer<typeof RecordTransferInputSchema>;
 
+export const SetBaseCurrencyInputSchema = z.object({
+  currency: CurrencySchema,
+});
+export type SetBaseCurrencyInput = z.infer<typeof SetBaseCurrencyInputSchema>;
+
 export const AddRecurringFlowInputSchema = z
   .object({
     ...RecurringFlowDefinitionShape,
@@ -190,7 +202,7 @@ export const AddRecurringFlowInputSchema = z
     startDate: IsoDateSchema.optional(),
   })
   .superRefine(validateRecurringFlowDefinition);
-export type AddRecurringFlowInput = z.infer<typeof AddRecurringFlowInputSchema>;
+export type AddRecurringFlowInput = z.input<typeof AddRecurringFlowInputSchema>;
 
 export const DeleteRecurringFlowInputSchema = z.object({
   id: z.string().min(1),
@@ -264,16 +276,6 @@ export const SetNetWorthTargetInputSchema = z.object({
 export type SetNetWorthTargetInput = z.infer<
   typeof SetNetWorthTargetInputSchema
 >;
-
-export function todayIsoDate(): string {
-  // Local calendar date, not UTC — toISOString() would roll over around
-  // local midnight and record the wrong day
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
 
 function uniqueId(taken: Set<string>, base: string): string {
   if (!taken.has(base)) return base;
@@ -362,12 +364,13 @@ export function balanceAsOf(
 export function applyCreateAccount(
   data: AssetTrackerData,
   input: CreateAccountInput,
+  defaultDate: string,
 ): { data: AssetTrackerData; account: Account } {
   const parsed = CreateAccountInputSchema.parse(input);
   if (parsed.linkedAccountId != null) {
     requireAccount(data, parsed.linkedAccountId);
   }
-  const openingDate = parsed.openingDate ?? todayIsoDate();
+  const openingDate = parsed.openingDate ?? defaultDate;
   const account = AccountContentSchema.parse({
     id: uniqueAccountId(data, parsed.name),
     name: parsed.name,
@@ -495,6 +498,7 @@ export function applyImportIncomeHistory(
     incomeHistory: Array.from(byDate, ([date, amount]) => ({
       date,
       amount,
+      currency: data.settings.baseCurrency,
     })).sort((a, b) => a.date.localeCompare(b.date)),
   };
 }
@@ -510,25 +514,50 @@ export function applyRecordTransfer(
   input: RecordTransferInput,
 ): AssetTrackerData {
   const parsed = RecordTransferInputSchema.parse(input);
+  const source =
+    parsed.fromAccountId == null
+      ? null
+      : requireOpenOn(data, parsed.fromAccountId, parsed.date);
+  const destination =
+    parsed.toAccountId == null
+      ? null
+      : requireOpenOn(data, parsed.toAccountId, parsed.date);
+  const crossCurrency =
+    source != null &&
+    destination != null &&
+    source.currency !== destination.currency;
+  if (crossCurrency && parsed.receivedAmount == null) {
+    throw new AssetTrackerCommandError(
+      "RECEIVED_AMOUNT_REQUIRED",
+      "Enter the amount received for a cross-currency transfer",
+    );
+  }
+  if (!crossCurrency && parsed.receivedAmount != null) {
+    throw new AssetTrackerCommandError(
+      "RECEIVED_AMOUNT_REQUIRED",
+      "A received amount only applies to a cross-currency transfer",
+    );
+  }
+  const receivedAmount = parsed.receivedAmount ?? parsed.amount;
+  const feeAmount = parsed.feeAmount ?? 0;
   let snapshots = data.snapshots;
   if (parsed.fromAccountId != null) {
-    requireOpenOn(data, parsed.fromAccountId, parsed.date);
     snapshots = upsertSnapshot(snapshots, {
       accountId: parsed.fromAccountId,
       date: parsed.date,
       balance:
         balanceAsOf(data.snapshots, parsed.fromAccountId, parsed.date) -
-        parsed.amount,
+        parsed.amount -
+        feeAmount,
     });
   }
   if (parsed.toAccountId != null) {
-    requireOpenOn(data, parsed.toAccountId, parsed.date);
     snapshots = upsertSnapshot(snapshots, {
       accountId: parsed.toAccountId,
       date: parsed.date,
       balance:
         balanceAsOf(data.snapshots, parsed.toAccountId, parsed.date) +
-        parsed.amount,
+        receivedAmount,
     });
   }
   const taken = new Set(data.transfers.map((t) => t.id));
@@ -538,6 +567,13 @@ export function applyRecordTransfer(
     fromAccountId: parsed.fromAccountId,
     toAccountId: parsed.toAccountId,
     amount: parsed.amount,
+    ...(crossCurrency
+      ? { fromAmount: parsed.amount, toAmount: receivedAmount }
+      : {}),
+    ...(feeAmount > 0 ? { feeAmount } : {}),
+    ...(parsed.conversionProvider == null
+      ? {}
+      : { conversionProvider: parsed.conversionProvider }),
     flowId: parsed.flowId,
   };
   return { ...data, snapshots, transfers: [...data.transfers, transfer] };
@@ -587,6 +623,9 @@ export function applyMaterializeFlow(
       fromAccountId: flow.fromAccountId,
       toAccountId: flow.toAccountId,
       amount,
+      receivedAmount: flow.conversion?.received.amount,
+      feeAmount: flow.conversion?.fee?.amount,
+      conversionProvider: flow.conversion?.provider,
       flowId: flow.id,
     });
   }
@@ -714,11 +753,53 @@ export function applyClearAccountHistory(
 export function applyAddRecurringFlow(
   data: AssetTrackerData,
   input: AddRecurringFlowInput,
+  defaultStartDate: string,
 ): AssetTrackerData {
-  const parsed = AddRecurringFlowInputSchema.parse(input);
-  const startDate = parsed.startDate ?? todayIsoDate();
-  for (const accountId of [parsed.fromAccountId, parsed.toAccountId]) {
-    if (accountId != null) requireOpenOn(data, accountId, startDate);
+  const startDate = input.startDate ?? defaultStartDate;
+  const source =
+    input.fromAccountId == null
+      ? null
+      : requireOpenOn(data, input.fromAccountId, startDate);
+  const destination =
+    input.toAccountId == null
+      ? null
+      : requireOpenOn(data, input.toAccountId, startDate);
+  const currency =
+    input.currency ??
+    source?.currency ??
+    destination?.currency ??
+    data.settings.baseCurrency;
+  const parsed = AddRecurringFlowInputSchema.parse({ ...input, currency });
+  const destinationCurrency = destination?.currency;
+  const needsConversion =
+    destinationCurrency != null && parsed.currency !== destinationCurrency;
+  if (needsConversion && parsed.conversion == null) {
+    throw new AssetTrackerCommandError(
+      "INVALID_RECURRING_FLOW_CONVERSION",
+      "Enter the expected amount received for a cross-currency flow",
+    );
+  }
+  if (parsed.conversion != null && destination == null) {
+    throw new AssetTrackerCommandError(
+      "INVALID_RECURRING_FLOW_CONVERSION",
+      "A currency conversion needs a destination account",
+    );
+  }
+  if (
+    parsed.conversion != null &&
+    destinationCurrency != null &&
+    parsed.conversion.received.currency !== destinationCurrency
+  ) {
+    throw new AssetTrackerCommandError(
+      "INVALID_RECURRING_FLOW_CONVERSION",
+      "The received currency must match the destination account",
+    );
+  }
+  if (source != null && parsed.currency !== source.currency) {
+    throw new AssetTrackerCommandError(
+      "INVALID_RECURRING_FLOW_CONVERSION",
+      "The sent currency must match the source account",
+    );
   }
   const base = normalizeSlug(parsed.name) || "flow";
   const flow = {
@@ -727,6 +808,8 @@ export function applyAddRecurringFlow(
     fromAccountId: parsed.fromAccountId,
     toAccountId: parsed.toAccountId,
     amount: parsed.amount,
+    currency: parsed.currency,
+    conversion: parsed.conversion,
     grossAmount: parsed.grossAmount,
     formula: parsed.formula,
     compensationKind: parsed.compensationKind,
@@ -755,6 +838,7 @@ export function applyDeleteRecurringFlow(
 export function applyAddPlannedExpenditure(
   data: AssetTrackerData,
   input: AddPlannedExpenditureInput,
+  asOfDate: string,
 ): AssetTrackerData {
   const parsed = AddPlannedExpenditureInputSchema.parse(input);
   const source = requireAccount(data, parsed.fromAccountId);
@@ -773,7 +857,7 @@ export function applyAddPlannedExpenditure(
       "Planned expenditure must come from cash or a liquid investment",
     );
   }
-  if (parsed.date <= todayIsoDate()) {
+  if (parsed.date <= asOfDate) {
     throw new AssetTrackerCommandError(
       "INVALID_PLANNED_EXPENDITURE",
       "Planned expenditure must have a future date",
@@ -860,6 +944,17 @@ export function applySetInflation(
   };
 }
 
+export function applySetBaseCurrency(
+  data: AssetTrackerData,
+  input: SetBaseCurrencyInput,
+): AssetTrackerData {
+  const parsed = SetBaseCurrencyInputSchema.parse(input);
+  return {
+    ...data,
+    settings: { ...data.settings, baseCurrency: parsed.currency },
+  };
+}
+
 export function applySetWithdrawalRate(
   data: AssetTrackerData,
   input: SetWithdrawalRateInput,
@@ -881,7 +976,10 @@ export function applySetNetWorthTarget(
     ...data,
     settings: {
       ...data.settings,
-      targetNetWorth: parsed.target ?? undefined,
+      targetNetWorth:
+        parsed.target == null
+          ? undefined
+          : { amount: parsed.target, currency: data.settings.baseCurrency },
       targetNetWorthIsReal: cleared
         ? undefined
         : (parsed.inTodaysMoney ?? false),

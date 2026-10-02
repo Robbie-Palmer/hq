@@ -24,15 +24,33 @@ layers:
   - slug: "backend-api"
     title: "Backend API"
     description: "Defaults for network APIs and server-side application code."
+  - slug: "identity"
+    title: "Identity"
+    description: "Defaults for application user authentication and sign-in providers."
+  - slug: "api-governance"
+    title: "API governance"
+    description: "Contract correctness and compatibility controls for OpenAPI services."
+    activated_by:
+      slot: "backend-api.contract-format"
+      technology: "OpenAPI"
   - slug: "infrastructure"
     title: "Infrastructure"
     description: "Defaults for provisioning and infrastructure management."
+  - slug: "build-runtime"
+    title: "Build and runtime"
+    description: "Reproducible builds, artifact publication, host configuration, workload state, catalog projection, and deployment targets."
   - slug: "observability"
     title: "Observability"
     description: "Defaults for application telemetry and node monitoring."
   - slug: "database"
     title: "Database"
     description: "Conditional defaults for transactional and analytical data."
+  - slug: "storage"
+    title: "Storage"
+    description: "Conditional defaults for durable files, uploads, backups, and artifact bytes."
+  - slug: "data"
+    title: "Data"
+    description: "Defaults for versioned datasets and evaluation artifacts."
 slots:
   - slug: "governance.repository-visibility"
     title: "Repository visibility"
@@ -75,6 +93,11 @@ slots:
     title: "Continuous integration"
     description: "The service that runs repository checks and delivery workflows."
     rationale: "GitHub Actions, GitLab CI, CircleCI, Buildkite, and other runners can execute the same project tasks."
+  - slug: "delivery.preview-environment"
+    title: "Pull-request preview environment"
+    description: "A disposable deployment for reviewing a pull request before it reaches production."
+    rationale: "Shared staging, frontend host previews, and fully isolated per-pull-request stacks make different trade-offs in fidelity, cost, and resource isolation."
+    kind: "policy"
   - slug: "delivery.dependency-updates"
     title: "Dependency update automation"
     description: "Automated discovery and proposal of dependency updates."
@@ -99,6 +122,14 @@ slots:
     title: "Committed secret detection"
     description: "Detection of credentials before commit and across repository history."
     rationale: "Gitleaks, TruffleHog, detect-secrets, and forge-native scanning address accidental credential disclosure."
+  - slug: "security.preview-access"
+    title: "Preview access control"
+    description: "The identity gate in front of pull-request preview hostnames."
+    rationale: "Edge access policies, application login, private networks, and public previews differ in reviewer access, exposure, and automation support."
+  - slug: "security.service-auth"
+    title: "Service authentication"
+    description: "Authentication of non-interactive clients before requests reach a private service."
+    rationale: "Service tokens, workload identity, private networks, and application API keys differ in host support, credential lifecycle, and enforcement point."
   - slug: "quality.code-analysis"
     title: "Code quality analysis"
     description: "Cross-project analysis of maintainability, duplication, coverage, and security findings."
@@ -179,6 +210,10 @@ slots:
     title: "Web component starting point"
     description: "Accessible interface components that projects can own and adapt."
     rationale: "shadcn/ui, Material UI, Chakra UI, and headless libraries trade ownership against packaged behavior."
+  - slug: "web-app.server-state-client"
+    title: "Client-side server-state library"
+    description: "Browser-side synchronization of remote state for interactive client components."
+    rationale: "TanStack Query, SWR, framework data APIs, and bespoke caches differ in query lifecycle, mutation coordination, and invalidation support."
   - slug: "web-app.host"
     title: "Managed web application host"
     description: "Preview and production hosting for a browser-delivered application."
@@ -187,6 +222,35 @@ slots:
     title: "Backend API runtime"
     description: "The managed runtime for an HTTP API."
     rationale: "Cloudflare Workers, AWS Lambda, ECS, EKS, Elastic Beanstalk, Railway, Google Cloud, Azure, and other container platforms can host the same API boundary."
+  - slug: "backend-api.http-framework"
+    title: "HTTP API framework"
+    description: "The request routing and middleware framework used to implement an HTTP API."
+    rationale: "Hono, Fastify, Express, and runtime-specific routers provide different portability, middleware, and type-safety trade-offs."
+  - slug: "backend-api.contract-format"
+    title: "HTTP API contract format"
+    description: "The machine-readable description of an HTTP API's operations and schemas."
+    rationale: "OpenAPI, TypeSpec, and framework-specific schemas differ in interoperability, generation, and governance support."
+  - slug: "backend-api.relational-connection"
+    title: "Relational database connection"
+    description: "The connection and pooling service between a managed API runtime and PostgreSQL."
+    rationale: "Hyperdrive, provider-native poolers, direct connections, and serverless drivers differ in runtime support, connection reuse, and portability."
+  - slug: "identity.authentication-library"
+    title: "User authentication library"
+    description: "The application-owned library that manages user identities, sessions, and sign-in flows."
+    rationale: "Self-hosted libraries and managed identity services differ in runtime ownership, portability, session storage, and usage-based cost."
+  - slug: "identity.login-provider"
+    title: "User login provider"
+    description: "An external identity provider offered for application sign-in."
+    rationale: "OIDC providers and first-party login methods differ in audience reach, recovery policy, credential setup, and phishing resistance."
+    cardinality: "many"
+  - slug: "api-governance.contract-linter"
+    title: "API contract linter"
+    description: "Static correctness, security, and repository-policy checks for API contracts."
+    rationale: "Spectral, Redocly CLI, Vacuum, and custom validators offer different rulesets, formats, and extension models."
+  - slug: "api-governance.compatibility-check"
+    title: "API compatibility check"
+    description: "Detection of breaking changes between a proposed API contract and its published baseline."
+    rationale: "oasdiff, Optic, and custom schema comparisons differ in OpenAPI coverage, policy controls, and CI integration."
   - slug: "infrastructure.provisioner"
     title: "Infrastructure provisioner"
     description: "Declarative provisioning for managed infrastructure."
@@ -199,10 +263,105 @@ slots:
     title: "Terraform static analysis"
     description: "Provider-aware lint checks beyond Terraform's built-in validation."
     rationale: "TFLint, Checkov, and custom policy checks catch different Terraform correctness and policy problems."
+  - slug: "build.reproducibility"
+    title: "Reproducible build definition"
+    description: "The locked definition used to reproduce build inputs and outputs."
+    rationale: "Nix flakes, language lockfiles, and container builders cover different reproducibility boundaries."
+  - slug: "artifact.contract"
+    title: "Artifact contract"
+    description: "The portable identity and media contract of a published build artifact."
+    rationale: "OCI artifacts, language packages, archives, and model formats must remain identifiable independently of their storage provider."
+    kind: "policy"
+  - slug: "artifact.distribution"
+    title: "Artifact distribution"
+    description: "The repository service that indexes and distributes published artifacts."
+    rationale: "Managed registries, zot, CNCF Distribution, and other OCI-compatible repositories can expose the same artifact contract."
+    opinionated: false
+  - slug: "artifact.blob-provider"
+    title: "Artifact blob provider"
+    description: "The storage provider used by an artifact repository for manifests and blobs."
+    rationale: "R2, S3, local disks, and other backends can store the same repository content without redefining artifact identity."
+    opinionated: false
+  - slug: "artifact.identity"
+    title: "Artifact identity rule"
+    description: "The rule that determines whether an artifact keeps its identity when storage changes."
+    rationale: "Coordinates and digests must outlive a blob-provider migration so consumers do not inherit storage details."
+    kind: "policy"
+  - slug: "container.build-definition"
+    title: "Container build definition"
+    description: "The project-owned definition that assembles a container image."
+    rationale: "Dockerfiles, Buildpacks, Nix, and language-specific builders encode different image construction workflows."
+    kind: "policy"
+    opinionated: false
+  - slug: "container.base-image"
+    title: "Container base image"
+    description: "The shared or project-local base used by container builds."
+    rationale: "A shared base can centralise patches, while a project-local base can preserve tighter runtime constraints."
+    kind: "policy"
+    cardinality: "many"
+    opinionated: false
+  - slug: "host.configuration"
+    title: "Host configuration"
+    description: "The declarative source of operating-system and machine state."
+    rationale: "NixOS, image builders, and configuration-management systems draw different boundaries around host state and rollback."
+  - slug: "workload.orchestrator"
+    title: "Workload orchestrator"
+    description: "The control plane that reconciles deployed workload state."
+    rationale: "K3s, Kubernetes, Nomad, Compose, and managed runtimes provide different scheduling and operational boundaries."
+    opinionated: false
+  - slug: "workload.packaging"
+    title: "Workload packaging"
+    description: "The reusable package applied to a workload orchestrator."
+    rationale: "Plain manifests, Kustomize overlays, Helm charts, and operators package workload state at different levels of abstraction."
+    kind: "policy"
+    opinionated: false
+  - slug: "workload.manifest-validation"
+    title: "Rendered workload validation"
+    description: "The pre-apply validator for rendered workload manifests."
+    rationale: "Schema, admission, and policy validators catch different faults before a live control plane sees a manifest."
+    opinionated: false
+  - slug: "deployment.target"
+    title: "Deployment target"
+    description: "The runtime boundary that receives a release."
+    rationale: "Serverless services, managed runtimes, configured hosts, and clusters can consume the same build artifacts."
+    kind: "policy"
+    cardinality: "many"
+    opinionated: false
+  - slug: "network.public-ingress"
+    title: "Public ingress policy"
+    description: "The declared boundary between private-only services and endpoints intentionally exposed through public ingress."
+    rationale: "Private-only access, authenticated edge ingress, and direct public exposure create different trust and operating boundaries."
+    kind: "policy"
+  - slug: "network.private-overlay"
+    title: "Private network overlay"
+    description: "Encrypted connectivity to operated hosts and private services across network boundaries."
+    rationale: "Tailscale, plain WireGuard, NetBird, ZeroTier, and provider networks differ in coordination, identity, name resolution, and NAT traversal."
+  - slug: "catalog.integration"
+    title: "Software catalog integration"
+    description: "A derived catalog view over repository-owned project and component declarations."
+    rationale: "Backstage and other catalogs can improve discovery without becoming a second authoring system."
+    opinionated: false
+  - slug: "catalog.metadata-authority"
+    title: "Catalog metadata authority"
+    description: "The source of truth from which software catalog records are generated."
+    rationale: "Repository declarations keep catalog metadata reviewable with the code and prevent edits in a second system from drifting."
+    kind: "policy"
+  - slug: "observability.telemetry-protocol"
+    title: "Telemetry protocol"
+    description: "The application instrumentation and export contract for logs, metrics, and traces."
+    rationale: "OpenTelemetry, vendor SDKs, and runtime-native formats differ in portability, signal coverage, and export behavior."
   - slug: "observability.application-telemetry"
-    title: "Application telemetry"
-    description: "Product analytics, traces, logs, and application-level signals."
-    rationale: "PostHog, Grafana Cloud, and vendor suites can collect these signals."
+    title: "Application telemetry store"
+    description: "The searchable store for application logs and correlated operational signals."
+    rationale: "PostHog Logs, Grafana Cloud, and vendor suites differ in query, correlation, retention, and operating cost."
+  - slug: "observability.alert-evaluation"
+    title: "Alert evaluation"
+    description: "The service that evaluates application telemetry against alert conditions."
+    rationale: "PostHog alerts, hosted alert managers, and project-owned evaluators differ in query integration, state, and operating burden."
+  - slug: "observability.alert-delivery"
+    title: "Alert delivery"
+    description: "The destination that delivers operational alerts to the responsible person."
+    rationale: "Slack, paging services, email, and project-owned relays differ in urgency, acknowledgement, and credential boundaries."
   - slug: "observability.node-monitoring"
     title: "Node monitoring"
     description: "Host and node health metrics for operated machines."
@@ -215,10 +374,27 @@ slots:
     title: "Managed relational host"
     description: "A managed host for the selected relational engine."
     rationale: "Neon, Supabase, and cloud database services can host PostgreSQL."
+  - slug: "database.relational-access"
+    title: "Relational schema and access library"
+    description: "The code-owned schema, migrations, and typed query interface for a relational database."
+    rationale: "Drizzle, Prisma, Kysely, and direct SQL make different trade-offs between schema ownership, migration control, and query abstraction."
+  - slug: "database.backup-restore"
+    title: "Relational backup and restore control"
+    description: "Provider-independent database archives, retention, key custody, and tested restoration."
+    rationale: "Provider snapshots, logical archives, physical backups, and managed recovery services cover different failure and account-loss scenarios."
+    kind: "policy"
   - slug: "database.olap-engine"
     title: "OLAP engine"
     description: "Analytical SQL processing when a project needs it."
     rationale: "DuckDB, ClickHouse, BigQuery, Redshift, and other warehouse services answer analytical workloads."
+  - slug: "storage.object-store"
+    title: "Object store"
+    description: "Durable storage for files, uploads, backups, datasets, and immutable artifact bytes."
+    rationale: "Cloudflare R2, Amazon S3, Backblaze B2, and other S3-compatible services provide different cost, access, lifecycle, and integration models."
+  - slug: "data.artifact-versioning"
+    title: "Dataset and evaluation artifact versioning"
+    description: "Versioned identities and transfer for datasets and evaluation artifacts kept outside Git."
+    rationale: "DVC, Git LFS, hosted experiment platforms, and project-owned manifests provide different lineage, caching, comparison, and remote-storage workflows."
 policies:
   - id: "governance-repository-visibility-2026-09-15"
     layer: "governance"
@@ -274,6 +450,14 @@ policies:
     mode: "required"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
+  - id: "base-preview-environment-2026-09-29"
+    layer: "base"
+    slot: "delivery.preview-environment"
+    mode: "preferred"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:018-pull-request-preview-environments"
+    prerequisites:
+      - slot: "delivery.ci"
   - id: "base-dependency-updates-2026-09-15"
     layer: "base"
     slot: "delivery.dependency-updates"
@@ -316,6 +500,20 @@ policies:
     mode: "required"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
+  - id: "base-preview-access-2026-09-29"
+    layer: "base"
+    slot: "security.preview-access"
+    mode: "preferred"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:019-cloudflare-access-boundaries"
+    prerequisites:
+      - slot: "delivery.preview-environment"
+  - id: "base-service-auth-2026-09-29"
+    layer: "base"
+    slot: "security.service-auth"
+    mode: "preferred"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:019-cloudflare-access-boundaries"
   - id: "base-code-quality-2026-09-15"
     layer: "base"
     slot: "quality.code-analysis"
@@ -439,6 +637,15 @@ policies:
     prerequisites:
       - slot: "web-app.styling"
         technology: "tailwind-css"
+  - id: "web-app-server-state-client-2026-09-29"
+    layer: "web-app"
+    slot: "web-app.server-state-client"
+    mode: "preferred"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:021-tanstack-query-for-client-server-state"
+    prerequisites:
+      - slot: "web-app.ui-library"
+        technology: "react"
   - id: "web-app-host-2026-09-15"
     layer: "web-app"
     slot: "web-app.host"
@@ -457,6 +664,56 @@ policies:
     mode: "preferred"
     effective_from: "2026-09-12T00:00:00Z"
     decision: "personal-engineering-platform:002-cloudflare-workers"
+  - id: "backend-api-http-framework-2026-09-29"
+    layer: "backend-api"
+    slot: "backend-api.http-framework"
+    mode: "preferred"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:014-hono-openapi"
+    prerequisites:
+      - slot: "backend-api.runtime"
+  - id: "backend-api-contract-format-2026-09-29"
+    layer: "backend-api"
+    slot: "backend-api.contract-format"
+    mode: "preferred"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:014-hono-openapi"
+  - id: "identity-authentication-library-2026-09-29"
+    layer: "identity"
+    slot: "identity.authentication-library"
+    mode: "preferred"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:020-better-auth-and-google-oidc"
+    prerequisites:
+      - slot: "backend-api.runtime"
+      - slot: "database.relational-engine"
+  - id: "identity-login-provider-2026-09-29"
+    layer: "identity"
+    slot: "identity.login-provider"
+    mode: "preferred"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:020-better-auth-and-google-oidc"
+    prerequisites:
+      - slot: "identity.authentication-library"
+        technology: "better-auth"
+  - id: "api-governance-contract-linter-2026-09-29"
+    layer: "api-governance"
+    slot: "api-governance.contract-linter"
+    mode: "required"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:015-api-governance"
+    prerequisites:
+      - slot: "backend-api.contract-format"
+        technology: "openapi"
+  - id: "api-governance-compatibility-check-2026-09-29"
+    layer: "api-governance"
+    slot: "api-governance.compatibility-check"
+    mode: "preferred"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:015-api-governance"
+    prerequisites:
+      - slot: "backend-api.contract-format"
+        technology: "openapi"
   - id: "infrastructure-provisioner-2026-09-12"
     layer: "infrastructure"
     slot: "infrastructure.provisioner"
@@ -481,12 +738,166 @@ policies:
     prerequisites:
       - slot: "infrastructure.provisioner"
         technology: "terraform"
+  - id: "build-reproducibility-2026-09-28"
+    layer: "build-runtime"
+    slot: "build.reproducibility"
+    mode: "preferred"
+    effective_from: "2026-09-28T00:00:00Z"
+    decision: "personal-engineering-platform:013-build-runtime-standards"
+  - id: "artifact-contract-2026-09-28"
+    layer: "build-runtime"
+    slot: "artifact.contract"
+    mode: "preferred"
+    effective_from: "2026-09-28T00:00:00Z"
+    decision: "personal-engineering-platform:013-build-runtime-standards"
+  - id: "artifact-distribution-2026-09-28"
+    layer: "build-runtime"
+    slot: "artifact.distribution"
+    mode: "preferred"
+    effective_from: "2026-09-28T00:00:00Z"
+    decision: "personal-engineering-platform:013-build-runtime-standards"
+    prerequisites:
+      - slot: "artifact.contract"
+  - id: "artifact-blob-provider-2026-09-28"
+    layer: "build-runtime"
+    slot: "artifact.blob-provider"
+    mode: "preferred"
+    effective_from: "2026-09-28T00:00:00Z"
+    decision: "personal-engineering-platform:013-build-runtime-standards"
+    prerequisites:
+      - slot: "artifact.distribution"
+  - id: "artifact-identity-2026-09-28"
+    layer: "build-runtime"
+    slot: "artifact.identity"
+    mode: "required"
+    effective_from: "2026-09-28T00:00:00Z"
+    decision: "personal-engineering-platform:013-build-runtime-standards"
+  - id: "container-build-definition-2026-09-28"
+    layer: "build-runtime"
+    slot: "container.build-definition"
+    mode: "preferred"
+    effective_from: "2026-09-28T00:00:00Z"
+    decision: "personal-engineering-platform:013-build-runtime-standards"
+    prerequisites:
+      - slot: "artifact.contract"
+  - id: "container-base-image-2026-09-28"
+    layer: "build-runtime"
+    slot: "container.base-image"
+    mode: "preferred"
+    effective_from: "2026-09-28T00:00:00Z"
+    decision: "personal-engineering-platform:013-build-runtime-standards"
+    prerequisites:
+      - slot: "container.build-definition"
+  - id: "host-configuration-2026-09-28"
+    layer: "build-runtime"
+    slot: "host.configuration"
+    mode: "preferred"
+    effective_from: "2026-09-28T00:00:00Z"
+    decision: "personal-engineering-platform:013-build-runtime-standards"
+  - id: "workload-orchestrator-2026-09-28"
+    layer: "build-runtime"
+    slot: "workload.orchestrator"
+    mode: "preferred"
+    effective_from: "2026-09-28T00:00:00Z"
+    decision: "personal-engineering-platform:013-build-runtime-standards"
+  - id: "workload-packaging-2026-09-28"
+    layer: "build-runtime"
+    slot: "workload.packaging"
+    mode: "preferred"
+    effective_from: "2026-09-28T00:00:00Z"
+    decision: "personal-engineering-platform:013-build-runtime-standards"
+    prerequisites:
+      - slot: "workload.orchestrator"
+  - id: "workload-manifest-validation-2026-09-28"
+    layer: "build-runtime"
+    slot: "workload.manifest-validation"
+    mode: "preferred"
+    effective_from: "2026-09-28T00:00:00Z"
+    decision: "personal-engineering-platform:013-build-runtime-standards"
+    prerequisites:
+      - slot: "workload.orchestrator"
+  - id: "deployment-target-2026-09-28"
+    layer: "build-runtime"
+    slot: "deployment.target"
+    mode: "preferred"
+    effective_from: "2026-09-28T00:00:00Z"
+    decision: "personal-engineering-platform:013-build-runtime-standards"
+  - id: "network-public-ingress-2026-09-29"
+    layer: "build-runtime"
+    slot: "network.public-ingress"
+    mode: "preferred"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:022-tailscale-private-networking"
+  - id: "network-private-overlay-2026-09-29"
+    layer: "build-runtime"
+    slot: "network.private-overlay"
+    mode: "preferred"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:022-tailscale-private-networking"
+    prerequisites:
+      - slot: "network.public-ingress"
+  - id: "catalog-integration-2026-09-28"
+    layer: "build-runtime"
+    slot: "catalog.integration"
+    mode: "preferred"
+    effective_from: "2026-09-28T00:00:00Z"
+    decision: "personal-engineering-platform:013-build-runtime-standards"
+    prerequisites:
+      - slot: "catalog.metadata-authority"
+  - id: "catalog-metadata-authority-2026-09-28"
+    layer: "build-runtime"
+    slot: "catalog.metadata-authority"
+    mode: "required"
+    effective_from: "2026-09-28T00:00:00Z"
+    decision: "personal-engineering-platform:013-build-runtime-standards"
+  - id: "observability-telemetry-protocol-2026-09-29"
+    layer: "observability"
+    slot: "observability.telemetry-protocol"
+    mode: "preferred"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:023-application-observability-stack"
+    prerequisites:
+      - requirement: "instrumented-runtime"
+      - requirement: "telemetry-redaction"
+      - requirement: "bounded-exporter-failure"
   - id: "observability-application-telemetry-2026-09-12"
     layer: "observability"
     slot: "observability.application-telemetry"
     mode: "preferred"
     effective_from: "2026-09-12T00:00:00Z"
+    effective_until: "2026-09-29T00:00:00Z"
     decision: "personal-engineering-platform:004-observability"
+  - id: "observability-application-telemetry-2026-09-29"
+    layer: "observability"
+    slot: "observability.application-telemetry"
+    mode: "preferred"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:023-application-observability-stack"
+    prerequisites:
+      - slot: "observability.telemetry-protocol"
+        technology: "opentelemetry"
+      - requirement: "telemetry-retention"
+  - id: "observability-alert-evaluation-2026-09-29"
+    layer: "observability"
+    slot: "observability.alert-evaluation"
+    mode: "preferred"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:023-application-observability-stack"
+    prerequisites:
+      - slot: "observability.application-telemetry"
+        technology: "posthog"
+      - requirement: "responder-ownership"
+  - id: "observability-alert-delivery-2026-09-29"
+    layer: "observability"
+    slot: "observability.alert-delivery"
+    mode: "preferred"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:023-application-observability-stack"
+    prerequisites:
+      - slot: "observability.alert-evaluation"
+        technology: "posthog"
+      - requirement: "alert-routing"
+      - requirement: "project-owned-slack-credentials"
   - id: "observability-node-monitoring-2026-09-12"
     layer: "observability"
     slot: "observability.node-monitoring"
@@ -508,12 +919,57 @@ policies:
     prerequisites:
       - slot: "database.relational-engine"
         technology: "postgresql"
+  - id: "database-relational-access-2026-09-29"
+    layer: "database"
+    slot: "database.relational-access"
+    mode: "preferred"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:017-relational-data-stack"
+    prerequisites:
+      - slot: "database.relational-engine"
+        technology: "postgresql"
+  - id: "database-backup-restore-2026-09-29"
+    layer: "database"
+    slot: "database.backup-restore"
+    mode: "preferred"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:017-relational-data-stack"
+    prerequisites:
+      - slot: "database.relational-engine"
+        technology: "postgresql"
+      - slot: "storage.object-store"
+  - id: "backend-api-relational-connection-2026-09-29"
+    layer: "backend-api"
+    slot: "backend-api.relational-connection"
+    mode: "preferred"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:017-relational-data-stack"
+    prerequisites:
+      - slot: "backend-api.runtime"
+        technology: "cloudflare-workers"
+      - slot: "database.relational-engine"
+        technology: "postgresql"
   - id: "database-olap-engine-2026-09-12"
     layer: "database"
     slot: "database.olap-engine"
     mode: "preferred"
     effective_from: "2026-09-12T00:00:00Z"
     decision: "personal-engineering-platform:005-database-defaults"
+  - id: "storage-object-store-2026-09-29"
+    layer: "storage"
+    slot: "storage.object-store"
+    mode: "preferred"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:016-cloudflare-r2-object-storage"
+  - id: "data-artifact-versioning-2026-09-30"
+    layer: "data"
+    slot: "data.artifact-versioning"
+    mode: "preferred"
+    effective_from: "2026-09-30T00:00:00Z"
+    decision: "personal-engineering-platform:024-dvc-artifact-versioning"
+    prerequisites:
+      - requirement: "git-repository"
+      - requirement: "external-blob-remote"
 selections:
   - id: "governance-repository-visibility-public-2026-09-15"
     slot: "governance.repository-visibility"
@@ -522,7 +978,8 @@ selections:
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:010-governance-policy-values"
-    origin_projects: ["personal-knowledge-graph", "recipe-site", "agentic-code-review"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:000-github-public-repo"]
   - id: "governance-license-agpl-3-0-2026-09-15"
     slot: "governance.license"
     kind: "policy"
@@ -530,7 +987,8 @@ selections:
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:010-governance-policy-values"
-    origin_projects: ["personal-knowledge-graph", "recipe-site", "agentic-code-review"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:037-agpl-license"]
   - id: "governance-source-boundary-shared-monorepo-2026-09-15"
     slot: "governance.source-boundary"
     kind: "policy"
@@ -538,21 +996,24 @@ selections:
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:010-governance-policy-values"
-    origin_projects: ["personal-knowledge-graph", "recipe-site", "agentic-code-review"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:001-monorepo"]
   - id: "project-repository-host-github-2026-09-15"
     slot: "project.repository-host"
     technology: "GitHub"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:000-github-public-repo"]
   - id: "project-task-runner-mise-2026-09-15"
     slot: "project.task-runner"
     technology: "Mise"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:004-mise"]
   - id: "project-primary-language-typescript-2026-09-12"
     slot: "project.primary-language"
     technology: "TypeScript"
@@ -560,41 +1021,47 @@ selections:
     effective_from: "2026-09-12T00:00:00Z"
     decision: "personal-engineering-platform:001-language-defaults"
     origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:058-temporal-platform-layers"]
   - id: "development-coding-agents-claude-code-2026-09-15"
     slot: "development.coding-agents"
     technology: "Claude Code"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:011-agentic-development-baseline"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:012-claude-code"]
   - id: "development-coding-agents-codex-2026-09-15"
     slot: "development.coding-agents"
     technology: "Codex"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:011-agentic-development-baseline"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:043-codex"]
   - id: "quality-ai-reviewers-coderabbit-2026-09-15"
     slot: "quality.ai-reviewers"
     technology: "CodeRabbit"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:011-agentic-development-baseline"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:009-code-rabbit"]
   - id: "quality-ai-reviewers-greptile-2026-09-15"
     slot: "quality.ai-reviewers"
     technology: "Greptile"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:011-agentic-development-baseline"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:042-greptile"]
   - id: "quality-ai-reviewers-codex-2026-09-15"
     slot: "quality.ai-reviewers"
     technology: "Codex"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:011-agentic-development-baseline"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:044-codex-code-review"]
   - id: "quality-ai-reviewers-agentic-code-review-2026-09-15"
     slot: "quality.ai-reviewers"
     technology: "Agentic Code Review"
@@ -602,125 +1069,185 @@ selections:
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:011-agentic-development-baseline"
     origin_projects: ["agentic-code-review"]
+    evidence_adrs: ["agentic-code-review:001-stateful-ai-code-review"]
   - id: "delivery-ci-github-actions-2026-09-15"
     slot: "delivery.ci"
     technology: "GitHub Actions"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:016-github-actions"]
+  - id: "delivery-preview-environment-isolated-2026-09-29"
+    slot: "delivery.preview-environment"
+    kind: "policy"
+    value: "Isolated pull-request deployments with scoped resources and automatic cleanup"
+    status: "Accepted"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:018-pull-request-preview-environments"
+    origin_projects: ["recipe-site"]
+    evidence_adrs:
+      - "recipe-site:017-fresh-migration-baseline-and-isolated-preview-database-project"
   - id: "delivery-dependency-updates-renovate-2026-09-15"
     slot: "delivery.dependency-updates"
     technology: "Renovate"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:024-renovate"]
   - id: "delivery-workflow-linter-actionlint-2026-09-15"
     slot: "delivery.workflow-linter"
     technology: "actionlint"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:048-zizmor"]
   - id: "security-workflow-analysis-zizmor-2026-09-15"
     slot: "security.workflow-analysis"
     technology: "zizmor"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:048-zizmor"]
   - id: "security-dependency-and-iac-scan-trivy-2026-09-15"
     slot: "security.dependency-and-iac-scan"
     technology: "Trivy"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:047-trivy"]
   - id: "security-repository-posture-openssf-scorecard-2026-09-15"
     slot: "security.repository-posture"
     technology: "OpenSSF Scorecard"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:052-openssf-scorecard"]
   - id: "security-secret-scan-gitleaks-2026-09-15"
     slot: "security.secret-scan"
     technology: "Gitleaks"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:053-gitleaks"]
+  - id: "security-preview-access-cloudflare-access-2026-09-29"
+    slot: "security.preview-access"
+    technology: "Cloudflare Access"
+    status: "Accepted"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:019-cloudflare-access-boundaries"
+    origin_projects: ["recipe-site"]
+    evidence_adrs: ["recipe-site:013-cloudflare-access-preview-gates"]
+  - id: "security-service-auth-cloudflare-access-2026-09-29"
+    slot: "security.service-auth"
+    technology: "Cloudflare Access"
+    status: "Accepted"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:019-cloudflare-access-boundaries"
+    origin_projects: ["work-graph"]
+    evidence_adrs: ["work-graph:004-cloudflare-access-service-auth"]
+  - id: "identity-authentication-library-better-auth-2026-09-29"
+    slot: "identity.authentication-library"
+    technology: "Better Auth"
+    status: "Accepted"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:020-better-auth-and-google-oidc"
+    origin_projects: ["recipe-site"]
+    evidence_adrs: ["recipe-site:003-better-auth"]
+  - id: "identity-login-provider-google-oauth-2026-09-29"
+    slot: "identity.login-provider"
+    technology: "Google OAuth"
+    status: "Accepted"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:020-better-auth-and-google-oidc"
+    origin_projects: ["recipe-site"]
+    evidence_adrs: ["recipe-site:007-google-oidc-login"]
   - id: "quality-code-analysis-sonarqube-2026-09-15"
     slot: "quality.code-analysis"
     technology: "SonarQube"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
-    origin_projects: ["recipe-site", "agentic-code-review"]
+    origin_projects: ["recipe-site"]
+    evidence_adrs: ["recipe-site:009-sonarqube"]
   - id: "content-spell-check-typos-2026-09-15"
     slot: "content.spell-check"
     technology: "typos"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:054-typos"]
   - id: "secrets-runtime-store-doppler-2026-09-15"
     slot: "secrets.runtime-store"
     technology: "Doppler"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:035-doppler"]
   - id: "secrets-ci-store-github-secrets-2026-09-15"
     slot: "secrets.ci-store"
     technology: "GitHub Secrets"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:018-github-secrets"]
   - id: "typescript-package-manager-pnpm-2026-09-15"
     slot: "typescript.package-manager"
     technology: "pnpm"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:007-language-toolchains"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:007-pnpm"]
   - id: "typescript-test-runner-vitest-2026-09-15"
     slot: "typescript.test-runner"
     technology: "Vitest"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:007-language-toolchains"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:008-vitest"]
   - id: "typescript-linter-formatter-biome-2026-09-15"
     slot: "typescript.linter-formatter"
     technology: "Biome"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:007-language-toolchains"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-engineering-platform"]
+    evidence_adrs: ["personal-engineering-platform:007-language-toolchains"]
   - id: "typescript-git-hooks-husky-2026-09-15"
     slot: "typescript.git-hooks"
     technology: "Husky"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:007-language-toolchains"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:014-husky-precommit"]
   - id: "typescript-dead-code-analysis-knip-2026-09-15"
     slot: "typescript.dead-code-analysis"
     technology: "Knip"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:007-language-toolchains"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:051-knip"]
   - id: "typescript-source-security-codeql-2026-09-15"
     slot: "typescript.source-security"
     technology: "CodeQL"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:007-language-toolchains"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:032-codeql"]
   - id: "typescript-schema-validation-zod-2026-09-12"
     slot: "typescript.schema-validation"
     technology: "Zod"
@@ -728,76 +1255,95 @@ selections:
     effective_from: "2026-09-12T00:00:00Z"
     decision: "personal-engineering-platform:001-language-defaults"
     origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:058-temporal-platform-layers"]
   - id: "python-package-manager-uv-2026-09-15"
     slot: "python.package-manager"
     technology: "uv"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:007-language-toolchains"
-    origin_projects: ["agent-first-writing"]
+    origin_projects: ["personal-engineering-platform"]
+    evidence_adrs: ["personal-engineering-platform:007-language-toolchains"]
   - id: "python-linter-formatter-ruff-2026-09-15"
     slot: "python.linter-formatter"
     technology: "Ruff"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:007-language-toolchains"
-    origin_projects: ["agent-first-writing"]
+    origin_projects: ["personal-engineering-platform"]
+    evidence_adrs: ["personal-engineering-platform:007-language-toolchains"]
   - id: "python-test-runner-pytest-2026-09-15"
     slot: "python.test-runner"
     technology: "pytest"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:007-language-toolchains"
-    origin_projects: ["agent-first-writing"]
+    origin_projects: ["personal-engineering-platform"]
+    evidence_adrs: ["personal-engineering-platform:007-language-toolchains"]
   - id: "python-data-validation-pydantic-2026-09-12"
     slot: "python.data-validation"
     technology: "Pydantic"
     status: "Accepted"
     effective_from: "2026-09-12T00:00:00Z"
     decision: "personal-engineering-platform:001-language-defaults"
-    origin_projects: ["agent-first-writing"]
+    origin_projects: ["personal-engineering-platform"]
+    evidence_adrs: ["personal-engineering-platform:001-language-defaults"]
   - id: "web-app-ui-library-react-2026-09-15"
     slot: "web-app.ui-library"
     technology: "React"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:008-web-application-defaults"
-    origin_projects: ["personal-knowledge-graph", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:002-react"]
   - id: "web-app-framework-next-js-2026-09-15"
     slot: "web-app.framework"
     technology: "Next.js"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:008-web-application-defaults"
-    origin_projects: ["personal-knowledge-graph", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:003-next-js"]
   - id: "web-app-styling-tailwind-css-2026-09-15"
     slot: "web-app.styling"
     technology: "Tailwind CSS"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:008-web-application-defaults"
-    origin_projects: ["personal-knowledge-graph", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:005-tailwindcss"]
   - id: "web-app-component-library-shadcn-ui-2026-09-15"
     slot: "web-app.component-library"
     technology: "shadcn/ui"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:008-web-application-defaults"
-    origin_projects: ["personal-knowledge-graph", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:019-shadcn"]
+  - id: "web-app-server-state-client-tanstack-query-2026-09-29"
+    slot: "web-app.server-state-client"
+    technology: "TanStack Query"
+    status: "Accepted"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:021-tanstack-query-for-client-server-state"
+    origin_projects: ["recipe-site"]
+    evidence_adrs: ["recipe-site:018-tanstack-query-for-client-server-state"]
   - id: "web-app-host-cloudflare-pages-2026-09-15"
     slot: "web-app.host"
     technology: "Cloudflare Pages"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:008-web-application-defaults"
-    origin_projects: ["personal-knowledge-graph", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:011-cloudflare-pages"]
   - id: "python-test-cases-pytest-cases-2026-09-12"
     slot: "python.test-cases"
     technology: "pytest-cases"
     status: "Accepted"
     effective_from: "2026-09-12T00:00:00Z"
     decision: "personal-engineering-platform:001-language-defaults"
-    origin_projects: ["agent-first-writing"]
+    origin_projects: ["personal-engineering-platform"]
+    evidence_adrs: ["personal-engineering-platform:001-language-defaults"]
   - id: "backend-api-runtime-cloudflare-workers-2026-09-12"
     slot: "backend-api.runtime"
     technology: "Cloudflare Workers"
@@ -805,6 +1351,49 @@ selections:
     effective_from: "2026-09-12T00:00:00Z"
     decision: "personal-engineering-platform:002-cloudflare-workers"
     origin_projects: ["agentic-code-review", "recipe-site"]
+    evidence_adrs:
+      - "agentic-code-review:001-stateful-ai-code-review"
+      - "recipe-site:004-backend-platform-for-authenticated-features"
+  - id: "backend-api-http-framework-hono-2026-09-29"
+    slot: "backend-api.http-framework"
+    technology: "Hono"
+    status: "Accepted"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:014-hono-openapi"
+    origin_projects: ["recipe-site", "work-graph"]
+    evidence_adrs:
+      - "recipe-site:004-backend-platform-for-authenticated-features"
+      - "work-graph:003-rest-api-and-cli-first"
+  - id: "backend-api-contract-format-openapi-2026-09-29"
+    slot: "backend-api.contract-format"
+    technology: "OpenAPI"
+    status: "Accepted"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:014-hono-openapi"
+    origin_projects: ["recipe-site", "work-graph"]
+    evidence_adrs:
+      - "recipe-site:023-spectral"
+      - "work-graph:003-rest-api-and-cli-first"
+  - id: "api-governance-contract-linter-spectral-2026-09-29"
+    slot: "api-governance.contract-linter"
+    technology: "Spectral"
+    status: "Accepted"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:015-api-governance"
+    origin_projects: ["recipe-site", "work-graph"]
+    evidence_adrs:
+      - "recipe-site:023-spectral"
+      - "work-graph:003-rest-api-and-cli-first"
+  - id: "api-governance-compatibility-check-oasdiff-2026-09-29"
+    slot: "api-governance.compatibility-check"
+    technology: "oasdiff"
+    status: "Accepted"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:015-api-governance"
+    origin_projects: ["recipe-site", "work-graph"]
+    evidence_adrs:
+      - "recipe-site:023-spectral"
+      - "work-graph:003-rest-api-and-cli-first"
   - id: "infrastructure-provisioner-terraform-2026-09-12"
     slot: "infrastructure.provisioner"
     technology: "Terraform"
@@ -812,27 +1401,74 @@ selections:
     effective_from: "2026-09-12T00:00:00Z"
     decision: "personal-engineering-platform:003-terraform"
     origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:010-terraform"]
   - id: "infrastructure-state-backend-terraform-cloud-2026-09-15"
     slot: "infrastructure.state-backend"
     technology: "Terraform Cloud"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:009-infrastructure-operations"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:017-terraform-cloud"]
   - id: "infrastructure-linter-tflint-2026-09-15"
     slot: "infrastructure.linter"
     technology: "TFLint"
     status: "Accepted"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:009-infrastructure-operations"
-    origin_projects: ["personal-knowledge-graph", "agentic-code-review", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:050-tflint"]
+  - id: "observability-telemetry-protocol-opentelemetry-2026-09-29"
+    slot: "observability.telemetry-protocol"
+    technology: "OpenTelemetry"
+    status: "Accepted"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:023-application-observability-stack"
+    origin_projects: ["recipe-site", "agent-friendly-remote-development"]
+    evidence_adrs:
+      - "recipe-site:020-direct-otlp-export-to-posthog"
+      - "agent-friendly-remote-development:010-layered-workspace-observability"
   - id: "observability-application-telemetry-posthog-2026-09-12"
     slot: "observability.application-telemetry"
     technology: "PostHog"
     status: "Accepted"
     effective_from: "2026-09-12T00:00:00Z"
+    effective_until: "2026-09-29T00:00:00Z"
     decision: "personal-engineering-platform:004-observability"
-    origin_projects: ["personal-knowledge-graph", "recipe-site"]
+    origin_projects: ["personal-knowledge-graph"]
+    evidence_adrs: ["personal-knowledge-graph:040-posthog-analytics"]
+  - id: "observability-application-telemetry-posthog-2026-09-29"
+    slot: "observability.application-telemetry"
+    technology: "PostHog"
+    status: "Accepted"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:023-application-observability-stack"
+    supersedes: "observability-application-telemetry-posthog-2026-09-12"
+    origin_projects: ["recipe-site", "agent-friendly-remote-development"]
+    evidence_adrs:
+      - "recipe-site:010-posthog-logs"
+      - "recipe-site:020-direct-otlp-export-to-posthog"
+      - "agent-friendly-remote-development:010-layered-workspace-observability"
+  - id: "observability-alert-evaluation-posthog-2026-09-29"
+    slot: "observability.alert-evaluation"
+    technology: "PostHog"
+    status: "Accepted"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:023-application-observability-stack"
+    origin_projects: ["recipe-site", "agent-friendly-remote-development"]
+    evidence_adrs:
+      - "recipe-site:021-posthog-alerting-and-slack"
+      - "agent-friendly-remote-development:010-layered-workspace-observability"
+  - id: "observability-alert-delivery-slack-2026-09-29"
+    slot: "observability.alert-delivery"
+    technology: "Slack"
+    status: "Accepted"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:023-application-observability-stack"
+    origin_projects: ["recipe-site", "agent-friendly-remote-development"]
+    evidence_adrs:
+      - "recipe-site:021-posthog-alerting-and-slack"
+      - "agent-friendly-remote-development:010-layered-workspace-observability"
   - id: "observability-node-monitoring-netdata-2026-09-12"
     slot: "observability.node-monitoring"
     technology: "Netdata"
@@ -840,6 +1476,7 @@ selections:
     effective_from: "2026-09-12T00:00:00Z"
     decision: "personal-engineering-platform:004-observability"
     origin_projects: ["homelab"]
+    evidence_adrs: ["homelab:006-netdata"]
   - id: "database-relational-engine-postgresql-2026-09-12"
     slot: "database.relational-engine"
     technology: "PostgreSQL"
@@ -847,6 +1484,7 @@ selections:
     effective_from: "2026-09-12T00:00:00Z"
     decision: "personal-engineering-platform:005-database-defaults"
     origin_projects: ["recipe-site"]
+    evidence_adrs: ["recipe-site:004-backend-platform-for-authenticated-features"]
   - id: "database-relational-host-neon-2026-09-12"
     slot: "database.relational-host"
     technology: "Neon"
@@ -854,6 +1492,38 @@ selections:
     effective_from: "2026-09-12T00:00:00Z"
     decision: "personal-engineering-platform:005-database-defaults"
     origin_projects: ["recipe-site"]
+    evidence_adrs: ["recipe-site:004-backend-platform-for-authenticated-features"]
+  - id: "database-relational-access-drizzle-2026-09-29"
+    slot: "database.relational-access"
+    technology: "Drizzle"
+    status: "Accepted"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:017-relational-data-stack"
+    origin_projects: ["recipe-site", "work-graph"]
+    evidence_adrs:
+      - "recipe-site:004-backend-platform-for-authenticated-features"
+      - "recipe-site:016-committed-postgres-migrations"
+      - "work-graph:001-postgresql-coordination-boundary"
+  - id: "backend-api-relational-connection-hyperdrive-2026-09-29"
+    slot: "backend-api.relational-connection"
+    technology: "Hyperdrive"
+    status: "Accepted"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:017-relational-data-stack"
+    origin_projects: ["recipe-site", "work-graph"]
+    evidence_adrs:
+      - "recipe-site:004-backend-platform-for-authenticated-features"
+      - "work-graph:001-postgresql-coordination-boundary"
+  - id: "database-backup-restore-encrypted-archives-2026-09-29"
+    slot: "database.backup-restore"
+    kind: "policy"
+    value: "Encrypted PostgreSQL archives with tested restores"
+    status: "Accepted"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:017-relational-data-stack"
+    origin_projects: ["recipe-site"]
+    evidence_adrs:
+      - "recipe-site:014-neon-database-snapshots-and-backups"
   - id: "database-olap-engine-duckdb-2026-09-12"
     slot: "database.olap-engine"
     technology: "DuckDB"
@@ -861,3 +1531,97 @@ selections:
     effective_from: "2026-09-12T00:00:00Z"
     decision: "personal-engineering-platform:005-database-defaults"
     origin_projects: ["agentic-code-review"]
+    evidence_adrs: ["agentic-code-review:002-duckdb-ai-review-scorecard"]
+  - id: "storage-object-store-cloudflare-r2-2026-09-29"
+    slot: "storage.object-store"
+    technology: "Cloudflare R2"
+    status: "Accepted"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:016-cloudflare-r2-object-storage"
+    origin_projects: ["personal-knowledge-graph", "recipe-site", "agentic-code-review"]
+    evidence_adrs:
+      - "personal-knowledge-graph:039-cloudflare-r2"
+      - "recipe-site:012-cloudflare-workflows-recipe-ingestion"
+      - "recipe-site:014-neon-database-snapshots-and-backups"
+      - "agentic-code-review:001-stateful-ai-code-review"
+  - id: "data-artifact-versioning-dvc-2026-09-30"
+    slot: "data.artifact-versioning"
+    technology: "DVC"
+    status: "Accepted"
+    effective_from: "2026-09-30T00:00:00Z"
+    decision: "personal-engineering-platform:024-dvc-artifact-versioning"
+    origin_projects: ["recipe-site", "agent-first-writing", "homelab"]
+    evidence_adrs:
+      - "recipe-site:000-dvc"
+      - "agent-first-writing:004-dvc-writing-evaluation-pipeline"
+      - "homelab:007-nixos-gpu-worker"
+  - id: "build-reproducibility-nix-2026-09-28"
+    slot: "build.reproducibility"
+    technology: "Nix"
+    status: "Accepted"
+    effective_from: "2026-09-28T00:00:00Z"
+    decision: "personal-engineering-platform:013-build-runtime-standards"
+    origin_projects: ["homelab", "agent-friendly-remote-development"]
+    evidence_adrs:
+      - "homelab:007-nixos-gpu-worker"
+      - "agent-friendly-remote-development:001-nixos-host"
+  - id: "artifact-contract-oci-2026-09-28"
+    slot: "artifact.contract"
+    kind: "policy"
+    value: "OCI artifacts"
+    status: "Accepted"
+    effective_from: "2026-09-28T00:00:00Z"
+    decision: "personal-engineering-platform:013-build-runtime-standards"
+    origin_projects: ["homelab", "personal-engineering-platform"]
+    evidence_adrs:
+      - "homelab:020-k3s-declarative-workloads"
+      - "personal-engineering-platform:013-build-runtime-standards"
+  - id: "artifact-identity-provider-independent-2026-09-28"
+    slot: "artifact.identity"
+    kind: "policy"
+    value: "Artifact coordinates and digests are independent of the blob provider"
+    status: "Accepted"
+    effective_from: "2026-09-28T00:00:00Z"
+    decision: "personal-engineering-platform:013-build-runtime-standards"
+    origin_projects: ["personal-engineering-platform"]
+    evidence_adrs: ["personal-engineering-platform:013-build-runtime-standards"]
+  - id: "host-configuration-nixos-2026-09-28"
+    slot: "host.configuration"
+    technology: "NixOS"
+    status: "Accepted"
+    effective_from: "2026-09-28T00:00:00Z"
+    decision: "personal-engineering-platform:013-build-runtime-standards"
+    origin_projects: ["homelab", "agent-friendly-remote-development"]
+    evidence_adrs:
+      - "homelab:007-nixos-gpu-worker"
+      - "agent-friendly-remote-development:001-nixos-host"
+  - id: "network-public-ingress-explicit-2026-09-29"
+    slot: "network.public-ingress"
+    kind: "policy"
+    value: "Declare services private-only or govern their public ingress separately"
+    status: "Accepted"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:022-tailscale-private-networking"
+    origin_projects: ["homelab", "agent-friendly-remote-development"]
+    evidence_adrs:
+      - "homelab:000-tailscale"
+      - "agent-friendly-remote-development:011-single-user-host-boundary"
+  - id: "network-private-overlay-tailscale-2026-09-29"
+    slot: "network.private-overlay"
+    technology: "Tailscale"
+    status: "Accepted"
+    effective_from: "2026-09-29T00:00:00Z"
+    decision: "personal-engineering-platform:022-tailscale-private-networking"
+    origin_projects: ["homelab", "agent-friendly-remote-development"]
+    evidence_adrs:
+      - "homelab:000-tailscale"
+      - "agent-friendly-remote-development:011-single-user-host-boundary"
+  - id: "catalog-metadata-authority-repository-2026-09-28"
+    slot: "catalog.metadata-authority"
+    kind: "policy"
+    value: "Repository declarations are authoritative; catalog records are derived"
+    status: "Accepted"
+    effective_from: "2026-09-28T00:00:00Z"
+    decision: "personal-engineering-platform:013-build-runtime-standards"
+    origin_projects: ["personal-engineering-platform"]
+    evidence_adrs: ["personal-engineering-platform:013-build-runtime-standards"]

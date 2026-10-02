@@ -211,22 +211,19 @@ export function TechOrbit({
 
   return (
     <div className={cn("flex flex-col items-center", className)}>
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: Background click handler for clearing selection */}
       <div
-        onClick={(e) => {
-          if (e.target === e.currentTarget) {
-            setActiveTech(null);
-          }
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            setActiveTech(null);
-          }
-        }}
         ref={containerRef}
         style={{ height: `${orbitHeight}px` }}
         className="relative flex w-full flex-col items-center justify-center overflow-hidden rounded-lg"
       >
+        <button
+          type="button"
+          aria-label="Clear selected technology"
+          disabled={!activeTech}
+          onClick={() => setActiveTech(null)}
+          className="absolute inset-0 cursor-default disabled:pointer-events-none"
+        />
+
         {/* Show selected tech in center on desktop only */}
         {centerDisplay}
 

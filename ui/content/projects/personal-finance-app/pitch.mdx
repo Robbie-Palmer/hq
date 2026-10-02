@@ -85,6 +85,40 @@ Asset Tracker keeps assets, debts, ownership, currencies, plans and outcomes in 
 
 ***
 
+## The shared system has clear boundaries
+
+<div className="pitch-capability-stack">
+  <div><span>Web</span><strong>Cloudflare Pages</strong><p>Static Next.js application and PWA assets</p></div>
+  <div><span>API</span><strong>Cloudflare Worker</strong><p>Versioned REST, authorization and domain commands</p></div>
+  <div><span>Records</span><strong>Neon PostgreSQL</strong><p>Households, ownership, accounts, history and plans</p></div>
+  <div className="pitch-capability-stack__proposed"><span>Files</span><strong>R2 when needed</strong><p>Statements, receipts and encrypted backup artifacts</p></div>
+</div>
+
+<p className="pitch-slide__statement">Today the data stays in one browser. The target keeps structured financial state in PostgreSQL, never object storage.</p>
+
+<PitchNotes>
+  The live prototype is a static application on Cloudflare Pages backed by browser local storage and JSON or CSV
+  import and export. It has no product backend, shared database, user identity or R2 dependency.
+
+  The target keeps the static client on Pages. A dedicated Cloudflare Worker becomes the only network API and owns
+  authentication checks, household authorization, validation and financial domain commands. PostgreSQL on Neon is
+  the structured system of record. R2 is introduced only if file features such as statement uploads, receipts or
+  encrypted backup artifacts earn their place.
+
+  Consumer identity, sign-in and recovery have not been selected; Cloudflare Access is infrastructure protection,
+  not product identity. Offline writes are also unresolved until household conflict and recovery semantics are
+  defined. These decisions must precede a multi-user alpha.
+
+  \[Sources]
+
+  * [Personal Finance App architecture](/projects/personal-finance-app?tab=overview#architecture)
+  * [Personal Engineering Platform database defaults](/projects/personal-engineering-platform/adrs/005-database-defaults)
+  * [Personal Engineering Platform backend default](/projects/personal-engineering-platform/adrs/002-cloudflare-workers)
+    \[/Sources]
+</PitchNotes>
+
+***
+
 ## The model should match the household
 
 <Mermaid

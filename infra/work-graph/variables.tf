@@ -42,6 +42,61 @@ variable "worker_name" {
   }
 }
 
+variable "github_observer_hostname" {
+  description = "Public hostname for signed GitHub webhook delivery"
+  type        = string
+  default     = "work-graph-observer.robbiepalmer.me"
+
+  validation {
+    condition     = var.github_observer_hostname != var.work_graph_hostname && can(regex("^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$", var.github_observer_hostname))
+    error_message = "github_observer_hostname must be a lowercase DNS name distinct from the Work Graph API hostname."
+  }
+}
+
+variable "github_observer_worker_name" {
+  description = "Cloudflare Worker service name for GitHub webhook ingress"
+  type        = string
+  default     = "work-graph-github-observer"
+
+  validation {
+    condition     = can(regex("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", var.github_observer_worker_name))
+    error_message = "github_observer_worker_name must be a lowercase Cloudflare service name."
+  }
+}
+
+variable "github_deliveries_queue_name" {
+  description = "Queue for verified GitHub deliveries"
+  type        = string
+  default     = "work-graph-github-deliveries"
+
+  validation {
+    condition     = can(regex("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", var.github_deliveries_queue_name))
+    error_message = "github_deliveries_queue_name must be a lowercase Cloudflare queue name."
+  }
+}
+
+variable "github_deliveries_dead_letter_queue_name" {
+  description = "Dead-letter queue for GitHub deliveries that exhaust retries"
+  type        = string
+  default     = "work-graph-github-deliveries-dlq"
+
+  validation {
+    condition     = var.github_deliveries_dead_letter_queue_name != var.github_deliveries_queue_name && can(regex("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", var.github_deliveries_dead_letter_queue_name))
+    error_message = "github_deliveries_dead_letter_queue_name must be a distinct lowercase Cloudflare queue name."
+  }
+}
+
+variable "r2_database_backups_bucket_name" {
+  description = "Name of the private R2 bucket for encrypted Work Graph PostgreSQL backups"
+  type        = string
+  default     = "work-graph-database-backups"
+
+  validation {
+    condition     = can(regex("^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$", var.r2_database_backups_bucket_name))
+    error_message = "r2_database_backups_bucket_name must be a 3-63 character lowercase R2 bucket name."
+  }
+}
+
 variable "neon_org_id" {
   description = "Neon organization ID"
   type        = string

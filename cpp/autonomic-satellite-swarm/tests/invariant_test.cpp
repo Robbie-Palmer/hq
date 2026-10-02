@@ -35,11 +35,16 @@ SimulationTrace missionTrace(uint32_t final_time_ms = 120U) {
   return trace;
 }
 
-bool activeNodesHoldValidAssignments(const SimulationResult& result) {
+bool activeNodesHoldCurrentEpochAssignments(const SimulationResult& result) {
   for (const FrameObservation& frame : result.frames) {
     for (const NodeObservation& node : frame.nodes) {
-      if (node.state == ControllerState::Active &&
-          (!isValid(node.mission_key) || node.assigned_node != node.node_id)) {
+      if (node.state != ControllerState::Active) {
+        continue;
+      }
+      const auto origin_index = static_cast<std::size_t>(node.mission_key.origin_node);
+      if (!isValid(node.mission_key) || node.assigned_node != node.node_id ||
+          origin_index >= frame.nodes.size() ||
+          frame.nodes[origin_index].boot_epoch != node.mission_key.boot_epoch) {
         return false;
       }
     }
@@ -76,9 +81,20 @@ std::size_t countTransitions(const SimulationResult& result, NodeId node_id,
   return count;
 }
 
+std::size_t countEvents(const SimulationResult& result, SimulationEventType type) {
+  std::size_t count = 0U;
+  for (const SimulationEvent& event : result.events) {
+    if (event.type == type) {
+      ++count;
+    }
+  }
+  return count;
+}
+
 } // namespace
 
-TEST_CASE("lost acknowledgement does not masquerade as assignment knowledge") {
+TEST_CASE("lost acknowledgement does not masquerade as assignment knowledge",
+          "[invariant][safety]") {
   SimulationTrace trace = missionTrace();
   trace.frames[1].delivery_faults.push_back(
       {0U, 1U, MessageType::Acknowledgement, DeliveryFaultType::Drop, 0U});
@@ -91,11 +107,12 @@ TEST_CASE("lost acknowledgement does not masquerade as assignment knowledge") {
   CHECK(result.frames[1].nodes[1].mission_key == key);
   CHECK(result.frames[10].nodes[1].state == ControllerState::Active);
   CHECK(result.frames[10].nodes[1].assigned_node == 1U);
-  CHECK(activeNodesHoldValidAssignments(result));
+  CHECK(activeNodesHoldCurrentEpochAssignments(result));
   CHECK(atMostOneActiveNodePerMission(result));
 }
 
-TEST_CASE("lost assignment leaves the leader and candidate with different truthful claims") {
+TEST_CASE("lost assignment leaves the leader and candidate with different truthful claims",
+          "[invariant][liveness]") {
   SimulationTrace trace = missionTrace();
   trace.frames[10].delivery_faults.push_back(
       {0U, 1U, MessageType::MissionAssignment, DeliveryFaultType::Drop, 0U});
@@ -109,11 +126,12 @@ TEST_CASE("lost assignment leaves the leader and candidate with different truthf
   CHECK(assignment_frame.nodes[1].assigned_node == kBroadcastNode);
   CHECK(final_frame.nodes[1].state == ControllerState::Idle);
   CHECK(final_frame.nodes[1].assigned_node == kBroadcastNode);
-  CHECK(activeNodesHoldValidAssignments(result));
+  CHECK(activeNodesHoldCurrentEpochAssignments(result));
   CHECK(atMostOneActiveNodePerMission(result));
 }
 
-TEST_CASE("duplicated assignment does not repeat the accepted state transition") {
+TEST_CASE("duplicated assignment does not repeat the accepted state transition",
+          "[invariant][safety]") {
   SimulationTrace trace = missionTrace();
   trace.frames[10].delivery_faults.push_back(
       {0U, 1U, MessageType::MissionAssignment, DeliveryFaultType::Duplicate, 0U});
@@ -122,11 +140,11 @@ TEST_CASE("duplicated assignment does not repeat the accepted state transition")
 
   CHECK(result.frames[10].nodes[1].state == ControllerState::Active);
   CHECK(countTransitions(result, 1U, ControllerState::Active) == 1U);
-  CHECK(activeNodesHoldValidAssignments(result));
+  CHECK(activeNodesHoldCurrentEpochAssignments(result));
   CHECK(atMostOneActiveNodePerMission(result));
 }
 
-TEST_CASE("safe-disabled node never becomes active before reset") {
+TEST_CASE("safe-disabled node never becomes active before reset", "[invariant][safety]") {
   SimulationTrace trace = missionTrace();
   trace.frames[5].health_updates.push_back({1U, HealthStatus::Fatal});
   trace.frames[10].delivery_faults.push_back(
@@ -141,7 +159,8 @@ TEST_CASE("safe-disabled node never becomes active before reset") {
   CHECK(countTransitions(result, 1U, ControllerState::Active) == 0U);
 }
 
-TEST_CASE("one-way assignment loss cannot be inferred from a working reverse link") {
+TEST_CASE("one-way assignment loss cannot be inferred from a working reverse link",
+          "[invariant][liveness]") {
   SimulationTrace trace = missionTrace();
   trace.frames[10].link_updates.push_back({0U, 1U, false});
 
@@ -151,11 +170,12 @@ TEST_CASE("one-way assignment loss cannot be inferred from a working reverse lin
   CHECK(result.frames[10].nodes[0].assigned_node == 1U);
   CHECK(result.frames[10].nodes[1].state == ControllerState::AwaitingAssignment);
   CHECK(result.frames.back().nodes[1].state == ControllerState::Idle);
-  CHECK(activeNodesHoldValidAssignments(result));
+  CHECK(activeNodesHoldCurrentEpochAssignments(result));
   CHECK(atMostOneActiveNodePerMission(result));
 }
 
-TEST_CASE("node reset advances the boot epoch and prevents mission-key reuse") {
+TEST_CASE("node reset advances the boot epoch and prevents mission-key reuse",
+          "[invariant][safety]") {
   SimulationTrace trace;
   trace.controller.response_window_ms = 10U;
   trace.nodes = {{0U, satelliteAt(0.0F, 0.0F), 41U}};
@@ -181,7 +201,8 @@ TEST_CASE("node reset advances the boot epoch and prevents mission-key reuse") {
   CHECK(before_reset != after_reset);
 }
 
-TEST_CASE("different origin nodes cannot alias the same epoch and sequence") {
+TEST_CASE("different origin nodes cannot alias the same epoch and sequence",
+          "[invariant][safety]") {
   SimulationTrace trace;
   trace.controller.response_window_ms = 100U;
   trace.nodes = {
@@ -205,7 +226,8 @@ TEST_CASE("different origin nodes cannot alias the same epoch and sequence") {
   CHECK(left != right);
 }
 
-TEST_CASE("baseline records that reset clears the safe-disabled latch") {
+TEST_CASE("expected baseline failure: safe-disabled survives reset until explicit recovery",
+          "[invariant][safety][baseline][!mayfail]") {
   SimulationTrace trace = missionTrace(10U);
   trace.frames[0].mission_commands.clear();
   trace.frames[0].health_updates.push_back({1U, HealthStatus::Fatal});
@@ -214,16 +236,13 @@ TEST_CASE("baseline records that reset clears the safe-disabled latch") {
   const BootEpoch initial_boot_epoch = trace.nodes[1].boot_epoch;
 
   const SimulationResult result = runSimulationTrace(trace);
-  const bool safe_disabled_survives_reset =
-      result.frames[1].nodes[1].state == ControllerState::SafeDisabled;
-
   REQUIRE(result.frames[0].nodes[1].state == ControllerState::SafeDisabled);
-  CHECK_FALSE(safe_disabled_survives_reset);
-  CHECK(result.frames[1].nodes[1].state == ControllerState::Idle);
+  CHECK(result.frames[1].nodes[1].state == ControllerState::SafeDisabled);
   CHECK(result.frames[1].nodes[1].boot_epoch == initial_boot_epoch + 1U);
 }
 
-TEST_CASE("baseline records that delayed mission requests have no expiry") {
+TEST_CASE("expected baseline failure: an expired mission request cannot start work",
+          "[invariant][safety][baseline][!mayfail]") {
   SimulationTrace trace;
   trace.controller.response_window_ms = 100U;
   trace.nodes = {
@@ -242,14 +261,10 @@ TEST_CASE("baseline records that delayed mission requests have no expiry") {
   }
 
   const SimulationResult result = runSimulationTrace(trace);
-  const bool expired_request_causes_no_work =
-      result.frames.back().nodes[1].state == ControllerState::Idle;
-
-  CHECK_FALSE(expired_request_causes_no_work);
-  CHECK(result.frames.back().nodes[1].state == ControllerState::AwaitingAcknowledgement);
+  CHECK(result.frames.back().nodes[1].state == ControllerState::Idle);
 }
 
-TEST_CASE("link loss does not block local fatal-health handling") {
+TEST_CASE("link loss does not block local fatal-health handling", "[invariant][liveness]") {
   SimulationTrace trace = missionTrace(0U);
   trace.frames[0].mission_commands.clear();
   trace.frames[0].health_updates.push_back({1U, HealthStatus::Fatal});
@@ -261,4 +276,17 @@ TEST_CASE("link loss does not block local fatal-health handling") {
   const SimulationResult result = runSimulationTrace(trace);
 
   CHECK(result.frames[0].nodes[1].state == ControllerState::SafeDisabled);
+}
+
+TEST_CASE("duplicate delivery cost stays visible beside accepted software work",
+          "[invariant][cost]") {
+  SimulationTrace trace = missionTrace();
+  trace.frames[10].delivery_faults.push_back(
+      {0U, 1U, MessageType::MissionAssignment, DeliveryFaultType::Duplicate, 0U});
+
+  const SimulationResult result = runSimulationTrace(trace);
+
+  CHECK(countEvents(result, SimulationEventType::MessageSent) == 6U);
+  CHECK(countEvents(result, SimulationEventType::MessageDuplicated) == 1U);
+  CHECK(countTransitions(result, 1U, ControllerState::Active) == 1U);
 }

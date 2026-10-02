@@ -49,16 +49,15 @@ export const isWorkItemClaimable = (
   const workItem = getWorkItem(graph, workItemId);
   if (
     workItem.lifecycle !== "open" ||
-    operationalState.hasUnresolvedBlockingAttention === true ||
-    hasReadinessBlocker(graph, workItemId)
+    operationalState.hasUnresolvedBlockingAttention === true
   ) {
     return false;
   }
 
   const currentLease = operationalState.currentLease;
-  if (!currentLease) {
-    return true;
+  if (currentLease) {
+    return currentLease.expiresAt <= (operationalState.now ?? Date.now());
   }
 
-  return currentLease.expiresAt <= (operationalState.now ?? Date.now());
+  return !hasReadinessBlocker(graph, workItemId);
 };

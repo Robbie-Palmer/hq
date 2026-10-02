@@ -3,7 +3,7 @@ set -euo pipefail
 
 dvc_command=(
   bash ../scripts/doppler-pipeline-env
-  uv tool run --from 'dvc[s3]==3.67.1' dvc
+  ../scripts/dvc
 )
 
 "${dvc_command[@]}" repro prepare_gector_model

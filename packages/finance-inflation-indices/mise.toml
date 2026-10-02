@@ -1,0 +1,37 @@
+[tasks.install]
+description = "Install inflation index dependencies"
+depends = ["//:install"]
+
+[tasks.build]
+description = "Build versioned ONS inflation artifacts"
+depends = ["install"]
+run = "pnpm build"
+
+[tasks."build:check"]
+description = "Check generated ONS inflation artifacts"
+depends = ["install"]
+run = "pnpm build:check"
+
+[tasks.update]
+description = "Fetch and archive new ONS inflation releases"
+depends = ["install"]
+run = "pnpm run update"
+
+[tasks.typecheck]
+description = "Typecheck ONS inflation index data"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test ONS inflation index data"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test ONS inflation index data with coverage"
+depends = ["install"]
+run = "pnpm test:coverage"
+
+[tasks.check]
+description = "Validate and test ONS inflation index data"
+depends = ["build:check", "typecheck", "test"]

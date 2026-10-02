@@ -24,7 +24,9 @@ clients must set that variable to use the implicit active-lease workflow.
 
 1. Run `work-graph ready`. Inspect a candidate with `work-graph show <ticket>`.
 2. Run `work-graph claim [ticket]`. With no ticket, the server chooses the
-   highest-priority ready item.
+   highest-priority ready item that has never been claimed. Use repeatable
+   `--exclude-project` or `--exclude-initiative` to avoid scopes. Specify the ticket
+   ID to continue work after resolved attention or to recover a stale lease.
 3. Record durable findings or a handoff with
    `work-graph note <ticket> --content "..."`. The CLI finds the active lease
    and fencing epoch. Run `work-graph touch <ticket>` before a lease expires.
@@ -41,10 +43,48 @@ machine with an older client, bootstrap once with
 the ticket's active lease. Pass `--lease-id` and `--epoch` together only when a
 script already has both values.
 
+## Plan with the critical path
+
+Run `work-graph critical-path` for the global plan. Narrow an owner review with
+repeatable `--initiative <initiative>` or `--project <project>`. Use
+`--root-work-item-id <ticket>` to explain one exact outcome. Do not combine a
+root filter with any inclusion or exclusion filter.
+
+`ready`, `queue`, implicit `claim`, and `critical-path` accept repeatable
+`--project`, `--exclude-project`, `--initiative`, and `--exclude-initiative`.
+Each occurrence adds one literal ID. Inclusions use OR within one kind and AND
+across project and initiative kinds. Exclusions take precedence. An explicit
+ticket claim rejects selection flags. Complete JSON input uses
+`includeProjectIds`, `excludeProjectIds`, `includeInitiativeIds`, and
+`excludeInitiativeIds`. Deprecated `--project-id` and `--initiative-id` each
+add one inclusion ID.
+
+Read a blocking path from its priority outcome to the unresolved leaf. Paths
+can cross decomposition and dependency edges. `ready` leaves can start now,
+`active` work already has a lease, `stale` work can be reclaimed, and
+`needs_attention` requires the recorded human response. Parallel branches are
+claimable leaves that can advance independently. Prefer the highest-priority
+branch that fits the requested scope.
+
+Use `--json` for automation. Consume `nodes` and `edges` as the deduplicated
+graph, `targetOutcomeIds` as the selected outcomes, `blockingPaths` as the
+explanations, and `readyLeafIds` and `parallelBranches` as work-selection
+inputs. `blockingAttentionIds` lists items that need a human response. Inspect
+`inclusionReasons` when an item's presence is surprising.
+
+The result is a live structural projection. It does not estimate duration or
+delivery dates. Verify a surprising path with `work-graph show <ticket>`,
+`work-graph metadata dependencies <ticket>`, and `work-graph metadata
+decompositions <ticket>`. Revise stored graph state with the commands below,
+then rerun the projection.
+
 ## Changes to the plan
 
 - Reorder a ticket with `work-graph priority move <ticket> --above <ticket>` or
   `--below <ticket>`. Ticket order is local to its scheduling project.
+- Remove a project or initiative from active scheduling with `work-graph scope
+  archive <scope> --reason "..."`. Use `scope restore` to return it at the
+  median active rank and `scope list --all` to audit archived scopes.
 - Add a blocking edge with
   `work-graph dependency add <dependent> <blocker>`.
 - Use `work-graph expedite <ticket> --reason "..."` only for an explicit

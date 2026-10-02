@@ -17,6 +17,7 @@ required_values=(
   NEON_ROLE_NAME
   WORK_GRAPH_API_ORIGIN
   WORK_GRAPH_DOPPLER_SERVICE_TOKEN
+  WORK_GRAPH_HYPERDRIVE_ORIGIN_CONNECTION_LIMIT
   WORK_GRAPH_HYPERDRIVE_NAME
   WORK_GRAPH_SERVICE_TOKEN_NAME
 )
@@ -37,6 +38,11 @@ done
 
 if [[ ! "$NEON_PG_VERSION" =~ ^[0-9]+$ ]]; then
   echo "Cannot provision Work Graph credentials: NEON_PG_VERSION must be an integer." >&2
+  exit 1
+fi
+if [[ ! "$WORK_GRAPH_HYPERDRIVE_ORIGIN_CONNECTION_LIMIT" =~ ^[0-9]+$ ]] ||
+  ((WORK_GRAPH_HYPERDRIVE_ORIGIN_CONNECTION_LIMIT < 5 || WORK_GRAPH_HYPERDRIVE_ORIGIN_CONNECTION_LIMIT > 100)); then
+  echo "Cannot provision Work Graph credentials: the Hyperdrive origin connection limit must be between 5 and 100." >&2
   exit 1
 fi
 
@@ -317,9 +323,11 @@ jq -n \
   --arg host "$database_host" \
   --arg name "$WORK_GRAPH_HYPERDRIVE_NAME" \
   --arg user "$database_user" \
+  --argjson origin_connection_limit "$WORK_GRAPH_HYPERDRIVE_ORIGIN_CONNECTION_LIMIT" \
   --slurpfile credential "$work_dir/neon-password.json" \
   '{
     name: $name,
+    origin_connection_limit: $origin_connection_limit,
     origin: {
       database: $database,
       host: $host,

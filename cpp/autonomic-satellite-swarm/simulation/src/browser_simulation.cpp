@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <sstream>
 #include <stdexcept>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -202,6 +203,24 @@ void writeCoordinate(std::ostream& output, const Coordinate& coordinate) {
          << coordinate.latitude_degrees << '}';
 }
 
+void writeCanonicalDouble(std::ostream& output, double value) {
+  std::ostringstream formatted;
+  formatted << value;
+  std::string text = formatted.str();
+  const std::size_t exponent = text.find_first_of("eE");
+  if (exponent != std::string::npos) {
+    std::size_t last_digit = exponent;
+    while (last_digit > 0U && text[last_digit - 1U] == '0') {
+      --last_digit;
+    }
+    if (last_digit > 0U && text[last_digit - 1U] == '.') {
+      --last_digit;
+    }
+    text.erase(last_digit, exponent - last_digit);
+  }
+  output << text;
+}
+
 void writeMissionKey(std::ostream& output, const MissionKey& mission_key) {
   if (!isValid(mission_key)) {
     output << "null";
@@ -220,8 +239,9 @@ void writeBrowserNode(std::ostream& output, const NodeObservation& node) {
   output << R"({"id":)" << static_cast<unsigned int>(node.node_id) << R"(,"state":")"
          << stateName(node.state) << R"(","position":)";
   writeCoordinate(output, node.satellite.coordinate);
-  output << R"(,"orbitalRadiusMetres":)" << node.satellite.orbital_radius_metres
-         << R"(,"epochUnixMilliseconds":)" << earth_fixed.epoch_unix_milliseconds
+  output << R"(,"orbitalRadiusMetres":)";
+  writeCanonicalDouble(output, node.satellite.orbital_radius_metres);
+  output << R"(,"epochUnixMilliseconds":)" << earth_fixed.epoch_unix_milliseconds
          << R"(,"earthFixedPositionMetres":)";
   writeCartesianMetres(output, earth_fixed.position_metres);
   output << R"(,"earthFixedVelocityMillimetresPerSecond":)";
@@ -325,8 +345,8 @@ void appendOrbitFrame(SimulationTrace& trace, const std::array<Sgp4Orbit, 3>& or
   frame.now_ms = now_ms;
   for (std::size_t index = 0U; index < orbits.size(); ++index) {
     frame.orbit_updates.emplace_back(
-        OrbitUpdate{static_cast<NodeId>(index),
-                    orbits[index].propagate(scenario_epoch_unix_milliseconds + now_ms)});
+        static_cast<NodeId>(index),
+        orbits[index].propagate(scenario_epoch_unix_milliseconds + now_ms));
   }
   if (now_ms == 0U) {
     frame.mission_commands.emplace_back(MissionCommand{0U, objective});
@@ -344,7 +364,7 @@ void appendOrbitFrame(SimulationTrace& trace, const std::array<Sgp4Orbit, 3>& or
 void configureAssignmentLoss(SimulationTrace& trace) {
   constexpr std::size_t kAssignmentFrameIndex = 10U;
   for (std::size_t leader_index = 0U; leader_index < trace.nodes.size(); ++leader_index) {
-    const NodeId leader = static_cast<NodeId>(leader_index);
+    const auto leader = static_cast<NodeId>(leader_index);
     trace.frames.front().mission_commands.front().leader = leader;
     const auto trial = runSimulationTrace(trace);
     const NodeId assignee =
@@ -377,9 +397,9 @@ BrowserSimulation makeBrowserDemonstration(Coordinate objective, BrowserScenario
     if (orbits[index].epochUnixMilliseconds() != simulation.scenario_epoch_unix_milliseconds) {
       throw std::invalid_argument("browser scenario TLE epochs do not match");
     }
-    trace.nodes.emplace_back(NodeConfiguration{static_cast<NodeId>(index),
-                                               satelliteSnapshotFrom(orbits[index].propagate(
-                                                   simulation.scenario_epoch_unix_milliseconds))});
+    trace.nodes.emplace_back(static_cast<NodeId>(index),
+                             satelliteSnapshotFrom(orbits[index].propagate(
+                                 simulation.scenario_epoch_unix_milliseconds)));
   }
   if (scenario == BrowserScenario::SafeStateSuccess) {
     trace.nodes[1].safe_state_request_result = SafeStateResult::Accepted;

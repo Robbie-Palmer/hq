@@ -8,9 +8,12 @@ const unavailable = async (): Promise<never> => {
   throw new Error("Repository operations are unavailable in route tests.");
 };
 const app = createWorkGraphApp({
+  projectCriticalPath: unavailable,
   listKnowledgeScopes: unavailable,
   getKnowledgeScope: unavailable,
   putKnowledgeScope: unavailable,
+  archiveKnowledgeScope: unavailable,
+  restoreKnowledgeScope: unavailable,
   moveKnowledgeScopePriority: unavailable,
   listKnowledgeScopeRelationships: unavailable,
   addKnowledgeScopeRelationship: unavailable,
@@ -18,6 +21,8 @@ const app = createWorkGraphApp({
   listWorkItems: unavailable,
   getWorkItem: unavailable,
   resolveWorkItemContext: unavailable,
+  listWorkItemDeliveryEvidence: unavailable,
+  getCompletionCandidate: unavailable,
   listNotes: unavailable,
   listEvents: unavailable,
   listDependencies: unavailable,
@@ -76,6 +81,12 @@ describe("Given the Work Graph route registry", () => {
     );
 
     expect(documented.sort()).toEqual(runtime.sort());
+    expect(document.paths?.["/api/critical-path"]?.get?.security).toEqual([
+      {
+        cloudflareAccessClientId: [],
+        cloudflareAccessClientSecret: [],
+      },
+    ]);
   });
 
   it("uses noun-based kebab-case paths without trailing slashes", () => {
@@ -96,16 +107,20 @@ describe("Given the Work Graph route registry", () => {
       [
         "DELETE /api/dependencies",
         "DELETE /api/knowledge-scope-relationships",
+        "DELETE /api/knowledge-scopes/:knowledgeScopeId/archival",
         "DELETE /api/work-items/:workItemId/expedites",
         "GET /api/attention-requests",
+        "GET /api/critical-path",
         "GET /api/knowledge-scope-relationships",
         "GET /api/knowledge-scopes",
         "GET /api/knowledge-scopes/:knowledgeScopeId",
         "GET /api/work-items",
         "GET /api/work-items/:workItemId",
+        "GET /api/work-items/:workItemId/completion-candidate",
         "GET /api/work-items/:workItemId/contexts",
         "GET /api/work-items/:workItemId/dependencies",
         "GET /api/work-items/:workItemId/events",
+        "GET /api/work-items/:workItemId/evidence",
         "GET /api/work-items/:workItemId/leases",
         "GET /api/work-items/:workItemId/notes",
         "GET /api/work-items/:workItemId/pull-requests",
@@ -113,6 +128,7 @@ describe("Given the Work Graph route registry", () => {
         "POST /api/attention-requests/:attentionRequestId/resolutions",
         "POST /api/dependencies",
         "POST /api/knowledge-scope-relationships",
+        "POST /api/knowledge-scopes/:knowledgeScopeId/archival",
         "POST /api/knowledge-scopes/:knowledgeScopeId/priority-moves",
         "POST /api/leases",
         "POST /api/leases/:leaseId/renewals",

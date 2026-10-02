@@ -1,8 +1,8 @@
 import {
-  JsonClient,
   markdownText,
   type MergedFinding,
 } from "ai-review-domain/reviewer";
+import type { GithubClient } from "github-client";
 import { githubApiClientFromToken } from "./github-app";
 
 export const FINDING_MARKER_PREFIX = "ai-review-finding:";
@@ -94,36 +94,32 @@ function lineIsAddressable(
 }
 
 async function existingFindingComments(options: {
-  client: JsonClient;
+  client: GithubClient;
   repository: string;
   pullRequestNumber: number;
   botLogin: string;
 }): Promise<Map<string, number>> {
   const byFinding = new Map<string, number>();
-  for (let page = 1; page <= 10; page += 1) {
-    const comments = await options.client.request<ExistingReviewComment[]>(
-      "GET",
-      `/repos/${options.repository}/pulls/${options.pullRequestNumber}/comments`,
-      { query: { per_page: 100, page } },
+  const collected = await options.client.paginateByPageNumber<ExistingReviewComment>(
+    `/repos/${options.repository}/pulls/${options.pullRequestNumber}/comments`,
+    { maxPages: 10 },
+  );
+  if (!collected.complete) {
+    throw new Error(
+      "Review comment reconciliation exceeded the 1,000-comment safety limit",
     );
-    for (const comment of comments) {
-      if (
-        comment.user?.login !== options.botLogin ||
-        typeof comment.in_reply_to_id === "number"
-      ) {
-        continue;
-      }
-      const findingId = findingIdFromComment(comment.body);
-      const commentId = Number(comment.id);
-      if (findingId && Number.isSafeInteger(commentId) && !byFinding.has(findingId)) {
-        byFinding.set(findingId, commentId);
-      }
+  }
+  for (const comment of collected.items) {
+    if (
+      comment.user?.login !== options.botLogin ||
+      typeof comment.in_reply_to_id === "number"
+    ) {
+      continue;
     }
-    if (comments.length < 100) break;
-    if (page === 10) {
-      throw new Error(
-        "Review comment reconciliation exceeded the 1,000-comment safety limit",
-      );
+    const findingId = findingIdFromComment(comment.body);
+    const commentId = Number(comment.id);
+    if (findingId && Number.isSafeInteger(commentId) && !byFinding.has(findingId)) {
+      byFinding.set(findingId, commentId);
     }
   }
   return byFinding;
@@ -153,7 +149,7 @@ function publication(
 }
 
 async function reconcileFindingComment(options: {
-  client: JsonClient;
+  client: GithubClient;
   repository: string;
   finding: PublishableFinding;
   commentId: number;
@@ -169,7 +165,7 @@ async function reconcileFindingComment(options: {
 }
 
 async function publishLineFinding(options: {
-  client: JsonClient;
+  client: GithubClient;
   repository: string;
   pullRequestNumber: number;
   headSha: string;

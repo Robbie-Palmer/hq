@@ -1,5 +1,10 @@
 # Neon Database Backups
 
+This runbook covers the recipe database and its
+`personal-site-database-backups` bucket. The Work Graph uses the same schedule,
+retention, encryption, and restore approach with a separate bucket and
+credentials. See [Work Graph backup and recovery](work-graph.md).
+
 The production Neon database has three complementary recovery mechanisms:
 
 1. The Free plan's six-hour restore history handles recent mistakes.
@@ -148,6 +153,9 @@ Create the `prd_database_backup` Doppler config with:
 | `R2_ACCESS_KEY_ID` | Masked | Bucket-scoped R2 credential |
 | `R2_DATABASE_BACKUPS_BUCKET_NAME` | Unmasked | `personal-site-database-backups` |
 | `R2_SECRET_ACCESS_KEY` | Masked | Bucket-scoped R2 credential |
+
+The recipe workflow sets `DATABASE_BACKUP_LABEL=recipes`; the script keeps that
+as its default for compatible manual runs.
 
 Create the `production-database-backup` GitHub environment without required
 reviewers, because approval gates would block scheduled runs. Then sync it:

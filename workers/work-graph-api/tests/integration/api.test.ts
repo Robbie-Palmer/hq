@@ -17,6 +17,7 @@ const app = createWorkGraphApp(repository);
 
 const recordId = (suffix: number): string =>
   `00000000-0000-4000-8000-${suffix.toString().padStart(12, "0")}`;
+const commitSha = (character: string): string => character.repeat(40);
 
 const completionEvidence = {
   mergeEvidence: "https://github.com/example/work-graph/pull/1",
@@ -62,6 +63,23 @@ beforeEach(async () => {
     await transaction.unsafe(
       'alter table "notes" enable trigger notes_immutable',
     );
+  });
+  await db.$client.begin(async (transaction) => {
+    await transaction.unsafe('delete from "work_item_completion_candidates"');
+    await transaction.unsafe('alter table "completion_candidate_evaluations" disable trigger completion_candidate_evaluations_immutable');
+    await transaction.unsafe('delete from "completion_candidate_evaluations"');
+    await transaction.unsafe('alter table "completion_candidate_evaluations" enable trigger completion_candidate_evaluations_immutable');
+    await transaction.unsafe('delete from "work_item_completion_policies"');
+    await transaction.unsafe('alter table "completion_policy_revisions" disable trigger completion_policy_revisions_immutable');
+    await transaction.unsafe('delete from "completion_policy_revisions"');
+    await transaction.unsafe('alter table "completion_policy_revisions" enable trigger completion_policy_revisions_immutable');
+    await transaction.unsafe('delete from "current_delivery_evidence"');
+    await transaction.unsafe('alter table "delivery_evidence_observations" disable trigger delivery_evidence_observations_immutable');
+    await transaction.unsafe('delete from "delivery_evidence_observations"');
+    await transaction.unsafe('alter table "delivery_evidence_observations" enable trigger delivery_evidence_observations_immutable');
+    await transaction.unsafe('alter table "external_deliveries" disable trigger external_deliveries_immutable');
+    await transaction.unsafe('delete from "external_deliveries"');
+    await transaction.unsafe('alter table "external_deliveries" enable trigger external_deliveries_immutable');
   });
   await db.transaction(async (transaction) => {
     await transaction.delete(schema.lease);
@@ -132,6 +150,8 @@ describe("Given knowledge scopes mirrored over HTTP", () => {
           id: "work-graph",
           ...project,
           sourceRevision: null,
+          lifecycle: "active",
+          archiveReason: null,
           rank: 1024,
         },
       ],
@@ -157,6 +177,281 @@ describe("Given knowledge scopes mirrored over HTTP", () => {
     expect(await cycle.json()).toEqual(
       expect.objectContaining({
         error: expect.objectContaining({ code: "knowledge_scope_cycle" }),
+      }),
+    );
+  });
+
+  it("archives scopes outside default listings and restores them", async () => {
+    const project = {
+      kind: "project",
+      title: "Completed project",
+      canonicalUrl: "https://example.test/projects/completed",
+      markdownUrl: "https://example.test/projects/completed.md",
+    };
+    await requestJson(
+      "/api/knowledge-scopes/completed",
+      "PUT",
+      project,
+      recordId(404),
+    );
+
+    const archived = await requestJson(
+      "/api/knowledge-scopes/completed/archival",
+      "POST",
+      { reason: "Completed project" },
+      recordId(405),
+    );
+    expect(archived.status).toBe(200);
+    expect(await archived.json()).toEqual(
+      expect.objectContaining({
+        id: "completed",
+        lifecycle: "archived",
+        archiveReason: "Completed project",
+        rank: null,
+      }),
+    );
+    expect(await (await app.request("/api/knowledge-scopes")).json()).toEqual({
+      items: [],
+      nextCursor: null,
+    });
+    expect(
+      await (
+        await app.request("/api/knowledge-scopes?includeArchived=true")
+      ).json(),
+    ).toEqual({
+      items: [
+        expect.objectContaining({ id: "completed", lifecycle: "archived" }),
+      ],
+      nextCursor: null,
+    });
+
+    const restored = await requestJson(
+      "/api/knowledge-scopes/completed/archival",
+      "DELETE",
+      undefined,
+      recordId(406),
+    );
+    expect(restored.status).toBe(200);
+    expect(await restored.json()).toEqual(
+      expect.objectContaining({
+        id: "completed",
+        lifecycle: "active",
+        archiveReason: null,
+        rank: 1024,
+      }),
+    );
+  });
+});
+
+describe("Given a persisted delivery-critical path", () => {
+  it("projects scoped blockers, stages, reasons, paths, and parallel work", async () => {
+    for (const [id, kind] of [
+      ["initiative", "initiative"],
+      ["project-a", "project"],
+      ["project-b", "project"],
+    ] as const) {
+      const response = await requestJson(
+        `/api/knowledge-scopes/${id}`,
+        "PUT",
+        {
+          kind,
+          title: id,
+          canonicalUrl: `https://example.test/${id}`,
+          markdownUrl: `https://example.test/${id}.md`,
+        },
+      );
+      expect(response.status).toBe(200);
+    }
+    for (const projectId of ["project-a", "project-b"]) {
+      const response = await requestJson(
+        "/api/knowledge-scope-relationships",
+        "POST",
+        {
+          parentKnowledgeScopeId: "initiative",
+          childKnowledgeScopeId: projectId,
+        },
+      );
+      expect(response.status).toBe(201);
+    }
+
+    for (const body of [
+      {
+        id: "outcome",
+        title: "Project outcome",
+        schedulingInitiativeId: "initiative",
+        schedulingProjectId: "project-a",
+      },
+      { id: "implementation", title: "Implementation", parentId: "outcome" },
+      { id: "review", title: "Review", parentId: "outcome" },
+      {
+        id: "schema",
+        title: "Schema blocker",
+        schedulingInitiativeId: "initiative",
+        schedulingProjectId: "project-b",
+      },
+      {
+        id: "other-outcome",
+        title: "Other outcome",
+        schedulingInitiativeId: "initiative",
+        schedulingProjectId: "project-b",
+      },
+    ]) {
+      const response = await requestJson("/api/work-items", "POST", body);
+      expect(response.status).toBe(201);
+    }
+    await requestJson("/api/dependencies", "POST", {
+      dependentWorkItemId: "implementation",
+      blockerWorkItemId: "schema",
+    });
+    const reviewClaim = await requestJson("/api/leases", "POST", {
+      workItemId: "review",
+      workerId: "review-worker",
+      leaseDurationSeconds: 300,
+    });
+    const claimed = (await reviewClaim.json()) as {
+      lease: { id: string; epoch: number };
+    };
+    await requestJson("/api/attention-requests", "POST", {
+      id: recordId(501),
+      workItemId: "review",
+      leaseId: claimed.lease.id,
+      epoch: claimed.lease.epoch,
+      kind: "decision",
+      question: "Approve the review?",
+      blocking: true,
+    });
+
+    const response = await app.request(
+      "/api/critical-path?initiativeId=initiative&projectId=project-a",
+    );
+    const projection = (await response.json()) as {
+      targetOutcomeIds: string[];
+      nodes: Array<{
+        item: { id: string };
+        stage: string;
+        inclusionReasons: Array<{ kind: string }>;
+      }>;
+      edges: Array<{
+        kind: string;
+        fromWorkItemId: string;
+        toWorkItemId: string;
+      }>;
+      blockingPaths: string[][];
+      readyLeafIds: string[];
+      blockingAttentionIds: string[];
+      parallelBranches: Array<{ workItemId: string }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(projection.targetOutcomeIds).toEqual(["outcome"]);
+    expect(projection.nodes.map(({ item }) => item.id)).toEqual([
+      "outcome",
+      "implementation",
+      "schema",
+      "review",
+    ]);
+    expect(projection.edges).toEqual([
+      {
+        kind: "decomposition",
+        fromWorkItemId: "outcome",
+        toWorkItemId: "implementation",
+      },
+      {
+        kind: "decomposition",
+        fromWorkItemId: "outcome",
+        toWorkItemId: "review",
+      },
+      {
+        kind: "dependency",
+        fromWorkItemId: "implementation",
+        toWorkItemId: "schema",
+        dependencyDeclaredByWorkItemId: "implementation",
+      },
+    ]);
+    expect(projection.blockingPaths).toEqual([
+      ["outcome", "implementation", "schema"],
+      ["outcome", "review"],
+    ]);
+    expect(projection.readyLeafIds).toEqual(["schema"]);
+    expect(projection.blockingAttentionIds).toEqual(["review"]);
+    expect(
+      projection.parallelBranches.map(({ workItemId }) => workItemId),
+    ).toEqual(["schema"]);
+    expect(
+      projection.nodes.find(({ item }) => item.id === "schema")
+        ?.inclusionReasons,
+    ).toEqual([
+      {
+        kind: "dependency_blocker",
+        fromWorkItemId: "implementation",
+        dependencyDeclaredByWorkItemId: "implementation",
+      },
+    ]);
+
+    const global = await app.request("/api/critical-path");
+    expect(global.status).toBe(200);
+    expect(
+      ((await global.json()) as { targetOutcomeIds: string[] })
+        .targetOutcomeIds,
+    ).toEqual(["outcome", "schema", "other-outcome"]);
+
+    const initiative = await app.request(
+      "/api/critical-path?initiativeId=initiative",
+    );
+    expect(initiative.status).toBe(200);
+    expect(
+      ((await initiative.json()) as { targetOutcomeIds: string[] })
+        .targetOutcomeIds,
+    ).toEqual(["outcome", "schema", "other-outcome"]);
+
+    const project = await app.request(
+      "/api/critical-path?projectId=project-b",
+    );
+    expect(project.status).toBe(200);
+    expect(
+      ((await project.json()) as { targetOutcomeIds: string[] })
+        .targetOutcomeIds,
+    ).toEqual(["schema", "other-outcome"]);
+
+    const excluded = await app.request(
+      "/api/critical-path?includeProjectIds=project-a&includeProjectIds=project-b&excludeProjectIds=project-b",
+    );
+    const excludedProjection = (await excluded.json()) as {
+      targetOutcomeIds: string[];
+      nodes: Array<{ item: { id: string } }>;
+    };
+    expect(excluded.status).toBe(200);
+    expect(excludedProjection.targetOutcomeIds).toEqual(["outcome"]);
+    expect(excludedProjection.nodes.map(({ item }) => item.id)).toContain(
+      "schema",
+    );
+
+    const rooted = await app.request(
+      "/api/critical-path?rootWorkItemId=outcome",
+    );
+    expect(rooted.status).toBe(200);
+    expect(
+      ((await rooted.json()) as { targetOutcomeIds: string[] })
+        .targetOutcomeIds,
+    ).toEqual(["outcome"]);
+
+    const missingRoot = await app.request(
+      "/api/critical-path?rootWorkItemId=missing",
+    );
+    expect(missingRoot.status).toBe(404);
+    expect(await missingRoot.json()).toEqual(
+      expect.objectContaining({
+        error: expect.objectContaining({ code: "work_item_not_found" }),
+      }),
+    );
+
+    const missingScope = await app.request(
+      "/api/critical-path?projectId=missing",
+    );
+    expect(missingScope.status).toBe(404);
+    expect(await missingScope.json()).toEqual(
+      expect.objectContaining({
+        error: expect.objectContaining({ code: "knowledge_scope_not_found" }),
       }),
     );
   });
@@ -197,7 +492,9 @@ describe("Given inherited work-item context over HTTP", () => {
       number: 42,
       url: "https://github.com/example/work-graph/pull/42",
       headSha: "0123456789abcdef0123456789abcdef01234567",
-      state: "open",
+      acceptedHeadSha: "0123456789abcdef0123456789abcdef01234567",
+      mergeCommitSha: "abcdef0123456789abcdef0123456789abcdef01",
+      state: "merged",
       draft: false,
       mergeability: "mergeable",
       reviewDecision: "approved",
@@ -255,12 +552,162 @@ describe("Given inherited work-item context over HTTP", () => {
           pullRequest: expect.objectContaining({
             repository: "example/work-graph",
             number: 42,
+            acceptedHeadSha: "0123456789abcdef0123456789abcdef01234567",
+            mergeCommitSha: "abcdef0123456789abcdef0123456789abcdef01",
             observedAt: "2026-09-20T10:00:00.000Z",
           }),
         }),
       ],
     });
     expect(claim.context).toEqual(context.items);
+  });
+
+  it("keeps a completion candidate separate from lifecycle and lease state", async () => {
+    await requestJson("/api/work-items", "POST", {
+      id: "evidence-backed",
+      title: "Evidence-backed delivery",
+    });
+    const headSha = commitSha("a");
+    const mergeCommitSha = commitSha("b");
+    await requestJson("/api/pull-requests", "PUT", {
+      repository: "example/work-graph",
+      number: 7,
+      url: "https://github.com/example/work-graph/pull/7",
+      headSha,
+      acceptedHeadSha: headSha,
+      mergeCommitSha,
+      state: "merged",
+      draft: false,
+      mergeability: "unknown",
+      reviewDecision: "approved",
+      checkSummary: "success",
+      observedAt: "2026-09-22T10:00:00.000Z",
+    });
+    await requestJson("/api/work-items/evidence-backed/pull-requests", "PUT", {
+      repository: "example/work-graph",
+      number: 7,
+      role: "implementation",
+    });
+    const claimResponse = await requestJson("/api/leases", "POST", {
+      workItemId: "evidence-backed",
+      workerId: "worker-a",
+      leaseDurationSeconds: 300,
+    });
+    const claim = (await claimResponse.json()) as { lease: { id: string } };
+
+    await repository.putCompletionPolicyRevision({
+      policyId: "default",
+      revision: 1,
+      requiredCiNames: ["verify"],
+      productionEnvironments: ["production"],
+      createdAt: "2026-09-22T09:00:00.000Z",
+    });
+    await repository.assignCompletionPolicy({
+      workItemId: "evidence-backed",
+      policyId: "default",
+      policyRevision: 1,
+      assignedAt: "2026-09-22T09:30:00.000Z",
+    });
+    const observations = [
+      {
+        externalId: "pull-request-7",
+        kind: "pull_request" as const,
+        commitSha: mergeCommitSha,
+        name: null,
+        environment: null,
+        correlationKind: "pull_request_merge" as const,
+      },
+      {
+        externalId: "verify-7",
+        kind: "ci" as const,
+        commitSha: headSha,
+        name: "verify",
+        environment: null,
+        correlationKind: "pull_request_head" as const,
+      },
+      {
+        externalId: "staging-7",
+        kind: "deployment" as const,
+        commitSha: mergeCommitSha,
+        name: null,
+        environment: "staging",
+        correlationKind: "pull_request_merge" as const,
+      },
+      {
+        externalId: "production-7",
+        kind: "deployment" as const,
+        commitSha: mergeCommitSha,
+        name: null,
+        environment: "production",
+        correlationKind: "pull_request_merge" as const,
+      },
+    ];
+    for (const [index, observation] of observations.entries()) {
+      const suffix = 810 + index;
+      const deliveryExternalId = `delivery-${suffix}`;
+      await repository.recordExternalDelivery({
+        provider: "github",
+        externalId: deliveryExternalId,
+        payloadDigest: suffix.toString(16).padStart(64, "0"),
+        receivedAt: `2026-09-22T11:0${index}:00.000Z`,
+        ingestedAt: `2026-09-22T11:0${index}:01.000Z`,
+      });
+      await repository.recordEvidenceObservation({
+        id: recordId(suffix),
+        deliveryProvider: "github",
+        deliveryExternalId,
+        provider: "github",
+        repository: "example/work-graph",
+        state: "success",
+        sourceUrl: `https://github.com/example/work-graph/actions/runs/${suffix}`,
+        providerObservedAt: `2026-09-22T11:0${index}:00.000Z`,
+        ingestedAt: `2026-09-22T11:0${index}:01.000Z`,
+        pullRequestRepository: "example/work-graph",
+        pullRequestNumber: 7,
+        ...observation,
+      });
+    }
+    const eventsBeforeEvaluation = await repository.listEvents();
+    const candidate = await repository.evaluateCompletionCandidate({
+      id: recordId(820),
+      workItemId: "evidence-backed",
+      evaluatedAt: "2026-09-22T12:00:00.000Z",
+    });
+    const response = await app.request("/api/work-items/evidence-backed");
+    const evidenceResponse = await app.request(
+      "/api/work-items/evidence-backed/evidence?currentOnly=true&limit=3",
+    );
+    const candidateResponse = await app.request(
+      "/api/work-items/evidence-backed/completion-candidate",
+    );
+    const workItem = (await response.json()) as {
+      lifecycle: string;
+      stage: string;
+      currentLease: { id: string } | null;
+    };
+
+    expect(candidate.candidate).toBe(true);
+    expect(response.status).toBe(200);
+    expect(evidenceResponse.status).toBe(200);
+    expect(await evidenceResponse.json()).toEqual({
+      items: expect.arrayContaining([
+        expect.objectContaining({
+          provider: "github",
+          current: true,
+          correlationKind: expect.stringMatching(/^pull_request_/u),
+        }),
+      ]),
+      nextCursor: expect.any(String),
+    });
+    expect(await candidateResponse.json()).toEqual({ candidate });
+    expect(workItem).toEqual(
+      expect.objectContaining({
+        lifecycle: "open",
+        stage: "in_progress",
+        currentLease: expect.objectContaining({ id: claim.lease.id }),
+      }),
+    );
+    expect(await repository.listEvents()).toEqual(eventsBeforeEvaluation);
   });
 });
 
@@ -1071,6 +1518,19 @@ describe("Given claimed work that needs notes or attention", () => {
     expect(resolvedAttention.items.map(({ id }) => id)).toEqual([
       recordId(303),
     ]);
+    const automaticResume = await requestJson("/api/leases", "POST", {
+      workerId: "worker-b",
+      leaseDurationSeconds: 300,
+    });
+    expect(automaticResume.status).toBe(409);
+    expect(await automaticResume.json()).toEqual({
+      error: {
+        code: "work_item_not_claimable",
+        message:
+          "No never-started ready work item is currently claimable. Specify a ticket ID to continue or recover earlier work.",
+      },
+    });
+
     const resumed = await requestJson("/api/leases", "POST", {
       workItemId: "work",
       workerId: "worker-b",
@@ -1164,6 +1624,110 @@ describe("Given lease-backed work over HTTP", () => {
       expect.objectContaining({ id: "a-low", priorityRank: 2048 }),
     ]);
     expect(claim.workItem.id).toBe("z-high");
+  });
+
+  it("recovers and releases stale child work after an ancestor gains a blocker", async () => {
+    await requestJson("/api/work-items", "POST", {
+      id: "parent",
+      title: "Parent",
+    });
+    await requestJson("/api/work-items", "POST", {
+      id: "child",
+      title: "Child",
+      parentId: "parent",
+    });
+    await requestJson("/api/work-items", "POST", {
+      id: "not-started",
+      title: "Not started",
+      parentId: "parent",
+    });
+    await requestJson("/api/work-items", "POST", {
+      id: "blocker",
+      title: "Blocker",
+    });
+    const firstClaimResponse = await requestJson("/api/leases", "POST", {
+      workItemId: "child",
+      workerId: "worker-a",
+      leaseDurationSeconds: 300,
+    });
+    const firstClaim = (await firstClaimResponse.json()) as {
+      lease: { id: string; epoch: number };
+    };
+    await requestJson("/api/dependencies", "POST", {
+      dependentWorkItemId: "parent",
+      blockerWorkItemId: "blocker",
+    });
+    await db.$client.unsafe(
+      'update "leases" set "acquired_at" = $1, "expires_at" = $2 where "id" = $3',
+      [
+        "2000-01-01T00:00:00Z",
+        "2000-01-01T00:01:00Z",
+        firstClaim.lease.id,
+      ],
+    );
+
+    const staleResponse = await app.request("/api/work-items/child");
+    const stale = (await staleResponse.json()) as { stage: string };
+    expect(stale.stage).toBe("stale");
+
+    const neverStarted = await requestJson("/api/leases", "POST", {
+      workItemId: "not-started",
+      workerId: "worker-b",
+      leaseDurationSeconds: 300,
+    });
+    expect(neverStarted.status).toBe(409);
+    expect(await neverStarted.json()).toEqual({
+      error: {
+        code: "work_item_not_claimable",
+        message:
+          "Work item not-started is neither ready nor recoverable stale work.",
+      },
+    });
+
+    const recoveryResponse = await requestJson("/api/leases", "POST", {
+      workItemId: "child",
+      workerId: "worker-b",
+      leaseDurationSeconds: 300,
+    });
+    const recovery = (await recoveryResponse.json()) as {
+      lease: { id: string; epoch: number };
+    };
+    expect(recoveryResponse.status).toBe(201);
+    expect(recovery.lease.epoch).toBe(firstClaim.lease.epoch + 1);
+
+    const fencedRelease = await requestJson(
+      "/api/work-items/child/releases",
+      "POST",
+      { leaseId: firstClaim.lease.id, epoch: firstClaim.lease.epoch, ...completionEvidence },
+    );
+    expect(fencedRelease.status).toBe(409);
+
+    const releaseResponse = await requestJson(
+      "/api/work-items/child/releases",
+      "POST",
+      { leaseId: recovery.lease.id, epoch: recovery.lease.epoch, ...completionEvidence },
+    );
+    expect(releaseResponse.status).toBe(201);
+    const released = (await releaseResponse.json()) as {
+      workItem: { lifecycle: string };
+    };
+    expect(released.workItem.lifecycle).toBe("released");
+
+    const dependenciesResponse = await app.request(
+      "/api/work-items/parent/dependencies",
+    );
+    const dependencies = (await dependenciesResponse.json()) as {
+      items: Array<{
+        dependentWorkItemId: string;
+        blockerWorkItemId: string;
+      }>;
+    };
+    expect(dependencies.items).toEqual([
+      {
+        dependentWorkItemId: "parent",
+        blockerWorkItemId: "blocker",
+      },
+    ]);
   });
 
   it("assigns an existing plan and claims within its project scope", async () => {

@@ -4,6 +4,7 @@ import { getCliContext, type TrpcCliMeta } from "trpc-cli";
 import { z } from "zod";
 import { WorkGraphClient, type Fetch } from "./client.js";
 import { resolveClientConfig } from "./config.js";
+import { renderCriticalPath } from "./critical-path.js";
 import { usageError } from "./errors.js";
 import {
   inspectGitHubPullRequest,
@@ -16,6 +17,8 @@ import type {
   ResolvedWorkItemContext,
 } from "./generated/client/types.gen.js";
 import {
+  zArchiveKnowledgeScopeBody,
+  zArchiveKnowledgeScopeHeaders,
   zCreateAttentionRequestBody,
   zCreateAttentionRequestHeaders,
   zCreateAttentionResolutionBody,
@@ -37,6 +40,7 @@ import {
   zCreateWorkItemReleaseBody,
   zExpediteWorkItemBody,
   zExpediteWorkItemHeaders,
+  zGetCriticalPathQuery,
   zGetKnowledgeScopePath,
   zGetWorkItemPath,
   zListAttentionRequestsQuery,
@@ -69,6 +73,7 @@ import {
   zPutWorkItemSchedulingScopePath,
   zRefreshPullRequestBody,
   zRefreshPullRequestHeaders,
+  zRestoreKnowledgeScopeHeaders,
   zUnexpediteWorkItemHeaders,
 } from "./generated/client/zod.gen.js";
 
@@ -428,6 +433,14 @@ const pullRequestRefreshInput = z.object({
   ),
   url: described(zRefreshPullRequestBody.shape.url, "Pull-request URL"),
   headSha: described(zRefreshPullRequestBody.shape.headSha, "Head commit SHA"),
+  acceptedHeadSha: optional(
+    zRefreshPullRequestBody.shape.acceptedHeadSha.unwrap(),
+    "Accepted head commit SHA",
+  ),
+  mergeCommitSha: optional(
+    zRefreshPullRequestBody.shape.mergeCommitSha.unwrap(),
+    "Merge commit SHA",
+  ),
   state: described(zRefreshPullRequestBody.shape.state, "Pull-request state"),
   draft: zRefreshPullRequestBody.shape.draft
     .optional()
@@ -460,6 +473,10 @@ const scopeListInput = z.object({
     zListKnowledgeScopesQuery.shape.kind.unwrap(),
     "Knowledge-scope kind",
   ),
+  all: z
+    .boolean()
+    .optional()
+    .describe("Include archived knowledge scopes"),
   limit: optional(
     zListKnowledgeScopesQuery.shape.limit.unwrap().unwrap(),
     "Maximum number of knowledge scopes",
@@ -467,6 +484,32 @@ const scopeListInput = z.object({
   cursor: optional(
     zListKnowledgeScopesQuery.shape.cursor.unwrap(),
     "Pagination cursor",
+  ),
+});
+
+const scopeArchiveInput = z.object({
+  knowledgeScopeId: positional(
+    zGetKnowledgeScopePath.shape.knowledgeScopeId,
+    "Knowledge-scope ID",
+  ),
+  reason: described(
+    zArchiveKnowledgeScopeBody.shape.reason,
+    "Why this scope is no longer scheduled here",
+  ),
+  idempotencyKey: described(
+    zArchiveKnowledgeScopeHeaders.shape["idempotency-key"],
+    "Client-generated UUID used to replay a mutation safely",
+  ),
+});
+
+const scopeRestoreInput = z.object({
+  knowledgeScopeId: positional(
+    zGetKnowledgeScopePath.shape.knowledgeScopeId,
+    "Knowledge-scope ID",
+  ),
+  idempotencyKey: described(
+    zRestoreKnowledgeScopeHeaders.shape["idempotency-key"],
+    "Client-generated UUID used to replay a mutation safely",
   ),
 });
 
@@ -611,6 +654,10 @@ const scopeRelationshipInput = z.object({
 });
 
 const scopeRelationshipListInput = z.object({
+  all: z
+    .boolean()
+    .optional()
+    .describe("Include relationships to archived scopes"),
   limit: optional(
     zListKnowledgeScopeRelationshipsQuery.shape.limit.unwrap().unwrap(),
     "Maximum number of knowledge-scope relationships",
@@ -655,6 +702,47 @@ const dependencyInput = z.object({
   ),
 });
 
+const selectionFields = {
+  includeProjectIds: described(
+    zListWorkItemsQuery.shape.includeProjectIds,
+    "Include a project ID; repeatable, OR within projects",
+  ),
+  excludeProjectIds: described(
+    zListWorkItemsQuery.shape.excludeProjectIds,
+    "Exclude a project ID; repeatable, exclusions take precedence",
+  ),
+  includeInitiativeIds: described(
+    zListWorkItemsQuery.shape.includeInitiativeIds,
+    "Include an initiative ID; repeatable, OR within initiatives, AND with projects",
+  ),
+  excludeInitiativeIds: described(
+    zListWorkItemsQuery.shape.excludeInitiativeIds,
+    "Exclude an initiative ID; repeatable, exclusions take precedence",
+  ),
+  initiativeId: described(
+    zListWorkItemsQuery.shape.initiativeId,
+    "Deprecated one-value alias for --initiative",
+  ),
+  projectId: described(
+    zListWorkItemsQuery.shape.projectId,
+    "Deprecated one-value alias for --project",
+  ),
+};
+
+type Selection = z.infer<z.ZodObject<typeof selectionFields>>;
+
+const hasSelection = (input: Selection): boolean =>
+  Object.keys(selectionFields).some(
+    (key) => input[key as keyof Selection] !== undefined,
+  );
+
+const selectionQuery = (input: Selection): Selection =>
+  Object.fromEntries(
+    Object.keys(selectionFields)
+      .filter((key) => input[key as keyof Selection] !== undefined)
+      .map((key) => [key, input[key as keyof Selection]]),
+  );
+
 const queueInput = z
   .object({
     stage: optional(zListWorkItemsQuery.shape.stage.unwrap(), "Stage to list"),
@@ -670,14 +758,7 @@ const queueInput = z
       zListWorkItemsQuery.shape.cursor.unwrap(),
       "Pagination cursor",
     ),
-    initiativeId: optional(
-      zListWorkItemsQuery.shape.initiativeId.unwrap(),
-      "Only tickets scheduled in this initiative",
-    ),
-    projectId: optional(
-      zListWorkItemsQuery.shape.projectId.unwrap(),
-      "Only tickets scheduled in this project",
-    ),
+    ...selectionFields,
     parentId: optional(
       zListWorkItemsQuery.shape.parentId.unwrap(),
       "Only direct children of this ticket",
@@ -697,55 +778,62 @@ const readyInput = z.object({
     zListWorkItemsQuery.shape.cursor.unwrap(),
     "Pagination cursor",
   ),
-  initiativeId: optional(
-    zListWorkItemsQuery.shape.initiativeId.unwrap(),
-    "Only tickets scheduled in this initiative",
-  ),
-  projectId: optional(
-    zListWorkItemsQuery.shape.projectId.unwrap(),
-    "Only tickets scheduled in this project",
-  ),
+  ...selectionFields,
   parentId: optional(
     zListWorkItemsQuery.shape.parentId.unwrap(),
     "Only direct children of this ticket",
   ),
 });
 
-const claimInput = z.object({
-  workItemId: positional(
-    optional(directLeaseBodySchema.shape.workItemId, "Ticket ID"),
-    "Ticket ID",
-  ),
-  workerId: optional(directLeaseBodySchema.shape.workerId, "Worker identity"),
-  leaseDurationSeconds: leaseDuration,
-  initiativeId: optional(
-    scheduledLeaseBodySchema.shape.initiativeId.unwrap(),
-    "Claim within this initiative",
-  ),
-  projectId: optional(
-    scheduledLeaseBodySchema.shape.projectId.unwrap(),
-    "Claim within this project",
-  ),
-  parentId: optional(
-    scheduledLeaseBodySchema.shape.parentId.unwrap(),
-    "Claim a direct child of this ticket",
-  ),
-  fullPrContext: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe("Include full pull-request snapshots in claim context"),
-}).refine(
-  ({ initiativeId, parentId, projectId, workItemId }) =>
-    workItemId === undefined ||
-    (initiativeId === undefined &&
-      parentId === undefined &&
-      projectId === undefined),
-  {
-    message: "A specified ticket cannot be combined with scope filters.",
-    path: ["workItemId"],
-  },
-);
+const criticalPathInput = z
+  .object({
+    ...selectionFields,
+    rootWorkItemId: optional(
+      zGetCriticalPathQuery.shape.rootWorkItemId.unwrap(),
+      "Project this root ticket as the exact outcome",
+    ),
+    outputJson: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe("Print the complete API response as JSON"),
+  })
+  .refine(
+    (input) => input.rootWorkItemId === undefined || !hasSelection(input),
+    {
+      message: "--root-work-item-id cannot be combined with scope filters.",
+      path: ["rootWorkItemId"],
+    },
+  );
+
+const claimInput = z
+  .object({
+    workItemId: positional(
+      optional(directLeaseBodySchema.shape.workItemId, "Ticket ID"),
+      "Ticket ID",
+    ),
+    workerId: optional(directLeaseBodySchema.shape.workerId, "Worker identity"),
+    leaseDurationSeconds: leaseDuration,
+    ...selectionFields,
+    parentId: optional(
+      scheduledLeaseBodySchema.shape.parentId.unwrap(),
+      "Claim a direct child of this ticket",
+    ),
+    fullPrContext: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe("Include full pull-request snapshots in claim context"),
+  })
+  .refine(
+    (input) =>
+      input.workItemId === undefined ||
+      (!hasSelection(input) && input.parentId === undefined),
+    {
+      message: "A specified ticket cannot be combined with scope filters.",
+      path: ["workItemId"],
+    },
+  );
 
 const noteInput = z.object({
   workItemId: positional(zGetWorkItemPath.shape.workItemId, "Ticket ID"),
@@ -1000,12 +1088,7 @@ const listQueue = (
     ...(input.all ? {} : { stage: input.stage ?? "ready" }),
     ...(input.limit === undefined ? {} : { limit: input.limit }),
     ...(input.cursor === undefined ? {} : { cursor: input.cursor }),
-    ...(input.initiativeId === undefined
-      ? {}
-      : { initiativeId: input.initiativeId }),
-    ...(input.projectId === undefined
-      ? {}
-      : { projectId: input.projectId }),
+    ...selectionQuery(input),
     ...(input.parentId === undefined ? {} : { parentId: input.parentId }),
   });
 
@@ -1027,6 +1110,7 @@ export const workGraphRouter = t.router({
       ],
       rules: [
         "Codex thread identity is automatic; WORK_GRAPH_WORKER_ID overrides it.",
+        "An automatic claim selects only never-started work; specify a ticket ID for continuation or recovery.",
         "Ticket commands find the active lease and fencing epoch automatically.",
         "Use attention request for a blocking decision; use cancel only when the outcome is no longer wanted.",
         "After pulling a merged CLI change, run work-graph self-update from the checkout.",
@@ -1049,6 +1133,21 @@ export const workGraphRouter = t.router({
     .meta({ description: "List ready tickets in priority order" })
     .input(readyInput)
     .query(({ ctx, input }) => listQueue(ctx, input)),
+  criticalPath: command
+    .meta({ description: "Show the delivery-critical path" })
+    .input(criticalPathInput)
+    .query(async ({ ctx, input }) => {
+      const query = {
+        ...selectionQuery(input),
+        ...(input.rootWorkItemId === undefined
+          ? {}
+          : { rootWorkItemId: input.rootWorkItemId }),
+      };
+      const projection = await resolveClient(ctx).getCriticalPath(query);
+      return input.outputJson
+        ? projection
+        : renderCriticalPath(projection, query);
+    }),
   metadata: t.router({
     notes: command
       .meta({ description: "List ticket notes" })
@@ -1174,6 +1273,7 @@ export const workGraphRouter = t.router({
       .query(({ ctx, input }) =>
         resolveClient(ctx).listKnowledgeScopes({
           ...(input.kind === undefined ? {} : { kind: input.kind }),
+          ...(input.all ? { includeArchived: "true" as const } : {}),
           ...(input.limit === undefined ? {} : { limit: input.limit }),
           ...(input.cursor === undefined ? {} : { cursor: input.cursor }),
         }),
@@ -1209,6 +1309,25 @@ export const workGraphRouter = t.router({
           input.idempotencyKey,
         ),
       ),
+    archive: command
+      .meta({ description: "Archive a scope outside active scheduling" })
+      .input(scopeArchiveInput)
+      .mutation(({ ctx, input }) =>
+        resolveClient(ctx).archiveKnowledgeScope(
+          input.knowledgeScopeId,
+          { reason: input.reason },
+          input.idempotencyKey,
+        ),
+      ),
+    restore: command
+      .meta({ description: "Restore an archived scope to active scheduling" })
+      .input(scopeRestoreInput)
+      .mutation(({ ctx, input }) =>
+        resolveClient(ctx).restoreKnowledgeScope(
+          input.knowledgeScopeId,
+          input.idempotencyKey,
+        ),
+      ),
     move: command
       .meta({ description: "Move a scope within its contextual priority list" })
       .input(scopePriorityMoveInput)
@@ -1237,6 +1356,7 @@ export const workGraphRouter = t.router({
       .input(scopeRelationshipListInput)
       .query(({ ctx, input }) =>
         resolveClient(ctx).listKnowledgeScopeRelationships({
+          ...(input.all ? { includeArchived: "true" as const } : {}),
           ...(input.limit === undefined ? {} : { limit: input.limit }),
           ...(input.cursor === undefined ? {} : { cursor: input.cursor }),
         }),
@@ -1411,6 +1531,8 @@ export const workGraphRouter = t.router({
             number: input.number,
             url: input.url,
             headSha: input.headSha,
+            acceptedHeadSha: input.acceptedHeadSha ?? null,
+            mergeCommitSha: input.mergeCommitSha ?? null,
             state: input.state,
             draft: input.draft,
             mergeability: input.mergeability,
@@ -1478,7 +1600,10 @@ export const workGraphRouter = t.router({
     .input(queueInput)
     .query(({ ctx, input }) => listQueue(ctx, input)),
   claim: command
-    .meta({ description: "Claim the next ready ticket or a specified ticket" })
+    .meta({
+      description:
+        "Claim fresh ready work or explicitly continue a previously claimed ticket",
+    })
     .input(claimInput)
     .mutation(async ({ ctx, input }) => {
       const workerId = input.workerId ?? workerIdentity(ctx.environment);
@@ -1490,12 +1615,7 @@ export const workGraphRouter = t.router({
           ? {
               workerId,
               leaseDurationSeconds: input.leaseDurationSeconds,
-              ...(input.initiativeId === undefined
-                ? {}
-                : { initiativeId: input.initiativeId }),
-              ...(input.projectId === undefined
-                ? {}
-                : { projectId: input.projectId }),
+              ...selectionQuery(input),
               ...(input.parentId === undefined
                 ? {}
                 : { parentId: input.parentId }),
@@ -1520,7 +1640,22 @@ export const workGraphRouter = t.router({
         ),
       }),
     )
-    .query(({ ctx, input }) => resolveClient(ctx).getWorkItem(input.workItemId)),
+    .query(async ({ ctx, input }) => {
+      const client = resolveClient(ctx);
+      const workItem = await client.getWorkItem(input.workItemId);
+      const [deliveryEvidence, completion] = await Promise.all([
+        client.listWorkItemEvidence(input.workItemId, {
+          currentOnly: "true",
+          limit: 100,
+        }),
+        client.getWorkItemCompletionCandidate(input.workItemId),
+      ]);
+      return {
+        ...workItem,
+        deliveryEvidence,
+        completionCandidate: completion.candidate,
+      };
+    }),
   note: command
     .meta({ description: "Record progress or handoff notes on claimed work" })
     .input(noteInput)

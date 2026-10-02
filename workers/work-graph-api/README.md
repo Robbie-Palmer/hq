@@ -54,6 +54,55 @@ CI performs the same sequence after changes reach `main`. Restrict the
 reviewers so a merge automatically runs migrations, deploys the Worker, and
 smoke-tests production.
 
+### Database request limits
+
+Production requires the Workers Paid plan. Queue reads and critical-path
+projections process the dependency graph in the Worker and exceed the Free
+plan's 10 ms CPU limit once the graph contains several hundred tickets. The
+Wrangler config sets a 5-second per-request ceiling. A deployment to a Free
+account must fail instead of silently running with a limit that returns
+Cloudflare error 1102 under normal agent traffic.
+
+The database migration sets a 5-second lock timeout, 15-second statement
+timeout, and 10-second idle-in-transaction timeout on the dedicated
+`work_graph_owner` role for the Work Graph database. On PostgreSQL 17 and later,
+it also sets a 20-second transaction timeout. These limits sit below the CLI's
+30-second request timeout. They give the Worker time to roll back an aborted
+transaction and return HTTP 503 with `Retry-After: 1` instead of holding a
+Hyperdrive connection until the client disconnects.
+
+The Worker also maps transient connection capacity to HTTP 503. This includes
+PostgreSQL `too_many_connections` and `cannot_connect_now`, plus Hyperdrive's
+documented pool-acquisition and temporary infrastructure failures. Each 503
+includes `Retry-After: 1`, an `X-Request-Id` correlation header, and the same
+request ID in the JSON error. The Worker logs that ID with the request method,
+path, and stable error code. It does not log database error text.
+
+Lease claims are intentionally not replayable. If a transient database failure
+occurs after a claim may have committed, the Worker returns
+`claim_outcome_uncertain` without `Retry-After` and tells the caller to inspect
+the work item before claiming again.
+
+The settings belong to the database role rather than a Worker session.
+Hyperdrive uses transaction pooling and does not support arbitrary per-session
+state. Apply migrations before deploying the Worker, then restart the
+Hyperdrive pool so every origin connection picks up the new role defaults. Run
+the production smoke test afterward.
+
+To roll back, reset `lock_timeout`, `statement_timeout`,
+`idle_in_transaction_session_timeout`, and `transaction_timeout` for
+`work_graph_owner` in the `work_graph` database. Restart Hyperdrive, revert the
+Worker error mapping, deploy, and run the production smoke test.
+
+```sql
+ALTER ROLE work_graph_owner IN DATABASE work_graph RESET lock_timeout;
+ALTER ROLE work_graph_owner IN DATABASE work_graph RESET statement_timeout;
+ALTER ROLE work_graph_owner IN DATABASE work_graph
+  RESET idle_in_transaction_session_timeout;
+-- PostgreSQL 17 and later only:
+ALTER ROLE work_graph_owner IN DATABASE work_graph RESET transaction_timeout;
+```
+
 ## Client use
 
 The CLI loads the production Doppler config automatically when its API URL is
@@ -77,6 +126,22 @@ null `parentId` to detach it to the graph root. The operation preserves the
 ticket and its history, and rejects cycles across hierarchy and dependency
 edges.
 
+`GET /api/work-items/{workItemId}/evidence` returns immutable delivery-evidence
+observations correlated through the ticket's pull requests. Records include
+provider identity, kind, state, commit, environment, source URL, provider and
+ingestion times, correlation fields, and a `current` marker. Use
+`currentOnly=true` for the current projection and `nextCursor` for the next
+page. `GET /api/work-items/{workItemId}/completion-candidate` returns the latest
+evaluation with its policy revision, or null before the first evaluation.
+Current evidence also appears after the normal records in claim context.
+
+Knowledge-scope lists and relationship lists return active scopes by default.
+Pass `includeArchived=true` for an audit view. Send `POST` to
+`/api/knowledge-scopes/{knowledgeScopeId}/archival` to archive a scope with a
+reason after checking that it schedules no open work. `DELETE` on the same URL
+restores it at the median active rank. Source snapshot updates preserve the
+Work Graph-owned lifecycle.
+
 ## Note history
 
 `POST /api/work-items/{workItemId}/notes` records lease-fenced notes while work
@@ -85,3 +150,9 @@ discussion only after release. Both forms are append-only and appear in the
 notes collection. A comment does not change the work-item row, the release
 event or its evidence, or any lease. Cloudflare Access rejects unauthenticated
 and unauthorized requests before they reach the Worker with HTTP 401 or 403.
+
+## Production diagnostics
+
+See [the incident runbook](../../docs/runbooks/work-graph-production-observability.md) for the dedicated diagnostic token,
+historical 5XX queries, Hyperdrive correlation, retention, and scheduled health
+checks.

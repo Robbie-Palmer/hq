@@ -61,6 +61,13 @@ function dropNoiseExceptions(
     : event;
 }
 
+function dropPrivatePlannerEvents(
+  event: CaptureResult | null,
+): CaptureResult | null {
+  if (window.location.pathname.startsWith("/wedding-planner")) return null;
+  return dropNoiseExceptions(event);
+}
+
 function setIdentityHeader(
   headers: Headers,
   name: string,
@@ -82,7 +89,7 @@ if (posthogKey) {
     // Enables capturing unhandled exceptions via Error Tracking
     capture_exceptions: true,
     // Filters out unactionable exception noise
-    before_send: dropNoiseExceptions,
+    before_send: dropPrivatePlannerEvents,
     // Turn on debug in development mode
     debug: process.env.NODE_ENV === "development",
   });

@@ -16,15 +16,15 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
+import { formatAccountCurrency, formatAxisTick } from "@/lib/assettracker";
 import {
   type AccountDetailView,
   buildAccountHistorySeries,
-  formatAccountCurrency,
-  formatAxisTick,
   isLiability,
+  type NetWorthDataPoint,
   selectAccountExternalFlows,
+  type Transfer,
 } from "@/lib/domain/assettracker";
-import { useAssetTracker } from "./asset-tracker-provider";
 
 const ASSET_COPY = {
   title: "Market value, estimate, and contributed capital",
@@ -72,14 +72,17 @@ const LIABILITY_COPY = {
 
 interface AccountTrajectoryChartProps {
   account: AccountDetailView;
+  transfers?: Transfer[];
+  netWorthData?: NetWorthDataPoint[];
 }
 
 type HistoryView = "both" | "market" | "capital";
 
 export function AccountTrajectoryChart({
   account,
+  transfers = [],
+  netWorthData = [],
 }: Readonly<AccountTrajectoryChartProps>) {
-  const { transfers, netWorthData = [] } = useAssetTracker();
   const [view, setView] = useState<HistoryView>("both");
   const externalFlows = selectAccountExternalFlows(
     account.id,

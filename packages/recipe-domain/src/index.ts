@@ -1,6 +1,7 @@
 export * from "./slugs";
 export * from "./unit";
 export * from "./conversion";
+export * from "./cook-log";
 export * from "./ingredient";
 export * from "./ingredient-merge";
 export * from "./ingredient-normalization";
@@ -8,4 +9,6 @@ export * from "./import-storage";
 export * from "./recipe";
 export * from "./serialization";
 export * from "./pluralization";
+export * from "./mutation";
+export * from "./pantry";
 export * from "./visibility";

@@ -1,5 +1,7 @@
 export * from "./errors";
+export * from "./evidence";
 export * from "./context";
+export * from "./critical-path";
 export * from "./graph";
 export * from "./knowledge-scope";
 export * from "./model";

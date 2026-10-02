@@ -27,6 +27,8 @@ export const EXACT_ALIASES: Record<string, string> = {
   scallions: "spring-onion",
   mayo: "mayonnaise",
   mayonaise: "mayonnaise",
+  "neutral-oil": "vegetable-oil",
+  "rice-vinegar": "rice-wine-vinegar",
 };
 
 function tokenize(slug: string): string[] {
@@ -50,7 +52,7 @@ export function normalizeIngredientSlugForOutput(rawSlug: string): string {
   if (exactAlias) return exactAlias;
 
   const singularSlug = normalizeSlug(
-    singularizeIngredientTerm(fixedSlug.replace(/-/g, " ")),
+    singularizeIngredientTerm(fixedSlug.replaceAll("-", " ")),
   );
   const singularAlias = EXACT_ALIASES[singularSlug];
   if (singularAlias) return singularAlias;

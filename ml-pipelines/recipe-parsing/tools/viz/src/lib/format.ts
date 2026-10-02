@@ -2,14 +2,15 @@ import type { RecipeIngredient } from "recipe-domain";
 import { UNIT_LABELS } from "recipe-domain";
 
 function formatScaled(value: number): string {
-  return parseFloat(value.toFixed(2)).toString();
+  return Number.parseFloat(value.toFixed(2)).toString();
 }
 
 /** Humanize a slug like "olive-oil" to "olive oil" */
 export function humanizeSlug(slug: string): string {
-  return slug.replace(/-/g, " ");
+  return slug.replaceAll("-", " ");
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function formatAmount(item: RecipeIngredient, scale = 1): string {
   const parts: string[] = [];
 

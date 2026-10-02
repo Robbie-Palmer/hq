@@ -16,6 +16,17 @@ export interface ImageTransformOptions {
   dpr?: 1 | 2;
 }
 
+function transformPath(options: ImageTransformOptions): string {
+  const params: string[] = [];
+  if (options.width) params.push(`w=${options.width}`);
+  if (options.height) params.push(`h=${options.height}`);
+  if (options.format) params.push(`f=${options.format}`);
+  if (options.fit) params.push(`fit=${options.fit}`);
+  if (options.quality) params.push(`q=${options.quality}`);
+  if (options.dpr) params.push(`dpr=${options.dpr}`);
+  return params.join(",");
+}
+
 /** Generates a Cloudflare Images URL. Use variant=null for flexible transformations. */
 export function getImageUrl(
   imageId: string,
@@ -32,14 +43,7 @@ export function getImageUrl(
   const baseUrl = `${CF_IMAGES_BASE_URL}/${CF_IMAGES_ACCOUNT_HASH}/${imageId}`;
   // For flexible transformations (no variant), use comma-separated parameters
   if (variant === null && options && Object.keys(options).length > 0) {
-    const params: string[] = [];
-    if (options.width) params.push(`w=${options.width}`);
-    if (options.height) params.push(`h=${options.height}`);
-    if (options.format) params.push(`f=${options.format}`);
-    if (options.fit) params.push(`fit=${options.fit}`);
-    if (options.quality) params.push(`q=${options.quality}`);
-    if (options.dpr) params.push(`dpr=${options.dpr}`);
-    return `${baseUrl}/${params.join(",")}`;
+    return `${baseUrl}/${transformPath(options)}`;
   }
   if (variant) {
     return `${baseUrl}/${variant}`;

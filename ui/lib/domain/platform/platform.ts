@@ -68,10 +68,31 @@ export const DefaultSlotSchema = z
     { message: "A slot lifecycle end requires an earlier lifecycle start" },
   );
 
-export const SlotPrerequisiteSchema = z.object({
+export const SlotDependencyPrerequisiteSchema = z.object({
   slot: DefaultSlotSlugSchema,
   technology: TechnologySlugSchema.optional(),
 });
+
+export const OperationalRequirementSchema = z.enum([
+  "instrumented-runtime",
+  "telemetry-redaction",
+  "bounded-exporter-failure",
+  "telemetry-retention",
+  "responder-ownership",
+  "alert-routing",
+  "project-owned-slack-credentials",
+  "git-repository",
+  "external-blob-remote",
+]);
+
+export const OperationalPrerequisiteSchema = z.object({
+  requirement: OperationalRequirementSchema,
+});
+
+export const SlotPrerequisiteSchema = z.union([
+  SlotDependencyPrerequisiteSchema,
+  OperationalPrerequisiteSchema,
+]);
 
 export const LayerSlotPolicySchema = TemporalPeriodSchema.extend({
   id: z.string().min(1),
@@ -88,6 +109,7 @@ const DefaultSelectionFieldsSchema = TemporalPeriodSchema.extend({
   status: z.enum(["Proposed", "Accepted", "Rejected", "Deprecated"]),
   decision: ADRRefSchema,
   originProjects: z.array(ProjectSlugSchema).default([]),
+  evidenceADRs: z.array(ADRRefSchema).min(1),
   supersedes: z.string().min(1).optional(),
 });
 
@@ -145,26 +167,36 @@ function validatePolicyReferences(
         `Slot policy '${policy.id}' references an unknown layer or slot`,
       );
     }
-    for (const prerequisite of policy.prerequisites) {
-      if (!slots.has(prerequisite.slot)) {
-        addManifestIssue(
-          context,
-          `Slot policy '${policy.id}' references unknown prerequisite '${prerequisite.slot}'`,
-        );
-      }
-      const hasSelection = manifest.selections.some(
-        (selection) =>
-          selection.kind === "technology" &&
-          selection.slot === prerequisite.slot &&
-          selection.technology === prerequisite.technology &&
-          effectivePeriodsOverlap(policy, selection),
+    validatePrerequisiteReferences(manifest, policy, slots, context);
+  }
+}
+
+function validatePrerequisiteReferences(
+  manifest: PlatformManifestInput,
+  policy: PlatformManifestInput["policies"][number],
+  slots: ReadonlyMap<string, unknown>,
+  context: z.RefinementCtx,
+): void {
+  for (const prerequisite of policy.prerequisites) {
+    if ("requirement" in prerequisite) continue;
+    if (!slots.has(prerequisite.slot)) {
+      addManifestIssue(
+        context,
+        `Slot policy '${policy.id}' references unknown prerequisite '${prerequisite.slot}'`,
       );
-      if (prerequisite.technology && !hasSelection) {
-        addManifestIssue(
-          context,
-          `Slot policy '${policy.id}' references a technology not selected by prerequisite '${prerequisite.slot}'`,
-        );
-      }
+    }
+    const hasSelection = manifest.selections.some(
+      (selection) =>
+        selection.kind === "technology" &&
+        selection.slot === prerequisite.slot &&
+        selection.technology === prerequisite.technology &&
+        effectivePeriodsOverlap(policy, selection),
+    );
+    if (prerequisite.technology && !hasSelection) {
+      addManifestIssue(
+        context,
+        `Slot policy '${policy.id}' references a technology not selected by prerequisite '${prerequisite.slot}'`,
+      );
     }
   }
 }
@@ -249,6 +281,46 @@ function validateAcceptedSelectionChains(
   }
 }
 
+function coverageBoundaries(
+  manifest: PlatformManifestInput,
+  policy: PlatformManifestInput["policies"][number],
+  slot: PlatformManifestInput["slots"][number],
+): string[] {
+  const boundaries = new Set<string>([policy.effectiveFrom]);
+  if (slot.noDefaultFrom && isEffectiveAt(policy, slot.noDefaultFrom)) {
+    boundaries.add(slot.noDefaultFrom);
+  }
+  for (const selection of manifest.selections) {
+    if (selection.slot !== policy.slot) continue;
+    for (const boundary of [
+      selection.effectiveFrom,
+      selection.effectiveUntil,
+    ]) {
+      if (boundary && isEffectiveAt(policy, boundary)) boundaries.add(boundary);
+    }
+  }
+  return Array.from(boundaries).toSorted(compareUtcInstants);
+}
+
+function hasDefaultAt(
+  manifest: PlatformManifestInput,
+  slot: PlatformManifestInput["slots"][number],
+  instant: string,
+): boolean {
+  const acceptedCount = manifest.selections.filter(
+    (selection) =>
+      selection.slot === slot.slug &&
+      selection.status === "Accepted" &&
+      isEffectiveAt(selection, instant),
+  ).length;
+  const explicitEmpty =
+    slot.noDefaultFrom !== undefined &&
+    compareUtcInstants(slot.noDefaultFrom, instant) <= 0;
+  const hasSelection =
+    slot.cardinality === "many" ? acceptedCount >= 1 : acceptedCount === 1;
+  return hasSelection || (explicitEmpty && acceptedCount === 0);
+}
+
 function validateDefaultCoverage(
   manifest: PlatformManifestInput,
   slots: ReadonlyMap<string, PlatformManifestInput["slots"][number]>,
@@ -257,36 +329,8 @@ function validateDefaultCoverage(
   for (const policy of manifest.policies) {
     const slot = slots.get(policy.slot);
     if (!slot?.opinionated) continue;
-    const boundaries = new Set<string>([policy.effectiveFrom]);
-    if (slot.noDefaultFrom && isEffectiveAt(policy, slot.noDefaultFrom)) {
-      boundaries.add(slot.noDefaultFrom);
-    }
-    for (const selection of manifest.selections) {
-      if (selection.slot !== policy.slot) continue;
-      for (const boundary of [
-        selection.effectiveFrom,
-        selection.effectiveUntil,
-      ]) {
-        if (boundary && isEffectiveAt(policy, boundary)) {
-          boundaries.add(boundary);
-        }
-      }
-    }
-    for (const instant of Array.from(boundaries).toSorted(compareUtcInstants)) {
-      const acceptedCount = manifest.selections.filter(
-        (selection) =>
-          selection.slot === policy.slot &&
-          selection.status === "Accepted" &&
-          isEffectiveAt(selection, instant),
-      ).length;
-      const explicitEmpty =
-        slot.noDefaultFrom !== undefined &&
-        compareUtcInstants(slot.noDefaultFrom, instant) <= 0;
-      const hasDefault =
-        slot.cardinality === "many" ? acceptedCount >= 1 : acceptedCount === 1;
-      if (hasDefault || (explicitEmpty && acceptedCount === 0)) {
-        continue;
-      }
+    for (const instant of coverageBoundaries(manifest, policy, slot)) {
+      if (hasDefaultAt(manifest, slot, instant)) continue;
       addManifestIssue(
         context,
         slot.cardinality === "many"
@@ -394,16 +438,34 @@ export function getDefaultSelectionValue(selection: DefaultSelection): string {
     : selection.value;
 }
 
+const AdoptionDecisionFieldsSchema = z
+  .object({
+    decision: ADRRefSchema.optional(),
+    rationale: z.string().min(1).optional(),
+  })
+  .refine(
+    ({ decision, rationale }) =>
+      (decision === undefined) !== (rationale === undefined),
+    { message: "Provide exactly one of decision or rationale" },
+  );
+
 export const ProjectSlotUseSchema = z
   .object({
     slot: DefaultSlotSlugSchema,
     adopted: UtcInstantSchema,
     until: UtcInstantSchema.optional(),
+    decision: ADRRefSchema.optional(),
+    rationale: z.string().min(1).optional(),
   })
   .refine(
     ({ adopted, until }) =>
       until === undefined || compareUtcInstants(adopted, until) < 0,
     { message: "until must be later than adopted" },
+  )
+  .refine(
+    ({ decision, rationale }) =>
+      AdoptionDecisionFieldsSchema.safeParse({ decision, rationale }).success,
+    { message: "Provide exactly one of decision or rationale" },
   );
 
 export const ProjectLayerUseSchema = z
@@ -413,6 +475,8 @@ export const ProjectLayerUseSchema = z
     until: UtcInstantSchema.optional(),
     tracking: z.boolean(),
     slots: z.array(ProjectSlotUseSchema).default([]),
+    decision: ADRRefSchema.optional(),
+    rationale: z.string().min(1).optional(),
   })
   .refine(
     ({ adopted, until }) =>
@@ -422,6 +486,11 @@ export const ProjectLayerUseSchema = z
   .refine(({ tracking, until }) => tracking || until !== undefined, {
     message: "A non-tracking layer use must have an until instant",
   })
+  .refine(
+    ({ decision, rationale }) =>
+      AdoptionDecisionFieldsSchema.safeParse({ decision, rationale }).success,
+    { message: "Provide exactly one of decision or rationale" },
+  )
   .superRefine((use, context) => {
     for (const slotUse of use.slots) {
       if (compareUtcInstants(slotUse.adopted, use.adopted) < 0) {
@@ -441,6 +510,108 @@ export const ProjectLayerUseSchema = z
       }
     }
   });
+
+type ProjectLayerUseInput = z.infer<typeof ProjectLayerUseSchema>;
+
+type IndexedUsePeriod = {
+  adopted: string;
+  until?: string;
+  location: string;
+};
+
+function formatUsePeriod(period: IndexedUsePeriod): string {
+  return `${period.location} [${period.adopted}, ${period.until ?? "open"})`;
+}
+
+function orderedUsePeriodsOverlap(
+  left: IndexedUsePeriod,
+  right: IndexedUsePeriod,
+): boolean {
+  return (
+    left.until === undefined ||
+    compareUtcInstants(right.adopted, left.until) < 0
+  );
+}
+
+function periodsAreEqual(
+  left: IndexedUsePeriod,
+  right: IndexedUsePeriod,
+): boolean {
+  const sameEnd =
+    (left.until === undefined && right.until === undefined) ||
+    (left.until !== undefined &&
+      right.until !== undefined &&
+      compareUtcInstants(left.until, right.until) === 0);
+  return compareUtcInstants(left.adopted, right.adopted) === 0 && sameEnd;
+}
+
+function validateUsePeriodHistory(
+  periods: IndexedUsePeriod[],
+  label: string,
+  context: z.RefinementCtx,
+): void {
+  const ordered = periods.toSorted((left, right) =>
+    compareUtcInstants(left.adopted, right.adopted),
+  );
+  for (let leftIndex = 0; leftIndex < ordered.length; leftIndex += 1) {
+    const left = ordered[leftIndex];
+    if (!left) continue;
+    for (
+      let rightIndex = leftIndex + 1;
+      rightIndex < ordered.length;
+      rightIndex += 1
+    ) {
+      const right = ordered[rightIndex];
+      if (!right) continue;
+      if (!orderedUsePeriodsOverlap(left, right)) break;
+      const duplicate = periodsAreEqual(left, right);
+      context.addIssue({
+        code: "custom",
+        message: `${duplicate ? "Duplicate" : "Overlapping"} ${label}: ${formatUsePeriod(left)} conflicts with ${formatUsePeriod(right)}`,
+      });
+    }
+  }
+}
+
+function validateProjectLayerUseHistory(
+  uses: ProjectLayerUseInput[],
+  context: z.RefinementCtx,
+): void {
+  const layers = Map.groupBy(
+    uses.map((use, useIndex) => ({
+      ...use,
+      location: `platformLayers[${useIndex}]`,
+    })),
+    (use) => use.layer,
+  );
+  for (const [layer, periods] of layers) {
+    validateUsePeriodHistory(
+      periods,
+      `project layer uses for '${layer}'`,
+      context,
+    );
+  }
+
+  const slotUses = uses.flatMap((use, useIndex) =>
+    use.slots.map((slotUse, slotIndex) => ({
+      ...slotUse,
+      layer: use.layer,
+      location: `platformLayers[${useIndex}].slots[${slotIndex}]`,
+    })),
+  );
+  const slots = Map.groupBy(slotUses, (use) => `${use.layer}:${use.slot}`);
+  for (const [layerSlot, periods] of slots) {
+    validateUsePeriodHistory(
+      periods,
+      `project slot uses for '${layerSlot}'`,
+      context,
+    );
+  }
+}
+
+export const ProjectLayerUsesSchema = z
+  .array(ProjectLayerUseSchema)
+  .superRefine(validateProjectLayerUseHistory);
 
 export function getSelectionLifecycleStatus(
   manifest: PlatformManifest,

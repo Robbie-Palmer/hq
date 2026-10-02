@@ -1,0 +1,131 @@
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
+import { buildArtifacts, validateDataset } from "../src/build";
+import { ruleDataset } from "../src/data";
+import { resolveRules } from "../src/index";
+
+const packageRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
+
+describe("UK tax rule dataset", () => {
+  it("passes structural and semantic validation", () => {
+    expect(validateDataset(ruleDataset).datasetVersion).toBe("2026.10.0");
+  });
+
+  it("builds deterministic artifacts without an empty announced release", () => {
+    const first = buildArtifacts(packageRoot);
+    const second = buildArtifacts(packageRoot);
+
+    expect([...first]).toEqual([...second]);
+    expect(first.get("artifacts/enacted/2026.10.0.json")).toContain(
+      '"legalStatus": "enacted"',
+    );
+    expect(first.has("artifacts/announced/2026.10.0.json")).toBe(false);
+    expect(first.get("artifacts/manifest.json")).not.toContain(
+      "artifacts/announced/2026.10.0.json",
+    );
+  });
+});
+
+describe("rule resolution", () => {
+  const request = {
+    jurisdiction: "england-and-northern-ireland",
+    nationalInsuranceCategory: "A",
+    payPeriod: "monthly",
+  };
+
+  it("selects each 2022/23 NI interval at its boundary", () => {
+    const april = resolveRules({ ...request, date: "2022-04-06" });
+    const july = resolveRules({ ...request, date: "2022-07-06" });
+    const november = resolveRules({ ...request, date: "2022-11-06" });
+
+    expect(april.available && april.nationalInsurance.id).toBe("ni-2022-23-a");
+    expect(july.available && july.nationalInsurance.id).toBe("ni-2022-23-b");
+    expect(november.available && november.nationalInsurance.id).toBe(
+      "ni-2022-23-c",
+    );
+  });
+
+  it("selects the January 2024 NI reduction", () => {
+    const before = resolveRules({ ...request, date: "2024-01-05" });
+    const after = resolveRules({ ...request, date: "2024-01-06" });
+
+    expect(
+      before.available &&
+        before.nationalInsurance.rates.primaryToUpperBasisPoints,
+    ).toBe(1_200);
+    expect(
+      after.available && after.nationalInsurance.rates.primaryToUpperBasisPoints,
+    ).toBe(1_000);
+  });
+
+  it("selects Scottish bands and pension limits", () => {
+    const result = resolveRules({
+      ...request,
+      date: "2025-08-01",
+      jurisdiction: "scotland",
+    });
+
+    expect(result.available).toBe(true);
+    if (!result.available) {
+      throw new Error(result.detail);
+    }
+    expect(result.incomeTax.id).toBe("income-tax-2025-26-scotland");
+    expect(result.incomeTax.bands.map(({ rateBasisPoints }) => rateBasisPoints)).toEqual([
+      1_900,
+      2_000,
+      2_100,
+      4_200,
+      4_500,
+      4_800,
+    ]);
+    expect(result.pension.annualAllowancePence).toBe(6_000_000);
+  });
+
+  it("versions Wales separately despite current rate parity", () => {
+    const englandAndNorthernIreland = resolveRules({
+      ...request,
+      date: "2025-08-01",
+    });
+    const wales = resolveRules({
+      ...request,
+      date: "2025-08-01",
+      jurisdiction: "wales",
+    });
+
+    expect(
+      englandAndNorthernIreland.available && englandAndNorthernIreland.incomeTax.id,
+    ).toBe("income-tax-2025-26-england-northern-ireland");
+    expect(wales.available && wales.incomeTax.id).toBe(
+      "income-tax-2025-26-wales",
+    );
+    expect(
+      wales.available && wales.incomeTax.bands,
+    ).toEqual(
+      englandAndNorthernIreland.available
+        ? englandAndNorthernIreland.incomeTax.bands
+        : [],
+    );
+  });
+
+  it.each([
+    [
+      { ...request, date: "2021-04-06" },
+      "unsupported-date",
+    ],
+    [
+      { ...request, date: "2025-04-06", nationalInsuranceCategory: "B" },
+      "unsupported-national-insurance-category",
+    ],
+    [
+      { ...request, date: "2025-04-06", payPeriod: "annual" },
+      "unsupported-pay-period",
+    ],
+    [
+      { ...request, date: "2025-02-30" },
+      "invalid-date",
+    ],
+  ])("returns unavailable for unsupported input %#", (input, reason) => {
+    expect(resolveRules(input)).toMatchObject({ available: false, reason });
+  });
+});

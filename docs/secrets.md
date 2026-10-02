@@ -26,6 +26,10 @@ deployable, has a GitHub App identity and inference budget unrelated to the
 sites, and may eventually move to its own repository. Its secrets live in
 Doppler project `ai-review`, not in `personal-site`.
 
+The Work Graph is another deliberate exception. Its runtime, infrastructure,
+and database-backup credentials live in Doppler project `work-graph`, keeping
+its database and recovery access outside the personal-site credential boundary.
+
 ## Config Layout
 
 Configs are split by environment and runtime/control boundary:
@@ -49,7 +53,11 @@ Configs are split by environment and runtime/control boundary:
 | `prd_bootstrap_infra` | Production bootstrap Terraform credentials | `production-infra-bootstrap` |
 | `prd_bootstrap_plan` | Read-only bootstrap Terraform plan credentials | `production-infra-bootstrap-plan` |
 | `prd_database_backup` | Encrypted Neon-to-R2 backup credentials and public encryption recipient | `production-database-backup` |
+| `homelab/prd_remote_development_backup` | R2 credentials and restic password for the remote operator workspace | None |
 | `prd_ci_repo` | Repo-wide sensitive CI like AI review and DVC | `production-ci` |
+| `work-graph/prd_work_graph` | Work Graph runtime and deployment config | `production-work-graph` |
+| `work-graph/prd_work_graph_infra` | Work Graph Terraform/provider credentials | `production-work-graph-infra` |
+| `work-graph/prd_work_graph_backup` | Work Graph encrypted Neon-to-R2 backup credentials | `production-work-graph-backup` |
 | `ai-review/stg` | Isolated live-QA deployment of the stateful AI reviewer | None |
 | `ai-review/prd` | Standalone stateful AI reviewer deploy and runtime config | `production-ai-review` |
 
@@ -180,7 +188,6 @@ Pages:
 `dev_infra` owns normal provider credentials. Terraform should not receive UI
 deploy credentials or privileged GCP credentials:
 
-- `CF_PAGES_PREVIEW_ACCESS_APPLICATION_ID` (unmasked)
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_SLACK_WEBHOOK_URL`
 - `GITHUB_TOKEN` or `MISE_GITHUB_TOKEN`
@@ -215,6 +222,9 @@ Name GitHub environments after runtime or job boundaries:
 | `production-remote-development-infra` | `homelab/prd_remote_development_infra` | Manual remote-development Terraform apply |
 | `production-remote-development-infra-plan` | `homelab/prd_remote_development_infra` | Remote-development Terraform PR plans |
 | `production-database-backup` | `prd_database_backup` | Scheduled encrypted Neon backup |
+| `production-work-graph` | `work-graph/prd_work_graph` | Work Graph API deployment and migration |
+| `production-work-graph-infra` | `work-graph/prd_work_graph_infra` | Work Graph Terraform CI/CD |
+| `production-work-graph-backup` | `work-graph/prd_work_graph_backup` | Scheduled encrypted Work Graph Neon backup |
 | `production-ci` | `prd_ci_repo` | AI review and ML pipeline CI |
 | `production-ai-review` | `ai-review/prd` | Stateful AI reviewer Worker deployment |
 
@@ -324,7 +334,6 @@ into each service-specific Doppler config.
 
 `prd_infra` should own:
 
-- `CF_PAGES_PREVIEW_ACCESS_APPLICATION_ID` (unmasked; syncs to a GitHub Actions variable)
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_SLACK_WEBHOOK_URL`
@@ -374,6 +383,15 @@ token to only the database backup bucket. The private age identity must not be
 stored in Doppler or GitHub; keep it in a password manager plus a separate
 recovery copy.
 
+`work-graph/prd_work_graph_backup` should own the same six names as
+`prd_database_backup`, but with a direct URL for the dedicated
+`work_graph_backup` role and `R2_DATABASE_BACKUPS_BUCKET_NAME` set to
+`work-graph-database-backups`. Its R2 Object Read & Write token must be scoped
+only to that bucket. Do not reuse the recipe database token, Work Graph runtime
+credentials, or the Work Graph Terraform token. The age recipient may be the
+same only if the corresponding recovery-key custody is intentionally shared;
+the private identity still stays outside Doppler and GitHub.
+
 `prd_ci_repo` should own:
 
 - `OPENROUTER_API_KEY`
@@ -416,12 +434,14 @@ doppler secrets --project personal-site --config dev_infra --only-names
 doppler secrets --project personal-site --config dev_bootstrap_infra --only-names
 doppler secrets --project personal-site --config prd_bootstrap_plan --only-names
 doppler secrets --project personal-site --config prd_database_backup --only-names
+doppler secrets --project work-graph --config prd_work_graph_backup --only-names
 doppler secrets --project ai-review --config prd --only-names
 doppler secrets --project homelab --config prd_remote_development_infra --only-names
 scripts/sync-doppler-github-envs.sh production-infra-bootstrap-plan
 scripts/sync-doppler-github-envs.sh production-remote-development-infra-plan
 scripts/sync-doppler-github-envs.sh production-remote-development-infra
 scripts/sync-doppler-github-envs.sh production-database-backup
+scripts/sync-doppler-github-envs.sh production-work-graph-backup
 scripts/sync-doppler-github-envs.sh production-ai-review
 
 mise run //:dev

@@ -94,7 +94,7 @@ export function useCooklangRecipe(
     let isActive = true;
     setState((prev) => ({ ...prev, loading: true, error: null }));
 
-    (async () => {
+    void (async () => {
       try {
         const recipe = await getMemoizedParsePromise(cookBody, scale);
         if (!isActive) {

@@ -1,3 +1,6 @@
+import { promiseFromSync } from "ts-base/promises";
+import { todayIsoDate } from "@/lib/assettracker/date";
+import { getDemoAssetTrackerData } from "@/lib/assettracker/demoData";
 import {
   type AddPlannedExpenditureInput,
   type AddRecurringFlowInput,
@@ -19,6 +22,7 @@ import {
   applyRecordBalance,
   applyRecordTransfer,
   applySetAccountLiquidity,
+  applySetBaseCurrency,
   applySetExpectedReturn,
   applySetInflation,
   applySetNetWorthTarget,
@@ -32,13 +36,13 @@ import {
   type DeleteRecurringFlowInput,
   type DeleteSnapshotInput,
   getEmptyData,
-  getSeedData,
   type ImportAccountHistoryInput,
   type ImportIncomeHistoryInput,
   type MaterializeFlowInput,
   type RecordBalanceInput,
   type RecordTransferInput,
   type SetAccountLiquidityInput,
+  type SetBaseCurrencyInput,
   type SetExpectedReturnInput,
   type SetInflationInput,
   type SetNetWorthTargetInput,
@@ -47,10 +51,11 @@ import {
 
 /**
  * The Asset Tracker API boundary. Every method is async and mirrors the
- * endpoint a Cloudflare Worker + D1 backend would expose (POST /accounts,
- * PUT /balances, ...), so swapping the local implementation for an HTTP
- * client is a drop-in change. While the site is statically generated, the
- * "backend" is the same domain commands run against browser storage.
+ * endpoint a Cloudflare Worker + PostgreSQL backend would expose
+ * (POST /accounts, PUT /balances, ...), so swapping the local implementation
+ * for an HTTP client is a drop-in change. While the site is statically
+ * generated, the "backend" is the same domain commands run against browser
+ * storage.
  */
 export interface AssetTrackerApi {
   load(): Promise<AssetTrackerLoadResult>;
@@ -85,6 +90,7 @@ export interface AssetTrackerApi {
   setAccountLiquidity(
     input: SetAccountLiquidityInput,
   ): Promise<AssetTrackerData>;
+  setBaseCurrency(input: SetBaseCurrencyInput): Promise<AssetTrackerData>;
   setInflation(input: SetInflationInput): Promise<AssetTrackerData>;
   setNetWorthTarget(input: SetNetWorthTargetInput): Promise<AssetTrackerData>;
   setWithdrawalRate(input: SetWithdrawalRateInput): Promise<AssetTrackerData>;
@@ -122,6 +128,7 @@ function parseStored(raw: string): AssetTrackerData {
 }
 
 export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
+  const currentDate = () => todayIsoDate();
   function readStored(): AssetTrackerData | null {
     const raw = storage.getItem(ASSET_TRACKER_STORAGE_KEY);
     if (raw == null) return null;
@@ -140,85 +147,131 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
   }
 
   function current(): AssetTrackerData {
-    return readStored() ?? getSeedData();
+    return readStored() ?? getDemoAssetTrackerData();
   }
 
   return {
-    async load() {
-      const stored = readStored();
-      return { data: stored ?? getSeedData(), persisted: stored !== null };
+    load() {
+      return promiseFromSync(() => {
+        const stored = readStored();
+        return {
+          data: stored ?? getDemoAssetTrackerData(),
+          persisted: stored !== null,
+        };
+      });
     },
-    async createAccount(input) {
-      return write(applyCreateAccount(current(), input).data);
+    createAccount(input) {
+      return promiseFromSync(() =>
+        write(applyCreateAccount(current(), input, currentDate()).data),
+      );
     },
-    async recordBalance(input) {
-      return write(applyRecordBalance(current(), input));
+    recordBalance(input) {
+      return promiseFromSync(() => write(applyRecordBalance(current(), input)));
     },
-    async recordTransfer(input) {
-      return write(applyRecordTransfer(current(), input));
+    recordTransfer(input) {
+      return promiseFromSync(() =>
+        write(applyRecordTransfer(current(), input)),
+      );
     },
-    async closeAccount(input) {
-      return write(applyCloseAccount(current(), input));
+    closeAccount(input) {
+      return promiseFromSync(() => write(applyCloseAccount(current(), input)));
     },
-    async clearAccountHistory(input) {
-      return write(applyClearAccountHistory(current(), input));
+    clearAccountHistory(input) {
+      return promiseFromSync(() =>
+        write(applyClearAccountHistory(current(), input)),
+      );
     },
-    async deleteSnapshot(input) {
-      return write(applyDeleteSnapshot(current(), input));
+    deleteSnapshot(input) {
+      return promiseFromSync(() =>
+        write(applyDeleteSnapshot(current(), input)),
+      );
     },
-    async deleteCapitalFlow(input) {
-      return write(applyDeleteCapitalFlow(current(), input));
+    deleteCapitalFlow(input) {
+      return promiseFromSync(() =>
+        write(applyDeleteCapitalFlow(current(), input)),
+      );
     },
-    async importAccountHistory(input) {
-      return write(applyImportAccountHistory(current(), input));
+    importAccountHistory(input) {
+      return promiseFromSync(() =>
+        write(applyImportAccountHistory(current(), input)),
+      );
     },
-    async importIncomeHistory(input) {
-      return write(applyImportIncomeHistory(current(), input));
+    importIncomeHistory(input) {
+      return promiseFromSync(() =>
+        write(applyImportIncomeHistory(current(), input)),
+      );
     },
-    async clearIncomeHistory() {
-      return write(applyClearIncomeHistory(current()));
+    clearIncomeHistory() {
+      return promiseFromSync(() => write(applyClearIncomeHistory(current())));
     },
-    async addRecurringFlow(input) {
-      return write(applyAddRecurringFlow(current(), input));
+    addRecurringFlow(input) {
+      return promiseFromSync(() =>
+        write(applyAddRecurringFlow(current(), input, currentDate())),
+      );
     },
-    async addPlannedExpenditure(input) {
-      return write(applyAddPlannedExpenditure(current(), input));
+    addPlannedExpenditure(input) {
+      return promiseFromSync(() =>
+        write(applyAddPlannedExpenditure(current(), input, currentDate())),
+      );
     },
-    async deleteRecurringFlow(input) {
-      return write(applyDeleteRecurringFlow(current(), input));
+    deleteRecurringFlow(input) {
+      return promiseFromSync(() =>
+        write(applyDeleteRecurringFlow(current(), input)),
+      );
     },
-    async deletePlannedExpenditure(input) {
-      return write(applyDeletePlannedExpenditure(current(), input));
+    deletePlannedExpenditure(input) {
+      return promiseFromSync(() =>
+        write(applyDeletePlannedExpenditure(current(), input)),
+      );
     },
-    async materializeFlow(input) {
-      return write(applyMaterializeFlow(current(), input));
+    materializeFlow(input) {
+      return promiseFromSync(() =>
+        write(applyMaterializeFlow(current(), input)),
+      );
     },
-    async setExpectedReturn(input) {
-      return write(applySetExpectedReturn(current(), input));
+    setExpectedReturn(input) {
+      return promiseFromSync(() =>
+        write(applySetExpectedReturn(current(), input)),
+      );
     },
-    async setAccountLiquidity(input) {
-      return write(applySetAccountLiquidity(current(), input));
+    setAccountLiquidity(input) {
+      return promiseFromSync(() =>
+        write(applySetAccountLiquidity(current(), input)),
+      );
     },
-    async setInflation(input) {
-      return write(applySetInflation(current(), input));
+    setBaseCurrency(input) {
+      return promiseFromSync(() =>
+        write(applySetBaseCurrency(current(), input)),
+      );
     },
-    async setNetWorthTarget(input) {
-      return write(applySetNetWorthTarget(current(), input));
+    setInflation(input) {
+      return promiseFromSync(() => write(applySetInflation(current(), input)));
     },
-    async setWithdrawalRate(input) {
-      return write(applySetWithdrawalRate(current(), input));
+    setNetWorthTarget(input) {
+      return promiseFromSync(() =>
+        write(applySetNetWorthTarget(current(), input)),
+      );
     },
-    async importData(raw) {
-      const data = AssetTrackerDataSchema.parse(raw);
-      buildRepository(data);
-      return write(data);
+    setWithdrawalRate(input) {
+      return promiseFromSync(() =>
+        write(applySetWithdrawalRate(current(), input)),
+      );
     },
-    async clear() {
-      return write(getEmptyData());
+    importData(raw) {
+      return promiseFromSync(() => {
+        const data = AssetTrackerDataSchema.parse(raw);
+        buildRepository(data);
+        return write(data);
+      });
     },
-    async reset() {
-      storage.removeItem(ASSET_TRACKER_STORAGE_KEY);
-      return getSeedData();
+    clear() {
+      return promiseFromSync(() => write(getEmptyData()));
+    },
+    reset() {
+      return promiseFromSync(() => {
+        storage.removeItem(ASSET_TRACKER_STORAGE_KEY);
+        return getDemoAssetTrackerData();
+      });
     },
   };
 }

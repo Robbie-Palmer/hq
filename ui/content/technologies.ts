@@ -431,6 +431,14 @@ Diff operations can set an edit-distance or time limit. The function returns no 
     type: "platform",
   },
   {
+    name: "Cloudflare Queues",
+    added: "2026-09-22",
+    description: "Managed message queues for asynchronous Worker processing",
+    website: "https://developers.cloudflare.com/queues/",
+    iconSlug: "cloudflare",
+    type: "platform",
+  },
+  {
     name: "Cloudflare Rulesets",
     added: "2026-01-11",
     description: "Rules for transforming and routing HTTP requests at the edge",
@@ -1306,6 +1314,14 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     type: "tool",
   },
   {
+    name: "Nix",
+    added: "2026-09-28",
+    description:
+      "Package manager and build system for reproducible environments and artifacts",
+    website: "https://nix.dev",
+    type: "tool",
+  },
+  {
     name: "NixOS",
     added: "2026-08-02",
     description:
@@ -1419,6 +1435,14 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     type: "platform",
   },
   {
+    name: "Kube-Hetzner",
+    added: "2026-09-14",
+    description:
+      "Terraform module for building private, scalable K3s and RKE2 clusters on Hetzner Cloud",
+    website: "https://github.com/mysticaltech/terraform-hcloud-kube-hetzner",
+    type: "tool",
+  },
+  {
     name: "Flux Schema",
     added: "2026-09-09",
     description:
@@ -1441,5 +1465,13 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
       "Social tracker for movies and shows whose watchlist feeds Sonarr and Radarr import lists",
     website: "https://trakt.tv",
     type: "tool",
+  },
+  {
+    name: "Frankfurter",
+    added: "2026-10-02",
+    description:
+      "Open source API for current and historical reference exchange rates from official sources",
+    website: "https://frankfurter.dev",
+    type: "platform",
   },
 ];

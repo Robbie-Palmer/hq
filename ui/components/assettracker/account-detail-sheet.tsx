@@ -12,6 +12,12 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import {
+  formatAccountCurrency,
+  formatAnnualRate,
+  LIQUIDITY_TIER_LABELS,
+  todayIsoDate,
+} from "@/lib/assettracker";
+import {
   type AccountDetailView,
   accountLiquidity,
   type CapitalFlowKind,
@@ -19,13 +25,11 @@ import {
   computeEquitySummary,
   type EquitySummary,
   effectiveExpectedReturn,
-  formatAccountCurrency,
-  formatAnnualRate,
   formatAssetTrackerError,
   isLiability,
-  LIQUIDITY_TIER_LABELS,
   realRate,
-  todayIsoDate,
+  transferAmountFrom,
+  transferAmountTo,
 } from "@/lib/domain/assettracker";
 import { AccountFlows } from "./account-flows";
 import { AccountHistoryImportDrawer } from "./account-history-import-drawer";
@@ -55,8 +59,14 @@ export function AccountDetailSheet({
   accountId,
   onClose,
 }: Readonly<AccountDetailSheetProps>) {
-  const { accounts, accountDetails, recurringFlows, inflation } =
-    useAssetTracker();
+  const {
+    accounts,
+    accountDetails,
+    recurringFlows,
+    inflation,
+    transfers,
+    netWorthData,
+  } = useAssetTracker();
 
   const account =
     accountDetails.find((detail) => detail.id === accountId) ?? null;
@@ -86,7 +96,11 @@ export function AccountDetailSheet({
               {account.netContributed != null && (
                 <CapitalPerformanceCard account={account} />
               )}
-              <AccountTrajectoryChart account={account} />
+              <AccountTrajectoryChart
+                account={account}
+                transfers={transfers}
+                netWorthData={netWorthData}
+              />
               {equity && <EquityCard account={account} equity={equity} />}
               {account.isOpen && (
                 <AccountProjection
@@ -421,7 +435,12 @@ function TransfersList({ account }: Readonly<{ account: AccountDetailView }>) {
               </span>
               <span className="font-mono">
                 {into ? "+" : "−"}
-                {formatAccountCurrency(transfer.amount, account.currency)}
+                {formatAccountCurrency(
+                  into
+                    ? transferAmountTo(transfer)
+                    : transferAmountFrom(transfer),
+                  account.currency,
+                )}
               </span>
             </li>
           );

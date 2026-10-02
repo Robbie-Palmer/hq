@@ -1,0 +1,297 @@
+---
+title: "ADR 021: Cloud remote-development plane"
+date: "2026-09-04"
+status: "Proposed"
+tech_stack: ["Hetzner Cloud", "Terraform", "NixOS", "K3s", "Tailscale", "Doppler", "t3-code"]
+---
+
+# Context
+
+[ADR 004](/projects/homelab/adrs/004-t3-code) puts t3-code and the coding
+harnesses on the Mac mini. That gives every agent a prepared, persistent
+environment and makes it reachable from a phone over Tailscale. It also makes
+home power and broadband part of the development environment's availability.
+
+A home power cut proved the boundary. The Mac mini and router went offline at
+the same time, while the available 5G connection was good enough to operate a
+light web interface but not good enough to turn a laptop into a productive
+local coding environment. The coding-agent subscriptions were available, but
+there was no reachable machine on which their harnesses could run.
+
+The goal is continuity. Highly available Kubernetes is outside this decision.
+A remote environment must remain usable when the whole house is unreachable,
+be reproducible from the repository, retain prepared repositories and agent
+sessions, and preserve the bring-your-own-subscription model from ADR 004.
+
+The repository already separates declarative ownership:
+
+* Terraform provisions externally hosted infrastructure;
+* NixOS declares Linux host state;
+* [ADR 020](/projects/homelab/adrs/020-k3s-declarative-workloads) assigns OCI
+  workloads and image orchestration to K3s;
+* [ADR 024](/projects/homelab/adrs/024-doppler-secrets) makes Doppler the secret
+  source of truth;
+* mise remains the operator interface.
+
+The remote environment needs to extend those boundaries without turning
+Ansible into another permanent workload or host configuration system.
+
+# Decision
+
+Provision one long-lived Hetzner Cloud VPS as a separate, single-user
+remote-development plane. Terraform owns the Hetzner server, firewall, SSH key
+registration, and persistent volume. A NixOS flake owns the operating system,
+Tailscale, storage mounts, and a single-node K3s server. K3s owns t3-code and
+its supporting workloads.
+
+The VPS is reproducible but not routinely destroyed. Reproducibility is the
+recovery mechanism: a failed server can be replaced without rebuilding the
+environment from memory. Keeping it running preserves the prepared workspace
+and makes it available before an outage begins.
+
+<Mermaid
+  chart={`flowchart TB
+Git["Git repository"]
+Terraform["Terraform<br/>Hetzner resources"]
+NixOS["NixOS flake<br/>host state"]
+K3s["Independent K3s<br/>t3-code workload"]
+Services["GitHub, Doppler,<br/>and agent providers"]
+
+Git --> Terraform --> NixOS --> K3s
+Git --> NixOS
+Git --> K3s
+K3s --> Services
+
+classDef source fill:#4338ca,color:#fff,stroke:#3730a3
+classDef host fill:#2563eb,color:#fff,stroke:#1d4ed8
+classDef workload fill:#0f766e,color:#fff,stroke:#115e59
+class Git source
+class Terraform,NixOS host
+class K3s,Services workload
+`}
+/>
+
+## Provider
+
+Use Hetzner Cloud first. It has an
+[official Terraform provider](https://registry.terraform.io/providers/hetznercloud/hcloud/latest/docs),
+European regions, persistent volumes, provider firewalls, and sufficient
+commodity compute for several coding-agent processes at a lower baseline cost
+than the more managed alternatives considered here.
+
+Start with an x86-64 shared-vCPU instance around the
+[`cx33` class](https://www.hetzner.com/cloud/cost-optimized/) and make the
+server type and location variables. Size up from observed memory and CPU
+pressure rather than designing an autoscaling system. Keep workspace data on a
+separately protected volume so replacing compute does not imply deleting
+mutable state.
+
+The initial Terraform root is `infra/remote-development`, backed by its own
+Terraform Cloud workspace, `personal-site-remote-development`. Its plan and
+apply lifecycle must remain independent from `infra/public-platform` and
+`infra/bootstrap`.
+
+## Cluster boundary
+
+Run a single-node K3s cluster on the VPS. It must never join the home cluster.
+The home cluster contains heterogeneous, location-bound hardware and depends
+on the home network. Stretching its control plane or agents across the public
+internet would couple two failure domains rather than provide continuity.
+
+Share checked-in Kustomize bases between the home and cloud clusters where the
+workload is genuinely the same. Use separate overlays, Kubernetes contexts,
+storage, credentials, and mutable application state. Deployment commands must
+verify their target context before changing either cluster.
+
+Give the host a zstd-compressed zram swap device capped at 25 percent of
+physical RAM. Configure kubelet to tolerate host swap while keeping `NoSwap`
+behavior for pods. The buffer protects host services during short memory
+spikes without allowing workloads to exceed their declared memory limits.
+
+This is not active-active t3-code. The cloud instance is the available remote
+workspace; the Mac instance remains the low-latency home workspace. Neither
+installation synchronises a live SQLite database, agent session directory, or
+Git worktree with the other.
+
+## State handoff
+
+GitHub is the handoff boundary. Agents commit and push branches from whichever
+environment is active. Another environment continues from the pushed branch
+or pull request. Work that exists only in an unpushed worktree is not highly
+available and must be covered by a workspace-backup policy if it cannot be
+recreated.
+
+The persistent cloud volume holds t3-code state, repositories, worktrees, and
+the mutable authentication homes required by the coding harnesses. Stable
+service user and group IDs keep ownership consistent across host and pod
+rebuilds. The volume is not a backup; encrypted backups and a tested restore
+path are separate work.
+
+## Storage isolation
+
+Keep the K3s datastore and container image store on the VPS root disk. Keep
+workspace state on the attached encrypted volume. A workspace filling its
+volume must not also exhaust K3s image storage, taint the node with disk
+pressure, and remove the image needed to restart that workspace.
+
+Split the attached volume into project-quota domains. Give the operator's
+durable state 55 GiB and its rebuildable tool and package caches 30 GiB. Leave
+the remaining filesystem capacity unallocated so ext4 metadata and quota
+enforcement have headroom. Kubernetes local volumes describe these paths,
+while ext4 project quotas enforce their limits on the single physical
+filesystem.
+
+Keep active worktrees, t3-code state, repositories, and agent authentication
+in the durable volume. Put mise installations, the pnpm store, browser caches,
+and Arduino packages in the cache volume. Cache loss may cost download time,
+but it must not lose a branch, thread, or login.
+
+Use disk-backed `emptyDir` volumes for process scratch space. Set an 8 GiB
+limit for the operator's `/tmp` and declare pod ephemeral-storage requests and
+limits. Do not use memory-backed temporary storage on this 8 GiB host.
+
+Delete a worktree through t3-code's thread lifecycle. Automated housekeeping
+may remove a worktree only after its thread is deleted, or report a clean,
+merged, idle thread for bulk deletion. It must not remove a directory owned by
+a running thread directly from the host.
+
+Keep the two Codex subscriptions in distinct authentication homes so their
+allowances and sessions remain independent. Browser or device-login OAuth
+state is mutable application state. Copying an API key from Doppler cannot
+replace it.
+
+## Access and bootstrap
+
+Expose no t3-code, K3s API, or management port to the public internet.
+Tailscale is the application access path. The Hetzner firewall may allow the
+Tailscale UDP transport port, but that does not expose the workload itself.
+
+First installation is deliberately two-stage:
+
+1. Terraform creates the host with SSH limited to explicit bootstrap CIDRs.
+2. An operator installs the NixOS flake and supplies a one-time, tagged,
+   ephemeral Tailscale auth key from Doppler without passing it through
+   Terraform, cloud-init, Git, or the Nix store.
+3. The operator verifies Tailscale access, NixOS recovery after reboot, the
+   data mount, and K3s.
+4. Terraform removes public SSH ingress. Subsequent management uses the
+   tailnet.
+
+NixOS, rather than Ansible, is the persistent source of host truth. ADR 019's
+Ansible bridge can invoke or verify another declarative owner, but it must not
+restate the VPS packages, units, firewall, or K3s installation as playbooks.
+
+## Secrets
+
+Keep the Hetzner API token and Terraform Cloud token outside Terraform state.
+Local mise tasks obtain them from a dedicated Doppler config; GitHub Actions
+receives narrowly scoped environment secrets. Terraform variables contain the
+SSH public key and non-secret sizing choices only.
+
+Bootstrap the Doppler Kubernetes Operator out of band as described by ADR 024,
+then use namespace-scoped `DopplerSecret` resources. Do not copy the complete
+homelab Doppler config to the server. GitHub credentials must be fine-grained
+and limited to the repositories and operations the agents need.
+
+# Alternatives
+
+## Keep t3-code only on the Mac mini
+
+* **Pros**: No additional bill or environment to manage.
+* **Cons**: Home power, broadband, router, and Mac availability remain one
+  correlated failure domain. The outage that motivated this ADR still removes
+  all coding capacity.
+* **Decision**: Rejected. It does not provide off-site continuity.
+
+## DigitalOcean VPS
+
+* **Pros**: Mature API and Terraform provider, clear documentation, and a
+  London region.
+* **Cons**: A higher baseline price for the compute and storage required here,
+  without a managed feature this design needs.
+* **Decision**: Viable fallback. Prefer it if Hetzner availability, account
+  approval, or measured reliability becomes a problem; keep provider-specific
+  Terraform isolated so the NixOS and K3s layers remain portable.
+
+## Cloudflare compute
+
+* **Pros**: Reuses an existing account and parts of the current infrastructure.
+* **Cons**: Workers and Containers do not provide the general, persistent
+  Linux machine required by t3-code, local coding harness processes, arbitrary
+  CLI authentication homes, K3s, and durable worktrees.
+* **Decision**: Rejected for compute. Cloudflare R2 remains a candidate for
+  encrypted backups.
+
+## Ansible-managed Ubuntu host
+
+* **Pros**: Familiar bootstrap path and broad package availability.
+* **Cons**: Makes the temporary bridge a permanent host source of truth and
+  duplicates the declarative NixOS direction already proven on the GPU worker.
+* **Decision**: Rejected. Use NixOS for host state and reserve Ansible for the
+  transition jobs in ADR 019.
+
+## One K3s cluster spanning home and cloud
+
+* **Pros**: One Kubernetes API and nominally one placement surface.
+* **Cons**: Couples the cloud environment to home-network latency and failure,
+  exposes more cluster networking across sites, and falsely suggests that
+  location-bound storage and heterogeneous machines are interchangeable.
+* **Decision**: Rejected. Reuse manifests, not the control plane.
+
+## Create the VPS only while coding
+
+* **Pros**: Reduces compute charges when idle.
+* **Cons**: Availability begins with a provisioning and bootstrap operation,
+  precisely when home infrastructure may already be down. Frequent replacement
+  also makes mutable OAuth and workspace recovery the normal path.
+* **Decision**: Rejected initially. Measure cost and idle use after the
+  always-available workflow works.
+
+# Consequences
+
+### Pros
+
+* A home power or broadband outage no longer removes all coding capacity.
+* Terraform, NixOS, and K3s each retain a narrow declarative responsibility.
+* The remote host can be reconstructed without coupling its lifecycle to
+  public services.
+* Home and cloud reuse workload definitions without pretending to be one
+  homogeneous cluster.
+* Tailscale preserves the private access model used throughout the homelab.
+
+### Cons
+
+* The VPS, volume, and provider IPv4 address introduce a continuing
+  monthly cost.
+* A single VPS is not internally highly available. Provider or region failure
+  can still stop it, while the home instance provides a separate fallback when
+  home connectivity is healthy.
+* The VPS is intentionally single-user. A second person requires separate
+  workspace compute and a recovery design proved outside this host.
+* Coding-harness OAuth sessions require a secure commissioning and recovery
+  process beyond ordinary Doppler secrets.
+* Two t3-code installations create operational duplication and require Git
+  discipline for reliable handoff.
+* Tool and package caches now have a hard ceiling. A full cache can make an
+  install fail until housekeeping prunes it, but it cannot consume workspace
+  or K3s capacity.
+* Local persistent volumes and ext4 quotas remain specific to this one-node
+  design. A multi-node workspace service would need networked or replicated
+  storage instead.
+* The first NixOS installation needs temporary public SSH and careful removal
+  after Tailscale is verified.
+
+# Validation
+
+Keep this ADR Proposed until the following outage exercise succeeds:
+
+1. Turn off the Mac mini and disconnect the test device from home broadband.
+2. Reach cloud t3-code through Tailscale over mobile data.
+3. Start an agent, change a repository, and push a branch or pull request.
+4. Reboot the VPS and verify its volume, Tailscale, K3s, t3-code, and agent
+   authentication recover.
+5. Replace the VPS from Terraform and the NixOS flake, restore required state,
+   and repeat the agent workflow without depending on the home network.
+
+Accept the ADR after the workflow succeeds and the restore procedure has a
+recorded recovery time and recovery point.

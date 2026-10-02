@@ -124,6 +124,6 @@ describe("RecipePwa", () => {
     await clearOfflineRecipeData();
 
     expect(deleteCache).toHaveBeenCalledWith("recipe-session-v1");
-    expect(deleteCache).toHaveBeenCalledWith("recipe-images-v1");
+    expect(deleteCache).toHaveBeenCalledWith("recipe-images-v2");
   });
 });

@@ -51,6 +51,7 @@ vi.mock("@/content/experience", () => experienceContentMock);
 // Import after mocks are hoisted
 import * as fs from "node:fs";
 import { PlatformManifestSchema } from "@/lib/domain/platform";
+import { ProjectRelationsSchema } from "@/lib/domain/project/project";
 import {
   loadADRs,
   loadBlogPosts,
@@ -371,6 +372,7 @@ selections:
     status: Accepted
     effective_from: 2026-09-15T00:00:00Z
     decision: platform:001-language
+    evidence_adrs: [platform:001-language]
 `);
 
       const manifest = loadPlatformManifest();
@@ -456,7 +458,7 @@ title: "Invalid Initiative"
     it("should return empty map when projects directory does not exist", () => {
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      const result = loadADRs();
+      const result = loadADRs([]);
 
       expect(result.entities.size).toBe(0);
     });
@@ -479,7 +481,7 @@ We decided to use React.`;
 
       vi.mocked(fs.readFileSync).mockReturnValue(mockADRContent);
 
-      const result = loadADRs();
+      const result = loadADRs([]);
 
       expect(result.entities.size).toBe(1);
       const adr = result.entities.get("project-1:001-react");
@@ -514,14 +516,14 @@ Use TypeScript.`;
       }) as unknown as typeof fs.readdirSync);
       vi.mocked(fs.readFileSync).mockReturnValue(mockADRContent);
 
-      const result = loadADRs();
+      const result = loadADRs([]);
 
       expect(
         result.entities.get("project-1:001-language")?.overridesDefault,
       ).toMatchObject({ kind: "technology", technology: "typescript" });
     });
 
-    it("should turn an inherited ADR stub into a legacy alias", () => {
+    it("loads a legacy alias from the dedicated registry", () => {
       const sourceADR = `---
 title: "ADR 002: React"
 date: "2025-10-18"
@@ -530,39 +532,24 @@ tech_stack: ["React"]
 ---
 
 Canonical source content.`;
-      const inheritedStub = `---
-inherits_from: "personal-knowledge-graph:002-react"
----
-
-Recipe-site note: this is adopted as-is for now.
-`;
 
       vi.mocked(fs.existsSync).mockImplementation(() => true);
       vi.mocked(fs.readdirSync).mockImplementation(((path: string) => {
-        if (path.endsWith("projects")) {
-          return [
-            mockDirent("personal-knowledge-graph"),
-            mockDirent("recipe-site"),
-          ];
-        }
+        if (path.endsWith("projects"))
+          return [mockDirent("personal-knowledge-graph")];
         if (path.includes("personal-knowledge-graph/adrs"))
           return ["002-react.mdx"];
-        if (path.includes("recipe-site/adrs")) return ["000-react.mdx"];
         return [];
       }) as unknown as typeof fs.readdirSync);
+      vi.mocked(fs.readFileSync).mockReturnValue(sourceADR);
 
-      vi.mocked(fs.readFileSync).mockImplementation((path) => {
-        const pathStr = path.toString();
-        if (pathStr.includes("personal-knowledge-graph/adrs/002-react.mdx")) {
-          return sourceADR;
-        }
-        if (pathStr.includes("recipe-site/adrs/000-react.mdx")) {
-          return inheritedStub;
-        }
-        return "";
-      });
-
-      const result = loadADRs();
+      const result = loadADRs([
+        {
+          alias: "recipe-site:000-react",
+          target: "personal-knowledge-graph:002-react",
+          notes: "Recipe-site note: this is adopted as-is for now.\n",
+        },
+      ]);
       expect(result.entities.has("recipe-site:000-react")).toBe(false);
       expect(result.relations.has("recipe-site:000-react")).toBe(false);
       expect(result.aliases.get("recipe-site:000-react")).toBe(
@@ -570,56 +557,97 @@ Recipe-site note: this is adopted as-is for now.
       );
     });
 
-    it("should ignore a legacy alias display title", () => {
-      const sourceADR = `---
-title: "ADR 049: Cloudflare Workflows for Source Domain"
-date: "2026-07-08"
+    it("rejects a legacy alias that conflicts with a local ADR", () => {
+      const localADR = `---
+title: "ADR 000: React"
+date: "2025-10-18"
 status: "Accepted"
-tech_stack: ["Cloudflare Workflows"]
 ---
 
 Canonical source content.`;
+
+      vi.mocked(fs.readdirSync).mockImplementation(((path: string) => {
+        if (path.endsWith("projects")) return [mockDirent("recipe-site")];
+        if (path.includes("recipe-site/adrs")) return ["000-react.mdx"];
+        return [];
+      }) as unknown as typeof fs.readdirSync);
+      vi.mocked(fs.readFileSync).mockReturnValue(localADR);
+
+      expect(() =>
+        loadADRs([
+          {
+            alias: "recipe-site:000-react",
+            target: "recipe-site:000-react",
+          },
+        ]),
+      ).toThrow("conflicts with a local ADR");
+    });
+
+    it("rejects a duplicate legacy alias", () => {
+      const sourceADR = `---
+title: "ADR 002: React"
+date: "2025-10-18"
+status: "Accepted"
+---
+
+Canonical source content.`;
+      const alias = {
+        alias: "recipe-site:000-react" as const,
+        target: "source:002-react" as const,
+      };
+
+      vi.mocked(fs.readdirSync).mockImplementation(((path: string) => {
+        if (path.endsWith("projects")) return [mockDirent("source")];
+        if (path.includes("source/adrs")) return ["002-react.mdx"];
+        return [];
+      }) as unknown as typeof fs.readdirSync);
+      vi.mocked(fs.readFileSync).mockReturnValue(sourceADR);
+
+      expect(() => loadADRs([alias, alias])).toThrow("is duplicated");
+    });
+
+    it("rejects a legacy alias whose target ADR is missing", () => {
+      vi.mocked(fs.readdirSync).mockImplementation(((path: string) => {
+        if (path.endsWith("projects")) return [mockDirent("source")];
+        return [];
+      }) as unknown as typeof fs.readdirSync);
+
+      expect(() =>
+        loadADRs([
+          {
+            alias: "recipe-site:000-react",
+            target: "source:002-react",
+          },
+        ]),
+      ).toThrow("references missing source ADR");
+    });
+
+    it("rejects inherited ADR stub files", () => {
       const inheritedStub = `---
 inherits_from: "source:049-cloudflare-workflows"
-title: "Cloudflare Workflows"
 ---
 
 Project-specific orchestration notes.`;
 
       vi.mocked(fs.existsSync).mockImplementation(() => true);
       vi.mocked(fs.readdirSync).mockImplementation(((path: string) => {
-        if (path.endsWith("projects")) {
-          return [mockDirent("source"), mockDirent("target")];
-        }
-        if (path.includes("source/adrs")) {
-          return ["049-cloudflare-workflows.mdx"];
-        }
-        if (path.includes("target/adrs")) {
+        if (path.endsWith("projects")) return [mockDirent("target")];
+        if (path.includes("target/adrs"))
           return ["014-cloudflare-workflows.mdx"];
-        }
         return [];
       }) as unknown as typeof fs.readdirSync);
-      vi.mocked(fs.readFileSync).mockImplementation((path) => {
-        const pathString = path.toString();
-        if (pathString.includes("source/adrs")) return sourceADR;
-        if (pathString.includes("target/adrs")) return inheritedStub;
-        throw new Error(`Unexpected file read: ${pathString}`);
-      });
+      vi.mocked(fs.readFileSync).mockReturnValue(inheritedStub);
 
-      const result = loadADRs();
-      expect(result.entities.has("target:014-cloudflare-workflows")).toBe(
-        false,
-      );
-      expect(result.aliases.get("target:014-cloudflare-workflows")).toBe(
-        "source:049-cloudflare-workflows",
+      expect(() => loadADRs([])).toThrow(
+        "must be declared in content/adr-aliases.ts",
       );
     });
 
     it.each([
-      ["empty", 'title: ""'],
-      ["whitespace-only", 'title: "   "'],
-      ["non-string", "title: 123"],
-    ])("should reject a %s inherited ADR title override", (_case, title) => {
+      ["empty", ""],
+      ["whitespace-only", "   "],
+      ["non-string", 123],
+    ])("rejects a %s legacy alias title", (_case, title) => {
       const sourceADR = `---
 title: "ADR 049: Cloudflare Workflows for Source Domain"
 date: "2026-07-08"
@@ -628,34 +656,25 @@ tech_stack: ["Cloudflare Workflows"]
 ---
 
 Canonical source content.`;
-      const inheritedStub = `---
-inherits_from: "source:049-cloudflare-workflows"
-${title}
----
-
-Project-specific orchestration notes.`;
 
       vi.mocked(fs.existsSync).mockImplementation(() => true);
       vi.mocked(fs.readdirSync).mockImplementation(((path: string) => {
-        if (path.endsWith("projects")) {
-          return [mockDirent("source"), mockDirent("target")];
-        }
-        if (path.includes("source/adrs")) {
+        if (path.endsWith("projects")) return [mockDirent("source")];
+        if (path.includes("source/adrs"))
           return ["049-cloudflare-workflows.mdx"];
-        }
-        if (path.includes("target/adrs")) {
-          return ["014-cloudflare-workflows.mdx"];
-        }
         return [];
       }) as unknown as typeof fs.readdirSync);
-      vi.mocked(fs.readFileSync).mockImplementation((path) => {
-        const pathString = path.toString();
-        if (pathString.includes("source/adrs")) return sourceADR;
-        if (pathString.includes("target/adrs")) return inheritedStub;
-        throw new Error(`Unexpected file read: ${pathString}`);
-      });
+      vi.mocked(fs.readFileSync).mockReturnValue(sourceADR);
 
-      expect(() => loadADRs()).toThrow("has invalid title override");
+      expect(() =>
+        loadADRs([
+          {
+            alias: "target:014-cloudflare-workflows",
+            target: "source:049-cloudflare-workflows",
+            title,
+          } as never,
+        ]),
+      ).toThrow("failed validation");
     });
   });
 
@@ -1179,7 +1198,162 @@ Content`;
         expect(errors[0]?.field).toBe("project");
       });
 
-      it("rejects a slot use outside its layer policy period", () => {
+      it("rejects missing selection evidence and foreign adoption decisions", () => {
+        const platformManifest = PlatformManifestSchema.parse({
+          project: "platform",
+          layers: [
+            { slug: "base", title: "Base", description: "Shared defaults" },
+          ],
+          slots: [
+            {
+              slug: "tool.runner",
+              title: "Task runner",
+              description: "Runs project tasks",
+              rationale: "Several task runners can fill this role",
+            },
+          ],
+          policies: [
+            {
+              id: "base-runner",
+              layer: "base",
+              slot: "tool.runner",
+              mode: "required",
+              effectiveFrom: "2026-01-01T00:00:00Z",
+              decision: "platform:001-runner",
+              prerequisites: [],
+            },
+          ],
+          selections: [
+            {
+              id: "runner",
+              slot: "tool.runner",
+              technology: "task-runner",
+              status: "Accepted",
+              effectiveFrom: "2026-01-01T00:00:00Z",
+              decision: "platform:001-runner",
+              originProjects: ["source-project"],
+              evidenceADRs: ["source-project:999-missing"],
+            },
+          ],
+        });
+        const projects = new Map([
+          [
+            "platform",
+            {
+              slug: "platform",
+              title: "Platform",
+              description: "Desc",
+              date: "2026-01-01",
+              status: "live" as const,
+              content: "Content",
+            },
+          ],
+          [
+            "source-project",
+            {
+              slug: "source-project",
+              title: "Source",
+              description: "Desc",
+              date: "2026-01-01",
+              status: "live" as const,
+              content: "Content",
+            },
+          ],
+          [
+            "adopter",
+            {
+              slug: "adopter",
+              title: "Adopter",
+              description: "Desc",
+              date: "2026-01-01",
+              status: "live" as const,
+              content: "Content",
+            },
+          ],
+        ]);
+        const adrs = new Map([
+          [
+            "platform:001-runner",
+            {
+              adrRef: "platform:001-runner",
+              slug: "001-runner",
+              projectSlug: "platform",
+              title: "Choose runner",
+              date: "2026-01-01",
+              status: "Accepted" as const,
+              content: "Content",
+              readingTime: "1 min",
+            },
+          ],
+          [
+            "source-project:001-source",
+            {
+              adrRef: "source-project:001-source",
+              slug: "001-source",
+              projectSlug: "source-project",
+              title: "Source decision",
+              date: "2026-01-01",
+              status: "Accepted" as const,
+              content: "Content",
+              readingTime: "1 min",
+            },
+          ],
+        ]);
+        const projectRelations = new Map([
+          [
+            "adopter",
+            ProjectRelationsSchema.parse({
+              platformLayers: [
+                {
+                  layer: "base",
+                  adopted: "2026-01-01T00:00:00Z",
+                  tracking: true,
+                  decision: "source-project:001-source",
+                },
+              ],
+            }),
+          ],
+        ]);
+
+        const errors = validateReferentialIntegrity({
+          technologies: new Map([
+            [
+              "task-runner",
+              {
+                slug: "task-runner",
+                name: "Task runner",
+                website: "",
+                ideas: [],
+              },
+            ],
+          ]),
+          initiatives: new Map(),
+          adrs,
+          projects,
+          blogRelations: new Map(),
+          projectRelations,
+          adrRelations: new Map(),
+          roleRelations: new Map(),
+          platformManifest,
+        });
+
+        expect(errors).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: "missing_reference",
+              field: "evidenceADRs",
+              value: "source-project:999-missing",
+            }),
+            expect.objectContaining({
+              type: "invalid_reference",
+              field: "decision",
+              value: "source-project:001-source",
+            }),
+          ]),
+        );
+      });
+
+      it("rejects a slot use that extends beyond its layer policy period", () => {
         const platformManifest = PlatformManifestSchema.parse({
           project: "platform",
           layers: [
@@ -1217,6 +1391,7 @@ Content`;
               effectiveUntil: "2026-01-02T00:00:00Z",
               decision: "platform:001-runner",
               originProjects: [],
+              evidenceADRs: ["platform:001-runner"],
             },
           ],
         });
@@ -1256,14 +1431,18 @@ Content`;
               platformLayers: [
                 {
                   layer: "base",
-                  adopted: "2026-01-03T00:00:00Z",
-                  tracking: true,
+                  adopted: "2026-01-01T12:00:00Z",
+                  until: "2026-01-03T00:00:00Z",
+                  tracking: false,
                   slots: [
                     {
                       slot: "tool.runner",
-                      adopted: "2026-01-03T00:00:00Z",
+                      adopted: "2026-01-01T12:00:00Z",
+                      until: "2026-01-03T00:00:00Z",
+                      rationale: "Use the runner while the project is active.",
                     },
                   ],
+                  rationale: "Freeze the project after delivery.",
                 },
               ],
             },
@@ -1312,6 +1491,9 @@ Content`;
             entity: "Project[test-project]",
             field: "platformLayers.slots",
             value: "tool.runner",
+            message: expect.stringContaining(
+              "'base-runner' [2026-01-01T00:00:00Z, 2026-01-02T00:00:00Z)",
+            ),
           }),
         );
       });

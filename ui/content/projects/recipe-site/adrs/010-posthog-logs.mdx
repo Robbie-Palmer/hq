@@ -1,0 +1,159 @@
+---
+title: "ADR 010: PostHog Logs for Backend Observability"
+date: "2026-06-28"
+status: "Accepted"
+tech_stack: ["PostHog", "Cloudflare Workers", "OpenTelemetry"]
+---
+
+# Summary
+
+Export `recipe-api` Worker logs to PostHog Logs via OpenTelemetry (OTLP), reusing the
+PostHog project that already powers product analytics
+([ADR 028](/projects/recipe-site/adrs/028-posthog-analytics)).
+
+Placing backend logs alongside frontend events, session replays, funnels, and retention
+lets operational signals such as errors and latency be correlated with product outcomes and
+KPIs. That supports prioritising reliability and performance work by product impact,
+whether a buggy path is driving churn, whether latency is hurting conversion, as well as
+debugging individual incidents. Neon log export is out of scope. The export mechanism, and
+the trade-offs of Cloudflare's beta observability pipeline, are covered in
+[ADR 011](/projects/recipe-site/adrs/011-cloudflare-observability-destinations).
+
+# Context
+
+The recipe site gained a server-side runtime
+([ADR 004](/projects/recipe-site/adrs/004-backend-platform-for-authenticated-features)): a
+`recipe-api` Cloudflare Worker, two Cloudflare Pages Functions, and a Neon Postgres database
+behind Hyperdrive. That runtime needs observability, a way to answer "what happened when
+this request failed?" after the fact.
+
+PostHog already serves product analytics, session replay, and experimentation. The question
+is whether backend logs should also live in PostHog, or whether Cloudflare-native tooling is
+sufficient.
+
+Options for Worker logs:
+
+| Option                                                       | Retained / queryable | Correlated with PostHog | Effort                   |
+| ------------------------------------------------------------ | -------------------- | ----------------------- | ------------------------ |
+| `wrangler tail`                                              | No (live only)       | No                      | Zero                     |
+| Cloudflare Workers Logs (built-in)                           | Yes (CF dashboard)   | No                      | Zero (toggle)            |
+| Dedicated platform (Grafana / Axiom / Sentry / Better Stack) | Yes                  | No                      | New vendor + pipeline    |
+| **PostHog Logs**                                             | Yes                  | **Yes**                 | Low (native OTLP export) |
+
+For live debugging, `wrangler tail` is better. For retained, queryable logs on their own,
+Cloudflare's built-in Workers Logs already suffice at little cost. Retention alone does not
+justify PostHog Logs; its value is the correlation described below.
+
+# Decision
+
+Use PostHog Logs as the destination for `recipe-api` Worker logs. The value is correlation
+with product data PostHog already holds, at two levels.
+
+**Incident level.** A backend `500` can be tied to the same `distinct_id`, that person's
+product-analytics events, and their session replay: a failed recipe save links to the
+request log and the replay of what the user did. This requires the Worker to attach the
+PostHog `distinct_id` to logs.
+
+**Aggregate / KPI level (the primary motivation).** Because logs sit with funnels,
+retention, and experiments, operational signals can be joined to product outcomes across
+cohorts:
+
+* **Reliability and churn.** Whether users who hit a buggy or error-prone path retain and
+  convert worse than those who do not. A flaky experience that measurably drives churn
+  becomes a retention and revenue issue with a priority to match.
+* **Latency and value.** Whether latency optimisation is worth doing before shipping
+  features. Comparing conversion, task completion, and retention across cohorts with
+  different latency profiles answers it: indistinguishable KPIs make latency work hard to
+  justify; a slower cohort that converts worse justifies the optimisation.
+* **Investment.** Choosing between reliability, performance, and features by their measured
+  impact on KPIs.
+
+This is the case for PostHog specifically. A standalone logging or observability tool
+(Grafana, Axiom, Sentry) holds the operational signal but lacks the product and KPI side;
+product analytics holds the KPIs but lacks the per-request operational signal. PostHog holds
+both. `wrangler tail` and Cloudflare's siloed Workers Logs hold neither connection.
+
+Supporting factors:
+
+* **Cost.** PostHog Logs includes the first 50 GB/month free, then $0.25/GB. A personal
+  recipe site stays well within the free tier.
+* **No proprietary SDK.** PostHog ingests standard OTLP, so the integration uses the
+  OpenTelemetry ecosystem and avoids a vendor-specific client.
+
+## Scope
+
+* **Traces excluded.** Cloudflare exports logs but does not export traces to PostHog, so
+  there are no distributed-trace waterfalls on this path. Logs cover the recipe site's needs.
+* **`recipe-api` Worker only.** Pages Functions observability export lags Workers and is not
+  assumed to be covered.
+
+## Neon logs are out of scope
+
+Neon log export was evaluated and rejected:
+
+* Neon's own logs are low-value for a small site, and queries already pass through
+  Hyperdrive, which adds a layer between the app and the database.
+* The database signal worth capturing, slow queries, query errors, connection churn, is
+  more useful when emitted from inside the Worker, where request context (route,
+  `distinct_id`, query name, duration) is available. That context lands in the same PostHog
+  log stream and exceeds what Neon's logs could provide.
+
+Database visibility therefore comes from a thin "log slow/failed query" wrapper in the
+Worker. Neon → OTel is not used.
+
+# Alternatives Considered
+
+## `wrangler tail` only
+
+Free and immediate, but live-only: it shows what is happening now and keeps no history. It
+stays as a complementary live-debugging tool.
+
+## Cloudflare Workers Logs (built-in)
+
+Cloudflare persists and lets you query Worker logs in its dashboard at little or no cost,
+the lowest-effort baseline. It was passed over as the primary solution because it is siloed
+from PostHog, with no link to people, events, or replays, which is the reason to centralise.
+It stays available as a fallback if PostHog ingestion is unavailable.
+
+## Dedicated observability platform (Grafana Cloud / Axiom / Sentry / Better Stack)
+
+Stronger log and trace tooling than PostHog Logs, and Cloudflare exports OTLP to all of
+them. Each adds a new vendor relationship and leaves backend logs disconnected from
+PostHog's product-analytics data, which works against the consolidation goal. Sentry-style
+error tracking may be reconsidered if error triage outgrows PostHog Logs.
+
+## Neon log export
+
+Rejected; see "Neon logs are out of scope" above.
+
+# Consequences
+
+## Positive
+
+* **Unified view.** Backend logs, product analytics, and session replays share a home and a
+  person identity.
+* **Prioritisation by impact.** Errors and latency can be joined to KPIs and cohorts, so
+  reliability and performance work can be judged by product impact.
+* **Within free tier.** Stays inside PostHog's free log allowance.
+* **Standards-based.** OTLP export with no proprietary logging SDK.
+* **Better database signal.** Stronger than Neon's own logs, captured with request context
+  from the Worker.
+
+## Negative
+
+* **Depends on log dimensions.** The payoff requires `distinct_id` for incident correlation,
+  and route plus latency for cohort and KPI analysis. Without them, PostHog Logs is another
+  log bucket with no advantage over Cloudflare's built-in logs.
+* **No tracing.** Distributed tracing is unavailable on this path.
+* **Pages Functions likely uncovered.** Observability export there lags Workers.
+* **Second consumer of `POSTHOG_KEY`.** The log pipeline authenticates with the public
+  PostHog project key (see
+  [ADR 011](/projects/recipe-site/adrs/011-cloudflare-observability-destinations) and the
+  rotation runbook in `infra/public-platform/README.md`).
+
+# When To Revisit
+
+* Error triage outgrows PostHog Logs and warrants dedicated error tracking such as Sentry.
+* Distributed tracing becomes worth a trace-capable backend.
+* Cloudflare adds trace export to PostHog, or Pages Functions gain first-class export.
+* Log volume approaches the PostHog free tier.

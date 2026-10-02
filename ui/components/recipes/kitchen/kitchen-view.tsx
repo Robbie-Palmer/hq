@@ -58,6 +58,7 @@ function LocationIcon({ location }: Readonly<{ location: KitchenLocation }>) {
   return <Icon className="size-4" />;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function KitchenView({
   ingredients,
   recipes,

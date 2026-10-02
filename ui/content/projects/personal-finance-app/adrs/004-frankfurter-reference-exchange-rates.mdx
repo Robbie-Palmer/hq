@@ -1,0 +1,107 @@
+---
+title: "ADR 004: Use Frankfurter for reference exchange rates"
+date: "2026-10-02"
+status: "Accepted"
+tech_stack: ["Frankfurter"]
+---
+
+## Context
+
+Asset Tracker already stores sourced, bitemporal exchange-rate observations under
+[ADR 000](/projects/personal-finance-app/adrs/000-financial-fact-and-calculation-provenance).
+It still needs an external source for historical worth in a selected currency and a recent baseline
+for short-term conversion scenarios. The first household uses GBP as its base currency and holds
+values denominated in USD and EUR.
+
+These uses need reference rates. Trading data solves a different problem. A reference rate can
+restate a balance or anchor a scenario, but it cannot tell the user what a bank or broker will
+deliver after its spread and fees.
+Treating one rate as both would make the decision view look more precise than it is.
+
+## Decision
+
+Use [Frankfurter's v2 API](https://frankfurter.dev/) as the primary source of daily historical and
+latest reference rates. Use its blended `/rates` feed with explicit base currency, quote currencies,
+and dates. Store the returned rate and date, the retrieval time, the request parameters, and the
+per-provider observations returned by `expand=providers`. Corrections create new observations under
+ADR 000 rather than changing accepted history.
+
+A valuation may use only provider observations dated on or before its valuation date. Weekend and
+holiday results may contain carried observations from different source dates. Asset Tracker will
+retain those dates and mark a carried rate instead of claiming that every source observed a new rate
+on the requested day. Missing coverage remains a visible gap.
+
+Use the [ECB Data API](https://data.ecb.europa.eu/help/api/data) as the fallback for supported daily
+EUR reference rates. The application can invert or triangulate those rates for GBP and USD while
+retaining the ECB source and original observation date. If neither source is available, keep the last
+accepted rate with a stale status. Do not silently substitute a new provider.
+
+Frankfurter's latest rate is the reference baseline for present and short-term scenarios. It does
+not represent an executable quote, bid, ask, or forecast. A scenario that models a conversion must
+keep the user's bank or broker quote, spread, fixed fees, and percentage fees as separate inputs. We
+have no current need for a paid live-rate provider. A later decision can add one after real usage
+demonstrates a need for automated intraday or executable quotes.
+
+## Validation
+
+On 1 October 2026, public API probes confirmed all of the following:
+
+* GBP/USD and GBP/EUR history was available for 4 January 1999.
+* The API returned both pairs for a current date range and accepted GBP as the base currency.
+* Pair coverage began on 21 December 1949 for GBP/USD and 1 January 1999 for GBP/EUR.
+* `expand=providers` returned each contributing provider's observation date and marked excluded
+  outliers.
+* Five consecutive latest-rate requests returned HTTP 200 in 76 to 86 milliseconds from the test
+  environment. The measurement records one point in time and provides no service guarantee.
+
+Frankfurter documents no authentication, quotas, or monthly caps. Its public service is free and its
+software uses the MIT licence. It does not publish an availability commitment. Self-hosting remains
+available through its Docker image if the public service becomes unsuitable. Some upstream sources
+publish separate terms, so a commercial launch must review the terms for the providers whose data it
+retains or redistributes.
+
+## Consequences
+
+One API covers the project's core currencies, arbitrary base currencies, long history, current daily
+reference rates, and source-level lineage without a secret or recurring fee. The provider adapter can
+stay small, and the same normalized observation model supports the hosted service, direct ECB
+fallback, or a later self-hosted Frankfurter instance.
+
+The public endpoint has no SLA. Blended rates can be revised as sources change, and a result may mix
+provider observation dates. Ingestion must cache accepted observations, retain the source breakdown,
+apply explicit freshness rules, and expose gaps rather than depending on the API for every read.
+
+Frankfurter does not solve executable pricing. Decision views need a fresh quote from the user's
+actual conversion provider before money moves. We should revisit this decision if users need
+intraday history, bid and ask data, an uptime commitment, or automatic provider-specific quotes often
+enough to justify their cost.
+
+## Alternatives considered
+
+### Use the ECB directly as the primary source
+
+The ECB is the strongest authority for its daily EUR reference rates and remains the fallback. It
+covers fewer currencies, uses EUR as its published denominator, and offers working-day reference
+rates rather than Frankfurter's broader normalized feed. The ECB also warns against using its rates
+for transactions.
+
+### Use Open Exchange Rates
+
+[Open Exchange Rates](https://openexchangerates.org/signup) offers hourly data and more than 200
+currencies. Its free plan requires an application key, fixes the base currency to USD, permits 1,000
+requests each month, and omits time-series queries. Paid plans improve those limits, while bid and ask
+prices and an SLA require a separate commercial arrangement. That cost and secret management do not
+buy a needed capability for daily household valuation today.
+
+### Self-host Frankfurter now
+
+Self-hosting would remove dependence on the public endpoint and keep the same API contract. It would
+also add a database, scheduled provider imports, monitoring, backups, updates, and optional upstream
+credentials. Keep it as an exit path for a later deployment.
+
+### Adopt an automated live quote provider now
+
+Intraday mid-market data would look fresher but would still differ from the amount a bank or broker
+delivers. The first decision workflow is better served by a free reference baseline plus the user's
+actual quote and fees. Reconsider a live provider when repeated decisions make manual quote capture
+the limiting step.

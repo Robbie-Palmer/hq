@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   check,
@@ -7,14 +8,27 @@ import {
   integer,
   jsonb,
   pgEnum,
-  primaryKey,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { CookLogMutationValue } from "recipe-domain/cook-log";
+import {
+  RECIPE_IMPORT_STAGES,
+  RECIPE_IMPORT_STATUSES,
+} from "recipe-domain/import-storage";
+import { MUTATION_ACTOR_TYPES } from "recipe-domain/mutation";
+import {
+  PANTRY_LOCATIONS,
+  type PantryMutationValue,
+} from "recipe-domain/pantry";
 import { RECIPE_VISIBILITIES } from "recipe-domain/visibility";
+
+export type { CookLogMutationValue } from "recipe-domain/cook-log";
+export type { PantryMutationValue } from "recipe-domain/pantry";
 
 export const user = pgTable("user", {
   id: text().primaryKey(),
@@ -266,6 +280,7 @@ export const agentAuthAuditEvent = pgTable(
     capability: text(),
     outcome: text(),
     durationMs: integer(),
+    correlationId: text(),
     occurredAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -281,6 +296,7 @@ export const agentAuthAuditEvent = pgTable(
       table.hostId,
       table.occurredAt.desc(),
     ),
+    index("agent_auth_audit_event_correlation_idx").on(table.correlationId),
   ],
 );
 
@@ -485,8 +501,10 @@ export const recipe = pgTable(
       .notNull()
       .defaultNow()
       .$onUpdate(() => new Date()),
+    parentRecipeId: uuid().references((): AnyPgColumn => recipe.id, { onDelete: "restrict" }),
   },
   (table) => [
+    index("recipe_parent_recipe_idx").on(table.parentRecipeId),
     index("recipe_user_id_idx").on(table.userId),
     index("recipe_public_feed_idx").on(
       table.visibility,
@@ -528,11 +546,7 @@ export const ingredient = pgTable("ingredient", {
     .$onUpdate(() => new Date()),
 });
 
-export const pantryLocationEnum = pgEnum("pantry_location", [
-  "fridge",
-  "cupboards",
-  "fresh",
-]);
+export const pantryLocationEnum = pgEnum("pantry_location", PANTRY_LOCATIONS);
 
 /**
  * Revision state for one logical pantry. The owner mirrors pantry_item so a
@@ -620,6 +634,113 @@ export const pantryItem = pgTable(
       table.ingredientSlug,
     ),
     index("pantry_item_ingredient_slug_idx").on(table.ingredientSlug),
+  ],
+);
+
+export const mutationActorTypeEnum = pgEnum(
+  "mutation_actor_type",
+  MUTATION_ACTOR_TYPES,
+);
+
+/**
+ * One immutable, attributable write to a current-state projection. Undo creates
+ * another row linked through compensatesChangeSetId; history is never edited.
+ */
+export const agentMutationChangeSet = pgTable(
+  "agent_mutation_change_set",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    actorType: mutationActorTypeEnum().notNull(),
+    actorUserId: text().notNull(),
+    actorAgentId: text(),
+    actorAgentName: text(),
+    actorHostId: text(),
+    actorHostName: text(),
+    capability: text().notNull(),
+    targetType: text().notNull(),
+    targetId: text().notNull(),
+    reason: text().notNull(),
+    idempotencyKey: uuid().notNull(),
+    commandFingerprint: text().notNull(),
+    compensatesChangeSetId: uuid().references(
+      (): AnyPgColumn => agentMutationChangeSet.id,
+    ),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      "agent_mutation_change_set_actor_check",
+      sql`(${table.actorType} = 'agent' AND num_nonnulls(${table.actorAgentId}, ${table.actorHostId}) = 2) OR (${table.actorType} = 'user' AND num_nonnulls(${table.actorAgentId}, ${table.actorHostId}) = 0)`,
+    ),
+    uniqueIndex("agent_mutation_change_set_idempotency_uidx").on(
+      table.idempotencyKey,
+    ),
+    index("agent_mutation_change_set_user_time_idx").on(
+      table.actorUserId,
+      table.createdAt.desc(),
+    ),
+    index("agent_mutation_change_set_target_time_idx").on(
+      table.targetType,
+      table.targetId,
+      table.createdAt.desc(),
+    ),
+    index("agent_mutation_change_set_compensates_idx").on(
+      table.compensatesChangeSetId,
+    ),
+  ],
+);
+
+/** Structured before/after state needed for conflict-aware compensation. */
+export const agentMutationChangeItem = pgTable(
+  "agent_mutation_change_item",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    changeSetId: uuid()
+      .notNull()
+      .references(() => agentMutationChangeSet.id, { onDelete: "restrict" }),
+    ordinal: integer().notNull(),
+    stableItemId: uuid().notNull(),
+    ingredientSlug: text().notNull(),
+    beforeValue: jsonb().$type<PantryMutationValue>(),
+    afterValue: jsonb().$type<PantryMutationValue>(),
+    beforeVersion: bigint({ mode: "bigint" }),
+    // Removals store the absence-marker version even though afterValue is null.
+    afterVersion: bigint({ mode: "bigint" }).notNull(),
+  },
+  (table) => [
+    check(
+      "agent_mutation_change_item_value_check",
+      sql`num_nonnulls(${table.beforeValue}, ${table.afterValue}) >= 1`,
+    ),
+    uniqueIndex("agent_mutation_change_item_ordinal_uidx").on(
+      table.changeSetId,
+      table.ordinal,
+    ),
+    index("agent_mutation_change_item_stable_id_idx").on(table.stableItemId),
+  ],
+);
+
+/**
+ * Versioned absence marker for a removed pantry item. Undo may restore only
+ * while this exact marker remains current and no item has been recreated.
+ */
+export const pantryItemAbsence = pgTable(
+  "pantry_item_absence",
+  {
+    aggregateId: uuid()
+      .notNull()
+      .references(() => pantryAggregate.id, { onDelete: "cascade" }),
+    stableItemId: uuid().notNull(),
+    ingredientSlug: text().notNull(),
+    version: bigint({ mode: "bigint" }).notNull(),
+    changeSetId: uuid()
+      .notNull()
+      .references(() => agentMutationChangeSet.id, { onDelete: "restrict" }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.aggregateId, table.ingredientSlug] }),
+    index("pantry_item_absence_stable_id_idx").on(table.stableItemId),
   ],
 );
 
@@ -915,8 +1036,14 @@ export const cookingSession = pgTable(
     recipeSlug: text().notNull(),
     recipeTitle: text().notNull(),
     servings: integer().notNull(),
+    diners: text().array().notNull().default(sql`'{}'::text[]`),
     startedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp({ withTimezone: true }),
+    version: bigint({ mode: "bigint" }).notNull().default(sql`1`),
+    createdByChangeSetId: uuid().references(
+      () => agentMutationChangeSet.id,
+      { onDelete: "restrict" },
+    ),
   },
   (table) => [
     index("cooking_session_user_started_idx").on(
@@ -935,6 +1062,34 @@ export const cookingSession = pgTable(
   ],
 );
 
+/** Structured cook-log snapshots used to preview and apply compensation. */
+export const agentCookLogChangeItem = pgTable(
+  "agent_cook_log_change_item",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    changeSetId: uuid()
+      .notNull()
+      .references(() => agentMutationChangeSet.id, { onDelete: "restrict" }),
+    ordinal: integer().notNull(),
+    sessionId: uuid().notNull(),
+    beforeValue: jsonb().$type<CookLogMutationValue>(),
+    afterValue: jsonb().$type<CookLogMutationValue>(),
+    beforeVersion: bigint({ mode: "bigint" }),
+    afterVersion: bigint({ mode: "bigint" }).notNull(),
+  },
+  (table) => [
+    check(
+      "agent_cook_log_change_item_value_check",
+      sql`num_nonnulls(${table.beforeValue}, ${table.afterValue}) >= 1`,
+    ),
+    uniqueIndex("agent_cook_log_change_item_ordinal_uidx").on(
+      table.changeSetId,
+      table.ordinal,
+    ),
+    index("agent_cook_log_change_item_session_idx").on(table.sessionId),
+  ],
+);
+
 export const appRateLimit = pgTable("app_rate_limit", {
   key: text().primaryKey(),
   count: integer().notNull().default(0),
@@ -944,19 +1099,38 @@ export const appRateLimit = pgTable("app_rate_limit", {
 // Postgres is the source of truth for recipe import job state;
 // R2 holds the immutable source images and stage artifact snapshots.
 
-export const recipeImportStatusEnum = pgEnum("recipe_import_status", [
-  "queued",
-  "running",
-  "succeeded",
-  "failed",
-]);
+export const recipeImportStatusEnum = pgEnum(
+  "recipe_import_status",
+  RECIPE_IMPORT_STATUSES,
+);
 
-export const recipeImportStageEnum = pgEnum("recipe_import_stage", [
-  "extract",
-  "normalize",
-  "canonicalize",
-  "finalize",
-]);
+export const recipeImportStageEnum = pgEnum(
+  "recipe_import_stage",
+  RECIPE_IMPORT_STAGES,
+);
+
+export const recipeImportDraftKindEnum = pgEnum("recipe_import_draft_kind", ["generated", "editable"]);
+
+export const recipeImportArchiveEntry = pgTable("recipe_import_archive_entry", {
+  jobId: uuid().primaryKey().references(() => recipeImportJob.id, { onDelete: "cascade" }),
+  archiveName: text().notNull(),
+  archiveChecksum: text().notNull(),
+  entryPath: text().notNull(),
+  contentChecksum: text().notNull(),
+}, table => [index("recipe_import_archive_entry_content_idx").on(table.contentChecksum)]);
+
+export const recipeImportBatch = pgTable("recipe_import_batch", {
+  id: uuid().primaryKey().defaultRandom(),
+  userId: text().notNull().references(() => user.id, { onDelete: "cascade" }),
+  idempotencyKey: uuid().notNull(),
+  fingerprint: text().notNull(),
+  duplicatePolicy: text().notNull().default("skip"),
+  undoStartedAt: timestamp({ withTimezone: true }),
+  undoCompletedAt: timestamp({ withTimezone: true }),
+  startedAt: timestamp({ withTimezone: true }),
+  visibility: visibilityEnum().notNull().default("private"),
+  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+}, table => [uniqueIndex("recipe_import_batch_owner_key_unique").on(table.userId, table.idempotencyKey)]);
 
 export const recipeImportJob = pgTable(
   "recipe_import_job",
@@ -972,6 +1146,22 @@ export const recipeImportJob = pgTable(
     errorMessage: text(),
     workflowInstanceId: text(),
     imageCount: integer().notNull(),
+    batchId: uuid().references(() => recipeImportBatch.id, { onDelete: "cascade" }),
+    position: integer(),
+    sourceType: text().notNull().default("photo"),
+    sourceLabel: text(),
+    sourceChecksum: text(),
+    reviewState: text().notNull().default("waiting"),
+    draftVersion: integer().notNull().default(1),
+    executionAttempt: integer().notNull().default(1),
+    acceptedRecipeId: uuid().references(() => recipe.id, { onDelete: "set null" }),
+    acceptedRecipeSnapshotId: uuid(),
+    acceptedRecipeUpdatedAt: timestamp({ withTimezone: true }),
+    undoOutcome: text(),
+    undoMessage: text(),
+    acceptKey: uuid(),
+    acceptFingerprint: text(),
+    acceptedVersion: integer(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp({ withTimezone: true })
       .notNull()
@@ -980,6 +1170,7 @@ export const recipeImportJob = pgTable(
     finishedAt: timestamp({ withTimezone: true }),
   },
   (table) => [
+    uniqueIndex("recipe_import_job_batch_position_unique").on(table.batchId, table.position),
     index("recipe_import_job_user_id_idx").on(table.userId),
     index("recipe_import_job_user_status_idx").on(table.userId, table.status),
     index("recipe_import_job_user_created_idx").on(
@@ -1047,3 +1238,36 @@ export const recipeImportAttempt = pgTable(
     ),
   ],
 );
+
+export const recipeImportReviewEvent = pgTable("recipe_import_review_event", {
+  id: uuid().primaryKey().defaultRandom(),
+  jobId: uuid().notNull().references(() => recipeImportJob.id, { onDelete: "cascade" }),
+  action: text().notNull(),
+  draftVersion: integer().notNull(),
+  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+}, table => [index("recipe_import_review_event_job_idx").on(table.jobId)]);
+
+export const recipeImportDraft = pgTable("recipe_import_draft", {
+  id: uuid().primaryKey().defaultRandom(),
+  jobId: uuid().notNull().references(() => recipeImportJob.id, { onDelete: "cascade" }),
+  kind: recipeImportDraftKindEnum().notNull(),
+  title: text().notNull(),
+  description: text().notNull(),
+  servings: integer().notNull(),
+  prepTime: integer(),
+  cookTime: integer(),
+  source: text().notNull(),
+  sourceUrl: text(),
+  visibility: visibilityEnum(),
+}, table => [
+  uniqueIndex("recipe_import_draft_job_kind_unique").on(table.jobId, table.kind),
+  check("recipe_import_draft_servings_positive", sql`${table.servings} > 0`),
+  check("recipe_import_draft_prep_time_nonnegative", sql`${table.prepTime} >= 0`),
+  check("recipe_import_draft_cook_time_nonnegative", sql`${table.cookTime} >= 0`),
+]);
+
+export const recipeImportDraftCuisine = pgTable("recipe_import_draft_cuisine", {
+  draftId: uuid().notNull().references(() => recipeImportDraft.id, { onDelete: "cascade" }),
+  position: integer().notNull(),
+  label: text().notNull(),
+}, table => [primaryKey({ columns: [table.draftId, table.position] }), check("recipe_import_draft_cuisine_position_nonnegative", sql`${table.position} >= 0`)]);

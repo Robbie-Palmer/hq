@@ -35,6 +35,7 @@ jobs:
         env:
           AGE_RECIPIENT: ${{ vars.AGE_RECIPIENT }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          DATABASE_BACKUP_LABEL: recipes
           NEON_DATABASE_URL_UNPOOLED: ${{ secrets.NEON_DATABASE_URL_UNPOOLED }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_DATABASE_BACKUPS_BUCKET_NAME: ${{ vars.R2_DATABASE_BACKUPS_BUCKET_NAME }}

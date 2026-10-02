@@ -24,19 +24,19 @@ run = "bash scripts/evaluate.sh"
 
 [tasks.repro]
 description = "Reproduce the AI reviewer corpus, replay plans or runs, and DuckDB evaluation"
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc repro"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro"
 
 [tasks.pull]
 description = "Pull the versioned AI reviewer evaluation corpus and outputs from R2"
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc pull"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc pull"
 
 [tasks.push]
 description = "Push the AI reviewer evaluation DVC cache to its R2 prefix"
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc push"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc push"
 
 [tasks.dvc]
 description = "Run a DVC command in the AI reviewer evaluation project"
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc"
 
 [tasks.check]
 description = "Check the AI reviewer evaluation pipeline and deterministic fixtures"

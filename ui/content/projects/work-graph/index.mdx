@@ -2,12 +2,14 @@
 title: "Work Graph"
 description: "A public source of truth for outcomes, dependencies, evidence, leases, and the human decisions that keep work moving"
 date: "2026-09-04"
-updated: "2026-09-18"
+updated: "2026-09-29"
 status: "in_progress"
 repo_url: "https://github.com/Robbie-Palmer/hq"
 tech_stack:
   - "Cloudflare Access"
+  - "Cloudflare Queues"
   - "Drizzle"
+  - "GitHub"
   - "Hono"
   - "Hyperdrive"
   - "OpenAPI"
@@ -17,42 +19,83 @@ platform_layers:
   - layer: "governance"
     adopted: "2026-09-15T00:00:00Z"
     tracking: true
+    rationale: "The public service uses the shared repository's publication and licensing rules."
   - layer: "base"
     adopted: "2026-09-13T00:00:00Z"
     tracking: true
+    rationale: "The service uses the repository-wide development and delivery controls."
     slots:
       - slot: "secrets.runtime-store"
         adopted: "2026-09-15T00:00:00Z"
+        rationale: "The API and CLI need service and database credentials."
       - slot: "secrets.ci-store"
         adopted: "2026-09-15T00:00:00Z"
+        rationale: "Delivery workflows need deployment credentials."
+      - slot: "security.service-auth"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "work-graph:004-cloudflare-access-service-auth"
   - layer: "backend-api"
     adopted: "2026-09-13T00:00:00Z"
     tracking: true
+    decision: "work-graph:003-rest-api-and-cli-first"
     slots:
       - slot: "backend-api.runtime"
         adopted: "2026-09-13T00:00:00Z"
+        rationale: "The REST service runs beside the existing Cloudflare-hosted applications."
+      - slot: "backend-api.http-framework"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "work-graph:003-rest-api-and-cli-first"
+      - slot: "backend-api.contract-format"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "work-graph:003-rest-api-and-cli-first"
+      - slot: "backend-api.relational-connection"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "work-graph:001-postgresql-coordination-boundary"
   - layer: "database"
     adopted: "2026-09-13T00:00:00Z"
     tracking: true
+    decision: "work-graph:001-postgresql-coordination-boundary"
     slots:
       - slot: "database.relational-engine"
         adopted: "2026-09-13T00:00:00Z"
+        decision: "work-graph:001-postgresql-coordination-boundary"
       - slot: "database.relational-host"
         adopted: "2026-09-13T00:00:00Z"
+        rationale: "The coordination database needs a managed PostgreSQL host."
+      - slot: "database.relational-access"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "work-graph:001-postgresql-coordination-boundary"
+      - slot: "database.backup-restore"
+        adopted: "2026-09-29T00:00:00Z"
+        rationale: "Scheduled CI writes age-encrypted PostgreSQL archives to a dedicated R2 bucket, retains weekly and monthly copies, and requires scratch-database restore drills."
   - layer: "infrastructure"
     adopted: "2026-09-13T00:00:00Z"
     tracking: true
+    rationale: "The service owns managed database, access, and Worker resources."
     slots:
       - slot: "infrastructure.provisioner"
         adopted: "2026-09-13T00:00:00Z"
+        rationale: "Managed service resources are provisioned from checked-in configuration."
       - slot: "infrastructure.state-backend"
         adopted: "2026-09-15T00:00:00Z"
+        rationale: "Automated deployments require protected shared infrastructure state."
   - layer: "observability"
     adopted: "2026-09-13T00:00:00Z"
     tracking: true
+    rationale: "The coordination service needs application-level operational signals."
     slots:
       - slot: "observability.application-telemetry"
         adopted: "2026-09-13T00:00:00Z"
+        until: "2026-09-29T00:00:00Z"
+        rationale: "API errors and work-state transitions need application telemetry."
+  - layer: "storage"
+    adopted: "2026-09-29T00:00:00Z"
+    tracking: true
+    rationale: "The coordination database needs provider-independent encrypted backups outside Neon."
+    slots:
+      - slot: "storage.object-store"
+        adopted: "2026-09-29T00:00:00Z"
+        rationale: "A dedicated R2 bucket stores encrypted PostgreSQL archives and their checksums under retention and deletion-lock policies."
 initiatives:
   - "semi-autonomous-software-development"
 ideas:
@@ -140,6 +183,106 @@ The Work Graph owns:
 It does not choose the model, machine, subscription, or person that should do a
 work item. The [Agent Coordinator](/projects/agent-coordinator) owns that concern.
 
+# Architecture
+
+This view borrows C4's boundary and relationship conventions. It shows the Work
+Graph system, its main containers and components, the places where the CLI runs,
+and the external systems it uses. It is not a production deployment diagram.
+
+People and agents install the CLI in local workstations, remote development
+workspaces, or automation runtimes. The CLI sends authenticated commands and
+queries to the REST API. For pull-request commands, it also reads current status
+and checks from GitHub before attaching that snapshot to a work item.
+
+The public Knowledge Graph remains authoritative for initiative and project
+meaning. Owners and agents use its stable identifiers, URLs, relationships, and
+source revisions when they explicitly update Work Graph's knowledge-scope
+mirrors. Those mirrors add operational lifecycle and stack rank without copying
+the project prose.
+
+GitHub webhook observation is a planned, separate automation path. A dedicated
+observer will validate delivery events and place them on a queue before evidence
+ingestion reaches the same API boundary. It cannot bypass policy or write
+directly to the coordination store.
+
+## System context and CLI deployment
+
+<Mermaid
+  chart={`flowchart TB
+People["Owner and agent workers<br/>[People]"]
+Environment["Development environments<br/>[Deployment nodes]<br/>Local, remote, CI, or agent<br/>Work Graph CLI installed"]
+GitHub["GitHub<br/>[External system]<br/>Pull requests, checks,<br/>delivery events"]
+Automation["Planned GitHub automation<br/>[Containers]<br/>Observer, queue, ingestion"]
+WorkGraph["Work Graph<br/>[Software system]<br/>Work items, scope mirrors,<br/>leases, and evidence"]
+Knowledge["Public Knowledge Graph<br/>[External system]<br/>Canonical initiatives<br/>and projects"]
+
+People -->|"uses CLI"| Environment
+Environment -->|"commands"| WorkGraph
+Environment -->|"reads PRs and checks"| GitHub
+GitHub -.->|"signed events"| Automation
+Automation -.->|"evidence commands"| WorkGraph
+WorkGraph -->|"mirrors scope"| Knowledge
+
+classDef person fill:#7c3aed,color:#fff,stroke:#6d28d9
+classDef external fill:#475569,color:#fff,stroke:#334155
+classDef environment fill:#e0f2fe,color:#0c4a6e,stroke:#0284c7
+classDef system fill:#2563eb,color:#fff,stroke:#1d4ed8
+classDef plannedNode fill:#fff7ed,color:#9a3412,stroke:#ea580c,stroke-dasharray:5 5
+class People person
+class Knowledge,GitHub external
+class Environment environment
+class WorkGraph system
+class Automation plannedNode
+`}
+/>
+
+## Work Graph components
+
+Inside Work Graph, owner policy controls changes to the coordination model. Work
+items and dependencies define the plan. Scope mirrors and ticket rank feed the
+priority projection. Leases fence concurrent workers, evidence gates release,
+and attention requests stop work that needs a person. PostgreSQL keeps current
+records and immutable event history.
+
+<Mermaid
+  chart={`flowchart TB
+subgraph workgraph["Work Graph [Software system]"]
+API["REST API<br/>[Container]<br/>Authenticated application boundary"]
+
+subgraph coordination["Coordination application [Container]"]
+Policy["Owner policy<br/>[Component]<br/>Allowed transitions and evidence rules"]
+Plan["Work items and dependency DAG<br/>[Component]<br/>Plan and executability"]
+Scopes["Knowledge-scope mirrors<br/>[Component]<br/>Initiatives, projects, lifecycle, and rank"]
+Priority["Priority projection<br/>[Component]<br/>Ready work and critical paths"]
+Execution["Leases and attention<br/>[Component]<br/>Fencing, decisions, and access stops"]
+Evidence["Context and delivery evidence<br/>[Component]<br/>Traceability and release gate"]
+end
+
+Store[("PostgreSQL<br/>[Container]<br/>Current records and immutable event history")]
+
+API --> Policy
+Policy --> Plan
+Policy --> Scopes
+Policy --> Execution
+Policy --> Evidence
+Plan --> Priority
+Scopes --> Priority
+Plan --> Store
+Scopes --> Store
+Execution --> Store
+Evidence --> Store
+Store --> Priority
+end
+
+classDef container fill:#2563eb,color:#fff,stroke:#1d4ed8
+classDef component fill:#0f766e,color:#fff,stroke:#115e59
+classDef data fill:#334155,color:#fff,stroke:#1e293b
+class API container
+class Policy,Plan,Scopes,Priority,Execution,Evidence component
+class Store data
+`}
+/>
+
 # A constrained but adaptable graph
 
 Agents should be able to change the plan when execution teaches them something.
@@ -180,6 +323,13 @@ outside its scope. It does not store estimates or predict delivery dates for
 queued or active work. Workers can report progress and blockers without
 turning either into a forecast.
 
+The installed CLI is the minimum planning interface. It should project the
+highest-priority unresolved outcome, the dependency chains blocking it, ready
+leaves that can start now, and independent branches that can run in parallel.
+The view describes the current plan structure and does not estimate durations
+or forecast delivery. Agents can use that projection to explain the plan and
+propose changes from any device where the owner can reach them.
+
 The Work Graph records those assumptions, commitments, and revisions. The
 [wider initiative](/initiatives/semi-autonomous-software-development#an-adaptive-model-of-the-organisation)
 owns the feedback loop that uses delivery evidence and available capacity to
@@ -189,9 +339,10 @@ propose better plans. The Agent Coordinator continues to own actor selection.
 
 The first schema should stay small:
 
-* A **knowledge scope** mirrors an initiative or project and owns an ordinal
-  position among scopes of the same kind while the knowledge graph remains
-  authoritative for its meaning.
+* A **knowledge scope** mirrors an initiative or project. Active scopes own an
+  ordinal position among active scopes of the same kind. Archived scopes keep
+  historical context without participating in personal scheduling. The
+  knowledge graph remains authoritative for the scope's meaning.
 * A **work item** is the only recursive unit of planned work. It may be
   childless, gain children during execution, or become executable again after
   its children terminate. Epic, task, and subtask are presentation labels.
@@ -221,6 +372,24 @@ The system needs a history of changes even if the main interface shows only
 current state. Otherwise an expired lease or rewritten plan can erase the
 context needed by the next actor.
 
+## Knowledge scope lifecycle
+
+Knowledge scopes have an operational lifecycle separate from project prose and
+publication status. An active scope can schedule work and has a rank among
+active scopes of the same kind. An archived scope keeps its source snapshot,
+relationships, events, and historical ticket context, but default listings and
+priority operations exclude it.
+
+Archiving requires a reason and fails while the scope still schedules open
+work. The owner must move, release, or cancel that work first. Archived scopes
+cannot receive new ticket assignments or relationships. Restoring a scope
+places it at the median active rank. Refreshing its title, URLs, or source
+revision does not restore it.
+
+Archive completed personal projects and work managed by an employer. This
+keeps the public knowledge graph complete without mixing every published
+project into the personal execution plan.
+
 # Leases and handoff
 
 Only one actor should hold a work item at a time. A lease can be renewed while work
@@ -232,10 +401,13 @@ A useful handoff should preserve findings, artifacts, attempts, unresolved
 problems, and the recommended next action. The exact contract should emerge
 from personal use rather than demand a long report for every small item.
 
-# Attention inbox
+# Owner control and attention
 
-The human interface should be an attention inbox, probably its own application.
-It should collect:
+The owner can manage the full graph through agents using the installed CLI. A
+dedicated mobile or desktop application is optional and should not gate the
+move away from a conventional tracker.
+
+Attention requests should collect:
 
 * ambiguity that changes the product or plan;
 * missing authority, secrets, or access;
@@ -245,9 +417,10 @@ It should collect:
 
 Each item should include the decision needed, why it is needed now, options the
 actor considered, the affected critical path, and the consequence of waiting.
-A response should update the graph and allow eligible work to resume. The
-previous worker remains visible in lease history so a later scheduler can
-prefer continuity without reserving the work indefinitely.
+A response should update the graph and allow eligible work to resume. Work with
+lease history requires an explicit claim, which keeps automatic selection on
+never-started tickets. A returning worker or a deliberate replacement can name
+the ticket to continue it, including stale recovery after a worker disappears.
 
 # Public work, private telemetry
 
@@ -297,8 +470,9 @@ more. Those behaviours support a price. A feature comparison does not.
 
 # First useful release
 
-1. Model knowledge scopes, flexible work items, dependencies, leases, notes,
-   attention requests, typed context, and an immutable event history.
+1. Model active and archived knowledge scopes, flexible work items,
+   dependencies, leases, notes, attention requests, typed context, and an
+   immutable event history.
 2. Produce a deterministic ready queue globally and within an initiative,
    project, or parent item. Fuse contextual initiative, project, and ticket
    ranks, and propagate blocked descendant urgency to blockers.
@@ -315,6 +489,14 @@ more. Those behaviours support a price. A feature comparison does not.
 8. Enter the remaining Work Graph plan into the service and use it to complete
    its own MVP.
 
+# Next useful slice
+
+Add a critical-path projection to the REST API and installed CLI. It should
+explain the active blocking chains behind the highest-priority outcomes and
+show which ready leaves and independent branches can proceed in parallel. The
+projection must remain deterministic and machine-readable so agents can use it
+for planning without scraping prose.
+
 # Later work
 
 * Analytics that find recurring waits, failed handoffs, and demands for human
@@ -323,10 +505,11 @@ more. Those behaviours support a price. A feature comparison does not.
   credible systemic fix
 * Team ownership and multiple policy domains
 * Projections into GitHub, Shortcut, or chat where they help people work
-* A public DAG view and dedicated human attention inbox
 * MCP access after the CLI has proved the application operations
 * Automatic merge and deployment when required evidence and owner policy agree
 * Public contributor workflows for Open Collective Development
+* An optional public DAG view and dedicated graphical attention inbox after the
+  agent and CLI workflow proves that either would remove a real constraint
 
 # Success
 
@@ -334,6 +517,10 @@ The Work Graph succeeds when the next useful item is visible without
 reconstructing the plan from tools scattered across the workflow, expired work
 can be resumed by another actor, and human attention goes to decisions rather
 than ticket administration.
+
+The installed CLI should also explain why a priority outcome is blocked and
+which work can proceed in parallel. The owner should not need a separate
+graphical interface to recover that plan.
 
 Learning should change the plan without causing constant disruption. Track
 avoidable interruptions and rework alongside progress towards outcomes, and
@@ -350,3 +537,5 @@ check whether people can keep moving when downstream work is uncertain.
 * Asking owners or agents to calibrate a global numeric priority scale
 * Maximizing task throughput without regard for outcomes
 * Replacing owner judgment with one fixed risk policy
+* Requiring a dedicated graphical interface before Work Graph becomes the
+  authoritative work system

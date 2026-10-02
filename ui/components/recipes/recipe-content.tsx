@@ -24,6 +24,7 @@ import {
 import { DietWarning } from "@/components/recipes/diet-notice";
 import { useDiet } from "@/components/recipes/diet-provider";
 import { InlineTimer } from "@/components/recipes/inline-timer";
+import { RecipeShoppingListButton } from "@/components/recipes/recipe-shopping-list-button";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -214,10 +215,16 @@ function ingredientGroupClassName(index: number, hasName: boolean) {
   return hasName ? "border-t border-border/50 pt-4 mt-4" : "mt-4";
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function RecipeContent({
   recipe,
   timersEnabled = true,
-}: Readonly<{ recipe: RecipeDetailView; timersEnabled?: boolean }>) {
+  shoppingListEnabled = true,
+}: Readonly<{
+  recipe: RecipeDetailView;
+  timersEnabled?: boolean;
+  shoppingListEnabled?: boolean;
+}>) {
   const { diet, matchRecipe } = useDiet();
   const { data: authSession, isPending: authSessionPending } =
     authClient.useSession();
@@ -502,21 +509,31 @@ export function RecipeContent({
               >
                 the original recipe
               </a>
-              .
+              {"."}
             </span>
           </p>
         )}
 
-        {cookSteps.length > 0 && (
-          <div className="mb-4">
-            <Button
-              size="lg"
-              onClick={openCookMode}
-              className="w-full sm:w-auto bg-[var(--terracotta)] text-white hover:bg-[var(--terracotta-deep)] text-base"
-            >
-              <Flame className="size-5" />
-              Start cooking
-            </Button>
+        {(cookSteps.length > 0 ||
+          (shoppingListEnabled && Boolean(authSession))) && (
+          <div className="mb-4 flex flex-wrap gap-2">
+            {shoppingListEnabled && authSession && (
+              <RecipeShoppingListButton
+                recipeSlug={recipe.slug}
+                servings={portions}
+                userId={authSession.user.id}
+              />
+            )}
+            {cookSteps.length > 0 && (
+              <Button
+                size="lg"
+                onClick={openCookMode}
+                className="w-full sm:w-auto bg-[var(--terracotta)] text-white hover:bg-[var(--terracotta-deep)] text-base"
+              >
+                <Flame className="size-5" />
+                Start cooking
+              </Button>
+            )}
           </div>
         )}
 

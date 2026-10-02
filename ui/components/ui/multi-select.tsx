@@ -3,7 +3,7 @@
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { CheckIcon, ChevronDownIcon, Minus, Search, X } from "lucide-react";
 import type * as React from "react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useId, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -70,6 +70,7 @@ export function MultiSelect({
 }: Readonly<MultiSelectProps>) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const optionsDialogId = useId();
   const isTri = triState && typeof onSetState === "function";
 
   const filteredOptions = useMemo(() => {
@@ -181,8 +182,9 @@ export function MultiSelect({
       <PopoverPrimitive.Trigger asChild>
         <div
           role="combobox"
+          aria-controls={optionsDialogId}
           aria-expanded={open}
-          aria-haspopup="listbox"
+          aria-haspopup="dialog"
           data-slot="multi-select-trigger"
           tabIndex={disabled ? -1 : 0}
           className={cn(
@@ -223,6 +225,9 @@ export function MultiSelect({
 
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
+          id={optionsDialogId}
+          role="dialog"
+          aria-label={label ? `${label} options` : "Select options"}
           data-slot="multi-select-content"
           className={cn(
             "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[200px] max-w-[300px] origin-(--radix-popover-content-transform-origin) overflow-hidden rounded-md border shadow-md",

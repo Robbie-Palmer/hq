@@ -1,7 +1,7 @@
 # Home Lab (code-as-config)
 
 This directory declares the home lab's machines as code, following the layout
-planned in [ADR 010](/projects/homelab/adrs/010-nixos-gpu-worker). The goal is
+planned in [ADR 007](/projects/homelab/adrs/007-nixos-gpu-worker). The goal is
 the same one that motivates the whole lab, the same config in produces the
 same system out, every change is reviewable and rollbackable, and nothing is
 hand-edited on a box that then forgets it.
@@ -10,7 +10,7 @@ All services are reachable only over the home LAN and the
 [Tailscale](/projects/homelab/adrs/000-tailscale) tailnet. The router
 forwards no ports, so nothing is ever public.
 
-[ADR 025](/projects/homelab/adrs/025-cloud-remote-development-plane) proposes
+[ADR 021](/projects/homelab/adrs/021-cloud-remote-development-plane) proposes
 an off-site t3-code environment for continuity during a home power or broadband
 outage. It is an independent, single-node K3s cluster on a NixOS VPS, not a
 remote member of the home cluster. The two environments share declarations and
@@ -18,11 +18,12 @@ handoff through GitHub branches rather than sharing live application state.
 
 ## Remote development plane
 
-The NixOS host lives under `hosts/remote-development/`. Disko owns only the VPS
-root disk. The attached Hetzner volume is encrypted with LUKS2, mounted at
-`/srv/remote-development`, and holds the K3s data directory, t3-code state,
-coding-agent authentication, repositories, and worktrees. Terraform owns only
-the Hetzner server, firewall, public SSH key, and volume.
+The NixOS host lives under `hosts/remote-development/`. Disko owns the VPS root
+disk, including the K3s datastore and image store. The attached Hetzner volume
+is encrypted with LUKS2, mounted at `/srv/remote-development`, and holds t3-code
+state, coding-agent authentication, repositories, worktrees, and rebuildable
+tool caches. Terraform owns only the Hetzner server, firewall, public SSH key,
+and volume.
 
 The cloud K3s server is independent from the home cluster. The Kustomize base
 under `k3s/base/t3-code/` contains shared workload policy. The `home` and
@@ -32,13 +33,10 @@ the exact Kubernetes context and every node's location label before applying.
 
 The remote workspace definitions live under
 `k3s/overlays/remote-development/workspaces/`. The default overlay applies only
-the existing `operator` workspace. It keeps namespace `t3-code`, volume path
-`/srv/remote-development/t3-code`, and tailnet HTTPS port 443. The pilot overlay
-adds namespace `t3-code-pilot`, a separate volume path, a separate Doppler
-config, and tailnet HTTPS port 8443. The operator workspace keeps its existing
-network behavior. The pilot namespace denies ingress from other pods. Pilot
-egress is limited to DNS and public SSH, HTTP, and HTTPS, while private,
-link-local, and tailnet destinations remain blocked.
+the `operator` workspace. It keeps namespace `t3-code`, durable volume path
+`/srv/remote-development/t3-code`, rebuildable cache path
+`/srv/remote-development/t3-code-cache`, and tailnet HTTPS port 443. This
+single VPS is not a multi-user host.
 
 ### First commissioning
 
@@ -52,8 +50,15 @@ Create two Doppler configs before installation:
 The operator workspace also reads `personal-site/dev_agent` through a separate
 read-only Doppler token. Keep only `CF_ACCESS_CLIENT_ID`,
 `CF_ACCESS_CLIENT_SECRET`, and `CLOUDFLARE_PAGES_HOST` there. The installation
-task stores that token as `t3-code/doppler-agent-token`; the pilot namespace
-does not receive it.
+task stores that token as `t3-code/doppler-agent-token`.
+
+Work Graph access uses another read-only token, scoped to
+`work-graph/prd_work_graph`. The operator selects only the API URL, allowed
+origin, and Access client pair from that config. It renames the Access pair to
+the Work Graph-specific environment variables before injecting them into the
+operator workspace. The workload never receives the Doppler service token or
+the database and infrastructure credentials held in the same config. The
+pilot namespace does not receive Work Graph access.
 
 Build the host, encrypt the empty volume, and install NixOS while Terraform's
 single bootstrap SSH CIDR is active:
@@ -130,7 +135,12 @@ CODEX_HOME=/data/home/.codex-personal codex login --device-auth
 T3 labels the second provider `codex2`. Its shadow home keeps
 `auth.json` separate while sharing the main Codex configuration, skills, and
 session state. The image bootstrap keeps its existing colour, enabled state,
-and extra configuration when it adds this provider.
+and extra configuration when it adds this provider. The bootstrap also sets
+GPT-5.6-Sol with high reasoning as the new-thread default for every Codex
+provider. It builds the custom model catalog from Codex's cached catalog, so
+the other available models remain selectable. To refresh that snapshot, remove
+`models_cache.json` and `model-catalog.json`, restart once to fetch the current
+catalog, then restart again to apply the preferred defaults to it.
 
 #### Adding a Codex provider
 
@@ -182,54 +192,44 @@ matching Kubernetes NodePort to the operator pod. Stop the application when
 QA finishes so another agent can reuse the slot. These ports do not provide
 the pod with outbound access to other tailnet devices.
 
-### First pilot workspace
+### Memory pressure
 
-Create Doppler config `homelab/prd_remote_development_pilot` before deploying
-the pilot. Give it only secrets owned by the pilot. Interactive GitHub and
-model-provider sessions still belong in the pilot's encrypted home directory,
-not in Doppler.
+The host uses a zstd-compressed zram swap device capped at 25 percent of RAM,
+about 2 GiB on the current server. Kubelet tolerates host swap but keeps
+`NoSwap` behavior for pods. This gives K3s, Tailscale, SSH, and other host
+processes room to survive a short spike without letting a T3 workload exceed
+its Kubernetes memory limit or hide sustained pressure in slow paging.
 
-The [tailnet policy](https://tailscale.com/docs/reference/syntax/policy-file)
-must deny broad member access to
-`tag:remote-development`. Give administrators access to both workspace ports
-and the operator QA pool for support and recovery. Give the pilot's exact
-Tailscale login access only to port 8443. For example, merge rules shaped like
-these into the existing policy after replacing the email address:
+Zram is a last buffer. Investigate any non-trivial swap use and memory pressure
+rather than raising pod limits. Disk capacities stay unchanged, so a full
+`/tmp`, cache, root filesystem, or persistent volume still needs storage
+housekeeping.
 
-```json
-{
-  "grants": [
-    {
-      "src": ["autogroup:admin"],
-      "dst": ["tag:remote-development"],
-      "ip": ["tcp:443", "tcp:3000-3004", "tcp:8443"]
-    },
-    {
-      "src": ["pilot@example.com"],
-      "dst": ["tag:remote-development"],
-      "ip": ["tcp:8443"]
-    }
-  ]
-}
-```
+### Project quotas
 
-Do not add the pilot while an allow-all grant can still reach the tagged host.
-[Tailscale combines matching grants](https://tailscale.com/docs/reference/syntax/grants),
-so a narrower rule does not override a broader one.
+The NixOS definition mounts the data filesystem with project quotas. A systemd
+oneshot assigns project IDs to existing files, makes new descendants inherit
+them, and applies these hard limits before K3s starts:
 
-#### Enable project quotas on the existing volume
+| Path                                    | Contents                        | Limit  | Inodes    |
+| --------------------------------------- | ------------------------------- | ------ | --------- |
+| `/srv/remote-development/t3-code`       | Durable operator workspace data | 55 GiB | 3,000,000 |
+| `/srv/remote-development/t3-code-cache` | Rebuildable operator caches     | 30 GiB | 2,000,000 |
 
-The NixOS definition mounts the data filesystem with project quotas and gives
-`/srv/remote-development/t3-code-pilot` project ID 2001. A systemd oneshot
-assigns that ID to existing files, makes new descendants inherit it, and sets
-hard limits of 10 GiB and 1,000,000 inodes before K3s starts. The operator
-workspace has no new disk limit.
+The 98 GiB formatted filesystem retains about 13 GiB outside those quota
+ceilings. The cache cannot consume durable workspace capacity, and deleting it
+must never remove T3 state, worktrees, branches, credentials, or sessions.
+The durable PV and bound claim retain their original 90 GiB capacity for
+upgrade compatibility because Kubernetes cannot shrink a claim. The ext4
+project quota is the authoritative 55 GiB hard limit.
 
 Fresh volumes created by `remote-volume-prepare` have the required ext4
-features from the start. The current volume predates that change. Enabling the
-features changes filesystem metadata and needs a short outage. Do not switch
-to the new NixOS generation first because its `prjquota` mount option expects
-those features to exist.
+features from the start. The existing volume was upgraded on 2026-09-14. The
+procedure below records that completed migration for recovery context; do not
+repeat it on the current volume. Enabling these features on another legacy
+volume changes filesystem metadata and needs a short outage.
+
+#### Historical project-quota migration
 
 Do not run this operation until `/srv/remote-development` has a verified,
 encrypted backup outside this Hetzner volume. The e2fsprogs undo file below is
@@ -313,79 +313,17 @@ ssh root@remote-development \
   'repquota --project --verbose --no-names --output=csv /srv/remote-development'
 ```
 
-The report must contain project 2001 with a block hard limit of 10,485,760 KiB
-and a file hard limit of 1,000,000. Keep the undo file until the host has
-rebooted and the health check has passed again. If the NixOS switch fails,
-leave the volume mounted with `prjquota`, start the old `k3s.service` and
+The report must contain projects 2000 and 2002 with the limits listed
+above. Keep the undo file until the host has rebooted and the health check has
+passed again. If the NixOS switch fails, leave the volume mounted with
+`prjquota`, start the old `k3s.service` and
 `t3-code-tailscale-serve.service`, and investigate before retrying.
-
-#### Deploy the pilot workspace
-
-The maintenance sequence above already applies the host definition on the
-existing server. On a fresh server, build and apply it now. This creates the
-pilot data directory, applies its quota, and publishes the second private
-endpoint:
-
-```bash
-mise run //homelab:remote-build
-mise run //homelab:remote-rebuild
-```
-
-Create the namespace-scoped Doppler token, check the rendered definitions,
-and deploy both workspaces:
-
-```bash
-mise run //homelab:remote-pilot-secret-install
-mise run //homelab:k3s-test-remote
-mise run //homelab:k3s-dry-run-remote-pilot
-mise run //homelab:k3s-deploy-remote-pilot
-mise run //homelab:remote-health
-mise run //homelab:remote-pilot-acceptance
-```
 
 The manifest test renders every Kustomize overlay, validates every object with
 Flux Schema, and checks the final workspace objects by kind, name, namespace,
-and field value. Its configuration pins the Kubernetes 1.37 catalog to an
-immutable upstream commit. The repository also keeps a `DopplerSecret` schema
-generated from the same Doppler Operator release that installation uses, so
-the test evaluates its CEL admission rules without a cluster. Missing schemas
-fail the test. The server-side dry run remains the final check against the CRD
-and admission behavior installed on the live cluster.
-
-The pilot can then open
-`https://remote-development.<tailnet-name>.ts.net:8443`. Complete GitHub and
-model-provider device login from a terminal in that workspace. Never complete
-those logins in the operator workspace on the pilot's behalf.
-
-Before treating onboarding as complete, verify all of the following:
-
-- the pilot can reach port 8443 and cannot reach port 443;
-- the operator can reach both ports;
-- each namespace has its own bound persistent volume;
-- a file written in one workspace is absent from the other;
-- both workspaces can run a representative build at the same time; and
-- deleting the pilot pod preserves a test file after Kubernetes recreates it.
-
-The acceptance task automates the volume, cross-namespace service, and pilot
-restart checks. It deletes and recreates the pilot pod, so run it before giving
-the workspace to the pilot. Tailnet access and simultaneous representative
-builds still need checks from the two users' devices.
-
-The operator workspace keeps its existing 3 CPU and 6 GiB limits, with no new
-namespace resource quota or network policy. The pilot starts with a limit of 1
-CPU and 1 GiB. This leaves the operator's declared limits unchanged and caps
-the pilot's additional pressure, but it cannot guarantee zero contention on a
-shared 4 CPU, 8 GiB host. The pilot also has a lower, non-preempting pod
-priority. When both pods exceed their requests, Kubernetes considers the pilot
-for node-pressure eviction first. If the pilot is disruptive or needs more
-capacity, resize the host before raising its limits. Do not take capacity from
-the operator workspace to make the pilot fit.
-
-The 10 GiB persistent-volume claim records the pilot allocation. The matching
-ext4 project quota enforces it against the whole pilot directory, independent
-of the shared `t3code` Unix account. The inode limit also prevents exhaustion
-through millions of tiny files. The NixOS service must pass before K3s starts,
-and `remote-health` checks both limits on the live host.
+and field value. Missing schemas fail the test. The server-side dry run remains
+the final check against the CRD and admission behavior installed on the live
+cluster.
 
 ### Updates, rollback, and backups
 
@@ -408,14 +346,80 @@ image reference from Git and reapplies the cloud overlay.
 Hetzner server backups are disabled because they cover the reproducible root
 disk and exclude the attached volume. They would speed up root recovery, but
 they would not protect the data that matters here. LUKS encryption and Hetzner
-volume replication are also not backups. An encrypted, versioned copy of the
-workspace directories under `/srv/remote-development/` in a separate provider
-or failure domain is still required. Do not claim backup coverage until that
-destination and a tested restore procedure exist.
+volume replication are also not backups.
+
+The operator workspace now uses restic to send encrypted snapshots to the
+private `remote-development-workspace-backups` Cloudflare R2 bucket. The versioned
+inventory in `remote-development-backup/inventory.json` fixes the workspace,
+destination, daily schedule, 36-hour freshness limit, and retention policy.
+The repository holds paths and policy only. The R2 access key and independent
+restic password stay in Doppler config
+`homelab/prd_remote_development_backup` and on the host under
+`/var/lib/remote-development-backup` with mode `0600`.
+
+The backup reads `/srv/remote-development/t3-code`, including T3 state,
+worktrees, repositories, both Codex homes, and provider sessions. It never
+reads the separate `/srv/remote-development/t3-code-cache` tree. A successful
+run checks five percent of repository data, prunes snapshots to the declared
+retention, and writes `/var/lib/remote-development-backup/status.json`. That
+status contains timestamps, state, and the failed step. It contains no source
+file names, endpoints, or credentials.
+
+Create an R2 Object Read & Write token scoped only to
+`remote-development-workspace-backups`, then store these masked Doppler secrets:
+
+| Name | Purpose |
+| --- | --- |
+| `CLOUDFLARE_ACCOUNT_ID` | Builds the R2 S3 endpoint |
+| `R2_ACCESS_KEY_ID` | Bucket-scoped R2 access key |
+| `R2_SECRET_ACCESS_KEY` | Bucket-scoped R2 secret |
+| `RESTIC_PASSWORD` | Encrypts repository metadata and contents |
+
+After Cloudflare creates the token, use the credential helper to enter the
+one-time S3 values without echoing them. It stores the values in the dedicated
+Doppler config and installs the resulting credential file on the host:
+
+```bash
+./homelab/scripts/store-remote-development-backup-credentials
+```
+
+Install credentials after a host replacement, then run and inspect the first
+backup:
+
+```bash
+mise run //homelab:remote-backup-credentials
+mise run //homelab:remote-backup
+mise run //homelab:remote-health
+```
+
+For a recovery test, create an empty target on a host with the credential
+files and run the installed restore command. Restic recreates the absolute
+source path beneath the target. The command fails if the target is not empty
+or the restored T3 and workspace roots are missing.
+
+```bash
+install -d -m 0700 /var/tmp/operator-workspace-restore
+remote-development-workspace-restore /var/tmp/operator-workspace-restore
+```
+
+The user export is a different artifact. It retains repositories and session
+history but removes provider tokens, cookies, SSH keys, Doppler state, cloud
+credentials, and provider authentication databases according to the reviewed
+`export-excludes.txt` file:
+
+```bash
+remote-development-workspace-export \
+  /srv/remote-development/t3-code \
+  /var/tmp/operator-workspace-export.tar.gz
+```
+
+Revoke provider sessions before delivering an export. Inspect its file list
+with `tar -tzf` before transfer, then remove the host copy after the recipient
+confirms its checksum.
 
 ## Fleet inventory and checks
 
-[ADR 022](/projects/homelab/adrs/022-ansible-k3s-migration-bridge) introduces
+[ADR 019](/projects/homelab/adrs/019-ansible-k3s-migration-bridge) introduces
 Ansible as a temporary host-discovery and migration tool. mise installs the
 pinned Ansible Core release and remains the command interface:
 
@@ -527,7 +531,7 @@ mise run //homelab:verify
   on the LAN during the few seconds bootstrap runs.
 - **The drive must be mounted before bootstrap.** If the volume isn't
   connected or auto-mounted at login, the mount point won't exist.
-- The [Netdata](/projects/homelab/adrs/009-netdata) alerting on the hub now
+- The [Netdata](/projects/homelab/adrs/006-netdata) alerting on the hub now
   covers the Jellyfin container (see the media automation section below);
   the media drive itself is the remaining gap, so a dead disk is only
   noticed when playback fails.
@@ -535,13 +539,13 @@ mise run //homelab:verify
 ## Media automation on the Mac mini
 
 The *arr stack (ADRs 016–019) feeds the Jellyfin library automatically:
-[Prowlarr](/projects/homelab/adrs/017-prowlarr-indexer-management) manages
+[Prowlarr](/projects/homelab/adrs/014-prowlarr-indexer-management) manages
 the torrent indexers and syncs them to Sonarr (TV) and Radarr (movies), which
 send grabs to the containerized
-[qBittorrent](/projects/homelab/adrs/018-single-containerized-torrent-client)
+[qBittorrent](/projects/homelab/adrs/015-single-containerized-torrent-client)
 and import finished downloads into `/media/TV` and `/media/Movies` with
 Jellyfin-friendly names.
-[Recyclarr](/projects/homelab/adrs/019-recyclarr-trash-guides) keeps both
+[Recyclarr](/projects/homelab/adrs/016-recyclarr-trash-guides) keeps both
 apps' quality profiles on the TRaSH Guides with a nightly sync. A launchd
 agent (`homelab.media`) keeps all of it running across reboots, same as
 Jellyfin's.
@@ -587,7 +591,7 @@ mise run //homelab:media-provision   # re-run wiring; safe to repeat
   its own. See the recommendation-loop caveat below.
 - **Recommendation loop (Trakt)**: watchlist taps flow into Sonarr/Radarr
   via their native "Trakt User" import lists, and the Jellyfin Trakt plugin
-  scrobbles plays back so recommendations improve ([ADR 021](/projects/homelab/adrs/021-trakt-watchlist)).
+  scrobbles plays back so recommendations improve ([ADR 018](/projects/homelab/adrs/018-trakt-watchlist)).
   Each integration needs a one-time OAuth: in Radarr/Sonarr *Settings →
   Lists*, add "Trakt User", hit "Authenticate with Trakt"; in Jellyfin,
   Plugins → Trakt. Two traps: the list's username must match your profile
@@ -616,7 +620,7 @@ mise run //homelab:media-provision   # re-run wiring; safe to repeat
 - **The stack waits for the VPN.** Both provisioning and the keep-running
   agent refuse to start the containers until the hub's default route runs
   through a VPN tunnel interface, so torrent traffic never touches the
-  residential line during the boot race ([ADR 020](/projects/homelab/adrs/020-vpn-gated-stack)).
+  residential line during the boot race ([ADR 017](/projects/homelab/adrs/017-vpn-gated-stack)).
 - **Health gauges and alerts.** The keep-running agent probes every service
   endpoint each cycle (plus the VPN tunnel itself) and pushes 0/1 gauges into
   Netdata's local StatsD listener; it also restarts any container Docker marks

@@ -1,7 +1,6 @@
 import {
   type Account,
   type AssetType,
-  type Currency,
   type ExpectedReturnChange,
   isLiability,
   type LiquidityTier,
@@ -14,7 +13,9 @@ import {
 } from "./assetTrackerAnalytics";
 import type { BalanceSnapshot } from "./balanceSnapshot";
 import type { CapitalFlow, CapitalFlowKind } from "./capitalFlow";
+import type { Currency } from "./currency";
 import type { Transfer } from "./transfer";
+import { transferAmountFrom, transferAmountTo } from "./transfer";
 
 function compareIsoDates(a: string, b: string): number {
   // BalanceSnapshotSchema guarantees canonical YYYY-MM-DD strings, for which
@@ -89,10 +90,11 @@ export type AccountDetailView = AccountSummaryView & {
 
 export type NetWorthDataPoint = {
   date: string;
-  total: number;
+  /** Null when any required price or exchange rate is missing or stale. */
+  total: number | null;
   /** Net worth with unvalued investments replaced by expected balances. */
   estimatedTotal?: number;
-  [accountName: string]: string | number | undefined;
+  [accountName: string]: string | number | null | undefined;
 };
 
 export type EquitySummary = {
@@ -147,9 +149,12 @@ export function selectAccountExternalFlows(
   const flows: ExternalFlow[] = [];
   for (const transfer of transfers) {
     if (transfer.toAccountId === accountId) {
-      flows.push({ date: transfer.date, amount: transfer.amount });
+      flows.push({ date: transfer.date, amount: transferAmountTo(transfer) });
     } else if (transfer.fromAccountId === accountId) {
-      flows.push({ date: transfer.date, amount: -transfer.amount });
+      flows.push({
+        date: transfer.date,
+        amount: -transferAmountFrom(transfer),
+      });
     }
   }
   return flows;
@@ -169,50 +174,21 @@ function toExternalFlows(
   );
 }
 
-export function toAccountSummaryView(
+export type AccountReadModel = {
+  summary: AccountSummaryView;
+  detail: AccountDetailView;
+};
+
+/** Builds both account views from one sorted snapshot and capital-flow set. */
+export function buildAccountReadModel(
   account: Account,
   snapshots: BalanceSnapshot[],
   transfers: Transfer[] = [],
   capitalFlows: CapitalFlow[] = [],
-): AccountSummaryView {
+): AccountReadModel {
   const accountSnapshots = snapshots
     .filter((s) => s.accountId === account.id)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  const latest = accountSnapshots[0] ?? null;
-  return {
-    id: account.id,
-    name: account.name,
-    provider: account.provider,
-    currency: account.currency,
-    assetType: account.assetType,
-    liquidity: account.liquidity,
-    expectedAnnualReturn: account.expectedAnnualReturn,
-    isOpen: !account.closedAt,
-    latestBalance: latest?.balance ?? null,
-    latestSnapshotDate: latest?.date ?? null,
-    // CAGR through a closing zero balance reads as a total loss, so skip it;
-    // a growth rate on a debt that's being paid down is meaningless too
-    cagr:
-      account.closedAt || isLiability(account.assetType)
-        ? null
-        : computeMoneyWeightedReturn(
-            accountSnapshots,
-            toExternalFlows(account.id, transfers, capitalFlows),
-          ),
-  };
-}
-
-export function toAccountDetailView(
-  account: Account,
-  snapshots: BalanceSnapshot[],
-  transfers: Transfer[] = [],
-  capitalFlows: CapitalFlow[] = [],
-): AccountDetailView {
-  // Single filter and sort (descending for latest first)
-  const accountSnapshots = snapshots
-    .filter((s) => s.accountId === account.id)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
+    .sort((a, b) => b.date.localeCompare(a.date));
   const latest = accountSnapshots[0] ?? null;
   const accountCapitalFlows = capitalFlows
     .filter((flow) => flow.accountId === account.id)
@@ -221,8 +197,8 @@ export function toAccountDetailView(
     accountCapitalFlows.length === 0
       ? null
       : accountCapitalFlows.reduce((sum, flow) => sum + flow.amount, 0);
-
-  return {
+  const externalFlows = toExternalFlows(account.id, transfers, capitalFlows);
+  const common = {
     id: account.id,
     name: account.name,
     provider: account.provider,
@@ -233,21 +209,27 @@ export function toAccountDetailView(
     isOpen: !account.closedAt,
     latestBalance: latest?.balance ?? null,
     latestSnapshotDate: latest?.date ?? null,
+  };
+  const summary: AccountSummaryView = {
+    ...common,
+    cagr:
+      account.closedAt || isLiability(account.assetType)
+        ? null
+        : computeMoneyWeightedReturn(accountSnapshots, externalFlows),
+  };
+  const detail: AccountDetailView = {
+    ...common,
     cagr: account.closedAt
       ? null
-      : computeMoneyWeightedReturn(
-          accountSnapshots,
-          toExternalFlows(account.id, transfers, capitalFlows),
-        ),
+      : computeMoneyWeightedReturn(accountSnapshots, externalFlows),
     createdAt: account.createdAt,
     expectedReturnChanges: account.expectedReturnChanges,
     linkedAccountId: account.linkedAccountId,
     closedAt: account.closedAt,
-    // Reverse for ascending order for charts
     snapshots: accountSnapshots
-      .map((s) => ({
-        date: s.date,
-        balance: s.balance,
+      .map((snapshot) => ({
+        date: snapshot.date,
+        balance: snapshot.balance,
       }))
       .reverse(),
     capitalFlows: accountCapitalFlows.map(({ date, amount, kind }) => ({
@@ -261,6 +243,27 @@ export function toAccountDetailView(
         ? null
         : latest.balance - netContributed,
   };
+  return { summary, detail };
+}
+
+export function toAccountSummaryView(
+  account: Account,
+  snapshots: BalanceSnapshot[],
+  transfers: Transfer[] = [],
+  capitalFlows: CapitalFlow[] = [],
+): AccountSummaryView {
+  return buildAccountReadModel(account, snapshots, transfers, capitalFlows)
+    .summary;
+}
+
+export function toAccountDetailView(
+  account: Account,
+  snapshots: BalanceSnapshot[],
+  transfers: Transfer[] = [],
+  capitalFlows: CapitalFlow[] = [],
+): AccountDetailView {
+  return buildAccountReadModel(account, snapshots, transfers, capitalFlows)
+    .detail;
 }
 
 function accountHasRecordedValue(
@@ -327,7 +330,7 @@ function recordedNetWorthPoint(
       latestByAccount,
     );
     point[account.name] = balance;
-    point.total += balance;
+    point.total = (point.total ?? 0) + balance;
   }
   return point;
 }
@@ -343,7 +346,7 @@ function withEstimatedNetWorth(
     ReadonlyMap<string, BalanceEstimatePoint>
   >,
 ): NetWorthDataPoint {
-  let estimatedTotal = point.total;
+  let estimatedTotal = point.total ?? 0;
   let usesEstimate = false;
   for (const account of accounts) {
     if (account.closedAt != null && account.closedAt <= date) continue;

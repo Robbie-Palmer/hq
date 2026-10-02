@@ -37,7 +37,7 @@ interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-export async function generateStaticParams() {
+export function generateStaticParams() {
   const slugs = getAllProjectSlugs();
   return [
     ...slugs.map((slug) => ({ slug })),

@@ -5,7 +5,33 @@ data "cloudflare_zone" "domain" {
 locals {
   api_origin                  = "https://${var.work_graph_hostname}"
   credential_handoff_revision = filesha256("${path.module}/scripts/provision-sensitive-resources.sh")
+  hyperdrive_connection_limit = 60
   hyperdrive_name             = "work-graph-db"
+}
+
+# The public observer has one webhook route and no service binding to the
+# Access-protected API. Application deployment adds its producer and consumer
+# bindings after these queues and the service name exist.
+resource "cloudflare_queue" "github_deliveries" {
+  account_id = var.cloudflare_account_id
+  name       = var.github_deliveries_queue_name
+}
+
+resource "cloudflare_queue" "github_deliveries_dead_letter" {
+  account_id = var.cloudflare_account_id
+  name       = var.github_deliveries_dead_letter_queue_name
+}
+
+# Private, provider-independent Work Graph PostgreSQL backups. The backup
+# runner encrypts each archive before upload and uses a bucket-scoped token.
+resource "cloudflare_r2_bucket" "database_backups" {
+  account_id = var.cloudflare_account_id
+  name       = var.r2_database_backups_bucket_name
+  location   = "ENAM"
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 check "work_graph_hostname_in_zone" {
@@ -40,18 +66,19 @@ resource "terraform_data" "credential_handoff" {
   provisioner "local-exec" {
     command = "bash ${path.module}/scripts/provision-sensitive-resources.sh"
     environment = {
-      CLOUDFLARE_ACCOUNT_ID         = var.cloudflare_account_id
-      DOPPLER_CONFIG                = var.doppler_config
-      DOPPLER_PROJECT               = var.doppler_project
-      NEON_DATABASE_NAME            = "work_graph"
-      NEON_ORG_ID                   = var.neon_org_id
-      NEON_PG_VERSION               = tostring(var.neon_pg_version)
-      NEON_PROJECT_NAME             = var.neon_project_name
-      NEON_REGION                   = var.neon_region
-      NEON_ROLE_NAME                = "work_graph_owner"
-      WORK_GRAPH_API_ORIGIN         = local.api_origin
-      WORK_GRAPH_HYPERDRIVE_NAME    = local.hyperdrive_name
-      WORK_GRAPH_SERVICE_TOKEN_NAME = var.access_service_token_name
+      CLOUDFLARE_ACCOUNT_ID                         = var.cloudflare_account_id
+      DOPPLER_CONFIG                                = var.doppler_config
+      DOPPLER_PROJECT                               = var.doppler_project
+      NEON_DATABASE_NAME                            = "work_graph"
+      NEON_ORG_ID                                   = var.neon_org_id
+      NEON_PG_VERSION                               = tostring(var.neon_pg_version)
+      NEON_PROJECT_NAME                             = var.neon_project_name
+      NEON_REGION                                   = var.neon_region
+      NEON_ROLE_NAME                                = "work_graph_owner"
+      WORK_GRAPH_API_ORIGIN                         = local.api_origin
+      WORK_GRAPH_HYPERDRIVE_ORIGIN_CONNECTION_LIMIT = tostring(local.hyperdrive_connection_limit)
+      WORK_GRAPH_HYPERDRIVE_NAME                    = local.hyperdrive_name
+      WORK_GRAPH_SERVICE_TOKEN_NAME                 = var.access_service_token_name
     }
   }
 }
@@ -75,7 +102,8 @@ data "external" "resource_metadata" {
 
 resource "terraform_data" "hyperdrive_credentials" {
   triggers_replace = {
-    hyperdrive_id = data.external.resource_metadata.result.hyperdrive_id
+    hyperdrive_id                      = data.external.resource_metadata.result.hyperdrive_id
+    hyperdrive_origin_connection_limit = tostring(local.hyperdrive_connection_limit)
     origin_coordinates_sha256 = sha256(jsonencode({
       branch_id  = data.external.resource_metadata.result.neon_branch_id
       database   = data.external.resource_metadata.result.database_name
@@ -89,17 +117,43 @@ resource "terraform_data" "hyperdrive_credentials" {
   provisioner "local-exec" {
     command = "bash ${path.module}/scripts/install-hyperdrive-origin.sh"
     environment = {
-      CLOUDFLARE_ACCOUNT_ID      = var.cloudflare_account_id
-      DOPPLER_CONFIG             = var.doppler_config
-      DOPPLER_PROJECT            = var.doppler_project
-      NEON_BRANCH_ID             = data.external.resource_metadata.result.neon_branch_id
-      NEON_DATABASE_HOST         = data.external.resource_metadata.result.database_host
-      NEON_DATABASE_NAME         = data.external.resource_metadata.result.database_name
-      NEON_PROJECT_ID            = data.external.resource_metadata.result.neon_project_id
-      NEON_ROLE_NAME             = data.external.resource_metadata.result.database_user
-      WORK_GRAPH_API_ORIGIN      = local.api_origin
-      WORK_GRAPH_HYPERDRIVE_ID   = data.external.resource_metadata.result.hyperdrive_id
-      WORK_GRAPH_HYPERDRIVE_NAME = local.hyperdrive_name
+      CLOUDFLARE_ACCOUNT_ID                         = var.cloudflare_account_id
+      DOPPLER_CONFIG                                = var.doppler_config
+      DOPPLER_PROJECT                               = var.doppler_project
+      NEON_BRANCH_ID                                = data.external.resource_metadata.result.neon_branch_id
+      NEON_DATABASE_HOST                            = data.external.resource_metadata.result.database_host
+      NEON_DATABASE_NAME                            = data.external.resource_metadata.result.database_name
+      NEON_PROJECT_ID                               = data.external.resource_metadata.result.neon_project_id
+      NEON_ROLE_NAME                                = data.external.resource_metadata.result.database_user
+      WORK_GRAPH_API_ORIGIN                         = local.api_origin
+      WORK_GRAPH_HYPERDRIVE_ID                      = data.external.resource_metadata.result.hyperdrive_id
+      WORK_GRAPH_HYPERDRIVE_NAME                    = local.hyperdrive_name
+      WORK_GRAPH_HYPERDRIVE_ORIGIN_CONNECTION_LIMIT = tostring(local.hyperdrive_connection_limit)
+    }
+  }
+}
+
+# Read the provider state again after the installer has run. This separate data
+# source both detects drift during normal plans and makes an incorrect value
+# fail the apply that attempted to install it.
+data "external" "installed_resource_metadata" {
+  depends_on = [terraform_data.hyperdrive_credentials]
+  program    = ["bash", "${path.module}/scripts/read-resource-metadata.sh"]
+
+  query = {
+    cloudflare_account_id = var.cloudflare_account_id
+    hyperdrive_name       = local.hyperdrive_name
+    neon_database_name    = "work_graph"
+    neon_org_id           = var.neon_org_id
+    neon_project_name     = var.neon_project_name
+    neon_role_name        = "work_graph_owner"
+    service_token_name    = var.access_service_token_name
+  }
+
+  lifecycle {
+    postcondition {
+      condition     = tonumber(self.result.hyperdrive_origin_connection_limit) == local.hyperdrive_connection_limit
+      error_message = "Work Graph Hyperdrive must use the repository-owned origin connection limit."
     }
   }
 }
@@ -128,6 +182,32 @@ resource "cloudflare_workers_domain" "work_graph" {
   zone_id    = data.cloudflare_zone.domain.id
   hostname   = var.work_graph_hostname
   service    = cloudflare_workers_script.work_graph.name
+}
+
+resource "cloudflare_workers_script" "github_observer" {
+  account_id         = var.cloudflare_account_id
+  name               = var.github_observer_worker_name
+  content            = file("${path.module}/observer-bootstrap-worker.mjs")
+  module             = true
+  compatibility_date = "2026-09-15"
+
+  queue_binding {
+    binding = "DELIVERIES"
+    queue   = cloudflare_queue.github_deliveries.name
+  }
+
+  lifecycle {
+    # Wrangler owns application versions and secret bindings after Terraform
+    # claims the service name with a fail-closed bootstrap version.
+    ignore_changes = [content, secret_text_binding]
+  }
+}
+
+resource "cloudflare_workers_domain" "github_observer" {
+  account_id = var.cloudflare_account_id
+  zone_id    = data.cloudflare_zone.domain.id
+  hostname   = var.github_observer_hostname
+  service    = cloudflare_workers_script.github_observer.name
 }
 
 resource "cloudflare_zero_trust_access_application" "work_graph" {

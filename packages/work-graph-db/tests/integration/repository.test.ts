@@ -1,13 +1,16 @@
 import {
   getDirectChildren,
   projectWorkItemStage,
-  WorkGraphError,
+  type WorkGraphError,
+  type DeliveryEvidenceObservation,
   type WorkItemDependency,
 } from "work-graph-domain";
 import { eq, sql } from "drizzle-orm";
 import {
+  classifyRetryableDatabaseFailure,
   closeDb,
   createDb,
+  isRetryableDatabaseTimeout,
   schema,
   WorkGraphRepository,
 } from "../../src/index";
@@ -22,6 +25,7 @@ const repository = new WorkGraphRepository(db);
 
 const recordId = (suffix: number): string =>
   `00000000-0000-4000-8000-${suffix.toString().padStart(12, "0")}`;
+const commitSha = (character: string): string => character.repeat(40);
 
 const completionEvidence = {
   mergeEvidence: "https://github.com/example/work-graph/pull/1",
@@ -85,6 +89,65 @@ const waitForDatabaseLock = async (): Promise<void> => {
   throw new Error("Timed out waiting for a PostgreSQL lock waiter.");
 };
 
+describe("database timeout classification", () => {
+  it.each(["25P03", "25P04", "55P03", "57014"])(
+    "recognizes PostgreSQL %s through wrapped errors",
+    (code) => {
+      const databaseError = Object.assign(new Error("database timeout"), {
+        code,
+      });
+
+      expect(
+        isRetryableDatabaseTimeout(
+          new Error("database request failed", { cause: databaseError }),
+        ),
+      ).toBe(true);
+    },
+  );
+
+  it("rejects unrelated and non-Error values", () => {
+    expect(isRetryableDatabaseTimeout(new Error("database failed"))).toBe(
+      false,
+    );
+    expect(isRetryableDatabaseTimeout({ code: "55P03" })).toBe(false);
+  });
+
+  it.each([
+    ["53300", "too many connections", "capacity"],
+    ["57P03", "the database system is starting up", "capacity"],
+    ["58000", "Failed to acquire a connection from the pool.", "capacity"],
+    ["58000", "Internal error.", "infrastructure"],
+    [
+      "58000",
+      "Server connection attempt failed: connection_refused",
+      "infrastructure",
+    ],
+  ] as const)(
+    "classifies retryable database failure %s as %s",
+    (code, message, expected) => {
+      const databaseError = Object.assign(new Error(message), { code });
+
+      expect(
+        classifyRetryableDatabaseFailure(
+          new Error("database request failed", { cause: databaseError }),
+        ),
+      ).toBe(expected);
+    },
+  );
+
+  it.each([
+    ["58000", "Unsupported Hyperdrive protocol operation"],
+    ["28P01", "password authentication failed"],
+    ["23505", "duplicate key value violates unique constraint"],
+  ])("does not retry permanent database failure %s", (code, message) => {
+    expect(
+      classifyRetryableDatabaseFailure(
+        Object.assign(new Error(message), { code }),
+      ),
+    ).toBeUndefined();
+  });
+});
+
 beforeAll(async () => {
   const [migrationCount] = await db.execute<{ count: number }>(sql`
     select count(*)::integer as count
@@ -121,6 +184,15 @@ beforeAll(async () => {
     where pg_type.typname = 'knowledge_scope_kind'
     order by enumsortorder
   `);
+  const knowledgeScopeLifecycleValues = await db.execute<{
+    enumlabel: string;
+  }>(sql`
+    select enumlabel
+    from pg_enum
+    join pg_type on pg_type.oid = pg_enum.enumtypid
+    where pg_type.typname = 'knowledge_scope_lifecycle'
+    order by enumsortorder
+  `);
   const contextKindValues = await db.execute<{ enumlabel: string }>(sql`
     select enumlabel
     from pg_enum
@@ -138,11 +210,16 @@ beforeAll(async () => {
     order by enumsortorder
   `);
 
-  expect(migrationCount?.count).toBe(13);
+  expect(migrationCount?.count).toBe(16);
   expect(tables.map(({ table_name }) => table_name)).toEqual([
     "attention_requests",
     "attention_resolutions",
+    "completion_candidate_evaluations",
+    "completion_policy_revisions",
+    "current_delivery_evidence",
+    "delivery_evidence_observations",
     "events",
+    "external_deliveries",
     "graph_mutation_locks",
     "idempotency_keys",
     "knowledge_scope_relationships",
@@ -151,6 +228,8 @@ beforeAll(async () => {
     "notes",
     "pull_requests",
     "work_item_architecture_decisions",
+    "work_item_completion_candidates",
+    "work_item_completion_policies",
     "work_item_contexts",
     "work_item_dependencies",
     "work_item_hierarchy",
@@ -176,6 +255,9 @@ beforeAll(async () => {
     "initiative",
     "project",
   ]);
+  expect(
+    knowledgeScopeLifecycleValues.map(({ enumlabel }) => enumlabel),
+  ).toEqual(["active", "archived"]);
   expect(contextKindValues.map(({ enumlabel }) => enumlabel)).toEqual([
     "brief",
     "acceptance_criteria",
@@ -774,6 +856,21 @@ beforeEach(async () => {
     );
     await transaction.delete(schema.lease);
     await transaction.delete(schema.idempotencyKey);
+    await transaction.delete(schema.workItemCompletionCandidate);
+    await transaction.execute(sql`alter table ${schema.completionCandidateEvaluation} disable trigger completion_candidate_evaluations_immutable`);
+    await transaction.delete(schema.completionCandidateEvaluation);
+    await transaction.execute(sql`alter table ${schema.completionCandidateEvaluation} enable trigger completion_candidate_evaluations_immutable`);
+    await transaction.delete(schema.workItemCompletionPolicy);
+    await transaction.execute(sql`alter table ${schema.completionPolicyRevision} disable trigger completion_policy_revisions_immutable`);
+    await transaction.delete(schema.completionPolicyRevision);
+    await transaction.execute(sql`alter table ${schema.completionPolicyRevision} enable trigger completion_policy_revisions_immutable`);
+    await transaction.delete(schema.currentDeliveryEvidence);
+    await transaction.execute(sql`alter table ${schema.deliveryEvidenceObservation} disable trigger delivery_evidence_observations_immutable`);
+    await transaction.delete(schema.deliveryEvidenceObservation);
+    await transaction.execute(sql`alter table ${schema.deliveryEvidenceObservation} enable trigger delivery_evidence_observations_immutable`);
+    await transaction.execute(sql`alter table ${schema.externalDelivery} disable trigger external_deliveries_immutable`);
+    await transaction.delete(schema.externalDelivery);
+    await transaction.execute(sql`alter table ${schema.externalDelivery} enable trigger external_deliveries_immutable`);
     await transaction.delete(schema.workItemArchitectureDecision);
     await transaction.delete(schema.workItemContext);
     await transaction.delete(schema.workItemReference);
@@ -785,6 +882,97 @@ beforeEach(async () => {
     await transaction.delete(schema.workItemDependency);
     await transaction.delete(schema.workItemHierarchy);
     await transaction.delete(schema.workItem);
+  });
+});
+
+describe("database request limits", () => {
+  it("sets every session limit below the client request budget", async () => {
+    const [settings] = await db.execute<{
+      idle_in_transaction_session_timeout: string;
+      lock_timeout: string;
+      statement_timeout: string;
+      transaction_timeout: string;
+    }>(sql`
+      select
+        current_setting('lock_timeout') as lock_timeout,
+        current_setting('statement_timeout') as statement_timeout,
+        current_setting(
+          'idle_in_transaction_session_timeout'
+        ) as idle_in_transaction_session_timeout,
+        current_setting('transaction_timeout') as transaction_timeout
+    `);
+
+    expect(settings).toEqual({
+      lock_timeout: "5s",
+      statement_timeout: "15s",
+      idle_in_transaction_session_timeout: "10s",
+      transaction_timeout: "20s",
+    });
+  });
+
+  it("bounds a global-lock wait and rolls back the whole mutation", async () => {
+    const timedDb = createDb(databaseURL);
+    const timedRepository = new WorkGraphRepository(timedDb);
+    const idempotencyKey = recordId(990);
+    let markLockAcquired: () => void = () => undefined;
+    const lockAcquired = new Promise<void>((resolve) => {
+      markLockAcquired = resolve;
+    });
+    let releaseLock: () => void = () => undefined;
+    const lockMayRelease = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    const blocker = db.transaction(async (transaction) => {
+      await transaction
+        .select({ id: schema.graphMutationLock.id })
+        .from(schema.graphMutationLock)
+        .where(eq(schema.graphMutationLock.id, "global"))
+        .for("update");
+      markLockAcquired();
+      await lockMayRelease;
+    });
+    await lockAcquired;
+
+    const startedAt = Date.now();
+    let databaseError: DatabaseError | undefined;
+    try {
+      databaseError = await rejectedDatabaseError(
+        timedRepository.createWorkItem(
+          { id: "timed-out-work", title: "Timed out work" },
+          { idempotencyKey },
+        ),
+      );
+    } finally {
+      releaseLock();
+      await blocker;
+      await closeDb(timedDb);
+    }
+
+    expect(databaseError?.code).toBe("55P03");
+    expect(Date.now() - startedAt).toBeLessThan(7_000);
+    await expect(repository.getWorkItem("timed-out-work")).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "work_item_not_found",
+      }),
+    );
+    expect(
+      await db
+        .select({ id: schema.idempotencyKey.id })
+        .from(schema.idempotencyKey)
+        .where(eq(schema.idempotencyKey.id, idempotencyKey)),
+    ).toEqual([]);
+    expect(
+      await repository.listEvents({ workItemId: "timed-out-work" }),
+    ).toEqual([]);
+    expect(await db.select().from(schema.lease)).toEqual([]);
+    expect(await db.select().from(schema.note)).toEqual([]);
+
+    await expect(
+      repository.createWorkItem(
+        { id: "timed-out-work", title: "Timed out work" },
+        { idempotencyKey },
+      ),
+    ).resolves.toEqual(expect.objectContaining({ id: "timed-out-work" }));
   });
 });
 
@@ -911,6 +1099,8 @@ describe("work-item context persistence", () => {
       number: 42,
       url: "https://github.com/example/work-graph/pull/42",
       headSha: "0123456789abcdef0123456789abcdef01234567",
+      acceptedHeadSha: null,
+      mergeCommitSha: null,
       state: "open" as const,
       draft: true,
       mergeability: "unknown" as const,
@@ -976,6 +1166,251 @@ describe("work-item context persistence", () => {
   });
 });
 
+describe("delivery evidence persistence", () => {
+  const storeObservation = async (
+    suffix: number,
+    overrides: Partial<DeliveryEvidenceObservation> = {},
+  ) => {
+    const deliveryExternalId = `delivery-${suffix}`;
+    await repository.recordExternalDelivery({
+      provider: "github",
+      externalId: deliveryExternalId,
+      payloadDigest: suffix.toString(16).padStart(64, "0"),
+      receivedAt: new Date(Date.UTC(2026, 8, 22, 10, 0, suffix)).toISOString(),
+      ingestedAt: new Date(Date.UTC(2026, 8, 22, 11, 0, suffix)).toISOString(),
+    });
+    return repository.recordEvidenceObservation({
+      id: recordId(600 + suffix),
+      deliveryProvider: "github",
+      deliveryExternalId,
+      provider: "github",
+      externalId: `evidence-${suffix}`,
+      repository: "example/work-graph",
+      commitSha: commitSha("a"),
+      kind: "ci",
+      state: "success",
+      name: "verify",
+      environment: null,
+      sourceUrl: `https://github.com/example/work-graph/actions/runs/${suffix}`,
+      providerObservedAt: new Date(
+        Date.UTC(2026, 8, 22, 10, 0, suffix),
+      ).toISOString(),
+      ingestedAt: new Date(
+        Date.UTC(2026, 8, 22, 11, 0, suffix),
+      ).toISOString(),
+      correlationKind: "pull_request_head",
+      pullRequestRepository: "example/work-graph",
+      pullRequestNumber: 1,
+      ...overrides,
+    });
+  };
+
+  it("deduplicates deliveries and preserves out-of-order and unmatched observations", async () => {
+    const latest = await storeObservation(1, {
+      externalId: "workflow-1",
+      providerObservedAt: "2026-09-22T12:00:00.000Z",
+    });
+    await expect(
+      repository.recordEvidenceObservation({ ...latest, id: recordId(699) }),
+    ).resolves.toEqual(latest);
+    const replayedDelivery = await repository.recordExternalDelivery({
+      provider: "github",
+      externalId: "delivery-1",
+      payloadDigest: "1".padStart(64, "0"),
+      receivedAt: "2026-09-22T12:30:00.000Z",
+      ingestedAt: "2026-09-22T12:30:01.000Z",
+    });
+    expect(replayedDelivery.receivedAt).not.toBe("2026-09-22T12:30:00.000Z");
+    await expect(
+      repository.recordExternalDelivery({
+        ...replayedDelivery,
+        payloadDigest: "f".repeat(64),
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "external_delivery_reused",
+      }),
+    );
+
+    const stale = await storeObservation(2, {
+      externalId: "workflow-1",
+      state: "failure",
+      providerObservedAt: "2026-09-22T11:00:00.000Z",
+      ingestedAt: "2026-09-22T13:00:00.000Z",
+    });
+    const unmatched = await storeObservation(3, {
+      externalId: "unmatched-deployment",
+      kind: "deployment",
+      environment: "production",
+      correlationKind: "unmatched",
+      pullRequestRepository: null,
+      pullRequestNumber: null,
+    });
+
+    expect(await repository.listCurrentDeliveryEvidence()).toEqual([
+      expect.objectContaining({ id: latest.id, state: "success" }),
+      expect.objectContaining({
+        id: unmatched.id,
+        correlationKind: "unmatched",
+      }),
+    ]);
+    expect(
+      await db.select().from(schema.deliveryEvidenceObservation),
+    ).toHaveLength(3);
+    expect(stale.state).toBe("failure");
+    expect(
+      (
+        await rejectedDatabaseError(
+          db
+            .update(schema.deliveryEvidenceObservation)
+            .set({ state: "success" })
+            .where(eq(schema.deliveryEvidenceObservation.id, stale.id)),
+        )
+      )?.code,
+    ).toBe("55000");
+  });
+
+  it("records a policy-versioned candidate without changing lifecycle or an active lease", async () => {
+    await repository.createWorkItem({ id: "delivery", title: "Ship delivery" });
+    const pullRequests = [
+      { number: 1, head: commitSha("a"), merge: commitSha("b") },
+      { number: 2, head: commitSha("c"), merge: commitSha("d") },
+    ];
+    for (const pullRequest of pullRequests) {
+      await repository.refreshPullRequest({
+        repository: "example/work-graph",
+        number: pullRequest.number,
+        url: `https://github.com/example/work-graph/pull/${pullRequest.number}`,
+        headSha: pullRequest.head,
+        acceptedHeadSha: pullRequest.head,
+        mergeCommitSha: pullRequest.merge,
+        state: "merged",
+        draft: false,
+        mergeability: "unknown",
+        reviewDecision: "approved",
+        checkSummary: "success",
+        observedAt: "2026-09-22T10:00:00.000Z",
+      });
+      await repository.putWorkItemPullRequest({
+        workItemId: "delivery",
+        repository: "example/work-graph",
+        number: pullRequest.number,
+        role: "implementation",
+      });
+    }
+    await repository.putCompletionPolicyRevision({
+      policyId: "repository-default",
+      revision: 2,
+      requiredCiNames: ["verify"],
+      productionEnvironments: ["production"],
+      createdAt: "2026-09-22T09:00:00.000Z",
+    });
+    await repository.assignCompletionPolicy({
+      workItemId: "delivery",
+      policyId: "repository-default",
+      policyRevision: 2,
+      assignedAt: "2026-09-22T09:30:00.000Z",
+    });
+    let suffix = 10;
+    for (const pullRequest of pullRequests) {
+      await storeObservation(suffix, {
+        externalId: `pr-${pullRequest.number}`,
+        commitSha: pullRequest.merge,
+        kind: "pull_request",
+        name: null,
+        correlationKind: "pull_request_merge",
+        pullRequestNumber: pullRequest.number,
+      });
+      suffix += 1;
+      await storeObservation(suffix, {
+        externalId: `ci-${pullRequest.number}`,
+        commitSha: pullRequest.head,
+        pullRequestNumber: pullRequest.number,
+      });
+      suffix += 1;
+      await storeObservation(suffix, {
+        externalId: `deployment-${pullRequest.number}`,
+        commitSha: pullRequest.merge,
+        kind: "deployment",
+        name: null,
+        environment: "production",
+        correlationKind: "pull_request_merge",
+        pullRequestNumber: pullRequest.number,
+      });
+      suffix += 1;
+    }
+    const activeLease = await repository.claimWorkItem({
+      leaseId: recordId(700),
+      workerId: "worker-a",
+      leaseDurationSeconds: 300,
+      workItemId: "delivery",
+    });
+    if (!activeLease) throw new Error("Expected the claim to succeed.");
+    const lifecycleEventsBefore = await repository.listEvents();
+
+    const evaluation = await repository.evaluateCompletionCandidate({
+      id: recordId(701),
+      workItemId: "delivery",
+      evaluatedAt: "2026-09-22T14:00:00.000Z",
+    });
+
+    expect(evaluation).toEqual(
+      expect.objectContaining({
+        policyId: "repository-default",
+        policyRevision: 2,
+        candidate: true,
+        reasons: [],
+      }),
+    );
+    await expect(
+      repository.getCompletionCandidate("delivery"),
+    ).resolves.toEqual(evaluation);
+    await expect(repository.getCurrentLease("delivery")).resolves.toEqual(
+      activeLease,
+    );
+    await expect(repository.getWorkItem("delivery")).resolves.toEqual(
+      expect.objectContaining({ lifecycle: "open", stage: "in_progress" }),
+    );
+    expect(await repository.listEvents()).toEqual(lifecycleEventsBefore);
+
+    const firstPullRequest = pullRequests[0];
+    if (!firstPullRequest) throw new Error("Expected a pull request fixture.");
+    const newerCi = await storeObservation(30, {
+      externalId: "ci-1",
+      commitSha: firstPullRequest.head,
+      state: "failure",
+      pullRequestNumber: 1,
+    });
+    const firstPage = await repository.listWorkItemDeliveryEvidence({
+      workItemId: "delivery",
+      limit: 4,
+    });
+    const firstPageCursor = firstPage.at(-1)?.id;
+    if (!firstPageCursor) throw new Error("Expected a first evidence page.");
+    const secondPage = await repository.listWorkItemDeliveryEvidence({
+      workItemId: "delivery",
+      cursor: firstPageCursor,
+      limit: 4,
+    });
+    const history = [...firstPage, ...secondPage];
+    expect(history).toHaveLength(7);
+    expect(
+      history.find(
+        ({ current, externalId }) => externalId === "ci-1" && !current,
+      ),
+    ).toEqual(expect.objectContaining({ state: "success", projectedAt: null }));
+    expect(history).toContainEqual(
+      expect.objectContaining({ id: newerCi.id, current: true }),
+    );
+    await expect(
+      repository.listWorkItemDeliveryEvidence({
+        workItemId: "delivery",
+        currentOnly: true,
+      }),
+    ).resolves.toHaveLength(6);
+  });
+});
+
 describe("knowledge scope persistence", () => {
   const putInitiative = () =>
     repository.putKnowledgeScope({
@@ -1017,6 +1452,8 @@ describe("knowledge scope persistence", () => {
       canonicalUrl: "https://example.test/projects/work-graph",
       markdownUrl: "https://example.test/projects/work-graph.md",
       sourceRevision: "def456",
+      lifecycle: "active",
+      archiveReason: null,
       rank: 1024,
     });
     await expect(
@@ -1104,6 +1541,122 @@ describe("knowledge scope persistence", () => {
     ).rejects.toEqual(
       expect.objectContaining<Partial<WorkGraphError>>({
         code: "idempotency_key_reused",
+      }),
+    );
+  });
+
+  it("archives scopes outside active ranking and restores them at the median", async () => {
+    const put = (id: string) =>
+      repository.putKnowledgeScope({
+        id,
+        kind: "project",
+        title: id,
+        canonicalUrl: `https://example.test/projects/${id}`,
+        markdownUrl: `https://example.test/projects/${id}.md`,
+      });
+    await put("alpha");
+    await put("bravo");
+
+    await expect(
+      repository.archiveKnowledgeScope(
+        "alpha",
+        { reason: "Completed project" },
+        { idempotencyKey: recordId(320) },
+      ),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        id: "alpha",
+        lifecycle: "archived",
+        archiveReason: "Completed project",
+        rank: null,
+      }),
+    );
+    await expect(repository.listKnowledgeScopes()).resolves.toEqual([
+      expect.objectContaining({ id: "bravo", rank: 1024 }),
+    ]);
+    await expect(
+      repository.listKnowledgeScopes({ includeArchived: true }),
+    ).resolves.toEqual([
+      expect.objectContaining({ id: "alpha", lifecycle: "archived" }),
+      expect.objectContaining({ id: "bravo", lifecycle: "active" }),
+    ]);
+
+    await repository.putKnowledgeScope({
+      id: "alpha",
+      kind: "project",
+      title: "Alpha renamed",
+      canonicalUrl: "https://example.test/projects/alpha",
+      markdownUrl: "https://example.test/projects/alpha.md",
+    });
+    await expect(repository.getKnowledgeScope("alpha")).resolves.toEqual(
+      expect.objectContaining({
+        title: "Alpha renamed",
+        lifecycle: "archived",
+        archiveReason: "Completed project",
+        rank: null,
+      }),
+    );
+
+    await expect(
+      repository.restoreKnowledgeScope("alpha", {
+        idempotencyKey: recordId(321),
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        id: "alpha",
+        lifecycle: "active",
+        archiveReason: null,
+        rank: 2048,
+      }),
+    );
+  });
+
+  it("keeps scopes active while they schedule open work", async () => {
+    await putProject();
+    await repository.createWorkItem({
+      id: "ticket",
+      title: "Open ticket",
+      schedulingProjectId: "work-graph",
+    });
+
+    await expect(
+      repository.archiveKnowledgeScope("work-graph", {
+        reason: "No longer managed here",
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "knowledge_scope_has_open_work",
+      }),
+    );
+  });
+
+  it("hides archived relationships and rejects new scheduling assignments", async () => {
+    await putInitiative();
+    await putProject();
+    const relationship = {
+      parentKnowledgeScopeId: "semi-autonomous-development",
+      childKnowledgeScopeId: "work-graph",
+    };
+    await repository.addKnowledgeScopeRelationship(relationship);
+    await repository.archiveKnowledgeScope("work-graph", {
+      reason: "Managed outside Work Graph",
+    });
+
+    await expect(repository.listKnowledgeScopeRelationships()).resolves.toEqual(
+      [],
+    );
+    await expect(
+      repository.listKnowledgeScopeRelationships({ includeArchived: true }),
+    ).resolves.toEqual([relationship]);
+    await expect(
+      repository.createWorkItem({
+        id: "ticket",
+        title: "New ticket",
+        schedulingProjectId: "work-graph",
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "invalid_knowledge_scope_lifecycle",
       }),
     );
   });
@@ -1220,6 +1773,180 @@ describe("knowledge scope persistence", () => {
     await expect(repository.getKnowledgeScope("missing")).rejects.toEqual(
       expect.objectContaining<Partial<WorkGraphError>>({
         code: "knowledge_scope_not_found",
+      }),
+    );
+  });
+});
+
+describe("critical-path projection persistence", () => {
+  const putScope = (id: string, kind: "initiative" | "project") =>
+    repository.putKnowledgeScope({
+      id,
+      kind,
+      title: id,
+      canonicalUrl: `https://example.test/${kind}s/${id}`,
+      markdownUrl: `https://example.test/${kind}s/${id}.md`,
+    });
+
+  it("projects global, scoped, and rooted paths with operational state", async () => {
+    await putScope("initiative", "initiative");
+    await putScope("project-a", "project");
+    await putScope("project-b", "project");
+    await repository.addKnowledgeScopeRelationship({
+      parentKnowledgeScopeId: "initiative",
+      childKnowledgeScopeId: "project-a",
+    });
+    await repository.addKnowledgeScopeRelationship({
+      parentKnowledgeScopeId: "initiative",
+      childKnowledgeScopeId: "project-b",
+    });
+    await repository.createWorkItem({
+      id: "outcome",
+      title: "Outcome",
+      schedulingInitiativeId: "initiative",
+      schedulingProjectId: "project-a",
+    });
+    await repository.createWorkItem({
+      id: "implementation",
+      title: "Implementation",
+      parentId: "outcome",
+    });
+    await repository.createWorkItem({
+      id: "review",
+      title: "Review",
+      parentId: "outcome",
+    });
+    await repository.createWorkItem({
+      id: "blocker",
+      title: "Blocker",
+      schedulingInitiativeId: "initiative",
+      schedulingProjectId: "project-b",
+    });
+    await repository.addDependency(dependency("implementation", "blocker"));
+
+    const blockerLease = await repository.claimWorkItem({
+      leaseId: recordId(701),
+      workerId: "blocker-worker",
+      leaseDurationSeconds: 300,
+      workItemId: "blocker",
+    });
+    expect(blockerLease).not.toBeNull();
+    const reviewLease = await repository.claimWorkItem({
+      leaseId: recordId(702),
+      workerId: "review-worker",
+      leaseDurationSeconds: 300,
+      workItemId: "review",
+    });
+    if (!reviewLease) throw new Error("Expected the review claim to succeed.");
+    await repository.createAttentionRequest({
+      id: recordId(703),
+      workItemId: "review",
+      leaseId: reviewLease.id,
+      epoch: reviewLease.epoch,
+      kind: "decision",
+      question: "Approve the review?",
+      blocking: true,
+    });
+
+    const scoped = await repository.projectCriticalPath({
+      initiativeId: "initiative",
+      projectId: "project-a",
+    });
+    expect(scoped.targetOutcomeIds).toEqual(["outcome"]);
+    expect(scoped.nodes.map(({ item }) => item.id)).toEqual([
+      "outcome",
+      "implementation",
+      "blocker",
+      "review",
+    ]);
+    expect(scoped.blockingAttentionIds).toEqual(["review"]);
+    expect(
+      scoped.nodes.find(({ item }) => item.id === "blocker")?.stage,
+    ).toBe("in_progress");
+    const excludedTarget = await repository.projectCriticalPath({
+      includeProjectIds: ["project-a", "project-b"],
+      excludeProjectIds: ["project-b"],
+    });
+    expect(excludedTarget.targetOutcomeIds).toEqual(["outcome"]);
+    expect(
+      excludedTarget.nodes.map(({ item }) => item.id),
+    ).toContain("blocker");
+    await expect(
+      repository.projectCriticalPath({
+        includeInitiativeIds: [],
+        includeProjectIds: [],
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({ targetOutcomeIds: ["outcome", "blocker"] }),
+    );
+
+    await expect(
+      repository.projectCriticalPath({ initiativeId: "initiative" }),
+    ).resolves.toEqual(
+      expect.objectContaining({ targetOutcomeIds: ["outcome", "blocker"] }),
+    );
+    await expect(
+      repository.projectCriticalPath({ projectId: "project-b" }),
+    ).resolves.toEqual(expect.objectContaining({ targetOutcomeIds: ["blocker"] }));
+    await expect(
+      repository.projectCriticalPath({ rootWorkItemId: "outcome" }),
+    ).resolves.toEqual(expect.objectContaining({ targetOutcomeIds: ["outcome"] }));
+    await expect(repository.projectCriticalPath()).resolves.toEqual(
+      expect.objectContaining({ targetOutcomeIds: ["outcome", "blocker"] }),
+    );
+  });
+
+  it("rejects invalid, missing, inactive, and mismatched scopes", async () => {
+    await putScope("initiative", "initiative");
+    await putScope("project", "project");
+    await repository.createWorkItem({ id: "outcome", title: "Outcome" });
+
+    await expect(
+      repository.projectCriticalPath({
+        projectId: "project",
+        rootWorkItemId: "outcome",
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "invalid_critical_path_scope",
+      }),
+    );
+    await expect(
+      repository.projectCriticalPath({ projectId: "missing" }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "knowledge_scope_not_found",
+      }),
+    );
+    await expect(
+      repository.projectCriticalPath({ excludeProjectIds: ["missing"] }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "knowledge_scope_not_found",
+      }),
+    );
+    await expect(
+      repository.projectCriticalPath({ initiativeId: "project" }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "invalid_critical_path_scope",
+      }),
+    );
+    await repository.archiveKnowledgeScope("initiative", {
+      reason: "Completed",
+    });
+    await expect(
+      repository.projectCriticalPath({ initiativeId: "initiative" }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "invalid_critical_path_scope",
+      }),
+    );
+    await expect(
+      repository.projectCriticalPath({ rootWorkItemId: "missing" }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "work_item_not_found",
       }),
     );
   });
@@ -1499,11 +2226,28 @@ describe("lease-backed claiming", () => {
       canonicalUrl: "https://example.test/projects/work-graph",
       markdownUrl: "https://example.test/projects/work-graph.md",
     });
+    await repository.putKnowledgeScope({
+      id: "other-project",
+      kind: "project",
+      title: "Other Project",
+      canonicalUrl: "https://example.test/projects/other-project",
+      markdownUrl: "https://example.test/projects/other-project.md",
+    });
     await repository.addKnowledgeScopeRelationship({
       parentKnowledgeScopeId: "initiative",
       childKnowledgeScopeId: "work-graph",
     });
+    await repository.addKnowledgeScopeRelationship({
+      parentKnowledgeScopeId: "initiative",
+      childKnowledgeScopeId: "other-project",
+    });
     await repository.createWorkItem({ id: "unscoped", title: "Unscoped" });
+    await repository.createWorkItem({
+      id: "other-plan",
+      title: "Other plan",
+      schedulingInitiativeId: "initiative",
+      schedulingProjectId: "other-project",
+    });
     await repository.createWorkItem({ id: "plan", title: "Plan" });
     await repository.setWorkItemSchedulingScope("plan", {
       schedulingInitiativeId: null,
@@ -1571,6 +2315,27 @@ describe("lease-backed claiming", () => {
       expect.objectContaining({ id: "child-a" }),
       expect.objectContaining({ id: "child-b" }),
     ]);
+    const includedProjects = await repository.listWorkItems({
+      includeProjectIds: ["work-graph", "other-project"],
+      excludeProjectIds: ["other-project"],
+    });
+    expect(includedProjects).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "plan" }),
+        expect.objectContaining({ id: "child-a" }),
+        expect.objectContaining({ id: "child-b" }),
+      ]),
+    );
+    expect(includedProjects.some(({ id }) => id === "other-plan")).toBe(
+      false,
+    );
+    expect(
+      (
+        await repository.listWorkItems({
+          excludeProjectIds: ["work-graph", "other-project"],
+        })
+      ).map(({ id }) => id),
+    ).toContain("unscoped");
 
     await expect(
       repository.claimWorkItem({
@@ -1599,6 +2364,22 @@ describe("lease-backed claiming", () => {
     ).rejects.toEqual(
       expect.objectContaining<Partial<WorkGraphError>>({
         code: "invalid_claim_scope",
+      }),
+    );
+    await expect(
+      repository.claimWorkItem({
+        leaseId: leaseId(27),
+        workerId: "worker-d",
+        leaseDurationSeconds: 300,
+        includeProjectIds: ["work-graph", "other-project"],
+        excludeProjectIds: ["work-graph"],
+      }),
+    ).resolves.toEqual(expect.objectContaining({ workItemId: "other-plan" }));
+    await expect(
+      repository.listWorkItems({ excludeProjectIds: ["missing"] }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "knowledge_scope_not_found",
       }),
     );
   });
@@ -1786,6 +2567,134 @@ describe("lease-backed claiming", () => {
       expect.objectContaining<Partial<WorkGraphError>>({
         code: "lease_not_current",
       }),
+    );
+  });
+
+  it("recovers stale child work after an ancestor gains a blocker", async () => {
+    await repository.createWorkItem({ id: "parent", title: "Parent" });
+    await repository.createWorkItem({
+      id: "started",
+      title: "Started child",
+      parentId: "parent",
+    });
+    await repository.createWorkItem({
+      id: "not-started",
+      title: "Not-started child",
+      parentId: "parent",
+    });
+    await repository.createWorkItem({ id: "blocker", title: "Blocker" });
+    const firstLease = await repository.claimWorkItem({
+      leaseId: leaseId(32),
+      workerId: "worker-a",
+      leaseDurationSeconds: 300,
+      workItemId: "started",
+    });
+    if (!firstLease) throw new Error("Expected the first claim to succeed.");
+
+    await repository.addDependency(dependency("parent", "blocker"));
+    await db
+      .update(schema.lease)
+      .set({
+        acquiredAt: new Date("2000-01-01T00:00:00Z"),
+        expiresAt: new Date("2000-01-01T00:01:00Z"),
+      })
+      .where(eq(schema.lease.id, firstLease.id));
+
+    expect(await repository.getWorkItem("started")).toEqual(
+      expect.objectContaining({ stage: "stale" }),
+    );
+    await expect(
+      repository.claimWorkItem({
+        leaseId: leaseId(33),
+        workerId: "scheduler",
+        leaseDurationSeconds: 300,
+        parentId: "parent",
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      repository.claimWorkItem({
+        leaseId: leaseId(34),
+        workerId: "worker-b",
+        leaseDurationSeconds: 300,
+        workItemId: "not-started",
+      }),
+    ).resolves.toBeNull();
+
+    const recoveryAttempts = await Promise.all([
+      repository.claimWorkItem({
+        leaseId: leaseId(35),
+        workerId: "worker-b",
+        leaseDurationSeconds: 300,
+        workItemId: "started",
+      }),
+      repository.claimWorkItem({
+        leaseId: leaseId(36),
+        workerId: "worker-c",
+        leaseDurationSeconds: 300,
+        workItemId: "started",
+      }),
+    ]);
+    const recovered = recoveryAttempts.find((claim) => claim !== null);
+    expect(recoveryAttempts.filter((claim) => claim !== null)).toHaveLength(1);
+    expect(recovered).toEqual(
+      expect.objectContaining({ workItemId: "started", epoch: 2 }),
+    );
+    if (!recovered) throw new Error("Expected one recovery to succeed.");
+
+    await expect(
+      repository.renewLease({
+        leaseId: firstLease.id,
+        epoch: firstLease.epoch,
+        leaseDurationSeconds: 300,
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "lease_not_current",
+      }),
+    );
+    await expect(
+      repository.terminateClaimedWorkItem({
+        leaseId: firstLease.id,
+        epoch: firstLease.epoch,
+        workItemId: "started",
+        outcome: "released",
+        ...completionEvidence,
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<WorkGraphError>>({
+        code: "lease_not_current",
+      }),
+    );
+
+    await repository.terminateClaimedWorkItem({
+      leaseId: recovered.id,
+      epoch: recovered.epoch,
+      workItemId: "started",
+      outcome: "released",
+      ...completionEvidence,
+    });
+
+    expect(await repository.listLeases("started")).toEqual([
+      expect.objectContaining({ epoch: 1, outcome: "expired" }),
+      expect.objectContaining({ epoch: 2, outcome: "released" }),
+    ]);
+    expect(
+      (await repository.listEvents({ workItemId: "started" })).map(
+        ({ type }) => type,
+      ),
+    ).toEqual([
+      "work_item.created",
+      "lease.claimed",
+      "lease.ended",
+      "lease.claimed",
+      "lease.ended",
+      "work_item.lifecycle_changed",
+    ]);
+    expect((await repository.getWorkItem("started")).lifecycle).toBe(
+      "released",
+    );
+    expect(await repository.listDependencies({ workItemId: "parent" })).toEqual(
+      [dependency("parent", "blocker")],
     );
   });
 
@@ -2392,7 +3301,7 @@ describe("lease-fenced notes and attention", () => {
     }
   });
 
-  it("ends a lease for blocking attention and allows another worker after resolution", async () => {
+  it("requires an explicit claim to resume work after attention resolution", async () => {
     await repository.createWorkItem({ id: "work", title: "Work" });
     const claimed = await repository.claimWorkItem({
       leaseId: recordId(206),
@@ -2476,8 +3385,26 @@ describe("lease-fenced notes and attention", () => {
       },
     ]);
     expect((await repository.getWorkItem("work")).stage).toBe("ready");
+    await expect(
+      repository.claimWorkItem({
+        leaseId: recordId(212),
+        workerId: "worker-b",
+        leaseDurationSeconds: 300,
+      }),
+    ).resolves.toBeNull();
+
+    await repository.createWorkItem({ id: "fresh", title: "Fresh work" });
+    const automaticClaim = await repository.claimWorkItem({
+      leaseId: recordId(213),
+      workerId: "worker-b",
+      leaseDurationSeconds: 300,
+    });
+    expect(automaticClaim).toEqual(
+      expect.objectContaining({ workItemId: "fresh", epoch: 1 }),
+    );
+
     const resumed = await repository.claimWorkItem({
-      leaseId: recordId(212),
+      leaseId: recordId(214),
       workerId: "worker-b",
       leaseDurationSeconds: 300,
       workItemId: "work",

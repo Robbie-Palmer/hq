@@ -4,12 +4,25 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
-export type WorkItemList = {
-    items: Array<WorkItem>;
-    nextCursor: string | null;
+export type CriticalPathProjection = {
+    targetOutcomeIds: Array<string>;
+    nodes: Array<CriticalPathNode>;
+    edges: Array<CriticalPathEdge>;
+    blockingPaths: Array<CriticalPathWorkItemPath>;
+    readyLeafIds: Array<string>;
+    blockingAttentionIds: Array<string>;
+    parallelBranches: Array<CriticalPathParallelBranch>;
 };
 
-export type WorkItem = {
+export type CriticalPathNode = {
+    item: StoredWorkItem;
+    stage: 'blocked' | 'ready' | 'in_progress' | 'stale' | 'needs_attention' | 'released' | 'cancelled';
+    claimable: boolean;
+    priority: WorkItemPriority;
+    inclusionReasons: Array<CriticalPathInclusionReason>;
+};
+
+export type StoredWorkItem = {
     id: string;
     title: string;
     lifecycle: 'open' | 'released' | 'cancelled';
@@ -20,14 +33,68 @@ export type WorkItem = {
     schedulingProjectId: string | null;
     expedited: boolean;
     expediteReason: string | null;
-    priority: {
-        initiativeRank: number;
-        projectRank: number;
-        ticketRank: number;
-        expedited: boolean;
-        effectiveExpedited: boolean;
-        donatedFromWorkItemId: string | null;
+};
+
+export type WorkItemPriority = {
+    initiativeRank: number;
+    projectRank: number;
+    ticketRank: number;
+    expedited: boolean;
+    effectiveExpedited: boolean;
+    donatedFromWorkItemId: string | null;
+};
+
+export type CriticalPathInclusionReason = {
+    kind: 'target_outcome';
+} | {
+    kind: 'decomposition_child';
+    fromWorkItemId: string;
+} | {
+    kind: 'dependency_blocker';
+    fromWorkItemId: string;
+    dependencyDeclaredByWorkItemId: string;
+};
+
+export type CriticalPathEdge = {
+    kind: 'decomposition';
+    fromWorkItemId: string;
+    toWorkItemId: string;
+} | {
+    kind: 'dependency';
+    fromWorkItemId: string;
+    toWorkItemId: string;
+    dependencyDeclaredByWorkItemId: string;
+};
+
+export type CriticalPathWorkItemPath = Array<string>;
+
+export type CriticalPathParallelBranch = {
+    workItemId: string;
+    stage: 'blocked' | 'ready' | 'in_progress' | 'stale' | 'needs_attention' | 'released' | 'cancelled';
+    claimable: boolean;
+    targetWorkItemIds: Array<string>;
+    paths: Array<CriticalPathWorkItemPath>;
+};
+
+export type Error = {
+    error: {
+        code: string;
+        message: string;
+        requestId?: string;
+        details?: Array<{
+            path: Array<string | number>;
+            message: string;
+        }>;
     };
+};
+
+export type WorkItemList = {
+    items: Array<WorkItem>;
+    nextCursor: string | null;
+};
+
+export type WorkItem = StoredWorkItem & {
+    priority: WorkItemPriority;
     stage: 'blocked' | 'ready' | 'in_progress' | 'stale' | 'needs_attention' | 'released' | 'cancelled';
     currentLease: Lease | null;
 };
@@ -43,17 +110,6 @@ export type Lease = {
     outcome: 'released' | 'cancelled' | 'decomposed' | 'attention_requested' | 'expired' | null;
 };
 
-export type Error = {
-    error: {
-        code: string;
-        message: string;
-        details?: Array<{
-            path: Array<string | number>;
-            message: string;
-        }>;
-    };
-};
-
 export type KnowledgeScopeList = {
     items: Array<KnowledgeScope>;
     nextCursor: string | null;
@@ -66,6 +122,8 @@ export type KnowledgeScope = {
     canonicalUrl: string;
     markdownUrl: string;
     sourceRevision: string | null;
+    lifecycle: 'active' | 'archived';
+    archiveReason: string | null;
     rank: number | null;
 };
 
@@ -77,6 +135,48 @@ export type KnowledgeScopeRelationshipList = {
 export type KnowledgeScopeRelationship = {
     parentKnowledgeScopeId: string;
     childKnowledgeScopeId: string;
+};
+
+export type DeliveryEvidenceList = {
+    items: Array<DeliveryEvidence>;
+    nextCursor: string | null;
+};
+
+export type DeliveryEvidence = {
+    id: string;
+    deliveryProvider: string;
+    deliveryExternalId: string;
+    provider: string;
+    externalId: string;
+    repository: string;
+    commitSha: string;
+    kind: 'pull_request' | 'ci' | 'deployment';
+    state: 'pending' | 'success' | 'failure' | 'cancelled';
+    name: string | null;
+    environment: string | null;
+    sourceUrl: string;
+    providerObservedAt: string;
+    ingestedAt: string;
+    correlationKind: 'unmatched' | 'pull_request_head' | 'pull_request_merge';
+    pullRequestRepository: string | null;
+    pullRequestNumber: number | null;
+    current: boolean;
+    projectedAt: string | null;
+};
+
+export type CompletionCandidateResponse = {
+    candidate: CompletionCandidate | null;
+};
+
+export type CompletionCandidate = {
+    id: string;
+    workItemId: string;
+    policyId: string;
+    policyRevision: number;
+    candidate: boolean;
+    reasons: Array<'missing_implementation_pull_request' | 'pull_request_not_merged' | 'missing_accepted_head' | 'missing_merge_commit' | 'missing_pull_request_evidence' | 'missing_required_ci' | 'missing_production_deployment' | 'unfinished_children' | 'unresolved_blocking_attention'>;
+    evidenceObservationIds: Array<string>;
+    evaluatedAt: string;
 };
 
 export type ResolvedWorkItemContextList = {
@@ -106,7 +206,12 @@ export type ResolvedWorkItemContext = {
     url: string;
     sourceWorkItemId: string;
     inheritanceDepth: number;
-} | ResolvedPullRequest;
+} | ResolvedPullRequest | {
+    kind: 'delivery_evidence';
+    evidence: DeliveryEvidence;
+    sourceWorkItemId: string;
+    inheritanceDepth: number;
+};
 
 export type ResolvedPullRequest = {
     kind: 'pull_request';
@@ -121,6 +226,8 @@ export type PullRequestSnapshot = {
     number: number;
     url: string;
     headSha: string;
+    acceptedHeadSha: string | null;
+    mergeCommitSha: string | null;
     state: 'open' | 'closed' | 'merged';
     draft: boolean;
     mergeability: 'mergeable' | 'conflicting' | 'unknown';
@@ -307,6 +414,10 @@ export type ListAttentionRequestsErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type ListAttentionRequestsError = ListAttentionRequestsErrors[keyof ListAttentionRequestsErrors];
@@ -371,6 +482,10 @@ export type CreateAttentionRequestErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type CreateAttentionRequestError = CreateAttentionRequestErrors[keyof CreateAttentionRequestErrors];
@@ -431,6 +546,10 @@ export type CreateAttentionResolutionErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type CreateAttentionResolutionError = CreateAttentionResolutionErrors[keyof CreateAttentionResolutionErrors];
@@ -443,6 +562,89 @@ export type CreateAttentionResolutionResponses = {
 };
 
 export type CreateAttentionResolutionResponse = CreateAttentionResolutionResponses[keyof CreateAttentionResolutionResponses];
+
+export type GetCriticalPathData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Repeat the query parameter to select more than one scope.
+         */
+        includeInitiativeIds?: Array<string>;
+        /**
+         * Repeat the query parameter to select more than one scope.
+         */
+        excludeInitiativeIds?: Array<string>;
+        /**
+         * Repeat the query parameter to select more than one scope.
+         */
+        includeProjectIds?: Array<string>;
+        /**
+         * Repeat the query parameter to select more than one scope.
+         */
+        excludeProjectIds?: Array<string>;
+        /**
+         * Deprecated one-item alias for includeInitiativeIds.
+         *
+         * @deprecated
+         */
+        initiativeId?: string;
+        /**
+         * Deprecated one-item alias for includeProjectIds.
+         *
+         * @deprecated
+         */
+        projectId?: string;
+        rootWorkItemId?: string;
+    };
+    url: '/api/critical-path';
+};
+
+export type GetCriticalPathErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
+};
+
+export type GetCriticalPathError = GetCriticalPathErrors[keyof GetCriticalPathErrors];
+
+export type GetCriticalPathResponses = {
+    /**
+     * Critical-path targets, included nodes and edges, blocking paths, and claimable parallel branches
+     */
+    200: CriticalPathProjection;
+};
+
+export type GetCriticalPathResponse = GetCriticalPathResponses[keyof GetCriticalPathResponses];
 
 export type DeleteDependencyData = {
     body: {
@@ -489,6 +691,10 @@ export type DeleteDependencyErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type DeleteDependencyError = DeleteDependencyErrors[keyof DeleteDependencyErrors];
@@ -547,6 +753,10 @@ export type CreateDependencyErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type CreateDependencyError = CreateDependencyErrors[keyof CreateDependencyErrors];
@@ -605,6 +815,10 @@ export type DeleteKnowledgeScopeRelationshipErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type DeleteKnowledgeScopeRelationshipError = DeleteKnowledgeScopeRelationshipErrors[keyof DeleteKnowledgeScopeRelationshipErrors];
@@ -622,6 +836,7 @@ export type ListKnowledgeScopeRelationshipsData = {
     body?: never;
     path?: never;
     query?: {
+        includeArchived?: 'true';
         limit?: number;
         cursor?: string;
     };
@@ -657,6 +872,10 @@ export type ListKnowledgeScopeRelationshipsErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type ListKnowledgeScopeRelationshipsError = ListKnowledgeScopeRelationshipsErrors[keyof ListKnowledgeScopeRelationshipsErrors];
@@ -715,6 +934,10 @@ export type CreateKnowledgeScopeRelationshipErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type CreateKnowledgeScopeRelationshipError = CreateKnowledgeScopeRelationshipErrors[keyof CreateKnowledgeScopeRelationshipErrors];
@@ -733,6 +956,7 @@ export type ListKnowledgeScopesData = {
     path?: never;
     query?: {
         kind?: 'initiative' | 'project';
+        includeArchived?: 'true';
         limit?: number;
         cursor?: string;
     };
@@ -768,6 +992,10 @@ export type ListKnowledgeScopesErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type ListKnowledgeScopesError = ListKnowledgeScopesErrors[keyof ListKnowledgeScopesErrors];
@@ -819,6 +1047,10 @@ export type GetKnowledgeScopeErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type GetKnowledgeScopeError = GetKnowledgeScopeErrors[keyof GetKnowledgeScopeErrors];
@@ -882,6 +1114,10 @@ export type PutKnowledgeScopeErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type PutKnowledgeScopeError = PutKnowledgeScopeErrors[keyof PutKnowledgeScopeErrors];
@@ -894,6 +1130,130 @@ export type PutKnowledgeScopeResponses = {
 };
 
 export type PutKnowledgeScopeResponse = PutKnowledgeScopeResponses[keyof PutKnowledgeScopeResponses];
+
+export type RestoreKnowledgeScopeData = {
+    body?: never;
+    headers?: {
+        /**
+         * Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.
+         */
+        'idempotency-key'?: string;
+    };
+    path: {
+        knowledgeScopeId: string;
+    };
+    query?: never;
+    url: '/api/knowledge-scopes/{knowledgeScopeId}/archival';
+};
+
+export type RestoreKnowledgeScopeErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
+};
+
+export type RestoreKnowledgeScopeError = RestoreKnowledgeScopeErrors[keyof RestoreKnowledgeScopeErrors];
+
+export type RestoreKnowledgeScopeResponses = {
+    /**
+     * Knowledge scope restored or matching mutation replayed
+     */
+    200: KnowledgeScope;
+};
+
+export type RestoreKnowledgeScopeResponse = RestoreKnowledgeScopeResponses[keyof RestoreKnowledgeScopeResponses];
+
+export type ArchiveKnowledgeScopeData = {
+    body: {
+        reason: string;
+    };
+    headers?: {
+        /**
+         * Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.
+         */
+        'idempotency-key'?: string;
+    };
+    path: {
+        knowledgeScopeId: string;
+    };
+    query?: never;
+    url: '/api/knowledge-scopes/{knowledgeScopeId}/archival';
+};
+
+export type ArchiveKnowledgeScopeErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
+};
+
+export type ArchiveKnowledgeScopeError = ArchiveKnowledgeScopeErrors[keyof ArchiveKnowledgeScopeErrors];
+
+export type ArchiveKnowledgeScopeResponses = {
+    /**
+     * Knowledge scope archived or matching mutation replayed
+     */
+    200: KnowledgeScope;
+};
+
+export type ArchiveKnowledgeScopeResponse = ArchiveKnowledgeScopeResponses[keyof ArchiveKnowledgeScopeResponses];
 
 export type MoveKnowledgeScopePriorityData = {
     body: {
@@ -945,6 +1305,10 @@ export type MoveKnowledgeScopePriorityErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type MoveKnowledgeScopePriorityError = MoveKnowledgeScopePriorityErrors[keyof MoveKnowledgeScopePriorityErrors];
@@ -966,7 +1330,21 @@ export type CreateLeaseData = {
     } | {
         workerId: string;
         leaseDurationSeconds: number;
+        includeInitiativeIds?: Array<string>;
+        excludeInitiativeIds?: Array<string>;
+        includeProjectIds?: Array<string>;
+        excludeProjectIds?: Array<string>;
+        /**
+         * Deprecated one-item alias for includeInitiativeIds.
+         *
+         * @deprecated
+         */
         initiativeId?: string;
+        /**
+         * Deprecated one-item alias for includeProjectIds.
+         *
+         * @deprecated
+         */
         projectId?: string;
         parentId?: string;
     };
@@ -1004,6 +1382,10 @@ export type CreateLeaseErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type CreateLeaseError = CreateLeaseErrors[keyof CreateLeaseErrors];
@@ -1058,6 +1440,10 @@ export type CreateLeaseRenewalErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type CreateLeaseRenewalError = CreateLeaseRenewalErrors[keyof CreateLeaseRenewalErrors];
@@ -1077,6 +1463,8 @@ export type RefreshPullRequestData = {
         number: number;
         url: string;
         headSha: string;
+        acceptedHeadSha?: string | null;
+        mergeCommitSha?: string | null;
         state: 'open' | 'closed' | 'merged';
         draft: boolean;
         mergeability: 'mergeable' | 'conflicting' | 'unknown';
@@ -1124,6 +1512,10 @@ export type RefreshPullRequestErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type RefreshPullRequestError = RefreshPullRequestErrors[keyof RefreshPullRequestErrors];
@@ -1142,7 +1534,33 @@ export type ListWorkItemsData = {
     path?: never;
     query?: {
         stage?: 'blocked' | 'ready' | 'in_progress' | 'stale' | 'needs_attention' | 'released' | 'cancelled';
+        /**
+         * Repeat the query parameter to select more than one scope.
+         */
+        includeInitiativeIds?: Array<string>;
+        /**
+         * Repeat the query parameter to select more than one scope.
+         */
+        excludeInitiativeIds?: Array<string>;
+        /**
+         * Repeat the query parameter to select more than one scope.
+         */
+        includeProjectIds?: Array<string>;
+        /**
+         * Repeat the query parameter to select more than one scope.
+         */
+        excludeProjectIds?: Array<string>;
+        /**
+         * Deprecated one-item alias for includeInitiativeIds.
+         *
+         * @deprecated
+         */
         initiativeId?: string;
+        /**
+         * Deprecated one-item alias for includeProjectIds.
+         *
+         * @deprecated
+         */
         projectId?: string;
         parentId?: string;
         limit?: number;
@@ -1180,6 +1598,10 @@ export type ListWorkItemsErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type ListWorkItemsError = ListWorkItemsErrors[keyof ListWorkItemsErrors];
@@ -1241,6 +1663,10 @@ export type CreateWorkItemErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type CreateWorkItemError = CreateWorkItemErrors[keyof CreateWorkItemErrors];
@@ -1292,6 +1718,10 @@ export type GetWorkItemErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type GetWorkItemError = GetWorkItemErrors[keyof GetWorkItemErrors];
@@ -1346,6 +1776,10 @@ export type CreateWorkItemCancellationErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type CreateWorkItemCancellationError = CreateWorkItemCancellationErrors[keyof CreateWorkItemCancellationErrors];
@@ -1407,6 +1841,10 @@ export type CreatePostReleaseWorkItemNoteErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type CreatePostReleaseWorkItemNoteError = CreatePostReleaseWorkItemNoteErrors[keyof CreatePostReleaseWorkItemNoteErrors];
@@ -1419,6 +1857,61 @@ export type CreatePostReleaseWorkItemNoteResponses = {
 };
 
 export type CreatePostReleaseWorkItemNoteResponse = CreatePostReleaseWorkItemNoteResponses[keyof CreatePostReleaseWorkItemNoteResponses];
+
+export type GetWorkItemCompletionCandidateData = {
+    body?: never;
+    path: {
+        workItemId: string;
+    };
+    query?: never;
+    url: '/api/work-items/{workItemId}/completion-candidate';
+};
+
+export type GetWorkItemCompletionCandidateErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
+};
+
+export type GetWorkItemCompletionCandidateError = GetWorkItemCompletionCandidateErrors[keyof GetWorkItemCompletionCandidateErrors];
+
+export type GetWorkItemCompletionCandidateResponses = {
+    /**
+     * Current completion-candidate projection
+     */
+    200: CompletionCandidateResponse;
+};
+
+export type GetWorkItemCompletionCandidateResponse = GetWorkItemCompletionCandidateResponses[keyof GetWorkItemCompletionCandidateResponses];
 
 export type ListWorkItemContextsData = {
     body?: never;
@@ -1458,6 +1951,10 @@ export type ListWorkItemContextsErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type ListWorkItemContextsError = ListWorkItemContextsErrors[keyof ListWorkItemContextsErrors];
@@ -1523,6 +2020,10 @@ export type PutWorkItemContextErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type PutWorkItemContextError = PutWorkItemContextErrors[keyof PutWorkItemContextErrors];
@@ -1597,6 +2098,10 @@ export type CreateWorkItemDecompositionErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type CreateWorkItemDecompositionError = CreateWorkItemDecompositionErrors[keyof CreateWorkItemDecompositionErrors];
@@ -1651,6 +2156,10 @@ export type ListWorkItemDependenciesErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type ListWorkItemDependenciesError = ListWorkItemDependenciesErrors[keyof ListWorkItemDependenciesErrors];
@@ -1707,6 +2216,10 @@ export type ListWorkItemEventsErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type ListWorkItemEventsError = ListWorkItemEventsErrors[keyof ListWorkItemEventsErrors];
@@ -1719,6 +2232,65 @@ export type ListWorkItemEventsResponses = {
 };
 
 export type ListWorkItemEventsResponse = ListWorkItemEventsResponses[keyof ListWorkItemEventsResponses];
+
+export type ListWorkItemEvidenceData = {
+    body?: never;
+    path: {
+        workItemId: string;
+    };
+    query?: {
+        currentOnly?: 'true';
+        limit?: number;
+        cursor?: string;
+    };
+    url: '/api/work-items/{workItemId}/evidence';
+};
+
+export type ListWorkItemEvidenceErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
+};
+
+export type ListWorkItemEvidenceError = ListWorkItemEvidenceErrors[keyof ListWorkItemEvidenceErrors];
+
+export type ListWorkItemEvidenceResponses = {
+    /**
+     * Delivery evidence in stable observation-ID order
+     */
+    200: DeliveryEvidenceList;
+};
+
+export type ListWorkItemEvidenceResponse = ListWorkItemEvidenceResponses[keyof ListWorkItemEvidenceResponses];
 
 export type UnexpediteWorkItemData = {
     body?: never;
@@ -1764,6 +2336,10 @@ export type UnexpediteWorkItemErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type UnexpediteWorkItemError = UnexpediteWorkItemErrors[keyof UnexpediteWorkItemErrors];
@@ -1823,6 +2399,10 @@ export type ExpediteWorkItemErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type ExpediteWorkItemError = ExpediteWorkItemErrors[keyof ExpediteWorkItemErrors];
@@ -1877,6 +2457,10 @@ export type ListWorkItemLeasesErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type ListWorkItemLeasesError = ListWorkItemLeasesErrors[keyof ListWorkItemLeasesErrors];
@@ -1931,6 +2515,10 @@ export type ListWorkItemNotesErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type ListWorkItemNotesError = ListWorkItemNotesErrors[keyof ListWorkItemNotesErrors];
@@ -1993,6 +2581,10 @@ export type CreateWorkItemNoteErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type CreateWorkItemNoteError = CreateWorkItemNoteErrors[keyof CreateWorkItemNoteErrors];
@@ -2052,6 +2644,10 @@ export type PutWorkItemParentErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type PutWorkItemParentError = PutWorkItemParentErrors[keyof PutWorkItemParentErrors];
@@ -2115,6 +2711,10 @@ export type MoveWorkItemPriorityErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type MoveWorkItemPriorityError = MoveWorkItemPriorityErrors[keyof MoveWorkItemPriorityErrors];
@@ -2166,6 +2766,10 @@ export type ListWorkItemPullRequestsErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type ListWorkItemPullRequestsError = ListWorkItemPullRequestsErrors[keyof ListWorkItemPullRequestsErrors];
@@ -2227,6 +2831,10 @@ export type PutWorkItemPullRequestErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type PutWorkItemPullRequestError = PutWorkItemPullRequestErrors[keyof PutWorkItemPullRequestErrors];
@@ -2287,6 +2895,10 @@ export type PutWorkItemReferenceErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type PutWorkItemReferenceError = PutWorkItemReferenceErrors[keyof PutWorkItemReferenceErrors];
@@ -2343,6 +2955,10 @@ export type CreateWorkItemReleaseErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type CreateWorkItemReleaseError = CreateWorkItemReleaseErrors[keyof CreateWorkItemReleaseErrors];
@@ -2403,6 +3019,10 @@ export type PutWorkItemSchedulingScopeErrors = {
      * Unexpected server error
      */
     500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
 };
 
 export type PutWorkItemSchedulingScopeError = PutWorkItemSchedulingScopeErrors[keyof PutWorkItemSchedulingScopeErrors];

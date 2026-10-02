@@ -31,6 +31,7 @@ import {
   getIdeasForProject,
 } from "@/lib/api/ideas";
 import {
+  getAllLegacyADRPaths,
   getAllProjectAliases,
   getAllProjectAliasADRPaths,
   getAllProjects,
@@ -94,6 +95,44 @@ interface GeneratedPage {
   facts?: [string, string][];
 }
 
+function platformOverrideFact(
+  project: ProjectWithADRs,
+): [string, string] | undefined {
+  const overrides = [
+    ...(project.platformTechnologies ?? []).map((technology) => ({
+      value: technology.name,
+      source: technology.source,
+      slot: technology.slot,
+      decision: technology.decision,
+    })),
+    ...(project.platformPolicies ?? []).map((policy) => ({
+      value: policy.value,
+      source: policy.source,
+      slot: policy.slot,
+      decision: policy.decision,
+    })),
+  ].filter(
+    (record): record is typeof record & { decision: string } =>
+      record.source === "override" && record.decision !== undefined,
+  );
+  if (overrides.length === 0) return undefined;
+  const value = overrides
+    .map(({ value, slot, decision }) => {
+      const [projectSlug, adrSlug] = decision.split(":");
+      const decisionUrl = markdownUrl(
+        routePath(
+          "projects",
+          projectSlug ?? "",
+          "adrs",
+          adrSlug ?? "",
+        ),
+      );
+      return `${value} for ${slot} ([${decision}](${decisionUrl}))`;
+    })
+    .join(", ");
+  return ["Platform overrides", value];
+}
+
 function projectFacts(project: ProjectWithADRs): [string, string][] {
   const facts: [string, string][] = [
     ["Status", project.status],
@@ -129,6 +168,8 @@ function projectFacts(project: ProjectWithADRs): [string, string][] {
           .join(", "),
       ],
     );
+    const overrideFact = platformOverrideFact(project);
+    if (overrideFact) facts.push(overrideFact);
   }
   const ideas = getIdeasForProject(project.slug);
   if (ideas.length > 0) {
@@ -278,6 +319,20 @@ function buildProjectPage(
   };
 }
 
+type PlatformPrerequisite = NonNullable<
+  ProjectWithADRs["platformManifest"]
+>["policies"][number]["prerequisites"][number];
+
+function platformPrerequisiteLabel(
+  prerequisite: PlatformPrerequisite,
+): string {
+  if ("requirement" in prerequisite) return prerequisite.requirement;
+  if (prerequisite.technology) {
+    return `${prerequisite.slot} = ${prerequisite.technology}`;
+  }
+  return prerequisite.slot;
+}
+
 function buildPlatformManifestSection(project: ProjectWithADRs): string[] {
   const manifest = project.platformManifest;
   if (!manifest) return [];
@@ -295,7 +350,14 @@ function buildPlatformManifestSection(project: ProjectWithADRs): string[] {
       "",
       `${layer.description}${activation}`,
       "",
-      ...policies.map((policy) => `- ${policy.slot}: ${policy.mode}`),
+      ...policies.map((policy) => {
+        const prerequisites = policy.prerequisites
+          .map(platformPrerequisiteLabel)
+          .join(", ");
+        return `- ${policy.slot}: ${policy.mode}${
+          prerequisites ? `; prerequisites: ${prerequisites}` : ""
+        }`;
+      }),
       ...(policies.length > 0 ? [""] : []),
     ];
   });
@@ -329,9 +391,19 @@ function buildPlatformManifestSection(project: ProjectWithADRs): string[] {
             : selection.value;
         return `- ${selectedValue}: ${selection.lifecycleStatus}, ${selection.effectiveFrom} to ${until}; [decision](${decisionUrl})${origins}`;
       }),
-    ...(slot.users.length > 0
+    ...(slot.adopters.length > 0
       ? [
-          `- Users: ${slot.users
+          `- Adopters: ${slot.adopters
+            .map(
+              (slug) =>
+                `[${slug}](${markdownUrl(routePath("projects", slug))})`,
+            )
+            .join(", ")}`,
+        ]
+      : []),
+    ...(slot.layerConsumers.length > 0
+      ? [
+          `- Layer consumers: ${slot.layerConsumers
             .map(
               (slug) =>
                 `[${slug}](${markdownUrl(routePath("projects", slug))})`,
@@ -386,6 +458,23 @@ function buildPitchDeckPage(project: ProjectWithADRs): GeneratedPage | null {
   };
 }
 
+function adrPageContent(
+  adr: ReturnType<typeof getProjectADR>,
+  projectTitle: string,
+): string {
+  if (!adr.isInherited) return convert(adr.content).trim();
+  return [
+    adr.inheritedSourceSummary
+      ? `## Source summary\n\n${adr.inheritedSourceSummary}`
+      : "",
+    adr.inheritedProjectNotes
+      ? `## Notes for ${projectTitle}\n\n${convert(adr.inheritedProjectNotes).trim()}`
+      : "_No project-specific notes have been added._",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 function buildAdrPages(
   project: ProjectWithADRs,
   initiatives: InitiativeWithProjects[],
@@ -428,18 +517,7 @@ function buildAdrPages(
         `${adr.originProjectSlug} (${markdownUrl(routePath("projects", adr.originProjectSlug, "adrs", adr.originAdrSlug))})`,
       ]);
     }
-    const content = adr.isInherited
-      ? [
-          adr.inheritedSourceSummary
-            ? `## Source summary\n\n${adr.inheritedSourceSummary}`
-            : "",
-          adr.inheritedProjectNotes
-            ? `## Notes for ${project.title}\n\n${convert(adr.inheritedProjectNotes).trim()}`
-            : "_No project-specific notes have been added._",
-        ]
-          .filter(Boolean)
-          .join("\n\n")
-      : convert(adr.content).trim();
+    const content = adrPageContent(adr, project.title);
     return {
       htmlPath: `/projects/${project.slug}/adrs/${adr.slug}`,
       filePath: `projects/${project.slug}/adrs/${adr.slug}.md`,
@@ -489,6 +567,23 @@ function buildProjectAliasPages(
         } satisfies GeneratedPage;
       });
     return [projectPage, ...adrPages];
+  });
+}
+
+function buildLegacyAdrAliasPages(): GeneratedPage[] {
+  return getAllLegacyADRPaths().map(({ projectSlug, adrSlug }) => {
+    const adr = getProjectADR(projectSlug, adrSlug);
+    const canonicalAdrUrl = markdownUrl(
+      routePath("projects", adr.projectSlug, "adrs", adr.slug),
+    );
+    return {
+      htmlPath: `/projects/${projectSlug}/adrs/${adrSlug}`,
+      filePath: `projects/${projectSlug}/adrs/${adrSlug}.md`,
+      title: `${adr.title} moved`,
+      description: "",
+      content: `This legacy ADR URL now resolves to [the canonical ADR](${canonicalAdrUrl}).`,
+      facts: [["Canonical ADR", canonicalAdrUrl]],
+    };
   });
 }
 
@@ -657,6 +752,69 @@ function buildPostHogApplicationPage(): GeneratedPage {
   };
 }
 
+function technologyPageSections(
+  tech: NonNullable<ReturnType<typeof getTechnologyDetail>>,
+  related: ReturnType<typeof getRelatedContentForTechnology>,
+  adrs: { title: string; projectSlug: string; adrSlug: string }[],
+): string[] {
+  const sections: string[] = tech.overview
+    ? [convert(tech.overview).trim(), ""]
+    : [];
+  if (related.ideas.length > 0) {
+    sections.push(
+      "## Ideas this technology builds on or exposes",
+      "",
+      ...related.ideas.map(
+        (idea) =>
+          `- [${idea.title}](${markdownUrl(routePath("ideas", idea.slug))}): ${idea.description}`,
+      ),
+      "",
+    );
+  }
+  if (related.projects.length > 0) {
+    sections.push(
+      "## Projects using this technology",
+      "",
+      ...related.projects.map(
+        (project) =>
+          `- [${project.title}](${markdownUrl(routePath("projects", project.slug))})`,
+      ),
+      "",
+    );
+  }
+  if (adrs.length > 0) {
+    sections.push(
+      "## Architecture decision records",
+      "",
+      ...adrs.map(
+        (adr) =>
+          `- [${adr.title}](${markdownUrl(routePath("projects", adr.projectSlug, "adrs", adr.adrSlug))})`,
+      ),
+      "",
+    );
+  }
+  if (related.blogs.length > 0) {
+    sections.push(
+      "## Blog posts",
+      "",
+      ...related.blogs.map(
+        (post) =>
+          `- [${post.title}](${markdownUrl(routePath("blog", post.slug))}) — ${post.date}`,
+      ),
+      "",
+    );
+  }
+  if (related.roles.length > 0) {
+    sections.push(
+      "## Used professionally at",
+      "",
+      ...related.roles.map((role) => `- ${role.company} — ${role.title}`),
+      "",
+    );
+  }
+  return sections;
+}
+
 function buildTechnologyPages(projects: ProjectWithADRs[]): GeneratedPage[] {
   const repository = loadDomainRepository();
   // ADR slugs are only unique within a project, so collect ADRs per
@@ -687,62 +845,8 @@ function buildTechnologyPages(projects: ProjectWithADRs[]): GeneratedPage[] {
     if (!tech) return [];
     const related = getRelatedContentForTechnology(repository, slug);
 
-    const sections: string[] = tech.overview
-      ? [convert(tech.overview).trim(), ""]
-      : [];
-    if (related.ideas.length > 0) {
-      sections.push(
-        "## Ideas this technology builds on or exposes",
-        "",
-        ...related.ideas.map(
-          (idea) =>
-            `- [${idea.title}](${markdownUrl(routePath("ideas", idea.slug))}): ${idea.description}`,
-        ),
-        "",
-      );
-    }
-    if (related.projects.length > 0) {
-      sections.push(
-        "## Projects using this technology",
-        "",
-        ...related.projects.map(
-          (project) =>
-            `- [${project.title}](${markdownUrl(routePath("projects", project.slug))})`,
-        ),
-        "",
-      );
-    }
     const adrs = adrsByTechnology.get(slug) ?? [];
-    if (adrs.length > 0) {
-      sections.push(
-        "## Architecture decision records",
-        "",
-        ...adrs.map(
-          (adr) =>
-            `- [${adr.title}](${markdownUrl(routePath("projects", adr.projectSlug, "adrs", adr.adrSlug))})`,
-        ),
-        "",
-      );
-    }
-    if (related.blogs.length > 0) {
-      sections.push(
-        "## Blog posts",
-        "",
-        ...related.blogs.map(
-          (post) =>
-            `- [${post.title}](${markdownUrl(routePath("blog", post.slug))}) — ${post.date}`,
-        ),
-        "",
-      );
-    }
-    if (related.roles.length > 0) {
-      sections.push(
-        "## Used professionally at",
-        "",
-        ...related.roles.map((role) => `- ${role.company} — ${role.title}`),
-        "",
-      );
-    }
+    const sections = technologyPageSections(tech, related, adrs);
 
     const facts: [string, string][] = [["Website", tech.website]];
     return [
@@ -1073,6 +1177,7 @@ function main(): void {
     .map(buildPitchDeckPage)
     .filter((page): page is GeneratedPage => page !== null);
   const projectAliasPages = buildProjectAliasPages(projects);
+  const legacyAdrAliasPages = buildLegacyAdrAliasPages();
 
   const pages: GeneratedPage[] = [
     buildHomePage(),
@@ -1107,7 +1212,7 @@ function main(): void {
     );
   }
 
-  for (const page of projectAliasPages) {
+  for (const page of [...projectAliasPages, ...legacyAdrAliasPages]) {
     writeFile(
       page.filePath,
       renderPage(

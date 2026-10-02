@@ -1,0 +1,9 @@
+# The 30 GiB cache has a separate filesystem path and must never enter a backup.
+/srv/remote-development/t3-code-cache
+
+# These files are safe to recreate and can churn during a snapshot.
+/srv/remote-development/t3-code/home/.cache
+/srv/remote-development/t3-code/home/.npm/_cacache
+/srv/remote-development/t3-code/home/.pnpm-store
+/srv/remote-development/t3-code/home/.arduino15/staging
+/srv/remote-development/t3-code/workspaces/.pnpm-store

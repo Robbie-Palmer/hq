@@ -247,6 +247,38 @@ describe("Projects functions", () => {
       ).toThrow("ADR not found");
     });
 
+    it("resolves a legacy ADR URL to its canonical record", () => {
+      expect(
+        getProjectADR("recipe-site", "000-github-public-repo"),
+      ).toMatchObject({
+        projectSlug: "personal-knowledge-graph",
+        slug: "000-github-public-repo",
+        adrRef: "personal-knowledge-graph:000-github-public-repo",
+      });
+    });
+
+    it.each([
+      [
+        "agentic-code-review",
+        "031-custom-agentic-code-review",
+        "000-custom-agentic-code-review",
+      ],
+      [
+        "recipe-site",
+        "067-versioned-ingredient-density-catalog-and-source-ingestion",
+        "025-versioned-ingredient-density-catalog-and-source-ingestion",
+      ],
+    ])(
+      "resolves the former canonical URL %s:%s after sequence compaction",
+      (projectSlug, legacySlug, canonicalSlug) => {
+        expect(getProjectADR(projectSlug, legacySlug)).toMatchObject({
+          projectSlug,
+          slug: canonicalSlug,
+          adrRef: `${projectSlug}:${canonicalSlug}`,
+        });
+      },
+    );
+
     it("should throw error if ADR is requested from a different project route", () => {
       const projects = getAllProjects();
       if (projects.length < 2) {

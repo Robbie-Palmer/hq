@@ -352,8 +352,9 @@ within that epoch. Deterministic tests cover lost acknowledgements and assignmen
 one-way links, and node resets. The baseline preserves two failures: safe-disabled is volatile and a
 delayed request has no expiry, so either can start work after the intended boundary.
 
-The [invariant baseline](invariant-baseline.md) answers the sharp question: when the assignment or
-its acknowledgement is lost, what can each node truthfully claim to know? The next slice added a
-[bounded telemetry queue](telemetry.md) whose records use stable mission keys. Operation semantics
-still need a new design before choosing a quorum protocol, a convergent state model, or a DTN
-routing strategy.
+The [coordination semantics and invariant baseline](invariant-baseline.md) states the fault,
+membership, clock, deadline, and duplicate-execution assumptions. It classifies local health,
+repeatable work, exclusive ownership, telemetry, and bulk data instead of assigning one guarantee to
+all traffic. Categorized deterministic checks keep safety, liveness, and cost separate. The next
+slice added a [bounded telemetry queue](telemetry.md) whose records use stable mission keys. A future
+protocol still needs to earn stronger quorum, convergent-state, or delay-tolerant routing claims.

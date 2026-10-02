@@ -176,6 +176,21 @@ function logProxyResponse(
   );
 }
 
+function forwardedHeaders(request: Request): Headers {
+  const headers = new Headers();
+  const isWebSocketUpgrade =
+    request.method === "GET" &&
+    request.headers.get("upgrade")?.toLowerCase() === "websocket";
+  for (const name of FORWARDED_REQUEST_HEADERS) {
+    const isWebSocketHeader =
+      name === "upgrade" || name === "sec-websocket-protocol";
+    if (!isWebSocketUpgrade && isWebSocketHeader) continue;
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  return headers;
+}
+
 export async function proxyRecipeApiRequest(
   context: RecipeApiProxyContext,
   invalidPreviewMessage: string,
@@ -216,20 +231,7 @@ export async function proxyRecipeApiRequest(
   destinationUrl.pathname = destinationPath;
   destinationUrl.search = url.search;
   const destination = destinationUrl.toString();
-  const headers = new Headers();
-  const isWebSocketUpgrade =
-    context.request.method === "GET" &&
-    context.request.headers.get("upgrade")?.toLowerCase() === "websocket";
-  for (const name of FORWARDED_REQUEST_HEADERS) {
-    if (
-      !isWebSocketUpgrade &&
-      (name === "upgrade" || name === "sec-websocket-protocol")
-    ) {
-      continue;
-    }
-    const value = context.request.headers.get(name);
-    if (value) headers.set(name, value);
-  }
+  const headers = forwardedHeaders(context.request);
 
   logProxyRequest(
     logLabel,

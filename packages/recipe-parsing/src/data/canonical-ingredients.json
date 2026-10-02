@@ -129,6 +129,10 @@
       "category": "spice"
     },
     {
+      "slug": "chilli-oil",
+      "category": "oil-fat"
+    },
+    {
       "slug": "chilli-powder",
       "category": "spice"
     },
@@ -407,6 +411,10 @@
     {
       "slug": "margarine",
       "category": "oil-fat"
+    },
+    {
+      "slug": "maple-syrup",
+      "category": "condiment"
     },
     {
       "slug": "mascarpone",

@@ -182,6 +182,10 @@ const normalizePullRequests = (
       pullRequest.number <= 0 ||
       pullRequest.number > 2_147_483_647 ||
       !HEAD_SHA_PATTERN.test(pullRequest.headSha) ||
+      (pullRequest.acceptedHeadSha !== null &&
+        !HEAD_SHA_PATTERN.test(pullRequest.acceptedHeadSha)) ||
+      (pullRequest.mergeCommitSha !== null &&
+        !HEAD_SHA_PATTERN.test(pullRequest.mergeCommitSha)) ||
       !(PULL_REQUEST_STATES as readonly unknown[]).includes(
         pullRequest.state,
       ) ||
@@ -208,6 +212,8 @@ const normalizePullRequests = (
       repository: pullRequest.repository.toLowerCase(),
       url: normalizeUrl(pullRequest.url, "A pull request URL"),
       headSha: pullRequest.headSha.toLowerCase(),
+      acceptedHeadSha: pullRequest.acceptedHeadSha?.toLowerCase() ?? null,
+      mergeCommitSha: pullRequest.mergeCommitSha?.toLowerCase() ?? null,
       observedAt: new Date(pullRequest.observedAt).toISOString(),
     };
     const identity = pullRequestIdentity(

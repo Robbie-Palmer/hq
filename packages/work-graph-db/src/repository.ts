@@ -5,23 +5,41 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lt,
   lte,
   or,
   sql,
   type SQL,
 } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import {
   createKnowledgeScope,
   createWorkGraph,
-  isWorkItemInSelectionScope,
+  evaluateCompletionCandidate as evaluateDomainCompletionCandidate,
+  MAX_CRITICAL_PATH_BLOCKING_PATHS,
+  MAX_CRITICAL_PATH_NODES,
   normalizeAndValidateContextRecords,
+  normalizeKnowledgeScopeArchiveReason,
+  normalizeCompletionPolicyRevision,
+  normalizeEvidenceObservation,
+  normalizeExternalDelivery,
+  normalizeWorkItemSelectionScope,
   orderWorkItemsByPriority,
+  projectCriticalPath as projectDomainCriticalPath,
   projectWorkItemPriorities,
   projectWorkItemStage,
   resolveWorkItemContext as resolveDomainWorkItemContext,
   validatePostReleaseNote,
   validateKnowledgeScopeRelationships,
   WorkGraphError,
+  type CriticalPathProjection,
+  type CompletionCandidateEvaluation,
+  type CompletionCandidateReason,
+  type CompletionPolicyRevision,
+  type CurrentDeliveryEvidence,
+  type DeliveryEvidenceKind,
+  type DeliveryEvidenceObservation,
+  type ExternalDelivery,
   type KnowledgeScope,
   type KnowledgeScopeInput,
   type KnowledgeScopeRelationship,
@@ -49,7 +67,12 @@ import {
 import {
   attentionRequest,
   attentionResolution,
+  completionCandidateEvaluation,
+  completionPolicyRevision,
+  currentDeliveryEvidence,
+  deliveryEvidenceObservation,
   event,
+  externalDelivery,
   graphMutationLock,
   idempotencyKey,
   knowledgeScope,
@@ -60,6 +83,8 @@ import {
   workItem,
   workItemArchitectureDecision,
   workItemContext,
+  workItemCompletionCandidate,
+  workItemCompletionPolicy,
   workItemDependency,
   workItemHierarchy,
   workItemPriorityContext,
@@ -72,6 +97,14 @@ const EVENT_SEQUENCE_LOCK_ID = "event-sequence";
 const PRIORITY_RANK_GAP = 1_024;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const parentKnowledgeScope = alias(
+  knowledgeScope,
+  "relationship_parent_knowledge_scope",
+);
+const childKnowledgeScope = alias(
+  knowledgeScope,
+  "relationship_child_knowledge_scope",
+);
 
 export const WORK_GRAPH_EVENT_TYPES = [
   "attention.requested",
@@ -80,6 +113,8 @@ export const WORK_GRAPH_EVENT_TYPES = [
   "dependency.removed",
   "context.put",
   "knowledge_scope.put",
+  "knowledge_scope.archived",
+  "knowledge_scope.restored",
   "knowledge_scope_relationship.added",
   "knowledge_scope_relationship.removed",
   "reference.put",
@@ -108,9 +143,43 @@ export type StoredEvent = typeof event.$inferSelect;
 export type StoredAttentionRequest = typeof attentionRequest.$inferSelect;
 export type StoredAttentionResolution =
   typeof attentionResolution.$inferSelect;
+export type StoredCompletionCandidateEvaluation = CompletionCandidateEvaluation & {
+  readonly id: string;
+};
+export type StoredWorkItemDeliveryEvidence = DeliveryEvidenceObservation & {
+  readonly current: boolean;
+  readonly projectedAt: string | null;
+};
+
+export interface AssignCompletionPolicyInput {
+  readonly workItemId: string;
+  readonly policyId: string;
+  readonly policyRevision: number;
+  readonly assignedAt: string;
+}
+
+export interface EvaluateCompletionCandidateInput {
+  readonly id: string;
+  readonly workItemId: string;
+  readonly evaluatedAt: string;
+}
+
+export interface ListCurrentDeliveryEvidenceInput {
+  readonly repository?: string;
+  readonly commitSha?: string;
+  readonly kind?: DeliveryEvidenceKind;
+}
+
+export interface ListWorkItemDeliveryEvidenceInput {
+  readonly workItemId: string;
+  readonly currentOnly?: boolean;
+  readonly cursor?: string;
+  readonly limit?: number;
+}
 
 export interface ListKnowledgeScopesInput {
   readonly kind?: KnowledgeScope["kind"];
+  readonly includeArchived?: boolean;
   readonly cursor?: string;
   readonly limit?: number;
 }
@@ -121,21 +190,28 @@ export interface KnowledgeScopeRelationshipCursor {
 }
 
 export interface ListKnowledgeScopeRelationshipsInput {
+  readonly includeArchived?: boolean;
   readonly cursor?: KnowledgeScopeRelationshipCursor;
   readonly limit?: number;
 }
 
-export interface ClaimWorkItemInput {
+export interface ArchiveKnowledgeScopeInput {
+  readonly reason: string;
+}
+
+export interface ClaimWorkItemInput extends WorkItemSelectionScope {
   readonly leaseId: string;
   readonly workerId: string;
   readonly leaseDurationSeconds: number;
   readonly workItemId?: string;
-  readonly initiativeId?: string;
-  readonly parentId?: string;
-  readonly projectId?: string;
 }
 
 export type ListWorkItemsInput = WorkItemSelectionScope;
+
+export interface ProjectCriticalPathInput
+  extends Omit<WorkItemSelectionScope, "parentId"> {
+  readonly rootWorkItemId?: string;
+}
 
 export interface WorkItemSchedulingScopeInput {
   readonly schedulingInitiativeId: string | null;
@@ -380,6 +456,114 @@ const knowledgeScopeNotFound = (id: string) =>
     `Knowledge scope ${id} does not exist.`,
   );
 
+const selectionScopeIds = (
+  scope: WorkItemSelectionScope,
+): readonly {
+  readonly id: string;
+  readonly kind: KnowledgeScope["kind"];
+}[] => {
+  const normalizedScope = normalizeWorkItemSelectionScope(scope);
+  return [
+    ...(normalizedScope.includeInitiativeIds ?? []).map((id) => ({
+      id,
+      kind: "initiative" as const,
+    })),
+    ...(normalizedScope.excludeInitiativeIds ?? []).map((id) => ({
+      id,
+      kind: "initiative" as const,
+    })),
+    ...(normalizedScope.includeProjectIds ?? []).map((id) => ({
+      id,
+      kind: "project" as const,
+    })),
+    ...(normalizedScope.excludeProjectIds ?? []).map((id) => ({
+      id,
+      kind: "project" as const,
+    })),
+  ];
+};
+
+const hasSelectionFilters = (scope: WorkItemSelectionScope): boolean => {
+  const normalizedScope = normalizeWorkItemSelectionScope(scope);
+  return (
+    normalizedScope.parentId !== undefined ||
+    normalizedScope.includeInitiativeIds !== undefined ||
+    normalizedScope.excludeInitiativeIds !== undefined ||
+    normalizedScope.includeProjectIds !== undefined ||
+    normalizedScope.excludeProjectIds !== undefined
+  );
+};
+
+const selectionList = (values: readonly string[]): SQL =>
+  sql.join(values.map((value) => sql`${value}`), sql`, `);
+
+const workItemSelectionWhere = (
+  scope: WorkItemSelectionScope,
+): SQL | undefined => {
+  const normalizedScope = normalizeWorkItemSelectionScope(scope);
+  const includeInitiativeIds = normalizedScope.includeInitiativeIds ?? [];
+  const includeProjectIds = normalizedScope.includeProjectIds ?? [];
+  const ownerPredicates: SQL[] = [];
+  if (includeInitiativeIds.length > 0) {
+    ownerPredicates.push(
+      sql`scheduling_initiative_id in (${selectionList(includeInitiativeIds)})`,
+    );
+  }
+  if (includeProjectIds.length > 0) {
+    ownerPredicates.push(
+      sql`scheduling_project_id in (${selectionList(includeProjectIds)})`,
+    );
+  }
+  const excludeInitiativeIds = normalizedScope.excludeInitiativeIds ?? [];
+  if (excludeInitiativeIds.length > 0) {
+    ownerPredicates.push(
+      sql`(scheduling_initiative_id is null or scheduling_initiative_id not in (${selectionList(excludeInitiativeIds)}))`,
+    );
+  }
+  const excludeProjectIds = normalizedScope.excludeProjectIds ?? [];
+  if (excludeProjectIds.length > 0) {
+    ownerPredicates.push(
+      sql`(scheduling_project_id is null or scheduling_project_id not in (${selectionList(excludeProjectIds)}))`,
+    );
+  }
+
+  const ownerWhere =
+    ownerPredicates.length === 0
+      ? undefined
+      : sql`exists (
+          with recursive selection_lineage(work_item_id, depth) as (
+            select ${workItem.id}, 0
+            union all
+            select ${workItemHierarchy.parentWorkItemId}, selection_lineage.depth + 1
+            from ${workItemHierarchy}
+            inner join selection_lineage
+              on ${workItemHierarchy.childWorkItemId} = selection_lineage.work_item_id
+          ), selection_owner as (
+            select
+              ${workItemPriorityContext.schedulingInitiativeId} as scheduling_initiative_id,
+              ${workItemPriorityContext.schedulingProjectId} as scheduling_project_id
+            from selection_lineage
+            left join ${workItemPriorityContext}
+              on ${workItemPriorityContext.workItemId} = selection_lineage.work_item_id
+            order by (${workItemPriorityContext.rank} is not null) desc, selection_lineage.depth
+            limit 1
+          )
+          select 1 from selection_owner
+          where ${sql.join(ownerPredicates, sql` and `)}
+        )`;
+
+  return and(
+    scope.parentId === undefined
+      ? undefined
+      : sql`exists (
+          select 1 from ${workItemHierarchy}
+          where ${workItemHierarchy.childWorkItemId} = ${workItem.id}
+            and ${workItemHierarchy.parentWorkItemId} = ${scope.parentId}
+        )`,
+    ownerWhere,
+  );
+};
+
 const toKnowledgeScope = (
   stored: typeof knowledgeScope.$inferSelect,
 ): KnowledgeScope => ({
@@ -389,6 +573,8 @@ const toKnowledgeScope = (
   canonicalUrl: stored.canonicalUrl,
   markdownUrl: stored.markdownUrl,
   sourceRevision: stored.sourceRevision,
+  lifecycle: stored.lifecycle,
+  archiveReason: stored.archiveReason,
   rank: stored.rank,
 });
 
@@ -450,6 +636,41 @@ const requireCompletionEvidence = (evidence: CompletionEvidence): void => {
     }
   }
 };
+
+const evidenceObservationFingerprint = (
+  observation: DeliveryEvidenceObservation,
+): string =>
+  JSON.stringify([
+    observation.deliveryProvider,
+    observation.deliveryExternalId,
+    observation.provider,
+    observation.externalId,
+    observation.repository,
+    observation.commitSha,
+    observation.kind,
+    observation.state,
+    observation.name,
+    observation.environment,
+    observation.sourceUrl,
+    observation.providerObservedAt,
+    observation.ingestedAt,
+    observation.correlationKind,
+    observation.pullRequestRepository,
+    observation.pullRequestNumber,
+  ]);
+
+const completionCandidateFingerprint = (
+  evaluation: CompletionCandidateEvaluation,
+): string =>
+  JSON.stringify([
+    evaluation.workItemId,
+    evaluation.policyId,
+    evaluation.policyRevision,
+    evaluation.candidate,
+    evaluation.reasons,
+    evaluation.evidenceObservationIds,
+    evaluation.evaluatedAt,
+  ]);
 
 const requireWorkerId = (workerId: string): void => {
   if (typeof workerId !== "string" || workerId.trim().length === 0) {
@@ -708,6 +929,9 @@ export class WorkGraphRepository {
           input.kind === undefined
             ? undefined
             : eq(knowledgeScope.kind, input.kind),
+          input.includeArchived === true
+            ? undefined
+            : eq(knowledgeScope.lifecycle, "active"),
           input.cursor === undefined
             ? undefined
             : gt(knowledgeScope.id, input.cursor),
@@ -739,6 +963,7 @@ export class WorkGraphRepository {
       requireIdempotencyKey(options.idempotencyKey);
     }
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     return this.db.transaction(async (transaction) => {
       await this.lockEventSequence(transaction);
       if (options.idempotencyKey !== undefined) {
@@ -755,7 +980,12 @@ export class WorkGraphRepository {
 
       await this.lockGraphMutation(transaction);
       const [existing] = await transaction
-        .select({ kind: knowledgeScope.kind, rank: knowledgeScope.rank })
+        .select({
+          kind: knowledgeScope.kind,
+          lifecycle: knowledgeScope.lifecycle,
+          archiveReason: knowledgeScope.archiveReason,
+          rank: knowledgeScope.rank,
+        })
         .from(knowledgeScope)
         .where(eq(knowledgeScope.id, normalized.id))
         .limit(1);
@@ -768,7 +998,12 @@ export class WorkGraphRepository {
 
       const [stored] = await transaction
         .insert(knowledgeScope)
-        .values({ ...normalized, rank: existing?.rank ?? null })
+        .values({
+          ...normalized,
+          lifecycle: existing?.lifecycle ?? "active",
+          archiveReason: existing?.archiveReason ?? null,
+          rank: existing?.rank ?? null,
+        })
         .onConflictDoUpdate({
           target: knowledgeScope.id,
           set: {
@@ -777,6 +1012,8 @@ export class WorkGraphRepository {
             canonicalUrl: normalized.canonicalUrl,
             markdownUrl: normalized.markdownUrl,
             sourceRevision: normalized.sourceRevision,
+            lifecycle: existing?.lifecycle ?? "active",
+            archiveReason: existing?.archiveReason ?? null,
             rank: existing?.rank ?? null,
           },
         })
@@ -802,10 +1039,135 @@ export class WorkGraphRepository {
           canonicalUrl: normalized.canonicalUrl,
           markdownUrl: normalized.markdownUrl,
           sourceRevision: normalized.sourceRevision,
+          lifecycle: result.lifecycle,
           rank: result.rank,
         },
       });
       return result;
+    });
+  }
+
+  async archiveKnowledgeScope(
+    id: string,
+    input: ArchiveKnowledgeScopeInput,
+    options: IdempotentMutationOptions = {},
+  ): Promise<KnowledgeScope> {
+    requireKnowledgeScopeId(id);
+    const reason = normalizeKnowledgeScopeArchiveReason(input.reason);
+    if (options.idempotencyKey !== undefined) {
+      requireIdempotencyKey(options.idempotencyKey);
+    }
+
+    return this.db.transaction(async (transaction) => {
+      await this.lockEventSequence(transaction);
+      if (options.idempotencyKey !== undefined) {
+        const replayed = await this.beginIdempotentMutation(
+          transaction,
+          options.idempotencyKey,
+          "archive-knowledge-scope",
+          JSON.stringify([id, reason]),
+        );
+        if (replayed) return this.requireStoredKnowledgeScope(transaction, id);
+      }
+
+      await this.lockGraphMutation(transaction);
+      const target = await this.requireStoredKnowledgeScope(transaction, id);
+      if (target.lifecycle !== "active") {
+        throw new WorkGraphError(
+          "invalid_knowledge_scope_lifecycle",
+          `Knowledge scope ${id} is already archived.`,
+        );
+      }
+      const [openWork] = await transaction
+        .select({ id: workItem.id })
+        .from(workItemPriorityContext)
+        .innerJoin(
+          workItem,
+          eq(workItem.id, workItemPriorityContext.workItemId),
+        )
+        .where(
+          and(
+            eq(workItem.lifecycle, "open"),
+            or(
+              eq(workItemPriorityContext.schedulingInitiativeId, id),
+              eq(workItemPriorityContext.schedulingProjectId, id),
+            ),
+          ),
+        )
+        .limit(1);
+      if (openWork) {
+        throw new WorkGraphError(
+          "knowledge_scope_has_open_work",
+          `Knowledge scope ${id} still schedules open work item ${openWork.id}.`,
+        );
+      }
+
+      await transaction
+        .update(knowledgeScope)
+        .set({ lifecycle: "archived", archiveReason: reason, rank: null })
+        .where(eq(knowledgeScope.id, id));
+      const remaining = await transaction
+        .select({ id: knowledgeScope.id, rank: knowledgeScope.rank })
+        .from(knowledgeScope)
+        .where(
+          and(
+            eq(knowledgeScope.kind, target.kind),
+            eq(knowledgeScope.lifecycle, "active"),
+          ),
+        );
+      remaining.sort(compareStoredRanks);
+      await this.writeKnowledgeScopeRanks(
+        transaction,
+        remaining.map(({ id: remainingId }) => remainingId),
+      );
+      await this.appendEvent(transaction, {
+        type: "knowledge_scope.archived",
+        data: { id, kind: target.kind, reason },
+      });
+      return this.requireStoredKnowledgeScope(transaction, id);
+    });
+  }
+
+  async restoreKnowledgeScope(
+    id: string,
+    options: IdempotentMutationOptions = {},
+  ): Promise<KnowledgeScope> {
+    requireKnowledgeScopeId(id);
+    if (options.idempotencyKey !== undefined) {
+      requireIdempotencyKey(options.idempotencyKey);
+    }
+
+    return this.db.transaction(async (transaction) => {
+      await this.lockEventSequence(transaction);
+      if (options.idempotencyKey !== undefined) {
+        const replayed = await this.beginIdempotentMutation(
+          transaction,
+          options.idempotencyKey,
+          "restore-knowledge-scope",
+          id,
+        );
+        if (replayed) return this.requireStoredKnowledgeScope(transaction, id);
+      }
+
+      await this.lockGraphMutation(transaction);
+      const target = await this.requireStoredKnowledgeScope(transaction, id);
+      if (target.lifecycle !== "archived") {
+        throw new WorkGraphError(
+          "invalid_knowledge_scope_lifecycle",
+          `Knowledge scope ${id} is already active.`,
+        );
+      }
+      await transaction
+        .update(knowledgeScope)
+        .set({ lifecycle: "active", archiveReason: null })
+        .where(eq(knowledgeScope.id, id));
+      await this.placeKnowledgeScopeAtMedian(transaction, id, target.kind);
+      const restored = await this.requireStoredKnowledgeScope(transaction, id);
+      await this.appendEvent(transaction, {
+        type: "knowledge_scope.restored",
+        data: { id, kind: target.kind, rank: restored.rank },
+      });
+      return restored;
     });
   }
 
@@ -839,10 +1201,21 @@ export class WorkGraphRepository {
 
       await this.lockGraphMutation(transaction);
       const target = await this.requireStoredKnowledgeScope(transaction, id);
+      if (target.lifecycle !== "active") {
+        throw new WorkGraphError(
+          "invalid_knowledge_scope_lifecycle",
+          `Archived knowledge scope ${id} cannot be ranked.`,
+        );
+      }
       const rows = await transaction
         .select({ id: knowledgeScope.id, rank: knowledgeScope.rank })
         .from(knowledgeScope)
-        .where(eq(knowledgeScope.kind, target.kind));
+        .where(
+          and(
+            eq(knowledgeScope.kind, target.kind),
+            eq(knowledgeScope.lifecycle, "active"),
+          ),
+        );
       rows.sort(compareStoredRanks);
       const orderedIds = rows
         .map(({ id: candidateId }) => candidateId)
@@ -877,25 +1250,47 @@ export class WorkGraphRepository {
           knowledgeScopeRelationship.childKnowledgeScopeId,
       })
       .from(knowledgeScopeRelationship)
+      .innerJoin(
+        parentKnowledgeScope,
+        eq(
+          parentKnowledgeScope.id,
+          knowledgeScopeRelationship.parentKnowledgeScopeId,
+        ),
+      )
+      .innerJoin(
+        childKnowledgeScope,
+        eq(
+          childKnowledgeScope.id,
+          knowledgeScopeRelationship.childKnowledgeScopeId,
+        ),
+      )
       .where(
-        input.cursor === undefined
-          ? undefined
-          : or(
-              gt(
-                knowledgeScopeRelationship.parentKnowledgeScopeId,
-                input.cursor.parentKnowledgeScopeId,
+        and(
+          input.includeArchived === true
+            ? undefined
+            : and(
+                eq(parentKnowledgeScope.lifecycle, "active"),
+                eq(childKnowledgeScope.lifecycle, "active"),
               ),
-              and(
-                eq(
+          input.cursor === undefined
+            ? undefined
+            : or(
+                gt(
                   knowledgeScopeRelationship.parentKnowledgeScopeId,
                   input.cursor.parentKnowledgeScopeId,
                 ),
-                gt(
-                  knowledgeScopeRelationship.childKnowledgeScopeId,
-                  input.cursor.childKnowledgeScopeId,
+                and(
+                  eq(
+                    knowledgeScopeRelationship.parentKnowledgeScopeId,
+                    input.cursor.parentKnowledgeScopeId,
+                  ),
+                  gt(
+                    knowledgeScopeRelationship.childKnowledgeScopeId,
+                    input.cursor.childKnowledgeScopeId,
+                  ),
                 ),
               ),
-            ),
+        ),
       )
       .orderBy(
         knowledgeScopeRelationship.parentKnowledgeScopeId,
@@ -925,6 +1320,14 @@ export class WorkGraphRepository {
       }
 
       await this.lockGraphMutation(transaction);
+      await this.requireActiveKnowledgeScope(
+        transaction,
+        relationship.parentKnowledgeScopeId,
+      );
+      await this.requireActiveKnowledgeScope(
+        transaction,
+        relationship.childKnowledgeScopeId,
+      );
       const graph = await this.loadKnowledgeScopeGraph(transaction);
       validateKnowledgeScopeRelationships(graph.ids, [
         ...graph.relationships,
@@ -1028,12 +1431,137 @@ export class WorkGraphRepository {
     );
   }
 
+  async projectCriticalPath(
+    input: ProjectCriticalPathInput = {},
+  ): Promise<CriticalPathProjection> {
+    for (const { id } of selectionScopeIds(input)) {
+      requireKnowledgeScopeId(id);
+    }
+    if (input.rootWorkItemId !== undefined) {
+      requireIdentifier(input.rootWorkItemId, "invalid_work_item_id");
+    }
+    if (
+      input.rootWorkItemId !== undefined &&
+      hasSelectionFilters(input)
+    ) {
+      throw new WorkGraphError(
+        "invalid_critical_path_scope",
+        "A root work item cannot be combined with scope filters.",
+      );
+    }
+
+    return this.db.transaction(
+      async (transaction) => {
+        const graph = await this.loadSchedulingGraph(transaction);
+        const scopes = await this.loadKnowledgeScopes(transaction);
+        await this.requireSelectionScopes(
+          transaction,
+          input,
+          "invalid_critical_path_scope",
+        );
+        if (
+          input.rootWorkItemId !== undefined &&
+          !graph.workItems.some(({ id }) => id === input.rootWorkItemId)
+        ) {
+          throw workItemNotFound(input.rootWorkItemId);
+        }
+
+        const currentLeases = await transaction
+          .select()
+          .from(lease)
+          .where(isNull(lease.endedAt));
+        const unresolvedBlockingAttention = await transaction
+          .select({ workItemId: attentionRequest.workItemId })
+          .from(attentionRequest)
+          .leftJoin(
+            attentionResolution,
+            eq(
+              attentionResolution.attentionRequestId,
+              attentionRequest.id,
+            ),
+          )
+          .where(
+            and(
+              eq(attentionRequest.blocking, true),
+              isNull(attentionResolution.id),
+            ),
+          );
+        const now = await readDatabaseClock(transaction);
+        const leasesByWorkItemId = new Map(
+          currentLeases.map((storedLease) => [
+            storedLease.workItemId,
+            storedLease,
+          ]),
+        );
+        const workItemIdsNeedingAttention = new Set(
+          unresolvedBlockingAttention.map(({ workItemId }) => workItemId),
+        );
+        const operationalStateByWorkItemId = Object.fromEntries(
+          graph.workItems.map(({ id }) => {
+            const currentLease = leasesByWorkItemId.get(id);
+            return [
+              id,
+              {
+                currentLease: currentLease
+                  ? { expiresAt: currentLease.expiresAt.getTime() }
+                  : null,
+                hasUnresolvedBlockingAttention:
+                  workItemIdsNeedingAttention.has(id),
+              },
+            ];
+          }),
+        );
+
+        const targetWorkItemIds =
+          input.rootWorkItemId === undefined
+            ? (
+                await transaction
+                  .select({ id: workItem.id })
+                  .from(workItem)
+                  .leftJoin(
+                    workItemHierarchy,
+                    eq(workItemHierarchy.childWorkItemId, workItem.id),
+                  )
+                  .where(
+                    and(
+                      eq(workItem.lifecycle, "open"),
+                      isNull(workItemHierarchy.parentWorkItemId),
+                      workItemSelectionWhere(input),
+                    ),
+                  )
+              ).map(({ id }) => id)
+            : [input.rootWorkItemId];
+
+        return projectDomainCriticalPath(graph, {
+          now: now.getTime(),
+          maxBlockingPaths: MAX_CRITICAL_PATH_BLOCKING_PATHS,
+          maxBlockingPathLength: MAX_CRITICAL_PATH_NODES,
+          knowledgeScopes: scopes,
+          operationalStateByWorkItemId,
+          targetWorkItemIds,
+        });
+      },
+      {
+        isolationLevel: "repeatable read",
+        accessMode: "read only",
+      },
+    );
+  }
+
   async listWorkItems(
     input: ListWorkItemsInput = {},
   ): Promise<readonly WorkItemReadModel[]> {
     return this.db.transaction(
       async (transaction) => {
-        const graph = await this.loadGraph(transaction);
+        for (const { id } of selectionScopeIds(input)) {
+          requireKnowledgeScopeId(id);
+        }
+        await this.requireSelectionScopes(
+          transaction,
+          input,
+          "invalid_scheduling_scope",
+        );
+        const graph = await this.loadSchedulingGraph(transaction);
         const scopes = await this.loadKnowledgeScopes(transaction);
         const currentLeases = await transaction
           .select()
@@ -1066,9 +1594,17 @@ export class WorkGraphRepository {
           unresolvedBlockingAttention.map(({ workItemId }) => workItemId),
         );
         const priorities = projectWorkItemPriorities(graph, scopes);
+        const selectedIds = new Set(
+          (
+            await transaction
+              .select({ id: workItem.id })
+              .from(workItem)
+              .where(workItemSelectionWhere(input))
+          ).map(({ id }) => id),
+        );
 
         return orderWorkItemsByPriority(graph, scopes)
-          .filter((item) => isWorkItemInSelectionScope(graph, item, input))
+          .filter((item) => selectedIds.has(item.id))
           .map((item) => {
             const currentLease = leasesByWorkItemId.get(item.id) ?? null;
             return {
@@ -1382,6 +1918,8 @@ export class WorkGraphRepository {
           set: {
             url: normalized.url,
             headSha: normalized.headSha,
+            acceptedHeadSha: normalized.acceptedHeadSha,
+            mergeCommitSha: normalized.mergeCommitSha,
             state: normalized.state,
             draft: normalized.draft,
             mergeability: normalized.mergeability,
@@ -1471,6 +2009,477 @@ export class WorkGraphRepository {
     });
   }
 
+  async recordExternalDelivery(input: ExternalDelivery): Promise<ExternalDelivery> {
+    const normalized = normalizeExternalDelivery(input);
+    return this.db.transaction(async (transaction) => {
+      await transaction
+        .insert(externalDelivery)
+        .values({
+          ...normalized,
+          receivedAt: new Date(normalized.receivedAt),
+          ingestedAt: new Date(normalized.ingestedAt),
+        })
+        .onConflictDoNothing();
+      const [stored] = await transaction
+        .select()
+        .from(externalDelivery)
+        .where(
+          and(
+            eq(externalDelivery.provider, normalized.provider),
+            eq(externalDelivery.externalId, normalized.externalId),
+          ),
+        )
+        .limit(1);
+      if (!stored) throw new Error("External delivery insert returned no row.");
+      if (stored.payloadDigest !== normalized.payloadDigest) {
+        throw new WorkGraphError(
+          "external_delivery_reused",
+          `External delivery ${normalized.provider}/${normalized.externalId} was replayed with a different payload.`,
+        );
+      }
+      return {
+        ...stored,
+        receivedAt: stored.receivedAt.toISOString(),
+        ingestedAt: stored.ingestedAt.toISOString(),
+      };
+    });
+  }
+
+  async recordEvidenceObservation(
+    input: DeliveryEvidenceObservation,
+  ): Promise<DeliveryEvidenceObservation> {
+    const normalized = normalizeEvidenceObservation(input);
+    return this.db.transaction(async (transaction) => {
+      const [delivery] = await transaction
+        .select({ provider: externalDelivery.provider })
+        .from(externalDelivery)
+        .where(
+          and(
+            eq(externalDelivery.provider, normalized.deliveryProvider),
+            eq(externalDelivery.externalId, normalized.deliveryExternalId),
+          ),
+        )
+        .limit(1);
+      if (!delivery) {
+        throw new WorkGraphError(
+          "external_delivery_not_found",
+          `External delivery ${normalized.deliveryProvider}/${normalized.deliveryExternalId} does not exist.`,
+        );
+      }
+
+      await transaction
+        .insert(deliveryEvidenceObservation)
+        .values({
+          ...normalized,
+          providerObservedAt: new Date(normalized.providerObservedAt),
+          ingestedAt: new Date(normalized.ingestedAt),
+        })
+        .onConflictDoNothing();
+      const [stored] = await transaction
+        .select()
+        .from(deliveryEvidenceObservation)
+        .where(
+          or(
+            eq(deliveryEvidenceObservation.id, normalized.id),
+            and(
+              eq(deliveryEvidenceObservation.provider, normalized.provider),
+              eq(deliveryEvidenceObservation.kind, normalized.kind),
+              eq(deliveryEvidenceObservation.externalId, normalized.externalId),
+              eq(
+                deliveryEvidenceObservation.providerObservedAt,
+                new Date(normalized.providerObservedAt),
+              ),
+              eq(deliveryEvidenceObservation.state, normalized.state),
+            ),
+          ),
+        )
+        .limit(1);
+      if (!stored) throw new Error("Evidence observation insert returned no row.");
+      const returned: DeliveryEvidenceObservation = {
+        ...stored,
+        providerObservedAt: stored.providerObservedAt.toISOString(),
+        ingestedAt: stored.ingestedAt.toISOString(),
+      };
+      if (
+        evidenceObservationFingerprint(returned) !==
+        evidenceObservationFingerprint(normalized)
+      ) {
+        throw new WorkGraphError(
+          "duplicate_evidence_observation",
+          `Evidence identity ${normalized.provider}/${normalized.kind}/${normalized.externalId} is already used by a different observation.`,
+        );
+      }
+
+      await transaction
+        .insert(currentDeliveryEvidence)
+        .values({
+          provider: stored.provider,
+          kind: stored.kind,
+          externalId: stored.externalId,
+          observationId: stored.id,
+          providerObservedAt: stored.providerObservedAt,
+          projectedAt: stored.ingestedAt,
+        })
+        .onConflictDoUpdate({
+          target: [
+            currentDeliveryEvidence.provider,
+            currentDeliveryEvidence.kind,
+            currentDeliveryEvidence.externalId,
+          ],
+          set: {
+            observationId: stored.id,
+            providerObservedAt: stored.providerObservedAt,
+            projectedAt: stored.ingestedAt,
+          },
+          setWhere: or(
+            lt(
+              currentDeliveryEvidence.providerObservedAt,
+              stored.providerObservedAt,
+            ),
+            and(
+              eq(
+                currentDeliveryEvidence.providerObservedAt,
+                stored.providerObservedAt,
+              ),
+              lt(currentDeliveryEvidence.projectedAt, stored.ingestedAt),
+            ),
+          ),
+        });
+      return returned;
+    });
+  }
+
+  async listCurrentDeliveryEvidence(
+    input: ListCurrentDeliveryEvidenceInput = {},
+  ): Promise<readonly CurrentDeliveryEvidence[]> {
+    return this.db.transaction((transaction) =>
+      this.listCurrentDeliveryEvidenceInTransaction(transaction, input),
+    );
+  }
+
+  async listWorkItemDeliveryEvidence(
+    input: ListWorkItemDeliveryEvidenceInput,
+  ): Promise<readonly StoredWorkItemDeliveryEvidence[]> {
+    requireIdentifier(input.workItemId, "invalid_work_item_id");
+    const query = this.db
+      .select({
+        observation: deliveryEvidenceObservation,
+        currentObservationId: currentDeliveryEvidence.observationId,
+        projectedAt: currentDeliveryEvidence.projectedAt,
+      })
+      .from(deliveryEvidenceObservation)
+      .innerJoin(
+        workItemPullRequest,
+        and(
+          eq(
+            workItemPullRequest.repository,
+            deliveryEvidenceObservation.pullRequestRepository,
+          ),
+          eq(
+            workItemPullRequest.number,
+            deliveryEvidenceObservation.pullRequestNumber,
+          ),
+        ),
+      )
+      .leftJoin(
+        currentDeliveryEvidence,
+        eq(
+          currentDeliveryEvidence.observationId,
+          deliveryEvidenceObservation.id,
+        ),
+      )
+      .where(
+        and(
+          eq(workItemPullRequest.workItemId, input.workItemId),
+          input.currentOnly
+            ? isNotNull(currentDeliveryEvidence.observationId)
+            : undefined,
+          input.cursor === undefined
+            ? undefined
+            : gt(deliveryEvidenceObservation.id, input.cursor),
+        ),
+      )
+      .orderBy(deliveryEvidenceObservation.id);
+    const rows =
+      input.limit === undefined ? await query : await query.limit(input.limit);
+    return rows.map(({ observation, currentObservationId, projectedAt }) => ({
+      ...observation,
+      providerObservedAt: observation.providerObservedAt.toISOString(),
+      ingestedAt: observation.ingestedAt.toISOString(),
+      current: currentObservationId !== null,
+      projectedAt: projectedAt?.toISOString() ?? null,
+    }));
+  }
+
+  private async listCurrentDeliveryEvidenceInTransaction(
+    transaction: DbTransaction,
+    input: ListCurrentDeliveryEvidenceInput = {},
+  ): Promise<readonly CurrentDeliveryEvidence[]> {
+    const rows = await transaction
+      .select({
+        observation: deliveryEvidenceObservation,
+        projectedAt: currentDeliveryEvidence.projectedAt,
+      })
+      .from(currentDeliveryEvidence)
+      .innerJoin(
+        deliveryEvidenceObservation,
+        eq(
+          deliveryEvidenceObservation.id,
+          currentDeliveryEvidence.observationId,
+        ),
+      )
+      .where(
+        and(
+          input.repository === undefined
+            ? undefined
+            : eq(
+                deliveryEvidenceObservation.repository,
+                input.repository.toLowerCase(),
+              ),
+          input.commitSha === undefined
+            ? undefined
+            : eq(
+                deliveryEvidenceObservation.commitSha,
+                input.commitSha.toLowerCase(),
+              ),
+          input.kind === undefined
+            ? undefined
+            : eq(deliveryEvidenceObservation.kind, input.kind),
+        ),
+      )
+      .orderBy(
+        currentDeliveryEvidence.provider,
+        currentDeliveryEvidence.kind,
+        currentDeliveryEvidence.externalId,
+      );
+    return rows.map(({ observation, projectedAt }) => ({
+      ...observation,
+      providerObservedAt: observation.providerObservedAt.toISOString(),
+      ingestedAt: observation.ingestedAt.toISOString(),
+      projectedAt: projectedAt.toISOString(),
+    }));
+  }
+
+  async putCompletionPolicyRevision(
+    input: CompletionPolicyRevision,
+  ): Promise<CompletionPolicyRevision> {
+    const normalized = normalizeCompletionPolicyRevision(input);
+    return this.db.transaction(async (transaction) => {
+      await transaction
+        .insert(completionPolicyRevision)
+        .values({
+          ...normalized,
+          requiredCiNames: [...normalized.requiredCiNames],
+          productionEnvironments: [...normalized.productionEnvironments],
+          createdAt: new Date(normalized.createdAt),
+        })
+        .onConflictDoNothing();
+      const [stored] = await transaction
+        .select()
+        .from(completionPolicyRevision)
+        .where(
+          and(
+            eq(completionPolicyRevision.policyId, normalized.policyId),
+            eq(completionPolicyRevision.revision, normalized.revision),
+          ),
+        )
+        .limit(1);
+      if (!stored) throw new Error("Completion policy insert returned no row.");
+      const result = { ...stored, createdAt: stored.createdAt.toISOString() };
+      if (JSON.stringify(result) !== JSON.stringify(normalized)) {
+        throw new WorkGraphError(
+          "invalid_completion_policy",
+          `Completion policy ${normalized.policyId} revision ${normalized.revision} is immutable.`,
+        );
+      }
+      return result;
+    });
+  }
+
+  async assignCompletionPolicy(input: AssignCompletionPolicyInput): Promise<void> {
+    requireIdentifier(input.workItemId, "invalid_work_item_id");
+    await this.db.transaction(async (transaction) => {
+      await this.requireGraphWorkItem(transaction, input.workItemId);
+      const assignedAt = new Date(input.assignedAt);
+      if (!Number.isFinite(assignedAt.getTime())) {
+        throw new WorkGraphError(
+          "invalid_completion_policy",
+          "A completion policy assignment needs an ISO timestamp.",
+        );
+      }
+      await transaction
+        .insert(workItemCompletionPolicy)
+        .values({ ...input, assignedAt })
+        .onConflictDoUpdate({
+          target: workItemCompletionPolicy.workItemId,
+          set: {
+            policyId: input.policyId,
+            policyRevision: input.policyRevision,
+            assignedAt,
+          },
+        });
+    });
+  }
+
+  async evaluateCompletionCandidate(
+    input: EvaluateCompletionCandidateInput,
+  ): Promise<StoredCompletionCandidateEvaluation> {
+    if (!UUID_PATTERN.test(input.id)) {
+      throw new WorkGraphError(
+        "invalid_completion_candidate",
+        "A completion candidate evaluation ID must be a UUID.",
+      );
+    }
+    return this.db.transaction(async (transaction) => {
+      const item = await this.requireGraphWorkItem(transaction, input.workItemId);
+      const [assignedPolicy] = await transaction
+        .select({ policy: completionPolicyRevision })
+        .from(workItemCompletionPolicy)
+        .innerJoin(
+          completionPolicyRevision,
+          and(
+            eq(
+              completionPolicyRevision.policyId,
+              workItemCompletionPolicy.policyId,
+            ),
+            eq(
+              completionPolicyRevision.revision,
+              workItemCompletionPolicy.policyRevision,
+            ),
+          ),
+        )
+        .where(eq(workItemCompletionPolicy.workItemId, item.id))
+        .limit(1);
+      if (!assignedPolicy) {
+        throw new WorkGraphError(
+          "invalid_completion_policy",
+          `Work item ${item.id} has no completion policy.`,
+        );
+      }
+      const implementationPullRequests = (
+        await transaction
+          .select({ pullRequest })
+          .from(workItemPullRequest)
+          .innerJoin(
+            pullRequest,
+            and(
+              eq(pullRequest.repository, workItemPullRequest.repository),
+              eq(pullRequest.number, workItemPullRequest.number),
+            ),
+          )
+          .where(
+            and(
+              eq(workItemPullRequest.workItemId, item.id),
+              eq(workItemPullRequest.role, "implementation"),
+            ),
+          )
+      ).map(({ pullRequest: stored }) => ({
+        ...stored,
+        observedAt: stored.observedAt.toISOString(),
+      }));
+      const evidence = await this.listCurrentDeliveryEvidenceInTransaction(
+        transaction,
+      );
+      const [unfinishedChild] = await transaction
+        .select({ id: workItem.id })
+        .from(workItemHierarchy)
+        .innerJoin(workItem, eq(workItem.id, workItemHierarchy.childWorkItemId))
+        .where(
+          and(
+            eq(workItemHierarchy.parentWorkItemId, item.id),
+            eq(workItem.lifecycle, "open"),
+          ),
+        )
+        .limit(1);
+      const [blockingAttention] = await transaction
+        .select({ id: attentionRequest.id })
+        .from(attentionRequest)
+        .leftJoin(
+          attentionResolution,
+          eq(attentionResolution.attentionRequestId, attentionRequest.id),
+        )
+        .where(
+          and(
+            eq(attentionRequest.workItemId, item.id),
+            eq(attentionRequest.blocking, true),
+            isNull(attentionResolution.id),
+          ),
+        )
+        .limit(1);
+      const evaluated = evaluateDomainCompletionCandidate({
+        workItemId: item.id,
+        policy: {
+          ...assignedPolicy.policy,
+          createdAt: assignedPolicy.policy.createdAt.toISOString(),
+        },
+        implementationPullRequests,
+        evidence,
+        hasUnfinishedChildren: unfinishedChild !== undefined,
+        hasUnresolvedBlockingAttention: blockingAttention !== undefined,
+        evaluatedAt: input.evaluatedAt,
+      });
+      await transaction
+        .insert(completionCandidateEvaluation)
+        .values({
+          id: input.id,
+          ...evaluated,
+          reasons: evaluated.reasons,
+          evidenceObservationIds: [...evaluated.evidenceObservationIds],
+          evaluatedAt: new Date(evaluated.evaluatedAt),
+        })
+        .onConflictDoNothing();
+      const stored = await this.requireCompletionCandidateEvaluation(
+        transaction,
+        input.id,
+      );
+      if (
+        completionCandidateFingerprint(stored) !==
+        completionCandidateFingerprint(evaluated)
+      ) {
+        throw new WorkGraphError(
+          "duplicate_completion_candidate",
+          `Completion candidate evaluation ${input.id} is already used.`,
+        );
+      }
+      await transaction
+        .insert(workItemCompletionCandidate)
+        .values({
+          workItemId: item.id,
+          evaluationId: input.id,
+          projectedAt: new Date(evaluated.evaluatedAt),
+        })
+        .onConflictDoUpdate({
+          target: workItemCompletionCandidate.workItemId,
+          set: {
+            evaluationId: input.id,
+            projectedAt: new Date(evaluated.evaluatedAt),
+          },
+          setWhere: lte(
+            workItemCompletionCandidate.projectedAt,
+            new Date(evaluated.evaluatedAt),
+          ),
+        });
+      return stored;
+    });
+  }
+
+  async getCompletionCandidate(
+    workItemId: string,
+  ): Promise<StoredCompletionCandidateEvaluation | null> {
+    return this.db.transaction(async (transaction) => {
+      const [projection] = await transaction
+        .select({ id: workItemCompletionCandidate.evaluationId })
+        .from(workItemCompletionCandidate)
+        .where(eq(workItemCompletionCandidate.workItemId, workItemId))
+        .limit(1);
+      if (!projection) return null;
+      return this.requireCompletionCandidateEvaluation(
+        transaction,
+        projection.id,
+      );
+    });
+  }
+
   async createWorkItem(
     input: NewWorkItemInput,
     options: IdempotentMutationOptions = {},
@@ -1491,6 +2500,7 @@ export class WorkGraphRepository {
     }
 
     try {
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
       return await this.db.transaction(async (transaction) => {
         await this.lockEventSequence(transaction);
         if (options.idempotencyKey !== undefined) {
@@ -2154,6 +3164,7 @@ export class WorkGraphRepository {
     }
 
     try {
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
       return await this.db.transaction(async (transaction) => {
         await this.lockEventSequence(transaction);
         if (options.idempotencyKey !== undefined) {
@@ -2369,21 +3380,13 @@ export class WorkGraphRepository {
     if (input.workItemId !== undefined) {
       requireIdentifier(input.workItemId, "invalid_work_item_id");
     }
-    if (input.initiativeId !== undefined) {
-      requireKnowledgeScopeId(input.initiativeId);
-    }
-    if (input.projectId !== undefined) {
-      requireKnowledgeScopeId(input.projectId);
+    for (const { id } of selectionScopeIds(input)) {
+      requireKnowledgeScopeId(id);
     }
     if (input.parentId !== undefined) {
       requireIdentifier(input.parentId, "invalid_parent_id");
     }
-    if (
-      input.workItemId !== undefined &&
-      (input.initiativeId !== undefined ||
-        input.projectId !== undefined ||
-        input.parentId !== undefined)
-    ) {
+    if (input.workItemId !== undefined && hasSelectionFilters(input)) {
       throw new WorkGraphError(
         "invalid_claim_scope",
         "A specified work item cannot be combined with scope filters.",
@@ -2395,21 +3398,16 @@ export class WorkGraphRepository {
         async (transaction) => {
           await this.lockEventSequence(transaction);
           await this.lockGraphSnapshot(transaction);
+          await this.requireSelectionScopes(
+            transaction,
+            input,
+            "invalid_claim_scope",
+          );
 
           const candidateId = await this.findClaimableWorkItemId(
             transaction,
             input.workItemId,
-            {
-              ...(input.initiativeId === undefined
-                ? {}
-                : { initiativeId: input.initiativeId }),
-              ...(input.projectId === undefined
-                ? {}
-                : { projectId: input.projectId }),
-              ...(input.parentId === undefined
-                ? {}
-                : { parentId: input.parentId }),
-            },
+            input,
           );
           if (candidateId === null) return null;
 
@@ -2959,6 +3957,7 @@ export class WorkGraphRepository {
     }
 
     try {
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
       await this.db.transaction(async (transaction) => {
         await this.lockEventSequence(transaction);
         const replayed =
@@ -3510,6 +4509,29 @@ export class WorkGraphRepository {
     return rows.map(toKnowledgeScope);
   }
 
+  private async requireSelectionScopes(
+    transaction: DbTransaction,
+    selection: WorkItemSelectionScope,
+    invalidCode:
+      | "invalid_claim_scope"
+      | "invalid_critical_path_scope"
+      | "invalid_scheduling_scope",
+  ): Promise<void> {
+    const seen = new Set<string>();
+    for (const { id, kind } of selectionScopeIds(selection)) {
+      const key = `${kind}:${id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const scope = await this.requireStoredKnowledgeScope(transaction, id);
+      if (scope.lifecycle !== "active" || scope.kind !== kind) {
+        throw new WorkGraphError(
+          invalidCode,
+          `Knowledge scope ${id} is not an active ${kind}.`,
+        );
+      }
+    }
+  }
+
   private async requireStoredKnowledgeScope(
     transaction: DbTransaction,
     id: string,
@@ -3521,6 +4543,20 @@ export class WorkGraphRepository {
       .limit(1);
     if (!stored) throw knowledgeScopeNotFound(id);
     return toKnowledgeScope(stored);
+  }
+
+  private async requireActiveKnowledgeScope(
+    transaction: DbTransaction,
+    id: string,
+  ): Promise<KnowledgeScope> {
+    const scope = await this.requireStoredKnowledgeScope(transaction, id);
+    if (scope.lifecycle !== "active") {
+      throw new WorkGraphError(
+        "invalid_knowledge_scope_lifecycle",
+        `Knowledge scope ${id} is archived.`,
+      );
+    }
+    return scope;
   }
 
   private async requireStoredPriorityContext(
@@ -3555,7 +4591,7 @@ export class WorkGraphRepository {
     const projectId = input.schedulingProjectId;
 
     if (initiativeId !== null) {
-      const initiative = await this.requireStoredKnowledgeScope(
+      const initiative = await this.requireActiveKnowledgeScope(
         transaction,
         initiativeId,
       );
@@ -3567,7 +4603,7 @@ export class WorkGraphRepository {
       }
     }
     if (projectId !== null) {
-      const project = await this.requireStoredKnowledgeScope(
+      const project = await this.requireActiveKnowledgeScope(
         transaction,
         projectId,
       );
@@ -3592,6 +4628,7 @@ export class WorkGraphRepository {
           and(
             eq(knowledgeScopeRelationship.childKnowledgeScopeId, projectId),
             eq(knowledgeScope.kind, "initiative"),
+            eq(knowledgeScope.lifecycle, "active"),
           ),
         )
         .orderBy(knowledgeScope.rank, knowledgeScope.id);
@@ -3682,7 +4719,12 @@ export class WorkGraphRepository {
     const rows = await transaction
       .select({ id: knowledgeScope.id, rank: knowledgeScope.rank })
       .from(knowledgeScope)
-      .where(eq(knowledgeScope.kind, kind));
+      .where(
+        and(
+          eq(knowledgeScope.kind, kind),
+          eq(knowledgeScope.lifecycle, "active"),
+        ),
+      );
     const orderedIds = rows
       .filter((row) => row.id !== id)
       .sort((left, right) =>
@@ -3743,7 +4785,9 @@ export class WorkGraphRepository {
     await this.writeWorkItemPriorityRanks(transaction, orderedIds);
   }
 
-  private async loadGraph(transaction: DbTransaction): Promise<WorkGraph> {
+  private async loadSchedulingGraph(
+    transaction: DbTransaction,
+  ): Promise<WorkGraph> {
     const workItems = await transaction
       .select({
         id: workItem.id,
@@ -3778,6 +4822,12 @@ export class WorkGraphRepository {
         workItemDependency.dependentWorkItemId,
         workItemDependency.blockerWorkItemId,
       );
+
+    return createWorkGraph({ workItems, dependencies });
+  }
+
+  private async loadGraph(transaction: DbTransaction): Promise<WorkGraph> {
+    const schedulingGraph = await this.loadSchedulingGraph(transaction);
 
     const contexts = await transaction
       .select({
@@ -3814,6 +4864,8 @@ export class WorkGraphRepository {
           number: pullRequest.number,
           url: pullRequest.url,
           headSha: pullRequest.headSha,
+          acceptedHeadSha: pullRequest.acceptedHeadSha,
+          mergeCommitSha: pullRequest.mergeCommitSha,
           state: pullRequest.state,
           draft: pullRequest.draft,
           mergeability: pullRequest.mergeability,
@@ -3842,14 +4894,32 @@ export class WorkGraphRepository {
       );
 
     return createWorkGraph({
-      workItems,
-      dependencies,
+      ...schedulingGraph,
       contexts,
       architectureDecisions,
       references,
       pullRequests,
       workItemPullRequests,
     });
+  }
+
+  private async requireCompletionCandidateEvaluation(
+    transaction: DbTransaction,
+    id: string,
+  ): Promise<StoredCompletionCandidateEvaluation> {
+    const [stored] = await transaction
+      .select()
+      .from(completionCandidateEvaluation)
+      .where(eq(completionCandidateEvaluation.id, id))
+      .limit(1);
+    if (!stored) {
+      throw new Error(`Completion candidate evaluation ${id} is missing.`);
+    }
+    return {
+      ...stored,
+      reasons: stored.reasons as readonly CompletionCandidateReason[],
+      evaluatedAt: stored.evaluatedAt.toISOString(),
+    };
   }
 
   private async requireStoredPullRequest(
@@ -3863,6 +4933,8 @@ export class WorkGraphRepository {
         number: pullRequest.number,
         url: pullRequest.url,
         headSha: pullRequest.headSha,
+        acceptedHeadSha: pullRequest.acceptedHeadSha,
+        mergeCommitSha: pullRequest.mergeCommitSha,
         state: pullRequest.state,
         draft: pullRequest.draft,
         mergeability: pullRequest.mergeability,
@@ -3891,7 +4963,7 @@ export class WorkGraphRepository {
     transaction: DbTransaction,
     workItemId: string,
   ): Promise<WorkItem> {
-    const graph = await this.loadGraph(transaction);
+    const graph = await this.loadSchedulingGraph(transaction);
     const item = graph.workItems.find(({ id }) => id === workItemId);
     if (!item) throw workItemNotFound(workItemId);
     return item;
@@ -3931,15 +5003,21 @@ export class WorkGraphRepository {
           await transaction
             .select({ id: workItem.id })
             .from(workItem)
-            .where(claimableWorkItemWhere())
+            .where(
+              and(
+                claimableWorkItemWhere(undefined, {
+                  requireNoLeaseHistory: true,
+                }),
+                workItemSelectionWhere(scope),
+              ),
+            )
         ).map(({ id }) => id),
       );
-      const graph = await this.loadGraph(transaction);
+      const graph = await this.loadSchedulingGraph(transaction);
       candidateIds = orderWorkItemsByPriority(
         graph,
         await this.loadKnowledgeScopes(transaction),
       )
-        .filter((item) => isWorkItemInSelectionScope(graph, item, scope))
         .map(({ id }) => id)
         .filter((id) => claimableIds.has(id));
     } else {
@@ -3950,7 +5028,15 @@ export class WorkGraphRepository {
       const [candidate] = await transaction
         .select({ id: workItem.id })
         .from(workItem)
-        .where(claimableWorkItemWhere(candidateId))
+        .where(
+          claimableWorkItemWhere(
+            candidateId,
+            {
+              allowStaleRecovery: requestedWorkItemId !== undefined,
+              requireNoLeaseHistory: requestedWorkItemId === undefined,
+            },
+          ),
+        )
         .limit(1)
         .for("update", { of: workItem, skipLocked: true });
       if (!candidate) continue;
@@ -3961,7 +5047,15 @@ export class WorkGraphRepository {
       const [stillClaimable] = await transaction
         .select({ id: workItem.id })
         .from(workItem)
-        .where(claimableWorkItemWhere(candidate.id))
+        .where(
+          claimableWorkItemWhere(
+            candidate.id,
+            {
+              allowStaleRecovery: requestedWorkItemId !== undefined,
+              requireNoLeaseHistory: requestedWorkItemId === undefined,
+            },
+          ),
+        )
         .limit(1);
       if (stillClaimable) return candidate.id;
     }

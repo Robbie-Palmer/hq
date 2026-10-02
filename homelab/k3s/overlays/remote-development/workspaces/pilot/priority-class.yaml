@@ -1,8 +1,0 @@
-apiVersion: scheduling.k8s.io/v1
-kind: PriorityClass
-metadata:
-  name: pilot-workspace
-value: -10
-globalDefault: false
-preemptionPolicy: Never
-description: Pilot workspaces yield to operator and system workloads under pressure.

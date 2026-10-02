@@ -1,5 +1,6 @@
 import {
   WorkGraphError,
+  type CriticalPathProjection,
   type WorkItemLifecycle,
   type WorkStage,
 } from "work-graph-domain";
@@ -68,6 +69,40 @@ const item = (
   currentLease,
 });
 
+const criticalPathProjection = (
+  workItemId = "outcome",
+): CriticalPathProjection => {
+  const { currentLease: _, priority, stage, ...storedItem } = item(
+    workItemId,
+    "ready",
+  );
+  return {
+    targetOutcomeIds: [workItemId],
+    nodes: [
+      {
+        item: storedItem,
+        stage,
+        claimable: true,
+        priority,
+        inclusionReasons: [{ kind: "target_outcome" }],
+      },
+    ],
+    edges: [],
+    blockingPaths: [[workItemId]],
+    readyLeafIds: [workItemId],
+    blockingAttentionIds: [],
+    parallelBranches: [
+      {
+        workItemId,
+        stage,
+        claimable: true,
+        targetWorkItemIds: [workItemId],
+        paths: [[workItemId]],
+      },
+    ],
+  };
+};
+
 const responseJson = async (response: Response): Promise<unknown> =>
   response.json();
 
@@ -78,10 +113,13 @@ const knowledgeScope = (id: string, kind: "initiative" | "project") => ({
   canonicalUrl: `https://example.test/${id}`,
   markdownUrl: `https://example.test/${id}.md`,
   sourceRevision: null,
+  lifecycle: "active" as const,
+  archiveReason: null,
   rank: null,
 });
 
 const buildRepository = (): WorkGraphApiRepository => ({
+  projectCriticalPath: vi.fn(async () => criticalPathProjection()),
   listKnowledgeScopes: vi.fn(async () => []),
   getKnowledgeScope: vi.fn(async (id) => ({
     id,
@@ -90,13 +128,25 @@ const buildRepository = (): WorkGraphApiRepository => ({
     canonicalUrl: "https://example.test/projects/work-graph",
     markdownUrl: "https://example.test/projects/work-graph.md",
     sourceRevision: null,
+    lifecycle: "active" as const,
+    archiveReason: null,
     rank: null,
   })),
   putKnowledgeScope: vi.fn(async (input) => ({
     ...input,
     sourceRevision: input.sourceRevision ?? null,
+    lifecycle: "active" as const,
+    archiveReason: null,
     rank: input.rank ?? null,
   })),
+  archiveKnowledgeScope: vi.fn(async (id, input) => ({
+    ...knowledgeScope(id, "project"),
+    lifecycle: "archived" as const,
+    archiveReason: input.reason,
+  })),
+  restoreKnowledgeScope: vi.fn(async (id) =>
+    knowledgeScope(id, "project"),
+  ),
   moveKnowledgeScopePriority: vi.fn(async (id) =>
     knowledgeScope(id, "project"),
   ),
@@ -106,6 +156,8 @@ const buildRepository = (): WorkGraphApiRepository => ({
   listWorkItems: vi.fn(async () => []),
   getWorkItem: vi.fn(async (workItemId) => item(workItemId, "ready")),
   resolveWorkItemContext: vi.fn(async () => []),
+  listWorkItemDeliveryEvidence: vi.fn(async () => []),
+  getCompletionCandidate: vi.fn(async () => null),
   listNotes: vi.fn(async () => []),
   listEvents: vi.fn(async () => []),
   listDependencies: vi.fn(async () => []),
@@ -228,6 +280,123 @@ const buildRepository = (): WorkGraphApiRepository => ({
   })),
 });
 
+describe("Given a requested delivery-critical path", () => {
+  it("returns the stable projection and passes scope filters", async () => {
+    const repository = buildRepository();
+    const projection = criticalPathProjection("project-outcome");
+    vi.mocked(repository.projectCriticalPath).mockResolvedValue(projection);
+    const app = createWorkGraphApp(repository);
+
+    const response = await app.request(
+      "/api/critical-path?initiativeId=initiative&projectId=project",
+    );
+
+    expect(response.status).toBe(200);
+    expect(repository.projectCriticalPath).toHaveBeenCalledWith({
+      includeInitiativeIds: ["initiative"],
+      includeProjectIds: ["project"],
+    });
+    expect(await responseJson(response)).toEqual(projection);
+  });
+
+  it("passes repeated inclusion and exclusion filters to critical-path selection", async () => {
+    const repository = buildRepository();
+    const app = createWorkGraphApp(repository);
+
+    const response = await app.request(
+      "/api/critical-path?includeInitiativeIds=initiative-a&includeInitiativeIds=initiative-b&includeProjectIds=project-a&excludeProjectIds=project-b",
+    );
+
+    expect(response.status).toBe(200);
+    expect(repository.projectCriticalPath).toHaveBeenCalledWith({
+      includeInitiativeIds: ["initiative-a", "initiative-b"],
+      includeProjectIds: ["project-a"],
+      excludeProjectIds: ["project-b"],
+    });
+  });
+
+  it("returns an empty projection without inventing targets", async () => {
+    const repository = buildRepository();
+    const projection: CriticalPathProjection = {
+      targetOutcomeIds: [],
+      nodes: [],
+      edges: [],
+      blockingPaths: [],
+      readyLeafIds: [],
+      blockingAttentionIds: [],
+      parallelBranches: [],
+    };
+    vi.mocked(repository.projectCriticalPath).mockResolvedValue(projection);
+    const app = createWorkGraphApp(repository);
+
+    const response = await app.request("/api/critical-path");
+
+    expect(response.status).toBe(200);
+    expect(await responseJson(response)).toEqual(projection);
+  });
+
+  it("rejects an explicit root combined with scheduling scopes", async () => {
+    const repository = buildRepository();
+    const app = createWorkGraphApp(repository);
+
+    const response = await app.request(
+      "/api/critical-path?rootWorkItemId=root&projectId=project",
+    );
+
+    expect(response.status).toBe(422);
+    expect(await responseJson(response)).toEqual(
+      expect.objectContaining({
+        error: expect.objectContaining({ code: "validation_failed" }),
+      }),
+    );
+    expect(repository.projectCriticalPath).not.toHaveBeenCalled();
+  });
+
+  it("maps missing scopes and roots to the shared not-found response", async () => {
+    const repository = buildRepository();
+    vi.mocked(repository.projectCriticalPath).mockRejectedValue(
+      new WorkGraphError(
+        "knowledge_scope_not_found",
+        "Knowledge scope missing does not exist.",
+      ),
+    );
+    const app = createWorkGraphApp(repository);
+
+    const response = await app.request(
+      "/api/critical-path?initiativeId=missing",
+    );
+
+    expect(response.status).toBe(404);
+    expect(await responseJson(response)).toEqual({
+      error: {
+        code: "knowledge_scope_not_found",
+        message: "Knowledge scope missing does not exist.",
+      },
+    });
+  });
+
+  it("rejects a projection that exceeds its all-or-nothing bound", async () => {
+    const repository = buildRepository();
+    const projection = criticalPathProjection();
+    vi.mocked(repository.projectCriticalPath).mockResolvedValue({
+      ...projection,
+      nodes: Array.from({ length: 1_001 }, () => projection.nodes[0]!),
+    });
+    const app = createWorkGraphApp(repository);
+
+    const response = await app.request("/api/critical-path");
+
+    expect(response.status).toBe(409);
+    expect(await responseJson(response)).toEqual(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          code: "critical_path_projection_too_large",
+        }),
+      }),
+    );
+  });
+});
+
 describe("Given knowledge-scope mirrors", () => {
   it("lists one filtered page and reads one stable source key", async () => {
     const repository = buildRepository();
@@ -251,6 +420,15 @@ describe("Given knowledge-scope mirrors", () => {
     expect(await responseJson(list)).toEqual({
       items: [knowledgeScope("initiative-a", "initiative")],
       nextCursor: "initiative-a",
+    });
+
+    await app.request(
+      "/api/knowledge-scopes?kind=initiative&includeArchived=true",
+    );
+    expect(repository.listKnowledgeScopes).toHaveBeenLastCalledWith({
+      kind: "initiative",
+      includeArchived: true,
+      limit: 51,
     });
 
     const get = await app.request("/api/knowledge-scopes/initiative-a");
@@ -288,8 +466,53 @@ describe("Given knowledge-scope mirrors", () => {
     expect(await responseJson(response)).toEqual({
       id: "work-graph",
       ...body,
+      lifecycle: "active",
+      archiveReason: null,
       rank: null,
     });
+  });
+
+  it("archives and restores a mirror without deleting its identity", async () => {
+    const repository = buildRepository();
+    const app = createWorkGraphApp(repository);
+
+    const archived = await app.request(
+      "/api/knowledge-scopes/work-graph/archival",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": idempotencyKey,
+        },
+        body: JSON.stringify({ reason: "Completed project" }),
+      },
+    );
+    expect(archived.status).toBe(200);
+    expect(repository.archiveKnowledgeScope).toHaveBeenCalledWith(
+      "work-graph",
+      { reason: "Completed project" },
+      { idempotencyKey },
+    );
+    expect(await responseJson(archived)).toEqual(
+      expect.objectContaining({
+        id: "work-graph",
+        lifecycle: "archived",
+        archiveReason: "Completed project",
+      }),
+    );
+
+    const restored = await app.request(
+      "/api/knowledge-scopes/work-graph/archival",
+      {
+        method: "DELETE",
+        headers: { "idempotency-key": removeIdempotencyKey },
+      },
+    );
+    expect(restored.status).toBe(200);
+    expect(repository.restoreKnowledgeScope).toHaveBeenCalledWith(
+      "work-graph",
+      { idempotencyKey: removeIdempotencyKey },
+    );
   });
 
   it("moves a scope with relative priority anchors", async () => {
@@ -505,9 +728,24 @@ describe("Given work items with derived readiness", () => {
 
     expect(response.status).toBe(200);
     expect(repository.listWorkItems).toHaveBeenCalledWith({
-      initiativeId: "initiative",
-      projectId: "project",
+      includeInitiativeIds: ["initiative"],
+      includeProjectIds: ["project"],
       parentId: "parent",
+    });
+  });
+
+  it("passes repeated inclusion and exclusion filters to the ordered read", async () => {
+    const repository = buildRepository();
+    const app = createWorkGraphApp(repository);
+
+    const response = await app.request(
+      "/api/work-items?includeProjectIds=project-a&includeProjectIds=project-b&excludeInitiativeIds=initiative-b",
+    );
+
+    expect(response.status).toBe(200);
+    expect(repository.listWorkItems).toHaveBeenCalledWith({
+      includeProjectIds: ["project-a", "project-b"],
+      excludeInitiativeIds: ["initiative-b"],
     });
   });
 
@@ -641,6 +879,75 @@ describe("Given work items with derived readiness", () => {
     expect(await responseJson(listed)).toEqual({ items: resolved });
   });
 
+  it("lists evidence, exposes candidacy, and adds current evidence to context", async () => {
+    const repository = buildRepository();
+    const evidence = {
+      id: "00000000-0000-4000-8000-000000000009",
+      deliveryProvider: "github",
+      deliveryExternalId: "delivery-1",
+      provider: "github",
+      externalId: "check-1",
+      repository: "example/work-graph",
+      commitSha: "0123456789abcdef0123456789abcdef01234567",
+      kind: "ci" as const,
+      state: "success" as const,
+      name: "verify",
+      environment: null,
+      sourceUrl: "https://github.com/example/work-graph/actions/runs/1",
+      providerObservedAt: "2026-09-22T11:00:00.000Z",
+      ingestedAt: "2026-09-22T11:00:01.000Z",
+      correlationKind: "pull_request_head" as const,
+      pullRequestRepository: "example/work-graph",
+      pullRequestNumber: 7,
+      current: true,
+      projectedAt: "2026-09-22T11:00:01.000Z",
+    };
+    const candidate = {
+      id: "00000000-0000-4000-8000-000000000010",
+      workItemId: "ticket",
+      policyId: "default",
+      policyRevision: 3,
+      candidate: true,
+      reasons: [] as const,
+      evidenceObservationIds: [evidence.id],
+      evaluatedAt: "2026-09-22T12:00:00.000Z",
+    };
+    vi.mocked(repository.listWorkItemDeliveryEvidence).mockResolvedValue([
+      evidence,
+    ]);
+    vi.mocked(repository.getCompletionCandidate).mockResolvedValue(candidate);
+    const app = createWorkGraphApp(repository);
+
+    const listed = await app.request(
+      "/api/work-items/ticket/evidence?currentOnly=true&limit=1",
+    );
+    const completion = await app.request(
+      "/api/work-items/ticket/completion-candidate",
+    );
+    const context = await app.request("/api/work-items/ticket/contexts");
+
+    expect(await responseJson(listed)).toEqual({
+      items: [evidence],
+      nextCursor: null,
+    });
+    expect(repository.listWorkItemDeliveryEvidence).toHaveBeenCalledWith({
+      workItemId: "ticket",
+      currentOnly: true,
+      limit: 2,
+    });
+    expect(await responseJson(completion)).toEqual({ candidate });
+    expect(await responseJson(context)).toEqual({
+      items: [
+        {
+          kind: "delivery_evidence",
+          evidence,
+          sourceWorkItemId: "ticket",
+          inheritanceDepth: 0,
+        },
+      ],
+    });
+  });
+
   it("refreshes and links pull requests outside claim operations", async () => {
     const repository = buildRepository();
     const snapshot = {
@@ -648,6 +955,8 @@ describe("Given work items with derived readiness", () => {
       number: 42,
       url: "https://github.com/example/work-graph/pull/42",
       headSha: "0123456789abcdef0123456789abcdef01234567",
+      acceptedHeadSha: null,
+      mergeCommitSha: null,
       state: "open" as const,
       draft: false,
       mergeability: "mergeable" as const,
@@ -1363,15 +1672,62 @@ describe("Given a worker managing a lease", () => {
       leaseId,
       workerId: "worker-a",
       leaseDurationSeconds: 300,
-      initiativeId: "initiative",
-      projectId: "project",
+      includeInitiativeIds: ["initiative"],
+      includeProjectIds: ["project"],
       parentId: "parent",
     });
+  });
+
+  it("passes scope arrays to scheduler-selected claims", async () => {
+    const repository = buildRepository();
+    const app = createWorkGraphApp(repository, {
+      createLeaseId: () => leaseId,
+    });
+
+    const response = await app.request("/api/leases", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workerId: "worker-a",
+        leaseDurationSeconds: 300,
+        includeProjectIds: ["project-a", "project-b"],
+        excludeProjectIds: ["project-b"],
+      }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(repository.claimWorkItem).toHaveBeenCalledWith({
+      leaseId,
+      workerId: "worker-a",
+      leaseDurationSeconds: 300,
+      includeProjectIds: ["project-a", "project-b"],
+      excludeProjectIds: ["project-b"],
+    });
+  });
+
+  it("rejects scope filters on an explicit claim", async () => {
+    const repository = buildRepository();
+    const app = createWorkGraphApp(repository);
+
+    const response = await app.request("/api/leases", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workerId: "worker-a",
+        leaseDurationSeconds: 300,
+        workItemId: "ticket",
+        excludeProjectIds: ["project-b"],
+      }),
+    });
+
+    expect(response.status).toBe(422);
+    expect(repository.claimWorkItem).not.toHaveBeenCalled();
   });
 
   it("decomposes into ranked children and claims one for the same worker", async () => {
     const repository = buildRepository();
     vi.mocked(repository.listWorkItems).mockResolvedValue(
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
       ["parent", "first", "second"].map((workItemId) => ({
         ...item(
           workItemId,
@@ -1613,7 +1969,33 @@ describe("Given a worker managing a lease", () => {
     expect(await responseJson(response)).toEqual({
       error: {
         code: "work_item_not_claimable",
-        message: "No work item is currently claimable.",
+        message:
+          "No never-started ready work item is currently claimable. Specify a ticket ID to continue or recover earlier work.",
+      },
+    });
+  });
+
+  it("explains when a specified item cannot start or recover", async () => {
+    const repository = buildRepository();
+    vi.mocked(repository.claimWorkItem).mockResolvedValue(null);
+    const app = createWorkGraphApp(repository);
+
+    const response = await app.request("/api/leases", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workItemId: "blocked",
+        workerId: "worker-a",
+        leaseDurationSeconds: 300,
+      }),
+    });
+
+    expect(response.status).toBe(409);
+    expect(await responseJson(response)).toEqual({
+      error: {
+        code: "work_item_not_claimable",
+        message:
+          "Work item blocked is neither ready nor recoverable stale work.",
       },
     });
   });
@@ -1723,5 +2105,172 @@ describe("Given an invalid REST request", () => {
 
     expect(response.status).toBe(422);
     expect(repository.addDependency).not.toHaveBeenCalled();
+  });
+});
+
+describe("Given a transient database failure", () => {
+  it("keeps retry guidance when a lease claim is known not to have committed", async () => {
+    const repository = buildRepository();
+    vi.mocked(repository.claimWorkItem).mockRejectedValue(
+      Object.assign(new Error("too many connections"), { code: "53300" }),
+    );
+    const app = createWorkGraphApp(repository, {
+      createRequestId: () => "request-before-claim",
+    });
+
+    const response = await app.request("/api/leases", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workerId: "worker-a",
+        leaseDurationSeconds: 300,
+      }),
+    });
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("retry-after")).toBe("1");
+    expect(await responseJson(response)).toEqual({
+      error: {
+        code: "database_capacity",
+        message: "The Work Graph database is at connection capacity. Retry it.",
+        requestId: "request-before-claim",
+      },
+    });
+  });
+
+  it("reports an uncertain outcome without retry guidance after a lease claim commits", async () => {
+    const repository = buildRepository();
+    vi.mocked(repository.getWorkItem).mockRejectedValue(
+      Object.assign(new Error("too many connections"), { code: "53300" }),
+    );
+    const warn = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const app = createWorkGraphApp(repository, {
+      createLeaseId: () => leaseId,
+      createRequestId: () => "request-after-claim",
+    });
+
+    const response = await app.request("/api/leases", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workItemId: "ready",
+        workerId: "worker-a",
+        leaseDurationSeconds: 300,
+      }),
+    });
+
+    expect(repository.claimWorkItem).toHaveBeenCalledOnce();
+    expect(response.status).toBe(500);
+    expect(response.headers.get("retry-after")).toBeNull();
+    expect(response.headers.get("x-request-id")).toBe("request-after-claim");
+    expect(await responseJson(response)).toEqual({
+      error: {
+        code: "claim_outcome_uncertain",
+        message:
+          "The lease claim may have succeeded, but its response could not be completed. Inspect the work item before claiming again.",
+        requestId: "request-after-claim",
+      },
+    });
+    expect(warn).toHaveBeenCalledWith(
+      {
+        message: "Work Graph lease claim outcome is uncertain",
+        code: "claim_outcome_uncertain",
+        requestId: "request-after-claim",
+        method: "POST",
+        route: "/api/leases",
+        outcome: "error",
+        status: 500,
+        workerVersion: "local",
+        exceptionClass: "claim_outcome_uncertain",
+      },
+    );
+    warn.mockRestore();
+  });
+
+  it.each([
+    [
+      "55P03",
+      "canceling statement because a database limit was reached",
+      "database_timeout",
+      "The Work Graph database request timed out. Retry it.",
+    ],
+    [
+      "53300",
+      "too many connections",
+      "database_capacity",
+      "The Work Graph database is at connection capacity. Retry it.",
+    ],
+    [
+      "58000",
+      "Failed to acquire a connection from the pool.",
+      "database_capacity",
+      "The Work Graph database is at connection capacity. Retry it.",
+    ],
+    [
+      "58000",
+      "Internal error.",
+      "database_unavailable",
+      "The Work Graph database is temporarily unavailable. Retry it.",
+    ],
+  ])(
+    "maps %s to a coded retryable response without database details",
+    async (code, databaseMessage, responseCode, responseMessage) => {
+      const repository = buildRepository();
+      const databaseError = Object.assign(
+        new Error(databaseMessage),
+        { code },
+      );
+      vi.mocked(repository.listWorkItems).mockRejectedValue(
+        new Error("database request failed", { cause: databaseError }),
+      );
+      const warn = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      const app = createWorkGraphApp(repository, {
+        createRequestId: () => "request-123",
+      });
+
+      const response = await app.request("/api/work-items");
+
+      expect(response.status).toBe(503);
+      expect(response.headers.get("retry-after")).toBe("1");
+      expect(response.headers.get("x-request-id")).toBe("request-123");
+      expect(await responseJson(response)).toEqual({
+        error: {
+          code: responseCode,
+          message: responseMessage,
+          requestId: "request-123",
+        },
+      });
+      expect(warn).toHaveBeenCalledWith(
+        {
+          message: "Work Graph database request can be retried",
+          code: responseCode,
+          requestId: "request-123",
+          method: "GET",
+          route: "/api/work-items",
+          outcome: "error",
+          status: 503,
+          workerVersion: "local",
+          exceptionClass: responseCode,
+        },
+      );
+      warn.mockRestore();
+    },
+  );
+});
+
+ describe("Given an unexpected production exception", () => {
+  it("records correlation fields without request or exception secrets", async () => {
+    const repository = buildRepository();
+    vi.mocked(repository.getWorkItem).mockRejectedValue(new Error("postgresql://owner:SECRET@db.invalid/database"));
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const app = createWorkGraphApp(repository, { createRequestId: () => "request-safe", workerVersion: "version-safe" });
+    const response = await app.request("/api/work-items/SECRET?token=SECRET", { headers: { "CF-Access-Client-Secret": "SECRET" } });
+    expect(response.status).toBe(500);
+    expect(response.headers.get("x-request-id")).toBe("request-safe");
+    const record = error.mock.calls[0]?.[0];
+    expect(record).toMatchObject({ requestId: "request-safe", route: "/api/work-items/:workItemId", outcome: "error", status: 500, workerVersion: "version-safe", exceptionClass: "internal_error" });
+    expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET");
+    expect(await response.text()).not.toContain("SECRET");
+    error.mockRestore();
   });
 });

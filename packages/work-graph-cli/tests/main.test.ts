@@ -20,6 +20,8 @@ const pullRequestSnapshot = {
   number: 42,
   url: "https://github.com/example/work-graph/pull/42",
   headSha: "0123456789abcdef0123456789abcdef01234567",
+  acceptedHeadSha: null,
+  mergeCommitSha: null,
   state: "open" as const,
   draft: false,
   mergeability: "mergeable" as const,
@@ -58,6 +60,50 @@ const activeWorkItem = (workerId = "agent-a") => ({
     endedAt: null,
     outcome: null,
   },
+});
+
+const criticalPathProjection = () => ({
+  targetOutcomeIds: ["outcome"],
+  nodes: [
+    {
+      item: {
+        id: "outcome",
+        title: "Ship the outcome",
+        lifecycle: "open",
+        parentId: null,
+        rank: null,
+        priorityRank: 1,
+        schedulingInitiativeId: "initiative",
+        schedulingProjectId: "project",
+        expedited: false,
+        expediteReason: null,
+      },
+      stage: "ready",
+      claimable: true,
+      priority: {
+        initiativeRank: 1,
+        projectRank: 1,
+        ticketRank: 1,
+        expedited: false,
+        effectiveExpedited: false,
+        donatedFromWorkItemId: null,
+      },
+      inclusionReasons: [{ kind: "target_outcome" }],
+    },
+  ],
+  edges: [],
+  blockingPaths: [["outcome"]],
+  readyLeafIds: ["outcome"],
+  blockingAttentionIds: [],
+  parallelBranches: [
+    {
+      workItemId: "outcome",
+      stage: "ready",
+      claimable: true,
+      targetWorkItemIds: ["outcome"],
+      paths: [["outcome"]],
+    },
+  ],
 });
 
 const response = (body: unknown = { ok: true }, status = 200): Response =>
@@ -162,6 +208,113 @@ describe("Given agent-facing Work Graph commands", () => {
     expect(test.selfUpdate).toHaveBeenCalledWith("/workspace/other-hq");
   });
 
+  it.each([
+    ["global", [], ""],
+    [
+      "initiative",
+      ["--initiative-id", "initiative"],
+      "initiativeId=initiative",
+    ],
+    ["project", ["--project-id", "project"], "projectId=project"],
+    ["root", ["--root-work-item-id", "outcome"], "rootWorkItemId=outcome"],
+  ])(
+    "requests and renders the %s critical path",
+    async (_name, args, search) => {
+      const test = harness(() => response(criticalPathProjection()));
+
+      expect(await test.run(["critical-path", ...args])).toBe(
+        EXIT_CODES.success,
+      );
+      expect(test.requests[0]?.method).toBe("GET");
+      expect(test.requests[0]?.url.pathname).toBe("/root/api/critical-path");
+      expect(test.requests[0]?.url.searchParams.toString()).toBe(search);
+      expect(test.stdout.join("")).toContain("Priority outcomes:");
+      expect(test.stdout.join("")).toContain("Parallel branches:");
+    },
+  );
+
+  it("prints the complete critical-path API contract as JSON", async () => {
+    const projection = criticalPathProjection();
+    const test = harness(() => response(projection));
+
+    expect(await test.run(["critical-path", "--json"])).toBe(
+      EXIT_CODES.success,
+    );
+    expect(JSON.parse(test.stdout.join(""))).toEqual(projection);
+  });
+
+  it("renders an empty critical path", async () => {
+    const test = harness(() =>
+      response({
+        targetOutcomeIds: [],
+        nodes: [],
+        edges: [],
+        blockingPaths: [],
+        readyLeafIds: [],
+        blockingAttentionIds: [],
+        parallelBranches: [],
+      }),
+    );
+
+    expect(await test.run(["critical-path"])).toBe(EXIT_CODES.success);
+    expect(test.stdout.join("")).toContain(
+      "No open priority outcomes in this scope.",
+    );
+  });
+
+  it("rejects a root critical path combined with scope filters", async () => {
+    const test = harness(() => response(criticalPathProjection()));
+
+    expect(
+      await test.run([
+        "critical-path",
+        "--root-work-item-id",
+        "outcome",
+        "--project-id",
+        "project",
+      ]),
+    ).toBe(EXIT_CODES.usage);
+    expect(test.requests).toEqual([]);
+  });
+
+  it("reports critical-path API errors through the shared error contract", async () => {
+    const test = harness(() =>
+      response(
+        {
+          error: {
+            code: "knowledge_scope_not_found",
+            message: "Knowledge scope missing does not exist.",
+          },
+        },
+        404,
+      ),
+    );
+
+    expect(
+      await test.run(["critical-path", "--project-id", "missing"]),
+    ).toBe(EXIT_CODES.notFound);
+    expect(JSON.parse(test.stderr.join(""))).toMatchObject({
+      error: { code: "knowledge_scope_not_found" },
+    });
+  });
+
+  it("sends production Access headers with a critical-path request", async () => {
+    const test = harness(() => response(criticalPathProjection()), {
+      WORK_GRAPH_API_URL: API_URL,
+      WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS: "https://work.example.test",
+      WORK_GRAPH_CF_ACCESS_CLIENT_ID: "client-id",
+      WORK_GRAPH_CF_ACCESS_CLIENT_SECRET: "client-secret",
+    });
+
+    expect(await test.run(["critical-path"])).toBe(EXIT_CODES.success);
+    expect(test.requests[0]?.headers.get("CF-Access-Client-Id")).toBe(
+      "client-id",
+    );
+    expect(test.requests[0]?.headers.get("CF-Access-Client-Secret")).toBe(
+      "client-secret",
+    );
+  });
+
   it("adds and removes dependency edges", async () => {
     const add = harness();
     const remove = harness();
@@ -213,9 +366,13 @@ describe("Given agent-facing Work Graph commands", () => {
 
   it("manages knowledge-scope mirrors and relationships", async () => {
     const list = harness();
+    const allList = harness();
     const show = harness();
     const put = harness();
+    const archive = harness();
+    const restore = harness();
     const links = harness();
+    const allLinks = harness();
     const link = harness();
     const unlink = harness();
 
@@ -229,6 +386,7 @@ describe("Given agent-facing Work Graph commands", () => {
       "--cursor",
       "first",
     ]);
+    await allList.run(["scope", "list", "--all"]);
     await show.run(["scope", "show", "work/a b"]);
     await put.run([
       "scope",
@@ -247,6 +405,22 @@ describe("Given agent-facing Work Graph commands", () => {
       "--idempotency-key",
       UUID,
     ]);
+    await archive.run([
+      "scope",
+      "archive",
+      "work-graph",
+      "--reason",
+      "Completed project",
+      "--idempotency-key",
+      UUID,
+    ]);
+    await restore.run([
+      "scope",
+      "restore",
+      "work-graph",
+      "--idempotency-key",
+      UUID,
+    ]);
     await links.run([
       "scope",
       "links",
@@ -255,6 +429,7 @@ describe("Given agent-facing Work Graph commands", () => {
       "--cursor",
       '["initiative","work-graph"]',
     ]);
+    await allLinks.run(["scope", "links", "--all"]);
     await link.run([
       "scope",
       "link",
@@ -275,6 +450,9 @@ describe("Given agent-facing Work Graph commands", () => {
     expect(list.requests[0]?.url.href).toBe(
       "https://work.example.test/root/api/knowledge-scopes?kind=project&limit=10&cursor=first",
     );
+    expect(allList.requests[0]?.url.href).toBe(
+      "https://work.example.test/root/api/knowledge-scopes?includeArchived=true",
+    );
     expect(show.requests[0]?.url.pathname).toBe(
       "/root/api/knowledge-scopes/work%2Fa%20b",
     );
@@ -289,8 +467,22 @@ describe("Given agent-facing Work Graph commands", () => {
       },
     });
     expect(put.requests[0]?.headers.get("Idempotency-Key")).toBe(UUID);
+    expect(archive.requests[0]).toMatchObject({
+      method: "POST",
+      body: { reason: "Completed project" },
+    });
+    expect(archive.requests[0]?.url.pathname).toBe(
+      "/root/api/knowledge-scopes/work-graph/archival",
+    );
+    expect(restore.requests[0]?.method).toBe("DELETE");
+    expect(restore.requests[0]?.url.pathname).toBe(
+      "/root/api/knowledge-scopes/work-graph/archival",
+    );
     expect(links.requests[0]?.url.href).toBe(
       "https://work.example.test/root/api/knowledge-scope-relationships?limit=10&cursor=%5B%22initiative%22%2C%22work-graph%22%5D",
+    );
+    expect(allLinks.requests[0]?.url.href).toBe(
+      "https://work.example.test/root/api/knowledge-scope-relationships?includeArchived=true",
     );
     expect(link.requests[0]).toMatchObject({
       method: "POST",
@@ -541,6 +733,8 @@ describe("Given agent-facing Work Graph commands", () => {
         number: 42,
         url: "https://github.com/example/work-graph/pull/42",
         headSha: "0123456789abcdef0123456789abcdef01234567",
+        acceptedHeadSha: null,
+        mergeCommitSha: null,
         state: "open",
         draft: false,
         mergeability: "mergeable",
@@ -1012,11 +1206,71 @@ describe("Given agent-facing Work Graph commands", () => {
     expect(JSON.parse(full.stdout[0] ?? "null")).toEqual(claimResponse);
   });
 
+  it("reports when an explicit claim is neither ready nor stale recovery", async () => {
+    const test = harness(() =>
+      response(
+        {
+          error: {
+            code: "work_item_not_claimable",
+            message:
+              "Work item blocked is neither ready nor recoverable stale work.",
+          },
+        },
+        409,
+      ),
+    );
+
+    expect(
+      await test.run(["claim", "blocked", "--worker-id", "agent-a"]),
+    ).toBe(EXIT_CODES.conflict);
+    expect(test.requests[0]?.body).toEqual({
+      workerId: "agent-a",
+      leaseDurationSeconds: 900,
+      workItemId: "blocked",
+    });
+    expect(JSON.parse(test.stderr[0] ?? "null")).toEqual({
+      error: {
+        code: "work_item_not_claimable",
+        message:
+          "Work item blocked is neither ready nor recoverable stale work.",
+        status: 409,
+      },
+    });
+  });
+
   it("shows a work item with an encoded path identifier", async () => {
-    const test = harness();
+    const candidate = {
+      id: UUID,
+      workItemId: "work/a b",
+      policyId: "default",
+      policyRevision: 2,
+      candidate: false,
+      reasons: ["missing_required_ci"],
+      evidenceObservationIds: [],
+      evaluatedAt: "2026-09-22T12:00:00.000Z",
+    };
+    const test = harness(({ url }) => {
+      if (url.pathname.endsWith("/evidence")) {
+        return response({ items: [], nextCursor: null });
+      }
+      if (url.pathname.endsWith("/completion-candidate")) {
+        return response({ candidate });
+      }
+      return response({ ...activeWorkItem(), id: "work/a b" });
+    });
     await test.run(["show", "work/a b"]);
     expect(test.requests[0]?.url.pathname).toBe("/root/api/work-items/work%2Fa%20b");
     expect(test.requests[0]?.method).toBe("GET");
+    expect(test.requests.map(({ url }) => url.pathname)).toEqual([
+      "/root/api/work-items/work%2Fa%20b",
+      "/root/api/work-items/work%2Fa%20b/evidence",
+      "/root/api/work-items/work%2Fa%20b/completion-candidate",
+    ]);
+    expect(JSON.parse(test.stdout[0] ?? "null")).toMatchObject({
+      id: "work/a b",
+      deliveryEvidence: { items: [], nextCursor: null },
+      completionCandidate: candidate,
+    });
   });
 
   it("records a fenced note with a generated ID", async () => {
@@ -1521,6 +1775,31 @@ describe("Given Cloudflare Access service-token credentials", () => {
 });
 
 describe("Given CLI and HTTP failures", () => {
+  it("preserves the server request ID in diagnostics", async () => {
+    const test = harness(() =>
+      response(
+        {
+          error: {
+            code: "API_PROBLEM",
+            message: "Request failed",
+            requestId: "request-123",
+          },
+        },
+        409,
+      ),
+    );
+
+    expect(await test.run(["show", "item-1"])).toBe(EXIT_CODES.conflict);
+    expect(JSON.parse(test.stderr[0] ?? "null")).toEqual({
+      error: {
+        code: "API_PROBLEM",
+        message: "Request failed",
+        requestId: "request-123",
+        status: 409,
+      },
+    });
+  });
+
   it.each([
     [400, EXIT_CODES.validation],
     [401, EXIT_CODES.authentication],
@@ -1723,4 +2002,197 @@ describe("Given CLI and HTTP failures", () => {
     expect(help).not.toContain("back to the queue");
     expect(test.fetch).not.toHaveBeenCalled();
   });
+});
+
+describe("scope selection lists", () => {
+  const selection = {
+    includeProjectIds: ["alpha", "beta"],
+    excludeProjectIds: ["beta", "recipe-site"],
+    includeInitiativeIds: ["one", "two"],
+    excludeInitiativeIds: ["two", "three"],
+  };
+  const flags = [
+    "--project",
+    "alpha",
+    "--project",
+    "beta",
+    "--exclude-project",
+    "beta",
+    "--exclude-project",
+    "recipe-site",
+    "--initiative",
+    "one",
+    "--initiative",
+    "two",
+    "--exclude-initiative",
+    "two",
+    "--exclude-initiative",
+    "three",
+  ];
+  it.each(["ready", "queue", "claim", "critical-path"])(
+    "encodes repeated %s filters and leaves exclusion precedence to the API",
+    async (command) => {
+      const test = harness(
+        () =>
+          response(
+            command === "critical-path"
+              ? criticalPathProjection()
+              : { context: [] },
+          ),
+        { WORK_GRAPH_API_URL: API_URL, WORK_GRAPH_WORKER_ID: "agent-a" },
+      );
+      expect(await test.run([command, ...flags])).toBe(EXIT_CODES.success);
+      const request = test.requests[0];
+      if (request === undefined) throw new Error("Expected an HTTP request");
+      if (command === "claim") expect(request.body).toMatchObject(selection);
+      else
+        for (const [key, ids] of Object.entries(selection)) {
+          expect(request.url.searchParams.getAll(key)).toEqual(ids);
+        }
+      if (command === "critical-path") {
+        expect(test.stdout.join("")).toContain("project alpha OR beta");
+        expect(test.stdout.join("")).toContain(
+          "excluding projects beta, recipe-site",
+        );
+        expect(test.stdout.join("")).toContain("initiative one OR two");
+        expect(test.stdout.join("")).toContain(
+          "excluding initiatives two, three",
+        );
+      }
+    },
+  );
+  it.each(["ready", "queue", "claim", "critical-path"])(
+    "accepts contract-shaped complete JSON input for %s",
+    async (command) => {
+      const test = harness(
+        () =>
+          response(
+            command === "critical-path"
+              ? criticalPathProjection()
+              : { context: [] },
+          ),
+        { WORK_GRAPH_API_URL: API_URL, WORK_GRAPH_WORKER_ID: "agent-a" },
+      );
+      expect(
+        await test.run([command, "--json", JSON.stringify(selection)]),
+      ).toBe(EXIT_CODES.success);
+      const request = test.requests[0];
+      if (request === undefined) throw new Error("Expected an HTTP request");
+      if (command === "claim") expect(request.body).toMatchObject(selection);
+      else
+        for (const [key, ids] of Object.entries(selection))
+          expect(request.url.searchParams.getAll(key)).toEqual(ids);
+    },
+  );
+  it.each([
+    ["--api-url", API_URL],
+    [`--api-url=${API_URL}`],
+    ["--cf-access-allowed-origin", "https://work.example.test"],
+    ["--cf-access-allowed-origin=https://work.example.test"],
+  ])("preserves bare critical-path JSON output after global options %j", async (...globalFlags) => {
+    const projection = criticalPathProjection();
+    const test = harness(() => response(projection));
+    expect(await test.run([...globalFlags, "critical-path", "--json"])).toBe(EXIT_CODES.success);
+    expect(JSON.parse(test.stdout.join(""))).toEqual(projection);
+  });
+
+  it("supports JSON output from complete critical-path input", async () => {
+    const projection = criticalPathProjection();
+    const test = harness(() => response(projection));
+    expect(
+      await test.run([
+        "critical-path",
+        "--json",
+        JSON.stringify({ ...selection, outputJson: true }),
+      ]),
+    ).toBe(EXIT_CODES.success);
+    expect(JSON.parse(test.stdout.join(""))).toEqual(projection);
+  });
+  it("treats empty JSON inclusion arrays as unrestricted in GET requests", async () => {
+    const test = harness(() => response(criticalPathProjection()));
+    expect(await test.run(["critical-path", "--json", JSON.stringify({
+      includeProjectIds: [], includeInitiativeIds: [],
+    })])).toBe(EXIT_CODES.success);
+    expect(test.requests[0]?.url.search).toBe("");
+    expect(test.stdout.join("")).toContain("Critical path (global)");
+  });
+
+  it("preserves literal IDs and combines deprecated aliases with lists", async () => {
+    const test = harness();
+    expect(
+      await test.run([
+        "ready",
+        "--project",
+        "a,b",
+        "--exclude-project=!literal",
+        "--project-id",
+        "legacy",
+      ]),
+    ).toBe(EXIT_CODES.success);
+    expect(
+      test.requests[0]?.url.searchParams.getAll("includeProjectIds"),
+    ).toEqual(["a,b"]);
+    expect(
+      test.requests[0]?.url.searchParams.getAll("excludeProjectIds"),
+    ).toEqual(["!literal"]);
+    expect(test.requests[0]?.url.searchParams.get("projectId")).toBe("legacy");
+  });
+  it.each([
+    "--project",
+    "--exclude-project",
+    "--initiative",
+    "--exclude-initiative",
+  ])("rejects %s with a direct claim or root projection", async (flag) => {
+    for (const args of [
+      ["claim", "ticket"],
+      ["critical-path", "--root-work-item-id", "ticket"],
+    ]) {
+      const test = harness();
+      expect(await test.run([...args, flag, "scope"])).toBe(EXIT_CODES.usage);
+      expect(test.requests).toEqual([]);
+    }
+  });
+  it.each([
+    ["ready", "--project"],
+    ["ready", "--project", ""],
+    ["ready", "--project", "x".repeat(201)],
+    [
+      "ready",
+      "--json",
+      JSON.stringify({ excludeProjectIds: Array(101).fill("x") }),
+    ],
+    [
+      "claim",
+      "--json",
+      JSON.stringify({ workItemId: "ticket", excludeProjectIds: [] }),
+    ],
+    [
+      "critical-path",
+      "--json",
+      JSON.stringify({ rootWorkItemId: "ticket", includeProjectIds: [] }),
+    ],
+  ])("validates selection before HTTP: %j", async (...args) => {
+    const test = harness();
+    expect(await test.run(args)).toBe(EXIT_CODES.usage);
+    expect(test.requests).toEqual([]);
+  });
+  it.each(["ready", "queue", "claim", "critical-path"])(
+    "documents selection rules in %s help",
+    async (command) => {
+      const test = harness();
+      expect(await test.run([command, "--help"])).toBe(EXIT_CODES.success);
+      const help = test.stdout.join("");
+      for (const flag of [
+        "--project <id>",
+        "--exclude-project <id>",
+        "--initiative <id>",
+        "--exclude-initiative <id>",
+      ])
+        expect(help).toContain(flag);
+      expect(help).toContain("OR within each inclusion kind");
+      expect(help).toContain("AND across project and initiative");
+      expect(help).toContain("Exclusions take precedence");
+      expect(help).toContain("Deprecated one-value alias");
+    },
+  );
 });
