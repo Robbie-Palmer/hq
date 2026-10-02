@@ -2,9 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   deriveExchangeRateObservation,
   importHistoricalExchangeRates,
-  invertExchangeRate,
   nextIncrementalExchangeRateDate,
-  triangulateExchangeRates,
 } from "@/lib/domain/assettracker/exchangeRateImport";
 import type { ExchangeRateObservation } from "@/lib/domain/assettracker/valuation";
 
@@ -60,7 +58,7 @@ describe("historical exchange-rate import", () => {
         acceptedAt: retrievedAt,
         retrievedAt,
         source: expect.objectContaining({ id: "frankfurter:blend" }),
-        sourceReference: expect.stringContaining("#row=0&body="),
+        sourceReference: expect.stringMatching(/#row=0&body=[a-f0-9]{64}$/),
         providerObservations: [
           {
             provider: "ECB",
@@ -271,20 +269,6 @@ describe("historical exchange-rate import", () => {
 });
 
 describe("exchange-rate normalization", () => {
-  it("uses rational decimal arithmetic for inversion and triangulation", () => {
-    expect(invertExchangeRate("1.25")).toBe("0.8");
-    expect(triangulateExchangeRates("1.25", "0.8")).toBe("1");
-    expect(triangulateExchangeRates("1.23456789", "0.98765432")).toBe(
-      "1.2193263098917848",
-    );
-    expect(() => invertExchangeRate("not-a-rate")).toThrow(
-      "Invalid positive decimal rate",
-    );
-    expect(() => invertExchangeRate("0")).toThrow(
-      "Exchange rates must be positive",
-    );
-  });
-
   it("normalizes direct, inverse, and triangulated observations", () => {
     const gbpUsd: ExchangeRateObservation = {
       id: "gbp-usd",

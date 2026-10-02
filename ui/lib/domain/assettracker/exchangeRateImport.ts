@@ -7,12 +7,17 @@ import {
   parseISO,
   subDays,
 } from "date-fns";
+import { sha256Hex } from "ts-base/crypto";
 import { z } from "zod";
 import {
   type Currency,
   CurrencySchema,
   SUPPORTED_CURRENCIES,
 } from "./currency";
+import {
+  invertExchangeRate,
+  triangulateExchangeRates,
+} from "./exchangeRateDecimal";
 import {
   type ExchangeRateObservation,
   effectiveObservations,
@@ -86,80 +91,6 @@ export type HistoricalExchangeRateImport = {
   retryDelay?: (milliseconds: number) => Promise<void>;
   classifyDate?: (date: string) => CalendarDay;
 };
-
-type Fraction = { numerator: bigint; denominator: bigint };
-
-function greatestCommonDivisor(left: bigint, right: bigint): bigint {
-  let a = left < BigInt(0) ? -left : left;
-  let b = right < BigInt(0) ? -right : right;
-  while (b !== BigInt(0)) {
-    const remainder = a % b;
-    a = b;
-    b = remainder;
-  }
-  return a;
-}
-
-function reduce(fraction: Fraction): Fraction {
-  const divisor = greatestCommonDivisor(
-    fraction.numerator,
-    fraction.denominator,
-  );
-  return {
-    numerator: fraction.numerator / divisor,
-    denominator: fraction.denominator / divisor,
-  };
-}
-
-function decimalFraction(value: string): Fraction {
-  if (!/^\d+(?:\.\d+)?$/.test(value)) {
-    throw new TypeError(`Invalid positive decimal rate "${value}"`);
-  }
-  const [whole = "0", decimals = ""] = value.split(".");
-  const denominator = BigInt(10) ** BigInt(decimals.length);
-  const numerator = BigInt(`${whole}${decimals}`);
-  if (numerator <= BigInt(0)) {
-    throw new TypeError("Exchange rates must be positive");
-  }
-  return reduce({ numerator, denominator });
-}
-
-function fractionDecimal(fraction: Fraction, scale = 18): string {
-  if (fraction.numerator <= BigInt(0) || fraction.denominator <= BigInt(0)) {
-    throw new TypeError("Exchange rates must be positive");
-  }
-  const factor = BigInt(10) ** BigInt(scale);
-  const scaledNumerator = fraction.numerator * factor;
-  const rounded =
-    (scaledNumerator + fraction.denominator / BigInt(2)) / fraction.denominator;
-  const digits = rounded.toString().padStart(scale + 1, "0");
-  const whole = digits.slice(0, -scale);
-  let decimals = digits.slice(-scale);
-  while (decimals.endsWith("0")) decimals = decimals.slice(0, -1);
-  return decimals.length === 0 ? whole : `${whole}.${decimals}`;
-}
-
-export function invertExchangeRate(rate: string): string {
-  const fraction = decimalFraction(rate);
-  return fractionDecimal({
-    numerator: fraction.denominator,
-    denominator: fraction.numerator,
-  });
-}
-
-export function triangulateExchangeRates(
-  firstRate: string,
-  secondRate: string,
-): string {
-  const first = decimalFraction(firstRate);
-  const second = decimalFraction(secondRate);
-  return fractionDecimal(
-    reduce({
-      numerator: first.numerator * second.numerator,
-      denominator: first.denominator * second.denominator,
-    }),
-  );
-}
 
 function observationDecimal(observation: ExchangeRateObservation): string {
   return observation.rateDecimal ?? observation.rate.toString();
@@ -311,15 +242,6 @@ export function deriveExchangeRateObservation(input: {
 function defaultClassifyDate(date: string): CalendarDay {
   const day = getISODay(parseISO(date));
   return day >= 6 ? "non_trading_day" : "trading_day";
-}
-
-function stableHash(value: string): string {
-  let hash = 2_166_136_261;
-  for (const character of value) {
-    hash ^= character.codePointAt(0) ?? 0;
-    hash = Math.imul(hash, 16_777_619);
-  }
-  return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
 function acceptedObservationBySeries(
@@ -494,7 +416,7 @@ function requestWindows(
 type FetchedRates =
   | {
       ok: true;
-      raw: string;
+      bodyHash: string;
       rows: z.infer<typeof FrankfurterRatesSchema>;
       status: number;
     }
@@ -532,7 +454,7 @@ async function fetchRates(input: {
     const raw = await response.text();
     return {
       ok: true,
-      raw,
+      bodyHash: await sha256Hex(raw),
       rows: FrankfurterRatesSchema.parse(JSON.parse(raw)),
       status: response.status,
     };
@@ -558,15 +480,15 @@ function observationFromRow(input: {
   fromCurrency: Currency;
   toCurrency: Currency;
   url: string;
-  raw: string;
+  bodyHash: string;
   retrievedAt: string;
   previous?: ExchangeRateObservation;
 }): ExchangeRateObservation {
   const rateDecimal = input.row.rate.toString();
-  const sourceReference = `${input.url}#row=${input.rowIndex}&body=${stableHash(input.raw)}`;
-  const versionHash = stableHash(`${rateDecimal}\0${input.retrievedAt}`);
+  const sourceReference = `${input.url}#row=${input.rowIndex}&body=${input.bodyHash}`;
+  const version = `${input.bodyHash.slice(0, 12)}-${input.rowIndex}-${input.retrievedAt}`;
   return {
-    id: `fx-frankfurter-${input.row.date}-${input.fromCurrency.toLowerCase()}-${input.toCurrency.toLowerCase()}-${versionHash}`,
+    id: `fx-frankfurter-${input.row.date}-${input.fromCurrency.toLowerCase()}-${input.toCurrency.toLowerCase()}-${version}`,
     fromCurrency: input.fromCurrency,
     toCurrency: input.toCurrency,
     rate: input.row.rate,
@@ -598,7 +520,7 @@ function normalizeRows(input: {
   base: Currency;
   quotes: readonly Currency[];
   url: string;
-  raw: string;
+  bodyHash: string;
   retrievedAt: string;
   accepted: Map<string, ExchangeRateObservation>;
 }): { observations: ExchangeRateObservation[]; returned: Set<string> } {
@@ -629,7 +551,7 @@ function normalizeRows(input: {
       fromCurrency: from.data,
       toCurrency: to.data,
       url: input.url,
-      raw: input.raw,
+      bodyHash: input.bodyHash,
       retrievedAt: input.retrievedAt,
       previous,
     });
@@ -707,7 +629,7 @@ export async function importHistoricalExchangeRates(
         base,
         quotes,
         url,
-        raw: fetched.raw,
+        bodyHash: fetched.bodyHash,
         retrievedAt,
         accepted,
       });
