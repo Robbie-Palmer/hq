@@ -101,6 +101,7 @@ const parentKnowledgeScope = alias(
   knowledgeScope,
   "relationship_parent_knowledge_scope",
 );
+const selectionLineageWorkItem = alias(workItem, "selection_lineage_work_item");
 const childKnowledgeScope = alias(
   knowledgeScope,
   "relationship_child_knowledge_scope",
@@ -489,6 +490,8 @@ const hasSelectionFilters = (scope: WorkItemSelectionScope): boolean => {
     normalizedScope.parentId !== undefined ||
     normalizedScope.includeInitiativeIds !== undefined ||
     normalizedScope.excludeInitiativeIds !== undefined ||
+    normalizedScope.includeParentTitles !== undefined ||
+    normalizedScope.excludeParentTitles !== undefined ||
     normalizedScope.includeProjectIds !== undefined ||
     normalizedScope.excludeProjectIds !== undefined
   );
@@ -497,11 +500,15 @@ const hasSelectionFilters = (scope: WorkItemSelectionScope): boolean => {
 const selectionList = (values: readonly string[]): SQL =>
   sql.join(values.map((value) => sql`${value}`), sql`, `);
 
+const caseInsensitiveSelectionList = (values: readonly string[]): SQL =>
+  sql.join(values.map((value) => sql`lower(${value})`), sql`, `);
+
 const workItemSelectionWhere = (
   scope: WorkItemSelectionScope,
 ): SQL | undefined => {
   const normalizedScope = normalizeWorkItemSelectionScope(scope);
   const includeInitiativeIds = normalizedScope.includeInitiativeIds ?? [];
+  const includeParentTitles = normalizedScope.includeParentTitles ?? [];
   const includeProjectIds = normalizedScope.includeProjectIds ?? [];
   const ownerPredicates: SQL[] = [];
   if (includeInitiativeIds.length > 0) {
@@ -552,6 +559,25 @@ const workItemSelectionWhere = (
           where ${sql.join(ownerPredicates, sql` and `)}
         )`;
 
+  const lineageTitleWhere = (titles: readonly string[], exclude: boolean) =>
+    titles.length === 0
+      ? undefined
+      : sql`${exclude ? sql`not ` : sql``}exists (
+          with recursive selection_lineage(work_item_id) as (
+            select ${workItem.id}
+            union all
+            select ${workItemHierarchy.parentWorkItemId}
+            from ${workItemHierarchy}
+            inner join selection_lineage
+              on ${workItemHierarchy.childWorkItemId} = selection_lineage.work_item_id
+          )
+          select 1
+          from selection_lineage
+          inner join ${selectionLineageWorkItem}
+            on ${selectionLineageWorkItem.id} = selection_lineage.work_item_id
+          where lower(${selectionLineageWorkItem.title}) in (${caseInsensitiveSelectionList(titles)})
+        )`;
+
   return and(
     scope.parentId === undefined
       ? undefined
@@ -561,6 +587,8 @@ const workItemSelectionWhere = (
             and ${workItemHierarchy.parentWorkItemId} = ${scope.parentId}
         )`,
     ownerWhere,
+    lineageTitleWhere(includeParentTitles, false),
+    lineageTitleWhere(normalizedScope.excludeParentTitles ?? [], true),
   );
 };
 

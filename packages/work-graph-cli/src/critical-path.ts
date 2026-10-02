@@ -57,6 +57,12 @@ const scopeLabel = (scope: CriticalPathScope): string => {
     );
   if (scope.excludeProjectIds?.length)
     parts.push(`excluding projects ${scope.excludeProjectIds.join(", ")}`);
+  if (scope.includeParentTitles?.length)
+    parts.push(`under ${scope.includeParentTitles.join(" OR ")}`);
+  if (scope.excludeParentTitles?.length)
+    parts.push(
+      `excluding parent titles ${scope.excludeParentTitles.join(", ")}`,
+    );
   return parts.join(", ") || "global";
 };
 

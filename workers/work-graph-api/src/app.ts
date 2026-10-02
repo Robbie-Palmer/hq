@@ -638,6 +638,16 @@ const repeatedScopeIdsSchema = z
     description: "Repeat the query parameter to select more than one scope.",
     param: { explode: true, style: "form" },
   });
+const repeatedParentTitlesSchema = z
+  .preprocess(
+    (value) => (typeof value === "string" ? [value] : value),
+    z.array(z.string().trim().min(1).max(MAX_TITLE_LENGTH)).max(100),
+  )
+  .openapi({
+    description:
+      "Repeat the query parameter to select more than one exact ticket title, ignoring case.",
+    param: { explode: true, style: "form" },
+  });
 const deprecatedInitiativeIdSchema = identifierSchema.optional().openapi({
   deprecated: true,
   description:
@@ -652,6 +662,8 @@ const listWorkItemsQuerySchema = z.object({
   stage: z.enum(WORK_STAGES).optional(),
   includeInitiativeIds: repeatedScopeIdsSchema.optional(),
   excludeInitiativeIds: repeatedScopeIdsSchema.optional(),
+  includeParentTitles: repeatedParentTitlesSchema.optional(),
+  excludeParentTitles: repeatedParentTitlesSchema.optional(),
   includeProjectIds: repeatedScopeIdsSchema.optional(),
   excludeProjectIds: repeatedScopeIdsSchema.optional(),
   initiativeId: deprecatedInitiativeIdSchema,
@@ -670,6 +682,8 @@ const getCriticalPathQuerySchema = z
   .object({
     includeInitiativeIds: repeatedScopeIdsSchema.optional(),
     excludeInitiativeIds: repeatedScopeIdsSchema.optional(),
+    includeParentTitles: repeatedParentTitlesSchema.optional(),
+    excludeParentTitles: repeatedParentTitlesSchema.optional(),
     includeProjectIds: repeatedScopeIdsSchema.optional(),
     excludeProjectIds: repeatedScopeIdsSchema.optional(),
     initiativeId: deprecatedInitiativeIdSchema,
@@ -679,8 +693,10 @@ const getCriticalPathQuerySchema = z
   .refine(
     ({
       excludeInitiativeIds,
+      excludeParentTitles,
       excludeProjectIds,
       includeInitiativeIds,
+      includeParentTitles,
       includeProjectIds,
       initiativeId,
       projectId,
@@ -691,6 +707,8 @@ const getCriticalPathQuerySchema = z
         projectId === undefined &&
         includeInitiativeIds === undefined &&
         excludeInitiativeIds === undefined &&
+        includeParentTitles === undefined &&
+        excludeParentTitles === undefined &&
         includeProjectIds === undefined &&
         excludeProjectIds === undefined),
     {
@@ -920,6 +938,14 @@ const createLeaseBodySchema = z.union([
       leaseDurationSeconds: leaseDurationSchema,
       includeInitiativeIds: z.array(identifierSchema).max(100).optional(),
       excludeInitiativeIds: z.array(identifierSchema).max(100).optional(),
+      includeParentTitles: z
+        .array(z.string().trim().min(1).max(MAX_TITLE_LENGTH))
+        .max(100)
+        .optional(),
+      excludeParentTitles: z
+        .array(z.string().trim().min(1).max(MAX_TITLE_LENGTH))
+        .max(100)
+        .optional(),
       includeProjectIds: z.array(identifierSchema).max(100).optional(),
       excludeProjectIds: z.array(identifierSchema).max(100).optional(),
       initiativeId: deprecatedInitiativeIdSchema,
@@ -1052,7 +1078,7 @@ const listWorkItemsRoute = createRoute({
   operationId: "listWorkItems",
   summary: "List work items with their derived stage",
   description:
-    "Returns one bounded page in global priority order. Scope arrays use repeated query parameters. Values within one inclusion dimension are alternatives, initiative and project filters must both match, and exclusions win. Empty inclusion arrays impose no restriction. Optional stage and direct-parent filters preserve priority order. The singular initiativeId and projectId parameters remain deprecated one-item inclusion aliases. Pass nextCursor to continue after the last observed item without offset drift during lease transitions.",
+    "Returns one bounded page in global priority order. Scope arrays use repeated query parameters. Values within one inclusion dimension are alternatives, initiative, project, and parent-title filters must all match, and exclusions win. Parent titles match the candidate ticket or any ancestor by exact title without regard to case. Empty inclusion arrays impose no restriction. Optional stage and direct-parent filters preserve priority order. The singular initiativeId and projectId parameters remain deprecated one-item inclusion aliases. Pass nextCursor to continue after the last observed item without offset drift during lease transitions.",
   tags: ["work-items"],
   security: accessSecurity,
   request: { query: listWorkItemsQuerySchema },
@@ -1071,7 +1097,7 @@ const getCriticalPathRoute = createRoute({
   operationId: "getCriticalPath",
   summary: "Project the current delivery-critical path",
   description:
-    "Returns one deterministic, bounded projection for global open roots, selected scopes, or one explicit root work item. Scope arrays use repeated query parameters. Values within one inclusion dimension are alternatives, initiative and project filters must both match, and exclusions win. Exclusions remove matching targets but retain cross-scope blockers required by included outcomes. The singular initiativeId and projectId parameters remain deprecated one-item inclusion aliases. An explicit root cannot be combined with scope filters. Projections are limited to 1,000 nodes, 5,000 edges, and 5,000 blocking paths; larger projections return a conflict instead of a partial graph.",
+    "Returns one deterministic, bounded projection for global open roots, selected scopes, or one explicit root work item. Scope arrays use repeated query parameters. Values within one inclusion dimension are alternatives, initiative, project, and parent-title filters must all match, and exclusions win. Parent titles match the candidate ticket or any ancestor by exact title without regard to case. Exclusions remove matching targets but retain cross-scope blockers required by included outcomes. The singular initiativeId and projectId parameters remain deprecated one-item inclusion aliases. An explicit root cannot be combined with scope filters. Projections are limited to 1,000 nodes, 5,000 edges, and 5,000 blocking paths; larger projections return a conflict instead of a partial graph.",
   tags: ["work-items"],
   security: accessSecurity,
   request: { query: getCriticalPathQuerySchema },

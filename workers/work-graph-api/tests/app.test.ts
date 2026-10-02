@@ -304,7 +304,7 @@ describe("Given a requested delivery-critical path", () => {
     const app = createWorkGraphApp(repository);
 
     const response = await app.request(
-      "/api/critical-path?includeInitiativeIds=initiative-a&includeInitiativeIds=initiative-b&includeProjectIds=project-a&excludeProjectIds=project-b",
+      "/api/critical-path?includeInitiativeIds=initiative-a&includeInitiativeIds=initiative-b&includeProjectIds=project-a&excludeProjectIds=project-b&includeParentTitles=Ship%20Work%20Graph&excludeParentTitles=Build%20API",
     );
 
     expect(response.status).toBe(200);
@@ -312,6 +312,8 @@ describe("Given a requested delivery-critical path", () => {
       includeInitiativeIds: ["initiative-a", "initiative-b"],
       includeProjectIds: ["project-a"],
       excludeProjectIds: ["project-b"],
+      includeParentTitles: ["Ship Work Graph"],
+      excludeParentTitles: ["Build API"],
     });
   });
 
@@ -739,13 +741,15 @@ describe("Given work items with derived readiness", () => {
     const app = createWorkGraphApp(repository);
 
     const response = await app.request(
-      "/api/work-items?includeProjectIds=project-a&includeProjectIds=project-b&excludeInitiativeIds=initiative-b",
+      "/api/work-items?includeProjectIds=project-a&includeProjectIds=project-b&excludeInitiativeIds=initiative-b&includeParentTitles=Ship%20Work%20Graph&excludeParentTitles=Build%20API",
     );
 
     expect(response.status).toBe(200);
     expect(repository.listWorkItems).toHaveBeenCalledWith({
       includeProjectIds: ["project-a", "project-b"],
       excludeInitiativeIds: ["initiative-b"],
+      includeParentTitles: ["Ship Work Graph"],
+      excludeParentTitles: ["Build API"],
     });
   });
 
@@ -1692,6 +1696,8 @@ describe("Given a worker managing a lease", () => {
         leaseDurationSeconds: 300,
         includeProjectIds: ["project-a", "project-b"],
         excludeProjectIds: ["project-b"],
+        includeParentTitles: ["Ship Work Graph"],
+        excludeParentTitles: ["Build API"],
       }),
     });
 
@@ -1702,6 +1708,8 @@ describe("Given a worker managing a lease", () => {
       leaseDurationSeconds: 300,
       includeProjectIds: ["project-a", "project-b"],
       excludeProjectIds: ["project-b"],
+      includeParentTitles: ["Ship Work Graph"],
+      excludeParentTitles: ["Build API"],
     });
   });
 

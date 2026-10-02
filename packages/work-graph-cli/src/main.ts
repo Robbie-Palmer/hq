@@ -51,12 +51,14 @@ const compactHelp = (command: HelpCommand): void => {
   for (const child of command.commands) compactHelp(child);
 };
 
-// Keep contract field names for JSON input while exposing one ID per flag.
+// Keep contract field names for JSON input while exposing one value per flag.
 const selectionFlags: Record<string, string> = {
   includeProjectIds: "project",
   excludeProjectIds: "exclude-project",
   includeInitiativeIds: "initiative",
   excludeInitiativeIds: "exclude-initiative",
+  includeParentTitles: "parent-title",
+  excludeParentTitles: "exclude-parent-title",
 };
 
 const configureSelectionFlags = (program: Command): void => {
@@ -67,7 +69,8 @@ const configureSelectionFlags = (program: Command): void => {
       const key = option.attributeName();
       const flag = selectionFlags[key];
       if (flag === undefined) continue;
-      option.flags = `--${flag} <id>`;
+      const valueName = key.endsWith("ParentTitles") ? "title" : "id";
+      option.flags = `--${flag} <${valueName}>`;
       option.short = `--${flag}`;
       option.required = true;
       option.optional = false;
@@ -82,7 +85,7 @@ const configureSelectionFlags = (program: Command): void => {
     }
     command.addHelpText(
       "after",
-      "\nSelection: OR within each inclusion kind; AND across project and initiative inclusions.\nExclusions take precedence. Repeat a flag for each ID; IDs are literal, without CSV or sigils.\n",
+      "\nSelection: OR within each inclusion kind; AND across project, initiative, and parent-title inclusions.\nExclusions take precedence. Repeat a flag for each ID or title; parent titles ignore case. Values are literal, without CSV or sigils.\n",
     );
   }
 };

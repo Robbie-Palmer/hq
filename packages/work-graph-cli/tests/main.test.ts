@@ -2010,6 +2010,8 @@ describe("scope selection lists", () => {
     excludeProjectIds: ["beta", "recipe-site"],
     includeInitiativeIds: ["one", "two"],
     excludeInitiativeIds: ["two", "three"],
+    includeParentTitles: ["Ship Work Graph", "Improve CLI"],
+    excludeParentTitles: ["Build API"],
   };
   const flags = [
     "--project",
@@ -2028,6 +2030,12 @@ describe("scope selection lists", () => {
     "two",
     "--exclude-initiative",
     "three",
+    "--parent-title",
+    "Ship Work Graph",
+    "--parent-title",
+    "Improve CLI",
+    "--exclude-parent-title",
+    "Build API",
   ];
   it.each(["ready", "queue", "claim", "critical-path"])(
     "encodes repeated %s filters and leaves exclusion precedence to the API",
@@ -2057,6 +2065,12 @@ describe("scope selection lists", () => {
         expect(test.stdout.join("")).toContain("initiative one OR two");
         expect(test.stdout.join("")).toContain(
           "excluding initiatives two, three",
+        );
+        expect(test.stdout.join("")).toContain(
+          "under Ship Work Graph OR Improve CLI",
+        );
+        expect(test.stdout.join("")).toContain(
+          "excluding parent titles Build API",
         );
       }
     },
@@ -2142,6 +2156,8 @@ describe("scope selection lists", () => {
     "--exclude-project",
     "--initiative",
     "--exclude-initiative",
+    "--parent-title",
+    "--exclude-parent-title",
   ])("rejects %s with a direct claim or root projection", async (flag) => {
     for (const args of [
       ["claim", "ticket"],
@@ -2187,10 +2203,14 @@ describe("scope selection lists", () => {
         "--exclude-project <id>",
         "--initiative <id>",
         "--exclude-initiative <id>",
+        "--parent-title <title>",
+        "--exclude-parent-title <title>",
       ])
         expect(help).toContain(flag);
       expect(help).toContain("OR within each inclusion kind");
-      expect(help).toContain("AND across project and initiative");
+      expect(help).toContain(
+        "AND across project, initiative, and parent-title",
+      );
       expect(help).toContain("Exclusions take precedence");
       expect(help).toContain("Deprecated one-value alias");
     },
