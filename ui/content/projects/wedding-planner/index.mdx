@@ -1,18 +1,22 @@
 ---
 title: "Wedding planner"
-description: "A personal wedding planner, starting with accommodation and built to grow"
+description: "A personal wedding planner for accommodation and table seating"
 date: "2026-10-01"
 status: "in_progress"
 ---
 
 # Wedding planner
 
-This is a place for the wedding decisions that need more than a checklist. It starts with accommodation: matching guests to beds, rooms and cottages while respecting who is comfortable sharing and working out fair costs.
+This is a place for the wedding decisions that need more than a checklist. It matches guests to beds, rooms and cottages while respecting who is comfortable sharing and working out fair costs. The same guest list and confirmed couples also feed a table planner.
 
-Services such as [Joy](https://withjoy.com/) cover wedding websites, guest lists and RSVPs. This project can handle planning gaps alongside a service like that. Later it could also help with table plans or become a more personal guest-facing wedding site.
+Services such as [Joy](https://withjoy.com/) cover wedding websites, guest lists and RSVPs. This project can handle planning gaps alongside a service like that. Later it could become a more personal guest-facing wedding site.
 
 [Open the planner](/wedding-planner)
 
-The planner stores guests and choices in your browser. Import a JSON plan to start, and export a backup if you want to move it to another browser. It does not sync between devices.
+The planner stores guests and choices in your browser. Try the sample with fictional guests or import a JSON plan to start, and export a backup if you want to move it to another browser. It does not sync between devices.
 
-The accommodation planner models couples as one bed group and allows individual sharing choices at bed, room and cottage level. It allocates higher priority guests to the included Riverside suites before cottages. The room plan separates rent already paid, rent still due, guest reimbursements and the couple's final cost.
+The shared guest model records attendance, invitations, couples and wedding roles independently of sleeping arrangements. Both planners use a domain package, with a repository for saving plans and adapters for browser storage and optimisation. Existing backups migrate when loaded. Guests can be bridesmaids, groomsmen, parents of the bride or groom, and other wedding-party members. Their roles are separate from top-table placement and accommodation payments.
+
+The accommodation planner records shared bed groups and allows individual sharing choices at bed, room and cottage level. Couples can choose separate beds while remaining a couple for table seating. It allocates higher priority guests to the included Riverside suites before cottages. The room plan separates rent already paid, rent still due, guest reimbursements and the couple's final cost.
+
+The table planner fixes the wedding party at the top table and keeps other confirmed couples together. It respects keep-apart rules, maximizes preferred pairs at the same table, then balances table sizes. Guest table counts and individual capacities can change between calculations. Wedding attendance is separate from overnight stays, so day guests can have a seat too.

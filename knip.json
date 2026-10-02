@@ -43,6 +43,7 @@
       "entry": ["vitest.integration.config.ts"]
     },
     "packages/writing-editor-domain": {},
+    "packages/wedding-planner-domain": {},
     "ui": {
       "ignore": [
         "content/**",

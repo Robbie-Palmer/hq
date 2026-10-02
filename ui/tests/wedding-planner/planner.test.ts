@@ -2,8 +2,9 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { ResultPlan } from "@/components/wedding-planner/result-plan";
-import { browserPlannerSource } from "@/lib/wedding-planner/browser-source";
+import { browserWeddingPlanRepository } from "@/lib/wedding-planner/browser-repository";
 import { calculateRooms } from "@/lib/wedding-planner/calculate";
+import { decodeWeddingPlan } from "@/lib/wedding-planner/plan-codec";
 import type { AccommodationSetup } from "@/lib/wedding-planner/setup";
 import {
   markNotCouple,
@@ -222,12 +223,14 @@ describe("wedding planner accommodation", () => {
         "wedding-rooms:plan:v1",
         JSON.stringify(legacy),
       );
-      expect(await browserPlannerSource.load()).toEqual(parseState(legacy));
+      expect(await browserWeddingPlanRepository.load()).toEqual(
+        decodeWeddingPlan(legacy),
+      );
       expect(
         JSON.parse(
-          window.localStorage.getItem("wedding-planner:plan:v1") ?? "null",
+          window.localStorage.getItem("wedding-planner:plan:v2") ?? "null",
         ),
-      ).toEqual(parseState(legacy));
+      ).toEqual(decodeWeddingPlan(legacy));
     } finally {
       window.localStorage.clear();
     }

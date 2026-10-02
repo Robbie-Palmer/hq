@@ -1,8 +1,8 @@
+import { propertyStayPrice } from "wedding-planner-domain/accommodation";
 import {
   formatMinorCurrency,
   parseMoneyToMinorUnits,
 } from "@/lib/generic/money";
-import { propertyStayPrice } from "@/lib/wedding-planner/prices";
 import {
   type AccommodationSetup,
   weddingAccommodationSetup,

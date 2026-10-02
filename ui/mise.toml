@@ -21,7 +21,7 @@ run = "pnpm dev:qr"
 description = "Build Next.js application for production"
 depends = ["//ui:install", "//cpp/autonomic-satellite-swarm:browser:build"]
 run = "pnpm build"
-sources = ["app/**/*", "components/**/*", "content/**/*", "lib/**/*", "public/**/*", "scripts/**/*", "*.ts", "*.tsx", "*.json"]
+sources = ["app/**/*", "components/**/*", "content/**/*", "lib/**/*", "public/**/*", "scripts/**/*", "../packages/wedding-planner-domain/src/**/*", "*.ts", "*.tsx", "*.json"]
 outputs = ["out/**/*"]
 
 [tasks.test]

@@ -4,7 +4,7 @@ import "@/components/wedding-planner/style.css";
 export const metadata: Metadata = {
   title: "Wedding planner",
   description:
-    "Private, browser-based wedding planner, starting with accommodation",
+    "Private, browser-based wedding planner for accommodation and table seating",
   robots: { index: false, follow: false },
 };
 
