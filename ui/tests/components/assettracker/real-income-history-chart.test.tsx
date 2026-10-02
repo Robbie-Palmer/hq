@@ -16,12 +16,23 @@ vi.mock("recharts", () => ({
       {children}
     </div>
   ),
-  Line: ({ dataKey }: { dataKey: string }) => <div data-series={dataKey} />,
+  Line: ({ dataKey, dot }: { dataKey: string; dot?: boolean }) => (
+    <div
+      data-dots={dot === false ? "hidden" : "visible"}
+      data-series={dataKey}
+    />
+  ),
   CartesianGrid: () => null,
   Legend: () => null,
-  Tooltip: () => null,
-  XAxis: () => null,
-  YAxis: () => null,
+  Tooltip: ({ formatter }: { formatter?: (value: number) => string }) => (
+    <span>{formatter?.(1_000)}</span>
+  ),
+  XAxis: ({ tickFormatter }: { tickFormatter?: (date: string) => string }) => (
+    <span>{tickFormatter?.("2025-01-31")}</span>
+  ),
+  YAxis: ({ tickFormatter }: { tickFormatter?: (value: number) => string }) => (
+    <span>{tickFormatter?.(1_000)}</span>
+  ),
 }));
 
 const release: InflationDatasetRelease = {
@@ -82,6 +93,56 @@ describe("buildRealIncomeHistorySeries", () => {
       ),
     ).toEqual([{ date: "2025-04-30", nominalIncome: 3_400 }]);
   });
+
+  it("keeps nominal data when no CPIH release is available", () => {
+    expect(
+      buildRealIncomeHistorySeries(
+        [{ date: "2025-01-31", amount: 3_000, currency: "GBP" }],
+        null,
+        "GBP",
+      ),
+    ).toEqual([{ date: "2025-01-31", nominalIncome: 3_000 }]);
+  });
+
+  it("uses the final year as the reference period for annual releases", () => {
+    const annualRelease: InflationDatasetRelease = {
+      ...release,
+      source: {
+        ...release.source,
+        frequency: "annual",
+        coverageFrom: "2024",
+        coverageThrough: "2025",
+      },
+      observations: [
+        { period: "2024", value: 100 },
+        { period: "2025", value: 110 },
+      ],
+    };
+
+    expect(
+      buildRealIncomeHistorySeries(
+        [{ date: "2024-06-30", amount: 3_000, currency: "GBP" }],
+        annualRelease,
+        "GBP",
+      ),
+    ).toEqual([
+      {
+        date: "2024-06-30",
+        nominalIncome: 3_000,
+        adjustedIncome: 3_300,
+      },
+    ]);
+  });
+
+  it("does not hide programming errors from the inflation calculator", () => {
+    expect(() =>
+      buildRealIncomeHistorySeries(
+        [{ date: "2025-01-31", amount: Number.NaN, currency: "GBP" }],
+        release,
+        "GBP",
+      ),
+    ).toThrow("Inflation adjustment amount must be finite");
+  });
 });
 
 describe("RealIncomeHistoryChart", () => {
@@ -126,6 +187,52 @@ describe("RealIncomeHistoryChart", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent(
       "CPIH adjustment is unavailable for these income records",
+    );
+  });
+
+  it("shows an isolated adjusted value when later records lack CPIH data", () => {
+    render(
+      <RealIncomeHistoryChart
+        incomeHistory={[
+          { date: "2025-03-31", amount: 3_300, currency: "GBP" },
+          { date: "2025-04-30", amount: 3_400, currency: "GBP" },
+        ]}
+        release={release}
+      />,
+    );
+
+    const adjustedLine = document.querySelector(
+      '[data-series="adjustedIncome"]',
+    );
+    expect(adjustedLine).toHaveAttribute("data-dots", "visible");
+  });
+
+  it("distinguishes other-currency records from an empty history", () => {
+    render(
+      <RealIncomeHistoryChart
+        incomeHistory={[{ date: "2025-01-31", amount: 4_000, currency: "USD" }]}
+        release={release}
+      />,
+    );
+
+    expect(screen.getByText("No GBP income history")).toBeVisible();
+    expect(screen.getByText(/1 record uses another currency/)).toBeVisible();
+    expect(screen.queryByText("No income history yet")).not.toBeInTheDocument();
+  });
+
+  it("reports other-currency records omitted from a populated chart", () => {
+    render(
+      <RealIncomeHistoryChart
+        incomeHistory={[
+          { date: "2025-01-31", amount: 3_000, currency: "GBP" },
+          { date: "2025-01-31", amount: 4_000, currency: "USD" },
+        ]}
+        release={release}
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "1 income record uses a different currency and is not shown",
     );
   });
 });

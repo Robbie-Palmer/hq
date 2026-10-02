@@ -1,16 +1,8 @@
 "use client";
 
-import { format, parseISO } from "date-fns";
 import { latestOnsInflationRelease } from "finance-inflation-indices/dataset";
 import Link from "next/link";
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Line, LineChart, ResponsiveContainer } from "recharts";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -19,13 +11,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
-import { formatCurrency, formatCurrencyAxisTick } from "@/lib/assettracker";
+import { type ChartConfig, ChartContainer } from "@/components/ui/chart";
+import { formatCurrency } from "@/lib/assettracker";
 import {
   adjustForInflation,
   type Currency,
@@ -34,6 +21,7 @@ import {
   InflationDataError,
   type InflationDatasetRelease,
 } from "@/lib/domain/assettracker";
+import { CurrencyHistoryChartAxes } from "./currency-history-chart-axes";
 import { InflationDatasetDisclosure } from "./inflation-dataset-disclosure";
 
 const NOMINAL_COLOR = "hsl(220, 70%, 50%)";
@@ -107,6 +95,32 @@ function LegendItem({
   );
 }
 
+function IncomeHistoryEmptyState({
+  currency,
+  excludedCurrencyCount,
+}: Readonly<{ currency: Currency; excludedCurrencyCount: number }>) {
+  const hasOtherCurrencyHistory = excludedCurrencyCount > 0;
+  return (
+    <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-lg border border-dashed px-6 text-center">
+      <div className="space-y-1">
+        <p className="font-medium">
+          {hasOtherCurrencyHistory
+            ? `No ${currency} income history`
+            : "No income history yet"}
+        </p>
+        <p className="max-w-md text-sm text-muted-foreground">
+          {hasOtherCurrencyHistory
+            ? `${excludedCurrencyCount} ${excludedCurrencyCount === 1 ? "record uses" : "records use"} another currency and cannot be compared with UK CPIH without an exchange rate.`
+            : "Import dated income totals to compare the recorded amounts with their CPIH-adjusted value."}
+        </p>
+      </div>
+      <Button asChild variant="outline">
+        <Link href="/assettracker/imports">Import income history</Link>
+      </Button>
+    </div>
+  );
+}
+
 export function RealIncomeHistoryChart({
   incomeHistory,
   currency = DEFAULT_BASE_CURRENCY,
@@ -122,6 +136,9 @@ export function RealIncomeHistoryChart({
   const unavailableCount = data.filter(
     (point) => point.adjustedIncome == null,
   ).length;
+  const adjustedCount = data.length - unavailableCount;
+  const excludedCurrencyCount = incomeHistory.length - data.length;
+  const hasOtherCurrencyHistory = excludedCurrencyCount > 0;
 
   return (
     <Card>
@@ -134,18 +151,10 @@ export function RealIncomeHistoryChart({
       </CardHeader>
       <CardContent className="space-y-4 px-2 sm:px-6">
         {data.length === 0 ? (
-          <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-lg border border-dashed px-6 text-center">
-            <div className="space-y-1">
-              <p className="font-medium">No income history yet</p>
-              <p className="max-w-md text-sm text-muted-foreground">
-                Import dated income totals to compare the recorded amounts with
-                their CPIH-adjusted value.
-              </p>
-            </div>
-            <Button asChild variant="outline">
-              <Link href="/assettracker/imports">Import income history</Link>
-            </Button>
-          </div>
+          <IncomeHistoryEmptyState
+            currency={currency}
+            excludedCurrencyCount={excludedCurrencyCount}
+          />
         ) : (
           <>
             <ChartContainer
@@ -159,31 +168,7 @@ export function RealIncomeHistoryChart({
                   data={data}
                   margin={{ top: 10, right: 18, left: 0, bottom: 5 }}
                 >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    className="stroke-muted"
-                  />
-                  <XAxis
-                    dataKey="date"
-                    className="text-xs"
-                    minTickGap={24}
-                    tickFormatter={(date: string) =>
-                      format(parseISO(date), "MMM yy")
-                    }
-                  />
-                  <YAxis
-                    className="text-xs"
-                    width={48}
-                    tickFormatter={(value: number) =>
-                      formatCurrencyAxisTick(value, currency)
-                    }
-                  />
-                  <ChartTooltip
-                    content={<ChartTooltipContent />}
-                    formatter={(value) =>
-                      formatCurrency(value as number, currency)
-                    }
-                  />
+                  <CurrencyHistoryChartAxes currency={currency} />
                   <Line
                     type="monotone"
                     dataKey="nominalIncome"
@@ -199,7 +184,7 @@ export function RealIncomeHistoryChart({
                     stroke={REAL_COLOR}
                     strokeWidth={2.5}
                     strokeDasharray="5 4"
-                    dot={data.length === 1}
+                    dot={adjustedCount === 1}
                     connectNulls={false}
                   />
                 </LineChart>
@@ -244,6 +229,14 @@ export function RealIncomeHistoryChart({
             {unavailableCount === data.length
               ? "CPIH adjustment is unavailable for these income records."
               : `${unavailableCount} income ${unavailableCount === 1 ? "record is" : "records are"} outside the CPIH dataset coverage and remain nominal only.`}
+          </p>
+        )}
+        {data.length > 0 && hasOtherCurrencyHistory && (
+          <p role="status" className="text-sm text-muted-foreground">
+            {excludedCurrencyCount} income{" "}
+            {excludedCurrencyCount === 1 ? "record uses" : "records use"} a
+            different currency and {excludedCurrencyCount === 1 ? "is" : "are"}{" "}
+            not shown.
           </p>
         )}
       </CardContent>

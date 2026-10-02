@@ -37,6 +37,17 @@ describe("Asset Tracker demo-data adapter", () => {
       amount: 500_000,
       currency: "GBP",
     });
+    expect(repository.incomeHistory).toHaveLength(10);
+    expect(repository.incomeHistory.at(0)).toEqual({
+      date: "2020-06-01",
+      amount: 14_400,
+      currency: "GBP",
+    });
+    expect(repository.incomeHistory.at(-1)).toEqual({
+      date: "2024-12-01",
+      amount: 19_200,
+      currency: "GBP",
+    });
   });
 
   it("uses the corrected USD market price in the latest valuation", () => {
