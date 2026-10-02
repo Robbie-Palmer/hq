@@ -53,7 +53,23 @@ export const ExchangeRateObservationSchema = z
       .regex(/^\d+(?:\.\d+)?$/)
       .optional(),
     rateClass: z.enum(["reference", "executable"]).optional(),
+    quotedAt: z.iso.datetime({ offset: true }).optional(),
     retrievedAt: z.iso.datetime({ offset: true }).optional(),
+    bid: z.number().positive().optional(),
+    ask: z.number().positive().optional(),
+    spread: z.number().nonnegative().optional(),
+    providerFee: z
+      .object({
+        amount: z.number().nonnegative(),
+        currency: CurrencySchema,
+      })
+      .optional(),
+    deliveredAmount: z
+      .object({
+        amount: z.number().nonnegative(),
+        currency: CurrencySchema,
+      })
+      .optional(),
     sourceReference: z.string().min(1).optional(),
     providerObservations: z
       .array(
