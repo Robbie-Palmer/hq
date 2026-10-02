@@ -2852,10 +2852,10 @@
                 "maxLength": 10000
               },
               "maxItems": 100,
-              "description": "Repeat the query parameter to select more than one case-insensitive exact ticket title."
+              "description": "Repeat the query parameter to select more than one exact ticket title, ignoring case."
             },
             "required": false,
-            "description": "Repeat the query parameter to select more than one case-insensitive exact ticket title.",
+            "description": "Repeat the query parameter to select more than one exact ticket title, ignoring case.",
             "explode": true,
             "style": "form",
             "name": "includeParentTitles",
@@ -2870,10 +2870,10 @@
                 "maxLength": 10000
               },
               "maxItems": 100,
-              "description": "Repeat the query parameter to select more than one case-insensitive exact ticket title."
+              "description": "Repeat the query parameter to select more than one exact ticket title, ignoring case."
             },
             "required": false,
-            "description": "Repeat the query parameter to select more than one case-insensitive exact ticket title.",
+            "description": "Repeat the query parameter to select more than one exact ticket title, ignoring case.",
             "explode": true,
             "style": "form",
             "name": "excludeParentTitles",
@@ -5683,10 +5683,10 @@
                 "maxLength": 10000
               },
               "maxItems": 100,
-              "description": "Repeat the query parameter to select more than one case-insensitive exact ticket title."
+              "description": "Repeat the query parameter to select more than one exact ticket title, ignoring case."
             },
             "required": false,
-            "description": "Repeat the query parameter to select more than one case-insensitive exact ticket title.",
+            "description": "Repeat the query parameter to select more than one exact ticket title, ignoring case.",
             "explode": true,
             "style": "form",
             "name": "includeParentTitles",
@@ -5701,10 +5701,10 @@
                 "maxLength": 10000
               },
               "maxItems": 100,
-              "description": "Repeat the query parameter to select more than one case-insensitive exact ticket title."
+              "description": "Repeat the query parameter to select more than one exact ticket title, ignoring case."
             },
             "required": false,
-            "description": "Repeat the query parameter to select more than one case-insensitive exact ticket title.",
+            "description": "Repeat the query parameter to select more than one exact ticket title, ignoring case.",
             "explode": true,
             "style": "form",
             "name": "excludeParentTitles",

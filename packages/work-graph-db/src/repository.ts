@@ -573,7 +573,7 @@ const workItemSelectionWhere = (
           )
           select 1
           from selection_lineage
-          inner join ${selectionLineageWorkItem}
+          inner join ${workItem} as selection_lineage_work_item
             on ${selectionLineageWorkItem.id} = selection_lineage.work_item_id
           where lower(${selectionLineageWorkItem.title}) in (${caseInsensitiveSelectionList(titles)})
         )`;
