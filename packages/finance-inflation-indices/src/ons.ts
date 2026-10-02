@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { parseCsv } from "ts-base/csv";
 import { ENGLISH_MONTH_ABBREVIATIONS } from "ts-base/dates";
 import { fetchWithRetry } from "ts-base/http";
 import {
@@ -94,47 +95,6 @@ export const ONS_INFLATION_SOURCES: readonly OnsInflationSourceSpec[] = [
     csvUrl: csvUrl("CHAW"),
   },
 ] as const;
-
-// A stateful RFC 4180 scan keeps quoted commas, escaped quotes, and line breaks
-// intact. Splitting this state machine makes its transitions harder to audit.
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: CSV state machine
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let quoted = false;
-  for (let index = 0; index < text.length; index += 1) {
-    const character = text[index];
-    if (quoted) {
-      if (character === '"' && text[index + 1] === '"') {
-        field += '"';
-        index += 1;
-      } else if (character === '"') {
-        quoted = false;
-      } else {
-        field += character;
-      }
-    } else if (character === '"') {
-      quoted = true;
-    } else if (character === ",") {
-      row.push(field);
-      field = "";
-    } else if (character === "\n") {
-      row.push(field.replace(/\r$/, ""));
-      rows.push(row);
-      row = [];
-      field = "";
-    } else {
-      field += character;
-    }
-  }
-  if (field !== "" || row.length > 0) {
-    row.push(field.replace(/\r$/, ""));
-    rows.push(row);
-  }
-  if (quoted) throw new Error("ONS CSV contains an unterminated quoted field");
-  return rows;
-}
 
 function releaseDateFromCsv(value: string): string {
   const match = /^(\d{2})-(\d{2})-(\d{4})$/.exec(value);
