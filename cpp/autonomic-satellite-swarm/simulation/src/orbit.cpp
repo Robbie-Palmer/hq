@@ -151,8 +151,8 @@ int64_t Sgp4Orbit::epochUnixMilliseconds() const {
 }
 
 PropagationResult Sgp4Orbit::propagate(int64_t epoch_unix_milliseconds) const {
-  const auto elapsed_milliseconds =
-      static_cast<double>(epoch_unix_milliseconds - implementation_->epoch_unix_milliseconds);
+  const double elapsed_milliseconds = static_cast<double>(epoch_unix_milliseconds) -
+                                      static_cast<double>(implementation_->epoch_unix_milliseconds);
   const double requested_julian_date =
       implementation_->epoch_julian_date + elapsed_milliseconds / kMillisecondsPerDay;
   const double minutes_since_epoch = elapsed_milliseconds / (60.0 * 1'000.0);

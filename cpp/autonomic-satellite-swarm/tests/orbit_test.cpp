@@ -154,6 +154,7 @@ TEST_CASE("snapshot adaptation rejects invalid and degenerate Earth-fixed result
 
 TEST_CASE("SGP4 rejects propagation outside its supported numerical range") {
   const Sgp4Orbit orbit(kNearEarthReference);
+  CHECK_THROWS_AS(orbit.propagate(std::numeric_limits<int64_t>::min()), OrbitPropagationError);
   CHECK_THROWS_AS(orbit.propagate(std::numeric_limits<int64_t>::max()), OrbitPropagationError);
 }
 

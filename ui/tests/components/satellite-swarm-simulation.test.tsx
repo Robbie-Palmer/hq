@@ -449,6 +449,18 @@ describe("SatelliteSwarmSimulation", () => {
     ).toBeEnabled();
   });
 
+  it("describes assignment loss using the winning node", () => {
+    render(
+      <SatelliteSwarmSimulation
+        data={{ ...data, scenario: "three-node-assignment-loss" }}
+      />,
+    );
+
+    expect(
+      screen.getByText(/before the winning node receives it/i),
+    ).toBeVisible();
+  });
+
   it("formats minute- and hour-scale orbit replay timestamps", async () => {
     const user = userEvent.setup();
     const firstFrame = data.frames[0];

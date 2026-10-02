@@ -153,7 +153,7 @@ export function SatelliteSwarmSimulation({
           {isSouthPoleMission &&
             " The exact pole is a deliberate coordinate edge case."}
           {hasLostAssignment &&
-            " The fault schedule drops the winning assignment before the selected node receives it."}
+            " The fault schedule drops the winning assignment before the winning node receives it."}
         </p>
         <p className="font-mono text-xs text-muted-foreground">
           Simulation UTC{" "}
