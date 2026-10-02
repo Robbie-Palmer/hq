@@ -9,6 +9,8 @@ export * from "./assetTrackerViews";
 export * from "./balanceSnapshot";
 export * from "./capitalFlow";
 export * from "./currency";
+export * from "./exchangeRateDecimal";
+export * from "./exchangeRateImport";
 export * from "./incomeRecord";
 export * from "./money";
 export * from "./pastedHistory";
