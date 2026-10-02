@@ -15,6 +15,30 @@ Inheritance Tax, and other personal-finance rules without moving the existing da
 | National Insurance | Employee Class 1 category A; weekly and monthly pay periods; non-directors |
 | Pensions | Salary sacrifice, net pay, relief at source; relief limit, annual allowance, taper, and MPAA |
 
+## Salary validation corpus
+
+`validationCorpus` is a synthetic, source-linked set of annual and payroll cases.
+It covers tax-band boundaries, the Personal Allowance taper, Scottish rates,
+pension contribution methods, bonuses, job changes, partial years, NI changes,
+pay frequency, PAYE basis, tax codes, and HMRC rounding. No fixture contains a
+real person's pay or tax record.
+
+Each supported fixture declares one of two precision levels:
+
+- `annual-liability-estimate` compares annual Income Tax and an NI estimate based
+  on twelve monthly threshold periods. It is not payslip reconciliation.
+- `exact-payroll-deduction` carries the pay period, tax code, cumulative state,
+  NI category, and HMRC rounding contract needed for a payroll comparison.
+
+`evaluateValidationFixture` compares every calculation component separately. It
+also rejects a candidate built from a different library, rule dataset, or
+calculation contract version. Unsupported inputs have explicit reasons, so a
+library cannot silently substitute category A NI or discard missing prior payroll
+state.
+
+The build writes the corpus to `artifacts/validation/` and records its version,
+fixture count, and source-snapshot digests in the artifact manifest.
+
 England and Northern Ireland share one Income Tax rule because the same UK schedule
 governs both. Wales has a separate rule identity because the Senedd sets Welsh rates.
 Those rates produce the same overall 20%, 40%, and 45% rates in every supported year.

@@ -4,6 +4,12 @@ import { describe, expect, it } from "vitest";
 import { buildArtifacts, validateDataset } from "../src/build";
 import { ruleDataset } from "../src/data";
 import { resolveRules } from "../src/index";
+import {
+  evaluateValidationFixture,
+  validateValidationCorpus,
+  type ValidationCandidate,
+} from "../src/validation";
+import { validationCorpus } from "../src/validationData";
 
 const packageRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
@@ -24,6 +30,91 @@ describe("UK tax rule dataset", () => {
     expect(first.get("artifacts/manifest.json")).not.toContain(
       "artifacts/announced/2026.10.0.json",
     );
+    expect(first.get("artifacts/validation/2026.10.0.json")).toContain(
+      '"calculationContractVersion": "salary-validation-v1"',
+    );
+    expect(first.get("artifacts/manifest.json")).toContain('"fixtureCount": 16');
+  });
+});
+
+describe("salary validation corpus", () => {
+  it("covers the required annual, payroll, pension, and unsupported cases", () => {
+    const corpus = validateValidationCorpus(validationCorpus);
+
+    expect(corpus.syntheticDataOnly).toBe(true);
+    expect(corpus.fixtures).toHaveLength(16);
+    expect(
+      corpus.fixtures
+        .filter(({ expected }) => expected.supported)
+        .every(({ sources }) => sources.length > 0),
+    ).toBe(true);
+  });
+
+  it("rejects source hosts that merely end with the government suffix", () => {
+    const maliciousCorpus = {
+      ...validationCorpus,
+      sources: validationCorpus.sources.map((source, index) =>
+        index === 0 ? { ...source, url: "https://notgov.uk/payroll-rules" } : source,
+      ),
+    };
+
+    expect(() => validateValidationCorpus(maliciousCorpus)).toThrow(
+      "is not an official government source",
+    );
+  });
+
+  it("reports component mismatches and refuses annual precision for payroll", () => {
+    const fixture = validationCorpus.fixtures.find(
+      ({ id }) => id === "payroll-monthly-br",
+    );
+    if (!fixture?.expected.supported) {
+      throw new Error("Expected a supported payroll fixture");
+    }
+    const candidate: ValidationCandidate = {
+      supported: true,
+      libraryVersion: validationCorpus.libraryVersion,
+      ruleDatasetVersion: validationCorpus.ruleDatasetVersion,
+      calculationVersion: validationCorpus.calculationContractVersion,
+      precision: "annual-liability-estimate",
+      components: {
+        ...fixture.expected.components,
+        incomeTaxPence: fixture.expected.components.incomeTaxPence + 1,
+      },
+    };
+
+    expect(evaluateValidationFixture(fixture, candidate, validationCorpus)).toMatchObject({
+      passed: false,
+      mismatches: [
+        { component: "precision" },
+        { component: "incomeTaxPence", expected: 60_000, actual: 60_001 },
+      ],
+    });
+  });
+
+  it("requires the declared reason when a candidate rejects an input", () => {
+    const fixture = validationCorpus.fixtures.find(
+      ({ id }) => id === "unsupported-ni-category-b",
+    );
+    if (!fixture) {
+      throw new Error("Expected an unsupported NI fixture");
+    }
+    const result = evaluateValidationFixture(
+      fixture,
+      {
+        supported: false,
+        libraryVersion: validationCorpus.libraryVersion,
+        ruleDatasetVersion: validationCorpus.ruleDatasetVersion,
+        calculationVersion: validationCorpus.calculationContractVersion,
+        reasons: ["unsupported-national-insurance-category"],
+      },
+      validationCorpus,
+    );
+
+    expect(result).toEqual({
+      fixtureId: fixture.id,
+      passed: true,
+      mismatches: [],
+    });
   });
 });
 

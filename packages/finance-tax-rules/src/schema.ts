@@ -1,8 +1,10 @@
 import { z } from "zod";
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-const money = z.number().int().nonnegative();
-const rate = z.number().int().min(0).max(10_000);
+export const isoDateSchema = z.iso.date();
+export const taxYearSchema = z.string().regex(/^\d{4}-\d{2}$/);
+export const datasetVersionSchema = z.string().regex(/^\d{4}\.\d{2}\.\d+$/);
+export const moneyPenceSchema = z.number().int().nonnegative();
+export const rateBasisPointsSchema = z.number().int().min(0).max(10_000);
 
 export const jurisdictionSchema = z.enum([
   "england-and-northern-ireland",
@@ -10,7 +12,15 @@ export const jurisdictionSchema = z.enum([
   "wales",
 ]);
 export const payPeriodSchema = z.enum(["weekly", "monthly"]);
+export const payeTaxBasisSchema = z.enum(["cumulative", "non-cumulative"]);
 export const legalStatusSchema = z.enum(["enacted", "announced"]);
+export const nationalInsuranceCategorySchema = z.string().regex(/^[A-Z]$/);
+export const supportedNationalInsuranceCategorySchema = z.literal("A");
+export const pensionContributionMethodSchema = z.enum([
+  "salary-sacrifice",
+  "net-pay",
+  "relief-at-source",
+]);
 
 export const sourceSchema = z.object({
   id: z.string().min(1),
@@ -18,10 +28,10 @@ export const sourceSchema = z.object({
   publisher: z.string().min(1),
   url: z.url(),
   archiveUrl: z.url().nullable(),
-  publicationDate: isoDate,
-  retrievalDate: isoDate,
-  coverageFrom: isoDate,
-  coverageTo: isoDate.nullable(),
+  publicationDate: isoDateSchema,
+  retrievalDate: isoDateSchema,
+  coverageFrom: isoDateSchema,
+  coverageTo: isoDateSchema.nullable(),
   sourceContentSha256: z.string().regex(/^[a-f0-9]{64}$/),
   snapshotPath: z.string().min(1),
   licence: z.literal("Open Government Licence v3.0"),
@@ -35,17 +45,17 @@ export const sourceSchema = z.object({
 const provenanceSchema = z.object({
   sourceIds: z.array(z.string().min(1)).min(1),
   reviewedBy: z.string().min(1),
-  reviewedAt: isoDate,
+  reviewedAt: isoDateSchema,
   reviewNotes: z.string().min(1),
 });
 
 const baseRuleSchema = z.object({
   id: z.string().min(1),
   version: z.string().min(1),
-  taxYear: z.string().regex(/^\d{4}-\d{2}$/),
+  taxYear: taxYearSchema,
   legalStatus: legalStatusSchema,
-  effectiveFrom: isoDate,
-  effectiveTo: isoDate,
+  effectiveFrom: isoDateSchema,
+  effectiveTo: isoDateSchema,
   currency: z.literal("GBP"),
   moneyUnit: z.literal("pence"),
   rateUnit: z.literal("basis-points"),
@@ -57,31 +67,31 @@ export const incomeTaxRuleSchema = baseRuleSchema.extend({
   jurisdictions: z.array(jurisdictionSchema).min(1),
   incomeScope: z.literal("employment-non-savings-non-dividend"),
   calculationScope: z.literal("annual-liability"),
-  standardPersonalAllowancePence: money,
+  standardPersonalAllowancePence: moneyPenceSchema,
   personalAllowanceTaper: z.object({
-    adjustedNetIncomeStartsAtPence: money,
-    allowanceReductionPence: money.positive(),
-    perExcessIncomePence: money.positive(),
+    adjustedNetIncomeStartsAtPence: moneyPenceSchema,
+    allowanceReductionPence: moneyPenceSchema.positive(),
+    perExcessIncomePence: moneyPenceSchema.positive(),
   }),
   bands: z
     .array(
       z.object({
         name: z.string().min(1),
-        rateBasisPoints: rate,
-        widthPence: money.positive().nullable(),
+        rateBasisPoints: rateBasisPointsSchema,
+        widthPence: moneyPenceSchema.positive().nullable(),
       }),
     )
     .min(1),
 });
 
 const payPeriodValuesSchema = z.object({
-  weekly: money,
-  monthly: money,
+  weekly: moneyPenceSchema,
+  monthly: moneyPenceSchema,
 });
 
 export const nationalInsuranceRuleSchema = baseRuleSchema.extend({
   kind: z.literal("class-1-national-insurance"),
-  category: z.literal("A"),
+  category: supportedNationalInsuranceCategorySchema,
   employmentType: z.literal("employee-not-director"),
   thresholds: z.object({
     lowerEarningsLimitPence: payPeriodValuesSchema,
@@ -89,19 +99,19 @@ export const nationalInsuranceRuleSchema = baseRuleSchema.extend({
     upperEarningsLimitPence: payPeriodValuesSchema,
   }),
   rates: z.object({
-    atOrBelowPrimaryThresholdBasisPoints: rate,
-    primaryToUpperBasisPoints: rate,
-    aboveUpperBasisPoints: rate,
+    atOrBelowPrimaryThresholdBasisPoints: rateBasisPointsSchema,
+    primaryToUpperBasisPoints: rateBasisPointsSchema,
+    aboveUpperBasisPoints: rateBasisPointsSchema,
   }),
 });
 
 const pensionMethodSchema = z.object({
-  method: z.enum(["salary-sacrifice", "net-pay", "relief-at-source"]),
+  method: pensionContributionMethodSchema,
   memberContribution: z.boolean(),
   reducesContractualCashPay: z.boolean(),
   deductedBeforeIncomeTax: z.boolean(),
   deductedBeforeEmployeeNationalInsurance: z.boolean(),
-  providerReliefBasisPoints: rate,
+  providerReliefBasisPoints: rateBasisPointsSchema,
   furtherReliefMayRequireClaim: z.boolean(),
 });
 
@@ -110,21 +120,21 @@ export const pensionRuleSchema = baseRuleSchema.extend({
   jurisdictions: z.array(jurisdictionSchema).min(1),
   reliefLimit: z.object({
     relevantUkEarningsPercent: z.literal(100),
-    basicAmountPence: money,
+    basicAmountPence: moneyPenceSchema,
   }),
-  annualAllowancePence: money,
+  annualAllowancePence: moneyPenceSchema,
   taperedAnnualAllowance: z.object({
-    thresholdIncomeLimitPence: money,
-    adjustedIncomeLimitPence: money,
-    minimumAllowancePence: money,
+    thresholdIncomeLimitPence: moneyPenceSchema,
+    adjustedIncomeLimitPence: moneyPenceSchema,
+    minimumAllowancePence: moneyPenceSchema,
   }),
-  moneyPurchaseAnnualAllowancePence: money,
+  moneyPurchaseAnnualAllowancePence: moneyPenceSchema,
   methods: z.array(pensionMethodSchema).length(3),
 });
 
 export const datasetSchema = z.object({
-  datasetVersion: z.string().regex(/^\d{4}\.\d{2}\.\d+$/),
-  releasedAt: isoDate,
+  datasetVersion: datasetVersionSchema,
+  releasedAt: isoDateSchema,
   supersedes: z.string().nullable(),
   corrections: z.array(
     z.object({
@@ -149,3 +159,6 @@ export const datasetSchema = z.object({
 export type RuleDataset = z.infer<typeof datasetSchema>;
 export type Jurisdiction = z.infer<typeof jurisdictionSchema>;
 export type PayPeriod = z.infer<typeof payPeriodSchema>;
+export type PensionContributionMethod = z.infer<
+  typeof pensionContributionMethodSchema
+>;

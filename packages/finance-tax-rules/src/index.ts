@@ -1,14 +1,15 @@
 import { ruleDataset } from "./data";
 import {
   datasetSchema,
+  isoDateSchema,
   jurisdictionSchema,
+  supportedNationalInsuranceCategorySchema,
   payPeriodSchema,
   type Jurisdiction,
   type PayPeriod,
 } from "./schema";
 
 const dataset = datasetSchema.parse(ruleDataset);
-const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 export type RuleRequest = {
   date: string;
@@ -42,7 +43,7 @@ export type RuleResolution =
     };
 
 const isRealIsoDate = (date: string) => {
-  if (!isoDatePattern.test(date)) {
+  if (!isoDateSchema.safeParse(date).success) {
     return false;
   }
   const parsed = new Date(`${date}T00:00:00Z`);
@@ -70,7 +71,11 @@ export const resolveRules = (request: RuleRequest): RuleResolution => {
       detail: `${request.jurisdiction} has no reviewed Income Tax rules`,
     };
   }
-  if (request.nationalInsuranceCategory !== "A") {
+  if (
+    !supportedNationalInsuranceCategorySchema.safeParse(
+      request.nationalInsuranceCategory,
+    ).success
+  ) {
     return {
       available: false,
       reason: "unsupported-national-insurance-category",
@@ -122,4 +127,28 @@ export const resolveRules = (request: RuleRequest): RuleResolution => {
 };
 
 export { ruleDataset } from "./data";
-export type { Jurisdiction, PayPeriod, RuleDataset } from "./schema";
+export {
+  datasetSchema,
+  datasetVersionSchema,
+  isoDateSchema,
+  jurisdictionSchema,
+  legalStatusSchema,
+  moneyPenceSchema,
+  nationalInsuranceCategorySchema,
+  nationalInsuranceRuleSchema,
+  payPeriodSchema,
+  payeTaxBasisSchema,
+  pensionContributionMethodSchema,
+  pensionRuleSchema,
+  rateBasisPointsSchema,
+  sourceSchema,
+  supportedNationalInsuranceCategorySchema,
+  taxYearSchema,
+} from "./schema";
+export type {
+  Jurisdiction,
+  PayPeriod,
+  PensionContributionMethod,
+  RuleDataset,
+} from "./schema";
+export * from "./validationApi";

@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./dataset": "./src/data.ts"
+    "./dataset": "./src/data.ts",
+    "./validation": "./src/validationApi.ts"
   },
   "scripts": {
     "build": "tsx scripts/build.ts",
