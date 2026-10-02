@@ -18,6 +18,7 @@ import { AssetAllocationHistoryChart } from "@/components/assettracker/asset-all
 import { AssetTrackerDashboard } from "@/components/assettracker/asset-tracker-dashboard";
 import { useAssetTracker } from "@/components/assettracker/asset-tracker-provider";
 import { FlowSankeyChart } from "@/components/assettracker/flow-sankey-chart";
+import { HousingStrategyPlanner } from "@/components/assettracker/housing-strategy-planner";
 import { PortfolioContributionChart } from "@/components/assettracker/portfolio-contribution-chart";
 import { PortfolioGoal } from "@/components/assettracker/portfolio-goal";
 import {
@@ -226,6 +227,7 @@ function mockAssetTracker(
     plannedExpenditures: [],
     incomeHistory: [],
     financialIndependence: EMPTY_FI,
+    housingPlanningPosition: null,
     portfolioReturn: null,
     positionSummary: null,
     inflation: 0.025,
@@ -264,6 +266,63 @@ function mockAssetTracker(
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+describe("HousingStrategyPlanner", () => {
+  it("compares four strategies while keeping net worth and withdrawal capital distinct", async () => {
+    mockAssetTracker({
+      housingPlanningPosition: {
+        asOfDate: "2026-01-01",
+        totalNetWorth: 500_000,
+        withdrawalCapital: 300_000,
+        homeValue: 400_000,
+        mortgageBalance: 200_000,
+        homeEquity: 200_000,
+        annualNonHousingExpenditure: 24_000,
+        annualInvestableIncome: 48_000,
+        expectedRealReturn: 0.04,
+        withdrawalRate: 0.04,
+        mortgagePayoffDate: "2046-01-01",
+      },
+    });
+
+    render(<HousingStrategyPlanner />);
+
+    const table = screen.getByRole("table", {
+      name: "Housing strategy comparison",
+    });
+    expect(
+      within(table).getByRole("rowheader", { name: "Stay" }),
+    ).toBeVisible();
+    expect(
+      within(table).getByRole("rowheader", { name: "Sell and rent" }),
+    ).toBeVisible();
+    expect(
+      within(table).getByRole("rowheader", { name: "Downsize" }),
+    ).toBeVisible();
+    expect(
+      within(table).getByRole("rowheader", { name: "Equity release" }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(/Only released cash enters withdrawal capital/),
+    ).toBeVisible();
+
+    await userEvent.click(screen.getByText("Sell and rent assumptions"));
+    await userEvent.clear(
+      screen.getByRole("spinbutton", { name: "Sell and rent Annual rent" }),
+    );
+    await userEvent.type(
+      screen.getByRole("spinbutton", { name: "Sell and rent Annual rent" }),
+      "18000",
+    );
+
+    const sellRow = within(table)
+      .getByRole("rowheader", { name: "Sell and rent" })
+      .closest("tr");
+    expect(sellRow).not.toBeNull();
+    expect(sellRow).toHaveTextContent("£18,000");
+    expect(sellRow).toHaveTextContent("£42,000");
+  });
 });
 
 describe("AssetTrackerDashboard", () => {
