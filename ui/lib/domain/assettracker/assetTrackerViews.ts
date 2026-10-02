@@ -80,6 +80,7 @@ export type AccountDetailView = AccountSummaryView & {
   closedAt?: string;
   expectedReturnChanges?: ExpectedReturnChange[];
   linkedAccountId?: string;
+  mortgageTerms?: NonNullable<Account["mortgageTerms"]>;
   snapshots: BalanceSnapshotView[];
   capitalFlows: { date: string; amount: number; kind?: CapitalFlowKind }[];
   /** Deposits minus withdrawals recorded across the account history */
@@ -225,6 +226,7 @@ export function buildAccountReadModel(
     createdAt: account.createdAt,
     expectedReturnChanges: account.expectedReturnChanges,
     linkedAccountId: account.linkedAccountId,
+    mortgageTerms: account.mortgageTerms,
     closedAt: account.closedAt,
     snapshots: accountSnapshots
       .map((snapshot) => ({

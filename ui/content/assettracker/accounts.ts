@@ -80,7 +80,15 @@ export const accounts: AccountContent[] = [
     assetType: "mortgage",
     liquidity: "illiquid",
     expectedAnnualReturn: 0.0425,
+    expectedReturnChanges: [{ date: "2028-03-01", rate: 0.0525 }],
     linkedAccountId: "home",
+    mortgageTerms: {
+      firstPaymentDate: "2025-01-01",
+      remainingTermMonths: 274,
+      fees: [{ date: "2028-03-01", amount: 999 }],
+      overpayments: [{ date: "2026-06-01", amount: 5_000 }],
+      termChanges: [],
+    },
   },
   {
     id: "amex-credit-card",

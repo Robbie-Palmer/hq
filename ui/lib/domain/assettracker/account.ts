@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CurrencySchema } from "./currency";
+import { MortgageTermsSchema } from "./mortgage";
 
 export const AccountIdSchema = z.string().min(1);
 export type AccountId = z.infer<typeof AccountIdSchema>;
@@ -54,6 +55,8 @@ export const AccountContentSchema = z.object({
    * balance) without the user maintaining them.
    */
   linkedAccountId: AccountIdSchema.optional(),
+  /** Forward repayment assumptions anchored to the latest recorded balance. */
+  mortgageTerms: MortgageTermsSchema.optional(),
   createdAt: z.iso.date(),
   closedAt: z.iso.date().optional(),
 });

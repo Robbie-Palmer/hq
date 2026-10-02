@@ -42,6 +42,7 @@ import { CloseAccountControls } from "./close-account-controls";
 import { EquityProjection } from "./equity-projection";
 import { ExpectedReturnEditor } from "./expected-return-editor";
 import { LogBalanceDrawer } from "./log-balance-drawer";
+import { MortgageSchedule } from "./mortgage-schedule";
 import { RecordTransferDrawer } from "./record-transfer-drawer";
 
 interface AccountDetailSheetProps {
@@ -110,6 +111,10 @@ export function AccountDetailSheet({
                   inflation={inflation}
                 />
               )}
+              {account.assetType === "mortgage" &&
+                account.mortgageTerms != null && (
+                  <MortgageSchedule account={account} />
+                )}
               {account.assetType === "property" &&
                 linkedMortgages.length > 0 && (
                   <EquityProjection

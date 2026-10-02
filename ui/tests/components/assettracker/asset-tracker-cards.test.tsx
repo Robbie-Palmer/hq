@@ -163,6 +163,9 @@ const EMPTY_FI: PortfolioFinancialIndependence = {
   periods: [],
   representativeAnnualExpenditure: null,
   representativeAnnualCurrentExpenditure: null,
+  mortgageCashFlow: null,
+  annualCashFlowWhileMortgage: null,
+  annualExpenditureAfterMortgage: null,
   representativeAnnualSavings: null,
   savingsRate: null,
   takeHomeSavingsRate: null,
@@ -510,6 +513,36 @@ describe("PortfolioGoal", () => {
     expect(
       document.querySelector('[data-series="difference"]'),
     ).toHaveAttribute("data-dots", "visible");
+  });
+
+  it("separates mortgage cash flow, principal, and post-payoff spending", () => {
+    mockAssetTracker({
+      financialIndependence: {
+        ...EMPTY_FI,
+        representativeAnnualExpenditure: 24_000,
+        representativeAnnualCurrentExpenditure: 30_000,
+        mortgageCashFlow: {
+          annualRequiredCashFlow: 14_400,
+          annualEconomicCost: 7_200,
+          annualPrincipal: 7_200,
+          payoffDate: "2045-12-01",
+        },
+        annualCashFlowWhileMortgage: 31_200,
+        annualExpenditureAfterMortgage: 16_800,
+        target: 420_000,
+      },
+    });
+
+    render(<PortfolioGoal />);
+
+    expect(screen.getByText("Mortgage cash flow")).toBeVisible();
+    expect(screen.getByText(/after payoff in Dec 2045/)).toBeVisible();
+    expect(screen.getByText("Cash needed while mortgaged")).toBeVisible();
+    expect(screen.getByText("£31,200/yr")).toBeVisible();
+    expect(screen.getByText("Of which principal")).toBeVisible();
+    expect(screen.getByText("£7,200/yr")).toBeVisible();
+    expect(screen.getByText("Spending after payoff")).toBeVisible();
+    expect(screen.getByText("£16,800/yr")).toBeVisible();
   });
 
   it("shows emergency runway, savings rate, and a portfolio years-to-FI projection", () => {
