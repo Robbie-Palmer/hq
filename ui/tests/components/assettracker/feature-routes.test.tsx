@@ -71,9 +71,11 @@ describe("Asset Tracker feature routes", () => {
   beforeEach(() => {
     mockUseAssetTracker.mockReturnValue({
       netWorthData: [],
+      netWorthDataByCurrency: { GBP: [], USD: [], EUR: [] },
       contributionData: [],
       assetAllocationHistory: [],
       baseCurrency: "GBP",
+      setBaseCurrency: vi.fn(),
       flowSankeyData: { nodes: [], links: [] },
       incomeHistory: [],
       financialIndependence: { periods: [] },
@@ -88,6 +90,9 @@ describe("Asset Tracker feature routes", () => {
     expect(screen.getByText("Contribution history")).toBeVisible();
     expect(screen.getByText("Real income history")).toBeVisible();
     expect(screen.getByText("Allocation history")).toBeVisible();
+    expect(
+      screen.getByRole("combobox", { name: "Historical target currency" }),
+    ).toBeVisible();
   });
 
   it("composes the cash-flow route", () => {

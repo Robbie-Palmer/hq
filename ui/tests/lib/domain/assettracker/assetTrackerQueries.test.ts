@@ -426,6 +426,180 @@ describe("getAssetAllocationTimeSeries", () => {
 });
 
 describe("getNetWorthTimeSeries", () => {
+  it("restates mixed-currency history with as-of evidence", () => {
+    const data = homeData();
+    data.accounts = [
+      {
+        id: "gbp-cash",
+        name: "GBP cash",
+        provider: "Bank",
+        currency: "GBP",
+        assetType: "cash",
+        expectedAnnualReturn: 0,
+        createdAt: "2025-01-01",
+      },
+      {
+        id: "usd-cash",
+        name: "USD cash",
+        provider: "Bank",
+        currency: "USD",
+        assetType: "cash",
+        expectedAnnualReturn: 0,
+        createdAt: "2025-01-04",
+        closedAt: "2025-01-12",
+      },
+      {
+        id: "eur-cash",
+        name: "EUR cash",
+        provider: "Bank",
+        currency: "EUR",
+        assetType: "cash",
+        expectedAnnualReturn: 0,
+        createdAt: "2025-01-05",
+      },
+    ];
+    data.snapshots = [
+      { accountId: "gbp-cash", date: "2025-01-01", balance: 200 },
+      { accountId: "usd-cash", date: "2025-01-05", balance: 100 },
+      { accountId: "eur-cash", date: "2025-01-05", balance: 100 },
+      { accountId: "gbp-cash", date: "2025-01-12", balance: 220 },
+    ];
+    data.exchangeRateObservations = [
+      {
+        id: "usd-gbp-original",
+        fromCurrency: "USD",
+        toCurrency: "GBP",
+        rate: 0.8,
+        validAt: "2025-01-03",
+        acceptedAt: "2025-01-03T17:00:00Z",
+        source: { kind: "provider", id: "frankfurter", label: "Frankfurter" },
+      },
+      {
+        id: "usd-gbp-correction",
+        fromCurrency: "USD",
+        toCurrency: "GBP",
+        rate: 0.75,
+        validAt: "2025-01-03",
+        acceptedAt: "2025-01-06T09:00:00Z",
+        correctsId: "usd-gbp-original",
+        source: { kind: "provider", id: "frankfurter", label: "Frankfurter" },
+        providerObservations: [
+          {
+            provider: "ECB",
+            observedDate: "2025-01-03",
+            rate: 0.75,
+            carried: true,
+            excluded: false,
+          },
+        ],
+      },
+      {
+        id: "eur-gbp-derived",
+        fromCurrency: "EUR",
+        toCurrency: "GBP",
+        rate: 0.85,
+        validAt: "2025-01-03",
+        acceptedAt: "2025-01-03T17:00:00Z",
+        source: { kind: "reference", id: "derived", label: "ECB via EUR" },
+        derivation: {
+          method: "triangulated",
+          legs: ["eur-usd", "usd-gbp-correction"],
+        },
+      },
+    ];
+
+    const sunday = getNetWorthTimeSeries(buildRepository(data)).find(
+      (point) => point.date === "2025-01-05",
+    );
+
+    expect(sunday).toMatchObject({
+      "GBP cash": 200,
+      "USD cash": 75,
+      "EUR cash": 85,
+      total: 360,
+      conversion: {
+        targetCurrency: "GBP",
+        status: "complete",
+      },
+    });
+    expect(sunday?.conversion?.accounts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          accountId: "usd-cash",
+          nativeValue: 100,
+          nativeCurrency: "USD",
+          convertedValue: 75,
+          rates: [
+            expect.objectContaining({
+              observationId: "usd-gbp-correction",
+              source: "Frankfurter",
+              effectiveDate: "2025-01-03",
+              carriedForward: true,
+              method: "direct",
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          accountId: "eur-cash",
+          convertedValue: 85,
+          rates: [expect.objectContaining({ method: "triangulated" })],
+        }),
+      ]),
+    );
+    expect(
+      sunday?.conversion?.accounts.some(
+        (account) => account.accountId === "usd-cash",
+      ),
+    ).toBe(true);
+
+    const beforeCreation = getNetWorthTimeSeries(buildRepository(data)).find(
+      (point) => point.date === "2025-01-03",
+    );
+    expect(
+      beforeCreation?.conversion?.accounts.some(
+        (account) => account.accountId === "usd-cash",
+      ),
+    ).toBe(false);
+    const afterClosure = getNetWorthTimeSeries(buildRepository(data)).find(
+      (point) => point.date === "2025-01-12",
+    );
+    expect(
+      afterClosure?.conversion?.accounts.some(
+        (account) => account.accountId === "usd-cash",
+      ),
+    ).toBe(false);
+
+    data.settings.baseCurrency = "USD";
+    const inUsd = getNetWorthTimeSeries(buildRepository(data)).find(
+      (point) => point.date === "2025-01-05",
+    );
+    expect(inUsd?.["GBP cash"]).toBeCloseTo(200 / 0.75);
+    expect(
+      inUsd?.conversion?.accounts
+        .find((account) => account.accountId === "gbp-cash")
+        ?.rates.at(0),
+    ).toMatchObject({ method: "inverse", effectiveDate: "2025-01-03" });
+  });
+
+  it("marks a historical point incomplete without discarding native values", () => {
+    const data = mixedCurrencyData();
+    data.exchangeRateObservations = [];
+
+    const point = getNetWorthTimeSeries(buildRepository(data)).at(-1);
+    const usdAccount = point?.conversion?.accounts.find(
+      (account) => account.accountId === "broker-usd",
+    );
+
+    expect(point?.total).toBeNull();
+    expect(point?.conversion?.status).toBe("incomplete");
+    expect(usdAccount).toMatchObject({
+      nativeValue: 1_000,
+      nativeCurrency: "USD",
+      convertedValue: null,
+      issues: [expect.objectContaining({ kind: "missing_exchange_rate" })],
+    });
+  });
+
   it("folds the mortgage into the property series and totals net worth", () => {
     const series = getNetWorthTimeSeries(buildRepository(homeData()));
     const point = series.at(-1);

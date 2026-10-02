@@ -7,11 +7,80 @@ import {
   getAllAccountDetails,
   getAssetAllocationTimeSeries,
   getLatestPortfolioValuation,
+  getNetWorthTimeSeries,
 } from "@/lib/domain/assettracker/assetTrackerQueries";
 import { buildRepository } from "@/lib/domain/assettracker/assetTrackerRepository";
+import {
+  hasFxExposure,
+  type NetWorthDataPoint,
+  toFxImpactTimeSeries,
+} from "@/lib/domain/assettracker/assetTrackerViews";
 import { valueAccountAtDate } from "@/lib/domain/assettracker/portfolioValuation";
 
 describe("Asset Tracker demo-data adapter", () => {
+  it("isolates the portfolio value caused by exchange-rate changes", () => {
+    const series: NetWorthDataPoint[] = [
+      {
+        date: "2024-01-01",
+        total: 180,
+        conversion: {
+          targetCurrency: "GBP",
+          status: "complete",
+          partialTotal: 180,
+          accounts: [
+            conversionAccount("Cash", 100, "GBP", 100),
+            conversionAccount("US shares", 100, "USD", 80),
+          ],
+        },
+      },
+      {
+        date: "2024-02-01",
+        total: 250,
+        conversion: {
+          targetCurrency: "GBP",
+          status: "complete",
+          partialTotal: 250,
+          accounts: [
+            conversionAccount("Cash", 110, "GBP", 110),
+            conversionAccount("US shares", 200, "USD", 140),
+          ],
+        },
+      },
+      {
+        date: "2024-03-01",
+        total: 120,
+        conversion: {
+          targetCurrency: "GBP",
+          status: "complete",
+          partialTotal: 120,
+          accounts: [conversionAccount("Cash", 120, "GBP", 120)],
+        },
+      },
+    ];
+
+    expect(hasFxExposure(series, "GBP")).toBe(true);
+    expect(toFxImpactTimeSeries(series, "GBP")).toEqual([
+      {
+        date: "2024-01-01",
+        actualTotal: 180,
+        fixedRateTotal: 180,
+        impact: 0,
+      },
+      {
+        date: "2024-02-01",
+        actualTotal: 250,
+        fixedRateTotal: 270,
+        impact: -20,
+      },
+      {
+        date: "2024-03-01",
+        actualTotal: 120,
+        fixedRateTotal: 120,
+        impact: 0,
+      },
+    ]);
+  });
+
   it("loads a fully valued multi-currency portfolio", () => {
     const repository = buildRepository(getDemoAssetTrackerData());
     const valuation = getLatestPortfolioValuation(repository);
@@ -67,6 +136,64 @@ describe("Asset Tracker demo-data adapter", () => {
     expect(valuation.inputObservationIds).not.toContain(
       "us-total-market-price-2024-12-01-original",
     );
+    expect(valuation.inputObservationIds).toContain(
+      "gbp-usd-2024-12-01-corrected",
+    );
+    expect(valuation.inputObservationIds).not.toContain(
+      "gbp-usd-2024-12-01-original",
+    );
+  });
+
+  it.each(["GBP", "USD", "EUR"] as const)(
+    "has complete historical net worth in %s",
+    (currency) => {
+      const data = getDemoAssetTrackerData();
+      data.settings.baseCurrency = currency;
+
+      const series = getNetWorthTimeSeries(buildRepository(data));
+
+      expect(series).toHaveLength(13);
+      expect(series.every((point) => point.total != null)).toBe(true);
+      expect(
+        series.every(
+          (point) =>
+            point.conversion == null || point.conversion.status === "complete",
+        ),
+      ).toBe(true);
+    },
+  );
+
+  it("includes carried, triangulated, and corrected FX examples", () => {
+    const data = getDemoAssetTrackerData();
+    data.settings.baseCurrency = "USD";
+    const series = getNetWorthTimeSeries(buildRepository(data));
+
+    const juneRates = series
+      .find((point) => point.date === "2024-06-01")
+      ?.conversion?.accounts.flatMap((account) => account.rates);
+    const septemberRates = series
+      .find((point) => point.date === "2024-09-15")
+      ?.conversion?.accounts.flatMap((account) => account.rates);
+    const decemberRates = series
+      .find((point) => point.date === "2024-12-01")
+      ?.conversion?.accounts.flatMap((account) => account.rates);
+
+    expect(juneRates).toContainEqual(
+      expect.objectContaining({ carriedForward: true }),
+    );
+    expect(septemberRates).toContainEqual(
+      expect.objectContaining({ method: "triangulated" }),
+    );
+    expect(decemberRates).toContainEqual(
+      expect.objectContaining({
+        observationId: "gbp-usd-2024-12-01-corrected",
+      }),
+    );
+    expect(decemberRates).not.toContainEqual(
+      expect.objectContaining({
+        observationId: "gbp-usd-2024-12-01-original",
+      }),
+    );
   });
 
   it("includes a converted recurring contribution with a fee", () => {
@@ -99,3 +226,20 @@ describe("Asset Tracker demo-data adapter", () => {
     );
   });
 });
+
+function conversionAccount(
+  accountName: string,
+  nativeValue: number,
+  nativeCurrency: "GBP" | "USD" | "EUR",
+  convertedValue: number,
+) {
+  return {
+    accountId: accountName.toLowerCase().replaceAll(" ", "-"),
+    accountName,
+    nativeValue,
+    nativeCurrency,
+    convertedValue,
+    rates: [],
+    issues: [],
+  };
+}

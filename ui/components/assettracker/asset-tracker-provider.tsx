@@ -59,6 +59,7 @@ import {
   type RecurringFlow,
   type SetAccountLiquidityInput,
   type SetExpectedReturnInput,
+  SUPPORTED_CURRENCIES,
   type Transfer,
   type ValuationIssue,
 } from "@/lib/domain/assettracker";
@@ -67,6 +68,7 @@ interface AssetTrackerContextValue {
   accounts: AccountSummaryView[];
   accountDetails: AccountDetailView[];
   netWorthData: NetWorthDataPoint[];
+  netWorthDataByCurrency: Record<Currency, NetWorthDataPoint[]>;
   contributionData: PortfolioContributionDataPoint[];
   assetAllocation: { assetType: AssetType; total: number }[];
   assetAllocationHistory: AssetAllocationDataPoint[];
@@ -189,13 +191,24 @@ export function AssetTrackerProvider({
     const repository = buildRepository(data);
     const { summaries: accounts, details: accountDetails } =
       buildAccountReadModels(repository);
-    const netWorthData = getNetWorthTimeSeries(repository);
+    const netWorthDataByCurrency = Object.fromEntries(
+      SUPPORTED_CURRENCIES.map((currency) => [
+        currency,
+        getNetWorthTimeSeries({
+          ...repository,
+          settings: { ...repository.settings, baseCurrency: currency },
+        }),
+      ]),
+    ) as Record<Currency, NetWorthDataPoint[]>;
+    const netWorthData =
+      netWorthDataByCurrency[repository.settings.baseCurrency];
     const latestValuation = getLatestPortfolioValuation(repository);
     const valuationDate = latestValuation?.date ?? todayIsoDate();
     return {
       accounts,
       accountDetails,
       netWorthData,
+      netWorthDataByCurrency,
       contributionData: getPortfolioContributionTimeSeries(repository),
       assetAllocation: getTotalByAssetType(repository),
       assetAllocationHistory: getAssetAllocationTimeSeries(repository),
