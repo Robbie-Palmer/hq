@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { parseCsv } from "ts-base/csv";
 import { fetchWithRetry } from "ts-base/http";
 import {
   type HousePriceIndexObservation,
@@ -33,47 +34,6 @@ const PROPERTY_INDEX_COLUMNS: ReadonlyArray<{
   { propertyType: "terraced", column: "TerracedIndex" },
   { propertyType: "flat-maisonette", column: "FlatIndex" },
 ];
-
-// A small RFC 4180 scanner is easier to audit here than a parser configured
-// with permissive coercions. The upstream file contains quoted fields.
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: CSV state machine
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let quoted = false;
-  for (let index = 0; index < text.length; index += 1) {
-    const character = text[index];
-    if (quoted) {
-      if (character === '"' && text[index + 1] === '"') {
-        field += '"';
-        index += 1;
-      } else if (character === '"') {
-        quoted = false;
-      } else {
-        field += character;
-      }
-    } else if (character === '"') {
-      quoted = true;
-    } else if (character === ",") {
-      row.push(field);
-      field = "";
-    } else if (character === "\n") {
-      row.push(field.replace(/\r$/, ""));
-      rows.push(row);
-      row = [];
-      field = "";
-    } else {
-      field += character;
-    }
-  }
-  if (field !== "" || row.length > 0) {
-    row.push(field.replace(/\r$/, ""));
-    rows.push(row);
-  }
-  if (quoted) throw new Error("UK HPI CSV contains an unterminated quoted field");
-  return rows;
-}
 
 function monthFromUkDate(value: string): string {
   const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);

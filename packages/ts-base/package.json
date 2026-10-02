@@ -5,6 +5,7 @@
   "description": "Dependency-free TypeScript extensions to JavaScript and web-standard APIs",
   "type": "module",
   "exports": {
+    "./csv": "./src/csv.ts",
     "./crypto": "./src/crypto.ts",
     "./dates": "./src/dates.ts",
     "./errors": "./src/errors.ts",

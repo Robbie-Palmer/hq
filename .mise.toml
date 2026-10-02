@@ -371,6 +371,7 @@ depends = [
     "//packages/agent-coordinator-domain:test:coverage",
     "//packages/ai-review-domain:test:coverage",
     "//packages/browser-base:test:coverage",
+    "//packages/finance-housing-indices:test:coverage",
     "//packages/finance-inflation-indices:test:coverage",
     "//packages/finance-tax-rules:test:coverage",
     "//packages/node-base:test:coverage",
