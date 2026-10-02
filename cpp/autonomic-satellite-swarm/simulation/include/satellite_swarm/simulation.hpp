@@ -13,6 +13,14 @@ namespace satellite_swarm::simulation {
 constexpr uint8_t kSimulationTraceVersion = 5U;
 
 struct NodeConfiguration {
+  NodeConfiguration() = default;
+  NodeConfiguration(NodeId configured_node_id, SatelliteSnapshot configured_satellite,
+                    BootEpoch configured_boot_epoch = 1U,
+                    SafeStateResult configured_safe_state_result = SafeStateResult::Rejected)
+      : node_id(configured_node_id), satellite(configured_satellite),
+        boot_epoch(configured_boot_epoch), safe_state_request_result(configured_safe_state_result) {
+  }
+
   NodeId node_id = 0U;
   SatelliteSnapshot satellite{};
   BootEpoch boot_epoch = 1U;
@@ -25,6 +33,10 @@ struct SatelliteUpdate {
 };
 
 struct OrbitUpdate {
+  OrbitUpdate() = default;
+  OrbitUpdate(NodeId configured_node_id, PropagationResult configured_orbit)
+      : node_id(configured_node_id), orbit(configured_orbit) {}
+
   NodeId node_id = 0U;
   PropagationResult orbit{};
 };
