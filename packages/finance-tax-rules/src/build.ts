@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ruleDataset } from "./data";
 import { datasetSchema, type RuleDataset } from "./schema";
+import { validateValidationCorpus } from "./validation";
+import { validationCorpus } from "./validationData";
 
 const canonicalJson = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
 const sha256 = (value: string) =>
@@ -155,6 +157,11 @@ type ResolvedSource = RuleDataset["sources"][number] & {
 
 export const buildArtifacts = (packageRoot: string) => {
   const dataset = validateDataset(ruleDataset);
+  const validatedCorpus = validateValidationCorpus(validationCorpus);
+  assert(
+    validatedCorpus.ruleDatasetVersion === dataset.datasetVersion,
+    "Validation corpus must pin the built rule dataset version",
+  );
   const resolvedSources: ResolvedSource[] = dataset.sources.map((source) => {
     const snapshot = readFileSync(join(packageRoot, source.snapshotPath), "utf8");
     return { ...source, snapshotSha256: sha256(snapshot) };
@@ -233,6 +240,10 @@ export const buildArtifacts = (packageRoot: string) => {
   const artifacts = new Map([
     [`artifacts/enacted/${version}.json`, canonicalJson(enacted)],
     [`artifacts/coverage-matrix/${version}.json`, canonicalJson(coverage)],
+    [
+      `artifacts/validation/${validatedCorpus.corpusVersion}.json`,
+      canonicalJson(validatedCorpus),
+    ],
   ]);
   if (announcedRules.length > 0) {
     artifacts.set(
@@ -258,6 +269,20 @@ export const buildArtifacts = (packageRoot: string) => {
         sourceContentSha256,
       }),
     ),
+    validation: {
+      corpusVersion: validatedCorpus.corpusVersion,
+      libraryVersion: validatedCorpus.libraryVersion,
+      ruleDatasetVersion: validatedCorpus.ruleDatasetVersion,
+      calculationContractVersion: validatedCorpus.calculationContractVersion,
+      fixtureCount: validatedCorpus.fixtures.length,
+      sourceSnapshots: validatedCorpus.sources.map((source) => ({
+        id: source.id,
+        path: source.snapshotPath,
+        snapshotSha256: sha256(
+          readFileSync(join(packageRoot, source.snapshotPath), "utf8"),
+        ),
+      })),
+    },
   };
   artifacts.set("artifacts/manifest.json", canonicalJson(manifest));
   return artifacts;

@@ -17,6 +17,10 @@
     {
       "path": "artifacts/coverage-matrix/2026.10.0.json",
       "sha256": "4cecaa4df9ad8a5dad1398c5ea16b0b0ffe15569b5953733b5678b73cae7a39e"
+    },
+    {
+      "path": "artifacts/validation/2026.10.0.json",
+      "sha256": "9c86180412f16ba3076d81257c05ef5ecec940dcd7ee308b30aef0018a550306"
     }
   ],
   "sourceSnapshots": [
@@ -80,5 +84,44 @@
       "snapshotSha256": "ffc3963ac389507f19450d63168ea87b567c38206f43d8593a849fb9277d8aea",
       "sourceContentSha256": "bd8fa64edd90b24e7a21008ba84b8ab71aaac1db48e902b3141b6ebd7a1e6857"
     }
-  ]
+  ],
+  "validation": {
+    "corpusVersion": "2026.10.0",
+    "libraryVersion": "finance-tax-rules@0.1.0",
+    "ruleDatasetVersion": "2026.10.0",
+    "calculationContractVersion": "salary-validation-v1",
+    "fixtureCount": 16,
+    "sourceSnapshots": [
+      {
+        "id": "hmrc-employer-rates",
+        "path": "source-snapshots/employer-2025-26.md",
+        "snapshotSha256": "f58deeb17bc77f0bcc73263690331789090fc09e38d5384d36b33643e9aa6f6b"
+      },
+      {
+        "id": "hmrc-employer-rates-2023",
+        "path": "source-snapshots/employer-2023-24.md",
+        "snapshotSha256": "7c6ae112f750e8d6d06f8534d7cf552a4a307d8e4248dc22bff48fcf44c750d8"
+      },
+      {
+        "id": "hmrc-paye-routine-v24",
+        "path": "source-snapshots/paye-tax-table-routine-v24.md",
+        "snapshotSha256": "4235a5ab555ec4c1747a06fe95ef66e509df1fb33d4e7a84bf3c99701393e3a1"
+      },
+      {
+        "id": "hmrc-ca38-2026",
+        "path": "source-snapshots/ca38-2026-27.md",
+        "snapshotSha256": "227796ef48c4e7496e0577e973e4422bb9381e74ea68619e5baca3d71af15f74"
+      },
+      {
+        "id": "hmrc-workplace-pension-methods",
+        "path": "source-snapshots/workplace-pension-methods.md",
+        "snapshotSha256": "699b92bf622cb1ec7b5083fb9f4f644ad7577dea8931d12986bd69323281e984"
+      },
+      {
+        "id": "hmrc-salary-sacrifice",
+        "path": "source-snapshots/salary-sacrifice.md",
+        "snapshotSha256": "ffc3963ac389507f19450d63168ea87b567c38206f43d8593a849fb9277d8aea"
+      }
+    ]
+  }
 }
