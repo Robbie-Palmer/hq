@@ -2,6 +2,7 @@ import {
   type Account,
   type AccountId,
   type AssetType,
+  accountLiquidity,
   isLiability,
 } from "./account";
 import {
@@ -160,6 +161,54 @@ export function getLatestPortfolioValuation(
 ) {
   const date = valuationDates(repository).at(-1);
   return date == null ? null : valuePortfolioAtDate(repository, date);
+}
+
+export type PortfolioPositionSummary = {
+  date: string;
+  grossAssets: number;
+  liabilities: number;
+  liquidAssets: number;
+  netWorth: number;
+};
+
+/**
+ * Current household position in the reporting currency. Gross assets and
+ * liabilities stay separate here, even when a liability is linked to an asset.
+ */
+export function getPortfolioPositionSummary(
+  repository: AssetTrackerRepository,
+): PortfolioPositionSummary | null {
+  const valuation = getLatestPortfolioValuation(repository);
+  if (valuation?.total == null) return null;
+
+  let grossAssets = 0;
+  let liabilities = 0;
+  let liquidAssets = 0;
+  for (const account of repository.accounts.values()) {
+    if (account.closedAt != null && account.closedAt <= valuation.date)
+      continue;
+    const value = valuation.byAccount.get(account.id)?.value;
+    if (value == null) return null;
+    if (value >= 0) {
+      grossAssets += value;
+      if (
+        !isLiability(account.assetType) &&
+        accountLiquidity(account) !== "illiquid"
+      ) {
+        liquidAssets += value;
+      }
+    } else {
+      liabilities += Math.abs(value);
+    }
+  }
+
+  return {
+    date: valuation.date,
+    grossAssets,
+    liabilities,
+    liquidAssets,
+    netWorth: valuation.total,
+  };
 }
 
 export type PortfolioContributionDataPoint = {

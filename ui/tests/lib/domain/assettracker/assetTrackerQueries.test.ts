@@ -10,6 +10,7 @@ import {
   getNetWorthTimeSeries,
   getPortfolioAnnualReturn,
   getPortfolioContributionTimeSeries,
+  getPortfolioPositionSummary,
   getTotalByAssetType,
 } from "@/lib/domain/assettracker/assetTrackerQueries";
 import { buildRepository } from "@/lib/domain/assettracker/assetTrackerRepository";
@@ -219,6 +220,13 @@ describe("multi-currency portfolio queries", () => {
       ]),
     );
     expect(getLatestPortfolioValuation(repository)?.total).toBe(1_900);
+    expect(getPortfolioPositionSummary(repository)).toEqual({
+      date: "2025-01-31",
+      grossAssets: 1_900,
+      liabilities: 0,
+      liquidAssets: 1_900,
+      netWorth: 1_900,
+    });
     expect(getNetWorthTimeSeries(repository).at(-1)).toMatchObject({
       "GBP cash": 1_100,
       "US brokerage": 800,
@@ -249,10 +257,23 @@ describe("multi-currency portfolio queries", () => {
     const repository = buildRepository(data);
 
     expect(getLatestPortfolioValuation(repository)?.total).toBeNull();
+    expect(getPortfolioPositionSummary(repository)).toBeNull();
     expect(getPortfolioContributionTimeSeries(repository)).toEqual([]);
     expect(getAssetAllocationTimeSeries(repository)).toEqual([]);
     expect(getTotalByAssetType(repository)).toEqual([]);
     expect(getPortfolioAnnualReturn(repository)).toBeNull();
+  });
+});
+
+describe("getPortfolioPositionSummary", () => {
+  it("keeps gross property value and linked debt separate", () => {
+    expect(getPortfolioPositionSummary(buildRepository(homeData()))).toEqual({
+      date: "2024-01-01",
+      grossAssets: 300_000,
+      liabilities: 212_000,
+      liquidAssets: 0,
+      netWorth: 88_000,
+    });
   });
 });
 
