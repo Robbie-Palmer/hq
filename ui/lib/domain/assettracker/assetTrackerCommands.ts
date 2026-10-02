@@ -21,6 +21,7 @@ import {
   capitalFlowKind,
 } from "./capitalFlow";
 import { CurrencySchema } from "./currency";
+import { MortgageTermsSchema } from "./mortgage";
 import {
   flowOccurrenceDates,
   monthlyAmount,
@@ -78,6 +79,7 @@ export const CreateAccountInputSchema = z.object({
   expectedAnnualReturn: AnnualRateSchema,
   /** e.g. the property a mortgage is secured on */
   linkedAccountId: AccountIdSchema.optional(),
+  mortgageTerms: MortgageTermsSchema.optional(),
   openingBalance: z.number().optional(),
   openingDate: IsoDateSchema.optional(),
 });
@@ -380,6 +382,7 @@ export function applyCreateAccount(
     liquidity: parsed.liquidity,
     expectedAnnualReturn: parsed.expectedAnnualReturn,
     linkedAccountId: parsed.linkedAccountId,
+    mortgageTerms: parsed.mortgageTerms,
     createdAt: openingDate,
   });
   const snapshots =

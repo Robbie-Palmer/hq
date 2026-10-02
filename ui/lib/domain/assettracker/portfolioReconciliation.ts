@@ -12,6 +12,12 @@ import type { NetWorthDataPoint } from "./assetTrackerViews";
 import { type CapitalFlow, capitalFlowKind } from "./capitalFlow";
 import type { IncomeRecord } from "./incomeRecord";
 import {
+  advanceMortgageTerms,
+  buildMortgageSchedule,
+  type MortgageCashFlowSummary,
+  summarizeMortgageCashFlow,
+} from "./mortgage";
+import {
   convertAccountAmountAtDate,
   convertMoneyAtDate,
   latestValuedBalances,
@@ -60,6 +66,12 @@ export type PortfolioFinancialIndependence = {
   periods: PortfolioReconciliationPeriod[];
   representativeAnnualExpenditure: number | null;
   representativeAnnualCurrentExpenditure: number | null;
+  /** Scheduled mortgage cash needed in the next 12 payments. */
+  mortgageCashFlow: MortgageCashFlowSummary | null;
+  /** Current household cash requirement while scheduled mortgages remain. */
+  annualCashFlowWhileMortgage: number | null;
+  /** Ongoing expenditure after scheduled mortgage interest and fees end. */
+  annualExpenditureAfterMortgage: number | null;
   /** Active compensation-based saving, falling back to the historical median. */
   representativeAnnualSavings: number | null;
   /** Active compensation savings rate, falling back to the historical rate. */
@@ -107,6 +119,99 @@ export type PortfolioFiProjectionPoint = {
   /** Projected portfolio value expressed in today's money. */
   projected: number;
 };
+
+function portfolioMortgageCashFlow(
+  repository: AssetTrackerRepository,
+  asOfDate: string,
+): MortgageCashFlowSummary | null {
+  const summaries = Array.from(repository.accounts.values()).flatMap(
+    (account) => {
+      if (
+        account.assetType !== "mortgage" ||
+        account.closedAt != null ||
+        account.mortgageTerms == null
+      ) {
+        return [];
+      }
+      const latest = repository.snapshots
+        .filter(
+          (snapshot) =>
+            snapshot.accountId === account.id && snapshot.date <= asOfDate,
+        )
+        .toSorted((a, b) => a.date.localeCompare(b.date))
+        .at(-1);
+      if (latest == null || latest.balance >= 0) return [];
+      const schedule = buildMortgageSchedule({
+        openingBalance: latest.balance,
+        initialAnnualRate: account.expectedAnnualReturn,
+        rateChanges: account.expectedReturnChanges,
+        terms: advanceMortgageTerms(account.mortgageTerms, latest.date),
+      });
+      const summary = summarizeMortgageCashFlow(schedule, asOfDate);
+      if (summary == null) return [];
+      const convert = (amount: number) =>
+        convertAccountAmountAtDate(repository, account.id, amount, asOfDate);
+      const annualRequiredCashFlow = convert(summary.annualRequiredCashFlow);
+      const annualEconomicCost = convert(summary.annualEconomicCost);
+      const annualPrincipal = convert(summary.annualPrincipal);
+      return annualRequiredCashFlow == null ||
+        annualEconomicCost == null ||
+        annualPrincipal == null
+        ? []
+        : [
+            {
+              annualRequiredCashFlow,
+              annualEconomicCost,
+              annualPrincipal,
+              payoffDate: summary.payoffDate,
+            },
+          ];
+    },
+  );
+  if (summaries.length === 0) return null;
+  return {
+    annualRequiredCashFlow: summaries.reduce(
+      (sum, summary) => sum + summary.annualRequiredCashFlow,
+      0,
+    ),
+    annualEconomicCost: summaries.reduce(
+      (sum, summary) => sum + summary.annualEconomicCost,
+      0,
+    ),
+    annualPrincipal: summaries.reduce(
+      (sum, summary) => sum + summary.annualPrincipal,
+      0,
+    ),
+    payoffDate: summaries
+      .map((summary) => summary.payoffDate)
+      .toSorted()
+      .at(-1) as string,
+  };
+}
+
+function mortgageAdjustedExpenditure(
+  annualExpenditure: number | null,
+  mortgage: MortgageCashFlowSummary | null,
+): {
+  annualCashFlowWhileMortgage: number | null;
+  annualExpenditureAfterMortgage: number | null;
+} {
+  if (annualExpenditure == null) {
+    return {
+      annualCashFlowWhileMortgage: null,
+      annualExpenditureAfterMortgage: null,
+    };
+  }
+  const annualExpenditureAfterMortgage = Math.max(
+    annualExpenditure - (mortgage?.annualEconomicCost ?? 0),
+    0,
+  );
+  return {
+    annualCashFlowWhileMortgage:
+      annualExpenditureAfterMortgage + (mortgage?.annualRequiredCashFlow ?? 0),
+    annualExpenditureAfterMortgage,
+  };
+}
 
 function calendarDaysBetween(start: string, end: string): number {
   const [startYear, startMonth, startDay] = start.split("-").map(Number);
@@ -480,6 +585,9 @@ export function getPortfolioFinancialIndependence(
   const annualExpenditure = representativeAnnualExpenditure(periods);
   const annualCurrentExpenditure =
     representativeAnnualCurrentExpenditure(periods);
+  const mortgageCashFlow = portfolioMortgageCashFlow(repository, asOfDate);
+  const { annualCashFlowWhileMortgage, annualExpenditureAfterMortgage } =
+    mortgageAdjustedExpenditure(annualExpenditure, mortgageCashFlow);
   const historicalAnnualSavings = representativeAnnualSavings(periods);
   const totalIncome = periods.reduce((sum, period) => sum + period.income, 0);
   const totalSavings = periods.reduce(
@@ -491,12 +599,12 @@ export function getPortfolioFinancialIndependence(
   const withdrawalRate =
     repository.settings.withdrawalRate ?? DEFAULT_WITHDRAWAL_RATE;
   const target =
-    annualExpenditure == null ||
+    annualExpenditureAfterMortgage == null ||
     !Number.isFinite(withdrawalRate) ||
     withdrawalRate <= 0 ||
     withdrawalRate > 1
       ? null
-      : annualExpenditure / withdrawalRate;
+      : annualExpenditureAfterMortgage / withdrawalRate;
   const valuedBalances = latestValuedBalances(repository);
   const currentNetWorthValue = getNetWorthTimeSeries(repository).at(-1)?.total;
   const valuationAvailable =
@@ -580,6 +688,9 @@ export function getPortfolioFinancialIndependence(
     periods,
     representativeAnnualExpenditure: annualExpenditure,
     representativeAnnualCurrentExpenditure: annualCurrentExpenditure,
+    mortgageCashFlow,
+    annualCashFlowWhileMortgage,
+    annualExpenditureAfterMortgage,
     representativeAnnualSavings: annualSavings,
     savingsRate,
     takeHomeSavingsRate,

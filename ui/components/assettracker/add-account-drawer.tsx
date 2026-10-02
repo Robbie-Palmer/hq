@@ -64,6 +64,8 @@ export function AddAccountDrawer() {
   const [linkedId, setLinkedId] = useState(NO_LINK);
   const [openingBalance, setOpeningBalance] = useState("");
   const [openingDate, setOpeningDate] = useState(todayIsoDate());
+  const [firstPaymentDate, setFirstPaymentDate] = useState(todayIsoDate());
+  const [remainingTermYears, setRemainingTermYears] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -77,6 +79,8 @@ export function AddAccountDrawer() {
     setLinkedId(NO_LINK);
     setOpeningBalance("");
     setOpeningDate(todayIsoDate());
+    setFirstPaymentDate(todayIsoDate());
+    setRemainingTermYears("");
     setError(null);
   }
 
@@ -95,6 +99,18 @@ export function AddAccountDrawer() {
         linkedAccountId:
           assetType === "mortgage" && linkedId !== NO_LINK
             ? linkedId
+            : undefined,
+        mortgageTerms:
+          assetType === "mortgage"
+            ? {
+                firstPaymentDate,
+                remainingTermMonths: Math.round(
+                  Number(remainingTermYears) * 12,
+                ),
+                fees: [],
+                overpayments: [],
+                termChanges: [],
+              }
             : undefined,
         openingBalance:
           openingBalance === "" ? undefined : Number(openingBalance),
@@ -272,6 +288,46 @@ export function AddAccountDrawer() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+          {assetType === "mortgage" && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="add-account-first-payment"
+                  className="text-sm font-medium"
+                >
+                  Next payment
+                </label>
+                <Input
+                  id="add-account-first-payment"
+                  type="date"
+                  required
+                  value={firstPaymentDate}
+                  onChange={(event) => setFirstPaymentDate(event.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="add-account-term"
+                  className="text-sm font-medium"
+                >
+                  Remaining term (years)
+                </label>
+                <Input
+                  id="add-account-term"
+                  type="number"
+                  inputMode="decimal"
+                  min="0.1"
+                  step="0.1"
+                  required
+                  placeholder="e.g. 25"
+                  value={remainingTermYears}
+                  onChange={(event) =>
+                    setRemainingTermYears(event.target.value)
+                  }
+                />
+              </div>
             </div>
           )}
           <div className="grid grid-cols-2 gap-4">

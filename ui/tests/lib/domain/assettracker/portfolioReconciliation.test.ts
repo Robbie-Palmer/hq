@@ -414,6 +414,13 @@ describe("reconcilePortfolio", () => {
         assetType: "mortgage",
         expectedAnnualReturn: 0.04,
         linkedAccountId: "home",
+        mortgageTerms: {
+          firstPaymentDate: "2024-03-31",
+          remainingTermMonths: 240,
+          fees: [],
+          overpayments: [],
+          termChanges: [],
+        },
         createdAt: "2024-01-01",
       },
     ];
@@ -434,5 +441,16 @@ describe("reconcilePortfolio", () => {
 
     expect(currentNetWorth).toBe(100_000);
     expect(result.progress).toBeGreaterThan(0);
+    expect(result.mortgageCashFlow).toMatchObject({
+      annualRequiredCashFlow: expect.any(Number),
+      annualEconomicCost: expect.any(Number),
+      annualPrincipal: expect.any(Number),
+    });
+    expect(result.annualCashFlowWhileMortgage).toBeGreaterThan(
+      result.annualExpenditureAfterMortgage ?? 0,
+    );
+    expect(result.target).toBeCloseTo(
+      (result.annualExpenditureAfterMortgage ?? 0) / 0.04,
+    );
   });
 });

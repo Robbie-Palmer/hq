@@ -14,6 +14,7 @@ export * from "./exchangeRateDecimal";
 export * from "./exchangeRateImport";
 export * from "./incomeRecord";
 export * from "./money";
+export * from "./mortgage";
 export * from "./pastedHistory";
 export * from "./plannedExpenditure";
 export * from "./portfolioReconciliation";
