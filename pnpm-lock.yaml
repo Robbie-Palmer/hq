@@ -699,7 +699,7 @@ importers:
         version: 2.5.0
       numeric-quantity:
         specifier: ^3.2.1
-        version: 3.3.2
+        version: 3.3.3
       openrouter-client:
         specifier: workspace:*
         version: link:../openrouter-client
@@ -7277,8 +7277,8 @@ packages:
   nth-check@2.1.1:
     resolution: {integrity: sha512-lqjrjmaOoAnWfMmBPL+XNnynZh2+swxiX3WUE0s4yEHI6m+AwrK2UZOimIRl3X/4QctVqS8AiZjFqyOGrMXb/w==}
 
-  numeric-quantity@3.3.2:
-    resolution: {integrity: sha512-Gg/0rVyiaTePGl4AwVLtCvU/XNhYHAhcxrbyHpQKsUidlnEims/0g6WFrWynr8bL/0WFvNq0JTRmTzkDYZ/wwQ==}
+  numeric-quantity@3.3.3:
+    resolution: {integrity: sha512-XICjnIs8Q8vUlOvVOFI8Xe3kte8fknfpzASHjwy4R2GtRm4Q5lI+d62JqFe54X4kqj/xdsucWxYe8G+OD9O8Uw==}
     engines: {node: '>=16'}
 
   object-assign@4.1.1:
@@ -15211,7 +15211,7 @@ snapshots:
     dependencies:
       boolbase: 1.0.0
 
-  numeric-quantity@3.3.2: {}
+  numeric-quantity@3.3.3: {}
 
   object-assign@4.1.1: {}
 
