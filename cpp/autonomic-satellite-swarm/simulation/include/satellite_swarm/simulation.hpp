@@ -34,7 +34,7 @@ struct SatelliteUpdate {
 
 struct OrbitUpdate {
   OrbitUpdate() = default;
-  OrbitUpdate(NodeId configured_node_id, PropagationResult configured_orbit)
+  OrbitUpdate(NodeId configured_node_id, const PropagationResult& configured_orbit)
       : node_id(configured_node_id), orbit(configured_orbit) {}
 
   NodeId node_id = 0U;
