@@ -576,11 +576,11 @@ export type GetCriticalPathData = {
          */
         excludeInitiativeIds?: Array<string>;
         /**
-         * Repeat the query parameter to select more than one case-insensitive exact ticket title.
+         * Repeat the query parameter to select more than one exact ticket title, ignoring case.
          */
         includeParentTitles?: Array<string>;
         /**
-         * Repeat the query parameter to select more than one case-insensitive exact ticket title.
+         * Repeat the query parameter to select more than one exact ticket title, ignoring case.
          */
         excludeParentTitles?: Array<string>;
         /**
@@ -1553,11 +1553,11 @@ export type ListWorkItemsData = {
          */
         excludeInitiativeIds?: Array<string>;
         /**
-         * Repeat the query parameter to select more than one case-insensitive exact ticket title.
+         * Repeat the query parameter to select more than one exact ticket title, ignoring case.
          */
         includeParentTitles?: Array<string>;
         /**
-         * Repeat the query parameter to select more than one case-insensitive exact ticket title.
+         * Repeat the query parameter to select more than one exact ticket title, ignoring case.
          */
         excludeParentTitles?: Array<string>;
         /**

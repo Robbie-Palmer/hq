@@ -555,10 +555,10 @@ export const zGetCriticalPathQuery = z.object({
         description: 'Repeat the query parameter to select more than one scope.'
     }).optional(),
     includeParentTitles: z.array(z.string().min(1).max(10000)).max(100).register(z.globalRegistry, {
-        description: 'Repeat the query parameter to select more than one case-insensitive exact ticket title.'
+        description: 'Repeat the query parameter to select more than one exact ticket title, ignoring case.'
     }).optional(),
     excludeParentTitles: z.array(z.string().min(1).max(10000)).max(100).register(z.globalRegistry, {
-        description: 'Repeat the query parameter to select more than one case-insensitive exact ticket title.'
+        description: 'Repeat the query parameter to select more than one exact ticket title, ignoring case.'
     }).optional(),
     includeProjectIds: z.array(z.string().min(1).max(200)).max(100).register(z.globalRegistry, {
         description: 'Repeat the query parameter to select more than one scope.'
@@ -864,10 +864,10 @@ export const zListWorkItemsQuery = z.object({
         description: 'Repeat the query parameter to select more than one scope.'
     }).optional(),
     includeParentTitles: z.array(z.string().min(1).max(10000)).max(100).register(z.globalRegistry, {
-        description: 'Repeat the query parameter to select more than one case-insensitive exact ticket title.'
+        description: 'Repeat the query parameter to select more than one exact ticket title, ignoring case.'
     }).optional(),
     excludeParentTitles: z.array(z.string().min(1).max(10000)).max(100).register(z.globalRegistry, {
-        description: 'Repeat the query parameter to select more than one case-insensitive exact ticket title.'
+        description: 'Repeat the query parameter to select more than one exact ticket title, ignoring case.'
     }).optional(),
     includeProjectIds: z.array(z.string().min(1).max(200)).max(100).register(z.globalRegistry, {
         description: 'Repeat the query parameter to select more than one scope.'
