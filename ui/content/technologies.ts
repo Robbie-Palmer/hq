@@ -1466,4 +1466,12 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     website: "https://trakt.tv",
     type: "tool",
   },
+  {
+    name: "Frankfurter",
+    added: "2026-10-02",
+    description:
+      "Open source API for current and historical reference exchange rates from official sources",
+    website: "https://frankfurter.dev",
+    type: "platform",
+  },
 ];
