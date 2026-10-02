@@ -1,6 +1,6 @@
 ---
 title: "ADR 017: Deterministic SGP4 Orbit Simulation"
-status: "Proposed"
+status: "Accepted"
 date: "2026-09-20"
 tech_stack: ["SGP4"]
 supersedes: "autonomic-satellite-swarm:012-qrptracker-embedded-orbit-propagation"
@@ -32,7 +32,7 @@ provides C++ source, test cases, and results for propagating such element sets. 
 position and velocity. It does not calculate the maneuver needed to reach a mission objective, and
 its output becomes less reliable as the elements age or the real orbit changes.
 
-# Decision, proposed
+# Decision
 
 Use an SGP4 implementation in the C++ simulation layer to produce deterministic satellite motion
 for native and WebAssembly runs. Do not add the propagator to the portable coordination core or the
@@ -99,29 +99,45 @@ Live elements would make the displayed satellites appear current, but they would
 depend on a network service and changing data. The existing demonstration is self-hosted,
 repeatable, and audited for external requests. Pinned scenario inputs fit those properties better.
 
-# Acceptance criteria
+# Acceptance evidence
 
-Keep this ADR Proposed until the implementation satisfies all of the following:
+* The imported CelesTrak C++ source is pinned to
+  [`4efec61212ce03529bdf1037e0b86eb1ece2ea49`](https://github.com/CelesTrak/fundamentals-of-astrodynamics/tree/4efec61212ce03529bdf1037e0b86eb1ece2ea49/software/cpp/SGP4/SGP4).
+  Its notice records AGPL-3.0, the upstream citation, normalized line endings, and a result-neutral
+  guard against an overlapping satellite-number self-copy in upstream `twoline2rv`.
+* The scenario contains three fixed TLE pairs with one common epoch. Construction checks their
+  fixed-width ASCII layout, line numbers, checksums, catalog pairing, and upstream parser result.
+  Tests reject corrupt checksums, mismatched catalogs, and truncated lines.
+* Tests compare CelesTrak near-Earth vectors at epoch and six hours later and a deep-space vector
+  3.6 days before its epoch. Every TEME position must be within one metre. A separate polar case
+  crosses 80 degrees latitude and the longitude discontinuity.
+* Each `PropagationResult` carries epoch, position, velocity, and explicit TEME and Earth-fixed
+  frames. The documented Earth-fixed conversion rotates by Greenwich mean sidereal time, treats UTC
+  as UT1, sets polar motion to zero, and includes Earth rotation in velocity.
+* One Earth-fixed result supplies both the quantized `SatelliteSnapshot` used by the scorer and the
+  Cartesian position and velocity serialized for Cesium. No TypeScript propagator exists.
+* The fixed trace contains 147 frames from 0 through 8,040 seconds, exceeding the reference orbit's
+  roughly 7,983-second period. It derives every instant from the TLE epoch and trace offset without
+  reading the wall clock or network.
+* Native, WebAssembly, and production-worker output match byte for byte. Browser positions are
+  integral metres, velocities are integral millimetres per second, and scorer inputs are quantized
+  to `0.0001` degree and one metre.
+* Cesium linearly interpolates 60-second Earth-fixed samples. The measured midpoint error stays
+  below the enforced 3,300-metre bound. Negotiation plays at `0.01x`, quiet flight at `100x`, and
+  the controls expose pause, step, UTC simulation time, and multiplier. Reduced-motion mode starts
+  paused.
+* The debug native executable grew from 1,811,400 to 2,194,200 bytes. The browser loader grew from
+  19,678 to 21,231 bytes, WebAssembly from 227,825 to 274,931 bytes, and the fixture from 10,795 to
+  208,382 bytes. The production audit passed in Chromium 153.0.8010.12 without external requests or
+  page errors; first-globe time was 3,050 milliseconds on desktop and 4,684 milliseconds at 4x
+  mobile CPU throttling.
+* The CMake dependency is private to the simulation target. All 93 host tests, the browser parity
+  gate, and both Uno and ESP32 compile gates pass, leaving the portable core and firmware free of
+  SGP4.
 
-* Select and pin the exact SGP4 C++ source revision. Record its license, notices, local
-  modifications, and upstream reference.
-* Parse and validate the checked-in TLEs, including their epoch and checksums, and reject malformed
-  inputs.
-* Match published reference vectors within an error bound chosen before implementation. Cover at
-  least near-Earth motion, longitude wrap, a pole crossing, and times on both sides of the TLE
-  epoch.
-* Define the propagated coordinate frame and document the conversion used to obtain the
-  Earth-fixed position rendered by Cesium.
-* Use one propagation result to update both `SatelliteSnapshot` and the serialized browser
-  position at every sampled instant.
-* Cover at least one complete orbit without reading the wall clock or making a network request.
-* Preserve deterministic native fixtures and native-to-WebAssembly parity. Quantize serialized
-  values explicitly if platform math prevents stable byte-for-byte output.
-* Demonstrate accelerated quiet flight and slowed or stepped negotiation. Keep reduced-motion
-  operation usable without automatic animation.
-* Record the added native, WebAssembly, JSON, and browser performance costs and pass the existing
-  satellite-swarm audit.
-* Confirm that the portable core and both firmware targets contain no SGP4 dependency.
+The detailed model, conversion, sampling, reproducibility rules, and cost measurements are recorded
+in the repository's
+[orbit-simulation note](https://github.com/Robbie-Palmer/hq/blob/main/cpp/autonomic-satellite-swarm/docs/orbit-simulation.md).
 
 # Consequences
 

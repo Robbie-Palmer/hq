@@ -296,7 +296,7 @@ export function DeferredSatelliteSwarmSimulation() {
       if (hasStartedRef.current) return;
       hasStartedRef.current = true;
       setStarted(true);
-      void run(SOUTH_POLE_OBJECTIVE);
+      void run(SOUTH_POLE_OBJECTIVE, true);
     };
 
     if (typeof IntersectionObserver === "undefined") {
@@ -368,7 +368,7 @@ export function DeferredSatelliteSwarmSimulation() {
       ) : (
         <Placeholder
           error={error}
-          onRetry={() => void run(SOUTH_POLE_OBJECTIVE)}
+          onRetry={() => void run(SOUTH_POLE_OBJECTIVE, true)}
           started={started}
         />
       )}

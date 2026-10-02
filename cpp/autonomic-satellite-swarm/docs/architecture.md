@@ -73,8 +73,11 @@ safe-state status changes, node resets, and mission completions before mission c
 controller updates. A delivery directive can drop, delay, or duplicate the next matching
 sender-to-recipient message. Each simulated node can reject or accept its safe-state request, and a
 later frame can move accepted work from pending to success or failure. The runner records each
-applied fault alongside messages and state changes, then captures every node's state, score, and
-satellite snapshot. The command-line demonstration uses this runner. An Emscripten target exposes
+applied fault alongside messages and state changes, then captures every node's state, score,
+satellite snapshot, and optional rich orbit result. The browser scenario uses a simulation-only
+SGP4 adapter to propagate checked-in TLEs into TEME and Earth-fixed state vectors. One Earth-fixed
+result supplies both the controller snapshot and the serialized Cesium position. The command-line
+demonstration uses this runner. An Emscripten target exposes
 the same browser serializer through a versioned C ABI, and a module worker invokes it without moving
 coordination rules into TypeScript. Native and WebAssembly results are compared byte for byte for
 the default scenario and a repeated equal-score allocation run. A reset increments the simulated
@@ -109,6 +112,8 @@ for a benchtop swarm demonstration; it is not proposed as a spacecraft communica
   no durable epoch store.
 - The reference transport is unauthenticated and unencrypted.
 - The controller accepts snapshot updates but does not calculate or schedule them.
+- SGP4, time conversion, and coordinate-frame conversion remain simulation dependencies; the
+  portable core and firmware contain none of them.
 - The reference firmware does not provide a physical safe-state actuator or completion evidence.
 - Multi-hop discovery and forwarding are out of scope for this revival.
 
@@ -119,7 +124,8 @@ and an architecture decision rather than an incidental code edit.
 
 A credible next research iteration would add:
 
-1. A validated orbital propagation and maneuver-cost model.
+1. A validated maneuver-cost model to replace the historical heuristic; deterministic SGP4
+   propagation now supplies simulation positions but does not validate mission cost.
 2. Durable boot-epoch, assignment, and safe-state storage with explicit recovery rules.
 3. Validated resource and lifetime inputs for candidacy scoring before the existing cyclic
    equal-score tie-break.

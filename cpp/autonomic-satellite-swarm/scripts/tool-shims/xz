@@ -1,0 +1,23 @@
+#!/usr/bin/env python3
+
+"""Minimal xz decompressor for tool bootstrap environments without the xz executable."""
+
+import lzma
+import shutil
+import sys
+
+
+def main() -> int:
+    filenames = [argument for argument in sys.argv[1:] if not argument.startswith("-")]
+    source = open(filenames[-1], "rb") if filenames else sys.stdin.buffer
+    try:
+        with lzma.LZMAFile(source) as decompressed:
+            shutil.copyfileobj(decompressed, sys.stdout.buffer)
+    finally:
+        if filenames:
+            source.close()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

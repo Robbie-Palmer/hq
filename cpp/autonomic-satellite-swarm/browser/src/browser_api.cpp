@@ -22,7 +22,7 @@
 
 namespace {
 
-constexpr uint32_t kBrowserApiVersion = 7U;
+constexpr uint32_t kBrowserApiVersion = 8U;
 constexpr std::size_t kBrowserErrorCapacity = 256U;
 
 satellite_swarm::simulation::BrowserScenario parseScenario(uint32_t scenario) {
