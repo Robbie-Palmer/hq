@@ -19,6 +19,10 @@ vi.mock("@/components/assettracker/income-history-import-drawer", () => ({
   IncomeHistoryImportDrawer: () => <p>Income history import</p>,
 }));
 
+vi.mock("@/components/assettracker/spreadsheet-import-drawer", () => ({
+  SpreadsheetImportDrawer: () => <p>Spreadsheet import</p>,
+}));
+
 vi.mock("@/components/assettracker/net-worth-chart", () => ({
   NetWorthChart: () => <p>Net worth history</p>,
 }));
@@ -117,6 +121,7 @@ describe("Asset Tracker feature routes", () => {
     const { unmount } = render(<ImportsRoute />);
     expect(screen.getByText("Account history import")).toBeVisible();
     expect(screen.getByText("Income history import")).toBeVisible();
+    expect(screen.getByText("Spreadsheet import")).toBeVisible();
     expect(screen.getByText("Data controls: data")).toBeVisible();
 
     unmount();

@@ -3,6 +3,7 @@
 import { AccountHistoryImportDrawer } from "./account-history-import-drawer";
 import { DataControls } from "./data-controls";
 import { IncomeHistoryImportDrawer } from "./income-history-import-drawer";
+import { SpreadsheetImportDrawer } from "./spreadsheet-import-drawer";
 
 export function ImportsRoute() {
   return (
@@ -15,6 +16,7 @@ export function ImportsRoute() {
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
+        <SpreadsheetImportDrawer />
         <AccountHistoryImportDrawer />
         <IncomeHistoryImportDrawer />
       </div>
