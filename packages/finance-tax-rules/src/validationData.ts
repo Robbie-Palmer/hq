@@ -49,6 +49,14 @@ const components = (
   ...values,
 });
 
+type FixtureInput = ValidationFixture["input"];
+
+const fixtureInput = (
+  pay: Omit<FixtureInput, "payroll" | "pension">,
+  payroll: FixtureInput["payroll"],
+  pension: FixtureInput["pension"] = null,
+): FixtureInput => ({ ...pay, payroll, pension });
+
 const annualRounding = [
   {
     component: "incomeTaxPence" as const,
@@ -154,14 +162,12 @@ export const validationCorpus = {
       effectiveDate: "2025-06-30",
       coverage: ["tax-band-boundary"],
       sources: annualSources,
-      input: {
+      input: fixtureInput({
         contractualGrossPayPence: 5_027_000,
         cashPayPence: 5_027_000,
         taxablePayPence: 3_770_000,
         nationalInsuranceEarningsPence: 5_027_000,
-        payroll: annualPayroll(),
-        pension: null,
-      },
+      }, annualPayroll()),
       expected: {
         supported: true,
         precision: "annual-liability-estimate",
@@ -183,14 +189,12 @@ export const validationCorpus = {
       effectiveDate: "2025-06-30",
       coverage: ["allowance-taper"],
       sources: annualSources,
-      input: {
+      input: fixtureInput({
         contractualGrossPayPence: 11_000_000,
         cashPayPence: 11_000_000,
         taxablePayPence: 10_243_000,
         nationalInsuranceEarningsPence: 11_000_000,
-        payroll: annualPayroll(),
-        pension: null,
-      },
+      }, annualPayroll()),
       expected: {
         supported: true,
         precision: "annual-liability-estimate",
@@ -212,14 +216,12 @@ export const validationCorpus = {
       effectiveDate: "2025-06-30",
       coverage: ["scottish-rates"],
       sources: annualSources,
-      input: {
+      input: fixtureInput({
         contractualGrossPayPence: 5_000_000,
         cashPayPence: 5_000_000,
         taxablePayPence: 3_743_000,
         nationalInsuranceEarningsPence: 5_000_000,
-        payroll: annualPayroll(),
-        pension: null,
-      },
+      }, annualPayroll()),
       expected: {
         supported: true,
         precision: "annual-liability-estimate",
@@ -241,20 +243,18 @@ export const validationCorpus = {
       effectiveDate: "2025-06-30",
       coverage: ["salary-sacrifice", "employer-and-employee-pension-contributions"],
       sources: pensionSources,
-      input: {
+      input: fixtureInput({
         contractualGrossPayPence: 6_000_000,
         cashPayPence: 5_400_000,
         taxablePayPence: 4_143_000,
         nationalInsuranceEarningsPence: 5_400_000,
-        payroll: annualPayroll(),
-        pension: {
+      }, annualPayroll(), {
           method: "salary-sacrifice",
           grossContributionPence: 600_000,
           memberDeductionPence: 0,
           employerContributionPence: 600_000,
           providerTaxReliefPence: 0,
-        },
-      },
+      }),
       expected: {
         supported: true,
         precision: "annual-liability-estimate",
@@ -277,20 +277,18 @@ export const validationCorpus = {
       effectiveDate: "2025-06-30",
       coverage: ["net-pay", "employer-and-employee-pension-contributions"],
       sources: pensionSources,
-      input: {
+      input: fixtureInput({
         contractualGrossPayPence: 6_000_000,
         cashPayPence: 6_000_000,
         taxablePayPence: 4_143_000,
         nationalInsuranceEarningsPence: 6_000_000,
-        payroll: annualPayroll(),
-        pension: {
+      }, annualPayroll(), {
           method: "net-pay",
           grossContributionPence: 600_000,
           memberDeductionPence: 600_000,
           employerContributionPence: 0,
           providerTaxReliefPence: 0,
-        },
-      },
+      }),
       expected: {
         supported: true,
         precision: "annual-liability-estimate",
@@ -313,20 +311,18 @@ export const validationCorpus = {
       effectiveDate: "2025-06-30",
       coverage: ["relief-at-source", "employer-and-employee-pension-contributions"],
       sources: pensionSources,
-      input: {
+      input: fixtureInput({
         contractualGrossPayPence: 6_000_000,
         cashPayPence: 6_000_000,
         taxablePayPence: 4_743_000,
         nationalInsuranceEarningsPence: 6_000_000,
-        payroll: annualPayroll(),
-        pension: {
+      }, annualPayroll(), {
           method: "relief-at-source",
           grossContributionPence: 600_000,
           memberDeductionPence: 480_000,
           employerContributionPence: 0,
           providerTaxReliefPence: 120_000,
-        },
-      },
+      }),
       expected: {
         supported: true,
         precision: "annual-liability-estimate",
@@ -350,14 +346,12 @@ export const validationCorpus = {
       effectiveDate: "2026-04-30",
       coverage: ["pay-frequency", "non-cumulative-paye", "tax-code", "hmrc-rounding"],
       sources: payrollSources,
-      input: {
+      input: fixtureInput({
         contractualGrossPayPence: 300_000,
         cashPayPence: 300_000,
         taxablePayPence: 300_000,
         nationalInsuranceEarningsPence: 300_000,
-        payroll: exactPayroll(),
-        pension: null,
-      },
+      }, exactPayroll()),
       expected: {
         supported: true,
         precision: "exact-payroll-deduction",
@@ -379,14 +373,12 @@ export const validationCorpus = {
       effectiveDate: "2026-04-10",
       coverage: ["pay-frequency", "non-cumulative-paye", "tax-code", "hmrc-rounding"],
       sources: payrollSources,
-      input: {
+      input: fixtureInput({
         contractualGrossPayPence: 50_000,
         cashPayPence: 50_000,
         taxablePayPence: 50_000,
         nationalInsuranceEarningsPence: 50_000,
-        payroll: exactPayroll({ frequency: "weekly", periodNumber: 1 }),
-        pension: null,
-      },
+      }, exactPayroll({ frequency: "weekly", periodNumber: 1 })),
       expected: {
         supported: true,
         precision: "exact-payroll-deduction",
@@ -408,14 +400,12 @@ export const validationCorpus = {
       effectiveDate: "2026-04-30",
       coverage: ["cumulative-paye", "tax-code", "hmrc-rounding"],
       sources: payrollSources,
-      input: {
+      input: fixtureInput({
         contractualGrossPayPence: 200_000,
         cashPayPence: 200_000,
         taxablePayPence: 95_100,
         nationalInsuranceEarningsPence: 200_000,
-        payroll: exactPayroll({ taxCode: "1257L", taxBasis: "cumulative" }),
-        pension: null,
-      },
+      }, exactPayroll({ taxCode: "1257L", taxBasis: "cumulative" })),
       expected: {
         supported: true,
         precision: "exact-payroll-deduction",
@@ -437,20 +427,18 @@ export const validationCorpus = {
       effectiveDate: "2026-05-31",
       coverage: ["bonus", "cumulative-paye", "tax-code", "hmrc-rounding"],
       sources: payrollSources,
-      input: {
+      input: fixtureInput({
         contractualGrossPayPence: 500_000,
         cashPayPence: 500_000,
         taxablePayPence: 395_200,
         nationalInsuranceEarningsPence: 500_000,
-        payroll: exactPayroll({
+      }, exactPayroll({
           periodNumber: 2,
           taxCode: "1257L",
           taxBasis: "cumulative",
           priorGrossPayPence: 200_000,
           priorIncomeTaxPence: 19_020,
-        }),
-        pension: null,
-      },
+      })),
       expected: {
         supported: true,
         precision: "exact-payroll-deduction",
@@ -472,14 +460,12 @@ export const validationCorpus = {
       effectiveDate: "2026-05-31",
       coverage: ["bonus", "non-cumulative-paye", "tax-code", "hmrc-rounding"],
       sources: payrollSources,
-      input: {
+      input: fixtureInput({
         contractualGrossPayPence: 500_000,
         cashPayPence: 500_000,
         taxablePayPence: 395_100,
         nationalInsuranceEarningsPence: 500_000,
-        payroll: exactPayroll({ periodNumber: 2, taxCode: "1257L" }),
-        pension: null,
-      },
+      }, exactPayroll({ periodNumber: 2, taxCode: "1257L" })),
       expected: {
         supported: true,
         precision: "exact-payroll-deduction",
@@ -501,21 +487,19 @@ export const validationCorpus = {
       effectiveDate: "2026-10-31",
       coverage: ["job-change", "partial-year", "cumulative-paye", "tax-code"],
       sources: payrollSources,
-      input: {
+      input: fixtureInput({
         contractualGrossPayPence: 300_000,
         cashPayPence: 300_000,
         taxablePayPence: 300_000,
         nationalInsuranceEarningsPence: 300_000,
-        payroll: exactPayroll({
+      }, exactPayroll({
           periodNumber: 7,
           taxBasis: "cumulative",
           priorGrossPayPence: 1_800_500,
           priorIncomeTaxPence: 360_100,
           employmentStartDate: "2026-10-01",
           jobChangedDuringTaxYear: true,
-        }),
-        pension: null,
-      },
+      })),
       expected: {
         supported: true,
         precision: "exact-payroll-deduction",
@@ -539,14 +523,12 @@ export const validationCorpus = {
       sources: [
         { sourceId: "hmrc-employer-rates-2023", locator: "Employee NI rates through 5 January 2024" },
       ],
-      input: {
+      input: fixtureInput({
         contractualGrossPayPence: 300_000,
         cashPayPence: 300_000,
         taxablePayPence: 300_000,
         nationalInsuranceEarningsPence: 300_000,
-        payroll: exactPayroll({ employmentStartDate: "2023-04-06" }),
-        pension: null,
-      },
+      }, exactPayroll({ employmentStartDate: "2023-04-06" })),
       expected: {
         supported: true,
         precision: "exact-payroll-deduction",
@@ -570,14 +552,12 @@ export const validationCorpus = {
       sources: [
         { sourceId: "hmrc-employer-rates-2023", locator: "Employee NI rates from 6 January 2024" },
       ],
-      input: {
+      input: fixtureInput({
         contractualGrossPayPence: 300_000,
         cashPayPence: 300_000,
         taxablePayPence: 300_000,
         nationalInsuranceEarningsPence: 300_000,
-        payroll: exactPayroll({ employmentStartDate: "2023-04-06" }),
-        pension: null,
-      },
+      }, exactPayroll({ employmentStartDate: "2023-04-06" })),
       expected: {
         supported: true,
         precision: "exact-payroll-deduction",
@@ -599,14 +579,12 @@ export const validationCorpus = {
       effectiveDate: "2026-04-30",
       coverage: ["national-insurance-category", "unsupported-input"],
       sources: payrollSources,
-      input: {
+      input: fixtureInput({
         contractualGrossPayPence: 300_000,
         cashPayPence: 300_000,
         taxablePayPence: 300_000,
         nationalInsuranceEarningsPence: 300_000,
-        payroll: exactPayroll({ nationalInsuranceCategory: "B" }),
-        pension: null,
-      },
+      }, exactPayroll({ nationalInsuranceCategory: "B" })),
       expected: {
         supported: false,
         reasons: [
@@ -625,21 +603,19 @@ export const validationCorpus = {
       effectiveDate: "2026-10-31",
       coverage: ["job-change", "partial-year", "cumulative-paye", "unsupported-input"],
       sources: payrollSources,
-      input: {
+      input: fixtureInput({
         contractualGrossPayPence: 300_000,
         cashPayPence: 300_000,
         taxablePayPence: 300_000,
         nationalInsuranceEarningsPence: 300_000,
-        payroll: exactPayroll({
+      }, exactPayroll({
           periodNumber: 7,
           taxBasis: "cumulative",
           priorGrossPayPence: null,
           priorIncomeTaxPence: null,
           employmentStartDate: "2026-10-01",
           jobChangedDuringTaxYear: true,
-        }),
-        pension: null,
-      },
+      })),
       expected: {
         supported: false,
         reasons: [
