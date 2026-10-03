@@ -83,4 +83,28 @@ describe("kitchen helpers", () => {
       ),
     ).toEqual(ingredients);
   });
+
+  it("requires both ingredients and household equipment to cook", () => {
+    const [match] = getKitchenRecipeMatches(
+      [
+        {
+          slug: "soup",
+          title: "Soup",
+          cuisine: [],
+          ingredients: [{ slug: "stock", name: "stock" }],
+          cookware: ["saucepan", "stick blender"],
+        },
+      ],
+      ["stock"],
+      ["saucepan"],
+    );
+
+    expect(match).toMatchObject({
+      canCook: false,
+      missingCount: 0,
+      equipmentHaveCount: 1,
+      equipmentTotalCount: 2,
+      missingEquipment: [{ slug: "stick-blender", name: "stick blender" }],
+    });
+  });
 });

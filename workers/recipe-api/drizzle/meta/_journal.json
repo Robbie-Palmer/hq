@@ -162,6 +162,13 @@
       "when": 1791046841526,
       "tag": "0022_add_more_pantry_seasonings",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791054534739,
+      "tag": "0023_even_switch",
+      "breakpoints": true
     }
   ]
 }
