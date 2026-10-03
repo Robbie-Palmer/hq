@@ -245,6 +245,10 @@
       "category": "spice"
     },
     {
+      "slug": "fajita-seasoning",
+      "category": "spice"
+    },
+    {
       "slug": "farfalle",
       "category": "grain"
     },
@@ -309,6 +313,10 @@
       "category": "spice"
     },
     {
+      "slug": "garlic-italian-seasoning",
+      "category": "spice"
+    },
+    {
       "slug": "garlic-powder",
       "category": "spice"
     },
@@ -353,7 +361,15 @@
       "category": "spice"
     },
     {
+      "slug": "ground-ginger",
+      "category": "spice"
+    },
+    {
       "slug": "ground-nutmeg",
+      "category": "spice"
+    },
+    {
+      "slug": "ground-white-pepper",
       "category": "spice"
     },
     {
@@ -455,6 +471,10 @@
     {
       "slug": "mayonnaise",
       "category": "condiment"
+    },
+    {
+      "slug": "medium-curry-powder",
+      "category": "spice"
     },
     {
       "slug": "mexican-seasoning",

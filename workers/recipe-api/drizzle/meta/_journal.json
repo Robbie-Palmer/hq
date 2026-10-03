@@ -155,6 +155,13 @@
       "when": 1791037196555,
       "tag": "0021_add_pantry_spices_and_herbs",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791046841526,
+      "tag": "0022_add_more_pantry_seasonings",
+      "breakpoints": true
     }
   ]
 }

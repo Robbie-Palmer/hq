@@ -201,18 +201,23 @@ beforeAll(async () => {
       'dried-chives',
       'dried-dill',
       'dried-tarragon',
+      'fajita-seasoning',
+      'garlic-italian-seasoning',
       'ground-allspice',
       'ground-cinnamon',
+      'ground-ginger',
       'ground-nutmeg',
+      'ground-white-pepper',
       'harissa-seasoning',
       'maple-syrup',
+      'medium-curry-powder',
       'mixed-spice',
       'salted-butter',
       'whole-cloves'
     )
     order by slug
   `;
-  expect(migrationCount?.count).toBe(22);
+  expect(migrationCount?.count).toBe(23);
   expect(tableCount?.count).toBe(54);
   expect(catalogRows).toEqual([
     { category: "dairy", name: "almond milk", slug: "almond-milk" },
@@ -236,6 +241,16 @@ beforeAll(async () => {
     },
     {
       category: "spice",
+      name: "fajita seasoning",
+      slug: "fajita-seasoning",
+    },
+    {
+      category: "spice",
+      name: "garlic Italian seasoning",
+      slug: "garlic-italian-seasoning",
+    },
+    {
+      category: "spice",
       name: "ground allspice",
       slug: "ground-allspice",
     },
@@ -244,6 +259,7 @@ beforeAll(async () => {
       name: "ground cinnamon",
       slug: "ground-cinnamon",
     },
+    { category: "spice", name: "ground ginger", slug: "ground-ginger" },
     {
       category: "spice",
       name: "ground nutmeg",
@@ -251,10 +267,20 @@ beforeAll(async () => {
     },
     {
       category: "spice",
+      name: "ground white pepper",
+      slug: "ground-white-pepper",
+    },
+    {
+      category: "spice",
       name: "harissa seasoning",
       slug: "harissa-seasoning",
     },
     { category: "condiment", name: "maple syrup", slug: "maple-syrup" },
+    {
+      category: "spice",
+      name: "medium curry powder",
+      slug: "medium-curry-powder",
+    },
     { category: "spice", name: "mixed spice", slug: "mixed-spice" },
     { category: "dairy", name: "salted butter", slug: "salted-butter" },
     { category: "spice", name: "whole cloves", slug: "whole-cloves" },
