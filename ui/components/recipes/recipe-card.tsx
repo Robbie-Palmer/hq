@@ -1,4 +1,5 @@
 import { Check, ChefHat, Plus } from "lucide-react";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { DietWarning } from "@/components/recipes/diet-notice";
 import { RecipePageLink } from "@/components/recipes/recipe-page-link";
@@ -101,7 +102,9 @@ export function RecipeMatchCard({
   dietMatch?: DietMatch;
 }>) {
   const timeLabel = formatRecipeTime(recipe.totalTime);
-  const canCook = recipe.totalCount > 0 && recipe.missingCount === 0;
+  const canCook = recipe.canCook;
+  const missingRequirementCount =
+    recipe.missingCount + recipe.missingEquipment.length;
   const progress = Math.round(recipe.matchRatio * 100);
 
   return (
@@ -158,7 +161,7 @@ export function RecipeMatchCard({
                 : "text-[var(--terracotta)]",
             )}
           >
-            {canCook ? "cook" : `+${recipe.missingCount}`}
+            {canCook ? "cook" : `+${missingRequirementCount}`}
           </Badge>
         </div>
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--paper-warm)]">
@@ -181,6 +184,22 @@ export function RecipeMatchCard({
               {recipe.missingIngredients.length > 5 ? "..." : ""}
             </span>
           </p>
+        )}
+        {recipe.missingEquipment.length > 0 && (
+          <div className="rt-body relative z-10 mt-2 text-sm text-[var(--ink-2)]">
+            <p className="line-clamp-2">
+              Missing equipment:{" "}
+              <span className="text-[var(--terracotta)]">
+                {recipe.missingEquipment.map((item) => item.name).join(", ")}
+              </span>
+            </p>
+            <Link
+              href="/recipes/settings?section=household"
+              className="rt-mono mt-1 inline-block text-[var(--terracotta-deep)] underline underline-offset-2"
+            >
+              Update household equipment
+            </Link>
+          </div>
         )}
         {dietMatch && (
           <DietWarning match={dietMatch} compact className="mt-2" />

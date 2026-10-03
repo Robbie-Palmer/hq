@@ -313,6 +313,7 @@ export const organization = pgTable("organization", {
   slug: text().notNull().unique(),
   logo: text(),
   metadata: text(),
+  equipmentRecipeMatchMode: dietRecipeMatchModeEnum().notNull().default("warn"),
   createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp({ withTimezone: true })
     .notNull()
