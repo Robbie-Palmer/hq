@@ -10,7 +10,7 @@ import {
 
 describe("ideas API", () => {
   it("lists every idea with canonical reference counts", () => {
-    expect(getAllIdeaSlugs()).toHaveLength(33);
+    expect(getAllIdeaSlugs()).toHaveLength(37);
 
     const ideas = getAllIdeas();
     expect(ideas.map((idea) => idea.title)).toEqual(
@@ -112,11 +112,15 @@ describe("ideas API", () => {
       ),
     ).toEqual([
       "bounded-context",
+      "computationalism",
+      "critical-rationalism",
       "data-mesh",
       "domain-driven-design",
+      "empiricism",
       "epistemology",
       "falsifiability",
       "incommensurability",
+      "logical-empiricism",
       "paradigm-shift",
       "postpositivism",
       "theory-ladenness",

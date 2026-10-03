@@ -50,7 +50,7 @@ describe("sitemap", () => {
       "https://robbiepalmer.me/ideas/incommensurability",
     );
     expect(ideaUrls).toContain("https://robbiepalmer.me/ideas/postpositivism");
-    expect(ideaUrls).toHaveLength(34);
+    expect(ideaUrls).toHaveLength(38);
   });
 
   it("excludes legacy ADR aliases", () => {
