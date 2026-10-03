@@ -253,6 +253,10 @@ docker build \
 description = "Check agent CLI versions and start the t3-code image as its runtime UID"
 run = "bash scripts/check-t3-image"
 
+[tasks.t3-image-build-check]
+description = "Build and test the pinned t3-code runtime image"
+run = "bash scripts/build-and-check-t3-image"
+
 [tasks.t3-image-push]
 description = "Push the checked t3-code image to GHCR"
 run = "docker push ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-15"

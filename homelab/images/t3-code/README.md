@@ -83,7 +83,8 @@ requires the Dockerfile's tagged mise image to match it. Refresh the
 corresponding `mise.lock`, increment the release suffix in the image tasks and
 manifests, then build and test it. Renovate's native mise manager updates these
 tool declarations and their associated lockfiles. Renovate auto-merges all
-image dependency updates after the image checks pass, including major updates.
+image dependency updates after the pull-request image build and runtime checks
+pass, including major updates.
 After publishing, deploy the new reference with the context-guarded task. A
 rollback restores the previous image reference from Git and reapplies the
 overlay; neither operation replaces the persistent volume.
