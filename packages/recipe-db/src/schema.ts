@@ -340,6 +340,25 @@ export const member = pgTable(
   ],
 );
 
+/** Durable kitchen equipment shared by every member of a household. */
+export const householdEquipment = pgTable(
+  "household_equipment",
+  {
+    organizationId: text()
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    equipmentSlug: text().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.organizationId, table.equipmentSlug],
+      name: "household_equipment_pk",
+    }),
+    index("household_equipment_slug_idx").on(table.equipmentSlug),
+  ],
+);
+
 export const userFollow = pgTable(
   "user_follow",
   {

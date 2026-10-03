@@ -21,6 +21,9 @@ const mocks = vi.hoisted(() => ({
   getHouseholdMembers: vi.fn(),
   getHouseholdInvitations: vi.fn(),
   getIncomingHouseholdInvitations: vi.fn(),
+  getHouseholdEquipment: vi.fn(),
+  addHouseholdEquipment: vi.fn(),
+  removeHouseholdEquipment: vi.fn(),
   listAgents: vi.fn(),
   listAgentMutations: vi.fn(),
   revokeAgent: vi.fn(),
@@ -46,6 +49,9 @@ vi.mock("@/lib/api/households", async (importOriginal) => ({
   getHouseholdMembers: mocks.getHouseholdMembers,
   getHouseholdInvitations: mocks.getHouseholdInvitations,
   getIncomingHouseholdInvitations: mocks.getIncomingHouseholdInvitations,
+  getHouseholdEquipment: mocks.getHouseholdEquipment,
+  addHouseholdEquipment: mocks.addHouseholdEquipment,
+  removeHouseholdEquipment: mocks.removeHouseholdEquipment,
 }));
 
 vi.mock("@/lib/api/agents", async (importOriginal) => ({
@@ -83,6 +89,33 @@ const signedIn = {
   isPending: false,
 };
 
+function mockMemberHousehold() {
+  mocks.getHouseholds.mockResolvedValue([
+    {
+      id: "00000000-0000-4000-8000-000000000001",
+      name: "Park Road",
+      slug: "park-road",
+      logo: null,
+      createdAt: "2026-10-01T00:00:00.000Z",
+      updatedAt: "2026-10-01T00:00:00.000Z",
+      membership: { id: "membership-1", role: "member" },
+    },
+  ]);
+  mocks.getHouseholdMembers.mockResolvedValue([
+    {
+      id: "membership-1",
+      role: "member",
+      createdAt: "2026-10-01T00:00:00.000Z",
+      user: {
+        id: "robbie-user",
+        name: "Robbie",
+        email: "robbie@example.com",
+        image: null,
+      },
+    },
+  ]);
+}
+
 describe("SettingsView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -109,6 +142,9 @@ describe("SettingsView", () => {
     mocks.getHouseholdMembers.mockResolvedValue([]);
     mocks.getHouseholdInvitations.mockResolvedValue([]);
     mocks.getIncomingHouseholdInvitations.mockResolvedValue([]);
+    mocks.getHouseholdEquipment.mockResolvedValue({ catalog: [], owned: [] });
+    mocks.addHouseholdEquipment.mockResolvedValue({});
+    mocks.removeHouseholdEquipment.mockResolvedValue(undefined);
     mocks.listAgents.mockResolvedValue([]);
     mocks.listAgentMutations.mockResolvedValue([]);
     mocks.revokeAgent.mockResolvedValue(undefined);
@@ -418,6 +454,126 @@ describe("SettingsView", () => {
         screen.getByRole("button", { name: /create household/i }),
       ).not.toBeDisabled(),
     );
+  });
+
+  it("lets household members add and remove shared equipment", async () => {
+    const user = userEvent.setup();
+    mockMemberHousehold();
+    mocks.getHouseholdEquipment.mockResolvedValue({
+      catalog: [
+        { slug: "blender", name: "blender", category: "appliance" },
+        { slug: "frying-pan", name: "frying pan", category: "cookware" },
+      ],
+      owned: [
+        {
+          slug: "frying-pan",
+          name: "frying pan",
+          category: "cookware",
+          createdAt: "2026-10-01T00:00:00.000Z",
+          retired: false,
+        },
+      ],
+    });
+    mocks.addHouseholdEquipment.mockResolvedValue({
+      slug: "blender",
+      name: "blender",
+      category: "appliance",
+      createdAt: "2026-10-03T00:00:00.000Z",
+      retired: false,
+    });
+    renderSettingsView();
+
+    await user.click(screen.getByRole("button", { name: "Household" }));
+    await user.selectOptions(
+      await screen.findByLabelText("Equipment to add"),
+      "blender",
+    );
+    await user.click(screen.getByRole("button", { name: "Add equipment" }));
+
+    await waitFor(() =>
+      expect(mocks.addHouseholdEquipment).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000001",
+        "blender",
+      ),
+    );
+    expect(screen.getByText("blender")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Remove frying pan" }));
+    await waitFor(() =>
+      expect(mocks.removeHouseholdEquipment).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000001",
+        "frying-pan",
+      ),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Remove frying pan" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows an empty household equipment state", async () => {
+    const user = userEvent.setup();
+    mockMemberHousehold();
+    mocks.getHouseholdEquipment.mockResolvedValue({
+      catalog: [{ slug: "blender", name: "blender", category: "appliance" }],
+      owned: [],
+    });
+    renderSettingsView();
+
+    await user.click(screen.getByRole("button", { name: "Household" }));
+
+    expect(
+      await screen.findByText("No equipment added yet."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Equipment to add")).toBeEnabled();
+  });
+
+  it("keeps retired household equipment visible and removable", async () => {
+    const user = userEvent.setup();
+    mockMemberHousehold();
+    mocks.getHouseholdEquipment.mockResolvedValue({
+      catalog: [],
+      owned: [
+        {
+          slug: "rotary-dial-oven",
+          name: "rotary dial oven",
+          createdAt: "2026-10-01T00:00:00.000Z",
+          retired: true,
+        },
+      ],
+    });
+    renderSettingsView();
+
+    await user.click(screen.getByRole("button", { name: "Household" }));
+
+    expect(await screen.findByText("retired equipment")).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Remove rotary dial oven" }),
+    );
+    await waitFor(() =>
+      expect(mocks.removeHouseholdEquipment).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000001",
+        "rotary-dial-oven",
+      ),
+    );
+  });
+
+  it("keeps household equipment read-only when it fails to load", async () => {
+    const user = userEvent.setup();
+    mockMemberHousehold();
+    mocks.getHouseholdEquipment.mockRejectedValue(
+      new Error("Equipment unavailable"),
+    );
+    renderSettingsView();
+
+    await user.click(screen.getByRole("button", { name: "Household" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Equipment unavailable",
+    );
+    expect(
+      screen.getByText("No equipment changes are available right now."),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Equipment to add")).not.toBeInTheDocument();
   });
 
   it("opens on the security panel and surfaces a link error from the URL", async () => {
