@@ -6,7 +6,7 @@ export default function AssetTrackerDecisionsPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="mb-2 text-4xl font-bold">Decisions</h1>
+        <h1 className="mb-2 text-3xl font-bold sm:text-4xl">Decisions</h1>
         <p className="text-lg text-muted-foreground">
           Record financial choices and compare their expected and actual
           outcomes.

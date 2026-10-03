@@ -139,20 +139,23 @@ export function NetWorthChart({
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   // Ignore hidden entries for series that no longer exist (import/reset)
   const isFiltered = seriesNames.some((name) => hidden.has(name));
+  const visibleSeriesNames = useMemo(
+    () => seriesNames.filter((name) => !hidden.has(name)),
+    [hidden, seriesNames],
+  );
 
   // The bold total line tracks the visible subset, so focusing one account
   // shows that account's own trajectory rather than the full net worth
   const chartData = useMemo(() => {
-    const visibleNames = seriesNames.filter((name) => !hidden.has(name));
-    if (visibleNames.length === seriesNames.length) return rangedData;
+    if (visibleSeriesNames.length === seriesNames.length) return rangedData;
     return rangedData.map((point) => ({
       ...point,
-      total: visibleNames.reduce(
+      total: visibleSeriesNames.reduce(
         (sum, name) => sum + (Number(point[name]) || 0),
         0,
       ),
     }));
-  }, [rangedData, seriesNames, hidden]);
+  }, [rangedData, seriesNames.length, visibleSeriesNames]);
   const renderedChartData: Array<
     Record<string, string | number | null | undefined>
   > = showingFxImpact
@@ -236,6 +239,24 @@ export function NetWorthChart({
     };
   }
 
+  if (data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Market net worth over time</CardTitle>
+          <CardDescription>
+            Logged market valuations and estimated investment values.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+            Record an account balance to start net worth history.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <NetWorthChartHeader
@@ -253,9 +274,19 @@ export function NetWorthChart({
         showingFxImpact={showingFxImpact}
       />
       <CardContent className="px-2 sm:px-6">
-        <ChartContainer config={chartConfig} className="aspect-auto w-full">
+        <ChartContainer
+          config={chartConfig}
+          className="aspect-auto w-full"
+          role="img"
+          aria-label={
+            showingFxImpact
+              ? "Currency impact on net worth over time"
+              : "Market net worth by account over time"
+          }
+        >
           <ResponsiveContainer width="100%" height={400}>
             <ComposedChart
+              accessibilityLayer
               data={renderedChartData}
               stackOffset="sign"
               margin={{ top: 10, right: 30, left: 20, bottom: 5 }}
@@ -298,6 +329,15 @@ export function NetWorthChart({
           onSolo={soloSeries}
           onToggle={toggleSeries}
           seriesNames={seriesNames}
+          showingFxImpact={showingFxImpact}
+        />
+        <NetWorthDataTable
+          chartData={chartData}
+          currency={currency}
+          fxImpactData={fxImpactData}
+          householdBaseCurrency={householdBaseCurrency}
+          isFiltered={isFiltered}
+          seriesNames={visibleSeriesNames}
           showingFxImpact={showingFxImpact}
         />
       </CardContent>
@@ -349,6 +389,8 @@ function NetWorthChartHeader({
               <Button
                 variant={!showingFxImpact ? "secondary" : "ghost"}
                 size="sm"
+                aria-pressed={!showingFxImpact}
+                className="min-h-11"
                 onClick={() => onModeChange("value")}
               >
                 Value
@@ -356,6 +398,8 @@ function NetWorthChartHeader({
               <Button
                 variant={showingFxImpact ? "secondary" : "ghost"}
                 size="sm"
+                aria-pressed={showingFxImpact}
+                className="min-h-11"
                 onClick={() => onModeChange("fxImpact")}
               >
                 FX impact
@@ -369,6 +413,8 @@ function NetWorthChartHeader({
                 key={option.label}
                 variant={rangeYears === option.years ? "secondary" : "ghost"}
                 size="sm"
+                aria-pressed={rangeYears === option.years}
+                className="min-h-11 min-w-11"
                 onClick={() => onRangeChange(option.years)}
               >
                 {option.label}
@@ -575,7 +621,7 @@ function NetWorthChartLegend({
         {isFiltered && (
           <button
             type="button"
-            className="rounded-full border px-2.5 py-1 text-xs font-medium hover:bg-accent"
+            className="min-h-11 rounded-full border px-3 py-2 text-xs font-medium hover:bg-accent"
             onClick={onReset}
           >
             Show all
@@ -660,7 +706,7 @@ function LegendPill({
       type="button"
       aria-pressed={!isHidden}
       className={cn(
-        "flex select-none items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-opacity hover:bg-accent",
+        "flex min-h-11 select-none items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-medium transition-opacity hover:bg-accent",
         isHidden && "opacity-40 line-through",
       )}
       onPointerDown={startPress}
@@ -677,5 +723,94 @@ function LegendPill({
       />
       {name}
     </button>
+  );
+}
+
+function formatTableValue(value: unknown, currency: Currency): string {
+  return typeof value === "number"
+    ? formatCurrency(value, currency)
+    : "Unavailable";
+}
+
+function NetWorthDataTable({
+  chartData,
+  currency,
+  fxImpactData,
+  householdBaseCurrency,
+  isFiltered,
+  seriesNames,
+  showingFxImpact,
+}: Readonly<{
+  chartData: NetWorthDataPoint[];
+  currency: Currency;
+  fxImpactData: Array<Record<string, string | number | null | undefined>>;
+  householdBaseCurrency: Currency;
+  isFiltered: boolean;
+  seriesNames: string[];
+  showingFxImpact: boolean;
+}>) {
+  if (showingFxImpact) {
+    return (
+      <div className="sr-only">
+        <table>
+          <caption>Currency impact on net worth over time</caption>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Actual net worth</th>
+              <th>Net worth at fixed start rates</th>
+              <th>Currency impact</th>
+            </tr>
+          </thead>
+          <tbody>
+            {fxImpactData.map((point) => (
+              <tr key={String(point.date)}>
+                <td>{point.date}</td>
+                <td>
+                  {formatTableValue(point.actualTotal, householdBaseCurrency)}
+                </td>
+                <td>
+                  {formatTableValue(
+                    point.fixedRateTotal,
+                    householdBaseCurrency,
+                  )}
+                </td>
+                <td>{formatTableValue(point.impact, householdBaseCurrency)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  return (
+    <div className="sr-only">
+      <table>
+        <caption>Market net worth by account over time</caption>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>{isFiltered ? "Selected total" : "Net worth"}</th>
+            <th>Estimated net worth</th>
+            {seriesNames.map((name) => (
+              <th key={name}>{name}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {chartData.map((point) => (
+            <tr key={point.date}>
+              <td>{point.date}</td>
+              <td>{formatTableValue(point.total, currency)}</td>
+              <td>{formatTableValue(point.estimatedTotal, currency)}</td>
+              {seriesNames.map((name) => (
+                <td key={name}>{formatTableValue(point[name], currency)}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

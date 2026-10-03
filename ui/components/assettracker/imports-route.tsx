@@ -8,7 +8,7 @@ export function ImportsRoute() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="mb-2 text-4xl font-bold">Imports</h1>
+        <h1 className="mb-2 text-3xl font-bold sm:text-4xl">Imports</h1>
         <p className="text-lg text-muted-foreground">
           Move account history, income history, and portable Asset Tracker data
           in or out of this browser.

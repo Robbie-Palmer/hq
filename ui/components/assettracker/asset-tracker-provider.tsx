@@ -98,6 +98,9 @@ interface AssetTrackerContextValue {
   valuationIssues: ValuationIssue[];
   /** True once the user has made changes that are persisted in this browser */
   hasLocalChanges: boolean;
+  localDataStatus: "loading" | "ready" | "error";
+  localDataError: string | null;
+  retryLocalData(): void;
   createAccount(input: CreateAccountInput): Promise<void>;
   recordBalance(input: RecordBalanceInput): Promise<void>;
   recordTransfer(input: RecordTransferInput): Promise<void>;
@@ -153,39 +156,65 @@ export function AssetTrackerProvider({
   // locally saved changes are applied after mount to avoid hydration mismatch
   const [data, setData] = useState<AssetTrackerData>(getDemoAssetTrackerData);
   const [hasLocalChanges, setHasLocalChanges] = useState(false);
+  const [localDataStatus, setLocalDataStatus] =
+    useState<AssetTrackerContextValue["localDataStatus"]>("loading");
+  const [localDataError, setLocalDataError] = useState<string | null>(null);
   const apiRef = useRef<AssetTrackerApi | null>(null);
   // Once the user has mutated, a late-resolving load() must not clobber the
   // fresher state with the older persisted snapshot
   const hasMutatedRef = useRef(false);
+  const loadRequestRef = useRef(0);
 
   const getApi = useCallback(() => {
     apiRef.current ??= createLocalAssetTrackerApi(window.localStorage);
     return apiRef.current;
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    getApi()
-      .load()
-      .then(({ data: stored, persisted }) => {
-        if (cancelled || hasMutatedRef.current || !persisted) return;
+  const loadLocalData = useCallback(async () => {
+    const request = ++loadRequestRef.current;
+    setLocalDataStatus("loading");
+    setLocalDataError(null);
+    try {
+      const { data: stored, persisted } = await getApi().load();
+      if (request !== loadRequestRef.current) return;
+      if (!hasMutatedRef.current && persisted) {
         setData(stored);
         setHasLocalChanges(true);
-      })
-      .catch((err) => {
-        console.warn("AssetTracker: failed to load stored data", err);
-      });
-    return () => {
-      cancelled = true;
-    };
+      }
+      setLocalDataStatus("ready");
+    } catch (error) {
+      if (request !== loadRequestRef.current) return;
+      console.warn("AssetTracker: failed to load stored data", error);
+      setLocalDataStatus("error");
+      setLocalDataError(
+        "Asset Tracker could not read this browser's saved data. Nothing has been changed. Check that browser storage is available, then try again.",
+      );
+    }
   }, [getApi]);
+
+  useEffect(() => {
+    void loadLocalData();
+    return () => {
+      loadRequestRef.current += 1;
+    };
+  }, [loadLocalData]);
 
   const mutate = useCallback(
     async (run: (api: AssetTrackerApi) => Promise<AssetTrackerData>) => {
       hasMutatedRef.current = true;
-      const next = await run(getApi());
-      setData(next);
-      setHasLocalChanges(true);
+      try {
+        const next = await run(getApi());
+        setData(next);
+        setHasLocalChanges(true);
+        setLocalDataStatus("ready");
+        setLocalDataError(null);
+      } catch (error) {
+        setLocalDataStatus("error");
+        setLocalDataError(
+          "Asset Tracker could not save the last change in this browser. The change was not applied. Check that browser storage is available, then try again.",
+        );
+        throw error;
+      }
     },
     [getApi],
   );
@@ -250,6 +279,11 @@ export function AssetTrackerProvider({
     () => ({
       ...views,
       hasLocalChanges,
+      localDataStatus,
+      localDataError,
+      retryLocalData: () => {
+        void loadLocalData();
+      },
       createAccount: (input) => mutate((api) => api.createAccount(input)),
       recordBalance: (input) => mutate((api) => api.recordBalance(input)),
       recordTransfer: (input) => mutate((api) => api.recordTransfer(input)),
@@ -295,9 +329,19 @@ export function AssetTrackerProvider({
         mutate((api) => api.setNetWorthTarget({ target, inTodaysMoney })),
       clearData: () => mutate((api) => api.clear()),
       resetData: async () => {
-        const seed = await getApi().reset();
-        setData(seed);
-        setHasLocalChanges(false);
+        try {
+          const seed = await getApi().reset();
+          setData(seed);
+          setHasLocalChanges(false);
+          setLocalDataStatus("ready");
+          setLocalDataError(null);
+        } catch (error) {
+          setLocalDataStatus("error");
+          setLocalDataError(
+            "Asset Tracker could not reset data in this browser. Nothing has been changed. Check that browser storage is available, then try again.",
+          );
+          throw error;
+        }
       },
       exportData: () =>
         downloadFile(
@@ -316,7 +360,16 @@ export function AssetTrackerProvider({
         await mutate((api) => api.importData(raw));
       },
     }),
-    [views, hasLocalChanges, data, mutate, getApi],
+    [
+      views,
+      hasLocalChanges,
+      localDataStatus,
+      localDataError,
+      data,
+      mutate,
+      getApi,
+      loadLocalData,
+    ],
   );
 
   return (

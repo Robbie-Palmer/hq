@@ -2,61 +2,98 @@
 
 import {
   ChartNoAxesCombinedIcon,
+  ChevronDownIcon,
   CircleDollarSignIcon,
   FileClockIcon,
   FileInputIcon,
   GoalIcon,
   LandmarkIcon,
+  type LucideIcon,
   SettingsIcon,
   WaypointsIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { type ReactNode, useRef } from "react";
 import { cn } from "@/lib/generic/styles";
+import { useAssetTracker } from "./asset-tracker-provider";
+import {
+  AssetTrackerLoadingState,
+  AssetTrackerLocalDataError,
+} from "./asset-tracker-route-state";
 
-const destinations = [
+interface Destination {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+}
+
+interface DestinationGroup {
+  label: string;
+  destinations: readonly Destination[];
+}
+
+const overviewDestination: Destination = {
+  href: "/assettracker",
+  label: "Overview",
+  icon: ChartNoAxesCombinedIcon,
+};
+
+const destinationGroups: readonly DestinationGroup[] = [
   {
-    href: "/assettracker",
-    label: "Overview",
-    icon: ChartNoAxesCombinedIcon,
+    label: "Portfolio",
+    destinations: [
+      overviewDestination,
+      {
+        href: "/assettracker/accounts",
+        label: "Accounts",
+        icon: LandmarkIcon,
+      },
+      {
+        href: "/assettracker/history",
+        label: "History",
+        icon: FileClockIcon,
+      },
+      {
+        href: "/assettracker/cash-flow",
+        label: "Cash flow",
+        icon: WaypointsIcon,
+      },
+    ],
   },
   {
-    href: "/assettracker/accounts",
-    label: "Accounts",
-    icon: LandmarkIcon,
+    label: "Forward look",
+    destinations: [
+      {
+        href: "/assettracker/planning",
+        label: "Planning",
+        icon: GoalIcon,
+      },
+      {
+        href: "/assettracker/decisions",
+        label: "Decisions",
+        icon: CircleDollarSignIcon,
+      },
+    ],
   },
   {
-    href: "/assettracker/history",
-    label: "History",
-    icon: FileClockIcon,
+    label: "Data",
+    destinations: [
+      {
+        href: "/assettracker/imports",
+        label: "Imports",
+        icon: FileInputIcon,
+      },
+      {
+        href: "/assettracker/settings",
+        label: "Settings",
+        icon: SettingsIcon,
+      },
+    ],
   },
-  {
-    href: "/assettracker/cash-flow",
-    label: "Cash flow",
-    icon: WaypointsIcon,
-  },
-  {
-    href: "/assettracker/planning",
-    label: "Planning",
-    icon: GoalIcon,
-  },
-  {
-    href: "/assettracker/decisions",
-    label: "Decisions",
-    icon: CircleDollarSignIcon,
-  },
-  {
-    href: "/assettracker/imports",
-    label: "Imports",
-    icon: FileInputIcon,
-  },
-  {
-    href: "/assettracker/settings",
-    label: "Settings",
-    icon: SettingsIcon,
-  },
-] as const;
+];
+
+const destinations = destinationGroups.flatMap((group) => group.destinations);
 
 function isCurrentDestination(pathname: string, href: string): boolean {
   if (href === "/assettracker") return pathname === href;
@@ -65,35 +102,87 @@ function isCurrentDestination(pathname: string, href: string): boolean {
 
 function AssetTrackerNavigation({
   className,
-}: Readonly<{ className?: string }>) {
+  onNavigate,
+  showGroupLabels = false,
+}: Readonly<{
+  className?: string;
+  onNavigate?(): void;
+  showGroupLabels?: boolean;
+}>) {
   const pathname = usePathname();
 
   return (
     <nav aria-label="Asset Tracker sections" className={className}>
-      {destinations.map(({ href, label, icon: Icon }) => {
-        const current = isCurrentDestination(pathname, href);
-        return (
-          <Link
-            key={href}
-            href={href}
-            aria-current={current ? "page" : undefined}
-            className={cn(
-              "flex min-h-10 shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              current && "bg-muted text-foreground",
-            )}
-          >
-            <Icon aria-hidden="true" className="size-4" />
-            <span>{label}</span>
-          </Link>
-        );
-      })}
+      {destinationGroups.map((group, groupIndex) => (
+        <div
+          key={group.label}
+          className={cn(groupIndex > 0 && "mt-4 border-t pt-4")}
+        >
+          {showGroupLabels && (
+            <p className="mb-1 px-3 text-xs font-medium text-muted-foreground">
+              {group.label}
+            </p>
+          )}
+          <div className="grid gap-1">
+            {group.destinations.map(({ href, label, icon: Icon }) => {
+              const current = isCurrentDestination(pathname, href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  aria-current={current ? "page" : undefined}
+                  className={cn(
+                    "flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    current && "bg-muted text-foreground",
+                  )}
+                  onClick={onNavigate}
+                >
+                  <Icon aria-hidden="true" className="size-4" />
+                  <span>{label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </nav>
+  );
+}
+
+function AssetTrackerMobileNavigation() {
+  const pathname = usePathname();
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  const current =
+    destinations.find((destination) =>
+      isCurrentDestination(pathname, destination.href),
+    ) ?? overviewDestination;
+  const CurrentIcon = current.icon;
+
+  return (
+    <details ref={detailsRef} className="group border-b md:hidden">
+      <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-4 py-2 font-medium marker:content-none [&::-webkit-details-marker]:hidden">
+        <CurrentIcon aria-hidden="true" className="size-4" />
+        <span className="flex-1">{current.label}</span>
+        <span className="text-sm text-muted-foreground">Sections</span>
+        <ChevronDownIcon
+          aria-hidden="true"
+          className="size-4 transition-transform group-open:rotate-180"
+        />
+      </summary>
+      <AssetTrackerNavigation
+        className="border-t px-4 py-3"
+        showGroupLabels
+        onNavigate={() => detailsRef.current?.removeAttribute("open")}
+      />
+    </details>
   );
 }
 
 export function AssetTrackerShell({
   children,
 }: Readonly<{ children: ReactNode }>) {
+  const { localDataError, localDataStatus, retryLocalData } = useAssetTracker();
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <a
@@ -106,30 +195,40 @@ export function AssetTrackerShell({
         <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <Link
             href="/assettracker"
-            className="text-lg font-semibold tracking-tight"
+            className="inline-flex min-h-11 items-center text-lg font-semibold tracking-tight"
           >
             Asset Tracker
           </Link>
           <Link
             href="/projects/personal-finance-app"
-            className="text-sm text-muted-foreground hover:text-foreground hover:underline"
+            className="inline-flex min-h-11 items-center text-sm text-muted-foreground hover:text-foreground hover:underline"
           >
             About
           </Link>
         </div>
       </header>
 
-      <AssetTrackerNavigation className="flex gap-1 overflow-x-auto border-b px-4 py-2 md:hidden" />
+      <AssetTrackerMobileNavigation />
 
       <div className="mx-auto grid w-full max-w-screen-2xl flex-1 md:grid-cols-[13rem_minmax(0,1fr)]">
         <aside className="hidden border-r px-3 py-6 md:block">
-          <AssetTrackerNavigation className="sticky top-6 flex flex-col gap-1" />
+          <AssetTrackerNavigation className="sticky top-6" showGroupLabels />
         </aside>
         <main
           id="asset-tracker-content"
+          aria-busy={localDataStatus === "loading"}
           className="min-w-0 px-4 py-6 sm:px-6 sm:py-8"
         >
-          {children}
+          {localDataStatus === "loading" ? (
+            <AssetTrackerLoadingState />
+          ) : localDataStatus === "error" && localDataError ? (
+            <AssetTrackerLocalDataError
+              message={localDataError}
+              onRetry={retryLocalData}
+            />
+          ) : (
+            children
+          )}
         </main>
       </div>
 

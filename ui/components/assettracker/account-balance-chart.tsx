@@ -66,42 +66,89 @@ export function AccountBalanceChart({
         </CardDescription>
       </CardHeader>
       <CardContent className="px-2 sm:px-6">
-        <ChartContainer config={chartConfig} className="aspect-auto w-full">
-          <ResponsiveContainer width="100%" height={400}>
-            <LineChart
-              data={chartData}
-              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+        {chartData.length === 0 ? (
+          <p className="mx-2 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+            Record an account balance to start its history.
+          </p>
+        ) : (
+          <>
+            <ChartContainer
+              config={chartConfig}
+              className="aspect-auto w-full"
+              role="img"
+              aria-label="Account balances over time"
             >
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="date" className="text-xs" />
-              <YAxis className="text-xs" tickFormatter={formatAxisTick} />
-              <ChartTooltip
-                content={<ChartTooltipContent />}
-                formatter={(value, name) => {
-                  const currency = accounts.find(
-                    (account) => account.name === String(name),
-                  )?.currency;
-                  return currency == null
-                    ? String(value)
-                    : formatAccountCurrency(value as number, currency);
-                }}
-              />
-              {accounts.map((account, i) => (
-                <Line
-                  key={account.id}
-                  type="monotone"
-                  dataKey={account.name}
-                  stroke={ACCOUNT_COLORS[i % ACCOUNT_COLORS.length]}
-                  strokeWidth={2}
-                  // A line needs two points; show a dot so a freshly created
-                  // account's single balance is still visible
-                  dot={account.snapshots.length < 2}
-                  connectNulls
-                />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
-        </ChartContainer>
+              <ResponsiveContainer width="100%" height={400}>
+                <LineChart
+                  accessibilityLayer
+                  data={chartData}
+                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    className="stroke-muted"
+                  />
+                  <XAxis dataKey="date" className="text-xs" />
+                  <YAxis className="text-xs" tickFormatter={formatAxisTick} />
+                  <ChartTooltip
+                    content={<ChartTooltipContent />}
+                    formatter={(value, name) => {
+                      const currency = accounts.find(
+                        (account) => account.name === String(name),
+                      )?.currency;
+                      return currency == null
+                        ? String(value)
+                        : formatAccountCurrency(value as number, currency);
+                    }}
+                  />
+                  {accounts.map((account, i) => (
+                    <Line
+                      key={account.id}
+                      type="monotone"
+                      dataKey={account.name}
+                      stroke={ACCOUNT_COLORS[i % ACCOUNT_COLORS.length]}
+                      strokeWidth={2}
+                      // A line needs two points; show a dot so a freshly created
+                      // account's single balance is still visible
+                      dot={account.snapshots.length < 2}
+                      connectNulls
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+            <div className="sr-only">
+              <table>
+                <caption>Account balances over time</caption>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    {accounts.map((account) => (
+                      <th key={account.id}>{account.name}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {chartData.map((point) => (
+                    <tr key={String(point.date)}>
+                      <td>{point.date}</td>
+                      {accounts.map((account) => (
+                        <td key={account.id}>
+                          {point[account.name] == null
+                            ? "No balance recorded"
+                            : formatAccountCurrency(
+                                Number(point[account.name]),
+                                account.currency,
+                              )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );
