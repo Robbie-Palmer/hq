@@ -188,21 +188,76 @@ beforeAll(async () => {
     where table_schema = 'public'
   `;
   const catalogRows = await client<
-    { category: string | null; slug: string }[]
+    { category: string | null; name: string; slug: string }[]
   >`
-    select slug, category
+    select slug, name, category
     from ingredient
-    where slug in ('almond-milk', 'cajun-powder', 'cajun-seasoning', 'chilli-oil', 'maple-syrup', 'salted-butter')
+    where slug in (
+      'almond-milk',
+      'cajun-powder',
+      'cajun-seasoning',
+      'chilli-oil',
+      'dried-bay-leaves',
+      'dried-chives',
+      'dried-dill',
+      'dried-tarragon',
+      'ground-allspice',
+      'ground-cinnamon',
+      'ground-nutmeg',
+      'harissa-seasoning',
+      'maple-syrup',
+      'mixed-spice',
+      'salted-butter',
+      'whole-cloves'
+    )
     order by slug
   `;
-  expect(migrationCount?.count).toBe(21);
+  expect(migrationCount?.count).toBe(22);
   expect(tableCount?.count).toBe(54);
   expect(catalogRows).toEqual([
-    { category: "dairy", slug: "almond-milk" },
-    { category: "spice", slug: "cajun-seasoning" },
-    { category: "oil-fat", slug: "chilli-oil" },
-    { category: "condiment", slug: "maple-syrup" },
-    { category: "dairy", slug: "salted-butter" },
+    { category: "dairy", name: "almond milk", slug: "almond-milk" },
+    {
+      category: "spice",
+      name: "cajun seasoning",
+      slug: "cajun-seasoning",
+    },
+    { category: "oil-fat", name: "chilli oil", slug: "chilli-oil" },
+    {
+      category: "herb",
+      name: "dried bay leaves",
+      slug: "dried-bay-leaves",
+    },
+    { category: "herb", name: "dried chives", slug: "dried-chives" },
+    { category: "herb", name: "dried dill", slug: "dried-dill" },
+    {
+      category: "herb",
+      name: "dried tarragon",
+      slug: "dried-tarragon",
+    },
+    {
+      category: "spice",
+      name: "ground allspice",
+      slug: "ground-allspice",
+    },
+    {
+      category: "spice",
+      name: "ground cinnamon",
+      slug: "ground-cinnamon",
+    },
+    {
+      category: "spice",
+      name: "ground nutmeg",
+      slug: "ground-nutmeg",
+    },
+    {
+      category: "spice",
+      name: "harissa seasoning",
+      slug: "harissa-seasoning",
+    },
+    { category: "condiment", name: "maple syrup", slug: "maple-syrup" },
+    { category: "spice", name: "mixed spice", slug: "mixed-spice" },
+    { category: "dairy", name: "salted butter", slug: "salted-butter" },
+    { category: "spice", name: "whole cloves", slug: "whole-cloves" },
   ]);
 });
 

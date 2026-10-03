@@ -83,7 +83,11 @@ export const ingredients = [
   { name: "fresh rosemary", category: "herb" },
   { name: "fresh parsley", category: "herb" },
   { name: "fresh coriander", category: "herb" },
+  { name: "dried bay leaves", category: "herb" },
+  { name: "dried chives", category: "herb" },
+  { name: "dried dill", category: "herb" },
   { name: "oregano", category: "herb" },
+  { name: "dried tarragon", category: "herb" },
   { name: "thyme", category: "herb" },
   { name: "italian herbs", category: "herb" },
 
@@ -91,6 +95,9 @@ export const ingredients = [
   { name: "curry powder", category: "spice" },
   { name: "hot chilli powder", category: "spice" },
   { name: "ground coriander", category: "spice" },
+  { name: "ground allspice", category: "spice" },
+  { name: "ground cinnamon", category: "spice" },
+  { name: "ground nutmeg", category: "spice" },
   { name: "cayenne pepper", category: "spice" },
   { name: "paprika", category: "spice" },
   { name: "smoked paprika", category: "spice" },
@@ -119,6 +126,9 @@ export const ingredients = [
   { name: "chilli powder", category: "spice" },
   { name: "ginger", category: "spice" },
   { name: "avocado topping", category: "spice" },
+  { name: "harissa seasoning", category: "spice" },
+  { name: "mixed spice", category: "spice" },
+  { name: "whole cloves", category: "spice" },
 
   // Condiments & Sauces
   { name: "basil pesto", category: "condiment" },

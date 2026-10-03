@@ -201,8 +201,24 @@
       "category": "dairy"
     },
     {
+      "slug": "dried-bay-leaves",
+      "category": "herb"
+    },
+    {
+      "slug": "dried-chives",
+      "category": "herb"
+    },
+    {
+      "slug": "dried-dill",
+      "category": "herb"
+    },
+    {
       "slug": "dried-parsley",
       "category": "spice"
+    },
+    {
+      "slug": "dried-tarragon",
+      "category": "herb"
     },
     {
       "slug": "dried-thyme",
@@ -321,11 +337,23 @@
       "category": "dairy"
     },
     {
+      "slug": "ground-allspice",
+      "category": "spice"
+    },
+    {
       "slug": "ground-almonds",
       "category": "other"
     },
     {
+      "slug": "ground-cinnamon",
+      "category": "spice"
+    },
+    {
       "slug": "ground-coriander",
+      "category": "spice"
+    },
+    {
+      "slug": "ground-nutmeg",
       "category": "spice"
     },
     {
@@ -335,6 +363,10 @@
     {
       "slug": "harissa-paste",
       "category": "condiment"
+    },
+    {
+      "slug": "harissa-seasoning",
+      "category": "spice"
     },
     {
       "slug": "herbes-de-provence",
@@ -439,6 +471,10 @@
     {
       "slug": "mixed-beans",
       "category": "legume"
+    },
+    {
+      "slug": "mixed-spice",
+      "category": "spice"
     },
     {
       "slug": "mozzarella",
@@ -743,6 +779,10 @@
     {
       "slug": "white-wine-vinegar",
       "category": "condiment"
+    },
+    {
+      "slug": "whole-cloves",
+      "category": "spice"
     },
     {
       "slug": "yoghurt",
