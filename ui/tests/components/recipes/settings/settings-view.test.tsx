@@ -1,6 +1,7 @@
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsView } from "@/components/recipes/settings/settings-view";
+import { recipeQueryKeys } from "@/lib/query/recipe-query-keys";
 import {
   parseUnitPreference,
   resetUnitPreferenceServerSnapshot,
@@ -441,7 +442,8 @@ describe("SettingsView", () => {
         resolveCreate = resolve;
       }),
     );
-    renderSettingsView();
+    const { queryClient } = renderSettingsView();
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
 
     await user.click(screen.getByRole("button", { name: "Household" }));
     await user.type(
@@ -465,6 +467,10 @@ describe("SettingsView", () => {
         screen.getByRole("button", { name: /create household/i }),
       ).not.toBeDisabled(),
     );
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: recipeQueryKeys.equipmentReadiness("robbie-user"),
+      exact: true,
+    });
   });
 
   it("lets household members add and remove shared equipment", async () => {

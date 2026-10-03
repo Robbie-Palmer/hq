@@ -209,6 +209,10 @@ export function NotificationsView() {
             queryKey: recipeQueryKeys.householdSettings(sessionUserId),
             exact: true,
           }),
+          queryClient.invalidateQueries({
+            queryKey: recipeQueryKeys.equipmentReadiness(sessionUserId),
+            exact: true,
+          }),
         ]);
       }
     } catch (cause) {
