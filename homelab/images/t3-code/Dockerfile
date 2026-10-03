@@ -89,7 +89,11 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/data/home/.cache/ms-playwright
 ENV PUPPETEER_CACHE_DIR=/data/home/.cache/puppeteer
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
-COPY --chmod=0555 bootstrap-settings.mjs /usr/local/lib/t3-code/bootstrap-settings.mjs
+COPY --chmod=0555 \
+  bootstrap-settings.mjs \
+  recipe-agent-connections.mjs \
+  recipe-agent-mcp.mjs \
+  /usr/local/lib/t3-code/
 
 WORKDIR /data/workspaces
 USER 2000:2000
