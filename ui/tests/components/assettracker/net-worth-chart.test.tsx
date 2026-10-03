@@ -206,7 +206,30 @@ describe("NetWorthChart", () => {
     render(<NetWorthChart data={[]} currency="GBP" />);
 
     expect(screen.getByText("Market net worth over time")).toBeVisible();
+    expect(
+      screen.getByText("Record an account balance to start net worth history."),
+    ).toBeVisible();
+    expect(screen.queryByRole("img")).toBeNull();
     expect(screen.queryByText(/over all time/)).toBeNull();
+  });
+
+  it("provides a named chart and equivalent data table", () => {
+    render(<NetWorthChart data={data} currency="GBP" />);
+
+    expect(
+      screen.getByRole("img", {
+        name: "Market net worth by account over time",
+      }),
+    ).toBeVisible();
+    const table = screen.getByRole("table", {
+      name: "Market net worth by account over time",
+    });
+    expect(table).toHaveTextContent("Cash");
+    expect(table).toHaveTextContent("US shares");
+    expect(screen.getByRole("button", { name: "All" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 });
 

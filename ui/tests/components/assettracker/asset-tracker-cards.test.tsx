@@ -337,6 +337,7 @@ describe("HousingStrategyPlanner", () => {
 describe("AssetTrackerDashboard", () => {
   it("shows the household position instead of account and type counts", () => {
     mockAssetTracker({
+      accountDetails: [{ id: "account" } as AccountDetailView],
       positionSummary: {
         date: "2026-01-31",
         grossAssets: 361_750,
@@ -361,7 +362,9 @@ describe("AssetTrackerDashboard", () => {
   });
 
   it("marks position values unavailable when the portfolio cannot be valued", () => {
-    mockAssetTracker();
+    mockAssetTracker({
+      accountDetails: [{ id: "account" } as AccountDetailView],
+    });
 
     render(<AssetTrackerDashboard />);
 
@@ -370,6 +373,22 @@ describe("AssetTrackerDashboard", () => {
     expect(screen.getByText("Net worth")).toBeVisible();
     expect(screen.getByText("Liquid assets")).toBeVisible();
     expect(screen.getAllByText("Unavailable")).toHaveLength(6);
+  });
+
+  it("offers clear next steps for an empty portfolio", () => {
+    mockAssetTracker();
+
+    render(<AssetTrackerDashboard />);
+
+    expect(
+      screen.getByRole("heading", { name: "Start with an account" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Add an account" }),
+    ).toHaveAttribute("href", "/assettracker/accounts");
+    expect(
+      screen.getByRole("link", { name: "Import history" }),
+    ).toHaveAttribute("href", "/assettracker/imports");
   });
 });
 

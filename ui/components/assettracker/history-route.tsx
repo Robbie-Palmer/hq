@@ -38,7 +38,7 @@ export function HistoryRoute() {
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="mb-2 text-4xl font-bold">History</h1>
+          <h1 className="mb-2 text-3xl font-bold sm:text-4xl">History</h1>
           <p className="text-lg text-muted-foreground">
             Follow net worth, contributed capital, and allocation over time.
           </p>

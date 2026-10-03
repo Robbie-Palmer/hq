@@ -29,7 +29,7 @@ export function AccountsRoute() {
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-4xl font-bold mb-2">Accounts</h1>
+          <h1 className="mb-2 text-3xl font-bold sm:text-4xl">Accounts</h1>
           <p className="text-lg text-muted-foreground">
             Review assets and liabilities, record balances, and maintain each
             account's history and expected flows.
