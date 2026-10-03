@@ -91,7 +91,7 @@ export default function RecipesLayout({
                   <AuthButton intent="signup" compactOnMobile />
                   <AuthButton compactOnMobile />
                 </div>
-                <div className="order-3 w-full sm:order-2 sm:w-auto">
+                <div className="order-3 min-w-0 w-full sm:order-2 sm:flex-1">
                   <RecipeSiteNav />
                 </div>
               </nav>

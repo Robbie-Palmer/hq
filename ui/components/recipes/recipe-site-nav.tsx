@@ -17,7 +17,7 @@ export function RecipeSiteNav() {
 
   if (isPending) {
     return (
-      <div className="flex items-center gap-3 sm:gap-4">
+      <div className="flex max-w-full items-center gap-3 overflow-hidden sm:gap-4">
         <Skeleton className="h-6 w-20" />
         <Skeleton className="h-6 w-16" />
         <Skeleton className="h-6 w-24" />
@@ -31,7 +31,10 @@ export function RecipeSiteNav() {
   if (session) return <RecipeNavTabs />;
 
   return (
-    <div className="flex items-baseline gap-3 sm:gap-4">
+    <nav
+      aria-label="Recipe sections"
+      className="flex max-w-full items-center gap-3 overflow-x-auto pb-1 sm:gap-4"
+    >
       {publicTabs.map((tab) => (
         <a
           key={tab.label}
@@ -44,6 +47,6 @@ export function RecipeSiteNav() {
           {tab.label}
         </a>
       ))}
-    </div>
+    </nav>
   );
 }
