@@ -4,11 +4,11 @@ export function ViewControls({
   zoom,
   zoomTo,
   fitRoom,
-}: {
+}: Readonly<{
   zoom: number;
   zoomTo: (zoom: number) => void;
   fitRoom: () => void;
-}) {
+}>) {
   return (
     <div className="room-map-view-controls">
       <Button

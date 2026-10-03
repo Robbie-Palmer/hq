@@ -33,12 +33,12 @@ export function SeatTooltip({
   height,
   selection: tooltip,
   projection,
-}: {
+}: Readonly<{
   tables: RoomTable[];
   height: number;
   selection: SeatTooltipSelection | null;
   projection: Parameters<typeof seatTooltipAnchor>[2];
-}) {
+}>) {
   if (!tooltip) return null;
   const table = tables.find((table) => table.id === tooltip.tableId);
   if (!table) return null;

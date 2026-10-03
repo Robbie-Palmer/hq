@@ -2,13 +2,13 @@ import { Circle, Group, Path, Rect, Text } from "react-konva";
 import { tableSeats } from "@/lib/wedding-planner/room-layout";
 import type { Palette, RoomTable } from "./types";
 
-type TableDrawingProps = { table: RoomTable; palette: Palette };
+type TableDrawingProps = Readonly<{ table: RoomTable; palette: Palette }>;
 
 export function TableShape({
   table,
   palette,
   selected,
-}: TableDrawingProps & { selected: boolean }) {
+}: Readonly<TableDrawingProps & { selected: boolean }>) {
   const { appearance } = table;
   return (
     <>
@@ -40,10 +40,12 @@ export function TableSeats({
   palette,
   onHover,
   onSelect,
-}: TableDrawingProps & {
-  onHover: (index: number | null) => void;
-  onSelect: (index: number) => void;
-}) {
+}: Readonly<
+  TableDrawingProps & {
+    onHover: (index: number | null) => void;
+    onSelect: (index: number) => void;
+  }
+>) {
   const { appearance, occupants, capacity } = table;
   const seats = tableSeats(
     appearance.shape,

@@ -13,7 +13,7 @@ export function RoomScene({
   isPinching,
   onSelect,
   onChange,
-}: {
+}: Readonly<{
   tables: RoomTable[];
   selectedId: string;
   height: number;
@@ -22,7 +22,7 @@ export function RoomScene({
   isPinching: () => boolean;
   onSelect: (id: string) => void;
   onChange: (id: string, patch: Partial<TableAppearance>) => void;
-}) {
+}>) {
   return (
     <Layer>
       <Rect
