@@ -1,4 +1,25 @@
-FROM ghcr.io/jdx/mise:2026.9.1@sha256:df5adf538c92d86f9807e738c7c7a9b32a1ae06edf441ede141333e3fe6a2cd9 AS mise-cli
+FROM ghcr.io/jdx/mise:2026.9.1@sha256:df5adf538c92d86f9807e738c7c7a9b32a1ae06edf441ede141333e3fe6a2cd9 AS mise-tools
+
+COPY --from=shared-tool-config config.toml /tmp/t3-code-mise/mise.toml
+COPY --from=shared-tool-config mise.lock /tmp/t3-code-mise/mise.lock
+COPY mise.toml mise.lock /tmp/t3-code-mise/image/
+
+RUN export MISE_CACHE_DIR=/tmp/mise-cache \
+      MISE_DATA_DIR=/tmp/mise-data \
+      MISE_STATE_DIR=/tmp/mise-state \
+      MISE_TRUSTED_CONFIG_PATHS=/tmp/t3-code-mise \
+    && mise -C /tmp/t3-code-mise/image install --locked \
+      github:jdx/mise doppler vale \
+    && mkdir -p /opt/t3-code-tools \
+    && install --mode=0755 \
+      "$(mise -C /tmp/t3-code-mise/image which doppler)" \
+      /opt/t3-code-tools/doppler \
+    && install --mode=0755 \
+      "$(mise -C /tmp/t3-code-mise/image which vale)" \
+      /opt/t3-code-tools/vale \
+    && install --mode=0755 \
+      "$(mise -C /tmp/t3-code-mise/image which github:jdx/mise)" \
+      /opt/t3-code-tools/mise
 
 FROM docker:29.8.0-cli@sha256:eccaacfeed644c7de222ff047483568cb988dde95476fbaaf10ea2d04921bb66 AS docker-cli
 
@@ -9,10 +30,7 @@ LABEL org.opencontainers.image.description="Pinned t3-code runtime for the remot
 
 COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
 COPY --from=docker-cli /usr/local/libexec/docker/cli-plugins /usr/local/libexec/docker/cli-plugins
-COPY --from=mise-cli /usr/local/bin/mise /usr/local/bin/mise
-COPY --from=shared-tool-config config.toml /usr/local/lib/t3-code/mise/mise.toml
-COPY --from=shared-tool-config mise.lock /usr/local/lib/t3-code/mise/mise.lock
-COPY mise.toml mise.lock /usr/local/lib/t3-code/mise/image/
+COPY --from=mise-tools /opt/t3-code-tools/ /usr/local/bin/
 COPY bindep.txt package.json package-lock.json /usr/local/lib/t3-code/
 
 # npm omits t3's optional platform bundle when reinstalling from its lockfile,
@@ -24,17 +42,6 @@ RUN groupadd --gid 2000 t3code \
       > /tmp/bindep-apt.txt \
     && xargs --arg-file=/tmp/bindep-apt.txt \
       apt-get install --yes --no-install-recommends \
-    && export MISE_CACHE_DIR=/tmp/mise-cache \
-      MISE_DATA_DIR=/tmp/mise-data \
-      MISE_STATE_DIR=/tmp/mise-state \
-      MISE_TRUSTED_CONFIG_PATHS=/usr/local/lib/t3-code/mise \
-    && mise -C /usr/local/lib/t3-code/mise/image install --locked doppler vale \
-    && install --mode=0755 \
-      "$(mise -C /usr/local/lib/t3-code/mise/image which doppler)" \
-      /usr/local/bin/doppler \
-    && install --mode=0755 \
-      "$(mise -C /usr/local/lib/t3-code/mise/image which vale)" \
-      /usr/local/bin/vale \
     && npm ci --ignore-scripts --omit=dev --prefix /usr/local/lib/t3-code \
     && t3_version="$(node -p \
       "require('/usr/local/lib/t3-code/package.json').dependencies.t3")" \
@@ -67,11 +74,6 @@ RUN groupadd --gid 2000 t3code \
     && rm -f \
       /tmp/bindep-apt.txt \
       "/tmp/t3code-t3-linux-x64-${t3_version}.tgz" \
-    && rm -rf \
-      /tmp/mise-cache \
-      /tmp/mise-data \
-      /tmp/mise-state \
-      /usr/local/lib/t3-code/mise \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
