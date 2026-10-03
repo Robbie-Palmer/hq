@@ -296,7 +296,7 @@ export function SpreadsheetImportDrawer() {
                 id="spreadsheet-import-owner"
                 value={ownerSelection}
                 onChange={(event) => setOwnerSelection(event.target.value)}
-                className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+                className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-11 w-full rounded-md border px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
               >
                 {household.members.map((member) => (
                   <option key={member.id} value={`member:${member.id}`}>

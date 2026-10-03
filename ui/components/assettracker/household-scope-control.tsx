@@ -54,11 +54,13 @@ function MemberNameEditor({
           id={`household-member-${memberId}`}
           value={displayName}
           onChange={(event) => setDisplayName(event.target.value)}
+          className="min-h-11"
         />
       </label>
       <Button
         type="submit"
         variant="outline"
+        className="min-h-11"
         disabled={
           saving ||
           displayName.trim() === "" ||
@@ -145,7 +147,7 @@ export function HouseholdScopeControl() {
                     : { kind: "member", memberId: value.slice(7) },
                 );
               }}
-              className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-10 w-full rounded-md border px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+              className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-11 w-full rounded-md border px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
             >
               <option value="household">Whole household</option>
               {household.members.map((member) => (
@@ -185,10 +187,12 @@ export function HouseholdScopeControl() {
                   value={newMemberName}
                   placeholder="Add a household member"
                   onChange={(event) => setNewMemberName(event.target.value)}
+                  className="min-h-11"
                 />
               </label>
               <Button
                 type="submit"
+                className="min-h-11"
                 disabled={adding || newMemberName.trim() === ""}
               >
                 Add
@@ -244,7 +248,7 @@ export function HouseholdScopeControl() {
                           : personalOwnership(value.slice(7)),
                       );
                     }}
-                    className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-10 w-full rounded-md border px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+                    className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-11 w-full rounded-md border px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
                   >
                     {household.members.map((member) => (
                       <option key={member.id} value={`member:${member.id}`}>
@@ -264,7 +268,9 @@ export function HouseholdScopeControl() {
         </div>
         <div className="mx-auto flex w-full max-w-2xl shrink-0 justify-end border-t bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <DrawerClose asChild>
-            <Button type="button">Done</Button>
+            <Button type="button" className="min-h-11">
+              Done
+            </Button>
           </DrawerClose>
         </div>
       </DrawerContent>
