@@ -1,0 +1,2 @@
+[tools]
+doppler = { version = "3.76.5", github_attestations = false }

@@ -270,11 +270,6 @@ export function runValeProducer(options: RunValeOptions): ValeProducerRun {
   const params = PipelineParamsSchema.parse(readJson(options.paramsFile));
   const timeoutMs = params.producers.vale.timeoutMs;
   const binaryVersion = valeVersion(options.valeBinary, timeoutMs);
-  if (binaryVersion !== params.producers.vale.binaryVersion) {
-    throw new Error(
-      `Vale version mismatch: expected ${params.producers.vale.binaryVersion}, got ${binaryVersion}`,
-    );
-  }
   const rulesHash = ruleSetHash(options.configFile, options.stylesDirectory);
   const version = producerVersion(binaryVersion, rulesHash);
   const producer: z.infer<typeof ProducerSchema> = {

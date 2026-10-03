@@ -123,7 +123,6 @@ export const PipelineParamsSchema = z.object({
       additionalConfidence: z.number().min(0).max(1),
     }).strict(),
     vale: z.object({
-      binaryVersion: z.string().regex(/^\d+\.\d+\.\d+$/),
       timeoutMs: z.number().int().positive(),
     }).strict(),
   }).strict(),

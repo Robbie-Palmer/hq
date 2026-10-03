@@ -45,16 +45,15 @@
     },
     {
       "customType": "regex",
-      "description": "Track the Vale binary version required by the writing editor evaluation",
+      "description": "Track exact Debian packages in the t3-code bindep manifest",
       "managerFilePatterns": [
-        "/^ml-pipelines/writing-editor-evaluation/params\\.yaml$/"
+        "/^homelab/images/t3-code/bindep\\.txt$/"
       ],
       "matchStrings": [
-        "\"binaryVersion\":\\s*\"(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)\""
+        "(?<depName>[a-z0-9][a-z0-9+.-]*) ==(?<currentValue>\\S+)"
       ],
-      "depNameTemplate": "vale-cli/vale",
-      "datasourceTemplate": "github-releases",
-      "versioningTemplate": "semver-coerced"
+      "datasourceTemplate": "deb",
+      "versioningTemplate": "deb"
     }
   ],
   "lockFileMaintenance": {
@@ -145,6 +144,21 @@
       "automerge": true
     },
     {
+      "description": "Resolve the t3-code runtime packages from Debian Bookworm repositories",
+      "matchFileNames": [
+        "homelab/images/t3-code/bindep.txt"
+      ],
+      "matchDatasources": [
+        "deb"
+      ],
+      "registryUrls": [
+        "https://deb.debian.org/debian?suite=bookworm&components=main&binaryArch=amd64",
+        "https://deb.debian.org/debian?suite=bookworm-updates&components=main&binaryArch=amd64",
+        "https://security.debian.org/debian-security?suite=bookworm-security&components=main&binaryArch=amd64"
+      ],
+      "groupName": "t3-code Debian packages"
+    },
+    {
       "description": "Review age and jq by hand - the backup job runs against real data and no CI job proves these beforehand",
       "matchManagers": [
         "mise"
@@ -160,6 +174,9 @@
       "description": "Auto-merge pip tooling pinned in workflow run steps (e.g. dvc)",
       "matchManagers": [
         "custom.regex"
+      ],
+      "matchDatasources": [
+        "pypi"
       ],
       "matchUpdateTypes": [
         "minor",
@@ -234,7 +251,10 @@
       "matchPackageNames": [
         "vale-cli/vale"
       ],
-      "groupName": "vale"
+      "groupName": "vale",
+      "minimumReleaseAge": "3 days",
+      "dependencyDashboardApproval": false,
+      "automerge": true
     },
     {
       "description": "Keep the uv toolchain aligned across C++ and ML tooling",
@@ -255,7 +275,9 @@
         "docker"
       ],
       "groupName": "docker engine and cli",
-      "automerge": false
+      "minimumReleaseAge": "3 days",
+      "dependencyDashboardApproval": false,
+      "automerge": true
     },
     {
       "description": "Auto-merge pnpm updates after the pinned binary passes the workspace compatibility check",
@@ -364,6 +386,15 @@
       "groupName": "media stack images",
       "minimumReleaseAge": "7 days",
       "automerge": false
+    },
+    {
+      "description": "Auto-merge every t3-code development image dependency after its image checks pass",
+      "matchFileNames": [
+        "homelab/images/t3-code/**"
+      ],
+      "minimumReleaseAge": "3 days",
+      "dependencyDashboardApproval": false,
+      "automerge": true
     }
   ]
 }

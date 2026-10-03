@@ -8,11 +8,13 @@ runs:
       id: version
       shell: bash
       env:
-        MISE_VERSION_FILE: ${{ github.action_path }}/mise-version
+        T3_CODE_DOCKERFILE: ${{ github.action_path }}/../../../homelab/images/t3-code/Dockerfile
       run: |
-        version="$(<"$MISE_VERSION_FILE")"
+        version="$(sed -n \
+          's/^FROM ghcr\.io\/jdx\/mise:\([^@]*\)@sha256:[a-f0-9]\{64\} AS mise-cli$/\1/p' \
+          "$T3_CODE_DOCKERFILE")"
         if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-          echo "::error::mise-version must contain one mise version"
+          echo "::error::the t3-code Dockerfile must pin one mise image version and digest"
           exit 1
         fi
         printf 'value=%s\n' "$version" >> "$GITHUB_OUTPUT"
