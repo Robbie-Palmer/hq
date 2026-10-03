@@ -1,0 +1,104 @@
+name: UK Tax Rule Source Monitor
+
+on:
+  workflow_dispatch:
+    inputs:
+      check_interval_hours:
+        description: Minimum hours between successful checks
+        required: false
+        default: "0"
+  schedule:
+    # Check after GOV.UK's Monday publishing window. The monitor also enforces
+    # its per-source interval when invoked outside this workflow.
+    - cron: "43 8 * * 1"
+
+concurrency:
+  group: finance-tax-rule-monitor
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup mise
+        uses: $/.github/actions/setup-mise
+
+      - name: Restore monitor state
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: packages/finance-tax-rules/.cache/govuk-monitor
+          key: finance-tax-monitor-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            finance-tax-monitor-${{ runner.os }}-
+
+      - name: Check reviewed GOV.UK sources
+        id: monitor
+        env:
+          DISPATCH_INTERVAL: ${{ inputs.check_interval_hours }}
+          SCHEDULED_INTERVAL: "160"
+        run: |
+          interval="${DISPATCH_INTERVAL:-$SCHEDULED_INTERVAL}"
+          mise run //packages/finance-tax-rules:monitor -- \
+            --check-interval-hours "$interval" \
+            --report "$RUNNER_TEMP/finance-tax-monitor/report.md" \
+            --result "$RUNNER_TEMP/finance-tax-monitor/result.json" \
+            --proposals-directory "$RUNNER_TEMP/finance-tax-monitor/proposals"
+
+      - name: Save monitor state
+        if: always()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: packages/finance-tax-rules/.cache/govuk-monitor
+          key: finance-tax-monitor-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Upload review proposal
+        if: steps.monitor.outputs.changes == 'true' || steps.monitor.outputs.failures == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: finance-tax-source-review-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/finance-tax-monitor/report.md
+            ${{ runner.temp }}/finance-tax-monitor/result.json
+            ${{ runner.temp }}/finance-tax-monitor/proposals/*.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Open or refresh the review issue
+        if: steps.monitor.outputs.changes == 'true' || steps.monitor.outputs.failures == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          REPORT_PATH: ${{ runner.temp }}/finance-tax-monitor/report.md
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          printf '\nWorkflow run: %s\n' "$RUN_URL" >> "$REPORT_PATH"
+          existing=$(gh issue list --search 'UK tax rule source review in:title' --state open --json number --jq '.[0].number // empty')
+          if [[ -n "$existing" ]]; then
+            gh issue edit "$existing" --body-file "$REPORT_PATH"
+          else
+            gh issue create \
+              --title "UK tax rule source review" \
+              --body-file "$REPORT_PATH"
+          fi
+
+      - name: Close a resolved review issue
+        if: steps.monitor.outputs.changes == 'false' && steps.monitor.outputs.failures == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          existing=$(gh issue list --search 'UK tax rule source review in:title' --state open --json number --jq '.[0].number // empty')
+          if [[ -n "$existing" ]]; then
+            gh issue close "$existing" --comment "All monitored sources now match the reviewed repository snapshots."
+          fi

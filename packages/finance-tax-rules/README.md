@@ -76,6 +76,44 @@ Artifacts also include the digest of each checked-in extract, and the manifest
 records every generated artifact digest. A saved calculation can record the
 dataset version and verify the exact inputs later.
 
+## Monitoring official guidance
+
+The source monitor checks the GOV.UK Content API for every publication referenced
+by an active rule. The registry derives the affected rule IDs and effective periods
+from the dataset's provenance, so a page cannot be monitored without naming the
+rules that depend on it. Reviewed API snapshots live in `monitoring/reviewed/`.
+
+Run an immediate check with:
+
+```sh
+mise run //packages/finance-tax-rules:monitor -- --check-interval-hours 0
+```
+
+The default interval is seven days. The command stores its last successful check
+and response cache under `.cache/govuk-monitor/`. It retries transient API failures
+three times. The scheduled GitHub workflow restores that cache and opens or updates
+one review issue when a source changes or a check fails.
+
+A change proposal separates content, metadata, and document-link differences. It
+records the GOV.UK publication date and detection date, lists the effective periods
+of the rules that may be affected, and leaves the reviewed effective date and
+activation date empty. That is deliberate. GOV.UK publishes content and metadata,
+not executable tax rules.
+
+For each proposal, a reviewer must:
+
+1. Decide whether the change is an enacted rule, a future announcement, or a
+   correction to a past year.
+2. Record the effective date in the replacement rule data and the activation date
+   in the new dataset release.
+3. Add or amend authoritative validation fixtures.
+4. Run `mise run //packages/finance-tax-rules:check`.
+5. Increase `datasetVersion`, set `supersedes`, keep the previous versioned
+   artifacts, and replace the reviewed Content API snapshot in the same change.
+
+Monitoring requests contain only the public source URL and HTTP headers. The
+monitor has no access to household or salary records and sends none to GOV.UK.
+
 ## Updating and correcting data
 
 The finance data owner reviews HMRC changes after each Budget, fiscal statement,

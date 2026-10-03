@@ -136,6 +136,35 @@ export const validateDataset = (input: unknown): RuleDataset => {
   return dataset;
 };
 
+export const validateReleaseLineage = (
+  packageRoot: string,
+  dataset: RuleDataset,
+): void => {
+  if (dataset.supersedes === null) return;
+  assert.notEqual(
+    dataset.datasetVersion,
+    dataset.supersedes,
+    "A dataset release cannot supersede itself",
+  );
+  const previousArtifactPath = join(
+    packageRoot,
+    `artifacts/enacted/${dataset.supersedes}.json`,
+  );
+  let previousArtifact: { datasetVersion?: unknown };
+  try {
+    previousArtifact = JSON.parse(readFileSync(previousArtifactPath, "utf8"));
+  } catch {
+    assert.fail(
+      `Superseded artifact artifacts/enacted/${dataset.supersedes}.json must remain available`,
+    );
+  }
+  assert.equal(
+    previousArtifact.datasetVersion,
+    dataset.supersedes,
+    `Superseded artifact must identify dataset ${dataset.supersedes}`,
+  );
+};
+
 const addResolvedProvenance = <Rule extends RuleDataset["incomeTax"][number] | RuleDataset["nationalInsurance"][number] | RuleDataset["pensions"][number]>(
   rule: Rule,
   sources: Map<string, ResolvedSource>,
@@ -157,6 +186,7 @@ type ResolvedSource = RuleDataset["sources"][number] & {
 
 export const buildArtifacts = (packageRoot: string) => {
   const dataset = validateDataset(ruleDataset);
+  validateReleaseLineage(packageRoot, dataset);
   const validatedCorpus = validateValidationCorpus(validationCorpus);
   assert(
     validatedCorpus.ruleDatasetVersion === dataset.datasetVersion,

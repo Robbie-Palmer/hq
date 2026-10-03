@@ -1,0 +1,291 @@
+{
+  "fingerprint": "d701ce860f8b9382fec3a3b97a7920730ce152ad2888778858fbd5700df9ea23",
+  "metadata": {
+    "basePath": "/guidance/rates-and-thresholds-for-employers-2022-to-2023",
+    "contentId": "394599a9-d7b4-4adc-9036-cf8b0b914e21",
+    "description": "Use these rates and thresholds when you operate your payroll or provide expenses and benefits to your employees.",
+    "documentType": "detailed_guide",
+    "firstPublishedAt": "2022-02-07T00:00:00+00:00",
+    "publicUpdatedAt": "2025-10-15T07:00:00+01:00",
+    "schemaName": "detailed_guide",
+    "title": "Rates and thresholds for employers 2022 to 2023",
+    "withdrawnNotice": {}
+  },
+  "details": {
+    "attachments": [],
+    "body": "<div class=\"govspeak\"><div class=\"call-to-action\">\n  <p>The temporary 1.25 percent point increase in National Insurance rates were reversed with effect from 6 November 2022.</p>\n\n  <p>The introduction of a separate Health and Social Care Levy in April 2023 has been cancelled.</p>\n</div>\n\n<p>Unless otherwise stated, the following figures apply from 6 April 2022 to 5 April 2023.</p>\n\n<h2 id=\"paye-tax-and-class-1-national-insurance-contributions\">PAYE tax and Class 1 National Insurance contributions</h2>\n\n<p>You normally <a href=\"https://www.gov.uk/paye-for-employers\">operate PAYE as part of your payroll</a> so HMRC can collect Income Tax and National Insurance from your employees.</p>\n\n<p>Your payroll software will work out how much tax and National Insurance to deduct from your employees’ pay. If you decide to run payroll yourself, you can <a href=\"https://www.gov.uk/payroll-software/overview\">find payroll software</a>.</p>\n\n<h2 id=\"tax-thresholds-rates-and-codes\">Tax thresholds, rates and codes</h2>\n\n<p>The amount of Income Tax you deduct from your employees depends on their <a href=\"https://www.gov.uk/employee-tax-codes\">tax code</a> and how much of their taxable income is above their <a href=\"https://www.gov.uk/income-tax-rates/current-rates-and-allowances\">Personal Allowance</a>.</p>\n\n<h3 id=\"england-and-northern-ireland\">England and Northern Ireland</h3>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">PAYE tax rates and thresholds</th>\n      <th scope=\"col\">2022 to 2023</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th scope=\"row\">Employee personal allowance</th>\n      <td>£242 per week<br>£1,048 per month<br>£12,570 per year</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">English and Northern Irish basic tax rate</th>\n      <td>20% on annual earnings above the PAYE tax threshold and up to £37,700</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">English and Northern Irish higher tax rate</th>\n      <td>40% on annual earnings from £37,701 to £150,000</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">English and Northern Irish additional tax rate</th>\n      <td>45% on annual earnings above £150,000</td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 id=\"scotland\">Scotland</h3>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">PAYE tax rates and thresholds</th>\n      <th scope=\"col\">2022 to 2023</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th scope=\"row\">Employee personal allowance</th>\n      <td>£242 per week<br>£1,048 per month<br>£12,570 per year</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Scottish starter tax rate</th>\n      <td>19% on annual earnings above the PAYE tax threshold and up to £2,162</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Scottish basic tax rate</th>\n      <td>20% on annual earnings from £2,163 to £13,118</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Scottish intermediate tax rate</th>\n      <td>21% on annual earnings from £13,119 to £31,092</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Scottish higher tax rate</th>\n      <td>41% on annual earnings from £31,093 to £150,000</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Scottish top tax rate</th>\n      <td>46% on annual earnings above £150,000</td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 id=\"wales\">Wales</h3>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">PAYE tax rates and thresholds</th>\n      <th scope=\"col\">2022 to 2023</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th scope=\"row\">Employee personal allowance</th>\n      <td>£242 per week<br>£1,048 per month<br>£12,570 per year</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Welsh basic tax rate</th>\n      <td>20% on annual earnings above the PAYE tax threshold and up to £37,700</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Welsh higher tax rate</th>\n      <td>40% on annual earnings from £37,701 to £150,000</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Welsh additional tax rate</th>\n      <td>45% on annual earnings above £150,000</td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 id=\"emergency-tax-codes\">Emergency tax codes</h3>\n\n<p>The emergency tax codes from 6 April 2022 are:</p>\n\n<ul>\n  <li>1257L W1</li>\n  <li>1257L M1</li>\n  <li>1257L X</li>\n</ul>\n\n<p>Find out more about <a href=\"https://www.gov.uk/tax-codes/emergency-tax-codes\">emergency tax codes</a>.</p>\n\n<h2 id=\"class-1-national-insurance-thresholds\">Class 1 National Insurance thresholds</h2>\n\n<p>You can only make National Insurance deductions on earnings above the lower earnings limit.</p>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">Class 1 National Insurance thresholds</th>\n      <th scope=\"col\">2022 to 2023</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th scope=\"row\">Lower earnings limit</th>\n      <td>£123 per week<br>£533 per month<br>£6,396 per year</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Primary threshold</th>\n      <td>6 April 2022 to 5 July 2022:<br><br>£190 per week<br>£823 per month<br>£9,880 per year<br><br>6 July 2022 to 5 April 2023:<br><br> £242 per week<br>£1,048 per month<br>£12,570 per year<br><br> <strong>Directors</strong><br>For the whole tax year:<br><br> £229 per week<br>£11,908 per year</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Secondary threshold</th>\n      <td>£175 per week<br>£758 per month<br>£9,100 per year</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Freeport upper secondary threshold</th>\n      <td>£481 per week<br>£2,083 per month<br>£25,000 per year</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Upper secondary threshold (under 21)</th>\n      <td>£967 per week<br>£4,189 per month<br>£50,270 per year</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Apprentice upper secondary threshold (apprentice under 25)</th>\n      <td>£967 per week<br>£4,189 per month<br>£50,270 per year</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Veterans upper secondary threshold</th>\n      <td>£967 per week<br>£4,189 per month<br>£50,270 per year</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Upper earnings limit</th>\n      <td>£967 per week<br>£4,189 per month<br>£50,270 per year</td>\n    </tr>\n  </tbody>\n</table>\n\n<h2 id=\"class-1-national-insurance-rates\">Class 1 National Insurance rates</h2>\n\n<h3 id=\"employee-primary-contribution-rates-from-6-april-2022-to-5-november-2022\">Employee (primary) contribution rates from 6 April 2022 to 5 November 2022</h3>\n\n<p>Deduct primary contributions (employee’s National Insurance) from your employees’ pay through PAYE.</p>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">National Insurance category letter</th>\n      <th scope=\"col\">Earnings at or above lower earnings limit up to and including primary threshold</th>\n      <th scope=\"col\">Earnings above the primary threshold up to and including upper earnings limit</th>\n      <th scope=\"col\">Balance of earnings above upper earnings limit</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th scope=\"row\">A</th>\n      <td>0%</td>\n      <td>13.25%</td>\n      <td>3.25%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">B</th>\n      <td>0%</td>\n      <td>7.1%</td>\n      <td>3.25%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">C</th>\n      <td>nil</td>\n      <td>nil</td>\n      <td>nil</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">F (Freeport)</th>\n      <td>0%</td>\n      <td>13.25%</td>\n      <td>3.25%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">H (apprentice under 25)</th>\n      <td>0%</td>\n      <td>13.25%</td>\n      <td>3.25%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">I (Freeport — married women and widows reduced rate)</th>\n      <td>0%</td>\n      <td>7.1%</td>\n      <td>3.25%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">J</th>\n      <td>0%</td>\n      <td>3.25%</td>\n      <td>3.25%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">L (Freeport — deferment)</th>\n      <td>0%</td>\n      <td>3.25%</td>\n      <td>3.25%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">M (under 21)</th>\n      <td>0%</td>\n      <td>13.25%</td>\n      <td>3.25%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">S (Freeport — state pensioner)</th>\n      <td>nil</td>\n      <td>nil</td>\n      <td>nil</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">V (veteran)</th>\n      <td>0%</td>\n      <td>13.25%</td>\n      <td>3.25%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Z (under 21 — deferment)</th>\n      <td>0%</td>\n      <td>3.25%</td>\n      <td>3.25%</td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 id=\"employer-secondary-contribution-rates-from-6-april-2022-to-5-november-2022\">Employer (secondary) contribution rates from 6 April 2022 to 5 November 2022</h3>\n\n<p>You pay secondary contributions (employer’s National Insurance) to HMRC as part of your PAYE bill. Find out more about <a href=\"https://www.gov.uk/running-payroll/paying-hmrc\">running payroll and paying HMRC</a>.</p>\n\n<p><a href=\"https://www.gov.uk/pay-paye-tax\">Pay employers’ PAYE tax and National Insurance</a>.</p>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">National Insurance category letter</th>\n      <th scope=\"col\">Earnings at or above lower earnings limit up to and including secondary threshold</th>\n      <th scope=\"col\">Earnings above secondary threshold up to and including Freeport upper secondary threshold</th>\n      <th scope=\"col\">Earnings above Freeport upper secondary threshold up to and including upper earnings limit, upper secondary thresholds for under 21s, apprentices and veterans</th>\n      <th scope=\"col\">Balance of earnings above upper earnings limit, upper secondary thresholds for under 21s, apprentices and veterans</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th scope=\"row\">A</th>\n      <td>0%</td>\n      <td>15.05%</td>\n      <td>15.05%</td>\n      <td>15.05%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">B</th>\n      <td>0%</td>\n      <td>15.05%</td>\n      <td>15.05%</td>\n      <td>15.05%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">C</th>\n      <td>0%</td>\n      <td>15.05%</td>\n      <td>15.05%</td>\n      <td>15.05%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">F (Freeport)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>15.05%</td>\n      <td>15.05%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">H (apprentice under 25)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>0%</td>\n      <td>15.05%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">I (Freeport — married women and widows reduced rate)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>15.05%</td>\n      <td>15.05%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">J</th>\n      <td>0%</td>\n      <td>15.05%</td>\n      <td>15.05%</td>\n      <td>15.05%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">L (Freeport — deferment)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>15.05%</td>\n      <td>15.05%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">M (under 21)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>0%</td>\n      <td>15.05%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">S (Freeport — state pensioner)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>15.05%</td>\n      <td>15.05%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">V (veteran)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>0%</td>\n      <td>15.05%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Z (under 21 — deferment)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>0%</td>\n      <td>15.05%</td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 id=\"employee-primary-contribution-rates-from-6-november-2022-to-5-april-2023\">Employee (primary) contribution rates from 6 November 2022 to 5 April 2023</h3>\n\n<p>Deduct primary contributions (employee’s National Insurance) from your employees’ pay through PAYE.</p>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">National Insurance category letter</th>\n      <th scope=\"col\">Earnings at or above lower earnings limit up to and including primary threshold</th>\n      <th scope=\"col\">Earnings above primary threshold up to and including upper earnings limit</th>\n      <th scope=\"col\">Balance of earnings above upper earnings limit</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th scope=\"row\">A</th>\n      <td>0%</td>\n      <td>12%</td>\n      <td>2%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">B</th>\n      <td>0%</td>\n      <td>5.85%</td>\n      <td>2%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">C</th>\n      <td>nil</td>\n      <td>nil</td>\n      <td>nil</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">F (Freeport)</th>\n      <td>0%</td>\n      <td>12%</td>\n      <td>2%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">H (apprentice under 25)</th>\n      <td>0%</td>\n      <td>12%</td>\n      <td>2%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">I (Freeport — married women and widows reduced rate)</th>\n      <td>0%</td>\n      <td>5.85%</td>\n      <td>2%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">J</th>\n      <td>0%</td>\n      <td>2%</td>\n      <td>2%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">L (Freeport — deferment)</th>\n      <td>0%</td>\n      <td>2%</td>\n      <td>2%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">M (under 21)</th>\n      <td>0%</td>\n      <td>12%</td>\n      <td>2%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">S (Freeport — state pensioner)</th>\n      <td>nil</td>\n      <td>nil</td>\n      <td>nil</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">V (veteran)</th>\n      <td>0%</td>\n      <td>12%</td>\n      <td>2%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Z (under 21 — deferment)</th>\n      <td>0%</td>\n      <td>2%</td>\n      <td>2%</td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 id=\"employer-secondary-contribution-rates-from-6-november-2022-to-5-april-2023\">Employer (secondary) contribution rates from 6 November 2022 to 5 April 2023</h3>\n\n<p>You pay secondary contributions (employer’s National Insurance) to HMRC as part of your PAYE bill. Find out more about <a href=\"https://www.gov.uk/running-payroll/paying-hmrc\">running payroll and paying HMRC</a>.</p>\n\n<p><a href=\"https://www.gov.uk/pay-paye-tax\">Pay employers’ PAYE tax and National Insurance</a>.</p>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">National Insurance category letter</th>\n      <th scope=\"col\">Earnings at or above lower earnings limit up to and including secondary threshold</th>\n      <th scope=\"col\">Earnings above secondary threshold up to and including Freeport upper secondary threshold</th>\n      <th scope=\"col\">Earnings above Freeport upper secondary threshold up to and including upper earnings limit, upper secondary thresholds for under 21s, apprentices and veterans</th>\n      <th scope=\"col\">Balance of earnings above upper earnings limit, upper secondary thresholds for under 21s, apprentices and veterans</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th scope=\"row\">A</th>\n      <td>0%</td>\n      <td>13.8%</td>\n      <td>13.8%</td>\n      <td>13.8%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">B</th>\n      <td>0%</td>\n      <td>13.8%</td>\n      <td>13.8%</td>\n      <td>13.8%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">C</th>\n      <td>0%</td>\n      <td>13.8%</td>\n      <td>13.8%</td>\n      <td>13.8%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">F (Freeport)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>13.8%</td>\n      <td>13.8%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">H (apprentice under 25)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>0%</td>\n      <td>13.8%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">I (Freeport — married women and widows reduced rate)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>13.8%</td>\n      <td>13.8%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">J</th>\n      <td>0%</td>\n      <td>13.8%</td>\n      <td>13.8%</td>\n      <td>13.8%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">L (Freeport — deferment)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>13.8%</td>\n      <td>13.8%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">M (under 21)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>0%</td>\n      <td>13.8%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">S (Freeport — state pensioner)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>13.8%</td>\n      <td>13.8%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">V (veteran)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>0%</td>\n      <td>13.8%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Z (under 21 — deferment)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>0%</td>\n      <td>13.8%</td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 id=\"directors--primary-contribution-rates\">Directors — (primary) contribution rates</h3>\n\n<p>These rates apply for the whole tax year when not using the alternative calculation method.</p>\n\n<div role=\"note\" aria-label=\"Information\" class=\"application-notice info-notice\">\n  <p>If you use the alternative calculation method —  at the end of the year you’ll need to recalculate your director’s National Insurance using the standard annual earnings period method. Use payroll software to work out if more contributions are due.</p>\n</div>\n\n<p>Deduct primary National Insurance contributions from your directors’ pay through PAYE.</p>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">National Insurance category letter</th>\n      <th scope=\"col\">Earnings at or above lower earnings limit up to and including primary threshold</th>\n      <th scope=\"col\">Earnings above the primary threshold up to and including upper earnings limit</th>\n      <th scope=\"col\">Balance of earnings above upper earnings limit</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th scope=\"row\">A</th>\n      <td>0%</td>\n      <td>12.73%</td>\n      <td>2.73%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">B</th>\n      <td>0%</td>\n      <td>6.58%</td>\n      <td>2.73%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">C</th>\n      <td>nil</td>\n      <td>nil</td>\n      <td>nil</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">F (Freeport)</th>\n      <td>0%</td>\n      <td>12.73%</td>\n      <td>2.73%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">H (apprentice under 25)</th>\n      <td>0%</td>\n      <td>12.73%</td>\n      <td>2.73%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">I (Freeport — married women and widows reduced rate)</th>\n      <td>0%</td>\n      <td>6.58%</td>\n      <td>2.73%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">J</th>\n      <td>0%</td>\n      <td>2.73%</td>\n      <td>2.73%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">L (Freeport — deferment)</th>\n      <td>0%</td>\n      <td>2.73%</td>\n      <td>2.73%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">M (under 21)</th>\n      <td>0%</td>\n      <td>12.73%</td>\n      <td>2.73%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">S (Freeport — state pensioner)</th>\n      <td>nil</td>\n      <td>nil</td>\n      <td>nil</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">V (veteran)</th>\n      <td>0%</td>\n      <td>12.73%</td>\n      <td>2.73%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Z (under 21 — deferment)</th>\n      <td>0%</td>\n      <td>2.73%</td>\n      <td>2.73%</td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 id=\"directors--employer-secondary-contribution-rates\">Directors — employer (secondary) contribution rates</h3>\n\n<p>These rates apply for the whole tax year when not using the alternative calculation method.</p>\n\n<div role=\"note\" aria-label=\"Information\" class=\"application-notice info-notice\">\n  <p>If you use the alternative calculation method —  at the end of the year you’ll need to recalculate your director’s National Insurance using the standard annual earnings period method. Use payroll software to work out if more contributions are due.</p>\n</div>\n\n<p>You pay secondary contributions (employer’s National Insurance) to HMRC as part of your PAYE bill. Find out more about <a href=\"https://www.gov.uk/running-payroll/paying-hmrc\">running payroll and paying HMRC</a>.</p>\n\n<p><a href=\"https://www.gov.uk/pay-paye-tax\">Pay employers’ PAYE tax and National Insurance</a>.</p>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">National Insurance category letter</th>\n      <th scope=\"col\">Earnings at or above lower earnings limit up to and including secondary threshold</th>\n      <th scope=\"col\">Earnings above secondary threshold up to and including Freeport upper secondary threshold</th>\n      <th scope=\"col\">Earnings above Freeport upper secondary threshold up to and including upper earnings limit, upper secondary thresholds for under 21s, apprentices and veterans</th>\n      <th scope=\"col\">Balance of earnings above upper earnings limit, upper secondary thresholds for under 21s, apprentices and veterans</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th scope=\"row\">A</th>\n      <td>0%</td>\n      <td>14.53%</td>\n      <td>14.53%</td>\n      <td>14.53%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">B</th>\n      <td>0%</td>\n      <td>14.53%</td>\n      <td>14.53%</td>\n      <td>14.53%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">C</th>\n      <td>0%</td>\n      <td>14.53%</td>\n      <td>14.53%</td>\n      <td>14.53%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">F (Freeport)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>14.53%</td>\n      <td>14.53%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">H (apprentice under 25)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>0%</td>\n      <td>14.53%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">I (Freeport — married women and widows reduced rate)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>14.53%</td>\n      <td>14.53%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">J</th>\n      <td>0%</td>\n      <td>14.53%</td>\n      <td>14.53%</td>\n      <td>14.53%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">L (Freeport — deferment)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>14.53%</td>\n      <td>14.53%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">M (under 21)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>0%</td>\n      <td>14.53%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">S (Freeport — state pensioner)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>14.53%</td>\n      <td>14.53%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">V (veteran)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>0%</td>\n      <td>14.53%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Z (under 21 — deferment)</th>\n      <td>0%</td>\n      <td>0%</td>\n      <td>0%</td>\n      <td>14.53%</td>\n    </tr>\n  </tbody>\n</table>\n\n<h2 id=\"class-1a-national-insurance--expenses-and-benefits\">Class 1A National Insurance — expenses and benefits</h2>\n\n<p>You must pay Class 1A National Insurance on work benefits you give to your employees, for example a company mobile phone. You report and pay Class 1A on expenses and benefits at the end of each tax year.</p>\n\n<div role=\"note\" aria-label=\"Information\" class=\"application-notice info-notice\">\n  <p>The National Insurance Class 1A rate on expenses and benefits for 2022 to 2023 is 14.53%.</p>\n</div>\n\n<p>Find out more about <a href=\"https://www.gov.uk/employer-reporting-expenses-benefits\">expenses and benefits for employers</a>.</p>\n\n<h2 id=\"class-1a-national-insurance--termination-awards-and-sporting-testimonial-payments\">Class 1A National Insurance — termination awards and sporting testimonial payments</h2>\n\n<p>Class 1A National Insurance contributions are due on the amount of <a href=\"https://www.gov.uk/government/publications/income-tax-and-national-insurance-contributions-treatment-of-termination-payments\">termination awards</a>  paid to employees which are over £30,000 and on the amount of <a href=\"https://www.gov.uk/guidance/sporting-testimonials-income-tax-and-national-insurance-payments\">sporting testimonial payments</a> paid by independent committees which are over £100,000. You report and pay Class 1A on these types of payments during the tax year as part of your payroll.</p>\n\n<p>The National Insurance Class 1A rate for all employees, including directors, on termination awards and sporting testimonial payments for 2022 to 2023 is:</p>\n\n<ul>\n  <li>15.05% on employee payments made 6 April 2022 to 5 November 2022</li>\n  <li>13.8% on employee payments made 6 November 2022 to 5 April 2023</li>\n</ul>\n\n<p><a href=\"https://www.gov.uk/pay-class-1a-national-insurance\">Pay employers’ Class 1A National Insurance</a>.</p>\n\n<h2 id=\"class-1b-national-insurance--paye-settlement-agreements-psas\">Class 1B National Insurance — PAYE Settlement Agreements (<abbr title=\"PAYE Settlement Agreements\">PSAs</abbr>)</h2>\n\n<p>You pay Class 1B National Insurance if you have a <a href=\"https://www.gov.uk/paye-settlement-agreements/overview\">PAYE Settlement Agreement</a>. This allows you to make one annual payment to cover all the tax and National Insurance due on small or irregular taxable expenses or benefits for your employees.</p>\n\n<div role=\"note\" aria-label=\"Information\" class=\"application-notice info-notice\">\n  <p>The National Insurance Class 1B rate for 2022 to 2023 is 14.53%.</p>\n</div>\n\n<p><a href=\"https://www.gov.uk/pay-psa\">Pay Class 1B National Insurance</a>.</p>\n\n<h2 id=\"national-minimum-wage\">National Minimum Wage</h2>\n\n<p>The National Minimum Wage is the minimum pay per hour almost all workers are entitled to by law. Find out more about <a href=\"https://www.gov.uk/national-minimum-wage/who-gets-the-minimum-wage\">who can get the minimum wage</a>.</p>\n\n<p>Use the <a href=\"https://www.gov.uk/minimum-wage-calculator-employers\">National Minimum Wage calculator</a> to check if you’re paying a worker the National Minimum Wage or if you owe them payments from past years.</p>\n\n<p>These rates apply from 1 April 2022.</p>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">Category of worker</th>\n      <th scope=\"col\">Hourly rate</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th scope=\"row\">Aged 23 and above (national living wage rate)</th>\n      <td>£9.50</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Aged 21 to 22 inclusive</th>\n      <td>£9.18</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Aged 18 to 20 inclusive</th>\n      <td>£6.83</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Aged under 18 (but above compulsory school leaving age)</th>\n      <td>£4.81</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Apprentices aged under 19</th>\n      <td>£4.81</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Apprentices aged 19 and over, but in the first year of their apprenticeship</th>\n      <td>£4.81</td>\n    </tr>\n  </tbody>\n</table>\n\n<p><a href=\"https://www.gov.uk/national-minimum-wage-rates\">Check National Minimum Wage rates for previous years</a>.</p>\n\n<h2 id=\"statutory-maternity-paternity-adoption-shared-parental-and-parental-bereavement-pay\">Statutory Maternity, Paternity, Adoption, Shared Parental and Parental Bereavement Pay</h2>\n\n<p>Use the <a href=\"https://www.gov.uk/maternity-paternity-calculator\">maternity, adoption and paternity calculator for employers</a> to work out your employee’s:</p>\n\n<ul>\n  <li>Statutory Maternity Pay (<abbr title=\"Statutory Maternity Pay\">SMP</abbr>)</li>\n  <li>paternity or adoption pay</li>\n  <li>qualifying week</li>\n  <li>average weekly earnings</li>\n  <li>leave period</li>\n</ul>\n\n<p>These rates apply from 3 April 2022.</p>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">Type of payment or recovery</th>\n      <th scope=\"col\">2022 to 2023 rate</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th scope=\"row\">Statutory Maternity Pay — weekly rate for first 6 weeks</th>\n      <td>90% of the employee’s average weekly earnings</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Statutory Maternity Pay — weekly rate for remaining weeks</th>\n      <td>£156.66 or 90% of the employee’s average weekly earnings, whichever is lower</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Statutory Paternity Pay (<abbr title=\"Statutory Paternity Pay\">SPP</abbr>) — weekly rate</th>\n      <td>£156.66 or 90% of the employee’s average weekly earnings, whichever is lower</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Statutory Adoption Pay (<abbr title=\"Statutory Adoption Pay\">SAP</abbr>) — weekly rate for first 6 weeks</th>\n      <td>90% of the employee’s average weekly earnings</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Statutory Adoption Pay — weekly rate for remaining weeks</th>\n      <td>£156.66  or 90% of the employee’s average weekly earnings, whichever is lower</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Statutory Shared Parental Pay (<abbr title=\"Statutory Shared Parental Pay\">ShPP</abbr>) — weekly rate</th>\n      <td>£156.66  or 90% of the employee’s average weekly earnings, whichever is lower</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Statutory Parental Bereavement Pay (<abbr title=\"Statutory Parental Bereavement Pay\">SPBP</abbr>) — weekly rate</th>\n      <td>£156.66  or 90% of the employee’s average weekly earnings, whichever is lower</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">\n<abbr title=\"Statutory Maternity Pay\">SMP</abbr>, <abbr title=\"Statutory Paternity Pay\">SPP</abbr>, <abbr title=\"Statutory Shared Parental Pay\">ShPP</abbr>, <abbr title=\"Statutory Adoption Pay\">SAP</abbr> or <abbr title=\"Statutory Parental Bereavement Pay\">SPBP</abbr> — proportion of your payments you can recover from HMRC</th>\n      <td>92% if your total Class 1 National Insurance (both employee and employer contributions) is above £45,000 for the previous tax year<br><br>103% if your total Class 1 National Insurance for the previous tax year is £45,000 or lower</td>\n    </tr>\n  </tbody>\n</table>\n\n<p>Find out more information about:</p>\n\n<ul>\n  <li><a href=\"https://www.gov.uk/employers-maternity-pay-leave\">Statutory Maternity Pay</a></li>\n  <li><a href=\"https://www.gov.uk/employers-paternity-pay-leave\">Statutory Paternity Pay (<abbr title=\"Statutory Paternity Pay\">SPP</abbr>)</a></li>\n  <li><a href=\"https://www.gov.uk/employers-adoption-pay-leave\">Statutory Adoption Pay (<abbr title=\"Statutory Adoption Pay\">SAP</abbr>)</a></li>\n  <li><a href=\"https://www.gov.uk/shared-parental-leave-and-pay-employer-guide\">Statutory Shared Parental Pay (<abbr title=\"Statutory Shared Parental Pay\">ShPP</abbr>)</a></li>\n  <li><a href=\"https://www.gov.uk/employers-parental-bereavement-pay-leave\">Statutory Parental Bereavement Pay (<abbr title=\"Statutory Parental Bereavement Pay\">SPBP</abbr>)</a></li>\n  <li>\n<a href=\"https://www.gov.uk/recover-statutory-payments\">financial help with statutory pay</a> — proportion of your payments you can recover from HMRC</li>\n</ul>\n\n<h2 id=\"statutory-sick-pay-ssp\">Statutory Sick Pay (<abbr title=\"Statutory Sick Pay\">SSP</abbr>)</h2>\n\n<p>The same weekly Statutory Sick Pay rate applies to all employees. However, the amount you must actually pay an employee for each day they’re off work due to illness (the daily rate) depends on the number of ‘qualifying days’ they work each week.</p>\n\n<p>Use the <a href=\"https://www.gov.uk/calculate-statutory-sick-pay\">Statutory Sick Pay calculator</a> to work out your employee’s sick pay, or use these rates.</p>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">Unrounded daily rates</th>\n      <th scope=\"col\">Number of qualifying days in week</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>£14.1929</td>\n      <td>7</td>\n    </tr>\n    <tr>\n      <td>£16.5583</td>\n      <td>6</td>\n    </tr>\n    <tr>\n      <td>£19.87</td>\n      <td>5</td>\n    </tr>\n    <tr>\n      <td>£24.8375</td>\n      <td>4</td>\n    </tr>\n    <tr>\n      <td>£33.1167</td>\n      <td>3</td>\n    </tr>\n    <tr>\n      <td>£49.675</td>\n      <td>2</td>\n    </tr>\n    <tr>\n      <td>£99.35</td>\n      <td>1</td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 id=\"qualifying-days-in-a-week\">7 qualifying days in a week</h3>\n\n<p>Use these rates to work out how much Statutory Sick Pay you need to pay an employee who works 7 qualifying days in a week.</p>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">Number of days to pay</th>\n      <th scope=\"col\">Amount to pay</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>1</td>\n      <td>£14.20</td>\n    </tr>\n    <tr>\n      <td>2</td>\n      <td>£28.39</td>\n    </tr>\n    <tr>\n      <td>3</td>\n      <td>£42.58</td>\n    </tr>\n    <tr>\n      <td>4</td>\n      <td>£56.78</td>\n    </tr>\n    <tr>\n      <td>5</td>\n      <td>£70.97</td>\n    </tr>\n    <tr>\n      <td>6</td>\n      <td>£85.16</td>\n    </tr>\n    <tr>\n      <td>7</td>\n      <td>£99.35</td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 id=\"qualifying-days-in-a-week-1\">6 qualifying days in a week</h3>\n\n<p>Use these rates to work out how much Statutory Sick Pay you need to pay an employee who works 6 qualifying days in a week.</p>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">Number of days to pay</th>\n      <th scope=\"col\">Amount to pay</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>1</td>\n      <td>£16.56</td>\n    </tr>\n    <tr>\n      <td>2</td>\n      <td>£33.12</td>\n    </tr>\n    <tr>\n      <td>3</td>\n      <td>£49.68</td>\n    </tr>\n    <tr>\n      <td>4</td>\n      <td>£66.24</td>\n    </tr>\n    <tr>\n      <td>5</td>\n      <td>£82.80</td>\n    </tr>\n    <tr>\n      <td>6</td>\n      <td>£99.35</td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 id=\"qualifying-days-in-a-week-2\">5 qualifying days in a week</h3>\n\n<p>Use these rates to work out how much Statutory Sick Pay you need to pay an employee who works 5 qualifying days in a week.</p>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">Number of days to pay</th>\n      <th scope=\"col\">Amount to pay</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>1</td>\n      <td>£19.87</td>\n    </tr>\n    <tr>\n      <td>2</td>\n      <td>£39.74</td>\n    </tr>\n    <tr>\n      <td>3</td>\n      <td>£59.61</td>\n    </tr>\n    <tr>\n      <td>4</td>\n      <td>£79.48</td>\n    </tr>\n    <tr>\n      <td>5</td>\n      <td>£99.35</td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 id=\"qualifying-days-in-a-week-3\">4 qualifying days in a week</h3>\n\n<p>Use these rates to work out how much Statutory Sick Pay you need to pay an employee who works 4 qualifying days in a week.</p>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">Number of days to pay</th>\n      <th scope=\"col\">Amount to pay</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>1</td>\n      <td>£24.84</td>\n    </tr>\n    <tr>\n      <td>2</td>\n      <td>£49.68</td>\n    </tr>\n    <tr>\n      <td>3</td>\n      <td>£74.52</td>\n    </tr>\n    <tr>\n      <td>4</td>\n      <td>£99.35</td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 id=\"qualifying-days-in-a-week-4\">3 qualifying days in a week</h3>\n\n<p>Use these rates to work out how much Statutory Sick Pay you need to pay an employee who works 3 qualifying days in a week.</p>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">Number of days to pay</th>\n      <th scope=\"col\">Amount to pay</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>1</td>\n      <td>£33.12</td>\n    </tr>\n    <tr>\n      <td>2</td>\n      <td>£66.24</td>\n    </tr>\n    <tr>\n      <td>3</td>\n      <td>£99.35</td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 id=\"qualifying-days-in-a-week-5\">2 qualifying days in a week</h3>\n\n<p>Use these rates to work out how much Statutory Sick Pay you need to pay an employee who works 2 qualifying days in a week.</p>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">Number of days to pay</th>\n      <th scope=\"col\">Amount to pay</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>1</td>\n      <td>£49.68</td>\n    </tr>\n    <tr>\n      <td>2</td>\n      <td>£99.35</td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 id=\"qualifying-day-in-a-week\">1 qualifying day in a week</h3>\n\n<p>Use these rates to work out how much Statutory Sick Pay you need to pay an employee who works 1 qualifying day in a week.</p>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">Number of days to pay</th>\n      <th scope=\"col\">Amount to pay</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>1</td>\n      <td>£99.35</td>\n    </tr>\n  </tbody>\n</table>\n\n<h2 id=\"student-loan-and-postgraduate-loan-recovery\">Student loan and postgraduate loan recovery</h2>\n\n<p>If your employees’ earnings are above the earnings threshold, <a href=\"https://www.gov.uk/new-employee/student-loans\">record their student loan and postgraduate loan deductions</a> in your payroll software. It will automatically calculate and deduct repayments from their pay.</p>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">Rate or threshold</th>\n      <th scope=\"col\">2022 to 2023 rate</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th scope=\"row\">Employee earnings threshold for<br>student loan plan 1</th>\n      <td>£20,195 per year<br>£1,682.91 per month<br>£388.36 per week</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Employee earnings threshold for<br>student loan plan 2</th>\n      <td>£27,295 per year<br>£2,274.58 per month<br>£524.90 per week</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Employee earnings threshold for<br>student loan plan 4</th>\n      <td>£25,375 per year<br>£2,114.58 per month<br>£487.98 per week</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Student loan deductions</th>\n      <td>9%</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Employee earnings threshold for<br>postgraduate loan</th>\n      <td>£21,000 per year<br>£1,750 per month<br>£403.84 per week</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Postgraduate loan deductions</th>\n      <td>6%</td>\n    </tr>\n  </tbody>\n</table>\n\n<h2 id=\"company-cars--advisory-fuel-rates\">Company cars — advisory fuel rates</h2>\n\n<p>Use advisory fuel rates to work out mileage costs if you provide company cars to your employees.</p>\n\n<p>These rates apply from 1 September 2022.</p>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">Engine size</th>\n      <th scope=\"col\">Petrol — amount per mile</th>\n      <th scope=\"col\">LPG — amount per mile</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th scope=\"row\">1400cc or less</th>\n      <td>15 pence</td>\n      <td>9 pence</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">1401cc to 2000cc</th>\n      <td>18 pence</td>\n      <td>11 pence</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Over 2000cc</th>\n      <td>27 pence</td>\n      <td>17 pence</td>\n    </tr>\n  </tbody>\n</table>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">Engine size</th>\n      <th scope=\"col\">Diesel — amount per mile</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th scope=\"row\">1600cc or less</th>\n      <td>14 pence</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">1601cc to 2000cc</th>\n      <td>17 pence</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Over 2000cc</th>\n      <td>22 pence</td>\n    </tr>\n  </tbody>\n</table>\n\n<p>Hybrid cars are treated as either petrol or diesel cars for this purpose.</p>\n\n<p><a href=\"https://www.gov.uk/government/publications/advisory-fuel-rates/advisory-fuel-rates-1-september-2011-to-29-february-2016\">Check advisory fuel rates for previous periods</a>.</p>\n\n<h3 id=\"advisory-electricity-rate-for-fully-electric-cars-from-1-december-2022\">Advisory electricity rate for fully electric cars from 1 December 2022</h3>\n\n<p>Amount per mile: 8 pence.</p>\n\n<p>Electricity is not a fuel for car fuel benefit purposes.</p>\n\n<h2 id=\"employee-vehicles--mileage-allowance-payments\">Employee vehicles — mileage allowance payments</h2>\n\n<p>Mileage allowance payments are what you pay your employees for using their own vehicle for business journeys.</p>\n\n<p>You can pay your employees an approved amount of mileage allowance payments each year without having to report them to HMRC. To work out the approved amount, multiply your employee’s business travel miles for the year by the rate per mile for their vehicle.</p>\n\n<p>Find out more about <a href=\"https://www.gov.uk/expenses-and-benefits-business-travel-mileage/rules-for-tax\">reporting and paying mileage allowance payments</a>.</p>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">Type of vehicle</th>\n      <th scope=\"col\">Rate per business mile 2022 to 2023</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th scope=\"row\">Car</th>\n      <td>For tax purposes: 45 pence for the first 10,000 business miles in a tax year, then 25 pence for each subsequent mile<br><br>For National Insurance purposes: 45 pence for all business miles</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Motorcycle</th>\n      <td>24 pence for both tax and National Insurance purposes and for all business miles</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Cycle</th>\n      <td>20 pence for both tax and National Insurance purposes and for all business miles</td>\n    </tr>\n  </tbody>\n</table>\n\n<h2 id=\"employment-allowance\">Employment Allowance</h2>\n\n<p>Employment Allowance allows <a href=\"https://www.gov.uk/claim-employment-allowance\">eligible employers</a> to reduce their annual National Insurance liability by up to the annual allowance amount.</p>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">Allowance</th>\n      <th scope=\"col\">2022 to 2023 rate</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th scope=\"row\">Employment Allowance</th>\n      <td>£5,000</td>\n    </tr>\n  </tbody>\n</table>\n\n<h2 id=\"apprenticeship-levy\">Apprenticeship Levy</h2>\n\n<p>Employers and connected companies with a total annual pay bill of more than £3 million, are liable to the <a href=\"https://www.gov.uk/guidance/pay-apprenticeship-levy\">Apprenticeship Levy</a>, which is payable monthly. Employers who are not connected to another company or charity will have an annual allowance that reduces the amount of Apprenticeship Levy you have to pay.  Apprenticeship Levy is charged at a percentage of your annual pay bill.</p>\n\n<table>\n  <thead>\n    <tr>\n      <th scope=\"col\">Allowance or charge</th>\n      <th scope=\"col\">2022 to 2023 rate</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th scope=\"row\">Apprenticeship Levy allowance</th>\n      <td>£15,000</td>\n    </tr>\n    <tr>\n      <th scope=\"row\">Apprenticeship Levy charge</th>\n      <td>0.5%</td>\n    </tr>\n  </tbody>\n</table>\n\n</div>",
+    "change_history": [
+      {
+        "note": "Information has been added to clarify that if you use the alternative calculation method, at the end of the year, director’s National Insurance will need to be recalculated using the standard annual earnings period method. ",
+        "public_timestamp": "2025-10-15T06:00:00Z"
+      },
+      {
+        "note": "The temporary 1.25 percent point increase in National Insurance rates were reversed with effect from 6 November 2022. The introduction of a separate Health and Social Care Levy in April 2023 has been cancelled.",
+        "public_timestamp": "2023-04-06T14:19:26Z"
+      },
+      {
+        "note": "Added translation",
+        "public_timestamp": "2022-12-08T15:30:57Z"
+      },
+      {
+        "note": "We have updated the advisory electricity rate from 5 pence to 8 pence from 1 December 2022.",
+        "public_timestamp": "2022-11-17T08:00:03Z"
+      },
+      {
+        "note": "The employee and director Class 1 National Insurance (primary and secondary) contribution rates that apply from 6 November 2022 to 5 April 2023 have been added.  The Class 1A National Insurance rates for expenses, benefits, termination awards and sporting testimonial payments have been updated for 2022 to 2023. The Class 1B National Insurance rate for PAYE Settlement Agreements has been updated for 2022 to 2023. ",
+        "public_timestamp": "2022-11-06T00:15:07Z"
+      },
+      {
+        "note": "The Health and Social Care Levy will no longer go ahead. From 6 November 2022, the temporary 1.25 percentage point increase in National Insurance rates is being reversed for the rest of the financial year. The introduction of a separate Health and Social Care Levy tax in April 2023 has been cancelled.",
+        "public_timestamp": "2022-09-22T14:53:56Z"
+      },
+      {
+        "note": "The Class 1 National Insurance primary threshold for directors has been updated for the 2022 to 2023 tax year. ",
+        "public_timestamp": "2022-04-20T15:12:03Z"
+      },
+      {
+        "note": "The Primary Class 1 National Insurance contributions rates, car advisory fuel rates for 1400cc or less and the employment allowance rates have been updated.",
+        "public_timestamp": "2022-03-29T08:29:04Z"
+      },
+      {
+        "note": "Added translation",
+        "public_timestamp": "2022-02-07T00:00:00Z"
+      }
+    ],
+    "emphasised_organisations": [
+      "6667cce2-e809-4e21-ae09-cb0bdc1ddda3"
+    ],
+    "first_public_at": "2022-02-07T00:00:00.000+00:00",
+    "headers": [
+      {
+        "id": "paye-tax-and-class-1-national-insurance-contributions",
+        "level": 2,
+        "text": "PAYE tax and Class 1 National Insurance contributions"
+      },
+      {
+        "headers": [
+          {
+            "id": "england-and-northern-ireland",
+            "level": 3,
+            "text": "England and Northern Ireland"
+          },
+          {
+            "id": "scotland",
+            "level": 3,
+            "text": "Scotland"
+          },
+          {
+            "id": "wales",
+            "level": 3,
+            "text": "Wales"
+          },
+          {
+            "id": "emergency-tax-codes",
+            "level": 3,
+            "text": "Emergency tax codes"
+          }
+        ],
+        "id": "tax-thresholds-rates-and-codes",
+        "level": 2,
+        "text": "Tax thresholds, rates and codes"
+      },
+      {
+        "id": "class-1-national-insurance-thresholds",
+        "level": 2,
+        "text": "Class 1 National Insurance thresholds"
+      },
+      {
+        "headers": [
+          {
+            "id": "employee-primary-contribution-rates-from-6-april-2022-to-5-november-2022",
+            "level": 3,
+            "text": "Employee (primary) contribution rates from 6 April 2022 to 5 November 2022"
+          },
+          {
+            "id": "employer-secondary-contribution-rates-from-6-april-2022-to-5-november-2022",
+            "level": 3,
+            "text": "Employer (secondary) contribution rates from 6 April 2022 to 5 November 2022"
+          },
+          {
+            "id": "employee-primary-contribution-rates-from-6-november-2022-to-5-april-2023",
+            "level": 3,
+            "text": "Employee (primary) contribution rates from 6 November 2022 to 5 April 2023"
+          },
+          {
+            "id": "employer-secondary-contribution-rates-from-6-november-2022-to-5-april-2023",
+            "level": 3,
+            "text": "Employer (secondary) contribution rates from 6 November 2022 to 5 April 2023"
+          },
+          {
+            "id": "directors--primary-contribution-rates",
+            "level": 3,
+            "text": "Directors — (primary) contribution rates"
+          },
+          {
+            "id": "directors--employer-secondary-contribution-rates",
+            "level": 3,
+            "text": "Directors — employer (secondary) contribution rates"
+          }
+        ],
+        "id": "class-1-national-insurance-rates",
+        "level": 2,
+        "text": "Class 1 National Insurance rates"
+      },
+      {
+        "id": "class-1a-national-insurance--expenses-and-benefits",
+        "level": 2,
+        "text": "Class 1A National Insurance — expenses and benefits"
+      },
+      {
+        "id": "class-1a-national-insurance--termination-awards-and-sporting-testimonial-payments",
+        "level": 2,
+        "text": "Class 1A National Insurance — termination awards and sporting testimonial payments"
+      },
+      {
+        "id": "class-1b-national-insurance--paye-settlement-agreements-psas",
+        "level": 2,
+        "text": "Class 1B National Insurance — PAYE Settlement Agreements (PSAs)"
+      },
+      {
+        "id": "national-minimum-wage",
+        "level": 2,
+        "text": "National Minimum Wage"
+      },
+      {
+        "id": "statutory-maternity-paternity-adoption-shared-parental-and-parental-bereavement-pay",
+        "level": 2,
+        "text": "Statutory Maternity, Paternity, Adoption, Shared Parental and Parental Bereavement Pay"
+      },
+      {
+        "headers": [
+          {
+            "id": "qualifying-days-in-a-week",
+            "level": 3,
+            "text": "7 qualifying days in a week"
+          },
+          {
+            "id": "qualifying-days-in-a-week-1",
+            "level": 3,
+            "text": "6 qualifying days in a week"
+          },
+          {
+            "id": "qualifying-days-in-a-week-2",
+            "level": 3,
+            "text": "5 qualifying days in a week"
+          },
+          {
+            "id": "qualifying-days-in-a-week-3",
+            "level": 3,
+            "text": "4 qualifying days in a week"
+          },
+          {
+            "id": "qualifying-days-in-a-week-4",
+            "level": 3,
+            "text": "3 qualifying days in a week"
+          },
+          {
+            "id": "qualifying-days-in-a-week-5",
+            "level": 3,
+            "text": "2 qualifying days in a week"
+          },
+          {
+            "id": "qualifying-day-in-a-week",
+            "level": 3,
+            "text": "1 qualifying day in a week"
+          }
+        ],
+        "id": "statutory-sick-pay-ssp",
+        "level": 2,
+        "text": "Statutory Sick Pay (SSP)"
+      },
+      {
+        "id": "student-loan-and-postgraduate-loan-recovery",
+        "level": 2,
+        "text": "Student loan and postgraduate loan recovery"
+      },
+      {
+        "headers": [
+          {
+            "id": "advisory-electricity-rate-for-fully-electric-cars-from-1-december-2022",
+            "level": 3,
+            "text": "Advisory electricity rate for fully electric cars from 1 December 2022"
+          }
+        ],
+        "id": "company-cars--advisory-fuel-rates",
+        "level": 2,
+        "text": "Company cars — advisory fuel rates"
+      },
+      {
+        "id": "employee-vehicles--mileage-allowance-payments",
+        "level": 2,
+        "text": "Employee vehicles — mileage allowance payments"
+      },
+      {
+        "id": "employment-allowance",
+        "level": 2,
+        "text": "Employment Allowance"
+      },
+      {
+        "id": "apprenticeship-levy",
+        "level": 2,
+        "text": "Apprenticeship Levy"
+      }
+    ],
+    "political": false,
+    "related_mainstream_content": [],
+    "tags": {
+      "browse_pages": []
+    }
+  },
+  "documentLinks": [
+    "https://assets.publishing.service.gov.uk/media/5efdb7ac3a6f4023cb365a65/s300_HMRC_sign__media_library_-_alternative__GOVUK_960.jpg",
+    "https://assets.publishing.service.gov.uk/media/5efdb7ace90e075c58556288/s960_HMRC_sign__media_library_-_alternative__GOVUK_960.jpg",
+    "https://www.gov.uk/",
+    "https://www.gov.uk/api/content/",
+    "https://www.gov.uk/api/content/government/2019-to-2022-johnson-conservative-government",
+    "https://www.gov.uk/api/content/government/collections/rates-and-allowances-hm-revenue-and-customs",
+    "https://www.gov.uk/api/content/government/organisations/hm-revenue-customs",
+    "https://www.gov.uk/api/content/guidance/rates-and-thresholds-for-employers-2022-to-2023",
+    "https://www.gov.uk/api/content/guidance/rates-and-thresholds-for-employers-2022-to-2023.cy",
+    "https://www.gov.uk/api/content/money",
+    "https://www.gov.uk/api/content/money/business-tax",
+    "https://www.gov.uk/api/content/money/paye",
+    "https://www.gov.uk/calculate-statutory-sick-pay",
+    "https://www.gov.uk/claim-employment-allowance",
+    "https://www.gov.uk/employee-tax-codes",
+    "https://www.gov.uk/employer-reporting-expenses-benefits",
+    "https://www.gov.uk/employers-adoption-pay-leave",
+    "https://www.gov.uk/employers-maternity-pay-leave",
+    "https://www.gov.uk/employers-parental-bereavement-pay-leave",
+    "https://www.gov.uk/employers-paternity-pay-leave",
+    "https://www.gov.uk/expenses-and-benefits-business-travel-mileage/rules-for-tax",
+    "https://www.gov.uk/government/2019-to-2022-johnson-conservative-government",
+    "https://www.gov.uk/government/collections/rates-and-allowances-hm-revenue-and-customs",
+    "https://www.gov.uk/government/organisations/hm-revenue-customs",
+    "https://www.gov.uk/government/publications/advisory-fuel-rates/advisory-fuel-rates-1-september-2011-to-29-february-2016",
+    "https://www.gov.uk/government/publications/income-tax-and-national-insurance-contributions-treatment-of-termination-payments",
+    "https://www.gov.uk/guidance/pay-apprenticeship-levy",
+    "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2022-to-2023",
+    "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2022-to-2023.cy",
+    "https://www.gov.uk/guidance/sporting-testimonials-income-tax-and-national-insurance-payments",
+    "https://www.gov.uk/income-tax-rates/current-rates-and-allowances",
+    "https://www.gov.uk/maternity-paternity-calculator",
+    "https://www.gov.uk/minimum-wage-calculator-employers",
+    "https://www.gov.uk/money",
+    "https://www.gov.uk/money/business-tax",
+    "https://www.gov.uk/money/paye",
+    "https://www.gov.uk/national-minimum-wage-rates",
+    "https://www.gov.uk/national-minimum-wage/who-gets-the-minimum-wage",
+    "https://www.gov.uk/new-employee/student-loans",
+    "https://www.gov.uk/pay-class-1a-national-insurance",
+    "https://www.gov.uk/pay-paye-tax",
+    "https://www.gov.uk/pay-psa",
+    "https://www.gov.uk/paye-for-employers",
+    "https://www.gov.uk/paye-settlement-agreements/overview",
+    "https://www.gov.uk/payroll-software/overview",
+    "https://www.gov.uk/recover-statutory-payments",
+    "https://www.gov.uk/running-payroll/paying-hmrc",
+    "https://www.gov.uk/shared-parental-leave-and-pay-employer-guide",
+    "https://www.gov.uk/tax-codes/emergency-tax-codes"
+  ]
+}

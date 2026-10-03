@@ -1,7 +1,13 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { buildArtifacts, validateDataset } from "../src/build";
+import {
+  buildArtifacts,
+  validateDataset,
+  validateReleaseLineage,
+} from "../src/build";
 import { ruleDataset } from "../src/data";
 import { resolveRules } from "../src/index";
 import {
@@ -38,6 +44,29 @@ describe("UK tax rule dataset", () => {
       '"calculationContractVersion": "salary-validation-v1"',
     );
     expect(first.get("artifacts/manifest.json")).toContain('"fixtureCount": 16');
+  });
+
+  it("requires a superseded enacted artifact to remain available", () => {
+    const releaseRoot = mkdtempSync(resolve(tmpdir(), "finance-tax-rules-"));
+    const enactedDirectory = resolve(releaseRoot, "artifacts/enacted");
+    mkdirSync(enactedDirectory, { recursive: true });
+    writeFileSync(
+      resolve(enactedDirectory, "2026.10.0.json"),
+      JSON.stringify({ datasetVersion: "2026.10.0" }),
+    );
+    const nextDataset = validateDataset({
+      ...ruleDataset,
+      datasetVersion: "2026.10.1",
+      supersedes: "2026.10.0",
+    });
+
+    expect(() => validateReleaseLineage(releaseRoot, nextDataset)).not.toThrow();
+    expect(() =>
+      validateReleaseLineage(releaseRoot, {
+        ...nextDataset,
+        supersedes: "2026.09.0",
+      }),
+    ).toThrow("Superseded artifact artifacts/enacted/2026.09.0.json");
   });
 });
 

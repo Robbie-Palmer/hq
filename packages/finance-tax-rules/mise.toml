@@ -27,6 +27,11 @@ description = "Test UK tax rule data with coverage"
 depends = ["install"]
 run = "pnpm test:coverage"
 
+[tasks.monitor]
+description = "Check reviewed GOV.UK tax guidance for changes"
+depends = ["install"]
+run = "pnpm monitor"
+
 [tasks.check]
 description = "Validate and test UK tax rule data"
 depends = ["build:check", "typecheck", "test"]
