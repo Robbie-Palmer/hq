@@ -97,15 +97,15 @@ function readApprovalPageState(): ApprovalPageState {
   const code = params.get("code")?.trim();
   const returning = params.get(REAUTH_RETURN_PARAM) === "complete";
   const reauthentication = returning ? readStoredReauthentication() : null;
-  const intent =
-    agentId && code
-      ? { agentId, code }
-      : reauthentication
-        ? {
-            agentId: reauthentication.agentId,
-            code: reauthentication.code,
-          }
-        : null;
+  let intent: ApprovalIntent | null = null;
+  if (agentId && code) {
+    intent = { agentId, code };
+  } else if (reauthentication) {
+    intent = {
+      agentId: reauthentication.agentId,
+      code: reauthentication.code,
+    };
+  }
 
   globalThis.history.replaceState(null, "", globalThis.location.pathname);
   return {
