@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AssetTrackerData } from "@/lib/domain/assettracker";
 import {
   buildRepository,
+  getHousingPlanningPosition,
   getNetWorthTimeSeries,
   getPortfolioFinancialIndependence,
   reconcilePortfolio,
@@ -451,6 +452,22 @@ describe("reconcilePortfolio", () => {
     );
     expect(result.target).toBeCloseTo(
       (result.annualExpenditureAfterMortgage ?? 0) / 0.04,
+    );
+    const housingPosition = getHousingPlanningPosition(
+      repository,
+      result,
+      "2026-01-01",
+    );
+    const removedMortgageCost =
+      (result.representativeAnnualExpenditure ?? 0) -
+      (result.annualExpenditureAfterMortgage ?? 0);
+    expect(housingPosition?.annualMortgageExpenditureRemoved).toBeCloseTo(
+      removedMortgageCost,
+    );
+    expect(housingPosition?.annualInvestableIncome).toBeCloseTo(
+      (result.annualExpenditureAfterMortgage ?? 0) +
+        (result.representativeAnnualSavings ?? 0) +
+        removedMortgageCost,
     );
   });
 });

@@ -38,6 +38,7 @@ import {
   type DeleteCapitalFlowInput,
   type DeleteSnapshotInput,
   getAssetAllocationTimeSeries,
+  getHousingPlanningPosition,
   getLatestPortfolioValuation,
   getNetWorthTimeSeries,
   getPortfolioAnnualReturn,
@@ -45,6 +46,7 @@ import {
   getPortfolioFinancialIndependence,
   getPortfolioPositionSummary,
   getTotalByAssetType,
+  type HousingPlanningPosition,
   type ImportAccountHistoryInput,
   type ImportIncomeHistoryInput,
   type IncomeRecord,
@@ -78,6 +80,7 @@ interface AssetTrackerContextValue {
   incomeHistory: IncomeRecord[];
   flowSankeyData: FlowSankeyData;
   financialIndependence: PortfolioFinancialIndependence;
+  housingPlanningPosition: HousingPlanningPosition | null;
   /** Annualised portfolio growth, excluding recorded external money in/out */
   portfolioReturn: number | null;
   positionSummary: PortfolioPositionSummary | null;
@@ -204,6 +207,10 @@ export function AssetTrackerProvider({
       netWorthDataByCurrency[repository.settings.baseCurrency];
     const latestValuation = getLatestPortfolioValuation(repository);
     const valuationDate = latestValuation?.date ?? todayIsoDate();
+    const financialIndependence = getPortfolioFinancialIndependence(
+      repository,
+      valuationDate,
+    );
     return {
       accounts,
       accountDetails,
@@ -221,8 +228,10 @@ export function AssetTrackerProvider({
         accountDetails,
         valuationDate,
       ),
-      financialIndependence: getPortfolioFinancialIndependence(
+      financialIndependence,
+      housingPlanningPosition: getHousingPlanningPosition(
         repository,
+        financialIndependence,
         valuationDate,
       ),
       portfolioReturn: getPortfolioAnnualReturn(repository),

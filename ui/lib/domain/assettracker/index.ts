@@ -12,6 +12,7 @@ export * from "./currency";
 export * from "./currentExchangeRate";
 export * from "./exchangeRateDecimal";
 export * from "./exchangeRateImport";
+export * from "./housingStrategy";
 export * from "./incomeRecord";
 export * from "./money";
 export * from "./mortgage";
