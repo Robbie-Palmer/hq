@@ -192,4 +192,50 @@ describe("agent access API", () => {
       }),
     ).rejects.toThrow("The approval decision response was invalid.");
   });
+
+  it("accepts a matching approval response", async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ status: "approved", agentId: "agent-1" }),
+    );
+
+    await expect(
+      decideAgentApproval({
+        agentId: "agent-1",
+        code: "ABCD-1234",
+        action: "approve",
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("surfaces an approval error returned with a successful HTTP status", async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        error: "fresh_session_required",
+        message:
+          "A fresh authentication session is required for this operation. Please re-authenticate and try again.",
+      }),
+    );
+
+    await expect(
+      decideAgentApproval({
+        agentId: "agent-1",
+        code: "ABCD-1234",
+        action: "approve",
+      }),
+    ).rejects.toThrow(
+      "A fresh authentication session is required for this operation. Please re-authenticate and try again.",
+    );
+  });
+
+  it("rejects a malformed approval response", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ status: "pending" }));
+
+    await expect(
+      decideAgentApproval({
+        agentId: "agent-1",
+        code: "ABCD-1234",
+        action: "approve",
+      }),
+    ).rejects.toThrow("The approval decision response was invalid.");
+  });
 });

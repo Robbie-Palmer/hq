@@ -277,11 +277,18 @@ export async function decideAgentApproval(input: {
     fallbackMessage: "The approval decision could not be saved.",
   });
   const expectedStatus = input.action === "approve" ? "approved" : "denied";
-  if (
-    !isRecord(body) ||
-    body.status !== expectedStatus ||
-    (body.agentId !== undefined && body.agentId !== input.agentId)
-  ) {
-    throw new Error("The approval decision response was invalid.");
+  if (isRecord(body) && body.status === expectedStatus) {
+    if (body.agentId !== undefined && body.agentId !== input.agentId) {
+      throw new Error("The approval decision response was invalid.");
+    }
+    return;
   }
+  if (
+    isRecord(body) &&
+    typeof body.error === "string" &&
+    typeof body.message === "string"
+  ) {
+    throw new Error(body.message);
+  }
+  throw new Error("The approval decision response was invalid.");
 }
