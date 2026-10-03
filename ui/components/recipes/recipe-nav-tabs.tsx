@@ -7,7 +7,6 @@ import {
   Refrigerator,
   ShoppingBasket,
 } from "lucide-react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSelectedRecipeCount } from "@/hooks/use-shopping-list";
 
@@ -76,7 +75,7 @@ export function RecipeNavTabs() {
       {destinations.map(({ href, label, icon: Icon }) => {
         const active = activeDestinations[href];
         return (
-          <Link
+          <a
             key={href}
             href={href}
             aria-current={active ? "page" : undefined}
@@ -94,7 +93,7 @@ export function RecipeNavTabs() {
                 {count}
               </span>
             )}
-          </Link>
+          </a>
         );
       })}
     </nav>
