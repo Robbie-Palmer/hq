@@ -173,12 +173,12 @@ describe("createLocalAssetTrackerApi", () => {
 
   it("persists household members, display names, scope, and account ownership", async () => {
     const api = createApi();
-    await api.addHouseholdMember({ displayName: "Sam" });
+    await api.addHouseholdMember({ displayName: "Jordan" });
     await api.renameHouseholdMember({
-      memberId: "primary",
-      displayName: "Alex",
+      memberId: "alex",
+      displayName: "Alexandra",
     });
-    await api.setActiveHouseholdScope({ kind: "member", memberId: "sam" });
+    await api.setActiveHouseholdScope({ kind: "member", memberId: "jordan" });
     const accountId = getDemoAssetTrackerData().accounts[0]?.id;
     if (accountId == null) throw new Error("Seed has no account");
     await api.setAccountOwnership({
@@ -186,8 +186,8 @@ describe("createLocalAssetTrackerApi", () => {
       ownership: {
         kind: "shared",
         shares: [
-          { memberId: "primary", share: 0.6 },
-          { memberId: "sam", share: 0.4 },
+          { memberId: "alex", share: 0.6 },
+          { memberId: "jordan", share: 0.4 },
         ],
       },
     });
@@ -195,16 +195,17 @@ describe("createLocalAssetTrackerApi", () => {
     const { data } = await createApi().load();
     expect(data.household).toEqual({
       members: [
-        { id: "primary", displayName: "Alex" },
+        { id: "alex", displayName: "Alexandra" },
         { id: "sam", displayName: "Sam" },
+        { id: "jordan", displayName: "Jordan" },
       ],
-      activeScope: { kind: "member", memberId: "sam" },
+      activeScope: { kind: "member", memberId: "jordan" },
     });
     expect(data.ownership.accounts[accountId]).toEqual({
       kind: "shared",
       shares: [
-        { memberId: "primary", share: 0.6 },
-        { memberId: "sam", share: 0.4 },
+        { memberId: "alex", share: 0.6 },
+        { memberId: "jordan", share: 0.4 },
       ],
     });
   });
