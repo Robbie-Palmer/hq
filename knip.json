@@ -90,6 +90,7 @@
       ]
     },
     "ml-pipelines/writing-editor-evaluation": {
+      "ignoreBinaries": ["vale"],
       "entry": [
         "src/extract-dataset.ts",
         "src/freeze-cohort.ts",
