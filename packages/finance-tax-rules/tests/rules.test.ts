@@ -234,7 +234,7 @@ describe("salary calculator adapter contract", () => {
     pay: {
       contractualGrossPayPence: 6_000_000,
       grossCashPayPence: 5_400_000,
-      taxablePayPence: 4_143_000,
+      taxablePayPence: 5_400_000,
       nationalInsuranceEarningsPence: 5_400_000,
     },
     pension: {
@@ -261,14 +261,28 @@ describe("salary calculator adapter contract", () => {
         },
       }),
     ).toThrow();
+
+    expect(() =>
+      salaryCalculationRequestSchema.parse({
+        ...request,
+        precision: "exact-payroll-deduction",
+      }),
+    ).toThrow();
+    expect(() =>
+      salaryCalculationRequestSchema.parse({
+        ...request,
+        taxYear: "2024-25",
+      }),
+    ).toThrow();
   });
 
   it("requires reproducible result lineage and rounding", () => {
+    const roundingRule = "Round the calculated value to the nearest penny.";
     const result = {
       precision: "annual-liability-estimate",
       components: {
         grossCashPayPence: 5_400_000,
-        taxablePayPence: 4_143_000,
+        taxablePayPence: 5_400_000,
         incomeTaxPence: 903_200,
         employeeNationalInsurancePence: 309_000,
         memberPensionDeductionPence: 0,
@@ -290,10 +304,14 @@ describe("salary calculator adapter contract", () => {
         ],
         assumptions: request.assumptions,
         rounding: [
-          {
-            component: "incomeTaxPence",
-            rule: "Round the library's pound result to the nearest penny.",
-          },
+          { component: "grossCashPayPence", rule: roundingRule },
+          { component: "taxablePayPence", rule: roundingRule },
+          { component: "incomeTaxPence", rule: roundingRule },
+          { component: "employeeNationalInsurancePence", rule: roundingRule },
+          { component: "memberPensionDeductionPence", rule: roundingRule },
+          { component: "employerPensionContributionPence", rule: roundingRule },
+          { component: "providerTaxReliefPence", rule: roundingRule },
+          { component: "takeHomePayPence", rule: roundingRule },
         ],
       },
     };
@@ -303,6 +321,24 @@ describe("salary calculator adapter contract", () => {
       salaryCalculationResultSchema.parse({
         ...result,
         lineage: { ...result.lineage, sourceRuleIds: [] },
+      }),
+    ).toThrow();
+    expect(() =>
+      salaryCalculationResultSchema.parse({
+        ...result,
+        lineage: { ...result.lineage, rounding: result.lineage.rounding.slice(1) },
+      }),
+    ).toThrow();
+    expect(() =>
+      salaryCalculationResultSchema.parse({
+        ...result,
+        lineage: {
+          ...result.lineage,
+          rounding: [
+            ...result.lineage.rounding.slice(0, -1),
+            result.lineage.rounding[0],
+          ],
+        },
       }),
     ).toThrow();
   });
