@@ -174,9 +174,7 @@ export function NetWorthChart({
     change != null && first?.total != null && first.total !== 0
       ? change / Math.abs(first.total)
       : null;
-  const latestFxImpact = [...fxImpactData]
-    .reverse()
-    .find((point) => point.impact != null)?.impact;
+  const latestFxImpact = fxImpactData.at(-1)?.impact;
   let rangeLabel: string;
   if (rangeYears == null) {
     rangeLabel = "all time";
@@ -429,7 +427,14 @@ function NetWorthChartSummary({
     | "showingFxImpact"
   >
 >) {
-  if (showingFxImpact && latestFxImpact != null) {
+  if (showingFxImpact) {
+    if (latestFxImpact == null) {
+      return (
+        <p className="text-sm text-muted-foreground">
+          FX impact is unavailable for the latest chart point.
+        </p>
+      );
+    }
     return (
       <p className="text-sm">
         <span className="font-semibold">

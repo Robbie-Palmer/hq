@@ -142,6 +142,35 @@ describe("NetWorthChart", () => {
     ).toBeVisible();
   });
 
+  it("does not present an older FX impact when the latest point is incomplete", async () => {
+    const user = userEvent.setup();
+    const incomplete = point("2024-02-01", 170, 100, 70);
+    incomplete.total = null;
+    if (incomplete.conversion == null) {
+      throw new Error("Expected conversion evidence");
+    }
+    incomplete.conversion.status = "incomplete";
+    const usd = incomplete.conversion.accounts.find(
+      (account) => account.accountId === "us-shares",
+    );
+    if (usd == null) throw new Error("Expected USD account evidence");
+    usd.convertedValue = null;
+    usd.issues = [{ kind: "missing_exchange_rate", currency: "USD" }];
+
+    render(
+      <NetWorthChart
+        data={[point("2024-01-01", 180, 100, 80), incomplete]}
+        currency="GBP"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "FX impact" }));
+    expect(
+      screen.getByText("FX impact is unavailable for the latest chart point."),
+    ).toBeVisible();
+    expect(screen.queryByText(/household net worth/)).toBeNull();
+  });
+
   it("omits FX controls when every holding uses the household currency", () => {
     const gbpOnly: NetWorthDataPoint[] = [
       {
