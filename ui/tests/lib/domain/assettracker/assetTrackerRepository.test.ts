@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { AssetTrackerData } from "@/lib/domain/assettracker/assetTrackerData";
 import { buildRepository } from "@/lib/domain/assettracker/assetTrackerRepository";
+import { defaultHouseholdFields } from "@/lib/domain/assettracker/household";
 
 function repositoryData(): AssetTrackerData {
   return {
+    ...defaultHouseholdFields(),
     accounts: [
       {
         id: "isa-1",

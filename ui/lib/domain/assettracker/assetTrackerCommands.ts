@@ -21,6 +21,11 @@ import {
   capitalFlowKind,
 } from "./capitalFlow";
 import { CurrencySchema } from "./currency";
+import {
+  capitalFlowOwnershipKey,
+  OwnershipSchema,
+  snapshotOwnershipKey,
+} from "./household";
 import { MortgageTermsSchema } from "./mortgage";
 import {
   flowOccurrenceDates,
@@ -145,6 +150,7 @@ export const ImportIncomeHistoryInputSchema = z.object({
       }),
     )
     .min(1, "Paste at least one income row"),
+  ownership: OwnershipSchema.optional(),
 });
 export type ImportIncomeHistoryInput = z.infer<
   typeof ImportIncomeHistoryInputSchema
@@ -159,6 +165,7 @@ export const ImportAccountHistoryInputSchema = z
     capitalFlowKind: CapitalFlowKindSchema.optional(),
     /** Complete cumulative imports replace this account's selected classified series. */
     replaceCapitalFlows: z.boolean().optional(),
+    ownership: OwnershipSchema.optional(),
   })
   .refine(
     (input) => input.balances.length > 0 || input.capitalFlows.length > 0,
@@ -473,10 +480,40 @@ export function applyImportAccountHistory(
       flow,
     );
   }
+  const ownership = parsed.ownership;
+  const nextOwnership =
+    ownership == null
+      ? data.ownership
+      : {
+          ...data.ownership,
+          accounts: {
+            ...data.ownership.accounts,
+            [parsed.accountId]: ownership,
+          },
+          snapshots: { ...data.ownership.snapshots },
+          capitalFlows: { ...data.ownership.capitalFlows },
+        };
+  if (ownership != null) {
+    for (const row of parsed.balances) {
+      nextOwnership.snapshots[
+        snapshotOwnershipKey(parsed.accountId, row.date)
+      ] = ownership;
+    }
+    for (const row of parsed.capitalFlows) {
+      nextOwnership.capitalFlows[
+        capitalFlowOwnershipKey({
+          accountId: parsed.accountId,
+          date: row.date,
+          kind: parsed.capitalFlowKind,
+        })
+      ] = ownership;
+    }
+  }
   return {
     ...data,
     snapshots: Array.from(snapshotsByAccountDate.values()),
     capitalFlows: Array.from(capitalFlowsByAccountDate.values()),
+    ownership: nextOwnership,
   };
 }
 
@@ -496,6 +533,12 @@ export function applyImportIncomeHistory(
     }
     byDate.set(row.date, row.amount);
   }
+  const incomeOwnership = { ...data.ownership.incomeHistory };
+  if (parsed.ownership != null) {
+    for (const row of parsed.income) {
+      incomeOwnership[row.date] = parsed.ownership;
+    }
+  }
   return {
     ...data,
     incomeHistory: Array.from(byDate, ([date, amount]) => ({
@@ -503,6 +546,10 @@ export function applyImportIncomeHistory(
       amount,
       currency: data.settings.baseCurrency,
     })).sort((a, b) => a.date.localeCompare(b.date)),
+    ownership: {
+      ...data.ownership,
+      incomeHistory: incomeOwnership,
+    },
   };
 }
 
