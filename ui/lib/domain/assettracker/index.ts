@@ -17,6 +17,7 @@ export * from "./housingStrategy";
 export * from "./incomeRecord";
 export * from "./money";
 export * from "./mortgage";
+export * from "./mortgageInvestment";
 export * from "./pastedHistory";
 export * from "./plannedExpenditure";
 export * from "./portfolioReconciliation";

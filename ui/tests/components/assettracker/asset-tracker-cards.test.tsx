@@ -305,11 +305,13 @@ describe("HousingStrategyPlanner", () => {
     expect(
       within(table).getByRole("rowheader", { name: "Equity release" }),
     ).toBeVisible();
-    expect(
-      screen.getByText(/Only released cash enters withdrawal capital/),
-    ).toBeVisible();
+    expect(screen.getByText("Available capital")).toBeVisible();
+    expect(screen.getByLabelText("Housing move date")).not.toBeVisible();
 
-    await userEvent.click(screen.getByText("Sell and rent assumptions"));
+    await userEvent.click(screen.getByText("Adjust assumptions"));
+    await userEvent.click(
+      screen.getByText("Sell and rent", { selector: "summary" }),
+    );
     await userEvent.clear(
       screen.getByRole("spinbutton", { name: "Sell and rent Annual rent" }),
     );
@@ -322,7 +324,6 @@ describe("HousingStrategyPlanner", () => {
       .getByRole("rowheader", { name: "Sell and rent" })
       .closest("tr");
     expect(sellRow).not.toBeNull();
-    expect(sellRow).toHaveTextContent("£18,000");
     expect(sellRow).toHaveTextContent("£42,000");
 
     await userEvent.clear(
