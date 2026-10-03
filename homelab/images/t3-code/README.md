@@ -4,7 +4,7 @@ This image packages the headless t3-code server and its supported coding-agent
 CLIs, mise, Doppler, and the native libraries required by headless browser
 tests. Every base image uses a tag and immutable digest. npm and mise install
 from committed lockfiles with artifact integrity data. The deployment uses the
-release tag `0.0.38-agent-tools-15`. Increment that release suffix for every
+release tag `0.0.38-agent-tools-16`. Increment that release suffix for every
 image change.
 After the first registry publish, replacing the tag in the manifests with its
 registry digest adds another immutability check.
@@ -29,8 +29,13 @@ model through `OPENCODE_CONFIG_CONTENT`. Doppler injects
 `OPENROUTER_API_KEY`; the key never appears in the OpenCode configuration or
 image. Grok's device-login state lives under `/data/home/.grok`.
 
-The remote-development bootstrap also registers the pinned Better Auth Agent
-Auth CLI as Codex's `recipe-agent` MCP server. Its state stays under
+The image installs the portable `packages/agent-auth-mcp` package. The
+remote-development bootstrap registers it as Codex's `recipe-agent` MCP server.
+It reuses the newest matching active connection before starting a new approval
+flow. A
+constrained capability request always starts the normal connection flow because
+the pinned client does not persist enough constraint detail to prove a match.
+Its state stays under
 `/data/home/.codex/agent-auth/recipes`, and Codex forwards the
 `AGENT_AUTH_ENCRYPTION_KEY` supplied by the remote K3s deployment. The home
 overlay does not enable this MCP entry.

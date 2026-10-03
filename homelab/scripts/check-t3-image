@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-image=ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-15
+image=ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-16
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 mise_version="$(<"${script_dir}/../../.github/actions/setup-mise/mise-version")"
 package_json="${script_dir}/../images/t3-code/package.json"
@@ -82,6 +82,11 @@ docker run --rm \
   -ec '
     test "$(id -u)" = 2000
     test "$(id -g)" = 2000
+    test -x /usr/local/lib/agent-auth-mcp/src/cli.mjs
+    test -r /usr/local/lib/agent-auth-mcp/src/connections.mjs
+    test -r /usr/local/lib/agent-auth-mcp/src/options.mjs
+    test -r /usr/local/lib/agent-auth-mcp/src/server.mjs
+    test -r /usr/local/lib/agent-auth-mcp/src/storage.mjs
     test "$(node -p "require(\"/usr/local/lib/t3-code/node_modules/@auth/agent-cli/package.json\").version")" = "$EXPECTED_AGENT_AUTH_VERSION"
     test "$(codex --version)" = "codex-cli $EXPECTED_CODEX_VERSION"
     test "$(claude --version)" = "$EXPECTED_CLAUDE_VERSION (Claude Code)"
@@ -142,7 +147,8 @@ docker run --rm \
       if (!config.includes("model_catalog_json = \"/data/home/.codex/model-catalog.json\"")) process.exit(1);
       if (!config.includes("personality = \"pragmatic\"")) process.exit(1);
       if (!config.includes("[mcp_servers.recipe-agent]")) process.exit(1);
-      if (!config.includes("command = \"/usr/local/bin/auth-agent\"")) process.exit(1);
+      if (!config.includes("command = \"/usr/local/bin/node\"")) process.exit(1);
+      if (!config.includes("/usr/local/lib/agent-auth-mcp/src/cli.mjs")) process.exit(1);
       if (!config.includes("env_vars = [\"AGENT_AUTH_ENCRYPTION_KEY\"]")) process.exit(1);
       if (!config.includes("https://robbiepalmer.me")) process.exit(1);
       if (fs.statSync("/data/home/.codex/agent-auth/recipes").mode & 0o077) process.exit(1);

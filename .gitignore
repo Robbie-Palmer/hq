@@ -2,6 +2,7 @@
 node_modules/
 package-lock.json
 !homelab/images/t3-code/package-lock.json
+!packages/agent-auth-mcp/package-lock.json
 .pnp
 .pnp.js
 
