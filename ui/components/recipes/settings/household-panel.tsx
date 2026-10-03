@@ -907,6 +907,10 @@ export function HouseholdPanel({
         queryKey: recipeQueryKeys.pantry(currentUser.id),
         exact: true,
       }),
+      queryClient.invalidateQueries({
+        queryKey: recipeQueryKeys.equipmentReadiness(currentUser.id),
+        exact: true,
+      }),
     ]);
   }
 
