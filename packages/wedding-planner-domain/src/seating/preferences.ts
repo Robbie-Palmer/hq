@@ -8,13 +8,13 @@ export const seatingPreferencesSchema = z.object({
 export const tablePlanSchema = z.object({
   table_layout: z
     .record(
-      z.string().regex(/^(top|table-[1-9][0-9]*)$/),
+      z.string().regex(/^(top|table-[1-9]\d*)$/),
       z.object({
         name: z.string().max(80).optional(),
         shape: z.enum(["round", "long"]).optional(),
-        x: z.number().finite().min(100).max(900).optional(),
-        y: z.number().finite().min(100).max(10000).optional(),
-        rotation: z.number().finite().min(0).lt(360).optional(),
+        x: z.number().min(100).max(900).optional(),
+        y: z.number().min(100).max(10000).optional(),
+        rotation: z.number().min(0).lt(360).optional(),
       }),
     )
     .optional(),

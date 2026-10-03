@@ -90,6 +90,22 @@ describe("shared wedding domain", () => {
     ).toThrow();
   });
 
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    "rejects non-finite table coordinates and rotation %s",
+    (value) => {
+      for (const field of ["x", "y", "rotation"]) {
+        expect(() =>
+          parseWeddingPlan({
+            ...plan(),
+            seating: {
+              ...plan().seating,
+              table_layout: { top: { [field]: value } },
+            },
+          }),
+        ).toThrow();
+      }
+    },
+  );
   it.each([
     ["10", "2"],
     ["\u00e9", "e\u0301"],

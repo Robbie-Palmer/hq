@@ -72,6 +72,8 @@ function CanvasTable({
     table.id === "top",
     Math.max(capacity, occupants.length),
   );
+  const longSeatSpacing = table.id === "top" ? 65 : 130;
+  const seatSpacing = appearance.shape === "round" ? 200 : longSeatSpacing;
   useEffect(() => {
     if (selected && transformer.current && group.current) {
       transformer.current.nodes([group.current]);
@@ -149,7 +151,7 @@ function CanvasTable({
         )}
         {seats.map((seat, index) => (
           <Group
-            key={`seat-${index}`}
+            key={`${seat.x}:${seat.y}`}
             x={seat.x}
             y={seat.y}
             name="room-seat"
@@ -165,14 +167,7 @@ function CanvasTable({
             }}
           >
             <Circle
-              radius={Math.min(
-                7,
-                (appearance.shape === "round"
-                  ? 200
-                  : table.id === "top"
-                    ? 65
-                    : 130) / seats.length,
-              )}
+              radius={Math.min(7, seatSpacing / seats.length)}
               fill={occupants[index] ? palette.ink : palette.paper}
               stroke={palette.softInk}
               strokeWidth={1}
@@ -324,16 +319,14 @@ export default function TableRoomCanvas({
           },
         )
       : undefined;
-  function zoomTo(
-    zoom: number,
-    point = { x: width / 2, y: viewportHeight / 2 },
-  ) {
+  function zoomTo(zoom: number, point?: { x: number; y: number }) {
+    const focus = point ?? { x: width / 2, y: viewportHeight / 2 };
     const next = Math.max(0.5, Math.min(5, zoom));
     const ratio = next / view.zoom;
     setView({
       zoom: next,
-      x: point.x - (point.x - origin.x - view.x) * ratio - origin.x,
-      y: point.y - (point.y - origin.y - view.y) * ratio - origin.y,
+      x: focus.x - (focus.x - origin.x - view.x) * ratio - origin.x,
+      y: focus.y - (focus.y - origin.y - view.y) * ratio - origin.y,
     });
   }
   function touchPair(event: TouchEvent<HTMLDivElement>) {
