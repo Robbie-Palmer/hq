@@ -7405,6 +7405,30 @@ describe("PATCH /recipes/:slug", () => {
 });
 
 describe("POST /api/auth/sign-in/social", () => {
+  it("requires a current user before agent-approval reauthentication", async () => {
+    const res = await app.request(
+      "/api/auth/sign-in/social",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "http://localhost:3000",
+        },
+        body: JSON.stringify({
+          provider: "github",
+          callbackURL: "/recipes/settings/agents/approve",
+          additionalData: { flow: "agent-approval" },
+        }),
+      },
+      env,
+    );
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({
+      code: "agent_reauth_session_required",
+    });
+  });
+
   it.each(["google", "github"] as const)(
     "uses the public frontend callback for %s",
     async (provider) => {

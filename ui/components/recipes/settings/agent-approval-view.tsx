@@ -3,12 +3,18 @@
 import { isAbortError } from "browser-base/errors";
 import { Bot, Check, LoaderCircle, Lock, X } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  AUTH_PROVIDERS,
+  type Provider,
+  ProviderIcon,
+} from "@/components/recipes/auth-providers";
 import { Button } from "@/components/ui/button";
 import {
   type AgentDetail,
   type AgentHost,
   decideAgentApproval,
+  FreshSessionRequiredError,
   getAgent,
   getAgentHost,
 } from "@/lib/api/agents";
@@ -19,14 +25,107 @@ type ApprovalIntent = {
   code: string;
 };
 
-function readApprovalIntent(): ApprovalIntent | null {
+type PendingReauthentication = ApprovalIntent & {
+  action: "approve" | "deny";
+  createdAt: number;
+  provider: Provider;
+  userId: string;
+};
+
+type ApprovalPageState = {
+  error: string | null;
+  intent: ApprovalIntent | null;
+  reauthentication: PendingReauthentication | null;
+  resume: boolean;
+};
+
+const REAUTH_FLOW = "agent-approval";
+const REAUTH_RETURN_PARAM = "agent_reauth";
+const REAUTH_STORAGE_KEY = "recipe-agent-approval-reauth:v1";
+const REAUTH_MAX_AGE_MS = 15 * 60 * 1000;
+
+function isProvider(value: unknown): value is Provider {
+  return value === "google" || value === "github";
+}
+
+function clearStoredReauthentication() {
+  try {
+    globalThis.sessionStorage.removeItem(REAUTH_STORAGE_KEY);
+  } catch {
+    // The in-memory approval state still lets the user retry this page.
+  }
+}
+
+function readStoredReauthentication(): PendingReauthentication | null {
+  try {
+    const raw = globalThis.sessionStorage.getItem(REAUTH_STORAGE_KEY);
+    clearStoredReauthentication();
+    if (!raw) return null;
+    const value = JSON.parse(raw) as Partial<PendingReauthentication>;
+    if (
+      typeof value.agentId !== "string" ||
+      typeof value.code !== "string" ||
+      (value.action !== "approve" && value.action !== "deny") ||
+      typeof value.createdAt !== "number" ||
+      !isProvider(value.provider) ||
+      typeof value.userId !== "string" ||
+      Date.now() - value.createdAt > REAUTH_MAX_AGE_MS
+    ) {
+      return null;
+    }
+    return value as PendingReauthentication;
+  } catch {
+    return null;
+  }
+}
+
+function reauthenticationError(params: URLSearchParams): string | null {
+  const code = params.get("error");
+  if (!code) return null;
+  if (code === "agent_reauth_identity_mismatch") {
+    return "Use the same account that started this approval request.";
+  }
+  if (code === "access_denied") {
+    return "Identity confirmation was canceled.";
+  }
+  return "Your identity could not be confirmed. Try again.";
+}
+
+function readApprovalPageState(): ApprovalPageState {
   const params = new URLSearchParams(globalThis.location.search);
   const agentId = params.get("agent_id")?.trim();
   const code = params.get("code")?.trim();
-  if (!agentId || !code) return null;
+  const returning = params.get(REAUTH_RETURN_PARAM) === "complete";
+  const reauthentication = returning ? readStoredReauthentication() : null;
+  const intent =
+    agentId && code
+      ? { agentId, code }
+      : reauthentication
+        ? {
+            agentId: reauthentication.agentId,
+            code: reauthentication.code,
+          }
+        : null;
 
   globalThis.history.replaceState(null, "", globalThis.location.pathname);
-  return { agentId, code };
+  return {
+    error: returning ? reauthenticationError(params) : null,
+    intent,
+    reauthentication,
+    resume: returning && !params.has("error"),
+  };
+}
+
+function storePendingReauthentication(value: PendingReauthentication): boolean {
+  try {
+    globalThis.sessionStorage.setItem(
+      REAUTH_STORAGE_KEY,
+      JSON.stringify(value),
+    );
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function dateLabel(value: string | null): string {
@@ -55,8 +154,127 @@ async function loadApprovalRequest(
   }
 }
 
+function approvalResult(action: "approve" | "deny") {
+  return action === "approve" ? "approved" : "denied";
+}
+
+function approvalError(cause: unknown) {
+  return cause instanceof Error
+    ? cause.message
+    : "The approval decision could not be saved.";
+}
+
+function ApprovalActions({
+  agentAvailable,
+  onDecide,
+  pendingAction,
+}: Readonly<{
+  agentAvailable: boolean;
+  onDecide: (action: "approve" | "deny") => void;
+  pendingAction: "approve" | "deny" | null;
+}>) {
+  return (
+    <div className="mt-6 flex flex-wrap gap-3">
+      <Button
+        type="button"
+        onClick={() => onDecide("approve")}
+        disabled={!agentAvailable || pendingAction !== null}
+        className="bg-[var(--terracotta)] text-white hover:bg-[var(--terracotta-deep)]"
+      >
+        {pendingAction === "approve" && (
+          <LoaderCircle className="size-4 animate-spin" />
+        )}
+        Approve access
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => onDecide("deny")}
+        disabled={pendingAction !== null}
+      >
+        {pendingAction === "deny" && (
+          <LoaderCircle className="size-4 animate-spin" />
+        )}
+        Deny
+      </Button>
+    </div>
+  );
+}
+
+function ReauthenticationPrompt({
+  action,
+  onCancel,
+  onSelect,
+  pendingProvider,
+  providers,
+}: Readonly<{
+  action: "approve" | "deny";
+  onCancel: () => void;
+  onSelect: (provider: Provider) => void;
+  pendingProvider: Provider | null;
+  providers: Provider[] | null;
+}>) {
+  return (
+    <div className="mt-6 rounded-xl border border-[var(--line-strong)] bg-[var(--paper-warm)] p-4">
+      <div className="flex gap-3">
+        <Lock className="mt-0.5 size-5 shrink-0 text-[var(--terracotta)]" />
+        <div>
+          <h2 className="rt-display text-xl">Confirm it's you</h2>
+          <p className="rt-body mt-1 text-sm text-[var(--ink-2)]">
+            Choose a linked sign-in account. You will return here and the
+            {action === "approve" ? " approval" : " denial"} will continue.
+          </p>
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {providers === null ? (
+          <output
+            aria-label="Loading sign-in methods"
+            className="flex items-center gap-2 text-sm text-[var(--ink-3)]"
+          >
+            <LoaderCircle className="size-4 animate-spin" />
+            Loading sign-in methods…
+          </output>
+        ) : (
+          providers.map((providerId) => {
+            const provider = AUTH_PROVIDERS.find(
+              (candidate) => candidate.id === providerId,
+            );
+            if (!provider) return null;
+            return (
+              <Button
+                key={provider.id}
+                type="button"
+                variant="outline"
+                disabled={pendingProvider !== null}
+                onClick={() => onSelect(provider.id)}
+              >
+                {pendingProvider === provider.id ? (
+                  <LoaderCircle className="size-4 animate-spin" />
+                ) : (
+                  <ProviderIcon path={provider.iconPath} />
+                )}
+                Confirm with {provider.name}
+              </Button>
+            );
+          })
+        )}
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={pendingProvider !== null}
+          onClick={onCancel}
+        >
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function AgentApprovalView() {
   const { data: session, isPending: sessionPending } = authClient.useSession();
+  const initialized = useRef(false);
   const [intent, setIntent] = useState<ApprovalIntent | null | undefined>();
   const [agent, setAgent] = useState<AgentDetail | null>(null);
   const [host, setHost] = useState<AgentHost | null>(null);
@@ -66,16 +284,38 @@ export function AgentApprovalView() {
   );
   const [result, setResult] = useState<"approved" | "denied" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reauthentication, setReauthentication] = useState<{
+    action: "approve" | "deny";
+    providers: Provider[] | null;
+    userId: string;
+  } | null>(null);
+  const [resumeAction, setResumeAction] =
+    useState<PendingReauthentication | null>(null);
+  const [pendingProvider, setPendingProvider] = useState<Provider | null>(null);
 
   useEffect(() => {
-    setIntent(readApprovalIntent());
+    if (initialized.current) return;
+    initialized.current = true;
+    const pageState = readApprovalPageState();
+    setIntent(pageState.intent);
+    setError(pageState.error);
+    if (pageState.reauthentication) {
+      if (pageState.resume) {
+        setResumeAction(pageState.reauthentication);
+      } else {
+        setReauthentication({
+          action: pageState.reauthentication.action,
+          providers: [pageState.reauthentication.provider],
+          userId: pageState.reauthentication.userId,
+        });
+      }
+    }
   }, []);
 
   useEffect(() => {
     if (!session || !intent) return;
     const controller = new AbortController();
     setLoading(true);
-    setError(null);
 
     void loadApprovalRequest(intent, controller.signal, (loadedAgent) => {
       setAgent(loadedAgent);
@@ -97,25 +337,116 @@ export function AgentApprovalView() {
     return () => controller.abort();
   }, [intent, session]);
 
-  async function decide(action: "approve" | "deny") {
-    if (!intent) return;
-    setPendingAction(action);
-    setError(null);
-    try {
-      await decideAgentApproval({
-        agentId: intent.agentId,
-        code: intent.code,
-        action,
-      });
-      setResult(action === "approve" ? "approved" : "denied");
-    } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "The approval decision could not be saved.",
+  const prepareReauthentication = useCallback(
+    async (action: "approve" | "deny", userId: string) => {
+      setReauthentication({ action, providers: null, userId });
+      const accounts = await authClient.listAccounts().catch(() => null);
+      if (!accounts) {
+        setReauthentication(null);
+        setError("Your sign-in methods could not be loaded. Try again.");
+        return;
+      }
+      if (accounts.error) {
+        setReauthentication(null);
+        setError("Your sign-in methods could not be loaded. Try again.");
+        return;
+      }
+      const linked = new Set(
+        (accounts.data ?? []).map((account) => account.providerId),
       );
+      const providers = AUTH_PROVIDERS.map((provider) => provider.id).filter(
+        (provider) => linked.has(provider),
+      );
+      if (providers.length === 0) {
+        setReauthentication(null);
+        setError("No linked sign-in method can confirm your identity.");
+        return;
+      }
+      setReauthentication({ action, providers, userId });
+    },
+    [],
+  );
+
+  const decide = useCallback(
+    async (action: "approve" | "deny") => {
+      if (!intent || !session) return;
+      setPendingAction(action);
+      setError(null);
+      try {
+        await decideAgentApproval({
+          agentId: intent.agentId,
+          code: intent.code,
+          action,
+        });
+        setResult(approvalResult(action));
+      } catch (cause) {
+        if (cause instanceof FreshSessionRequiredError) {
+          await prepareReauthentication(action, session.user.id);
+          return;
+        }
+        setError(approvalError(cause));
+      } finally {
+        setPendingAction(null);
+      }
+    },
+    [intent, prepareReauthentication, session],
+  );
+
+  useEffect(() => {
+    if (!resumeAction || !agent || !session || pendingAction || result) return;
+    setResumeAction(null);
+    if (session.user.id !== resumeAction.userId) {
+      setError("Use the same account that started this approval request.");
+      setReauthentication({
+        action: resumeAction.action,
+        providers: [resumeAction.provider],
+        userId: resumeAction.userId,
+      });
+      return;
+    }
+    void decide(resumeAction.action);
+  }, [agent, decide, pendingAction, result, resumeAction, session]);
+
+  async function startReauthentication(provider: Provider) {
+    if (!intent || !reauthentication) return;
+    const stored = storePendingReauthentication({
+      ...intent,
+      action: reauthentication.action,
+      createdAt: Date.now(),
+      provider,
+      userId: reauthentication.userId,
+    });
+    if (!stored) {
+      setError("This browser could not preserve the approval request.");
+      return;
+    }
+
+    setPendingProvider(provider);
+    setError(null);
+    const callbackURL = new URL(
+      globalThis.location.pathname,
+      globalThis.location.origin,
+    );
+    callbackURL.searchParams.set(REAUTH_RETURN_PARAM, "complete");
+    try {
+      const response = await authClient.signIn.social({
+        provider,
+        callbackURL: callbackURL.href,
+        errorCallbackURL: callbackURL.href,
+        additionalData: { flow: REAUTH_FLOW },
+        additionalParams: { prompt: "select_account" },
+      });
+      if (response.error) {
+        clearStoredReauthentication();
+        setError(
+          response.error.message ?? "Identity confirmation could not start.",
+        );
+      }
+    } catch {
+      clearStoredReauthentication();
+      setError("Identity confirmation could not start. Try again.");
     } finally {
-      setPendingAction(null);
+      setPendingProvider(null);
     }
   }
 
@@ -225,30 +556,21 @@ export function AgentApprovalView() {
         </p>
       )}
 
-      <div className="mt-6 flex flex-wrap gap-3">
-        <Button
-          type="button"
-          onClick={() => void decide("approve")}
-          disabled={!agent || pendingAction !== null}
-          className="bg-[var(--terracotta)] text-white hover:bg-[var(--terracotta-deep)]"
-        >
-          {pendingAction === "approve" && (
-            <LoaderCircle className="size-4 animate-spin" />
-          )}
-          Approve access
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => void decide("deny")}
-          disabled={pendingAction !== null}
-        >
-          {pendingAction === "deny" && (
-            <LoaderCircle className="size-4 animate-spin" />
-          )}
-          Deny
-        </Button>
-      </div>
+      {reauthentication ? (
+        <ReauthenticationPrompt
+          action={reauthentication.action}
+          providers={reauthentication.providers}
+          pendingProvider={pendingProvider}
+          onSelect={(provider) => void startReauthentication(provider)}
+          onCancel={() => setReauthentication(null)}
+        />
+      ) : (
+        <ApprovalActions
+          agentAvailable={Boolean(agent)}
+          pendingAction={pendingAction}
+          onDecide={(action) => void decide(action)}
+        />
+      )}
     </ApprovalCard>
   );
 }
