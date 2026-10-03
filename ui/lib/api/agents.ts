@@ -234,11 +234,11 @@ export async function createAgentHostEnrollment(
     body.status !== "pending_enrollment" ||
     typeof body.enrollmentToken !== "string"
   ) {
-    throw new Error("The agent connection response was invalid.");
+    throw new TypeError("The agent connection response was invalid.");
   }
   const expiresAt = nullableDateTime(body.enrollmentTokenExpiresAt);
   if (typeof expiresAt !== "string") {
-    throw new Error("The agent connection response was invalid.");
+    throw new TypeError("The agent connection response was invalid.");
   }
   return {
     expiresAt,
