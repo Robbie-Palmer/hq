@@ -83,7 +83,7 @@ function parseArguments(args: string[]): Arguments {
   return parsed;
 }
 
-async function readJson(path: string): Promise<unknown | undefined> {
+async function readJson(path: string): Promise<unknown> {
   try {
     return JSON.parse(await readFile(path, "utf8"));
   } catch (error) {
@@ -120,13 +120,25 @@ async function readReviewedSnapshots(
 async function bootstrapReviewedSnapshots(args: Arguments): Promise<void> {
   const sources = buildGovUkSourceRegistry();
   await mkdir(args.reviewedDirectory, { recursive: true });
+  const paths = sources.map(({ id }) =>
+    resolve(args.reviewedDirectory, `${id}.json`),
+  );
+  const existing = await Promise.all(paths.map(readJson));
+  const existingIndex = existing.findIndex((value) => value !== undefined);
+  if (existingIndex >= 0) {
+    throw new Error(
+      `Refusing to overwrite reviewed snapshot ${paths[existingIndex]}`,
+    );
+  }
+  const snapshots = await Promise.all(
+    sources.map((source) =>
+      fetchGovUkSourceSnapshot(source, fetch, args.attempts),
+    ),
+  );
+  await Promise.all(
+    paths.map((path, index) => writeJson(path, snapshots[index])),
+  );
   for (const source of sources) {
-    const path = resolve(args.reviewedDirectory, `${source.id}.json`);
-    if ((await readJson(path)) !== undefined) {
-      throw new Error(`Refusing to overwrite reviewed snapshot ${path}`);
-    }
-    const snapshot = await fetchGovUkSourceSnapshot(source, fetch, args.attempts);
-    await writeJson(path, snapshot);
     process.stdout.write(`Recorded initial reviewed snapshot for ${source.id}.\n`);
   }
 }

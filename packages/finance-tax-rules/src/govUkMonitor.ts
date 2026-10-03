@@ -129,6 +129,8 @@ type MonitorOptions = {
 };
 
 const canonicalJson = (value: JsonValue): string => JSON.stringify(value);
+const compareText = (left: string, right: string): number =>
+  left.localeCompare(right, "en");
 
 function normalizeJson(value: unknown): JsonValue {
   if (
@@ -207,14 +209,14 @@ export function snapshotGovUkContent(input: unknown): GovUkContentSnapshot {
   };
   const monitored = normalizeJson({
     details,
-    documentLinks: [...documentLinks].toSorted(),
+    documentLinks: [...documentLinks].toSorted(compareText),
     metadata,
   });
   return {
     fingerprint: sha256(canonicalJson(monitored)),
     metadata,
     details,
-    documentLinks: [...documentLinks].toSorted(),
+    documentLinks: [...documentLinks].toSorted(compareText),
   };
 }
 
@@ -246,7 +248,7 @@ export function buildGovUkSourceRegistry(
       title: source.title,
       pageUrl: source.url,
       contentApiUrl: govUkContentApiUrl(source.url),
-      ruleIds: supportedRules.map(({ id }) => id).toSorted(),
+      ruleIds: supportedRules.map(({ id }) => id).toSorted(compareText),
       effectivePeriods: [
         ...new Map(
           supportedRules.map(({ effectiveFrom, effectiveTo }) => [
@@ -314,7 +316,7 @@ function diffJson(
     !Array.isArray(after)
   ) {
     const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
-    for (const key of [...keys].toSorted()) {
+    for (const key of [...keys].toSorted(compareText)) {
       const beforeValue = before[key];
       const afterValue = after[key];
       if (beforeValue === undefined || afterValue === undefined) {
@@ -379,7 +381,7 @@ export function diffGovUkSnapshots(
 function datePart(timestamp: string): string {
   const parsed = new Date(timestamp);
   if (Number.isNaN(parsed.valueOf())) {
-    throw new Error(`GOV.UK returned invalid timestamp ${timestamp}`);
+    throw new TypeError(`GOV.UK returned invalid timestamp ${timestamp}`);
   }
   return parsed.toISOString().slice(0, 10);
 }
@@ -565,6 +567,12 @@ function recordSourceResult(
   if (result.proposal) output.proposals.push(result.proposal);
 }
 
+function reportStatus(output: MonitorAccumulator): GovUkMonitorReport["status"] {
+  if (output.failures.length > 0) return "degraded";
+  if (output.proposals.length > 0) return "changes-detected";
+  return "unchanged";
+}
+
 export async function monitorGovUkSources(
   sources: readonly GovUkSourceSpec[],
   options: MonitorOptions,
@@ -610,12 +618,7 @@ export async function monitorGovUkSources(
   if (output.failures.length === 0) state.lastSuccessfulCheckAt = checkedAt;
   return {
     checkedAt,
-    status:
-      output.failures.length > 0
-        ? "degraded"
-        : output.proposals.length > 0
-          ? "changes-detected"
-          : "unchanged",
+    status: reportStatus(output),
     checkedSourceIds: output.checkedSourceIds,
     cachedSourceIds: output.cachedSourceIds,
     proposals: output.proposals,
@@ -625,7 +628,13 @@ export async function monitorGovUkSources(
 }
 
 function markdownCell(value: string | null): string {
-  return value === null ? "_(not set; reviewer required)_" : value;
+  return value ?? "_(not set; reviewer required)_";
+}
+
+function formatEffectivePeriods(
+  periods: RuleUpdateProposal["dates"]["potentialEffectivePeriods"],
+): string {
+  return periods.map(({ from, to }) => `${from} to ${to}`).join(", ");
 }
 
 export function renderGovUkMonitorReport(report: GovUkMonitorReport): string {
@@ -657,7 +666,7 @@ export function renderGovUkMonitorReport(report: GovUkMonitorReport): string {
       "",
       `Affected rules: ${proposal.affectedRuleIds.join(", ")}`,
       "",
-      `Potential effective periods: ${proposal.dates.potentialEffectivePeriods.map(({ from, to }) => `${from} to ${to}`).join(", ")}`,
+      `Potential effective periods: ${formatEffectivePeriods(proposal.dates.potentialEffectivePeriods)}`,
       "",
       "| Date | Value |",
       "| --- | --- |",
