@@ -9,7 +9,14 @@ import {
 import { solveTables } from "@/lib/wedding-planner/solve-tables";
 import { buildTableInput } from "@/lib/wedding-planner/table-state";
 import type { Guest, State } from "@/lib/wedding-planner/types";
-import { fireEvent, render, screen, waitFor, within } from "@/tests/test-utils";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@/tests/test-utils";
 
 function guest(id: string, name: string, changes: Partial<Guest> = {}): Guest {
   return {
@@ -227,6 +234,57 @@ describe("accommodation editor", () => {
     await screen.findByRole("region", { name: "Calculated table plan" });
     expect(save.mock.lastCall?.[0].table_plan?.top_table_guest_ids).toEqual([]);
   });
+
+  it.each(["layout", "attendance"])(
+    "handles a %s edit while seating is being calculated",
+    async (edit) => {
+      const state = sampleState();
+      for (const person of state.guests) person.attendance = "yes";
+      const result = await solveTables(buildTableInput(state));
+      let finish = () => {};
+      const pending = new Promise<typeof result>((resolve) => {
+        finish = () => resolve(result);
+      });
+      const calculateTables = vi.fn().mockReturnValue(pending);
+      const application: PlannerApplication = {
+        load: vi.fn().mockResolvedValue(state),
+        save: vi.fn<PlannerApplication["save"]>().mockResolvedValue(),
+        calculateRooms,
+        calculateTables,
+      };
+      render(<AccommodationEditor application={application} />);
+      await screen.findByText("Who shares a bed?");
+      fireEvent.click(screen.getByRole("button", { name: "Tables" }));
+      fireEvent.click(screen.getByRole("button", { name: "Calculate tables" }));
+      await waitFor(() => expect(calculateTables).toHaveBeenCalledOnce());
+      if (edit === "layout") {
+        fireEvent.change(screen.getByLabelText("Table name"), {
+          target: { value: "Wedding party" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Rotate table" }));
+      } else {
+        fireEvent.change(
+          screen.getByRole("combobox", { name: "Casey wedding attendance" }),
+          {
+            target: { value: "no" },
+          },
+        );
+      }
+      await act(async () => {
+        finish();
+        await pending;
+      });
+      if (edit === "layout") {
+        expect(
+          screen.getByRole("region", { name: "Calculated table plan" }),
+        ).toHaveTextContent("Wedding party");
+      } else {
+        expect(
+          screen.queryByRole("region", { name: "Calculated table plan" }),
+        ).toBeNull();
+      }
+    },
+  );
 
   it("explains insufficient table capacity and recalculates after adding tables", async () => {
     const state = sampleState();
