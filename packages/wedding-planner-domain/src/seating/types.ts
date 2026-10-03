@@ -7,7 +7,15 @@ export type SeatingPreferences = {
 };
 export type SeatingGuest = WeddingGuest &
   SeatingPreferences & { partner_id?: string };
+export type TableAppearance = {
+  name?: string;
+  shape?: "round" | "long";
+  x?: number;
+  y?: number;
+  rotation?: number;
+};
 export type TablePlan = {
+  table_layout?: Record<string, TableAppearance>;
   top_table_capacity: number;
   top_table_guest_ids: string[];
   table_capacities: number[];

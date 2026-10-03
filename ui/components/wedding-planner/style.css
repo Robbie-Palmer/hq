@@ -1249,3 +1249,56 @@
     width: 18px;
   }
 }
+
+.table-room-card {
+  margin-bottom: 24px;
+}
+.room-map-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.room-map-toolbar .editor-field {
+  flex: 1 1 160px;
+}
+.room-map-canvas {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  touch-action: none;
+}
+.room-map-view-controls,
+.room-map-table-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+}
+.room-map-view-controls .editor-hint {
+  flex: 1 1 220px;
+}
+.room-map-tooltip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  width: max-content;
+  max-width: min(224px, calc(100% - 16px));
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 13px;
+  pointer-events: none;
+}
+.room-map-guests {
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--soft-ink);
+}
+.room-map-guests strong {
+  color: var(--ink);
+}

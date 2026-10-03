@@ -29,6 +29,8 @@ import type {
   TablePlan,
 } from "@/lib/wedding-planner/types";
 
+import { TableRoomMap } from "./table-room-map";
+
 function SeatInput({
   label,
   value,
@@ -110,6 +112,10 @@ function TableSetup({
             value={plan.table_capacities.length}
             onChange={(value) =>
               onChange((draft) => {
+                for (const id of Object.keys(draft.table_layout ?? {})) {
+                  if (id !== "top" && Number(id.slice(6)) > value)
+                    delete draft.table_layout?.[id];
+                }
                 draft.table_capacities = Array.from(
                   { length: value },
                   (_, index) =>
@@ -407,7 +413,12 @@ function TablePreferences({
 function TableResults({
   allocation,
   guests,
-}: Readonly<{ allocation: TableAllocation; guests: Guest[] }>) {
+  plan,
+}: Readonly<{
+  allocation: TableAllocation;
+  guests: Guest[];
+  plan: TablePlan;
+}>) {
   const names = new Map(guests.map((guest) => [guest.id, guest.name]));
   return (
     <section aria-label="Calculated table plan" className="table-results">
@@ -435,7 +446,12 @@ function TableResults({
             className={table.id === "top" ? "table-result-top" : ""}
           >
             <CardHeader>
-              <CardTitle>{table.name}</CardTitle>
+              <CardTitle>
+                {plan.table_layout?.[table.id]?.name?.trim() ||
+                  (table.id === "top"
+                    ? "Top table"
+                    : `Table ${table.id.slice(6)}`)}
+              </CardTitle>
               <CardDescription>
                 {table.guest_ids.length + table.fixed_guests.length} /{" "}
                 {table.capacity} seats
@@ -492,12 +508,14 @@ export function TableEditor({
   busy,
   onUpdate,
   onCalculate,
+  onLayoutUpdate,
 }: Readonly<{
   state: State;
   allocation: TableAllocation | null;
   busy: boolean;
   onUpdate: (change: (draft: State) => void) => void;
   onCalculate: () => void;
+  onLayoutUpdate: (change: (draft: State) => void) => void;
 }>) {
   const plan = getTablePlan(state);
   const attending = state.guests.filter(
@@ -542,8 +560,17 @@ export function TableEditor({
           other seats
         </span>
       </div>
+      <TableRoomMap
+        state={state}
+        allocation={allocation}
+        onUpdate={onLayoutUpdate}
+      />
       {allocation && (
-        <TableResults allocation={allocation} guests={state.guests} />
+        <TableResults
+          allocation={allocation}
+          guests={state.guests}
+          plan={plan}
+        />
       )}
       <div className="table-setup-grid">
         <TableSetup

@@ -56,6 +56,40 @@ function setup(): AccommodationSetup {
 }
 
 describe("shared wedding domain", () => {
+  it("preserves table appearance through validation and copies it into solver input", () => {
+    const wedding = parseWeddingPlan({
+      ...plan(),
+      seating: {
+        ...plan().seating,
+        table_layout: {
+          top: {
+            name: "Wedding party",
+            shape: "long",
+            x: 500,
+            y: 110,
+            rotation: 35.5,
+          },
+          "table-1": { name: "Dublin", shape: "round" },
+        },
+      },
+    });
+    const input = tableInput(wedding);
+    expect(input.plan.table_layout).toEqual(wedding.seating.table_layout);
+    expect(input.plan.table_layout).not.toBe(wedding.seating.table_layout);
+    if (input.plan.table_layout?.top)
+      input.plan.table_layout.top.name = "Changed";
+    expect(wedding.seating.table_layout?.top?.name).toBe("Wedding party");
+    expect(() =>
+      parseWeddingPlan({
+        ...wedding,
+        seating: {
+          ...wedding.seating,
+          table_layout: { top: { rotation: 360 } },
+        },
+      }),
+    ).toThrow();
+  });
+
   it.each([
     ["10", "2"],
     ["\u00e9", "e\u0301"],

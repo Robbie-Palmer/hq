@@ -86,6 +86,10 @@ function sampleState(): State {
   );
 }
 
+vi.mock("@/components/wedding-planner/table-room-canvas", () => ({
+  default: () => null,
+}));
+
 describe("accommodation editor", () => {
   it("reviews sharing suggestions and preserves manual seating decisions", async () => {
     const state = sampleState();
@@ -199,6 +203,16 @@ describe("accommodation editor", () => {
       saved?.guests.find((person) => person.id === "drew")?.avoid_table_with,
     ).toEqual(["linen-a"]);
     expect(saved?.guests[0]?.fixed_bed_group_id).toBe("linen-a");
+    fireEvent.change(screen.getByLabelText("Table name"), {
+      target: { value: "Wedding party" },
+    });
+    expect(within(result).getByText("Wedding party")).toBeInTheDocument();
+    expect(within(result).getByText("Casey")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Rotate table" }));
+    expect(screen.getByRole("region", { name: "Calculated table plan" })).toBe(
+      result,
+    );
+
     fireEvent.change(
       screen.getByRole("combobox", { name: "Casey wedding attendance" }),
       { target: { value: "no" } },

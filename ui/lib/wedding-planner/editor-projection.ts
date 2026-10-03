@@ -110,6 +110,7 @@ export function editorStateToPlan(state: State): WeddingPlan {
       ),
     },
     seating: {
+      table_layout: tables.table_layout,
       top_table_guest_ids: tables.top_table_guest_ids,
       top_table_capacity: tables.top_table_capacity,
       table_capacities: tables.table_capacities,

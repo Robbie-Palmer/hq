@@ -446,11 +446,13 @@ export function AccommodationEditor({
     }
   }
 
-  function update(change: (draft: State) => void) {
-    setTableAllocation(null);
-    setAllocation(null);
-    setReport("");
-    setWarnings([]);
+  function update(change: (draft: State) => void, layoutOnly = false) {
+    if (!layoutOnly) {
+      setTableAllocation(null);
+      setAllocation(null);
+      setReport("");
+      setWarnings([]);
+    }
     setState((previous) => {
       if (!previous) return previous;
       const draft = structuredClone(previous);
@@ -838,6 +840,7 @@ export function AccommodationEditor({
             <TableEditor
               state={state}
               allocation={tableAllocation}
+              onLayoutUpdate={(change) => update(change, true)}
               busy={tableBusy}
               onUpdate={update}
               onCalculate={calculateTablePlan}
