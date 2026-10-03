@@ -1,0 +1,119 @@
+---
+title: "ADR 005: Adapt SavingTool for annual salary estimates"
+date: "2026-10-03"
+status: "Accepted"
+---
+
+## Context
+
+Asset Tracker needs UK salary estimates across tax years, jurisdictions, and
+pension contribution methods. [ADR 000](/projects/personal-finance-app/adrs/000-financial-fact-and-calculation-provenance)
+requires each saved calculation to retain its inputs and rule lineage. The project
+already has reviewed official rule data and a synthetic validation corpus for
+2022/23 to 2026/27. It does not yet have a calculation engine.
+
+Three open-source candidates were pinned and run against that corpus. SavingTool's
+TypeScript package matched five annual Income Tax cases exactly. Its largest
+annual NI difference was 64 pence, and one Scottish Income Tax case differed by
+23 pence. Those differences are acceptable for planning. PolicyEngine UK matched
+the annual tax cases and offers broad household modelling, but it adds a Python
+service boundary, a large dependency set, and AGPL-3.0 obligations. The Rust
+`uk-tax` crate has useful older constants but failed the allowance-taper case and
+lacks Scottish rates and pension support.
+
+None of the candidates passed the exact payroll contract. SavingTool supports a
+subset of cumulative monthly PAYE, but it does not accept the tax-code, weekly
+period, NI effective-date, and rounding facts needed to reconcile a payslip.
+
+## Decision
+
+Use [`@saving-tool/hmrc-income-tax`](https://github.com/SavingTool/hmrc-income-tax)
+3.0.1 behind an Asset Tracker adapter for annual salary estimates. Keep the
+package's API out of the domain model. The adapter owns pay-base translation,
+pension-method semantics, supported coverage, rounding, rejection of missing
+facts, and calculation lineage.
+
+Label every result from this implementation `annual-liability-estimate`. A
+planning view may tolerate a difference of up to £1 per annual component against
+the reviewed corpus. It must not describe the result as a payroll deduction or
+payslip reconciliation.
+
+Keep the reviewed `finance-tax-rules` dataset as the source for effective dates,
+supported jurisdictions, official-source provenance, and validation. Each result
+records the adapter and dependency versions, rule-dataset and effective-rule
+versions, source rule IDs, assumptions, and per-component rounding. Gross cash
+pay, taxable pay, NI earnings, and each pension contribution amount remain
+separate fields.
+
+Use only the dependency's licensed public exports. Its employer NI, student-loan,
+corporation-tax, dividend-tax, pension-allowance, and Apprenticeship Levy functions
+may be evaluated behind later domain adapters. The SavingTool website's mortgage,
+compounding, emergency-fund, umbrella, and IR35 calculators are product examples.
+They are absent from the package exports and cannot supply authoritative fixtures.
+
+Do not adopt PolicyEngine UK in the interactive salary path. Reconsider it for a
+server-side household tax-benefit feature if that broader model becomes a product
+requirement and the deployment and licence costs are acceptable. Do not adopt
+`uk-tax` unchanged.
+
+## Validation
+
+The evaluation pinned these releases and ran the 16-case `salary-validation-v1`
+corpus:
+
+| Candidate               | Runtime and licence                                                           | Result                                                                                                                                              |
+| ----------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SavingTool 3.0.1        | TypeScript, MIT, no runtime dependencies                                      | Five of six annual Income Tax cases matched exactly. The Scottish case differed by 23 pence. Annual NI differed by 64 pence or less.                |
+| PolicyEngine UK 2.109.4 | Python 3.11 or newer, AGPL-3.0, 76 installed packages in the test environment | All annual Income Tax cases matched after rounding. Annual NI differed by 60 pence or less. A synthetic household case ran without population data. |
+| `uk-tax` 0.1.3          | Rust, MIT, no dependencies                                                    | The Personal Allowance taper case was £1,000 low. Scotland, pensions, student loans, and payroll periods are unsupported.                           |
+
+None of the candidates produced a complete exact-payroll result. SavingTool's
+cumulative monthly mode lacks the tax-code, weekly PAYE, dated NI, and rounding
+inputs required by the corpus.
+
+SavingTool 3.0.1 exports Income Tax, employee and employer NI, student loans,
+pension annual allowance, corporation tax, dividend tax, and Apprenticeship Levy.
+Its website's mortgage, compound-interest, emergency-fund, umbrella, and IR35
+calculators are not package exports. Asset Tracker will source the assumptions for
+those future scenarios independently rather than use the website's example
+outputs as fixtures.
+
+## Consequences
+
+The first salary engine stays in TypeScript, works in the browser, and adds no
+transitive runtime dependencies. Existing official data still controls which
+dates and jurisdictions the application claims to support. The adapter can be
+replaced without changing saved salary records or view models.
+
+The application will have two maintained layers: reviewed rule metadata and the
+third-party formulas. CI must compare them on every dependency or rule update.
+Minor rounding differences are expected and visible in the recorded rounding
+contract.
+
+Exact payroll remains unsupported. The interface must ask for actual deductions
+when reconciling a payslip or state that it is showing an annual estimate. Older
+years also remain unsupported until reviewed official rules and fixtures cover
+them, even though another library contains older constants.
+
+## Alternatives considered
+
+### Build the whole calculation engine internally
+
+An internal engine would give complete control over period semantics and lineage.
+It would also duplicate working annual formulas before exact payroll has proved
+valuable. Keep this option for payroll-specific gaps and replace individual
+adapter components only when fixtures justify the work.
+
+### Run PolicyEngine UK
+
+PolicyEngine is the stronger choice for synthetic household benefits, policy
+reforms, and interactions across people. That scope does not justify a Python
+service and AGPL-3.0 boundary for annual salary estimates. It remains a candidate
+for a later household modelling service.
+
+### Use `uk-tax`
+
+The crate is small, MIT-licensed, dependency-free, and covers older annual years.
+Its current gaps overlap the product's differentiators. Adopting it would still
+require an allowance-taper fix, Scottish rates, pension orchestration, student
+loans, TypeScript or WebAssembly integration, and a larger test suite.
