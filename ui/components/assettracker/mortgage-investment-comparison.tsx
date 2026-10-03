@@ -57,6 +57,9 @@ function AssumptionInput({
 }>) {
   const percent = PERCENT_FIELDS.has(field);
   const id = `mortgage-investment-${field}`;
+  let step = "100";
+  if (percent) step = "0.1";
+  else if (field === "horizonMonths") step = "12";
   return (
     <label htmlFor={id} className="space-y-1 text-xs text-muted-foreground">
       <span>{label}</span>
@@ -66,7 +69,7 @@ function AssumptionInput({
         type="number"
         inputMode="decimal"
         min="0"
-        step={percent ? "0.1" : field === "horizonMonths" ? "12" : "100"}
+        step={step}
         value={percent ? value * 100 : value}
         onChange={(event) =>
           onChange(
