@@ -31,7 +31,9 @@ image. Grok's device-login state lives under `/data/home/.grok`.
 
 The remote-development bootstrap registers a small wrapper around the pinned
 Better Auth Agent Auth client as Codex's `recipe-agent` MCP server. It reuses
-the newest matching active connection before starting a new approval flow.
+the newest matching active connection before starting a new approval flow. A
+constrained capability request always starts the normal connection flow because
+the pinned client does not persist enough constraint detail to prove a match.
 Its state stays under
 `/data/home/.codex/agent-auth/recipes`, and Codex forwards the
 `AGENT_AUTH_ENCRYPTION_KEY` supplied by the remote K3s deployment. The home

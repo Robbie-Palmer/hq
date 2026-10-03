@@ -84,6 +84,8 @@ docker run --rm \
     test "$(id -g)" = 2000
     test -r /usr/local/lib/t3-code/recipe-agent-connections.mjs
     test -r /usr/local/lib/t3-code/recipe-agent-mcp.mjs
+    test -r /usr/local/lib/t3-code/recipe-agent-options.mjs
+    test -r /usr/local/lib/t3-code/recipe-agent-storage.mjs
     test "$(node -p "require(\"/usr/local/lib/t3-code/node_modules/@auth/agent-cli/package.json\").version")" = "$EXPECTED_AGENT_AUTH_VERSION"
     test "$(codex --version)" = "codex-cli $EXPECTED_CODEX_VERSION"
     test "$(claude --version)" = "$EXPECTED_CLAUDE_VERSION (Claude Code)"

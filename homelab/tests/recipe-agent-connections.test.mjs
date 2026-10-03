@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { selectReusableConnection } from "../images/t3-code/recipe-agent-connections.mjs";
+import {
+  reuseConnection,
+  selectReusableConnection,
+} from "../images/t3-code/recipe-agent-connections.mjs";
 
 const now = Date.parse("2026-10-03T12:00:00Z");
 
@@ -78,4 +81,58 @@ test("allows an omitted mode and capability list to reuse the latest provider co
   );
 
   assert.equal(selected?.agentId, "autonomous");
+});
+
+test("returns the reusable connection in the connect-agent response shape", async () => {
+  const storage = {
+    async listAgentConnections() {
+      return [connection({ agentId: "reused", hostId: "host" })];
+    },
+  };
+  const client = {
+    async getProviderConfig() {
+      return { issuer: "https://recipes.example" };
+    },
+  };
+
+  const result = await reuseConnection(storage, client, {
+    provider: "Recipes",
+    mode: "delegated",
+    capabilities: ["pantry.read"],
+  });
+
+  assert.equal(result?.agentId, "reused");
+  assert.equal(result?.hostId, "host");
+  assert.equal(result?.status, "active");
+  assert.equal(result?.reused, true);
+});
+
+test("bypasses reuse for forced approval and constrained capabilities", async () => {
+  const client = {
+    async getProviderConfig() {
+      throw new Error("provider lookup should not run");
+    },
+  };
+  const storage = {
+    async listAgentConnections() {
+      throw new Error("storage lookup should not run");
+    },
+  };
+
+  assert.equal(
+    await reuseConnection(storage, client, {
+      force_approval: true,
+      provider: "Recipes",
+    }),
+    null,
+  );
+  assert.equal(
+    await reuseConnection(storage, client, {
+      provider: "Recipes",
+      capabilities: [
+        { name: "pantry.read", constraints: { location: "cupboard" } },
+      ],
+    }),
+    null,
+  );
 });

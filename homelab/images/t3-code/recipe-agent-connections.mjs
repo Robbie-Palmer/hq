@@ -35,3 +35,30 @@ export function selectReusableConnection(
     })
     .sort((left, right) => (right.createdAt ?? 0) - (left.createdAt ?? 0))[0];
 }
+
+export async function reuseConnection(storage, client, args) {
+  if (args.force_approval) return null;
+  const hasConstrainedCapability = (args.capabilities ?? []).some(
+    (capability) =>
+      typeof capability === "object" && capability?.constraints != null,
+  );
+  if (hasConstrainedCapability) return null;
+
+  const provider = await client.getProviderConfig(args.provider);
+  const connection = selectReusableConnection(
+    await storage.listAgentConnections(),
+    {
+      issuer: provider.issuer,
+      mode: args.mode,
+      capabilities: args.capabilities,
+    },
+  );
+  if (!connection) return null;
+  return {
+    agentId: connection.agentId,
+    hostId: connection.hostId,
+    status: "active",
+    capabilityGrants: connection.capabilityGrants,
+    reused: true,
+  };
+}

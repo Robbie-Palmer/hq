@@ -277,8 +277,16 @@ run = "kubectl kustomize k3s/overlays/remote-development"
 description = "Test rendered workspace structure, isolation controls, and Kubernetes schemas"
 depends = ["//:install"]
 run = '''
+mise x node@24 -- npm ci --ignore-scripts --prefix images/t3-code
+mise x node@24 -- node --test \
+  --experimental-test-coverage \
+  --test-coverage-include=images/t3-code/recipe-agent-connections.mjs \
+  --test-coverage-include=images/t3-code/recipe-agent-options.mjs \
+  --test-coverage-include=images/t3-code/recipe-agent-storage.mjs \
+  --test-coverage-lines=80 \
+  tests/recipe-agent-*.test.mjs
 pnpm exec tsc --project tsconfig.json
-pnpm exec tsx --test tests/remote-workspace-manifests.test.ts tests/recipe-agent-connections.test.mjs
+pnpm exec tsx --test tests/remote-workspace-manifests.test.ts
 '''
 
 [tasks.k3s-dry-run-home]

@@ -93,6 +93,8 @@ COPY --chmod=0555 \
   bootstrap-settings.mjs \
   recipe-agent-connections.mjs \
   recipe-agent-mcp.mjs \
+  recipe-agent-options.mjs \
+  recipe-agent-storage.mjs \
   /usr/local/lib/t3-code/
 
 WORKDIR /data/workspaces

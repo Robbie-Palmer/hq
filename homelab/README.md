@@ -182,9 +182,11 @@ The remote workspace image includes the Better Auth Agent Auth client and
 registers a reuse-aware MCP server as `recipe-agent` in the primary Codex
 configuration. Codex starts the stdio process when a thread uses one of its
 tools. A thread's first `connect_agent` call reuses the newest matching active
-connection unless it explicitly requests fresh approval. Host and agent state
-lives under `/data/home/.codex/agent-auth/recipes` on the encrypted persistent
-volume. The K3s deployment reads `AGENT_AUTH_ENCRYPTION_KEY` from
+connection unless it explicitly requests fresh approval or asks for constrained
+capabilities. The pinned client does not expose enough stored constraint detail
+to prove that two constrained grants match. Host and agent state lives under
+`/data/home/.codex/agent-auth/recipes` on the encrypted persistent volume. The
+K3s deployment reads `AGENT_AUTH_ENCRYPTION_KEY` from
 `homelab/prd_remote_development` and refuses to start without it. After the
 first deployment, create an enrollment code under Recipe Settings, then give
 that code to the agent so it can enroll and request pantry capabilities.
