@@ -36,7 +36,7 @@ export const OwnershipSchema = z.discriminatedUnion("kind", [
         });
       }
       const total = shares.reduce((sum, { share }) => sum + share, 0);
-      if (Math.abs(total - 1) > 0.000_001) {
+      if (Math.abs(total - 1) > 1e-6) {
         context.addIssue({
           code: "custom",
           message: "Shared ownership shares must total 100%",
