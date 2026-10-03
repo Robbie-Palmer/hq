@@ -4400,6 +4400,34 @@ function householdEquipmentItemResponse(
   return { ...catalogItem, createdAt: createdAt.toISOString() };
 }
 
+async function withHouseholdEquipmentMutation(
+  c: Context<AppEnv>,
+  logMessage: string,
+  mutate: (
+    db: Db,
+    householdId: string,
+    equipmentSlug: string,
+  ) => Promise<Response>,
+): Promise<Response> {
+  const householdId = uuidParam(c, "householdId", "household ID");
+  if (householdId instanceof Response) return householdId;
+  const equipmentSlug = equipmentSlugParam(c);
+  if (equipmentSlug instanceof Response) return equipmentSlug;
+  const csrfFailure = validateCsrf(c);
+  if (csrfFailure) return csrfFailure;
+
+  return withRecipeSession(c, "mutation", logMessage, async ({ db, session }) => {
+    const memberFailure = await requireHouseholdMemberResponse(
+      c,
+      db,
+      householdId,
+      session,
+    );
+    if (memberFailure) return memberFailure;
+    return mutate(db, householdId, equipmentSlug);
+  });
+}
+
 registerRoute("get", "/households/:householdId/equipment", async (c) => {
   const householdId = uuidParam(c, "householdId", "household ID");
   if (householdId instanceof Response) return householdId;
@@ -4439,27 +4467,11 @@ registerRoute("get", "/households/:householdId/equipment", async (c) => {
 registerRoute(
   "put",
   "/households/:householdId/equipment/:equipmentSlug",
-  async (c) => {
-    const householdId = uuidParam(c, "householdId", "household ID");
-    if (householdId instanceof Response) return householdId;
-    const equipmentSlug = equipmentSlugParam(c);
-    if (equipmentSlug instanceof Response) return equipmentSlug;
-    const csrfFailure = validateCsrf(c);
-    if (csrfFailure) return csrfFailure;
-
-    return withRecipeSession(
+  (c) =>
+    withHouseholdEquipmentMutation(
       c,
-      "mutation",
       "PUT /households/:householdId/equipment/:equipmentSlug failed",
-      async ({ db, session }) => {
-        const memberFailure = await requireHouseholdMemberResponse(
-          c,
-          db,
-          householdId,
-          session,
-        );
-        if (memberFailure) return memberFailure;
-
+      async (db, householdId, equipmentSlug) => {
         const [created] = await db
           .insert(schema.householdEquipment)
           .values({ organizationId: householdId, equipmentSlug })
@@ -4492,34 +4504,17 @@ registerRoute(
           ),
         );
       },
-    );
-  },
+    ),
 );
 
 registerRoute(
   "delete",
   "/households/:householdId/equipment/:equipmentSlug",
-  async (c) => {
-    const householdId = uuidParam(c, "householdId", "household ID");
-    if (householdId instanceof Response) return householdId;
-    const equipmentSlug = equipmentSlugParam(c);
-    if (equipmentSlug instanceof Response) return equipmentSlug;
-    const csrfFailure = validateCsrf(c);
-    if (csrfFailure) return csrfFailure;
-
-    return withRecipeSession(
+  (c) =>
+    withHouseholdEquipmentMutation(
       c,
-      "mutation",
       "DELETE /households/:householdId/equipment/:equipmentSlug failed",
-      async ({ db, session }) => {
-        const memberFailure = await requireHouseholdMemberResponse(
-          c,
-          db,
-          householdId,
-          session,
-        );
-        if (memberFailure) return memberFailure;
-
+      async (db, householdId, equipmentSlug) => {
         await db
           .delete(schema.householdEquipment)
           .where(
@@ -4527,11 +4522,10 @@ registerRoute(
               eq(schema.householdEquipment.organizationId, householdId),
               eq(schema.householdEquipment.equipmentSlug, equipmentSlug),
             ),
-          );
+        );
         return c.body(null, 204);
       },
-    );
-  },
+    ),
 );
 
 registerRoute("get", "/households/:householdId/invitations", async (c) => {

@@ -15,7 +15,13 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import {
+  type FormEvent,
+  type FormEventHandler,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { errorMessage } from "ts-base/errors";
 import { RecipeAvatar } from "@/components/recipes/recipe-avatar";
 import { Button } from "@/components/ui/button";
@@ -565,7 +571,7 @@ function HouseholdEquipmentSection({
   busy: boolean;
   adding: boolean;
   onSelectedSlugChange: (slug: string) => void;
-  onAdd: (event: FormEvent<HTMLFormElement>) => void;
+  onAdd: FormEventHandler<HTMLFormElement>;
   onRemove: (item: HouseholdEquipmentItem) => void;
 }>) {
   if (!equipment) {
@@ -744,7 +750,7 @@ function ManagedHouseholdView({
   onInvite: (event: FormEvent<HTMLFormElement>) => void;
   onRemove: (member: HouseholdMember) => void;
   onRevoke: (invitation: HouseholdInvitation) => void;
-  onAddEquipment: (event: FormEvent<HTMLFormElement>) => void;
+  onAddEquipment: FormEventHandler<HTMLFormElement>;
   onRemoveEquipment: (item: HouseholdEquipmentItem) => void;
   onDelete: () => void;
   onLeave: () => void;
@@ -987,7 +993,7 @@ export function HouseholdPanel({
     });
   }
 
-  function onAddEquipment(event: FormEvent<HTMLFormElement>) {
+  const onAddEquipment: FormEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
     if (!household || !equipmentSlug) return;
     run("add-equipment", async () => {
@@ -1006,7 +1012,7 @@ export function HouseholdPanel({
       setEquipmentSlug("");
       setNotice(`${added.name} added to the household.`);
     });
-  }
+  };
 
   function onRemoveEquipment(item: HouseholdEquipmentItem) {
     if (!household) return;
