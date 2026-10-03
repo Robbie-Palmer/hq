@@ -414,6 +414,7 @@ export function AccommodationEditor({
   const [tableBusy, setTableBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const editVersion = useRef(0);
+  const solverVersion = useRef(0);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const pendingSaveTimer = useRef<number | null>(null);
 
@@ -446,11 +447,13 @@ export function AccommodationEditor({
     }
   }
 
-  function update(change: (draft: State) => void) {
-    setTableAllocation(null);
-    setAllocation(null);
-    setReport("");
-    setWarnings([]);
+  function update(change: (draft: State) => void, layoutOnly = false) {
+    if (!layoutOnly) {
+      setTableAllocation(null);
+      setAllocation(null);
+      setReport("");
+      setWarnings([]);
+    }
     setState((previous) => {
       if (!previous) return previous;
       const draft = structuredClone(previous);
@@ -461,6 +464,7 @@ export function AccommodationEditor({
         return previous;
       }
       editVersion.current += 1;
+      if (!layoutOnly) solverVersion.current += 1;
       setSaveStatus("Saving…");
       setError("");
       return draft;
@@ -514,6 +518,7 @@ export function AccommodationEditor({
   async function calculate() {
     if (!state) return;
     const version = editVersion.current;
+    const calculationVersion = solverVersion.current;
     cancelPendingSave();
     setBusy(true);
     setError("");
@@ -521,7 +526,7 @@ export function AccommodationEditor({
     try {
       await saveBeforeCalculation(state, version);
       const result = await application.calculateRooms(state);
-      if (editVersion.current !== version) return;
+      if (solverVersion.current !== calculationVersion) return;
       setReport(result.report);
       setAllocation(result.result as Allocation);
       setPartyNames(result.parties as PartyName[]);
@@ -547,6 +552,7 @@ export function AccommodationEditor({
     await saveQueue.current;
     await application.save(imported);
     editVersion.current += 1;
+    solverVersion.current += 1;
     setState(imported);
     setSelectedId(imported.guests[0]?.id ?? null);
     setAllocation(null);
@@ -561,15 +567,17 @@ export function AccommodationEditor({
   async function calculateTablePlan() {
     if (!state) return;
     const version = editVersion.current;
+    const calculationVersion = solverVersion.current;
     cancelPendingSave();
     setTableBusy(true);
     setError("");
     try {
       await saveBeforeCalculation(state, version);
       const result = await application.calculateTables(state);
-      if (editVersion.current === version) setTableAllocation(result);
+      if (solverVersion.current === calculationVersion)
+        setTableAllocation(result);
     } catch (cause) {
-      if (editVersion.current === version)
+      if (solverVersion.current === calculationVersion)
         setError(
           cause instanceof Error ? cause.message : "Could not calculate tables",
         );
@@ -838,6 +846,7 @@ export function AccommodationEditor({
             <TableEditor
               state={state}
               allocation={tableAllocation}
+              onLayoutUpdate={(change) => update(change, true)}
               busy={tableBusy}
               onUpdate={update}
               onCalculate={calculateTablePlan}

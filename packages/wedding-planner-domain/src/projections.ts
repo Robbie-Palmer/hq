@@ -30,6 +30,9 @@ export function tableInput(plan: WeddingPlan): TableInput {
       partner_id: partnerId(plan.couples, guest.id),
     })),
     plan: {
+      ...(plan.seating.table_layout
+        ? { table_layout: structuredClone(plan.seating.table_layout) }
+        : {}),
       top_table_capacity: plan.seating.top_table_capacity,
       table_capacities: [...plan.seating.table_capacities],
       top_table_guest_ids: [...plan.seating.top_table_guest_ids],

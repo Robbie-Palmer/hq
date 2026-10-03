@@ -100,14 +100,16 @@ export async function solveTables(input: TableInput): Promise<TableAllocation> {
   const tables: TableAllocation["tables"] = [
     {
       id: "top",
-      name: "Top table",
+      name: plan.table_layout?.top?.name?.trim() || "Top table",
       capacity: plan.top_table_capacity,
       guest_ids: [...top],
       fixed_guests: [...fixed_top_guests],
     },
     ...plan.table_capacities.map((seats, index) => ({
       id: `table-${index + 1}`,
-      name: `Table ${index + 1}`,
+      name:
+        plan.table_layout?.[`table-${index + 1}`]?.name?.trim() ||
+        `Table ${index + 1}`,
       capacity: seats,
       guest_ids: [] as string[],
       fixed_guests: [] as string[],
