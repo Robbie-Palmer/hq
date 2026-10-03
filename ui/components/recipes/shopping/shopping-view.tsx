@@ -14,6 +14,7 @@ import {
   useStartNewShoppingList,
 } from "@/components/recipes/shopping/shopping-list-boundary";
 import { useShoppingList } from "@/hooks/use-shopping-list";
+import type { DietIngredientOption } from "@/lib/api/diet";
 import type { ShoppingRecipe } from "@/lib/api/shopping";
 import {
   applyDietRecipeVisibility,
@@ -21,18 +22,29 @@ import {
 } from "@/lib/domain/diet";
 
 export function ShoppingView({
+  ingredientCatalog,
   recipes,
-}: Readonly<{ recipes: ShoppingRecipe[] }>) {
+}: Readonly<{
+  ingredientCatalog: DietIngredientOption[];
+  recipes: ShoppingRecipe[];
+}>) {
   return (
     <ShoppingListBoundary>
-      <ShoppingViewContent recipes={recipes} />
+      <ShoppingViewContent
+        ingredientCatalog={ingredientCatalog}
+        recipes={recipes}
+      />
     </ShoppingListBoundary>
   );
 }
 
 function ShoppingViewContent({
+  ingredientCatalog,
   recipes,
-}: Readonly<{ recipes: ShoppingRecipe[] }>) {
+}: Readonly<{
+  ingredientCatalog: DietIngredientOption[];
+  recipes: ShoppingRecipe[];
+}>) {
   const { diet, matchRecipe } = useDiet();
   const { recipes: selected, plan, extras } = useShoppingList();
   const [showHidden, setShowHidden] = useState(false);
@@ -123,7 +135,7 @@ function ShoppingViewContent({
       )}
 
       <div className="space-y-10">
-        <ShoppingList recipes={recipes} />
+        <ShoppingList ingredientCatalog={ingredientCatalog} recipes={recipes} />
 
         <section aria-labelledby="recipe-picker-heading">
           <div className="mb-3 flex flex-wrap items-end justify-between gap-2 border-t border-[var(--line)] pt-8">
