@@ -261,12 +261,31 @@ export function buildGovUkSourceRegistry(
 }
 
 function plainText(value: string): string {
-  return value
-    .replace(/<[^>]*>/g, " ")
+  const decoded = value
     .replaceAll("&nbsp;", " ")
-    .replaceAll("&amp;", "&")
-    .replace(/\s+/g, " ")
-    .trim();
+    .replaceAll("&amp;", "&");
+  let result = "";
+  let insideTag = false;
+  let needsSpace = false;
+  for (const character of decoded) {
+    if (character === "<") {
+      insideTag = true;
+      needsSpace = result.length > 0;
+      continue;
+    }
+    if (insideTag) {
+      if (character === ">") insideTag = false;
+      continue;
+    }
+    if (" \n\r\t\f\v".includes(character)) {
+      needsSpace = result.length > 0;
+      continue;
+    }
+    if (needsSpace) result += " ";
+    result += character;
+    needsSpace = false;
+  }
+  return result;
 }
 
 function summarize(value: JsonValue | undefined): string | null {

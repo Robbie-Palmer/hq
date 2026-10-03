@@ -164,6 +164,7 @@ describe("GOV.UK source monitoring", () => {
     expect(markdown).toContain(
       "mise run //packages/finance-tax-rules:check",
     );
+    expect(markdown).not.toContain("<table>");
   });
 
   it("reports a document-link replacement separately from the body change", () => {
