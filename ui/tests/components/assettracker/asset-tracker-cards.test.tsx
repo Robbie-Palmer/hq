@@ -218,6 +218,7 @@ function mockAssetTracker(
     accounts: [],
     accountDetails: [],
     netWorthData: [],
+    netWorthDataByCurrency: { GBP: [], USD: [], EUR: [] },
     contributionData: [],
     assetAllocation: [],
     assetAllocationHistory: [],

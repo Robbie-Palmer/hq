@@ -89,14 +89,125 @@ export type AccountDetailView = AccountSummaryView & {
   gainLoss: number | null;
 };
 
+export type NetWorthExchangeRateDetail = {
+  observationId: string;
+  fromCurrency: Currency;
+  toCurrency: Currency;
+  rate: number;
+  source: string;
+  effectiveDate: string;
+  carriedForward: boolean;
+  method: "direct" | "inverse" | "triangulated";
+};
+
+export type NetWorthAccountConversion = {
+  accountId: string;
+  accountName: string;
+  nativeValue: number | null;
+  nativeCurrency: Currency | null;
+  convertedValue: number | null;
+  rates: NetWorthExchangeRateDetail[];
+  issues: Array<{
+    kind: string;
+    currency?: Currency;
+    observedAt?: string;
+  }>;
+};
+
+export type NetWorthConversionDetail = {
+  targetCurrency: Currency;
+  status: "complete" | "incomplete";
+  partialTotal: number;
+  accounts: NetWorthAccountConversion[];
+};
+
 export type NetWorthDataPoint = {
   date: string;
   /** Null when any required price or exchange rate is missing or stale. */
   total: number | null;
   /** Net worth with unvalued investments replaced by expected balances. */
   estimatedTotal?: number;
-  [accountName: string]: string | number | null | undefined;
+  /** Native amounts and the observations used to convert this point. */
+  conversion?: NetWorthConversionDetail;
+  [accountName: string]:
+    | string
+    | number
+    | null
+    | undefined
+    | NetWorthConversionDetail;
 };
+
+export type FxImpactDataPoint = {
+  date: string;
+  actualTotal: number | null;
+  fixedRateTotal: number | null;
+  impact: number | null;
+};
+
+/**
+ * Compares actual historical conversion with a counterfactual that freezes
+ * each native currency at its first usable rate in the selected period.
+ * Holdings, prices, balances, openings, and closures remain unchanged.
+ */
+export function toFxImpactTimeSeries(
+  data: readonly NetWorthDataPoint[],
+  baseCurrency: Currency,
+): FxImpactDataPoint[] {
+  const baselineRates = new Map<Currency, number>([[baseCurrency, 1]]);
+  for (const point of data) {
+    for (const account of point.conversion?.accounts ?? []) {
+      if (
+        account.nativeCurrency == null ||
+        baselineRates.has(account.nativeCurrency) ||
+        account.nativeValue == null ||
+        account.nativeValue === 0 ||
+        account.convertedValue == null
+      ) {
+        continue;
+      }
+      baselineRates.set(
+        account.nativeCurrency,
+        account.convertedValue / account.nativeValue,
+      );
+    }
+  }
+
+  return data.map((point) => {
+    let fixedRateTotal = 0;
+    let complete = point.conversion != null;
+    for (const account of point.conversion?.accounts ?? []) {
+      if (account.nativeValue == null || account.nativeCurrency == null) {
+        complete = false;
+        continue;
+      }
+      const rate = baselineRates.get(account.nativeCurrency);
+      if (rate == null) {
+        complete = false;
+        continue;
+      }
+      fixedRateTotal += account.nativeValue * rate;
+    }
+    const fixed = complete ? fixedRateTotal : null;
+    return {
+      date: point.date,
+      actualTotal: point.total,
+      fixedRateTotal: fixed,
+      impact: point.total == null || fixed == null ? null : point.total - fixed,
+    };
+  });
+}
+
+export function hasFxExposure(
+  data: readonly NetWorthDataPoint[],
+  baseCurrency: Currency,
+): boolean {
+  return data.some((point) =>
+    point.conversion?.accounts.some(
+      (account) =>
+        account.nativeValue != null && account.nativeCurrency !== baseCurrency,
+    ),
+  );
+}
 
 export type EquitySummary = {
   propertyName: string;
