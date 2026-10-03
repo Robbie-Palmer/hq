@@ -2,10 +2,12 @@ import { promiseFromSync } from "ts-base/promises";
 import { todayIsoDate } from "@/lib/assettracker/date";
 import { getDemoAssetTrackerData } from "@/lib/assettracker/demoData";
 import {
+  type AddHouseholdMemberInput,
   type AddPlannedExpenditureInput,
   type AddRecurringFlowInput,
   type AssetTrackerData,
   AssetTrackerDataSchema,
+  applyAddHouseholdMember,
   applyAddPlannedExpenditure,
   applyAddRecurringFlow,
   applyClearAccountHistory,
@@ -21,7 +23,10 @@ import {
   applyMaterializeFlow,
   applyRecordBalance,
   applyRecordTransfer,
+  applyRenameHouseholdMember,
   applySetAccountLiquidity,
+  applySetAccountOwnership,
+  applySetActiveHouseholdScope,
   applySetBaseCurrency,
   applySetExpectedReturn,
   applySetInflation,
@@ -36,12 +41,15 @@ import {
   type DeleteRecurringFlowInput,
   type DeleteSnapshotInput,
   getEmptyData,
+  type HouseholdScope,
   type ImportAccountHistoryInput,
   type ImportIncomeHistoryInput,
   type MaterializeFlowInput,
   type RecordBalanceInput,
   type RecordTransferInput,
+  type RenameHouseholdMemberInput,
   type SetAccountLiquidityInput,
+  type SetAccountOwnershipInput,
   type SetBaseCurrencyInput,
   type SetExpectedReturnInput,
   type SetInflationInput,
@@ -94,6 +102,14 @@ export interface AssetTrackerApi {
   setInflation(input: SetInflationInput): Promise<AssetTrackerData>;
   setNetWorthTarget(input: SetNetWorthTargetInput): Promise<AssetTrackerData>;
   setWithdrawalRate(input: SetWithdrawalRateInput): Promise<AssetTrackerData>;
+  addHouseholdMember(input: AddHouseholdMemberInput): Promise<AssetTrackerData>;
+  renameHouseholdMember(
+    input: RenameHouseholdMemberInput,
+  ): Promise<AssetTrackerData>;
+  setActiveHouseholdScope(scope: HouseholdScope): Promise<AssetTrackerData>;
+  setAccountOwnership(
+    input: SetAccountOwnershipInput,
+  ): Promise<AssetTrackerData>;
   importData(raw: unknown): Promise<AssetTrackerData>;
   clear(): Promise<AssetTrackerData>;
   reset(): Promise<AssetTrackerData>;
@@ -142,8 +158,10 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
   }
 
   function write(data: AssetTrackerData): AssetTrackerData {
-    storage.setItem(ASSET_TRACKER_STORAGE_KEY, JSON.stringify(data));
-    return data;
+    const parsed = AssetTrackerDataSchema.parse(data);
+    buildRepository(parsed);
+    storage.setItem(ASSET_TRACKER_STORAGE_KEY, JSON.stringify(parsed));
+    return parsed;
   }
 
   function current(): AssetTrackerData {
@@ -255,6 +273,26 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
     setWithdrawalRate(input) {
       return promiseFromSync(() =>
         write(applySetWithdrawalRate(current(), input)),
+      );
+    },
+    addHouseholdMember(input) {
+      return promiseFromSync(() =>
+        write(applyAddHouseholdMember(current(), input)),
+      );
+    },
+    renameHouseholdMember(input) {
+      return promiseFromSync(() =>
+        write(applyRenameHouseholdMember(current(), input)),
+      );
+    },
+    setActiveHouseholdScope(scope) {
+      return promiseFromSync(() =>
+        write(applySetActiveHouseholdScope(current(), scope)),
+      );
+    },
+    setAccountOwnership(input) {
+      return promiseFromSync(() =>
+        write(applySetAccountOwnership(current(), input)),
       );
     },
     importData(raw) {

@@ -16,9 +16,14 @@ import { Input } from "@/components/ui/input";
 import {
   type CapitalFlowKind,
   type ContributionHistoryFormat,
+  equalSharedOwnership,
   formatAssetTrackerError,
+  type HouseholdMember,
+  type Ownership,
+  ownershipLabel,
   type PastedHistoryResult,
   parsePastedHistory,
+  personalOwnership,
   toCapitalFlowRows,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
@@ -28,6 +33,23 @@ type SpreadsheetImportKind = "balances" | "capitalFlows" | "income";
 const EMPTY_RESULT: PastedHistoryResult = { rows: [], issues: [] };
 const MAX_SPREADSHEET_FILE_BYTES = 1_000_000;
 const FILE_NAME_PATTERN = /\.(csv|tsv)$/i;
+
+function ownerSelectionFor(
+  ownership: Ownership | undefined,
+  fallbackMemberId: string,
+): string {
+  if (ownership?.kind === "shared") return "shared";
+  return `member:${ownership?.memberId ?? fallbackMemberId}`;
+}
+
+function ownershipForSelection(
+  selection: string,
+  members: readonly HouseholdMember[],
+): Ownership {
+  return selection === "shared"
+    ? equalSharedOwnership(members)
+    : personalOwnership(selection.slice(7));
+}
 
 function SpreadsheetReview({
   result,
@@ -99,11 +121,19 @@ function SpreadsheetReview({
 }
 
 export function SpreadsheetImportDrawer() {
-  const { accountDetails, importAccountHistory, importIncomeHistory } =
-    useAssetTracker();
+  const {
+    household,
+    householdAccounts,
+    importAccountHistory,
+    importIncomeHistory,
+  } = useAssetTracker();
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<SpreadsheetImportKind>("balances");
-  const [accountId, setAccountId] = useState(accountDetails[0]?.id ?? "");
+  const [accountId, setAccountId] = useState(householdAccounts[0]?.id ?? "");
+  const initialOwnership = householdAccounts[0]?.ownership;
+  const [ownerSelection, setOwnerSelection] = useState(
+    ownerSelectionFor(initialOwnership, household.members[0]?.id ?? ""),
+  );
   const [contributionFormat, setContributionFormat] =
     useState<ContributionHistoryFormat>("cumulative");
   const [capitalKind, setCapitalKind] =
@@ -117,6 +147,10 @@ export function SpreadsheetImportDrawer() {
     [source],
   );
   const needsAccount = kind !== "income";
+  const selectedOwnership = ownershipForSelection(
+    ownerSelection,
+    household.members,
+  );
   const canImport =
     result.rows.length > 0 &&
     result.issues.length === 0 &&
@@ -156,6 +190,7 @@ export function SpreadsheetImportDrawer() {
     if (kind === "income") {
       await importIncomeHistory({
         income: result.rows.map(({ date, value }) => ({ date, amount: value })),
+        ownership: selectedOwnership,
       });
       return;
     }
@@ -168,6 +203,7 @@ export function SpreadsheetImportDrawer() {
         capitalFlows: [],
         capitalFlowKind: "personalSaving",
         replaceCapitalFlows: false,
+        ownership: selectedOwnership,
       });
       return;
     }
@@ -178,6 +214,7 @@ export function SpreadsheetImportDrawer() {
       capitalFlows: toCapitalFlowRows(result.rows, contributionFormat),
       capitalFlowKind: capitalKind,
       replaceCapitalFlows: contributionFormat === "cumulative",
+      ownership: selectedOwnership,
     });
   }
 
@@ -250,6 +287,34 @@ export function SpreadsheetImportDrawer() {
 
             <div className="space-y-1.5">
               <label
+                htmlFor="spreadsheet-import-owner"
+                className="text-sm font-medium"
+              >
+                Owned by
+              </label>
+              <select
+                id="spreadsheet-import-owner"
+                value={ownerSelection}
+                onChange={(event) => setOwnerSelection(event.target.value)}
+                className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+              >
+                {household.members.map((member) => (
+                  <option key={member.id} value={`member:${member.id}`}>
+                    {member.displayName}
+                  </option>
+                ))}
+                {household.members.length > 1 && (
+                  <option value="shared">Shared equally</option>
+                )}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                The review and imported rows will use{" "}
+                {ownershipLabel(selectedOwnership, household.members)}.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label
                 htmlFor="spreadsheet-import-kind"
                 className="text-sm font-medium"
               >
@@ -282,14 +347,26 @@ export function SpreadsheetImportDrawer() {
                 <select
                   id="spreadsheet-import-account"
                   value={accountId}
-                  onChange={(event) => setAccountId(event.target.value)}
+                  onChange={(event) => {
+                    const nextAccountId = event.target.value;
+                    setAccountId(nextAccountId);
+                    const account = householdAccounts.find(
+                      ({ id }) => id === nextAccountId,
+                    );
+                    setOwnerSelection(
+                      ownerSelectionFor(
+                        account?.ownership,
+                        household.members[0]?.id ?? "",
+                      ),
+                    );
+                  }}
                   className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
                   required
                 >
-                  {accountDetails.length === 0 && (
+                  {householdAccounts.length === 0 && (
                     <option value="">Create an account before importing</option>
                   )}
-                  {accountDetails.map((account) => (
+                  {householdAccounts.map((account) => (
                     <option key={account.id} value={account.id}>
                       {account.name} · {account.provider}
                     </option>
