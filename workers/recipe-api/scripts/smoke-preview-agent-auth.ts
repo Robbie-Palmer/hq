@@ -246,7 +246,11 @@ const requestedCapabilities = [
   "cooking_insights.read",
 ];
 
-const host = await expectJson<{ hostId: string; status: string }>(
+const pendingHost = await expectJson<{
+  enrollmentToken: string;
+  hostId: string;
+  status: string;
+}>(
   "/api/auth/host/create",
   {
     method: "POST",
@@ -257,12 +261,26 @@ const host = await expectJson<{ hostId: string; status: string }>(
     },
     body: JSON.stringify({
       name: "ADR 061 preview smoke host",
-      public_key: hostPublicKey,
       default_capabilities: [],
     }),
   },
 );
-if (host.status !== "active") {
+if (pendingHost.status !== "pending_enrollment") {
+  throw new Error(`Preview host has unexpected status: ${pendingHost.status}`);
+}
+const host = await expectJson<{ hostId: string; status: string }>(
+  "/api/auth/host/enroll",
+  {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      name: "ADR 061 preview smoke host",
+      public_key: hostPublicKey,
+      token: pendingHost.enrollmentToken,
+    }),
+  },
+);
+if (host.hostId !== pendingHost.hostId || host.status !== "active") {
   throw new Error(`Preview host has unexpected status: ${host.status}`);
 }
 

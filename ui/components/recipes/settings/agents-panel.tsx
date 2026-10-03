@@ -10,6 +10,7 @@ import {
   listAgentMutations,
   undoAgentMutation,
 } from "@/lib/api/recipe-agent-mutations";
+import { AgentConnectionCard } from "./agent-connection-card";
 import { PanelHead } from "./panel-head";
 
 function dateLabel(value: string | null): string {
@@ -176,6 +177,8 @@ export function AgentsPanel() {
         sub="Each agent has its own access grant. Revoking one agent leaves your other agents and signed-in devices alone."
       />
 
+      <AgentConnectionCard />
+
       {error && (
         <div
           role="alert"
@@ -215,8 +218,8 @@ export function AgentsPanel() {
             Any write access appears as a separate grant and can be revoked.
           </p>
           <p className="rt-body mx-auto mt-3 max-w-lg text-sm text-[var(--ink-3)]">
-            Start the connection from an Agent Auth-compatible app. You will get
-            an approval request here showing exactly what it wants to read.
+            Create a connection code above, enroll the agent host, then approve
+            the capabilities it requests.
           </p>
         </div>
       )}

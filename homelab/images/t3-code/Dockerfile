@@ -64,6 +64,7 @@ RUN test -n "${MISE_VERSION}" \
       /usr/local/lib/t3-code/node_modules/pnpm/pnpm \
     && ln --symbolic \
       /usr/local/lib/t3-code/node_modules/.bin/claude \
+      /usr/local/lib/t3-code/node_modules/.bin/auth-agent \
       /usr/local/lib/t3-code/node_modules/.bin/codex \
       /usr/local/lib/t3-code/node_modules/.bin/grok \
       /usr/local/lib/t3-code/node_modules/.bin/opencode \
