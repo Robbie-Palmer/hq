@@ -32,6 +32,7 @@ import {
   createHousehold,
   declineHouseholdInvitation,
   deleteHousehold,
+  type EquipmentRecipeMatchMode,
   type Household,
   type HouseholdEquipment,
   type HouseholdEquipmentItem,
@@ -44,6 +45,7 @@ import {
   removeHouseholdMember,
   renameHousehold,
   revokeHouseholdInvitation,
+  saveHouseholdEquipmentMatchMode,
 } from "@/lib/api/households";
 import {
   type HouseholdSettingsData,
@@ -64,6 +66,7 @@ type Mutation =
   | "decline"
   | "add-equipment"
   | "remove-equipment"
+  | "save-equipment-mode"
   | null;
 
 type ActiveMutation = Exclude<Mutation, null>;
@@ -565,6 +568,7 @@ function HouseholdEquipmentSection({
   onSelectedSlugChange,
   onAdd,
   onRemove,
+  onMatchModeChange,
 }: Readonly<{
   equipment: HouseholdEquipment | null;
   selectedSlug: string;
@@ -573,6 +577,7 @@ function HouseholdEquipmentSection({
   onSelectedSlugChange: (slug: string) => void;
   onAdd: SubmitEventHandler<HTMLFormElement>;
   onRemove: (item: HouseholdEquipmentItem) => void;
+  onMatchModeChange: (mode: EquipmentRecipeMatchMode) => void;
 }>) {
   if (!equipment) {
     return (
@@ -597,6 +602,35 @@ function HouseholdEquipmentSection({
       title="KITCHEN EQUIPMENT"
       sub="Everyone in the household shares this list. Recipes will use it to check which tools are available."
     >
+      <div className="mb-5">
+        <p className="rt-mono mb-2 text-[var(--ink-3)]">
+          WHEN A RECIPE NEEDS OTHER EQUIPMENT
+        </p>
+        <div className="inline-flex rounded-full border border-[var(--line)] bg-[var(--paper-warm)] p-1">
+          {(
+            [
+              ["hide", "Hide it"],
+              ["warn", "Show warning"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={(equipment.recipeMatchMode ?? "warn") === value}
+              disabled={busy}
+              onClick={() => onMatchModeChange(value)}
+              className={`rt-body rounded-full px-4 py-1.5 text-sm transition-colors disabled:opacity-50 ${
+                (equipment.recipeMatchMode ?? "warn") === value
+                  ? "bg-[var(--ink)] font-semibold text-[var(--paper)]"
+                  : "text-[var(--ink-2)] hover:bg-[var(--card)]"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <form
         onSubmit={onAdd}
         className="flex max-w-lg flex-col gap-3 sm:flex-row"
@@ -730,6 +764,7 @@ function ManagedHouseholdView({
   onRevoke,
   onAddEquipment,
   onRemoveEquipment,
+  onEquipmentMatchModeChange,
   onDelete,
   onLeave,
 }: Readonly<{
@@ -754,6 +789,7 @@ function ManagedHouseholdView({
   onRevoke: (invitation: HouseholdInvitation) => void;
   onAddEquipment: SubmitEventHandler<HTMLFormElement>;
   onRemoveEquipment: (item: HouseholdEquipmentItem) => void;
+  onEquipmentMatchModeChange: (mode: EquipmentRecipeMatchMode) => void;
   onDelete: () => void;
   onLeave: () => void;
 }>) {
@@ -796,6 +832,7 @@ function ManagedHouseholdView({
         onSelectedSlugChange={onEquipmentSlugChange}
         onAdd={onAddEquipment}
         onRemove={onRemoveEquipment}
+        onMatchModeChange={onEquipmentMatchModeChange}
       />
 
       {isOwner && (
@@ -1015,6 +1052,10 @@ export function HouseholdPanel({
           : current.equipment,
       }));
       setEquipmentSlug("");
+      await queryClient.invalidateQueries({
+        queryKey: recipeQueryKeys.equipmentReadiness(currentUser.id),
+        exact: true,
+      });
       setNotice(`${added.name} added to the household.`);
     });
   };
@@ -1034,7 +1075,29 @@ export function HouseholdPanel({
             }
           : current.equipment,
       }));
+      await queryClient.invalidateQueries({
+        queryKey: recipeQueryKeys.equipmentReadiness(currentUser.id),
+        exact: true,
+      });
       setNotice(`${item.name} removed from the household.`);
+    });
+  }
+
+  function onEquipmentMatchModeChange(mode: EquipmentRecipeMatchMode) {
+    if (!household || !equipment || equipment.recipeMatchMode === mode) return;
+    run("save-equipment-mode", async () => {
+      const updated = await saveHouseholdEquipmentMatchMode(household.id, mode);
+      updateHouseholdData((current) => ({
+        ...current,
+        equipment: current.equipment
+          ? { ...current.equipment, recipeMatchMode: updated.recipeMatchMode }
+          : current.equipment,
+      }));
+      await queryClient.invalidateQueries({
+        queryKey: recipeQueryKeys.equipmentReadiness(currentUser.id),
+        exact: true,
+      });
+      setNotice("Equipment matching preference saved.");
     });
   }
 
@@ -1133,6 +1196,7 @@ export function HouseholdPanel({
       onRevoke={revokeInvitation}
       onAddEquipment={onAddEquipment}
       onRemoveEquipment={onRemoveEquipment}
+      onEquipmentMatchModeChange={onEquipmentMatchModeChange}
       onDelete={deleteCurrentHousehold}
       onLeave={leaveCurrentHousehold}
     />

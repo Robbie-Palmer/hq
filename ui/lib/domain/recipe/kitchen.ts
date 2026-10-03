@@ -3,6 +3,7 @@ import {
   type PantryLocation,
   PantryLocationSchema,
 } from "recipe-domain/pantry";
+import { normalizeSlug } from "recipe-domain/slugs";
 import type {
   Ingredient,
   IngredientCategory,
@@ -58,6 +59,7 @@ export type KitchenRecipeView = {
   image?: string;
   imageAlt?: string;
   ingredients: KitchenRecipeIngredientView[];
+  cookware?: string[];
 };
 
 export type KitchenRecipeMatch = KitchenRecipeView & {
@@ -66,6 +68,10 @@ export type KitchenRecipeMatch = KitchenRecipeView & {
   totalCount: number;
   matchRatio: number;
   missingIngredients: KitchenRecipeIngredientView[];
+  equipmentHaveCount: number;
+  equipmentTotalCount: number;
+  missingEquipment: { slug: string; name: string }[];
+  canCook: boolean;
 };
 
 export function isKitchenLocation(value: unknown): value is KitchenLocation {
@@ -98,8 +104,12 @@ export function getDietRelevantKitchenIngredients(
 export function getKitchenRecipeMatches(
   recipes: KitchenRecipeView[],
   availableIngredientSlugs: Iterable<IngredientSlug>,
+  availableEquipmentSlugs: Iterable<string> | null = null,
 ): KitchenRecipeMatch[] {
   const available = new Set(availableIngredientSlugs);
+  const availableEquipment = availableEquipmentSlugs
+    ? new Set(availableEquipmentSlugs)
+    : null;
 
   return recipes
     .map((recipe) => {
@@ -109,14 +119,34 @@ export function getKitchenRecipeMatches(
       const totalCount = recipe.ingredients.length;
       const missingCount = missingIngredients.length;
       const haveCount = totalCount - missingCount;
+      const requiredEquipment = new Map(
+        (recipe.cookware ?? []).map((name) => [normalizeSlug(name), name]),
+      );
+      const missingEquipment = availableEquipment
+        ? Array.from(requiredEquipment, ([slug, name]) => ({
+            slug,
+            name,
+          })).filter(({ slug }) => !availableEquipment.has(slug))
+        : [];
+      const equipmentTotalCount = availableEquipment
+        ? requiredEquipment.size
+        : 0;
+      const equipmentHaveCount = equipmentTotalCount - missingEquipment.length;
+      const readinessTotal = totalCount + equipmentTotalCount;
+      const readinessHave = haveCount + equipmentHaveCount;
 
       return {
         ...recipe,
         haveCount,
         missingCount,
         totalCount,
-        matchRatio: totalCount > 0 ? haveCount / totalCount : 0,
+        matchRatio: readinessTotal > 0 ? readinessHave / readinessTotal : 0,
         missingIngredients,
+        equipmentHaveCount,
+        equipmentTotalCount,
+        missingEquipment,
+        canCook:
+          totalCount > 0 && missingCount === 0 && missingEquipment.length === 0,
       };
     })
     .sort((a, b) => {
@@ -125,6 +155,10 @@ export function getKitchenRecipeMatches(
 
       const missingComparison = a.missingCount - b.missingCount;
       if (missingComparison !== 0) return missingComparison;
+
+      const equipmentComparison =
+        a.missingEquipment.length - b.missingEquipment.length;
+      if (equipmentComparison !== 0) return equipmentComparison;
 
       return a.title.localeCompare(b.title);
     });

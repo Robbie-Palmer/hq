@@ -74,3 +74,21 @@ export const householdSettingsQuery = (userId: string) =>
     queryFn: ({ signal }) => fetchHouseholdSettings(signal),
     staleTime: 5 * 60_000,
   });
+
+async function fetchEquipmentReadiness(signal?: AbortSignal) {
+  const households = await getHouseholds(signal);
+  const household = households[0] ?? null;
+  return {
+    household,
+    equipment: household
+      ? await getHouseholdEquipment(household.id, signal)
+      : null,
+  };
+}
+
+export const equipmentReadinessQuery = (userId: string) =>
+  queryOptions({
+    queryKey: recipeQueryKeys.equipmentReadiness(userId),
+    queryFn: ({ signal }) => fetchEquipmentReadiness(signal),
+    staleTime: 5 * 60_000,
+  });

@@ -30,15 +30,14 @@ import {
   withPostHogSpan,
 } from "observability";
 import {
-  withDb,
   closeDbClient,
   createDb,
   type Db,
   type DbClient,
   databaseConnection,
   schema,
+  withDb,
 } from "recipe-db";
-import { beginBatchUndo, executeBatchUndo, previewBatchUndo } from "./batch-undo";
 import { AutosaveBatchDraftSchema, CreateBatchSchema } from "recipe-domain/batch-import";
 import { CookLogMutationConflictError } from "recipe-domain/cook-log";
 import {
@@ -65,14 +64,15 @@ import {
 import { RecipeVisibilitySchema } from "recipe-domain/visibility";
 import { canonicalEquipment } from "recipe-parsing/canonical-equipment-data";
 import { equipmentDisplayName } from "recipe-parsing/equipment-canonicalization";
-import { EquipmentCategorySchema } from "recipe-parsing/schemas/canonical-equipment";
 import { parseRecipeFile } from "recipe-parsing/recipe-file";
 import { parseSchemaOrgRecipeHtml } from "recipe-parsing/schema-org";
+import { EquipmentCategorySchema } from "recipe-parsing/schemas/canonical-equipment";
 import { z } from "zod";
 import { recipeAgentConfiguration } from "./agent-auth";
 import { recipeImportQuotaReason } from "./agent-recipe-imports";
 import { createAuth, isPreviewAuthEnabled } from "./auth";
 import { acceptDraft, autosaveDraft, BatchImportError, createBatch, listBatches, readBatch, readBatchItem, reviewAction, startBatch } from "./batch-imports";
+import { beginBatchUndo, executeBatchUndo, previewBatchUndo } from "./batch-undo";
 import { verifyCloudflareAccess } from "./cloudflare-access";
 import { listCookLogMutationHistory } from "./cook-log/services/list-cook-log-mutation-history";
 import { previewCookLogMutationUndo } from "./cook-log/services/preview-cook-log-mutation-undo";
@@ -526,6 +526,7 @@ const householdEquipmentResponseSchema = z
     owned: z
       .array(householdEquipmentOwnedItemSchema)
       .max(500),
+    recipeMatchMode: dietRecipeMatchModeSchema,
   })
   .strict()
   .openapi("HouseholdEquipment");
@@ -638,6 +639,10 @@ const updateDietProfileBodySchema = z
     excludedGroupKeys: uniqueDietKeysSchema.default([]),
     recipeMatchMode: dietRecipeMatchModeSchema.default("hide"),
   })
+  .strict();
+
+const updateHouseholdEquipmentPreferencesBodySchema = z
+  .object({ recipeMatchMode: dietRecipeMatchModeSchema })
   .strict();
 
 const errorSchema = z
@@ -789,6 +794,9 @@ export const routeMetadata = {
   "GET /households/:householdId/members": {},
   "GET /households/:householdId/equipment": {
     successResponseSchema: householdEquipmentResponseSchema,
+  },
+  "PATCH /households/:householdId/equipment": {
+    requestBodySchema: updateHouseholdEquipmentPreferencesBodySchema,
   },
   "PUT /households/:householdId/equipment/:equipmentSlug": {
     successResponseSchema: householdEquipmentOwnedItemSchema,
@@ -4467,6 +4475,15 @@ registerRoute("get", "/households/:householdId/equipment", async (c) => {
       );
       if (memberFailure) return memberFailure;
 
+      const [household] = await db
+        .select({
+          recipeMatchMode: schema.organization.equipmentRecipeMatchMode,
+        })
+        .from(schema.organization)
+        .where(eq(schema.organization.id, householdId))
+        .limit(1);
+      if (!household) return c.notFound();
+
       const equipment = await db
         .select({
           equipmentSlug: schema.householdEquipment.equipmentSlug,
@@ -4481,7 +4498,46 @@ registerRoute("get", "/households/:householdId/equipment", async (c) => {
         owned: equipment.map(({ equipmentSlug, createdAt }) =>
           householdEquipmentItemResponse(equipmentSlug, createdAt),
         ),
+        recipeMatchMode: household.recipeMatchMode,
       });
+    },
+  );
+});
+
+registerRoute("patch", "/households/:householdId/equipment", async (c) => {
+  const householdId = uuidParam(c, "householdId", "household ID");
+  if (householdId instanceof Response) return householdId;
+  const csrfFailure = validateCsrf(c);
+  if (csrfFailure) return csrfFailure;
+
+  return withRecipeSession(
+    c,
+    "mutation",
+    "PATCH /households/:householdId/equipment failed",
+    async ({ db, session }) => {
+      const memberFailure = await requireHouseholdMemberResponse(
+        c,
+        db,
+        householdId,
+        session,
+      );
+      if (memberFailure) return memberFailure;
+
+      const body = await parseJsonBody(
+        c,
+        updateHouseholdEquipmentPreferencesBodySchema,
+      );
+      if (!body.success) return body.response;
+
+      const [household] = await db
+        .update(schema.organization)
+        .set({ equipmentRecipeMatchMode: body.data.recipeMatchMode })
+        .where(eq(schema.organization.id, householdId))
+        .returning({
+          recipeMatchMode: schema.organization.equipmentRecipeMatchMode,
+        });
+      if (!household) return c.notFound();
+      return c.json(household);
     },
   );
 });

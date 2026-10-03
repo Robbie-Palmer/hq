@@ -73,7 +73,10 @@ export type HouseholdEquipmentItem = {
 export type HouseholdEquipment = {
   catalog: HouseholdEquipmentCatalogItem[];
   owned: HouseholdEquipmentItem[];
+  recipeMatchMode: EquipmentRecipeMatchMode;
 };
+
+export type EquipmentRecipeMatchMode = "hide" | "warn";
 
 function householdRequest<T>(
   path: string,
@@ -169,6 +172,17 @@ export async function removeHouseholdEquipment(
     `/api/households/${householdId}/equipment/${encodeURIComponent(equipmentSlug)}`,
     "Couldn't remove the equipment.",
     { method: "DELETE" },
+  );
+}
+
+export async function saveHouseholdEquipmentMatchMode(
+  householdId: string,
+  recipeMatchMode: EquipmentRecipeMatchMode,
+): Promise<{ recipeMatchMode: EquipmentRecipeMatchMode }> {
+  return householdRequest(
+    `/api/households/${householdId}/equipment`,
+    "Couldn't save the equipment matching preference.",
+    { method: "PATCH", body: { recipeMatchMode } },
   );
 }
 

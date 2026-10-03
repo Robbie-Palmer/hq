@@ -25,6 +25,11 @@ import {
 } from "react";
 import { DietListNotice, DietWarning } from "@/components/recipes/diet-notice";
 import { useDiet } from "@/components/recipes/diet-provider";
+import {
+  EquipmentListNotice,
+  EquipmentWarning,
+} from "@/components/recipes/equipment-readiness-notice";
+import { useEquipmentReadiness } from "@/components/recipes/equipment-readiness-provider";
 import { RecipePageLink } from "@/components/recipes/recipe-page-link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,6 +56,12 @@ import {
   buildDietRecipeMatches,
   type DietMatch,
 } from "@/lib/domain/diet";
+import {
+  applyEquipmentRecipeVisibility,
+  buildEquipmentRecipeMatches,
+  type EquipmentMatch,
+  MATCHING_EQUIPMENT,
+} from "@/lib/domain/equipment-readiness";
 import {
   type RecipeGridItem,
   recipePageHref,
@@ -293,6 +304,7 @@ interface RecipeCardProps {
   onTogglePrepTime: (rangeLabel: string) => void;
   onToggleTotalTime: (rangeLabel: string) => void;
   dietMatch: DietMatch;
+  equipmentMatch: EquipmentMatch;
   shopping?: RecipeCardShopping;
 }
 
@@ -310,6 +322,7 @@ const RecipeCard = memo(function RecipeCard({
   onTogglePrepTime,
   onToggleTotalTime,
   dietMatch,
+  equipmentMatch,
   shopping,
 }: RecipeCardProps) {
   const href = recipe.href ?? recipePageHref(recipe);
@@ -351,6 +364,7 @@ const RecipeCard = memo(function RecipeCard({
           {recipe.description}
         </CardDescription>
         <DietWarning match={dietMatch} compact className="mt-2" />
+        <EquipmentWarning match={equipmentMatch} compact className="mt-2" />
       </CardHeader>
       <CardContent className="flex-1 flex flex-col justify-end pb-4">
         <div className="flex flex-wrap gap-2 mb-3">
@@ -455,9 +469,11 @@ function RecipeListContent({
   onDietVisibleCountChange?: (count: number) => void;
 }>) {
   const { diet, matchRecipe } = useDiet();
+  const { equipment } = useEquipmentReadiness();
   const filterParams = useFilterParams({ filters: RECIPE_FILTER_PARAMS });
   const router = useRouter();
   const [showHidden, setShowHidden] = useState(false);
+  const [showEquipmentHidden, setShowEquipmentHidden] = useState(false);
   const dietMatches = useMemo(
     () =>
       buildDietRecipeMatches(recipes, matchRecipe, (recipe) => ({
@@ -475,9 +491,29 @@ function RecipeListContent({
       ),
     [diet.active, diet.mode, dietMatches, recipes, showHidden],
   );
+  const equipmentMatches = useMemo(
+    () =>
+      buildEquipmentRecipeMatches(recipes, equipment, (recipe) => ({
+        cookware: recipe.cookware,
+      })),
+    [equipment, recipes],
+  );
+  const {
+    visibleRecipes: equipmentVisibleRecipes,
+    hiddenCount: equipmentHiddenCount,
+  } = useMemo(
+    () =>
+      applyEquipmentRecipeVisibility(
+        visibleRecipes,
+        equipmentMatches,
+        equipment,
+        showEquipmentHidden,
+      ),
+    [equipment, equipmentMatches, showEquipmentHidden, visibleRecipes],
+  );
   useEffect(() => {
-    onDietVisibleCountChange?.(visibleRecipes.length);
-  }, [onDietVisibleCountChange, visibleRecipes.length]);
+    onDietVisibleCountChange?.(equipmentVisibleRecipes.length);
+  }, [equipmentVisibleRecipes.length, onDietVisibleCountChange]);
 
   // Derive the selected values from the raw query strings so their array
   // identities stay stable while a given filter is unchanged — this lets the
@@ -492,9 +528,9 @@ function RecipeListContent({
   const searchConfig = useMemo(
     () => ({
       ...RECIPE_SEARCH_CONFIG,
-      placeholder: `Search ${visibleRecipes.length} recipes…`,
+      placeholder: `Search ${equipmentVisibleRecipes.length} recipes…`,
     }),
-    [visibleRecipes.length],
+    [equipmentVisibleRecipes.length],
   );
   const selectedCuisines = useMemo(
     () => (cuisineKey ? cuisineKey.split(",").filter(Boolean) : []),
@@ -604,8 +640,16 @@ function RecipeListContent({
           onToggleHidden={() => setShowHidden((current) => !current)}
         />
       )}
+      {equipment.active && (
+        <EquipmentListNotice
+          hiddenCount={equipmentHiddenCount}
+          mode={equipment.mode}
+          showingHidden={showEquipmentHidden}
+          onToggleHidden={() => setShowEquipmentHidden((current) => !current)}
+        />
+      )}
       <FilterableCardGrid
-        items={visibleRecipes}
+        items={equipmentVisibleRecipes}
         getItemKey={(recipe) => recipe.slug}
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
@@ -626,6 +670,9 @@ function RecipeListContent({
             onTogglePrepTime={onTogglePrepTime}
             onToggleTotalTime={onToggleTotalTime}
             dietMatch={dietMatches.get(recipe.slug) ?? MATCHING_DIET_MATCH}
+            equipmentMatch={
+              equipmentMatches.get(recipe.slug) ?? MATCHING_EQUIPMENT
+            }
             shopping={
               shopping
                 ? {

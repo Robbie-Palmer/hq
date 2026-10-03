@@ -14,6 +14,8 @@ import {
 import { useMemo, useRef, useState } from "react";
 import { DietListNotice } from "@/components/recipes/diet-notice";
 import { useDiet } from "@/components/recipes/diet-provider";
+import { EquipmentListNotice } from "@/components/recipes/equipment-readiness-notice";
+import { useEquipmentReadiness } from "@/components/recipes/equipment-readiness-provider";
 import { RecipeMatchCard } from "@/components/recipes/recipe-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +30,10 @@ import {
   applyDietRecipeVisibility,
   buildDietRecipeMatches,
 } from "@/lib/domain/diet";
+import {
+  applyEquipmentRecipeVisibility,
+  buildEquipmentRecipeMatches,
+} from "@/lib/domain/equipment-readiness";
 import type { IngredientSlug } from "@/lib/domain/recipe/ingredient";
 import {
   getDietRelevantKitchenIngredients,
@@ -67,7 +73,9 @@ export function KitchenView({
   recipes: KitchenRecipeView[];
 }>) {
   const { diet, matchRecipe } = useDiet();
+  const { equipment } = useEquipmentReadiness();
   const [showHidden, setShowHidden] = useState(false);
+  const [showEquipmentHidden, setShowEquipmentHidden] = useState(false);
   const [showDietExcludedIngredients, setShowDietExcludedIngredients] =
     useState(false);
   const ingredientBySlug = useMemo(
@@ -144,16 +152,42 @@ export function KitchenView({
       ),
     [diet.active, diet.mode, dietMatches, recipes, showHidden],
   );
-  const matches = useMemo(
-    () => getKitchenRecipeMatches(dietFilteredRecipes, stockedSlugs),
-    [dietFilteredRecipes, stockedSlugs],
+  const equipmentMatches = useMemo(
+    () =>
+      buildEquipmentRecipeMatches(recipes, equipment, (recipe) => ({
+        cookware: recipe.cookware ?? [],
+      })),
+    [equipment, recipes],
   );
-  const cookNow = matches
-    .filter((recipe) => recipe.totalCount > 0 && recipe.missingCount === 0)
-    .slice(0, 4);
-  const closeMatches = matches
-    .filter((recipe) => recipe.missingCount > 0)
-    .slice(0, 5);
+  const {
+    visibleRecipes: readinessFilteredRecipes,
+    hiddenCount: equipmentHiddenCount,
+  } = useMemo(
+    () =>
+      applyEquipmentRecipeVisibility(
+        dietFilteredRecipes,
+        equipmentMatches,
+        equipment,
+        showEquipmentHidden,
+      ),
+    [dietFilteredRecipes, equipment, equipmentMatches, showEquipmentHidden],
+  );
+  const matches = useMemo(
+    () =>
+      getKitchenRecipeMatches(
+        readinessFilteredRecipes,
+        stockedSlugs,
+        equipment.active ? equipment.ownedSlugs : null,
+      ),
+    [
+      equipment.active,
+      equipment.ownedSlugs,
+      readinessFilteredRecipes,
+      stockedSlugs,
+    ],
+  );
+  const cookNow = matches.filter((recipe) => recipe.canCook).slice(0, 4);
+  const closeMatches = matches.filter((recipe) => !recipe.canCook).slice(0, 5);
 
   const catalogMatches = useMemo(() => {
     const query = normalizeQuery(catalogQuery);
@@ -278,6 +312,15 @@ export function KitchenView({
           mode={diet.mode}
           showingHidden={showHidden}
           onToggleHidden={() => setShowHidden((current) => !current)}
+        />
+      )}
+
+      {equipment.active && (
+        <EquipmentListNotice
+          hiddenCount={equipmentHiddenCount}
+          mode={equipment.mode}
+          showingHidden={showEquipmentHidden}
+          onToggleHidden={() => setShowEquipmentHidden((current) => !current)}
         />
       )}
 
