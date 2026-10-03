@@ -3,6 +3,13 @@ import { AccountContentSchema } from "./account";
 import { BalanceSnapshotSchema } from "./balanceSnapshot";
 import { CapitalFlowSchema } from "./capitalFlow";
 import { CurrencySchema, DEFAULT_BASE_CURRENCY } from "./currency";
+import {
+  DEFAULT_HOUSEHOLD,
+  EMPTY_HOUSEHOLD_OWNERSHIP,
+  HouseholdOwnershipIndexSchema,
+  HouseholdSchema,
+  migrateHouseholdOwnership,
+} from "./household";
 import { IncomeRecordSchema } from "./incomeRecord";
 import { PositiveMoneySchema } from "./money";
 import { PlannedExpenditureSchema } from "./plannedExpenditure";
@@ -79,6 +86,8 @@ export const AssetTrackerDataSchema = z
     holdingObservations: z.array(HoldingObservationSchema).optional(),
     priceObservations: z.array(PriceObservationSchema).optional(),
     exchangeRateObservations: z.array(ExchangeRateObservationSchema).optional(),
+    household: HouseholdSchema.default(DEFAULT_HOUSEHOLD),
+    ownership: HouseholdOwnershipIndexSchema.default(EMPTY_HOUSEHOLD_OWNERSHIP),
     settings: AssetTrackerSettingsSchema.default({
       expectedAnnualInflation: DEFAULT_EXPECTED_INFLATION,
       withdrawalRate: DEFAULT_WITHDRAWAL_RATE,
@@ -105,7 +114,7 @@ export const AssetTrackerDataSchema = z
         flow.currency;
       return currency === flow.currency ? flow : { ...flow, currency };
     });
-    return { ...data, recurringFlows };
+    return migrateHouseholdOwnership({ ...data, recurringFlows });
   });
 
 export type AssetTrackerData = z.infer<typeof AssetTrackerDataSchema>;

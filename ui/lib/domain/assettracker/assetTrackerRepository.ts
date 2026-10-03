@@ -11,6 +11,7 @@ import {
 } from "./assetTrackerData";
 import type { BalanceSnapshot } from "./balanceSnapshot";
 import { type CapitalFlow, capitalFlowKind } from "./capitalFlow";
+import { validateHouseholdOwnership } from "./household";
 import type { IncomeRecord } from "./incomeRecord";
 import type { PlannedExpenditure } from "./plannedExpenditure";
 import type { RecurringFlow } from "./recurringFlow";
@@ -344,6 +345,7 @@ function validateReferences(
 export function buildRepository(
   data: AssetTrackerData,
 ): AssetTrackerRepository {
+  validateHouseholdOwnership(data);
   const accounts = indexAccounts(data.accounts);
   validateReferences(data, accounts);
   const snapshots = [...data.snapshots].sort((a, b) =>

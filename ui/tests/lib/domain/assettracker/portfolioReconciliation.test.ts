@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AssetTrackerData } from "@/lib/domain/assettracker";
 import {
   buildRepository,
+  defaultHouseholdFields,
   getHousingPlanningPosition,
   getNetWorthTimeSeries,
   getPortfolioFinancialIndependence,
@@ -17,6 +18,7 @@ afterEach(() => {
 
 function portfolioData(): AssetTrackerData {
   return {
+    ...defaultHouseholdFields(),
     accounts: [
       {
         id: "portfolio",

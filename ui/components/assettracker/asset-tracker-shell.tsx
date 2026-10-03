@@ -21,6 +21,7 @@ import {
   AssetTrackerLoadingState,
   AssetTrackerLocalDataError,
 } from "./asset-tracker-route-state";
+import { HouseholdScopeControl } from "./household-scope-control";
 
 interface Destination {
   href: string;
@@ -210,12 +211,15 @@ export function AssetTrackerShell({
           >
             Asset Tracker
           </Link>
-          <Link
-            href="/projects/personal-finance-app"
-            className="inline-flex min-h-11 items-center text-sm text-muted-foreground hover:text-foreground hover:underline"
-          >
-            About
-          </Link>
+          <div className="flex items-center gap-2">
+            <HouseholdScopeControl />
+            <Link
+              href="/projects/personal-finance-app"
+              className="inline-flex min-h-11 items-center text-sm text-muted-foreground hover:text-foreground hover:underline"
+            >
+              About
+            </Link>
+          </div>
         </div>
       </header>
 

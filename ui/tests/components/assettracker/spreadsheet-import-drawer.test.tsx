@@ -35,6 +35,14 @@ const account: AccountDetailView = {
   netContributed: null,
   gainLoss: null,
 };
+const household = {
+  members: [
+    { id: "alex", displayName: "Alex" },
+    { id: "sam", displayName: "Sam" },
+  ],
+  activeScope: { kind: "household" as const },
+};
+const alexOwnership = { kind: "personal" as const, memberId: "alex" };
 
 function spreadsheetFile(name: string, contents: string): File {
   const file = new File([contents], name, { type: "text/csv" });
@@ -76,6 +84,15 @@ describe("SpreadsheetImportDrawer", () => {
     vi.clearAllMocks();
     mockUseAssetTracker.mockReturnValue({
       accountDetails: [account],
+      household,
+      householdAccounts: [
+        {
+          id: account.id,
+          name: account.name,
+          provider: account.provider,
+          ownership: alexOwnership,
+        },
+      ],
       importAccountHistory,
       importIncomeHistory,
     } as unknown as ReturnType<typeof useAssetTracker>);
@@ -111,6 +128,7 @@ describe("SpreadsheetImportDrawer", () => {
         capitalFlows: [],
         capitalFlowKind: "personalSaving",
         replaceCapitalFlows: false,
+        ownership: alexOwnership,
       }),
     );
   });
@@ -146,6 +164,7 @@ describe("SpreadsheetImportDrawer", () => {
         ],
         capitalFlowKind: "personalSaving",
         replaceCapitalFlows: true,
+        ownership: alexOwnership,
       }),
     );
   });
@@ -168,5 +187,30 @@ describe("SpreadsheetImportDrawer", () => {
       screen.getByRole("button", { name: "Import reviewed rows" }),
     ).toBeDisabled();
     expect(importIncomeHistory).not.toHaveBeenCalled();
+  });
+
+  it("previews and commits an import for a second household member", async () => {
+    const user = userEvent.setup();
+    render(<SpreadsheetImportDrawer />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Import spreadsheet" }),
+    );
+    await user.selectOptions(screen.getByLabelText("Owned by"), "member:sam");
+    await user.selectOptions(screen.getByLabelText("Import as"), "income");
+    await user.upload(
+      screen.getByLabelText("CSV or TSV file"),
+      spreadsheetFile("sam-income.csv", "date,income\n2025-01-31,4200"),
+    );
+
+    expect(screen.getByText(/will use Sam/i)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Import 1 rows" }));
+
+    await waitFor(() =>
+      expect(importIncomeHistory).toHaveBeenCalledWith({
+        income: [{ date: "2025-01-31", amount: 4200 }],
+        ownership: { kind: "personal", memberId: "sam" },
+      }),
+    );
   });
 });

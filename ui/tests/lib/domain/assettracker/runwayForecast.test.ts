@@ -3,10 +3,12 @@ import {
   type AssetTrackerData,
   buildRepository,
   buildRunwayForecast,
+  defaultHouseholdFields,
 } from "@/lib/domain/assettracker";
 
 function forecastData(): AssetTrackerData {
   return {
+    ...defaultHouseholdFields(),
     accounts: [
       {
         id: "current",
