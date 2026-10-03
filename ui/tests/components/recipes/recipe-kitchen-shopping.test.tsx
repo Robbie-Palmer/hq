@@ -3,8 +3,10 @@ import { act, render, screen } from "@/tests/test-utils";
 
 const mocks = vi.hoisted(() => ({
   buildKitchenCatalog: vi.fn(),
+  ingredientCatalog: [{ slug: "milk", name: "Milk", category: "dairy" }],
   recipeBoxResult: vi.fn(),
   recipeRecordsToShoppingRecipes: vi.fn(),
+  shoppingViewProps: vi.fn(),
   useSession: vi.fn(),
 }));
 
@@ -19,7 +21,7 @@ vi.mock("@/components/recipes/auth-button", () => ({
 vi.mock("@/lib/api/recipe-bootstrap", () => ({
   getRecipeBootstrap: async () => ({
     recipeBox: await mocks.recipeBoxResult(),
-    diet: { profile: {}, options: {} },
+    diet: { profile: {}, options: { ingredients: mocks.ingredientCatalog } },
     unreadNotificationCount: 0,
   }),
 }));
@@ -37,7 +39,10 @@ vi.mock("@/components/recipes/kitchen/kitchen-view", () => ({
 }));
 
 vi.mock("@/components/recipes/shopping/shopping-view", () => ({
-  ShoppingView: () => <div>Loaded shopping list</div>,
+  ShoppingView: (props: unknown) => {
+    mocks.shoppingViewProps(props);
+    return <div>Loaded shopping list</div>;
+  },
 }));
 
 import { RecipeKitchen } from "@/components/recipes/kitchen/recipe-kitchen";
@@ -116,6 +121,10 @@ describe("database-backed kitchen and shopping pages", () => {
 
     expect(await screen.findByText("Loaded shopping list")).toBeInTheDocument();
     expect(mocks.recipeRecordsToShoppingRecipes).toHaveBeenCalledWith(records);
+    expect(mocks.shoppingViewProps).toHaveBeenCalledWith({
+      ingredientCatalog: mocks.ingredientCatalog,
+      recipes: shoppingRecipes,
+    });
   });
 
   it("shows a shopping load error while ignoring abort errors", async () => {

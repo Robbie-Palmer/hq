@@ -7,15 +7,17 @@ import { RecipeQueryStatus } from "@/components/recipes/recipe-load-state";
 import { ShoppingView } from "@/components/recipes/shopping/shopping-view";
 import { recipeRecordsToShoppingRecipes } from "@/lib/api/shopping";
 import { authClient } from "@/lib/auth-client";
-import { recipeBoxRecipesQuery } from "@/lib/query/recipe-queries";
+import { recipeBootstrapQuery } from "@/lib/query/recipe-queries";
 
 export function RecipeShopping() {
   const { data: session, isPending } = authClient.useSession();
   const recipeBox = useQuery({
-    ...recipeBoxRecipesQuery(session?.user.id ?? "pending"),
+    ...recipeBootstrapQuery(session?.user.id ?? "pending"),
     enabled: !isPending && Boolean(session),
-    select: ({ recipeBox }) =>
-      recipeRecordsToShoppingRecipes(recipeBox.recipes),
+    select: ({ diet, recipeBox }) => ({
+      ingredients: diet.options.ingredients,
+      recipes: recipeRecordsToShoppingRecipes(recipeBox.recipes),
+    }),
   });
 
   if (isPending) {
@@ -57,7 +59,10 @@ export function RecipeShopping() {
         isStale={recipeBox.isStale}
         subject="your shopping recipes"
       />
-      <ShoppingView recipes={recipeBox.data} />
+      <ShoppingView
+        ingredientCatalog={recipeBox.data.ingredients}
+        recipes={recipeBox.data.recipes}
+      />
     </>
   );
 }
