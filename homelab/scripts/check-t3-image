@@ -28,7 +28,7 @@ codex_version="$(package_version @openai/codex)"
 doppler_version="$(mise_tool_version doppler)"
 grok_version="$(package_version @xai-official/grok)"
 image_mise_version="$(sed -n \
-  's/^FROM ghcr\.io\/jdx\/mise:\([^@]*\)@sha256:[a-f0-9]\{64\} AS mise-cli$/\1/p' \
+  's/^FROM ghcr\.io\/jdx\/mise:\([^@]*\)@sha256:[a-f0-9]\{64\} AS [^[:space:]]\{1,\}$/\1/p' \
   "$dockerfile")"
 image_manifest_mise_version="$(mise_tool_version github:jdx/mise)"
 opencode_version="$(package_version opencode-ai)"
