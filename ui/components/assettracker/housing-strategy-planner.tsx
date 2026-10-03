@@ -263,7 +263,6 @@ export function HousingStrategyPlanner() {
       moveDate: scenario.kind === "stay" ? position.asOfDate : selectedMoveDate,
     }),
   );
-  const stay = outcomes[0];
 
   function updateScenario(
     kind: HousingStrategyKind,
@@ -307,9 +306,7 @@ export function HousingStrategyPlanner() {
       <CardHeader>
         <CardTitle>Housing strategy comparison</CardTitle>
         <CardDescription>
-          Compare every strategy from the {position.asOfDate} household
-          position. Home equity remains in net worth. Only released cash enters
-          withdrawal capital.
+          Compare staying, renting, downsizing, and equity release.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5 px-4 sm:px-6">
@@ -338,70 +335,121 @@ export function HousingStrategyPlanner() {
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label
-            htmlFor="housing-move-date"
-            className="space-y-1 text-xs text-muted-foreground"
+        <div className="overflow-x-auto rounded-md border">
+          <table
+            className="w-full min-w-[680px] text-sm"
+            aria-label="Housing strategy comparison"
           >
-            <span>Move or transaction date</span>
-            <Input
-              id="housing-move-date"
-              aria-label="Housing move date"
-              type="date"
-              min={position.asOfDate}
-              value={selectedMoveDate}
-              onChange={(event) =>
-                setMoveDate(
-                  event.target.value === "" ? null : event.target.value,
-                )
-              }
-            />
-          </label>
-          <label
-            htmlFor="annual-non-housing-spending"
-            className="space-y-1 text-xs text-muted-foreground"
-          >
-            <span>Annual non-housing spending assumption</span>
-            <Input
-              id="annual-non-housing-spending"
-              aria-label="Annual non-housing spending assumption"
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="100"
-              value={position.annualNonHousingExpenditure}
-              onChange={(event) =>
-                setAnnualNonHousingExpenditure(Number(event.target.value) || 0)
-              }
-            />
-          </label>
+            <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2 font-medium">Strategy</th>
+                <th className="px-3 py-2 text-right font-medium">Net worth</th>
+                <th className="px-3 py-2 text-right font-medium">
+                  Available capital
+                </th>
+                <th className="px-3 py-2 text-right font-medium">
+                  FI spending / yr
+                </th>
+                <th className="px-3 py-2 font-medium">Projected FI</th>
+              </tr>
+            </thead>
+            <tbody>
+              {outcomes.map((outcome) => (
+                <tr className="border-t" key={outcome.kind}>
+                  <th
+                    scope="row"
+                    className="whitespace-nowrap px-3 py-3 text-left font-medium"
+                  >
+                    {outcome.label}
+                  </th>
+                  <td className="px-3 py-3 text-right">
+                    {money(outcome.totalNetWorth)}
+                  </td>
+                  <td className="px-3 py-3 text-right">
+                    {money(outcome.withdrawalCapital)}
+                  </td>
+                  <td className="px-3 py-3 text-right">
+                    {money(outcome.annualExpenditure)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-3">
+                    {fiDate(outcome.projectedFiDate)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          {currentAssumptions.map((scenario) => (
-            <details className="rounded-md border p-4" key={scenario.kind}>
-              <summary className="cursor-pointer text-sm font-medium">
-                {STRATEGY_LABELS[scenario.kind]} assumptions
-              </summary>
-              <div className="mt-3">
-                <AssumptionEditor
-                  assumptions={scenario}
-                  onChange={(field, value) =>
-                    updateScenario(scenario.kind, field, value)
+        <details className="rounded-md border p-4">
+          <summary className="cursor-pointer text-sm font-medium">
+            Adjust assumptions
+          </summary>
+          <div className="mt-4 space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label
+                htmlFor="housing-move-date"
+                className="space-y-1 text-xs text-muted-foreground"
+              >
+                <span>Move or transaction date</span>
+                <Input
+                  id="housing-move-date"
+                  aria-label="Housing move date"
+                  type="date"
+                  min={position.asOfDate}
+                  value={selectedMoveDate}
+                  onChange={(event) =>
+                    setMoveDate(
+                      event.target.value === "" ? null : event.target.value,
+                    )
                   }
                 />
-              </div>
-            </details>
-          ))}
-        </div>
+              </label>
+              <label
+                htmlFor="annual-non-housing-spending"
+                className="space-y-1 text-xs text-muted-foreground"
+              >
+                <span>Annual non-housing spending</span>
+                <Input
+                  id="annual-non-housing-spending"
+                  aria-label="Annual non-housing spending assumption"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="100"
+                  value={position.annualNonHousingExpenditure}
+                  onChange={(event) =>
+                    setAnnualNonHousingExpenditure(
+                      Number(event.target.value) || 0,
+                    )
+                  }
+                />
+              </label>
+            </div>
 
-        <p className="text-xs text-muted-foreground">
-          Values start at zero when the tracker cannot derive them. Replace them
-          with a lender quote, tenancy quote, conveyancing estimate, and the tax
-          or fee rules that apply to you. The model does not infer legal, tax,
-          or product terms. Equity release is a new loan secured against the
-          current home. Its cash and debt offset in net worth before fees.
-        </p>
+            <div className="grid gap-4 lg:grid-cols-2">
+              {currentAssumptions.map((scenario) => (
+                <details className="rounded-md border p-4" key={scenario.kind}>
+                  <summary className="cursor-pointer text-sm font-medium">
+                    {STRATEGY_LABELS[scenario.kind]}
+                  </summary>
+                  <div className="mt-3">
+                    <AssumptionEditor
+                      assumptions={scenario}
+                      onChange={(field, value) =>
+                        updateScenario(scenario.kind, field, value)
+                      }
+                    />
+                  </div>
+                </details>
+              ))}
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Use quotes for lender, tenancy, conveyancing, tax, and product
+              costs. Unknown values start at zero.
+            </p>
+          </div>
+        </details>
 
         {warnings.length > 0 && (
           <div
@@ -414,138 +462,159 @@ export function HousingStrategyPlanner() {
           </div>
         )}
 
-        <div className="overflow-x-auto rounded-md border">
-          <table
-            className="w-full min-w-[1500px] text-sm"
-            aria-label="Housing strategy comparison"
-          >
-            <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2 font-medium">Strategy</th>
-                <th className="px-3 py-2 text-right font-medium">Sale</th>
-                <th className="px-3 py-2 text-right font-medium">
-                  Mortgage settlement
-                </th>
-                <th className="px-3 py-2 text-right font-medium">
-                  Transaction costs
-                </th>
-                <th className="px-3 py-2 text-right font-medium">
-                  Taxes / fees
-                </th>
-                <th className="px-3 py-2 text-right font-medium">
-                  Replacement home
-                </th>
-                <th className="px-3 py-2 text-right font-medium">Rent / yr</th>
-                <th className="px-3 py-2 text-right font-medium">
-                  Ownership / yr
-                </th>
-                <th className="px-3 py-2 text-right font-medium">
-                  Borrowing / yr
-                </th>
-                <th className="px-3 py-2 text-right font-medium">Released</th>
-                <th className="px-3 py-2 text-right font-medium">Retained</th>
-                <th className="px-3 py-2 text-right font-medium">Net worth</th>
-                <th className="px-3 py-2 text-right font-medium">
-                  Withdrawal capital
-                </th>
-                <th className="px-3 py-2 text-right font-medium">
-                  FI spending / yr
-                </th>
-                <th className="px-3 py-2 text-right font-medium">FI target</th>
-                <th className="px-3 py-2 font-medium">Projected FI</th>
-              </tr>
-            </thead>
-            <tbody>
-              {outcomes.map((outcome) => (
-                <tr className="border-t" key={outcome.kind}>
-                  <th
-                    scope="row"
-                    className="whitespace-nowrap px-3 py-2 text-left font-medium"
-                  >
-                    {outcome.label}
+        <details className="rounded-md border p-4">
+          <summary className="cursor-pointer text-sm font-medium">
+            All calculated measures
+          </summary>
+          <div className="mt-4 overflow-x-auto rounded-md border">
+            <table
+              className="w-full min-w-[1500px] text-sm"
+              aria-label="Housing strategy calculated measures"
+            >
+              <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Strategy</th>
+                  <th className="px-3 py-2 text-right font-medium">Sale</th>
+                  <th className="px-3 py-2 text-right font-medium">
+                    Mortgage settlement
                   </th>
-                  <td className="px-3 py-2 text-right">
-                    {money(outcome.salePrice)}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {money(outcome.mortgageSettlement)}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {money(outcome.transactionCosts)}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {money(outcome.taxesAndFees)}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {money(outcome.replacementHousingCost)}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {money(outcome.annualRent)}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {money(outcome.annualOwnershipCost)}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {money(outcome.annualBorrowingCost)}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {money(outcome.releasedCapital)}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {money(outcome.retainedEquity)}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {money(outcome.totalNetWorth)}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {money(outcome.withdrawalCapital)}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {money(outcome.annualExpenditure)}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {money(outcome.fiTarget)}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2">
-                    {fiDate(outcome.projectedFiDate)}
-                  </td>
+                  <th className="px-3 py-2 text-right font-medium">
+                    Transaction costs
+                  </th>
+                  <th className="px-3 py-2 text-right font-medium">
+                    Taxes / fees
+                  </th>
+                  <th className="px-3 py-2 text-right font-medium">
+                    Replacement home
+                  </th>
+                  <th className="px-3 py-2 text-right font-medium">
+                    Rent / yr
+                  </th>
+                  <th className="px-3 py-2 text-right font-medium">
+                    Ownership / yr
+                  </th>
+                  <th className="px-3 py-2 text-right font-medium">
+                    Borrowing / yr
+                  </th>
+                  <th className="px-3 py-2 text-right font-medium">Released</th>
+                  <th className="px-3 py-2 text-right font-medium">Retained</th>
+                  <th className="px-3 py-2 text-right font-medium">
+                    Net worth
+                  </th>
+                  <th className="px-3 py-2 text-right font-medium">
+                    Withdrawal capital
+                  </th>
+                  <th className="px-3 py-2 text-right font-medium">
+                    FI spending / yr
+                  </th>
+                  <th className="px-3 py-2 text-right font-medium">
+                    FI target
+                  </th>
+                  <th className="px-3 py-2 font-medium">Projected FI</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="grid gap-3 lg:grid-cols-2">
-          {outcomes.map((outcome) => (
-            <div className="rounded-md border p-3" key={outcome.kind}>
-              <h3 className="text-sm font-medium">{outcome.label}</h3>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Compared with staying, net worth changes by{" "}
-                {money(outcome.totalNetWorth - (stay?.totalNetWorth ?? 0))},
-                withdrawal capital by{" "}
-                {money(
-                  outcome.withdrawalCapital - (stay?.withdrawalCapital ?? 0),
-                )}
-                , and annual FI spending by{" "}
-                {money(
-                  outcome.annualExpenditure - (stay?.annualExpenditure ?? 0),
-                )}
-                . Those changes drive the FI target and date.
-              </p>
-              <ol className="mt-2 space-y-1 text-xs text-muted-foreground">
-                {outcome.timeline.map((phase) => (
-                  <li key={`${phase.startDate}:${phase.housingState}`}>
-                    {phase.startDate}
-                    {phase.endDate == null
-                      ? " onward"
-                      : ` until ${phase.endDate}`}
-                    : {phase.housingState}
-                  </li>
+              </thead>
+              <tbody>
+                {outcomes.map((outcome) => (
+                  <tr className="border-t" key={outcome.kind}>
+                    <th
+                      scope="row"
+                      className="whitespace-nowrap px-3 py-2 text-left font-medium"
+                    >
+                      {outcome.label}
+                    </th>
+                    <td className="px-3 py-2 text-right">
+                      {money(outcome.salePrice)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {money(outcome.mortgageSettlement)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {money(outcome.transactionCosts)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {money(outcome.taxesAndFees)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {money(outcome.replacementHousingCost)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {money(outcome.annualRent)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {money(outcome.annualOwnershipCost)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {money(outcome.annualBorrowingCost)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {money(outcome.releasedCapital)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {money(outcome.retainedEquity)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {money(outcome.totalNetWorth)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {money(outcome.withdrawalCapital)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {money(outcome.annualExpenditure)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {money(outcome.fiTarget)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2">
+                      {fiDate(outcome.projectedFiDate)}
+                    </td>
+                  </tr>
                 ))}
-              </ol>
-            </div>
-          ))}
-        </div>
+              </tbody>
+            </table>
+          </div>
+        </details>
+
+        <details className="rounded-md border p-4">
+          <summary className="cursor-pointer text-sm font-medium">
+            Housing timelines
+          </summary>
+          <div className="mt-4 overflow-x-auto rounded-md border">
+            <table className="w-full min-w-[680px] text-sm">
+              <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Strategy</th>
+                  <th className="px-3 py-2 font-medium">From</th>
+                  <th className="px-3 py-2 font-medium">Until</th>
+                  <th className="px-3 py-2 font-medium">Housing</th>
+                </tr>
+              </thead>
+              <tbody>
+                {outcomes.flatMap((outcome) =>
+                  outcome.timeline.map((phase, index) => (
+                    <tr
+                      className="border-t"
+                      key={`${outcome.kind}:${phase.startDate}:${phase.housingState}`}
+                    >
+                      <th
+                        scope="row"
+                        className="whitespace-nowrap px-3 py-3 text-left font-medium"
+                      >
+                        {index === 0 ? outcome.label : ""}
+                      </th>
+                      <td className="whitespace-nowrap px-3 py-3">
+                        {phase.startDate}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3">
+                        {phase.endDate ?? "Ongoing"}
+                      </td>
+                      <td className="px-3 py-3">{phase.housingState}</td>
+                    </tr>
+                  )),
+                )}
+              </tbody>
+            </table>
+          </div>
+        </details>
       </CardContent>
     </Card>
   );

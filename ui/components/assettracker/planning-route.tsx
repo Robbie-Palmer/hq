@@ -1,6 +1,7 @@
 "use client";
 
 import { HousingStrategyPlanner } from "./housing-strategy-planner";
+import { MortgageInvestmentComparison } from "./mortgage-investment-comparison";
 import { PortfolioGoal } from "./portfolio-goal";
 
 export function PlanningRoute() {
@@ -14,6 +15,7 @@ export function PlanningRoute() {
         </p>
       </div>
       <PortfolioGoal showIncomeTools={false} />
+      <MortgageInvestmentComparison />
       <HousingStrategyPlanner />
     </div>
   );
