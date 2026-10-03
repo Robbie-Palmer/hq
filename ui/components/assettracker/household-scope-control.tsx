@@ -1,7 +1,7 @@
 "use client";
 
 import { UsersIcon } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -32,7 +32,7 @@ function MemberNameEditor({
   const [displayName, setDisplayName] = useState(initialName);
   const [saving, setSaving] = useState(false);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (displayName.trim() === "" || displayName.trim() === initialName) return;
     setSaving(true);
@@ -92,7 +92,7 @@ export function HouseholdScopeControl() {
       : null;
   const activeLabel = activeMember?.displayName ?? "Household";
 
-  async function handleAddMember(event: FormEvent<HTMLFormElement>) {
+  async function handleAddMember(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (newMemberName.trim() === "") return;
     setAdding(true);
