@@ -182,6 +182,17 @@ export function AssetTrackerShell({
   children,
 }: Readonly<{ children: ReactNode }>) {
   const { localDataError, localDataStatus, retryLocalData } = useAssetTracker();
+  let content = children;
+  if (localDataStatus === "loading") {
+    content = <AssetTrackerLoadingState />;
+  } else if (localDataStatus === "error" && localDataError) {
+    content = (
+      <AssetTrackerLocalDataError
+        message={localDataError}
+        onRetry={retryLocalData}
+      />
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -219,16 +230,7 @@ export function AssetTrackerShell({
           aria-busy={localDataStatus === "loading"}
           className="min-w-0 px-4 py-6 sm:px-6 sm:py-8"
         >
-          {localDataStatus === "loading" ? (
-            <AssetTrackerLoadingState />
-          ) : localDataStatus === "error" && localDataError ? (
-            <AssetTrackerLocalDataError
-              message={localDataError}
-              onRetry={retryLocalData}
-            />
-          ) : (
-            children
-          )}
+          {content}
         </main>
       </div>
 

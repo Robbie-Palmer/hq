@@ -91,6 +91,8 @@ interface NetWorthChartProps {
 }
 
 type ChartMode = "value" | "fxImpact";
+type ChartDataValue = string | number | null | undefined;
+type RenderedChartDataPoint = Record<string, ChartDataValue>;
 
 export function NetWorthChart({
   data,
@@ -156,15 +158,13 @@ export function NetWorthChart({
       ),
     }));
   }, [rangedData, seriesNames.length, visibleSeriesNames]);
-  const renderedChartData: Array<
-    Record<string, string | number | null | undefined>
-  > = showingFxImpact
+  const renderedChartData: RenderedChartDataPoint[] = showingFxImpact
     ? fxImpactData
     : chartData.map(
         (point) =>
           Object.fromEntries(
             Object.entries(point).filter(([key]) => key !== "conversion"),
-          ) as Record<string, string | number | null | undefined>,
+          ) as RenderedChartDataPoint,
       );
 
   const first = chartData[0];
@@ -743,7 +743,7 @@ function NetWorthDataTable({
 }: Readonly<{
   chartData: NetWorthDataPoint[];
   currency: Currency;
-  fxImpactData: Array<Record<string, string | number | null | undefined>>;
+  fxImpactData: RenderedChartDataPoint[];
   householdBaseCurrency: Currency;
   isFiltered: boolean;
   seriesNames: string[];

@@ -6,11 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export function AssetTrackerLoadingState() {
   return (
-    <div
-      role="status"
-      aria-label="Loading saved Asset Tracker data"
-      className="space-y-8"
-    >
+    <output aria-label="Loading saved Asset Tracker data" className="space-y-8">
       <div className="space-y-3">
         <Skeleton className="h-10 w-48 max-w-full" />
         <Skeleton className="h-5 w-80 max-w-full" />
@@ -21,7 +17,7 @@ export function AssetTrackerLoadingState() {
         ))}
       </div>
       <span className="sr-only">Loading saved data...</span>
-    </div>
+    </output>
   );
 }
 
