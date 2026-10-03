@@ -77,11 +77,13 @@ remote node with `mise run //homelab:t3-image-load-remote`.
 
 To update the coding-agent CLIs, change `package.json` and refresh its lockfile.
 Doppler is pinned in this directory's `mise.toml`; Vale is shared with the
-repository through `.config/mise/config.toml`. Refresh the corresponding
-`mise.lock`, increment the release suffix in the image tasks and manifests,
-then build and test it. Renovate's native mise manager updates these tool
-declarations and their associated lockfiles. Renovate auto-merges all image
-dependency updates after the image checks pass, including major updates.
+repository through `.config/mise/config.toml`. The monorepo-wide mise bootstrap
+version remains in `.github/actions/setup-mise/mise-version`; the image check
+requires the Dockerfile's tagged mise image to match it. Refresh the
+corresponding `mise.lock`, increment the release suffix in the image tasks and
+manifests, then build and test it. Renovate's native mise manager updates these
+tool declarations and their associated lockfiles. Renovate auto-merges all
+image dependency updates after the image checks pass, including major updates.
 After publishing, deploy the new reference with the context-guarded task. A
 rollback restores the previous image reference from Git and reapplies the
 overlay; neither operation replaces the persistent volume.

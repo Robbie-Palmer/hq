@@ -3,6 +3,7 @@ set -euo pipefail
 
 image=ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-15
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+mise_version="$(<"${script_dir}/../../.github/actions/setup-mise/mise-version")"
 package_json="${script_dir}/../images/t3-code/package.json"
 image_directory="${script_dir}/../images/t3-code"
 dockerfile="${image_directory}/Dockerfile"
@@ -26,14 +27,18 @@ agent_auth_version="$(package_version @auth/agent-cli)"
 codex_version="$(package_version @openai/codex)"
 doppler_version="$(mise_tool_version doppler)"
 grok_version="$(package_version @xai-official/grok)"
-mise_version="$(sed -n \
+image_mise_version="$(sed -n \
   's/^FROM ghcr\.io\/jdx\/mise:\([^@]*\)@sha256:[a-f0-9]\{64\} AS mise-cli$/\1/p' \
   "$dockerfile")"
 opencode_version="$(package_version opencode-ai)"
 pnpm_version="$(package_version pnpm)"
 vale_version="$(mise_tool_version vale)"
-if [[ ! "$mise_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+if [[ ! "$image_mise_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
   echo "Unable to read the pinned mise image version from $dockerfile" >&2
+  exit 1
+fi
+if [[ "$image_mise_version" != "$mise_version" ]]; then
+  echo "The t3-code mise image must match the repository mise version: $mise_version" >&2
   exit 1
 fi
 docker_image="$(sed -n 's/^[[:space:]]*image: \(docker:[^[:space:]]*\)$/\1/p' "$operator_patch" | head -n 1)"

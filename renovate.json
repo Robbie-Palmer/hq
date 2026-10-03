@@ -12,6 +12,19 @@
   "customManagers": [
     {
       "customType": "regex",
+      "description": "Track the repository-wide mise bootstrap version",
+      "managerFilePatterns": [
+        "/^\\.github/actions/setup-mise/mise-version$/"
+      ],
+      "matchStrings": [
+        "^(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?)$"
+      ],
+      "depNameTemplate": "jdx/mise",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
       "description": "Track annotated versions in homelab shell scripts",
       "managerFilePatterns": [
         "/^homelab/.+\\.sh$/"
@@ -245,6 +258,17 @@
         "pnpm/pnpm"
       ],
       "groupName": "pnpm"
+    },
+    {
+      "description": "Keep the repository mise bootstrap and t3-code mise image aligned",
+      "matchPackageNames": [
+        "jdx/mise",
+        "ghcr.io/jdx/mise"
+      ],
+      "groupName": "mise bootstrap",
+      "minimumReleaseAge": "3 days",
+      "dependencyDashboardApproval": false,
+      "automerge": true
     },
     {
       "description": "Keep the Vale binary and writing evaluation version contract in one PR",
