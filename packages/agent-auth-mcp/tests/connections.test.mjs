@@ -11,13 +11,13 @@ const now = Date.parse("2026-10-03T12:00:00Z");
 function connection(overrides = {}) {
   return {
     agentId: "older",
-    issuer: "https://recipes.example",
+    issuer: "https://provider.example",
     mode: "delegated",
     createdAt: 1,
     capabilityGrants: [
-      { capability: "pantry.read", status: "active" },
+      { capability: "records.read", status: "active" },
       {
-        capability: "pantry.reconcile",
+        capability: "records.write",
         status: "active",
         expires_at: "2026-11-03T12:00:00Z",
       },
@@ -30,9 +30,9 @@ test("selects the newest connection with the requested active grants", () => {
   const selected = selectReusableConnection(
     [connection(), connection({ agentId: "newer", createdAt: 2 })],
     {
-      issuer: "https://recipes.example",
+      issuer: "https://provider.example",
       mode: "delegated",
-      capabilities: ["pantry.read", { name: "pantry.reconcile" }],
+      capabilities: ["records.read", { name: "records.write" }],
     },
     now,
   );
@@ -47,7 +47,7 @@ test("does not reuse the wrong provider, mode, or an expired grant", () => {
     connection({
       capabilityGrants: [
         {
-          capability: "pantry.reconcile",
+          capability: "records.write",
           status: "active",
           expires_at: "2026-10-02T12:00:00Z",
         },
@@ -59,9 +59,9 @@ test("does not reuse the wrong provider, mode, or an expired grant", () => {
     selectReusableConnection(
       candidates,
       {
-        issuer: "https://recipes.example",
+        issuer: "https://provider.example",
         mode: "delegated",
-        capabilities: ["pantry.reconcile"],
+        capabilities: ["records.write"],
       },
       now,
     ),
@@ -76,7 +76,7 @@ test("allows an omitted mode and capability list to reuse the latest provider co
       connection({ agentId: "pending", createdAt: 4, capabilityGrants: [] }),
       connection({ agentId: "autonomous", mode: "autonomous", createdAt: 3 }),
     ],
-    { issuer: "https://recipes.example" },
+    { issuer: "https://provider.example" },
     now,
   );
 
@@ -91,14 +91,14 @@ test("returns the reusable connection in the connect-agent response shape", asyn
   };
   const client = {
     async getProviderConfig() {
-      return { issuer: "https://recipes.example" };
+      return { issuer: "https://provider.example" };
     },
   };
 
   const result = await reuseConnection(storage, client, {
-    provider: "Recipes",
+    provider: "Example provider",
     mode: "delegated",
-    capabilities: ["pantry.read"],
+    capabilities: ["records.read"],
   });
 
   assert.equal(result?.agentId, "reused");
@@ -122,15 +122,15 @@ test("bypasses reuse for forced approval and constrained capabilities", async ()
   assert.equal(
     await reuseConnection(storage, client, {
       force_approval: true,
-      provider: "Recipes",
+      provider: "Example provider",
     }),
     null,
   );
   assert.equal(
     await reuseConnection(storage, client, {
-      provider: "Recipes",
+      provider: "Example provider",
       capabilities: [
-        { name: "pantry.read", constraints: { location: "cupboard" } },
+        { name: "records.read", constraints: { tenant: "example" } },
       ],
     }),
     null,

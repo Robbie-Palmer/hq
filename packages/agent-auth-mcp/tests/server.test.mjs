@@ -23,7 +23,7 @@ test("creates an Agent Auth client with portable approval callbacks", () => {
     createClient(
       { name: "storage" },
       {
-        urls: ["https://recipes.example"],
+        urls: ["https://provider.example"],
         directoryUrl: "https://directory.example",
         hostName: "Test host",
         noBrowser: false,
@@ -37,7 +37,7 @@ test("creates an Agent Auth client with portable approval callbacks", () => {
     assert.deepEqual(options.storage, { name: "storage" });
     options.onApprovalRequired({ method: "device" });
     options.onApprovalRequired({
-      verification_uri: "https://recipes.example/approve",
+      verification_uri: "https://provider.example/approve",
       user_code: "CODE",
     });
     options.onApprovalStatusChange("approved");
@@ -45,7 +45,7 @@ test("creates an Agent Auth client with portable approval callbacks", () => {
     console.error = originalError;
   }
 
-  assert.deepEqual(opened, ["https://recipes.example/approve"]);
+  assert.deepEqual(opened, ["https://provider.example/approve"]);
   assert.deepEqual(messages, [
     "Approval required (method: device). Waiting…",
     "Approval required — opening browser…",
@@ -74,7 +74,7 @@ test("prints approval URLs when browser opening is disabled", () => {
       Client,
     );
     options.onApprovalRequired({
-      verification_uri_complete: "https://recipes.example/approve?code=CODE",
+      verification_uri_complete: "https://provider.example/approve?code=CODE",
     });
   } finally {
     console.error = originalError;
@@ -82,7 +82,7 @@ test("prints approval URLs when browser opening is disabled", () => {
 
   assert.equal(options.directoryUrl, "https://directory.example");
   assert.deepEqual(messages, [
-    "Approval required. Open: https://recipes.example/approve?code=CODE",
+    "Approval required. Open: https://provider.example/approve?code=CODE",
   ]);
 });
 
@@ -139,11 +139,11 @@ test("registers tools, reuses connections, and cleans up the client", async () =
       {
         agentId: "existing",
         hostId: "host",
-        issuer: "https://recipes.example",
+        issuer: "https://provider.example",
         mode: "delegated",
         createdAt: 1,
         capabilityGrants: [
-          { capability: "pantry.read", status: "active" },
+          { capability: "records.read", status: "active" },
         ],
       },
     ];
@@ -166,7 +166,7 @@ test("registers tools, reuses connections, and cleans up the client", async () =
       this.destroyed += 1;
     },
     async getProviderConfig() {
-      return { issuer: "https://recipes.example" };
+      return { issuer: "https://provider.example" };
     },
   };
   let fallbackCalls = 0;
@@ -252,9 +252,9 @@ test("registers tools, reuses connections, and cleans up the client", async () =
   );
   assert.equal(
     registrations.get("connect_agent").options.inputSchema.provider.parse(
-      "Recipes",
+      "Example provider",
     ),
-    "Recipes",
+    "Example provider",
   );
   assert.equal(
     registrations.get("disconnect_agent").options.inputSchema,
@@ -263,9 +263,9 @@ test("registers tools, reuses connections, and cleans up the client", async () =
 
   const reused = await registrations.get("connect_agent").execute(
     {
-      provider: "Recipes",
+      provider: "Example provider",
       mode: "delegated",
-      capabilities: ["pantry.read"],
+      capabilities: ["records.read"],
     },
     {},
   );
@@ -274,7 +274,7 @@ test("registers tools, reuses connections, and cleans up the client", async () =
 
   storage.connections = [];
   const fallback = await registrations.get("connect_agent").execute(
-    { provider: "Recipes" },
+    { provider: "Example provider" },
     {},
   );
   assert.equal(JSON.parse(fallback.content[0].text).status, "pending");

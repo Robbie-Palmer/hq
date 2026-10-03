@@ -11,7 +11,7 @@ test("parses repeatable URL flags and validates the result", () => {
         "--storage-dir",
         "/tmp/agent-auth",
         "--host-name",
-        "Codex",
+        "Test host",
         "--url",
         "https://one.example",
         "--url",
@@ -23,7 +23,7 @@ test("parses repeatable URL flags and validates the result", () => {
     {
       storageDir: "/tmp/agent-auth",
       directoryUrl: undefined,
-      hostName: "Codex",
+      hostName: "Test host",
       noBrowser: true,
       urls: ["https://one.example", "https://two.example"],
     },
@@ -34,7 +34,7 @@ test("uses validated Agent Auth environment defaults", () => {
   assert.deepEqual(
     parseArguments([], {
       AGENT_AUTH_DIRECTORY_URL: "https://directory.example",
-      AGENT_AUTH_HOST_NAME: "Codex",
+      AGENT_AUTH_HOST_NAME: "Test host",
       AGENT_AUTH_NO_BROWSER: "1",
       AGENT_AUTH_STORAGE_DIR: "/tmp/agent-auth",
       AGENT_AUTH_URLS: "https://one.example, https://two.example",
@@ -42,7 +42,7 @@ test("uses validated Agent Auth environment defaults", () => {
     {
       storageDir: "/tmp/agent-auth",
       directoryUrl: "https://directory.example",
-      hostName: "Codex",
+      hostName: "Test host",
       noBrowser: true,
       urls: ["https://one.example", "https://two.example"],
     },

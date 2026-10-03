@@ -1,9 +1,7 @@
 # Agent Auth MCP server
 
-This package runs a Better Auth Agent Auth client as a standard stdio MCP
-server. It is independent of Codex, T3 Code, Kubernetes, and the homelab image.
-Any MCP host that can launch a local command can use it on Linux, macOS, or
-Windows.
+This package exposes a Better Auth Agent Auth client through a standard stdio
+MCP server. It runs on Linux, macOS, and Windows with Node.js 22 or later.
 
 The server reuses the newest active connection whose provider, mode, and
 capabilities match the request. It starts the normal approval flow when no
@@ -58,7 +56,3 @@ Available arguments are:
 The corresponding environment variables are `AGENT_AUTH_URLS`,
 `AGENT_AUTH_DIRECTORY_URL`, `AGENT_AUTH_STORAGE_DIR`, `AGENT_AUTH_HOST_NAME`,
 and `AGENT_AUTH_NO_BROWSER=1`.
-
-The homelab remote-development image is one consumer. It installs this package,
-forwards the encryption-key environment variable, and registers a recipe
-provider in Codex. Those deployment choices are not part of the MCP server.
