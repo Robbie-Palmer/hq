@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { statSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { readdirSync, statSync } from "node:fs";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -74,5 +74,19 @@ test("removes an unreadable host identity before fresh registration", async () =
     assert.equal(await replacementStorage.recoverUnreadableHostIdentity(), true);
     assert.equal(await replacementStorage.getHostIdentity(), null);
     assert.equal(await replacementStorage.recoverUnreadableHostIdentity(), false);
+  });
+});
+
+test("removes the temporary file when an atomic rename fails", async () => {
+  await withStorageDirectory(async (directory) => {
+    const storage = new FileStorage(directory, "test-key");
+    const destination = join(directory, "existing-directory");
+    await mkdir(destination);
+
+    assert.throws(() => storage.writeJson(destination, { secret: "value" }, true));
+    assert.deepEqual(
+      readdirSync(directory).filter((name) => name.includes(".tmp")),
+      [],
+    );
   });
 });

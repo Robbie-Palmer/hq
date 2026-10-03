@@ -80,11 +80,16 @@ export class FileStorage {
 
   writeJson(filePath, data, secret = false) {
     const temporaryPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-    fs.writeFileSync(temporaryPath, JSON.stringify(data, null, 2), {
-      encoding: "utf8",
-      mode: secret ? 0o600 : undefined,
-    });
-    fs.renameSync(temporaryPath, filePath);
+    try {
+      fs.writeFileSync(temporaryPath, JSON.stringify(data, null, 2), {
+        encoding: "utf8",
+        mode: secret ? 0o600 : undefined,
+      });
+      fs.renameSync(temporaryPath, filePath);
+    } catch (error) {
+      this.deleteFile(temporaryPath);
+      throw error;
+    }
   }
 
   deleteFile(filePath) {
