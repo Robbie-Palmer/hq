@@ -14,6 +14,7 @@ const position: HousingPlanningPosition = {
   homeEquity: 200_000,
   annualNonHousingExpenditure: 24_000,
   annualInvestableIncome: 48_000,
+  annualMortgageExpenditureRemoved: 0,
   expectedRealReturn: 0.04,
   withdrawalRate: 0.04,
   mortgagePayoffDate: "2046-01-01",
@@ -120,6 +121,50 @@ describe("compareHousingStrategy", () => {
         housingState: "Own replacement home after sale and mortgage settlement",
       },
     ]);
+  });
+
+  it("reports a funding shortfall before clamping unavailable equity", () => {
+    const downsize = compareHousingStrategy(
+      position,
+      assumptions({
+        kind: "downsize",
+        salePrice: 400_000,
+        mortgageSettlement: 200_000,
+        replacementHousingCost: 250_000,
+      }),
+    );
+    const equityRelease = compareHousingStrategy(
+      position,
+      assumptions({
+        kind: "equity-release",
+        equityReleaseAdvance: 250_000,
+      }),
+    );
+
+    expect(downsize.releasedCapital).toBe(0);
+    expect(downsize.fundingShortfall).toBe(true);
+    expect(equityRelease.retainedEquity).toBe(0);
+    expect(equityRelease.fundingShortfall).toBe(true);
+  });
+
+  it("uses current savings before a move and released mortgage cost after it", () => {
+    const result = compareHousingStrategy(
+      {
+        ...position,
+        annualInvestableIncome: 55_000,
+        annualMortgageExpenditureRemoved: 7_000,
+      },
+      assumptions({
+        kind: "sell-and-rent",
+        moveDate: "2027-01-01",
+        salePrice: 400_000,
+        mortgageSettlement: 200_000,
+        annualOwnershipCost: 0,
+      }),
+    );
+
+    expect(result.annualSavings).toBe(31_000);
+    expect(result.withdrawalCapital).toBeCloseTo(536_436.88, 2);
   });
 
   it("defines equity release as new borrowing, not a net-worth gain", () => {

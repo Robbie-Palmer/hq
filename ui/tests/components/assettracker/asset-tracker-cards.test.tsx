@@ -280,6 +280,7 @@ describe("HousingStrategyPlanner", () => {
         homeEquity: 200_000,
         annualNonHousingExpenditure: 24_000,
         annualInvestableIncome: 48_000,
+        annualMortgageExpenditureRemoved: 0,
         expectedRealReturn: 0.04,
         withdrawalRate: 0.04,
         mortgagePayoffDate: "2046-01-01",
@@ -322,6 +323,13 @@ describe("HousingStrategyPlanner", () => {
     expect(sellRow).not.toBeNull();
     expect(sellRow).toHaveTextContent("£18,000");
     expect(sellRow).toHaveTextContent("£42,000");
+
+    await userEvent.clear(
+      screen.getByLabelText("Housing move date", { selector: "input" }),
+    );
+    expect(screen.getByLabelText("Housing move date")).toHaveValue(
+      "2026-01-01",
+    );
   });
 });
 

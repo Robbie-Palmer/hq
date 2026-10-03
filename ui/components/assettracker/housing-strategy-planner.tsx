@@ -283,9 +283,9 @@ export function HousingStrategyPlanner() {
       messages.push("Move date cannot be before the household position date.");
     }
     for (const outcome of outcomes) {
-      if (outcome.retainedEquity < 0) {
+      if (outcome.fundingShortfall) {
         messages.push(
-          `${outcome.label} creates negative retained equity. Check the advance or replacement financing.`,
+          `${outcome.label} requires more funding than the strategy provides. Check the advance or replacement financing.`,
         );
       }
       if (outcome.annualSavings < 0) {
@@ -350,7 +350,11 @@ export function HousingStrategyPlanner() {
               type="date"
               min={position.asOfDate}
               value={selectedMoveDate}
-              onChange={(event) => setMoveDate(event.target.value)}
+              onChange={(event) =>
+                setMoveDate(
+                  event.target.value === "" ? null : event.target.value,
+                )
+              }
             />
           </label>
           <label

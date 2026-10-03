@@ -24,6 +24,8 @@ export type HousingPlanningPosition = {
   homeEquity: number;
   annualNonHousingExpenditure: number;
   annualInvestableIncome: number;
+  /** Mortgage interest and fees removed from the long-term spending basis. */
+  annualMortgageExpenditureRemoved: number;
   expectedRealReturn: number;
   withdrawalRate: number;
   mortgagePayoffDate: string | null;
@@ -54,6 +56,7 @@ export type HousingStrategyOutcome = HousingStrategyAssumptions & {
   label: string;
   releasedCapital: number;
   retainedEquity: number;
+  fundingShortfall: boolean;
   totalNetWorth: number;
   withdrawalCapital: number;
   annualExpenditure: number;
@@ -121,23 +124,23 @@ function timelineFor(
   assumptions: HousingStrategyAssumptions,
 ): HousingStrategyTimelinePhase[] {
   if (assumptions.kind === "stay") {
-    const phases: HousingStrategyTimelinePhase[] = [];
     if (
       position.mortgageBalance > 0 &&
       position.mortgagePayoffDate != null &&
       position.mortgagePayoffDate > position.asOfDate
     ) {
-      phases.push({
-        startDate: position.asOfDate,
-        endDate: position.mortgagePayoffDate,
-        housingState: "Own current home with mortgage",
-      });
-      phases.push({
-        startDate: position.mortgagePayoffDate,
-        endDate: null,
-        housingState: "Own current home after mortgage payoff",
-      });
-      return phases;
+      return [
+        {
+          startDate: position.asOfDate,
+          endDate: position.mortgagePayoffDate,
+          housingState: "Own current home with mortgage",
+        },
+        {
+          startDate: position.mortgagePayoffDate,
+          endDate: null,
+          housingState: "Own current home after mortgage payoff",
+        },
+      ];
     }
     return [
       {
@@ -217,6 +220,7 @@ export function compareHousingStrategy(
       break;
   }
 
+  const fundingShortfall = releasedCapital < 0 || retainedEquity < 0;
   releasedCapital = Math.max(releasedCapital, 0);
   retainedEquity = Math.max(retainedEquity, 0);
   const annualExpenditure =
@@ -225,10 +229,14 @@ export function compareHousingStrategy(
     assumptions.annualOwnershipCost +
     assumptions.annualBorrowingCost;
   const annualSavings = position.annualInvestableIncome - annualExpenditure;
+  const annualSavingsBeforeMove =
+    position.annualInvestableIncome -
+    position.annualNonHousingExpenditure -
+    position.annualMortgageExpenditureRemoved;
   const moveMonthCount = monthsBetween(position.asOfDate, assumptions.moveDate);
   const capitalAtMove = projectCapital(
     position.withdrawalCapital,
-    position.annualInvestableIncome - position.annualNonHousingExpenditure,
+    annualSavingsBeforeMove,
     position.expectedRealReturn,
     moveMonthCount,
   );
@@ -247,6 +255,7 @@ export function compareHousingStrategy(
     label: LABELS[assumptions.kind],
     releasedCapital,
     retainedEquity,
+    fundingShortfall,
     totalNetWorth: position.totalNetWorth + netWorthAdjustment,
     withdrawalCapital,
     annualExpenditure,
@@ -304,6 +313,15 @@ export function getHousingPlanningPosition(
     financialIndependence.representativeAnnualExpenditure ??
     0;
   const annualSavings = financialIndependence.representativeAnnualSavings ?? 0;
+  const annualMortgageExpenditureRemoved =
+    financialIndependence.annualExpenditureAfterMortgage != null &&
+    financialIndependence.representativeAnnualExpenditure != null
+      ? Math.max(
+          financialIndependence.representativeAnnualExpenditure -
+            financialIndependence.annualExpenditureAfterMortgage,
+          0,
+        )
+      : 0;
   const totalNetWorth = financialIndependence.runway.total.balance;
 
   return {
@@ -314,7 +332,11 @@ export function getHousingPlanningPosition(
     mortgageBalance: totals.mortgageBalance,
     homeEquity: totals.homeValue - totals.mortgageBalance,
     annualNonHousingExpenditure,
-    annualInvestableIncome: annualNonHousingExpenditure + annualSavings,
+    annualInvestableIncome:
+      annualNonHousingExpenditure +
+      annualSavings +
+      annualMortgageExpenditureRemoved,
+    annualMortgageExpenditureRemoved,
     expectedRealReturn: financialIndependence.expectedRealReturn ?? 0,
     withdrawalRate: repository.settings.withdrawalRate,
     mortgagePayoffDate:
