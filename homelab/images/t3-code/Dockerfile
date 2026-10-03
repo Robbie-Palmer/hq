@@ -18,7 +18,7 @@ RUN export MISE_CACHE_DIR=/tmp/mise-cache \
       "$(mise -C /tmp/t3-code-mise/image which vale)" \
       /opt/t3-code-tools/vale \
     && install --mode=0755 \
-      "$(mise -C /tmp/t3-code-mise/image which github:jdx/mise)" \
+      "$(mise -C /tmp/t3-code-mise/image where github:jdx/mise)/bin/mise" \
       /opt/t3-code-tools/mise
 
 FROM docker:29.8.0-cli@sha256:eccaacfeed644c7de222ff047483568cb988dde95476fbaaf10ea2d04921bb66 AS docker-cli
