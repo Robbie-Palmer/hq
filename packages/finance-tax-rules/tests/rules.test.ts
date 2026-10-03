@@ -5,9 +5,13 @@ import { buildArtifacts, validateDataset } from "../src/build";
 import { ruleDataset } from "../src/data";
 import { resolveRules } from "../src/index";
 import {
+  salaryCalculationRequestSchema,
+  salaryCalculationResultSchema,
+} from "../src/salaryAdapter";
+import {
   evaluateValidationFixture,
-  validateValidationCorpus,
   type ValidationCandidate,
+  validateValidationCorpus,
 } from "../src/validation";
 import { validationCorpus } from "../src/validationData";
 
@@ -218,5 +222,124 @@ describe("rule resolution", () => {
     ],
   ])("returns unavailable for unsupported input %#", (input, reason) => {
     expect(resolveRules(input)).toMatchObject({ available: false, reason });
+  });
+});
+
+describe("salary calculator adapter contract", () => {
+  const request = {
+    effectiveDate: "2025-06-30",
+    taxYear: "2025-26",
+    jurisdiction: "england-and-northern-ireland",
+    precision: "annual-liability-estimate",
+    pay: {
+      contractualGrossPayPence: 6_000_000,
+      grossCashPayPence: 5_400_000,
+      taxablePayPence: 5_400_000,
+      nationalInsuranceEarningsPence: 5_400_000,
+    },
+    pension: {
+      method: "salary-sacrifice",
+      grossContributionPence: 600_000,
+      memberDeductionPence: 0,
+      employerContributionPence: 600_000,
+      providerTaxReliefPence: 0,
+    },
+    assumptions: [
+      { id: "employment-type", value: "employee-not-director" },
+    ],
+  };
+
+  it("keeps tax, NI, and pension pay bases distinct", () => {
+    expect(salaryCalculationRequestSchema.parse(request)).toEqual(request);
+    expect(() =>
+      salaryCalculationRequestSchema.parse({
+        ...request,
+        pay: {
+          contractualGrossPayPence: 6_000_000,
+          grossCashPayPence: 5_400_000,
+          taxablePayPence: 4_143_000,
+        },
+      }),
+    ).toThrow();
+
+    expect(() =>
+      salaryCalculationRequestSchema.parse({
+        ...request,
+        precision: "exact-payroll-deduction",
+      }),
+    ).toThrow();
+    expect(() =>
+      salaryCalculationRequestSchema.parse({
+        ...request,
+        taxYear: "2024-25",
+      }),
+    ).toThrow();
+  });
+
+  it("requires reproducible result lineage and rounding", () => {
+    const roundingRule = "Round the calculated value to the nearest penny.";
+    const result = {
+      precision: "annual-liability-estimate",
+      components: {
+        grossCashPayPence: 5_400_000,
+        taxablePayPence: 5_400_000,
+        incomeTaxPence: 903_200,
+        employeeNationalInsurancePence: 309_000,
+        memberPensionDeductionPence: 0,
+        employerPensionContributionPence: 600_000,
+        providerTaxReliefPence: 0,
+        takeHomePayPence: 4_187_800,
+      },
+      lineage: {
+        adapterId: "saving-tool-annual-v1",
+        adapterVersion: "1",
+        engineId: "@saving-tool/hmrc-income-tax",
+        engineVersion: "3.0.1",
+        ruleDatasetVersion: "2026.10.0",
+        effectiveRuleVersion: "2025-26",
+        calculationVersion: "salary-estimate-v1",
+        sourceRuleIds: [
+          "income-tax-2025-26-england-northern-ireland",
+          "ni-2025-26",
+        ],
+        assumptions: request.assumptions,
+        rounding: [
+          { component: "grossCashPayPence", rule: roundingRule },
+          { component: "taxablePayPence", rule: roundingRule },
+          { component: "incomeTaxPence", rule: roundingRule },
+          { component: "employeeNationalInsurancePence", rule: roundingRule },
+          { component: "memberPensionDeductionPence", rule: roundingRule },
+          { component: "employerPensionContributionPence", rule: roundingRule },
+          { component: "providerTaxReliefPence", rule: roundingRule },
+          { component: "takeHomePayPence", rule: roundingRule },
+        ],
+      },
+    };
+
+    expect(salaryCalculationResultSchema.parse(result)).toEqual(result);
+    expect(() =>
+      salaryCalculationResultSchema.parse({
+        ...result,
+        lineage: { ...result.lineage, sourceRuleIds: [] },
+      }),
+    ).toThrow();
+    expect(() =>
+      salaryCalculationResultSchema.parse({
+        ...result,
+        lineage: { ...result.lineage, rounding: result.lineage.rounding.slice(1) },
+      }),
+    ).toThrow();
+    expect(() =>
+      salaryCalculationResultSchema.parse({
+        ...result,
+        lineage: {
+          ...result.lineage,
+          rounding: [
+            ...result.lineage.rounding.slice(0, -1),
+            result.lineage.rounding[0],
+          ],
+        },
+      }),
+    ).toThrow();
   });
 });

@@ -2,11 +2,11 @@ import { ruleDataset } from "./data";
 import {
   datasetSchema,
   isoDateSchema,
-  jurisdictionSchema,
-  supportedNationalInsuranceCategorySchema,
-  payPeriodSchema,
   type Jurisdiction,
+  jurisdictionSchema,
   type PayPeriod,
+  payPeriodSchema,
+  supportedNationalInsuranceCategorySchema,
 } from "./schema";
 
 const dataset = datasetSchema.parse(ruleDataset);
@@ -127,6 +127,13 @@ export const resolveRules = (request: RuleRequest): RuleResolution => {
 };
 
 export { ruleDataset } from "./data";
+export * from "./salaryAdapter";
+export type {
+  Jurisdiction,
+  PayPeriod,
+  PensionContributionMethod,
+  RuleDataset,
+} from "./schema";
 export {
   datasetSchema,
   datasetVersionSchema,
@@ -136,19 +143,13 @@ export {
   moneyPenceSchema,
   nationalInsuranceCategorySchema,
   nationalInsuranceRuleSchema,
-  payPeriodSchema,
   payeTaxBasisSchema,
+  payPeriodSchema,
   pensionContributionMethodSchema,
   pensionRuleSchema,
   rateBasisPointsSchema,
   sourceSchema,
   supportedNationalInsuranceCategorySchema,
   taxYearSchema,
-} from "./schema";
-export type {
-  Jurisdiction,
-  PayPeriod,
-  PensionContributionMethod,
-  RuleDataset,
 } from "./schema";
 export * from "./validationApi";
