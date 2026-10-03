@@ -219,7 +219,7 @@ test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", ()
     assert.match(firstConfig, /^command = "\/usr\/local\/bin\/node"$/m);
     assert.match(
       firstConfig,
-      /^args = \["\/usr\/local\/lib\/t3-code\/recipe-agent-mcp\.mjs","--storage-dir",".*\/\.codex\/agent-auth\/recipes","--host-name","T3 Code Codex","--url","https:\/\/robbiepalmer\.me"\]$/m,
+      /^args = \["\/usr\/local\/lib\/agent-auth-mcp\/src\/cli\.mjs","--storage-dir",".*\/\.codex\/agent-auth\/recipes","--host-name","T3 Code Codex","--url","https:\/\/robbiepalmer\.me"\]$/m,
     );
     assert.match(
       firstConfig,

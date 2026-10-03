@@ -82,10 +82,11 @@ docker run --rm \
   -ec '
     test "$(id -u)" = 2000
     test "$(id -g)" = 2000
-    test -r /usr/local/lib/t3-code/recipe-agent-connections.mjs
-    test -r /usr/local/lib/t3-code/recipe-agent-mcp.mjs
-    test -r /usr/local/lib/t3-code/recipe-agent-options.mjs
-    test -r /usr/local/lib/t3-code/recipe-agent-storage.mjs
+    test -x /usr/local/lib/agent-auth-mcp/src/cli.mjs
+    test -r /usr/local/lib/agent-auth-mcp/src/connections.mjs
+    test -r /usr/local/lib/agent-auth-mcp/src/options.mjs
+    test -r /usr/local/lib/agent-auth-mcp/src/server.mjs
+    test -r /usr/local/lib/agent-auth-mcp/src/storage.mjs
     test "$(node -p "require(\"/usr/local/lib/t3-code/node_modules/@auth/agent-cli/package.json\").version")" = "$EXPECTED_AGENT_AUTH_VERSION"
     test "$(codex --version)" = "codex-cli $EXPECTED_CODEX_VERSION"
     test "$(claude --version)" = "$EXPECTED_CLAUDE_VERSION (Claude Code)"
@@ -147,7 +148,7 @@ docker run --rm \
       if (!config.includes("personality = \"pragmatic\"")) process.exit(1);
       if (!config.includes("[mcp_servers.recipe-agent]")) process.exit(1);
       if (!config.includes("command = \"/usr/local/bin/node\"")) process.exit(1);
-      if (!config.includes("/usr/local/lib/t3-code/recipe-agent-mcp.mjs")) process.exit(1);
+      if (!config.includes("/usr/local/lib/agent-auth-mcp/src/cli.mjs")) process.exit(1);
       if (!config.includes("env_vars = [\"AGENT_AUTH_ENCRYPTION_KEY\"]")) process.exit(1);
       if (!config.includes("https://robbiepalmer.me")) process.exit(1);
       if (fs.statSync("/data/home/.codex/agent-auth/recipes").mode & 0o077) process.exit(1);

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { FileStorage } from "../images/t3-code/recipe-agent-storage.mjs";
+import { FileStorage } from "../src/storage.mjs";
 
 const keypair = {
   publicKeyJwk: { kty: "OKP", crv: "Ed25519", x: "public" },
@@ -13,7 +13,7 @@ const keypair = {
 };
 
 async function withStorageDirectory(run) {
-  const directory = await mkdtemp(join(tmpdir(), "recipe-agent-storage-"));
+  const directory = await mkdtemp(join(tmpdir(), "agent-auth-mcp-storage-"));
   try {
     await run(directory);
   } finally {

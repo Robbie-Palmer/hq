@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { parseArguments } from "../images/t3-code/recipe-agent-options.mjs";
+import { parseArguments } from "../src/options.mjs";
 
 test("parses repeatable URL flags and validates the result", () => {
   assert.deepEqual(
@@ -56,10 +56,10 @@ test("rejects unknown flags, extra commands, and invalid URLs", () => {
   );
   assert.throws(
     () => parseArguments(["serve"], {}),
-    /Invalid recipe-agent command/,
+    /Invalid agent-auth-mcp command/,
   );
   assert.throws(
     () => parseArguments(["--url", "not-a-url"], {}),
-    /Invalid recipe-agent arguments/,
+    /Invalid agent-auth-mcp arguments/,
   );
 });

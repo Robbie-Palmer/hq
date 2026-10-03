@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   reuseConnection,
   selectReusableConnection,
-} from "../images/t3-code/recipe-agent-connections.mjs";
+} from "../src/connections.mjs";
 
 const now = Date.parse("2026-10-03T12:00:00Z");
 

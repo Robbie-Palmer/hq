@@ -38,7 +38,7 @@ export function parseArguments(argv, environment = process.env) {
   const parsedPositionals = positionalSchema.safeParse(positionals);
   if (!parsedPositionals.success) {
     throw new Error(
-      `Invalid recipe-agent command: ${formatZodError(parsedPositionals.error)}`,
+      `Invalid agent-auth-mcp command: ${formatZodError(parsedPositionals.error)}`,
     );
   }
 
@@ -57,7 +57,7 @@ export function parseArguments(argv, environment = process.env) {
   });
   if (!parsedConfig.success) {
     throw new Error(
-      `Invalid recipe-agent arguments: ${formatZodError(parsedConfig.error)}`,
+      `Invalid agent-auth-mcp arguments: ${formatZodError(parsedConfig.error)}`,
     );
   }
   return parsedConfig.data;

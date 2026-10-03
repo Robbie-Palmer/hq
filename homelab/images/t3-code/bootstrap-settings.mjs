@@ -107,7 +107,7 @@ function configureCodexDefaults(includeModelCatalog) {
       "[mcp_servers.recipe-agent]",
       `command = ${JSON.stringify("/usr/local/bin/node")}`,
       `args = ${JSON.stringify([
-        "/usr/local/lib/t3-code/recipe-agent-mcp.mjs",
+        "/usr/local/lib/agent-auth-mcp/src/cli.mjs",
         "--storage-dir",
         recipeAgentStoragePath,
         "--host-name",

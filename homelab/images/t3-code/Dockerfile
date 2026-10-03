@@ -32,6 +32,7 @@ COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
 COPY --from=docker-cli /usr/local/libexec/docker/cli-plugins /usr/local/libexec/docker/cli-plugins
 COPY --from=mise-tools /opt/t3-code-tools/ /usr/local/bin/
 COPY bindep.txt package.json package-lock.json /usr/local/lib/t3-code/
+COPY --from=agent-auth-mcp package.json package-lock.json /usr/local/lib/agent-auth-mcp/
 
 # npm omits t3's optional platform bundle when reinstalling from its lockfile,
 # so unpack the exact Linux package separately below.
@@ -43,6 +44,7 @@ RUN groupadd --gid 2000 t3code \
     && xargs --arg-file=/tmp/bindep-apt.txt \
       apt-get install --yes --no-install-recommends \
     && npm ci --ignore-scripts --omit=dev --prefix /usr/local/lib/t3-code \
+    && npm ci --ignore-scripts --omit=dev --prefix /usr/local/lib/agent-auth-mcp \
     && t3_version="$(node -p \
       "require('/usr/local/lib/t3-code/package.json').dependencies.t3")" \
     && npm pack --ignore-scripts --pack-destination /tmp \
@@ -89,13 +91,8 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/data/home/.cache/ms-playwright
 ENV PUPPETEER_CACHE_DIR=/data/home/.cache/puppeteer
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
-COPY --chmod=0555 \
-  bootstrap-settings.mjs \
-  recipe-agent-connections.mjs \
-  recipe-agent-mcp.mjs \
-  recipe-agent-options.mjs \
-  recipe-agent-storage.mjs \
-  /usr/local/lib/t3-code/
+COPY --chmod=0555 bootstrap-settings.mjs /usr/local/lib/t3-code/
+COPY --from=agent-auth-mcp --chmod=0555 src /usr/local/lib/agent-auth-mcp/src
 
 WORKDIR /data/workspaces
 USER 2000:2000

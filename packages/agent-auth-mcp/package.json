@@ -1,0 +1,31 @@
+{
+  "name": "agent-auth-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Portable stdio MCP server for Better Auth Agent Auth providers",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "bin": {
+    "agent-auth-mcp": "src/cli.mjs"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "test:coverage": "c8 --all --include=src/*.mjs --exclude=src/cli.mjs --reporter=lcov --reporter=text --check-coverage --lines=80 --branches=80 --functions=80 node --test tests/*.test.mjs",
+    "pack:check": "pnpm pack --dry-run"
+  },
+  "dependencies": {
+    "@auth/agent": "0.5.1",
+    "@modelcontextprotocol/sdk": "1.32.0",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "c8": "12.0.0"
+  }
+}

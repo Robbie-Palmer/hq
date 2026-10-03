@@ -11,7 +11,6 @@
         "cpp/autonomic-satellite-swarm/browser/tests/browser_parity.mjs",
         "cpp/autonomic-satellite-swarm/scripts/*.ts",
         "homelab/scripts/codex-add-provider.mjs",
-        "homelab/tests/**/*.test.mjs",
         "homelab/tests/**/*.test.ts",
         "scripts/prose-lint.ts"
       ],
@@ -31,7 +30,7 @@
       "ignoreDependencies": ["cloudflare"]
     },
     "homelab/images/t3-code": {
-      "entry": ["bootstrap-settings.mjs", "recipe-agent-mcp.mjs"],
+      "entry": ["bootstrap-settings.mjs"],
       "ignoreDependencies": [
         "@anthropic-ai/claude-code",
         "@auth/agent-cli",
@@ -42,6 +41,7 @@
         "t3"
       ]
     },
+    "packages/agent-auth-mcp": {},
     "packages/agent-coordinator-domain": {},
     "packages/ai-review-domain": {},
     "packages/work-graph-domain": {

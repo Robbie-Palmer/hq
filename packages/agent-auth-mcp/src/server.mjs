@@ -1,8 +1,4 @@
-#!/usr/bin/env node
-
 import { execFile } from "node:child_process";
-import * as path from "node:path";
-import { pathToFileURL } from "node:url";
 
 import {
   AgentAuthClient,
@@ -14,9 +10,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
-import { reuseConnection } from "./recipe-agent-connections.mjs";
-import { parseArguments } from "./recipe-agent-options.mjs";
-import { FileStorage } from "./recipe-agent-storage.mjs";
+import packageManifest from "../package.json" with { type: "json" };
+import { reuseConnection } from "./connections.mjs";
+import { FileStorage } from "./storage.mjs";
 
 function openBrowser(url) {
   let command = "xdg-open";
@@ -30,8 +26,13 @@ function openBrowser(url) {
   execFile(command, args, () => {});
 }
 
-function createClient(storage, config) {
-  return new AgentAuthClient({
+export function createClient(
+  storage,
+  config,
+  Client = AgentAuthClient,
+  openUrl = openBrowser,
+) {
+  return new Client({
     storage,
     urls: config.urls,
     directoryUrl:
@@ -47,7 +48,7 @@ function createClient(storage, config) {
         console.error(`Approval required. Open: ${url}`);
       } else {
         console.error("Approval required — opening browser…");
-        openBrowser(url);
+        openUrl(url);
       }
       if (info.user_code) console.error(`Code: ${info.user_code}`);
     },
@@ -57,7 +58,7 @@ function createClient(storage, config) {
   });
 }
 
-function propertyToZod(property) {
+export function propertyToZod(property) {
   if (property.oneOf?.length >= 2) {
     const [first, second, ...rest] = property.oneOf.map(propertyToZod);
     return z.union([first, second, ...rest]);
@@ -86,7 +87,7 @@ function propertyToZod(property) {
   return z.unknown();
 }
 
-function schemaToZod(parameters) {
+export function schemaToZod(parameters) {
   if (Object.keys(parameters.properties).length === 0) return undefined;
   const required = new Set(parameters.required ?? []);
   return Object.fromEntries(
@@ -98,13 +99,22 @@ function schemaToZod(parameters) {
   );
 }
 
-export async function startMcpServer(config) {
-  const storage = new FileStorage(config.storageDir);
-  const client = createClient(storage, config);
+export async function startMcpServer(config, dependencies = {}) {
+  const {
+    Storage = FileStorage,
+    createAgentClient = createClient,
+    getTools = getAgentAuthTools,
+    filter = filterTools,
+    Server = McpServer,
+    Transport = StdioServerTransport,
+    addSignalListener = process.on.bind(process),
+  } = dependencies;
+  const storage = new Storage(config.storageDir);
+  const client = createAgentClient(storage, config);
   await client.init();
-  let tools = getAgentAuthTools(client);
+  let tools = getTools(client);
   if (client.isUrlMode) {
-    tools = filterTools(tools, { exclude: ["search_providers"] });
+    tools = filter(tools, { exclude: ["search_providers"] });
   }
   tools = tools.map((tool) => {
     if (tool.name !== "connect_agent") return tool;
@@ -123,8 +133,8 @@ export async function startMcpServer(config) {
     };
   });
 
-  const server = new McpServer(
-    { name: "recipe-agent", version: "1.0.0" },
+  const server = new Server(
+    { name: packageManifest.name, version: packageManifest.version },
     { instructions: SERVER_INSTRUCTIONS },
   );
   for (const tool of tools) {
@@ -145,23 +155,12 @@ export async function startMcpServer(config) {
     }));
   }
 
-  const transport = new StdioServerTransport();
+  const transport = new Transport();
   await server.connect(transport);
   const cleanup = () => client.destroy();
-  process.on("SIGINT", cleanup);
-  process.on("SIGTERM", cleanup);
-  process.on("SIGHUP", cleanup);
+  addSignalListener("SIGINT", cleanup);
+  addSignalListener("SIGTERM", cleanup);
+  addSignalListener("SIGHUP", cleanup);
   server.server.onclose = cleanup;
-}
-
-const invokedPath = process.argv[1]
-  ? pathToFileURL(path.resolve(process.argv[1])).href
-  : undefined;
-if (invokedPath === import.meta.url) {
-  try {
-    await startMcpServer(parseArguments(process.argv.slice(2)));
-  } catch (error) {
-    console.error(error instanceof Error ? error.message : String(error));
-    process.exitCode = 1;
-  }
+  return { client, server, storage };
 }
