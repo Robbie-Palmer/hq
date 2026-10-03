@@ -1,0 +1,218 @@
+---
+title: "Agent-first Writing Editor pitch"
+description: "A repository-first path from deterministic prose checks to evidence-backed editorial assistance"
+---
+
+# Good research still deserves a readable ending
+
+Agent-first Writing Editor tests how to turn dense agent output into prose people can absorb without erasing the author's voice.
+
+<PitchNotes>
+  The project starts with a familiar mismatch. Long agent sessions can produce strong research and weak reading. The goal is not
+  to make prose sound generically polished. It is to reduce the work between a useful draft and something the author wants to
+  publish.
+
+  \[Sources]
+
+  * [Project vision](/projects/agent-first-writing?tab=overview#vision)
+  * [Project success criteria](/projects/agent-first-writing?tab=overview#success)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## Correct sentences can still exhaust the reader
+
+Agent drafts often repeat conclusions, flatten the author's voice, and explain simple points long after the point is clear.
+
+<p className="pitch-slide__statement">Grammar is part of the problem. Editorial judgment is the harder part.</p>
+
+<PitchNotes>
+  These faults often survive grammar checks because each sentence can be technically correct. The project separates precise,
+  repeatable faults from changes that need wider context and human judgment.
+
+  \[Sources]
+
+  * [Project problem and product thesis](/projects/agent-first-writing?tab=overview#product-thesis)
+  * [ADR 000: Vale for deterministic prose checks](/projects/agent-first-writing/adrs/000-vale-for-deterministic-prose-checks)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## Vale is the working first layer
+
+<PitchColumns>
+  <PitchColumn>
+    ### Shipped
+
+    Repository rules flag known prose faults at exact source locations before review.
+  </PitchColumn>
+
+  <PitchColumn>
+    ### Bounded
+
+    A finding identifies a problem. It does not invent a replacement or claim that an edit was accepted.
+  </PitchColumn>
+</PitchColumns>
+
+<p className="pitch-slide__statement">Use a fast rule when the rule can prove the fault.</p>
+
+<PitchNotes>
+  Vale already runs against changed prose in the Personal Knowledge Graph. The evaluation pipeline emits those detections through
+  the shared finding contract, including exact UTF-8 source spans and rule provenance. Vale does not restructure arguments or
+  supply safe rewrites for these rules.
+
+  \[Sources]
+
+  * [ADR 000: Vale for deterministic prose checks](/projects/agent-first-writing/adrs/000-vale-for-deterministic-prose-checks)
+  * [Writing editor current state](/projects/agent-first-writing?tab=overview#current-state)
+  * [Writing evaluation pipeline](https://github.com/Robbie-Palmer/hq/tree/main/ml-pipelines/writing-editor-evaluation)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## Detection and action need different records
+
+<PitchColumns>
+  <PitchColumn>
+    ### Finding
+
+    A verified source span needs attention, but no safe replacement exists.
+
+    ### Suggestion
+
+    One actionable replacement for a verified source span.
+  </PitchColumn>
+
+  <PitchColumn>
+    ### Proposal
+
+    One or more dependent suggestions shown as a single change.
+
+    ### Decision
+
+    The author accepted, rejected, or changed the complete proposal.
+  </PitchColumn>
+</PitchColumns>
+
+<PitchNotes>
+  This versioned contract is implemented in the shared `writing-editor-domain` package. Stable IDs retain producer, revision, and
+  source provenance. Consumers verify the source hash and byte span before showing or applying a record. Findings stay separate
+  from actionable proposals, so evaluation cannot mistake a detector for a rewrite system.
+
+  \[Sources]
+
+  * [ADR 003: Versioned editor record contract](/projects/agent-first-writing/adrs/003-versioned-editor-record-contract)
+  * [Writing editor domain package](https://github.com/Robbie-Palmer/hq/tree/main/packages/writing-editor-domain)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## Grammar correction did not finish the edit
+
+<PitchColumns>
+  <PitchColumn>
+    ### The test
+
+    Run GECToR-2024 against existing architecture decisions as a lightweight correction baseline.
+  </PitchColumn>
+
+  <PitchColumn>
+    ### The result
+
+    Some corrections helped. The prose remained repetitive, over-explained, and harder to absorb than the published version.
+  </PitchColumn>
+</PitchColumns>
+
+<p className="pitch-slide__statement">The project rejected GECToR as its model layer and kept the result as a lower bound.</p>
+
+<PitchNotes>
+  The model also failed the original local hardware constraint and would require a paid remote GPU. That cost did not make sense
+  for a model that left most editorial work untouched. The later DVC pipeline makes the checkpoint reproducible for evaluation,
+  but that does not reverse the product decision.
+
+  \[Sources]
+
+  * [ADR 001: Generic grammar correction with GECToR-2024](/projects/agent-first-writing/adrs/001-generic-grammar-correction-with-gector)
+  * [Writing evaluation pipeline](https://github.com/Robbie-Palmer/hq/tree/main/ml-pipelines/writing-editor-evaluation)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## Intervention should grow with editorial risk
+
+1. **Current.** Exact Vale findings flag known faults.
+2. **Foundation built.** Shared records can hold local suggestions and dependent proposals.
+3. **Planned next.** Models target only failure classes that the evaluation set proves rules miss.
+4. **Planned later.** Passage rewrites and narrow automatic fixes follow reliable local suggestions.
+5. **Human authority.** A person reviews work published under somebody's name.
+
+<PitchNotes>
+  The shared contract supports later suggestions and grouped proposals, but the project does not yet ship a general rewrite model
+  or automatic passage rewriting. The intervention changes with the risk. A deterministic punctuation fix needs less ceremony
+  than restructuring an argument, and publication under an author's name keeps a human authority boundary.
+
+  \[Sources]
+
+  * [Product behavior](/projects/agent-first-writing?tab=overview#product-behavior)
+  * [First useful release](/projects/agent-first-writing?tab=overview#first-useful-release)
+  * [ADR 005: Repository-first, evidence-gated release](/projects/agent-first-writing/adrs/005-repository-first-evidence-gated-release)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## The repository is the proving ground
+
+<Mermaid
+  chart={`flowchart LR
+A[Pinned draft and published revisions] --> B[Frozen evaluation cohort]
+B --> C[Vale and baseline producers]
+C --> D[Verified findings and proposals]
+D --> E[Observed edits]
+E --> F[Explicit editorial decisions]
+F --> G[Scorecard and release decision]`}
+/>
+
+<p className="pitch-slide__statement">Git proves that text changed. Only an explicit decision proves what the author accepted.</p>
+
+<PitchNotes>
+  The DVC pipeline extracts pinned revisions, freezes cohort membership, runs Vale and GECToR, and aligns findings with observed
+  published edits. The initial cohort contains nine public documents. Its readiness report stays red until the records include
+  explicit editorial outcomes. Diff alignment deliberately does not infer acceptance.
+
+  \[Sources]
+
+  * [ADR 004: DVC writing evaluation pipeline](/projects/agent-first-writing/adrs/004-dvc-writing-evaluation-pipeline)
+  * [ADR 008: jsdiff source alignment without outcome inference](/projects/agent-first-writing/adrs/008-jsdiff-source-alignment-without-outcome-inference)
+  * [Writing editor evaluation pipeline](https://github.com/Robbie-Palmer/hq/tree/main/ml-pipelines/writing-editor-evaluation)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## Real use must prove the product boundary
+
+Before extraction, the repository release must show that edits preserve facts, intent, terminology, and voice while reducing review time and manual rewriting.
+
+It also needs recorded accept, reject, and change decisions, plus a reproducible baseline for every candidate producer.
+
+<p className="pitch-slide__statement">Success means readers prefer the edited work and authors do less rewriting.</p>
+
+<PitchNotes>
+  A high acceptance rate alone is weak evidence because a timid editor can win acceptance while doing little useful work. The
+  scorecard must keep factual changes, terminology changes, unwanted voice changes, deterministic regressions, and review time
+  visible. Only then does extracting a general product become an evidence-backed decision.
+
+  \[Sources]
+
+  * [Evaluation data](/projects/agent-first-writing?tab=overview#evaluation-data)
+  * [Project success criteria](/projects/agent-first-writing?tab=overview#success)
+  * [ADR 004: DVC writing evaluation pipeline](/projects/agent-first-writing/adrs/004-dvc-writing-evaluation-pipeline)
+  * [ADR 005: Repository-first, evidence-gated release](/projects/agent-first-writing/adrs/005-repository-first-evidence-gated-release)
+    \[/Sources]
+</PitchNotes>
