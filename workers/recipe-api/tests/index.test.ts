@@ -63,6 +63,11 @@ const dbMock = vi.hoisted(() => {
     inviterId: string;
     createdAt: Date;
   };
+  type HouseholdEquipmentRow = {
+    organizationId: string;
+    equipmentSlug: string;
+    createdAt: Date;
+  };
   type RecipeRow = {
     id: string;
     slug: string;
@@ -164,6 +169,7 @@ const dbMock = vi.hoisted(() => {
     organizations: [] as OrganizationRow[],
     members: [] as MemberRow[],
     invitations: [] as InvitationRow[],
+    householdEquipment: [] as HouseholdEquipmentRow[],
     notificationEvents: [] as NotificationEventRow[],
     notificationDeliveries: [] as {
       id: string;
@@ -328,6 +334,7 @@ const dbMock = vi.hoisted(() => {
     state.organizations = [];
     state.members = [];
     state.invitations = [];
+    state.householdEquipment = [];
     state.notificationEvents = [];
     state.notificationDeliveries = [];
     state.notificationAgentApprovalEvents = [];
@@ -676,6 +683,57 @@ const dbMock = vi.hoisted(() => {
       };
       state.invitations.push(invitation);
       return [invitationRow(invitation)];
+    }
+
+    return undefined;
+  }
+
+  function householdEquipmentRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
+    if (query.startsWith('insert into "household_equipment"')) {
+      const organizationId = params[0] as string;
+      const equipmentSlug = params[1] as string;
+      const existing = state.householdEquipment.find(
+        (item) =>
+          item.organizationId === organizationId &&
+          item.equipmentSlug === equipmentSlug,
+      );
+      if (existing) return [];
+      const item = { organizationId, equipmentSlug, createdAt: date };
+      state.householdEquipment.push(item);
+      return [[item.organizationId, item.equipmentSlug, item.createdAt]];
+    }
+
+    if (query.startsWith('delete from "household_equipment"')) {
+      const organizationId = params[0] as string;
+      const equipmentSlug = params[1] as string;
+      state.householdEquipment = state.householdEquipment.filter(
+        (item) =>
+          item.organizationId !== organizationId ||
+          item.equipmentSlug !== equipmentSlug,
+      );
+      return [];
+    }
+
+    if (query.includes('from "household_equipment"')) {
+      const organizationId = params[0] as string;
+      const equipmentSlug = params[1] as string | undefined;
+      return state.householdEquipment
+        .filter(
+          (item) =>
+            item.organizationId === organizationId &&
+            (!equipmentSlug || item.equipmentSlug === equipmentSlug),
+        )
+        .sort((left, right) =>
+          left.equipmentSlug.localeCompare(right.equipmentSlug),
+        )
+        .map((item) =>
+          query.startsWith('select "equipment_slug", "created_at"')
+            ? [item.equipmentSlug, item.createdAt]
+            : [item.organizationId, item.equipmentSlug, item.createdAt],
+        );
     }
 
     return undefined;
@@ -1294,6 +1352,9 @@ const dbMock = vi.hoisted(() => {
       );
       state.invitations = state.invitations.filter(
         (invitation) => invitation.organizationId !== householdId,
+      );
+      state.householdEquipment = state.householdEquipment.filter(
+        (item) => item.organizationId !== householdId,
       );
       return [];
     }
@@ -2377,6 +2438,7 @@ const dbMock = vi.hoisted(() => {
     insertAccountRows,
     insertFollowRows,
     insertMembershipRows,
+    householdEquipmentRows,
     insertPantryRows,
     insertPantryOperationRows,
     insertPantryItemRows,
@@ -6195,6 +6257,114 @@ describe("household membership flows", () => {
 
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({ error: "Authorization required" });
+  });
+
+  it("shares an idempotent equipment inventory with every household member", async () => {
+    seedHousehold();
+    authzMock.session = sessionFor({
+      id: "member-user",
+      email: "member@example.test",
+      name: "Member",
+    });
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const addResponse = await app.request(
+        `/households/${HOUSEHOLD_ID}/equipment/frying-pan`,
+        {
+          method: "PUT",
+          headers: { origin: "http://localhost:3000" },
+        },
+        env,
+      );
+      expect(addResponse.status).toBe(200);
+      expect(await addResponse.json()).toMatchObject({
+        slug: "frying-pan",
+        name: "frying pan",
+        category: "cookware",
+      });
+    }
+    expect(dbMock.state.householdEquipment).toHaveLength(1);
+
+    authzMock.session = sessionFor({
+      id: "owner-user",
+      email: "owner@example.test",
+      name: "Owner",
+    });
+    const listResponse = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment`,
+      {},
+      env,
+    );
+
+    expect(listResponse.status).toBe(200);
+    expect(await listResponse.json()).toMatchObject({
+      catalog: expect.arrayContaining([
+        expect.objectContaining({ slug: "frying-pan" }),
+      ]),
+      owned: [
+        expect.objectContaining({
+          slug: "frying-pan",
+          name: "frying pan",
+          category: "cookware",
+        }),
+      ],
+    });
+  });
+
+  it("lets members remove equipment and rejects unknown equipment", async () => {
+    seedHousehold();
+    dbMock.state.householdEquipment.push({
+      organizationId: HOUSEHOLD_ID,
+      equipmentSlug: "frying-pan",
+      createdAt: dbMock.date,
+    });
+    authzMock.session = sessionFor({
+      id: "member-user",
+      email: "member@example.test",
+      name: "Member",
+    });
+
+    const deleteResponse = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment/frying-pan`,
+      {
+        method: "DELETE",
+        headers: { origin: "http://localhost:3000" },
+      },
+      env,
+    );
+    expect(deleteResponse.status).toBe(204);
+    expect(dbMock.state.householdEquipment).toHaveLength(0);
+
+    const unknownResponse = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment/laser-whisk`,
+      {
+        method: "PUT",
+        headers: { origin: "http://localhost:3000" },
+      },
+      env,
+    );
+    expect(unknownResponse.status).toBe(400);
+    expect(await unknownResponse.json()).toEqual({
+      error: "Unknown equipment",
+    });
+  });
+
+  it("keeps household equipment private from non-members", async () => {
+    seedHousehold();
+    authzMock.session = sessionFor({
+      id: "outsider-user",
+      email: "outsider@example.test",
+      name: "Outsider",
+    });
+
+    const response = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment`,
+      {},
+      env,
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "Authorization required" });
   });
 
   it("allows owners to invite household members", async () => {

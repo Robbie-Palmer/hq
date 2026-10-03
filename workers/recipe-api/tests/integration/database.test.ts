@@ -195,8 +195,8 @@ beforeAll(async () => {
     where slug in ('almond-milk', 'cajun-powder', 'cajun-seasoning', 'chilli-oil', 'maple-syrup', 'salted-butter')
     order by slug
   `;
-  expect(migrationCount?.count).toBe(20);
-  expect(tableCount?.count).toBe(53);
+  expect(migrationCount?.count).toBe(21);
+  expect(tableCount?.count).toBe(54);
   expect(catalogRows).toEqual([
     { category: "dairy", slug: "almond-milk" },
     { category: "spice", slug: "cajun-seasoning" },

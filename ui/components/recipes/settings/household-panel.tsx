@@ -4,10 +4,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
   CircleX,
+  CookingPot,
   Home,
   LoaderCircle,
   LogOut,
   MailPlus,
+  Plus,
   Trash2,
   UserMinus,
   Users,
@@ -20,15 +22,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   acceptHouseholdInvitation,
+  addHouseholdEquipment,
   createHousehold,
   declineHouseholdInvitation,
   deleteHousehold,
   type Household,
+  type HouseholdEquipment,
+  type HouseholdEquipmentItem,
   type HouseholdInvitation,
   type HouseholdMember,
   type IncomingHouseholdInvitation,
   inviteHouseholdMember,
   leaveHousehold,
+  removeHouseholdEquipment,
   removeHouseholdMember,
   renameHousehold,
   revokeHouseholdInvitation,
@@ -50,6 +56,8 @@ type Mutation =
   | "delete"
   | "accept"
   | "decline"
+  | "add-equipment"
+  | "remove-equipment"
   | null;
 
 type ActiveMutation = Exclude<Mutation, null>;
@@ -543,6 +551,115 @@ function HouseholdInvitationsSection({
   );
 }
 
+function HouseholdEquipmentSection({
+  equipment,
+  selectedSlug,
+  busy,
+  adding,
+  onSelectedSlugChange,
+  onAdd,
+  onRemove,
+}: Readonly<{
+  equipment: HouseholdEquipment | null;
+  selectedSlug: string;
+  busy: boolean;
+  adding: boolean;
+  onSelectedSlugChange: (slug: string) => void;
+  onAdd: (event: FormEvent<HTMLFormElement>) => void;
+  onRemove: (item: HouseholdEquipmentItem) => void;
+}>) {
+  if (!equipment) {
+    return (
+      <Section
+        title="KITCHEN EQUIPMENT"
+        sub="Household equipment couldn't be loaded. Try refreshing this panel."
+      >
+        <p className="rt-body text-sm text-[var(--ink-3)]">
+          No equipment changes are available right now.
+        </p>
+      </Section>
+    );
+  }
+
+  const ownedSlugs = new Set(equipment.owned.map((item) => item.slug));
+  const available = equipment.catalog.filter(
+    (item) => !ownedSlugs.has(item.slug),
+  );
+
+  return (
+    <Section
+      title="KITCHEN EQUIPMENT"
+      sub="Everyone in the household shares this list. Recipes will use it to check which tools are available."
+    >
+      <form
+        onSubmit={onAdd}
+        className="flex max-w-lg flex-col gap-3 sm:flex-row"
+      >
+        <label className="sr-only" htmlFor="household-equipment">
+          Equipment to add
+        </label>
+        <select
+          id="household-equipment"
+          value={selectedSlug}
+          onChange={(event) => onSelectedSlugChange(event.target.value)}
+          disabled={busy || available.length === 0}
+          className="rt-body h-9 min-w-0 flex-1 rounded-md border border-[var(--line-strong)] bg-[var(--card)] px-3 text-sm text-[var(--ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--terracotta)]/40 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <option value="">
+            {available.length === 0
+              ? "All equipment added"
+              : "Choose equipment"}
+          </option>
+          {available.map((item) => (
+            <option key={item.slug} value={item.slug}>
+              {item.name} · {item.category}
+            </option>
+          ))}
+        </select>
+        <Button
+          type="submit"
+          variant="outline"
+          disabled={busy || !selectedSlug}
+        >
+          {adding ? <LoaderCircle className="animate-spin" /> : <Plus />}
+          Add equipment
+        </Button>
+      </form>
+
+      {equipment.owned.length === 0 ? (
+        <div className="mt-5 flex max-w-lg items-center gap-3 rounded-xl border border-dashed border-[var(--line-strong)] bg-[var(--paper-warm)] p-4 text-[var(--ink-3)]">
+          <CookingPot className="size-5 shrink-0" />
+          <p className="rt-body text-sm">No equipment added yet.</p>
+        </div>
+      ) : (
+        <div className="mt-5 max-w-lg divide-y divide-dashed divide-[var(--line)] rounded-xl border border-[var(--line)] bg-[var(--card)] px-4">
+          {equipment.owned.map((item) => (
+            <div key={item.slug} className="flex items-center gap-3 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="rt-body capitalize text-sm text-[var(--ink)]">
+                  {item.name}
+                </p>
+                <p className="rt-mono text-[var(--ink-3)]">{item.category}</p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Remove ${item.name}`}
+                disabled={busy}
+                onClick={() => onRemove(item)}
+                className="text-[var(--ink-3)]"
+              >
+                <X />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Section>
+  );
+}
+
 function HouseholdDangerZone({
   isOwner,
   busy,
@@ -586,39 +703,49 @@ function HouseholdDangerZone({
 function ManagedHouseholdView({
   household,
   members,
+  equipment,
   invitations,
   currentUserId,
   busy,
   mutation,
   name,
   inviteEmail,
+  equipmentSlug,
   error,
   notice,
   onNameChange,
   onInviteEmailChange,
+  onEquipmentSlugChange,
   onRename,
   onInvite,
   onRemove,
   onRevoke,
+  onAddEquipment,
+  onRemoveEquipment,
   onDelete,
   onLeave,
 }: Readonly<{
   household: Household;
   members: HouseholdMember[];
+  equipment: HouseholdEquipment | null;
   invitations: HouseholdInvitation[];
   currentUserId: string;
   busy: boolean;
   mutation: Mutation;
   name: string;
   inviteEmail: string;
+  equipmentSlug: string;
   error: string | null;
   notice: string | null;
   onNameChange: (name: string) => void;
   onInviteEmailChange: (email: string) => void;
+  onEquipmentSlugChange: (slug: string) => void;
   onRename: (event: FormEvent<HTMLFormElement>) => void;
   onInvite: (event: FormEvent<HTMLFormElement>) => void;
   onRemove: (member: HouseholdMember) => void;
   onRevoke: (invitation: HouseholdInvitation) => void;
+  onAddEquipment: (event: FormEvent<HTMLFormElement>) => void;
+  onRemoveEquipment: (item: HouseholdEquipmentItem) => void;
   onDelete: () => void;
   onLeave: () => void;
 }>) {
@@ -651,6 +778,16 @@ function ManagedHouseholdView({
         isOwner={isOwner}
         busy={busy}
         onRemove={onRemove}
+      />
+
+      <HouseholdEquipmentSection
+        equipment={equipment}
+        selectedSlug={equipmentSlug}
+        busy={busy}
+        adding={mutation === "add-equipment"}
+        onSelectedSlugChange={onEquipmentSlugChange}
+        onAdd={onAddEquipment}
+        onRemove={onRemoveEquipment}
       />
 
       {isOwner && (
@@ -690,8 +827,10 @@ export function HouseholdPanel({
   const [notice, setNotice] = useState<string | null>(null);
   const [name, setName] = useState(householdResult.data?.household?.name ?? "");
   const [inviteEmail, setInviteEmail] = useState("");
+  const [equipmentSlug, setEquipmentSlug] = useState("");
   const household = householdResult.data?.household ?? null;
   const members = householdResult.data?.members ?? [];
+  const equipment = householdResult.data?.equipment ?? null;
   const invitations = householdResult.data?.invitations ?? [];
   const incoming = householdResult.data?.incoming ?? [];
   const error =
@@ -848,6 +987,46 @@ export function HouseholdPanel({
     });
   }
 
+  function onAddEquipment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!household || !equipmentSlug) return;
+    run("add-equipment", async () => {
+      const added = await addHouseholdEquipment(household.id, equipmentSlug);
+      updateHouseholdData((current) => ({
+        ...current,
+        equipment: current.equipment
+          ? {
+              ...current.equipment,
+              owned: [...current.equipment.owned, added].sort((left, right) =>
+                left.name.localeCompare(right.name),
+              ),
+            }
+          : current.equipment,
+      }));
+      setEquipmentSlug("");
+      setNotice(`${added.name} added to the household.`);
+    });
+  }
+
+  function onRemoveEquipment(item: HouseholdEquipmentItem) {
+    if (!household) return;
+    run("remove-equipment", async () => {
+      await removeHouseholdEquipment(household.id, item.slug);
+      updateHouseholdData((current) => ({
+        ...current,
+        equipment: current.equipment
+          ? {
+              ...current.equipment,
+              owned: current.equipment.owned.filter(
+                (ownedItem) => ownedItem.slug !== item.slug,
+              ),
+            }
+          : current.equipment,
+      }));
+      setNotice(`${item.name} removed from the household.`);
+    });
+  }
+
   function deleteCurrentHousehold() {
     if (!household) return;
     if (!window.confirm(`Delete ${household.name}? This can't be undone.`)) {
@@ -858,6 +1037,7 @@ export function HouseholdPanel({
       updateHouseholdData((current) => ({
         ...current,
         household: null,
+        equipment: null,
         members: [],
         invitations: [],
       }));
@@ -875,6 +1055,7 @@ export function HouseholdPanel({
       updateHouseholdData((current) => ({
         ...current,
         household: null,
+        equipment: null,
         members: [],
         invitations: [],
       }));
@@ -922,20 +1103,25 @@ export function HouseholdPanel({
     <ManagedHouseholdView
       household={household}
       members={members}
+      equipment={equipment}
       invitations={invitations}
       currentUserId={currentUser.id}
       busy={busy}
       mutation={mutation}
       name={name}
       inviteEmail={inviteEmail}
+      equipmentSlug={equipmentSlug}
       error={error}
       notice={notice}
       onNameChange={setName}
       onInviteEmailChange={setInviteEmail}
+      onEquipmentSlugChange={setEquipmentSlug}
       onRename={onRename}
       onInvite={onInvite}
       onRemove={removeMember}
       onRevoke={revokeInvitation}
+      onAddEquipment={onAddEquipment}
+      onRemoveEquipment={onRemoveEquipment}
       onDelete={deleteCurrentHousehold}
       onLeave={leaveCurrentHousehold}
     />

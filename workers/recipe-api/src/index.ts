@@ -63,6 +63,9 @@ import {
   RECIPE_SLUG_MAX_LENGTH,
 } from "recipe-domain/slugs";
 import { RecipeVisibilitySchema } from "recipe-domain/visibility";
+import { canonicalEquipment } from "recipe-parsing/canonical-equipment-data";
+import { equipmentDisplayName } from "recipe-parsing/equipment-canonicalization";
+import { EquipmentCategorySchema } from "recipe-parsing/schemas/canonical-equipment";
 import { parseRecipeFile } from "recipe-parsing/recipe-file";
 import { parseSchemaOrgRecipeHtml } from "recipe-parsing/schema-org";
 import { z } from "zod";
@@ -482,6 +485,44 @@ const inviteHouseholdMemberBodySchema = z
   })
   .strict();
 
+const householdEquipmentCatalog = canonicalEquipment.equipment.map((item) => ({
+  ...item,
+  name: equipmentDisplayName(item.slug),
+}));
+const householdEquipmentBySlug = new Map(
+  householdEquipmentCatalog.map((item) => [item.slug, item]),
+);
+const householdEquipmentSlugSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(100)
+  .refine((slug) => householdEquipmentBySlug.has(slug), {
+    message: "Unknown equipment",
+  });
+const householdEquipmentCatalogItemSchema = z
+  .object({
+    slug: z.string().min(1).max(100),
+    name: z.string().min(1).max(100),
+    category: EquipmentCategorySchema,
+  })
+  .strict();
+const householdEquipmentOwnedItemSchema =
+  householdEquipmentCatalogItemSchema.extend({
+    createdAt: z.iso.datetime().max(40),
+  });
+const householdEquipmentResponseSchema = z
+  .object({
+    catalog: z
+      .array(householdEquipmentCatalogItemSchema)
+      .max(householdEquipmentCatalog.length),
+    owned: z
+      .array(householdEquipmentOwnedItemSchema)
+      .max(householdEquipmentCatalog.length),
+  })
+  .strict()
+  .openapi("HouseholdEquipment");
+
 const pantryStockBodySchema = z
   .object({
     stock: z
@@ -739,6 +780,13 @@ export const routeMetadata = {
     requestBodySchema: updateHouseholdBodySchema,
   },
   "GET /households/:householdId/members": {},
+  "GET /households/:householdId/equipment": {
+    successResponseSchema: householdEquipmentResponseSchema,
+  },
+  "PUT /households/:householdId/equipment/:equipmentSlug": {
+    successResponseSchema: householdEquipmentOwnedItemSchema,
+  },
+  "DELETE /households/:householdId/equipment/:equipmentSlug": {},
   "GET /households/:householdId/invitations": {},
   "POST /households/:householdId/invitations": {
     requestBodySchema: inviteHouseholdMemberBodySchema,
@@ -1266,6 +1314,15 @@ function uuidParam(
   return result.success
     ? result.data
     : c.json({ error: `Invalid ${label}` }, 400);
+}
+
+function equipmentSlugParam(c: Context<AppEnv>): string | Response {
+  const result = householdEquipmentSlugSchema.safeParse(
+    c.req.param("equipmentSlug"),
+  );
+  return result.success
+    ? result.data
+    : c.json({ error: "Unknown equipment" }, 400);
 }
 
 function hasAuthConfiguration(env: Bindings): boolean {
@@ -4331,6 +4388,151 @@ registerRoute("get", "/households/:householdId/members", async (c) => {
     },
   );
 });
+
+function householdEquipmentItemResponse(
+  equipmentSlug: string,
+  createdAt: Date,
+) {
+  const catalogItem = householdEquipmentBySlug.get(equipmentSlug);
+  if (!catalogItem) {
+    throw new Error(`Unknown stored equipment: ${equipmentSlug}`);
+  }
+  return { ...catalogItem, createdAt: createdAt.toISOString() };
+}
+
+registerRoute("get", "/households/:householdId/equipment", async (c) => {
+  const householdId = uuidParam(c, "householdId", "household ID");
+  if (householdId instanceof Response) return householdId;
+
+  return withRecipeSession(
+    c,
+    "query",
+    "GET /households/:householdId/equipment failed",
+    async ({ db, session }) => {
+      const memberFailure = await requireHouseholdMemberResponse(
+        c,
+        db,
+        householdId,
+        session,
+      );
+      if (memberFailure) return memberFailure;
+
+      const equipment = await db
+        .select({
+          equipmentSlug: schema.householdEquipment.equipmentSlug,
+          createdAt: schema.householdEquipment.createdAt,
+        })
+        .from(schema.householdEquipment)
+        .where(eq(schema.householdEquipment.organizationId, householdId))
+        .orderBy(schema.householdEquipment.equipmentSlug);
+
+      return c.json({
+        catalog: householdEquipmentCatalog,
+        owned: equipment.map(({ equipmentSlug, createdAt }) =>
+          householdEquipmentItemResponse(equipmentSlug, createdAt),
+        ),
+      });
+    },
+  );
+});
+
+registerRoute(
+  "put",
+  "/households/:householdId/equipment/:equipmentSlug",
+  async (c) => {
+    const householdId = uuidParam(c, "householdId", "household ID");
+    if (householdId instanceof Response) return householdId;
+    const equipmentSlug = equipmentSlugParam(c);
+    if (equipmentSlug instanceof Response) return equipmentSlug;
+    const csrfFailure = validateCsrf(c);
+    if (csrfFailure) return csrfFailure;
+
+    return withRecipeSession(
+      c,
+      "mutation",
+      "PUT /households/:householdId/equipment/:equipmentSlug failed",
+      async ({ db, session }) => {
+        const memberFailure = await requireHouseholdMemberResponse(
+          c,
+          db,
+          householdId,
+          session,
+        );
+        if (memberFailure) return memberFailure;
+
+        const [created] = await db
+          .insert(schema.householdEquipment)
+          .values({ organizationId: householdId, equipmentSlug })
+          .onConflictDoNothing()
+          .returning();
+        if (created) {
+          return c.json(
+            householdEquipmentItemResponse(
+              created.equipmentSlug,
+              created.createdAt,
+            ),
+          );
+        }
+
+        const [existing] = await db
+          .select()
+          .from(schema.householdEquipment)
+          .where(
+            and(
+              eq(schema.householdEquipment.organizationId, householdId),
+              eq(schema.householdEquipment.equipmentSlug, equipmentSlug),
+            ),
+          )
+          .limit(1);
+        if (!existing) throw new Error("Equipment insert failed");
+        return c.json(
+          householdEquipmentItemResponse(
+            existing.equipmentSlug,
+            existing.createdAt,
+          ),
+        );
+      },
+    );
+  },
+);
+
+registerRoute(
+  "delete",
+  "/households/:householdId/equipment/:equipmentSlug",
+  async (c) => {
+    const householdId = uuidParam(c, "householdId", "household ID");
+    if (householdId instanceof Response) return householdId;
+    const equipmentSlug = equipmentSlugParam(c);
+    if (equipmentSlug instanceof Response) return equipmentSlug;
+    const csrfFailure = validateCsrf(c);
+    if (csrfFailure) return csrfFailure;
+
+    return withRecipeSession(
+      c,
+      "mutation",
+      "DELETE /households/:householdId/equipment/:equipmentSlug failed",
+      async ({ db, session }) => {
+        const memberFailure = await requireHouseholdMemberResponse(
+          c,
+          db,
+          householdId,
+          session,
+        );
+        if (memberFailure) return memberFailure;
+
+        await db
+          .delete(schema.householdEquipment)
+          .where(
+            and(
+              eq(schema.householdEquipment.organizationId, householdId),
+              eq(schema.householdEquipment.equipmentSlug, equipmentSlug),
+            ),
+          );
+        return c.body(null, 204);
+      },
+    );
+  },
+);
 
 registerRoute("get", "/households/:householdId/invitations", async (c) => {
   const householdId = uuidParam(c, "householdId", "household ID");
