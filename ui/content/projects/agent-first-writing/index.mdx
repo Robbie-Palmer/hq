@@ -112,6 +112,51 @@ The editor should support three levels of control:
 The user should be able to move between them. A deterministic punctuation fix
 does not need the same ceremony as restructuring an argument.
 
+## Editorial data flow
+
+The implemented path runs repository text through Vale and stores its
+detection-only findings against hashed source bytes. The evaluation pipeline
+can compare those findings with published edits, but an observed edit is not an
+acceptance decision. The suggestion, rewrite, review, and outcome path remains
+planned. Solid blue nodes and lines are implemented. Dashed orange nodes and
+lines are planned.
+
+<Mermaid
+  chart={`flowchart LR
+Source["Source text<br/>[Implemented]<br/>Revision and SHA-256 hash"]
+Rules["Deterministic checks<br/>[Implemented]<br/>Vale rules"]
+Findings["Deterministic findings<br/>[Implemented]<br/>UTF-8 spans and provenance"]
+Local["Local suggestions<br/>[Planned]<br/>Replacement and confidence"]
+Rewrite["Passage rewrites<br/>[Planned]<br/>Grouped proposal and diff"]
+Review["Human review<br/>[Planned editor stage]<br/>Accept, reject, or change"]
+Evidence["Evaluation evidence<br/>[Implemented foundation]<br/>Published-edit alignment"]
+Outcomes["Decision-backed evidence<br/>[Planned]<br/>Quality and review-time metrics"]
+
+Source -->|"exact source bytes"| Rules
+Rules -->|"detection-only records"| Findings
+Findings -->|"finding IDs and published diffs"| Evidence
+Source -.->|"bounded source spans"| Local
+Source -.->|"wider document context"| Rewrite
+Local -.->|"one-suggestion proposals"| Review
+Rewrite -.->|"multi-edit proposals"| Review
+Review -.->|"recorded editorial decisions"| Outcomes
+Evidence -.->|"baseline comparisons"| Outcomes
+
+classDef implemented fill:#dbeafe,stroke:#2563eb,color:#1e3a5f,stroke-width:2px
+classDef planned fill:#ffedd5,stroke:#ea580c,color:#7c2d12,stroke-width:2px,stroke-dasharray:5 5
+class Source,Rules,Findings,Evidence implemented
+class Local,Rewrite,Review,Outcomes planned
+linkStyle 3,4,5,6,7,8 stroke:#ea580c,stroke-width:2px,stroke-dasharray:5 5
+`}
+/>
+
+Read left to right, with two different records leaving analysis. A rule that
+can only locate a problem produces a finding and goes straight to evaluation.
+A producer that can supply a replacement will create a local suggestion or a
+grouped passage rewrite for review. The editor will preserve the proposal and
+the person's accept, reject, or change decision as evaluation evidence. No
+planned stage may publish in the author's name without that review.
+
 # Evaluation data
 
 The useful dataset should capture more than a generic collection of
