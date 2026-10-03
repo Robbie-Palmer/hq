@@ -19,6 +19,12 @@ test("household members can manage shared kitchen equipment", async ({
     await page.getByRole("button", { name: "Household", exact: true }).click();
     const equipmentSelect = page.getByLabel("Equipment to add");
     await expect(equipmentSelect).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Remove frying pan" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Remove saucepan" }),
+    ).toBeVisible();
     const removeBlender = page.getByRole("button", {
       name: "Remove blender",
     });
@@ -40,6 +46,24 @@ test("household members can manage shared kitchen equipment", async ({
     await expect(removeBlender).toHaveCount(0);
     await expect(
       page.getByText("blender removed from the household."),
+    ).toBeVisible();
+
+    await page.goto("/recipes");
+    const curryCard = page.locator('[data-slot="card"]').filter({
+      has: page.getByRole("link", {
+        name: "Preview Household Veggie Curry",
+        exact: true,
+      }),
+    });
+    const flatbreadCard = page.locator('[data-slot="card"]').filter({
+      has: page.getByRole("link", {
+        name: "Preview Household Flatbread",
+        exact: true,
+      }),
+    });
+    await expect(curryCard.getByText(/Missing equipment:/)).toHaveCount(0);
+    await expect(
+      flatbreadCard.getByText("Missing equipment: grill.", { exact: true }),
     ).toBeVisible();
   } finally {
     await context.close();
