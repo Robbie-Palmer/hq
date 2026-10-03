@@ -6281,6 +6281,7 @@ describe("household membership flows", () => {
         slug: "frying-pan",
         name: "frying pan",
         category: "cookware",
+        retired: false,
       });
     }
     expect(dbMock.state.householdEquipment).toHaveLength(1);
@@ -6313,16 +6314,56 @@ describe("household membership flows", () => {
 
   it("lets members remove equipment and rejects unknown equipment", async () => {
     seedHousehold();
-    dbMock.state.householdEquipment.push({
-      organizationId: HOUSEHOLD_ID,
-      equipmentSlug: "frying-pan",
-      createdAt: dbMock.date,
-    });
+    dbMock.state.householdEquipment.push(
+      {
+        organizationId: HOUSEHOLD_ID,
+        equipmentSlug: "frying-pan",
+        createdAt: dbMock.date,
+      },
+      {
+        organizationId: HOUSEHOLD_ID,
+        equipmentSlug: "rotary-dial-oven",
+        createdAt: dbMock.date,
+      },
+    );
     authzMock.session = sessionFor({
       id: "member-user",
       email: "member@example.test",
       name: "Member",
     });
+
+    const listResponse = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment`,
+      {},
+      env,
+    );
+    expect(listResponse.status).toBe(200);
+    const listBody = (await listResponse.json()) as {
+      owned: Array<{ slug: string; [key: string]: unknown }>;
+    };
+    expect(listBody).toMatchObject({
+      owned: expect.arrayContaining([
+        {
+          slug: "rotary-dial-oven",
+          name: "rotary dial oven",
+          createdAt: dbMock.date.toISOString(),
+          retired: true,
+        },
+      ]),
+    });
+    expect(
+      listBody.owned.find((item) => item.slug === "rotary-dial-oven"),
+    ).not.toHaveProperty("category");
+
+    const retiredDeleteResponse = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment/rotary-dial-oven`,
+      {
+        method: "DELETE",
+        headers: { origin: "http://localhost:3000" },
+      },
+      env,
+    );
+    expect(retiredDeleteResponse.status).toBe(204);
 
     const deleteResponse = await app.request(
       `/households/${HOUSEHOLD_ID}/equipment/frying-pan`,

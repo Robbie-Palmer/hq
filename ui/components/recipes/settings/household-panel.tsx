@@ -645,7 +645,9 @@ function HouseholdEquipmentSection({
                 <p className="rt-body capitalize text-sm text-[var(--ink)]">
                   {item.name}
                 </p>
-                <p className="rt-mono text-[var(--ink-3)]">{item.category}</p>
+                <p className="rt-mono text-[var(--ink-3)]">
+                  {item.retired ? "retired equipment" : item.category}
+                </p>
               </div>
               <Button
                 type="button"
@@ -1003,9 +1005,12 @@ export function HouseholdPanel({
         equipment: current.equipment
           ? {
               ...current.equipment,
-              owned: [...current.equipment.owned, added].sort((left, right) =>
-                left.name.localeCompare(right.name),
-              ),
+              owned: [
+                ...current.equipment.owned.filter(
+                  (item) => item.slug !== added.slug,
+                ),
+                added,
+              ].sort((left, right) => left.name.localeCompare(right.name)),
             }
           : current.equipment,
       }));

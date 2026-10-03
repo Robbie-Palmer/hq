@@ -18,6 +18,7 @@ test("household members can manage shared kitchen equipment", async ({
 
     await page.getByRole("button", { name: "Household", exact: true }).click();
     const equipmentSelect = page.getByLabel("Equipment to add");
+    await expect(equipmentSelect).toBeVisible();
     const removeBlender = page.getByRole("button", {
       name: "Remove blender",
     });

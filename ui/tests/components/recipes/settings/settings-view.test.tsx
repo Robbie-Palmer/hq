@@ -470,6 +470,7 @@ describe("SettingsView", () => {
           name: "frying pan",
           category: "cookware",
           createdAt: "2026-10-01T00:00:00.000Z",
+          retired: false,
         },
       ],
     });
@@ -478,6 +479,7 @@ describe("SettingsView", () => {
       name: "blender",
       category: "appliance",
       createdAt: "2026-10-03T00:00:00.000Z",
+      retired: false,
     });
     renderSettingsView();
 
@@ -523,6 +525,36 @@ describe("SettingsView", () => {
       await screen.findByText("No equipment added yet."),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Equipment to add")).toBeEnabled();
+  });
+
+  it("keeps retired household equipment visible and removable", async () => {
+    const user = userEvent.setup();
+    mockMemberHousehold();
+    mocks.getHouseholdEquipment.mockResolvedValue({
+      catalog: [],
+      owned: [
+        {
+          slug: "rotary-dial-oven",
+          name: "rotary dial oven",
+          createdAt: "2026-10-01T00:00:00.000Z",
+          retired: true,
+        },
+      ],
+    });
+    renderSettingsView();
+
+    await user.click(screen.getByRole("button", { name: "Household" }));
+
+    expect(await screen.findByText("retired equipment")).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Remove rotary dial oven" }),
+    );
+    await waitFor(() =>
+      expect(mocks.removeHouseholdEquipment).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000001",
+        "rotary-dial-oven",
+      ),
+    );
   });
 
   it("keeps household equipment read-only when it fails to load", async () => {

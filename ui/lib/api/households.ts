@@ -62,8 +62,12 @@ export type HouseholdEquipmentCatalogItem = {
   category: EquipmentCategory;
 };
 
-export type HouseholdEquipmentItem = HouseholdEquipmentCatalogItem & {
+export type HouseholdEquipmentItem = {
+  slug: string;
+  name: string;
+  category?: EquipmentCategory;
   createdAt: string;
+  retired: boolean;
 };
 
 export type HouseholdEquipment = {

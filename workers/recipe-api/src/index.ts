@@ -492,11 +492,13 @@ const householdEquipmentCatalog = canonicalEquipment.equipment.map((item) => ({
 const householdEquipmentBySlug = new Map(
   householdEquipmentCatalog.map((item) => [item.slug, item]),
 );
-const householdEquipmentSlugSchema = z
+const householdEquipmentStoredSlugSchema = z
   .string()
   .trim()
   .min(1)
   .max(100)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+const householdEquipmentSlugSchema = householdEquipmentStoredSlugSchema
   .refine((slug) => householdEquipmentBySlug.has(slug), {
     message: "Unknown equipment",
   });
@@ -507,10 +509,15 @@ const householdEquipmentCatalogItemSchema = z
     category: EquipmentCategorySchema,
   })
   .strict();
-const householdEquipmentOwnedItemSchema =
-  householdEquipmentCatalogItemSchema.extend({
+const householdEquipmentOwnedItemSchema = z
+  .object({
+    slug: z.string().min(1).max(100),
+    name: z.string().min(1).max(100),
+    category: EquipmentCategorySchema.optional(),
     createdAt: z.iso.datetime().max(40),
-  });
+    retired: z.boolean(),
+  })
+  .strict();
 const householdEquipmentResponseSchema = z
   .object({
     catalog: z
@@ -518,7 +525,7 @@ const householdEquipmentResponseSchema = z
       .max(householdEquipmentCatalog.length),
     owned: z
       .array(householdEquipmentOwnedItemSchema)
-      .max(householdEquipmentCatalog.length),
+      .max(500),
   })
   .strict()
   .openapi("HouseholdEquipment");
@@ -1316,8 +1323,14 @@ function uuidParam(
     : c.json({ error: `Invalid ${label}` }, 400);
 }
 
-function equipmentSlugParam(c: Context<AppEnv>): string | Response {
-  const result = householdEquipmentSlugSchema.safeParse(
+function equipmentSlugParam(
+  c: Context<AppEnv>,
+  allowRetired = false,
+): string | Response {
+  const schema = allowRetired
+    ? householdEquipmentStoredSlugSchema
+    : householdEquipmentSlugSchema;
+  const result = schema.safeParse(
     c.req.param("equipmentSlug"),
   );
   return result.success
@@ -4394,15 +4407,24 @@ function householdEquipmentItemResponse(
   createdAt: Date,
 ) {
   const catalogItem = householdEquipmentBySlug.get(equipmentSlug);
-  if (!catalogItem) {
-    throw new Error(`Unknown stored equipment: ${equipmentSlug}`);
-  }
-  return { ...catalogItem, createdAt: createdAt.toISOString() };
+  return catalogItem
+    ? {
+        ...catalogItem,
+        createdAt: createdAt.toISOString(),
+        retired: false,
+      }
+    : {
+        slug: equipmentSlug,
+        name: equipmentDisplayName(equipmentSlug),
+        createdAt: createdAt.toISOString(),
+        retired: true,
+      };
 }
 
 async function withHouseholdEquipmentMutation(
   c: Context<AppEnv>,
   logMessage: string,
+  allowRetired: boolean,
   mutate: (
     db: Db,
     householdId: string,
@@ -4411,7 +4433,7 @@ async function withHouseholdEquipmentMutation(
 ): Promise<Response> {
   const householdId = uuidParam(c, "householdId", "household ID");
   if (householdId instanceof Response) return householdId;
-  const equipmentSlug = equipmentSlugParam(c);
+  const equipmentSlug = equipmentSlugParam(c, allowRetired);
   if (equipmentSlug instanceof Response) return equipmentSlug;
   const csrfFailure = validateCsrf(c);
   if (csrfFailure) return csrfFailure;
@@ -4471,6 +4493,7 @@ registerRoute(
     withHouseholdEquipmentMutation(
       c,
       "PUT /households/:householdId/equipment/:equipmentSlug failed",
+      false,
       async (db, householdId, equipmentSlug) => {
         const [created] = await db
           .insert(schema.householdEquipment)
@@ -4514,6 +4537,7 @@ registerRoute(
     withHouseholdEquipmentMutation(
       c,
       "DELETE /households/:householdId/equipment/:equipmentSlug failed",
+      true,
       async (db, householdId, equipmentSlug) => {
         await db
           .delete(schema.householdEquipment)

@@ -466,17 +466,20 @@
                   "type": "string",
                   "maxLength": 40,
                   "format": "date-time"
+                },
+                "retired": {
+                  "type": "boolean"
                 }
               },
               "required": [
                 "slug",
                 "name",
-                "category",
-                "createdAt"
+                "createdAt",
+                "retired"
               ],
               "additionalProperties": false
             },
-            "maxItems": 81
+            "maxItems": 500
           }
         },
         "required": [
@@ -1797,13 +1800,16 @@
                       "type": "string",
                       "maxLength": 40,
                       "format": "date-time"
+                    },
+                    "retired": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
                     "slug",
                     "name",
-                    "category",
-                    "createdAt"
+                    "createdAt",
+                    "retired"
                   ],
                   "additionalProperties": false
                 }
