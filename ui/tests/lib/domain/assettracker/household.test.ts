@@ -1,15 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
   AssetTrackerDataSchema,
+  applyAddHouseholdMember,
   applyImportAccountHistory,
   applyImportIncomeHistory,
+  applyRenameHouseholdMember,
   applySetAccountOwnership,
+  applySetActiveHouseholdScope,
   buildRepository,
+  capitalFlowOwnershipKey,
+  defaultHouseholdFields,
   equalSharedOwnership,
   getNetWorthTimeSeries,
+  migrateHouseholdOwnership,
+  OwnershipSchema,
+  ownershipLabel,
+  ownershipShare,
   personalOwnership,
   scopeAssetTrackerData,
   snapshotOwnershipKey,
+  validateHouseholdOwnership,
 } from "@/lib/domain/assettracker";
 
 function oldSinglePersonData() {
@@ -205,5 +215,314 @@ describe("browser household ownership", () => {
       "2025-01-31": sam,
       "2025-02-28": sam,
     });
+  });
+
+  it("validates shared ownership and formats known and unknown owners", () => {
+    expect(
+      OwnershipSchema.safeParse({
+        kind: "shared",
+        shares: [
+          { memberId: "alex", share: 0.5 },
+          { memberId: "alex", share: 0.5 },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      OwnershipSchema.safeParse({
+        kind: "shared",
+        shares: [
+          { memberId: "alex", share: 0.6 },
+          { memberId: "sam", share: 0.3 },
+        ],
+      }).success,
+    ).toBe(false);
+
+    expect(equalSharedOwnership([])).toEqual(personalOwnership("primary"));
+    expect(equalSharedOwnership([{ id: "alex", displayName: "Alex" }])).toEqual(
+      personalOwnership("alex"),
+    );
+    expect(ownershipShare(personalOwnership("alex"), "sam")).toBe(0);
+    expect(
+      ownershipShare(
+        {
+          kind: "shared",
+          shares: [
+            { memberId: "alex", share: 0.75 },
+            { memberId: "sam", share: 0.25 },
+          ],
+        },
+        "jo",
+      ),
+    ).toBe(0);
+    expect(
+      ownershipLabel(personalOwnership("missing"), [
+        { id: "alex", displayName: "Alex" },
+      ]),
+    ).toBe("Unknown member");
+    expect(
+      ownershipLabel(
+        {
+          kind: "shared",
+          shares: [
+            { memberId: "alex", share: 0.75 },
+            { memberId: "missing", share: 0.25 },
+          ],
+        },
+        [{ id: "alex", displayName: "Alex" }],
+      ),
+    ).toBe("Alex 75%, Unknown member 25%");
+  });
+
+  it("keeps stable member IDs and rejects references outside the roster", () => {
+    const original = AssetTrackerDataSchema.parse(oldSinglePersonData());
+    const sam = applyAddHouseholdMember(original, { displayName: "Sam" });
+    const sam2 = applyAddHouseholdMember(sam, { displayName: "Sam" });
+    const sam3 = applyAddHouseholdMember(sam2, { displayName: "Sam" });
+    const symbol = applyAddHouseholdMember(sam3, { displayName: "✨" });
+    const renamed = applyRenameHouseholdMember(symbol, {
+      memberId: "sam",
+      displayName: "Samantha",
+    });
+
+    expect(renamed.household.members).toEqual([
+      { id: "primary", displayName: "Me" },
+      { id: "sam", displayName: "Samantha" },
+      { id: "sam-2", displayName: "Sam" },
+      { id: "sam-3", displayName: "Sam" },
+      { id: "member", displayName: "✨" },
+    ]);
+    expect(
+      applySetActiveHouseholdScope(renamed, {
+        kind: "member",
+        memberId: "sam",
+      }).household.activeScope,
+    ).toEqual({ kind: "member", memberId: "sam" });
+    expect(
+      applySetActiveHouseholdScope(renamed, { kind: "household" }).household
+        .activeScope,
+    ).toEqual({ kind: "household" });
+
+    expect(() =>
+      applyRenameHouseholdMember(renamed, {
+        memberId: "missing",
+        displayName: "Nobody",
+      }),
+    ).toThrow('Unknown household member "missing"');
+    expect(() =>
+      applySetActiveHouseholdScope(renamed, {
+        kind: "member",
+        memberId: "missing",
+      }),
+    ).toThrow('Unknown household member "missing"');
+    expect(() =>
+      applySetAccountOwnership(renamed, {
+        accountId: "missing",
+        ownership: personalOwnership("sam"),
+      }),
+    ).toThrow('Unknown account "missing"');
+    expect(() =>
+      applySetAccountOwnership(renamed, {
+        accountId: "cash",
+        ownership: personalOwnership("missing"),
+      }),
+    ).toThrow('Ownership references unknown household member "missing"');
+  });
+
+  it("migrates every record family from its related account owner", () => {
+    const fields = defaultHouseholdFields();
+    const migrated = migrateHouseholdOwnership({
+      ...fields,
+      accounts: [{ id: "cash" }],
+      snapshots: [{ accountId: "cash", date: "2025-01-31" }],
+      capitalFlows: [{ accountId: "cash", date: "2025-01-15" }],
+      incomeHistory: [{ date: "2025-01-31" }],
+      transfers: [
+        { id: "incoming", toAccountId: "cash" },
+        { id: "outgoing", fromAccountId: "cash" },
+        { id: "unlinked" },
+      ],
+      recurringFlows: [
+        { id: "salary", toAccountId: "cash" },
+        { id: "spending", fromAccountId: "cash" },
+      ],
+      plannedExpenditures: [{ id: "holiday", fromAccountId: "cash" }],
+      holdingObservations: [{ id: "holding", accountId: "cash" }],
+    });
+
+    for (const collection of Object.values(migrated.ownership)) {
+      for (const ownership of Object.values(collection)) {
+        expect(ownership).toEqual(personalOwnership("primary"));
+      }
+    }
+  });
+
+  it("scales shared transfers, recurring flows, plans, and holdings", () => {
+    const shared = {
+      kind: "shared" as const,
+      shares: [
+        { memberId: "primary", share: 0.6 },
+        { memberId: "sam", share: 0.4 },
+      ],
+    };
+    const data = AssetTrackerDataSchema.parse({
+      ...oldSinglePersonData(),
+      household: {
+        members: [
+          { id: "primary", displayName: "Alex" },
+          { id: "sam", displayName: "Sam" },
+        ],
+        activeScope: { kind: "member", memberId: "sam" },
+      },
+      accounts: [
+        oldSinglePersonData().accounts[0],
+        {
+          id: "stocks",
+          name: "Stocks",
+          provider: "Broker",
+          currency: "GBP",
+          assetType: "stocks",
+          expectedAnnualReturn: 0.05,
+          linkedAccountId: "cash",
+          createdAt: "2025-01-01",
+        },
+      ],
+      snapshots: [
+        { accountId: "cash", date: "2025-01-31", balance: 1_000 },
+        { accountId: "stocks", date: "2025-01-31", balance: 2_000 },
+      ],
+      capitalFlows: [{ accountId: "cash", date: "2025-01-15", amount: 200 }],
+      transfers: [
+        {
+          id: "transfer",
+          date: "2025-01-20",
+          fromAccountId: "cash",
+          toAccountId: "stocks",
+          amount: 100,
+          fromAmount: 110,
+          toAmount: 95,
+          feeAmount: 5,
+        },
+      ],
+      recurringFlows: [
+        {
+          id: "salary",
+          name: "Salary",
+          toAccountId: "cash",
+          amount: 500,
+          grossAmount: 600,
+          compensationKind: "takeHomeIncome",
+          currency: "GBP",
+          frequency: "monthly",
+          startDate: "2025-01-01",
+        },
+      ],
+      plannedExpenditures: [
+        {
+          id: "holiday",
+          name: "Holiday",
+          amount: 1_000,
+          date: "2025-12-01",
+          fromAccountId: "cash",
+        },
+      ],
+      instruments: [
+        { id: "fund", symbol: "FUND", name: "Fund", currency: "GBP" },
+      ],
+      holdingObservations: [
+        {
+          id: "holding",
+          accountId: "stocks",
+          instrumentId: "fund",
+          quantity: 10,
+          validAt: "2025-01-31",
+          acceptedAt: "2025-01-31T12:00:00Z",
+          source: { kind: "manual", id: "test" },
+        },
+      ],
+      ownership: {
+        accounts: { cash: shared, stocks: shared },
+        snapshots: {
+          [snapshotOwnershipKey("cash", "2025-01-31")]: shared,
+          [snapshotOwnershipKey("stocks", "2025-01-31")]: shared,
+        },
+        capitalFlows: {
+          [capitalFlowOwnershipKey({
+            accountId: "cash",
+            date: "2025-01-15",
+          })]: shared,
+        },
+        incomeHistory: { "2025-01-31": shared },
+        transfers: { transfer: shared },
+        recurringFlows: { salary: shared },
+        plannedExpenditures: { holiday: shared },
+        holdingObservations: { holding: shared },
+      },
+    });
+
+    const scoped = scopeAssetTrackerData(data);
+    const reassigned = applySetAccountOwnership(data, {
+      accountId: "stocks",
+      ownership: personalOwnership("primary"),
+    });
+    const cashReassigned = applySetAccountOwnership(data, {
+      accountId: "cash",
+      ownership: personalOwnership("primary"),
+    });
+
+    expect(scoped.snapshots.map(({ balance }) => balance)).toEqual([400, 800]);
+    expect(scoped.capitalFlows[0]?.amount).toBe(80);
+    expect(scoped.incomeHistory[0]?.amount).toBe(1_200);
+    expect(scoped.transfers[0]).toMatchObject({
+      amount: 40,
+      fromAmount: 44,
+      toAmount: 38,
+      feeAmount: 2,
+    });
+    expect(scoped.recurringFlows[0]).toMatchObject({
+      amount: 200,
+      grossAmount: 240,
+    });
+    expect(scoped.plannedExpenditures[0]?.amount).toBe(400);
+    expect(scoped.holdingObservations?.[0]?.quantity).toBe(4);
+    expect(reassigned.ownership.holdingObservations.holding).toEqual(
+      personalOwnership("primary"),
+    );
+    expect(cashReassigned.ownership.plannedExpenditures.holiday).toEqual(
+      personalOwnership("primary"),
+    );
+  });
+
+  it("rejects duplicate, inactive, and unknown household references", () => {
+    const data = AssetTrackerDataSchema.parse(oldSinglePersonData());
+    expect(() =>
+      validateHouseholdOwnership({
+        ...data,
+        household: {
+          members: [
+            { id: "primary", displayName: "Alex" },
+            { id: "primary", displayName: "Sam" },
+          ],
+          activeScope: { kind: "household" },
+        },
+      }),
+    ).toThrow("Household member IDs must be unique");
+    expect(() =>
+      validateHouseholdOwnership({
+        ...data,
+        household: {
+          ...data.household,
+          activeScope: { kind: "member", memberId: "missing" },
+        },
+      }),
+    ).toThrow('Ownership references unknown household member "missing"');
+    expect(() =>
+      validateHouseholdOwnership({
+        ...data,
+        ownership: {
+          ...data.ownership,
+          accounts: { cash: personalOwnership("missing") },
+        },
+      }),
+    ).toThrow('Ownership references unknown household member "missing"');
   });
 });
