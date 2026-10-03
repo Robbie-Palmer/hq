@@ -190,6 +190,24 @@
     dest: "{{ ansible_facts.env.HOME }}/.local/bin/start-colima-k3s.sh"
     mode: "0700"
     validate: /bin/bash -n %s
+  vars:
+    colima_k3s_wrapper_path: >-
+      {{
+        [
+          colima_k3s_colima_binary.stdout | dirname,
+          colima_k3s_lima_binary.stdout | dirname,
+          colima_k3s_kubectl_binary.stdout | dirname,
+          colima_k3s_docker_binary.stdout | dirname,
+          '/opt/homebrew/bin',
+          '/usr/local/bin',
+          '/usr/bin',
+          '/bin',
+          '/usr/sbin',
+          '/sbin'
+        ]
+        | unique
+        | join(':')
+      }}
   notify: Restart the managed Colima K3s profile
 
 - name: Install the Colima K3s launchd definition

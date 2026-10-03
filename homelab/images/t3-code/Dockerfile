@@ -1,49 +1,48 @@
-FROM docker@sha256:eccaacfeed644c7de222ff047483568cb988dde95476fbaaf10ea2d04921bb66 AS docker-cli
+FROM ghcr.io/jdx/mise:2026.9.1@sha256:df5adf538c92d86f9807e738c7c7a9b32a1ae06edf441ede141333e3fe6a2cd9 AS mise-tools
 
-FROM node@sha256:2c87ef9bd3c6a3bd4b472b4bec2ce9d16354b0c574f736c476489d09f560a203
+COPY --from=shared-tool-config config.toml /tmp/t3-code-mise/mise.toml
+COPY --from=shared-tool-config mise.lock /tmp/t3-code-mise/mise.lock
+COPY mise.toml mise.lock /tmp/t3-code-mise/image/
 
-ARG MISE_VERSION
-ARG MISE_SHA256=063dda9149ab6be53da877c2d176afe0eac68e64cf8ca295bd0528720701c65d
-ARG DOPPLER_VERSION=3.76.5
-ARG DOPPLER_SHA256=1b2f412d984920d665daf233ab6c15b364df9339b5c5b5224d5e8ee4e0a70154
-ARG VALE_VERSION=3.19.0
-ARG VALE_SHA256=c8f9d6c8055442bc7e9c121b2498e6f0e3fb670f4665e6ee577f1897f7665cf6
+RUN export MISE_CACHE_DIR=/tmp/mise-cache \
+      MISE_DATA_DIR=/tmp/mise-data \
+      MISE_STATE_DIR=/tmp/mise-state \
+      MISE_TRUSTED_CONFIG_PATHS=/tmp/t3-code-mise \
+    && mise -C /tmp/t3-code-mise/image install --locked \
+      github:jdx/mise doppler vale \
+    && mkdir -p /opt/t3-code-tools \
+    && install --mode=0755 \
+      "$(mise -C /tmp/t3-code-mise/image which doppler)" \
+      /opt/t3-code-tools/doppler \
+    && install --mode=0755 \
+      "$(mise -C /tmp/t3-code-mise/image which vale)" \
+      /opt/t3-code-tools/vale \
+    && install --mode=0755 \
+      "$(mise -C /tmp/t3-code-mise/image where github:jdx/mise)/bin/mise" \
+      /opt/t3-code-tools/mise
+
+FROM docker:29.8.0-cli@sha256:eccaacfeed644c7de222ff047483568cb988dde95476fbaaf10ea2d04921bb66 AS docker-cli
+
+FROM node:24.16.0-bookworm-slim@sha256:2c87ef9bd3c6a3bd4b472b4bec2ce9d16354b0c574f736c476489d09f560a203
 
 LABEL org.opencontainers.image.source="https://github.com/Robbie-Palmer/hq"
 LABEL org.opencontainers.image.description="Pinned t3-code runtime for the remote development K3s cluster"
 
 COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
 COPY --from=docker-cli /usr/local/libexec/docker/cli-plugins /usr/local/libexec/docker/cli-plugins
-COPY package.json package-lock.json /usr/local/lib/t3-code/
+COPY --from=mise-tools /opt/t3-code-tools/ /usr/local/bin/
+COPY bindep.txt package.json package-lock.json /usr/local/lib/t3-code/
 
 # npm omits t3's optional platform bundle when reinstalling from its lockfile,
 # so unpack the exact Linux package separately below.
-RUN test -n "${MISE_VERSION}" \
-    && groupadd --gid 2000 t3code \
+RUN groupadd --gid 2000 t3code \
     && useradd --uid 2000 --gid 2000 --create-home --shell /bin/bash t3code \
     && apt-get update \
-    && apt-get install --yes --no-install-recommends \
-      bubblewrap \
-      ca-certificates \
-      chromium \
-      curl \
-      dnsutils \
-      fonts-liberation \
-      fonts-noto-color-emoji \
-      gh \
-      git \
-      iproute2 \
-      jq \
-      less \
-      libatomic1 \
-      lsof \
-      netcat-openbsd \
-      openssh-client \
-      procps \
-      ripgrep \
-      tini \
-      unzip \
-    && npm install --ignore-scripts --omit=dev --prefix /usr/local/lib/t3-code \
+    && sed 's/ ==/=/' /usr/local/lib/t3-code/bindep.txt \
+      > /tmp/bindep-apt.txt \
+    && xargs --arg-file=/tmp/bindep-apt.txt \
+      apt-get install --yes --no-install-recommends \
+    && npm ci --ignore-scripts --omit=dev --prefix /usr/local/lib/t3-code \
     && t3_version="$(node -p \
       "require('/usr/local/lib/t3-code/package.json').dependencies.t3")" \
     && npm pack --ignore-scripts --pack-destination /tmp \
@@ -72,27 +71,9 @@ RUN test -n "${MISE_VERSION}" \
       /usr/local/lib/t3-code/node_modules/.bin/t3 \
       /usr/local/bin/ \
     && npm cache clean --force \
-    && curl --fail --location --proto '=https' --proto-redir '=https' --silent --show-error \
-      "https://github.com/jdx/mise/releases/download/v${MISE_VERSION}/mise-v${MISE_VERSION}-linux-x64.tar.gz" \
-      --output /tmp/mise.tar.gz \
-    && echo "${MISE_SHA256}  /tmp/mise.tar.gz" | sha256sum --check \
-    && tar --extract --gzip --file /tmp/mise.tar.gz --directory /usr/local/bin \
-      --strip-components=2 mise/bin/mise \
-    && curl --fail --location --proto '=https' --proto-redir '=https' --silent --show-error \
-      "https://github.com/DopplerHQ/cli/releases/download/${DOPPLER_VERSION}/doppler_${DOPPLER_VERSION}_linux_amd64.tar.gz" \
-      --output /tmp/doppler.tar.gz \
-    && echo "${DOPPLER_SHA256}  /tmp/doppler.tar.gz" | sha256sum --check \
-    && tar --extract --gzip --file /tmp/doppler.tar.gz --directory /usr/local/bin doppler \
-    && curl --fail --location --proto '=https' --proto-redir '=https' --silent --show-error \
-      "https://github.com/errata-ai/vale/releases/download/v${VALE_VERSION}/vale_${VALE_VERSION}_Linux_64-bit.tar.gz" \
-      --output /tmp/vale.tar.gz \
-    && echo "${VALE_SHA256}  /tmp/vale.tar.gz" | sha256sum --check \
-    && tar --extract --gzip --file /tmp/vale.tar.gz --directory /usr/local/bin vale \
     && rm -f \
-      /tmp/mise.tar.gz \
-      /tmp/doppler.tar.gz \
+      /tmp/bindep-apt.txt \
       "/tmp/t3code-t3-linux-x64-${t3_version}.tgz" \
-      /tmp/vale.tar.gz \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

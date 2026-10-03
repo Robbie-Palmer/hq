@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-image=ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-14
+image=ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-15
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 mise_version="$(<"${script_dir}/../../.github/actions/setup-mise/mise-version")"
 package_json="${script_dir}/../images/t3-code/package.json"
+image_directory="${script_dir}/../images/t3-code"
+dockerfile="${image_directory}/Dockerfile"
 operator_patch="${script_dir}/../k3s/overlays/remote-development/workspaces/operator/deployment-patch.yaml"
+
+mise_tool_version() {
+  mise -C "$image_directory" current "$1"
+}
 
 package_version() {
   node -e '
@@ -19,9 +25,27 @@ package_version() {
 claude_version="$(package_version @anthropic-ai/claude-code)"
 agent_auth_version="$(package_version @auth/agent-cli)"
 codex_version="$(package_version @openai/codex)"
+doppler_version="$(mise_tool_version doppler)"
 grok_version="$(package_version @xai-official/grok)"
+image_mise_version="$(sed -n \
+  's/^FROM ghcr\.io\/jdx\/mise:\([^@]*\)@sha256:[a-f0-9]\{64\} AS [^[:space:]]\{1,\}$/\1/p' \
+  "$dockerfile")"
+image_manifest_mise_version="$(mise_tool_version github:jdx/mise)"
 opencode_version="$(package_version opencode-ai)"
 pnpm_version="$(package_version pnpm)"
+vale_version="$(mise_tool_version vale)"
+if [[ ! "$image_mise_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+  echo "Unable to read the pinned mise image version from $dockerfile" >&2
+  exit 1
+fi
+if [[ "$image_mise_version" != "$mise_version" ]]; then
+  echo "The t3-code mise image must match the repository mise version: $mise_version" >&2
+  exit 1
+fi
+if [[ "$image_manifest_mise_version" != "$mise_version" ]]; then
+  echo "The t3-code mise manifest must match the repository mise version: $mise_version" >&2
+  exit 1
+fi
 docker_image="$(sed -n 's/^[[:space:]]*image: \(docker:[^[:space:]]*\)$/\1/p' "$operator_patch" | head -n 1)"
 if [[ ! "$docker_image" =~ ^docker:([0-9]+\.[0-9]+\.[0-9]+)-dind-rootless@sha256:[a-f0-9]{64}$ ]]; then
   echo "Unable to read the pinned Docker DinD image from $operator_patch" >&2
@@ -44,10 +68,12 @@ docker run --rm \
   --env "EXPECTED_CLAUDE_VERSION=${claude_version}" \
   --env "EXPECTED_AGENT_AUTH_VERSION=${agent_auth_version}" \
   --env "EXPECTED_CODEX_VERSION=${codex_version}" \
+  --env "EXPECTED_DOPPLER_VERSION=${doppler_version}" \
   --env "EXPECTED_GROK_VERSION=${grok_version}" \
   --env "EXPECTED_MISE_VERSION=${mise_version}" \
   --env "EXPECTED_OPENCODE_VERSION=${opencode_version}" \
   --env "EXPECTED_PNPM_VERSION=${pnpm_version}" \
+  --env "EXPECTED_VALE_VERSION=${vale_version}" \
   --env "EXPECTED_DOCKER_VERSION=${docker_version}" \
   --env 'AGENT_AUTH_ENCRYPTION_KEY=image-check-only' \
   --env 'CONFIGURE_RECIPE_AGENT_MCP=true' \
@@ -62,8 +88,8 @@ docker run --rm \
     test "$(opencode --version)" = "$EXPECTED_OPENCODE_VERSION"
     test "$(grok --version | cut -d" " -f1-2)" = "grok $EXPECTED_GROK_VERSION"
     test "$(mise --version | cut -d" " -f1)" = "$EXPECTED_MISE_VERSION"
-    test "$(doppler --version)" = "v3.76.5"
-    test "$(vale --version)" = "vale version 3.19.0"
+    test "$(doppler --version)" = "v$EXPECTED_DOPPLER_VERSION"
+    test "$(vale --version)" = "vale version $EXPECTED_VALE_VERSION"
     test "$(pnpm --version)" = "$EXPECTED_PNPM_VERSION"
     test "$MISE_TRUSTED_CONFIG_PATHS" = "/data/workspaces:/data/home/.t3/worktrees"
     test "$(docker --version | cut -d, -f1)" = "Docker version $EXPECTED_DOCKER_VERSION"
