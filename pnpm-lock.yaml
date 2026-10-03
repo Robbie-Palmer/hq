@@ -188,8 +188,8 @@ importers:
         version: link:packages/ts-base
     devDependencies:
       '@biomejs/biome':
-        specifier: 2.5.14
-        version: 2.5.14
+        specifier: 2.5.15
+        version: 2.5.15
       '@types/node':
         specifier: ^24
         version: 24.19.0
