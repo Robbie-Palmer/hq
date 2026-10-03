@@ -66,7 +66,7 @@ export function HistoricalCurrencyDisclosure({
   return (
     <details className="rounded-lg border bg-muted/20 px-4 py-3">
       <summary className="cursor-pointer text-sm font-medium">
-        Exchange-rate history
+        Exchange-rate history{" "}
         <span className="ml-2 font-normal text-muted-foreground">
           {incompleteCount === 0
             ? `All ${conversions.length} points complete`

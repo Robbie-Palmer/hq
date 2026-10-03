@@ -38,6 +38,12 @@ function exchangeRateDetail(
   targetCurrency: string,
 ) {
   const inverted = observation.fromCurrency === targetCurrency;
+  let method: "direct" | "inverse" | "triangulated" = "direct";
+  if (observation.derivation?.method === "triangulated") {
+    method = "triangulated";
+  } else if (inverted || observation.derivation?.method === "inverse") {
+    method = "inverse";
+  }
   return {
     observationId: observation.id,
     fromCurrency: observation.fromCurrency,
@@ -49,12 +55,7 @@ function exchangeRateDetail(
       observation.validAt < date ||
       (observation.providerObservations?.some((provider) => provider.carried) ??
         false),
-    method:
-      observation.derivation?.method === "triangulated"
-        ? ("triangulated" as const)
-        : inverted || observation.derivation?.method === "inverse"
-          ? ("inverse" as const)
-          : ("direct" as const),
+    method,
   };
 }
 
