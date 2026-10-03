@@ -16,8 +16,8 @@ import {
   X,
 } from "lucide-react";
 import {
-  type FormEvent,
-  type FormEventHandler,
+  type SubmitEvent,
+  type SubmitEventHandler,
   useEffect,
   useRef,
   useState,
@@ -345,7 +345,7 @@ function EmptyHouseholdView({
   error: string | null;
   notice: string | null;
   onNameChange: (name: string) => void;
-  onCreate: (event: FormEvent<HTMLFormElement>) => void;
+  onCreate: (event: SubmitEvent<HTMLFormElement>) => void;
   onAccept: (invitation: IncomingHouseholdInvitation) => void;
   onDecline: (invitation: IncomingHouseholdInvitation) => void;
 }>) {
@@ -429,7 +429,7 @@ function HouseholdNameSection({
   busy: boolean;
   saving: boolean;
   onNameChange: (name: string) => void;
-  onRename: (event: FormEvent<HTMLFormElement>) => void;
+  onRename: (event: SubmitEvent<HTMLFormElement>) => void;
 }>) {
   return (
     <Section
@@ -509,7 +509,7 @@ function HouseholdInvitationsSection({
   busy: boolean;
   inviting: boolean;
   onInviteEmailChange: (email: string) => void;
-  onInvite: (event: FormEvent<HTMLFormElement>) => void;
+  onInvite: (event: SubmitEvent<HTMLFormElement>) => void;
   onRevoke: (invitation: HouseholdInvitation) => void;
 }>) {
   return (
@@ -571,7 +571,7 @@ function HouseholdEquipmentSection({
   busy: boolean;
   adding: boolean;
   onSelectedSlugChange: (slug: string) => void;
-  onAdd: FormEventHandler<HTMLFormElement>;
+  onAdd: SubmitEventHandler<HTMLFormElement>;
   onRemove: (item: HouseholdEquipmentItem) => void;
 }>) {
   if (!equipment) {
@@ -748,11 +748,11 @@ function ManagedHouseholdView({
   onNameChange: (name: string) => void;
   onInviteEmailChange: (email: string) => void;
   onEquipmentSlugChange: (slug: string) => void;
-  onRename: (event: FormEvent<HTMLFormElement>) => void;
-  onInvite: (event: FormEvent<HTMLFormElement>) => void;
+  onRename: (event: SubmitEvent<HTMLFormElement>) => void;
+  onInvite: (event: SubmitEvent<HTMLFormElement>) => void;
   onRemove: (member: HouseholdMember) => void;
   onRevoke: (invitation: HouseholdInvitation) => void;
-  onAddEquipment: FormEventHandler<HTMLFormElement>;
+  onAddEquipment: SubmitEventHandler<HTMLFormElement>;
   onRemoveEquipment: (item: HouseholdEquipmentItem) => void;
   onDelete: () => void;
   onLeave: () => void;
@@ -893,7 +893,7 @@ export function HouseholdPanel({
 
   const busy = mutation !== null;
 
-  function onCreate(event: FormEvent<HTMLFormElement>) {
+  function onCreate(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextName = name.trim();
     if (!nextName) {
@@ -907,7 +907,7 @@ export function HouseholdPanel({
     });
   }
 
-  function onRename(event: FormEvent<HTMLFormElement>) {
+  function onRename(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!household) return;
     const nextName = name.trim();
@@ -929,7 +929,7 @@ export function HouseholdPanel({
     });
   }
 
-  function onInvite(event: FormEvent<HTMLFormElement>) {
+  function onInvite(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!household) return;
     const email = inviteEmail.trim().toLowerCase();
@@ -995,7 +995,7 @@ export function HouseholdPanel({
     });
   }
 
-  const onAddEquipment: FormEventHandler<HTMLFormElement> = (event) => {
+  const onAddEquipment: SubmitEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
     if (!household || !equipmentSlug) return;
     run("add-equipment", async () => {
