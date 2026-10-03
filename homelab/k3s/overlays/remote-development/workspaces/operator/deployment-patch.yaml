@@ -10,6 +10,9 @@ spec:
     spec:
       initContainers:
         - name: prepare-data-directories
+          env:
+            - name: CONFIGURE_RECIPE_AGENT_MCP
+              value: "true"
         - name: prepare-docker-data
           image: docker:29.8.0-dind-rootless@sha256:e17fa54c2ffd511d8407c746eec77f7814e6f74fe20caf822dad1870599984c0
           command:
@@ -112,6 +115,12 @@ spec:
                 secretKeyRef:
                   name: t3-code-work-graph
                   key: WORK_GRAPH_CF_ACCESS_CLIENT_SECRET
+                  optional: false
+            - name: AGENT_AUTH_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-runtime
+                  key: AGENT_AUTH_ENCRYPTION_KEY
                   optional: false
           envFrom:
             - secretRef:

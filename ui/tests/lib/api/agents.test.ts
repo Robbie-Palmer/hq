@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { decideAgentApproval, listAgents, revokeAgent } from "@/lib/api/agents";
+import {
+  createAgentHostEnrollment,
+  decideAgentApproval,
+  listAgents,
+  revokeAgent,
+} from "@/lib/api/agents";
 
 const fetchMock = vi.fn<typeof fetch>();
 
@@ -132,6 +137,45 @@ describe("agent access API", () => {
         credentials: "same-origin",
         body: JSON.stringify({ agent_id: "agent-1" }),
       }),
+    );
+  });
+
+  it("creates a host enrollment without default capabilities", async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        hostId: "host-1",
+        status: "pending_enrollment",
+        default_capabilities: [],
+        enrollmentToken: "enroll-once",
+        enrollmentTokenExpiresAt: "2026-10-02T13:00:00.000Z",
+      }),
+    );
+
+    await expect(createAgentHostEnrollment("Codex")).resolves.toEqual({
+      hostId: "host-1",
+      token: "enroll-once",
+      expiresAt: "2026-10-02T13:00:00.000Z",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/host/create",
+      expect.objectContaining({
+        method: "POST",
+        credentials: "same-origin",
+        body: JSON.stringify({
+          default_capabilities: [],
+          name: "Codex",
+        }),
+      }),
+    );
+  });
+
+  it("rejects a malformed host enrollment", async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ hostId: "host-1", status: "active" }),
+    );
+
+    await expect(createAgentHostEnrollment("Codex")).rejects.toThrow(
+      "The agent connection response was invalid.",
     );
   });
 

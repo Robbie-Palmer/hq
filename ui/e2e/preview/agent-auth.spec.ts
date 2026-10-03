@@ -224,19 +224,32 @@ test.describe("deployed delegated Agent Auth", () => {
 
       const hostIdentity = signingIdentity("playwright-host");
       const agentIdentity = signingIdentity("playwright-agent");
+      const pendingHost = await expectJSON<{
+        enrollmentToken: string;
+        hostId: string;
+        status: string;
+      }>(userContext, "/api/auth/host/create", {
+        method: "POST",
+        data: {
+          default_capabilities: [],
+          name: hostName,
+        },
+      });
+      expect(pendingHost.status).toBe("pending_enrollment");
       const host = await expectJSON<{ hostId: string; status: string }>(
-        userContext,
-        "/api/auth/host/create",
+        agentContext,
+        "/api/auth/host/enroll",
         {
           method: "POST",
           data: {
-            default_capabilities: [],
             name: hostName,
             public_key: hostIdentity.publicKey,
+            token: pendingHost.enrollmentToken,
           },
         },
       );
       hostId = host.hostId;
+      expect(host.hostId).toBe(pendingHost.hostId);
       expect(host.status).toBe("active");
 
       const registrationToken = hostJWT(

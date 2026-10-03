@@ -47,6 +47,12 @@ export type AgentHost = {
   status: string;
 };
 
+export type AgentHostEnrollment = {
+  expiresAt: string;
+  hostId: string;
+  token: string;
+};
+
 const agentDateTime = z.iso.datetime({ offset: true });
 
 function nullableDateTime(value: unknown): string | null | undefined {
@@ -212,6 +218,33 @@ export async function getAgentHost(
     throw new Error("The agent host response was invalid.");
   }
   return { id: body.id, name: body.name, status: body.status };
+}
+
+export async function createAgentHostEnrollment(
+  name: string,
+): Promise<AgentHostEnrollment> {
+  const body = await apiRequest<unknown>("/api/auth/host/create", {
+    method: "POST",
+    json: { default_capabilities: [], name },
+    fallbackMessage: "The agent connection code could not be created.",
+  });
+  if (
+    !isRecord(body) ||
+    typeof body.hostId !== "string" ||
+    body.status !== "pending_enrollment" ||
+    typeof body.enrollmentToken !== "string"
+  ) {
+    throw new TypeError("The agent connection response was invalid.");
+  }
+  const expiresAt = nullableDateTime(body.enrollmentTokenExpiresAt);
+  if (typeof expiresAt !== "string") {
+    throw new TypeError("The agent connection response was invalid.");
+  }
+  return {
+    expiresAt,
+    hostId: body.hostId,
+    token: body.enrollmentToken,
+  };
 }
 
 export async function revokeAgent(agentId: string): Promise<void> {

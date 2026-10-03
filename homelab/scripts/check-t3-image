@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-image=ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-13
+image=ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-14
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 mise_version="$(<"${script_dir}/../../.github/actions/setup-mise/mise-version")"
 package_json="${script_dir}/../images/t3-code/package.json"
@@ -17,6 +17,7 @@ package_version() {
 }
 
 claude_version="$(package_version @anthropic-ai/claude-code)"
+agent_auth_version="$(package_version @auth/agent-cli)"
 codex_version="$(package_version @openai/codex)"
 grok_version="$(package_version @xai-official/grok)"
 opencode_version="$(package_version opencode-ai)"
@@ -41,17 +42,21 @@ trap cleanup EXIT
 docker run --rm \
   --tmpfs /data:rw,exec,uid=2000,gid=2000,mode=0750,size=1g \
   --env "EXPECTED_CLAUDE_VERSION=${claude_version}" \
+  --env "EXPECTED_AGENT_AUTH_VERSION=${agent_auth_version}" \
   --env "EXPECTED_CODEX_VERSION=${codex_version}" \
   --env "EXPECTED_GROK_VERSION=${grok_version}" \
   --env "EXPECTED_MISE_VERSION=${mise_version}" \
   --env "EXPECTED_OPENCODE_VERSION=${opencode_version}" \
   --env "EXPECTED_PNPM_VERSION=${pnpm_version}" \
   --env "EXPECTED_DOCKER_VERSION=${docker_version}" \
+  --env 'AGENT_AUTH_ENCRYPTION_KEY=image-check-only' \
+  --env 'CONFIGURE_RECIPE_AGENT_MCP=true' \
   --entrypoint /bin/sh \
   "${image}" \
   -ec '
     test "$(id -u)" = 2000
     test "$(id -g)" = 2000
+    test "$(node -p "require(\"/usr/local/lib/t3-code/node_modules/@auth/agent-cli/package.json\").version")" = "$EXPECTED_AGENT_AUTH_VERSION"
     test "$(codex --version)" = "codex-cli $EXPECTED_CODEX_VERSION"
     test "$(claude --version)" = "$EXPECTED_CLAUDE_VERSION (Claude Code)"
     test "$(opencode --version)" = "$EXPECTED_OPENCODE_VERSION"
@@ -67,7 +72,7 @@ docker run --rm \
     case ":$PATH:" in
       *:/usr/local/lib/t3-code/node_modules/.bin:*) exit 1 ;;
     esac
-    for cli in claude codex grok opencode pnpm t3; do
+    for cli in auth-agent claude codex grok opencode pnpm t3; do
       test "$(command -v "$cli")" = "/usr/local/bin/$cli"
     done
     command -v bwrap chromium git gh lsof t3 >/dev/null
@@ -110,6 +115,11 @@ docker run --rm \
       if (!config.includes("model_reasoning_effort = \"high\"")) process.exit(1);
       if (!config.includes("model_catalog_json = \"/data/home/.codex/model-catalog.json\"")) process.exit(1);
       if (!config.includes("personality = \"pragmatic\"")) process.exit(1);
+      if (!config.includes("[mcp_servers.recipe-agent]")) process.exit(1);
+      if (!config.includes("command = \"/usr/local/bin/auth-agent\"")) process.exit(1);
+      if (!config.includes("env_vars = [\"AGENT_AUTH_ENCRYPTION_KEY\"]")) process.exit(1);
+      if (!config.includes("https://robbiepalmer.me")) process.exit(1);
+      if (fs.statSync("/data/home/.codex/agent-auth/recipes").mode & 0o077) process.exit(1);
       const catalog = require("/data/home/.codex/model-catalog.json");
       const sol = catalog.models.find(({ slug }) => slug === "gpt-5.6-sol");
       const astra = catalog.models.find(({ slug }) => slug === "gpt-6-astra");
