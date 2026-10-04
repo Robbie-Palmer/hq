@@ -66,7 +66,7 @@ diff -u ../../ui/public/simulations/autonomic-satellite-swarm/demonstration.v7.j
 
 [tasks."browser:toolchain"]
 description = "Install the pinned Emscripten SDK with its Python bootstrap dependency"
-tools = { python = "3.14.7" }
+tools = { python = "3.14.8" }
 run = '''
 mise install asdf:mise-plugins/mise-emsdk@6.0.9
 emsdk_root=$(mise where asdf:mise-plugins/mise-emsdk@6.0.9)
@@ -82,7 +82,7 @@ mise exec python@3.14.7 -- "$emsdk_root/emsdk" activate 6.0.9
 [tasks."browser:configure"]
 description = "Configure the Emscripten browser build"
 depends = ["browser:toolchain"]
-tools = { python = "3.14.7" }
+tools = { python = "3.14.8" }
 run = '''
 emsdk_root=$(mise where asdf:mise-plugins/mise-emsdk@6.0.9)
 project_root=$PWD
@@ -106,7 +106,7 @@ emcmake cmake -S . -B build/browser -G Ninja -DCMAKE_BUILD_TYPE=Release \
 [tasks."browser:build"]
 description = "Build the WebAssembly adapter and copy its deployable artifacts"
 depends = ["browser:configure"]
-tools = { python = "3.14.7" }
+tools = { python = "3.14.8" }
 run = '''
 emsdk_root=$(mise where asdf:mise-plugins/mise-emsdk@6.0.9)
 project_root=$PWD
