@@ -32,15 +32,6 @@ test("household members can manage shared kitchen equipment", async ({
     const removeBlender = page.getByRole("button", {
       name: "Remove blender",
     });
-    const removeGrill = page.getByRole("button", { name: "Remove grill" });
-
-    if (await removeGrill.isVisible()) {
-      await removeGrill.click();
-      await expect(removeGrill).toHaveCount(0);
-      await expect(
-        page.getByText("grill removed from the household."),
-      ).toBeVisible();
-    }
 
     if (await removeBlender.isVisible()) {
       await removeBlender.click();

@@ -280,6 +280,9 @@ try {
   // requires a grill, which stays unowned so preview QA can see both readiness
   // states without changing settings first.
   await db
+    .delete(schema.householdEquipment)
+    .where(eq(schema.householdEquipment.organizationId, HOUSEHOLD_ID));
+  await db
     .insert(schema.householdEquipment)
     .values(
       ["frying-pan", "saucepan"].map((equipmentSlug) => ({
