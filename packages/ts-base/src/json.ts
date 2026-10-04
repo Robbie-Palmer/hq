@@ -4,6 +4,34 @@ export type JsonValue =
   | JsonValue[]
   | { [key: string]: JsonValue };
 
+export function mapJsonStrings(
+  value: JsonValue,
+  transform: (value: string) => string,
+): JsonValue {
+  if (typeof value === "string") return transform(value);
+  if (Array.isArray(value)) {
+    return value.map((item) => mapJsonStrings(item, transform));
+  }
+  if (value === null || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [
+      key,
+      mapJsonStrings(item, transform),
+    ]),
+  );
+}
+
+export function jsonPointer(
+  path: readonly (string | number)[],
+): string {
+  return path
+    .map((segment) =>
+      String(segment).replaceAll("~", "~0").replaceAll("/", "~1"),
+    )
+    .map((segment) => `/${segment}`)
+    .join("");
+}
+
 export function canonicalJson(value: unknown): string {
   if (value === null || typeof value === "boolean" || typeof value === "string") {
     return JSON.stringify(value);

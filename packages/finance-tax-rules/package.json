@@ -17,10 +17,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "html-to-text": "^10.0.1",
+    "microdiff": "^1.6.0",
     "ts-base": "workspace:*",
     "zod": "^4.2.1"
   },
   "devDependencies": {
+    "@types/html-to-text": "^9.0.4",
     "@types/node": "^24",
     "@vitest/coverage-v8": "^5.0.0",
     "tsx": "^4.23.12",

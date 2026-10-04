@@ -139,11 +139,15 @@ describe("GOV.UK source changes", () => {
   it("keeps nested HTML out of compact PostgreSQL diffs", async () => {
     const reviewed = await snapshotGovUkContent({
       ...contentItem(),
-      details: { rows: ["<strong>Basic rate</strong>", "20%"] },
+      details: {
+        rows: ["<strong>Basic&nbsp;rate</strong>: &pound;12,570", "20%"],
+      },
     });
     const candidate = await snapshotGovUkContent({
       ...contentItem(),
-      details: { rows: ["<strong>Basic rate</strong>", "21%"] },
+      details: {
+        rows: ["<strong>Basic&nbsp;rate</strong>: &pound;12,571", "21%"],
+      },
     });
 
     const proposal = await createRuleUpdateProposal(
@@ -154,7 +158,30 @@ describe("GOV.UK source changes", () => {
     );
 
     expect(JSON.stringify(proposal)).not.toContain("<strong>");
-    expect(JSON.stringify(proposal)).toContain("Basic rate");
+    expect(proposal?.changes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "/details/rows/0",
+          before: "Basic rate: £12,570",
+          after: "Basic rate: £12,571",
+        }),
+      ]),
+    );
+  });
+
+  it("escapes object keys in JSON Pointer change paths", async () => {
+    const reviewed = await snapshotGovUkContent({
+      ...contentItem(),
+      details: { "tax/rate~band": "20%" },
+    });
+    const candidate = await snapshotGovUkContent({
+      ...contentItem(),
+      details: { "tax/rate~band": "21%" },
+    });
+
+    expect(diffGovUkSnapshots(reviewed, candidate)).toContainEqual(
+      expect.objectContaining({ path: "/details/tax~1rate~0band" }),
+    );
   });
 
   it("creates a review task for the first R2 baseline", async () => {

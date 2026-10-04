@@ -1,5 +1,18 @@
+import { compile } from "html-to-text";
+import diff, { type Difference } from "microdiff";
 import { sha256Hex } from "ts-base/crypto";
-import { canonicalJson, type JsonValue } from "ts-base/json";
+import { isoDatePart } from "ts-base/dates";
+import {
+  canonicalJson,
+  jsonPointer,
+  mapJsonStrings,
+  type JsonValue,
+} from "ts-base/json";
+import {
+  compareStrings,
+  normalizeWhitespace,
+  truncateWithEllipsis,
+} from "ts-base/strings";
 import { z } from "zod";
 import { ruleDataset } from "./data";
 import type { RuleDataset } from "./schema";
@@ -14,6 +27,7 @@ const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
     z.record(z.string(), jsonValueSchema),
   ]),
 );
+const jsonObjectSchema = z.record(z.string(), jsonValueSchema);
 
 const contentItemSchema = z.object({
   base_path: z.string().startsWith("/"),
@@ -51,9 +65,9 @@ export type GovUkContentSnapshot = {
     publicUpdatedAt: string;
     schemaName: string;
     title: string | null;
-    withdrawnNotice: JsonValue;
+    withdrawnNotice: Record<string, JsonValue>;
   };
-  details: JsonValue;
+  details: Record<string, JsonValue>;
   documentLinks: string[];
 };
 
@@ -93,9 +107,6 @@ export type RuleUpdateProposal = {
   };
 };
 
-const compareText = (left: string, right: string): number =>
-  left.localeCompare(right, "en");
-
 function linksInString(value: string): string[] {
   return [
     ...value.matchAll(
@@ -132,8 +143,8 @@ export async function snapshotGovUkContent(
   input: unknown,
 ): Promise<GovUkContentSnapshot> {
   const item = contentItemSchema.parse(input);
-  const details = jsonValueSchema.parse(item.details ?? {});
-  const linkedContent = jsonValueSchema.parse(item.links);
+  const details = jsonObjectSchema.parse(item.details ?? {});
+  const linkedContent = jsonObjectSchema.parse(item.links);
   const documentLinks = new Set<string>();
   collectDocumentLinks(details, documentLinks);
   collectDocumentLinks(linkedContent, documentLinks);
@@ -146,9 +157,9 @@ export async function snapshotGovUkContent(
     publicUpdatedAt: item.public_updated_at,
     schemaName: item.schema_name,
     title: item.title ?? null,
-    withdrawnNotice: jsonValueSchema.parse(item.withdrawn_notice ?? {}),
+    withdrawnNotice: jsonObjectSchema.parse(item.withdrawn_notice ?? {}),
   };
-  const sortedLinks = [...documentLinks].toSorted(compareText);
+  const sortedLinks = [...documentLinks].toSorted(compareStrings);
   const monitored = {
     details,
     documentLinks: sortedLinks,
@@ -190,7 +201,7 @@ export function buildGovUkSourceRegistry(
       title: source.title,
       pageUrl: source.url,
       contentApiUrl: govUkContentApiUrl(source.url),
-      ruleIds: supportedRules.map(({ id }) => id).toSorted(compareText),
+      ruleIds: supportedRules.map(({ id }) => id).toSorted(compareStrings),
       effectivePeriods: [
         ...new Map(
           supportedRules.map(({ effectiveFrom, effectiveTo }) => [
@@ -198,114 +209,80 @@ export function buildGovUkSourceRegistry(
             { from: effectiveFrom, to: effectiveTo },
           ]),
         ).values(),
-      ].toSorted((left, right) => left.from.localeCompare(right.from)),
+      ].toSorted((left, right) => compareStrings(left.from, right.from)),
       defaultCheckIntervalHours: 24 * 7,
     };
   });
 }
 
-function plainText(value: string): string {
-  const decoded = value
-    .replaceAll("&nbsp;", " ")
-    .replaceAll("&amp;", "&");
-  let result = "";
-  let insideTag = false;
-  let needsSpace = false;
-  for (const character of decoded) {
-    if (character === "<") {
-      insideTag = true;
-      needsSpace = result.length > 0;
-      continue;
-    }
-    if (insideTag) {
-      if (character === ">") insideTag = false;
-      continue;
-    }
-    if (" \n\r\t\f\v".includes(character)) {
-      needsSpace = result.length > 0;
-      continue;
-    }
-    if (needsSpace) result += " ";
-    result += character;
-    needsSpace = false;
-  }
-  return result;
-}
+const htmlToReviewText = compile({
+  selectors: [
+    { selector: "a", options: { ignoreHref: true } },
+    { selector: "img", format: "skip" },
+  ],
+  wordwrap: false,
+});
 
-function stripMarkup(value: JsonValue): JsonValue {
-  if (typeof value === "string") return plainText(value);
-  if (Array.isArray(value)) return value.map(stripMarkup);
-  if (value === null || typeof value !== "object") return value;
-  return Object.fromEntries(
-    Object.entries(value).map(([key, item]) => [key, stripMarkup(item)]),
-  );
-}
-
-function summarize(value: JsonValue | undefined): string | null {
+function summarizeSourceValue(value: JsonValue | undefined): string | null {
   if (value === undefined) return null;
-  const raw =
-    typeof value === "string"
-      ? plainText(value)
-      : JSON.stringify(stripMarkup(value));
-  return raw.length <= 240 ? raw : `${raw.slice(0, 237)}...`;
+  const normalized = mapJsonStrings(value, (text) =>
+    normalizeWhitespace(htmlToReviewText(text)),
+  );
+  const summary =
+    typeof normalized === "string" ? normalized : JSON.stringify(normalized);
+  return truncateWithEllipsis(summary, 240);
 }
 
-function diffJson(
-  before: JsonValue,
-  after: JsonValue,
+function valueBefore(change: Difference): JsonValue | undefined {
+  return change.type === "CREATE"
+    ? undefined
+    : jsonValueSchema.parse(change.oldValue);
+}
+
+function valueAfter(change: Difference): JsonValue | undefined {
+  return change.type === "REMOVE"
+    ? undefined
+    : jsonValueSchema.parse(change.value);
+}
+
+function diffSourceJson(
+  before: Record<string, JsonValue>,
+  after: Record<string, JsonValue>,
   area: "content" | "metadata",
-  path: string,
-  changes: SourceChange[],
-): void {
-  if (changes.length >= 100 || canonicalJson(before) === canonicalJson(after)) {
-    return;
-  }
-  if (
-    before !== null &&
-    after !== null &&
-    typeof before === "object" &&
-    typeof after === "object" &&
-    !Array.isArray(before) &&
-    !Array.isArray(after)
-  ) {
-    const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
-    for (const key of [...keys].toSorted(compareText)) {
-      const beforeValue = before[key];
-      const afterValue = after[key];
-      if (beforeValue === undefined || afterValue === undefined) {
-        changes.push({
-          area,
-          path: `${path}/${key}`,
-          before: summarize(beforeValue),
-          after: summarize(afterValue),
-        });
-      } else {
-        diffJson(beforeValue, afterValue, area, `${path}/${key}`, changes);
-      }
-    }
-    return;
-  }
-  changes.push({
-    area,
-    path,
-    before: summarize(before),
-    after: summarize(after),
-  });
+  root: "details" | "metadata",
+  limit: number,
+): SourceChange[] {
+  return diff(before, after, { cyclesFix: false })
+    .map((change) => ({
+      area,
+      path: jsonPointer([root, ...change.path]),
+      before: summarizeSourceValue(valueBefore(change)),
+      after: summarizeSourceValue(valueAfter(change)),
+    }))
+    .toSorted((left, right) => compareStrings(left.path, right.path))
+    .slice(0, limit);
 }
 
 export function diffGovUkSnapshots(
   reviewed: GovUkContentSnapshot,
   candidate: GovUkContentSnapshot,
 ): SourceChange[] {
-  const changes: SourceChange[] = [];
-  diffJson(
-    jsonValueSchema.parse(reviewed.metadata),
-    jsonValueSchema.parse(candidate.metadata),
+  const changes = diffSourceJson(
+    jsonObjectSchema.parse(reviewed.metadata),
+    jsonObjectSchema.parse(candidate.metadata),
     "metadata",
-    "/metadata",
-    changes,
+    "metadata",
+    100,
   );
-  diffJson(reviewed.details, candidate.details, "content", "/details", changes);
+  changes.push(
+    ...diffSourceJson(
+      reviewed.details,
+      candidate.details,
+      "content",
+      "details",
+      100 - changes.length,
+    ),
+  );
   const reviewedLinks = new Set(reviewed.documentLinks);
   const candidateLinks = new Set(candidate.documentLinks);
   for (const link of reviewed.documentLinks) {
@@ -331,14 +308,6 @@ export function diffGovUkSnapshots(
   return changes;
 }
 
-function datePart(timestamp: string): string {
-  const parsed = new Date(timestamp);
-  if (Number.isNaN(parsed.valueOf())) {
-    throw new TypeError(`GOV.UK returned invalid timestamp ${timestamp}`);
-  }
-  return parsed.toISOString().slice(0, 10);
-}
-
 function timingFor(
   publicationDate: string,
   detectedDate: string,
@@ -361,8 +330,8 @@ export async function createRuleUpdateProposal(
   detectedAt: string,
 ): Promise<RuleUpdateProposal | null> {
   if (base?.fingerprint === candidate.fingerprint) return null;
-  const detectedDate = datePart(detectedAt);
-  const publicationDate = datePart(candidate.metadata.publicUpdatedAt);
+  const detectedDate = isoDatePart(detectedAt);
+  const publicationDate = isoDatePart(candidate.metadata.publicUpdatedAt);
   const proposalDigest = await sha256Hex(
     [
       source.id,
@@ -419,8 +388,8 @@ export const govUkContentSnapshotSchema = z.object({
     publicUpdatedAt: z.string(),
     schemaName: z.string(),
     title: z.string().nullable(),
-    withdrawnNotice: jsonValueSchema,
+    withdrawnNotice: jsonObjectSchema,
   }),
-  details: jsonValueSchema,
+  details: jsonObjectSchema,
   documentLinks: z.array(z.string()),
 });

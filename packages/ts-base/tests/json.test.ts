@@ -1,5 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { canonicalJson } from "../src/json";
+import { canonicalJson, jsonPointer, mapJsonStrings } from "../src/json";
+
+describe("JSON transformations", () => {
+  it("maps strings recursively without changing other JSON values", () => {
+    expect(
+      mapJsonStrings(
+        { title: " heading ", rows: [1, " cell ", null] },
+        (value) => value.trim(),
+      ),
+    ).toEqual({ title: "heading", rows: [1, "cell", null] });
+  });
+
+  it("encodes an RFC 6901 JSON Pointer", () => {
+    expect(jsonPointer(["details", "tax/rate~band", 1])).toBe(
+      "/details/tax~1rate~0band/1",
+    );
+    expect(jsonPointer([])).toBe("");
+  });
+});
 
 describe("canonicalJson", () => {
   it.each([
