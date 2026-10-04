@@ -15,10 +15,15 @@ import {
 import type { ShareMode } from "wedding-planner-domain/values";
 import { editDomain } from "./editor-projection";
 import { type AccommodationSetup, weddingAccommodationSetup } from "./setup";
-import type { BedGroup, PairDecision, SharingLevel, State } from "./types";
+import type {
+  BedGroup,
+  PairDecision,
+  SharingLevel,
+  WeddingPlanDraft,
+} from "./types";
 
 function editAccommodation(
-  state: State,
+  state: WeddingPlanDraft,
   change: (snapshot: AccommodationState) => void,
 ): void {
   editDomain(state, (plan) => {
@@ -38,7 +43,7 @@ function editAccommodation(
 }
 
 export function setShareMode(
-  state: State,
+  state: WeddingPlanDraft,
   id: string,
   level: "room" | "cottage",
   mode: ShareMode,
@@ -49,7 +54,7 @@ export function setShareMode(
   );
 }
 export function setPairDecision(
-  state: State,
+  state: WeddingPlanDraft,
   level: SharingLevel,
   sourceId: string,
   targetId: string,
@@ -60,11 +65,18 @@ export function setPairDecision(
     pairChoice(snapshot, level, sourceId, targetId, choice, setup),
   );
 }
-export function setOwnBed(state: State, id: string, required: boolean): void {
+export function setOwnBed(
+  state: WeddingPlanDraft,
+  id: string,
+  required: boolean,
+): void {
   editAccommodation(state, (snapshot) => ownBed(snapshot, id, required));
 }
-/** This editor action explicitly confirms a couple and a shared bed. */
-export function setPartner(state: State, id: string, partnerId: string): void {
+export function setPartner(
+  state: WeddingPlanDraft,
+  id: string,
+  partnerId: string,
+): void {
   if (partnerId) {
     const first = state.guests.find((guest) => guest.id === id);
     const second = state.guests.find((guest) => guest.id === partnerId);
@@ -78,12 +90,11 @@ export function setPartner(state: State, id: string, partnerId: string): void {
       return;
     editDomain(state, (plan) => confirmCoupleSharingBed(plan, id, partnerId));
   } else {
-    // Removing a bed assignment does not change the couple relationship.
     editAccommodation(state, (snapshot) => setBedPartner(snapshot, id, ""));
   }
 }
 export function markNotCouple(
-  state: State,
+  state: WeddingPlanDraft,
   first: string,
   second: string,
   notCouple: boolean,
@@ -91,7 +102,7 @@ export function markNotCouple(
   editDomain(state, (plan) => markRelationship(plan, first, second, notCouple));
 }
 export function pairDecision(
-  state: State | null,
+  state: WeddingPlanDraft | null,
   focus: BedGroup | undefined,
   target: BedGroup,
   level: SharingLevel,

@@ -31,10 +31,6 @@ export function ViewControls({
       <Button variant="outline" onClick={fitRoom}>
         Fit room
       </Button>
-      <span className="editor-hint">
-        Drag the background to pan. Drag the selected table&apos;s handle to
-        rotate. Pinch with two fingers to zoom. Tap a guest to see their name.
-      </span>
     </div>
   );
 }

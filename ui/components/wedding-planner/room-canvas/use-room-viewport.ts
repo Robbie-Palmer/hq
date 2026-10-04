@@ -49,7 +49,6 @@ export function useRoomViewport(
     event.stopPropagation();
     if (pinch.current) return;
     pinch.current = { ...pair, zoom: view.zoom, position: canvas.position() };
-    // Stop both pending and active drags before two fingers move the viewport.
     canvas.stopDrag();
     canvas.find<Konva.Group>("Group").forEach((node) => {
       node.stopDrag();

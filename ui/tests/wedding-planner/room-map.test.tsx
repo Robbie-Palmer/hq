@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 import { TableRoomMap } from "@/components/wedding-planner/table-room-map";
 import { tableRotation, tableSeats } from "@/lib/wedding-planner/room-layout";
 import { tablePlanSchema } from "@/lib/wedding-planner/table-state";
-import type { State, TableAllocation } from "@/lib/wedding-planner/types";
+import type {
+  TableAllocation,
+  WeddingPlanDraft,
+} from "@/lib/wedding-planner/types";
 import { fireEvent, render, screen } from "@/tests/test-utils";
 
 vi.mock("next/dynamic", () => ({ default: () => () => null }));
@@ -33,7 +36,7 @@ const allocation: TableAllocation = {
 };
 
 function Editor() {
-  const [state, setState] = useState<State>({
+  const [state, setState] = useState<WeddingPlanDraft>({
     reviewed_non_couples: [],
     reservations: {},
     suite_billing_modes: {},

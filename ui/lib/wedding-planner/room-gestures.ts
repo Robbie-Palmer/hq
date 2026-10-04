@@ -13,7 +13,6 @@ export function pinchTouches(first: Point, second: Point) {
   };
 }
 
-/** Keep the room point under the initial midpoint beneath the moving fingers. */
 export function pinchView(
   start: PinchStart,
   current: ReturnType<typeof pinchTouches>,

@@ -8,8 +8,6 @@ export type {
 export { validateAccommodationSetup } from "wedding-planner-domain/accommodation";
 
 import type { AccommodationSetup } from "wedding-planner-domain/accommodation";
-// The allocator receives an inventory. Only this app adapter knows which
-// imported fields represent the already booked Linen room.
 export const weddingAccommodationSetup: AccommodationSetup = {
   input: template as PlannerInput,
   fixedNights: 1,

@@ -89,25 +89,6 @@
   display: flex;
   flex-direction: column;
 }
-.sidebar-intro {
-  padding: 0 15px 30px;
-}
-.sidebar-intro .badge {
-  letter-spacing: 0.12em;
-}
-.sidebar-intro h1 {
-  font-family: Georgia, serif;
-  font-size: 31px;
-  line-height: 1.12;
-  font-weight: 400;
-  letter-spacing: -0.05em;
-  margin: 20px 0 12px;
-}
-.sidebar-intro em {
-  color: #678b69;
-  font-style: italic;
-}
-.sidebar-intro p,
 .sidebar-note p {
   color: var(--soft-ink);
   font-size: 13px;
@@ -174,12 +155,6 @@
   align-items: end;
   gap: 20px;
   margin-bottom: 30px;
-}
-.eyebrow {
-  color: #6f9a73;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.19em;
 }
 .page-heading h2 {
   font-family: Georgia, serif;
@@ -308,11 +283,6 @@
   display: block;
   color: var(--soft-ink);
   font-size: 10px;
-}
-.bed-empty {
-  margin: 0;
-  color: var(--soft-ink);
-  font-size: 13px;
 }
 .bed-partner-summary {
   display: flex;
@@ -461,18 +431,6 @@
   gap: 12px;
   align-items: start;
   margin-bottom: 15px;
-}
-.step-number {
-  border-radius: 50%;
-  background: #eaf2e9;
-  color: #45684d;
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 28px;
-  height: 28px;
-  font-size: 10px;
-  font-weight: 800;
 }
 .section-title h3 {
   font-size: 15px;
@@ -681,13 +639,6 @@
 .sharing-policy .bg-primary {
   background: #567c5d;
 }
-.sharing-explainer {
-  color: var(--soft-ink);
-  font-size: 13px;
-  line-height: 1.5;
-  margin: 15px 0 20px;
-  max-width: 730px;
-}
 .sharing-layout {
   display: grid;
   grid-template-columns: minmax(230px, 0.75fr) minmax(0, 1.5fr);
@@ -891,9 +842,6 @@
 .cottage-deposit-field {
   margin-top: 14px;
 }
-.cottage-option-hint {
-  margin-top: 10px;
-}
 .plan-card {
   margin-top: 20px;
 }
@@ -959,12 +907,6 @@
   font-family: Georgia, serif;
   font-size: 25px;
   font-weight: 400;
-}
-.result-finance-note {
-  color: var(--soft-ink);
-  font-size: 12px;
-  line-height: 1.55;
-  margin: 12px 0 0;
 }
 .result-free-note {
   margin-top: 14px;
@@ -1131,9 +1073,6 @@
   .editor-sidebar {
     padding: 28px 12px;
   }
-  .sidebar-intro h1 {
-    font-size: 25px;
-  }
   .editor-main {
     padding: 32px 25px 70px;
   }
@@ -1157,7 +1096,6 @@
     border-right: 0;
     border-bottom: 1px solid var(--line);
   }
-  .sidebar-intro,
   .sidebar-note {
     display: none;
   }

@@ -8,7 +8,7 @@ import {
 } from "@/lib/wedding-planner/editor-projection";
 import { solveTables } from "@/lib/wedding-planner/solve-tables";
 import { buildTableInput } from "@/lib/wedding-planner/table-state";
-import type { Guest, State } from "@/lib/wedding-planner/types";
+import type { Guest, WeddingPlanDraft } from "@/lib/wedding-planner/types";
 import {
   act,
   fireEvent,
@@ -49,7 +49,7 @@ function guest(id: string, name: string, changes: Partial<Guest> = {}): Guest {
   };
 }
 
-function sampleState(): State {
+function sampleState(): WeddingPlanDraft {
   return toEditorState(
     editorStateToPlan({
       nights: 1,
@@ -326,7 +326,7 @@ describe("accommodation editor", () => {
     };
     render(<AccommodationEditor application={application} />);
     fireEvent.click(
-      await screen.findByRole("button", { name: "Try sample plan" }),
+      await screen.findByRole("button", { name: "Use sample plan" }),
     );
     await screen.findByText(/26 fictional guests/);
     expect(save.mock.lastCall?.[0].guests).toHaveLength(26);
@@ -449,9 +449,7 @@ describe("accommodation editor", () => {
     expect(
       await screen.findByText("Guests expected to pay"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Nothing extra is due for Riverside suites/),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Payment breakdown")).toBeInTheDocument();
   });
 
   it("imports a plan after reporting an invalid file", async () => {
@@ -463,9 +461,7 @@ describe("accommodation editor", () => {
       calculateRooms: vi.fn(),
     };
     render(<AccommodationEditor application={application} />);
-    expect(
-      await screen.findByText("Start your wedding plan"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("No plan loaded")).toBeInTheDocument();
     const input = screen.getByLabelText("Choose a wedding room plan");
     const invalid = Object.assign(new File(["{}"], "invalid.json"), {
       text: async () => "{}",

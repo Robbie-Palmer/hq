@@ -1,10 +1,4 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMinorCurrency } from "@/lib/generic/money";
 import type { AccommodationSetup } from "@/lib/wedding-planner/setup";
 import type { Allocation, PartyName } from "@/lib/wedding-planner/types";
@@ -35,10 +29,6 @@ function GuestPayments({
     <Card className="result-property">
       <CardHeader>
         <CardTitle>Guest payments</CardTitle>
-        <CardDescription>
-          Amounts for on-site rooms and cottages. For cottages we book, guests
-          pay us back. Outside estimates are included in the headline total.
-        </CardDescription>
       </CardHeader>
       <CardContent>
         {payments.map((payment) => (
@@ -71,7 +61,6 @@ function OutsideAccommodation({
     <Card className="result-property">
       <CardHeader>
         <CardTitle>Outside accommodation</CardTitle>
-        <CardDescription>These guests need to book elsewhere.</CardDescription>
       </CardHeader>
       <CardContent>
         {allocation.outside_parties.length ? (
@@ -114,11 +103,7 @@ function PaymentBreakdown({
   return (
     <Card className="result-property">
       <CardHeader>
-        <CardTitle>How the payments add up</CardTitle>
-        <CardDescription>
-          Cottage reimbursements reduce your final cost. Included room values
-          are package reference figures, not new bills.
-        </CardDescription>
+        <CardTitle>Payment breakdown</CardTitle>
       </CardHeader>
       <CardContent>
         {Object.entries(flow.by_property)
