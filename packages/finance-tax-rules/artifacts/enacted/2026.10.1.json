@@ -1,0 +1,2773 @@
+{
+  "datasetVersion": "2026.10.1",
+  "releasedAt": "2026-10-04",
+  "supersedes": "2026.10.0",
+  "corrections": [],
+  "dataLicence": {
+    "name": "Open Government Licence v3.0",
+    "url": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+    "copyright": "Crown copyright",
+    "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0."
+  },
+  "legalStatus": "enacted",
+  "rules": [
+    {
+      "id": "income-tax-2022-23-england-northern-ireland",
+      "version": "1",
+      "taxYear": "2022-23",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2022-04-06",
+      "effectiveTo": "2023-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-income-tax-current-and-past",
+          "hmrc-employer-2022-23"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
+        "sources": [
+          {
+            "id": "hmrc-income-tax-current-and-past",
+            "title": "Income Tax rates and allowances for current and previous tax years",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/government/publications/rates-and-allowances-income-tax/income-tax-rates-and-allowances-current-and-past",
+            "archiveUrl": null,
+            "publicationDate": "2014-02-01",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "89b4d254fc3303af663cd405c1f5a880400e4890364fd774e851557c4fa67263",
+            "snapshotPath": "source-snapshots/income-tax-current-and-past.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "25ce7045c82d2c4636405af82844dc97c913304146750a6c2c07b6890ef6e2f0"
+          },
+          {
+            "id": "hmrc-employer-2022-23",
+            "title": "Rates and thresholds for employers 2022 to 2023",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2022-to-2023",
+            "archiveUrl": "https://webarchive.nationalarchives.gov.uk/ukgwa/*/https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2022-to-2023",
+            "publicationDate": "2022-02-07",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2023-04-05",
+            "sourceContentSha256": "33bd9fa84534216d2a6a4fd5e35273f9c989eba771f845e9bdcfa8e3ce014c64",
+            "snapshotPath": "source-snapshots/employer-2022-23.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "668cae811aa7b21c300c47c758e940b9fec4fad4dcbb823b743047afeebde6f6"
+          }
+        ]
+      },
+      "kind": "income-tax",
+      "jurisdictions": [
+        "england-and-northern-ireland"
+      ],
+      "incomeScope": "employment-non-savings-non-dividend",
+      "calculationScope": "annual-liability",
+      "standardPersonalAllowancePence": 1257000,
+      "personalAllowanceTaper": {
+        "adjustedNetIncomeStartsAtPence": 10000000,
+        "allowanceReductionPence": 100,
+        "perExcessIncomePence": 200
+      },
+      "bands": [
+        {
+          "name": "basic",
+          "rateBasisPoints": 2000,
+          "widthPence": 3770000
+        },
+        {
+          "name": "higher",
+          "rateBasisPoints": 4000,
+          "widthPence": 11230000
+        },
+        {
+          "name": "additional",
+          "rateBasisPoints": 4500,
+          "widthPence": null
+        }
+      ]
+    },
+    {
+      "id": "income-tax-2022-23-wales",
+      "version": "1",
+      "taxYear": "2022-23",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2022-04-06",
+      "effectiveTo": "2023-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-income-tax-current-and-past",
+          "hmrc-employer-2022-23"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
+        "sources": [
+          {
+            "id": "hmrc-income-tax-current-and-past",
+            "title": "Income Tax rates and allowances for current and previous tax years",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/government/publications/rates-and-allowances-income-tax/income-tax-rates-and-allowances-current-and-past",
+            "archiveUrl": null,
+            "publicationDate": "2014-02-01",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "89b4d254fc3303af663cd405c1f5a880400e4890364fd774e851557c4fa67263",
+            "snapshotPath": "source-snapshots/income-tax-current-and-past.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "25ce7045c82d2c4636405af82844dc97c913304146750a6c2c07b6890ef6e2f0"
+          },
+          {
+            "id": "hmrc-employer-2022-23",
+            "title": "Rates and thresholds for employers 2022 to 2023",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2022-to-2023",
+            "archiveUrl": "https://webarchive.nationalarchives.gov.uk/ukgwa/*/https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2022-to-2023",
+            "publicationDate": "2022-02-07",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2023-04-05",
+            "sourceContentSha256": "33bd9fa84534216d2a6a4fd5e35273f9c989eba771f845e9bdcfa8e3ce014c64",
+            "snapshotPath": "source-snapshots/employer-2022-23.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "668cae811aa7b21c300c47c758e940b9fec4fad4dcbb823b743047afeebde6f6"
+          }
+        ]
+      },
+      "kind": "income-tax",
+      "jurisdictions": [
+        "wales"
+      ],
+      "incomeScope": "employment-non-savings-non-dividend",
+      "calculationScope": "annual-liability",
+      "standardPersonalAllowancePence": 1257000,
+      "personalAllowanceTaper": {
+        "adjustedNetIncomeStartsAtPence": 10000000,
+        "allowanceReductionPence": 100,
+        "perExcessIncomePence": 200
+      },
+      "bands": [
+        {
+          "name": "basic",
+          "rateBasisPoints": 2000,
+          "widthPence": 3770000
+        },
+        {
+          "name": "higher",
+          "rateBasisPoints": 4000,
+          "widthPence": 11230000
+        },
+        {
+          "name": "additional",
+          "rateBasisPoints": 4500,
+          "widthPence": null
+        }
+      ]
+    },
+    {
+      "id": "income-tax-2022-23-scotland",
+      "version": "1",
+      "taxYear": "2022-23",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2022-04-06",
+      "effectiveTo": "2023-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-income-tax-current-and-past",
+          "hmrc-employer-2022-23"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
+        "sources": [
+          {
+            "id": "hmrc-income-tax-current-and-past",
+            "title": "Income Tax rates and allowances for current and previous tax years",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/government/publications/rates-and-allowances-income-tax/income-tax-rates-and-allowances-current-and-past",
+            "archiveUrl": null,
+            "publicationDate": "2014-02-01",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "89b4d254fc3303af663cd405c1f5a880400e4890364fd774e851557c4fa67263",
+            "snapshotPath": "source-snapshots/income-tax-current-and-past.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "25ce7045c82d2c4636405af82844dc97c913304146750a6c2c07b6890ef6e2f0"
+          },
+          {
+            "id": "hmrc-employer-2022-23",
+            "title": "Rates and thresholds for employers 2022 to 2023",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2022-to-2023",
+            "archiveUrl": "https://webarchive.nationalarchives.gov.uk/ukgwa/*/https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2022-to-2023",
+            "publicationDate": "2022-02-07",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2023-04-05",
+            "sourceContentSha256": "33bd9fa84534216d2a6a4fd5e35273f9c989eba771f845e9bdcfa8e3ce014c64",
+            "snapshotPath": "source-snapshots/employer-2022-23.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "668cae811aa7b21c300c47c758e940b9fec4fad4dcbb823b743047afeebde6f6"
+          }
+        ]
+      },
+      "kind": "income-tax",
+      "jurisdictions": [
+        "scotland"
+      ],
+      "incomeScope": "employment-non-savings-non-dividend",
+      "calculationScope": "annual-liability",
+      "standardPersonalAllowancePence": 1257000,
+      "personalAllowanceTaper": {
+        "adjustedNetIncomeStartsAtPence": 10000000,
+        "allowanceReductionPence": 100,
+        "perExcessIncomePence": 200
+      },
+      "bands": [
+        {
+          "name": "starter",
+          "rateBasisPoints": 1900,
+          "widthPence": 216200
+        },
+        {
+          "name": "basic",
+          "rateBasisPoints": 2000,
+          "widthPence": 1095600
+        },
+        {
+          "name": "intermediate",
+          "rateBasisPoints": 2100,
+          "widthPence": 1797400
+        },
+        {
+          "name": "higher",
+          "rateBasisPoints": 4100,
+          "widthPence": 11890800
+        },
+        {
+          "name": "top",
+          "rateBasisPoints": 4600,
+          "widthPence": null
+        }
+      ]
+    },
+    {
+      "id": "income-tax-2023-24-england-northern-ireland",
+      "version": "1",
+      "taxYear": "2023-24",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2023-04-06",
+      "effectiveTo": "2024-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-income-tax-current-and-past",
+          "hmrc-employer-2023-24"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
+        "sources": [
+          {
+            "id": "hmrc-income-tax-current-and-past",
+            "title": "Income Tax rates and allowances for current and previous tax years",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/government/publications/rates-and-allowances-income-tax/income-tax-rates-and-allowances-current-and-past",
+            "archiveUrl": null,
+            "publicationDate": "2014-02-01",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "89b4d254fc3303af663cd405c1f5a880400e4890364fd774e851557c4fa67263",
+            "snapshotPath": "source-snapshots/income-tax-current-and-past.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "25ce7045c82d2c4636405af82844dc97c913304146750a6c2c07b6890ef6e2f0"
+          },
+          {
+            "id": "hmrc-employer-2023-24",
+            "title": "Rates and thresholds for employers 2023 to 2024",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2023-to-2024",
+            "archiveUrl": null,
+            "publicationDate": "2023-02-27",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2023-04-06",
+            "coverageTo": "2024-04-05",
+            "sourceContentSha256": "42b48eb2abd884ac3997b9a073f5b04ccb2a97ccfb43150fdc6e5d181e86cae7",
+            "snapshotPath": "source-snapshots/employer-2023-24.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "7c6ae112f750e8d6d06f8534d7cf552a4a307d8e4248dc22bff48fcf44c750d8"
+          }
+        ]
+      },
+      "kind": "income-tax",
+      "jurisdictions": [
+        "england-and-northern-ireland"
+      ],
+      "incomeScope": "employment-non-savings-non-dividend",
+      "calculationScope": "annual-liability",
+      "standardPersonalAllowancePence": 1257000,
+      "personalAllowanceTaper": {
+        "adjustedNetIncomeStartsAtPence": 10000000,
+        "allowanceReductionPence": 100,
+        "perExcessIncomePence": 200
+      },
+      "bands": [
+        {
+          "name": "basic",
+          "rateBasisPoints": 2000,
+          "widthPence": 3770000
+        },
+        {
+          "name": "higher",
+          "rateBasisPoints": 4000,
+          "widthPence": 8744000
+        },
+        {
+          "name": "additional",
+          "rateBasisPoints": 4500,
+          "widthPence": null
+        }
+      ]
+    },
+    {
+      "id": "income-tax-2023-24-wales",
+      "version": "1",
+      "taxYear": "2023-24",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2023-04-06",
+      "effectiveTo": "2024-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-income-tax-current-and-past",
+          "hmrc-employer-2023-24"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
+        "sources": [
+          {
+            "id": "hmrc-income-tax-current-and-past",
+            "title": "Income Tax rates and allowances for current and previous tax years",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/government/publications/rates-and-allowances-income-tax/income-tax-rates-and-allowances-current-and-past",
+            "archiveUrl": null,
+            "publicationDate": "2014-02-01",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "89b4d254fc3303af663cd405c1f5a880400e4890364fd774e851557c4fa67263",
+            "snapshotPath": "source-snapshots/income-tax-current-and-past.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "25ce7045c82d2c4636405af82844dc97c913304146750a6c2c07b6890ef6e2f0"
+          },
+          {
+            "id": "hmrc-employer-2023-24",
+            "title": "Rates and thresholds for employers 2023 to 2024",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2023-to-2024",
+            "archiveUrl": null,
+            "publicationDate": "2023-02-27",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2023-04-06",
+            "coverageTo": "2024-04-05",
+            "sourceContentSha256": "42b48eb2abd884ac3997b9a073f5b04ccb2a97ccfb43150fdc6e5d181e86cae7",
+            "snapshotPath": "source-snapshots/employer-2023-24.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "7c6ae112f750e8d6d06f8534d7cf552a4a307d8e4248dc22bff48fcf44c750d8"
+          }
+        ]
+      },
+      "kind": "income-tax",
+      "jurisdictions": [
+        "wales"
+      ],
+      "incomeScope": "employment-non-savings-non-dividend",
+      "calculationScope": "annual-liability",
+      "standardPersonalAllowancePence": 1257000,
+      "personalAllowanceTaper": {
+        "adjustedNetIncomeStartsAtPence": 10000000,
+        "allowanceReductionPence": 100,
+        "perExcessIncomePence": 200
+      },
+      "bands": [
+        {
+          "name": "basic",
+          "rateBasisPoints": 2000,
+          "widthPence": 3770000
+        },
+        {
+          "name": "higher",
+          "rateBasisPoints": 4000,
+          "widthPence": 8744000
+        },
+        {
+          "name": "additional",
+          "rateBasisPoints": 4500,
+          "widthPence": null
+        }
+      ]
+    },
+    {
+      "id": "income-tax-2023-24-scotland",
+      "version": "1",
+      "taxYear": "2023-24",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2023-04-06",
+      "effectiveTo": "2024-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-income-tax-current-and-past",
+          "hmrc-employer-2023-24"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
+        "sources": [
+          {
+            "id": "hmrc-income-tax-current-and-past",
+            "title": "Income Tax rates and allowances for current and previous tax years",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/government/publications/rates-and-allowances-income-tax/income-tax-rates-and-allowances-current-and-past",
+            "archiveUrl": null,
+            "publicationDate": "2014-02-01",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "89b4d254fc3303af663cd405c1f5a880400e4890364fd774e851557c4fa67263",
+            "snapshotPath": "source-snapshots/income-tax-current-and-past.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "25ce7045c82d2c4636405af82844dc97c913304146750a6c2c07b6890ef6e2f0"
+          },
+          {
+            "id": "hmrc-employer-2023-24",
+            "title": "Rates and thresholds for employers 2023 to 2024",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2023-to-2024",
+            "archiveUrl": null,
+            "publicationDate": "2023-02-27",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2023-04-06",
+            "coverageTo": "2024-04-05",
+            "sourceContentSha256": "42b48eb2abd884ac3997b9a073f5b04ccb2a97ccfb43150fdc6e5d181e86cae7",
+            "snapshotPath": "source-snapshots/employer-2023-24.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "7c6ae112f750e8d6d06f8534d7cf552a4a307d8e4248dc22bff48fcf44c750d8"
+          }
+        ]
+      },
+      "kind": "income-tax",
+      "jurisdictions": [
+        "scotland"
+      ],
+      "incomeScope": "employment-non-savings-non-dividend",
+      "calculationScope": "annual-liability",
+      "standardPersonalAllowancePence": 1257000,
+      "personalAllowanceTaper": {
+        "adjustedNetIncomeStartsAtPence": 10000000,
+        "allowanceReductionPence": 100,
+        "perExcessIncomePence": 200
+      },
+      "bands": [
+        {
+          "name": "starter",
+          "rateBasisPoints": 1900,
+          "widthPence": 216200
+        },
+        {
+          "name": "basic",
+          "rateBasisPoints": 2000,
+          "widthPence": 1095600
+        },
+        {
+          "name": "intermediate",
+          "rateBasisPoints": 2100,
+          "widthPence": 1797400
+        },
+        {
+          "name": "higher",
+          "rateBasisPoints": 4200,
+          "widthPence": 9404800
+        },
+        {
+          "name": "top",
+          "rateBasisPoints": 4700,
+          "widthPence": null
+        }
+      ]
+    },
+    {
+      "id": "income-tax-2024-25-england-northern-ireland",
+      "version": "1",
+      "taxYear": "2024-25",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2024-04-06",
+      "effectiveTo": "2025-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-income-tax-current-and-past",
+          "hmrc-employer-2024-25"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
+        "sources": [
+          {
+            "id": "hmrc-income-tax-current-and-past",
+            "title": "Income Tax rates and allowances for current and previous tax years",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/government/publications/rates-and-allowances-income-tax/income-tax-rates-and-allowances-current-and-past",
+            "archiveUrl": null,
+            "publicationDate": "2014-02-01",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "89b4d254fc3303af663cd405c1f5a880400e4890364fd774e851557c4fa67263",
+            "snapshotPath": "source-snapshots/income-tax-current-and-past.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "25ce7045c82d2c4636405af82844dc97c913304146750a6c2c07b6890ef6e2f0"
+          },
+          {
+            "id": "hmrc-employer-2024-25",
+            "title": "Rates and thresholds for employers 2024 to 2025",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2024-to-2025",
+            "archiveUrl": null,
+            "publicationDate": "2024-02-06",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2024-04-06",
+            "coverageTo": "2025-04-05",
+            "sourceContentSha256": "cc3304f6650804bc9578557f8897e713cd1dcd22e4bc1b27a234c5f191a80943",
+            "snapshotPath": "source-snapshots/employer-2024-25.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "1a0d817e4aad8e9e13ef3e007de0e86433e538f5adc705ef91e4505cc1c23cbc"
+          }
+        ]
+      },
+      "kind": "income-tax",
+      "jurisdictions": [
+        "england-and-northern-ireland"
+      ],
+      "incomeScope": "employment-non-savings-non-dividend",
+      "calculationScope": "annual-liability",
+      "standardPersonalAllowancePence": 1257000,
+      "personalAllowanceTaper": {
+        "adjustedNetIncomeStartsAtPence": 10000000,
+        "allowanceReductionPence": 100,
+        "perExcessIncomePence": 200
+      },
+      "bands": [
+        {
+          "name": "basic",
+          "rateBasisPoints": 2000,
+          "widthPence": 3770000
+        },
+        {
+          "name": "higher",
+          "rateBasisPoints": 4000,
+          "widthPence": 8744000
+        },
+        {
+          "name": "additional",
+          "rateBasisPoints": 4500,
+          "widthPence": null
+        }
+      ]
+    },
+    {
+      "id": "income-tax-2024-25-wales",
+      "version": "1",
+      "taxYear": "2024-25",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2024-04-06",
+      "effectiveTo": "2025-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-income-tax-current-and-past",
+          "hmrc-employer-2024-25"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
+        "sources": [
+          {
+            "id": "hmrc-income-tax-current-and-past",
+            "title": "Income Tax rates and allowances for current and previous tax years",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/government/publications/rates-and-allowances-income-tax/income-tax-rates-and-allowances-current-and-past",
+            "archiveUrl": null,
+            "publicationDate": "2014-02-01",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "89b4d254fc3303af663cd405c1f5a880400e4890364fd774e851557c4fa67263",
+            "snapshotPath": "source-snapshots/income-tax-current-and-past.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "25ce7045c82d2c4636405af82844dc97c913304146750a6c2c07b6890ef6e2f0"
+          },
+          {
+            "id": "hmrc-employer-2024-25",
+            "title": "Rates and thresholds for employers 2024 to 2025",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2024-to-2025",
+            "archiveUrl": null,
+            "publicationDate": "2024-02-06",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2024-04-06",
+            "coverageTo": "2025-04-05",
+            "sourceContentSha256": "cc3304f6650804bc9578557f8897e713cd1dcd22e4bc1b27a234c5f191a80943",
+            "snapshotPath": "source-snapshots/employer-2024-25.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "1a0d817e4aad8e9e13ef3e007de0e86433e538f5adc705ef91e4505cc1c23cbc"
+          }
+        ]
+      },
+      "kind": "income-tax",
+      "jurisdictions": [
+        "wales"
+      ],
+      "incomeScope": "employment-non-savings-non-dividend",
+      "calculationScope": "annual-liability",
+      "standardPersonalAllowancePence": 1257000,
+      "personalAllowanceTaper": {
+        "adjustedNetIncomeStartsAtPence": 10000000,
+        "allowanceReductionPence": 100,
+        "perExcessIncomePence": 200
+      },
+      "bands": [
+        {
+          "name": "basic",
+          "rateBasisPoints": 2000,
+          "widthPence": 3770000
+        },
+        {
+          "name": "higher",
+          "rateBasisPoints": 4000,
+          "widthPence": 8744000
+        },
+        {
+          "name": "additional",
+          "rateBasisPoints": 4500,
+          "widthPence": null
+        }
+      ]
+    },
+    {
+      "id": "income-tax-2024-25-scotland",
+      "version": "1",
+      "taxYear": "2024-25",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2024-04-06",
+      "effectiveTo": "2025-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-income-tax-current-and-past",
+          "hmrc-employer-2024-25"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
+        "sources": [
+          {
+            "id": "hmrc-income-tax-current-and-past",
+            "title": "Income Tax rates and allowances for current and previous tax years",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/government/publications/rates-and-allowances-income-tax/income-tax-rates-and-allowances-current-and-past",
+            "archiveUrl": null,
+            "publicationDate": "2014-02-01",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "89b4d254fc3303af663cd405c1f5a880400e4890364fd774e851557c4fa67263",
+            "snapshotPath": "source-snapshots/income-tax-current-and-past.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "25ce7045c82d2c4636405af82844dc97c913304146750a6c2c07b6890ef6e2f0"
+          },
+          {
+            "id": "hmrc-employer-2024-25",
+            "title": "Rates and thresholds for employers 2024 to 2025",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2024-to-2025",
+            "archiveUrl": null,
+            "publicationDate": "2024-02-06",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2024-04-06",
+            "coverageTo": "2025-04-05",
+            "sourceContentSha256": "cc3304f6650804bc9578557f8897e713cd1dcd22e4bc1b27a234c5f191a80943",
+            "snapshotPath": "source-snapshots/employer-2024-25.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "1a0d817e4aad8e9e13ef3e007de0e86433e538f5adc705ef91e4505cc1c23cbc"
+          }
+        ]
+      },
+      "kind": "income-tax",
+      "jurisdictions": [
+        "scotland"
+      ],
+      "incomeScope": "employment-non-savings-non-dividend",
+      "calculationScope": "annual-liability",
+      "standardPersonalAllowancePence": 1257000,
+      "personalAllowanceTaper": {
+        "adjustedNetIncomeStartsAtPence": 10000000,
+        "allowanceReductionPence": 100,
+        "perExcessIncomePence": 200
+      },
+      "bands": [
+        {
+          "name": "starter",
+          "rateBasisPoints": 1900,
+          "widthPence": 230600
+        },
+        {
+          "name": "basic",
+          "rateBasisPoints": 2000,
+          "widthPence": 1168500
+        },
+        {
+          "name": "intermediate",
+          "rateBasisPoints": 2100,
+          "widthPence": 1710100
+        },
+        {
+          "name": "higher",
+          "rateBasisPoints": 4200,
+          "widthPence": 3133800
+        },
+        {
+          "name": "advanced",
+          "rateBasisPoints": 4500,
+          "widthPence": 6271000
+        },
+        {
+          "name": "top",
+          "rateBasisPoints": 4800,
+          "widthPence": null
+        }
+      ]
+    },
+    {
+      "id": "income-tax-2025-26-england-northern-ireland",
+      "version": "1",
+      "taxYear": "2025-26",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2025-04-06",
+      "effectiveTo": "2026-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-income-tax-current-and-past",
+          "hmrc-employer-2025-26"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
+        "sources": [
+          {
+            "id": "hmrc-income-tax-current-and-past",
+            "title": "Income Tax rates and allowances for current and previous tax years",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/government/publications/rates-and-allowances-income-tax/income-tax-rates-and-allowances-current-and-past",
+            "archiveUrl": null,
+            "publicationDate": "2014-02-01",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "89b4d254fc3303af663cd405c1f5a880400e4890364fd774e851557c4fa67263",
+            "snapshotPath": "source-snapshots/income-tax-current-and-past.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "25ce7045c82d2c4636405af82844dc97c913304146750a6c2c07b6890ef6e2f0"
+          },
+          {
+            "id": "hmrc-employer-2025-26",
+            "title": "Rates and thresholds for employers 2025 to 2026",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2025-to-2026",
+            "archiveUrl": null,
+            "publicationDate": "2025-01-31",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2025-04-06",
+            "coverageTo": "2026-04-05",
+            "sourceContentSha256": "a62aea50942fdf008f7a2afad9dd1746354df7e3b98edce03fe7db596e540eca",
+            "snapshotPath": "source-snapshots/employer-2025-26.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "f58deeb17bc77f0bcc73263690331789090fc09e38d5384d36b33643e9aa6f6b"
+          }
+        ]
+      },
+      "kind": "income-tax",
+      "jurisdictions": [
+        "england-and-northern-ireland"
+      ],
+      "incomeScope": "employment-non-savings-non-dividend",
+      "calculationScope": "annual-liability",
+      "standardPersonalAllowancePence": 1257000,
+      "personalAllowanceTaper": {
+        "adjustedNetIncomeStartsAtPence": 10000000,
+        "allowanceReductionPence": 100,
+        "perExcessIncomePence": 200
+      },
+      "bands": [
+        {
+          "name": "basic",
+          "rateBasisPoints": 2000,
+          "widthPence": 3770000
+        },
+        {
+          "name": "higher",
+          "rateBasisPoints": 4000,
+          "widthPence": 8744000
+        },
+        {
+          "name": "additional",
+          "rateBasisPoints": 4500,
+          "widthPence": null
+        }
+      ]
+    },
+    {
+      "id": "income-tax-2025-26-wales",
+      "version": "1",
+      "taxYear": "2025-26",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2025-04-06",
+      "effectiveTo": "2026-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-income-tax-current-and-past",
+          "hmrc-employer-2025-26"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
+        "sources": [
+          {
+            "id": "hmrc-income-tax-current-and-past",
+            "title": "Income Tax rates and allowances for current and previous tax years",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/government/publications/rates-and-allowances-income-tax/income-tax-rates-and-allowances-current-and-past",
+            "archiveUrl": null,
+            "publicationDate": "2014-02-01",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "89b4d254fc3303af663cd405c1f5a880400e4890364fd774e851557c4fa67263",
+            "snapshotPath": "source-snapshots/income-tax-current-and-past.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "25ce7045c82d2c4636405af82844dc97c913304146750a6c2c07b6890ef6e2f0"
+          },
+          {
+            "id": "hmrc-employer-2025-26",
+            "title": "Rates and thresholds for employers 2025 to 2026",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2025-to-2026",
+            "archiveUrl": null,
+            "publicationDate": "2025-01-31",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2025-04-06",
+            "coverageTo": "2026-04-05",
+            "sourceContentSha256": "a62aea50942fdf008f7a2afad9dd1746354df7e3b98edce03fe7db596e540eca",
+            "snapshotPath": "source-snapshots/employer-2025-26.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "f58deeb17bc77f0bcc73263690331789090fc09e38d5384d36b33643e9aa6f6b"
+          }
+        ]
+      },
+      "kind": "income-tax",
+      "jurisdictions": [
+        "wales"
+      ],
+      "incomeScope": "employment-non-savings-non-dividend",
+      "calculationScope": "annual-liability",
+      "standardPersonalAllowancePence": 1257000,
+      "personalAllowanceTaper": {
+        "adjustedNetIncomeStartsAtPence": 10000000,
+        "allowanceReductionPence": 100,
+        "perExcessIncomePence": 200
+      },
+      "bands": [
+        {
+          "name": "basic",
+          "rateBasisPoints": 2000,
+          "widthPence": 3770000
+        },
+        {
+          "name": "higher",
+          "rateBasisPoints": 4000,
+          "widthPence": 8744000
+        },
+        {
+          "name": "additional",
+          "rateBasisPoints": 4500,
+          "widthPence": null
+        }
+      ]
+    },
+    {
+      "id": "income-tax-2025-26-scotland",
+      "version": "1",
+      "taxYear": "2025-26",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2025-04-06",
+      "effectiveTo": "2026-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-income-tax-current-and-past",
+          "hmrc-employer-2025-26"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
+        "sources": [
+          {
+            "id": "hmrc-income-tax-current-and-past",
+            "title": "Income Tax rates and allowances for current and previous tax years",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/government/publications/rates-and-allowances-income-tax/income-tax-rates-and-allowances-current-and-past",
+            "archiveUrl": null,
+            "publicationDate": "2014-02-01",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "89b4d254fc3303af663cd405c1f5a880400e4890364fd774e851557c4fa67263",
+            "snapshotPath": "source-snapshots/income-tax-current-and-past.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "25ce7045c82d2c4636405af82844dc97c913304146750a6c2c07b6890ef6e2f0"
+          },
+          {
+            "id": "hmrc-employer-2025-26",
+            "title": "Rates and thresholds for employers 2025 to 2026",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2025-to-2026",
+            "archiveUrl": null,
+            "publicationDate": "2025-01-31",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2025-04-06",
+            "coverageTo": "2026-04-05",
+            "sourceContentSha256": "a62aea50942fdf008f7a2afad9dd1746354df7e3b98edce03fe7db596e540eca",
+            "snapshotPath": "source-snapshots/employer-2025-26.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "f58deeb17bc77f0bcc73263690331789090fc09e38d5384d36b33643e9aa6f6b"
+          }
+        ]
+      },
+      "kind": "income-tax",
+      "jurisdictions": [
+        "scotland"
+      ],
+      "incomeScope": "employment-non-savings-non-dividend",
+      "calculationScope": "annual-liability",
+      "standardPersonalAllowancePence": 1257000,
+      "personalAllowanceTaper": {
+        "adjustedNetIncomeStartsAtPence": 10000000,
+        "allowanceReductionPence": 100,
+        "perExcessIncomePence": 200
+      },
+      "bands": [
+        {
+          "name": "starter",
+          "rateBasisPoints": 1900,
+          "widthPence": 282700
+        },
+        {
+          "name": "basic",
+          "rateBasisPoints": 2000,
+          "widthPence": 1209400
+        },
+        {
+          "name": "intermediate",
+          "rateBasisPoints": 2100,
+          "widthPence": 1617100
+        },
+        {
+          "name": "higher",
+          "rateBasisPoints": 4200,
+          "widthPence": 3133800
+        },
+        {
+          "name": "advanced",
+          "rateBasisPoints": 4500,
+          "widthPence": 6271000
+        },
+        {
+          "name": "top",
+          "rateBasisPoints": 4800,
+          "widthPence": null
+        }
+      ]
+    },
+    {
+      "id": "income-tax-2026-27-england-northern-ireland",
+      "version": "1",
+      "taxYear": "2026-27",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2026-04-06",
+      "effectiveTo": "2027-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-income-tax-current-and-past",
+          "hmrc-employer-2026-27"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
+        "sources": [
+          {
+            "id": "hmrc-income-tax-current-and-past",
+            "title": "Income Tax rates and allowances for current and previous tax years",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/government/publications/rates-and-allowances-income-tax/income-tax-rates-and-allowances-current-and-past",
+            "archiveUrl": null,
+            "publicationDate": "2014-02-01",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "89b4d254fc3303af663cd405c1f5a880400e4890364fd774e851557c4fa67263",
+            "snapshotPath": "source-snapshots/income-tax-current-and-past.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "25ce7045c82d2c4636405af82844dc97c913304146750a6c2c07b6890ef6e2f0"
+          },
+          {
+            "id": "hmrc-employer-2026-27",
+            "title": "Rates and thresholds for employers 2026 to 2027",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027",
+            "archiveUrl": null,
+            "publicationDate": "2026-01-30",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2026-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "a6315ba6c7166c712c66094523334ab27b1f94f9922af74a223c6380d20fc7d0",
+            "snapshotPath": "source-snapshots/employer-2026-27.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "1fab96b72464b3a512ab1a02eb9d5a1e9a4f96112a1bd18815ea7a6e0089120b"
+          }
+        ]
+      },
+      "kind": "income-tax",
+      "jurisdictions": [
+        "england-and-northern-ireland"
+      ],
+      "incomeScope": "employment-non-savings-non-dividend",
+      "calculationScope": "annual-liability",
+      "standardPersonalAllowancePence": 1257000,
+      "personalAllowanceTaper": {
+        "adjustedNetIncomeStartsAtPence": 10000000,
+        "allowanceReductionPence": 100,
+        "perExcessIncomePence": 200
+      },
+      "bands": [
+        {
+          "name": "basic",
+          "rateBasisPoints": 2000,
+          "widthPence": 3770000
+        },
+        {
+          "name": "higher",
+          "rateBasisPoints": 4000,
+          "widthPence": 8744000
+        },
+        {
+          "name": "additional",
+          "rateBasisPoints": 4500,
+          "widthPence": null
+        }
+      ]
+    },
+    {
+      "id": "income-tax-2026-27-wales",
+      "version": "1",
+      "taxYear": "2026-27",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2026-04-06",
+      "effectiveTo": "2027-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-income-tax-current-and-past",
+          "hmrc-employer-2026-27"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
+        "sources": [
+          {
+            "id": "hmrc-income-tax-current-and-past",
+            "title": "Income Tax rates and allowances for current and previous tax years",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/government/publications/rates-and-allowances-income-tax/income-tax-rates-and-allowances-current-and-past",
+            "archiveUrl": null,
+            "publicationDate": "2014-02-01",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "89b4d254fc3303af663cd405c1f5a880400e4890364fd774e851557c4fa67263",
+            "snapshotPath": "source-snapshots/income-tax-current-and-past.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "25ce7045c82d2c4636405af82844dc97c913304146750a6c2c07b6890ef6e2f0"
+          },
+          {
+            "id": "hmrc-employer-2026-27",
+            "title": "Rates and thresholds for employers 2026 to 2027",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027",
+            "archiveUrl": null,
+            "publicationDate": "2026-01-30",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2026-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "a6315ba6c7166c712c66094523334ab27b1f94f9922af74a223c6380d20fc7d0",
+            "snapshotPath": "source-snapshots/employer-2026-27.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "1fab96b72464b3a512ab1a02eb9d5a1e9a4f96112a1bd18815ea7a6e0089120b"
+          }
+        ]
+      },
+      "kind": "income-tax",
+      "jurisdictions": [
+        "wales"
+      ],
+      "incomeScope": "employment-non-savings-non-dividend",
+      "calculationScope": "annual-liability",
+      "standardPersonalAllowancePence": 1257000,
+      "personalAllowanceTaper": {
+        "adjustedNetIncomeStartsAtPence": 10000000,
+        "allowanceReductionPence": 100,
+        "perExcessIncomePence": 200
+      },
+      "bands": [
+        {
+          "name": "basic",
+          "rateBasisPoints": 2000,
+          "widthPence": 3770000
+        },
+        {
+          "name": "higher",
+          "rateBasisPoints": 4000,
+          "widthPence": 8744000
+        },
+        {
+          "name": "additional",
+          "rateBasisPoints": 4500,
+          "widthPence": null
+        }
+      ]
+    },
+    {
+      "id": "income-tax-2026-27-scotland",
+      "version": "1",
+      "taxYear": "2026-27",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2026-04-06",
+      "effectiveTo": "2027-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-income-tax-current-and-past",
+          "hmrc-employer-2026-27"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
+        "sources": [
+          {
+            "id": "hmrc-income-tax-current-and-past",
+            "title": "Income Tax rates and allowances for current and previous tax years",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/government/publications/rates-and-allowances-income-tax/income-tax-rates-and-allowances-current-and-past",
+            "archiveUrl": null,
+            "publicationDate": "2014-02-01",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "89b4d254fc3303af663cd405c1f5a880400e4890364fd774e851557c4fa67263",
+            "snapshotPath": "source-snapshots/income-tax-current-and-past.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "25ce7045c82d2c4636405af82844dc97c913304146750a6c2c07b6890ef6e2f0"
+          },
+          {
+            "id": "hmrc-employer-2026-27",
+            "title": "Rates and thresholds for employers 2026 to 2027",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027",
+            "archiveUrl": null,
+            "publicationDate": "2026-01-30",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2026-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "a6315ba6c7166c712c66094523334ab27b1f94f9922af74a223c6380d20fc7d0",
+            "snapshotPath": "source-snapshots/employer-2026-27.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "1fab96b72464b3a512ab1a02eb9d5a1e9a4f96112a1bd18815ea7a6e0089120b"
+          }
+        ]
+      },
+      "kind": "income-tax",
+      "jurisdictions": [
+        "scotland"
+      ],
+      "incomeScope": "employment-non-savings-non-dividend",
+      "calculationScope": "annual-liability",
+      "standardPersonalAllowancePence": 1257000,
+      "personalAllowanceTaper": {
+        "adjustedNetIncomeStartsAtPence": 10000000,
+        "allowanceReductionPence": 100,
+        "perExcessIncomePence": 200
+      },
+      "bands": [
+        {
+          "name": "starter",
+          "rateBasisPoints": 1900,
+          "widthPence": 396700
+        },
+        {
+          "name": "basic",
+          "rateBasisPoints": 2000,
+          "widthPence": 1298900
+        },
+        {
+          "name": "intermediate",
+          "rateBasisPoints": 2100,
+          "widthPence": 1413600
+        },
+        {
+          "name": "higher",
+          "rateBasisPoints": 4200,
+          "widthPence": 3133800
+        },
+        {
+          "name": "advanced",
+          "rateBasisPoints": 4500,
+          "widthPence": 6271000
+        },
+        {
+          "name": "top",
+          "rateBasisPoints": 4800,
+          "widthPence": null
+        }
+      ]
+    },
+    {
+      "id": "ni-2022-23-a",
+      "version": "1",
+      "taxYear": "2022-23",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2022-04-06",
+      "effectiveTo": "2022-07-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-employer-2022-23"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Transcribed from the employee Class 1 table for category A; director calculations are excluded.",
+        "sources": [
+          {
+            "id": "hmrc-employer-2022-23",
+            "title": "Rates and thresholds for employers 2022 to 2023",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2022-to-2023",
+            "archiveUrl": "https://webarchive.nationalarchives.gov.uk/ukgwa/*/https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2022-to-2023",
+            "publicationDate": "2022-02-07",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2023-04-05",
+            "sourceContentSha256": "33bd9fa84534216d2a6a4fd5e35273f9c989eba771f845e9bdcfa8e3ce014c64",
+            "snapshotPath": "source-snapshots/employer-2022-23.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "668cae811aa7b21c300c47c758e940b9fec4fad4dcbb823b743047afeebde6f6"
+          }
+        ]
+      },
+      "kind": "class-1-national-insurance",
+      "category": "A",
+      "employmentType": "employee-not-director",
+      "thresholds": {
+        "lowerEarningsLimitPence": {
+          "weekly": 12300,
+          "monthly": 53300
+        },
+        "primaryThresholdPence": {
+          "weekly": 19000,
+          "monthly": 82300
+        },
+        "upperEarningsLimitPence": {
+          "weekly": 96700,
+          "monthly": 418900
+        }
+      },
+      "rates": {
+        "atOrBelowPrimaryThresholdBasisPoints": 0,
+        "primaryToUpperBasisPoints": 1325,
+        "aboveUpperBasisPoints": 325
+      }
+    },
+    {
+      "id": "ni-2022-23-b",
+      "version": "1",
+      "taxYear": "2022-23",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2022-07-06",
+      "effectiveTo": "2022-11-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-employer-2022-23"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Transcribed from the employee Class 1 table for category A; director calculations are excluded.",
+        "sources": [
+          {
+            "id": "hmrc-employer-2022-23",
+            "title": "Rates and thresholds for employers 2022 to 2023",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2022-to-2023",
+            "archiveUrl": "https://webarchive.nationalarchives.gov.uk/ukgwa/*/https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2022-to-2023",
+            "publicationDate": "2022-02-07",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2023-04-05",
+            "sourceContentSha256": "33bd9fa84534216d2a6a4fd5e35273f9c989eba771f845e9bdcfa8e3ce014c64",
+            "snapshotPath": "source-snapshots/employer-2022-23.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "668cae811aa7b21c300c47c758e940b9fec4fad4dcbb823b743047afeebde6f6"
+          }
+        ]
+      },
+      "kind": "class-1-national-insurance",
+      "category": "A",
+      "employmentType": "employee-not-director",
+      "thresholds": {
+        "lowerEarningsLimitPence": {
+          "weekly": 12300,
+          "monthly": 53300
+        },
+        "primaryThresholdPence": {
+          "weekly": 24200,
+          "monthly": 104800
+        },
+        "upperEarningsLimitPence": {
+          "weekly": 96700,
+          "monthly": 418900
+        }
+      },
+      "rates": {
+        "atOrBelowPrimaryThresholdBasisPoints": 0,
+        "primaryToUpperBasisPoints": 1325,
+        "aboveUpperBasisPoints": 325
+      }
+    },
+    {
+      "id": "ni-2022-23-c",
+      "version": "1",
+      "taxYear": "2022-23",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2022-11-06",
+      "effectiveTo": "2023-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-employer-2022-23"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Transcribed from the employee Class 1 table for category A; director calculations are excluded.",
+        "sources": [
+          {
+            "id": "hmrc-employer-2022-23",
+            "title": "Rates and thresholds for employers 2022 to 2023",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2022-to-2023",
+            "archiveUrl": "https://webarchive.nationalarchives.gov.uk/ukgwa/*/https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2022-to-2023",
+            "publicationDate": "2022-02-07",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2023-04-05",
+            "sourceContentSha256": "33bd9fa84534216d2a6a4fd5e35273f9c989eba771f845e9bdcfa8e3ce014c64",
+            "snapshotPath": "source-snapshots/employer-2022-23.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "668cae811aa7b21c300c47c758e940b9fec4fad4dcbb823b743047afeebde6f6"
+          }
+        ]
+      },
+      "kind": "class-1-national-insurance",
+      "category": "A",
+      "employmentType": "employee-not-director",
+      "thresholds": {
+        "lowerEarningsLimitPence": {
+          "weekly": 12300,
+          "monthly": 53300
+        },
+        "primaryThresholdPence": {
+          "weekly": 24200,
+          "monthly": 104800
+        },
+        "upperEarningsLimitPence": {
+          "weekly": 96700,
+          "monthly": 418900
+        }
+      },
+      "rates": {
+        "atOrBelowPrimaryThresholdBasisPoints": 0,
+        "primaryToUpperBasisPoints": 1200,
+        "aboveUpperBasisPoints": 200
+      }
+    },
+    {
+      "id": "ni-2023-24-a",
+      "version": "1",
+      "taxYear": "2023-24",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2023-04-06",
+      "effectiveTo": "2024-01-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-employer-2023-24"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Transcribed from the employee Class 1 table for category A; director calculations are excluded.",
+        "sources": [
+          {
+            "id": "hmrc-employer-2023-24",
+            "title": "Rates and thresholds for employers 2023 to 2024",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2023-to-2024",
+            "archiveUrl": null,
+            "publicationDate": "2023-02-27",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2023-04-06",
+            "coverageTo": "2024-04-05",
+            "sourceContentSha256": "42b48eb2abd884ac3997b9a073f5b04ccb2a97ccfb43150fdc6e5d181e86cae7",
+            "snapshotPath": "source-snapshots/employer-2023-24.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "7c6ae112f750e8d6d06f8534d7cf552a4a307d8e4248dc22bff48fcf44c750d8"
+          }
+        ]
+      },
+      "kind": "class-1-national-insurance",
+      "category": "A",
+      "employmentType": "employee-not-director",
+      "thresholds": {
+        "lowerEarningsLimitPence": {
+          "weekly": 12300,
+          "monthly": 53300
+        },
+        "primaryThresholdPence": {
+          "weekly": 24200,
+          "monthly": 104800
+        },
+        "upperEarningsLimitPence": {
+          "weekly": 96700,
+          "monthly": 418900
+        }
+      },
+      "rates": {
+        "atOrBelowPrimaryThresholdBasisPoints": 0,
+        "primaryToUpperBasisPoints": 1200,
+        "aboveUpperBasisPoints": 200
+      }
+    },
+    {
+      "id": "ni-2023-24-b",
+      "version": "1",
+      "taxYear": "2023-24",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2024-01-06",
+      "effectiveTo": "2024-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-employer-2023-24"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Transcribed from the employee Class 1 table for category A; director calculations are excluded.",
+        "sources": [
+          {
+            "id": "hmrc-employer-2023-24",
+            "title": "Rates and thresholds for employers 2023 to 2024",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2023-to-2024",
+            "archiveUrl": null,
+            "publicationDate": "2023-02-27",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2023-04-06",
+            "coverageTo": "2024-04-05",
+            "sourceContentSha256": "42b48eb2abd884ac3997b9a073f5b04ccb2a97ccfb43150fdc6e5d181e86cae7",
+            "snapshotPath": "source-snapshots/employer-2023-24.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "7c6ae112f750e8d6d06f8534d7cf552a4a307d8e4248dc22bff48fcf44c750d8"
+          }
+        ]
+      },
+      "kind": "class-1-national-insurance",
+      "category": "A",
+      "employmentType": "employee-not-director",
+      "thresholds": {
+        "lowerEarningsLimitPence": {
+          "weekly": 12300,
+          "monthly": 53300
+        },
+        "primaryThresholdPence": {
+          "weekly": 24200,
+          "monthly": 104800
+        },
+        "upperEarningsLimitPence": {
+          "weekly": 96700,
+          "monthly": 418900
+        }
+      },
+      "rates": {
+        "atOrBelowPrimaryThresholdBasisPoints": 0,
+        "primaryToUpperBasisPoints": 1000,
+        "aboveUpperBasisPoints": 200
+      }
+    },
+    {
+      "id": "ni-2024-25",
+      "version": "1",
+      "taxYear": "2024-25",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2024-04-06",
+      "effectiveTo": "2025-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-employer-2024-25"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Transcribed from the employee Class 1 table for category A; director calculations are excluded.",
+        "sources": [
+          {
+            "id": "hmrc-employer-2024-25",
+            "title": "Rates and thresholds for employers 2024 to 2025",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2024-to-2025",
+            "archiveUrl": null,
+            "publicationDate": "2024-02-06",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2024-04-06",
+            "coverageTo": "2025-04-05",
+            "sourceContentSha256": "cc3304f6650804bc9578557f8897e713cd1dcd22e4bc1b27a234c5f191a80943",
+            "snapshotPath": "source-snapshots/employer-2024-25.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "1a0d817e4aad8e9e13ef3e007de0e86433e538f5adc705ef91e4505cc1c23cbc"
+          }
+        ]
+      },
+      "kind": "class-1-national-insurance",
+      "category": "A",
+      "employmentType": "employee-not-director",
+      "thresholds": {
+        "lowerEarningsLimitPence": {
+          "weekly": 12300,
+          "monthly": 53300
+        },
+        "primaryThresholdPence": {
+          "weekly": 24200,
+          "monthly": 104800
+        },
+        "upperEarningsLimitPence": {
+          "weekly": 96700,
+          "monthly": 418900
+        }
+      },
+      "rates": {
+        "atOrBelowPrimaryThresholdBasisPoints": 0,
+        "primaryToUpperBasisPoints": 800,
+        "aboveUpperBasisPoints": 200
+      }
+    },
+    {
+      "id": "ni-2025-26",
+      "version": "1",
+      "taxYear": "2025-26",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2025-04-06",
+      "effectiveTo": "2026-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-employer-2025-26"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Transcribed from the employee Class 1 table for category A; director calculations are excluded.",
+        "sources": [
+          {
+            "id": "hmrc-employer-2025-26",
+            "title": "Rates and thresholds for employers 2025 to 2026",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2025-to-2026",
+            "archiveUrl": null,
+            "publicationDate": "2025-01-31",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2025-04-06",
+            "coverageTo": "2026-04-05",
+            "sourceContentSha256": "a62aea50942fdf008f7a2afad9dd1746354df7e3b98edce03fe7db596e540eca",
+            "snapshotPath": "source-snapshots/employer-2025-26.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "f58deeb17bc77f0bcc73263690331789090fc09e38d5384d36b33643e9aa6f6b"
+          }
+        ]
+      },
+      "kind": "class-1-national-insurance",
+      "category": "A",
+      "employmentType": "employee-not-director",
+      "thresholds": {
+        "lowerEarningsLimitPence": {
+          "weekly": 12500,
+          "monthly": 54200
+        },
+        "primaryThresholdPence": {
+          "weekly": 24200,
+          "monthly": 104800
+        },
+        "upperEarningsLimitPence": {
+          "weekly": 96700,
+          "monthly": 418900
+        }
+      },
+      "rates": {
+        "atOrBelowPrimaryThresholdBasisPoints": 0,
+        "primaryToUpperBasisPoints": 800,
+        "aboveUpperBasisPoints": 200
+      }
+    },
+    {
+      "id": "ni-2026-27",
+      "version": "1",
+      "taxYear": "2026-27",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2026-04-06",
+      "effectiveTo": "2027-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-employer-2026-27"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Transcribed from the employee Class 1 table for category A; director calculations are excluded.",
+        "sources": [
+          {
+            "id": "hmrc-employer-2026-27",
+            "title": "Rates and thresholds for employers 2026 to 2027",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027",
+            "archiveUrl": null,
+            "publicationDate": "2026-01-30",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2026-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "a6315ba6c7166c712c66094523334ab27b1f94f9922af74a223c6380d20fc7d0",
+            "snapshotPath": "source-snapshots/employer-2026-27.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "1fab96b72464b3a512ab1a02eb9d5a1e9a4f96112a1bd18815ea7a6e0089120b"
+          }
+        ]
+      },
+      "kind": "class-1-national-insurance",
+      "category": "A",
+      "employmentType": "employee-not-director",
+      "thresholds": {
+        "lowerEarningsLimitPence": {
+          "weekly": 12900,
+          "monthly": 55900
+        },
+        "primaryThresholdPence": {
+          "weekly": 24200,
+          "monthly": 104800
+        },
+        "upperEarningsLimitPence": {
+          "weekly": 96700,
+          "monthly": 418900
+        }
+      },
+      "rates": {
+        "atOrBelowPrimaryThresholdBasisPoints": 0,
+        "primaryToUpperBasisPoints": 800,
+        "aboveUpperBasisPoints": 200
+      }
+    },
+    {
+      "id": "pension-2022-23",
+      "version": "1",
+      "taxYear": "2022-23",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2022-04-06",
+      "effectiveTo": "2023-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-pension-scheme-rates",
+          "hmrc-pension-relief-at-source",
+          "hmrc-pension-net-pay",
+          "hmrc-salary-sacrifice"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Allowance values and the payroll effects of each contribution method were reviewed separately.",
+        "sources": [
+          {
+            "id": "hmrc-pension-scheme-rates",
+            "title": "Pension schemes rates",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/government/publications/rates-and-allowances-pension-schemes/pension-schemes-rates",
+            "archiveUrl": null,
+            "publicationDate": "2014-02-01",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "90652c9268a5e0e1f46fa27bfc3549cc01d23c45ae340916c2c6561409c78ef8",
+            "snapshotPath": "source-snapshots/pension-scheme-rates.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "d9e43a6e4ecfdcc4796086c9cde97d43978f1d8260dc918bf5bd358b75ed1116"
+          },
+          {
+            "id": "hmrc-pension-relief-at-source",
+            "title": "PTM044220: relief at source",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/hmrc-internal-manuals/pensions-tax-manual/ptm044220",
+            "archiveUrl": null,
+            "publicationDate": "2015-03-27",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": null,
+            "sourceContentSha256": "554eb9d33a0f76ba18b11dd466988c9f0b3042b5e7c5a7b2d059019a3d16405b",
+            "snapshotPath": "source-snapshots/pension-relief-at-source.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "debf47a9b3d5bd35f72d50bf86103859242033888f8e60a52e3ffed9320f65dc"
+          },
+          {
+            "id": "hmrc-pension-net-pay",
+            "title": "PTM044230: net pay",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/hmrc-internal-manuals/pensions-tax-manual/ptm044230",
+            "archiveUrl": null,
+            "publicationDate": "2015-03-27",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": null,
+            "sourceContentSha256": "aade57fbc5948c3f3a21c9392502c71414099e53fe98e7f6ceb1a4283080a34b",
+            "snapshotPath": "source-snapshots/pension-net-pay.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "5a5430bf95155cb9c057f126ca25c6a4214af550097ac4c2ba8accf4e6aa3c51"
+          },
+          {
+            "id": "hmrc-salary-sacrifice",
+            "title": "Salary sacrifice for employers",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/salary-sacrifice-and-the-effects-on-paye",
+            "archiveUrl": null,
+            "publicationDate": "2014-06-12",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": null,
+            "sourceContentSha256": "bd8fa64edd90b24e7a21008ba84b8ab71aaac1db48e902b3141b6ebd7a1e6857",
+            "snapshotPath": "source-snapshots/salary-sacrifice.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "ffc3963ac389507f19450d63168ea87b567c38206f43d8593a849fb9277d8aea"
+          }
+        ]
+      },
+      "kind": "pension",
+      "jurisdictions": [
+        "england-and-northern-ireland",
+        "scotland",
+        "wales"
+      ],
+      "reliefLimit": {
+        "relevantUkEarningsPercent": 100,
+        "basicAmountPence": 360000
+      },
+      "annualAllowancePence": 4000000,
+      "taperedAnnualAllowance": {
+        "thresholdIncomeLimitPence": 20000000,
+        "adjustedIncomeLimitPence": 24000000,
+        "minimumAllowancePence": 400000
+      },
+      "moneyPurchaseAnnualAllowancePence": 400000,
+      "methods": [
+        {
+          "method": "salary-sacrifice",
+          "memberContribution": false,
+          "reducesContractualCashPay": true,
+          "deductedBeforeIncomeTax": true,
+          "deductedBeforeEmployeeNationalInsurance": true,
+          "providerReliefBasisPoints": 0,
+          "furtherReliefMayRequireClaim": false
+        },
+        {
+          "method": "net-pay",
+          "memberContribution": true,
+          "reducesContractualCashPay": false,
+          "deductedBeforeIncomeTax": true,
+          "deductedBeforeEmployeeNationalInsurance": false,
+          "providerReliefBasisPoints": 0,
+          "furtherReliefMayRequireClaim": false
+        },
+        {
+          "method": "relief-at-source",
+          "memberContribution": true,
+          "reducesContractualCashPay": false,
+          "deductedBeforeIncomeTax": false,
+          "deductedBeforeEmployeeNationalInsurance": false,
+          "providerReliefBasisPoints": 2000,
+          "furtherReliefMayRequireClaim": true
+        }
+      ]
+    },
+    {
+      "id": "pension-2023-24",
+      "version": "1",
+      "taxYear": "2023-24",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2023-04-06",
+      "effectiveTo": "2024-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-pension-scheme-rates",
+          "hmrc-pension-relief-at-source",
+          "hmrc-pension-net-pay",
+          "hmrc-salary-sacrifice"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Allowance values and the payroll effects of each contribution method were reviewed separately.",
+        "sources": [
+          {
+            "id": "hmrc-pension-scheme-rates",
+            "title": "Pension schemes rates",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/government/publications/rates-and-allowances-pension-schemes/pension-schemes-rates",
+            "archiveUrl": null,
+            "publicationDate": "2014-02-01",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "90652c9268a5e0e1f46fa27bfc3549cc01d23c45ae340916c2c6561409c78ef8",
+            "snapshotPath": "source-snapshots/pension-scheme-rates.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "d9e43a6e4ecfdcc4796086c9cde97d43978f1d8260dc918bf5bd358b75ed1116"
+          },
+          {
+            "id": "hmrc-pension-relief-at-source",
+            "title": "PTM044220: relief at source",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/hmrc-internal-manuals/pensions-tax-manual/ptm044220",
+            "archiveUrl": null,
+            "publicationDate": "2015-03-27",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": null,
+            "sourceContentSha256": "554eb9d33a0f76ba18b11dd466988c9f0b3042b5e7c5a7b2d059019a3d16405b",
+            "snapshotPath": "source-snapshots/pension-relief-at-source.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "debf47a9b3d5bd35f72d50bf86103859242033888f8e60a52e3ffed9320f65dc"
+          },
+          {
+            "id": "hmrc-pension-net-pay",
+            "title": "PTM044230: net pay",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/hmrc-internal-manuals/pensions-tax-manual/ptm044230",
+            "archiveUrl": null,
+            "publicationDate": "2015-03-27",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": null,
+            "sourceContentSha256": "aade57fbc5948c3f3a21c9392502c71414099e53fe98e7f6ceb1a4283080a34b",
+            "snapshotPath": "source-snapshots/pension-net-pay.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "5a5430bf95155cb9c057f126ca25c6a4214af550097ac4c2ba8accf4e6aa3c51"
+          },
+          {
+            "id": "hmrc-salary-sacrifice",
+            "title": "Salary sacrifice for employers",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/salary-sacrifice-and-the-effects-on-paye",
+            "archiveUrl": null,
+            "publicationDate": "2014-06-12",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": null,
+            "sourceContentSha256": "bd8fa64edd90b24e7a21008ba84b8ab71aaac1db48e902b3141b6ebd7a1e6857",
+            "snapshotPath": "source-snapshots/salary-sacrifice.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "ffc3963ac389507f19450d63168ea87b567c38206f43d8593a849fb9277d8aea"
+          }
+        ]
+      },
+      "kind": "pension",
+      "jurisdictions": [
+        "england-and-northern-ireland",
+        "scotland",
+        "wales"
+      ],
+      "reliefLimit": {
+        "relevantUkEarningsPercent": 100,
+        "basicAmountPence": 360000
+      },
+      "annualAllowancePence": 6000000,
+      "taperedAnnualAllowance": {
+        "thresholdIncomeLimitPence": 20000000,
+        "adjustedIncomeLimitPence": 26000000,
+        "minimumAllowancePence": 1000000
+      },
+      "moneyPurchaseAnnualAllowancePence": 1000000,
+      "methods": [
+        {
+          "method": "salary-sacrifice",
+          "memberContribution": false,
+          "reducesContractualCashPay": true,
+          "deductedBeforeIncomeTax": true,
+          "deductedBeforeEmployeeNationalInsurance": true,
+          "providerReliefBasisPoints": 0,
+          "furtherReliefMayRequireClaim": false
+        },
+        {
+          "method": "net-pay",
+          "memberContribution": true,
+          "reducesContractualCashPay": false,
+          "deductedBeforeIncomeTax": true,
+          "deductedBeforeEmployeeNationalInsurance": false,
+          "providerReliefBasisPoints": 0,
+          "furtherReliefMayRequireClaim": false
+        },
+        {
+          "method": "relief-at-source",
+          "memberContribution": true,
+          "reducesContractualCashPay": false,
+          "deductedBeforeIncomeTax": false,
+          "deductedBeforeEmployeeNationalInsurance": false,
+          "providerReliefBasisPoints": 2000,
+          "furtherReliefMayRequireClaim": true
+        }
+      ]
+    },
+    {
+      "id": "pension-2024-25",
+      "version": "1",
+      "taxYear": "2024-25",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2024-04-06",
+      "effectiveTo": "2025-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-pension-scheme-rates",
+          "hmrc-pension-relief-at-source",
+          "hmrc-pension-net-pay",
+          "hmrc-salary-sacrifice"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Allowance values and the payroll effects of each contribution method were reviewed separately.",
+        "sources": [
+          {
+            "id": "hmrc-pension-scheme-rates",
+            "title": "Pension schemes rates",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/government/publications/rates-and-allowances-pension-schemes/pension-schemes-rates",
+            "archiveUrl": null,
+            "publicationDate": "2014-02-01",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "90652c9268a5e0e1f46fa27bfc3549cc01d23c45ae340916c2c6561409c78ef8",
+            "snapshotPath": "source-snapshots/pension-scheme-rates.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "d9e43a6e4ecfdcc4796086c9cde97d43978f1d8260dc918bf5bd358b75ed1116"
+          },
+          {
+            "id": "hmrc-pension-relief-at-source",
+            "title": "PTM044220: relief at source",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/hmrc-internal-manuals/pensions-tax-manual/ptm044220",
+            "archiveUrl": null,
+            "publicationDate": "2015-03-27",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": null,
+            "sourceContentSha256": "554eb9d33a0f76ba18b11dd466988c9f0b3042b5e7c5a7b2d059019a3d16405b",
+            "snapshotPath": "source-snapshots/pension-relief-at-source.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "debf47a9b3d5bd35f72d50bf86103859242033888f8e60a52e3ffed9320f65dc"
+          },
+          {
+            "id": "hmrc-pension-net-pay",
+            "title": "PTM044230: net pay",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/hmrc-internal-manuals/pensions-tax-manual/ptm044230",
+            "archiveUrl": null,
+            "publicationDate": "2015-03-27",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": null,
+            "sourceContentSha256": "aade57fbc5948c3f3a21c9392502c71414099e53fe98e7f6ceb1a4283080a34b",
+            "snapshotPath": "source-snapshots/pension-net-pay.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "5a5430bf95155cb9c057f126ca25c6a4214af550097ac4c2ba8accf4e6aa3c51"
+          },
+          {
+            "id": "hmrc-salary-sacrifice",
+            "title": "Salary sacrifice for employers",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/salary-sacrifice-and-the-effects-on-paye",
+            "archiveUrl": null,
+            "publicationDate": "2014-06-12",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": null,
+            "sourceContentSha256": "bd8fa64edd90b24e7a21008ba84b8ab71aaac1db48e902b3141b6ebd7a1e6857",
+            "snapshotPath": "source-snapshots/salary-sacrifice.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "ffc3963ac389507f19450d63168ea87b567c38206f43d8593a849fb9277d8aea"
+          }
+        ]
+      },
+      "kind": "pension",
+      "jurisdictions": [
+        "england-and-northern-ireland",
+        "scotland",
+        "wales"
+      ],
+      "reliefLimit": {
+        "relevantUkEarningsPercent": 100,
+        "basicAmountPence": 360000
+      },
+      "annualAllowancePence": 6000000,
+      "taperedAnnualAllowance": {
+        "thresholdIncomeLimitPence": 20000000,
+        "adjustedIncomeLimitPence": 26000000,
+        "minimumAllowancePence": 1000000
+      },
+      "moneyPurchaseAnnualAllowancePence": 1000000,
+      "methods": [
+        {
+          "method": "salary-sacrifice",
+          "memberContribution": false,
+          "reducesContractualCashPay": true,
+          "deductedBeforeIncomeTax": true,
+          "deductedBeforeEmployeeNationalInsurance": true,
+          "providerReliefBasisPoints": 0,
+          "furtherReliefMayRequireClaim": false
+        },
+        {
+          "method": "net-pay",
+          "memberContribution": true,
+          "reducesContractualCashPay": false,
+          "deductedBeforeIncomeTax": true,
+          "deductedBeforeEmployeeNationalInsurance": false,
+          "providerReliefBasisPoints": 0,
+          "furtherReliefMayRequireClaim": false
+        },
+        {
+          "method": "relief-at-source",
+          "memberContribution": true,
+          "reducesContractualCashPay": false,
+          "deductedBeforeIncomeTax": false,
+          "deductedBeforeEmployeeNationalInsurance": false,
+          "providerReliefBasisPoints": 2000,
+          "furtherReliefMayRequireClaim": true
+        }
+      ]
+    },
+    {
+      "id": "pension-2025-26",
+      "version": "1",
+      "taxYear": "2025-26",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2025-04-06",
+      "effectiveTo": "2026-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-pension-scheme-rates",
+          "hmrc-pension-relief-at-source",
+          "hmrc-pension-net-pay",
+          "hmrc-salary-sacrifice"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Allowance values and the payroll effects of each contribution method were reviewed separately.",
+        "sources": [
+          {
+            "id": "hmrc-pension-scheme-rates",
+            "title": "Pension schemes rates",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/government/publications/rates-and-allowances-pension-schemes/pension-schemes-rates",
+            "archiveUrl": null,
+            "publicationDate": "2014-02-01",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "90652c9268a5e0e1f46fa27bfc3549cc01d23c45ae340916c2c6561409c78ef8",
+            "snapshotPath": "source-snapshots/pension-scheme-rates.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "d9e43a6e4ecfdcc4796086c9cde97d43978f1d8260dc918bf5bd358b75ed1116"
+          },
+          {
+            "id": "hmrc-pension-relief-at-source",
+            "title": "PTM044220: relief at source",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/hmrc-internal-manuals/pensions-tax-manual/ptm044220",
+            "archiveUrl": null,
+            "publicationDate": "2015-03-27",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": null,
+            "sourceContentSha256": "554eb9d33a0f76ba18b11dd466988c9f0b3042b5e7c5a7b2d059019a3d16405b",
+            "snapshotPath": "source-snapshots/pension-relief-at-source.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "debf47a9b3d5bd35f72d50bf86103859242033888f8e60a52e3ffed9320f65dc"
+          },
+          {
+            "id": "hmrc-pension-net-pay",
+            "title": "PTM044230: net pay",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/hmrc-internal-manuals/pensions-tax-manual/ptm044230",
+            "archiveUrl": null,
+            "publicationDate": "2015-03-27",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": null,
+            "sourceContentSha256": "aade57fbc5948c3f3a21c9392502c71414099e53fe98e7f6ceb1a4283080a34b",
+            "snapshotPath": "source-snapshots/pension-net-pay.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "5a5430bf95155cb9c057f126ca25c6a4214af550097ac4c2ba8accf4e6aa3c51"
+          },
+          {
+            "id": "hmrc-salary-sacrifice",
+            "title": "Salary sacrifice for employers",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/salary-sacrifice-and-the-effects-on-paye",
+            "archiveUrl": null,
+            "publicationDate": "2014-06-12",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": null,
+            "sourceContentSha256": "bd8fa64edd90b24e7a21008ba84b8ab71aaac1db48e902b3141b6ebd7a1e6857",
+            "snapshotPath": "source-snapshots/salary-sacrifice.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "ffc3963ac389507f19450d63168ea87b567c38206f43d8593a849fb9277d8aea"
+          }
+        ]
+      },
+      "kind": "pension",
+      "jurisdictions": [
+        "england-and-northern-ireland",
+        "scotland",
+        "wales"
+      ],
+      "reliefLimit": {
+        "relevantUkEarningsPercent": 100,
+        "basicAmountPence": 360000
+      },
+      "annualAllowancePence": 6000000,
+      "taperedAnnualAllowance": {
+        "thresholdIncomeLimitPence": 20000000,
+        "adjustedIncomeLimitPence": 26000000,
+        "minimumAllowancePence": 1000000
+      },
+      "moneyPurchaseAnnualAllowancePence": 1000000,
+      "methods": [
+        {
+          "method": "salary-sacrifice",
+          "memberContribution": false,
+          "reducesContractualCashPay": true,
+          "deductedBeforeIncomeTax": true,
+          "deductedBeforeEmployeeNationalInsurance": true,
+          "providerReliefBasisPoints": 0,
+          "furtherReliefMayRequireClaim": false
+        },
+        {
+          "method": "net-pay",
+          "memberContribution": true,
+          "reducesContractualCashPay": false,
+          "deductedBeforeIncomeTax": true,
+          "deductedBeforeEmployeeNationalInsurance": false,
+          "providerReliefBasisPoints": 0,
+          "furtherReliefMayRequireClaim": false
+        },
+        {
+          "method": "relief-at-source",
+          "memberContribution": true,
+          "reducesContractualCashPay": false,
+          "deductedBeforeIncomeTax": false,
+          "deductedBeforeEmployeeNationalInsurance": false,
+          "providerReliefBasisPoints": 2000,
+          "furtherReliefMayRequireClaim": true
+        }
+      ]
+    },
+    {
+      "id": "pension-2026-27",
+      "version": "1",
+      "taxYear": "2026-27",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2026-04-06",
+      "effectiveTo": "2027-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-pension-scheme-rates",
+          "hmrc-pension-relief-at-source",
+          "hmrc-pension-net-pay",
+          "hmrc-salary-sacrifice"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Allowance values and the payroll effects of each contribution method were reviewed separately.",
+        "sources": [
+          {
+            "id": "hmrc-pension-scheme-rates",
+            "title": "Pension schemes rates",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/government/publications/rates-and-allowances-pension-schemes/pension-schemes-rates",
+            "archiveUrl": null,
+            "publicationDate": "2014-02-01",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "90652c9268a5e0e1f46fa27bfc3549cc01d23c45ae340916c2c6561409c78ef8",
+            "snapshotPath": "source-snapshots/pension-scheme-rates.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "d9e43a6e4ecfdcc4796086c9cde97d43978f1d8260dc918bf5bd358b75ed1116"
+          },
+          {
+            "id": "hmrc-pension-relief-at-source",
+            "title": "PTM044220: relief at source",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/hmrc-internal-manuals/pensions-tax-manual/ptm044220",
+            "archiveUrl": null,
+            "publicationDate": "2015-03-27",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": null,
+            "sourceContentSha256": "554eb9d33a0f76ba18b11dd466988c9f0b3042b5e7c5a7b2d059019a3d16405b",
+            "snapshotPath": "source-snapshots/pension-relief-at-source.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "debf47a9b3d5bd35f72d50bf86103859242033888f8e60a52e3ffed9320f65dc"
+          },
+          {
+            "id": "hmrc-pension-net-pay",
+            "title": "PTM044230: net pay",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/hmrc-internal-manuals/pensions-tax-manual/ptm044230",
+            "archiveUrl": null,
+            "publicationDate": "2015-03-27",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": null,
+            "sourceContentSha256": "aade57fbc5948c3f3a21c9392502c71414099e53fe98e7f6ceb1a4283080a34b",
+            "snapshotPath": "source-snapshots/pension-net-pay.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "5a5430bf95155cb9c057f126ca25c6a4214af550097ac4c2ba8accf4e6aa3c51"
+          },
+          {
+            "id": "hmrc-salary-sacrifice",
+            "title": "Salary sacrifice for employers",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/salary-sacrifice-and-the-effects-on-paye",
+            "archiveUrl": null,
+            "publicationDate": "2014-06-12",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": null,
+            "sourceContentSha256": "bd8fa64edd90b24e7a21008ba84b8ab71aaac1db48e902b3141b6ebd7a1e6857",
+            "snapshotPath": "source-snapshots/salary-sacrifice.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "ffc3963ac389507f19450d63168ea87b567c38206f43d8593a849fb9277d8aea"
+          }
+        ]
+      },
+      "kind": "pension",
+      "jurisdictions": [
+        "england-and-northern-ireland",
+        "scotland",
+        "wales"
+      ],
+      "reliefLimit": {
+        "relevantUkEarningsPercent": 100,
+        "basicAmountPence": 360000
+      },
+      "annualAllowancePence": 6000000,
+      "taperedAnnualAllowance": {
+        "thresholdIncomeLimitPence": 20000000,
+        "adjustedIncomeLimitPence": 26000000,
+        "minimumAllowancePence": 1000000
+      },
+      "moneyPurchaseAnnualAllowancePence": 1000000,
+      "methods": [
+        {
+          "method": "salary-sacrifice",
+          "memberContribution": false,
+          "reducesContractualCashPay": true,
+          "deductedBeforeIncomeTax": true,
+          "deductedBeforeEmployeeNationalInsurance": true,
+          "providerReliefBasisPoints": 0,
+          "furtherReliefMayRequireClaim": false
+        },
+        {
+          "method": "net-pay",
+          "memberContribution": true,
+          "reducesContractualCashPay": false,
+          "deductedBeforeIncomeTax": true,
+          "deductedBeforeEmployeeNationalInsurance": false,
+          "providerReliefBasisPoints": 0,
+          "furtherReliefMayRequireClaim": false
+        },
+        {
+          "method": "relief-at-source",
+          "memberContribution": true,
+          "reducesContractualCashPay": false,
+          "deductedBeforeIncomeTax": false,
+          "deductedBeforeEmployeeNationalInsurance": false,
+          "providerReliefBasisPoints": 2000,
+          "furtherReliefMayRequireClaim": true
+        }
+      ]
+    },
+    {
+      "id": "household-tax-2025-26",
+      "version": "1",
+      "taxYear": "2025-26",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2025-04-06",
+      "effectiveTo": "2026-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-income-tax-current-and-past",
+          "hmrc-capital-gains-rates-and-allowances",
+          "hmrc-isa-overview"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Dividend, Capital Gains Tax, and ISA limits were checked against HMRC guidance for each supported tax year.",
+        "sources": [
+          {
+            "id": "hmrc-income-tax-current-and-past",
+            "title": "Income Tax rates and allowances for current and previous tax years",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/government/publications/rates-and-allowances-income-tax/income-tax-rates-and-allowances-current-and-past",
+            "archiveUrl": null,
+            "publicationDate": "2014-02-01",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "89b4d254fc3303af663cd405c1f5a880400e4890364fd774e851557c4fa67263",
+            "snapshotPath": "source-snapshots/income-tax-current-and-past.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "25ce7045c82d2c4636405af82844dc97c913304146750a6c2c07b6890ef6e2f0"
+          },
+          {
+            "id": "hmrc-capital-gains-rates-and-allowances",
+            "title": "Capital Gains Tax rates and allowances",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/capital-gains-tax-rates-and-allowances",
+            "archiveUrl": null,
+            "publicationDate": "2018-04-06",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2025-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "d2b662859a7ea7e35913425c3005c90d24a572cdec3f2cda14898a964e42a198",
+            "snapshotPath": "source-snapshots/capital-gains-rates-and-allowances.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "7db8099aa8e06f638f27a5f4381fcf995571b291d8f30b1f69e1fcf9da37199f"
+          },
+          {
+            "id": "hmrc-isa-overview",
+            "title": "Individual Savings Accounts: overview",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/individual-savings-accounts/overview",
+            "archiveUrl": null,
+            "publicationDate": "2014-04-05",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2025-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "748e1c62ce74773bf9a0b43e11ac48735d802c3cc85a8a7ffc6fc1570a12b6c0",
+            "snapshotPath": "source-snapshots/isa-overview.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "48dd1e1ce5376ba004fa226c6374dc2e59ccc4da3ccb5b69b514d2b65a204773"
+          }
+        ]
+      },
+      "kind": "household-tax",
+      "jurisdictions": [
+        "england-and-northern-ireland",
+        "scotland",
+        "wales"
+      ],
+      "dividendAllowancePence": 50000,
+      "dividendRates": {
+        "basicBasisPoints": 875,
+        "higherBasisPoints": 3375,
+        "additionalBasisPoints": 3935
+      },
+      "capitalGains": {
+        "annualExemptAmountPence": 300000,
+        "basicRateBasisPoints": 1800,
+        "higherRateBasisPoints": 2400
+      },
+      "isaAnnualAllowancePence": 2000000
+    },
+    {
+      "id": "household-tax-2026-27",
+      "version": "1",
+      "taxYear": "2026-27",
+      "legalStatus": "enacted",
+      "effectiveFrom": "2026-04-06",
+      "effectiveTo": "2027-04-05",
+      "currency": "GBP",
+      "moneyUnit": "pence",
+      "rateUnit": "basis-points",
+      "provenance": {
+        "sourceIds": [
+          "hmrc-income-tax-current-and-past",
+          "hmrc-capital-gains-rates-and-allowances",
+          "hmrc-isa-overview"
+        ],
+        "reviewedBy": "codex:finance-tax-historical-rule-data",
+        "reviewedAt": "2026-10-01",
+        "reviewNotes": "Dividend, Capital Gains Tax, and ISA limits were checked against HMRC guidance for each supported tax year.",
+        "sources": [
+          {
+            "id": "hmrc-income-tax-current-and-past",
+            "title": "Income Tax rates and allowances for current and previous tax years",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/government/publications/rates-and-allowances-income-tax/income-tax-rates-and-allowances-current-and-past",
+            "archiveUrl": null,
+            "publicationDate": "2014-02-01",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2022-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "89b4d254fc3303af663cd405c1f5a880400e4890364fd774e851557c4fa67263",
+            "snapshotPath": "source-snapshots/income-tax-current-and-past.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "25ce7045c82d2c4636405af82844dc97c913304146750a6c2c07b6890ef6e2f0"
+          },
+          {
+            "id": "hmrc-capital-gains-rates-and-allowances",
+            "title": "Capital Gains Tax rates and allowances",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/guidance/capital-gains-tax-rates-and-allowances",
+            "archiveUrl": null,
+            "publicationDate": "2018-04-06",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2025-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "d2b662859a7ea7e35913425c3005c90d24a572cdec3f2cda14898a964e42a198",
+            "snapshotPath": "source-snapshots/capital-gains-rates-and-allowances.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "7db8099aa8e06f638f27a5f4381fcf995571b291d8f30b1f69e1fcf9da37199f"
+          },
+          {
+            "id": "hmrc-isa-overview",
+            "title": "Individual Savings Accounts: overview",
+            "publisher": "HM Revenue & Customs",
+            "url": "https://www.gov.uk/individual-savings-accounts/overview",
+            "archiveUrl": null,
+            "publicationDate": "2014-04-05",
+            "retrievalDate": "2026-10-01",
+            "coverageFrom": "2025-04-06",
+            "coverageTo": "2027-04-05",
+            "sourceContentSha256": "748e1c62ce74773bf9a0b43e11ac48735d802c3cc85a8a7ffc6fc1570a12b6c0",
+            "snapshotPath": "source-snapshots/isa-overview.md",
+            "licence": "Open Government Licence v3.0",
+            "licenceUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+            "copyright": "Crown copyright",
+            "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0.",
+            "snapshotSha256": "48dd1e1ce5376ba004fa226c6374dc2e59ccc4da3ccb5b69b514d2b65a204773"
+          }
+        ]
+      },
+      "kind": "household-tax",
+      "jurisdictions": [
+        "england-and-northern-ireland",
+        "scotland",
+        "wales"
+      ],
+      "dividendAllowancePence": 50000,
+      "dividendRates": {
+        "basicBasisPoints": 1075,
+        "higherBasisPoints": 3575,
+        "additionalBasisPoints": 3935
+      },
+      "capitalGains": {
+        "annualExemptAmountPence": 300000,
+        "basicRateBasisPoints": 1800,
+        "higherRateBasisPoints": 2400
+      },
+      "isaAnnualAllowancePence": 2000000
+    }
+  ]
+}

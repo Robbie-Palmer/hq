@@ -10,6 +10,7 @@ import {
   HouseIcon,
   LandmarkIcon,
   type LucideIcon,
+  ReceiptTextIcon,
   SettingsIcon,
   WaypointsIcon,
 } from "lucide-react";
@@ -80,6 +81,11 @@ const destinationGroups: readonly DestinationGroup[] = [
         href: "/assettracker/decisions",
         label: "Decisions",
         icon: CircleDollarSignIcon,
+      },
+      {
+        href: "/assettracker/tax",
+        label: "UK tax",
+        icon: ReceiptTextIcon,
       },
     ],
   },

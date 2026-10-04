@@ -127,6 +127,7 @@ export const resolveRules = (request: RuleRequest): RuleResolution => {
 };
 
 export { ruleDataset } from "./data";
+export * from "./householdTax";
 export * from "./salaryAdapter";
 export type {
   Jurisdiction,
@@ -137,6 +138,7 @@ export type {
 export {
   datasetSchema,
   datasetVersionSchema,
+  householdTaxRuleSchema,
   isoDateSchema,
   jurisdictionSchema,
   legalStatusSchema,

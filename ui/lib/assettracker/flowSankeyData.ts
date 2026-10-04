@@ -1,3 +1,4 @@
+import type { HouseholdTaxEstimate } from "finance-tax-rules/household-tax";
 import {
   type ExpectedReturnChange,
   effectiveExpectedReturn,
@@ -13,6 +14,7 @@ import {
   monthlyAmount,
   type RecurringFlow,
 } from "@/lib/domain/assettracker/recurringFlow";
+import type { TaxPositionData } from "@/lib/domain/assettracker/taxPosition";
 import { ACCOUNT_COLORS } from "./presentation";
 
 const EXTERNAL_INCOME_NODE = "__external_income";
@@ -22,6 +24,8 @@ const EXPECTED_LOSSES_NODE = "__expected_losses";
 const INTEREST_CHARGED_NODE = "__interest_charged";
 const GROSS_PAY_NODE = "__gross_pay";
 const TAX_NODE = "__tax";
+const PAYROLL_DEDUCTIONS_NODE = "__payroll_deductions";
+const AFTER_TAX_INCOME_NODE = "__after_tax_income";
 const MIN_SYNTHETIC_FLOW = 1;
 
 export type FlowSankeyAccount = Partial<AccountSummaryView> &
@@ -51,6 +55,12 @@ export type FlowSankeyLink = {
 export type FlowSankeyData = {
   nodes: FlowSankeyNode[];
   links: FlowSankeyLink[];
+  taxYear?: string;
+};
+
+export type FlowSankeyTaxInput = {
+  estimate: HouseholdTaxEstimate;
+  records: TaxPositionData;
 };
 
 type FlowSankeyBuilder = {
@@ -82,6 +92,10 @@ function nodeName(id: string, account?: FlowSankeyAccount): string {
       return "Gross pay";
     case TAX_NODE:
       return "Tax and deductions";
+    case PAYROLL_DEDUCTIONS_NODE:
+      return "Other payroll deductions";
+    case AFTER_TAX_INCOME_NODE:
+      return "After-tax employment income";
     default:
       return account?.name ?? id;
   }
@@ -98,9 +112,12 @@ function nodeColor(id: string, index: number): string {
       return "hsl(20, 75%, 55%)";
     case INTEREST_CHARGED_NODE:
     case TAX_NODE:
+    case PAYROLL_DEDUCTIONS_NODE:
       return "hsl(350, 65%, 55%)";
     case GROSS_PAY_NODE:
       return "hsl(205, 65%, 48%)";
+    case AFTER_TAX_INCOME_NODE:
+      return "hsl(175, 50%, 42%)";
     default:
       return accountColor(index);
   }
@@ -127,7 +144,8 @@ function addRecurringFlowLinks(
   flows: RecurringFlow[],
   liabilityBalances: Record<string, number>,
   builder: FlowSankeyBuilder,
-) {
+  estimatedEmploymentTax: number | null,
+): boolean {
   const grossPayFlows = flows.filter(
     (flow) =>
       flow.compensationKind === "takeHomeIncome" && flow.grossAmount != null,
@@ -202,19 +220,34 @@ function addRecurringFlowLinks(
   }
 
   if (grossPay > 0) {
-    const taxAndDeductions =
+    const payrollGap =
       grossPay -
       takeHomePay -
       (pensionFitsWithinGrossPay ? employeePension : 0);
-    if (taxAndDeductions > 0) {
+    const taxAndNi =
+      estimatedEmploymentTax == null ? payrollGap : estimatedEmploymentTax;
+    if (taxAndNi > 0) {
       builder.addLink(
         GROSS_PAY_NODE,
         TAX_NODE,
-        taxAndDeductions,
-        "Tax and deductions",
+        taxAndNi,
+        estimatedEmploymentTax == null
+          ? "Tax and deductions"
+          : "Estimated Income Tax and National Insurance",
+      );
+    }
+    const otherDeductions = payrollGap - taxAndNi;
+    if (estimatedEmploymentTax != null && otherDeductions > 0) {
+      builder.addLink(
+        GROSS_PAY_NODE,
+        PAYROLL_DEDUCTIONS_NODE,
+        otherDeductions,
+        "Other payroll deductions",
       );
     }
   }
+
+  return grossPay > 0;
 }
 
 function monthlyIncoming(
@@ -341,11 +374,152 @@ function roundCurrencyValue(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function monthlyTaxAmount(amountPence: number): number {
+  return amountPence / 100 / 12;
+}
+
+function estimatedEmploymentTax(taxInput?: FlowSankeyTaxInput): number | null {
+  if (!taxInput?.estimate.available) return null;
+  return monthlyTaxAmount(
+    taxInput.estimate.people.reduce(
+      (total, person) =>
+        total +
+        person.incomeTax.amountPence +
+        person.nationalInsurance.amountPence,
+      0,
+    ),
+  );
+}
+
+function addDistributedTaxLinks<T extends { accountId: string; id: string }>(
+  records: readonly T[],
+  amountPence: number,
+  weight: (record: T) => number,
+  label: string,
+  openAccountIds: ReadonlySet<string>,
+  builder: FlowSankeyBuilder,
+) {
+  const totalWeight = records.reduce(
+    (total, record) => total + Math.max(0, weight(record)),
+    0,
+  );
+  if (amountPence <= 0 || totalWeight <= 0) return;
+
+  for (const record of records) {
+    if (!openAccountIds.has(record.accountId)) continue;
+    const share = Math.max(0, weight(record)) / totalWeight;
+    builder.addLink(
+      record.accountId,
+      TAX_NODE,
+      monthlyTaxAmount(amountPence * share),
+      label,
+    );
+  }
+}
+
+function addTaxEstimateLinks(
+  taxInput: FlowSankeyTaxInput | undefined,
+  hasGrossPayFlow: boolean,
+  openAccountIds: ReadonlySet<string>,
+  builder: FlowSankeyBuilder,
+) {
+  if (!taxInput?.estimate.available) return;
+
+  const incomeById = new Map(
+    taxInput.records.income.map((record) => [record.id, record]),
+  );
+  const disposalById = new Map(
+    taxInput.records.disposals.map((record) => [record.id, record]),
+  );
+  const employmentTaxPence = taxInput.estimate.people.reduce(
+    (total, person) =>
+      total +
+      person.incomeTax.amountPence +
+      person.nationalInsurance.amountPence,
+    0,
+  );
+
+  if (!hasGrossPayFlow) {
+    const employmentRecordIds = new Set(
+      taxInput.estimate.people.flatMap(({ incomeTax }) => incomeTax.recordIds),
+    );
+    const employmentPence = [...employmentRecordIds].reduce(
+      (total, id) => total + (incomeById.get(id)?.amountPence ?? 0),
+      0,
+    );
+    builder.addLink(
+      EXTERNAL_INCOME_NODE,
+      GROSS_PAY_NODE,
+      monthlyTaxAmount(employmentPence),
+      "Recorded employment income",
+    );
+    builder.addLink(
+      GROSS_PAY_NODE,
+      TAX_NODE,
+      monthlyTaxAmount(employmentTaxPence),
+      "Estimated Income Tax and National Insurance",
+    );
+    builder.addLink(
+      GROSS_PAY_NODE,
+      AFTER_TAX_INCOME_NODE,
+      monthlyTaxAmount(Math.max(0, employmentPence - employmentTaxPence)),
+      "Income after estimated tax and NI",
+    );
+  }
+
+  for (const person of taxInput.estimate.people) {
+    const savingsInterest = person.savingsTax.recordIds.flatMap((id) => {
+      const record = incomeById.get(id);
+      return record?.kind === "savings-interest" && record.accountId != null
+        ? [record as typeof record & { accountId: string }]
+        : [];
+    });
+    addDistributedTaxLinks(
+      savingsInterest,
+      person.savingsTax.amountPence,
+      ({ amountPence }) => amountPence,
+      "Estimated savings interest tax",
+      openAccountIds,
+      builder,
+    );
+
+    const dividends = person.dividendTax.recordIds.flatMap((id) => {
+      const record = incomeById.get(id);
+      return record?.kind === "dividend" && record.accountId != null
+        ? [record as typeof record & { accountId: string }]
+        : [];
+    });
+    addDistributedTaxLinks(
+      dividends,
+      person.dividendTax.amountPence,
+      ({ amountPence }) => amountPence,
+      "Estimated Dividend Tax",
+      openAccountIds,
+      builder,
+    );
+
+    const disposals = person.capitalGainsTax.recordIds.flatMap((id) => {
+      const record = disposalById.get(id);
+      return record == null ? [] : [record];
+    });
+    addDistributedTaxLinks(
+      disposals,
+      person.capitalGainsTax.amountPence,
+      ({ proceedsPence, allowableCostPence, lossesAppliedPence }) =>
+        Math.max(0, proceedsPence - allowableCostPence - lossesAppliedPence),
+      "Estimated Capital Gains Tax",
+      openAccountIds,
+      builder,
+    );
+  }
+}
+
 export function buildFlowSankeyData(
   accounts: FlowSankeyAccount[],
   flows: RecurringFlow[],
   liabilityBalances: Record<string, number>,
   asOfDate: string,
+  taxInput?: FlowSankeyTaxInput,
 ): FlowSankeyData {
   const openAccounts = accounts.filter((account) => account.isOpen);
   const openAccountIds = new Set(openAccounts.map((account) => account.id));
@@ -404,7 +578,13 @@ export function buildFlowSankeyData(
     },
   };
 
-  addRecurringFlowLinks(activeFlows, liabilityBalances, builder);
+  const hasGrossPayFlow = addRecurringFlowLinks(
+    activeFlows,
+    liabilityBalances,
+    builder,
+    estimatedEmploymentTax(taxInput),
+  );
+  addTaxEstimateLinks(taxInput, hasGrossPayFlow, openAccountIds, builder);
   addSyntheticFlowLinks(
     openAccounts,
     activeFlows,
@@ -419,6 +599,9 @@ export function buildFlowSankeyData(
       ...link,
       value: roundCurrencyValue(link.value),
     })),
+    ...(taxInput?.estimate.available
+      ? { taxYear: taxInput.estimate.taxYear }
+      : {}),
   };
 }
 
@@ -596,6 +779,7 @@ export function buildBaseCurrencyFlowSankeyData(
   repository: AssetTrackerRepository,
   accounts: FlowSankeyAccount[],
   date: string,
+  taxInput?: FlowSankeyTaxInput,
 ): FlowSankeyData {
   const balances = latestValuedBalances(repository);
   if (balances == null) return { nodes: [], links: [] };
@@ -617,5 +801,6 @@ export function buildBaseCurrencyFlowSankeyData(
     flows,
     liabilityBalances,
     date,
+    taxInput,
   );
 }

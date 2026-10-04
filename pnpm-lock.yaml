@@ -1015,6 +1015,9 @@ importers:
       finance-inflation-indices:
         specifier: workspace:*
         version: link:../packages/finance-inflation-indices
+      finance-tax-rules:
+        specifier: workspace:*
+        version: link:../packages/finance-tax-rules
       fuse.js:
         specifier: ^7.1.0
         version: 7.5.0

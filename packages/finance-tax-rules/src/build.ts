@@ -25,6 +25,7 @@ const validateUniqueIds = (dataset: RuleDataset) => {
     ...dataset.incomeTax.map(({ id }) => id),
     ...dataset.nationalInsurance.map(({ id }) => id),
     ...dataset.pensions.map(({ id }) => id),
+    ...dataset.householdTax.map(({ id }) => id),
   ];
   assert(new Set(ids).size === ids.length, "Source and rule IDs must be unique");
 };
@@ -35,6 +36,7 @@ const validateSources = (dataset: RuleDataset) => {
     ...dataset.incomeTax,
     ...dataset.nationalInsurance,
     ...dataset.pensions,
+    ...dataset.householdTax,
   ]) {
     for (const sourceId of rule.provenance.sourceIds) {
       assert(
@@ -46,7 +48,11 @@ const validateSources = (dataset: RuleDataset) => {
 };
 
 const validateRuleIntervals = (dataset: RuleDataset) => {
-  for (const rule of [...dataset.incomeTax, ...dataset.pensions]) {
+  for (const rule of [
+    ...dataset.incomeTax,
+    ...dataset.pensions,
+    ...dataset.householdTax,
+  ]) {
     const expected = taxYearDates(rule.taxYear);
     assert(
       rule.effectiveFrom === expected.from && rule.effectiveTo === expected.to,
@@ -109,6 +115,12 @@ const validateCoverage = (dataset: RuleDataset) => {
       dataset.pensions.some((rule) => rule.taxYear === taxYear),
       `${taxYear} has no pension rule`,
     );
+    if (taxYear === "2025-26" || taxYear === "2026-27") {
+      assert(
+        dataset.householdTax.some((rule) => rule.taxYear === taxYear),
+        `${taxYear} has no household tax rule`,
+      );
+    }
   }
 
   for (const rule of dataset.incomeTax) {
@@ -165,7 +177,7 @@ export const validateReleaseLineage = (
   );
 };
 
-const addResolvedProvenance = <Rule extends RuleDataset["incomeTax"][number] | RuleDataset["nationalInsurance"][number] | RuleDataset["pensions"][number]>(
+const addResolvedProvenance = <Rule extends RuleDataset["incomeTax"][number] | RuleDataset["nationalInsurance"][number] | RuleDataset["pensions"][number] | RuleDataset["householdTax"][number]>(
   rule: Rule,
   sources: Map<string, ResolvedSource>,
 ) => ({
@@ -203,6 +215,9 @@ export const buildArtifacts = (packageRoot: string) => {
       addResolvedProvenance(rule, sourcesById),
     ),
     ...dataset.pensions.map((rule) => addResolvedProvenance(rule, sourcesById)),
+    ...dataset.householdTax.map((rule) =>
+      addResolvedProvenance(rule, sourcesById),
+    ),
   ];
   const commonArtifact = {
     datasetVersion: dataset.datasetVersion,
@@ -261,6 +276,20 @@ export const buildArtifacts = (packageRoot: string) => {
         "annual allowance",
         "tapered annual allowance",
         "money purchase annual allowance",
+      ],
+    },
+    householdTax: {
+      supportedTaxYears: ["2025-26", "2026-27"],
+      income: ["employment", "savings interest", "dividends"],
+      capitalGains: ["non-residential assets", "residential property"],
+      wrappers: ["ISA", "pension", "taxable"],
+      unavailable: [
+        "partial-year residence",
+        "taxable benefits",
+        "Scottish household totals",
+        "foreign savings, accrued income securities, chargeable-event gains, and property income",
+        "Capital Gains Tax reliefs and elections",
+        "pension carry forward and defined benefit input amounts",
       ],
     },
     missingDataBehavior: "unavailable",

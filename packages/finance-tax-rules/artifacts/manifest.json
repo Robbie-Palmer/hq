@@ -1,7 +1,7 @@
 {
-  "datasetVersion": "2026.10.0",
-  "releasedAt": "2026-10-01",
-  "supersedes": null,
+  "datasetVersion": "2026.10.2",
+  "releasedAt": "2026-10-04",
+  "supersedes": "2026.10.1",
   "corrections": [],
   "dataLicence": {
     "name": "Open Government Licence v3.0",
@@ -11,16 +11,16 @@
   },
   "artifacts": [
     {
-      "path": "artifacts/enacted/2026.10.0.json",
-      "sha256": "a3eb84b2eb8fdb5f8e12d92e105dca4842918cfbc3b119c0df9ee906ac5a37e9"
+      "path": "artifacts/enacted/2026.10.2.json",
+      "sha256": "854f82775fdff62684a9f9ed60654cb7959f4c0a9100355d0a92a1d26b3815fa"
     },
     {
-      "path": "artifacts/coverage-matrix/2026.10.0.json",
-      "sha256": "4cecaa4df9ad8a5dad1398c5ea16b0b0ffe15569b5953733b5678b73cae7a39e"
+      "path": "artifacts/coverage-matrix/2026.10.2.json",
+      "sha256": "b6ea85ba789a216566683e689b78955cb199e4be229a06ebd81146333fa7f3dd"
     },
     {
-      "path": "artifacts/validation/2026.10.0.json",
-      "sha256": "9c86180412f16ba3076d81257c05ef5ecec940dcd7ee308b30aef0018a550306"
+      "path": "artifacts/validation/2026.10.2.json",
+      "sha256": "308ae33b6218696aa057aa09327f45dc7ac7ed407eb2b40b8ea48e402f80c662"
     }
   ],
   "sourceSnapshots": [
@@ -83,12 +83,30 @@
       "path": "source-snapshots/salary-sacrifice.md",
       "snapshotSha256": "ffc3963ac389507f19450d63168ea87b567c38206f43d8593a849fb9277d8aea",
       "sourceContentSha256": "bd8fa64edd90b24e7a21008ba84b8ab71aaac1db48e902b3141b6ebd7a1e6857"
+    },
+    {
+      "id": "hmrc-tax-on-savings-interest",
+      "path": "source-snapshots/tax-on-savings-interest.md",
+      "snapshotSha256": "3a83071ccbadf2d395bf5c0adfcfd9fefc6dde087a3128a33a0d83a0b54ca656",
+      "sourceContentSha256": "fd17a54431051eec5c8f09076baf07b35c3e20ad957858fc043c6312a8360554"
+    },
+    {
+      "id": "hmrc-capital-gains-rates-and-allowances",
+      "path": "source-snapshots/capital-gains-rates-and-allowances.md",
+      "snapshotSha256": "7db8099aa8e06f638f27a5f4381fcf995571b291d8f30b1f69e1fcf9da37199f",
+      "sourceContentSha256": "d2b662859a7ea7e35913425c3005c90d24a572cdec3f2cda14898a964e42a198"
+    },
+    {
+      "id": "hmrc-isa-overview",
+      "path": "source-snapshots/isa-overview.md",
+      "snapshotSha256": "48dd1e1ce5376ba004fa226c6374dc2e59ccc4da3ccb5b69b514d2b65a204773",
+      "sourceContentSha256": "748e1c62ce74773bf9a0b43e11ac48735d802c3cc85a8a7ffc6fc1570a12b6c0"
     }
   ],
   "validation": {
-    "corpusVersion": "2026.10.0",
+    "corpusVersion": "2026.10.2",
     "libraryVersion": "finance-tax-rules@0.1.0",
-    "ruleDatasetVersion": "2026.10.0",
+    "ruleDatasetVersion": "2026.10.2",
     "calculationContractVersion": "salary-validation-v1",
     "fixtureCount": 16,
     "sourceSnapshots": [

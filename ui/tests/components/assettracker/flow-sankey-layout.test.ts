@@ -51,6 +51,7 @@ describe("getFlowSankeyLayout", () => {
 
   it("keeps isolated nodes and zero-value links stable", () => {
     const data: FlowSankeyData = {
+      taxYear: "2026-27",
       nodes: [
         { id: "source", name: "Source", color: "blue" },
         { id: "isolated", name: "Isolated", color: "blue" },
@@ -78,6 +79,7 @@ describe("getFlowSankeyLayout", () => {
     expect(prepared.links).toEqual([
       expect.objectContaining({ flowKey: "flow:0", value: 0 }),
     ]);
+    expect(prepared.taxYear).toBe("2026-27");
   });
 
   it("filters imported links that reference missing nodes", () => {

@@ -7,6 +7,9 @@ import { ImportsRoute } from "@/components/assettracker/imports-route";
 import { MortgageRoute } from "@/components/assettracker/mortgage-route";
 import { PlanningRoute } from "@/components/assettracker/planning-route";
 import { SettingsRoute } from "@/components/assettracker/settings-route";
+import { TaxPositionRoute } from "@/components/assettracker/tax-position-route";
+import { getDemoAssetTrackerData } from "@/lib/assettracker/demoData";
+import { getHouseholdTaxEstimate } from "@/lib/domain/assettracker";
 
 vi.mock("@/components/assettracker/asset-tracker-provider", () => ({
   useAssetTracker: vi.fn(),
@@ -100,6 +103,15 @@ describe("Asset Tracker feature routes", () => {
       flowSankeyData: { nodes: [], links: [] },
       incomeHistory: [],
       financialIndependence: { periods: [] },
+      household: {
+        members: [
+          { id: "alex", displayName: "Alex" },
+          { id: "sam", displayName: "Sam" },
+        ],
+        activeScope: { kind: "household" },
+      },
+      taxEstimate: getHouseholdTaxEstimate(getDemoAssetTrackerData()),
+      exportTaxEstimate: vi.fn(),
     } as unknown as ReturnType<typeof useAssetTracker>);
   });
 
@@ -162,5 +174,35 @@ describe("Asset Tracker feature routes", () => {
     unmount();
     render(<SettingsRoute />);
     expect(screen.getByText("Data controls: settings")).toBeVisible();
+  });
+
+  it("shows the household tax estimate and its lineage", () => {
+    render(<TaxPositionRoute />);
+
+    expect(
+      screen.getByRole("heading", { name: "UK tax position" }),
+    ).toBeVisible();
+    expect(screen.getByText("Calculation lineage")).toBeVisible();
+    expect(screen.getAllByText("Savings interest tax")).toHaveLength(2);
+    expect(screen.getAllByText("Personal Savings Allowance")).toHaveLength(2);
+    expect(screen.getAllByText("Tax bands consumed")).toHaveLength(2);
+    expect(screen.getAllByText("Recorded to date")).toHaveLength(4);
+    expect(screen.getAllByText("Year-end projection")).toHaveLength(4);
+    expect(screen.getAllByText("Annual allowance usage")).toHaveLength(2);
+    expect(screen.getAllByText("Pension annual allowance")).toHaveLength(4);
+    expect(screen.getAllByText("ISA annual allowance")).toHaveLength(4);
+    expect(
+      screen.getByText(
+        (_, element) =>
+          element?.tagName === "P" &&
+          element.textContent
+            .replaceAll(/\s+/g, " ")
+            .includes("The forecast adds £10,000.00 of taxable income"),
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Export calculation" }),
+    ).toBeVisible();
+    expect(screen.queryByText("No total shown")).not.toBeInTheDocument();
   });
 });

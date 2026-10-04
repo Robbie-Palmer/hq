@@ -58,6 +58,7 @@
     "feed": "^6.0.0",
     "finance-housing-indices": "workspace:*",
     "finance-inflation-indices": "workspace:*",
+    "finance-tax-rules": "workspace:*",
     "fuse.js": "^7.1.0",
     "gray-matter": "^4.0.3",
     "konva": "^10.7.0",

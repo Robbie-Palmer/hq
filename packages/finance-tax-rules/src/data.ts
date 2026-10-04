@@ -269,10 +269,65 @@ const pensionRule = (
   ),
 });
 
+const householdTaxRule = (
+  taxYear: "2025-26" | "2026-27",
+  effectiveFrom: string,
+  effectiveTo: string,
+  dividendBasicRate: number,
+  dividendHigherRate: number,
+): RuleDataset["householdTax"][number] => ({
+  ...common,
+  id: `household-tax-${taxYear}`,
+  version: "1",
+  taxYear,
+  effectiveFrom,
+  effectiveTo,
+  kind: "household-tax",
+  jurisdictions: [
+    "england-and-northern-ireland",
+    "scotland",
+    "wales",
+  ],
+  dividendAllowancePence: gbp(500),
+  dividendRates: {
+    basicBasisPoints: dividendBasicRate,
+    higherBasisPoints: dividendHigherRate,
+    additionalBasisPoints: 3_935,
+  },
+  savings: {
+    startingRateLimitPence: gbp(5_000),
+    personalSavingsAllowancePence: {
+      basic: gbp(1_000),
+      higher: gbp(500),
+      additional: 0,
+    },
+    rates: {
+      basicBasisPoints: 2_000,
+      higherBasisPoints: 4_000,
+      additionalBasisPoints: 4_500,
+    },
+  },
+  capitalGains: {
+    annualExemptAmountPence: gbp(3_000),
+    basicRateBasisPoints: 1_800,
+    higherRateBasisPoints: 2_400,
+  },
+  isaAnnualAllowancePence: gbp(20_000),
+  provenance: review(
+    [
+      "hmrc-income-tax-current-and-past",
+      "hmrc-tax-on-savings-interest",
+      "hmrc-capital-gains-rates-and-allowances",
+      "hmrc-isa-overview",
+    ],
+    "Savings, dividend, Capital Gains Tax, and ISA limits were checked against HMRC guidance for each supported tax year.",
+  ),
+});
+
 export const ruleDataset = {
-  datasetVersion: "2026.10.0",
-  releasedAt: "2026-10-01",
-  supersedes: null,
+  datasetVersion: "2026.10.2",
+  releasedAt: "2026-10-04",
+  supersedes: "2026.10.1",
   corrections: [],
   dataLicence,
   sources: [
@@ -355,6 +410,42 @@ export const ruleDataset = {
       sourceContentSha256:
         "bd8fa64edd90b24e7a21008ba84b8ab71aaac1db48e902b3141b6ebd7a1e6857",
       snapshotPath: "source-snapshots/salary-sacrifice.md",
+    }),
+    hmrcSource({
+      id: "hmrc-tax-on-savings-interest",
+      title: "Tax on savings interest: how much is tax free",
+      url: "https://www.gov.uk/apply-tax-free-interest-on-savings/how-much-is-tax-free",
+      archiveUrl: null,
+      publicationDate: "2012-01-25",
+      coverageFrom: "2025-04-06",
+      coverageTo: "2027-04-05",
+      sourceContentSha256:
+        "fd17a54431051eec5c8f09076baf07b35c3e20ad957858fc043c6312a8360554",
+      snapshotPath: "source-snapshots/tax-on-savings-interest.md",
+    }),
+    hmrcSource({
+      id: "hmrc-capital-gains-rates-and-allowances",
+      title: "Capital Gains Tax rates and allowances",
+      url: "https://www.gov.uk/guidance/capital-gains-tax-rates-and-allowances",
+      archiveUrl: null,
+      publicationDate: "2018-04-06",
+      coverageFrom: "2025-04-06",
+      coverageTo: "2027-04-05",
+      sourceContentSha256:
+        "d2b662859a7ea7e35913425c3005c90d24a572cdec3f2cda14898a964e42a198",
+      snapshotPath: "source-snapshots/capital-gains-rates-and-allowances.md",
+    }),
+    hmrcSource({
+      id: "hmrc-isa-overview",
+      title: "Individual Savings Accounts: overview",
+      url: "https://www.gov.uk/individual-savings-accounts/overview",
+      archiveUrl: null,
+      publicationDate: "2014-04-05",
+      coverageFrom: "2025-04-06",
+      coverageTo: "2027-04-05",
+      sourceContentSha256:
+        "748e1c62ce74773bf9a0b43e11ac48735d802c3cc85a8a7ffc6fc1570a12b6c0",
+      snapshotPath: "source-snapshots/isa-overview.md",
     }),
   ],
   incomeTax: [
@@ -610,5 +701,21 @@ export const ruleDataset = {
     pensionRule("2024-25", "2024-04-06", "2025-04-05", 60_000, 260_000, 10_000, 10_000),
     pensionRule("2025-26", "2025-04-06", "2026-04-05", 60_000, 260_000, 10_000, 10_000),
     pensionRule("2026-27", "2026-04-06", "2027-04-05", 60_000, 260_000, 10_000, 10_000),
+  ],
+  householdTax: [
+    householdTaxRule(
+      "2025-26",
+      "2025-04-06",
+      "2026-04-05",
+      875,
+      3_375,
+    ),
+    householdTaxRule(
+      "2026-27",
+      "2026-04-06",
+      "2027-04-05",
+      1_075,
+      3_575,
+    ),
   ],
 } satisfies RuleDataset;

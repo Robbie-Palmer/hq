@@ -111,7 +111,7 @@ export function addFlowSankeyWaypoints(
     return segments;
   });
 
-  return { nodes, links };
+  return { ...data, nodes, links };
 }
 
 function remapFlowSankeyData(
@@ -129,6 +129,7 @@ function remapFlowSankeyData(
     return index;
   };
   return {
+    ...data,
     nodes: orderedNodeIndexes.flatMap((nodeIndex) => {
       const node = data.nodes[nodeIndex];
       return node ? [node] : [];
