@@ -224,6 +224,16 @@
       "automerge": true
     },
     {
+      "description": "Review Cooklang minor updates by hand because its pre-1.0 releases may change parser behavior and bindings",
+      "matchPackageNames": [
+        "@cooklang/cooklang"
+      ],
+      "matchUpdateTypes": [
+        "minor"
+      ],
+      "automerge": false
+    },
+    {
       "description": "Keep python on the 3.12 minor line - ml-pipelines is locked to 3.12 and bumping to 3.13/3.14 is a deliberate decision, but 3.12.x patch releases are still welcome",
       "matchManagers": [
         "mise",

@@ -87,7 +87,6 @@ jobs:
           restore-keys: pnpm-store-${{ runner.os }}-
 
       - name: Install dependencies
-        if: matrix.pipeline == 'recipe-parsing'
         run: mise run //:install
 
       - name: Check shared parsing package
@@ -97,6 +96,14 @@ jobs:
       - name: Run tests
         if: matrix.pipeline == 'recipe-parsing'
         run: mise :test
+
+      - name: Check recipe dataset pipeline
+        if: matrix.pipeline == 'recipe-dataset'
+        run: mise run //ml-pipelines/recipe-dataset:check
+
+      - name: Reproduce recipe dataset pipeline
+        if: matrix.pipeline == 'recipe-dataset'
+        run: mise run //ml-pipelines/recipe-dataset:repro
 
       - name: Comment metrics on PR
         run: |
