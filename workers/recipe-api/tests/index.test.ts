@@ -6634,6 +6634,20 @@ describe("household membership flows", () => {
     expect(await response.json()).toEqual({ error: "Authorization required" });
   });
 
+  it("rejects overlong authored equipment terms", async () => {
+    const response = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment/${"a".repeat(101)}`,
+      {
+        method: "PUT",
+        headers: { origin: "http://localhost:3000" },
+      },
+      env,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Invalid equipment term" });
+  });
+
   it("allows owners to invite household members", async () => {
     seedHousehold();
     authzMock.session = sessionFor({

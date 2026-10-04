@@ -442,12 +442,12 @@
                 "slug": {
                   "type": "string",
                   "minLength": 1,
-                  "maxLength": 200
+                  "maxLength": 100
                 },
                 "name": {
                   "type": "string",
                   "minLength": 1,
-                  "maxLength": 200
+                  "maxLength": 100
                 },
                 "category": {
                   "type": "string",
@@ -2099,12 +2099,12 @@
                     "slug": {
                       "type": "string",
                       "minLength": 1,
-                      "maxLength": 200
+                      "maxLength": 100
                     },
                     "name": {
                       "type": "string",
                       "minLength": 1,
-                      "maxLength": 200
+                      "maxLength": 100
                     },
                     "category": {
                       "type": "string",

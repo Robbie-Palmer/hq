@@ -246,6 +246,7 @@ const dietRecipeMatchModeSchema = z.enum(["hide", "warn"]);
 const equipmentRecipeMatchModeSchema = z.enum(["hide", "warn", "disabled"]);
 const pantryLocationSchema = PantryLocationSchema;
 const authoredTermInputSchema = z.string().trim().min(1).max(200);
+const equipmentTermInputSchema = z.string().trim().min(1).max(100);
 const pantryIngredientSlugSchema = authoredTermInputSchema;
 const authoredTermCandidateSchema = z
   .object({
@@ -578,8 +579,8 @@ const householdEquipmentCatalogItemSchema = z
   .strict();
 const householdEquipmentOwnedItemSchema = z
   .object({
-    slug: z.string().min(1).max(200),
-    name: z.string().min(1).max(200),
+    slug: z.string().min(1).max(100),
+    name: z.string().min(1).max(100),
     category: EquipmentCategorySchema.optional(),
     createdAt: z.iso.datetime().max(40),
     retired: z.boolean(),
@@ -1404,7 +1405,7 @@ function uuidParam(
 }
 
 function equipmentSlugParam(c: Context<AppEnv>): string | Response {
-  const result = authoredTermInputSchema.safeParse(c.req.param("equipmentSlug"));
+  const result = equipmentTermInputSchema.safeParse(c.req.param("equipmentSlug"));
   return result.success
     ? result.data
     : c.json({ error: "Invalid equipment term" }, 400);
