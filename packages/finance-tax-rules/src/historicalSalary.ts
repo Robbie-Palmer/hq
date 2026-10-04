@@ -162,10 +162,11 @@ function taxAcrossBands(
   let remaining = taxablePence;
   let tax = 0;
   for (const [index, band] of rule.bands.entries()) {
+    const bandExtension = index === 0 ? bandExtensionPence : 0;
     const width =
       band.widthPence == null
         ? Number.POSITIVE_INFINITY
-        : band.widthPence + (index === 0 ? bandExtensionPence : 0);
+        : band.widthPence + bandExtension;
     const inBand = Math.min(remaining, width);
     tax += roundTax(inBand, band.rateBasisPoints);
     remaining -= inBand;
