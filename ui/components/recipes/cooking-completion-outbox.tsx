@@ -7,7 +7,7 @@ import { authClient } from "@/lib/auth-client";
 const INITIAL_RETRY_DELAY_MS = 5_000;
 const MAX_RETRY_DELAY_MS = 60_000;
 
-export function CookingCompletionOutbox() {
+function useCookingCompletionOutbox() {
   const { data: session, isPending } = authClient.useSession();
 
   useEffect(() => {
@@ -65,6 +65,9 @@ export function CookingCompletionOutbox() {
       globalThis.removeEventListener("online", handleOnline);
     };
   }, [isPending, session?.user.id]);
+}
 
+export function CookingCompletionOutbox() {
+  useCookingCompletionOutbox();
   return null;
 }

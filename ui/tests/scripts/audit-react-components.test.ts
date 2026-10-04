@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  auditHotspots,
   type FunctionMetrics,
   findReactComponentHotspots,
-  formatHotspotReport,
+  formatAuditReport,
+  type HotspotException,
   type MetricsReport,
   runAudit,
 } from "@/scripts/audit-react-components";
@@ -25,6 +27,13 @@ function metrics(
 function report(functions: FunctionMetrics[]): MetricsReport {
   return { files: [{ path: "components/example.tsx", functions }] };
 }
+
+const existingLargeComponent: HotspotException = {
+  component: "ExistingLarge",
+  maximums: { lines: 80 },
+  path: "components/example.tsx",
+  reason: "Existing hotspot with a fixed ceiling.",
+};
 
 describe("React component hotspot audit", () => {
   it("filters non-components and components below every limit", () => {
@@ -62,19 +71,71 @@ describe("React component hotspot audit", () => {
     ]);
   });
 
-  it("formats a bounded report", () => {
+  it("formats a bounded blocking report", () => {
     const findings = findReactComponentHotspots(
       report([metrics("First", { loc: 80 }), metrics("Second", { loc: 70 })]),
     );
 
-    expect(formatHotspotReport(findings, 1)).toEqual([
-      "tsmetrics found 2 React component hotspots; showing the highest 1.",
+    expect(
+      formatAuditReport(
+        { allowed: [], staleExceptions: [], violations: findings },
+        1,
+      ),
+    ).toEqual([
+      "tsmetrics found 2 unapproved React component hotspots and 0 stale exceptions.",
       "components/example.tsx:10 First: 80 lines (limit 60)",
-      "This report is advisory while the existing hotspot backlog is reduced; new repeated JSX is enforced separately.",
+      "Update the component or narrow baseline in the same change.",
     ]);
   });
 
-  it("writes a successful analysis report", () => {
+  it("allows a reviewed hotspot at its recorded ceiling", () => {
+    const findings = findReactComponentHotspots(
+      report([metrics("ExistingLarge", { loc: 80 })]),
+    );
+
+    expect(auditHotspots(findings, [existingLargeComponent])).toEqual({
+      allowed: findings,
+      staleExceptions: [],
+      violations: [],
+    });
+  });
+
+  it("rejects new and worsened hotspots", () => {
+    const findings = findReactComponentHotspots(
+      report([
+        metrics("ExistingLarge", { loc: 81 }),
+        metrics("NewLarge", { loc: 70 }),
+      ]),
+    );
+
+    expect(auditHotspots(findings, [existingLargeComponent])).toEqual({
+      allowed: [],
+      staleExceptions: [],
+      violations: findings,
+    });
+  });
+
+  it("allows a hotspot to improve below its recorded ceiling", () => {
+    const findings = findReactComponentHotspots(
+      report([metrics("ExistingLarge", { loc: 70 })]),
+    );
+
+    expect(auditHotspots(findings, [existingLargeComponent])).toEqual({
+      allowed: findings,
+      staleExceptions: [],
+      violations: [],
+    });
+  });
+
+  it("rejects stale exceptions after a component drops below every limit", () => {
+    expect(auditHotspots([], [existingLargeComponent])).toEqual({
+      allowed: [],
+      staleExceptions: [existingLargeComponent],
+      violations: [],
+    });
+  });
+
+  it("returns failure when analysis finds an unapproved hotspot", () => {
     const lines: string[] = [];
 
     expect(
@@ -85,9 +146,33 @@ describe("React component hotspot audit", () => {
           stdout: JSON.stringify(report([metrics("Large", { loc: 80 })])),
         }),
         (line) => lines.push(line),
+        undefined,
+        [],
+      ),
+    ).toBe(1);
+    expect(lines[1]).toContain("Large: 80 lines");
+  });
+
+  it("writes a successful report for reviewed exceptions", () => {
+    const lines: string[] = [];
+
+    expect(
+      runAudit(
+        () => ({
+          status: 0,
+          stderr: "",
+          stdout: JSON.stringify(
+            report([metrics("ExistingLarge", { loc: 80 })]),
+          ),
+        }),
+        (line) => lines.push(line),
+        undefined,
+        [existingLargeComponent],
       ),
     ).toBe(0);
-    expect(lines[1]).toContain("Large: 80 lines");
+    expect(lines).toEqual([
+      "tsmetrics passed with 1 reviewed component-level exceptions.",
+    ]);
   });
 
   it("returns analyzer failures and preserves stderr", () => {

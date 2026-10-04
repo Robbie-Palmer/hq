@@ -4,6 +4,20 @@ import type { AccommodationSetup } from "@/lib/wedding-planner/setup";
 import type { Allocation } from "@/lib/wedding-planner/types";
 import { propertyName } from "./room-data";
 
+function SummaryCard({
+  label,
+  value,
+}: Readonly<{ label: string; value: number }>) {
+  return (
+    <Card>
+      <CardContent>
+        <small>{label}</small>
+        <strong>{formatMinorCurrency(value)}</strong>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function ResultSummary({
   allocation,
   setup,
@@ -17,36 +31,26 @@ export function ResultSummary({
   return (
     <>
       <div className="result-summary">
-        <Card>
-          <CardContent>
-            <small>Our total cost beyond the wedding package</small>
-            <strong>{formatMinorCurrency(flow.our_final_cost_pence)}</strong>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent>
-            <small>Already paid by us to cottages</small>
-            <strong>{formatMinorCurrency(flow.already_paid_pence)}</strong>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent>
-            <small>
-              {netStillToCover >= 0
-                ? "Net still to cover after guest reimbursements"
-                : "Expected back after remaining bills"}
-            </small>
-            <strong>{formatMinorCurrency(Math.abs(netStillToCover))}</strong>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent>
-            <small>Guests expected to pay</small>
-            <strong>
-              {formatMinorCurrency(flow.guest_expected_total_pence)}
-            </strong>
-          </CardContent>
-        </Card>
+        <SummaryCard
+          label="Our total cost beyond the wedding package"
+          value={flow.our_final_cost_pence}
+        />
+        <SummaryCard
+          label="Already paid by us to cottages"
+          value={flow.already_paid_pence}
+        />
+        <SummaryCard
+          label={
+            netStillToCover >= 0
+              ? "Net still to cover after guest reimbursements"
+              : "Expected back after remaining bills"
+          }
+          value={Math.abs(netStillToCover)}
+        />
+        <SummaryCard
+          label="Guests expected to pay"
+          value={flow.guest_expected_total_pence}
+        />
       </div>
       <div className="result-note">
         {allocation.status === "optimal" ? "Optimal plan" : "Provisional plan"}{" "}
