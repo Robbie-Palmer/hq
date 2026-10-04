@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { housePriceIndexArchive } from "@/content/assettracker/propertyIndexHistory";
 import {
   type AssetTrackerApi,
   createLocalAssetTrackerApi,
@@ -31,6 +32,7 @@ import {
   type AssetTrackerData,
   type AssetType,
   buildAccountReadModels,
+  buildPropertyValueHistoryViews,
   buildRepository,
   type ClearAccountHistoryInput,
   type CreateAccountInput,
@@ -63,6 +65,7 @@ import {
   type PortfolioContributionDataPoint,
   type PortfolioFinancialIndependence,
   type PortfolioPositionSummary,
+  type PropertyValueHistoryView,
   personalOwnership,
   type RecordBalanceInput,
   type RecordTransferInput,
@@ -112,6 +115,7 @@ interface AssetTrackerContextValue {
   baseCurrency: Currency;
   valuationDate: string | null;
   valuationIssues: ValuationIssue[];
+  propertyValueHistories: PropertyValueHistoryView[];
   household: Household;
   householdAccounts: Array<{
     id: string;
@@ -250,7 +254,8 @@ export function AssetTrackerProvider({
   );
 
   const views = useMemo(() => {
-    const repository = buildRepository(scopeAssetTrackerData(data));
+    const scopedData = scopeAssetTrackerData(data);
+    const repository = buildRepository(scopedData);
     const { summaries: accounts, details: accountDetails } =
       buildAccountReadModels(repository);
     const netWorthDataByCurrency = Object.fromEntries(
@@ -306,6 +311,10 @@ export function AssetTrackerProvider({
       baseCurrency: repository.settings.baseCurrency,
       valuationDate: latestValuation?.date ?? null,
       valuationIssues: latestValuation?.issues ?? [],
+      propertyValueHistories: buildPropertyValueHistoryViews(
+        scopedData.propertyIndexHistories ?? [],
+        housePriceIndexArchive,
+      ),
       household: data.household,
       householdAccounts: data.accounts.map(({ id, name, provider }) => ({
         id,

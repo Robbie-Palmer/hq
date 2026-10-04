@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { housePriceIndexArchive } from "@/content/assettracker/propertyIndexHistory";
 import {
   buildBaseCurrencyFlowSankeyData,
   getDemoAssetTrackerData,
@@ -20,6 +21,7 @@ import {
   snapshotOwnershipKey,
 } from "@/lib/domain/assettracker/household";
 import { valueAccountAtDate } from "@/lib/domain/assettracker/portfolioValuation";
+import { buildPropertyValueHistoryViews } from "@/lib/domain/assettracker/propertyIndexHistory";
 import { currentSalaryHistory } from "@/lib/domain/assettracker/salaryHistory";
 
 describe("Asset Tracker demo-data adapter", () => {
@@ -201,6 +203,16 @@ describe("Asset Tracker demo-data adapter", () => {
         ({ accountId, date }) => accountId === "home" && date === "2024-12-01",
       )?.balance,
     ).toBe(119_200);
+    expect(
+      alexData.propertyIndexHistories?.[0]?.input.recordedValuations.map(
+        ({ value }) => value,
+      ),
+    ).toEqual([171_000, 178_800]);
+    expect(
+      samData.propertyIndexHistories?.[0]?.input.recordedValuations.map(
+        ({ value }) => value,
+      ),
+    ).toEqual([114_000, 119_200]);
 
     const householdValue = getLatestPortfolioValuation(buildRepository(data));
     const alexValue = getLatestPortfolioValuation(buildRepository(alexData));
@@ -294,6 +306,46 @@ describe("Asset Tracker demo-data adapter", () => {
       scenarioId: "five-year-fix",
       recordedAt: "2024-12-01",
       status: "recorded",
+    });
+  });
+
+  it("includes a sourced indexed history for the demo home", () => {
+    const data = getDemoAssetTrackerData();
+    const repository = buildRepository(data);
+    const definition = repository.propertyIndexHistories[0];
+
+    expect(definition).toMatchObject({
+      accountId: "home",
+      datasetVersion: "2026-07:654a541934ba",
+      input: {
+        anchorValuationId: "home-purchase-2023-03",
+        recordedValuations: [
+          expect.objectContaining({
+            kind: "purchase-price",
+            value: 285_000,
+          }),
+          expect.objectContaining({
+            kind: "formal-valuation",
+            value: 298_000,
+          }),
+        ],
+      },
+    });
+    const view = buildPropertyValueHistoryViews(
+      repository.propertyIndexHistories,
+      housePriceIndexArchive,
+    )[0];
+    expect(view).toMatchObject({
+      status: "ready",
+      accountId: "home",
+      history: {
+        calculation: {
+          series: {
+            label: "Property-type fallback: Belfast, all",
+            fallback: true,
+          },
+        },
+      },
     });
   });
 

@@ -18,6 +18,7 @@ import type {
   MortgageScenario,
 } from "./mortgageCalculator";
 import type { PlannedExpenditure } from "./plannedExpenditure";
+import type { PropertyIndexHistoryDefinition } from "./propertyIndexHistory";
 import type { RecurringFlow } from "./recurringFlow";
 import { compareAcceptedAt, type SalaryHistoryRecord } from "./salaryHistory";
 import type { Transfer } from "./transfer";
@@ -39,6 +40,7 @@ export interface AssetTrackerRepository {
   plannedExpenditures: PlannedExpenditure[];
   mortgageScenarios: MortgageScenario[];
   decisionRecords: FinancialDecisionRecord[];
+  propertyIndexHistories: PropertyIndexHistoryDefinition[];
   instruments: Map<string, Instrument>;
   holdingObservations: HoldingObservation[];
   priceObservations: PriceObservation[];
@@ -370,6 +372,32 @@ function validateValuationReferences(
   );
 }
 
+function validatePropertyIndexHistoryReferences(
+  data: AssetTrackerData,
+  accounts: Map<AccountId, Account>,
+): void {
+  const propertyHistoryAccounts = new Set<string>();
+  for (const history of data.propertyIndexHistories ?? []) {
+    assertKnownAccount(
+      accounts,
+      history.accountId,
+      `Property index history for account "${history.accountId}"`,
+    );
+    const account = accounts.get(history.accountId);
+    if (account != null && account.assetType !== "property") {
+      throw new AssetTrackerDataError(
+        `Property index history references non-property account "${history.accountId}"`,
+      );
+    }
+    if (propertyHistoryAccounts.has(history.accountId)) {
+      throw new AssetTrackerDataError(
+        `Duplicate property index history for account "${history.accountId}"`,
+      );
+    }
+    propertyHistoryAccounts.add(history.accountId);
+  }
+}
+
 function validateReferences(
   data: AssetTrackerData,
   accounts: Map<AccountId, Account>,
@@ -377,6 +405,7 @@ function validateReferences(
   validateCoreReferences(data, accounts);
   validatePlannedExpenditureReferences(data, accounts);
   validateValuationReferences(data, accounts);
+  validatePropertyIndexHistoryReferences(data, accounts);
   const mortgageScenarios = data.mortgageScenarios ?? [];
   const decisionRecords = data.decisionRecords ?? [];
   const scenarios = new Map(
@@ -449,6 +478,7 @@ export function buildRepository(
     ),
     mortgageScenarios: data.mortgageScenarios ?? [],
     decisionRecords: data.decisionRecords ?? [],
+    propertyIndexHistories: data.propertyIndexHistories ?? [],
     instruments: new Map(
       (data.instruments ?? []).map((instrument) => [instrument.id, instrument]),
     ),

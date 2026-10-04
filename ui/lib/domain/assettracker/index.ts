@@ -23,6 +23,7 @@ export * from "./pastedHistory";
 export * from "./plannedExpenditure";
 export * from "./portfolioReconciliation";
 export * from "./portfolioValuation";
+export * from "./propertyIndexHistory";
 export * from "./recurringFlow";
 export * from "./runwayForecast";
 export * from "./salaryHistory";
