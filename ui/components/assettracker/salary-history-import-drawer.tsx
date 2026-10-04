@@ -39,7 +39,7 @@ function downloadTemplate() {
   anchor.href = url;
   anchor.download = "salary-history-template.csv";
   anchor.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 function MappingSelect({

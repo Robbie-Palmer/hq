@@ -574,6 +574,29 @@ function amountDiagnostics(
   return diagnostics;
 }
 
+function ambiguousPensionRateDiagnostics(
+  row: readonly unknown[],
+  mapping: SalaryColumnMapping,
+  rowNumber: number,
+): SalaryImportDiagnostic[] {
+  const diagnostics: SalaryImportDiagnostic[] = [];
+  const fields: readonly SalaryImportField[] = [
+    "employeePensionRate",
+    "employerPensionRate",
+  ];
+  for (const field of fields) {
+    const value = textValue(cell(row, mapping, field));
+    if (value != null && !value.includes("%") && numberValue(value) === 1) {
+      diagnostics.push({
+        severity: "warning",
+        row: rowNumber,
+        message: `${SALARY_IMPORT_FIELD_LABELS[field]} of 1 is interpreted as 100%. Use 1% for one percent.`,
+      });
+    }
+  }
+  return diagnostics;
+}
+
 function parseSalaryRow(
   sheet: SalaryImportSheet,
   mapping: SalaryColumnMapping,
@@ -634,7 +657,10 @@ function parseSalaryRow(
   }
   return {
     record: parsed.data,
-    diagnostics: amountDiagnostics(parsed.data, rowNumber),
+    diagnostics: [
+      ...amountDiagnostics(parsed.data, rowNumber),
+      ...ambiguousPensionRateDiagnostics(row, mapping, rowNumber),
+    ],
   };
 }
 

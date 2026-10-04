@@ -19,7 +19,7 @@ import type {
 } from "./mortgageCalculator";
 import type { PlannedExpenditure } from "./plannedExpenditure";
 import type { RecurringFlow } from "./recurringFlow";
-import type { SalaryHistoryRecord } from "./salaryHistory";
+import { compareAcceptedAt, type SalaryHistoryRecord } from "./salaryHistory";
 import type { Transfer } from "./transfer";
 import type {
   ExchangeRateObservation,
@@ -135,7 +135,7 @@ function assertValidCorrections<
         `${label} observation "${record.id}" must correct the same series`,
       );
     }
-    if (record.acceptedAt <= corrected.acceptedAt) {
+    if (compareAcceptedAt(record.acceptedAt, corrected.acceptedAt) <= 0) {
       throw new AssetTrackerDataError(
         `${label} correction "${record.id}" must be accepted after "${record.correctsId}"`,
       );
@@ -174,7 +174,7 @@ function validateSalaryHistory(records: readonly SalaryHistoryRecord[]): void {
         `Salary record "${record.correctsId}" has more than one correction`,
       );
     }
-    if (record.acceptedAt <= prior.acceptedAt) {
+    if (compareAcceptedAt(record.acceptedAt, prior.acceptedAt) <= 0) {
       throw new AssetTrackerDataError(
         `Salary correction "${record.id}" must be accepted after "${record.correctsId}"`,
       );
@@ -440,7 +440,7 @@ export function buildRepository(
       a.date.localeCompare(b.date),
     ),
     salaryHistory: [...data.salaryHistory].sort((a, b) =>
-      a.acceptedAt.localeCompare(b.acceptedAt),
+      compareAcceptedAt(a.acceptedAt, b.acceptedAt),
     ),
     transfers: data.transfers,
     recurringFlows: data.recurringFlows,

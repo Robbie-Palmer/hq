@@ -83,6 +83,19 @@ describe("salary history", () => {
     ]);
   });
 
+  it("orders accepted timestamps as instants when fractional seconds differ", () => {
+    const first = salaryRecord({ acceptedAt: "2026-10-04T10:00:00Z" });
+    const second = salaryRecord({
+      id: "salary-second",
+      acceptedAt: "2026-10-04T10:00:00.100Z",
+    });
+
+    expect(currentSalaryHistory([second, first]).map(({ id }) => id)).toEqual([
+      first.id,
+      second.id,
+    ]);
+  });
+
   it("rejects a second correction to a superseded fact", () => {
     const original = salaryRecord();
     const corrected = applySaveSalaryRecord(

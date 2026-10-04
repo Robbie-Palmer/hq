@@ -143,6 +143,10 @@ export function annualisedGrossPay(record: SalaryHistoryRecord): number | null {
   return periods == null ? null : record.grossPay * periods;
 }
 
+export function compareAcceptedAt(left: string, right: string): number {
+  return Date.parse(left) - Date.parse(right);
+}
+
 /** Returns accepted facts that have not been superseded by a correction. */
 export function currentSalaryHistory(
   records: readonly SalaryHistoryRecord[],
@@ -156,7 +160,7 @@ export function currentSalaryHistory(
     .filter((record) => !correctedIds.has(record.id))
     .toSorted((a, b) =>
       a.effectiveStart === b.effectiveStart
-        ? a.acceptedAt.localeCompare(b.acceptedAt)
+        ? compareAcceptedAt(a.acceptedAt, b.acceptedAt)
         : a.effectiveStart.localeCompare(b.effectiveStart),
     );
 }

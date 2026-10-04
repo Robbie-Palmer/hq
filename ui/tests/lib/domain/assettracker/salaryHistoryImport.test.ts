@@ -139,4 +139,46 @@ describe("salary history import", () => {
     expect(ambiguous.records).toEqual([]);
     expect(ambiguous.diagnostics[0]?.message).toMatch(/net or taxable pay/);
   });
+
+  it("warns when an unsuffixed pension rate of one is ambiguous", () => {
+    const sheet = {
+      fileName: "history.csv",
+      fingerprint: "fixture",
+      headers: [
+        "person",
+        "employer",
+        "employment id",
+        "currency",
+        "jurisdiction",
+        "effective start",
+        "pay frequency",
+        "amount type",
+        "gross pay before pension",
+        "employee pension rate",
+      ],
+      rows: [
+        [
+          "Alex",
+          "Acme",
+          "job",
+          "GBP",
+          "UK",
+          "2025-01-01",
+          "monthly",
+          "annual salary",
+          40_000,
+          1,
+        ],
+      ],
+    };
+    const result = parseSalaryImport(
+      sheet,
+      suggestSalaryColumnMapping(sheet.headers),
+    );
+
+    expect(result.records[0]?.employeePension?.rate).toBe(1);
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({ message: expect.stringMatching(/Use 1%/) }),
+    ]);
+  });
 });
