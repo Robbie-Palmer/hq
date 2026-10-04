@@ -1,22 +1,25 @@
-import postgres from "postgres";
-import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import {
+  closePostgresClient,
+  createDrizzlePostgres,
+  resolvePostgresConnectionString,
+  type DrizzlePostgresDatabase,
+  type PostgresClient,
+} from "drizzle-postgres";
 import type { Env } from "./env";
 import * as schema from "./schema";
 
-export type DbClient = postgres.Sql;
-export type Db = PostgresJsDatabase<typeof schema> & { $client: DbClient };
+export type DbClient = PostgresClient;
+export type Db = DrizzlePostgresDatabase<typeof schema>;
 
 export function databaseConnection(env: Env): string | undefined {
-  return env.HYPERDRIVE?.connectionString ?? env.DATABASE_URL;
+  return resolvePostgresConnectionString(env);
 }
 
 export function createDb(connectionString: string): {
   db: Db;
   client: DbClient;
 } {
-  const client = postgres(connectionString, { prepare: false });
-  const db = drizzle(client, { schema, casing: "snake_case" });
-  return { db, client };
+  return createDrizzlePostgres(connectionString, schema);
 }
 
 export async function closeDbClient(
@@ -24,7 +27,7 @@ export async function closeDbClient(
 ): Promise<void> {
   if (!client) return;
   try {
-    await client.end({ timeout: 5 });
+    await closePostgresClient(client);
   } catch (error) {
     console.error("finance tax monitor database cleanup failed", error);
   }

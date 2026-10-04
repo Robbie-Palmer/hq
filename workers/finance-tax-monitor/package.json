@@ -13,10 +13,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "drizzle-postgres": "workspace:*",
     "drizzle-orm": "^0.45.0",
     "fflate": "^0.8.3",
     "finance-tax-rules": "workspace:*",
-    "postgres": "^3.4.5",
     "ts-base": "workspace:*"
   },
   "devDependencies": {

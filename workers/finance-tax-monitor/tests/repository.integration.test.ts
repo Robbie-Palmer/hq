@@ -95,7 +95,10 @@ async function persist(
 
 beforeAll(async () => {
   await client.exec(
-    readFileSync(resolve("drizzle/0000_medical_bastion.sql"), "utf8"),
+    readFileSync(
+      resolve("drizzle/0000_create_tax_guidance_review_tables.sql"),
+      "utf8",
+    ),
   );
 });
 

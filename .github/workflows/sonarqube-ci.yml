@@ -131,6 +131,7 @@ jobs:
             packages/agent-coordinator-domain/coverage/lcov.info
             packages/ai-review-domain/coverage/lcov.info
             packages/browser-base/coverage/lcov.info
+            packages/drizzle-postgres/coverage/lcov.info
             packages/finance-housing-indices/coverage/lcov.info
             packages/finance-inflation-indices/coverage/lcov.info
             packages/finance-tax-rules/coverage/lcov.info

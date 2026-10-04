@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "workers/finance-tax-monitor/**"
+      - "packages/drizzle-postgres/**"
       - "packages/finance-tax-rules/**"
       - "packages/ts-base/**"
       - ".github/workflows/finance-tax-monitor-ci.yml"
@@ -23,6 +24,9 @@ jobs:
 
       - name: Check tax rule library
         run: mise run //packages/finance-tax-rules:check
+
+      - name: Check shared PostgreSQL connection helpers
+        run: mise run //packages/drizzle-postgres:check
 
       - name: Check scheduled Workflow
         run: mise run //workers/finance-tax-monitor:check
