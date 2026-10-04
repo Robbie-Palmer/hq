@@ -34,9 +34,30 @@
 
 - name: Install the T3 worktree cleanup SQL files
   ansible.builtin.copy:
-    src: sql/
-    dest: "{{ t3_worktree_cleanup_sql_dir }}/"
+    src: "sql/{{ item }}"
+    dest: "{{ t3_worktree_cleanup_sql_dir }}/{{ item }}"
     mode: "0600"
+  loop: "{{ t3_worktree_cleanup_sql_files }}"
+  notify: Reload T3 worktree cleanup job
+
+- name: Find installed T3 worktree cleanup SQL files
+  ansible.builtin.find:
+    paths:
+      - "{{ t3_worktree_cleanup_sql_dir }}"
+    patterns:
+      - "*.sql"
+    file_type: file
+    recurse: false
+  register: t3_worktree_cleanup_installed_sql_files
+
+- name: Remove obsolete T3 worktree cleanup SQL files
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ t3_worktree_cleanup_installed_sql_files.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when: item.path | basename not in t3_worktree_cleanup_sql_files
   notify: Reload T3 worktree cleanup job
 
 - name: Install the T3 worktree cleanup launchd definition

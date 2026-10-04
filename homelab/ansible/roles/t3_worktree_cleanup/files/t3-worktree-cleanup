@@ -251,12 +251,13 @@ while IFS=$'\t' read -r thread_id worktree_path lifecycle lifecycle_at; do
     continue
   fi
 
-  still_eligible=$(run_sql check-candidate-eligibility.sql \
+  still_eligible=$(run_sql select-candidates.sql \
     thread_id "$thread_id" \
     deleted_days "$deleted_days" \
     archived_days "$archived_days" \
     settled_days "$settled_days")
-  if [ "$still_eligible" != "1" ]; then
+  eligible_thread=${still_eligible%%$'\t'*}
+  if [ "$eligible_thread" != "$thread_id" ]; then
     log "SKIP ${thread_id} became active or protected during cleanup"
     skipped_count=$((skipped_count + 1))
     continue

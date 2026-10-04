@@ -68,6 +68,9 @@ t3_worktree_cleanup_launchd_label: homelab.t3-worktree-cleanup
 t3_worktree_cleanup_script_path: "{{ ansible_facts.env.HOME }}/.local/bin/t3-worktree-cleanup"
 t3_worktree_cleanup_sql_dir: >-
   {{ ansible_facts.env.HOME }}/.local/share/homelab/t3-worktree-cleanup/sql
+t3_worktree_cleanup_sql_files:
+  - check-column.sql
+  - select-candidates.sql
 t3_worktree_cleanup_database_path: "{{ ansible_facts.env.HOME }}/.t3/userdata/state.sqlite"
 t3_worktree_cleanup_root: "{{ ansible_facts.env.HOME }}/.t3/worktrees"
 t3_worktree_cleanup_state_dir: >-

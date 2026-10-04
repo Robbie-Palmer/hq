@@ -172,7 +172,6 @@ class T3WorktreeCleanupTest(unittest.TestCase):
         self.assertNotIn("SELECT ", script)
         self.assertEqual(
             {
-                "check-candidate-eligibility.sql",
                 "check-column.sql",
                 "select-candidates.sql",
             },

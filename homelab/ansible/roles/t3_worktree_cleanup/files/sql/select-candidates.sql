@@ -12,6 +12,7 @@ FROM projection_threads AS t
 LEFT JOIN projection_thread_sessions AS s ON s.thread_id = t.thread_id
 LEFT JOIN provider_session_runtime AS r ON r.thread_id = t.thread_id
 WHERE t.worktree_path IS NOT NULL
+  AND (@thread_id IS NULL OR t.thread_id = @thread_id)
   AND t.pinned_at IS NULL
   AND t.pending_approval_count = 0
   AND t.pending_user_input_count = 0
