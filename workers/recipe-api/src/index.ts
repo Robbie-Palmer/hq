@@ -56,6 +56,7 @@ import {
   PantryMutationConflictError,
 } from "recipe-domain/pantry";
 import { SavedRecipePayloadSchema } from "recipe-domain/serialization";
+import { normalizeAuthoredTerm } from "recipe-domain/authored-term";
 import {
   isRecipeAppRouteSlug,
   LOWERCASE_KEBAB_CASE_PATTERN,
@@ -76,6 +77,7 @@ import {
   type AuthoredTermOwner,
   canonicalEquipmentTerm,
   listUnresolvedTerms,
+  newAuthoredTermOccurrences,
   observeAuthoredTerm,
   observeRecipeTerms,
   requestLocale,
@@ -452,19 +454,36 @@ async function recordRecipeBodyTerms(
   input: {
     body: string;
     locale: string;
+    previousBody?: string | null;
     recipeId: string;
     userId: string;
   },
 ): Promise<void> {
   const payload = SavedRecipePayloadSchema.parse(JSON.parse(input.body));
+  const previousPayload = input.previousBody
+    ? SavedRecipePayloadSchema.parse(JSON.parse(input.previousBody))
+    : undefined;
+  const ingredientTerms = payload.recipe.ingredientGroups.flatMap((group) =>
+    group.items.map((item) => item.ingredient),
+  );
+  const previousIngredientTerms =
+    previousPayload?.recipe.ingredientGroups.flatMap((group) =>
+      group.items.map((item) => item.ingredient),
+    ) ?? [];
   await observeRecipeTerms(tx, {
     userId: input.userId,
     recipeId: input.recipeId,
     locale: input.locale,
-    ingredientTerms: payload.recipe.ingredientGroups.flatMap((group) =>
-      group.items.map((item) => item.ingredient),
+    ingredientTerms: newAuthoredTermOccurrences(
+      ingredientTerms,
+      previousIngredientTerms,
+      input.locale,
     ),
-    equipmentTerms: payload.recipe.cookware,
+    equipmentTerms: newAuthoredTermOccurrences(
+      payload.recipe.cookware,
+      previousPayload?.recipe.cookware ?? [],
+      input.locale,
+    ),
   });
 }
 
@@ -2132,16 +2151,51 @@ async function observeIngredientTerms(
   }));
 }
 
-function normalizedPantryEntries(
-  stockEntries: Array<[string, PantryLocation]>,
-  terms: Array<{ key: string }>,
-): Array<[string, PantryLocation]> {
-  const normalizedStock = new Map<string, PantryLocation>();
-  for (const [index, term] of terms.entries()) {
-    const entry = stockEntries[index];
-    if (entry) normalizedStock.set(term.key, entry[1]);
+async function observeNewPantryEntries(
+  tx: DbTransaction,
+  scope: PantryScope,
+  input: {
+    actorUserId: string;
+    locale: string;
+    stockEntries: Array<[string, PantryLocation]>;
+  },
+): Promise<Array<[string, PantryLocation]>> {
+  const currentRows = await tx
+    .select({ ingredientSlug: schema.pantryItem.ingredientSlug })
+    .from(schema.pantryItem)
+    .where(pantryScopeFilter(scope));
+  const currentKeys = new Set(
+    currentRows.map(({ ingredientSlug }) => ingredientSlug),
+  );
+  const existingKeys = new Map<number, string>();
+  const newEntries: Array<[number, string]> = [];
+  for (const [index, [rawText]] of input.stockEntries.entries()) {
+    const existingKey = [
+      rawText,
+      normalizeAuthoredTerm(rawText),
+      normalizeSlug(rawText),
+    ].find((candidate) => currentKeys.has(candidate));
+    if (existingKey) existingKeys.set(index, existingKey);
+    else newEntries.push([index, rawText]);
   }
-  return Array.from(normalizedStock.entries());
+
+  const observed = await observeIngredientTerms(tx, {
+    owner: pantryTermOwner(scope),
+    actorUserId: input.actorUserId,
+    rawTerms: newEntries.map(([, rawText]) => rawText),
+    locale: input.locale,
+    flow: "pantry",
+    resourceId: pantryResourceId(scope),
+  });
+  const observedKeys = new Map(
+    newEntries.map(([index], termIndex) => [index, observed[termIndex]?.key]),
+  );
+  const normalizedEntries: Array<[string, PantryLocation]> = [];
+  for (const [index, [, location]] of input.stockEntries.entries()) {
+    const key = existingKeys.get(index) ?? observedKeys.get(index);
+    if (key) normalizedEntries.push([key, location]);
+  }
+  return normalizedEntries;
 }
 
 async function replacePantryStock(
@@ -4115,19 +4169,12 @@ registerRoute("put", "/pantry", async (c) => {
         pantryStockFingerprint("replace", body.data.stock),
         "pantry.replaced",
         async (tx, scope) => {
-          const terms = await observeIngredientTerms(tx, {
-            owner: pantryTermOwner(scope),
+          const normalizedEntries = await observeNewPantryEntries(tx, scope, {
             actorUserId: session.user.id,
-            rawTerms: stockEntries.map(([rawText]) => rawText),
             locale,
-            flow: "pantry",
-            resourceId: pantryResourceId(scope),
+            stockEntries,
           });
-          await replacePantryStock(
-            tx,
-            scope,
-            normalizedPantryEntries(stockEntries, terms),
-          );
+          await replacePantryStock(tx, scope, normalizedEntries);
         },
       );
 
@@ -4162,20 +4209,11 @@ registerRoute("patch", "/pantry", async (c) => {
         pantryStockFingerprint("restore", body.data.stock),
         "pantry.restored",
         async (tx, scope) => {
-          const terms = await observeIngredientTerms(tx, {
-            owner: pantryTermOwner(scope),
+          const normalizedEntries = await observeNewPantryEntries(tx, scope, {
             actorUserId: session.user.id,
-            rawTerms: stockEntries.map(([rawText]) => rawText),
             locale,
-            flow: "pantry",
-            resourceId: pantryResourceId(scope),
+            stockEntries,
           });
-          const normalizedStock = new Map<string, PantryLocation>();
-          for (const [index, term] of terms.entries()) {
-            const entry = stockEntries[index];
-            if (entry) normalizedStock.set(term.key, entry[1]);
-          }
-          const normalizedEntries = Array.from(normalizedStock.entries());
           if (normalizedEntries.length > 0) {
             await tx
               .insert(schema.pantryItem)
@@ -4291,8 +4329,6 @@ registerRoute("delete", "/pantry/items/:ingredientSlug", async (c) => {
       if (!ingredientSlugResult.success) {
         return c.json({ error: "Invalid ingredient slug" }, 400);
       }
-      const locale = requestLocale(c.req.header("Accept-Language"));
-
       const pantry = await executeCollaborativePantryOperation(
         c,
         db,
@@ -4301,24 +4337,12 @@ registerRoute("delete", "/pantry/items/:ingredientSlug", async (c) => {
         `remove:${ingredientSlugResult.data}`,
         "pantry.item-removed",
         async (tx, scope) => {
-          const [term] = await observeIngredientTerms(tx, {
-            owner: pantryTermOwner(scope),
-            actorUserId: session.user.id,
-            rawTerms: [ingredientSlugResult.data],
-            locale,
-            flow: "pantry",
-            resourceId: pantryResourceId(scope),
-          });
-          if (!term) throw new Error("Pantry term was not recorded");
           await tx
             .delete(schema.pantryItem)
             .where(
               and(
                 pantryScopeFilter(scope),
-                eq(
-                  schema.pantryItem.ingredientSlug,
-                  term.key,
-                ),
+                eq(schema.pantryItem.ingredientSlug, ingredientSlugResult.data),
               ),
             );
         },
@@ -4579,6 +4603,7 @@ function householdEquipmentItemResponse(
 async function withHouseholdEquipmentMutation(
   c: Context<AppEnv>,
   logMessage: string,
+  termMode: "observe" | "stored-key",
   mutate: (
     db: DbTransaction,
     householdId: string,
@@ -4601,35 +4626,42 @@ async function withHouseholdEquipmentMutation(
       session,
     );
     if (memberFailure) return memberFailure;
-    const locale = requestLocale(c.req.header("Accept-Language"));
     return db.transaction(async (tx) => {
-      const equipment = canonicalEquipmentTerm(rawEquipment);
-      const term = await observeAuthoredTerm(
-        tx,
-        { type: "household", organizationId: householdId },
-        {
-          kind: "equipment",
-          rawText: rawEquipment,
-          locale,
-          sourceContext: {
-            flow: "equipment",
-            resourceId: householdId,
-            field: "inventory",
+      let equipmentSlug = rawEquipment;
+      if (termMode === "observe") {
+        const equipment = canonicalEquipmentTerm(rawEquipment);
+        const term = await observeAuthoredTerm(
+          tx,
+          { type: "household", organizationId: householdId },
+          {
+            kind: "equipment",
+            rawText: rawEquipment,
+            locale: requestLocale(c.req.header("Accept-Language")),
+            sourceContext: {
+              flow: "equipment",
+              resourceId: householdId,
+              field: "inventory",
+            },
+            provenance: { kind: "user", actorUserId: session.user.id },
+            candidateMatches: equipment.candidateMatches,
+            canonicalSlug: equipment.canonicalSlug,
           },
-          provenance: { kind: "user", actorUserId: session.user.id },
-          candidateMatches: equipment.candidateMatches,
-          canonicalSlug: equipment.canonicalSlug,
-        },
-      );
-      const unresolvedTerms = await listUnresolvedTerms(
-        tx,
-        { type: "household", organizationId: householdId },
-        "equipment",
-      );
+        );
+        equipmentSlug = term.key;
+      }
+      const unresolvedTerms =
+        termMode === "observe"
+          ? await listUnresolvedTerms(
+              tx,
+              { type: "household", organizationId: householdId },
+              "equipment",
+              [equipmentSlug],
+            )
+          : [];
       return mutate(
         tx,
         householdId,
-        term.key,
+        equipmentSlug,
         new Map(
           unresolvedTerms.map((unresolved) => [
             unresolved.normalizedText,
@@ -4676,17 +4708,16 @@ registerRoute("get", "/households/:householdId/equipment", async (c) => {
         .where(eq(schema.householdEquipment.organizationId, householdId))
         .orderBy(schema.householdEquipment.equipmentSlug);
 
-      const unresolvedTerms = (
-        await listUnresolvedTerms(
-          db,
-          { type: "household", organizationId: householdId },
-          "equipment",
-        )
-      ).filter((term) =>
-        equipment.some(
-          ({ equipmentSlug }) => equipmentSlug === term.normalizedText,
-        ),
-      );
+      const equipmentKeys = equipment.map(({ equipmentSlug }) => equipmentSlug);
+      const unresolvedTerms =
+        equipmentKeys.length === 0
+          ? []
+          : await listUnresolvedTerms(
+              db,
+              { type: "household", organizationId: householdId },
+              "equipment",
+              equipmentKeys,
+            );
       const unresolvedByText = new Map(
         unresolvedTerms.map((term) => [term.normalizedText, term]),
       );
@@ -4752,6 +4783,7 @@ registerRoute(
     withHouseholdEquipmentMutation(
       c,
       "PUT /households/:householdId/equipment/:equipmentSlug failed",
+      "observe",
       async (db, householdId, equipmentSlug, unresolvedByText) => {
         const [created] = await db
           .insert(schema.householdEquipment)
@@ -4797,6 +4829,7 @@ registerRoute(
     withHouseholdEquipmentMutation(
       c,
       "DELETE /households/:householdId/equipment/:equipmentSlug failed",
+      "stored-key",
       async (db, householdId, equipmentSlug) => {
         await db
           .delete(schema.householdEquipment)
@@ -6301,6 +6334,7 @@ registerRoute("patch", "/recipes/:slug", async (c) => {
           await recordRecipeBodyTerms(tx, {
             body: body.data.body,
             locale,
+            previousBody: recipe.body,
             recipeId: saved.id,
             userId: session.user.id,
           });

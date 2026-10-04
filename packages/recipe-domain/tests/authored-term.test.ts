@@ -21,6 +21,11 @@ describe("authored terms", () => {
     expect(normalizeAuthoredTerm("İRMİK", "not_a_locale")).toBe("i̇rmi̇k");
   });
 
+  it("keeps identity stable across request locales", () => {
+    expect(normalizeAuthoredTerm("IRMIK", "tr-TR")).toBe("irmik");
+    expect(normalizeAuthoredTerm("IRMIK", "en-IE")).toBe("irmik");
+  });
+
   it("validates candidate scores and import provenance", () => {
     expect(
       AuthoredTermCandidateSchema.safeParse({ slug: "red-onion", score: 1 })

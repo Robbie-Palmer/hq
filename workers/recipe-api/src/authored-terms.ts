@@ -164,7 +164,9 @@ export async function listUnresolvedTerms(
   db: TermReader,
   owner: AuthoredTermOwner,
   kind?: AuthoredTermKind,
+  normalizedTexts?: string[],
 ): Promise<UnresolvedTermSummary[]> {
+  if (normalizedTexts?.length === 0) return [];
   const rows = await db
     .select({
       id: schema.authoredTerm.id,
@@ -183,6 +185,9 @@ export async function listUnresolvedTerms(
         ownerFilter(owner),
         isNull(schema.authoredTerm.canonicalSlug),
         kind ? eq(schema.authoredTerm.kind, kind) : undefined,
+        normalizedTexts
+          ? inArray(schema.authoredTerm.normalizedText, normalizedTexts)
+          : undefined,
       ),
     )
     .orderBy(desc(schema.authoredTerm.lastSeenAt));
@@ -190,6 +195,28 @@ export async function listUnresolvedTerms(
     ...row,
     resolutionStatus: "unresolved" as const,
   }));
+}
+
+export function newAuthoredTermOccurrences(
+  currentTerms: string[],
+  previousTerms: string[],
+  locale = "und",
+): string[] {
+  const previousCounts = new Map<string, number>();
+  for (const term of previousTerms) {
+    const normalized = normalizeAuthoredTerm(term, locale);
+    if (!normalized) continue;
+    previousCounts.set(normalized, (previousCounts.get(normalized) ?? 0) + 1);
+  }
+
+  return currentTerms.filter((term) => {
+    const normalized = normalizeAuthoredTerm(term, locale);
+    if (!normalized) return false;
+    const previousCount = previousCounts.get(normalized) ?? 0;
+    if (previousCount === 0) return true;
+    previousCounts.set(normalized, previousCount - 1);
+    return false;
+  });
 }
 
 export function requestLocale(acceptLanguage: string | undefined): string {

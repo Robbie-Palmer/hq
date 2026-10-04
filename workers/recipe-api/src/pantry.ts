@@ -104,15 +104,18 @@ export async function pantryResponseForScope(
 
   const revision =
     options.revision ?? (await findPantryAggregate(db, scope))?.revision ?? 0n;
-  const unresolvedTerms = (await listUnresolvedTerms(
-    db,
-    scope.type === "household"
-      ? { type: "household", organizationId: scope.householdId }
-      : { type: "user", userId: scope.userId },
-    "ingredient",
-  )).filter((term) =>
-    items.some((item) => item.ingredientSlug === term.normalizedText),
-  );
+  const pantryKeys = items.map(({ ingredientSlug }) => ingredientSlug);
+  const unresolvedTerms =
+    pantryKeys.length === 0
+      ? []
+      : await listUnresolvedTerms(
+          db,
+          scope.type === "household"
+            ? { type: "household", organizationId: scope.householdId }
+            : { type: "user", userId: scope.userId },
+          "ingredient",
+          pantryKeys,
+        );
 
   return {
     resourceId: pantryResourceId(scope),

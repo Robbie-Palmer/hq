@@ -5530,6 +5530,21 @@ describe("pantry mutation flows", () => {
       ],
     });
 
+    const removeIngredient = await app.request(
+      "/pantry/items/dragonfruit",
+      {
+        method: "DELETE",
+        headers: { origin: "http://localhost:3000" },
+      },
+      env,
+    );
+    expect(removeIngredient.status).toBe(200);
+    expect(
+      dbMock.state.authoredTerms.find(
+        (term) => term.normalizedText === "dragonfruit",
+      ),
+    ).toMatchObject({ rawText: "Dragonfruit", frequency: 2 });
+
     const invalidBody = await app.request(
       "/pantry",
       {
@@ -5802,6 +5817,9 @@ describe("pantry mutation flows", () => {
       stock: { milk: "fresh", onion: "cupboards" },
       itemVersions: { milk: "1", onion: "1" },
     });
+    expect(dbMock.state.authoredTerms).toEqual([
+      expect.objectContaining({ rawText: "onion", normalizedText: "onion" }),
+    ]);
   });
 
   it("replays a duplicate pantry operation without incrementing its revision", async () => {
@@ -6567,6 +6585,7 @@ describe("household membership flows", () => {
     );
     expect(deleteResponse.status).toBe(204);
     expect(dbMock.state.householdEquipment).toHaveLength(0);
+    expect(dbMock.state.authoredTerms).toHaveLength(0);
 
     const unknownResponse = await app.request(
       `/households/${HOUSEHOLD_ID}/equipment/laser-whisk`,

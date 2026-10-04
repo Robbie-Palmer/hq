@@ -533,13 +533,13 @@ describe("SettingsView", () => {
     const user = userEvent.setup();
     mockMemberHousehold();
     mocks.getHouseholdEquipment.mockResolvedValue({
-      catalog: [],
+      catalog: [{ slug: "blender", name: "blender", category: "appliance" }],
       owned: [],
       recipeMatchMode: "warn",
     });
     mocks.addHouseholdEquipment.mockResolvedValue({
-      slug: "clay tagine",
-      name: "Clay Tagine",
+      slug: "blender jar",
+      name: "blender jar",
       createdAt: "2026-10-03T00:00:00.000Z",
       retired: false,
       unresolved: true,
@@ -549,16 +549,17 @@ describe("SettingsView", () => {
     await user.click(screen.getByRole("button", { name: "Household" }));
     await user.type(
       await screen.findByLabelText("Custom equipment"),
-      "Clay Tagine",
+      "blender jar",
     );
     await user.click(screen.getByRole("button", { name: "Add equipment" }));
 
     await waitFor(() =>
       expect(mocks.addHouseholdEquipment).toHaveBeenCalledWith(
         "00000000-0000-4000-8000-000000000001",
-        "Clay Tagine",
+        "blender jar",
       ),
     );
+    expect(screen.getByLabelText("Custom equipment")).toHaveValue("");
     expect(
       screen.getByText("saved as written, automatic matching unavailable"),
     ).toBeInTheDocument();

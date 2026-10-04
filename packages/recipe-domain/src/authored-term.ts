@@ -51,12 +51,7 @@ export type AuthoredTermProvenance = z.infer<
  * a URL slug, this retains non-ASCII letters and punctuation that may carry
  * meaning in an ingredient or equipment name.
  */
-export function normalizeAuthoredTerm(value: string, locale = "und"): string {
+export function normalizeAuthoredTerm(value: string, _locale = "und"): string {
   const normalized = value.normalize("NFKC").trim().replace(/\s+/g, " ");
-  if (locale === "und") return normalized.toLowerCase();
-  try {
-    return normalized.toLocaleLowerCase(locale);
-  } catch {
-    return normalized.toLowerCase();
-  }
+  return normalized.toLowerCase();
 }

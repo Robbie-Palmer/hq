@@ -625,11 +625,14 @@ function EquipmentAddForm({
   onSelectedSlugChange,
   selectedSlug,
 }: EquipmentAddFormProps) {
-  const selectedCatalogSlug = available.some(
-    (item) => item.slug === selectedSlug,
-  )
-    ? selectedSlug
-    : "";
+  const [customText, setCustomText] = useState("");
+  useEffect(() => {
+    if (!selectedSlug) setCustomText("");
+  }, [selectedSlug]);
+  const selectedCatalogSlug =
+    !customText && available.some((item) => item.slug === selectedSlug)
+      ? selectedSlug
+      : "";
   return (
     <form
       onSubmit={onAdd}
@@ -638,7 +641,10 @@ function EquipmentAddForm({
       <EquipmentCatalogSelect
         available={available}
         busy={busy}
-        onChange={onSelectedSlugChange}
+        onChange={(slug) => {
+          setCustomText("");
+          onSelectedSlugChange(slug);
+        }}
         value={selectedCatalogSlug}
       />
       <label className="sr-only" htmlFor="household-custom-equipment">
@@ -646,8 +652,11 @@ function EquipmentAddForm({
       </label>
       <Input
         id="household-custom-equipment"
-        value={selectedCatalogSlug ? "" : selectedSlug}
-        onChange={(event) => onSelectedSlugChange(event.target.value)}
+        value={customText}
+        onChange={(event) => {
+          setCustomText(event.target.value);
+          onSelectedSlugChange(event.target.value);
+        }}
         disabled={busy}
         placeholder="Or enter custom equipment"
         className="min-w-0 bg-[var(--card)]"
