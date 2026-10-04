@@ -23,7 +23,7 @@ RUN export MISE_CACHE_DIR=/tmp/mise-cache \
 
 FROM docker:29.8.0-cli@sha256:eccaacfeed644c7de222ff047483568cb988dde95476fbaaf10ea2d04921bb66 AS docker-cli
 
-FROM node:24.16.0-bookworm-slim@sha256:2c87ef9bd3c6a3bd4b472b4bec2ce9d16354b0c574f736c476489d09f560a203
+FROM node:24.21.0-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6
 
 LABEL org.opencontainers.image.source="https://github.com/Robbie-Palmer/hq"
 LABEL org.opencontainers.image.description="Pinned t3-code runtime for the remote development K3s cluster"
