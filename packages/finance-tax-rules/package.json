@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./dataset": "./src/data.ts",
+    "./historical-salary": "./src/historicalSalaryApi.ts",
     "./household-tax": "./src/householdTax.ts",
     "./gov-uk-monitor": "./src/govUkMonitor.ts",
     "./validation": "./src/validationApi.ts"
@@ -18,6 +19,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@saving-tool/hmrc-income-tax": "3.0.1",
     "html-to-text": "^10.0.1",
     "microdiff": "^1.6.0",
     "ts-base": "workspace:*",

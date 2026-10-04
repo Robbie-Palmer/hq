@@ -41,6 +41,114 @@ function sourceLabel(record: SalaryHistoryRecord): string {
   return `${record.source.fileName}, row ${record.source.row}`;
 }
 
+function moneyOrUnknown(
+  record: SalaryHistoryRecord,
+  amount: number | undefined,
+): string {
+  return amount == null ? "Unknown" : formatMoney(record, amount);
+}
+
+function EmploymentCell({ record }: Readonly<{ record: SalaryHistoryRecord }>) {
+  return (
+    <td className="px-3 py-3">
+      <span className="block font-medium">{record.person}</span>
+      <span className="block text-muted-foreground">{record.employer}</span>
+      <span className="font-mono text-xs text-muted-foreground">
+        {record.employmentId}
+      </span>
+    </td>
+  );
+}
+
+function GrossPayCell({ record }: Readonly<{ record: SalaryHistoryRecord }>) {
+  const annualised = annualisedGrossPay(record);
+  return (
+    <td className="px-3 py-3 tabular-nums">
+      <span className="block font-medium">
+        {formatMoney(record, record.grossPay)}
+      </span>
+      <span className="block text-xs text-muted-foreground">
+        {record.amountKind === "annualSalary"
+          ? "Annual salary rate"
+          : `Actual ${record.payFrequency} pay`}
+      </span>
+      {record.workFraction != null && (
+        <span className="block text-xs text-muted-foreground">
+          {(record.workFraction * 100).toLocaleString("en-GB")}% of full-time
+        </span>
+      )}
+      {record.amountKind === "periodPay" && annualised != null && (
+        <span className="block text-xs text-muted-foreground">
+          {formatMoney(record, annualised)} annualised
+        </span>
+      )}
+    </td>
+  );
+}
+
+function PayDetailCell({ record }: Readonly<{ record: SalaryHistoryRecord }>) {
+  const rows = [
+    ["Base", record.baseSalary],
+    ["Variable", record.variablePay],
+    ["Taxable", record.taxablePay],
+    ["Take-home", record.takeHomePay],
+    ["Income Tax", record.observedIncomeTax],
+    ["Employee NI", record.observedEmployeeNationalInsurance],
+    ["Other income", record.otherTaxableIncome],
+  ] as const;
+  return (
+    <td className="px-3 py-3 text-xs">
+      {rows.map(([label, amount]) => (
+        <span key={label} className="block">
+          {label}: {moneyOrUnknown(record, amount)}
+        </span>
+      ))}
+      <span className="block">
+        Tax code {record.taxCode ?? "unknown"}, NI category{" "}
+        {record.nationalInsuranceCategory ?? "unknown"}
+      </span>
+    </td>
+  );
+}
+
+function DesktopSalaryRow({
+  record,
+  allowCorrection,
+}: Readonly<{
+  record: SalaryHistoryRecord;
+  allowCorrection: boolean;
+}>) {
+  return (
+    <tr className="border-t align-top">
+      <EmploymentCell record={record} />
+      <td className="px-3 py-3 font-mono text-xs">
+        {record.effectiveStart}
+        <span className="block text-muted-foreground">
+          to {record.effectiveEnd ?? "present"}
+        </span>
+      </td>
+      <GrossPayCell record={record} />
+      <PayDetailCell record={record} />
+      <td className="px-3 py-3 text-xs">
+        <span className="block">
+          Employee: {pensionLabel(record.employeePension)}
+        </span>
+        <span className="block">
+          Employer: {pensionLabel(record.employerPension)}
+        </span>
+      </td>
+      <td className="max-w-48 px-3 py-3 text-xs text-muted-foreground">
+        {sourceLabel(record)}
+      </td>
+      {allowCorrection && (
+        <td className="px-3 py-2 text-right">
+          <SalaryRecordDrawer record={record} />
+        </td>
+      )}
+    </tr>
+  );
+}
+
 function SalaryTable({
   records,
   allowCorrection,
@@ -101,6 +209,10 @@ function SalaryTable({
                       ? "Unknown"
                       : formatMoney(record, record.variablePay)}
                   </p>
+                  <p>Tax code: {record.taxCode ?? "Unknown"}</p>
+                  <p>
+                    NI category: {record.nationalInsuranceCategory ?? "Unknown"}
+                  </p>
                   {annualised != null && record.amountKind === "periodPay" && (
                     <p>{formatMoney(record, annualised)} annualised</p>
                   )}
@@ -136,92 +248,13 @@ function SalaryTable({
             </tr>
           </thead>
           <tbody>
-            {records.map((record) => {
-              const annualised = annualisedGrossPay(record);
-              return (
-                <tr key={record.id} className="border-t align-top">
-                  <td className="px-3 py-3">
-                    <span className="block font-medium">{record.person}</span>
-                    <span className="block text-muted-foreground">
-                      {record.employer}
-                    </span>
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {record.employmentId}
-                    </span>
-                  </td>
-                  <td className="px-3 py-3 font-mono text-xs">
-                    {record.effectiveStart}
-                    <span className="block text-muted-foreground">
-                      to {record.effectiveEnd ?? "present"}
-                    </span>
-                  </td>
-                  <td className="px-3 py-3 tabular-nums">
-                    <span className="block font-medium">
-                      {formatMoney(record, record.grossPay)}
-                    </span>
-                    <span className="block text-xs text-muted-foreground">
-                      {record.amountKind === "annualSalary"
-                        ? "Annual salary rate"
-                        : `Actual ${record.payFrequency} pay`}
-                    </span>
-                    {record.workFraction != null && (
-                      <span className="block text-xs text-muted-foreground">
-                        {(record.workFraction * 100).toLocaleString("en-GB")}%
-                        of full-time
-                      </span>
-                    )}
-                    {record.amountKind === "periodPay" &&
-                      annualised != null && (
-                        <span className="block text-xs text-muted-foreground">
-                          {formatMoney(record, annualised)} annualised
-                        </span>
-                      )}
-                  </td>
-                  <td className="px-3 py-3 text-xs">
-                    <span className="block">
-                      Base:{" "}
-                      {record.baseSalary == null
-                        ? "Unknown"
-                        : formatMoney(record, record.baseSalary)}
-                    </span>
-                    <span className="block">
-                      Variable:{" "}
-                      {record.variablePay == null
-                        ? "Unknown"
-                        : formatMoney(record, record.variablePay)}
-                    </span>
-                    <span className="block">
-                      Taxable:{" "}
-                      {record.taxablePay == null
-                        ? "Unknown"
-                        : formatMoney(record, record.taxablePay)}
-                    </span>
-                    <span className="block">
-                      Take-home:{" "}
-                      {record.takeHomePay == null
-                        ? "Unknown"
-                        : formatMoney(record, record.takeHomePay)}
-                    </span>
-                  </td>
-                  <td className="px-3 py-3 text-xs">
-                    <span className="block">
-                      Employee: {pensionLabel(record.employeePension)}
-                    </span>
-                    <span className="block">
-                      Employer: {pensionLabel(record.employerPension)}
-                    </span>
-                  </td>
-                  <td className="max-w-48 px-3 py-3 text-xs text-muted-foreground">
-                    {sourceLabel(record)}
-                  </td>
-                  {allowCorrection && (
-                    <td className="px-3 py-2 text-right">
-                      <SalaryRecordDrawer record={record} />
-                    </td>
-                  )}
-                </tr>
-              );
-            })}
+            {records.map((record) => (
+              <DesktopSalaryRow
+                key={record.id}
+                record={record}
+                allowCorrection={allowCorrection}
+              />
+            ))}
           </tbody>
         </table>
       </div>

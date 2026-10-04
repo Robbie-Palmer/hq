@@ -26,6 +26,7 @@ export * from "./portfolioValuation";
 export * from "./propertyIndexHistory";
 export * from "./recurringFlow";
 export * from "./runwayForecast";
+export * from "./salaryCalculation";
 export * from "./salaryHistory";
 export * from "./salaryHistoryImport";
 export * from "./taxPosition";

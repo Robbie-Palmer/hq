@@ -592,6 +592,9 @@ importers:
 
   packages/finance-tax-rules:
     dependencies:
+      '@saving-tool/hmrc-income-tax':
+        specifier: 3.0.1
+        version: 3.0.1
       html-to-text:
         specifier: ^10.0.1
         version: 10.0.1
@@ -4328,6 +4331,9 @@ packages:
     engines: {node: '>= 8.0.0'}
     peerDependencies:
       rollup: ^1.20.0||^2.0.0
+
+  '@saving-tool/hmrc-income-tax@3.0.1':
+    resolution: {integrity: sha512-haX3XaGeHJMICztx0MbuXTGxfn4f9vf/RNcnXvcmy+VVhKBRhLgzJTbuGDY5NwLICj1Wp9c2E/OxqnCKxpLMvA==}
 
   '@scarf/scarf@1.4.0':
     resolution: {integrity: sha512-xxeapPiUXdZAE3che6f3xogoJPeZgig6omHEy1rIY5WVsB3H2BHNnZH+gHG6x91SCWyQCzWGsuL2Hh3ClO5/qQ==}
@@ -12409,6 +12415,8 @@ snapshots:
       estree-walker: 1.0.1
       picomatch: 2.3.2
       rollup: 2.80.0
+
+  '@saving-tool/hmrc-income-tax@3.0.1': {}
 
   '@scarf/scarf@1.4.0': {}
 

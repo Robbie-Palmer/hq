@@ -616,14 +616,6 @@
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
-    "component": "PensionFields",
-    "maximums": {
-      "lines": 62
-    },
-    "path": "components/assettracker/salary-record-drawer.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
     "component": "SalaryRecordDrawer",
     "maximums": {
       "lines": 241,

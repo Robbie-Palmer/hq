@@ -31,6 +31,10 @@ vi.mock("@/components/assettracker/salary-history-manager", () => ({
   SalaryHistoryManager: () => <p>Salary history management</p>,
 }));
 
+vi.mock("@/components/assettracker/salary-calculation-history", () => ({
+  SalaryCalculationHistory: () => <p>Salary calculation history</p>,
+}));
+
 vi.mock("@/components/assettracker/net-worth-chart", () => ({
   NetWorthChart: () => <p>Net worth history</p>,
 }));
