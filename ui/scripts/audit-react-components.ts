@@ -1,8 +1,10 @@
 #!/usr/bin/env tsx
 
 import { spawnSync } from "node:child_process";
-import { resolve } from "node:path";
+import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
+
+const require = createRequire(import.meta.url);
 
 export const componentLimits = {
   lines: 60,
@@ -125,8 +127,9 @@ export function formatHotspotReport(
 
 function analyzeWithTsmetrics(): AnalysisResult {
   const analysis = spawnSync(
-    resolve(process.cwd(), "node_modules/.bin/tsmetrics"),
+    process.execPath,
     [
+      require.resolve("tsmetrics/bin/tsmetrics.js"),
       "analyze",
       "app",
       "components",
