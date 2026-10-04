@@ -6,16 +6,19 @@
   "exports": {
     ".": "./src/index.ts",
     "./dataset": "./src/data.ts",
+    "./gov-uk-monitor": "./src/govUkMonitor.ts",
     "./validation": "./src/validationApi.ts"
   },
   "scripts": {
     "build": "tsx scripts/build.ts",
     "build:check": "tsx scripts/build.ts --check",
+    "monitor": "tsx scripts/monitor.ts",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "ts-base": "workspace:*",
     "zod": "^4.2.1"
   },
   "devDependencies": {
