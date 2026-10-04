@@ -167,21 +167,21 @@
       "idx": 23,
       "version": "7",
       "when": 1791054534739,
-      "tag": "0023_even_switch",
+      "tag": "0023_add_equipment_recipe_match_mode",
       "breakpoints": true
     },
     {
       "idx": 24,
       "version": "7",
       "when": 1791096791115,
-      "tag": "0024_heavy_nehzno",
+      "tag": "0024_use_equipment_recipe_match_mode_enum",
       "breakpoints": true
     },
     {
       "idx": 25,
       "version": "7",
       "when": 1791100822874,
-      "tag": "0025_sloppy_toro",
+      "tag": "0025_store_flexible_authored_terms",
       "breakpoints": true
     }
   ]
