@@ -604,6 +604,12 @@ function HouseholdEquipmentSection({
   const available = equipment.catalog.filter(
     (item) => !ownedSlugs.has(item.slug),
   );
+  const selectedCatalogSlug = available.some(
+    (item) => item.slug === selectedSlug,
+  )
+    ? selectedSlug
+    : "";
+  const customEquipment = selectedCatalogSlug ? "" : selectedSlug;
 
   return (
     <Section
@@ -649,27 +655,40 @@ function HouseholdEquipmentSection({
         <>
           <form
             onSubmit={onAdd}
-            className="flex max-w-lg flex-col gap-3 sm:flex-row"
+            className="grid max-w-2xl gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
           >
             <label className="sr-only" htmlFor="household-equipment">
               Equipment to add
             </label>
-            <Input
+            <select
               id="household-equipment"
-              list="household-equipment-catalog"
-              value={selectedSlug}
+              value={selectedCatalogSlug}
               onChange={(event) => onSelectedSlugChange(event.target.value)}
-              disabled={busy}
-              placeholder="Choose equipment or enter your own"
-              className="min-w-0 flex-1 bg-[var(--card)]"
-            />
-            <datalist id="household-equipment-catalog">
+              disabled={busy || available.length === 0}
+              className="rt-body h-9 min-w-0 rounded-md border border-[var(--line-strong)] bg-[var(--card)] px-3 text-sm text-[var(--ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--terracotta)]/40 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="">
+                {available.length === 0
+                  ? "All catalog equipment added"
+                  : "Choose catalog equipment"}
+              </option>
               {available.map((item) => (
                 <option key={item.slug} value={item.slug}>
                   {item.name} · {item.category}
                 </option>
               ))}
-            </datalist>
+            </select>
+            <label className="sr-only" htmlFor="household-custom-equipment">
+              Custom equipment
+            </label>
+            <Input
+              id="household-custom-equipment"
+              value={customEquipment}
+              onChange={(event) => onSelectedSlugChange(event.target.value)}
+              disabled={busy}
+              placeholder="Or enter custom equipment"
+              className="min-w-0 bg-[var(--card)]"
+            />
             <Button
               type="submit"
               variant="outline"

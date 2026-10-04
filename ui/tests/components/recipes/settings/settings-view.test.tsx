@@ -503,7 +503,7 @@ describe("SettingsView", () => {
     renderSettingsView();
 
     await user.click(screen.getByRole("button", { name: "Household" }));
-    await user.type(
+    await user.selectOptions(
       await screen.findByLabelText("Equipment to add"),
       "blender",
     );
@@ -527,6 +527,41 @@ describe("SettingsView", () => {
     expect(
       screen.queryByRole("button", { name: "Remove frying pan" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("lets household members save custom equipment", async () => {
+    const user = userEvent.setup();
+    mockMemberHousehold();
+    mocks.getHouseholdEquipment.mockResolvedValue({
+      catalog: [],
+      owned: [],
+      recipeMatchMode: "warn",
+    });
+    mocks.addHouseholdEquipment.mockResolvedValue({
+      slug: "clay tagine",
+      name: "Clay Tagine",
+      createdAt: "2026-10-03T00:00:00.000Z",
+      retired: false,
+      unresolved: true,
+    });
+    renderSettingsView();
+
+    await user.click(screen.getByRole("button", { name: "Household" }));
+    await user.type(
+      await screen.findByLabelText("Custom equipment"),
+      "Clay Tagine",
+    );
+    await user.click(screen.getByRole("button", { name: "Add equipment" }));
+
+    await waitFor(() =>
+      expect(mocks.addHouseholdEquipment).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000001",
+        "Clay Tagine",
+      ),
+    );
+    expect(
+      screen.getByText("saved as written, automatic matching unavailable"),
+    ).toBeInTheDocument();
   });
 
   it("lets a household member hide recipes that need missing equipment", async () => {
