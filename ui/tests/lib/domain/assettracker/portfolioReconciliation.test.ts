@@ -43,6 +43,7 @@ function portfolioData(): AssetTrackerData {
       { date: "2024-02-29", amount: 10_000, currency: "GBP" },
       { date: "2024-03-31", amount: 8_000, currency: "GBP" },
     ],
+    salaryHistory: [],
     transfers: [],
     recurringFlows: [],
     plannedExpenditures: [],

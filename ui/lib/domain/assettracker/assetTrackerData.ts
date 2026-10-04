@@ -19,6 +19,7 @@ import {
 import { PlannedExpenditureSchema } from "./plannedExpenditure";
 import { PropertyIndexHistoryDefinitionSchema } from "./propertyIndexHistory";
 import { RecurringFlowSchema } from "./recurringFlow";
+import { SalaryHistoryRecordSchema } from "./salaryHistory";
 import { TransferSchema } from "./transfer";
 import {
   ExchangeRateObservationSchema,
@@ -84,6 +85,7 @@ export const AssetTrackerDataSchema = z
     snapshots: z.array(BalanceSnapshotSchema),
     capitalFlows: z.array(CapitalFlowSchema).default([]),
     incomeHistory: z.array(IncomeRecordSchema).default([]),
+    salaryHistory: z.array(SalaryHistoryRecordSchema).default([]),
     transfers: z.array(TransferSchema).default([]),
     recurringFlows: z.array(RecurringFlowSchema).default([]),
     plannedExpenditures: z.array(PlannedExpenditureSchema).default([]),

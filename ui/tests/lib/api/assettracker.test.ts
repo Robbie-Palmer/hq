@@ -208,6 +208,20 @@ describe("createLocalAssetTrackerApi", () => {
     expect(data.incomeHistory).toEqual([]);
   });
 
+  it("loads older saved data with no salary history", async () => {
+    const { salaryHistory: _salaryHistory, ...legacy } =
+      getDemoAssetTrackerData();
+    window.localStorage.setItem(
+      ASSET_TRACKER_STORAGE_KEY,
+      JSON.stringify(legacy),
+    );
+
+    const { data, persisted } = await createApi().load();
+
+    expect(persisted).toBe(true);
+    expect(data.salaryHistory).toEqual([]);
+  });
+
   it("migrates old saved data to one stable local household member", async () => {
     const seed = getDemoAssetTrackerData();
     const { household: _household, ownership: _ownership, ...legacy } = seed;
@@ -514,6 +528,55 @@ describe("createLocalAssetTrackerApi", () => {
     expect(imported).toEqual(exported);
     const { persisted } = await createApi().load();
     expect(persisted).toBe(true);
+  });
+
+  it("round-trips salary provenance and prior accepted facts", async () => {
+    const api = createApi();
+    const seededSalaryCount = getDemoAssetTrackerData().salaryHistory.length;
+    const original = {
+      id: "salary-fixture-2",
+      person: "Alex Example",
+      employer: "Northstar Ltd",
+      employmentId: "northstar-engineer",
+      currency: "GBP" as const,
+      jurisdiction: "UK",
+      effectiveStart: "2021-04-01",
+      effectiveEnd: "2021-09-30",
+      payFrequency: "monthly" as const,
+      amountKind: "annualSalary" as const,
+      grossPay: 48_000,
+      source: {
+        kind: "file" as const,
+        fileName: "salary.csv",
+        fingerprint: "fixture",
+        row: 2,
+      },
+      acceptedAt: "2025-01-01T00:00:00.000Z",
+    };
+    await api.importSalaryHistory({ records: [original] });
+    await api.importSalaryHistory({ records: [original] });
+    const corrected = await api.saveSalaryRecord({
+      correctsId: original.id,
+      facts: {
+        person: original.person,
+        employer: original.employer,
+        employmentId: original.employmentId,
+        currency: original.currency,
+        jurisdiction: original.jurisdiction,
+        effectiveStart: original.effectiveStart,
+        effectiveEnd: original.effectiveEnd,
+        payFrequency: original.payFrequency,
+        amountKind: original.amountKind,
+        grossPay: 50_000,
+      },
+    });
+
+    expect(corrected.salaryHistory).toHaveLength(seededSalaryCount + 2);
+    expect(corrected.salaryHistory).toContainEqual(original);
+    const restored = await createApi().importData(
+      JSON.parse(JSON.stringify(corrected)),
+    );
+    expect(restored.salaryHistory).toEqual(corrected.salaryHistory);
   });
 
   it("reset clears stored data and returns the seed", async () => {

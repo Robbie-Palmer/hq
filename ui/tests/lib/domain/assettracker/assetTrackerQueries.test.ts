@@ -56,6 +56,7 @@ function homeData(): AssetTrackerData {
     ],
     capitalFlows: [],
     incomeHistory: [],
+    salaryHistory: [],
     transfers: [],
     recurringFlows: [],
     plannedExpenditures: [],
@@ -100,6 +101,7 @@ function mixedCurrencyData(): AssetTrackerData {
       { accountId: "broker-usd", date: "2025-01-10", amount: 100 },
     ],
     incomeHistory: [],
+    salaryHistory: [],
     transfers: [
       {
         id: "usd-income",

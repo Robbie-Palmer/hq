@@ -2,6 +2,7 @@ import { accounts } from "@/content/assettracker/accounts";
 import { incomeHistory } from "@/content/assettracker/incomeHistory";
 import { propertyIndexHistories } from "@/content/assettracker/propertyIndexHistory";
 import { recurringFlows } from "@/content/assettracker/recurringFlows";
+import { salaryHistory } from "@/content/assettracker/salaryHistory";
 import { snapshots } from "@/content/assettracker/snapshots";
 import { transfers } from "@/content/assettracker/transfers";
 import {
@@ -42,6 +43,7 @@ export function getDemoAssetTrackerData(): AssetTrackerData {
     accounts,
     snapshots,
     incomeHistory,
+    salaryHistory,
     transfers,
     recurringFlows,
     instruments,
