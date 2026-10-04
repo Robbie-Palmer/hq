@@ -180,11 +180,17 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The merge base is trusted default-branch code and matches the test
-          # contracts the PR inherited. Never execute the PR's test harness in
-          # this job because it can resolve the preview Access credential.
-          ref: ${{ needs.preflight.outputs.harness_sha }}
           persist-credentials: false
+
+      - name: Select the trusted preview test harness
+        env:
+          HARNESS_SHA: ${{ needs.preflight.outputs.harness_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$HARNESS_SHA" =~ ^[0-9a-f]{40}$ ]]
+          git fetch --no-tags --depth=1 origin "$HARNESS_SHA"
+          [[ "$(git rev-parse FETCH_HEAD)" == "$HARNESS_SHA" ]]
+          git checkout --detach "$HARNESS_SHA"
 
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
