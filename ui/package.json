@@ -30,7 +30,7 @@
   },
   "dependencies": {
     "@bubblyworld/highs-ts": "^1.4.1",
-    "@cooklang/cooklang": "^0.18.0",
+    "@cooklang/cooklang": "catalog:",
     "@cosmos.gl/graph": "^3.4.1",
     "@posthog/brand": "0.12.3",
     "@radix-ui/react-dialog": "^1.1.15",

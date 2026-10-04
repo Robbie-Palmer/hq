@@ -36,18 +36,18 @@ stages:
   prepare:
     cmd: node src/stages/prepare.mjs
     deps:
-    - path: ../../patches/@cooklang__cooklang@0.18.7.patch
+    - path: ../../patches/@cooklang__cooklang.patch
       hash: md5
       md5: 37584634a5b344a0b223e5263d455c21
       size: 1284
     - path: ../../pnpm-lock.yaml
       hash: md5
-      md5: 827f53aaf1dac9b4b4526a3c967231a9
-      size: 402658
+      md5: 705dd95a24e71419b2c78b754412eebb
+      size: 653128
     - path: ../../pnpm-workspace.yaml
       hash: md5
-      md5: 7eeea087ac1d9d7282b48a80205c8549
-      size: 2253
+      md5: 2ee9dbfda1befd2ee87f0ed86128194b
+      size: 4247
     - path: data/raw
       hash: md5
       md5: bbdbc5b73cad67fb0efa48c43c10f555.dir
@@ -55,8 +55,8 @@ stages:
       nfiles: 150
     - path: package.json
       hash: md5
-      md5: 4911a6f93a43c7bbff9460e47071c67c
-      size: 162
+      md5: 5a9f9f579c7778a4590d1833f14b6956
+      size: 163
     - path: snapshot.json
       hash: md5
       md5: 554e9df691a7d855470b8d4588299071
@@ -67,8 +67,8 @@ stages:
       size: 5080
     - path: src/stages/prepare.mjs
       hash: md5
-      md5: 59f0e049a5e20263958346a7ae40aa04
-      size: 24682
+      md5: 94adf8ff06185f45655f1fdb48317e91
+      size: 24868
     outs:
     - path: outputs/gutenberg-candidates.jsonl
       hash: md5
