@@ -1,3 +1,3 @@
 [tools]
-"github:jdx/mise" = "2026.9.1"
+"github:jdx/mise" = "v2026.9.18"
 doppler = { version = "3.76.6", github_attestations = false }
