@@ -19,6 +19,7 @@ import type {
 } from "./mortgageCalculator";
 import type { PlannedExpenditure } from "./plannedExpenditure";
 import type { RecurringFlow } from "./recurringFlow";
+import type { SalaryHistoryRecord } from "./salaryHistory";
 import type { Transfer } from "./transfer";
 import type {
   ExchangeRateObservation,
@@ -32,6 +33,7 @@ export interface AssetTrackerRepository {
   snapshots: BalanceSnapshot[];
   capitalFlows: CapitalFlow[];
   incomeHistory: IncomeRecord[];
+  salaryHistory: SalaryHistoryRecord[];
   transfers: Transfer[];
   recurringFlows: RecurringFlow[];
   plannedExpenditures: PlannedExpenditure[];
@@ -153,6 +155,34 @@ function assertUniqueIncomeDates(incomeHistory: readonly IncomeRecord[]): void {
   }
 }
 
+function validateSalaryHistory(records: readonly SalaryHistoryRecord[]): void {
+  const byId = new Map(records.map((record) => [record.id, record]));
+  if (byId.size !== records.length) {
+    throw new AssetTrackerDataError("Salary history IDs must be unique");
+  }
+  const corrected = new Set<string>();
+  for (const record of records) {
+    if (record.correctsId == null) continue;
+    const prior = byId.get(record.correctsId);
+    if (prior == null) {
+      throw new AssetTrackerDataError(
+        `Salary record "${record.id}" corrects unknown record "${record.correctsId}"`,
+      );
+    }
+    if (corrected.has(record.correctsId)) {
+      throw new AssetTrackerDataError(
+        `Salary record "${record.correctsId}" has more than one correction`,
+      );
+    }
+    if (record.acceptedAt <= prior.acceptedAt) {
+      throw new AssetTrackerDataError(
+        `Salary correction "${record.id}" must be accepted after "${record.correctsId}"`,
+      );
+    }
+    corrected.add(record.correctsId);
+  }
+}
+
 function validateRecurringFlowReferences(
   data: AssetTrackerData,
   accounts: Map<AccountId, Account>,
@@ -202,6 +232,7 @@ function validateCoreReferences(
   assertUniqueAccountDates(data.snapshots, "snapshot");
   assertUniqueCapitalFlows(data.capitalFlows);
   assertUniqueIncomeDates(data.incomeHistory);
+  validateSalaryHistory(data.salaryHistory);
   for (const account of data.accounts) {
     assertKnownAccount(
       accounts,
@@ -407,6 +438,9 @@ export function buildRepository(
     capitalFlows,
     incomeHistory: [...data.incomeHistory].sort((a, b) =>
       a.date.localeCompare(b.date),
+    ),
+    salaryHistory: [...data.salaryHistory].sort((a, b) =>
+      a.acceptedAt.localeCompare(b.acceptedAt),
     ),
     transfers: data.transfers,
     recurringFlows: data.recurringFlows,

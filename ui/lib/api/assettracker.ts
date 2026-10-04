@@ -20,11 +20,13 @@ import {
   applyDeleteSnapshot,
   applyImportAccountHistory,
   applyImportIncomeHistory,
+  applyImportSalaryHistory,
   applyMaterializeFlow,
   applyRecordBalance,
   applyRecordTransfer,
   applyRenameHouseholdMember,
   applySaveMortgageScenario,
+  applySaveSalaryRecord,
   applySetAccountLiquidity,
   applySetAccountOwnership,
   applySetActiveHouseholdScope,
@@ -45,11 +47,13 @@ import {
   type HouseholdScope,
   type ImportAccountHistoryInput,
   type ImportIncomeHistoryInput,
+  type ImportSalaryHistoryInput,
   type MaterializeFlowInput,
   type RecordBalanceInput,
   type RecordTransferInput,
   type RenameHouseholdMemberInput,
   type SaveMortgageScenarioInput,
+  type SaveSalaryRecordInput,
   type SetAccountLiquidityInput,
   type SetAccountOwnershipInput,
   type SetBaseCurrencyInput,
@@ -84,6 +88,10 @@ export interface AssetTrackerApi {
   importIncomeHistory(
     input: ImportIncomeHistoryInput,
   ): Promise<AssetTrackerData>;
+  importSalaryHistory(
+    input: ImportSalaryHistoryInput,
+  ): Promise<AssetTrackerData>;
+  saveSalaryRecord(input: SaveSalaryRecordInput): Promise<AssetTrackerData>;
   clearIncomeHistory(): Promise<AssetTrackerData>;
   addRecurringFlow(input: AddRecurringFlowInput): Promise<AssetTrackerData>;
   addPlannedExpenditure(
@@ -223,6 +231,29 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
       return promiseFromSync(() =>
         write(applyImportIncomeHistory(current(), input)),
       );
+    },
+    importSalaryHistory(input) {
+      return promiseFromSync(() => {
+        const data = current();
+        return write({
+          ...data,
+          salaryHistory: applyImportSalaryHistory(data.salaryHistory, input),
+        });
+      });
+    },
+    saveSalaryRecord(input) {
+      return promiseFromSync(() => {
+        const data = current();
+        return write({
+          ...data,
+          salaryHistory: applySaveSalaryRecord(
+            data.salaryHistory,
+            input,
+            `salary-${globalThis.crypto.randomUUID()}`,
+            new Date().toISOString(),
+          ),
+        });
+      });
     },
     clearIncomeHistory() {
       return promiseFromSync(() => write(applyClearIncomeHistory(current())));

@@ -35,6 +35,7 @@ import {
   type ClearAccountHistoryInput,
   type CreateAccountInput,
   type Currency,
+  currentSalaryHistory,
   type DeleteCapitalFlowInput,
   type DeleteSnapshotInput,
   type FinancialDecisionRecord,
@@ -52,6 +53,7 @@ import {
   type HousingPlanningPosition,
   type ImportAccountHistoryInput,
   type ImportIncomeHistoryInput,
+  type ImportSalaryHistoryInput,
   type IncomeRecord,
   type Money,
   type MortgageScenario,
@@ -65,7 +67,9 @@ import {
   type RecordBalanceInput,
   type RecordTransferInput,
   type RecurringFlow,
+  type SalaryHistoryRecord,
   type SaveMortgageScenarioInput,
+  type SaveSalaryRecordInput,
   type SetAccountLiquidityInput,
   type SetExpectedReturnInput,
   SUPPORTED_CURRENCIES,
@@ -88,6 +92,8 @@ interface AssetTrackerContextValue {
   mortgageScenarios: MortgageScenario[];
   decisionRecords: FinancialDecisionRecord[];
   incomeHistory: IncomeRecord[];
+  salaryHistory: SalaryHistoryRecord[];
+  currentSalaryHistory: SalaryHistoryRecord[];
   flowSankeyData: FlowSankeyData;
   financialIndependence: PortfolioFinancialIndependence;
   housingPlanningPosition: HousingPlanningPosition | null;
@@ -130,6 +136,8 @@ interface AssetTrackerContextValue {
   deleteCapitalFlow(input: DeleteCapitalFlowInput): Promise<void>;
   importAccountHistory(input: ImportAccountHistoryInput): Promise<void>;
   importIncomeHistory(input: ImportIncomeHistoryInput): Promise<void>;
+  importSalaryHistory(input: ImportSalaryHistoryInput): Promise<void>;
+  saveSalaryRecord(input: SaveSalaryRecordInput): Promise<void>;
   clearIncomeHistory(): Promise<void>;
   addRecurringFlow(input: AddRecurringFlowInput): Promise<void>;
   addPlannedExpenditure(input: AddPlannedExpenditureInput): Promise<void>;
@@ -276,6 +284,8 @@ export function AssetTrackerProvider({
       mortgageScenarios: repository.mortgageScenarios,
       decisionRecords: repository.decisionRecords,
       incomeHistory: repository.incomeHistory,
+      salaryHistory: repository.salaryHistory,
+      currentSalaryHistory: currentSalaryHistory(repository.salaryHistory),
       flowSankeyData: buildBaseCurrencyFlowSankeyData(
         repository,
         accountDetails,
@@ -337,6 +347,9 @@ export function AssetTrackerProvider({
         mutate((api) => api.importAccountHistory(input)),
       importIncomeHistory: (input) =>
         mutate((api) => api.importIncomeHistory(input)),
+      importSalaryHistory: (input) =>
+        mutate((api) => api.importSalaryHistory(input)),
+      saveSalaryRecord: (input) => mutate((api) => api.saveSalaryRecord(input)),
       clearIncomeHistory: () => mutate((api) => api.clearIncomeHistory()),
       addRecurringFlow: (input) => mutate((api) => api.addRecurringFlow(input)),
       addPlannedExpenditure: (input) =>

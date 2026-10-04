@@ -20,6 +20,7 @@ import {
   snapshotOwnershipKey,
 } from "@/lib/domain/assettracker/household";
 import { valueAccountAtDate } from "@/lib/domain/assettracker/portfolioValuation";
+import { currentSalaryHistory } from "@/lib/domain/assettracker/salaryHistory";
 
 describe("Asset Tracker demo-data adapter", () => {
   it("isolates the portfolio value caused by exchange-rate changes", () => {
@@ -211,6 +212,44 @@ describe("Asset Tracker demo-data adapter", () => {
     expect((alexValue?.total ?? 0) + (samValue?.total ?? 0)).toBeCloseTo(
       householdValue?.total ?? 0,
       2,
+    );
+  });
+
+  it("showcases salary changes, period pay, pensions, and corrections", () => {
+    const data = getDemoAssetTrackerData();
+    const current = currentSalaryHistory(data.salaryHistory);
+
+    expect(data.salaryHistory).toHaveLength(7);
+    expect(current).toHaveLength(6);
+    expect(current).toContainEqual(
+      expect.objectContaining({
+        id: "sam-fieldwork-part-time",
+        amountKind: "periodPay",
+        payFrequency: "monthly",
+        workFraction: 0.8,
+        grossPay: 3_200,
+        variablePay: 200,
+        takeHomePay: 2_480,
+        source: expect.objectContaining({
+          kind: "file",
+          fileName: "salary-history-demo.csv",
+          row: 4,
+        }),
+      }),
+    );
+    expect(current).toContainEqual(
+      expect.objectContaining({
+        id: "alex-cirrus-2024-corrected",
+        grossPay: 72_000,
+        correctsId: "alex-cirrus-2024-original",
+        employeePension: expect.objectContaining({
+          arrangement: "salarySacrifice",
+          rate: 0.06,
+        }),
+      }),
+    );
+    expect(current.map(({ id }) => id)).not.toContain(
+      "alex-cirrus-2024-original",
     );
   });
 
