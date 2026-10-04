@@ -307,13 +307,20 @@ export const dietRecipeMatchModeEnum = pgEnum("diet_recipe_match_mode", [
   "warn",
 ]);
 
+export const equipmentRecipeMatchModeEnum = pgEnum(
+  "equipment_recipe_match_mode",
+  ["hide", "warn", "disabled"],
+);
+
 export const organization = pgTable("organization", {
   id: text().primaryKey(),
   name: text().notNull(),
   slug: text().notNull().unique(),
   logo: text(),
   metadata: text(),
-  equipmentRecipeMatchMode: dietRecipeMatchModeEnum().notNull().default("warn"),
+  equipmentRecipeMatchMode: equipmentRecipeMatchModeEnum()
+    .notNull()
+    .default("warn"),
   createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp({ withTimezone: true })
     .notNull()

@@ -110,6 +110,30 @@ describe("EquipmentReadinessProvider", () => {
     );
   });
 
+  it("ignores saved equipment when household checks are disabled", async () => {
+    mocks.useSession.mockReturnValue({
+      data: { user: { id: "user-1" } },
+      isPending: false,
+    });
+    mocks.getHouseholds.mockResolvedValue([
+      { id: "household-1", name: "Park Road" },
+    ]);
+    mocks.getHouseholdEquipment.mockResolvedValue({
+      catalog: [
+        { slug: "slow-cooker", name: "slow cooker", category: "appliance" },
+      ],
+      owned: [],
+      recipeMatchMode: "disabled",
+    });
+    renderProvider();
+
+    await waitFor(() =>
+      expect(screen.getByText(/"active":false/)).toHaveTextContent(
+        '"error":false,"loading":false,"mode":"disabled","missing":[]',
+      ),
+    );
+  });
+
   it("reports loading failures without restricting recipes", async () => {
     mocks.useSession.mockReturnValue({
       data: { user: { id: "user-1" } },

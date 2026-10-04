@@ -19,7 +19,7 @@ describe("equipment readiness presentation", () => {
 
     expect(screen.getByText("Missing equipment: slow cooker.")).toBeVisible();
     expect(
-      screen.getByRole("link", { name: "Update household equipment" }),
+      screen.getByRole("link", { name: "Manage equipment" }),
     ).toHaveAttribute("href", "/recipes/settings?section=household");
   });
 
@@ -53,7 +53,7 @@ describe("equipment readiness presentation", () => {
     );
     expect(screen.queryByText(/Need:/)).not.toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Update household equipment" }),
+      screen.getByRole("link", { name: "Manage equipment" }),
     ).toHaveAttribute("href", "/recipes/settings?section=household");
   });
 
@@ -103,6 +103,19 @@ describe("equipment readiness presentation", () => {
       <EquipmentListNotice
         hiddenCount={0}
         mode="hide"
+        showingHidden={false}
+        onToggleHidden={vi.fn()}
+      />,
+    );
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("renders nothing when equipment checks are disabled", () => {
+    const { container } = render(
+      <EquipmentListNotice
+        hiddenCount={2}
+        mode="disabled"
         showingHidden={false}
         onToggleHidden={vi.fn()}
       />,

@@ -600,7 +600,7 @@ function HouseholdEquipmentSection({
   return (
     <Section
       title="KITCHEN EQUIPMENT"
-      sub="Everyone in the household shares this list. Recipes will use it to check which tools are available."
+      sub="Choose whether recipes use a shared household equipment list."
     >
       <div className="mb-5">
         <p className="rt-mono mb-2 text-[var(--ink-3)]">
@@ -611,6 +611,7 @@ function HouseholdEquipmentSection({
             [
               ["hide", "Hide it"],
               ["warn", "Show warning"],
+              ["disabled", "Disable it"],
             ] as const
           ).map(([value, label]) => (
             <button
@@ -631,72 +632,81 @@ function HouseholdEquipmentSection({
         </div>
       </div>
 
-      <form
-        onSubmit={onAdd}
-        className="flex max-w-lg flex-col gap-3 sm:flex-row"
-      >
-        <label className="sr-only" htmlFor="household-equipment">
-          Equipment to add
-        </label>
-        <select
-          id="household-equipment"
-          value={selectedSlug}
-          onChange={(event) => onSelectedSlugChange(event.target.value)}
-          disabled={busy || available.length === 0}
-          className="rt-body h-9 min-w-0 flex-1 rounded-md border border-[var(--line-strong)] bg-[var(--card)] px-3 text-sm text-[var(--ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--terracotta)]/40 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <option value="">
-            {available.length === 0
-              ? "All equipment added"
-              : "Choose equipment"}
-          </option>
-          {available.map((item) => (
-            <option key={item.slug} value={item.slug}>
-              {item.name} · {item.category}
-            </option>
-          ))}
-        </select>
-        <Button
-          type="submit"
-          variant="outline"
-          disabled={busy || !selectedSlug}
-        >
-          {adding ? <LoaderCircle className="animate-spin" /> : <Plus />}
-          Add equipment
-        </Button>
-      </form>
-
-      {equipment.owned.length === 0 ? (
-        <div className="mt-5 flex max-w-lg items-center gap-3 rounded-xl border border-dashed border-[var(--line-strong)] bg-[var(--paper-warm)] p-4 text-[var(--ink-3)]">
-          <CookingPot className="size-5 shrink-0" />
-          <p className="rt-body text-sm">No equipment added yet.</p>
-        </div>
+      {equipment.recipeMatchMode === "disabled" ? (
+        <p className="rt-body text-sm text-[var(--ink-3)]">
+          Equipment checks are off. Any saved equipment will still be here if
+          you turn them back on.
+        </p>
       ) : (
-        <div className="mt-5 max-w-lg divide-y divide-dashed divide-[var(--line)] rounded-xl border border-[var(--line)] bg-[var(--card)] px-4">
-          {equipment.owned.map((item) => (
-            <div key={item.slug} className="flex items-center gap-3 py-3">
-              <div className="min-w-0 flex-1">
-                <p className="rt-body capitalize text-sm text-[var(--ink)]">
-                  {item.name}
-                </p>
-                <p className="rt-mono text-[var(--ink-3)]">
-                  {item.retired ? "retired equipment" : item.category}
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Remove ${item.name}`}
-                disabled={busy}
-                onClick={() => onRemove(item)}
-                className="text-[var(--ink-3)]"
-              >
-                <X />
-              </Button>
+        <>
+          <form
+            onSubmit={onAdd}
+            className="flex max-w-lg flex-col gap-3 sm:flex-row"
+          >
+            <label className="sr-only" htmlFor="household-equipment">
+              Equipment to add
+            </label>
+            <select
+              id="household-equipment"
+              value={selectedSlug}
+              onChange={(event) => onSelectedSlugChange(event.target.value)}
+              disabled={busy || available.length === 0}
+              className="rt-body h-9 min-w-0 flex-1 rounded-md border border-[var(--line-strong)] bg-[var(--card)] px-3 text-sm text-[var(--ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--terracotta)]/40 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="">
+                {available.length === 0
+                  ? "All equipment added"
+                  : "Choose equipment"}
+              </option>
+              {available.map((item) => (
+                <option key={item.slug} value={item.slug}>
+                  {item.name} · {item.category}
+                </option>
+              ))}
+            </select>
+            <Button
+              type="submit"
+              variant="outline"
+              disabled={busy || !selectedSlug}
+            >
+              {adding ? <LoaderCircle className="animate-spin" /> : <Plus />}
+              Add equipment
+            </Button>
+          </form>
+
+          {equipment.owned.length === 0 ? (
+            <div className="mt-5 flex max-w-lg items-center gap-3 rounded-xl border border-dashed border-[var(--line-strong)] bg-[var(--paper-warm)] p-4 text-[var(--ink-3)]">
+              <CookingPot className="size-5 shrink-0" />
+              <p className="rt-body text-sm">No equipment added yet.</p>
             </div>
-          ))}
-        </div>
+          ) : (
+            <div className="mt-5 max-w-lg divide-y divide-dashed divide-[var(--line)] rounded-xl border border-[var(--line)] bg-[var(--card)] px-4">
+              {equipment.owned.map((item) => (
+                <div key={item.slug} className="flex items-center gap-3 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="rt-body capitalize text-sm text-[var(--ink)]">
+                      {item.name}
+                    </p>
+                    <p className="rt-mono text-[var(--ink-3)]">
+                      {item.retired ? "retired equipment" : item.category}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Remove ${item.name}`}
+                    disabled={busy}
+                    onClick={() => onRemove(item)}
+                    className="text-[var(--ink-3)]"
+                  >
+                    <X />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </Section>
   );

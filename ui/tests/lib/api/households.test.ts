@@ -128,16 +128,16 @@ describe("household API client", () => {
   it("saves the household equipment matching preference", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
-      .mockResolvedValue(Response.json({ recipeMatchMode: "hide" }));
+      .mockResolvedValue(Response.json({ recipeMatchMode: "disabled" }));
 
     await expect(
-      saveHouseholdEquipmentMatchMode("household-1", "hide"),
-    ).resolves.toEqual({ recipeMatchMode: "hide" });
+      saveHouseholdEquipmentMatchMode("household-1", "disabled"),
+    ).resolves.toEqual({ recipeMatchMode: "disabled" });
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/households/household-1/equipment",
       expect.objectContaining({
         method: "PATCH",
-        body: JSON.stringify({ recipeMatchMode: "hide" }),
+        body: JSON.stringify({ recipeMatchMode: "disabled" }),
       }),
     );
   });

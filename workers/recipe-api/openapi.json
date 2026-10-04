@@ -485,7 +485,8 @@
             "type": "string",
             "enum": [
               "hide",
-              "warn"
+              "warn",
+              "disabled"
             ]
           }
         },
@@ -1772,7 +1773,8 @@
                     "type": "string",
                     "enum": [
                       "hide",
-                      "warn"
+                      "warn",
+                      "disabled"
                     ]
                   }
                 },

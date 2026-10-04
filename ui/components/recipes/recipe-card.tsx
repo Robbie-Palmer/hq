@@ -1,4 +1,4 @@
-import { Check, ChefHat, Plus } from "lucide-react";
+import { Check, ChefHat, Plus, Wrench } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { DietWarning } from "@/components/recipes/diet-notice";
@@ -186,19 +186,20 @@ export function RecipeMatchCard({
           </p>
         )}
         {recipe.missingEquipment.length > 0 && (
-          <div className="rt-body relative z-10 mt-2 text-sm text-[var(--ink-2)]">
-            <p className="line-clamp-2">
-              Missing equipment:{" "}
-              <span className="text-[var(--terracotta)]">
+          <div className="rt-body relative z-10 mt-2 flex items-start gap-1.5 text-xs text-[var(--ink-3)]">
+            <Wrench className="mt-0.5 size-3.5 shrink-0" />
+            <div>
+              <p className="line-clamp-2">
+                Missing equipment:{" "}
                 {recipe.missingEquipment.map((item) => item.name).join(", ")}
-              </span>
-            </p>
-            <Link
-              href="/recipes/settings?section=household"
-              className="rt-mono mt-1 inline-block text-[var(--terracotta-deep)] underline underline-offset-2"
-            >
-              Update household equipment
-            </Link>
+              </p>
+              <Link
+                href="/recipes/settings?section=household"
+                className="mt-0.5 inline-block underline underline-offset-2 hover:text-[var(--ink-2)]"
+              >
+                Manage equipment
+              </Link>
+            </div>
           </div>
         )}
         {dietMatch && (

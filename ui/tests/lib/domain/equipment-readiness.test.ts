@@ -6,7 +6,9 @@ import {
   matchRecipeToEquipment,
 } from "@/lib/domain/equipment-readiness";
 
-function readiness(mode: "hide" | "warn"): EffectiveEquipmentReadiness {
+function readiness(
+  mode: "hide" | "warn" | "disabled",
+): EffectiveEquipmentReadiness {
   return {
     active: true,
     householdId: "household-1",
@@ -70,6 +72,14 @@ describe("equipment readiness", () => {
         recipes,
         matches,
         { ...equipment, mode: "warn" },
+        false,
+      ),
+    ).toEqual({ visibleRecipes: recipes, hiddenCount: 0 });
+    expect(
+      applyEquipmentRecipeVisibility(
+        recipes,
+        matches,
+        { ...equipment, active: false, mode: "disabled" },
         false,
       ),
     ).toEqual({ visibleRecipes: recipes, hiddenCount: 0 });

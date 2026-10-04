@@ -232,6 +232,7 @@ const creatableRecipeSlugSchema = recipeSlugSchema.refine(
   { message: "Slug is reserved for a recipe application route" },
 );
 const dietRecipeMatchModeSchema = z.enum(["hide", "warn"]);
+const equipmentRecipeMatchModeSchema = z.enum(["hide", "warn", "disabled"]);
 const pantryLocationSchema = PantryLocationSchema;
 const pantryIngredientSlugSchema = z.string().min(1).max(200);
 const pantryResponseSchema = z
@@ -526,7 +527,7 @@ const householdEquipmentResponseSchema = z
     owned: z
       .array(householdEquipmentOwnedItemSchema)
       .max(500),
-    recipeMatchMode: dietRecipeMatchModeSchema,
+    recipeMatchMode: equipmentRecipeMatchModeSchema,
   })
   .strict()
   .openapi("HouseholdEquipment");
@@ -642,7 +643,7 @@ const updateDietProfileBodySchema = z
   .strict();
 
 const updateHouseholdEquipmentPreferencesBodySchema = z
-  .object({ recipeMatchMode: dietRecipeMatchModeSchema })
+  .object({ recipeMatchMode: equipmentRecipeMatchModeSchema })
   .strict();
 
 const errorSchema = z

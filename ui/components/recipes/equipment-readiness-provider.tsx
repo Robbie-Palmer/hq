@@ -48,11 +48,12 @@ export function EquipmentReadinessProvider({
     if (!result.data?.household || !result.data.equipment) {
       return fallbackEquipmentReadiness;
     }
+    const mode = result.data.equipment.recipeMatchMode ?? "warn";
     return {
-      active: true,
+      active: mode !== "disabled",
       householdId: result.data.household.id,
       householdName: result.data.household.name,
-      mode: result.data.equipment.recipeMatchMode ?? "warn",
+      mode,
       ownedSlugs: new Set(result.data.equipment.owned.map((item) => item.slug)),
       equipmentNames: new Map(
         result.data.equipment.catalog.map((item) => [item.slug, item.name]),

@@ -35,7 +35,7 @@ const dbMock = vi.hoisted(() => {
     slug: string;
     logo: string | null;
     metadata: string | null;
-    equipmentRecipeMatchMode?: "hide" | "warn";
+    equipmentRecipeMatchMode?: "hide" | "warn" | "disabled";
     createdAt: Date;
     updatedAt: Date;
   };
@@ -1172,7 +1172,10 @@ const dbMock = vi.hoisted(() => {
     );
     if (!organization) return [];
     if (query.includes('set "equipment_recipe_match_mode"')) {
-      organization.equipmentRecipeMatchMode = params[0] as "hide" | "warn";
+      organization.equipmentRecipeMatchMode = params[0] as
+        | "hide"
+        | "warn"
+        | "disabled";
     } else {
       organization.name = params[0] as string;
     }
@@ -6336,7 +6339,7 @@ describe("household membership flows", () => {
     });
   });
 
-  it("lets members choose whether equipment mismatches hide recipes", async () => {
+  it("lets members choose or disable equipment matching", async () => {
     seedHousehold();
     authzMock.session = sessionFor({
       id: "member-user",
@@ -6344,28 +6347,32 @@ describe("household membership flows", () => {
       name: "Member",
     });
 
-    const updateResponse = await app.request(
-      `/households/${HOUSEHOLD_ID}/equipment`,
-      {
-        method: "PATCH",
-        headers: {
-          "content-type": "application/json",
-          origin: "http://localhost:3000",
+    for (const recipeMatchMode of ["hide", "disabled"] as const) {
+      const updateResponse = await app.request(
+        `/households/${HOUSEHOLD_ID}/equipment`,
+        {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+            origin: "http://localhost:3000",
+          },
+          body: JSON.stringify({ recipeMatchMode }),
         },
-        body: JSON.stringify({ recipeMatchMode: "hide" }),
-      },
-      env,
-    );
+        env,
+      );
 
-    expect(updateResponse.status).toBe(200);
-    expect(await updateResponse.json()).toEqual({ recipeMatchMode: "hide" });
+      expect(updateResponse.status).toBe(200);
+      expect(await updateResponse.json()).toEqual({ recipeMatchMode });
+    }
 
     const listResponse = await app.request(
       `/households/${HOUSEHOLD_ID}/equipment`,
       {},
       env,
     );
-    expect(await listResponse.json()).toMatchObject({ recipeMatchMode: "hide" });
+    expect(await listResponse.json()).toMatchObject({
+      recipeMatchMode: "disabled",
+    });
   });
 
   it("lets members remove equipment and rejects unknown equipment", async () => {

@@ -153,9 +153,10 @@ describe("SettingsView", () => {
     mocks.addHouseholdEquipment.mockResolvedValue({});
     mocks.removeHouseholdEquipment.mockResolvedValue(undefined);
     mocks.saveHouseholdEquipmentMatchMode.mockImplementation(
-      async (_householdId: string, recipeMatchMode: "hide" | "warn") => ({
-        recipeMatchMode,
-      }),
+      async (
+        _householdId: string,
+        recipeMatchMode: "hide" | "warn" | "disabled",
+      ) => ({ recipeMatchMode }),
     );
     mocks.listAgents.mockResolvedValue([]);
     mocks.listAgentMutations.mockResolvedValue([]);
@@ -550,6 +551,39 @@ describe("SettingsView", () => {
       ),
     );
     expect(hideButton).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("lets a household disable equipment checks without deleting saved equipment", async () => {
+    const user = userEvent.setup();
+    mockMemberHousehold();
+    mocks.getHouseholdEquipment.mockResolvedValue({
+      catalog: [
+        { slug: "frying-pan", name: "frying pan", category: "cookware" },
+      ],
+      owned: [
+        {
+          slug: "frying-pan",
+          name: "frying pan",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          retired: false,
+        },
+      ],
+      recipeMatchMode: "warn",
+    });
+    renderSettingsView();
+
+    await user.click(screen.getByRole("button", { name: "Household" }));
+    await user.click(await screen.findByRole("button", { name: "Disable it" }));
+
+    await waitFor(() =>
+      expect(mocks.saveHouseholdEquipmentMatchMode).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000001",
+        "disabled",
+      ),
+    );
+    expect(screen.getByText(/Equipment checks are off/)).toBeVisible();
+    expect(screen.queryByLabelText("Equipment to add")).not.toBeInTheDocument();
+    expect(mocks.removeHouseholdEquipment).not.toHaveBeenCalled();
   });
 
   it("shows an empty household equipment state", async () => {

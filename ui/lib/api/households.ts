@@ -76,7 +76,7 @@ export type HouseholdEquipment = {
   recipeMatchMode: EquipmentRecipeMatchMode;
 };
 
-export type EquipmentRecipeMatchMode = "hide" | "warn";
+export type EquipmentRecipeMatchMode = "hide" | "warn" | "disabled";
 
 function householdRequest<T>(
   path: string,
