@@ -202,25 +202,31 @@ function parseDelimitedText(source: string): unknown[][] {
     value: "",
     quoted: false,
   };
-  for (let index = 0; index < source.length; index++) {
+  let index = 0;
+  while (index < source.length) {
     const character = source[index];
     if (character === '"') {
       index = consumeQuote(source, index, state);
+      index++;
       continue;
     }
     if (state.quoted) {
       state.value += character;
+      index++;
       continue;
     }
     if (character === delimiter) {
       finishDelimitedCell(state);
+      index++;
       continue;
     }
     if (character === "\n" || character === "\r") {
       index = consumeLineEnding(source, index, state);
+      index++;
       continue;
     }
     state.value += character;
+    index++;
   }
   finishDelimitedRow(state);
   return state.rows;
