@@ -76,6 +76,39 @@ Artifacts also include the digest of each checked-in extract, and the manifest
 records every generated artifact digest. A saved calculation can record the
 dataset version and verify the exact inputs later.
 
+## Monitoring official guidance
+
+The source registry derives affected rule IDs and effective periods from the
+dataset's provenance. A page cannot be monitored without naming the rules that
+depend on it. The `finance-tax-monitor` Cloudflare Workflow runs the registry on
+a weekly schedule. Cloudflare Workflows owns checkpoints, retry backoff, and
+short-lived execution state.
+
+The Workflow writes exact GOV.UK Content API responses and normalized snapshots
+to private R2 as compressed, content-addressed objects. PostgreSQL stores compact
+revision manifests, the recorded last successful check, meaningful differences,
+and review decisions. Raw responses and HTML do not live in Git or PostgreSQL.
+
+A change proposal separates content, metadata, and document-link differences. It
+records the GOV.UK publication date and detection date, lists the effective periods
+of the rules that may be affected, and leaves the reviewed effective date and
+activation date empty. That is deliberate. GOV.UK publishes content and metadata,
+not executable tax rules.
+
+For each proposal, a reviewer must:
+
+1. Decide whether the change is an enacted rule, a future announcement, or a
+   correction to a past year.
+2. Record the effective date in the replacement rule data and the activation date
+   in the new dataset release.
+3. Add or amend authoritative validation fixtures.
+4. Run `mise run //packages/finance-tax-rules:check`.
+5. Increase `datasetVersion`, set `supersedes`, and keep the previous versioned
+   artifacts.
+
+Monitoring requests contain only the public source URL and HTTP headers. The
+monitor has no access to household or salary records and sends none to GOV.UK.
+
 ## Updating and correcting data
 
 The finance data owner reviews HMRC changes after each Budget, fiscal statement,

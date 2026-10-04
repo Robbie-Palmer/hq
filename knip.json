@@ -75,6 +75,14 @@
     "workers/recipe-ingest": {
       "ignoreDependencies": ["cloudflare"]
     },
+    "workers/finance-tax-monitor": {
+      "entry": [
+        "drizzle.config.ts",
+        "vitest.coverage.config.ts",
+        "vitest.integration.config.ts"
+      ],
+      "ignoreDependencies": ["cloudflare", "wrangler"]
+    },
     "workers/work-graph-api": {
       "entry": [
         "vitest.integration.config.ts",
