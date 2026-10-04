@@ -58,8 +58,8 @@ import type {
   PairDecision,
   PartyName,
   SharingLevel,
-  State,
   TableAllocation,
+  WeddingPlanDraft,
 } from "@/lib/wedding-planner/types";
 import {
   type BookingParty,
@@ -71,10 +71,14 @@ import {
   ShareModeSchema,
 } from "@/lib/wedding-planner/values";
 import { DataControls } from "./data-controls";
+import {
+  EditorField as Field,
+  EditorSelect as Select,
+  EditorToggle as Toggle,
+} from "./editor-controls";
 import { GuestRoles } from "./guest-roles";
 import { ResultPlan } from "./result-plan";
 import {
-  bookingDiscountPercent,
   includedPackageFigure,
   includedRoomRateGroups,
   includedRoomRateTotal,
@@ -89,14 +93,14 @@ const initialFilter = "all";
 
 async function persistPlan(
   application: PlannerApplication,
-  state: State,
+  plan: WeddingPlanDraft,
   version: number,
   currentVersion: () => number,
   onSaved: () => void,
   onFailure: (message: string) => void,
 ): Promise<void> {
   try {
-    await application.save(state);
+    await application.save(plan);
     if (currentVersion() === version) onSaved();
   } catch (cause) {
     if (currentVersion() === version)
@@ -106,63 +110,17 @@ async function persistPlan(
   }
 }
 
-function Select({
-  value,
-  onChange,
-  children,
-  disabled,
-  label,
-}: Readonly<{
-  value: string;
-  onChange: (value: string) => void;
-  children: React.ReactNode;
-  disabled?: boolean;
-  label: string;
-}>) {
-  return (
-    <select
-      aria-label={label}
-      className="editor-select"
-      value={value}
-      disabled={disabled}
-      onChange={(event) => onChange(event.target.value)}
-    >
-      {children}
-    </select>
-  );
-}
-
-function Field({
-  label,
-  hint,
-  children,
-}: Readonly<{
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}>) {
-  return (
-    <div className="editor-field">
-      <span className="editor-label">{label}</span>
-      {hint && <span className="editor-hint">{hint}</span>}
-      {children}
-    </div>
-  );
-}
-
 function PaymentChoice({
   propertyId,
   value,
   onChange,
-  hint,
 }: Readonly<{
-  propertyId: keyof State["payment_modes"];
+  propertyId: keyof WeddingPlanDraft["payment_modes"];
   value: BookingParty;
   onChange: (value: BookingParty) => void;
-  hint?: string;
 }>) {
   return (
-    <Field label="Who pays?" hint={hint}>
+    <Field label="Who pays?">
       <Select
         label={`${propertyNames[propertyId]} payment`}
         value={value}
@@ -172,32 +130,6 @@ function PaymentChoice({
         <option value="couple">We cover it</option>
       </Select>
     </Field>
-  );
-}
-
-function Toggle({
-  checked,
-  onChange,
-  title,
-  description,
-}: Readonly<{
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  title: string;
-  description?: string;
-}>) {
-  return (
-    <label className="editor-toggle">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-      />
-      <span>
-        <strong>{title}</strong>
-        {description && <small>{description}</small>}
-      </span>
-    </label>
   );
 }
 
@@ -328,7 +260,7 @@ function ResultView({
   report,
   onCalculate,
 }: Readonly<{
-  state: State | null;
+  state: WeddingPlanDraft | null;
   busy: boolean;
   warnings: string[];
   allocation: Allocation | null;
@@ -340,12 +272,7 @@ function ResultView({
     <>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">ROOM PLAN</span>
-          <h2>See where everyone lands.</h2>
-          <p>
-            Calculate after you update guest choices to compare assignments and
-            costs.
-          </p>
+          <h2>Room plan</h2>
         </div>
         <Button onClick={onCalculate} disabled={!state || busy}>
           {busy ? "Calculating…" : "Calculate rooms"} <ArrowRight size={16} />
@@ -368,14 +295,7 @@ function ResultView({
         <Card className="result-empty">
           <CardContent>
             <Sparkles size={30} />
-            <h3>Your room plan will appear here</h3>
-            <p>
-              Answer what you can for guests, then calculate a first draft. You
-              can refine it later.
-            </p>
-            <Button onClick={onCalculate} disabled={!state || busy}>
-              Calculate first draft <ArrowRight size={16} />
-            </Button>
+            <h3>No room plan yet</h3>
           </CardContent>
         </Card>
       )}
@@ -383,13 +303,13 @@ function ResultView({
   );
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: View-specific JSX remains in one editor while navigation and results are separate components.
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Planner view orchestration.
 export function AccommodationEditor({
   application = browserPlannerApplication,
 }: Readonly<{
   application?: PlannerApplication;
 }>) {
-  const [state, setState] = useState<State | null>(null);
+  const [state, setState] = useState<WeddingPlanDraft | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [view, setView] = useState<EditorView>("bed_groups");
   const [bedSearch, setBedSearch] = useState("");
@@ -447,7 +367,10 @@ export function AccommodationEditor({
     }
   }
 
-  function update(change: (draft: State) => void, layoutOnly = false) {
+  function update(
+    change: (draft: WeddingPlanDraft) => void,
+    layoutOnly = false,
+  ) {
     if (!layoutOnly) {
       setTableAllocation(null);
       setAllocation(null);
@@ -503,7 +426,10 @@ export function AccommodationEditor({
     pendingSaveTimer.current = null;
   }
 
-  async function saveBeforeCalculation(plan: State, version: number) {
+  async function saveBeforeCalculation(
+    plan: WeddingPlanDraft,
+    version: number,
+  ) {
     cancelPendingSave();
     await saveQueue.current;
     try {
@@ -778,15 +704,6 @@ export function AccommodationEditor({
       </header>
       <div className="editor-shell">
         <aside className="editor-sidebar">
-          <div className="sidebar-intro">
-            <Badge variant="secondary">ONE NIGHT · PRIVATE</Badge>
-            <h1>
-              Find everyone
-              <br />
-              <em>a place.</em>
-            </h1>
-            <p>Plan where guests stay, what they pay and who sits together.</p>
-          </div>
           <PlannerNavigation
             view={view}
             onViewChange={setView}
@@ -799,10 +716,9 @@ export function AccommodationEditor({
           <div className="sidebar-note">
             <BedDouble size={19} />
             <p>
-              <strong>Bridal suite reserved</strong>
+              <strong>Bridal suite</strong>
               <br />
-              For you and your fiancé. You do not need to add yourselves to the
-              guest list.
+              Reserved for the couple
             </p>
           </div>
         </aside>
@@ -810,17 +726,12 @@ export function AccommodationEditor({
           {!loading && !state && (
             <Card className="editor-start-card">
               <CardHeader>
-                <CardTitle>Start your wedding plan</CardTitle>
-                <CardDescription>
-                  Try the sample with fictional guests, or import your existing
-                  JSON plan. The guest list and choices stay in this browser.
-                  Export a backup before switching devices or clearing browser
-                  data.
-                </CardDescription>
+                <CardTitle>No plan loaded</CardTitle>
+                <CardDescription>Plans stay in this browser.</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button className="mb-4" onClick={loadSamplePlan}>
-                  Try sample plan
+                  Use sample plan
                 </Button>
                 <DataControls
                   hasData={false}
@@ -832,9 +743,7 @@ export function AccommodationEditor({
           )}
           {state?.sample_plan === true && (
             <output className="editor-hint mb-5 block">
-              Sample plan · 26 fictional guests. Edit roles, stays and seating
-              preferences, then calculate rooms or tables. Your changes are
-              saved in this browser.
+              Sample plan · 26 fictional guests
             </output>
           )}
           {error && (
@@ -856,13 +765,7 @@ export function AccommodationEditor({
             <>
               <div className="page-heading">
                 <div>
-                  <span className="eyebrow">START HERE</span>
                   <h2>Who shares a bed?</h2>
-                  <p>
-                    Confirm couples first. A shared bed appears as one group
-                    when you choose who can share a bedroom or cottage. Couples
-                    can also be recorded separately in Guests.
-                  </p>
                 </div>
                 <Button onClick={() => setView("sharing")}>
                   Sharing map <ArrowRight size={16} />
@@ -897,17 +800,12 @@ export function AccommodationEditor({
                   own beds
                 </span>
               </div>
-              <Card className="bed-review-card">
-                <CardHeader>
-                  <CardTitle>Suggested from the invitation list</CardTitle>
-                  <CardDescription>
-                    Guests on one invitation might share a bed. Confirm fixed
-                    partners or mark that they are not a couple. Singles can
-                    still choose flexible bed sharing in the Sharing map.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {pendingInvitationPairs.length ? (
+              {pendingInvitationPairs.length > 0 && (
+                <Card className="bed-review-card">
+                  <CardHeader>
+                    <CardTitle>Invitation pairs</CardTitle>
+                  </CardHeader>
+                  <CardContent>
                     <div className="bed-suggestion-list bed-suggestions-scroll">
                       {pendingInvitationPairs.map(([first, second]) => (
                         <div
@@ -947,21 +845,13 @@ export function AccommodationEditor({
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <p className="bed-empty">
-                      All two-person invitations have been reviewed.
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              )}
               <div className="bed-setup-grid">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Pair anyone else</CardTitle>
-                    <CardDescription>
-                      Select a guest, then find the person they share a double
-                      bed with.
-                    </CardDescription>
+                    <CardTitle>Other guests</CardTitle>
                     <div className="search-wrap">
                       <Search size={16} />
                       <Input
@@ -1008,11 +898,6 @@ export function AccommodationEditor({
                 <Card>
                   <CardHeader>
                     <CardTitle>{pairingCardTitle(selectedUnpaired)}</CardTitle>
-                    <CardDescription>
-                      Confirm a couple sharing one bed here. Record couples who
-                      use separate beds in Guests. Flexible bed sharing belongs
-                      in the Sharing map.
-                    </CardDescription>
                     {!selectedUnpaired?.requires_own_bed && (
                       <div className="search-wrap">
                         <Search size={16} />
@@ -1038,7 +923,7 @@ export function AccommodationEditor({
                       selectedUnpaired.overnight !== "no" && (
                         <Toggle
                           title="Needs their own double bed"
-                          description="This separates a shared bed group. Their couple relationship stays recorded for table seating."
+                          description="Removes any shared bed assignment."
                           checked={selectedUnpaired.requires_own_bed}
                           onChange={(value) =>
                             setOwnBed(selectedUnpaired.id, value)
@@ -1078,9 +963,6 @@ export function AccommodationEditor({
               <Card className="bed-review-card">
                 <CardHeader>
                   <CardTitle>Reviewed bed groups</CardTitle>
-                  <CardDescription>
-                    Change a decision here if you need to.
-                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="bed-suggestion-list">
@@ -1135,12 +1017,7 @@ export function AccommodationEditor({
             <>
               <div className="page-heading">
                 <div>
-                  <span className="eyebrow">GUEST LIST</span>
-                  <h2>Who needs a room?</h2>
-                  <p>
-                    Answer overnight questions and set accommodation priorities.
-                    Fixed bed partners are in Bed groups.
-                  </p>
+                  <h2>Guests</h2>
                 </div>
                 <Button onClick={calculate} disabled={!state || busy}>
                   Calculate rooms <ArrowRight size={16} />
@@ -1161,9 +1038,6 @@ export function AccommodationEditor({
                 <Card className="guest-list-card">
                   <CardHeader className="pb-3">
                     <CardTitle>Guests</CardTitle>
-                    <CardDescription>
-                      Choose someone to edit their stay.
-                    </CardDescription>
                     <div className="search-wrap">
                       <Search size={16} />
                       <Input
@@ -1234,8 +1108,7 @@ export function AccommodationEditor({
                             <CardDescription>
                               {companions.length
                                 ? `Invited with ${companions.map((guest) => guest.name).join(", ")}`
-                                : selected.tags ||
-                                  "Set their stay and preferences below"}
+                                : selected.tags}
                             </CardDescription>
                           </div>
                           <div className="detail-initial">
@@ -1281,10 +1154,8 @@ export function AccommodationEditor({
                           </Select>
                         </Field>
                         <div className="section-title">
-                          <span className="step-number">01</span>
                           <div>
-                            <h3>Staying the night?</h3>
-                            <p>Only Yes adds them to the current room plan.</p>
+                            <h3>Overnight stay</h3>
                           </div>
                         </div>
                         <div className="choice-row">
@@ -1320,8 +1191,7 @@ export function AccommodationEditor({
                           !isLinenGuest(selected.id) && (
                             <div className="booking-confidence">
                               <Toggle
-                                title="Very confident they'll stay"
-                                description="A planning note about how certain their stay is. It does not restrict their room choices."
+                                title="Likely to stay"
                                 checked={selected.safe_for_our_booking}
                                 onChange={(value) =>
                                   changeGuest(selected.id, (guest) => {
@@ -1333,10 +1203,6 @@ export function AccommodationEditor({
                           )}
                         <div className="free-stay-panel">
                           <h3>Free accommodation</h3>
-                          <p className="editor-hint">
-                            We cover this person's share in a cottage or an
-                            outside stay. Their partner is included by default.
-                          </p>
                           {isFreeGuest(selected) &&
                             selected.free_stay_reasons.length === 0 &&
                             partner && (
@@ -1385,13 +1251,8 @@ export function AccommodationEditor({
                         </div>
                         <div className="editor-divider" />
                         <div className="section-title">
-                          <span className="step-number">02</span>
                           <div>
                             <h3>Bed & sharing</h3>
-                            <p>
-                              Fixed bed partners are set in Bed groups. Flexible
-                              singles can choose matches in the Sharing map.
-                            </p>
                           </div>
                         </div>
                         <div className="field-grid">
@@ -1434,7 +1295,7 @@ export function AccommodationEditor({
                           <div className="own-bed-control">
                             <Toggle
                               title="Needs their own double bed"
-                              description="This separates a shared bed group. Their couple relationship stays recorded for table seating."
+                              description="Removes any shared bed assignment."
                               checked={selected.requires_own_bed}
                               onChange={(value) =>
                                 setOwnBed(selected.id, value)
@@ -1495,11 +1356,7 @@ export function AccommodationEditor({
                         <div className="sharing-invite">
                           <Waypoints size={19} />
                           <div>
-                            <strong>Who can stay together?</strong>
-                            <span>
-                              Mark yes, no, or undecided for each pair in the
-                              sharing map.
-                            </span>
+                            <strong>Sharing preferences</strong>
                           </div>
                           <Button
                             variant="outline"
@@ -1511,13 +1368,8 @@ export function AccommodationEditor({
                         </div>
                         <div className="editor-divider" />
                         <div className="section-title">
-                          <span className="step-number">03</span>
                           <div>
-                            <h3>Preferences & boundaries</h3>
-                            <p>
-                              A building preference helps choose among suitable
-                              rooms.
-                            </p>
+                            <h3>Preferences</h3>
                           </div>
                         </div>
                         <div className="field-grid building-field">
@@ -1597,12 +1449,7 @@ export function AccommodationEditor({
             <>
               <div className="page-heading">
                 <div>
-                  <span className="eyebrow">SHARING MAP</span>
-                  <h2>Who fits together?</h2>
-                  <p>
-                    Pick a person or couple, then mark each possible match.
-                    Every pair is independent, so circles can overlap.
-                  </p>
+                  <h2>Sharing</h2>
                 </div>
               </div>
               {pendingInvitationPairs.length > 0 && (
@@ -1610,12 +1457,9 @@ export function AccommodationEditor({
                   <BedDouble size={19} />
                   <div>
                     <strong>
-                      {pendingInvitationPairs.length} invitation pairs still
-                      need bed review
+                      {pendingInvitationPairs.length} unreviewed invitation
+                      pairs
                     </strong>
-                    <span>
-                      Confirm couples before using bedroom and cottage matches.
-                    </span>
                   </div>
                   <Button
                     size="sm"
@@ -1647,21 +1491,10 @@ export function AccommodationEditor({
                   </Button>
                 ))}
               </fieldset>
-              <div className="sharing-explainer">
-                {sharingLevel === "bed" &&
-                  "Guests marked No to staying are left out. For everyone else without a fixed bed partner, Yes means two people could share a double bed without becoming a fixed pair."}
-                {sharingLevel === "room" &&
-                  "Each row is one fixed pair or one unpaired guest. Yes lets groups use separate beds in a family suite or Black Sheep room 3. Its single bed holds one guest who does not require a double. The Linen pair cannot move from their cottage."}
-                {sharingLevel === "cottage" &&
-                  "Each row is one fixed pair or one unpaired guest in a separate bedroom. Confirm couples in Bed groups first. A yes with the Linen pair also approves the other group for Linen’s spare room."}
-              </div>
               <div className="sharing-layout">
                 <Card className="sharing-focus-card">
                   <CardHeader>
-                    <CardTitle>Start with</CardTitle>
-                    <CardDescription>
-                      Choose whose sharing circle to edit.
-                    </CardDescription>
+                    <CardTitle>Guest or couple</CardTitle>
                     <Input
                       aria-label="Find a person or couple"
                       placeholder="Find a person or couple"
@@ -1705,14 +1538,11 @@ export function AccommodationEditor({
                     <CardTitle className="sharing-focus-title">
                       {focusGroup?.name ?? "Choose a guest"}
                     </CardTitle>
-                    <CardDescription>
-                      Yes and no choices are saved for both sides of the pair.
-                    </CardDescription>
                     {sharingLevel === "bed" && focusGroup && (
                       <div className="sharing-policy">
                         <Toggle
                           title="Needs their own double bed"
-                          description="This guest won't share a bed with anyone else and cannot use Black Sheep's single bed. Bedroom and cottage choices stay separate."
+                          description="Excludes shared and single beds."
                           checked={focusRequiresOwnBed}
                           onChange={(value) =>
                             setOwnBed(focusGroup.guestIds[0] ?? "", value)
@@ -1807,9 +1637,7 @@ export function AccommodationEditor({
                           }
                         />
                         <p className="editor-hint sharing-help">
-                          Unset means no bed match. For rooms and cottages it
-                          follows the general rule above. An explicit No always
-                          keeps two groups apart.
+                          No overrides the general rule.
                         </p>
                         <div className="sharing-pair-list">
                           {visibleMatches.map((group) => {
@@ -1885,12 +1713,7 @@ export function AccommodationEditor({
             <>
               <div className="page-heading">
                 <div>
-                  <span className="eyebrow">ROOMS & COSTS</span>
-                  <h2>The accommodation</h2>
-                  <p>
-                    Rates are fixed for this one night. Choose how to handle
-                    suite contributions.
-                  </p>
+                  <h2>Rooms &amp; costs</h2>
                 </div>
                 <Button onClick={calculate} disabled={busy}>
                   Calculate rooms <ArrowRight size={16} />
@@ -1900,10 +1723,6 @@ export function AccommodationEditor({
                 <Card>
                   <CardHeader>
                     <CardTitle>Included venue rooms</CardTitle>
-                    <CardDescription>
-                      The wedding package includes these rooms. Their rates show
-                      the value you could ask guests to contribute.
-                    </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="rate-row">
@@ -1941,7 +1760,6 @@ export function AccommodationEditor({
                     <PaymentChoice
                       propertyId="venue"
                       value={state.payment_modes.venue ?? "couple"}
-                      hint="We cover it means guests pay nothing for these rooms. The rates still appear in the plan."
                       onChange={(value) =>
                         update((draft) => {
                           draft.payment_modes.venue = value;
@@ -1953,11 +1771,6 @@ export function AccommodationEditor({
                 <Card>
                   <CardHeader>
                     <CardTitle>Optional cottages</CardTitle>
-                    <CardDescription>
-                      Check availability before relying on a cottage. This
-                      planner does not make a booking. If guests pay, they split
-                      the rent across occupied bedrooms.
-                    </CardDescription>
                   </CardHeader>
                   <CardContent>
                     {(["black_sheep", "river_side"] as const).map(
@@ -2043,7 +1856,6 @@ export function AccommodationEditor({
                                 value={
                                   state.payment_modes[propertyId] ?? "couple"
                                 }
-                                hint="This is separate from who makes the booking."
                                 onChange={(value) =>
                                   update((draft) => {
                                     draft.payment_modes[propertyId] = value;
@@ -2052,10 +1864,7 @@ export function AccommodationEditor({
                               />
                             </div>
                             <div className="cottage-payment-choice">
-                              <Field
-                                label="Already paid by us"
-                                hint="Enter a deposit if paid. A payment on an unused cottage still appears in your total."
-                              >
+                              <Field label="Already paid by us">
                                 <Input
                                   aria-label={`${propertyNames[propertyId]} already paid by us`}
                                   type="number"
@@ -2074,16 +1883,6 @@ export function AccommodationEditor({
                               </Field>
                             </div>
                           </div>
-                          {state.cottage_options[propertyId]?.booking_by ===
-                            "couple" && (
-                            <p className="editor-hint cottage-option-hint">
-                              We pay the {propertyPrice(propertyId, "couple")}{" "}
-                              rent to the cottage owner, then guests reimburse
-                              us for their shares. Free guests' shares remain
-                              ours to cover. Availability still needs checking
-                              before booking.
-                            </p>
-                          )}
                         </div>
                       ),
                     )}
@@ -2105,7 +1904,6 @@ export function AccommodationEditor({
                     <PaymentChoice
                       propertyId="linen"
                       value={state.payment_modes.linen ?? "couple"}
-                      hint={`Already booked by us. If guests pay, the occupied bedrooms split ${propertyPrice("linen", "couple")}.`}
                       onChange={(value) =>
                         update((draft) => {
                           draft.payment_modes.linen = value;
@@ -2113,10 +1911,7 @@ export function AccommodationEditor({
                       }
                     />
                     <div className="cottage-deposit-field">
-                      <Field
-                        label="Already paid by us"
-                        hint={`Deposit paid toward the ${propertyPrice("linen", "couple")} discounted rent.`}
-                      >
+                      <Field label="Already paid by us">
                         <Input
                           aria-label="Linen Cottage already paid by us"
                           type="number"
@@ -2132,6 +1927,21 @@ export function AccommodationEditor({
                         />
                       </Field>
                     </div>
+                    <Button
+                      className="linen-map-button"
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedId(
+                          weddingAccommodationSetup.reservation?.guestIds(
+                            state,
+                          )[0] ?? null,
+                        );
+                        setSharingLevel("cottage");
+                        setView("sharing");
+                      }}
+                    >
+                      Linen sharing <ArrowRight size={16} />
+                    </Button>
                   </CardContent>
                 </Card>
               </div>
@@ -2139,10 +1949,6 @@ export function AccommodationEditor({
                 <Card className="plan-card">
                   <CardHeader>
                     <CardTitle>Suite contributions</CardTitle>
-                    <CardDescription>
-                      Choose how much guests pay for each included Riverside
-                      suite.
-                    </CardDescription>
                   </CardHeader>
                   <CardContent className="billing-grid">
                     {venueRooms.map((id) => (
@@ -2170,43 +1976,7 @@ export function AccommodationEditor({
               )}
               <Card className="plan-card">
                 <CardHeader>
-                  <CardTitle>Linen Cottage</CardTitle>
-                  <CardDescription>
-                    We booked it for the existing guests at{" "}
-                    {propertyPrice("linen", "couple")} after the{" "}
-                    {bookingDiscountPercent("linen")}% discount. If guests pay,
-                    they split that rent across the occupied bedrooms.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="editor-hint">
-                    Only people marked Yes with the existing Linen pair in the
-                    cottage sharing map can use the second bedroom.
-                  </p>
-                  <Button
-                    className="linen-map-button"
-                    variant="outline"
-                    onClick={() => {
-                      setSelectedId(
-                        weddingAccommodationSetup.reservation?.guestIds(
-                          state,
-                        )[0] ?? null,
-                      );
-                      setSharingLevel("cottage");
-                      setView("sharing");
-                    }}
-                  >
-                    Open Linen sharing map <ArrowRight size={16} />
-                  </Button>
-                </CardContent>
-              </Card>
-              <Card className="plan-card">
-                <CardHeader>
-                  <CardTitle>Calculation choices</CardTitle>
-                  <CardDescription>
-                    Priority fills Riverside suites by guest rank, then
-                    cottages. Lowest price compares extra costs first.
-                  </CardDescription>
+                  <CardTitle>Calculation</CardTitle>
                 </CardHeader>
                 <CardContent className="field-grid">
                   <Field label="Goal">

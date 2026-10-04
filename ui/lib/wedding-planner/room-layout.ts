@@ -19,7 +19,6 @@ export function tableAppearance(
   };
 }
 
-/** Seat coordinates are local to the table, so rotation moves seats with it. */
 export function tableSeats(
   shape: "round" | "long",
   topTable: boolean,
@@ -55,7 +54,6 @@ export function tableRotation(angle: number) {
   return ((angle % 360) + 360) % 360;
 }
 
-/** Place a tooltip above a rotated seat without letting it leave the viewport. */
 export function seatTooltipAnchor(
   table: Pick<TableAppearance, "x" | "y" | "rotation">,
   seat: { x: number; y: number },

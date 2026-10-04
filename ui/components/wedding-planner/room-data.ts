@@ -89,11 +89,3 @@ export function propertyPrice(id: string, bookingBy: BookingParty): string {
   );
   return price === null ? "Price unknown" : formatMinorCurrency(price);
 }
-
-export function bookingDiscountPercent(id: string): number {
-  return (
-    weddingAccommodationSetup.input.properties.find(
-      (property) => property.id === id,
-    )?.couple_booking_discount_percent ?? 0
-  );
-}

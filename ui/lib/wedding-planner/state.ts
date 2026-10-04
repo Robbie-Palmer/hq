@@ -5,7 +5,7 @@ import { parseMoneyToMinorUnits } from "@/lib/generic/money";
 import { editorStateToPlan } from "./editor-projection";
 import { type AccommodationSetup, weddingAccommodationSetup } from "./setup";
 import { tablePlanSchema, validateTableLinks } from "./table-state";
-import type { State } from "./types";
+import type { WeddingPlanDraft } from "./types";
 import {
   BookingPartySchema,
   FreeStayReasonSchema,
@@ -82,7 +82,7 @@ function stringList(value: unknown): value is string[] {
 function migrateLegacyReservation(
   parsed: z.infer<typeof stateSchema>,
   setup: AccommodationSetup,
-): State {
+): WeddingPlanDraft {
   const legacy = setup.reservation?.legacyFields;
   const roomId = setup.reservation?.roomId;
   const reservations = { ...parsed.reservations };
@@ -99,7 +99,7 @@ function migrateLegacyReservation(
       };
     }
   }
-  const normalized = { ...parsed, reservations } as State;
+  const normalized = { ...parsed, reservations } as WeddingPlanDraft;
   if (legacy) {
     delete normalized[legacy.guestIds];
     delete normalized[legacy.approvedGuestIds];
@@ -107,7 +107,7 @@ function migrateLegacyReservation(
   return normalized;
 }
 
-function validateGuestLinks(state: State, ids: Set<string>): void {
+function validateGuestLinks(state: WeddingPlanDraft, ids: Set<string>): void {
   for (const guest of state.guests) {
     for (const field of [
       "may_share_bed_with",
@@ -126,7 +126,7 @@ function validateGuestLinks(state: State, ids: Set<string>): void {
 }
 
 function validateReservations(
-  state: State,
+  state: WeddingPlanDraft,
   ids: Set<string>,
   setup: AccommodationSetup,
 ): void {
@@ -145,12 +145,11 @@ function validateReservations(
     throw new Error(`Choose the existing ${setup.reservation.label} guests`);
 }
 
-/** Legacy import/editor DTO parser. New persisted plans use parseWeddingPlan. */
 export function parseState(
   value: unknown,
   setup: AccommodationSetup = weddingAccommodationSetup,
   validateInventory = true,
-): State {
+): WeddingPlanDraft {
   const checked = stateSchema.safeParse(value);
   if (!checked.success) {
     const issue = checked.error.issues[0];
@@ -193,7 +192,7 @@ export function parseState(
 }
 
 export function buildInput(
-  state: State,
+  state: WeddingPlanDraft,
   setup: AccommodationSetup = weddingAccommodationSetup,
 ) {
   return domainBuildInput(

@@ -50,7 +50,6 @@ function sampleFreeStay(
   return [];
 }
 
-/** Fictional guests for trying both planners, with no personal guest information. */
 export function createSampleWeddingPlan(): WeddingPlan {
   const people: [string, string, WeddingRole[]][] = [
     ["alex", "Alex Bennett", ["parent_of_bride"]],

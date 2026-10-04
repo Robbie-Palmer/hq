@@ -8,14 +8,13 @@ import type { TableAllocation } from "wedding-planner-domain/seating";
 import { browserWeddingPlanRepository } from "./browser-repository";
 import { editorStateToPlan, toEditorState } from "./editor-projection";
 import { type AccommodationSetup, weddingAccommodationSetup } from "./setup";
-import type { State } from "./types";
+import type { WeddingPlanDraft } from "./types";
 
-/** UI projection of application use cases, independent of the persistence adapter. */
 export interface PlannerApplication {
-  load(): Promise<State | null>;
-  save(state: State): Promise<void>;
-  calculateRooms(state: State): Promise<SolvePayload>;
-  calculateTables(state: State): Promise<TableAllocation>;
+  load(): Promise<WeddingPlanDraft | null>;
+  save(plan: WeddingPlanDraft): Promise<void>;
+  calculateRooms(plan: WeddingPlanDraft): Promise<SolvePayload>;
+  calculateTables(plan: WeddingPlanDraft): Promise<TableAllocation>;
 }
 
 export function createEditorApplication(

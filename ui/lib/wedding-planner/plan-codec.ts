@@ -3,7 +3,6 @@ import { editorStateToPlan } from "./editor-projection";
 import { type AccommodationSetup, weddingAccommodationSetup } from "./setup";
 import { parseState } from "./state";
 
-/** Version migration belongs at the import/storage boundary. */
 export function decodeWeddingPlan(
   value: unknown,
   setup: AccommodationSetup = weddingAccommodationSetup,

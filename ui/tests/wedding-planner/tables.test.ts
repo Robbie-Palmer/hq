@@ -15,9 +15,9 @@ import {
 } from "@/lib/wedding-planner/table-state";
 import type {
   Guest,
-  State,
   TableAllocation,
   TableInput,
+  WeddingPlanDraft,
 } from "@/lib/wedding-planner/types";
 
 function guest(id: string, changes: Partial<Guest> = {}): Guest {
@@ -330,7 +330,7 @@ describe("table allocation", () => {
 });
 
 describe("shared table state", () => {
-  function state(): State {
+  function state(): WeddingPlanDraft {
     return parseState(
       {
         guests: [

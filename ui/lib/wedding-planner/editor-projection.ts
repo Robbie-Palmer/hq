@@ -7,10 +7,9 @@ import {
 } from "wedding-planner-domain";
 import { accommodationPreferencesSchema } from "wedding-planner-domain/accommodation";
 import { seatingPreferencesSchema } from "wedding-planner-domain/seating";
-import type { State, TablePlan } from "./types";
+import type { TablePlan, WeddingPlanDraft } from "./types";
 
-/** The flat editor DTO preserves existing controls and v1 backups. It is not the persisted domain model. */
-export function toEditorState(plan: WeddingPlan): State {
+export function toEditorState(plan: WeddingPlan): WeddingPlanDraft {
   const rooms = accommodationState(plan);
   const seating = tableInput(plan);
   return {
@@ -30,23 +29,23 @@ export function toEditorState(plan: WeddingPlan): State {
   };
 }
 
-export function defaultTablePlan(state: State): TablePlan {
+export function defaultTablePlan(plan: WeddingPlanDraft): TablePlan {
   return (
-    state.table_plan ?? {
+    plan.table_plan ?? {
       top_table_capacity: 10,
       top_table_guest_ids: [],
       table_capacities: Array.from(
-        { length: Math.max(1, Math.ceil(state.guests.length / 8)) },
+        { length: Math.max(1, Math.ceil(plan.guests.length / 8)) },
         () => 8,
       ),
     }
   );
 }
 
-function migrateCouples(state: State): Couple[] {
-  if (state.couples) return structuredClone(state.couples);
+function migrateCouples(plan: WeddingPlanDraft): Couple[] {
+  if (plan.couples) return structuredClone(plan.couples);
   const groups = new Map<string, string[]>();
-  for (const guest of state.guests) {
+  for (const guest of plan.guests) {
     if (guest.fixed_bed_group_id)
       groups.set(guest.fixed_bed_group_id, [
         ...(groups.get(guest.fixed_bed_group_id) ?? []),
@@ -58,7 +57,7 @@ function migrateCouples(state: State): Couple[] {
   );
 }
 
-export function editorStateToPlan(state: State): WeddingPlan {
+export function editorStateToPlan(state: WeddingPlanDraft): WeddingPlan {
   const {
     guests,
     couples,
@@ -69,7 +68,6 @@ export function editorStateToPlan(state: State): WeddingPlan {
     ...accommodation
   } = state;
   const tables = defaultTablePlan(state);
-  // Unknown legacy fields remain available for round trips, separate from domain fields.
   const extensions = Object.fromEntries(
     Object.entries(accommodation).filter(
       ([key]) =>
@@ -127,7 +125,7 @@ export function editorStateToPlan(state: State): WeddingPlan {
 }
 
 export function editDomain(
-  state: State,
+  state: WeddingPlanDraft,
   command: (plan: WeddingPlan) => void,
 ): void {
   const plan = editorStateToPlan(state);

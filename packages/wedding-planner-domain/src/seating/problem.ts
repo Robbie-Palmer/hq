@@ -19,7 +19,6 @@ function guestPairs(guests: SeatingGuest[]): TablePair[] {
 function tableGroups(guests: SeatingGuest[]): SeatingGuest[][] {
   const groups = new Map<string, SeatingGuest[]>();
   for (const guest of guests) {
-    // Couple keys cannot collide with individual guest IDs.
     const key = guest.partner_id
       ? `couple:${JSON.stringify(orderedGuestPair(guest.id, guest.partner_id))}`
       : `guest:${guest.id}`;
