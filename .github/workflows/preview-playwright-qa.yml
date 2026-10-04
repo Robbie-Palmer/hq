@@ -69,8 +69,8 @@ jobs:
             exit 0
           fi
 
-          base_ref=$(jq -er '.base.ref' <<< "$pr")
-          comparison=$(gh api "repos/$REPOSITORY/compare/$base_ref...$head_sha")
+          default_branch=$(gh api "repos/$REPOSITORY" --jq '.default_branch')
+          comparison=$(gh api "repos/$REPOSITORY/compare/$default_branch...$head_sha")
           harness_sha=$(jq -er '.merge_base_commit.sha' <<< "$comparison")
           [[ "$harness_sha" =~ ^[0-9a-f]{40}$ ]]
 

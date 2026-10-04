@@ -25,7 +25,7 @@ async function setEquipmentBaseline(context: BrowserContext): Promise<void> {
   );
   if (!household) throw new Error("Household owner has no preview household");
 
-  await Promise.all([
+  const results = await Promise.allSettled([
     ...managedEquipment.map((slug) =>
       expectPreviewJSON(
         context,
@@ -46,6 +46,8 @@ async function setEquipmentBaseline(context: BrowserContext): Promise<void> {
       method: "PATCH",
     }),
   ]);
+  const failure = results.find((result) => result.status === "rejected");
+  if (failure?.status === "rejected") throw failure.reason;
 }
 
 function waitForEquipmentRequest(page: Page, method: string, slug?: string) {
@@ -74,9 +76,9 @@ test("manages household equipment and applies it to recipe cards", async ({
   createPreviewSession,
 }) => {
   const { context, page } = await createPreviewSession("household-owner");
-  await setEquipmentBaseline(context);
 
   try {
+    await setEquipmentBaseline(context);
     await page.goto("/recipes/settings");
     await expect(page).toHaveURL(`${previewSiteURL.origin}/recipes/settings`);
     await page.getByRole("button", { name: "Household", exact: true }).click();
