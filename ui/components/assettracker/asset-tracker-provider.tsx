@@ -37,6 +37,7 @@ import {
   type Currency,
   type DeleteCapitalFlowInput,
   type DeleteSnapshotInput,
+  type FinancialDecisionRecord,
   getAssetAllocationTimeSeries,
   getHousingPlanningPosition,
   getLatestPortfolioValuation,
@@ -53,6 +54,7 @@ import {
   type ImportIncomeHistoryInput,
   type IncomeRecord,
   type Money,
+  type MortgageScenario,
   type NetWorthDataPoint,
   type Ownership,
   type PlannedExpenditure,
@@ -63,6 +65,7 @@ import {
   type RecordBalanceInput,
   type RecordTransferInput,
   type RecurringFlow,
+  type SaveMortgageScenarioInput,
   type SetAccountLiquidityInput,
   type SetExpectedReturnInput,
   SUPPORTED_CURRENCIES,
@@ -82,6 +85,8 @@ interface AssetTrackerContextValue {
   transfers: Transfer[];
   recurringFlows: RecurringFlow[];
   plannedExpenditures: PlannedExpenditure[];
+  mortgageScenarios: MortgageScenario[];
+  decisionRecords: FinancialDecisionRecord[];
   incomeHistory: IncomeRecord[];
   flowSankeyData: FlowSankeyData;
   financialIndependence: PortfolioFinancialIndependence;
@@ -136,6 +141,7 @@ interface AssetTrackerContextValue {
   setInflation(rate: number): Promise<void>;
   setBaseCurrency(currency: Currency): Promise<void>;
   setWithdrawalRate(rate: number): Promise<void>;
+  saveMortgageScenario(input: SaveMortgageScenarioInput): Promise<void>;
   setNetWorthTarget(
     target: number | null,
     inTodaysMoney?: boolean,
@@ -267,6 +273,8 @@ export function AssetTrackerProvider({
       transfers: repository.transfers,
       recurringFlows: repository.recurringFlows,
       plannedExpenditures: repository.plannedExpenditures,
+      mortgageScenarios: repository.mortgageScenarios,
+      decisionRecords: repository.decisionRecords,
       incomeHistory: repository.incomeHistory,
       flowSankeyData: buildBaseCurrencyFlowSankeyData(
         repository,
@@ -350,6 +358,8 @@ export function AssetTrackerProvider({
         mutate((api) => api.setBaseCurrency({ currency })),
       setWithdrawalRate: (rate) =>
         mutate((api) => api.setWithdrawalRate({ rate })),
+      saveMortgageScenario: (input) =>
+        mutate((api) => api.saveMortgageScenario(input)),
       setNetWorthTarget: (target, inTodaysMoney) =>
         mutate((api) => api.setNetWorthTarget({ target, inTodaysMoney })),
       addHouseholdMember: (displayName) =>

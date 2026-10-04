@@ -13,6 +13,10 @@ import type { BalanceSnapshot } from "./balanceSnapshot";
 import { type CapitalFlow, capitalFlowKind } from "./capitalFlow";
 import { validateHouseholdOwnership } from "./household";
 import type { IncomeRecord } from "./incomeRecord";
+import type {
+  FinancialDecisionRecord,
+  MortgageScenario,
+} from "./mortgageCalculator";
 import type { PlannedExpenditure } from "./plannedExpenditure";
 import type { RecurringFlow } from "./recurringFlow";
 import type { Transfer } from "./transfer";
@@ -31,6 +35,8 @@ export interface AssetTrackerRepository {
   transfers: Transfer[];
   recurringFlows: RecurringFlow[];
   plannedExpenditures: PlannedExpenditure[];
+  mortgageScenarios: MortgageScenario[];
+  decisionRecords: FinancialDecisionRecord[];
   instruments: Map<string, Instrument>;
   holdingObservations: HoldingObservation[];
   priceObservations: PriceObservation[];
@@ -340,6 +346,47 @@ function validateReferences(
   validateCoreReferences(data, accounts);
   validatePlannedExpenditureReferences(data, accounts);
   validateValuationReferences(data, accounts);
+  const mortgageScenarios = data.mortgageScenarios ?? [];
+  const decisionRecords = data.decisionRecords ?? [];
+  const scenarios = new Map(
+    mortgageScenarios.map((scenario) => [scenario.id, scenario]),
+  );
+  if (scenarios.size !== mortgageScenarios.length) {
+    throw new AssetTrackerDataError("Mortgage scenario IDs must be unique");
+  }
+  const decisions = new Map(
+    decisionRecords.map((decision) => [decision.id, decision]),
+  );
+  if (decisions.size !== decisionRecords.length) {
+    throw new AssetTrackerDataError("Decision record IDs must be unique");
+  }
+  for (const scenario of mortgageScenarios) {
+    assertKnownAccount(
+      accounts,
+      scenario.source.mortgageAccountId,
+      `Mortgage scenario "${scenario.name}"`,
+    );
+    assertKnownAccount(
+      accounts,
+      scenario.source.propertyAccountId,
+      `Mortgage scenario "${scenario.name}"`,
+    );
+    if (
+      scenario.decisionRecordId != null &&
+      !decisions.has(scenario.decisionRecordId)
+    ) {
+      throw new AssetTrackerDataError(
+        `Mortgage scenario "${scenario.name}" references unknown decision "${scenario.decisionRecordId}"`,
+      );
+    }
+  }
+  for (const decision of decisionRecords) {
+    if (!scenarios.has(decision.scenarioId)) {
+      throw new AssetTrackerDataError(
+        `Decision "${decision.title}" references unknown mortgage scenario "${decision.scenarioId}"`,
+      );
+    }
+  }
 }
 
 export function buildRepository(
@@ -366,6 +413,8 @@ export function buildRepository(
     plannedExpenditures: [...data.plannedExpenditures].sort((a, b) =>
       a.date.localeCompare(b.date),
     ),
+    mortgageScenarios: data.mortgageScenarios ?? [],
+    decisionRecords: data.decisionRecords ?? [],
     instruments: new Map(
       (data.instruments ?? []).map((instrument) => [instrument.id, instrument]),
     ),

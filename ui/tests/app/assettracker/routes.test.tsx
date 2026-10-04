@@ -25,6 +25,10 @@ vi.mock("@/components/assettracker/planning-route", () => ({
   PlanningRoute: () => <h1>Planning</h1>,
 }));
 
+vi.mock("@/components/assettracker/decisions-route", () => ({
+  DecisionsRoute: () => <p>Recorded mortgage decisions</p>,
+}));
+
 vi.mock("@/components/assettracker/imports-route", () => ({
   ImportsRoute: () => <h1>Imports</h1>,
 }));
@@ -63,10 +67,10 @@ describe("Asset Tracker routes", () => {
     expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
   });
 
-  it("states honestly that decision recording is unavailable", () => {
+  it("renders recorded mortgage decisions", () => {
     render(<DecisionsPage />);
 
-    expect(screen.getByText(/not available/)).toBeVisible();
+    expect(screen.getByText("Recorded mortgage decisions")).toBeVisible();
   });
 
   it("keeps the existing dashboard on the overview", () => {

@@ -55,6 +55,7 @@ describe("buildMortgageSchedule", () => {
       principal: 1_000,
       fees: 50,
       overpayment: 0,
+      overpaymentCharge: 0,
       totalDue: 1_050,
       closingBalance: 11_000,
     });
@@ -126,5 +127,71 @@ describe("buildMortgageSchedule", () => {
       annualPrincipal: 12_000,
       payoffDate: "2026-12-01",
     });
+  });
+
+  it("supports interest-only schedules with a final principal payment", () => {
+    const schedule = buildMortgageSchedule({
+      openingBalance: -12_000,
+      initialAnnualRate: 0.06,
+      repaymentType: "interest-only",
+      terms: {
+        firstPaymentDate: "2026-01-01",
+        remainingTermMonths: 12,
+        fees: [],
+        overpayments: [],
+        termChanges: [],
+      },
+    });
+
+    expect(schedule).toHaveLength(12);
+    expect(schedule[0]).toMatchObject({
+      scheduledPayment: 60,
+      interest: 60,
+      principal: 0,
+      closingBalance: 12_000,
+    });
+    expect(schedule.at(-1)).toMatchObject({
+      scheduledPayment: 12_060,
+      interest: 60,
+      principal: 12_000,
+      closingBalance: 0,
+    });
+  });
+
+  it("charges overpayments above the annual allowance", () => {
+    const schedule = buildMortgageSchedule({
+      openingBalance: -20_000,
+      initialAnnualRate: 0,
+      monthlyOverpayment: 1_000,
+      terms: {
+        firstPaymentDate: "2026-01-01",
+        remainingTermMonths: 20,
+        overpaymentAllowance: { amount: 1_500, chargeRate: 0.05 },
+        fees: [],
+        overpayments: [],
+        termChanges: [],
+      },
+    });
+
+    expect(schedule[0]?.overpaymentCharge).toBe(0);
+    expect(schedule[1]?.overpaymentCharge).toBe(25);
+    expect(schedule[1]?.totalDue).toBe(2_025);
+  });
+
+  it("uses daily interest for a partial first payment period", () => {
+    const [first] = buildMortgageSchedule({
+      openingBalance: -10_000,
+      initialAnnualRate: 0.0365,
+      accrualStartDate: "2026-01-15",
+      terms: {
+        firstPaymentDate: "2026-02-01",
+        remainingTermMonths: 12,
+        fees: [],
+        overpayments: [],
+        termChanges: [],
+      },
+    });
+
+    expect(first?.interest).toBe(17);
   });
 });
