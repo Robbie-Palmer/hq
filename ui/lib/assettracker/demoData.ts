@@ -1,5 +1,6 @@
 import { accounts } from "@/content/assettracker/accounts";
 import { incomeHistory } from "@/content/assettracker/incomeHistory";
+import { propertyIndexHistories } from "@/content/assettracker/propertyIndexHistory";
 import { recurringFlows } from "@/content/assettracker/recurringFlows";
 import { snapshots } from "@/content/assettracker/snapshots";
 import { transfers } from "@/content/assettracker/transfers";
@@ -47,6 +48,7 @@ export function getDemoAssetTrackerData(): AssetTrackerData {
     holdingObservations,
     priceObservations,
     exchangeRateObservations,
+    propertyIndexHistories,
     mortgageScenarios: [
       {
         id: "five-year-fix",

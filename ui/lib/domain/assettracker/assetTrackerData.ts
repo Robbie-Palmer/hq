@@ -17,6 +17,7 @@ import {
   MortgageScenarioSchema,
 } from "./mortgageCalculator";
 import { PlannedExpenditureSchema } from "./plannedExpenditure";
+import { PropertyIndexHistoryDefinitionSchema } from "./propertyIndexHistory";
 import { RecurringFlowSchema } from "./recurringFlow";
 import { TransferSchema } from "./transfer";
 import {
@@ -92,6 +93,9 @@ export const AssetTrackerDataSchema = z
     holdingObservations: z.array(HoldingObservationSchema).optional(),
     priceObservations: z.array(PriceObservationSchema).optional(),
     exchangeRateObservations: z.array(ExchangeRateObservationSchema).optional(),
+    propertyIndexHistories: z
+      .array(PropertyIndexHistoryDefinitionSchema)
+      .optional(),
     household: HouseholdSchema.default(DEFAULT_HOUSEHOLD),
     ownership: HouseholdOwnershipIndexSchema.default(EMPTY_HOUSEHOLD_OWNERSHIP),
     settings: AssetTrackerSettingsSchema.default({
