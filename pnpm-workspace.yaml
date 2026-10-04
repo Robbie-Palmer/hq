@@ -9,6 +9,11 @@ packages:
   - 'ml-pipelines/writing-editor-evaluation'
   - 'ml-pipelines/recipe-parsing/tools/viz'
 
+# Keep every Cooklang consumer on the same parser and bindings. Renovate updates
+# this entry; package manifests reference it through the pnpm catalog protocol.
+catalog:
+  '@cooklang/cooklang': '0.18.7'
+
 # pnpm 10 already skipped these dependency lifecycle scripts. pnpm 11 requires
 # the policy to be explicit; keep installs reproducible without expanding the
 # set of third-party code allowed to execute during dependency installation.
@@ -75,7 +80,7 @@ overrides:
   sharp: '^0.35.0'
 
 patchedDependencies:
-  '@cooklang/cooklang@0.18.7': patches/@cooklang__cooklang@0.18.7.patch
+  '@cooklang/cooklang': patches/@cooklang__cooklang.patch
   gray-matter@4.0.3: patches/gray-matter@4.0.3.patch
 
 minimumReleaseAgeExclude:

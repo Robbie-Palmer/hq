@@ -162,6 +162,12 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    '@cooklang/cooklang':
+      specifier: 0.18.7
+      version: 0.18.7
+
 overrides:
   '@esbuild-kit/core-utils>esbuild': ^0.28.0
   lighthouse>@sentry/node: ^10.66.0
@@ -170,7 +176,7 @@ overrides:
   sharp: ^0.35.0
 
 patchedDependencies:
-  '@cooklang/cooklang@0.18.7': 85b684e1c0e18dedb7ebd9e043c0c937dc04446f8417852c7f5af27b4b423ec7
+  '@cooklang/cooklang': 85b684e1c0e18dedb7ebd9e043c0c937dc04446f8417852c7f5af27b4b423ec7
   gray-matter@4.0.3: 7576f693c6e2d9a2125de73ab4d3d3a0dfc183d54c672602b06578229d88aee4
 
 importers:
@@ -307,7 +313,7 @@ importers:
   ml-pipelines/recipe-dataset:
     dependencies:
       '@cooklang/cooklang':
-        specifier: ^0.18.0
+        specifier: 'catalog:'
         version: 0.18.7(patch_hash=85b684e1c0e18dedb7ebd9e043c0c937dc04446f8417852c7f5af27b4b423ec7)
 
   ml-pipelines/recipe-parsing:
@@ -758,7 +764,7 @@ importers:
   packages/recipe-parsing:
     dependencies:
       '@cooklang/cooklang':
-        specifier: ^0.18.0
+        specifier: 'catalog:'
         version: 0.18.7(patch_hash=85b684e1c0e18dedb7ebd9e043c0c937dc04446f8417852c7f5af27b4b423ec7)
       cheerio:
         specifier: ^1.2.0
@@ -926,7 +932,7 @@ importers:
         specifier: ^1.4.1
         version: 1.4.1
       '@cooklang/cooklang':
-        specifier: ^0.18.0
+        specifier: 'catalog:'
         version: 0.18.7(patch_hash=85b684e1c0e18dedb7ebd9e043c0c937dc04446f8417852c7f5af27b4b423ec7)
       '@cosmos.gl/graph':
         specifier: ^3.4.1
