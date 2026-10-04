@@ -3,6 +3,12 @@
 import { formatCurrency } from "@/lib/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
 
+function sourceDescription(sourceAccounts: string, snapshotDate?: string) {
+  if (sourceAccounts === "") return "Based on explicitly entered assumptions.";
+  const dateDescription = snapshotDate == null ? "" : ` at ${snapshotDate}`;
+  return `Based on ${sourceAccounts}${dateDescription}.`;
+}
+
 export function DecisionsRoute() {
   const { accountDetails, baseCurrency, decisionRecords, mortgageScenarios } =
     useAssetTracker();
@@ -74,9 +80,7 @@ export function DecisionsRoute() {
               </div>
             </dl>
             <p className="mt-4 text-xs text-muted-foreground">
-              {sourceAccounts === ""
-                ? "Based on explicitly entered assumptions."
-                : `Based on ${sourceAccounts}${scenario.source.snapshotDate == null ? "." : ` at ${scenario.source.snapshotDate}.`}`}
+              {sourceDescription(sourceAccounts, scenario.source.snapshotDate)}
             </p>
           </article>
         );

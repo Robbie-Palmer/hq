@@ -6,6 +6,12 @@ function percentage(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+function rateAdjustmentLabel(rateAdjustment: number): string {
+  if (rateAdjustment === 0) return "Assumption";
+  const sign = rateAdjustment > 0 ? "+" : "";
+  return `${sign}${percentage(rateAdjustment)}`;
+}
+
 export function MortgageCalculatorHighlights({
   result,
   money,
@@ -123,9 +129,7 @@ export function MortgageRateStress({
             {result.rateStress.map((stress) => (
               <tr key={stress.rateAdjustment} className="border-t">
                 <th className="px-3 py-2 text-left">
-                  {stress.rateAdjustment === 0
-                    ? "Assumption"
-                    : `${stress.rateAdjustment > 0 ? "+" : ""}${percentage(stress.rateAdjustment)}`}
+                  {rateAdjustmentLabel(stress.rateAdjustment)}
                 </th>
                 <td className="px-3 py-2 text-right">
                   {percentage(stress.initialAnnualRate)}
