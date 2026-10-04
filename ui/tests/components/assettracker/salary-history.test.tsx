@@ -17,6 +17,7 @@ import {
 } from "vitest";
 import { useAssetTracker } from "@/components/assettracker/asset-tracker-provider";
 import { SalaryHistoryImportDrawer } from "@/components/assettracker/salary-history-import-drawer";
+import { SalaryHistoryManager } from "@/components/assettracker/salary-history-manager";
 import { SalaryRecordDrawer } from "@/components/assettracker/salary-record-drawer";
 import {
   readSalaryImportFile,
@@ -226,5 +227,85 @@ describe("salary history controls", () => {
         ],
       }),
     );
+  });
+
+  it("shows current salary facts and preserves a superseded source", async () => {
+    const original: SalaryHistoryRecord = {
+      id: "alex-cirrus-original",
+      person: "Alex",
+      employer: "Cirrus Systems",
+      employmentId: "alex-cirrus",
+      currency: "GBP",
+      jurisdiction: "UK",
+      effectiveStart: "2024-04-01",
+      payFrequency: "monthly",
+      amountKind: "annualSalary",
+      grossPay: 70_000,
+      source: {
+        kind: "file",
+        fileName: "salary.csv",
+        fingerprint: "fixture",
+        row: 7,
+      },
+      acceptedAt: "2025-01-01T00:00:00.000Z",
+    };
+    const corrected: SalaryHistoryRecord = {
+      ...original,
+      id: "alex-cirrus-corrected",
+      grossPay: 72_000,
+      baseSalary: 64_000,
+      variablePay: 8_000,
+      taxablePay: 67_680,
+      takeHomePay: 47_300,
+      employeePension: {
+        arrangement: "salarySacrifice",
+        rate: 0.06,
+        basis: "grossPay",
+      },
+      employerPension: {
+        arrangement: "other",
+        amount: 5_760,
+        basis: "grossPay",
+      },
+      source: { kind: "manual" },
+      acceptedAt: "2025-01-02T00:00:00.000Z",
+      correctsId: original.id,
+    };
+    const periodPay: SalaryHistoryRecord = {
+      ...original,
+      id: "sam-fieldwork-period",
+      person: "Sam",
+      employer: "Fieldwork Co-op",
+      employmentId: "sam-fieldwork",
+      effectiveStart: "2023-04-01",
+      effectiveEnd: "2023-04-30",
+      amountKind: "periodPay",
+      workFraction: 0.8,
+      grossPay: 3_200,
+      source: { kind: "manual" },
+      acceptedAt: "2025-01-03T00:00:00.000Z",
+    };
+    mockUseAssetTracker.mockReturnValue({
+      household: {
+        members: [{ id: "alex", displayName: "Alex" }],
+        activeScope: { kind: "household" },
+      },
+      salaryHistory: [original, corrected, periodPay],
+      currentSalaryHistory: [corrected, periodPay],
+      saveSalaryRecord,
+      importSalaryHistory,
+    } as unknown as ReturnType<typeof useAssetTracker>);
+
+    render(<SalaryHistoryManager />);
+
+    expect(screen.getByText("Salary history")).toBeVisible();
+    expect(screen.getAllByText(/£72,000/)).not.toHaveLength(0);
+    expect(screen.getAllByText(/£38,400.*annualised/)).not.toHaveLength(0);
+    expect(screen.getAllByText(/Employee: 6%/)).not.toHaveLength(0);
+    expect(screen.getAllByText(/Employer: 5,760/)).not.toHaveLength(0);
+    expect(screen.getAllByText("Manual entry")).not.toHaveLength(0);
+
+    await userEvent.click(screen.getByText("Prior accepted facts"));
+    expect(screen.getAllByText("salary.csv, row 7")).not.toHaveLength(0);
   });
 });
