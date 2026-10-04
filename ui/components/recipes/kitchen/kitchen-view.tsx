@@ -140,10 +140,12 @@ function KitchenCatalogFooter({
             type="button"
             variant="outline"
             onClick={onAddCustom}
-            className="mt-3"
+            className="mt-3 h-auto w-full max-w-full justify-start whitespace-normal text-left sm:w-auto"
           >
             <CirclePlus className="size-4" />
-            Save "{customIngredient}" as written
+            <span className="min-w-0 break-words">
+              Save "{customIngredient}" as written
+            </span>
           </Button>
           <p className="rt-body mt-2 text-sm text-[var(--ink-3)]">
             It will stay in your pantry, but recipe matching and nutrition will

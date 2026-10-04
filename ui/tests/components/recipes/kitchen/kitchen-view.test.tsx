@@ -157,19 +157,28 @@ describe("KitchenView diet ingredient catalog", () => {
 
     await user.type(
       screen.getByPlaceholderText("Search ingredients..."),
-      "Tigernut Flour",
+      "nebula flakes qa-rp-1803",
     );
     expect(
       screen.getByText(/recipe matching and nutrition will ignore it/i),
     ).toBeInTheDocument();
-    await user.click(
-      screen.getByRole("button", {
-        name: 'Save "Tigernut Flour" as written',
-      }),
+    const saveButton = screen.getByRole("button", {
+      name: 'Save "nebula flakes qa-rp-1803" as written',
+    });
+    expect(saveButton).toHaveClass(
+      "h-auto",
+      "w-full",
+      "max-w-full",
+      "whitespace-normal",
+      "sm:w-auto",
     );
+    expect(
+      screen.getByText('Save "nebula flakes qa-rp-1803" as written'),
+    ).toHaveClass("min-w-0", "break-words");
+    await user.click(saveButton);
 
     expect(kitchenStockState.actions.setStockLocation).toHaveBeenCalledWith(
-      "Tigernut Flour",
+      "nebula flakes qa-rp-1803",
       "cupboards",
     );
   });
