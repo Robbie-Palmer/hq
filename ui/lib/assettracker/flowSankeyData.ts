@@ -139,7 +139,93 @@ function recurringFlowValue(
     : monthlyAmount(flow);
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+function grossRecurringFlowValue(flow: RecurringFlow): number {
+  if (flow.amount == null || flow.grossAmount == null) return 0;
+  return monthlyAmount(flow) * (flow.grossAmount / flow.amount);
+}
+
+function addRecurringFlowLink(
+  flow: RecurringFlow,
+  liabilityBalances: Record<string, number>,
+  builder: FlowSankeyBuilder,
+  grossPay: number,
+  pensionFitsWithinGrossPay: boolean,
+): void {
+  const value = recurringFlowValue(flow, liabilityBalances);
+  if (
+    grossPay > 0 &&
+    flow.compensationKind === "takeHomeIncome" &&
+    flow.grossAmount != null
+  ) {
+    builder.addLink(
+      GROSS_PAY_NODE,
+      flow.toAccountId ?? EXTERNAL_SPENDING_NODE,
+      value,
+      flow.name,
+    );
+    return;
+  }
+  if (
+    grossPay > 0 &&
+    pensionFitsWithinGrossPay &&
+    flow.compensationKind === "employeePension"
+  ) {
+    builder.addLink(
+      GROSS_PAY_NODE,
+      flow.toAccountId ?? EXTERNAL_SPENDING_NODE,
+      value,
+      flow.name,
+    );
+    return;
+  }
+  builder.addLink(
+    flow.fromAccountId ?? EXTERNAL_INCOME_NODE,
+    flow.toAccountId ?? EXTERNAL_SPENDING_NODE,
+    value,
+    flow.name,
+  );
+}
+
+function addPayrollGapLinks({
+  builder,
+  employeePension,
+  estimatedEmploymentTax,
+  grossPay,
+  pensionFitsWithinGrossPay,
+  takeHomePay,
+}: {
+  builder: FlowSankeyBuilder;
+  employeePension: number;
+  estimatedEmploymentTax: number | null;
+  grossPay: number;
+  pensionFitsWithinGrossPay: boolean;
+  takeHomePay: number;
+}): void {
+  if (grossPay <= 0) return;
+  const payrollGap =
+    grossPay - takeHomePay - (pensionFitsWithinGrossPay ? employeePension : 0);
+  const taxAndNi = estimatedEmploymentTax ?? payrollGap;
+  if (taxAndNi > 0) {
+    builder.addLink(
+      GROSS_PAY_NODE,
+      TAX_NODE,
+      taxAndNi,
+      estimatedEmploymentTax == null
+        ? "Tax and deductions"
+        : "Estimated Income Tax and National Insurance",
+    );
+  }
+  const otherDeductions = payrollGap - taxAndNi;
+  if (estimatedEmploymentTax != null && otherDeductions > 0) {
+    builder.addLink(
+      GROSS_PAY_NODE,
+      PAYROLL_DEDUCTIONS_NODE,
+      otherDeductions,
+      "Other payroll deductions",
+    );
+  }
+}
+
 function addRecurringFlowLinks(
   flows: RecurringFlow[],
   liabilityBalances: Record<string, number>,
@@ -151,11 +237,7 @@ function addRecurringFlowLinks(
       flow.compensationKind === "takeHomeIncome" && flow.grossAmount != null,
   );
   const grossPay = grossPayFlows.reduce(
-    (total, flow) =>
-      total +
-      (flow.amount == null || flow.grossAmount == null
-        ? 0
-        : monthlyAmount(flow) * (flow.grossAmount / flow.amount)),
+    (total, flow) => total + grossRecurringFlowValue(flow),
     0,
   );
   const employeePensionFlows = flows.filter(
@@ -185,67 +267,23 @@ function addRecurringFlowLinks(
   }
 
   for (const flow of flows) {
-    if (
-      grossPay > 0 &&
-      flow.compensationKind === "takeHomeIncome" &&
-      flow.grossAmount != null
-    ) {
-      builder.addLink(
-        GROSS_PAY_NODE,
-        flow.toAccountId ?? EXTERNAL_SPENDING_NODE,
-        recurringFlowValue(flow, liabilityBalances),
-        flow.name,
-      );
-      continue;
-    }
-    if (
-      grossPay > 0 &&
-      pensionFitsWithinGrossPay &&
-      flow.compensationKind === "employeePension"
-    ) {
-      builder.addLink(
-        GROSS_PAY_NODE,
-        flow.toAccountId ?? EXTERNAL_SPENDING_NODE,
-        recurringFlowValue(flow, liabilityBalances),
-        flow.name,
-      );
-      continue;
-    }
-    builder.addLink(
-      flow.fromAccountId ?? EXTERNAL_INCOME_NODE,
-      flow.toAccountId ?? EXTERNAL_SPENDING_NODE,
-      recurringFlowValue(flow, liabilityBalances),
-      flow.name,
+    addRecurringFlowLink(
+      flow,
+      liabilityBalances,
+      builder,
+      grossPay,
+      pensionFitsWithinGrossPay,
     );
   }
 
-  if (grossPay > 0) {
-    const payrollGap =
-      grossPay -
-      takeHomePay -
-      (pensionFitsWithinGrossPay ? employeePension : 0);
-    const taxAndNi =
-      estimatedEmploymentTax == null ? payrollGap : estimatedEmploymentTax;
-    if (taxAndNi > 0) {
-      builder.addLink(
-        GROSS_PAY_NODE,
-        TAX_NODE,
-        taxAndNi,
-        estimatedEmploymentTax == null
-          ? "Tax and deductions"
-          : "Estimated Income Tax and National Insurance",
-      );
-    }
-    const otherDeductions = payrollGap - taxAndNi;
-    if (estimatedEmploymentTax != null && otherDeductions > 0) {
-      builder.addLink(
-        GROSS_PAY_NODE,
-        PAYROLL_DEDUCTIONS_NODE,
-        otherDeductions,
-        "Other payroll deductions",
-      );
-    }
-  }
+  addPayrollGapLinks({
+    builder,
+    employeePension,
+    estimatedEmploymentTax,
+    grossPay,
+    pensionFitsWithinGrossPay,
+    takeHomePay,
+  });
 
   return grossPay > 0;
 }

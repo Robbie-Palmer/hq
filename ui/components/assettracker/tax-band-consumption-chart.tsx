@@ -243,7 +243,7 @@ export function AnnualAllowanceUsageChart({
               className="size-2 rounded-sm"
               style={{ backgroundColor: "var(--chart-1)" }}
             />
-            Recorded
+            <span>Recorded</span>
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span
@@ -251,7 +251,7 @@ export function AnnualAllowanceUsageChart({
               className="size-2 rounded-sm"
               style={{ backgroundColor: "var(--chart-4)" }}
             />
-            Forecast
+            <span>Forecast</span>
           </span>
         </div>
       </div>

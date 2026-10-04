@@ -577,7 +577,139 @@ function allocateToTaxBands(
   return bandIndex;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: This is the single orchestration point for a person and keeps each tax component's shared inputs visible.
+type HouseholdRule = (typeof ruleDataset.householdTax)[number] | undefined;
+type NationalInsuranceRule =
+  | (typeof ruleDataset.nationalInsurance)[number]
+  | undefined;
+
+function employmentNationalInsurance(
+  employment: HouseholdTaxIncome[],
+  rule: NationalInsuranceRule,
+): number {
+  if (rule == null) return 0;
+  const employmentByJob = new Map<string, number>();
+  for (const record of employment) {
+    const employmentId = record.employmentId ?? record.id;
+    employmentByJob.set(
+      employmentId,
+      (employmentByJob.get(employmentId) ?? 0) + record.amountPence,
+    );
+  }
+  return sum(
+    [...employmentByJob.values()].map((pay) =>
+      annualNationalInsurance(pay, rule),
+    ),
+  );
+}
+
+function personalSavingsAllowanceFor(
+  rule: HouseholdRule,
+  totalTaxableIncome: number,
+  basicBandWidth: number,
+  higherBandWidth: number,
+): number {
+  if (rule == null) return 0;
+  if (totalTaxableIncome <= basicBandWidth) {
+    return rule.savings.personalSavingsAllowancePence.basic;
+  }
+  if (totalTaxableIncome <= basicBandWidth + higherBandWidth) {
+    return rule.savings.personalSavingsAllowancePence.higher;
+  }
+  return rule.savings.personalSavingsAllowancePence.additional;
+}
+
+function startingRateForSavings(
+  rule: HouseholdRule,
+  savingsPence: number,
+  employmentPence: number,
+): number {
+  if (rule == null) return 0;
+  return Math.min(
+    savingsPence,
+    Math.max(0, rule.savings.startingRateLimitPence - employmentPence),
+  );
+}
+
+function savingsTax(
+  rule: HouseholdRule,
+  savingsPence: number,
+  zeroRateAllowancePence: number,
+  employmentPence: number,
+  basicBandWidth: number,
+  higherBandWidth: number,
+): number {
+  if (rule == null) return 0;
+  return dividendTaxAcrossBands(
+    savingsPence,
+    zeroRateAllowancePence,
+    employmentPence,
+    basicBandWidth,
+    higherBandWidth,
+    rule.savings.rates,
+  );
+}
+
+function dividendTax(
+  rule: HouseholdRule,
+  dividendPence: number,
+  priorTaxableIncomePence: number,
+  basicBandWidth: number,
+  higherBandWidth: number,
+): number {
+  if (rule == null) return 0;
+  return dividendTaxAcrossBands(
+    dividendPence,
+    rule.dividendAllowancePence,
+    priorTaxableIncomePence,
+    basicBandWidth,
+    higherBandWidth,
+    rule.dividendRates,
+  );
+}
+
+function flagMissingPensionMethod(
+  person: HouseholdTaxPerson,
+  contributions: HouseholdTaxContribution[],
+  unsupported: Array<{ code: string; detail: string }>,
+): void {
+  if (!contributions.some(({ pensionMethod }) => pensionMethod == null)) return;
+  unsupported.push({
+    code: "missing-pension-method",
+    detail: `${person.displayName} has a pension contribution without a contribution method.`,
+  });
+}
+
+function flagExceededContributionAllowances({
+  householdRule,
+  isaContributionTotal,
+  pensionAllowance,
+  person,
+  totalPensionContributions,
+  unsupported,
+}: {
+  householdRule: HouseholdRule;
+  isaContributionTotal: number;
+  pensionAllowance: number;
+  person: HouseholdTaxPerson;
+  totalPensionContributions: number;
+  unsupported: Array<{ code: string; detail: string }>;
+}): void {
+  if (
+    householdRule != null &&
+    isaContributionTotal > householdRule.isaAnnualAllowancePence
+  ) {
+    unsupported.push({
+      code: "isa-allowance-exceeded",
+      detail: `${person.displayName}'s recorded ISA subscriptions exceed the annual allowance.`,
+    });
+  }
+  if (totalPensionContributions <= pensionAllowance) return;
+  unsupported.push({
+    code: "pension-annual-allowance-charge",
+    detail: `${person.displayName}'s recorded pension input exceeds the available allowance. Carry forward and the annual allowance charge are not included.`,
+  });
+}
+
 function calculatePerson(
   person: HouseholdTaxPerson,
   request: HouseholdTaxRequest,
@@ -597,12 +729,7 @@ function calculatePerson(
   const pensionContributions = contributions.filter(
     ({ kind }) => kind === "pension",
   );
-  if (pensionContributions.some(({ pensionMethod }) => pensionMethod == null)) {
-    unsupported.push({
-      code: "missing-pension-method",
-      detail: `${person.displayName} has a pension contribution without a contribution method.`,
-    });
-  }
+  flagMissingPensionMethod(person, pensionContributions, unsupported);
   const employment = taxableIncome.filter(({ kind }) => kind === "employment");
   const savings = taxableIncome.filter(
     ({ kind }) => kind === "savings-interest",
@@ -655,59 +782,37 @@ function calculatePerson(
     employmentAfterAllowance +
     savingsAfterPersonalAllowance +
     dividendsAfterPersonalAllowance;
-  const personalSavingsAllowance = householdRule
-    ? totalTaxableIncome <= basicBandWidth
-      ? householdRule.savings.personalSavingsAllowancePence.basic
-      : totalTaxableIncome <= basicBandWidth + higherBandWidth
-        ? householdRule.savings.personalSavingsAllowancePence.higher
-        : householdRule.savings.personalSavingsAllowancePence.additional
-    : 0;
-  const startingRateForSavings = householdRule
-    ? Math.min(
-        savingsAfterPersonalAllowance,
-        Math.max(
-          0,
-          householdRule.savings.startingRateLimitPence -
-            employmentAfterAllowance,
-        ),
-      )
-    : 0;
-  const savingsTaxPence = householdRule
-    ? dividendTaxAcrossBands(
-        savingsAfterPersonalAllowance,
-        startingRateForSavings + personalSavingsAllowance,
-        employmentAfterAllowance,
-        basicBandWidth,
-        higherBandWidth,
-        householdRule.savings.rates,
-      )
-    : 0;
-  const dividendTaxPence = householdRule
-    ? dividendTaxAcrossBands(
-        dividendsAfterPersonalAllowance,
-        householdRule.dividendAllowancePence,
-        employmentAfterAllowance + savingsAfterPersonalAllowance,
-        basicBandWidth,
-        higherBandWidth,
-        householdRule.dividendRates,
-      )
-    : 0;
+  const personalSavingsAllowance = personalSavingsAllowanceFor(
+    householdRule,
+    totalTaxableIncome,
+    basicBandWidth,
+    higherBandWidth,
+  );
+  const startingRateForSavingsPence = startingRateForSavings(
+    householdRule,
+    savingsAfterPersonalAllowance,
+    employmentAfterAllowance,
+  );
+  const savingsTaxPence = savingsTax(
+    householdRule,
+    savingsAfterPersonalAllowance,
+    startingRateForSavingsPence + personalSavingsAllowance,
+    employmentAfterAllowance,
+    basicBandWidth,
+    higherBandWidth,
+  );
+  const dividendTaxPence = dividendTax(
+    householdRule,
+    dividendsAfterPersonalAllowance,
+    employmentAfterAllowance + savingsAfterPersonalAllowance,
+    basicBandWidth,
+    higherBandWidth,
+  );
 
-  const employmentByJob = new Map<string, number>();
-  for (const record of employment) {
-    const employmentId = record.employmentId ?? record.id;
-    employmentByJob.set(
-      employmentId,
-      (employmentByJob.get(employmentId) ?? 0) + record.amountPence,
-    );
-  }
-  const nationalInsurancePence = niRule
-    ? sum(
-        [...employmentByJob.values()].map((pay) =>
-          annualNationalInsurance(pay, niRule),
-        ),
-      )
-    : 0;
+  const nationalInsurancePence = employmentNationalInsurance(
+    employment,
+    niRule,
+  );
 
   const netGainPence = Math.max(
     0,
@@ -826,21 +931,14 @@ function calculatePerson(
       .filter(({ evidence }) => evidence.kind === "observed")
       .map(({ amountPence }) => amountPence),
   );
-  if (
-    householdRule &&
-    isaContributionTotal > householdRule.isaAnnualAllowancePence
-  ) {
-    unsupported.push({
-      code: "isa-allowance-exceeded",
-      detail: `${person.displayName}'s recorded ISA subscriptions exceed the annual allowance.`,
-    });
-  }
-  if (totalPensionContributions > pensionAllowance) {
-    unsupported.push({
-      code: "pension-annual-allowance-charge",
-      detail: `${person.displayName}'s recorded pension input exceeds the available allowance. Carry forward and the annual allowance charge are not included.`,
-    });
-  }
+  flagExceededContributionAllowances({
+    householdRule,
+    isaContributionTotal,
+    pensionAllowance,
+    person,
+    totalPensionContributions,
+    unsupported,
+  });
 
   const available = unsupported.length === 0;
   const totalTaxPence = available
@@ -890,7 +988,7 @@ function calculatePerson(
     bandConsumption,
     allowances: {
       personalAllowancePence: personalAllowance,
-      startingRateForSavingsPence: startingRateForSavings,
+      startingRateForSavingsPence,
       personalSavingsAllowancePence: personalSavingsAllowance,
       dividendAllowancePence: householdRule?.dividendAllowancePence ?? 0,
       capitalGainsAnnualExemptAmountPence: annualExemptAmountPence,
