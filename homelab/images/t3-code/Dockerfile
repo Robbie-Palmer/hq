@@ -21,7 +21,7 @@ RUN export MISE_CACHE_DIR=/tmp/mise-cache \
       "$(mise -C /tmp/t3-code-mise/image where github:jdx/mise)/bin/mise" \
       /opt/t3-code-tools/mise
 
-FROM docker:29.8.0-cli@sha256:eccaacfeed644c7de222ff047483568cb988dde95476fbaaf10ea2d04921bb66 AS docker-cli
+FROM docker:29.8.1-cli@sha256:018edbc908e08fcc9dbf029c812c34251e9b4719e6f71ca0e5eae2a987d014ca AS docker-cli
 
 FROM node:24.16.0-bookworm-slim@sha256:2c87ef9bd3c6a3bd4b472b4bec2ce9d16354b0c574f736c476489d09f560a203
 
