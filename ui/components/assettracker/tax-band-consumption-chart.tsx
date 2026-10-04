@@ -82,16 +82,20 @@ function BandBar({
 function ScenarioPlot({
   description,
   scenario,
+  showExplanations,
   title,
 }: Readonly<{
   description: string;
   scenario: TaxBandScenario;
+  showExplanations: boolean;
   title: string;
 }>) {
   return (
     <section className="rounded-lg border p-4" aria-label={title}>
       <h4 className="font-semibold">{title}</h4>
-      <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+      {showExplanations && (
+        <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+      )}
       <dl className="mt-3 grid grid-cols-2 gap-3 text-xs">
         <div>
           <dt className="text-muted-foreground">Personal Allowance</dt>
@@ -182,98 +186,67 @@ function AnnualAllowanceBar({
   );
 }
 
-function AnnualAllowanceScenario({
-  allowances,
-  description,
-  projected,
-  title,
-}: Readonly<{
-  allowances: PersonTaxEstimate["allowances"];
-  description: string;
-  projected: boolean;
-  title: string;
-}>) {
+function AnnualAllowanceLegend() {
   return (
-    <section className="rounded-lg border p-4" aria-label={title}>
-      <h4 className="font-semibold">{title}</h4>
-      <p className="mt-1 text-xs text-muted-foreground">{description}</p>
-      <div className="mt-4 space-y-4">
-        <AnnualAllowanceBar
-          label="Pension annual allowance"
-          allowancePence={allowances.pensionAllowancePence}
-          observedPence={allowances.pensionObservedContributionsPence}
-          projectedPence={
-            projected
-              ? allowances.pensionContributionsPence
-              : allowances.pensionObservedContributionsPence
-          }
-        />
-        <AnnualAllowanceBar
-          label="ISA annual allowance"
-          allowancePence={allowances.isaAllowancePence}
-          observedPence={allowances.isaObservedContributionsPence}
-          projectedPence={
-            projected
-              ? allowances.isaContributionsPence
-              : allowances.isaObservedContributionsPence
-          }
-        />
-      </div>
-    </section>
+    <div className="flex gap-4 text-xs text-muted-foreground">
+      {[
+        ["Recorded", "var(--chart-1)"],
+        ["Forecast", "var(--chart-4)"],
+      ].map(([label, color]) => (
+        <span key={label} className="inline-flex items-center gap-1.5">
+          <span
+            aria-hidden="true"
+            className="size-2 rounded-sm"
+            style={{ backgroundColor: color }}
+          />
+          <span>{label}</span>
+        </span>
+      ))}
+    </div>
   );
 }
 
 export function AnnualAllowanceUsageChart({
   allowances,
-}: Readonly<{ allowances: PersonTaxEstimate["allowances"] }>) {
+  showExplanations,
+}: Readonly<{
+  allowances: PersonTaxEstimate["allowances"];
+  showExplanations: boolean;
+}>) {
   return (
     <section aria-label="Annual allowance usage">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="space-y-1">
           <h3 className="font-semibold">Annual allowance usage</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Recorded contributions and forecast additions count toward each
-            person&apos;s tax-year limit.
-          </p>
+          {showExplanations && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Recorded contributions and forecast additions share each bar.
+            </p>
+          )}
         </div>
-        <div className="flex gap-4 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
-            <span
-              aria-hidden="true"
-              className="size-2 rounded-sm"
-              style={{ backgroundColor: "var(--chart-1)" }}
-            />
-            <span>Recorded</span>
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span
-              aria-hidden="true"
-              className="size-2 rounded-sm"
-              style={{ backgroundColor: "var(--chart-4)" }}
-            />
-            <span>Forecast</span>
-          </span>
-        </div>
+        <AnnualAllowanceLegend />
       </div>
-      <div className="mt-4 grid gap-4 xl:grid-cols-2">
-        <AnnualAllowanceScenario
-          allowances={allowances}
-          title="Recorded to date"
-          description="Uses observed pension and ISA contribution records only."
-          projected={false}
+      <div className="mt-4 space-y-4 rounded-lg border p-4">
+        <AnnualAllowanceBar
+          label="Pension annual allowance"
+          allowancePence={allowances.pensionAllowancePence}
+          observedPence={allowances.pensionObservedContributionsPence}
+          projectedPence={allowances.pensionContributionsPence}
         />
-        <AnnualAllowanceScenario
-          allowances={allowances}
-          title="Year-end projection"
-          description="Adds contributions saved as forecast assumptions."
-          projected
+        <AnnualAllowanceBar
+          label="ISA annual allowance"
+          allowancePence={allowances.isaAllowancePence}
+          observedPence={allowances.isaObservedContributionsPence}
+          projectedPence={allowances.isaContributionsPence}
         />
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">
-        The pension limit reflects tapering or the money purchase annual
-        allowance where applicable. Pension carry forward and earnings-based
-        tax-relief limits are not included in this release.
-      </p>
+      {showExplanations && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          The pension limit includes tapering and the money purchase annual
+          allowance where they apply. It does not include carry forward or the
+          earnings limit for tax relief.
+        </p>
+      )}
     </section>
   );
 }
@@ -283,11 +256,6 @@ function TaxBandHeader() {
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h3 className="font-semibold">Tax bands consumed</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Allowances use income before these bands. Zero-rate savings and
-          dividend allowances still occupy a band. Taxable gains use any
-          basic-rate band left after income.
-        </p>
       </div>
       <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
         {categories.map(({ color, key, label }) => (
@@ -329,10 +297,12 @@ export function TaxBandConsumptionChart({
   displayName,
   observed,
   projected,
+  showExplanations,
 }: Readonly<{
   displayName: string;
   observed: TaxBandScenario;
   projected: TaxBandScenario;
+  showExplanations: boolean;
 }>) {
   const projectedIncomeIncrease = Math.max(
     0,
@@ -351,17 +321,21 @@ export function TaxBandConsumptionChart({
           title="Recorded to date"
           description="Uses observed income and disposal records only."
           scenario={observed}
+          showExplanations={showExplanations}
         />
         <ScenarioPlot
           title="Year-end projection"
           description="Adds income and disposals saved as forecast assumptions."
           scenario={projected}
+          showExplanations={showExplanations}
         />
       </div>
-      <ForecastIncrease
-        gainPence={projectedGainIncrease}
-        incomePence={projectedIncomeIncrease}
-      />
+      {showExplanations && (
+        <ForecastIncrease
+          gainPence={projectedGainIncrease}
+          incomePence={projectedIncomeIncrease}
+        />
+      )}
     </section>
   );
 }

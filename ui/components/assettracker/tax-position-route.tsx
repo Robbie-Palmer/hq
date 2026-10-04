@@ -5,6 +5,7 @@ import type {
   PersonTaxEstimate,
 } from "finance-tax-rules/household-tax";
 import { DownloadIcon } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -98,7 +99,13 @@ function TaxSummary({
   );
 }
 
-function TaxComponentGrid({ person }: Readonly<{ person: PersonTaxEstimate }>) {
+function TaxComponentGrid({
+  person,
+  showExplanations,
+}: Readonly<{
+  person: PersonTaxEstimate;
+  showExplanations: boolean;
+}>) {
   return (
     <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
       {Object.entries(componentLabels).map(([key, label]) => {
@@ -111,9 +118,11 @@ function TaxComponentGrid({ person }: Readonly<{ person: PersonTaxEstimate }>) {
                 ? formatMinorCurrency(component.amountPence)
                 : "Unavailable"}
             </dd>
-            <dd className="mt-2 text-xs text-muted-foreground">
-              {component.explanation}
-            </dd>
+            {showExplanations && (
+              <dd className="mt-2 text-xs text-muted-foreground">
+                {component.explanation}
+              </dd>
+            )}
           </div>
         );
       })}
@@ -165,7 +174,13 @@ function AllowanceSummary({ person }: Readonly<{ person: PersonTaxEstimate }>) {
   );
 }
 
-function PersonTaxCard({ person }: Readonly<{ person: PersonTaxEstimate }>) {
+function PersonTaxCard({
+  person,
+  showExplanations,
+}: Readonly<{
+  person: PersonTaxEstimate;
+  showExplanations: boolean;
+}>) {
   return (
     <Card>
       <CardHeader>
@@ -177,13 +192,17 @@ function PersonTaxCard({ person }: Readonly<{ person: PersonTaxEstimate }>) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <TaxComponentGrid person={person} />
+        <TaxComponentGrid person={person} showExplanations={showExplanations} />
         <TaxBandConsumptionChart
           displayName={person.displayName}
           observed={person.bandConsumption.observed}
           projected={person.bandConsumption.projected}
+          showExplanations={showExplanations}
         />
-        <AnnualAllowanceUsageChart allowances={person.allowances} />
+        <AnnualAllowanceUsageChart
+          allowances={person.allowances}
+          showExplanations={showExplanations}
+        />
         <AllowanceSummary person={person} />
       </CardContent>
     </Card>
@@ -225,8 +244,45 @@ function CalculationLineage({
   );
 }
 
+function TaxPositionHeader({
+  onExport,
+  onToggleExplanations,
+  showExplanations,
+}: Readonly<{
+  onExport: () => void;
+  onToggleExplanations: () => void;
+  showExplanations: boolean;
+}>) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h1 className="mb-2 text-3xl font-bold sm:text-4xl">UK tax position</h1>
+        <p className="max-w-3xl text-lg text-muted-foreground">
+          An annual estimate from the tax records saved in this browser. It is
+          not a tax return or professional advice.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          aria-pressed={showExplanations}
+          onClick={onToggleExplanations}
+        >
+          {showExplanations ? "Hide explanations" : "Show explanations"}
+        </Button>
+        <Button type="button" variant="outline" onClick={onExport}>
+          <DownloadIcon aria-hidden="true" />
+          Export calculation
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function TaxPositionRoute() {
   const { exportTaxEstimate, household, taxEstimate } = useAssetTracker();
+  const [showExplanations, setShowExplanations] = useState(false);
   const activeScope = household.activeScope;
   const visiblePeople =
     activeScope.kind === "member"
@@ -254,21 +310,11 @@ export function TaxPositionRoute() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="mb-2 text-3xl font-bold sm:text-4xl">
-            UK tax position
-          </h1>
-          <p className="max-w-3xl text-lg text-muted-foreground">
-            An annual estimate from the tax records saved in this browser. It is
-            not a tax return or professional advice.
-          </p>
-        </div>
-        <Button type="button" variant="outline" onClick={exportTaxEstimate}>
-          <DownloadIcon aria-hidden="true" />
-          Export calculation
-        </Button>
-      </div>
+      <TaxPositionHeader
+        onExport={exportTaxEstimate}
+        onToggleExplanations={() => setShowExplanations((current) => !current)}
+        showExplanations={showExplanations}
+      />
       {!scopedAvailable && <UnsupportedNotice cases={scopedUnsupported} />}
       <TaxSummary
         estimate={taxEstimate}
@@ -277,7 +323,11 @@ export function TaxPositionRoute() {
       />
       <div className="space-y-6">
         {visiblePeople.map((person) => (
-          <PersonTaxCard key={person.memberId} person={person} />
+          <PersonTaxCard
+            key={person.memberId}
+            person={person}
+            showExplanations={showExplanations}
+          />
         ))}
       </div>
       <CalculationLineage estimate={taxEstimate} />

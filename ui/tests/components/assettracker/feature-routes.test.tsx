@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAssetTracker } from "@/components/assettracker/asset-tracker-provider";
 import { CashFlowRoute } from "@/components/assettracker/cash-flow-route";
@@ -186,11 +186,23 @@ describe("Asset Tracker feature routes", () => {
     expect(screen.getAllByText("Savings interest tax")).toHaveLength(2);
     expect(screen.getAllByText("Personal Savings Allowance")).toHaveLength(2);
     expect(screen.getAllByText("Tax bands consumed")).toHaveLength(2);
-    expect(screen.getAllByText("Recorded to date")).toHaveLength(4);
-    expect(screen.getAllByText("Year-end projection")).toHaveLength(4);
+    expect(screen.getAllByText("Recorded to date")).toHaveLength(2);
+    expect(screen.getAllByText("Year-end projection")).toHaveLength(2);
     expect(screen.getAllByText("Annual allowance usage")).toHaveLength(2);
-    expect(screen.getAllByText("Pension annual allowance")).toHaveLength(4);
-    expect(screen.getAllByText("ISA annual allowance")).toHaveLength(4);
+    expect(screen.getAllByText("Pension annual allowance")).toHaveLength(2);
+    expect(screen.getAllByText("ISA annual allowance")).toHaveLength(2);
+    expect(
+      screen.queryByText(/Applied the Personal Allowance/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Allowances use income before these bands/),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show explanations" }));
+
+    expect(screen.getAllByText(/Applied the Personal Allowance/)).toHaveLength(
+      2,
+    );
     expect(
       screen.getByText(
         (_, element) =>
@@ -200,6 +212,9 @@ describe("Asset Tracker feature routes", () => {
             .includes("The forecast adds £10,000.00 of taxable income"),
       ),
     ).toBeVisible();
+    expect(
+      screen.queryByText(/Allowances use income before these bands/),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Export calculation" }),
     ).toBeVisible();
