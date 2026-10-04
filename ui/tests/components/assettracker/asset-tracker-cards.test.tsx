@@ -1192,6 +1192,10 @@ describe("AccountsTable", () => {
     const user = userEvent.setup();
     render(
       <AccountsTable
+        ownerLabels={{
+          current: "Alex",
+          "old-fund": "Alex 60%, Sam 40%",
+        }}
         accounts={[
           {
             id: "current",
@@ -1253,6 +1257,7 @@ describe("AccountsTable", () => {
     render(
       <AccountsTable
         initialShowClosed
+        ownerLabels={{ "old-fund": "Alex" }}
         accounts={[
           {
             id: "old-fund",

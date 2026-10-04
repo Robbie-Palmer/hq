@@ -81,7 +81,28 @@ const account: AccountDetailView = {
 const mockUseAssetTracker = vi.mocked(useAssetTracker);
 
 function trackerWithAccounts(accountDetails: AccountDetailView[]) {
-  return { accountDetails } as unknown as ReturnType<typeof useAssetTracker>;
+  return {
+    accountDetails,
+    household: {
+      members: [
+        { id: "alex", displayName: "Alex" },
+        { id: "sam", displayName: "Sam" },
+      ],
+      activeScope: { kind: "household" },
+    },
+    householdAccounts: accountDetails.map(({ id, name, provider }) => ({
+      id,
+      name,
+      provider,
+      ownership: {
+        kind: "shared",
+        shares: [
+          { memberId: "alex", share: 0.6 },
+          { memberId: "sam", share: 0.4 },
+        ],
+      },
+    })),
+  } as unknown as ReturnType<typeof useAssetTracker>;
 }
 
 describe("AccountsRoute", () => {
@@ -102,6 +123,13 @@ describe("AccountsRoute", () => {
     expect(mocks.replace).toHaveBeenCalledWith("/assettracker/accounts", {
       scroll: false,
     });
+  });
+
+  it("shows the registered owners of each account", () => {
+    render(<AccountsRoute />);
+
+    expect(screen.getByRole("columnheader", { name: "Owner" })).toBeVisible();
+    expect(screen.getByText("Alex 60%, Sam 40%")).toBeVisible();
   });
 
   it("handles an unknown account URL without opening account controls", async () => {

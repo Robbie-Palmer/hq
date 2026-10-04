@@ -22,7 +22,7 @@ import {
 import { LogBalanceDrawer } from "./log-balance-drawer";
 
 const STALE_AFTER_DAYS = 30;
-const COLUMN_COUNT = 9;
+const COLUMN_COUNT = 10;
 
 const ASSET_TYPE_VARIANT: Record<
   AssetType,
@@ -40,11 +40,13 @@ const ASSET_TYPE_VARIANT: Record<
 
 interface AccountsTableProps {
   accounts: AccountDetailView[];
+  ownerLabels: Readonly<Record<string, string>>;
   initialShowClosed?: boolean;
 }
 
 export function AccountsTable({
   accounts,
+  ownerLabels,
   initialShowClosed = false,
 }: Readonly<AccountsTableProps>) {
   const [showClosed, setShowClosed] = useState(initialShowClosed);
@@ -78,6 +80,7 @@ export function AccountsTable({
               <tr className="border-b bg-muted/50">
                 <th className="text-left p-3 font-medium">Account</th>
                 <th className="text-left p-3 font-medium">Provider</th>
+                <th className="text-left p-3 font-medium">Owner</th>
                 <th className="text-left p-3 font-medium">Type</th>
                 <th className="text-left p-3 font-medium">Access</th>
                 <th className="text-left p-3 font-medium">Trend</th>
@@ -88,12 +91,20 @@ export function AccountsTable({
               </tr>
             </thead>
             <tbody>
-              <AccountsSection label="Assets" accounts={assets} />
-              <AccountsSection label="Liabilities" accounts={liabilities} />
+              <AccountsSection
+                label="Assets"
+                accounts={assets}
+                ownerLabels={ownerLabels}
+              />
+              <AccountsSection
+                label="Liabilities"
+                accounts={liabilities}
+                ownerLabels={ownerLabels}
+              />
             </tbody>
             <tfoot>
               <tr className="bg-muted/50">
-                <td colSpan={5} className="p-3 font-semibold">
+                <td colSpan={6} className="p-3 font-semibold">
                   {showClosed ? "Open-account net worth" : "Net worth"}
                 </td>
                 <td className="p-3 text-right font-mono font-semibold">
@@ -112,9 +123,11 @@ export function AccountsTable({
 function AccountsSection({
   label,
   accounts,
+  ownerLabels,
 }: Readonly<{
   label: string;
   accounts: AccountDetailView[];
+  ownerLabels: Readonly<Record<string, string>>;
 }>) {
   if (accounts.length === 0) return null;
   return (
@@ -128,10 +141,14 @@ function AccountsSection({
         </td>
       </tr>
       {accounts.map((account) => (
-        <AccountRow key={account.id} account={account} />
+        <AccountRow
+          key={account.id}
+          account={account}
+          ownerLabel={ownerLabels[account.id] ?? "Unknown owner"}
+        />
       ))}
       <tr className="border-b">
-        <td colSpan={5} className="p-3 text-sm text-muted-foreground">
+        <td colSpan={6} className="p-3 text-sm text-muted-foreground">
           {label} total
         </td>
         <td className="p-3 text-right font-mono text-muted-foreground">
@@ -145,8 +162,10 @@ function AccountsSection({
 
 function AccountRow({
   account,
+  ownerLabel,
 }: Readonly<{
   account: AccountDetailView;
+  ownerLabel: string;
 }>) {
   return (
     <tr className="border-b hover:bg-muted/30">
@@ -160,6 +179,9 @@ function AccountRow({
         <StaleBalanceNudge account={account} />
       </td>
       <td className="p-3 text-muted-foreground">{account.provider}</td>
+      <td className="whitespace-nowrap p-3 text-muted-foreground">
+        {ownerLabel}
+      </td>
       <td className="p-3">
         <Badge variant={ASSET_TYPE_VARIANT[account.assetType]}>
           {ASSET_TYPE_LABELS[account.assetType]}
