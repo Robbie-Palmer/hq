@@ -26,6 +26,7 @@ jobs:
       actions: read
       statuses: write
     outputs:
+      harness_sha: ${{ steps.preview.outputs.harness_sha }}
       head_sha: ${{ steps.preview.outputs.head_sha }}
       pr_number: ${{ steps.preview.outputs.pr_number }}
       should_run: ${{ steps.preview.outputs.should_run }}
@@ -61,7 +62,20 @@ jobs:
           [[ "$head_sha" =~ ^[0-9a-f]{40}$ ]]
           [[ "$pr_number" =~ ^[1-9][0-9]*$ ]]
 
+          pr=$(gh api "repos/$REPOSITORY/pulls/$pr_number")
+          current_head_sha=$(jq -er '.head.sha' <<< "$pr")
+          if [[ "$current_head_sha" != "$head_sha" ]]; then
+            echo "Skipping stale preview $head_sha; PR #$pr_number is now at $current_head_sha."
+            exit 0
+          fi
+
+          base_ref=$(jq -er '.base.ref' <<< "$pr")
+          comparison=$(gh api "repos/$REPOSITORY/compare/$base_ref...$head_sha")
+          harness_sha=$(jq -er '.merge_base_commit.sha' <<< "$comparison")
+          [[ "$harness_sha" =~ ^[0-9a-f]{40}$ ]]
+
           {
+            echo "harness_sha=$harness_sha"
             echo "head_sha=$head_sha"
             echo "pr_number=$pr_number"
             echo "should_run=true"
@@ -166,6 +180,10 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # The merge base is trusted default-branch code and matches the test
+          # contracts the PR inherited. Never execute the PR's test harness in
+          # this job because it can resolve the preview Access credential.
+          ref: ${{ needs.preflight.outputs.harness_sha }}
           persist-credentials: false
 
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
@@ -176,6 +194,17 @@ jobs:
 
       - name: Run Playwright against the protected preview
         run: mise run //ui:test:e2e:preview
+
+      - name: Upload Playwright failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: preview-playwright-${{ needs.preflight.outputs.pr_number }}-${{ github.run_attempt }}
+          path: |
+            ui/test-results/preview/**/error-context.md
+            ui/test-results/preview/**/test-failed-*.png
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Revoke the one-run preview Access credential
         if: always()

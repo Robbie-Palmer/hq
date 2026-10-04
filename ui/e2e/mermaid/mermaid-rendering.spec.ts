@@ -12,18 +12,18 @@ const actorPalette = {
 } as const;
 
 for (const colorScheme of ["light", "dark"] as const) {
-  test(`renders visible SVG diagrams in the ${colorScheme} theme`, async ({
-    browser,
-  }) => {
-    const context = await browser.newContext({ colorScheme });
-    await context.addInitScript((theme) => {
-      window.localStorage.setItem("theme", theme);
-    }, colorScheme);
-    const page = await context.newPage();
-    const pageErrors: string[] = [];
-    page.on("pageerror", (error) => pageErrors.push(String(error)));
+  test.describe(`${colorScheme} theme`, () => {
+    test.use({ colorScheme });
 
-    try {
+    test(`renders visible SVG diagrams in the ${colorScheme} theme`, async ({
+      page,
+    }) => {
+      await page.addInitScript((theme) => {
+        window.localStorage.setItem("theme", theme);
+      }, colorScheme);
+      const pageErrors: string[] = [];
+      page.on("pageerror", (error) => pageErrors.push(String(error)));
+
       await page.goto("/technologies/mermaid");
       await expect(page.locator("html")).toHaveClass(
         new RegExp(`(^|\\s)${colorScheme}(\\s|$)`),
@@ -72,8 +72,6 @@ for (const colorScheme of ["light", "dark"] as const) {
       expect(renderedDiagrams[1]?.text).toContain("201 Created");
       expect(renderedDiagrams[2]?.text).toContain("Draft");
       expect(renderedDiagrams[2]?.text).toContain("Published");
-    } finally {
-      await context.close();
-    }
+    });
   });
 }

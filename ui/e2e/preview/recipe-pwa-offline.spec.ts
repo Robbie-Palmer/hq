@@ -1,106 +1,124 @@
+import type { Page } from "@playwright/test";
 import {
-  type Browser,
-  type BrowserContext,
   expect,
-  type Page,
-  test,
-} from "@playwright/test";
-import {
-  createPreviewContext,
   previewReadinessTimeoutMs,
   previewSiteURL,
-  signInPreviewScenario,
+  test,
 } from "./preview-test-helpers";
 
-type PreviewSession = {
-  context: BrowserContext;
-  page: Page;
+type OfflineReadiness = {
+  controlled: boolean;
+  sessionCached: boolean;
+  snapshotCount: number;
 };
 
-async function openOwnerRecipeSession(
-  browser: Browser,
-): Promise<PreviewSession> {
-  const context = await createPreviewContext(browser);
-
-  try {
-    const page = await context.newPage();
-    await signInPreviewScenario(page, "Household owner");
-    await expect(
-      page.getByText("Your recipe box", { exact: true }),
-    ).toBeVisible();
-
-    return { context, page };
-  } catch (error) {
-    await context.close();
-    throw error;
-  }
-}
-
-async function waitForOfflineRecipeData(page: Page): Promise<void> {
-  await page.evaluate(async (readinessTimeoutMs) => {
-    await navigator.serviceWorker.ready;
-    if (navigator.serviceWorker.controller) return;
-
-    await new Promise<void>((resolve, reject) => {
+async function waitForServiceWorkerControl(page: Page): Promise<void> {
+  await page.evaluate((readinessTimeoutMs) => {
+    return new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const finish = (callback: () => void) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
+        navigator.serviceWorker.removeEventListener(
+          "controllerchange",
+          onControllerChange,
+        );
+        callback();
+      };
+      const onControllerChange = () => finish(resolve);
       const timeout = window.setTimeout(
         () =>
-          reject(new Error("The recipe service worker did not take control")),
+          finish(() =>
+            reject(new Error("The recipe service worker did not take control")),
+          ),
         readinessTimeoutMs,
       );
       navigator.serviceWorker.addEventListener(
         "controllerchange",
+        onControllerChange,
+      );
+      void navigator.serviceWorker.ready.then(
         () => {
-          window.clearTimeout(timeout);
-          resolve();
+          if (navigator.serviceWorker.controller) finish(resolve);
         },
-        { once: true },
+        (error: unknown) =>
+          finish(() =>
+            reject(
+              error instanceof Error
+                ? error
+                : new Error("The recipe service worker did not activate"),
+            ),
+          ),
       );
     });
   }, previewReadinessTimeoutMs);
+}
 
-  await expect
-    .poll(
-      () =>
-        page.evaluate(async () => {
-          const sessionCache = await caches.open("recipe-session-v1");
-          const session = await sessionCache.match(
-            new Request(`${window.location.origin}/recipes/__offline-session`),
-          );
-          if (!session) return false;
+async function readOfflineReadiness(page: Page): Promise<OfflineReadiness> {
+  return page.evaluate(async () => {
+    const sessionCache = await caches.open("recipe-session-v1");
+    const session = await sessionCache.match("/recipes/__offline-session");
+    const databases = await indexedDB.databases();
+    const snapshotDatabaseExists = databases.some(
+      ({ name }) => name === "robbies-recipes",
+    );
 
-          const databases = await indexedDB.databases();
-          if (!databases.some(({ name }) => name === "robbies-recipes")) {
-            return false;
-          }
-
-          return new Promise<boolean>((resolve) => {
-            const request = indexedDB.open("robbies-recipes");
-            request.onerror = () => resolve(false);
-            request.onsuccess = () => {
-              const database = request.result;
-              if (!database.objectStoreNames.contains("recipe-snapshots")) {
-                database.close();
-                resolve(false);
-                return;
-              }
-              const count = database
-                .transaction("recipe-snapshots")
-                .objectStore("recipe-snapshots")
-                .count();
-              count.onerror = () => {
-                database.close();
-                resolve(false);
-              };
-              count.onsuccess = () => {
-                database.close();
-                resolve(count.result > 0);
-              };
+    const snapshotCount = snapshotDatabaseExists
+      ? await new Promise<number>((resolve) => {
+          const request = indexedDB.open("robbies-recipes");
+          request.onerror = () => resolve(0);
+          request.onsuccess = () => {
+            const database = request.result;
+            if (!database.objectStoreNames.contains("recipe-snapshots")) {
+              database.close();
+              resolve(0);
+              return;
+            }
+            const count = database
+              .transaction("recipe-snapshots")
+              .objectStore("recipe-snapshots")
+              .count();
+            count.onerror = () => {
+              database.close();
+              resolve(0);
             };
-          });
-        }),
-      { timeout: previewReadinessTimeoutMs },
-    )
-    .toBe(true);
+            count.onsuccess = () => {
+              database.close();
+              resolve(count.result);
+            };
+          };
+        })
+      : 0;
+
+    return {
+      controlled: navigator.serviceWorker.controller !== null,
+      sessionCached: session !== undefined,
+      snapshotCount,
+    };
+  });
+}
+
+async function prepareOfflineRecipeSession(page: Page): Promise<void> {
+  await waitForServiceWorkerControl(page);
+
+  // A controlled reload makes the session request pass through the service
+  // worker and creates a fresh query client whose successful bootstrap is
+  // persisted to IndexedDB.
+  await page.reload();
+  await expect(
+    page.getByText("Your recipe box", { exact: true }),
+  ).toBeVisible();
+  await expect
+    .poll(() => readOfflineReadiness(page), {
+      message: "recipe session and bootstrap were not saved for offline use",
+      timeout: previewReadinessTimeoutMs,
+    })
+    .toMatchObject({
+      controlled: true,
+      sessionCached: true,
+      snapshotCount: 1,
+    });
 }
 
 async function clearOfflineRecipeSnapshots(page: Page): Promise<void> {
@@ -126,94 +144,80 @@ async function clearOfflineRecipeSnapshots(page: Page): Promise<void> {
   );
 }
 
-test.describe.configure({ mode: "serial", timeout: 90_000 });
+async function expectOfflineDestination(page: Page, path: string) {
+  await expect(page).toHaveURL(`${previewSiteURL.origin}${path}`);
+  await expect(
+    page.getByRole("heading", { name: "You're offline" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Recipe not found" }),
+  ).toHaveCount(0);
+}
+
+test.describe.configure({ timeout: 90_000 });
 
 test.describe("deployed recipe PWA offline navigation", () => {
   test("routes unavailable app navigation through the offline page", async ({
-    browser,
+    createPreviewSession,
   }) => {
-    const { context, page } = await openOwnerRecipeSession(browser);
-    try {
-      await waitForOfflineRecipeData(page);
-      await context.setOffline(true);
+    const { context, page } = await createPreviewSession("household-owner");
+    await prepareOfflineRecipeSession(page);
+    await context.setOffline(true);
 
-      const destinations = [
-        { name: "Discover", path: "/recipes/discover" },
-        { name: "Kitchen", path: "/recipes/kitchen" },
-        { name: "Log", path: "/recipes/log" },
-        { name: "Shopping", path: "/recipes/shopping" },
-      ];
+    const destinations = [
+      { name: "Discover", path: "/recipes/discover" },
+      { name: "Kitchen", path: "/recipes/kitchen" },
+      { name: "Log", path: "/recipes/log" },
+      { name: "Shopping", path: "/recipes/shopping" },
+    ];
 
-      const expectOfflineDestination = async (path: string) => {
-        await expect(page).toHaveURL(`${previewSiteURL.origin}${path}`);
-        await expect(
-          page.getByRole("heading", { name: "You're offline" }),
-        ).toBeVisible();
-        await expect(
-          page.getByRole("heading", { name: "Recipe not found" }),
-        ).toHaveCount(0);
-
-        await page.getByRole("link", { name: "Back to recipes" }).click();
-        await expect(page).toHaveURL(`${previewSiteURL.origin}/recipes`);
-        await expect(
-          page.getByText("Your recipe box", { exact: true }),
-        ).toBeVisible();
-      };
-
-      for (const destination of destinations) {
-        await page
-          .getByRole("link", { name: destination.name, exact: true })
-          .click();
-        await expectOfflineDestination(destination.path);
-      }
-
-      await page.getByRole("link", { name: /^Notifications/ }).click();
-      await expectOfflineDestination("/recipes/notifications");
-
+    for (const destination of destinations) {
       await page
-        .getByRole("button", { name: "Account for Household owner" })
+        .getByRole("link", { name: destination.name, exact: true })
         .click();
-      await page.getByRole("link", { name: "Profile", exact: true }).click();
-      await expectOfflineDestination("/recipes/profile");
+      await expectOfflineDestination(page, destination.path);
 
-      await page
-        .getByRole("button", { name: "Account for Household owner" })
-        .click();
-      await page.getByRole("link", { name: "Settings", exact: true }).click();
-      await expectOfflineDestination("/recipes/settings");
-    } finally {
-      await context.close();
+      await page.getByRole("link", { name: "Back to recipes" }).click();
+      await expect(page).toHaveURL(`${previewSiteURL.origin}/recipes`);
+      await expect(
+        page.getByText("Your recipe box", { exact: true }),
+      ).toBeVisible();
     }
+
+    await page.getByRole("link", { name: /^Notifications/ }).click();
+    await expectOfflineDestination(page, "/recipes/notifications");
+    await page.getByRole("link", { name: "Back to recipes" }).click();
+
+    await page
+      .getByRole("button", { name: "Account for Household owner" })
+      .click();
+    await page.getByRole("link", { name: "Profile", exact: true }).click();
+    await expectOfflineDestination(page, "/recipes/profile");
+    await page.getByRole("link", { name: "Back to recipes" }).click();
+
+    await page
+      .getByRole("button", { name: "Account for Household owner" })
+      .click();
+    await page.getByRole("link", { name: "Settings", exact: true }).click();
+    await expectOfflineDestination(page, "/recipes/settings");
   });
 
   test("opens the offline explanation from an unavailable diet notice", async ({
-    browser,
+    createPreviewSession,
   }) => {
-    const { context, page } = await openOwnerRecipeSession(browser);
-    try {
-      await waitForOfflineRecipeData(page);
-      await context.setOffline(true);
-      await clearOfflineRecipeSnapshots(page);
-      await page.reload();
+    const { context, page } = await createPreviewSession("household-owner");
+    await prepareOfflineRecipeSession(page);
+    await clearOfflineRecipeSnapshots(page);
+    await context.setOffline(true);
+    await page.reload();
 
-      await expect(
-        page.getByRole("alert").filter({
-          hasText: "Diet preferences are unavailable.",
-        }),
-      ).toBeVisible();
-      await page.getByRole("link", { name: "diet settings" }).click();
+    await expect(
+      page.getByRole("alert").filter({
+        hasText: "Diet preferences are unavailable.",
+      }),
+    ).toBeVisible();
+    await page.getByRole("link", { name: "diet settings" }).click();
 
-      await expect(page).toHaveURL(
-        `${previewSiteURL.origin}/recipes/settings?section=diet`,
-      );
-      await expect(
-        page.getByRole("heading", { name: "You're offline" }),
-      ).toBeVisible();
-      await expect(
-        page.getByRole("heading", { name: "Recipe not found" }),
-      ).toHaveCount(0);
-    } finally {
-      await context.close();
-    }
+    await expectOfflineDestination(page, "/recipes/settings?section=diet");
   });
 });
