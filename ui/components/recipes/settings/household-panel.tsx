@@ -32,6 +32,7 @@ import {
   createHousehold,
   declineHouseholdInvitation,
   deleteHousehold,
+  type EquipmentRecipeMatchMode,
   type Household,
   type HouseholdEquipment,
   type HouseholdEquipmentItem,
@@ -44,6 +45,7 @@ import {
   removeHouseholdMember,
   renameHousehold,
   revokeHouseholdInvitation,
+  saveHouseholdEquipmentMatchMode,
 } from "@/lib/api/households";
 import {
   type HouseholdSettingsData,
@@ -64,6 +66,7 @@ type Mutation =
   | "decline"
   | "add-equipment"
   | "remove-equipment"
+  | "save-equipment-mode"
   | null;
 
 type ActiveMutation = Exclude<Mutation, null>;
@@ -565,6 +568,7 @@ function HouseholdEquipmentSection({
   onSelectedSlugChange,
   onAdd,
   onRemove,
+  onMatchModeChange,
 }: Readonly<{
   equipment: HouseholdEquipment | null;
   selectedSlug: string;
@@ -573,6 +577,7 @@ function HouseholdEquipmentSection({
   onSelectedSlugChange: (slug: string) => void;
   onAdd: SubmitEventHandler<HTMLFormElement>;
   onRemove: (item: HouseholdEquipmentItem) => void;
+  onMatchModeChange: (mode: EquipmentRecipeMatchMode) => void;
 }>) {
   if (!equipment) {
     return (
@@ -595,74 +600,113 @@ function HouseholdEquipmentSection({
   return (
     <Section
       title="KITCHEN EQUIPMENT"
-      sub="Everyone in the household shares this list. Recipes will use it to check which tools are available."
+      sub="Choose whether recipes use a shared household equipment list."
     >
-      <form
-        onSubmit={onAdd}
-        className="flex max-w-lg flex-col gap-3 sm:flex-row"
-      >
-        <label className="sr-only" htmlFor="household-equipment">
-          Equipment to add
-        </label>
-        <select
-          id="household-equipment"
-          value={selectedSlug}
-          onChange={(event) => onSelectedSlugChange(event.target.value)}
-          disabled={busy || available.length === 0}
-          className="rt-body h-9 min-w-0 flex-1 rounded-md border border-[var(--line-strong)] bg-[var(--card)] px-3 text-sm text-[var(--ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--terracotta)]/40 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <option value="">
-            {available.length === 0
-              ? "All equipment added"
-              : "Choose equipment"}
-          </option>
-          {available.map((item) => (
-            <option key={item.slug} value={item.slug}>
-              {item.name} · {item.category}
-            </option>
+      <div className="mb-5">
+        <p className="rt-mono mb-2 text-[var(--ink-3)]">
+          WHEN A RECIPE NEEDS OTHER EQUIPMENT
+        </p>
+        <div className="inline-flex rounded-full border border-[var(--line)] bg-[var(--paper-warm)] p-1">
+          {(
+            [
+              ["hide", "Hide it"],
+              ["warn", "Show warning"],
+              ["disabled", "Disable it"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={(equipment.recipeMatchMode ?? "warn") === value}
+              disabled={busy}
+              onClick={() => onMatchModeChange(value)}
+              className={`rt-body rounded-full px-4 py-1.5 text-sm transition-colors disabled:opacity-50 ${
+                (equipment.recipeMatchMode ?? "warn") === value
+                  ? "bg-[var(--ink)] font-semibold text-[var(--paper)]"
+                  : "text-[var(--ink-2)] hover:bg-[var(--card)]"
+              }`}
+            >
+              {label}
+            </button>
           ))}
-        </select>
-        <Button
-          type="submit"
-          variant="outline"
-          disabled={busy || !selectedSlug}
-        >
-          {adding ? <LoaderCircle className="animate-spin" /> : <Plus />}
-          Add equipment
-        </Button>
-      </form>
+        </div>
+      </div>
 
-      {equipment.owned.length === 0 ? (
-        <div className="mt-5 flex max-w-lg items-center gap-3 rounded-xl border border-dashed border-[var(--line-strong)] bg-[var(--paper-warm)] p-4 text-[var(--ink-3)]">
-          <CookingPot className="size-5 shrink-0" />
-          <p className="rt-body text-sm">No equipment added yet.</p>
-        </div>
+      {equipment.recipeMatchMode === "disabled" ? (
+        <p className="rt-body text-sm text-[var(--ink-3)]">
+          Equipment checks are off. Any saved equipment will still be here if
+          you turn them back on.
+        </p>
       ) : (
-        <div className="mt-5 max-w-lg divide-y divide-dashed divide-[var(--line)] rounded-xl border border-[var(--line)] bg-[var(--card)] px-4">
-          {equipment.owned.map((item) => (
-            <div key={item.slug} className="flex items-center gap-3 py-3">
-              <div className="min-w-0 flex-1">
-                <p className="rt-body capitalize text-sm text-[var(--ink)]">
-                  {item.name}
-                </p>
-                <p className="rt-mono text-[var(--ink-3)]">
-                  {item.retired ? "retired equipment" : item.category}
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Remove ${item.name}`}
-                disabled={busy}
-                onClick={() => onRemove(item)}
-                className="text-[var(--ink-3)]"
-              >
-                <X />
-              </Button>
+        <>
+          <form
+            onSubmit={onAdd}
+            className="flex max-w-lg flex-col gap-3 sm:flex-row"
+          >
+            <label className="sr-only" htmlFor="household-equipment">
+              Equipment to add
+            </label>
+            <select
+              id="household-equipment"
+              value={selectedSlug}
+              onChange={(event) => onSelectedSlugChange(event.target.value)}
+              disabled={busy || available.length === 0}
+              className="rt-body h-9 min-w-0 flex-1 rounded-md border border-[var(--line-strong)] bg-[var(--card)] px-3 text-sm text-[var(--ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--terracotta)]/40 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="">
+                {available.length === 0
+                  ? "All equipment added"
+                  : "Choose equipment"}
+              </option>
+              {available.map((item) => (
+                <option key={item.slug} value={item.slug}>
+                  {item.name} · {item.category}
+                </option>
+              ))}
+            </select>
+            <Button
+              type="submit"
+              variant="outline"
+              disabled={busy || !selectedSlug}
+            >
+              {adding ? <LoaderCircle className="animate-spin" /> : <Plus />}
+              Add equipment
+            </Button>
+          </form>
+
+          {equipment.owned.length === 0 ? (
+            <div className="mt-5 flex max-w-lg items-center gap-3 rounded-xl border border-dashed border-[var(--line-strong)] bg-[var(--paper-warm)] p-4 text-[var(--ink-3)]">
+              <CookingPot className="size-5 shrink-0" />
+              <p className="rt-body text-sm">No equipment added yet.</p>
             </div>
-          ))}
-        </div>
+          ) : (
+            <div className="mt-5 max-w-lg divide-y divide-dashed divide-[var(--line)] rounded-xl border border-[var(--line)] bg-[var(--card)] px-4">
+              {equipment.owned.map((item) => (
+                <div key={item.slug} className="flex items-center gap-3 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="rt-body capitalize text-sm text-[var(--ink)]">
+                      {item.name}
+                    </p>
+                    <p className="rt-mono text-[var(--ink-3)]">
+                      {item.retired ? "retired equipment" : item.category}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Remove ${item.name}`}
+                    disabled={busy}
+                    onClick={() => onRemove(item)}
+                    className="text-[var(--ink-3)]"
+                  >
+                    <X />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </Section>
   );
@@ -730,6 +774,7 @@ function ManagedHouseholdView({
   onRevoke,
   onAddEquipment,
   onRemoveEquipment,
+  onEquipmentMatchModeChange,
   onDelete,
   onLeave,
 }: Readonly<{
@@ -754,6 +799,7 @@ function ManagedHouseholdView({
   onRevoke: (invitation: HouseholdInvitation) => void;
   onAddEquipment: SubmitEventHandler<HTMLFormElement>;
   onRemoveEquipment: (item: HouseholdEquipmentItem) => void;
+  onEquipmentMatchModeChange: (mode: EquipmentRecipeMatchMode) => void;
   onDelete: () => void;
   onLeave: () => void;
 }>) {
@@ -796,6 +842,7 @@ function ManagedHouseholdView({
         onSelectedSlugChange={onEquipmentSlugChange}
         onAdd={onAddEquipment}
         onRemove={onRemoveEquipment}
+        onMatchModeChange={onEquipmentMatchModeChange}
       />
 
       {isOwner && (
@@ -868,6 +915,10 @@ export function HouseholdPanel({
       }),
       queryClient.invalidateQueries({
         queryKey: recipeQueryKeys.pantry(currentUser.id),
+        exact: true,
+      }),
+      queryClient.invalidateQueries({
+        queryKey: recipeQueryKeys.equipmentReadiness(currentUser.id),
         exact: true,
       }),
     ]);
@@ -1015,6 +1066,10 @@ export function HouseholdPanel({
           : current.equipment,
       }));
       setEquipmentSlug("");
+      await queryClient.invalidateQueries({
+        queryKey: recipeQueryKeys.equipmentReadiness(currentUser.id),
+        exact: true,
+      });
       setNotice(`${added.name} added to the household.`);
     });
   };
@@ -1034,7 +1089,29 @@ export function HouseholdPanel({
             }
           : current.equipment,
       }));
+      await queryClient.invalidateQueries({
+        queryKey: recipeQueryKeys.equipmentReadiness(currentUser.id),
+        exact: true,
+      });
       setNotice(`${item.name} removed from the household.`);
+    });
+  }
+
+  function onEquipmentMatchModeChange(mode: EquipmentRecipeMatchMode) {
+    if (!household || !equipment || equipment.recipeMatchMode === mode) return;
+    run("save-equipment-mode", async () => {
+      const updated = await saveHouseholdEquipmentMatchMode(household.id, mode);
+      updateHouseholdData((current) => ({
+        ...current,
+        equipment: current.equipment
+          ? { ...current.equipment, recipeMatchMode: updated.recipeMatchMode }
+          : current.equipment,
+      }));
+      await queryClient.invalidateQueries({
+        queryKey: recipeQueryKeys.equipmentReadiness(currentUser.id),
+        exact: true,
+      });
+      setNotice("Equipment matching preference saved.");
     });
   }
 
@@ -1133,6 +1210,7 @@ export function HouseholdPanel({
       onRevoke={revokeInvitation}
       onAddEquipment={onAddEquipment}
       onRemoveEquipment={onRemoveEquipment}
+      onEquipmentMatchModeChange={onEquipmentMatchModeChange}
       onDelete={deleteCurrentHousehold}
       onLeave={leaveCurrentHousehold}
     />

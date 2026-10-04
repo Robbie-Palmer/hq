@@ -16,6 +16,7 @@ export type ShoppingRecipe = {
   cuisine: string[];
   totalTime?: number;
   ingredients: RecipeIngredientView[];
+  cookware?: string[];
 };
 
 export function recipeRecordsToShoppingRecipes(
@@ -46,6 +47,7 @@ export function recipeRecordsToShoppingRecipes(
             category: ingredientCategories.get(item.ingredient),
           })),
         ),
+        cookware: recipe.cookware,
       },
     ];
   });

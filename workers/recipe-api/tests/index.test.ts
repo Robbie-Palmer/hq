@@ -1,6 +1,6 @@
-import { beforeEach, describe, it, expect, vi } from "vitest";
 import postgres from "postgres";
 import type { PantryLocation } from "recipe-domain/pantry";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -35,6 +35,7 @@ const dbMock = vi.hoisted(() => {
     slug: string;
     logo: string | null;
     metadata: string | null;
+    equipmentRecipeMatchMode?: "hide" | "warn" | "disabled";
     createdAt: Date;
     updatedAt: Date;
   };
@@ -253,6 +254,7 @@ const dbMock = vi.hoisted(() => {
     organization.slug,
     organization.logo,
     organization.metadata,
+    organization.equipmentRecipeMatchMode ?? "warn",
     organization.createdAt,
     organization.updatedAt,
   ];
@@ -510,6 +512,7 @@ const dbMock = vi.hoisted(() => {
         slug: params[2] as string,
         logo: null,
         metadata: null,
+        equipmentRecipeMatchMode: "warn",
         createdAt: date,
         updatedAt: date,
       };
@@ -1158,20 +1161,37 @@ const dbMock = vi.hoisted(() => {
     }
   }
 
+  function updateOrganizationRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
+    if (!query.startsWith('update "organization"')) return undefined;
+    const householdId = params.at(-1) as string;
+    const organization = state.organizations.find(
+      (candidate) => candidate.id === householdId,
+    );
+    if (!organization) return [];
+    if (query.includes('set "equipment_recipe_match_mode"')) {
+      organization.equipmentRecipeMatchMode = params[0] as
+        | "hide"
+        | "warn"
+        | "disabled";
+    } else {
+      organization.name = params[0] as string;
+    }
+    organization.updatedAt = date;
+    if (!query.includes("returning")) return [];
+    return query.includes('returning "equipment_recipe_match_mode"')
+      ? [[organization.equipmentRecipeMatchMode]]
+      : [organizationRow(organization)];
+  }
+
   function updateHouseholdRows(
     query: string,
     params: unknown[],
   ): QueryRows | undefined {
-    if (query.startsWith('update "organization"')) {
-      const householdId = params.at(-1) as string;
-      const organization = state.organizations.find(
-        (candidate) => candidate.id === householdId,
-      );
-      if (!organization) return [];
-      organization.name = params[0] as string;
-      organization.updatedAt = date;
-      return query.includes("returning") ? [organizationRow(organization)] : [];
-    }
+    const organizationRows = updateOrganizationRows(query, params);
+    if (organizationRows) return organizationRows;
 
     if (query.startsWith('update "cooking_session"')) {
       const completedAt = params[0] as Date;
@@ -1459,6 +1479,12 @@ const dbMock = vi.hoisted(() => {
     query: string,
     params: unknown[],
   ): QueryRows | undefined {
+    if (query.startsWith('select "equipment_recipe_match_mode" from "organization"')) {
+      const householdId = params[0] as string;
+      return state.organizations
+        .filter((organization) => organization.id === householdId)
+        .map((organization) => [organization.equipmentRecipeMatchMode ?? "warn"]);
+    }
     if (query.includes('from "organization"') && query.includes('"organization"."id"')) {
       const householdId = params[0] as string;
       return state.organizations
@@ -6299,6 +6325,7 @@ describe("household membership flows", () => {
 
     expect(listResponse.status).toBe(200);
     expect(await listResponse.json()).toMatchObject({
+      recipeMatchMode: "warn",
       catalog: expect.arrayContaining([
         expect.objectContaining({ slug: "frying-pan" }),
       ]),
@@ -6309,6 +6336,42 @@ describe("household membership flows", () => {
           category: "cookware",
         }),
       ],
+    });
+  });
+
+  it("lets members choose or disable equipment matching", async () => {
+    seedHousehold();
+    authzMock.session = sessionFor({
+      id: "member-user",
+      email: "member@example.test",
+      name: "Member",
+    });
+
+    for (const recipeMatchMode of ["hide", "disabled"] as const) {
+      const updateResponse = await app.request(
+        `/households/${HOUSEHOLD_ID}/equipment`,
+        {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+            origin: "http://localhost:3000",
+          },
+          body: JSON.stringify({ recipeMatchMode }),
+        },
+        env,
+      );
+
+      expect(updateResponse.status).toBe(200);
+      expect(await updateResponse.json()).toEqual({ recipeMatchMode });
+    }
+
+    const listResponse = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment`,
+      {},
+      env,
+    );
+    expect(await listResponse.json()).toMatchObject({
+      recipeMatchMode: "disabled",
     });
   });
 

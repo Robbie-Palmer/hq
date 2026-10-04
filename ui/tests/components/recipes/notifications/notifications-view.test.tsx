@@ -92,7 +92,8 @@ describe("NotificationsView", () => {
 
   it("keeps an accepted invitation as a read, resolved notification", async () => {
     const user = userEvent.setup();
-    renderNotifications();
+    const { queryClient } = renderNotifications();
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
 
     await user.click(await screen.findByRole("button", { name: "Accept" }));
 
@@ -109,6 +110,10 @@ describe("NotificationsView", () => {
       "accept",
     );
     expect(mocks.updateNotification).not.toHaveBeenCalled();
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: recipeQueryKeys.equipmentReadiness("user-1"),
+      exact: true,
+    });
   });
 
   it("shows the initial notification load error", async () => {
