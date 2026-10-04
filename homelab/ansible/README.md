@@ -50,8 +50,9 @@ container image. A second run skips `nixos-rebuild` when the host already runs
 that revision.
 
 `ansible-check-mac` previews the permanent Mac host changes. The apply command
-installs the pinned Ente CLI, wrapper, launchd jobs, and Netdata alarms. It
-does not start an export. The daily job retains its 03:00 schedule.
+installs the pinned Ente CLI, wrappers, launchd jobs, and Netdata alarms. It
+does not start an export or a worktree cleanup. The Ente job retains its 03:00
+schedule.
 
 The role uses the live system inspected on 2026-09-03. The CLI credentials stay
 in `~/.ente/ente-cli.db`, mode `0600`, and never enter Ansible output. The
@@ -63,6 +64,43 @@ last-run gauges to Netdata once per minute.
 The `ente_export` role is temporary. Delete it after the export schedule,
 mount guard, runtime watchdog, and monitoring are owned by a K3s CronJob or
 another checked-in host configuration and the launchd jobs have been retired.
+
+## T3 worktree cleanup
+
+The `t3_worktree_cleanup` role installs a daily 04:30 LaunchAgent. It reads
+T3's local SQLite projection and considers only worktrees for threads that
+were deleted for at least two days, archived for at least seven days, or
+settled for at least seven days. It skips pinned threads, active provider
+sessions, pending approvals, pending user input, Git index locks, and
+worktrees referenced by a running process. An unknown database schema stops
+the entire run.
+
+Clean worktrees are removed with `git worktree remove`. Before removing a
+dirty worktree, the script stashes tracked and untracked files and copies the
+stash commit to `refs/t3-worktree-archive/<thread>/<timestamp>`. The branch is
+never deleted. Ignored dependency and build output is intentionally omitted
+from recovery refs.
+
+Inspect the exact candidates before a manual cleanup:
+
+```bash
+mise run //homelab:t3-worktree-cleanup-dry-run
+mise run //homelab:t3-worktree-cleanup
+```
+
+The LaunchAgent writes to
+`~/Library/Logs/homelab/t3-worktree-cleanup.log`. Ansible installs and reloads
+the job but never invokes a cleanup during configuration.
+
+Recover archived changes by recreating the retained branch and applying its
+archive ref:
+
+```bash
+git for-each-ref --format='%(refname)' refs/t3-worktree-archive/<thread-id>/
+git worktree add ~/.t3/worktrees/recovered/<thread-id> <retained-branch>
+git -C ~/.t3/worktrees/recovered/<thread-id> stash apply \
+  refs/t3-worktree-archive/<thread-id>/stash-<timestamp>
+```
 
 The verification playbook reads marker metadata only. Normal and verbose
 Ansible output does not print the launchd job, mount table, or marker path.
