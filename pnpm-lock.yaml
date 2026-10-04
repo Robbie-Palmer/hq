@@ -307,8 +307,8 @@ importers:
   ml-pipelines/recipe-dataset:
     dependencies:
       '@cooklang/cooklang':
-        specifier: ^0.18.0
-        version: 0.18.7(patch_hash=85b684e1c0e18dedb7ebd9e043c0c937dc04446f8417852c7f5af27b4b423ec7)
+        specifier: ^0.19.0
+        version: 0.19.0
 
   ml-pipelines/recipe-parsing:
     dependencies:
@@ -1749,6 +1749,9 @@ packages:
 
   '@cooklang/cooklang@0.18.7':
     resolution: {integrity: sha512-wvPecy5NoKt28CUjkJdZmpg8onDct/qHjbINO0KfwBLO0M9uXNBlXlW0I6DKSY11ZNf/XTKqij35y/1uWmXy2w==}
+
+  '@cooklang/cooklang@0.19.0':
+    resolution: {integrity: sha512-Afumap5dMI1k43KjpLrSctNNGm0V9nxg0bpsu61/F5g7Vam5dQGjzNjUhbHFTKEdQBFRPe+n8hb2ZaBOjxyb4w==}
 
   '@corvu/utils@0.4.2':
     resolution: {integrity: sha512-Ox2kYyxy7NoXdKWdHeDEjZxClwzO4SKM8plAaVwmAJPxHMqA0rLOoAsa+hBDwRLpctf+ZRnAd/ykguuJidnaTA==}
@@ -9687,6 +9690,8 @@ snapshots:
   '@cloudflare/workers-types@5.20260930.2': {}
 
   '@cooklang/cooklang@0.18.7(patch_hash=85b684e1c0e18dedb7ebd9e043c0c937dc04446f8417852c7f5af27b4b423ec7)': {}
+
+  '@cooklang/cooklang@0.19.0': {}
 
   '@corvu/utils@0.4.2(solid-js@1.9.15)':
     dependencies:

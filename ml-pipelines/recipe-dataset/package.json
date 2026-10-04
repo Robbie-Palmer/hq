@@ -4,6 +4,6 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@cooklang/cooklang": "^0.18.0"
+    "@cooklang/cooklang": "^0.19.0"
   }
 }
