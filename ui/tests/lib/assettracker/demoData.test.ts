@@ -230,6 +230,32 @@ describe("Asset Tracker demo-data adapter", () => {
       },
     });
     expect(repository.accounts.get("home")?.assetType).toBe("property");
+    expect(repository.mortgageScenarios).toContainEqual(
+      expect.objectContaining({
+        id: "five-year-fix",
+        name: "Five-year fix",
+        decisionRecordId: "five-year-fix-decision",
+        source: {
+          mortgageAccountId: "home-mortgage",
+          propertyAccountId: "home",
+          snapshotDate: "2024-12-01",
+        },
+        assumptions: expect.objectContaining({
+          fixedPeriodEnd: "2030-01-01",
+          initialAnnualRate: 0.0425,
+          followOnAnnualRate: 0.0525,
+          termMonths: 274,
+        }),
+      }),
+    );
+    expect(repository.decisionRecords).toContainEqual({
+      id: "five-year-fix-decision",
+      kind: "mortgage",
+      title: "Five-year fix",
+      scenarioId: "five-year-fix",
+      recordedAt: "2024-12-01",
+      status: "recorded",
+    });
   });
 
   it("uses the corrected USD market price in the latest valuation", () => {

@@ -4,6 +4,7 @@ import { useAssetTracker } from "@/components/assettracker/asset-tracker-provide
 import { CashFlowRoute } from "@/components/assettracker/cash-flow-route";
 import { HistoryRoute } from "@/components/assettracker/history-route";
 import { ImportsRoute } from "@/components/assettracker/imports-route";
+import { MortgageRoute } from "@/components/assettracker/mortgage-route";
 import { PlanningRoute } from "@/components/assettracker/planning-route";
 import { SettingsRoute } from "@/components/assettracker/settings-route";
 
@@ -65,6 +66,18 @@ vi.mock("@/components/assettracker/portfolio-goal", () => ({
   ),
 }));
 
+vi.mock("@/components/assettracker/mortgage-calculator", () => ({
+  MortgageCalculator: () => <p>Mortgage calculator</p>,
+}));
+
+vi.mock("@/components/assettracker/mortgage-investment-comparison", () => ({
+  MortgageInvestmentComparison: () => <p>Mortgage versus investing</p>,
+}));
+
+vi.mock("@/components/assettracker/housing-strategy-planner", () => ({
+  HousingStrategyPlanner: () => <p>Housing strategy</p>,
+}));
+
 vi.mock("@/components/assettracker/data-controls", () => ({
   DataControls: ({ mode }: { mode?: string }) => <p>Data controls: {mode}</p>,
 }));
@@ -120,6 +133,18 @@ describe("Asset Tracker feature routes", () => {
     expect(
       screen.getByText("Planning tools without income: true"),
     ).toBeVisible();
+    expect(screen.queryByText("Mortgage calculator")).not.toBeInTheDocument();
+  });
+
+  it("composes mortgage planning separately from FI planning", () => {
+    render(<MortgageRoute />);
+
+    expect(screen.getByText("Mortgage calculator")).toBeVisible();
+    expect(screen.getByText("Mortgage versus investing")).toBeVisible();
+    expect(screen.getByText("Housing strategy")).toBeVisible();
+    expect(
+      screen.queryByText("Planning tools without income: true"),
+    ).not.toBeInTheDocument();
   });
 
   it("separates imports from household settings", () => {

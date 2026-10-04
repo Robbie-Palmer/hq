@@ -24,7 +24,7 @@ export function DecisionsRoute() {
       <div className="rounded-lg border border-dashed px-6 py-12 text-center">
         <h2 className="text-lg font-semibold">No decision records yet</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Record a mortgage scenario from the Planning page to keep its inputs
+          Record a mortgage scenario from the Mortgage page to keep its inputs
           and source facts here.
         </p>
       </div>

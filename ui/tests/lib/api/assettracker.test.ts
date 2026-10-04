@@ -59,8 +59,9 @@ describe("createLocalAssetTrackerApi", () => {
   });
 
   it("persists mortgage scenarios with linked decision records", async () => {
+    const seed = getDemoAssetTrackerData();
     await createApi().saveMortgageScenario({
-      name: "Five-year fix",
+      name: "Two-year fix",
       recordDecision: true,
       source: {
         mortgageAccountId: "home-mortgage",
@@ -89,27 +90,32 @@ describe("createLocalAssetTrackerApi", () => {
     });
 
     const { data } = await createApi().load();
-    expect(data.mortgageScenarios).toHaveLength(1);
-    expect(data.mortgageScenarios?.[0]).toMatchObject({
-      id: "five-year-fix",
-      name: "Five-year fix",
-      decisionRecordId: "five-year-fix-decision",
-      source: {
-        mortgageAccountId: "home-mortgage",
-        propertyAccountId: "home",
-        snapshotDate: "2026-01-31",
-      },
+    expect(data.mortgageScenarios).toHaveLength(
+      (seed.mortgageScenarios?.length ?? 0) + 1,
+    );
+    expect(data.mortgageScenarios).toContainEqual(
+      expect.objectContaining({
+        id: "two-year-fix",
+        name: "Two-year fix",
+        decisionRecordId: "two-year-fix-decision",
+        source: {
+          mortgageAccountId: "home-mortgage",
+          propertyAccountId: "home",
+          snapshotDate: "2026-01-31",
+        },
+      }),
+    );
+    expect(data.decisionRecords).toHaveLength(
+      (seed.decisionRecords?.length ?? 0) + 1,
+    );
+    expect(data.decisionRecords).toContainEqual({
+      id: "two-year-fix-decision",
+      kind: "mortgage",
+      title: "Two-year fix",
+      scenarioId: "two-year-fix",
+      recordedAt: expect.any(String),
+      status: "recorded",
     });
-    expect(data.decisionRecords).toEqual([
-      {
-        id: "five-year-fix-decision",
-        kind: "mortgage",
-        title: "Five-year fix",
-        scenarioId: "five-year-fix",
-        recordedAt: expect.any(String),
-        status: "recorded",
-      },
-    ]);
   });
 
   it("persists an atomic account-history import", async () => {
