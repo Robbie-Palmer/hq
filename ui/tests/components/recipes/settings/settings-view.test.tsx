@@ -529,6 +529,42 @@ describe("SettingsView", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("lets household members save custom equipment", async () => {
+    const user = userEvent.setup();
+    mockMemberHousehold();
+    mocks.getHouseholdEquipment.mockResolvedValue({
+      catalog: [{ slug: "blender", name: "blender", category: "appliance" }],
+      owned: [],
+      recipeMatchMode: "warn",
+    });
+    mocks.addHouseholdEquipment.mockResolvedValue({
+      slug: "blender jar",
+      name: "blender jar",
+      createdAt: "2026-10-03T00:00:00.000Z",
+      retired: false,
+      unresolved: true,
+    });
+    renderSettingsView();
+
+    await user.click(screen.getByRole("button", { name: "Household" }));
+    await user.type(
+      await screen.findByLabelText("Custom equipment"),
+      "blender jar",
+    );
+    await user.click(screen.getByRole("button", { name: "Add equipment" }));
+
+    await waitFor(() =>
+      expect(mocks.addHouseholdEquipment).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000001",
+        "blender jar",
+      ),
+    );
+    expect(screen.getByLabelText("Custom equipment")).toHaveValue("");
+    expect(
+      screen.getByText("saved as written, automatic matching unavailable"),
+    ).toBeInTheDocument();
+  });
+
   it("lets a household member hide recipes that need missing equipment", async () => {
     const user = userEvent.setup();
     mockMemberHousehold();

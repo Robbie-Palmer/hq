@@ -15,6 +15,13 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import {
+  AUTHORED_TERM_KINDS,
+  AUTHORED_TERM_RESOLUTION_STATUSES,
+  type AuthoredTermCandidate,
+  type AuthoredTermProvenance,
+  type AuthoredTermSourceContext,
+} from "recipe-domain/authored-term";
 import type { CookLogMutationValue } from "recipe-domain/cook-log";
 import {
   RECIPE_IMPORT_STAGES,
@@ -573,6 +580,78 @@ export const ingredient = pgTable("ingredient", {
     .$onUpdate(() => new Date()),
 });
 
+export const authoredTermKindEnum = pgEnum(
+  "authored_term_kind",
+  AUTHORED_TERM_KINDS,
+);
+export const authoredTermResolutionStatusEnum = pgEnum(
+  "authored_term_resolution_status",
+  AUTHORED_TERM_RESOLUTION_STATUSES,
+);
+
+/**
+ * A tenant-scoped observation of text that may not exist in a canonical
+ * ingredient or equipment registry. Structured features use canonicalSlug;
+ * raw and normalized text remain available when that link is absent.
+ */
+export const authoredTerm = pgTable(
+  "authored_term",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    userId: text().references(() => user.id, { onDelete: "cascade" }),
+    organizationId: text().references(() => organization.id, {
+      onDelete: "cascade",
+    }),
+    kind: authoredTermKindEnum().notNull(),
+    rawText: text().notNull(),
+    normalizedText: text().notNull(),
+    locale: text().notNull().default("und"),
+    sourceContext: jsonb().$type<AuthoredTermSourceContext>().notNull(),
+    provenance: jsonb().$type<AuthoredTermProvenance>().notNull(),
+    candidateMatches: jsonb()
+      .$type<AuthoredTermCandidate[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    frequency: integer().notNull().default(1),
+    resolutionStatus: authoredTermResolutionStatusEnum()
+      .notNull()
+      .default("unresolved"),
+    canonicalSlug: text(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    check(
+      "authored_term_owner_check",
+      sql`num_nonnulls(${table.userId}, ${table.organizationId}) = 1`,
+    ),
+    check("authored_term_raw_text_check", sql`length(${table.rawText}) > 0`),
+    check(
+      "authored_term_normalized_text_check",
+      sql`length(${table.normalizedText}) > 0`,
+    ),
+    check("authored_term_frequency_check", sql`${table.frequency} > 0`),
+    check(
+      "authored_term_resolution_check",
+      sql`(${table.resolutionStatus} = 'resolved') = (${table.canonicalSlug} is not null)`,
+    ),
+    uniqueIndex("authored_term_user_kind_normalized_uidx")
+      .on(table.userId, table.kind, table.normalizedText)
+      .where(sql`${table.userId} is not null`),
+    uniqueIndex("authored_term_household_kind_normalized_uidx")
+      .on(table.organizationId, table.kind, table.normalizedText)
+      .where(sql`${table.organizationId} is not null`),
+    index("authored_term_canonical_slug_idx").on(
+      table.kind,
+      table.canonicalSlug,
+    ),
+  ],
+);
+
 export const pantryLocationEnum = pgEnum("pantry_location", PANTRY_LOCATIONS);
 
 /**
@@ -636,9 +715,7 @@ export const pantryItem = pgTable(
     organizationId: text().references(() => organization.id, {
       onDelete: "cascade",
     }),
-    ingredientSlug: text()
-      .notNull()
-      .references(() => ingredient.slug, { onDelete: "cascade" }),
+    ingredientSlug: text().notNull(),
     location: pantryLocationEnum().notNull(),
     version: bigint({ mode: "bigint" }).notNull().default(sql`1`),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
@@ -1007,9 +1084,7 @@ export const userDietExcludedIngredient = pgTable(
     userId: text()
       .notNull()
       .references(() => userDietProfile.userId, { onDelete: "cascade" }),
-    ingredientSlug: text()
-      .notNull()
-      .references(() => ingredient.slug, { onDelete: "cascade" }),
+    ingredientSlug: text().notNull(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

@@ -1,3 +1,4 @@
+import type { UnresolvedAuthoredTerm } from "@/lib/api/authored-terms";
 import { apiRequest } from "@/lib/api/http";
 
 export type DietRecipeMatchMode = "hide" | "warn";
@@ -7,6 +8,7 @@ export type DietProfile = {
   excludedIngredientSlugs: string[];
   excludedGroupKeys: string[];
   recipeMatchMode: DietRecipeMatchMode;
+  unresolvedTerms?: UnresolvedAuthoredTerm[];
 };
 
 export type DietIngredientOption = {
@@ -43,6 +45,7 @@ export const emptyDietProfile: DietProfile = {
   excludedIngredientSlugs: [],
   excludedGroupKeys: [],
   recipeMatchMode: "hide",
+  unresolvedTerms: [],
 };
 
 export const emptyDietOptions: DietOptions = {
@@ -73,9 +76,10 @@ export async function saveDietProfile(
   profile: DietProfile,
   signal?: AbortSignal,
 ): Promise<DietProfile> {
+  const { unresolvedTerms: _unresolvedTerms, ...request } = profile;
   return apiRequest("/api/profile/diet", {
     method: "PUT",
-    json: profile,
+    json: request,
     signal,
     fallbackMessage: "Diet profile request failed.",
   });

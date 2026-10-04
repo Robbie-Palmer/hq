@@ -59,6 +59,11 @@ export function buildEffectiveDiet(
   const ingredientNames = new Map(
     options.ingredients.map((ingredient) => [ingredient.slug, ingredient.name]),
   );
+  const unresolvedIngredientSlugs = new Set(
+    (profile.unresolvedTerms ?? [])
+      .filter((term) => term.kind === "ingredient")
+      .map((term) => term.normalizedText),
+  );
   const presetGroups = profile.presetDietKeys.flatMap(
     (key) => presetByKey.get(key)?.excludedGroupKeys ?? [],
   );
@@ -73,7 +78,9 @@ export function buildEffectiveDiet(
     ),
   ]);
   const excludedIngredientSlugs = new Set([
-    ...profile.excludedIngredientSlugs,
+    ...profile.excludedIngredientSlugs.filter(
+      (slug) => !unresolvedIngredientSlugs.has(slug),
+    ),
     ...presetExcludedIngredientSlugs,
     ...Array.from(groupKeys).flatMap(
       (key) => groupByKey.get(key)?.ingredientSlugs ?? [],

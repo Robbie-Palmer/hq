@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./ingredient": "./src/ingredient.ts",
+    "./authored-term": "./src/authored-term.ts",
     "./ingredient-normalization": "./src/ingredient-normalization.ts",
     "./import-storage": "./src/import-storage.ts",
     "./mutation": "./src/mutation.ts",
