@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { formatCurrency, todayIsoDate } from "@/lib/assettracker";
 import {
+  type AccountDetailView,
   calculateMortgageOptions,
   type MortgageCalculatorAssumptions,
   type MortgageScenarioSource,
@@ -25,6 +26,22 @@ import {
   MortgageRateStress,
   MortgageScheduleDetails,
 } from "./mortgage-calculator-results";
+
+function describeSource(
+  source: MortgageScenarioSource,
+  accountDetails: AccountDetailView[],
+): string {
+  const accountNames = new Map(
+    accountDetails.map((account) => [account.id, account.name]),
+  );
+  const names = [source.mortgageAccountId, source.propertyAccountId]
+    .filter((id): id is string => id != null)
+    .map((id) => accountNames.get(id) ?? id);
+  if (names.length === 0) return "Hypothetical mortgage";
+  const snapshot =
+    source.snapshotDate == null ? "" : ` at ${source.snapshotDate}`;
+  return `${names.join(" and ")}${snapshot}`;
+}
 
 export function MortgageCalculator() {
   const {
@@ -64,6 +81,10 @@ export function MortgageCalculator() {
   >("idle");
   const assumptions = editedAssumptions ?? defaults.assumptions;
   const source = editedSource ?? defaults.source;
+  const sourceLabel =
+    editedSource == null
+      ? defaults.sourceLabel
+      : describeSource(editedSource, accountDetails);
   const result = useMemo(
     () => calculateMortgageOptions(assumptions),
     [assumptions],
@@ -97,7 +118,7 @@ export function MortgageCalculator() {
       <CardContent className="space-y-5 px-4 sm:px-6">
         <div className="rounded-md border p-3 text-sm">
           <p className="text-xs text-muted-foreground">Starting facts</p>
-          <p className="mt-1 font-medium">{defaults.sourceLabel}</p>
+          <p className="mt-1 font-medium">{sourceLabel}</p>
         </div>
         <MortgageCalculatorHighlights result={result} money={money} />
         {result.selected.fundingShortfall > 0 && (

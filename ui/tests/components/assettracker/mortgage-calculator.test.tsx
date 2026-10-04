@@ -124,6 +124,56 @@ describe("MortgageCalculator", () => {
     );
   });
 
+  it("shows the source facts from a loaded scenario", async () => {
+    const context = mockUseAssetTracker();
+    mockUseAssetTracker.mockReturnValue({
+      ...context,
+      accountDetails: [
+        ...context.accountDetails,
+        account({ id: "old-home", name: "Previous home" }),
+        account({ id: "old-mortgage", name: "Previous mortgage" }),
+      ],
+      mortgageScenarios: [
+        {
+          id: "previous-home-fix",
+          name: "Previous home fix",
+          createdAt: "2025-06-01",
+          source: {
+            mortgageAccountId: "old-mortgage",
+            propertyAccountId: "old-home",
+            snapshotDate: "2025-06-01",
+          },
+          assumptions: {
+            purchasePrice: 250_000,
+            availableFunds: 75_000,
+            depositAmount: 50_000,
+            initialAnnualRate: 0.04,
+            termMonths: 240,
+            repaymentType: "repayment",
+            firstPaymentDate: "2025-07-01",
+            followOnAnnualRate: 0.06,
+            refinanceFee: 999,
+            purchaseFees: 0,
+            taxes: 0,
+            transactionCosts: 0,
+            monthlyOverpayment: 0,
+            overpaymentAllowance: 20_000,
+            overpaymentChargeRate: 0.05,
+          },
+        },
+      ],
+    } as ReturnType<typeof useAssetTracker>);
+    render(<MortgageCalculator />);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Previous home fix" }),
+    );
+
+    expect(
+      screen.getByText("Previous mortgage and Previous home at 2025-06-01"),
+    ).toBeVisible();
+  });
+
   it("uses labelled hypothetical assumptions without complete housing facts", () => {
     const model = buildMortgageCalculatorModel({
       asOfDate: "2026-06-15",
