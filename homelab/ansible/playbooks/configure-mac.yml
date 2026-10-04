@@ -7,3 +7,6 @@
   roles:
     - ente_export
     - colima_k3s
+    - role: t3_worktree_cleanup
+      tags:
+        - t3_worktree_cleanup

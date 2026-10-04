@@ -65,10 +65,23 @@ description = "Apply Mac host and isolated K3s pilot configuration"
 dir = "ansible"
 run = "ansible-playbook playbooks/configure-mac.yml --diff"
 
+[tasks.ansible-configure-t3-worktree-cleanup]
+description = "Install or update only the Mac T3 worktree cleanup job"
+dir = "ansible"
+run = "ansible-playbook playbooks/configure-mac.yml --diff --tags t3_worktree_cleanup"
+
 [tasks.ansible-verify-ente-fail-closed]
 description = "Prove the Ente wrapper rejects an absent volume and enforces its runtime limit"
 dir = "ansible"
 run = "ansible-playbook playbooks/verify-ente-fail-closed.yml"
+
+[tasks.t3-worktree-cleanup-dry-run]
+description = "Report T3 worktrees eligible for cleanup without changing them"
+run = '"$HOME/.local/bin/t3-worktree-cleanup" --dry-run'
+
+[tasks.t3-worktree-cleanup]
+description = "Archive dirty changes and remove eligible T3 worktree checkouts"
+run = '"$HOME/.local/bin/t3-worktree-cleanup" --apply'
 
 [tasks.doppler-check]
 description = "Verify access to the homelab production secret config without printing values"

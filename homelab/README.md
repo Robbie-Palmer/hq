@@ -452,10 +452,13 @@ mise run //homelab:ansible-verify-ente-fail-closed
 ```
 
 The facts and verification commands connect to each live host in turn without
-changing remote state. The Mac configuration command owns the native Ente job
-and a separate `homelab-k3s` Colima profile. See
+changing remote state. The Mac configuration command owns the native Ente job,
+daily T3 worktree cleanup, and a separate `homelab-k3s` Colima profile. The
+cleanup retains branches and archives dirty tracked and untracked files in
+durable `refs/t3-worktree-archive/...` refs before removing a checkout. See
 [`ansible/README.md`](ansible/README.md) for first-connection setup and the
-reviewed apply command, profile boundaries, and ADR 022 acceptance run.
+reviewed apply command, cleanup policy, profile boundaries, and ADR 022
+acceptance run.
 
 [ADR 024](/projects/homelab/adrs/024-doppler-secrets) assigns homelab secrets
 to the separate Doppler `homelab` project. Check access without printing values

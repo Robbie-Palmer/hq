@@ -254,6 +254,27 @@
               <= ente_export_max_age_hours * 3600
           }}
 
+    - name: Inspect the T3 worktree cleanup job
+      ansible.builtin.command:
+        argv:
+          - launchctl
+          - print
+          - "gui/{{ ansible_facts.user_uid }}/{{ t3_worktree_cleanup_launchd_label }}"
+      check_mode: false
+      changed_when: false
+      failed_when: false
+      register: t3_worktree_cleanup_status
+
+    - name: Report T3 worktree cleanup health
+      ansible.builtin.debug:
+        msg: >-
+          T3 worktree cleanup:
+          {{ 'OK' if t3_worktree_cleanup_status.rc == 0 else 'FAILED, launchd job is not loaded' }}
+
+    - name: Record T3 worktree cleanup health
+      ansible.builtin.set_fact:
+        t3_worktree_cleanup_healthy: "{{ t3_worktree_cleanup_status.rc == 0 }}"
+
 - name: Verify Asus GPU path
   hosts: asus-desktop
   gather_facts: false
@@ -298,5 +319,6 @@
           - hostvars['mac-mini'].mac_workloads_healthy | default(false)
           - hostvars['mac-mini'].mac_k3s_healthy | default(false)
           - hostvars['mac-mini'].ente_export_healthy | default(false)
+          - hostvars['mac-mini'].t3_worktree_cleanup_healthy | default(false)
           - hostvars['asus-desktop'].asus_gpu_healthy | default(false)
         fail_msg: One or more fleet health checks reported FAILED above.
