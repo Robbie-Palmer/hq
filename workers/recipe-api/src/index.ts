@@ -2111,29 +2111,25 @@ async function observeIngredientTerms(
           .from(schema.ingredient)
           .where(inArray(schema.ingredient.slug, candidateSlugs));
   const canonicalSlugs = new Set(knownRows.map(({ slug }) => slug));
-  const observed: Array<{ key: string; canonicalSlug: string | null }> = [];
-  for (const rawText of input.rawTerms) {
+  return Promise.all(input.rawTerms.map((rawText) => {
     const normalizedSlug = normalizeSlug(rawText);
-    observed.push(
-      await observeAuthoredTerm(tx, input.owner, {
-        kind: "ingredient",
-        rawText,
-        locale: input.locale,
-        sourceContext: {
-          flow: input.flow,
-          ...(input.resourceId ? { resourceId: input.resourceId } : {}),
-          field: input.flow === "recipe" ? "ingredients" : "ingredient",
-        },
-        provenance: { kind: "user", actorUserId: input.actorUserId },
-        candidateMatches:
-          normalizedSlug && canonicalSlugs.has(normalizedSlug)
-            ? [{ slug: normalizedSlug, score: 1 }]
-            : [],
-        canonicalSlugs,
-      }),
-    );
-  }
-  return observed;
+    return observeAuthoredTerm(tx, input.owner, {
+      kind: "ingredient",
+      rawText,
+      locale: input.locale,
+      sourceContext: {
+        flow: input.flow,
+        ...(input.resourceId ? { resourceId: input.resourceId } : {}),
+        field: input.flow === "recipe" ? "ingredients" : "ingredient",
+      },
+      provenance: { kind: "user", actorUserId: input.actorUserId },
+      candidateMatches:
+        normalizedSlug && canonicalSlugs.has(normalizedSlug)
+          ? [{ slug: normalizedSlug, score: 1 }]
+          : [],
+      canonicalSlugs,
+    });
+  }));
 }
 
 function normalizedPantryEntries(

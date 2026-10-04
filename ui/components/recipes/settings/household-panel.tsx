@@ -83,6 +83,14 @@ function excludeById<T extends { id: string }>(items: T[], id: string): T[] {
   return items.filter((item) => item.id !== id);
 }
 
+function equipmentStatus(item: HouseholdEquipmentItem): string | undefined {
+  if (item.unresolved) {
+    return "saved as written, automatic matching unavailable";
+  }
+  if (item.retired) return "retired equipment";
+  return item.category;
+}
+
 function Section({
   title,
   sub,
@@ -686,11 +694,7 @@ function HouseholdEquipmentSection({
                       {item.name}
                     </p>
                     <p className="rt-mono text-[var(--ink-3)]">
-                      {item.unresolved
-                        ? "saved as written, automatic matching unavailable"
-                        : item.retired
-                          ? "retired equipment"
-                          : item.category}
+                      {equipmentStatus(item)}
                     </p>
                   </div>
                   <Button

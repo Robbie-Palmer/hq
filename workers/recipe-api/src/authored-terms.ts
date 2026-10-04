@@ -228,37 +228,39 @@ export async function observeRecipeTerms(
     : { kind: "user", actorUserId: input.userId };
   const owner: AuthoredTermOwner = { type: "user", userId: input.userId };
 
-  for (const rawText of input.ingredientTerms) {
-    const slug = normalizeSlug(rawText);
-    await observeAuthoredTerm(db, owner, {
-      kind: "ingredient",
-      rawText,
-      locale: input.locale,
-      sourceContext: {
-        flow: "recipe",
-        resourceId: input.recipeId,
-        field: "ingredients",
-      },
-      provenance,
-      candidateMatches:
-        slug && ingredientSlugs.has(slug) ? [{ slug, score: 1 }] : [],
-      canonicalSlugs: ingredientSlugs,
-    });
-  }
-  for (const rawText of input.equipmentTerms) {
-    const equipment = canonicalEquipmentTerm(rawText);
-    await observeAuthoredTerm(db, owner, {
-      kind: "equipment",
-      rawText,
-      locale: input.locale,
-      sourceContext: {
-        flow: "recipe",
-        resourceId: input.recipeId,
-        field: "cookware",
-      },
-      provenance,
-      candidateMatches: equipment.candidateMatches,
-      canonicalSlug: equipment.canonicalSlug,
-    });
-  }
+  await Promise.all([
+    ...input.ingredientTerms.map((rawText) => {
+      const slug = normalizeSlug(rawText);
+      return observeAuthoredTerm(db, owner, {
+        kind: "ingredient",
+        rawText,
+        locale: input.locale,
+        sourceContext: {
+          flow: "recipe",
+          resourceId: input.recipeId,
+          field: "ingredients",
+        },
+        provenance,
+        candidateMatches:
+          slug && ingredientSlugs.has(slug) ? [{ slug, score: 1 }] : [],
+        canonicalSlugs: ingredientSlugs,
+      });
+    }),
+    ...input.equipmentTerms.map((rawText) => {
+      const equipment = canonicalEquipmentTerm(rawText);
+      return observeAuthoredTerm(db, owner, {
+        kind: "equipment",
+        rawText,
+        locale: input.locale,
+        sourceContext: {
+          flow: "recipe",
+          resourceId: input.recipeId,
+          field: "cookware",
+        },
+        provenance,
+        candidateMatches: equipment.candidateMatches,
+        canonicalSlug: equipment.canonicalSlug,
+      });
+    }),
+  ]);
 }
