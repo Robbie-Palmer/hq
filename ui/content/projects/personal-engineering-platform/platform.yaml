@@ -647,7 +647,7 @@ policies:
     slot: "web-app.component-maintainability-analysis"
     mode: "required"
     effective_from: "2026-10-04T00:00:00Z"
-    decision: "personal-engineering-platform:025-react-component-maintainability-analysis"
+    decision: "personal-engineering-platform:026-blocking-react-component-budgets"
     prerequisites:
       - slot: "web-app.ui-library"
         technology: "react"

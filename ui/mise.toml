@@ -117,7 +117,7 @@ depends = ["//ui:install"]
 run = "pnpm lint"
 
 [tasks."audit:react-components"]
-description = "Rank oversized or overburdened React components with tsmetrics"
+description = "Reject new or worsened React component hotspots with tsmetrics"
 depends = ["//ui:install"]
 run = "pnpm exec tsx scripts/audit-react-components.ts"
 
@@ -170,8 +170,8 @@ description = "Run all checks (lint, format, typecheck, test)"
 depends = ["//ui:lint", "//ui:lint:duplicate-jsx", "//ui:audit:react-components", "//ui:format:check", "//ui:typecheck", "//ui:test"]
 
 [tasks."check:static"]
-description = "Static checks the production build relies on (type-check + Biome lint), without the slower test suite — gates deploy/preview workflows that skip the in-build type-check"
-depends = ["//ui:typecheck", "//ui:lint", "//ui:lint:duplicate-jsx"]
+description = "Static checks the production build relies on (type-check + lint + component audits), without the slower test suite — gates deploy/preview workflows that skip the in-build type-check"
+depends = ["//ui:typecheck", "//ui:lint", "//ui:lint:duplicate-jsx", "//ui:audit:react-components"]
 
 # Image management tasks
 [tasks."images:sync"]

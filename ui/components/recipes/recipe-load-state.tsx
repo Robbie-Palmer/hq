@@ -26,6 +26,41 @@ export function RecipeLoadError({
   );
 }
 
+function getRecipeQueryStatus({
+  error,
+  hasData,
+  isFetching,
+  isStale,
+  subject,
+}: Readonly<{
+  error: unknown;
+  hasData: boolean;
+  isFetching: boolean;
+  isStale: boolean;
+  subject: string;
+}>): { message: string | null; tone: string } {
+  const defaultTone = "border-[var(--line)] bg-[var(--paper-warm)]";
+  if (error) {
+    const message = hasData
+      ? `The latest refresh failed; cached data for ${subject} is still shown.`
+      : `${subject.charAt(0).toUpperCase()}${subject.slice(1)} could not be loaded.`;
+    return {
+      message,
+      tone: "border-[var(--terracotta)]/30 bg-[var(--terracotta)]/5 text-[var(--ink-2)]",
+    };
+  }
+  if (hasData && isFetching) {
+    return { message: `Refreshing ${subject}…`, tone: defaultTone };
+  }
+  if (hasData && isStale) {
+    return {
+      message: `Cached data for ${subject} is shown; updates will refresh in the background.`,
+      tone: defaultTone,
+    };
+  }
+  return { message: null, tone: defaultTone };
+}
+
 export function RecipeQueryStatus({
   error,
   hasData,
@@ -39,20 +74,13 @@ export function RecipeQueryStatus({
   isStale: boolean;
   subject: string;
 }>) {
-  let message: string | null = null;
-  let tone = "border-[var(--line)] bg-[var(--paper-warm)]";
-
-  if (error) {
-    message = hasData
-      ? `The latest refresh failed; cached data for ${subject} is still shown.`
-      : `${subject.charAt(0).toUpperCase()}${subject.slice(1)} could not be loaded.`;
-    tone =
-      "border-[var(--terracotta)]/30 bg-[var(--terracotta)]/5 text-[var(--ink-2)]";
-  } else if (hasData && isFetching) {
-    message = `Refreshing ${subject}…`;
-  } else if (hasData && isStale) {
-    message = `Cached data for ${subject} is shown; updates will refresh in the background.`;
-  }
+  const { message, tone } = getRecipeQueryStatus({
+    error,
+    hasData,
+    isFetching,
+    isStale,
+    subject,
+  });
 
   if (!message) return null;
 

@@ -38,10 +38,7 @@ const destinations = [
   },
 ] as const;
 
-export function RecipeNavTabs() {
-  const pathname = usePathname();
-  const count = useSelectedRecipeCount();
-
+function getActiveDestinations(pathname: string | null) {
   const onShopping = pathname === "/recipes/shopping";
   const onKitchen = pathname === "/recipes/kitchen";
   const onLog = pathname === "/recipes/log";
@@ -66,6 +63,13 @@ export function RecipeNavTabs() {
     "/recipes/log": onLog,
     "/recipes/discover": onDiscover,
   } satisfies Record<(typeof destinations)[number]["href"], boolean>;
+  return activeDestinations;
+}
+
+export function RecipeNavTabs() {
+  const pathname = usePathname();
+  const count = useSelectedRecipeCount();
+  const activeDestinations = getActiveDestinations(pathname);
 
   return (
     <nav

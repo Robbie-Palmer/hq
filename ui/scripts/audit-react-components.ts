@@ -3,6 +3,7 @@
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
+import hotspotBaseline from "./react-component-hotspot-baseline.json";
 
 const require = createRequire(import.meta.url);
 
@@ -13,7 +14,7 @@ export const componentLimits = {
   renderComplexity: 10,
 } as const;
 
-interface ComponentLimits {
+export interface ComponentLimits {
   lines: number;
   nesting: number;
   renderComplexity: number;
@@ -41,6 +42,21 @@ export interface MetricsReport {
 export interface Finding extends FunctionMetrics {
   path: string;
   reasons: string[];
+}
+
+type ComponentMetric = keyof ComponentLimits;
+
+export interface HotspotException {
+  component: string;
+  maximums: Partial<ComponentLimits>;
+  path: string;
+  reason: string;
+}
+
+export interface AuditResult {
+  allowed: Finding[];
+  staleExceptions: HotspotException[];
+  violations: Finding[];
 }
 
 interface AnalysisResult {
@@ -103,13 +119,90 @@ export function findReactComponentHotspots(
   );
 }
 
-export function formatHotspotReport(
+const metricAccessors: Record<
+  ComponentMetric,
+  (finding: Finding) => number
+> = {
+  lines: (finding) => finding.loc,
+  nesting: (finding) => finding.max_nesting,
+  renderComplexity: (finding) => finding.render_complexity,
+  responsibility: (finding) => finding.component_responsibility,
+};
+
+function exceptionKey(path: string, component: string): string {
+  return `${path}:${component}`;
+}
+
+function exceptionAllowsFinding(
+  finding: Finding,
+  exception: HotspotException,
+): boolean {
+  return (Object.keys(componentLimits) as ComponentMetric[]).every((metric) => {
+    const value = metricAccessors[metric](finding);
+    const limit = componentLimits[metric];
+
+    if (value < limit) return true;
+
+    const maximum = exception.maximums[metric];
+    return maximum !== undefined && value <= maximum;
+  });
+}
+
+export function auditHotspots(
   findings: Finding[],
+  exceptions: readonly HotspotException[],
+): AuditResult {
+  const exceptionsByKey = new Map<string, HotspotException>();
+
+  for (const exception of exceptions) {
+    const key = exceptionKey(exception.path, exception.component);
+    if (exceptionsByKey.has(key)) {
+      throw new Error(`Duplicate React component hotspot exception: ${key}`);
+    }
+    exceptionsByKey.set(key, exception);
+  }
+
+  const allowed: Finding[] = [];
+  const violations: Finding[] = [];
+  const matchedKeys = new Set<string>();
+
+  for (const finding of findings) {
+    const key = exceptionKey(finding.path, finding.name);
+    const exception = exceptionsByKey.get(key);
+
+    if (exception) {
+      matchedKeys.add(key);
+      if (exceptionAllowsFinding(finding, exception)) {
+        allowed.push(finding);
+      } else {
+        violations.push(finding);
+      }
+    } else {
+      violations.push(finding);
+    }
+  }
+
+  const staleExceptions = exceptions.filter(
+    (exception) =>
+      !matchedKeys.has(exceptionKey(exception.path, exception.component)),
+  );
+
+  return { allowed, staleExceptions, violations };
+}
+
+export function formatAuditReport(
+  result: AuditResult,
   maximumFindings = 25,
 ): string[] {
-  const displayedFindings = findings.slice(0, maximumFindings);
+  if (result.violations.length === 0 && result.staleExceptions.length === 0) {
+    return [
+      `tsmetrics passed with ${result.allowed.length} reviewed component-level exceptions.`,
+    ];
+  }
+
+  const displayedFindings = result.violations.slice(0, maximumFindings);
   const lines = [
-    `tsmetrics found ${findings.length} React component hotspots; showing the highest ${maximumFindings}.`,
+    `tsmetrics found ${result.violations.length} unapproved React component hotspots and ${result.staleExceptions.length} stale exceptions.`,
   ];
 
   for (const finding of displayedFindings) {
@@ -118,9 +211,13 @@ export function formatHotspotReport(
     );
   }
 
-  lines.push(
-    "This report is advisory while the existing hotspot backlog is reduced; new repeated JSX is enforced separately.",
-  );
+  for (const exception of result.staleExceptions.slice(0, maximumFindings)) {
+    lines.push(
+      `${exception.path} ${exception.component}: exception is stale or its metric ceilings are incomplete`,
+    );
+  }
+
+  lines.push("Update the component or narrow baseline in the same change.");
 
   return lines;
 }
@@ -158,6 +255,7 @@ export function runAudit(
   writeLine: (line: string) => void = console.log,
   writeError: (message: string) => void = (message) =>
     process.stderr.write(message),
+  exceptions: readonly HotspotException[] = hotspotBaseline,
 ): number {
   const analysis = analyze();
 
@@ -172,12 +270,15 @@ export function runAudit(
 
   const report = JSON.parse(analysis.stdout) as MetricsReport;
   const findings = findReactComponentHotspots(report);
+  const result = auditHotspots(findings, exceptions);
 
-  for (const line of formatHotspotReport(findings)) {
+  for (const line of formatAuditReport(result)) {
     writeLine(line);
   }
 
-  return 0;
+  return result.violations.length === 0 && result.staleExceptions.length === 0
+    ? 0
+    : 1;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
