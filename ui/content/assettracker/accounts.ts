@@ -85,6 +85,10 @@ export const accounts: AccountContent[] = [
     mortgageTerms: {
       firstPaymentDate: "2025-01-01",
       remainingTermMonths: 274,
+      overpaymentAllowance: {
+        amount: 10_000,
+        chargeRate: 0.05,
+      },
       fees: [{ date: "2028-03-01", amount: 999 }],
       overpayments: [{ date: "2026-06-01", amount: 5_000 }],
       termChanges: [],

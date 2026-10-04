@@ -214,6 +214,24 @@ describe("Asset Tracker demo-data adapter", () => {
     );
   });
 
+  it("includes a decision-ready mortgage product in the demo household", () => {
+    const repository = buildRepository(getDemoAssetTrackerData());
+    const mortgage = repository.accounts.get("home-mortgage");
+
+    expect(mortgage).toMatchObject({
+      assetType: "mortgage",
+      linkedAccountId: "home",
+      expectedAnnualReturn: 0.0425,
+      expectedReturnChanges: [{ date: "2028-03-01", rate: 0.0525 }],
+      mortgageTerms: {
+        overpaymentAllowance: { amount: 10_000, chargeRate: 0.05 },
+        fees: [{ date: "2028-03-01", amount: 999 }],
+        overpayments: [{ date: "2026-06-01", amount: 5_000 }],
+      },
+    });
+    expect(repository.accounts.get("home")?.assetType).toBe("property");
+  });
+
   it("uses the corrected USD market price in the latest valuation", () => {
     const repository = buildRepository(getDemoAssetTrackerData());
     const account = repository.accounts.get("us-brokerage");

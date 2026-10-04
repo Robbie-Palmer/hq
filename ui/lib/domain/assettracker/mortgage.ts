@@ -9,6 +9,12 @@ const DatedAmountSchema = z.object({
 export const MortgageTermsSchema = z.object({
   firstPaymentDate: z.iso.date(),
   remainingTermMonths: z.number().int().positive(),
+  overpaymentAllowance: z
+    .object({
+      amount: z.number().nonnegative(),
+      chargeRate: z.number().min(0).max(1),
+    })
+    .optional(),
   fees: z.array(DatedAmountSchema).default([]),
   overpayments: z.array(DatedAmountSchema).default([]),
   termChanges: z
@@ -103,6 +109,9 @@ export function advanceMortgageTerms(
   return {
     firstPaymentDate: futureFirstPayment,
     remainingTermMonths,
+    ...(terms.overpaymentAllowance == null
+      ? {}
+      : { overpaymentAllowance: terms.overpaymentAllowance }),
     fees: terms.fees.filter((entry) => entry.date > recordedThroughDate),
     overpayments: terms.overpayments.filter(
       (entry) => entry.date > recordedThroughDate,
@@ -200,7 +209,9 @@ export function buildMortgageSchedule(input: {
       openingBalance,
     );
     const fees = amountOn(terms.fees, date);
-    balance = Math.max(openingBalance - principal, 0);
+    // Mortgage ledgers settle in currency units. Carrying fractions of a penny
+    // can otherwise leave a phantom final payment after a full overpayment.
+    balance = roundMoney(Math.max(openingBalance - principal, 0));
     rows.push({
       date,
       openingBalance: roundMoney(openingBalance),
