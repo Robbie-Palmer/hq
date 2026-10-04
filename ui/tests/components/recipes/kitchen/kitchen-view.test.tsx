@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { KitchenView } from "@/components/recipes/kitchen/kitchen-view";
+import type { UnresolvedAuthoredTerm } from "@/lib/api/authored-terms";
 import type { KitchenStock } from "@/lib/domain/recipe/kitchen";
 
 const dietState = vi.hoisted(() => ({ mode: "hide" as "hide" | "warn" }));
@@ -19,6 +20,7 @@ const kitchenStockState = vi.hoisted(() => ({
     data: {
       scope: { type: "personal" as const },
       stock: {} as KitchenStock,
+      unresolvedTerms: undefined as UnresolvedAuthoredTerm[] | undefined,
     },
     error: null as Error | null,
     isPending: false,
@@ -92,6 +94,7 @@ describe("KitchenView diet ingredient catalog", () => {
     kitchenStockState.pantry.data = {
       scope: { type: "personal" },
       stock: {},
+      unresolvedTerms: undefined,
     };
     kitchenStockState.pantry.error = null;
     kitchenStockState.pantry.isPending = false;
@@ -148,10 +151,34 @@ describe("KitchenView diet ingredient catalog", () => {
     ).toBeInTheDocument();
   });
 
+  it("saves a non-catalog ingredient while explaining the limitation", async () => {
+    const user = userEvent.setup();
+    render(<KitchenView ingredients={ingredients} recipes={[]} />);
+
+    await user.type(
+      screen.getByPlaceholderText("Search ingredients..."),
+      "Tigernut Flour",
+    );
+    expect(
+      screen.getByText(/recipe matching and nutrition will ignore it/i),
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", {
+        name: 'Save "Tigernut Flour" as written',
+      }),
+    );
+
+    expect(kitchenStockState.actions.setStockLocation).toHaveBeenCalledWith(
+      "Tigernut Flour",
+      "cupboards",
+    );
+  });
+
   it("restores only cleared entries through the merge-safe pantry operation", async () => {
     kitchenStockState.pantry.data = {
       scope: { type: "personal" },
       stock: { chickpeas: "cupboards" },
+      unresolvedTerms: undefined,
     };
     const user = userEvent.setup();
     const view = render(<KitchenView ingredients={ingredients} recipes={[]} />);
@@ -163,6 +190,7 @@ describe("KitchenView diet ingredient catalog", () => {
     kitchenStockState.pantry.data = {
       scope: { type: "personal" },
       stock: {},
+      unresolvedTerms: undefined,
     };
     view.rerender(<KitchenView ingredients={ingredients} recipes={[]} />);
     await user.click(screen.getByRole("button", { name: "undo clear" }));

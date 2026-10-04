@@ -123,6 +123,23 @@ const dbMock = vi.hoisted(() => {
     createdAt: Date;
     updatedAt: Date;
   };
+  type AuthoredTermRow = {
+    id: string;
+    userId: string | null;
+    organizationId: string | null;
+    kind: "ingredient" | "equipment";
+    rawText: string;
+    normalizedText: string;
+    locale: string;
+    sourceContext: Record<string, unknown>;
+    provenance: Record<string, unknown>;
+    candidateMatches: Array<{ slug: string; score: number }>;
+    frequency: number;
+    canonicalSlug: string | null;
+    createdAt: Date;
+    lastSeenAt: Date;
+    updatedAt: Date;
+  };
   type PantryItemRow = {
     id: string;
     userId: string | null;
@@ -211,6 +228,7 @@ const dbMock = vi.hoisted(() => {
     dietPresets: [] as DietPresetRow[],
     ingredientGroups: [] as IngredientGroupRow[],
     ingredients: [] as IngredientRow[],
+    authoredTerms: [] as AuthoredTermRow[],
     pantryItems: [] as PantryItemRow[],
     pantryAggregates: [] as PantryAggregateRow[],
     pantryOperations: [] as PantryOperationRow[],
@@ -349,6 +367,7 @@ const dbMock = vi.hoisted(() => {
     state.dietPresets = [];
     state.ingredientGroups = [];
     state.ingredients = [];
+    state.authoredTerms = [];
     state.pantryItems = [];
     state.pantryAggregates = [];
     state.pantryOperations = [];
@@ -870,6 +889,86 @@ const dbMock = vi.hoisted(() => {
       };
       state.dietProfiles.push(profile);
       return [dietProfileRow(profile)];
+    }
+
+    return undefined;
+  }
+
+  function authoredTermRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
+    const jsonValue = <T>(value: unknown): T =>
+      (typeof value === "string" ? JSON.parse(value) : value) as T;
+
+    if (query.startsWith('insert into "authored_term"')) {
+      const row: AuthoredTermRow = {
+        id: crypto.randomUUID(),
+        userId: (params[0] as string | null) ?? null,
+        organizationId: (params[1] as string | null) ?? null,
+        kind: params[2] as AuthoredTermRow["kind"],
+        rawText: params[3] as string,
+        normalizedText: params[4] as string,
+        locale: params[5] as string,
+        sourceContext: jsonValue(params[6]),
+        provenance: jsonValue(params[7]),
+        candidateMatches: jsonValue(params[8]),
+        canonicalSlug: (params[10] as string | null) ?? null,
+        frequency: 1,
+        createdAt: date,
+        lastSeenAt: params[11] as Date,
+        updatedAt: params[12] as Date,
+      };
+      const existing = state.authoredTerms.find(
+        (candidate) =>
+          candidate.userId === row.userId &&
+          candidate.organizationId === row.organizationId &&
+          candidate.kind === row.kind &&
+          candidate.normalizedText === row.normalizedText,
+      );
+      if (existing) return [];
+      state.authoredTerms.push(row);
+      return [[row.id]];
+    }
+
+    if (query.startsWith('update "authored_term"')) {
+      const normalizedText = params.at(-1) as string;
+      const kind = params.at(-2) as AuthoredTermRow["kind"];
+      const ownerId = params.at(-3) as string;
+      const row = state.authoredTerms.find(
+        (candidate) =>
+          (candidate.userId === ownerId || candidate.organizationId === ownerId) &&
+          candidate.kind === kind &&
+          candidate.normalizedText === normalizedText,
+      );
+      if (row) {
+        row.rawText = params[0] as string;
+        row.frequency += 1;
+      }
+      return [];
+    }
+
+    if (query.includes('from "authored_term"')) {
+      const ownerId = params[0] as string;
+      const kind = params[1] as AuthoredTermRow["kind"] | undefined;
+      return state.authoredTerms
+        .filter(
+          (row) =>
+            (row.userId === ownerId || row.organizationId === ownerId) &&
+            row.canonicalSlug === null &&
+            (kind === undefined || row.kind === kind),
+        )
+        .map((row) => [
+          row.id,
+          row.kind,
+          row.rawText,
+          row.normalizedText,
+          row.locale,
+          row.sourceContext,
+          row.provenance,
+          row.candidateMatches,
+          row.frequency,
+        ]);
     }
 
     return undefined;
@@ -2469,6 +2568,7 @@ const dbMock = vi.hoisted(() => {
     insertPantryOperationRows,
     insertPantryItemRows,
     insertUserStateRows,
+    authoredTermRows,
     insertRecipeBoxStateRows,
     insertCookingSessionRows,
     insertDietSelectionRows,
@@ -4674,7 +4774,7 @@ describe("profile diet preferences", () => {
     ]);
   });
 
-  it("rejects validly-shaped diet keys that are not in the catalog", async () => {
+  it("accepts authored ingredient terms but rejects unknown catalog keys", async () => {
     authzMock.session = sessionFor({
       id: "owner-user",
       email: "owner@example.test",
@@ -4704,7 +4804,6 @@ describe("profile diet preferences", () => {
       error: "Unknown diet reference",
       details: expect.arrayContaining([
         expect.objectContaining({ path: ["presetDietKeys"] }),
-        expect.objectContaining({ path: ["excludedIngredientSlugs"] }),
         expect.objectContaining({ path: ["excludedGroupKeys"] }),
       ]),
     });
@@ -4726,7 +4825,7 @@ describe("profile diet preferences", () => {
           origin: "http://localhost:3000",
         },
         body: JSON.stringify({
-          excludedIngredientSlugs: ["Not a slug"],
+          excludedIngredientSlugs: [""],
           recipeMatchMode: "block",
         }),
       },
@@ -5356,7 +5455,7 @@ describe("pantry mutation flows", () => {
     );
   });
 
-  it("replaces a personal pantry and validates every ingredient", async () => {
+  it("replaces a personal pantry and retains authored ingredients", async () => {
     const response = await app.request(
       "/pantry",
       {
@@ -5402,9 +5501,33 @@ describe("pantry mutation flows", () => {
       },
       env,
     );
-    expect(unknownIngredient.status).toBe(400);
-    expect(await unknownIngredient.json()).toEqual({
-      error: "Unknown ingredient: dragonfruit",
+    expect(unknownIngredient.status).toBe(200);
+    expect(await unknownIngredient.json()).toMatchObject({
+      stock: { dragonfruit: "fresh" },
+      unresolvedTerms: [
+        expect.objectContaining({
+          kind: "ingredient",
+          rawText: "dragonfruit",
+          normalizedText: "dragonfruit",
+          resolutionStatus: "unresolved",
+        }),
+      ],
+    });
+
+    const repeatedIngredient = await app.request(
+      "/pantry/items/Dragonfruit",
+      {
+        method: "PUT",
+        headers: mutationHeaders,
+        body: JSON.stringify({ location: "fridge" }),
+      },
+      env,
+    );
+    expect(await repeatedIngredient.json()).toMatchObject({
+      stock: { dragonfruit: "fridge" },
+      unresolvedTerms: [
+        expect.objectContaining({ rawText: "Dragonfruit", frequency: 2 }),
+      ],
     });
 
     const invalidBody = await app.request(
@@ -5791,8 +5914,8 @@ describe("pantry mutation flows", () => {
     );
     expect(invalidLocation.status).toBe(400);
 
-    const unknownIngredient = await app.request(
-      "/pantry/items/dragonfruit",
+    const authoredIngredient = await app.request(
+      "/pantry/items/Dragonfruit%20Powder",
       {
         method: "PUT",
         headers: mutationHeaders,
@@ -5800,9 +5923,15 @@ describe("pantry mutation flows", () => {
       },
       env,
     );
-    expect(unknownIngredient.status).toBe(400);
-    expect(await unknownIngredient.json()).toEqual({
-      error: "Unknown ingredient: dragonfruit",
+    expect(authoredIngredient.status).toBe(200);
+    expect(await authoredIngredient.json()).toMatchObject({
+      stock: { "dragonfruit powder": "fresh" },
+      unresolvedTerms: [
+        expect.objectContaining({
+          rawText: "Dragonfruit Powder",
+          normalizedText: "dragonfruit powder",
+        }),
+      ],
     });
 
     const invalidDelete = await app.request(
@@ -6375,7 +6504,7 @@ describe("household membership flows", () => {
     });
   });
 
-  it("lets members remove equipment and rejects unknown equipment", async () => {
+  it("lets members remove equipment and retain authored equipment", async () => {
     seedHousehold();
     dbMock.state.householdEquipment.push(
       {
@@ -6447,10 +6576,44 @@ describe("household membership flows", () => {
       },
       env,
     );
-    expect(unknownResponse.status).toBe(400);
-    expect(await unknownResponse.json()).toEqual({
-      error: "Unknown equipment",
+    expect(unknownResponse.status).toBe(200);
+    expect(await unknownResponse.json()).toMatchObject({
+      slug: "laser-whisk",
+      name: "laser-whisk",
+      unresolved: true,
     });
+    expect(dbMock.state.authoredTerms).toContainEqual(
+      expect.objectContaining({
+        organizationId: HOUSEHOLD_ID,
+        kind: "equipment",
+        rawText: "laser-whisk",
+        normalizedText: "laser-whisk",
+        canonicalSlug: null,
+      }),
+    );
+
+    const aliasResponse = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment/large%20skillet`,
+      {
+        method: "PUT",
+        headers: { origin: "http://localhost:3000" },
+      },
+      env,
+    );
+    expect(aliasResponse.status).toBe(200);
+    expect(await aliasResponse.json()).toMatchObject({
+      slug: "frying-pan",
+      name: "frying pan",
+      retired: false,
+    });
+    expect(dbMock.state.authoredTerms).toContainEqual(
+      expect.objectContaining({
+        organizationId: HOUSEHOLD_ID,
+        rawText: "large skillet",
+        canonicalSlug: "frying-pan",
+        candidateMatches: [{ slug: "frying-pan", score: 1 }],
+      }),
+    );
   });
 
   it("keeps household equipment private from non-members", async () => {

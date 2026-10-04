@@ -2,6 +2,10 @@ import { asc, eq, type SQL } from "drizzle-orm";
 import type { Db } from "recipe-db";
 import * as schema from "recipe-db/schema";
 import type { PantryLocation } from "recipe-domain/pantry";
+import {
+  listUnresolvedTerms,
+  type UnresolvedTermSummary,
+} from "./authored-terms";
 
 export { MAX_PANTRY_ITEMS, type PantryLocation } from "recipe-domain/pantry";
 
@@ -22,6 +26,7 @@ export type PantryResponse = {
     | { type: "household"; household: { id: string; name: string } };
   stock: Record<string, PantryLocation>;
   itemVersions: Record<string, string>;
+  unresolvedTerms?: UnresolvedTermSummary[];
 };
 
 export async function resolvePantryScope(
@@ -99,6 +104,15 @@ export async function pantryResponseForScope(
 
   const revision =
     options.revision ?? (await findPantryAggregate(db, scope))?.revision ?? 0n;
+  const unresolvedTerms = (await listUnresolvedTerms(
+    db,
+    scope.type === "household"
+      ? { type: "household", organizationId: scope.householdId }
+      : { type: "user", userId: scope.userId },
+    "ingredient",
+  )).filter((term) =>
+    items.some((item) => item.ingredientSlug === term.normalizedText),
+  );
 
   return {
     resourceId: pantryResourceId(scope),
@@ -123,6 +137,7 @@ export async function pantryResponseForScope(
         version.toString(),
       ]),
     ),
+    ...(unresolvedTerms.length > 0 ? { unresolvedTerms } : {}),
   };
 }
 

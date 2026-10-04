@@ -442,12 +442,12 @@
                 "slug": {
                   "type": "string",
                   "minLength": 1,
-                  "maxLength": 100
+                  "maxLength": 200
                 },
                 "name": {
                   "type": "string",
                   "minLength": 1,
-                  "maxLength": 100
+                  "maxLength": 200
                 },
                 "category": {
                   "type": "string",
@@ -469,6 +469,9 @@
                 },
                 "retired": {
                   "type": "boolean"
+                },
+                "unresolved": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -476,6 +479,146 @@
                 "name",
                 "createdAt",
                 "retired"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 500
+          },
+          "unresolvedTerms": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 36,
+                  "format": "uuid"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "ingredient",
+                    "equipment"
+                  ]
+                },
+                "rawText": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "normalizedText": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "locale": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 35
+                },
+                "sourceContext": {
+                  "type": "object",
+                  "properties": {
+                    "flow": {
+                      "type": "string",
+                      "enum": [
+                        "recipe",
+                        "pantry",
+                        "diet",
+                        "equipment"
+                      ]
+                    },
+                    "resourceId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "field": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    }
+                  },
+                  "required": [
+                    "flow"
+                  ],
+                  "additionalProperties": false
+                },
+                "provenance": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "import"
+                      ]
+                    },
+                    "actorUserId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "importJobId": {
+                      "type": "string",
+                      "maxLength": 36,
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "actorUserId"
+                  ],
+                  "additionalProperties": false
+                },
+                "candidateMatches": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "slug": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "score": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      }
+                    },
+                    "required": [
+                      "slug",
+                      "score"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "maxItems": 20
+                },
+                "frequency": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 2147483647,
+                  "format": "int32"
+                },
+                "resolutionStatus": {
+                  "type": "string",
+                  "enum": [
+                    "unresolved"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "rawText",
+                "normalizedText",
+                "locale",
+                "sourceContext",
+                "provenance",
+                "candidateMatches",
+                "frequency",
+                "resolutionStatus"
               ],
               "additionalProperties": false
             },
@@ -1956,12 +2099,12 @@
                     "slug": {
                       "type": "string",
                       "minLength": 1,
-                      "maxLength": 100
+                      "maxLength": 200
                     },
                     "name": {
                       "type": "string",
                       "minLength": 1,
-                      "maxLength": 100
+                      "maxLength": 200
                     },
                     "category": {
                       "type": "string",
@@ -1982,6 +2125,9 @@
                       "format": "date-time"
                     },
                     "retired": {
+                      "type": "boolean"
+                    },
+                    "unresolved": {
                       "type": "boolean"
                     }
                   },
@@ -6587,8 +6733,7 @@
                     "items": {
                       "type": "string",
                       "minLength": 1,
-                      "maxLength": 80,
-                      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                      "maxLength": 200
                     },
                     "maxItems": 80,
                     "default": []

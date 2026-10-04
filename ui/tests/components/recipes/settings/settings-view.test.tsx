@@ -503,7 +503,7 @@ describe("SettingsView", () => {
     renderSettingsView();
 
     await user.click(screen.getByRole("button", { name: "Household" }));
-    await user.selectOptions(
+    await user.type(
       await screen.findByLabelText("Equipment to add"),
       "blender",
     );

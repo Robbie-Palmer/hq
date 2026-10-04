@@ -1,3 +1,4 @@
+import type { UnresolvedAuthoredTerm } from "@/lib/api/authored-terms";
 import { apiRequest } from "@/lib/api/http";
 
 export type HouseholdRole = "owner" | "member";
@@ -68,12 +69,14 @@ export type HouseholdEquipmentItem = {
   category?: EquipmentCategory;
   createdAt: string;
   retired: boolean;
+  unresolved?: boolean;
 };
 
 export type HouseholdEquipment = {
   catalog: HouseholdEquipmentCatalogItem[];
   owned: HouseholdEquipmentItem[];
   recipeMatchMode: EquipmentRecipeMatchMode;
+  unresolvedTerms?: UnresolvedAuthoredTerm[];
 };
 
 export type EquipmentRecipeMatchMode = "hide" | "warn" | "disabled";

@@ -85,6 +85,7 @@ test("manages household equipment and applies it to recipe cards", async ({
 
     const showWarning = page.getByRole("button", { name: "Show warning" });
     await expect(showWarning).toHaveAttribute("aria-pressed", "true");
+    await expect(showWarning).toBeEnabled();
     const equipmentSelect = page.getByLabel("Equipment to add");
     await expect(equipmentSelect).toBeVisible();
     await expect(

@@ -176,6 +176,13 @@
       "when": 1791096791115,
       "tag": "0024_heavy_nehzno",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791100822874,
+      "tag": "0025_sloppy_toro",
+      "breakpoints": true
     }
   ]
 }

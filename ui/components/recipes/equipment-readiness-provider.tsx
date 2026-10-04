@@ -54,7 +54,11 @@ export function EquipmentReadinessProvider({
       householdId: result.data.household.id,
       householdName: result.data.household.name,
       mode,
-      ownedSlugs: new Set(result.data.equipment.owned.map((item) => item.slug)),
+      ownedSlugs: new Set(
+        result.data.equipment.owned
+          .filter((item) => !item.unresolved && !item.retired)
+          .map((item) => item.slug),
+      ),
       equipmentNames: new Map(
         result.data.equipment.catalog.map((item) => [item.slug, item.name]),
       ),

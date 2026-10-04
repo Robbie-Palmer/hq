@@ -646,24 +646,22 @@ function HouseholdEquipmentSection({
             <label className="sr-only" htmlFor="household-equipment">
               Equipment to add
             </label>
-            <select
+            <Input
               id="household-equipment"
+              list="household-equipment-catalog"
               value={selectedSlug}
               onChange={(event) => onSelectedSlugChange(event.target.value)}
-              disabled={busy || available.length === 0}
-              className="rt-body h-9 min-w-0 flex-1 rounded-md border border-[var(--line-strong)] bg-[var(--card)] px-3 text-sm text-[var(--ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--terracotta)]/40 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <option value="">
-                {available.length === 0
-                  ? "All equipment added"
-                  : "Choose equipment"}
-              </option>
+              disabled={busy}
+              placeholder="Choose equipment or enter your own"
+              className="min-w-0 flex-1 bg-[var(--card)]"
+            />
+            <datalist id="household-equipment-catalog">
               {available.map((item) => (
                 <option key={item.slug} value={item.slug}>
                   {item.name} · {item.category}
                 </option>
               ))}
-            </select>
+            </datalist>
             <Button
               type="submit"
               variant="outline"
@@ -688,7 +686,11 @@ function HouseholdEquipmentSection({
                       {item.name}
                     </p>
                     <p className="rt-mono text-[var(--ink-3)]">
-                      {item.retired ? "retired equipment" : item.category}
+                      {item.unresolved
+                        ? "saved as written, automatic matching unavailable"
+                        : item.retired
+                          ? "retired equipment"
+                          : item.category}
                     </p>
                   </div>
                   <Button

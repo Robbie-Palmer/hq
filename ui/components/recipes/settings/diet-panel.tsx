@@ -205,12 +205,19 @@ function IngredientBadge({
   ingredient,
   onRemove,
 }: Readonly<{
-  ingredient: DietIngredientOption;
+  ingredient: DietIngredientOption & { unresolved?: boolean };
   onRemove: () => void;
 }>) {
   return (
     <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-[var(--terracotta)] bg-[var(--butter-soft)] px-3 py-1 text-[0.85rem] text-[var(--ink)]">
-      <span className="truncate">{ingredient.name}</span>
+      <span className="min-w-0">
+        <span className="block truncate">{ingredient.name}</span>
+        {ingredient.unresolved && (
+          <span className="rt-mono block text-[0.65rem] text-[var(--ink-3)]">
+            saved as written, automatic matching unavailable
+          </span>
+        )}
+      </span>
       <button
         type="button"
         onClick={onRemove}
@@ -226,10 +233,12 @@ function IngredientBadge({
 function IngredientPicker({
   ingredients,
   onAdd,
+  onAddCustom,
   selectedSlugs,
 }: Readonly<{
   ingredients: DietIngredientOption[];
   onAdd: (ingredient: DietIngredientOption) => void;
+  onAddCustom: (rawText: string) => void;
   selectedSlugs: string[];
 }>) {
   const [query, setQuery] = useState("");
@@ -249,6 +258,18 @@ function IngredientPicker({
       })
       .slice(0, INGREDIENT_RESULT_LIMIT);
   }, [ingredients, query, selected]);
+  const customText = query.trim();
+  const normalizedCustomText = normalizeQuery(customText);
+  const canAddCustom =
+    customText.length > 0 &&
+    !Array.from(selected).some(
+      (value) => normalizeQuery(value) === normalizedCustomText,
+    ) &&
+    !ingredients.some(
+      (ingredient) =>
+        normalizeQuery(ingredient.name) === normalizedCustomText ||
+        normalizeQuery(ingredient.slug) === normalizedCustomText,
+    );
 
   useEffect(() => {
     return () => {
@@ -284,7 +305,6 @@ function IngredientPicker({
       <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--ink-3)]" />
       <Input
         value={query}
-        disabled={!hasIngredients}
         onBlur={scheduleClose}
         onChange={(event) => {
           setQuery(event.target.value);
@@ -296,15 +316,15 @@ function IngredientPicker({
         }}
         placeholder={
           hasIngredients
-            ? `Search ${ingredients.length} canonical ingredients...`
-            : "No canonical ingredients have been seeded yet"
+            ? `Search ${ingredients.length} ingredients or enter your own...`
+            : "Enter an ingredient"
         }
         aria-autocomplete="list"
-        aria-expanded={hasIngredients && open}
-        aria-label="Search canonical ingredients to exclude"
+        aria-expanded={open}
+        aria-label="Search or enter ingredients to exclude"
         className="bg-[var(--card)] pl-9"
       />
-      {hasIngredients && open && (
+      {open && (
         <div className="absolute z-20 mt-2 max-h-72 w-full overflow-auto rounded-lg border border-[var(--line-strong)] bg-[var(--card)] p-2 shadow-lg">
           {matches.length > 0 ? (
             matches.map((ingredient) => (
@@ -331,6 +351,21 @@ function IngredientPicker({
               No canonical ingredients match that search.
             </p>
           )}
+          {canAddCustom && (
+            <button
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                onAddCustom(customText);
+                setQuery("");
+                setOpen(false);
+              }}
+              className="mt-1 flex w-full items-center gap-3 rounded-md border-t border-dashed border-[var(--line)] px-3 py-2 text-left text-sm text-[var(--ink)] hover:bg-[var(--butter-soft)]"
+            >
+              <Plus className="size-4 shrink-0 text-[var(--terracotta)]" />
+              Save "{customText}" as written
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -354,10 +389,14 @@ function useDietPanelModel(profile: DietProfile, options: DietOptions) {
     [presetByKey, profile],
   );
   const selectedIngredients = profile.excludedIngredientSlugs.map((slug) => {
+    const unresolved = profile.unresolvedTerms?.find(
+      (term) => term.kind === "ingredient" && term.normalizedText === slug,
+    );
     return (
       ingredientBySlug.get(slug) ?? {
         slug,
-        name: labelFromSlug(slug),
+        name: unresolved?.rawText ?? labelFromSlug(slug),
+        unresolved: true,
       }
     );
   });
@@ -381,6 +420,16 @@ export function DietPanel() {
       excludedIngredientSlugs: unique([
         ...current.excludedIngredientSlugs,
         ingredient.slug,
+      ]),
+    }));
+  }
+
+  function addCustomIngredient(rawText: string) {
+    updateProfile((current) => ({
+      ...current,
+      excludedIngredientSlugs: unique([
+        ...current.excludedIngredientSlugs,
+        rawText,
       ]),
     }));
   }
@@ -510,6 +559,7 @@ export function DietPanel() {
             <IngredientPicker
               ingredients={options.ingredients}
               onAdd={addIngredient}
+              onAddCustom={addCustomIngredient}
               selectedSlugs={profile.excludedIngredientSlugs}
             />
             <div className="mt-3 flex flex-wrap gap-2">

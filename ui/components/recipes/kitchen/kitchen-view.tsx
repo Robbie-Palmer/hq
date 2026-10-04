@@ -89,6 +89,7 @@ export function KitchenView({
   );
   const pantry = useKitchenStockQuery();
   const stock = pantry.data?.stock ?? {};
+  const unresolvedStock = pantry.data?.unresolvedTerms ?? [];
   const stockActions = useKitchenStockActions();
   const shoppingList = useShoppingList();
   const selectedRecipeSlugs = useMemo(
@@ -202,6 +203,17 @@ export function KitchenView({
   }, [catalogQuery, dietRelevantIngredients, stock]);
   const filteredCatalog = catalogMatches.slice(0, CATALOG_RESULT_LIMIT);
   const isCatalogTruncated = catalogMatches.length > filteredCatalog.length;
+  const customIngredient = catalogQuery.trim();
+  const canAddCustomIngredient =
+    customIngredient.length > 0 &&
+    !ingredients.some(
+      (ingredient) =>
+        ingredient.name.toLowerCase() === customIngredient.toLowerCase() ||
+        ingredient.slug.toLowerCase() === customIngredient.toLowerCase(),
+    ) &&
+    !Object.keys(stock).some(
+      (slug) => slug.toLowerCase() === customIngredient.toLowerCase(),
+    );
 
   const stockQueryNormalized = normalizeQuery(stockQuery);
   const groupedStock = useMemo(
@@ -234,6 +246,16 @@ export function KitchenView({
     setLastClearedStock(null);
   };
 
+  const addCustomIngredient = () => {
+    if (!canAddCustomIngredient) return;
+    stockActions.setStockLocation(
+      customIngredient as IngredientSlug,
+      targetLocation,
+    );
+    setCatalogQuery("");
+    setLastClearedStock(null);
+  };
+
   const removeIngredient = (slug: IngredientSlug) => {
     stockActions.removeFromStock(slug);
   };
@@ -260,7 +282,7 @@ export function KitchenView({
     setLastClearedStock(null);
   };
 
-  const stockedCount = stockedSlugs.length;
+  const stockedCount = Object.keys(stock).length;
   const householdName =
     pantry.data?.scope.type === "household"
       ? pantry.data.scope.household.name
@@ -277,8 +299,8 @@ export function KitchenView({
             What can I <span className="text-[var(--terracotta)]">make?</span>
           </h1>
           <p className="rt-body mt-3 max-w-2xl text-[var(--ink-2)]">
-            Add ingredients from the canonical recipe catalog, split them across
-            fridge, cupboards and fresh, then compare{" "}
+            Add ingredients from the recipe catalog or save your own wording,
+            split them across fridge, cupboards and fresh, then compare{" "}
             {householdName
               ? `${householdName}'s shared kitchen`
               : "your kitchen"}{" "}
@@ -392,6 +414,40 @@ export function KitchenView({
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
+              {unresolvedStock.length > 0 && (
+                <section className="rounded-lg border border-dashed border-[var(--line-strong)] bg-[var(--paper-warm)] p-3">
+                  <p className="rt-mono text-[var(--terracotta)]">
+                    Saved as written
+                  </p>
+                  <p className="rt-body mt-1 text-sm text-[var(--ink-3)]">
+                    These items stay in your pantry, but recipe matching and
+                    nutrition remain unavailable until each term is linked to
+                    the ingredient catalog.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {unresolvedStock.map((term) => (
+                      <Badge
+                        key={term.id}
+                        variant="outline"
+                        className="gap-1.5 bg-[var(--card)]"
+                      >
+                        <span>{term.rawText}</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            removeIngredient(
+                              term.normalizedText as IngredientSlug,
+                            )
+                          }
+                          aria-label={`Remove ${term.rawText}`}
+                        >
+                          <X className="size-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                </section>
+              )}
               {groupedStock.map((group) => {
                 const Icon = group.icon;
                 return (
@@ -456,7 +512,7 @@ export function KitchenView({
             <CardHeader className="gap-3">
               <div>
                 <p className="rt-mono text-[var(--terracotta)]">
-                  Canonical ingredients
+                  Ingredient catalog
                 </p>
                 <CardTitle className="rt-display text-4xl">
                   Add to your kitchen.
@@ -565,6 +621,23 @@ export function KitchenView({
                   );
                 })}
               </div>
+              {canAddCustomIngredient && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={addCustomIngredient}
+                  className="mt-3"
+                >
+                  <CirclePlus className="size-4" />
+                  Save "{customIngredient}" as written
+                </Button>
+              )}
+              {canAddCustomIngredient && (
+                <p className="rt-body mt-2 text-sm text-[var(--ink-3)]">
+                  It will stay in your pantry, but recipe matching and nutrition
+                  will ignore it until it is linked to the ingredient catalog.
+                </p>
+              )}
               {isCatalogTruncated && (
                 <p className="rt-body mt-3 text-sm text-[var(--ink-3)]">
                   Showing {filteredCatalog.length} of {catalogMatches.length}{" "}
