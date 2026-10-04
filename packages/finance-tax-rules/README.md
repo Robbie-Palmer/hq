@@ -78,21 +78,16 @@ dataset version and verify the exact inputs later.
 
 ## Monitoring official guidance
 
-The source monitor checks the GOV.UK Content API for every publication referenced
-by an active rule. The registry derives the affected rule IDs and effective periods
-from the dataset's provenance, so a page cannot be monitored without naming the
-rules that depend on it. Reviewed API snapshots live in `monitoring/reviewed/`.
+The source registry derives affected rule IDs and effective periods from the
+dataset's provenance. A page cannot be monitored without naming the rules that
+depend on it. The `finance-tax-monitor` Cloudflare Workflow runs the registry on
+a weekly schedule. Cloudflare Workflows owns checkpoints, retry backoff, and
+short-lived execution state.
 
-Run an immediate check with:
-
-```sh
-mise run //packages/finance-tax-rules:monitor -- --check-interval-hours 0
-```
-
-The default interval is seven days. The command stores its last successful check
-and response cache under `.cache/govuk-monitor/`. It retries transient API failures
-three times. The scheduled GitHub workflow restores that cache and opens or updates
-one review issue when a source changes or a check fails.
+The Workflow writes exact GOV.UK Content API responses and normalized snapshots
+to private R2 as compressed, content-addressed objects. PostgreSQL stores compact
+revision manifests, the recorded last successful check, meaningful differences,
+and review decisions. Raw responses and HTML do not live in Git or PostgreSQL.
 
 A change proposal separates content, metadata, and document-link differences. It
 records the GOV.UK publication date and detection date, lists the effective periods
@@ -108,8 +103,8 @@ For each proposal, a reviewer must:
    in the new dataset release.
 3. Add or amend authoritative validation fixtures.
 4. Run `mise run //packages/finance-tax-rules:check`.
-5. Increase `datasetVersion`, set `supersedes`, keep the previous versioned
-   artifacts, and replace the reviewed Content API snapshot in the same change.
+5. Increase `datasetVersion`, set `supersedes`, and keep the previous versioned
+   artifacts.
 
 Monitoring requests contain only the public source URL and HTTP headers. The
 monitor has no access to household or salary records and sends none to GOV.UK.

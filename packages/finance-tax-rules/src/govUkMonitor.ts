@@ -1,8 +1,13 @@
 import { createHash } from "node:crypto";
-import { fetchWithRetry } from "ts-base/http";
 import { z } from "zod";
 import { ruleDataset } from "./data";
 import type { RuleDataset } from "./schema";
+
+type JsonPrimitive = string | number | boolean | null;
+export type JsonValue =
+  | JsonPrimitive
+  | JsonValue[]
+  | { [key: string]: JsonValue };
 
 const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
   z.union([
@@ -29,12 +34,6 @@ const contentItemSchema = z.object({
   updated_at: z.string(),
   withdrawn_notice: z.record(z.string(), z.unknown()).nullable().optional(),
 });
-
-type JsonPrimitive = string | number | boolean | null;
-type JsonValue =
-  | JsonPrimitive
-  | JsonValue[]
-  | { [key: string]: JsonValue };
 
 export type GovUkSourceSpec = {
   id: string;
@@ -63,18 +62,6 @@ export type GovUkContentSnapshot = {
   documentLinks: string[];
 };
 
-export type GovUkMonitorState = {
-  schemaVersion: 1;
-  lastSuccessfulCheckAt: string | null;
-  sources: Record<
-    string,
-    {
-      lastSuccessfulCheckAt: string;
-      snapshot: GovUkContentSnapshot;
-    }
-  >;
-};
-
 export type SourceChange = {
   area: "content" | "document-link" | "metadata";
   path: string;
@@ -84,9 +71,12 @@ export type SourceChange = {
 
 export type RuleUpdateProposal = {
   id: string;
+  kind: "initial-baseline" | "source-change";
   sourceId: string;
   sourceTitle: string;
   pageUrl: string;
+  baseFingerprint: string | null;
+  candidateFingerprint: string;
   affectedRuleIds: string[];
   changes: SourceChange[];
   dates: {
@@ -106,26 +96,6 @@ export type RuleUpdateProposal = {
     validationCommand: string;
     previousArtifactMustRemain: string;
   };
-  candidateSnapshot: GovUkContentSnapshot;
-};
-
-export type GovUkMonitorReport = {
-  checkedAt: string;
-  status: "changes-detected" | "degraded" | "unchanged";
-  checkedSourceIds: string[];
-  cachedSourceIds: string[];
-  proposals: RuleUpdateProposal[];
-  failures: Array<{ sourceId: string; message: string }>;
-  state: GovUkMonitorState;
-};
-
-type MonitorOptions = {
-  reviewedSnapshots: Record<string, GovUkContentSnapshot>;
-  previousState?: GovUkMonitorState;
-  fetchImpl?: typeof fetch;
-  checkedAt?: string;
-  attempts?: number;
-  checkIntervalHours?: number;
 };
 
 const canonicalJson = (value: JsonValue): string => JSON.stringify(value);
@@ -141,7 +111,9 @@ function normalizeJson(value: unknown): JsonValue {
     return value;
   }
   if (typeof value === "number") {
-    if (!Number.isFinite(value)) throw new Error("Content contains a non-finite number");
+    if (!Number.isFinite(value)) {
+      throw new Error("Content contains a non-finite number");
+    }
     return value;
   }
   if (Array.isArray(value)) return value.map(normalizeJson);
@@ -156,9 +128,11 @@ function normalizeJson(value: unknown): JsonValue {
 }
 
 function linksInString(value: string): string[] {
-  return [...value.matchAll(
-    /(?:href|src)=["']([^"']+)["']|https?:\/\/[^\s"'<>]+/g,
-  )].flatMap((match) => {
+  return [
+    ...value.matchAll(
+      /(?:href|src)=["']([^"']+)["']|https?:\/\/[^\s"'<>]+/g,
+    ),
+  ].flatMap((match) => {
     const candidate = match[1] ?? match[0];
     return candidate ? [candidate.replaceAll("&amp;", "&")] : [];
   });
@@ -185,7 +159,7 @@ function collectDocumentLinks(value: JsonValue, links: Set<string>): void {
   }
 }
 
-function sha256(value: string): string {
+export function sha256Hex(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
@@ -207,16 +181,17 @@ export function snapshotGovUkContent(input: unknown): GovUkContentSnapshot {
     title: item.title ?? null,
     withdrawnNotice: normalizeJson(item.withdrawn_notice ?? {}),
   };
+  const sortedLinks = [...documentLinks].toSorted(compareText);
   const monitored = normalizeJson({
     details,
-    documentLinks: [...documentLinks].toSorted(compareText),
+    documentLinks: sortedLinks,
     metadata,
   });
   return {
-    fingerprint: sha256(canonicalJson(monitored)),
+    fingerprint: sha256Hex(canonicalJson(monitored)),
     metadata,
     details,
-    documentLinks: [...documentLinks].toSorted(compareText),
+    documentLinks: sortedLinks,
   };
 }
 
@@ -290,10 +265,21 @@ function plainText(value: string): string {
   return result;
 }
 
+function stripMarkup(value: JsonValue): JsonValue {
+  if (typeof value === "string") return plainText(value);
+  if (Array.isArray(value)) return value.map(stripMarkup);
+  if (value === null || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [key, stripMarkup(item)]),
+  );
+}
+
 function summarize(value: JsonValue | undefined): string | null {
   if (value === undefined) return null;
   const raw =
-    typeof value === "string" ? plainText(value) : JSON.stringify(value);
+    typeof value === "string"
+      ? plainText(value)
+      : JSON.stringify(stripMarkup(value));
   return raw.length <= 240 ? raw : `${raw.slice(0, 237)}...`;
 }
 
@@ -401,22 +387,43 @@ function timingFor(
   return "current-or-unknown";
 }
 
-function proposalFor(
+export function createRuleUpdateProposal(
   source: GovUkSourceSpec,
-  reviewed: GovUkContentSnapshot,
+  base: GovUkContentSnapshot | null,
   candidate: GovUkContentSnapshot,
-  checkedAt: string,
+  detectedAt: string,
 ): RuleUpdateProposal | null {
-  if (reviewed.fingerprint === candidate.fingerprint) return null;
-  const detectedDate = datePart(checkedAt);
+  if (base?.fingerprint === candidate.fingerprint) return null;
+  const detectedDate = datePart(detectedAt);
   const publicationDate = datePart(candidate.metadata.publicUpdatedAt);
+  const proposalDigest = sha256Hex(
+    [
+      source.id,
+      base?.fingerprint ?? "initial",
+      candidate.fingerprint,
+      detectedAt,
+    ].join(":"),
+  );
   return {
-    id: `${source.id}-${candidate.fingerprint.slice(0, 12)}`,
+    id: `${source.id}-${proposalDigest.slice(0, 24)}`,
+    kind: base === null ? "initial-baseline" : "source-change",
     sourceId: source.id,
     sourceTitle: source.title,
     pageUrl: source.pageUrl,
+    baseFingerprint: base?.fingerprint ?? null,
+    candidateFingerprint: candidate.fingerprint,
     affectedRuleIds: source.ruleIds,
-    changes: diffGovUkSnapshots(reviewed, candidate),
+    changes:
+      base === null
+        ? [
+            {
+              area: "metadata",
+              path: "/snapshot",
+              before: null,
+              after: candidate.fingerprint,
+            },
+          ]
+        : diffGovUkSnapshots(base, candidate),
     dates: {
       publicationDate,
       detectedDate,
@@ -424,276 +431,14 @@ function proposalFor(
       reviewedEffectiveDate: null,
       activationDate: null,
     },
-    timing: timingFor(
-      publicationDate,
-      detectedDate,
-      source.effectivePeriods,
-    ),
+    timing: timingFor(publicationDate, detectedDate, source.effectivePeriods),
     activationGate: {
       status: "review-and-validation-required",
       activeDatasetVersion: ruleDataset.datasetVersion,
       validationCommand: "mise run //packages/finance-tax-rules:check",
       previousArtifactMustRemain: `artifacts/enacted/${ruleDataset.datasetVersion}.json`,
     },
-    candidateSnapshot: candidate,
   };
-}
-
-export async function fetchGovUkSourceSnapshot(
-  source: GovUkSourceSpec,
-  fetchImpl: typeof fetch,
-  attempts: number,
-): Promise<GovUkContentSnapshot> {
-  const response = await fetchWithRetry(source.contentApiUrl, {
-    attempts,
-    fetch: fetchImpl,
-    init: {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "personal-site-finance-tax-rule-monitor/1.0",
-      },
-    },
-  });
-  if (!response.ok) {
-    throw new Error(`GOV.UK Content API returned ${response.status}`);
-  }
-  return snapshotGovUkContent(await response.json());
-}
-
-function isDue(
-  source: GovUkSourceSpec,
-  state: GovUkMonitorState["sources"][string] | undefined,
-  checkedAt: string,
-  configuredHours: number | undefined,
-): boolean {
-  if (!state) return true;
-  const intervalHours = configuredHours ?? source.defaultCheckIntervalHours;
-  if (!Number.isFinite(intervalHours) || intervalHours < 0) {
-    throw new Error("Check interval hours must be a non-negative number");
-  }
-  return (
-    new Date(checkedAt).valueOf() -
-      new Date(state.lastSuccessfulCheckAt).valueOf() >=
-    intervalHours * 60 * 60 * 1_000
-  );
-}
-
-type SourceCheckResult =
-  | { success: true; snapshot: GovUkContentSnapshot }
-  | { success: false; message: string };
-
-async function checkSource(
-  source: GovUkSourceSpec,
-  fetchImpl: typeof fetch,
-  attempts: number,
-): Promise<SourceCheckResult> {
-  try {
-    return {
-      success: true,
-      snapshot: await fetchGovUkSourceSnapshot(source, fetchImpl, attempts),
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
-
-type MonitoredSourceResult =
-  | { kind: "cached"; proposal: RuleUpdateProposal | null }
-  | { kind: "checked"; snapshot: GovUkContentSnapshot; proposal: RuleUpdateProposal | null }
-  | { kind: "failed"; message: string };
-
-async function monitorSource(
-  source: GovUkSourceSpec,
-  reviewed: GovUkContentSnapshot | undefined,
-  previous: GovUkMonitorState["sources"][string] | undefined,
-  checkedAt: string,
-  options: Pick<MonitorOptions, "checkIntervalHours" | "fetchImpl">,
-  attempts: number,
-): Promise<MonitoredSourceResult> {
-  if (!reviewed) {
-    return {
-      kind: "failed",
-      message: "No reviewed Content API snapshot is checked in",
-    };
-  }
-  if (!isDue(source, previous, checkedAt, options.checkIntervalHours) && previous) {
-    return {
-      kind: "cached",
-      proposal: proposalFor(source, reviewed, previous.snapshot, checkedAt),
-    };
-  }
-  const result = await checkSource(source, options.fetchImpl ?? fetch, attempts);
-  return result.success
-    ? {
-        kind: "checked",
-        snapshot: result.snapshot,
-        proposal: proposalFor(source, reviewed, result.snapshot, checkedAt),
-      }
-    : { kind: "failed", message: result.message };
-}
-
-type MonitorAccumulator = {
-  checkedAt: string;
-  checkedSourceIds: string[];
-  cachedSourceIds: string[];
-  proposals: RuleUpdateProposal[];
-  failures: GovUkMonitorReport["failures"];
-  state: GovUkMonitorState;
-};
-
-function recordSourceResult(
-  source: GovUkSourceSpec,
-  result: MonitoredSourceResult,
-  output: MonitorAccumulator,
-): void {
-  if (result.kind === "cached") {
-    output.cachedSourceIds.push(source.id);
-    if (result.proposal) output.proposals.push(result.proposal);
-    return;
-  }
-  if (result.kind === "failed") {
-    output.failures.push({ sourceId: source.id, message: result.message });
-    return;
-  }
-  output.checkedSourceIds.push(source.id);
-  output.state.sources[source.id] = {
-    lastSuccessfulCheckAt: output.checkedAt,
-    snapshot: result.snapshot,
-  };
-  if (result.proposal) output.proposals.push(result.proposal);
-}
-
-function reportStatus(output: MonitorAccumulator): GovUkMonitorReport["status"] {
-  if (output.failures.length > 0) return "degraded";
-  if (output.proposals.length > 0) return "changes-detected";
-  return "unchanged";
-}
-
-export async function monitorGovUkSources(
-  sources: readonly GovUkSourceSpec[],
-  options: MonitorOptions,
-): Promise<GovUkMonitorReport> {
-  const checkedAt = options.checkedAt ?? new Date().toISOString();
-  datePart(checkedAt);
-  const attempts = options.attempts ?? 3;
-  if (!Number.isSafeInteger(attempts) || attempts < 1) {
-    throw new Error("Fetch attempts must be a positive integer");
-  }
-  const state: GovUkMonitorState = structuredClone(
-    options.previousState ?? {
-      schemaVersion: 1,
-      lastSuccessfulCheckAt: null,
-      sources: {},
-    },
-  );
-  const output: MonitorAccumulator = {
-    checkedAt,
-    checkedSourceIds: [],
-    cachedSourceIds: [],
-    proposals: [],
-    failures: [],
-    state,
-  };
-  const results = await Promise.all(
-    sources.map(async (source) => ({
-      source,
-      result: await monitorSource(
-        source,
-        options.reviewedSnapshots[source.id],
-        state.sources[source.id],
-        checkedAt,
-        options,
-        attempts,
-      ),
-    })),
-  );
-  for (const { source, result } of results) {
-    recordSourceResult(source, result, output);
-  }
-
-  if (output.failures.length === 0) state.lastSuccessfulCheckAt = checkedAt;
-  return {
-    checkedAt,
-    status: reportStatus(output),
-    checkedSourceIds: output.checkedSourceIds,
-    cachedSourceIds: output.cachedSourceIds,
-    proposals: output.proposals,
-    failures: output.failures,
-    state,
-  };
-}
-
-function markdownCell(value: string | null): string {
-  return value ?? "_(not set; reviewer required)_";
-}
-
-function formatEffectivePeriods(
-  periods: RuleUpdateProposal["dates"]["potentialEffectivePeriods"],
-): string {
-  return periods.map(({ from, to }) => `${from} to ${to}`).join(", ");
-}
-
-export function renderGovUkMonitorReport(report: GovUkMonitorReport): string {
-  const lines = [
-    "# GOV.UK tax-rule source monitor",
-    "",
-    `Checked at: ${report.checkedAt}`,
-    "",
-    `Status: ${report.status}`,
-    "",
-    `Fetched ${report.checkedSourceIds.length} source(s); used ${report.cachedSourceIds.length} cached source(s).`,
-  ];
-  if (report.failures.length > 0) {
-    lines.push("", "## Source failures", "");
-    for (const failure of report.failures) {
-      lines.push(`- ${failure.sourceId}: ${failure.message}`);
-    }
-  }
-  for (const proposal of report.proposals) {
-    lines.push(
-      "",
-      `## ${proposal.sourceTitle}`,
-      "",
-      `Source: ${proposal.pageUrl}`,
-      "",
-      `Proposal: ${proposal.id}`,
-      "",
-      `Timing: ${proposal.timing}`,
-      "",
-      `Affected rules: ${proposal.affectedRuleIds.join(", ")}`,
-      "",
-      `Potential effective periods: ${formatEffectivePeriods(proposal.dates.potentialEffectivePeriods)}`,
-      "",
-      "| Date | Value |",
-      "| --- | --- |",
-      `| Publication | ${proposal.dates.publicationDate} |`,
-      `| Detection | ${proposal.dates.detectedDate} |`,
-      `| Effective | ${markdownCell(proposal.dates.reviewedEffectiveDate)} |`,
-      `| Activation | ${markdownCell(proposal.dates.activationDate)} |`,
-      "",
-      "The monitor does not activate rule changes. A reviewer must set the effective date, classify announced or enacted rules, update the versioned dataset, and run:",
-      "",
-      `\`${proposal.activationGate.validationCommand}\``,
-      "",
-      `Keep \`${proposal.activationGate.previousArtifactMustRemain}\` for rollback and historical recalculation.`,
-      "",
-      "### Detected differences",
-      "",
-    );
-    for (const change of proposal.changes) {
-      lines.push(
-        `- ${change.area} \`${change.path}\`: ${markdownCell(change.before)} -> ${markdownCell(change.after)}`,
-      );
-    }
-  }
-  if (report.proposals.length === 0 && report.failures.length === 0) {
-    lines.push("", "No reviewed source changed.");
-  }
-  return `${lines.join("\n")}\n`;
 }
 
 export const govUkContentSnapshotSchema = z.object({
@@ -711,16 +456,4 @@ export const govUkContentSnapshotSchema = z.object({
   }),
   details: jsonValueSchema,
   documentLinks: z.array(z.string()),
-});
-
-export const govUkMonitorStateSchema = z.object({
-  schemaVersion: z.literal(1),
-  lastSuccessfulCheckAt: z.string().nullable(),
-  sources: z.record(
-    z.string(),
-    z.object({
-      lastSuccessfulCheckAt: z.string(),
-      snapshot: govUkContentSnapshotSchema,
-    }),
-  ),
 });

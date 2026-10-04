@@ -12,13 +12,11 @@
   "scripts": {
     "build": "tsx scripts/build.ts",
     "build:check": "tsx scripts/build.ts --check",
-    "monitor": "tsx scripts/monitor.ts",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "ts-base": "workspace:*",
     "zod": "^4.2.1"
   },
   "devDependencies": {

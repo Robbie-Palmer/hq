@@ -1,0 +1,39 @@
+name = "finance-tax-monitor"
+main = "src/index.ts"
+compatibility_date = "2026-10-04"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+
+[placement]
+mode = "smart"
+
+[limits]
+cpu_ms = 30_000
+
+[[workflows]]
+name = "finance-tax-monitor"
+binding = "FINANCE_TAX_MONITOR"
+class_name = "FinanceTaxMonitorWorkflow"
+schedules = ["0 7 * * MON"]
+
+  [workflows.default_retention]
+  success_retention = "3 days"
+  error_retention = "30 days"
+
+[[r2_buckets]]
+binding = "SOURCE_ARTIFACTS"
+bucket_name = "finance-source-artifacts"
+
+# The deploy helper replaces this sentinel with the finance Hyperdrive ID.
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "00000000000000000000000000000000"
