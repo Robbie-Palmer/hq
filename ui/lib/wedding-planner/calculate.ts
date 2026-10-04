@@ -4,14 +4,14 @@ import { editorStateToPlan } from "./editor-projection";
 import { type AccommodationSetup, weddingAccommodationSetup } from "./setup";
 import { solveRooms } from "./solve-rooms";
 import { parseState } from "./state";
-import type { State } from "./types";
+import type { WeddingPlanDraft } from "./types";
 
 export function calculateRooms(
-  state: State,
+  plan: WeddingPlanDraft,
   setup: AccommodationSetup = weddingAccommodationSetup,
 ) {
   return calculate(
-    accommodationState(editorStateToPlan(parseState(state, setup))),
+    accommodationState(editorStateToPlan(parseState(plan, setup))),
     setup,
     { solve: solveRooms },
   );

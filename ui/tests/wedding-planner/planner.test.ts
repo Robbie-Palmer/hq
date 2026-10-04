@@ -15,7 +15,7 @@ import {
   setShareMode,
 } from "@/lib/wedding-planner/sharing";
 import { buildInput, parseState } from "@/lib/wedding-planner/state";
-import type { Guest, State } from "@/lib/wedding-planner/types";
+import type { Guest, WeddingPlanDraft } from "@/lib/wedding-planner/types";
 
 function guest(id: string, changes: Partial<Guest> = {}): Guest {
   return {
@@ -48,7 +48,10 @@ function guest(id: string, changes: Partial<Guest> = {}): Guest {
   };
 }
 
-function plan(guests: Guest[], changes: Partial<State> = {}): State {
+function plan(
+  guests: Guest[],
+  changes: Partial<WeddingPlanDraft> = {},
+): WeddingPlanDraft {
   return {
     nights: 1,
     guests,

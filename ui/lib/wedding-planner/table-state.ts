@@ -1,32 +1,37 @@
-import type { Attendance } from "wedding-planner-domain";
 import {
-  acceptAccommodationSeatingSuggestions as acceptSuggestions,
-  setAttendance as attendance,
-  setCouple as couple,
-  setTablePairDecision as preference,
-  seatAttendingWeddingParty as seatParty,
-  accommodationSeatingSuggestions as suggestions,
+  type Attendance,
+  acceptAccommodationSeatingSuggestions as acceptDomainAccommodationSeatingSuggestions,
+  accommodationSeatingSuggestions as findAccommodationSeatingSuggestions,
+  seatAttendingWeddingParty as seatDomainWeddingParty,
+  setAttendance as setDomainAttendance,
+  setCouple as setDomainCouple,
+  setTablePairDecision as setDomainTablePairDecision,
+  setTopTableGuest as setDomainTopTableGuest,
   tableInput,
-  setTopTableGuest as weddingParty,
 } from "wedding-planner-domain";
 import { tablePairDecision as decision } from "wedding-planner-domain/seating";
 import { editDomain, editorStateToPlan } from "./editor-projection";
-import type { Guest, PairDecision, State } from "./types";
+import type { Guest, PairDecision, WeddingPlanDraft } from "./types";
 
 export { tablePlanSchema } from "wedding-planner-domain/seating";
 
 export { defaultTablePlan as getTablePlan } from "./editor-projection";
-export function accommodationSeatingSuggestions(state: State) {
-  return suggestions(editorStateToPlan(state));
+export function accommodationSeatingSuggestions(plan: WeddingPlanDraft) {
+  return findAccommodationSeatingSuggestions(editorStateToPlan(plan));
 }
 export function acceptAccommodationSeatingSuggestions(
-  state: State,
+  plan: WeddingPlanDraft,
   pair?: [string, string],
 ): void {
-  editDomain(state, (plan) => acceptSuggestions(plan, pair));
+  editDomain(plan, (wedding) =>
+    acceptDomainAccommodationSeatingSuggestions(wedding, pair),
+  );
 }
-export function validateTableLinks(state: State, ids: Set<string>): void {
-  if (state.table_plan?.top_table_guest_ids.some((id) => !ids.has(id)))
+export function validateTableLinks(
+  plan: WeddingPlanDraft,
+  ids: Set<string>,
+): void {
+  if (plan.table_plan?.top_table_guest_ids.some((id) => !ids.has(id)))
     throw new Error("The top table refers to an unknown guest");
 }
 export function tablePairDecision(first: Guest, second: Guest): PairDecision {
@@ -44,34 +49,42 @@ export function tablePairDecision(first: Guest, second: Guest): PairDecision {
   );
 }
 export function setTablePairDecision(
-  state: State,
+  plan: WeddingPlanDraft,
   first: string,
   second: string,
   choice: PairDecision,
 ): void {
-  editDomain(state, (plan) => preference(plan, first, second, choice));
+  editDomain(plan, (wedding) =>
+    setDomainTablePairDecision(wedding, first, second, choice),
+  );
 }
 export function setAttendance(
-  state: State,
+  plan: WeddingPlanDraft,
   id: string,
   value: Attendance,
 ): void {
-  editDomain(state, (plan) => attendance(plan, id, value));
+  editDomain(plan, (wedding) => setDomainAttendance(wedding, id, value));
 }
 export function setTopTableGuest(
-  state: State,
+  plan: WeddingPlanDraft,
   id: string,
   included: boolean,
 ): void {
-  editDomain(state, (plan) => weddingParty(plan, id, included));
+  editDomain(plan, (wedding) => setDomainTopTableGuest(wedding, id, included));
 }
-export function setCouple(state: State, id: string, partnerId: string): void {
-  editDomain(state, (plan) => couple(plan, id, partnerId || null));
+export function setCouple(
+  plan: WeddingPlanDraft,
+  id: string,
+  partnerId: string,
+): void {
+  editDomain(plan, (wedding) =>
+    setDomainCouple(wedding, id, partnerId || null),
+  );
 }
-export function buildTableInput(state: State) {
-  return tableInput(editorStateToPlan(state));
+export function buildTableInput(plan: WeddingPlanDraft) {
+  return tableInput(editorStateToPlan(plan));
 }
 
-export function seatAttendingWeddingParty(state: State): void {
-  editDomain(state, seatParty);
+export function seatAttendingWeddingParty(plan: WeddingPlanDraft): void {
+  editDomain(plan, seatDomainWeddingParty);
 }

@@ -3,13 +3,7 @@
 import dynamic from "next/dynamic";
 import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   roomPosition,
@@ -17,9 +11,9 @@ import {
 } from "@/lib/wedding-planner/room-layout";
 import { getTablePlan } from "@/lib/wedding-planner/table-state";
 import type {
-  State,
   TableAllocation,
   TablePlan,
+  WeddingPlanDraft,
 } from "@/lib/wedding-planner/types";
 
 type Appearance = NonNullable<TablePlan["table_layout"]>[string];
@@ -34,9 +28,9 @@ export function TableRoomMap({
   allocation,
   onUpdate,
 }: Readonly<{
-  state: State;
+  state: WeddingPlanDraft;
   allocation: TableAllocation | null;
-  onUpdate: (change: (draft: State) => void) => void;
+  onUpdate: (change: (draft: WeddingPlanDraft) => void) => void;
 }>) {
   const nameId = useId();
   const plan = getTablePlan(state);
@@ -87,11 +81,6 @@ export function TableRoomMap({
     <Card className="table-room-card">
       <CardHeader>
         <CardTitle>Room map</CardTitle>
-        <CardDescription>
-          Drag tables into place, or select a table and use the arrow keys.
-          Calculate tables to show seated guests. This is a sketch, not a scale
-          floor plan. Long top tables have seats on one side, facing the room.
-        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="room-map-toolbar">

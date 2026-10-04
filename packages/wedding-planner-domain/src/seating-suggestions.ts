@@ -32,7 +32,6 @@ function sharingSuggestion(
   );
 }
 
-/** Cross-context suggestions require explicit sharing choices and never change the plan. */
 export function accommodationSeatingSuggestions(
   plan: WeddingPlan,
 ): SeatingSuggestion[] {
@@ -69,7 +68,6 @@ export function accommodationSeatingSuggestions(
   return suggestions;
 }
 
-/** Recompute at acceptance so stale suggestions cannot overwrite manual decisions. */
 export function acceptAccommodationSeatingSuggestions(
   plan: WeddingPlan,
   pair?: [string, string],

@@ -1,4 +1,3 @@
-/** Parse a non-negative amount in a two-decimal currency into minor units. */
 export function parseMoneyToMinorUnits(
   value: unknown,
   label: string,
@@ -40,7 +39,6 @@ export function formatCurrencyAmount(
   }).format(amount);
 }
 
-/** Format the minor units of a two-decimal currency. */
 export function formatMinorCurrency(
   minorUnits: number,
   currency = "GBP",
