@@ -35,19 +35,19 @@ url = "https://github.com/duckdb/duckdb/releases/download/v1.5.6/duckdb_cli-osx-
 url_api = "https://api.github.com/repos/duckdb/duckdb/releases/assets/595495619"
 
 [[tools."github:oasdiff/oasdiff"]]
-version = "1.32.1"
+version = "1.33.0"
 backend = "github:oasdiff/oasdiff"
-specifiers = ["1.32.1"]
+specifiers = ["v1.33.0"]
 
 [tools."github:oasdiff/oasdiff"."platforms.linux-x64"]
-checksum = "sha256:7c8939fc49b75ee11fec66a5b83b37a2fca6aee109fed85013b1ba2ac2a1ee7f"
-url = "https://github.com/oasdiff/oasdiff/releases/download/v1.32.1/oasdiff_1.32.1_linux_amd64.tar.gz"
-url_api = "https://api.github.com/repos/oasdiff/oasdiff/releases/assets/566286334"
+checksum = "sha256:43a4e328e2d13ba1552d760aa68d2485c75c5621f309f6ff64ae895188345247"
+url = "https://github.com/oasdiff/oasdiff/releases/download/v1.33.0/oasdiff_1.33.0_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/oasdiff/oasdiff/releases/assets/603658995"
 
 [tools."github:oasdiff/oasdiff"."platforms.macos-arm64"]
-checksum = "sha256:e4d74b7e2dfb9d4819e7fc720c905ec86547e4637ac270a2b0187c0f1fb7187e"
-url = "https://github.com/oasdiff/oasdiff/releases/download/v1.32.1/oasdiff_1.32.1_darwin_all.tar.gz"
-url_api = "https://api.github.com/repos/oasdiff/oasdiff/releases/assets/566286356"
+checksum = "sha256:2a479337c15afdcbf0b1e89c0b4d0cf0176472dbc11483358fed1f831d1e46c5"
+url = "https://github.com/oasdiff/oasdiff/releases/download/v1.33.0/oasdiff_1.33.0_darwin_all.tar.gz"
+url_api = "https://api.github.com/repos/oasdiff/oasdiff/releases/assets/603659023"
 
 [[tools."github:pnpm/pnpm"]]
 version = "12.8.2"
