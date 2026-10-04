@@ -1,5 +1,6 @@
 "use client";
 
+import type { HouseholdTaxEstimate } from "finance-tax-rules/household-tax";
 import {
   createContext,
   type ReactNode,
@@ -42,6 +43,7 @@ import {
   type DeleteSnapshotInput,
   type FinancialDecisionRecord,
   getAssetAllocationTimeSeries,
+  getHouseholdTaxEstimate,
   getHousingPlanningPosition,
   getLatestPortfolioValuation,
   getNetWorthTimeSeries,
@@ -100,6 +102,7 @@ interface AssetTrackerContextValue {
   flowSankeyData: FlowSankeyData;
   financialIndependence: PortfolioFinancialIndependence;
   housingPlanningPosition: HousingPlanningPosition | null;
+  taxEstimate: HouseholdTaxEstimate;
   /** Annualised portfolio growth, excluding recorded external money in/out */
   portfolioReturn: number | null;
   positionSummary: PortfolioPositionSummary | null;
@@ -166,6 +169,7 @@ interface AssetTrackerContextValue {
   resetData(): Promise<void>;
   exportData(): void;
   exportCsv(): void;
+  exportTaxEstimate(): void;
   importData(file: File): Promise<void>;
 }
 
@@ -183,19 +187,32 @@ function downloadFile(filename: string, content: string, mime: string): void {
   URL.revokeObjectURL(url);
 }
 
+function taxFlowContext(
+  data: AssetTrackerData,
+  estimate: HouseholdTaxEstimate,
+) {
+  return data.taxPosition == null
+    ? undefined
+    : { estimate, records: data.taxPosition };
+}
+
+function downloadTaxEstimate(estimate: HouseholdTaxEstimate): void {
+  downloadFile(
+    `assettracker-tax-estimate-${estimate.taxYear}.json`,
+    JSON.stringify(estimate, null, 2),
+    "application/json",
+  );
+}
+
 export function AssetTrackerProvider({
   children,
 }: Readonly<{ children: ReactNode }>) {
-  // Seed synchronously so the static build renders the full demo dashboard;
-  // locally saved changes are applied after mount to avoid hydration mismatch
   const [data, setData] = useState<AssetTrackerData>(getDemoAssetTrackerData);
   const [hasLocalChanges, setHasLocalChanges] = useState(false);
   const [localDataStatus, setLocalDataStatus] =
     useState<AssetTrackerContextValue["localDataStatus"]>("loading");
   const [localDataError, setLocalDataError] = useState<string | null>(null);
   const apiRef = useRef<AssetTrackerApi | null>(null);
-  // Once the user has mutated, a late-resolving load() must not clobber the
-  // fresher state with the older persisted snapshot
   const hasMutatedRef = useRef(false);
   const loadRequestRef = useRef(0);
 
@@ -254,8 +271,8 @@ export function AssetTrackerProvider({
   );
 
   const views = useMemo(() => {
-    const scopedData = scopeAssetTrackerData(data);
-    const repository = buildRepository(scopedData);
+    const repository = buildRepository(scopeAssetTrackerData(data));
+    const taxEstimate = getHouseholdTaxEstimate(data);
     const { summaries: accounts, details: accountDetails } =
       buildAccountReadModels(repository);
     const netWorthDataByCurrency = Object.fromEntries(
@@ -295,6 +312,7 @@ export function AssetTrackerProvider({
         repository,
         accountDetails,
         valuationDate,
+        taxFlowContext(data, taxEstimate),
       ),
       financialIndependence,
       housingPlanningPosition: getHousingPlanningPosition(
@@ -302,6 +320,7 @@ export function AssetTrackerProvider({
         financialIndependence,
         valuationDate,
       ),
+      taxEstimate,
       portfolioReturn: getPortfolioAnnualReturn(repository),
       positionSummary: getPortfolioPositionSummary(repository),
       inflation: repository.settings.expectedAnnualInflation,
@@ -312,7 +331,7 @@ export function AssetTrackerProvider({
       valuationDate: latestValuation?.date ?? null,
       valuationIssues: latestValuation?.issues ?? [],
       propertyValueHistories: buildPropertyValueHistoryViews(
-        scopedData.propertyIndexHistories ?? [],
+        repository.propertyIndexHistories,
         housePriceIndexArchive,
       ),
       household: data.household,
@@ -420,6 +439,7 @@ export function AssetTrackerProvider({
           toBalancesCsv(data),
           "text/csv",
         ),
+      exportTaxEstimate: () => downloadTaxEstimate(views.taxEstimate),
       importData: async (file) => {
         const raw = JSON.parse(await file.text());
         await mutate((api) => api.importData(raw));

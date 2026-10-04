@@ -1,0 +1,93 @@
+{
+  "datasetVersion": "2026.10.1",
+  "releasedAt": "2026-10-04",
+  "supersedes": "2026.10.0",
+  "corrections": [],
+  "dataLicence": {
+    "name": "Open Government Licence v3.0",
+    "url": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+    "copyright": "Crown copyright",
+    "attribution": "Contains public sector information from HM Revenue & Customs licensed under the Open Government Licence v3.0."
+  },
+  "supportedTaxYears": [
+    "2022-23",
+    "2023-24",
+    "2024-25",
+    "2025-26",
+    "2026-27"
+  ],
+  "jurisdictions": [
+    "england-and-northern-ireland",
+    "scotland",
+    "wales"
+  ],
+  "incomeTax": {
+    "incomeScope": "employment-non-savings-non-dividend",
+    "calculationScope": "annual-liability",
+    "personalAllowanceTapering": true,
+    "unavailable": [
+      "PAYE withholding and tax codes",
+      "savings and dividend income",
+      "Marriage Allowance and Blind Person's Allowance"
+    ]
+  },
+  "nationalInsurance": {
+    "class": 1,
+    "categories": [
+      "A"
+    ],
+    "employmentTypes": [
+      "employee-not-director"
+    ],
+    "payPeriods": [
+      "weekly",
+      "monthly"
+    ],
+    "unavailable": [
+      "categories other than A",
+      "company directors",
+      "annual and irregular pay periods"
+    ]
+  },
+  "pensions": {
+    "methods": [
+      "salary-sacrifice",
+      "net-pay",
+      "relief-at-source"
+    ],
+    "limits": [
+      "member tax-relief earnings limit",
+      "annual allowance",
+      "tapered annual allowance",
+      "money purchase annual allowance"
+    ]
+  },
+  "householdTax": {
+    "supportedTaxYears": [
+      "2025-26",
+      "2026-27"
+    ],
+    "income": [
+      "employment",
+      "dividends"
+    ],
+    "capitalGains": [
+      "non-residential assets",
+      "residential property"
+    ],
+    "wrappers": [
+      "ISA",
+      "pension",
+      "taxable"
+    ],
+    "unavailable": [
+      "partial-year residence",
+      "taxable benefits",
+      "Scottish household totals",
+      "savings and property income",
+      "Capital Gains Tax reliefs and elections",
+      "pension carry forward and defined benefit input amounts"
+    ]
+  },
+  "missingDataBehavior": "unavailable"
+}

@@ -28,5 +28,6 @@ export * from "./recurringFlow";
 export * from "./runwayForecast";
 export * from "./salaryHistory";
 export * from "./salaryHistoryImport";
+export * from "./taxPosition";
 export * from "./transfer";
 export * from "./valuation";

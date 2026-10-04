@@ -132,6 +132,36 @@ export const pensionRuleSchema = baseRuleSchema.extend({
   methods: z.array(pensionMethodSchema).length(3),
 });
 
+export const householdTaxRuleSchema = baseRuleSchema.extend({
+  kind: z.literal("household-tax"),
+  jurisdictions: z.array(jurisdictionSchema).min(1),
+  dividendAllowancePence: moneyPenceSchema,
+  dividendRates: z.object({
+    basicBasisPoints: rateBasisPointsSchema,
+    higherBasisPoints: rateBasisPointsSchema,
+    additionalBasisPoints: rateBasisPointsSchema,
+  }),
+  savings: z.object({
+    startingRateLimitPence: moneyPenceSchema,
+    personalSavingsAllowancePence: z.object({
+      basic: moneyPenceSchema,
+      higher: moneyPenceSchema,
+      additional: moneyPenceSchema,
+    }),
+    rates: z.object({
+      basicBasisPoints: rateBasisPointsSchema,
+      higherBasisPoints: rateBasisPointsSchema,
+      additionalBasisPoints: rateBasisPointsSchema,
+    }),
+  }),
+  capitalGains: z.object({
+    annualExemptAmountPence: moneyPenceSchema,
+    basicRateBasisPoints: rateBasisPointsSchema,
+    higherRateBasisPoints: rateBasisPointsSchema,
+  }),
+  isaAnnualAllowancePence: moneyPenceSchema,
+});
+
 export const datasetSchema = z.object({
   datasetVersion: datasetVersionSchema,
   releasedAt: isoDateSchema,
@@ -154,6 +184,7 @@ export const datasetSchema = z.object({
   incomeTax: z.array(incomeTaxRuleSchema).min(1),
   nationalInsurance: z.array(nationalInsuranceRuleSchema).min(1),
   pensions: z.array(pensionRuleSchema).min(1),
+  householdTax: z.array(householdTaxRuleSchema).min(1),
 });
 
 export type RuleDataset = z.infer<typeof datasetSchema>;

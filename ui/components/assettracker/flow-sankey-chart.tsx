@@ -199,6 +199,14 @@ function SankeyTooltip({
   );
 }
 
+function flowMapDescription(data: FlowSankeyData): string {
+  const base =
+    "Monthly-equivalent cash flows, expected returns, interest charges";
+  return data.taxYear == null
+    ? `${base}.`
+    : `${base}, and the ${data.taxYear.replace("-", "/")} UK tax estimate.`;
+}
+
 export function FlowSankeyChart({
   data: flowData,
   currency,
@@ -278,9 +286,7 @@ export function FlowSankeyChart({
     <Card className="min-w-0">
       <CardHeader>
         <CardTitle>Regular Flow Map</CardTitle>
-        <CardDescription>
-          Monthly-equivalent cash flows, expected returns, and interest charges.
-        </CardDescription>
+        <CardDescription>{flowMapDescription(data)}</CardDescription>
       </CardHeader>
       <CardContent className="px-2 sm:px-6">
         {!hasFlows ? (

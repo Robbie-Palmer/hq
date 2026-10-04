@@ -20,6 +20,7 @@ import { PlannedExpenditureSchema } from "./plannedExpenditure";
 import { PropertyIndexHistoryDefinitionSchema } from "./propertyIndexHistory";
 import { RecurringFlowSchema } from "./recurringFlow";
 import { SalaryHistoryRecordSchema } from "./salaryHistory";
+import { TaxPositionDataSchema } from "./taxPosition";
 import { TransferSchema } from "./transfer";
 import {
   ExchangeRateObservationSchema,
@@ -100,6 +101,7 @@ export const AssetTrackerDataSchema = z
       .optional(),
     household: HouseholdSchema.default(DEFAULT_HOUSEHOLD),
     ownership: HouseholdOwnershipIndexSchema.default(EMPTY_HOUSEHOLD_OWNERSHIP),
+    taxPosition: TaxPositionDataSchema.optional(),
     settings: AssetTrackerSettingsSchema.default({
       expectedAnnualInflation: DEFAULT_EXPECTED_INFLATION,
       withdrawalRate: DEFAULT_WITHDRAWAL_RATE,

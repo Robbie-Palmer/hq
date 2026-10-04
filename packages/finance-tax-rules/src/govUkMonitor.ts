@@ -4,9 +4,9 @@ import { sha256Hex } from "ts-base/crypto";
 import { isoDatePart } from "ts-base/dates";
 import {
   canonicalJson,
+  type JsonValue,
   jsonPointer,
   mapJsonStrings,
-  type JsonValue,
 } from "ts-base/json";
 import {
   compareStrings,
@@ -188,6 +188,7 @@ export function buildGovUkSourceRegistry(
     ...dataset.incomeTax,
     ...dataset.nationalInsurance,
     ...dataset.pensions,
+    ...dataset.householdTax,
   ];
   return dataset.sources.map((source) => {
     const supportedRules = rules.filter((rule) =>

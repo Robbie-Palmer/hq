@@ -23,6 +23,7 @@ import {
 import { valueAccountAtDate } from "@/lib/domain/assettracker/portfolioValuation";
 import { buildPropertyValueHistoryViews } from "@/lib/domain/assettracker/propertyIndexHistory";
 import { currentSalaryHistory } from "@/lib/domain/assettracker/salaryHistory";
+import { getHouseholdTaxEstimate } from "@/lib/domain/assettracker/taxPosition";
 
 describe("Asset Tracker demo-data adapter", () => {
   it("isolates the portfolio value caused by exchange-rate changes", () => {
@@ -453,6 +454,83 @@ describe("Asset Tracker demo-data adapter", () => {
     );
     expect(sankey.links).toContainEqual(
       expect.objectContaining({ label: "Conversion fee and spread" }),
+    );
+  });
+
+  it("shows the demo tax position in the capital-flow map", () => {
+    const data = getDemoAssetTrackerData();
+    if (data.taxPosition == null) throw new Error("Expected demo tax records");
+    const repository = buildRepository(data);
+    const sankey = buildBaseCurrencyFlowSankeyData(
+      repository,
+      getAllAccountDetails(repository),
+      "2024-12-01",
+      {
+        estimate: getHouseholdTaxEstimate(data),
+        records: data.taxPosition,
+      },
+    );
+    const links = sankey.links.map(
+      ({ label, sourceName, targetName, value }) => ({
+        label,
+        sourceName,
+        targetName,
+        value,
+      }),
+    );
+
+    expect(sankey.taxYear).toBe("2026-27");
+    expect(links).toEqual(
+      expect.arrayContaining([
+        {
+          label: "Gross salary",
+          sourceName: "External income",
+          targetName: "Gross pay",
+          value: 8333.33,
+        },
+        {
+          label: "Estimated Income Tax and National Insurance",
+          sourceName: "Gross pay",
+          targetName: "Tax and deductions",
+          value: 1698,
+        },
+        {
+          label: "Estimated savings interest tax",
+          sourceName: "Marcus Savings",
+          targetName: "Tax and deductions",
+          value: 8.33,
+        },
+        {
+          label: "Estimated Dividend Tax",
+          sourceName: "Vanguard Global All Cap",
+          targetName: "Tax and deductions",
+          value: 20.85,
+        },
+        {
+          label: "Estimated Capital Gains Tax",
+          sourceName: "Coinbase BTC",
+          targetName: "Tax and deductions",
+          value: 40,
+        },
+        {
+          label: "ISA contribution",
+          sourceName: "Nationwide Current",
+          targetName: "Trading 212 ISA",
+          value: 500,
+        },
+        {
+          label: "Pension contribution",
+          sourceName: "Nationwide Current",
+          targetName: "Workplace Pension",
+          value: 666.67,
+        },
+        {
+          label: "Pension tax relief",
+          sourceName: "External income",
+          targetName: "Workplace Pension",
+          value: 166.67,
+        },
+      ]),
     );
   });
 });

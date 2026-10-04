@@ -25,7 +25,7 @@ const packageRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
 describe("UK tax rule dataset", () => {
   it("passes structural and semantic validation", () => {
-    expect(validateDataset(ruleDataset).datasetVersion).toBe("2026.10.0");
+    expect(validateDataset(ruleDataset).datasetVersion).toBe("2026.10.2");
   });
 
   it("builds deterministic artifacts without an empty announced release", () => {
@@ -33,14 +33,14 @@ describe("UK tax rule dataset", () => {
     const second = buildArtifacts(packageRoot);
 
     expect([...first]).toEqual([...second]);
-    expect(first.get("artifacts/enacted/2026.10.0.json")).toContain(
+    expect(first.get("artifacts/enacted/2026.10.2.json")).toContain(
       '"legalStatus": "enacted"',
     );
-    expect(first.has("artifacts/announced/2026.10.0.json")).toBe(false);
+    expect(first.has("artifacts/announced/2026.10.2.json")).toBe(false);
     expect(first.get("artifacts/manifest.json")).not.toContain(
-      "artifacts/announced/2026.10.0.json",
+      "artifacts/announced/2026.10.2.json",
     );
-    expect(first.get("artifacts/validation/2026.10.0.json")).toContain(
+    expect(first.get("artifacts/validation/2026.10.2.json")).toContain(
       '"calculationContractVersion": "salary-validation-v1"',
     );
     expect(first.get("artifacts/manifest.json")).toContain('"fixtureCount": 16');
@@ -324,7 +324,7 @@ describe("salary calculator adapter contract", () => {
         adapterVersion: "1",
         engineId: "@saving-tool/hmrc-income-tax",
         engineVersion: "3.0.1",
-        ruleDatasetVersion: "2026.10.0",
+        ruleDatasetVersion: "2026.10.1",
         effectiveRuleVersion: "2025-26",
         calculationVersion: "salary-estimate-v1",
         sourceRuleIds: [

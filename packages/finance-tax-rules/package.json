@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./dataset": "./src/data.ts",
+    "./household-tax": "./src/householdTax.ts",
     "./gov-uk-monitor": "./src/govUkMonitor.ts",
     "./validation": "./src/validationApi.ts"
   },
