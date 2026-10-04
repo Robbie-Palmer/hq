@@ -69,6 +69,7 @@ export function MortgageSchedule({
               <th className="px-2 py-2 text-right font-medium">Principal</th>
               <th className="px-2 py-2 text-right font-medium">Fees</th>
               <th className="px-2 py-2 text-right font-medium">Overpayment</th>
+              <th className="px-2 py-2 text-right font-medium">Charge</th>
               <th className="px-2 py-2 text-right font-medium">Balance</th>
             </tr>
           </thead>
@@ -82,6 +83,7 @@ export function MortgageSchedule({
                   payment.principal,
                   payment.fees,
                   payment.overpayment,
+                  payment.overpaymentCharge,
                   payment.closingBalance,
                 ].map((amount, index) => (
                   <td

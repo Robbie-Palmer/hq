@@ -28,6 +28,10 @@ import {
 } from "./household";
 import { MortgageTermsSchema } from "./mortgage";
 import {
+  type SaveMortgageScenarioInput,
+  SaveMortgageScenarioInputSchema,
+} from "./mortgageCalculator";
+import {
   flowOccurrenceDates,
   monthlyAmount,
   RecurringFlowDefinitionShape,
@@ -285,6 +289,8 @@ export const SetNetWorthTargetInputSchema = z.object({
 export type SetNetWorthTargetInput = z.infer<
   typeof SetNetWorthTargetInputSchema
 >;
+
+export type { SaveMortgageScenarioInput };
 
 function uniqueId(taken: Set<string>, base: string): string {
   if (!taken.has(base)) return base;
@@ -1034,6 +1040,61 @@ export function applySetNetWorthTarget(
         ? undefined
         : (parsed.inTodaysMoney ?? false),
     },
+  };
+}
+
+export function applySaveMortgageScenario(
+  data: AssetTrackerData,
+  input: SaveMortgageScenarioInput,
+  recordedAt: string,
+): AssetTrackerData {
+  const parsed = SaveMortgageScenarioInputSchema.parse(input);
+  const takenScenarioIds = new Set(
+    (data.mortgageScenarios ?? []).map((scenario) => scenario.id),
+  );
+  const scenarioId = uniqueId(
+    takenScenarioIds,
+    normalizeSlug(parsed.name) || "mortgage-scenario",
+  );
+  if (parsed.source.mortgageAccountId != null) {
+    requireAccount(data, parsed.source.mortgageAccountId);
+  }
+  if (parsed.source.propertyAccountId != null) {
+    requireAccount(data, parsed.source.propertyAccountId);
+  }
+  const decisionId = parsed.recordDecision
+    ? uniqueId(
+        new Set((data.decisionRecords ?? []).map((decision) => decision.id)),
+        `${scenarioId}-decision`,
+      )
+    : undefined;
+  return {
+    ...data,
+    mortgageScenarios: [
+      ...(data.mortgageScenarios ?? []),
+      {
+        id: scenarioId,
+        name: parsed.name,
+        createdAt: recordedAt,
+        assumptions: parsed.assumptions,
+        source: parsed.source,
+        ...(decisionId == null ? {} : { decisionRecordId: decisionId }),
+      },
+    ],
+    decisionRecords:
+      decisionId == null
+        ? (data.decisionRecords ?? [])
+        : [
+            ...(data.decisionRecords ?? []),
+            {
+              id: decisionId,
+              kind: "mortgage",
+              title: parsed.name,
+              scenarioId,
+              recordedAt,
+              status: "recorded",
+            },
+          ],
   };
 }
 

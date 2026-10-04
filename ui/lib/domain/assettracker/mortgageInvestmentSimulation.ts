@@ -48,15 +48,6 @@ function overpaymentFundedByCapital(
   };
 }
 
-function addDatedAmount(
-  entries: readonly { date: string; amount: number }[],
-  date: string,
-  amount: number,
-) {
-  if (amount <= 0) return [...entries];
-  return [...entries, { date, amount }];
-}
-
 type ScenarioSetup = {
   schedule: MortgageScheduleRow[];
   retainedSchedule: MortgageScheduleRow[];
@@ -91,16 +82,17 @@ function prepareScenario(
   const firstPaymentDate = input.mortgageTerms.firstPaymentDate;
   const terms: MortgageTerms = {
     ...input.mortgageTerms,
-    overpayments: addDatedAmount(
-      input.mortgageTerms.overpayments,
-      firstPaymentDate,
-      lumpSumOverpayment,
-    ),
-    fees: addDatedAmount(
-      input.mortgageTerms.fees,
-      firstPaymentDate,
-      overpaymentCharge,
-    ),
+    overpaymentAllowance: {
+      amount: input.penaltyFreeOverpayment,
+      chargeRate: input.overpaymentChargeRate,
+    },
+    overpayments:
+      lumpSumOverpayment <= 0
+        ? [...input.mortgageTerms.overpayments]
+        : [
+            ...input.mortgageTerms.overpayments,
+            { date: firstPaymentDate, amount: lumpSumOverpayment },
+          ],
   };
   return {
     retainedSchedule,
@@ -254,7 +246,10 @@ export function outcomeFor(
       rowsInHorizon.reduce((sum, row) => sum + row.interest, 0),
     ),
     mortgageFeesAndCharges: roundMoney(
-      rowsInHorizon.reduce((sum, row) => sum + row.fees, 0),
+      rowsInHorizon.reduce(
+        (sum, row) => sum + row.fees + row.overpaymentCharge,
+        0,
+      ),
     ),
     firstYearMortgageCashRequired: roundMoney(
       setup.schedule.slice(0, 12).reduce((sum, row) => sum + row.totalDue, 0),

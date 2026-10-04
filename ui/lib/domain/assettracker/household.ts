@@ -510,6 +510,19 @@ export function scopeAssetTrackerData(
       ? [{ ...row, amount: scale(row.amount, fraction) }]
       : [];
   });
+  const mortgageScenarios = (data.mortgageScenarios ?? []).filter(
+    ({ source }) =>
+      (source.mortgageAccountId == null ||
+        keptAccountIds.has(source.mortgageAccountId)) &&
+      (source.propertyAccountId == null ||
+        keptAccountIds.has(source.propertyAccountId)),
+  );
+  const keptScenarioIds = new Set(
+    mortgageScenarios.map((scenario) => scenario.id),
+  );
+  const decisionRecords = (data.decisionRecords ?? []).filter((decision) =>
+    keptScenarioIds.has(decision.scenarioId),
+  );
   const holdingObservations = (data.holdingObservations ?? []).flatMap(
     (row) => {
       if (!keptAccountIds.has(row.accountId)) return [];
@@ -528,6 +541,8 @@ export function scopeAssetTrackerData(
     transfers,
     recurringFlows,
     plannedExpenditures,
+    mortgageScenarios,
+    decisionRecords,
     holdingObservations,
   };
 }

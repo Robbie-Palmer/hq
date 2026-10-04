@@ -58,6 +58,66 @@ describe("createLocalAssetTrackerApi", () => {
     expect(data.accounts.map((a) => a.id)).toContain("premium-bonds");
   });
 
+  it("persists mortgage scenarios with linked decision records", async () => {
+    const seed = getDemoAssetTrackerData();
+    await createApi().saveMortgageScenario({
+      name: "Two-year fix",
+      recordDecision: true,
+      source: {
+        mortgageAccountId: "home-mortgage",
+        propertyAccountId: "home",
+        snapshotDate: "2026-01-31",
+      },
+      assumptions: {
+        purchasePrice: 350_000,
+        availableFunds: 150_000,
+        depositAmount: 100_000,
+        initialAnnualRate: 0.04,
+        termMonths: 240,
+        repaymentType: "repayment",
+        accrualStartDate: "2026-01-31",
+        firstPaymentDate: "2026-02-28",
+        fixedPeriodEnd: "2031-02-28",
+        followOnAnnualRate: 0.055,
+        refinanceFee: 999,
+        purchaseFees: 500,
+        taxes: 7_500,
+        transactionCosts: 2_000,
+        monthlyOverpayment: 250,
+        overpaymentAllowance: 25_000,
+        overpaymentChargeRate: 0.05,
+      },
+    });
+
+    const { data } = await createApi().load();
+    expect(data.mortgageScenarios).toHaveLength(
+      (seed.mortgageScenarios?.length ?? 0) + 1,
+    );
+    expect(data.mortgageScenarios).toContainEqual(
+      expect.objectContaining({
+        id: "two-year-fix",
+        name: "Two-year fix",
+        decisionRecordId: "two-year-fix-decision",
+        source: {
+          mortgageAccountId: "home-mortgage",
+          propertyAccountId: "home",
+          snapshotDate: "2026-01-31",
+        },
+      }),
+    );
+    expect(data.decisionRecords).toHaveLength(
+      (seed.decisionRecords?.length ?? 0) + 1,
+    );
+    expect(data.decisionRecords).toContainEqual({
+      id: "two-year-fix-decision",
+      kind: "mortgage",
+      title: "Two-year fix",
+      scenarioId: "two-year-fix",
+      recordedAt: expect.any(String),
+      status: "recorded",
+    });
+  });
+
   it("persists an atomic account-history import", async () => {
     const seed = getDemoAssetTrackerData();
     const accountId = seed.accounts.find((account) => !account.closedAt)?.id;

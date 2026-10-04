@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { DecisionsRoute } from "@/components/assettracker/decisions-route";
 
 export const metadata: Metadata = { title: "Decisions" };
 
@@ -12,12 +13,7 @@ export default function AssetTrackerDecisionsPage() {
           outcomes.
         </p>
       </div>
-      <div className="rounded-lg border border-dashed px-6 py-12 text-center">
-        <h2 className="text-lg font-semibold">No decision records yet</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Decision recording is not available in this version of Asset Tracker.
-        </p>
-      </div>
+      <DecisionsRoute />
     </div>
   );
 }

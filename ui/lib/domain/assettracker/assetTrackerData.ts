@@ -12,6 +12,10 @@ import {
 } from "./household";
 import { IncomeRecordSchema } from "./incomeRecord";
 import { PositiveMoneySchema } from "./money";
+import {
+  FinancialDecisionRecordSchema,
+  MortgageScenarioSchema,
+} from "./mortgageCalculator";
 import { PlannedExpenditureSchema } from "./plannedExpenditure";
 import { RecurringFlowSchema } from "./recurringFlow";
 import { TransferSchema } from "./transfer";
@@ -82,6 +86,8 @@ export const AssetTrackerDataSchema = z
     transfers: z.array(TransferSchema).default([]),
     recurringFlows: z.array(RecurringFlowSchema).default([]),
     plannedExpenditures: z.array(PlannedExpenditureSchema).default([]),
+    mortgageScenarios: z.array(MortgageScenarioSchema).optional(),
+    decisionRecords: z.array(FinancialDecisionRecordSchema).optional(),
     instruments: z.array(InstrumentSchema).optional(),
     holdingObservations: z.array(HoldingObservationSchema).optional(),
     priceObservations: z.array(PriceObservationSchema).optional(),

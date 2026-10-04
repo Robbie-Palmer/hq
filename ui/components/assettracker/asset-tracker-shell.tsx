@@ -7,6 +7,7 @@ import {
   FileClockIcon,
   FileInputIcon,
   GoalIcon,
+  HouseIcon,
   LandmarkIcon,
   type LucideIcon,
   SettingsIcon,
@@ -67,8 +68,13 @@ const destinationGroups: readonly DestinationGroup[] = [
     destinations: [
       {
         href: "/assettracker/planning",
-        label: "Planning",
+        label: "FI planning",
         icon: GoalIcon,
+      },
+      {
+        href: "/assettracker/mortgage",
+        label: "Mortgage",
+        icon: HouseIcon,
       },
       {
         href: "/assettracker/decisions",

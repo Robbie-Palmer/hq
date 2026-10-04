@@ -24,6 +24,7 @@ import {
   applyRecordBalance,
   applyRecordTransfer,
   applyRenameHouseholdMember,
+  applySaveMortgageScenario,
   applySetAccountLiquidity,
   applySetAccountOwnership,
   applySetActiveHouseholdScope,
@@ -48,6 +49,7 @@ import {
   type RecordBalanceInput,
   type RecordTransferInput,
   type RenameHouseholdMemberInput,
+  type SaveMortgageScenarioInput,
   type SetAccountLiquidityInput,
   type SetAccountOwnershipInput,
   type SetBaseCurrencyInput,
@@ -102,6 +104,9 @@ export interface AssetTrackerApi {
   setInflation(input: SetInflationInput): Promise<AssetTrackerData>;
   setNetWorthTarget(input: SetNetWorthTargetInput): Promise<AssetTrackerData>;
   setWithdrawalRate(input: SetWithdrawalRateInput): Promise<AssetTrackerData>;
+  saveMortgageScenario(
+    input: SaveMortgageScenarioInput,
+  ): Promise<AssetTrackerData>;
   addHouseholdMember(input: AddHouseholdMemberInput): Promise<AssetTrackerData>;
   renameHouseholdMember(
     input: RenameHouseholdMemberInput,
@@ -273,6 +278,11 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
     setWithdrawalRate(input) {
       return promiseFromSync(() =>
         write(applySetWithdrawalRate(current(), input)),
+      );
+    },
+    saveMortgageScenario(input) {
+      return promiseFromSync(() =>
+        write(applySaveMortgageScenario(current(), input, currentDate())),
       );
     },
     addHouseholdMember(input) {

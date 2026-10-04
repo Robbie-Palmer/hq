@@ -33,6 +33,8 @@ export type MortgageRateChange = {
   rate: number;
 };
 
+export type MortgageRepaymentType = "repayment" | "interest-only";
+
 export type MortgageScheduleRow = {
   date: string;
   openingBalance: number;
@@ -42,6 +44,7 @@ export type MortgageScheduleRow = {
   principal: number;
   fees: number;
   overpayment: number;
+  overpaymentCharge: number;
   totalDue: number;
   closingBalance: number;
 };
@@ -158,6 +161,90 @@ function rateOn(
   );
 }
 
+function daysBetween(startDate: string, endDate: string): number {
+  const millisecondsPerDay = 24 * 60 * 60 * 1_000;
+  return Math.max(
+    0,
+    Math.round(
+      (parseISO(endDate).getTime() - parseISO(startDate).getTime()) /
+        millisecondsPerDay,
+    ),
+  );
+}
+
+function paymentDate(firstPaymentDate: string, index: number): string {
+  return format(addMonths(parseISO(firstPaymentDate), index), "yyyy-MM-dd");
+}
+
+function activeTermChange(terms: MortgageTerms, date: string) {
+  return terms.termChanges
+    .filter((change) => change.date <= date)
+    .toSorted((a, b) => a.date.localeCompare(b.date))
+    .at(-1);
+}
+
+function interestForPeriod(input: {
+  balance: number;
+  annualRate: number;
+  date: string;
+  index: number;
+  accrualStartDate?: string;
+}): number {
+  if (input.index > 0 || input.accrualStartDate == null) {
+    return input.balance * (input.annualRate / 12);
+  }
+  return (
+    input.balance *
+    input.annualRate *
+    (daysBetween(input.accrualStartDate, input.date) / 365)
+  );
+}
+
+function scheduledPaymentFor(input: {
+  balance: number;
+  interest: number;
+  repaymentPayment: number;
+  repaymentType: MortgageRepaymentType;
+  remainingMonths: number;
+}): number {
+  if (input.repaymentType === "repayment") {
+    return Math.min(input.repaymentPayment, input.balance + input.interest);
+  }
+  const principalAtMaturity = input.remainingMonths <= 1 ? input.balance : 0;
+  return Math.min(
+    input.interest + principalAtMaturity,
+    input.balance + input.interest,
+  );
+}
+
+function overpaymentFor(input: {
+  terms: MortgageTerms;
+  date: string;
+  requested: number;
+  maximum: number;
+  annualAllowanceUsed: Map<string, number>;
+}): { overpayment: number; charge: number } {
+  const overpayment = Math.min(input.requested, input.maximum);
+  const allowance = input.terms.overpaymentAllowance;
+  const allowanceYear = input.date.slice(0, 4);
+  const allowanceUsed = input.annualAllowanceUsed.get(allowanceYear) ?? 0;
+  const penaltyFreeRemaining = Math.max(
+    (allowance?.amount ?? Number.POSITIVE_INFINITY) - allowanceUsed,
+    0,
+  );
+  const penaltyFreeOverpayment = Math.min(overpayment, penaltyFreeRemaining);
+  input.annualAllowanceUsed.set(
+    allowanceYear,
+    allowanceUsed + penaltyFreeOverpayment,
+  );
+  return {
+    overpayment,
+    charge:
+      Math.max(overpayment - penaltyFreeOverpayment, 0) *
+      (allowance?.chargeRate ?? 0),
+  };
+}
+
 /**
  * Builds a forward repayment schedule from a recorded balance. The recorded
  * balance is the boundary between history and assumptions, so changing a
@@ -168,25 +255,26 @@ export function buildMortgageSchedule(input: {
   initialAnnualRate: number;
   rateChanges?: readonly MortgageRateChange[];
   terms: MortgageTerms;
+  repaymentType?: MortgageRepaymentType;
+  monthlyOverpayment?: number;
+  /** Enables daily interest for a short or long first payment period. */
+  accrualStartDate?: string;
 }): MortgageScheduleRow[] {
   const terms = MortgageTermsSchema.parse(input.terms);
   const rateChanges = input.rateChanges ?? [];
+  const repaymentType = input.repaymentType ?? "repayment";
+  const monthlyOverpayment = Math.max(input.monthlyOverpayment ?? 0, 0);
   let balance = Math.abs(input.openingBalance);
   let remainingMonths = terms.remainingTermMonths;
   let payment = 0;
   let previousRate: number | null = null;
   let previousTermChangeDate: string | null = null;
   const rows: MortgageScheduleRow[] = [];
+  const annualAllowanceUsed = new Map<string, number>();
 
   for (let index = 0; balance > 0 && index < 1_200; index++) {
-    const date = format(
-      addMonths(parseISO(terms.firstPaymentDate), index),
-      "yyyy-MM-dd",
-    );
-    const termChange = terms.termChanges
-      .filter((change) => change.date <= date)
-      .toSorted((a, b) => a.date.localeCompare(b.date))
-      .at(-1);
+    const date = paymentDate(terms.firstPaymentDate, index);
+    const termChange = activeTermChange(terms, date);
     const currentRate = rateOn(input.initialAnnualRate, rateChanges, date);
     const changedTerm =
       termChange != null && termChange.date !== previousTermChangeDate;
@@ -196,14 +284,30 @@ export function buildMortgageSchedule(input: {
     }
 
     const openingBalance = balance;
-    const interest = openingBalance * (currentRate / 12);
-    const scheduledPayment = Math.min(payment, openingBalance + interest);
+    const interest = interestForPeriod({
+      balance: openingBalance,
+      annualRate: currentRate,
+      date,
+      index,
+      accrualStartDate: input.accrualStartDate,
+    });
+    const scheduledPayment = scheduledPaymentFor({
+      balance: openingBalance,
+      interest,
+      repaymentPayment: payment,
+      repaymentType,
+      remainingMonths,
+    });
     const scheduledPrincipal = Math.max(scheduledPayment - interest, 0);
-    const requestedOverpayment = amountOn(terms.overpayments, date);
-    const overpayment = Math.min(
-      requestedOverpayment,
-      Math.max(openingBalance - scheduledPrincipal, 0),
-    );
+    const requestedOverpayment =
+      amountOn(terms.overpayments, date) + monthlyOverpayment;
+    const { overpayment, charge: overpaymentCharge } = overpaymentFor({
+      terms,
+      date,
+      requested: requestedOverpayment,
+      maximum: Math.max(openingBalance - scheduledPrincipal, 0),
+      annualAllowanceUsed,
+    });
     const principal = Math.min(
       scheduledPrincipal + overpayment,
       openingBalance,
@@ -221,7 +325,10 @@ export function buildMortgageSchedule(input: {
       principal: roundMoney(principal),
       fees: roundMoney(fees),
       overpayment: roundMoney(overpayment),
-      totalDue: roundMoney(scheduledPayment + overpayment + fees),
+      overpaymentCharge: roundMoney(overpaymentCharge),
+      totalDue: roundMoney(
+        scheduledPayment + overpayment + overpaymentCharge + fees,
+      ),
       closingBalance: roundMoney(balance),
     });
     remainingMonths -= 1;
@@ -248,7 +355,10 @@ export function summarizeMortgageCashFlow(
       nextYear.reduce((sum, row) => sum + row.totalDue, 0),
     ),
     annualEconomicCost: roundMoney(
-      nextYear.reduce((sum, row) => sum + row.interest + row.fees, 0),
+      nextYear.reduce(
+        (sum, row) => sum + row.interest + row.fees + row.overpaymentCharge,
+        0,
+      ),
     ),
     annualPrincipal: roundMoney(
       nextYear.reduce((sum, row) => sum + row.principal, 0),
