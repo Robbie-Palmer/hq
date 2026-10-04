@@ -191,6 +191,7 @@ SQL
 
 candidate_count=0
 removed_count=0
+failed_count=0
 skipped_count=0
 archived_change_count=0
 
@@ -333,8 +334,10 @@ SQL
     removed_count=$((removed_count + 1))
     log "REMOVE ${thread_id} lifecycle=${lifecycle} path=${worktree_physical}"
   else
-    die "Git refused to remove ${thread_id} at ${worktree_physical}"
+    log "ERROR Git refused to remove ${thread_id} at ${worktree_physical}" >&2
+    failed_count=$((failed_count + 1))
   fi
 done <"$candidate_file"
 
-log "SUMMARY mode=${mode} candidates=${candidate_count} removed=${removed_count} archived_changes=${archived_change_count} skipped=${skipped_count}"
+log "SUMMARY mode=${mode} candidates=${candidate_count} removed=${removed_count} failed=${failed_count} archived_changes=${archived_change_count} skipped=${skipped_count}"
+[ "$failed_count" -eq 0 ] || exit 1

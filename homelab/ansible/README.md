@@ -77,7 +77,9 @@ the entire run.
 
 Clean worktrees are removed with `git worktree remove`. Before removing a
 dirty worktree, the script stashes tracked and untracked files and copies the
-stash commit to `refs/t3-worktree-archive/<thread>/<timestamp>`. The branch is
+stash commit to `refs/t3-worktree-archive/<thread>/stash-<timestamp>`. A
+detached HEAD is saved as
+`refs/t3-worktree-archive/<thread>/head-<timestamp>`. Existing branches are
 never deleted. Ignored dependency and build output is intentionally omitted
 from recovery refs.
 
@@ -92,14 +94,22 @@ The LaunchAgent writes to
 `~/Library/Logs/homelab/t3-worktree-cleanup.log`. Ansible installs and reloads
 the job but never invokes a cleanup during configuration.
 
-Recover archived changes by recreating the retained branch and applying its
-archive ref:
+For a worktree that had a branch, recover archived changes by recreating the
+checkout from that retained branch and applying its archive ref:
 
 ```bash
 git for-each-ref --format='%(refname)' refs/t3-worktree-archive/<thread-id>/
 git worktree add ~/.t3/worktrees/recovered/<thread-id> <retained-branch>
 git -C ~/.t3/worktrees/recovered/<thread-id> stash apply \
   refs/t3-worktree-archive/<thread-id>/stash-<timestamp>
+```
+
+For a detached worktree, recreate it directly from the archived HEAD ref. If
+it also had dirty changes, apply the corresponding stash ref afterward:
+
+```bash
+git worktree add --detach ~/.t3/worktrees/recovered/<thread-id> \
+  refs/t3-worktree-archive/<thread-id>/head-<timestamp>
 ```
 
 The verification playbook reads marker metadata only. Normal and verbose

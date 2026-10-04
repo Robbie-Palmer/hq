@@ -123,7 +123,12 @@ class T3WorktreeCleanupTest(unittest.TestCase):
             (path / "untracked.txt").write_text("recover me\n")
         return path
 
-    def run_cleanup(self, mode: str) -> subprocess.CompletedProcess[str]:
+    def run_cleanup(
+        self,
+        mode: str,
+        *,
+        check: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [
                 "/bin/bash",
@@ -142,7 +147,7 @@ class T3WorktreeCleanupTest(unittest.TestCase):
                 "--settled-days",
                 "7",
             ],
-            check=True,
+            check=check,
             text=True,
             capture_output=True,
         )
@@ -205,6 +210,19 @@ class T3WorktreeCleanupTest(unittest.TestCase):
         self.assertTrue(path.exists())
         self.assertIn("DRY-RUN remove settled worktree", result.stdout)
         self.assertFalse(lock.exists())
+
+    def test_apply_continues_after_worktree_removal_failure(self) -> None:
+        blocked = self.add_worktree("blocked")
+        later = self.add_worktree("later")
+        self.git("worktree", "lock", str(blocked), "--reason", "test fixture")
+
+        result = self.run_cleanup("--apply", check=False)
+
+        self.assertEqual(1, result.returncode)
+        self.assertTrue(blocked.exists())
+        self.assertFalse(later.exists())
+        self.assertIn("Git refused to remove blocked", result.stderr)
+        self.assertIn("removed=1 failed=1", result.stdout)
 
 
 if __name__ == "__main__":
