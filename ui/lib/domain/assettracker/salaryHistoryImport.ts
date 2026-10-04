@@ -150,38 +150,80 @@ export function suggestSalaryColumnMapping(
   return mapping;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Quoted CSV parsing needs state for delimiters, escaped quotes, and line endings.
+type DelimitedState = {
+  rows: string[][];
+  row: string[];
+  value: string;
+  quoted: boolean;
+};
+
+function consumeQuote(
+  source: string,
+  index: number,
+  state: DelimitedState,
+): number {
+  if (state.quoted && source[index + 1] === '"') {
+    state.value += '"';
+    return index + 1;
+  }
+  state.quoted = !state.quoted;
+  return index;
+}
+
+function finishDelimitedCell(state: DelimitedState): void {
+  state.row.push(state.value);
+  state.value = "";
+}
+
+function finishDelimitedRow(state: DelimitedState): void {
+  finishDelimitedCell(state);
+  if (state.row.some((cell) => cell.trim() !== "")) {
+    state.rows.push(state.row);
+  }
+  state.row = [];
+}
+
+function consumeLineEnding(
+  source: string,
+  index: number,
+  state: DelimitedState,
+): number {
+  finishDelimitedRow(state);
+  return source[index] === "\r" && source[index + 1] === "\n"
+    ? index + 1
+    : index;
+}
+
 function parseDelimitedText(source: string): unknown[][] {
   const delimiter = source.split(/\r?\n/, 1)[0]?.includes("\t") ? "\t" : ",";
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let value = "";
-  let quoted = false;
+  const state: DelimitedState = {
+    rows: [],
+    row: [],
+    value: "",
+    quoted: false,
+  };
   for (let index = 0; index < source.length; index++) {
     const character = source[index];
     if (character === '"') {
-      if (quoted && source[index + 1] === '"') {
-        value += '"';
-        index++;
-      } else {
-        quoted = !quoted;
-      }
-    } else if (character === delimiter && !quoted) {
-      row.push(value);
-      value = "";
-    } else if ((character === "\n" || character === "\r") && !quoted) {
-      if (character === "\r" && source[index + 1] === "\n") index++;
-      row.push(value);
-      if (row.some((cell) => cell.trim() !== "")) rows.push(row);
-      row = [];
-      value = "";
-    } else {
-      value += character;
+      index = consumeQuote(source, index, state);
+      continue;
     }
+    if (state.quoted) {
+      state.value += character;
+      continue;
+    }
+    if (character === delimiter) {
+      finishDelimitedCell(state);
+      continue;
+    }
+    if (character === "\n" || character === "\r") {
+      index = consumeLineEnding(source, index, state);
+      continue;
+    }
+    state.value += character;
   }
-  row.push(value);
-  if (row.some((cell) => cell.trim() !== "")) rows.push(row);
-  return rows;
+  finishDelimitedRow(state);
+  return state.rows;
 }
 
 function fingerprint(bytes: Uint8Array): string {
@@ -207,8 +249,8 @@ export async function readSalaryImportFile(
     throw new Error("Choose a CSV, TSV, or Excel .xlsx file");
   }
   const [headerRow = [], ...rows] = matrix;
-  const headers = headerRow.map((cell) => String(cell ?? "").trim());
-  if (headers.length === 0 || headers.every((header) => header === "")) {
+  const headers = headerRow.map((value) => textValue(value) ?? "");
+  if (headers.every((header) => header === "")) {
     throw new Error("The file needs a header row");
   }
   return {
@@ -230,7 +272,11 @@ function cell(
 
 function textValue(value: unknown): string | undefined {
   if (value == null) return undefined;
-  const text = String(value).trim();
+  let text: string;
+  if (typeof value === "string") text = value.trim();
+  else if (typeof value === "number" || typeof value === "boolean") {
+    text = String(value);
+  } else return undefined;
   return text === "" ? undefined : text;
 }
 
@@ -373,8 +419,7 @@ function mappedHeader(
   return index == null ? "" : (sheet.headers[index] ?? "");
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Cross-row validation reports duplicate, overlap, and missing-period cases together.
-function structuralDiagnostics(
+function duplicateDiagnostics(
   records: readonly SalaryHistoryRecord[],
 ): SalaryImportDiagnostic[] {
   const diagnostics: SalaryImportDiagnostic[] = [];
@@ -398,7 +443,12 @@ function structuralDiagnostics(
     }
     seen.add(key);
   }
+  return diagnostics;
+}
 
+function groupByEmployment(
+  records: readonly SalaryHistoryRecord[],
+): Map<string, SalaryHistoryRecord[]> {
   const groups = new Map<string, SalaryHistoryRecord[]>();
   for (const record of records) {
     const key = `${record.person}\0${record.employmentId}`;
@@ -406,6 +456,45 @@ function structuralDiagnostics(
     group.push(record);
     groups.set(key, group);
   }
+  return groups;
+}
+
+function sourceRow(record: SalaryHistoryRecord): number | undefined {
+  return record.source.kind === "file" ? record.source.row : undefined;
+}
+
+function adjacentPeriodDiagnostic(
+  previous: SalaryHistoryRecord,
+  current: SalaryHistoryRecord,
+): SalaryImportDiagnostic | undefined {
+  if (
+    previous.effectiveEnd == null ||
+    current.effectiveStart <= previous.effectiveEnd
+  ) {
+    return {
+      severity: "warning",
+      row: sourceRow(current),
+      message: `${current.person}'s ${current.employmentId} rows overlap. Confirm a job change or mid-year raise does not cover the same dates twice.`,
+    };
+  }
+  const previousEnd = new Date(`${previous.effectiveEnd}T00:00:00Z`);
+  const currentStart = new Date(`${current.effectiveStart}T00:00:00Z`);
+  const gapDays = Math.round(
+    (currentStart.valueOf() - previousEnd.valueOf()) / 86_400_000,
+  );
+  if (gapDays <= 32) return undefined;
+  return {
+    severity: "warning",
+    row: sourceRow(current),
+    message: `${gapDays - 1} uncovered days precede this ${current.employmentId} row. Keep the gap if no salary applied.`,
+  };
+}
+
+function periodDiagnostics(
+  records: readonly SalaryHistoryRecord[],
+): SalaryImportDiagnostic[] {
+  const diagnostics: SalaryImportDiagnostic[] = [];
+  const groups = groupByEmployment(records);
   for (const group of groups.values()) {
     const ordered = group.toSorted((a, b) =>
       a.effectiveStart.localeCompare(b.effectiveStart),
@@ -414,40 +503,23 @@ function structuralDiagnostics(
       const previous = ordered[index - 1];
       const current = ordered[index];
       if (previous == null || current == null) continue;
-      if (
-        previous.effectiveEnd == null ||
-        current.effectiveStart <= previous.effectiveEnd
-      ) {
-        diagnostics.push({
-          severity: "warning",
-          row: current.source.kind === "file" ? current.source.row : undefined,
-          message: `${current.person}'s ${current.employmentId} rows overlap. Confirm a job change or mid-year raise does not cover the same dates twice.`,
-        });
-        continue;
-      }
-      const previousEnd = new Date(`${previous.effectiveEnd}T00:00:00Z`);
-      const currentStart = new Date(`${current.effectiveStart}T00:00:00Z`);
-      const gapDays = Math.round(
-        (currentStart.valueOf() - previousEnd.valueOf()) / 86_400_000,
-      );
-      if (gapDays > 32) {
-        diagnostics.push({
-          severity: "warning",
-          row: current.source.kind === "file" ? current.source.row : undefined,
-          message: `${gapDays - 1} uncovered days precede this ${current.employmentId} row. Keep the gap if no salary applied.`,
-        });
-      }
+      const diagnostic = adjacentPeriodDiagnostic(previous, current);
+      if (diagnostic != null) diagnostics.push(diagnostic);
     }
   }
   return diagnostics;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Every branch reports a field-specific import diagnostic.
-export function parseSalaryImport(
+function structuralDiagnostics(
+  records: readonly SalaryHistoryRecord[],
+): SalaryImportDiagnostic[] {
+  return [...duplicateDiagnostics(records), ...periodDiagnostics(records)];
+}
+
+function mappingDiagnostics(
   sheet: SalaryImportSheet,
   mapping: SalaryColumnMapping,
-  acceptedAt = new Date().toISOString(),
-): SalaryImportResult {
+): SalaryImportDiagnostic[] {
   const diagnostics: SalaryImportDiagnostic[] = [];
   for (const field of REQUIRED_SALARY_IMPORT_FIELDS) {
     if (mapping[field] == null) {
@@ -465,88 +537,117 @@ export function parseSalaryImport(
         "The gross-pay mapping looks like net or taxable pay. Map pay before tax, pension deductions, and salary sacrifice.",
     });
   }
-  if (diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
+  return diagnostics;
+}
+
+function amountDiagnostics(
+  record: SalaryHistoryRecord,
+  row: number,
+): SalaryImportDiagnostic[] {
+  const diagnostics: SalaryImportDiagnostic[] = [];
+  if (
+    record.baseSalary != null &&
+    record.variablePay != null &&
+    record.baseSalary + record.variablePay > record.grossPay
+  ) {
+    diagnostics.push({
+      severity: "warning",
+      row,
+      message:
+        "Base salary plus variable pay exceeds gross pay. Check whether the amounts use the same annual or pay-period basis.",
+    });
+  }
+  if (record.taxablePay != null && record.taxablePay > record.grossPay) {
+    diagnostics.push({
+      severity: "warning",
+      row,
+      message:
+        "Taxable pay exceeds gross pay before pension. Check the mapped columns and period basis.",
+    });
+  }
+  return diagnostics;
+}
+
+function parseSalaryRow(
+  sheet: SalaryImportSheet,
+  mapping: SalaryColumnMapping,
+  row: readonly unknown[],
+  rowNumber: number,
+  acceptedAt: string,
+): { record?: SalaryHistoryRecord; diagnostics: SalaryImportDiagnostic[] } {
+  if (row.every((value) => textValue(value) == null)) {
+    return { diagnostics: [] };
+  }
+  const effectiveStart = isoDate(cell(row, mapping, "effectiveStart"));
+  const effectiveEnd = isoDate(cell(row, mapping, "effectiveEnd"));
+  const parsed = SalaryHistoryRecordSchema.safeParse({
+    id: `salary-${sheet.fingerprint}-${rowNumber}`,
+    person: textValue(cell(row, mapping, "person")),
+    employer: textValue(cell(row, mapping, "employer")),
+    employmentId: textValue(cell(row, mapping, "employmentId")),
+    currency: textValue(cell(row, mapping, "currency"))?.toUpperCase() as
+      | Currency
+      | undefined,
+    jurisdiction: textValue(cell(row, mapping, "jurisdiction")),
+    effectiveStart,
+    effectiveEnd,
+    payFrequency: enumValue(cell(row, mapping, "payFrequency"), FREQUENCIES),
+    amountKind: enumValue(cell(row, mapping, "amountKind"), AMOUNT_KINDS),
+    workFraction: rateValue(cell(row, mapping, "workFraction")),
+    grossPay: numberValue(cell(row, mapping, "grossPay")),
+    baseSalary: numberValue(cell(row, mapping, "baseSalary")),
+    variablePay: numberValue(cell(row, mapping, "variablePay")),
+    taxablePay: numberValue(cell(row, mapping, "taxablePay")),
+    takeHomePay: numberValue(cell(row, mapping, "takeHomePay")),
+    employeePension: pensionWithDates(
+      pensionValue(row, mapping, "employee"),
+      effectiveStart,
+      effectiveEnd,
+    ),
+    employerPension: pensionWithDates(
+      pensionValue(row, mapping, "employer"),
+      effectiveStart,
+      effectiveEnd,
+    ),
+    source: {
+      kind: "file" as const,
+      fileName: sheet.fileName,
+      fingerprint: sheet.fingerprint,
+      row: rowNumber,
+    },
+    acceptedAt,
+  });
+  if (!parsed.success) {
+    return {
+      diagnostics: parsed.error.issues.map((issue) => ({
+        severity: "error" as const,
+        row: rowNumber,
+        message: `${issue.path.join(".") || "Row"}: ${issue.message}`,
+      })),
+    };
+  }
+  return {
+    record: parsed.data,
+    diagnostics: amountDiagnostics(parsed.data, rowNumber),
+  };
+}
+
+export function parseSalaryImport(
+  sheet: SalaryImportSheet,
+  mapping: SalaryColumnMapping,
+  acceptedAt = new Date().toISOString(),
+): SalaryImportResult {
+  const diagnostics = mappingDiagnostics(sheet, mapping);
+  if (diagnostics.length > 0) {
     return { records: [], diagnostics };
   }
 
   const records: SalaryHistoryRecord[] = [];
   for (const [index, row] of sheet.rows.entries()) {
-    if (row.every((value) => textValue(value) == null)) continue;
     const rowNumber = index + 2;
-    const effectiveStart = isoDate(cell(row, mapping, "effectiveStart"));
-    const effectiveEnd = isoDate(cell(row, mapping, "effectiveEnd"));
-    const raw = {
-      id: `salary-${sheet.fingerprint}-${rowNumber}`,
-      person: textValue(cell(row, mapping, "person")),
-      employer: textValue(cell(row, mapping, "employer")),
-      employmentId: textValue(cell(row, mapping, "employmentId")),
-      currency: textValue(cell(row, mapping, "currency"))?.toUpperCase() as
-        | Currency
-        | undefined,
-      jurisdiction: textValue(cell(row, mapping, "jurisdiction")),
-      effectiveStart,
-      effectiveEnd,
-      payFrequency: enumValue(cell(row, mapping, "payFrequency"), FREQUENCIES),
-      amountKind: enumValue(cell(row, mapping, "amountKind"), AMOUNT_KINDS),
-      workFraction: rateValue(cell(row, mapping, "workFraction")),
-      grossPay: numberValue(cell(row, mapping, "grossPay")),
-      baseSalary: numberValue(cell(row, mapping, "baseSalary")),
-      variablePay: numberValue(cell(row, mapping, "variablePay")),
-      taxablePay: numberValue(cell(row, mapping, "taxablePay")),
-      takeHomePay: numberValue(cell(row, mapping, "takeHomePay")),
-      employeePension: pensionWithDates(
-        pensionValue(row, mapping, "employee"),
-        effectiveStart,
-        effectiveEnd,
-      ),
-      employerPension: pensionWithDates(
-        pensionValue(row, mapping, "employer"),
-        effectiveStart,
-        effectiveEnd,
-      ),
-      source: {
-        kind: "file" as const,
-        fileName: sheet.fileName,
-        fingerprint: sheet.fingerprint,
-        row: rowNumber,
-      },
-      acceptedAt,
-    };
-    const parsed = SalaryHistoryRecordSchema.safeParse(raw);
-    if (!parsed.success) {
-      for (const issue of parsed.error.issues) {
-        diagnostics.push({
-          severity: "error",
-          row: rowNumber,
-          message: `${issue.path.join(".") || "Row"}: ${issue.message}`,
-        });
-      }
-      continue;
-    }
-    if (
-      parsed.data.baseSalary != null &&
-      parsed.data.variablePay != null &&
-      parsed.data.baseSalary + parsed.data.variablePay > parsed.data.grossPay
-    ) {
-      diagnostics.push({
-        severity: "warning",
-        row: rowNumber,
-        message:
-          "Base salary plus variable pay exceeds gross pay. Check whether the amounts use the same annual or pay-period basis.",
-      });
-    }
-    if (
-      parsed.data.taxablePay != null &&
-      parsed.data.taxablePay > parsed.data.grossPay
-    ) {
-      diagnostics.push({
-        severity: "warning",
-        row: rowNumber,
-        message:
-          "Taxable pay exceeds gross pay before pension. Check the mapped columns and period basis.",
-      });
-    }
-    records.push(parsed.data);
+    const result = parseSalaryRow(sheet, mapping, row, rowNumber, acceptedAt);
+    diagnostics.push(...result.diagnostics);
+    if (result.record != null) records.push(result.record);
   }
   diagnostics.push(...structuralDiagnostics(records));
   return { records, diagnostics };

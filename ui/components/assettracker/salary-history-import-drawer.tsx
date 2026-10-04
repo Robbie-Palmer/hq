@@ -81,6 +81,12 @@ function MappingSelect({
   );
 }
 
+function importButtonLabel(recordCount: number): string {
+  if (recordCount === 0) return "salary history";
+  const noun = recordCount === 1 ? "record" : "records";
+  return `${recordCount} ${noun}`;
+}
+
 export function SalaryHistoryImportDrawer() {
   const { importSalaryHistory } = useAssetTracker();
   const [open, setOpen] = useState(false);
@@ -115,8 +121,8 @@ export function SalaryHistoryImportDrawer() {
       setSheet(nextSheet);
       setMapping(suggestSalaryColumnMapping(nextSheet.headers));
       setAcceptedAt(new Date().toISOString());
-    } catch (caught) {
-      setError(formatAssetTrackerError(caught));
+    } catch (error_) {
+      setError(formatAssetTrackerError(error_));
     }
   }
 
@@ -139,8 +145,8 @@ export function SalaryHistoryImportDrawer() {
       setSheet(null);
       setMapping({});
       setOpen(false);
-    } catch (caught) {
-      setError(formatAssetTrackerError(caught));
+    } catch (error_) {
+      setError(formatAssetTrackerError(error_));
     } finally {
       setSubmitting(false);
     }
@@ -331,10 +337,7 @@ export function SalaryHistoryImportDrawer() {
               type="submit"
               disabled={submitting || blocking || result.records.length === 0}
             >
-              Import{" "}
-              {result.records.length > 0
-                ? `${result.records.length} ${result.records.length === 1 ? "record" : "records"}`
-                : "salary history"}
+              Import {importButtonLabel(result.records.length)}
             </Button>
             <DrawerClose asChild>
               <Button type="button" variant="outline">

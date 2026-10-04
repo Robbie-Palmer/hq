@@ -22,8 +22,13 @@ import {
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
 
+function formText(data: FormData, name: string, fallback = ""): string {
+  const value = data.get(name);
+  return typeof value === "string" ? value : fallback;
+}
+
 function optionalNumber(data: FormData, name: string): number | undefined {
-  const value = String(data.get(name) ?? "").trim();
+  const value = formText(data, name).trim();
   return value === "" ? undefined : Number(value);
 }
 
@@ -33,10 +38,10 @@ function pensionFromForm(
   effectiveStart: string,
   effectiveEnd: string | undefined,
 ): PensionContribution | undefined {
-  const arrangement = String(data.get(`${prefix}PensionType`) ?? "");
+  const arrangement = formText(data, `${prefix}PensionType`);
   const amount = optionalNumber(data, `${prefix}PensionAmount`);
   const ratePercent = optionalNumber(data, `${prefix}PensionRate`);
-  const basis = String(data.get(`${prefix}PensionBasis`) ?? "");
+  const basis = formText(data, `${prefix}PensionBasis`);
   if (
     arrangement === "" &&
     amount == null &&
@@ -160,29 +165,32 @@ export function SalaryRecordDrawer({
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    const effectiveStart = String(data.get("effectiveStart") ?? "");
-    const effectiveEnd = String(data.get("effectiveEnd") ?? "") || undefined;
+    const effectiveStart = formText(data, "effectiveStart");
+    const effectiveEnd = formText(data, "effectiveEnd") || undefined;
+    const workFractionPercent = optionalNumber(data, "workFraction");
     const facts: SalaryRecordFacts = {
-      person: String(data.get("person") ?? ""),
-      employer: String(data.get("employer") ?? ""),
-      employmentId: String(data.get("employmentId") ?? ""),
-      currency: String(
-        data.get("currency") ?? "GBP",
+      person: formText(data, "person"),
+      employer: formText(data, "employer"),
+      employmentId: formText(data, "employmentId"),
+      currency: formText(
+        data,
+        "currency",
+        "GBP",
       ) as SalaryRecordFacts["currency"],
-      jurisdiction: String(data.get("jurisdiction") ?? ""),
+      jurisdiction: formText(data, "jurisdiction"),
       effectiveStart,
       effectiveEnd,
-      payFrequency: String(
-        data.get("payFrequency"),
+      payFrequency: formText(
+        data,
+        "payFrequency",
       ) as SalaryRecordFacts["payFrequency"],
-      amountKind: String(
-        data.get("amountKind"),
+      amountKind: formText(
+        data,
+        "amountKind",
       ) as SalaryRecordFacts["amountKind"],
       workFraction:
-        optionalNumber(data, "workFraction") == null
-          ? undefined
-          : Number(data.get("workFraction")) / 100,
-      grossPay: Number(data.get("grossPay")),
+        workFractionPercent == null ? undefined : workFractionPercent / 100,
+      grossPay: Number(formText(data, "grossPay")),
       baseSalary: optionalNumber(data, "baseSalary"),
       variablePay: optionalNumber(data, "variablePay"),
       taxablePay: optionalNumber(data, "taxablePay"),
@@ -205,8 +213,8 @@ export function SalaryRecordDrawer({
     try {
       await saveSalaryRecord({ facts, correctsId: record?.id });
       setOpen(false);
-    } catch (caught) {
-      setError(formatAssetTrackerError(caught));
+    } catch (error_) {
+      setError(formatAssetTrackerError(error_));
     } finally {
       setSubmitting(false);
     }
