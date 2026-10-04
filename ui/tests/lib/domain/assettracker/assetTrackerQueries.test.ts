@@ -14,9 +14,11 @@ import {
   getTotalByAssetType,
 } from "@/lib/domain/assettracker/assetTrackerQueries";
 import { buildRepository } from "@/lib/domain/assettracker/assetTrackerRepository";
+import { defaultHouseholdFields } from "@/lib/domain/assettracker/household";
 
 function homeData(): AssetTrackerData {
   return {
+    ...defaultHouseholdFields(),
     accounts: [
       {
         id: "home",
@@ -69,6 +71,7 @@ function homeData(): AssetTrackerData {
 function mixedCurrencyData(): AssetTrackerData {
   const source = { kind: "manual" as const, id: "test" };
   return {
+    ...defaultHouseholdFields(),
     accounts: [
       {
         id: "cash-gbp",

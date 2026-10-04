@@ -46,22 +46,27 @@ import {
   getPortfolioFinancialIndependence,
   getPortfolioPositionSummary,
   getTotalByAssetType,
+  type Household,
+  type HouseholdScope,
   type HousingPlanningPosition,
   type ImportAccountHistoryInput,
   type ImportIncomeHistoryInput,
   type IncomeRecord,
   type Money,
   type NetWorthDataPoint,
+  type Ownership,
   type PlannedExpenditure,
   type PortfolioContributionDataPoint,
   type PortfolioFinancialIndependence,
   type PortfolioPositionSummary,
+  personalOwnership,
   type RecordBalanceInput,
   type RecordTransferInput,
   type RecurringFlow,
   type SetAccountLiquidityInput,
   type SetExpectedReturnInput,
   SUPPORTED_CURRENCIES,
+  scopeAssetTrackerData,
   type Transfer,
   type ValuationIssue,
 } from "@/lib/domain/assettracker";
@@ -96,6 +101,13 @@ interface AssetTrackerContextValue {
   baseCurrency: Currency;
   valuationDate: string | null;
   valuationIssues: ValuationIssue[];
+  household: Household;
+  householdAccounts: Array<{
+    id: string;
+    name: string;
+    provider: string;
+    ownership: Ownership;
+  }>;
   /** True once the user has made changes that are persisted in this browser */
   hasLocalChanges: boolean;
   localDataStatus: "loading" | "ready" | "error";
@@ -128,6 +140,10 @@ interface AssetTrackerContextValue {
     target: number | null,
     inTodaysMoney?: boolean,
   ): Promise<void>;
+  addHouseholdMember(displayName: string): Promise<void>;
+  renameHouseholdMember(memberId: string, displayName: string): Promise<void>;
+  setActiveHouseholdScope(scope: HouseholdScope): Promise<void>;
+  setAccountOwnership(accountId: string, ownership: Ownership): Promise<void>;
   clearData(): Promise<void>;
   resetData(): Promise<void>;
   exportData(): void;
@@ -220,7 +236,7 @@ export function AssetTrackerProvider({
   );
 
   const views = useMemo(() => {
-    const repository = buildRepository(data);
+    const repository = buildRepository(scopeAssetTrackerData(data));
     const { summaries: accounts, details: accountDetails } =
       buildAccountReadModels(repository);
     const netWorthDataByCurrency = Object.fromEntries(
@@ -272,6 +288,15 @@ export function AssetTrackerProvider({
       baseCurrency: repository.settings.baseCurrency,
       valuationDate: latestValuation?.date ?? null,
       valuationIssues: latestValuation?.issues ?? [],
+      household: data.household,
+      householdAccounts: data.accounts.map(({ id, name, provider }) => ({
+        id,
+        name,
+        provider,
+        ownership:
+          data.ownership.accounts[id] ??
+          personalOwnership(data.household.members[0]?.id ?? "primary"),
+      })),
     };
   }, [data]);
 
@@ -327,6 +352,14 @@ export function AssetTrackerProvider({
         mutate((api) => api.setWithdrawalRate({ rate })),
       setNetWorthTarget: (target, inTodaysMoney) =>
         mutate((api) => api.setNetWorthTarget({ target, inTodaysMoney })),
+      addHouseholdMember: (displayName) =>
+        mutate((api) => api.addHouseholdMember({ displayName })),
+      renameHouseholdMember: (memberId, displayName) =>
+        mutate((api) => api.renameHouseholdMember({ memberId, displayName })),
+      setActiveHouseholdScope: (scope) =>
+        mutate((api) => api.setActiveHouseholdScope(scope)),
+      setAccountOwnership: (accountId, ownership) =>
+        mutate((api) => api.setAccountOwnership({ accountId, ownership })),
       clearData: () => mutate((api) => api.clear()),
       resetData: async () => {
         try {

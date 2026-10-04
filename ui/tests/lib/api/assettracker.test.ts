@@ -148,6 +148,68 @@ describe("createLocalAssetTrackerApi", () => {
     expect(data.incomeHistory).toEqual([]);
   });
 
+  it("migrates old saved data to one stable local household member", async () => {
+    const seed = getDemoAssetTrackerData();
+    const { household: _household, ownership: _ownership, ...legacy } = seed;
+    window.localStorage.setItem(
+      ASSET_TRACKER_STORAGE_KEY,
+      JSON.stringify(legacy),
+    );
+
+    const { data, persisted } = await createApi().load();
+
+    expect(persisted).toBe(true);
+    expect(data.household.members).toEqual([
+      { id: "primary", displayName: "Me" },
+    ]);
+    expect(data.accounts).toEqual(seed.accounts);
+    const firstAccount = data.accounts[0];
+    if (firstAccount == null) throw new Error("Seed has no account");
+    expect(data.ownership.accounts[firstAccount.id]).toEqual({
+      kind: "personal",
+      memberId: "primary",
+    });
+  });
+
+  it("persists household members, display names, scope, and account ownership", async () => {
+    const api = createApi();
+    await api.addHouseholdMember({ displayName: "Jordan" });
+    await api.renameHouseholdMember({
+      memberId: "alex",
+      displayName: "Alexandra",
+    });
+    await api.setActiveHouseholdScope({ kind: "member", memberId: "jordan" });
+    const accountId = getDemoAssetTrackerData().accounts[0]?.id;
+    if (accountId == null) throw new Error("Seed has no account");
+    await api.setAccountOwnership({
+      accountId,
+      ownership: {
+        kind: "shared",
+        shares: [
+          { memberId: "alex", share: 0.6 },
+          { memberId: "jordan", share: 0.4 },
+        ],
+      },
+    });
+
+    const { data } = await createApi().load();
+    expect(data.household).toEqual({
+      members: [
+        { id: "alex", displayName: "Alexandra" },
+        { id: "sam", displayName: "Sam" },
+        { id: "jordan", displayName: "Jordan" },
+      ],
+      activeScope: { kind: "member", memberId: "jordan" },
+    });
+    expect(data.ownership.accounts[accountId]).toEqual({
+      kind: "shared",
+      shares: [
+        { memberId: "alex", share: 0.6 },
+        { memberId: "jordan", share: 0.4 },
+      ],
+    });
+  });
+
   it("loads older saved data with no planned expenditures", async () => {
     const { plannedExpenditures: _plannedExpenditures, ...legacy } =
       getDemoAssetTrackerData();

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { ownershipLabel } from "@/lib/domain/assettracker";
 import { AccountDetailSheet } from "./account-detail-sheet";
 import { AccountHistoryImportDrawer } from "./account-history-import-drawer";
 import { AccountsTable } from "./accounts-table";
@@ -14,7 +15,13 @@ const ACCOUNTS_PATH = "/assettracker/accounts";
 export function AccountsRoute() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { accountDetails } = useAssetTracker();
+  const { accountDetails, household, householdAccounts } = useAssetTracker();
+  const ownerLabels = Object.fromEntries(
+    householdAccounts.map((account) => [
+      account.id,
+      ownershipLabel(account.ownership, household.members),
+    ]),
+  );
   const requestedAccountId = searchParams.get("account");
   const selectedAccount =
     accountDetails.find((account) => account.id === requestedAccountId) ?? null;
@@ -75,6 +82,7 @@ export function AccountsRoute() {
       ) : (
         <AccountsTable
           accounts={accountDetails}
+          ownerLabels={ownerLabels}
           initialShowClosed={selectedAccount?.isOpen === false}
         />
       )}

@@ -15,6 +15,10 @@ import {
   type NetWorthDataPoint,
   toFxImpactTimeSeries,
 } from "@/lib/domain/assettracker/assetTrackerViews";
+import {
+  scopeAssetTrackerData,
+  snapshotOwnershipKey,
+} from "@/lib/domain/assettracker/household";
 import { valueAccountAtDate } from "@/lib/domain/assettracker/portfolioValuation";
 
 describe("Asset Tracker demo-data adapter", () => {
@@ -117,6 +121,97 @@ describe("Asset Tracker demo-data adapter", () => {
       amount: 19_200,
       currency: "GBP",
     });
+  });
+
+  it("starts with personal and shared household finances", () => {
+    const data = getDemoAssetTrackerData();
+
+    expect(data.household).toEqual({
+      members: [
+        { id: "alex", displayName: "Alex" },
+        { id: "sam", displayName: "Sam" },
+      ],
+      activeScope: { kind: "household" },
+    });
+    expect(data.ownership.accounts).toMatchObject({
+      "vanguard-global-all-cap": {
+        kind: "personal",
+        memberId: "alex",
+      },
+      "marcus-savings": { kind: "personal", memberId: "sam" },
+      "nationwide-current": {
+        kind: "shared",
+        shares: [
+          { memberId: "alex", share: 0.5 },
+          { memberId: "sam", share: 0.5 },
+        ],
+      },
+      home: {
+        kind: "shared",
+        shares: [
+          { memberId: "alex", share: 0.6 },
+          { memberId: "sam", share: 0.4 },
+        ],
+      },
+    });
+    expect(
+      data.ownership.snapshots[snapshotOwnershipKey("home", "2024-12-01")],
+    ).toEqual(data.ownership.accounts.home);
+    expect(data.ownership.incomeHistory["2024-12-01"]).toEqual({
+      kind: "shared",
+      shares: [
+        { memberId: "alex", share: 0.5 },
+        { memberId: "sam", share: 0.5 },
+      ],
+    });
+
+    const alexData = scopeAssetTrackerData({
+      ...data,
+      household: {
+        ...data.household,
+        activeScope: { kind: "member", memberId: "alex" },
+      },
+    });
+    const samData = scopeAssetTrackerData({
+      ...data,
+      household: {
+        ...data.household,
+        activeScope: { kind: "member", memberId: "sam" },
+      },
+    });
+
+    expect(alexData.accounts.map(({ id }) => id)).toContain(
+      "vanguard-global-all-cap",
+    );
+    expect(alexData.accounts.map(({ id }) => id)).not.toContain(
+      "marcus-savings",
+    );
+    expect(samData.accounts.map(({ id }) => id)).toContain("marcus-savings");
+    expect(samData.accounts.map(({ id }) => id)).not.toContain(
+      "vanguard-global-all-cap",
+    );
+    expect(
+      alexData.snapshots.find(
+        ({ accountId, date }) => accountId === "home" && date === "2024-12-01",
+      )?.balance,
+    ).toBe(178_800);
+    expect(
+      samData.snapshots.find(
+        ({ accountId, date }) => accountId === "home" && date === "2024-12-01",
+      )?.balance,
+    ).toBe(119_200);
+
+    const householdValue = getLatestPortfolioValuation(buildRepository(data));
+    const alexValue = getLatestPortfolioValuation(buildRepository(alexData));
+    const samValue = getLatestPortfolioValuation(buildRepository(samData));
+
+    expect(householdValue?.total).not.toBeNull();
+    expect(alexValue?.total).not.toBeNull();
+    expect(samValue?.total).not.toBeNull();
+    expect((alexValue?.total ?? 0) + (samValue?.total ?? 0)).toBeCloseTo(
+      householdValue?.total ?? 0,
+      2,
+    );
   });
 
   it("uses the corrected USD market price in the latest valuation", () => {

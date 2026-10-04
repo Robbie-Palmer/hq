@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { toBalancesCsv } from "@/lib/assettracker/csv";
 import type { AssetTrackerData } from "@/lib/domain/assettracker/assetTrackerData";
+import { defaultHouseholdFields } from "@/lib/domain/assettracker/household";
 
 function csvData(): AssetTrackerData {
   return {
+    ...defaultHouseholdFields(),
     accounts: [
       {
         id: "isa",
