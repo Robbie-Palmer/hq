@@ -17,6 +17,10 @@ test("household members can manage shared kitchen equipment", async ({
     await expect(page).toHaveURL(`${previewSiteURL.origin}/recipes/settings`);
 
     await page.getByRole("button", { name: "Household", exact: true }).click();
+    const showWarning = page.getByRole("button", { name: "Show warning" });
+    await showWarning.click();
+    await expect(showWarning).toHaveAttribute("aria-pressed", "true");
+    await expect(showWarning).toBeEnabled();
     const equipmentSelect = page.getByLabel("Equipment to add");
     await expect(equipmentSelect).toBeVisible();
     await expect(
@@ -85,7 +89,7 @@ test("household members can manage shared kitchen equipment", async ({
 
     await page.goto("/recipes/settings");
     await page.getByRole("button", { name: "Household", exact: true }).click();
-    await page.getByRole("button", { name: "Show warning" }).click();
+    await showWarning.click();
     await expect(page.getByLabel("Equipment to add")).toBeVisible();
   } finally {
     await context.close();
