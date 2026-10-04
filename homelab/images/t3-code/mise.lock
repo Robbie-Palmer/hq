@@ -18,19 +18,18 @@ url = "https://github.com/DopplerHQ/cli/releases/download/3.76.6/doppler_3.76.6_
 url_api = "https://api.github.com/repos/DopplerHQ/cli/releases/assets/580040607"
 
 [[tools."github:jdx/mise"]]
-version = "2026.9.1"
+version = "2026.9.18"
 backend = "github:jdx/mise"
-specifiers = ["2026.9.1"]
+specifiers = ["v2026.9.18"]
 
 [tools."github:jdx/mise"."platforms.linux-x64"]
-checksum = "sha256:0235801dc644525c98f205bdf033f70b126daacd3717690c91e01b1aca0106e6"
-url = "https://github.com/jdx/mise/releases/download/v2026.9.1/mise-v2026.9.1-linux-x64.tar.zst"
-url_api = "https://api.github.com/repos/jdx/mise/releases/assets/541240277"
+checksum = "sha256:8c6d5f3a5e94f8270e45935359dba85f14c702c41afd42321efaadd5028ee3c7"
+url = "https://github.com/jdx/mise/releases/download/v2026.9.18/mise-v2026.9.18-linux-x64.tar.zst"
+url_api = "https://api.github.com/repos/jdx/mise/releases/assets/600898441"
 provenance = "github-attestations"
 
 [tools."github:jdx/mise"."platforms.macos-arm64"]
-checksum = "sha256:c57a252346314ae662cf5bb2436d966e449600a49182c4ca95fed763032cd1e8"
-url = "https://github.com/jdx/mise/releases/download/v2026.9.1/mise-v2026.9.1-macos-arm64.tar.zst"
-url_api = "https://api.github.com/repos/jdx/mise/releases/assets/541240309"
+checksum = "sha256:e0089ffb8833fb57b862b89f5aae56766a514eaef08eb2bc10ad652d7b10647b"
+url = "https://github.com/jdx/mise/releases/download/v2026.9.18/mise-v2026.9.18-macos-arm64.tar.zst"
+url_api = "https://api.github.com/repos/jdx/mise/releases/assets/600898507"
 provenance = "github-attestations"
-provenance_verified = true
