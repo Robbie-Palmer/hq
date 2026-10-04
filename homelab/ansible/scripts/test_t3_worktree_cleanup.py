@@ -12,6 +12,7 @@ SCRIPT = (
     / "files"
     / "t3-worktree-cleanup"
 )
+SQL_DIRECTORY = SCRIPT.parent / "sql"
 
 
 class T3WorktreeCleanupTest(unittest.TestCase):
@@ -140,6 +141,8 @@ class T3WorktreeCleanupTest(unittest.TestCase):
                 str(self.worktree_root),
                 "--state-dir",
                 str(self.state_directory),
+                "--sql-dir",
+                str(SQL_DIRECTORY),
                 "--deleted-days",
                 "2",
                 "--archived-days",
@@ -162,6 +165,19 @@ class T3WorktreeCleanupTest(unittest.TestCase):
         self.assertIn("dirty=true", result.stdout)
         refs = self.git("for-each-ref", "--format=%(refname)", "refs/t3-worktree-archive").stdout
         self.assertEqual("", refs)
+
+    def test_sql_queries_are_kept_out_of_the_shell_script(self) -> None:
+        script = SCRIPT.read_text()
+
+        self.assertNotIn("SELECT ", script)
+        self.assertEqual(
+            {
+                "check-candidate-eligibility.sql",
+                "check-column.sql",
+                "select-candidates.sql",
+            },
+            {path.name for path in SQL_DIRECTORY.glob("*.sql")},
+        )
 
     def test_apply_archives_dirty_changes_and_removes_worktree(self) -> None:
         path = self.add_worktree("dirty", dirty=True)

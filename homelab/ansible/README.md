@@ -73,7 +73,9 @@ were deleted for at least two days, archived for at least seven days, or
 settled for at least seven days. It skips pinned threads, active provider
 sessions, pending approvals, pending user input, Git index locks, and
 worktrees referenced by a running process. An unknown database schema stops
-the entire run.
+the entire run. The Bash script handles orchestration only. Ansible installs
+its SQLite queries as separate `.sql` files under
+`~/.local/share/homelab/t3-worktree-cleanup/sql`.
 
 Clean worktrees are removed with `git worktree remove`. Before removing a
 dirty worktree, the script stashes tracked and untracked files and copies the

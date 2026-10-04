@@ -13,6 +13,8 @@
   loop:
     - path: "{{ ansible_facts.env.HOME }}/.local/bin"
       mode: "0755"
+    - path: "{{ t3_worktree_cleanup_sql_dir }}"
+      mode: "0700"
     - path: "{{ ansible_facts.env.HOME }}/Library/LaunchAgents"
       mode: "0755"
     - path: "{{ ansible_facts.env.HOME }}/Library/Logs/homelab"
@@ -28,6 +30,13 @@
     dest: "{{ t3_worktree_cleanup_script_path }}"
     mode: "0700"
     validate: /bin/bash -n %s
+  notify: Reload T3 worktree cleanup job
+
+- name: Install the T3 worktree cleanup SQL files
+  ansible.builtin.copy:
+    src: sql/
+    dest: "{{ t3_worktree_cleanup_sql_dir }}/"
+    mode: "0600"
   notify: Reload T3 worktree cleanup job
 
 - name: Install the T3 worktree cleanup launchd definition
