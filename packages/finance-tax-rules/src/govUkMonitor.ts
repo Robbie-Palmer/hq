@@ -112,7 +112,7 @@ function normalizeJson(value: unknown): JsonValue {
   }
   if (typeof value === "number") {
     if (!Number.isFinite(value)) {
-      throw new Error("Content contains a non-finite number");
+      throw new TypeError("Content contains a non-finite number");
     }
     return value;
   }
@@ -124,7 +124,7 @@ function normalizeJson(value: unknown): JsonValue {
         .map(([key, item]) => [key, normalizeJson(item)]),
     );
   }
-  throw new Error(`Content contains unsupported ${typeof value} value`);
+  throw new TypeError(`Content contains unsupported ${typeof value} value`);
 }
 
 function linksInString(value: string): string[] {

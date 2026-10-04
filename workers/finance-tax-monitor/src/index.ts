@@ -71,6 +71,11 @@ export type TaxMonitorRunSummary = {
   failures: Array<{ sourceId: string; message: string }>;
 };
 
+type SourceCheckResult =
+  | { status: "checked"; sourceId: string; reviewId: string | null }
+  | { status: "skipped"; sourceId: string }
+  | { status: "failed"; sourceId: string; message: string };
+
 export function isSourceDue(
   lastSuccessfulCheckAt: string | null,
   checkedAt: string,
@@ -153,6 +158,48 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+async function runSourceCheck(
+  env: Env,
+  step: WorkflowStep,
+  source: GovUkSourceSpec,
+  checkedAt: string,
+  services: MonitorServices,
+): Promise<SourceCheckResult> {
+  try {
+    const state = await step.do(
+      `source-state:${source.id}`,
+      DATABASE_STEP,
+      () => services.readSourceState(env, source),
+    );
+    if (
+      !isSourceDue(
+        state.lastSuccessfulCheckAt,
+        checkedAt,
+        source.defaultCheckIntervalHours,
+      )
+    ) {
+      return { status: "skipped", sourceId: source.id };
+    }
+    const artifacts = await step.do(
+      `fetch-and-archive:${source.id}`,
+      FETCH_STEP,
+      () => fetchAndArchiveSource(env, source, checkedAt, services.fetchImpl),
+    );
+    const persisted = await step.do(
+      `persist-revision:${source.id}`,
+      DATABASE_STEP,
+      () => persistArchivedSource(env, source, artifacts, services),
+    );
+    return {
+      status: "checked",
+      sourceId: source.id,
+      reviewId: persisted.reviewId,
+    };
+  } catch (error) {
+    return { status: "failed", sourceId: source.id, message: errorMessage(error) };
+  }
+}
+
 export async function runTaxMonitor(
   env: Env,
   step: WorkflowStep,
@@ -166,40 +213,23 @@ export async function runTaxMonitor(
     reviewIds: [],
     failures: [],
   };
-  for (const source of buildGovUkSourceRegistry()) {
-    try {
-      const state = await step.do(
-        `source-state:${source.id}`,
-        DATABASE_STEP,
-        () =>
-          services.readSourceState(env, source),
-      );
-      if (
-        !isSourceDue(
-          state.lastSuccessfulCheckAt,
-          checkedAt,
-          source.defaultCheckIntervalHours,
-        )
-      ) {
-        summary.skippedSourceIds.push(source.id);
-        continue;
-      }
-      const artifacts = await step.do(
-        `fetch-and-archive:${source.id}`,
-        FETCH_STEP,
-        () => fetchAndArchiveSource(env, source, checkedAt, services.fetchImpl),
-      );
-      const persisted = await step.do(
-        `persist-revision:${source.id}`,
-        DATABASE_STEP,
-        () => persistArchivedSource(env, source, artifacts, services),
-      );
-      summary.checkedSourceIds.push(source.id);
-      if (persisted.reviewId) summary.reviewIds.push(persisted.reviewId);
-    } catch (error) {
-      const failure = { sourceId: source.id, message: errorMessage(error) };
+  const sourceResults = await Promise.all(
+    buildGovUkSourceRegistry().map((source) =>
+      runSourceCheck(env, step, source, checkedAt, services),
+    ),
+  );
+  for (const result of sourceResults) {
+    if (result.status === "skipped") {
+      summary.skippedSourceIds.push(result.sourceId);
+    } else if (result.status === "checked") {
+      summary.checkedSourceIds.push(result.sourceId);
+      if (result.reviewId) summary.reviewIds.push(result.reviewId);
+    } else {
+      const failure = { sourceId: result.sourceId, message: result.message };
       summary.failures.push(failure);
-      console.error(JSON.stringify({ event: "tax-source-check-failed", ...failure }));
+      console.error(
+        JSON.stringify({ event: "tax-source-check-failed", ...failure }),
+      );
     }
   }
   console.info(
