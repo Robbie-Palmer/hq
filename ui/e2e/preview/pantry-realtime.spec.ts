@@ -1,29 +1,23 @@
+import type { BrowserContext, Page, WebSocket } from "@playwright/test";
 import {
-  type Browser,
-  type BrowserContext,
   expect,
-  type Page,
+  expectPreviewStatus,
+  type PreviewScenario,
+  type PreviewSession,
   test,
-  type WebSocket,
-} from "@playwright/test";
-import {
-  createPreviewContext,
-  previewSiteURL,
-  signInPreviewScenario,
 } from "./preview-test-helpers";
 
 const pantryRealtimePath = "/api/pantry/realtime";
 const realtimeTimeoutMs = 10_000;
-const visibleConvergenceTimeoutMs = 1_000;
-
-type Scenario = {
-  name: "Household owner" | "Household member";
-};
 
 type ScenarioSession = {
   context: BrowserContext;
   page: Page;
 };
+
+type CreatePreviewSession = (
+  scenario?: PreviewScenario,
+) => Promise<PreviewSession>;
 
 function parseFrame(payload: string | Buffer): Record<string, unknown> | null {
   try {
@@ -37,44 +31,34 @@ function parseFrame(payload: string | Buffer): Record<string, unknown> | null {
 }
 
 async function createScenarioSession(
-  browser: Browser,
-  scenario: Scenario,
+  createPreviewSession: CreatePreviewSession,
+  scenario: "household-owner" | "household-member",
 ): Promise<ScenarioSession> {
-  const context = await createPreviewContext(browser);
+  const session = await createPreviewSession(scenario);
+  await session.context.addInitScript(
+    ({ realtimePath }) => {
+      const NativeWebSocket = window.WebSocket;
+      Object.defineProperty(window, "WebSocket", {
+        configurable: true,
+        writable: true,
+        value: class extends NativeWebSocket {
+          constructor(url: string | URL, protocols?: string | string[]) {
+            if (protocols === undefined) super(url);
+            else super(url, protocols);
 
-  try {
-    await context.addInitScript(
-      ({ realtimePath }) => {
-        const NativeWebSocket = window.WebSocket;
-        Object.defineProperty(window, "WebSocket", {
-          configurable: true,
-          writable: true,
-          value: class extends NativeWebSocket {
-            constructor(url: string | URL, protocols?: string | string[]) {
-              if (protocols === undefined) super(url);
-              else super(url, protocols);
-
-              if (new URL(this.url).pathname === realtimePath) {
-                Object.defineProperty(window, "__closePantryRealtimeSocket", {
-                  configurable: true,
-                  value: () => this.close(4_000, "Playwright disconnect"),
-                });
-              }
+            if (new URL(this.url).pathname === realtimePath) {
+              Object.defineProperty(window, "__closePantryRealtimeSocket", {
+                configurable: true,
+                value: () => this.close(4_000, "Playwright disconnect"),
+              });
             }
-          },
-        });
-      },
-      { realtimePath: pantryRealtimePath },
-    );
-
-    const page = await context.newPage();
-    await signInPreviewScenario(page, scenario.name);
-
-    return { context, page };
-  } catch (error) {
-    await context.close();
-    throw error;
-  }
+          }
+        },
+      });
+    },
+    { realtimePath: pantryRealtimePath },
+  );
+  return session;
 }
 
 function waitForPantrySubscription(page: Page): Promise<WebSocket> {
@@ -313,50 +297,42 @@ async function openKitchen(session: ScenarioSession): Promise<WebSocket> {
   return socket;
 }
 
-async function restoreGarlic(
+async function restorePantryItem(
   context: BrowserContext,
+  ingredientSlug: string,
   operationId = crypto.randomUUID(),
 ): Promise<void> {
-  const response = await context.request.put("/api/pantry/items/garlic", {
-    data: { location: "fresh" },
-    headers: {
-      "idempotency-key": operationId,
-      origin: previewSiteURL.origin,
+  await expectPreviewStatus(
+    context,
+    `/api/pantry/items/${ingredientSlug}`,
+    {
+      data: { location: "fresh" },
+      headers: {
+        "idempotency-key": operationId,
+      },
+      method: "PUT",
     },
-  });
-  if (!response.ok()) {
-    throw new Error(
-      `Could not restore the preview pantry (${response.status()} ${await response.text()})`,
-    );
-  }
-  await response.dispose();
+    200,
+  );
 }
 
-async function closeSessions(sessions: ScenarioSession[]): Promise<void> {
-  await Promise.allSettled(sessions.map(({ context }) => context.close()));
-}
-
-const ownerScenario: Scenario = {
-  name: "Household owner",
-};
-const memberScenario: Scenario = {
-  name: "Household member",
-};
-
-test.describe.configure({ mode: "serial", timeout: 90_000 });
+test.describe.configure({ timeout: 90_000 });
 
 test.describe("deployed household pantry realtime", () => {
   test("fans a committed pantry change out to another household session", async ({
-    browser,
+    createPreviewSession,
   }) => {
-    const sessions: ScenarioSession[] = [];
     let pantryWasChanged = false;
+    const owner = await createScenarioSession(
+      createPreviewSession,
+      "household-owner",
+    );
+    const member = await createScenarioSession(
+      createPreviewSession,
+      "household-member",
+    );
     try {
-      const owner = await createScenarioSession(browser, ownerScenario);
-      sessions.push(owner);
-      const member = await createScenarioSession(browser, memberScenario);
-      sessions.push(member);
-      await restoreGarlic(owner.context);
+      await restorePantryItem(owner.context, "garlic");
 
       const [ownerSocket, memberSocket] = await Promise.all([
         openKitchen(owner),
@@ -386,7 +362,7 @@ test.describe("deployed household pantry realtime", () => {
       await memberRemoval;
       await expect(
         member.page.getByRole("button", { name: "Remove Garlic" }),
-      ).toHaveCount(0, { timeout: visibleConvergenceTimeoutMs });
+      ).toHaveCount(0);
 
       const restorationOperationId = crypto.randomUUID();
       const ownerRestoration = waitForPantryChange(
@@ -396,31 +372,33 @@ test.describe("deployed household pantry realtime", () => {
         "garlic",
         "fresh",
       );
-      await restoreGarlic(member.context, restorationOperationId);
+      await restorePantryItem(member.context, "garlic", restorationOperationId);
       await ownerRestoration;
       await expect(
         owner.page.getByRole("button", { name: "Remove Garlic" }),
-      ).toBeVisible({ timeout: visibleConvergenceTimeoutMs });
+      ).toBeVisible();
       pantryWasChanged = false;
     } finally {
-      if (pantryWasChanged && sessions[0]) {
-        await restoreGarlic(sessions[0].context).catch(() => undefined);
+      if (pantryWasChanged) {
+        await restorePantryItem(owner.context, "garlic").catch(() => undefined);
       }
-      await closeSessions(sessions);
     }
   });
 
   test("recovers the canonical pantry after a household session reconnects", async ({
-    browser,
+    createPreviewSession,
   }) => {
-    const sessions: ScenarioSession[] = [];
     let pantryWasChanged = false;
+    const owner = await createScenarioSession(
+      createPreviewSession,
+      "household-owner",
+    );
+    const member = await createScenarioSession(
+      createPreviewSession,
+      "household-member",
+    );
     try {
-      const owner = await createScenarioSession(browser, ownerScenario);
-      sessions.push(owner);
-      const member = await createScenarioSession(browser, memberScenario);
-      sessions.push(member);
-      await restoreGarlic(owner.context);
+      await restorePantryItem(owner.context, "carrot");
       const [, memberSocket] = await Promise.all([
         openKitchen(owner),
         openKitchen(member),
@@ -430,24 +408,23 @@ test.describe("deployed household pantry realtime", () => {
       await member.context.setOffline(true);
       await disconnectPantrySocket(member.page);
       await memberDisconnected;
-      await owner.page.getByRole("button", { name: "Remove Garlic" }).click();
+      await owner.page.getByRole("button", { name: "Remove Carrot" }).click();
       pantryWasChanged = true;
       await expect(
-        owner.page.getByRole("button", { name: "Remove Garlic" }),
+        owner.page.getByRole("button", { name: "Remove Carrot" }),
       ).toHaveCount(0);
 
       const reconnected = waitForPantrySubscription(member.page);
       await member.context.setOffline(false);
       await reconnected;
       await expect(
-        member.page.getByRole("button", { name: "Remove Garlic" }),
+        member.page.getByRole("button", { name: "Remove Carrot" }),
       ).toHaveCount(0, { timeout: realtimeTimeoutMs });
     } finally {
-      if (pantryWasChanged && sessions[0]) {
-        await sessions[0].context.setOffline(false).catch(() => undefined);
-        await restoreGarlic(sessions[0].context).catch(() => undefined);
+      if (pantryWasChanged) {
+        await owner.context.setOffline(false).catch(() => undefined);
+        await restorePantryItem(owner.context, "carrot").catch(() => undefined);
       }
-      await closeSessions(sessions);
     }
   });
 });
