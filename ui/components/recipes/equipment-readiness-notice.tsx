@@ -25,7 +25,7 @@ export function EquipmentWarning({
     >
       <Wrench className="mt-0.5 size-3.5 shrink-0" />
       <p>
-        Missing equipment: {names}.{" "}
+        <span>Missing equipment: {names}.</span>{" "}
         <Link
           href="/recipes/settings?section=household"
           className="underline underline-offset-2 hover:text-[var(--ink-2)]"
