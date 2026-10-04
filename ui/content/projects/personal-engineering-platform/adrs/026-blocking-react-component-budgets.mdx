@@ -1,0 +1,57 @@
+---
+title: "ADR 026: Blocking React component budgets"
+date: "2026-10-04"
+status: "Accepted"
+supersedes: "personal-engineering-platform:025-react-component-maintainability-analysis"
+---
+
+## Context
+
+[ADR 025](/projects/personal-engineering-platform/adrs/025-react-component-maintainability-analysis)
+made tsmetrics advisory while the repository reduced its existing React
+component backlog. That trial found 211 production hotspots at the agreed
+limits. Four more components crossed a limit in work that merged before this
+decision. Six small extractions removed near-limit findings, leaving 209
+component-level exceptions. Decomposing the largest components safely will take
+separate changes across active product areas.
+
+Leaving the audit advisory allows new hotspots and regressions to accumulate
+while that work continues. Raising the limits or excluding production
+directories would make the report pass without protecting the code.
+
+## Decision
+
+Keep the limits from ADR 025: 60 lines, nesting depth 4,
+component-responsibility score 30, and render-complexity score 10. Make
+`mise //ui:audit:react-components` fail for every finding unless an exact file
+path and component name has a reviewed exception.
+
+Each exception records only the metrics that already breach a limit and caps
+them at their measured value on 2026-10-04. A component fails when it crosses a
+limit without an exception or exceeds one of its recorded ceilings. A stale
+exception also fails, so a refactor that clears every breach must remove its
+baseline entry in the same change.
+
+Run the audit in `//ui:check:static`, which blocks preview and production
+delivery. Keep React Doctor's duplicate-JSX check in that path as the separate
+repository-wide structural control adopted by ADR 025.
+
+## Alternatives
+
+Waiting for every existing hotspot to be refactored would leave the backlog
+unbounded in the meantime. A single count-based allowance would stop the total
+from growing but permit one component to worsen when another improves. Broad
+file or directory exclusions would hide new components beside old debt.
+
+## Consequences
+
+New hotspots and regressions now fail the same static path as type and lint
+errors. The 209 remaining exceptions identify the exact components and metric
+ceilings still owed a refactor, while independent work can lower those ceilings
+incrementally.
+
+The checked baseline is sizeable and will conflict if several changes edit it
+at once. Component renames and metric changes require a deliberate baseline
+update even when rendered behavior is unchanged. tsmetrics remains young, so a
+dependency update that changes its measurements needs a reviewed baseline
+migration rather than an automatic rewrite.

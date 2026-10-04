@@ -4,6 +4,63 @@ import type { Palette, RoomTable } from "./types";
 
 type TableDrawingProps = Readonly<{ table: RoomTable; palette: Palette }>;
 
+type Seat = ReturnType<typeof tableSeats>[number];
+
+function TableSeat({
+  index,
+  occupied,
+  onHover,
+  onSelect,
+  palette,
+  radius,
+  scale,
+  seat,
+}: Readonly<{
+  index: number;
+  occupied: boolean;
+  onHover: (index: number | null) => void;
+  onSelect: (index: number) => void;
+  palette: Palette;
+  radius: number;
+  scale: number;
+  seat: Seat;
+}>) {
+  const select = (event: { cancelBubble: boolean }) => {
+    event.cancelBubble = true;
+    onSelect(index);
+  };
+  return (
+    <Group
+      key={`${seat.x}:${seat.y}`}
+      x={seat.x}
+      y={seat.y}
+      name="room-seat"
+      onMouseEnter={() => onHover(index)}
+      onMouseLeave={() => onHover(null)}
+      onClick={select}
+      onTap={select}
+    >
+      <Circle
+        radius={radius}
+        fill={occupied ? palette.ink : palette.paper}
+        stroke={palette.softInk}
+        strokeWidth={1}
+        hitStrokeWidth={8}
+      />
+      {occupied && (
+        <Path
+          data="M0 -4a2 2 0 1 0 0 4a2 2 0 1 0 0 -4 M-3 5v-1a3 3 0 0 1 6 0v1"
+          stroke={palette.paper}
+          strokeWidth={1}
+          listening={false}
+          scaleX={scale}
+          scaleY={scale}
+        />
+      )}
+    </Group>
+  );
+}
+
 export function TableShape({
   table,
   palette,
@@ -54,43 +111,22 @@ export function TableSeats({
   );
   const longSeatSpacing = table.id === "top" ? 65 : 130;
   const seatSpacing = appearance.shape === "round" ? 200 : longSeatSpacing;
+  const radius = Math.min(7, seatSpacing / seats.length);
+  const scale = Math.min(1, 9 / seats.length);
   return (
     <>
       {seats.map((seat, index) => (
-        <Group
+        <TableSeat
+          index={index}
           key={`${seat.x}:${seat.y}`}
-          x={seat.x}
-          y={seat.y}
-          name="room-seat"
-          onMouseEnter={() => onHover(index)}
-          onMouseLeave={() => onHover(null)}
-          onClick={(event) => {
-            event.cancelBubble = true;
-            onSelect(index);
-          }}
-          onTap={(event) => {
-            event.cancelBubble = true;
-            onSelect(index);
-          }}
-        >
-          <Circle
-            radius={Math.min(7, seatSpacing / seats.length)}
-            fill={occupants[index] ? palette.ink : palette.paper}
-            stroke={palette.softInk}
-            strokeWidth={1}
-            hitStrokeWidth={8}
-          />
-          {occupants[index] && (
-            <Path
-              data="M0 -4a2 2 0 1 0 0 4a2 2 0 1 0 0 -4 M-3 5v-1a3 3 0 0 1 6 0v1"
-              stroke={palette.paper}
-              strokeWidth={1}
-              listening={false}
-              scaleX={Math.min(1, 9 / seats.length)}
-              scaleY={Math.min(1, 9 / seats.length)}
-            />
-          )}
-        </Group>
+          occupied={Boolean(occupants[index])}
+          onHover={onHover}
+          onSelect={onSelect}
+          palette={palette}
+          radius={radius}
+          scale={scale}
+          seat={seat}
+        />
       ))}
     </>
   );
