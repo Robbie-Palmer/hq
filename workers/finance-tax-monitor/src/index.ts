@@ -180,7 +180,13 @@ async function runSourceCheck(
     const artifacts = await step.do(
       `fetch-and-archive:${source.id}`,
       FETCH_STEP,
-      () => fetchAndArchiveSource(env, source, checkedAt, services.fetchImpl),
+      () =>
+        fetchAndArchiveSource(
+          env,
+          source,
+          new Date().toISOString(),
+          services.fetchImpl,
+        ),
     );
     const persisted = await step.do(
       `persist-revision:${source.id}`,

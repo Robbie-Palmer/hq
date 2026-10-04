@@ -5,6 +5,7 @@ on:
     paths:
       - "workers/finance-tax-monitor/**"
       - "packages/finance-tax-rules/**"
+      - "packages/ts-base/**"
       - ".github/workflows/finance-tax-monitor-ci.yml"
 
 permissions:

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkflowStep } from "cloudflare:workers";
 
 vi.mock("cloudflare:workers", () => ({ WorkflowEntrypoint: class {} }));
@@ -127,6 +127,7 @@ describe("R2 source artifacts", () => {
 
 describe("scheduled source checks", () => {
   beforeEach(() => vi.restoreAllMocks());
+  afterEach(() => vi.useRealTimers());
 
   it("uses the configured interval", () => {
     expect(isSourceDue(null, "2026-10-03T10:00:00Z", 168)).toBe(true);
@@ -273,6 +274,8 @@ describe("scheduled source checks", () => {
   });
 
   it("completes a due source and skips sources still inside their interval", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime("2026-10-04T12:34:56.000Z");
     vi.spyOn(console, "info").mockImplementation(() => undefined);
     const registry = buildGovUkSourceRegistry();
     const firstSourceId = registry[0]?.id;
@@ -312,6 +315,14 @@ describe("scheduled source checks", () => {
     expect(result.skippedSourceIds).toHaveLength(registry.length - 1);
     expect(result.reviewIds).toHaveLength(1);
     expect(result.failures).toEqual([]);
+    expect(services.persistCheck).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        artifacts: expect.objectContaining({
+          retrievedAt: "2026-10-04T12:34:56.000Z",
+        }),
+      }),
+    );
   });
 
   it("leaves exhausted retry bookkeeping in the Workflow", async () => {
