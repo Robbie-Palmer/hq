@@ -20,6 +20,9 @@ allowBuilds:
   esbuild: false
   puppeteer: false
   sharp: false
+  # tsmetrics installs its platform-specific analyzer binary; the pinned tool
+  # cannot run without this package-scoped lifecycle script.
+  tsmetrics: true
   workerd: false
 
 # better-auth-cloudflare 0.3.0 is compatible with workers-types v5, but its

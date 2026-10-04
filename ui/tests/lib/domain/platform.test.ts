@@ -1040,6 +1040,48 @@ describe("temporal platform layers", () => {
     );
   });
 
+  it("adopts complementary React component maintainability analyzers", () => {
+    const repository = loadDomainRepository();
+    const manifest = repository.platform.manifest;
+
+    expect(
+      manifest?.slots.find(
+        (slot) => slot.slug === "web-app.component-maintainability-analysis",
+      ),
+    ).toMatchObject({ cardinality: "many" });
+    expect(
+      manifest?.policies.find(
+        (policy) =>
+          policy.slot === "web-app.component-maintainability-analysis",
+      ),
+    ).toMatchObject({
+      layer: "web-app",
+      mode: "required",
+      prerequisites: [{ slot: "web-app.ui-library", technology: "react" }],
+    });
+    expect(
+      manifest?.selections.filter(
+        (selection) =>
+          selection.slot === "web-app.component-maintainability-analysis",
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          technology: "tsmetrics",
+          status: "Accepted",
+          decision:
+            "personal-engineering-platform:025-react-component-maintainability-analysis",
+        }),
+        expect.objectContaining({
+          technology: "react-doctor",
+          status: "Accepted",
+          decision:
+            "personal-engineering-platform:025-react-component-maintainability-analysis",
+        }),
+      ]),
+    );
+  });
+
   it("promotes DVC for projects with versioned data artifacts and an external remote", () => {
     const repository = loadDomainRepository();
     const manifest = repository.platform.manifest;
