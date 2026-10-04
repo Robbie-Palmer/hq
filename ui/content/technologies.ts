@@ -117,6 +117,22 @@ export const technologies: TechnologyContent[] = [
     type: "tool",
   },
   {
+    name: "tsmetrics",
+    added: "2026-10-04",
+    description:
+      "Tree-sitter-based TypeScript and TSX metrics for component responsibility, rendering complexity, and structural hotspots",
+    website: "https://gabrielrf97.github.io/tsmetrics/",
+    type: "tool",
+  },
+  {
+    name: "React Doctor",
+    added: "2026-10-04",
+    description:
+      "React-specific static analysis, including project-wide detection of repeated JSX subtrees",
+    website: "https://www.react.doctor/",
+    type: "tool",
+  },
+  {
     name: "Vale",
     added: "2026-09-04",
     description: "A configurable command-line linter for prose",

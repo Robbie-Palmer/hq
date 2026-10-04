@@ -210,6 +210,11 @@ slots:
     title: "Web component starting point"
     description: "Accessible interface components that projects can own and adapt."
     rationale: "shadcn/ui, Material UI, Chakra UI, and headless libraries trade ownership against packaged behavior."
+  - slug: "web-app.component-maintainability-analysis"
+    title: "React component maintainability analysis"
+    description: "Static analysis of component size, responsibilities, rendering complexity, and repeated JSX structures."
+    rationale: "Metric analyzers and repository-wide JSX comparison expose declarative component structure that generic linters and code-quality gates can underweight."
+    cardinality: "many"
   - slug: "web-app.server-state-client"
     title: "Client-side server-state library"
     description: "Browser-side synchronization of remote state for interactive client components."
@@ -637,6 +642,15 @@ policies:
     prerequisites:
       - slot: "web-app.styling"
         technology: "tailwind-css"
+  - id: "web-app-component-maintainability-analysis-2026-10-04"
+    layer: "web-app"
+    slot: "web-app.component-maintainability-analysis"
+    mode: "required"
+    effective_from: "2026-10-04T00:00:00Z"
+    decision: "personal-engineering-platform:025-react-component-maintainability-analysis"
+    prerequisites:
+      - slot: "web-app.ui-library"
+        technology: "react"
   - id: "web-app-server-state-client-2026-09-29"
     layer: "web-app"
     slot: "web-app.server-state-client"
@@ -1320,6 +1334,22 @@ selections:
     decision: "personal-engineering-platform:008-web-application-defaults"
     origin_projects: ["personal-knowledge-graph"]
     evidence_adrs: ["personal-knowledge-graph:019-shadcn"]
+  - id: "web-app-component-maintainability-analysis-tsmetrics-2026-10-04"
+    slot: "web-app.component-maintainability-analysis"
+    technology: "tsmetrics"
+    status: "Accepted"
+    effective_from: "2026-10-04T00:00:00Z"
+    decision: "personal-engineering-platform:025-react-component-maintainability-analysis"
+    origin_projects: ["personal-engineering-platform"]
+    evidence_adrs: ["personal-engineering-platform:025-react-component-maintainability-analysis"]
+  - id: "web-app-component-maintainability-analysis-react-doctor-2026-10-04"
+    slot: "web-app.component-maintainability-analysis"
+    technology: "React Doctor"
+    status: "Accepted"
+    effective_from: "2026-10-04T00:00:00Z"
+    decision: "personal-engineering-platform:025-react-component-maintainability-analysis"
+    origin_projects: ["personal-engineering-platform"]
+    evidence_adrs: ["personal-engineering-platform:025-react-component-maintainability-analysis"]
   - id: "web-app-server-state-client-tanstack-query-2026-09-29"
     slot: "web-app.server-state-client"
     technology: "TanStack Query"
