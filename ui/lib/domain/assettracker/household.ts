@@ -532,6 +532,27 @@ export function scopeAssetTrackerData(
         : [];
     },
   );
+  const propertyIndexHistories = (data.propertyIndexHistories ?? []).flatMap(
+    (history) => {
+      if (!keptAccountIds.has(history.accountId)) return [];
+      const fraction = share(data.ownership.accounts[history.accountId]);
+      if (fraction <= 0) return [];
+      return [
+        {
+          ...history,
+          input: {
+            ...history.input,
+            recordedValuations: history.input.recordedValuations.map(
+              (valuation) => ({
+                ...valuation,
+                value: scale(valuation.value, fraction),
+              }),
+            ),
+          },
+        },
+      ];
+    },
+  );
   return {
     ...data,
     accounts,
@@ -544,5 +565,6 @@ export function scopeAssetTrackerData(
     mortgageScenarios,
     decisionRecords,
     holdingObservations,
+    propertyIndexHistories,
   };
 }

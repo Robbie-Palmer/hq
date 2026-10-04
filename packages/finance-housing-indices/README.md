@@ -16,6 +16,19 @@ release. It requires an exact observation for both months. This matters for
 Northern Ireland, where quarterly observations leave expected gaps. The code
 does not fill those gaps or swap in another geography or property type.
 
+`estimatePropertyValueHistory` rebases a recorded purchase price or valuation
+with `anchorValue * (targetIndexLevel / anchorIndexLevel)`. Callers provide an
+ordered series hierarchy, such as local detached, local all-property, regional
+detached, then regional all-property. The result identifies the selected
+fallback and records the anchor, formula, index levels, release version, and
+checksum. Once selected, the series does not change between months. A missing
+month produces an unavailable point.
+
+Recorded valuations and index estimates use different types and arrays. An
+estimate on the same date as a surveyor valuation does not replace the recorded
+valuation. A later feature can choose which one to display without losing the
+underlying fact.
+
 The current source registry points at HM Land Registry's versioned July 2026
 full CSV and its GOV.UK data page. Update both URLs and the publication metadata
 together for each import. Keep upstream CSV files in object storage. Git

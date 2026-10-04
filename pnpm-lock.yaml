@@ -1009,6 +1009,9 @@ importers:
       feed:
         specifier: ^6.0.0
         version: 6.0.0
+      finance-housing-indices:
+        specifier: workspace:*
+        version: link:../packages/finance-housing-indices
       finance-inflation-indices:
         specifier: workspace:*
         version: link:../packages/finance-inflation-indices

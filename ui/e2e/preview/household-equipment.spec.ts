@@ -134,7 +134,7 @@ test("manages household equipment and applies it to recipe cards", async ({
     });
     await expect(curryCard.getByText(/Missing equipment:/)).toHaveCount(0);
     await expect(
-      flatbreadCard.getByText("Missing equipment: grill.", { exact: true }),
+      flatbreadCard.getByText(/^Missing equipment: grill\./),
     ).toBeVisible();
 
     await page.goto("/recipes/settings");

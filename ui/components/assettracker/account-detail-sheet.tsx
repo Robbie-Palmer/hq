@@ -43,6 +43,7 @@ import { EquityProjection } from "./equity-projection";
 import { ExpectedReturnEditor } from "./expected-return-editor";
 import { LogBalanceDrawer } from "./log-balance-drawer";
 import { MortgageSchedule } from "./mortgage-schedule";
+import { PropertyValueHistory } from "./property-value-history";
 import { RecordTransferDrawer } from "./record-transfer-drawer";
 
 interface AccountDetailSheetProps {
@@ -67,6 +68,7 @@ export function AccountDetailSheet({
     inflation,
     transfers,
     netWorthData,
+    propertyValueHistories = [],
   } = useAssetTracker();
 
   const account =
@@ -81,6 +83,9 @@ export function AccountDetailSheet({
   const hasOtherOpenAccounts = account
     ? accounts.some((a) => a.isOpen && a.id !== account.id)
     : false;
+  const propertyValueHistory = propertyValueHistories.find(
+    (history) => history.accountId === account?.id,
+  );
 
   function handleOpenChange(open: boolean) {
     if (!open) onClose();
@@ -102,6 +107,9 @@ export function AccountDetailSheet({
                 transfers={transfers}
                 netWorthData={netWorthData}
               />
+              {propertyValueHistory && (
+                <PropertyValueHistory view={propertyValueHistory} />
+              )}
               {equity && <EquityCard account={account} equity={equity} />}
               {account.isOpen && (
                 <AccountProjection
