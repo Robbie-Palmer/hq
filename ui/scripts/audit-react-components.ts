@@ -1,6 +1,7 @@
 #!/usr/bin/env tsx
 
 import { spawnSync } from "node:child_process";
+import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 export const componentLimits = {
@@ -124,7 +125,7 @@ export function formatHotspotReport(
 
 function analyzeWithTsmetrics(): AnalysisResult {
   const analysis = spawnSync(
-    "tsmetrics",
+    resolve(process.cwd(), "node_modules/.bin/tsmetrics"),
     [
       "analyze",
       "app",
