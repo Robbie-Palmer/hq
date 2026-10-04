@@ -443,8 +443,8 @@ importers:
   packages/agent-auth-mcp:
     dependencies:
       '@auth/agent':
-        specifier: 0.5.1
-        version: 0.5.1
+        specifier: 0.6.2
+        version: 0.6.2
       '@modelcontextprotocol/sdk':
         specifier: 1.32.0
         version: 1.32.0(supports-color@10.2.2)(zod@3.25.76)
@@ -1437,8 +1437,8 @@ packages:
   '@asyncapi/specs@6.11.1':
     resolution: {integrity: sha512-A3WBLqAKGoJ2+6FWFtpjBlCQ1oFCcs4GxF7zsIGvNqp/klGUHjlA3aAcZ9XMMpLGE8zPeYDz2x9FmO6DSuKraQ==}
 
-  '@auth/agent@0.5.1':
-    resolution: {integrity: sha512-TKCSmMpVmVdMEYUiJ8w88GcRKaxmt8IjlyNaTS8WCd02GouwECpCDz8wAabycMRm1d7SkqSI70a7VBAfyCgOcA==}
+  '@auth/agent@0.6.2':
+    resolution: {integrity: sha512-jEhQEVSYZv819oCmyekVNWRGZiReL/UUb2ydKAzZQukGZ3M096FQv+YDwOWrbCF+oz2qKFVvXKleSAxNIFWx7w==}
     peerDependencies:
       ai: '>=3.0.0'
     peerDependenciesMeta:
@@ -9436,7 +9436,7 @@ snapshots:
     dependencies:
       '@types/json-schema': 7.0.15
 
-  '@auth/agent@0.5.1':
+  '@auth/agent@0.6.2':
     dependencies:
       jose: 6.2.12
 
