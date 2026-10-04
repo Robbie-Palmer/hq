@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "ts-base": "workspace:*",
     "zod": "^4.2.1"
   },
   "devDependencies": {

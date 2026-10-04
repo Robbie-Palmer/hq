@@ -61,28 +61,28 @@ describe("GOV.UK source registry", () => {
 });
 
 describe("GOV.UK source changes", () => {
-  it("does not propose an unchanged normalized snapshot", () => {
-    const snapshot = snapshotGovUkContent(contentItem());
+  it("does not propose an unchanged normalized snapshot", async () => {
+    const snapshot = await snapshotGovUkContent(contentItem());
 
-    expect(
+    await expect(
       createRuleUpdateProposal(
         source,
         snapshot,
         snapshot,
         "2026-10-03T10:00:00Z",
       ),
-    ).toBeNull();
+    ).resolves.toBeNull();
   });
 
-  it("turns an amended table into a gated review proposal", () => {
-    const reviewed = snapshotGovUkContent(contentItem());
-    const candidate = snapshotGovUkContent(
+  it("turns an amended table into a gated review proposal", async () => {
+    const reviewed = await snapshotGovUkContent(contentItem());
+    const candidate = await snapshotGovUkContent(
       contentItem({
         body: "<table><tr><td>Basic rate</td><td>21%</td></tr></table>",
         publicUpdatedAt: "2026-10-02T12:00:00Z",
       }),
     );
-    const proposal = createRuleUpdateProposal(
+    const proposal = await createRuleUpdateProposal(
       source,
       reviewed,
       candidate,
@@ -111,9 +111,9 @@ describe("GOV.UK source changes", () => {
     expect(JSON.stringify(proposal)).not.toContain("<table>");
   });
 
-  it("reports a document-link replacement separately", () => {
-    const reviewed = snapshotGovUkContent(contentItem());
-    const candidate = snapshotGovUkContent(
+  it("reports a document-link replacement separately", async () => {
+    const reviewed = await snapshotGovUkContent(contentItem());
+    const candidate = await snapshotGovUkContent(
       contentItem({
         body: '<a href="https://assets.publishing.service.gov.uk/rates-v2.pdf">Rates PDF</a>',
       }),
@@ -136,17 +136,17 @@ describe("GOV.UK source changes", () => {
     );
   });
 
-  it("keeps nested HTML out of compact PostgreSQL diffs", () => {
-    const reviewed = snapshotGovUkContent({
+  it("keeps nested HTML out of compact PostgreSQL diffs", async () => {
+    const reviewed = await snapshotGovUkContent({
       ...contentItem(),
       details: { rows: ["<strong>Basic rate</strong>", "20%"] },
     });
-    const candidate = snapshotGovUkContent({
+    const candidate = await snapshotGovUkContent({
       ...contentItem(),
       details: { rows: ["<strong>Basic rate</strong>", "21%"] },
     });
 
-    const proposal = createRuleUpdateProposal(
+    const proposal = await createRuleUpdateProposal(
       source,
       reviewed,
       candidate,
@@ -157,9 +157,9 @@ describe("GOV.UK source changes", () => {
     expect(JSON.stringify(proposal)).toContain("Basic rate");
   });
 
-  it("creates a review task for the first R2 baseline", () => {
-    const candidate = snapshotGovUkContent(contentItem());
-    const proposal = createRuleUpdateProposal(
+  it("creates a review task for the first R2 baseline", async () => {
+    const candidate = await snapshotGovUkContent(contentItem());
+    const proposal = await createRuleUpdateProposal(
       source,
       null,
       candidate,
@@ -174,23 +174,23 @@ describe("GOV.UK source changes", () => {
     });
   });
 
-  it("flags future-dated publications for review", () => {
-    const reviewed = snapshotGovUkContent(contentItem());
-    const candidate = snapshotGovUkContent(
+  it("flags future-dated publications for review", async () => {
+    const reviewed = await snapshotGovUkContent(contentItem());
+    const candidate = await snapshotGovUkContent(
       contentItem({
         publicUpdatedAt: "2027-04-06T00:00:00Z",
         body: "<p>Rates announced for a future tax year.</p>",
       }),
     );
 
-    expect(
+    await expect(
       createRuleUpdateProposal(
         source,
         reviewed,
         candidate,
         "2026-10-03T10:00:00Z",
       ),
-    ).toMatchObject({
+    ).resolves.toMatchObject({
       timing: "future-announcement",
       dates: {
         publicationDate: "2027-04-06",

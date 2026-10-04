@@ -10,6 +10,7 @@
     "./dates": "./src/dates.ts",
     "./errors": "./src/errors.ts",
     "./http": "./src/http.ts",
+    "./json": "./src/json.ts",
     "./layered-graph": "./src/layered-graph.ts",
     "./numbers": "./src/numbers.ts",
     "./promises": "./src/promises.ts",

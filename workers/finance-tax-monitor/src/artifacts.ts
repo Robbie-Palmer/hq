@@ -1,10 +1,11 @@
 import {
   govUkContentSnapshotSchema,
-  sha256Hex,
   type GovUkContentSnapshot,
   type GovUkSourceSpec,
 } from "finance-tax-rules/gov-uk-monitor";
 import { gunzipSync, gzipSync, strFromU8, strToU8 } from "fflate";
+import { sha256Hex } from "ts-base/crypto";
+import { canonicalJson } from "ts-base/json";
 
 const PREFIX = "govuk-tax-guidance";
 
@@ -53,7 +54,7 @@ export async function archiveGovUkResponse(
   response: Pick<Response, "headers">,
   retrievedAt: string,
 ): Promise<StoredSourceArtifacts> {
-  const rawChecksum = sha256Hex(rawBody);
+  const rawChecksum = await sha256Hex(rawBody);
   const rawKey = rawObjectKey(source.id, rawChecksum);
   const normalizedKey = normalizedObjectKey(source.id, snapshot.fingerprint);
   const metadata = { sourceId: source.id, retrievedAt };
@@ -62,7 +63,7 @@ export async function archiveGovUkResponse(
     sha256: rawChecksum,
     representation: "raw-content-api-response",
   });
-  await putCompressedJson(bucket, normalizedKey, JSON.stringify(snapshot), {
+  await putCompressedJson(bucket, normalizedKey, canonicalJson(snapshot), {
     ...metadata,
     sha256: snapshot.fingerprint,
     representation: "normalized-content-snapshot",

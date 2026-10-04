@@ -1,13 +1,8 @@
-import { createHash } from "node:crypto";
+import { sha256Hex } from "ts-base/crypto";
+import { canonicalJson, type JsonValue } from "ts-base/json";
 import { z } from "zod";
 import { ruleDataset } from "./data";
 import type { RuleDataset } from "./schema";
-
-type JsonPrimitive = string | number | boolean | null;
-export type JsonValue =
-  | JsonPrimitive
-  | JsonValue[]
-  | { [key: string]: JsonValue };
 
 const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
   z.union([
@@ -98,34 +93,8 @@ export type RuleUpdateProposal = {
   };
 };
 
-const canonicalJson = (value: JsonValue): string => JSON.stringify(value);
 const compareText = (left: string, right: string): number =>
   left.localeCompare(right, "en");
-
-function normalizeJson(value: unknown): JsonValue {
-  if (
-    value === null ||
-    typeof value === "string" ||
-    typeof value === "boolean"
-  ) {
-    return value;
-  }
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) {
-      throw new TypeError("Content contains a non-finite number");
-    }
-    return value;
-  }
-  if (Array.isArray(value)) return value.map(normalizeJson);
-  if (typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, item]) => [key, normalizeJson(item)]),
-    );
-  }
-  throw new TypeError(`Content contains unsupported ${typeof value} value`);
-}
 
 function linksInString(value: string): string[] {
   return [
@@ -159,14 +128,12 @@ function collectDocumentLinks(value: JsonValue, links: Set<string>): void {
   }
 }
 
-export function sha256Hex(value: string): string {
-  return createHash("sha256").update(value).digest("hex");
-}
-
-export function snapshotGovUkContent(input: unknown): GovUkContentSnapshot {
+export async function snapshotGovUkContent(
+  input: unknown,
+): Promise<GovUkContentSnapshot> {
   const item = contentItemSchema.parse(input);
-  const details = normalizeJson(item.details ?? {});
-  const linkedContent = normalizeJson(item.links);
+  const details = jsonValueSchema.parse(item.details ?? {});
+  const linkedContent = jsonValueSchema.parse(item.links);
   const documentLinks = new Set<string>();
   collectDocumentLinks(details, documentLinks);
   collectDocumentLinks(linkedContent, documentLinks);
@@ -179,16 +146,16 @@ export function snapshotGovUkContent(input: unknown): GovUkContentSnapshot {
     publicUpdatedAt: item.public_updated_at,
     schemaName: item.schema_name,
     title: item.title ?? null,
-    withdrawnNotice: normalizeJson(item.withdrawn_notice ?? {}),
+    withdrawnNotice: jsonValueSchema.parse(item.withdrawn_notice ?? {}),
   };
   const sortedLinks = [...documentLinks].toSorted(compareText);
-  const monitored = normalizeJson({
+  const monitored = {
     details,
     documentLinks: sortedLinks,
     metadata,
-  });
+  };
   return {
-    fingerprint: sha256Hex(canonicalJson(monitored)),
+    fingerprint: await sha256Hex(canonicalJson(monitored)),
     metadata,
     details,
     documentLinks: sortedLinks,
@@ -332,8 +299,8 @@ export function diffGovUkSnapshots(
 ): SourceChange[] {
   const changes: SourceChange[] = [];
   diffJson(
-    normalizeJson(reviewed.metadata),
-    normalizeJson(candidate.metadata),
+    jsonValueSchema.parse(reviewed.metadata),
+    jsonValueSchema.parse(candidate.metadata),
     "metadata",
     "/metadata",
     changes,
@@ -387,16 +354,16 @@ function timingFor(
   return "current-or-unknown";
 }
 
-export function createRuleUpdateProposal(
+export async function createRuleUpdateProposal(
   source: GovUkSourceSpec,
   base: GovUkContentSnapshot | null,
   candidate: GovUkContentSnapshot,
   detectedAt: string,
-): RuleUpdateProposal | null {
+): Promise<RuleUpdateProposal | null> {
   if (base?.fingerprint === candidate.fingerprint) return null;
   const detectedDate = datePart(detectedAt);
   const publicationDate = datePart(candidate.metadata.publicUpdatedAt);
-  const proposalDigest = sha256Hex(
+  const proposalDigest = await sha256Hex(
     [
       source.id,
       base?.fingerprint ?? "initial",

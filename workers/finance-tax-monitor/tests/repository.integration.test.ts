@@ -41,7 +41,7 @@ const source: GovUkSourceSpec = {
   defaultCheckIntervalHours: 168,
 };
 
-function snapshot(body: string): GovUkContentSnapshot {
+async function snapshot(body: string): Promise<GovUkContentSnapshot> {
   return snapshotGovUkContent({
     base_path: "/income-tax-rates",
     content_id: "content-id",
@@ -109,8 +109,8 @@ afterAll(async () => client.close());
 
 describe("finance tax monitor repository", () => {
   it("records a baseline review and makes Workflow replay idempotent", async () => {
-    const candidate = snapshot("<p>20%</p>");
-    const proposal = createRuleUpdateProposal(
+    const candidate = await snapshot("<p>20%</p>");
+    const proposal = await createRuleUpdateProposal(
       source,
       null,
       candidate,
@@ -152,14 +152,14 @@ describe("finance tax monitor repository", () => {
   });
 
   it("keeps unchanged raw revisions and rejects a stale diff base", async () => {
-    const original = snapshot("<p>20%</p>");
+    const original = await snapshot("<p>20%</p>");
     await syncSourceAndReadState(db, source);
     const first = await persist(
       original,
       "a",
       "2026-10-03T10:00:00Z",
       null,
-      createRuleUpdateProposal(
+      await createRuleUpdateProposal(
         source,
         null,
         original,
@@ -179,14 +179,14 @@ describe("finance tax monitor repository", () => {
       unchanged.revisionId,
     );
 
-    const changed = snapshot("<p>21%</p>");
+    const changed = await snapshot("<p>21%</p>");
     await expect(
       persist(
         changed,
         "c",
         "2026-10-17T10:00:00Z",
         first.revisionId,
-        createRuleUpdateProposal(
+        await createRuleUpdateProposal(
           source,
           original,
           changed,

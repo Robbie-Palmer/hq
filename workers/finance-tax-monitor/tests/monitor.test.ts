@@ -91,7 +91,7 @@ describe("R2 source artifacts", () => {
   it("compresses immutable raw and normalized objects and deduplicates them", async () => {
     const bucket = fakeBucket();
     const raw = JSON.stringify(contentItem());
-    const snapshot = snapshotGovUkContent(JSON.parse(raw));
+    const snapshot = await snapshotGovUkContent(JSON.parse(raw));
     const response = new Response(raw, {
       headers: { etag: '"revision-1"' },
     });
@@ -189,7 +189,7 @@ describe("scheduled source checks", () => {
     const workerEnv = env();
     const raw = JSON.stringify(contentItem("<table><tr><td>21%</td></tr></table>"));
     const response = new Response(raw);
-    const snapshot = snapshotGovUkContent(JSON.parse(raw));
+    const snapshot = await snapshotGovUkContent(JSON.parse(raw));
     const artifacts = await archiveGovUkResponse(
       workerEnv.SOURCE_ARTIFACTS,
       source,
@@ -226,8 +226,8 @@ describe("scheduled source checks", () => {
     const workerEnv = env();
     const originalRaw = JSON.stringify(contentItem("<p>20%</p>"));
     const changedRaw = JSON.stringify(contentItem("<p>21%</p>"));
-    const original = snapshotGovUkContent(JSON.parse(originalRaw));
-    const changed = snapshotGovUkContent(JSON.parse(changedRaw));
+    const original = await snapshotGovUkContent(JSON.parse(originalRaw));
+    const changed = await snapshotGovUkContent(JSON.parse(changedRaw));
     const originalArtifacts = await archiveGovUkResponse(
       workerEnv.SOURCE_ARTIFACTS,
       source,

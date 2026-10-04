@@ -11,6 +11,7 @@ import {
   snapshotGovUkContent,
   type GovUkSourceSpec,
 } from "finance-tax-rules/gov-uk-monitor";
+import { errorMessage } from "ts-base/errors";
 import {
   archiveGovUkResponse,
   readNormalizedSnapshot,
@@ -112,7 +113,7 @@ export async function fetchAndArchiveSource(
     throw new Error(`GOV.UK Content API returned ${response.status}`);
   }
   const rawBody = await response.text();
-  const snapshot = snapshotGovUkContent(JSON.parse(rawBody));
+  const snapshot = await snapshotGovUkContent(JSON.parse(rawBody));
   return archiveGovUkResponse(
     env.SOURCE_ARTIFACTS,
     source,
@@ -140,7 +141,7 @@ export async function persistArchivedSource(
         base.normalizedObjectKey,
       )
     : null;
-  const proposal = createRuleUpdateProposal(
+  const proposal = await createRuleUpdateProposal(
     source,
     baseSnapshot,
     candidate,
@@ -152,10 +153,6 @@ export async function persistArchivedSource(
     expectedBaseRevisionId: base?.id ?? null,
     proposal,
   });
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 async function runSourceCheck(
@@ -196,7 +193,11 @@ async function runSourceCheck(
       reviewId: persisted.reviewId,
     };
   } catch (error) {
-    return { status: "failed", sourceId: source.id, message: errorMessage(error) };
+    return {
+      status: "failed",
+      sourceId: source.id,
+      message: errorMessage(error, String(error)),
+    };
   }
 }
 
