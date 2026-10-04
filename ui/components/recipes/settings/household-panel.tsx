@@ -568,6 +568,98 @@ function HouseholdInvitationsSection({
   );
 }
 
+type EquipmentCatalog = HouseholdEquipment["catalog"];
+
+function EquipmentCatalogSelect({
+  available,
+  busy,
+  onChange,
+  value,
+}: Readonly<{
+  available: EquipmentCatalog;
+  busy: boolean;
+  onChange: (slug: string) => void;
+  value: string;
+}>) {
+  return (
+    <>
+      <label className="sr-only" htmlFor="household-equipment">
+        Equipment to add
+      </label>
+      <select
+        id="household-equipment"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={busy || available.length === 0}
+        className="rt-body h-9 min-w-0 rounded-md border border-[var(--line-strong)] bg-[var(--card)] px-3 text-sm text-[var(--ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--terracotta)]/40 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <option value="">
+          {available.length === 0
+            ? "All catalog equipment added"
+            : "Choose catalog equipment"}
+        </option>
+        {available.map((item) => (
+          <option key={item.slug} value={item.slug}>
+            {item.name} · {item.category}
+          </option>
+        ))}
+      </select>
+    </>
+  );
+}
+
+type EquipmentAddFormProps = Readonly<{
+  adding: boolean;
+  available: EquipmentCatalog;
+  busy: boolean;
+  onAdd: SubmitEventHandler<HTMLFormElement>;
+  onSelectedSlugChange: (slug: string) => void;
+  selectedSlug: string;
+}>;
+
+function EquipmentAddForm({
+  adding,
+  available,
+  busy,
+  onAdd,
+  onSelectedSlugChange,
+  selectedSlug,
+}: EquipmentAddFormProps) {
+  const selectedCatalogSlug = available.some(
+    (item) => item.slug === selectedSlug,
+  )
+    ? selectedSlug
+    : "";
+  return (
+    <form
+      onSubmit={onAdd}
+      className="grid max-w-2xl gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+    >
+      <EquipmentCatalogSelect
+        available={available}
+        busy={busy}
+        onChange={onSelectedSlugChange}
+        value={selectedCatalogSlug}
+      />
+      <label className="sr-only" htmlFor="household-custom-equipment">
+        Custom equipment
+      </label>
+      <Input
+        id="household-custom-equipment"
+        value={selectedCatalogSlug ? "" : selectedSlug}
+        onChange={(event) => onSelectedSlugChange(event.target.value)}
+        disabled={busy}
+        placeholder="Or enter custom equipment"
+        className="min-w-0 bg-[var(--card)]"
+      />
+      <Button type="submit" variant="outline" disabled={busy || !selectedSlug}>
+        {adding ? <LoaderCircle className="animate-spin" /> : <Plus />}
+        Add equipment
+      </Button>
+    </form>
+  );
+}
+
 function HouseholdEquipmentSection({
   equipment,
   selectedSlug,
@@ -604,12 +696,6 @@ function HouseholdEquipmentSection({
   const available = equipment.catalog.filter(
     (item) => !ownedSlugs.has(item.slug),
   );
-  const selectedCatalogSlug = available.some(
-    (item) => item.slug === selectedSlug,
-  )
-    ? selectedSlug
-    : "";
-  const customEquipment = selectedCatalogSlug ? "" : selectedSlug;
 
   return (
     <Section
@@ -653,51 +739,14 @@ function HouseholdEquipmentSection({
         </p>
       ) : (
         <>
-          <form
-            onSubmit={onAdd}
-            className="grid max-w-2xl gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
-          >
-            <label className="sr-only" htmlFor="household-equipment">
-              Equipment to add
-            </label>
-            <select
-              id="household-equipment"
-              value={selectedCatalogSlug}
-              onChange={(event) => onSelectedSlugChange(event.target.value)}
-              disabled={busy || available.length === 0}
-              className="rt-body h-9 min-w-0 rounded-md border border-[var(--line-strong)] bg-[var(--card)] px-3 text-sm text-[var(--ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--terracotta)]/40 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <option value="">
-                {available.length === 0
-                  ? "All catalog equipment added"
-                  : "Choose catalog equipment"}
-              </option>
-              {available.map((item) => (
-                <option key={item.slug} value={item.slug}>
-                  {item.name} · {item.category}
-                </option>
-              ))}
-            </select>
-            <label className="sr-only" htmlFor="household-custom-equipment">
-              Custom equipment
-            </label>
-            <Input
-              id="household-custom-equipment"
-              value={customEquipment}
-              onChange={(event) => onSelectedSlugChange(event.target.value)}
-              disabled={busy}
-              placeholder="Or enter custom equipment"
-              className="min-w-0 bg-[var(--card)]"
-            />
-            <Button
-              type="submit"
-              variant="outline"
-              disabled={busy || !selectedSlug}
-            >
-              {adding ? <LoaderCircle className="animate-spin" /> : <Plus />}
-              Add equipment
-            </Button>
-          </form>
+          <EquipmentAddForm
+            adding={adding}
+            available={available}
+            busy={busy}
+            onAdd={onAdd}
+            onSelectedSlugChange={onSelectedSlugChange}
+            selectedSlug={selectedSlug}
+          />
 
           {equipment.owned.length === 0 ? (
             <div className="mt-5 flex max-w-lg items-center gap-3 rounded-xl border border-dashed border-[var(--line-strong)] bg-[var(--paper-warm)] p-4 text-[var(--ink-3)]">

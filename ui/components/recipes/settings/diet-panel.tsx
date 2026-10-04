@@ -230,6 +230,64 @@ function IngredientBadge({
   );
 }
 
+function IngredientMatches({
+  matches,
+  onAdd,
+}: Readonly<{
+  matches: DietIngredientOption[];
+  onAdd: (ingredient: DietIngredientOption) => void;
+}>) {
+  if (matches.length === 0) {
+    return (
+      <p className="rt-body px-3 py-2 text-sm text-[var(--ink-3)]">
+        No canonical ingredients match that search.
+      </p>
+    );
+  }
+  return matches.map((ingredient) => (
+    <button
+      key={ingredient.slug}
+      type="button"
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={() => onAdd(ingredient)}
+      className="flex w-full min-w-0 items-center justify-between gap-3 rounded-md px-3 py-2 text-left transition-colors hover:bg-[var(--butter-soft)]"
+    >
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-medium text-[var(--ink)]">
+          {ingredient.name}
+        </span>
+        <span className="rt-mono block truncate text-[var(--ink-3)]">
+          {ingredient.category ?? "ingredient"}
+        </span>
+      </span>
+      <Plus className="size-4 shrink-0 text-[var(--terracotta)]" />
+    </button>
+  ));
+}
+
+function CustomIngredientButton({
+  canAdd,
+  customText,
+  onAdd,
+}: Readonly<{
+  canAdd: boolean;
+  customText: string;
+  onAdd: () => void;
+}>) {
+  if (!canAdd) return null;
+  return (
+    <button
+      type="button"
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={onAdd}
+      className="mt-1 flex w-full items-center gap-3 rounded-md border-t border-dashed border-[var(--line)] px-3 py-2 text-left text-sm text-[var(--ink)] hover:bg-[var(--butter-soft)]"
+    >
+      <Plus className="size-4 shrink-0 text-[var(--terracotta)]" />
+      Save "{customText}" as written
+    </button>
+  );
+}
+
 function IngredientPicker({
   ingredients,
   onAdd,
@@ -326,49 +384,62 @@ function IngredientPicker({
       />
       {open && (
         <div className="absolute z-20 mt-2 max-h-72 w-full overflow-auto rounded-lg border border-[var(--line-strong)] bg-[var(--card)] p-2 shadow-lg">
-          {matches.length > 0 ? (
-            matches.map((ingredient) => (
-              <button
-                key={ingredient.slug}
-                type="button"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => addIngredient(ingredient)}
-                className="flex w-full min-w-0 items-center justify-between gap-3 rounded-md px-3 py-2 text-left transition-colors hover:bg-[var(--butter-soft)]"
-              >
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium text-[var(--ink)]">
-                    {ingredient.name}
-                  </span>
-                  <span className="rt-mono block truncate text-[var(--ink-3)]">
-                    {ingredient.category ?? "ingredient"}
-                  </span>
-                </span>
-                <Plus className="size-4 shrink-0 text-[var(--terracotta)]" />
-              </button>
-            ))
-          ) : (
-            <p className="rt-body px-3 py-2 text-sm text-[var(--ink-3)]">
-              No canonical ingredients match that search.
-            </p>
-          )}
-          {canAddCustom && (
-            <button
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                onAddCustom(customText);
-                setQuery("");
-                setOpen(false);
-              }}
-              className="mt-1 flex w-full items-center gap-3 rounded-md border-t border-dashed border-[var(--line)] px-3 py-2 text-left text-sm text-[var(--ink)] hover:bg-[var(--butter-soft)]"
-            >
-              <Plus className="size-4 shrink-0 text-[var(--terracotta)]" />
-              Save "{customText}" as written
-            </button>
-          )}
+          <IngredientMatches matches={matches} onAdd={addIngredient} />
+          <CustomIngredientButton
+            canAdd={canAddCustom}
+            customText={customText}
+            onAdd={() => {
+              onAddCustom(customText);
+              setQuery("");
+              setOpen(false);
+            }}
+          />
         </div>
       )}
     </div>
+  );
+}
+
+function SpecificIngredientsSection({
+  ingredients,
+  selectedIngredients,
+  selectedSlugs,
+  onAdd,
+  onAddCustom,
+  onRemove,
+}: Readonly<{
+  ingredients: DietIngredientOption[];
+  selectedIngredients: Array<DietIngredientOption & { unresolved?: boolean }>;
+  selectedSlugs: string[];
+  onAdd: (ingredient: DietIngredientOption) => void;
+  onAddCustom: (rawText: string) => void;
+  onRemove: (slug: string) => void;
+}>) {
+  return (
+    <section className="mb-7">
+      <SectionLabel>SPECIFIC INGREDIENTS</SectionLabel>
+      <IngredientPicker
+        ingredients={ingredients}
+        onAdd={onAdd}
+        onAddCustom={onAddCustom}
+        selectedSlugs={selectedSlugs}
+      />
+      <div className="mt-3 flex flex-wrap gap-2">
+        {selectedIngredients.length > 0 ? (
+          selectedIngredients.map((ingredient) => (
+            <IngredientBadge
+              key={ingredient.slug}
+              ingredient={ingredient}
+              onRemove={() => onRemove(ingredient.slug)}
+            />
+          ))
+        ) : (
+          <p className="rt-mono text-[var(--ink-4)]">
+            Pick ingredients from the canonical recipe catalog.
+          </p>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -554,30 +625,14 @@ export function DietPanel() {
             )}
           </section>
 
-          <section className="mb-7">
-            <SectionLabel>SPECIFIC INGREDIENTS</SectionLabel>
-            <IngredientPicker
-              ingredients={options.ingredients}
-              onAdd={addIngredient}
-              onAddCustom={addCustomIngredient}
-              selectedSlugs={profile.excludedIngredientSlugs}
-            />
-            <div className="mt-3 flex flex-wrap gap-2">
-              {selectedIngredients.length > 0 ? (
-                selectedIngredients.map((ingredient) => (
-                  <IngredientBadge
-                    key={ingredient.slug}
-                    ingredient={ingredient}
-                    onRemove={() => removeIngredient(ingredient.slug)}
-                  />
-                ))
-              ) : (
-                <p className="rt-mono text-[var(--ink-4)]">
-                  Pick ingredients from the canonical recipe catalog.
-                </p>
-              )}
-            </div>
-          </section>
+          <SpecificIngredientsSection
+            ingredients={options.ingredients}
+            selectedIngredients={selectedIngredients}
+            selectedSlugs={profile.excludedIngredientSlugs}
+            onAdd={addIngredient}
+            onAddCustom={addCustomIngredient}
+            onRemove={removeIngredient}
+          />
 
           <section className="mb-7">
             <SectionLabel>WHEN A RECIPE BREAKS YOUR DIET</SectionLabel>
