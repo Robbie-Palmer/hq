@@ -1,12 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({
-  captureException: vi.fn(),
-  reload: vi.fn(),
-}));
+const captureException = vi.hoisted(() => vi.fn());
+const reload = vi.fn();
 
 vi.mock("posthog-js", () => ({
-  default: { captureException: mocks.captureException },
+  default: { captureException },
 }));
 
 function chunkLoadError(): Error {
@@ -23,9 +21,9 @@ async function loadRecovery() {
 describe("recoverFromStaleChunk", () => {
   beforeEach(() => {
     sessionStorage.clear();
-    mocks.captureException.mockReset();
-    mocks.reload.mockReset();
-    vi.stubGlobal("location", { reload: mocks.reload });
+    captureException.mockReset();
+    reload.mockReset();
+    vi.stubGlobal("location", { reload });
     vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
   });
 
@@ -42,8 +40,8 @@ describe("recoverFromStaleChunk", () => {
     expect(recoverFromStaleChunk(error)).toBe(true);
     expect(recoverFromStaleChunk(chunkLoadError())).toBe(true);
 
-    expect(mocks.reload).toHaveBeenCalledTimes(1);
-    expect(mocks.captureException).toHaveBeenCalledWith(error, {
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(captureException).toHaveBeenCalledWith(error, {
       stale_chunk_recovery: "reload",
     });
   });
@@ -52,7 +50,7 @@ describe("recoverFromStaleChunk", () => {
     const { recoverFromStaleChunk } = await loadRecovery();
 
     expect(recoverFromStaleChunk(new Error("invalid chart"))).toBe(false);
-    expect(mocks.reload).not.toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
   });
 
   it("does not reload while offline", async () => {
@@ -60,7 +58,7 @@ describe("recoverFromStaleChunk", () => {
     const { recoverFromStaleChunk } = await loadRecovery();
 
     expect(recoverFromStaleChunk(chunkLoadError())).toBe(false);
-    expect(mocks.reload).not.toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
   });
 
   it("does not reload again when the reload did not fix the chunk", async () => {
@@ -75,6 +73,6 @@ describe("recoverFromStaleChunk", () => {
     const laterDeploy = await loadRecovery();
     expect(laterDeploy.recoverFromStaleChunk(chunkLoadError())).toBe(true);
 
-    expect(mocks.reload).toHaveBeenCalledTimes(2);
+    expect(reload).toHaveBeenCalledTimes(2);
   });
 });

@@ -9,7 +9,7 @@ const RELOAD_GUARD_MS = 60_000;
 
 let reloadRequested = false;
 
-export function isChunkLoadError(error: unknown): boolean {
+function isChunkLoadError(error: unknown): boolean {
   return error instanceof Error && error.name === "ChunkLoadError";
 }
 
