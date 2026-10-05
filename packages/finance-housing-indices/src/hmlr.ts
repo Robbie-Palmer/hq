@@ -27,12 +27,29 @@ export const UK_HPI_SOURCE: UkHpiSourceSpec = {
 const PROPERTY_INDEX_COLUMNS: ReadonlyArray<{
   propertyType: HousePropertyType;
   column: string;
+  priceColumn: string;
 }> = [
-  { propertyType: "all", column: "Index" },
-  { propertyType: "detached", column: "DetachedIndex" },
-  { propertyType: "semi-detached", column: "SemiDetachedIndex" },
-  { propertyType: "terraced", column: "TerracedIndex" },
-  { propertyType: "flat-maisonette", column: "FlatIndex" },
+  { propertyType: "all", column: "Index", priceColumn: "AveragePrice" },
+  {
+    propertyType: "detached",
+    column: "DetachedIndex",
+    priceColumn: "DetachedPrice",
+  },
+  {
+    propertyType: "semi-detached",
+    column: "SemiDetachedIndex",
+    priceColumn: "SemiDetachedPrice",
+  },
+  {
+    propertyType: "terraced",
+    column: "TerracedIndex",
+    priceColumn: "TerracedPrice",
+  },
+  {
+    propertyType: "flat-maisonette",
+    column: "FlatIndex",
+    priceColumn: "FlatPrice",
+  },
 ];
 
 function monthFromUkDate(value: string): string {
@@ -66,21 +83,32 @@ function observationsFromRow(
   if (!rawDate || !geographyName || !geographyCode) return [];
   const period = monthFromUkDate(rawDate);
   const ageInMonths = monthsApart(period, releasePeriod);
-  return PROPERTY_INDEX_COLUMNS.flatMap(({ propertyType, column }) => {
+  return PROPERTY_INDEX_COLUMNS.flatMap(
+    ({ propertyType, column, priceColumn }) => {
     const value = Number(row[positions.get(column) ?? -1]);
-    return Number.isFinite(value) && value > 0
-      ? [
-          {
-            period,
-            geographyCode,
-            geographyName,
-            propertyType,
-            index: value,
-            provisional: ageInMonths >= 0 && ageInMonths < 12,
-          },
-        ]
-      : [];
-  });
+      if (!Number.isFinite(value) || value <= 0) return [];
+      const averagePrice = Number(row[positions.get(priceColumn) ?? -1]);
+      const salesVolume = Number(row[positions.get("SalesVolume") ?? -1]);
+      return [
+        {
+          period,
+          geographyCode,
+          geographyName,
+          propertyType,
+          ...(Number.isFinite(averagePrice) && averagePrice > 0
+            ? { averagePrice }
+            : {}),
+          ...(propertyType === "all" &&
+          Number.isInteger(salesVolume) &&
+          salesVolume >= 0
+            ? { salesVolume }
+            : {}),
+          index: value,
+          provisional: ageInMonths >= 0 && ageInMonths < 12,
+        },
+      ];
+    },
+  );
 }
 
 export function parseUkHpiCsv(
@@ -96,7 +124,11 @@ export function parseUkHpiCsv(
     "Date",
     "RegionName",
     "AreaCode",
-    ...PROPERTY_INDEX_COLUMNS.map(({ column }) => column),
+    "SalesVolume",
+    ...PROPERTY_INDEX_COLUMNS.flatMap(({ column, priceColumn }) => [
+      column,
+      priceColumn,
+    ]),
   ]) {
     if (!positions.has(column)) {
       throw new Error(`UK HPI CSV is missing the ${column} column`);

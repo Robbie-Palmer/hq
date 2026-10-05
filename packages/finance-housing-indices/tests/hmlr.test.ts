@@ -19,6 +19,7 @@ describe("HM Land Registry UK HPI ingestion", () => {
       geographyCode: "N09000003",
       geographyName: "Belfast, East",
       propertyType: "flat-maisonette",
+      averagePrice: 140_000,
       index: 104,
       provisional: false,
     });

@@ -553,6 +553,9 @@ export function scopeAssetTrackerData(
       ];
     },
   );
+  const propertyComparableSearches = (
+    data.propertyComparableSearches ?? []
+  ).filter(({ accountId }) => keptAccountIds.has(accountId));
   return {
     ...data,
     accounts,
@@ -565,6 +568,7 @@ export function scopeAssetTrackerData(
     mortgageScenarios,
     decisionRecords,
     holdingObservations,
+    propertyComparableSearches,
     propertyIndexHistories,
   };
 }

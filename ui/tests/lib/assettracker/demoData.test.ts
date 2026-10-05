@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { pricePaidArchive } from "@/content/assettracker/propertyComparables";
 import { housePriceIndexArchive } from "@/content/assettracker/propertyIndexHistory";
 import {
   buildBaseCurrencyFlowSankeyData,
@@ -21,6 +22,7 @@ import {
   snapshotOwnershipKey,
 } from "@/lib/domain/assettracker/household";
 import { valueAccountAtDate } from "@/lib/domain/assettracker/portfolioValuation";
+import { buildPropertyComparableViews } from "@/lib/domain/assettracker/propertyComparables";
 import { buildPropertyValueHistoryViews } from "@/lib/domain/assettracker/propertyIndexHistory";
 import { currentSalaryHistory } from "@/lib/domain/assettracker/salaryHistory";
 import { getHouseholdTaxEstimate } from "@/lib/domain/assettracker/taxPosition";
@@ -214,6 +216,8 @@ describe("Asset Tracker demo-data adapter", () => {
         ({ value }) => value,
       ),
     ).toEqual([114_000, 119_200]);
+    expect(alexData.propertyComparableSearches).toHaveLength(2);
+    expect(samData.propertyComparableSearches).toHaveLength(2);
 
     const householdValue = getLatestPortfolioValuation(buildRepository(data));
     const alexValue = getLatestPortfolioValuation(buildRepository(alexData));
@@ -347,6 +351,41 @@ describe("Asset Tracker demo-data adapter", () => {
           },
         },
       },
+    });
+  });
+
+  it("showcases NI market trends and completed-sale comparables", () => {
+    const repository = buildRepository(getDemoAssetTrackerData());
+    const views = buildPropertyComparableViews(
+      repository.propertyComparableSearches,
+      pricePaidArchive,
+      housePriceIndexArchive,
+    );
+    const homeView = views.find(({ accountId }) => accountId === "home");
+    const cardiffView = views.find(
+      ({ accountId }) => accountId === "cardiff-property",
+    );
+
+    expect(homeView).toMatchObject({
+      status: "unsupported-region",
+      accountId: "home",
+      nation: "northern-ireland",
+      marketTrend: {
+        status: "ready",
+        trend: {
+          geographyName: "Belfast",
+          period: "2026-06",
+          averagePrice: 184_768,
+        },
+      },
+    });
+    expect(cardiffView).toMatchObject({
+      status: "ready",
+      accountId: "cardiff-property",
+      criteria: { searchArea: { value: "CF10" } },
+      sales: expect.arrayContaining([
+        expect.objectContaining({ transactionId: "demo-cardiff-2026-08" }),
+      ]),
     });
   });
 
