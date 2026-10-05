@@ -113,7 +113,7 @@ function splitAtRuleChanges(segment: {
         .map(({ effectiveFrom }) => effectiveFrom)
         .filter((date) => date > segment.from && date <= segment.to),
     ]),
-  ].toSorted();
+  ].toSorted((left, right) => left.localeCompare(right));
   return boundaries.map((from, index) => ({
     taxYear: segment.taxYear,
     from,
