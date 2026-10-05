@@ -2,7 +2,7 @@
 
 import { addDays, format, parseISO } from "date-fns";
 import { Trash2Icon } from "lucide-react";
-import { type SubmitEvent, useMemo, useState } from "react";
+import { type ReactNode, type SubmitEvent, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,50 +58,57 @@ function percentage(value: string): number | undefined {
 }
 
 function recordStatus(record: FutureCashFlow): string {
-  if (record.kind === "commitment") {
+  if (record.kind === "commitment")
     return record.status === "active" ? "Included" : "Cancelled";
-  }
   if (record.status === "selected") return "Included";
   if (record.status === "declined") return "Set aside";
   return "Considering";
 }
 
 function stageAmount(record: FutureCashFlow, stageIndex: number): number {
-  if (record.kind === "commitment") {
-    return record.stages[stageIndex]?.amount ?? 0;
-  }
-  return record.stages[stageIndex]?.expectedAmount ?? 0;
+  return record.kind === "commitment"
+    ? (record.stages[stageIndex]?.amount ?? 0)
+    : (record.stages[stageIndex]?.expectedAmount ?? 0);
 }
 
 function stageDate(record: FutureCashFlow, stageIndex: number): string {
-  if (record.kind === "commitment") {
-    return record.stages[stageIndex]?.dueDate ?? "";
-  }
-  return record.stages[stageIndex]?.expectedDate ?? "";
+  return record.kind === "commitment"
+    ? (record.stages[stageIndex]?.dueDate ?? "")
+    : (record.stages[stageIndex]?.expectedDate ?? "");
 }
 
-export function FutureCashFlowManager() {
-  const {
-    accounts,
-    planningCases,
-    futureCashFlows,
-    createPlanningCase,
-    addCommitment,
-    addCashFlowDecision,
-    setCashFlowDecisionStatus,
-    setCommitmentStatus,
-    recordActualCashFlow,
-    deleteFutureCashFlow,
-  } = useAssetTracker();
+function FormField({
+  id,
+  label,
+  children,
+  className = "",
+}: Readonly<{
+  id: string;
+  label: string;
+  children: ReactNode;
+  className?: string;
+}>) {
+  return (
+    <div className={`space-y-1.5 ${className}`}>
+      <label htmlFor={id} className="text-xs font-medium">
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function useFutureCashFlowManager() {
+  const tracker = useAssetTracker();
   const eligibleAccounts = useMemo(
     () =>
-      accounts.filter(
+      tracker.accounts.filter(
         (account) =>
           account.isOpen &&
           !isLiability(account.assetType) &&
           accountLiquidity(account) !== "illiquid",
       ),
-    [accounts],
+    [tracker.accounts],
   );
   const [caseName, setCaseName] = useState("");
   const [caseTargetDate, setCaseTargetDate] = useState("");
@@ -138,24 +145,31 @@ export function FutureCashFlowManager() {
   );
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
   const selectedAccountId = eligibleAccounts.some(({ id }) => id === accountId)
     ? accountId
     : (eligibleAccounts[0]?.id ?? "");
   const selectedAccount = eligibleAccounts.find(
     ({ id }) => id === selectedAccountId,
   );
-  const caseNames = new Map(planningCases.map((item) => [item.id, item.name]));
-  const recordNames = new Map(
-    futureCashFlows.map((record) => [record.id, record.name]),
+  const caseNames = new Map(
+    tracker.planningCases.map((item) => [item.id, item.name]),
   );
-
+  const recordNames = new Map(
+    tracker.futureCashFlows.map((record) => [record.id, record.name]),
+  );
+  async function run(action: () => Promise<void>) {
+    setError(null);
+    try {
+      await action();
+    } catch (cause) {
+      setError(formatAssetTrackerError(cause));
+    }
+  }
   async function handleCreateCase(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
-    setError(null);
-    try {
-      await createPlanningCase({
+    await run(async () => {
+      await tracker.createPlanningCase({
         name: caseName,
         labels: [],
         ...(optional(caseTargetDate) == null
@@ -164,16 +178,12 @@ export function FutureCashFlowManager() {
       });
       setCaseName("");
       setCaseTargetDate("");
-    } catch (cause) {
-      setError(formatAssetTrackerError(cause));
-    } finally {
-      setSubmitting(false);
-    }
+    });
+    setSubmitting(false);
   }
-
   async function handleAdd(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (selectedAccount == null) return;
+    if (!selectedAccount) return;
     setSubmitting(true);
     setError(null);
     const expectedAmount = Number(amount);
@@ -183,9 +193,9 @@ export function FutureCashFlowManager() {
       labels: labels(labelText),
       currency: selectedAccount.currency,
     };
-    try {
+    await run(async () => {
       if (kind === "commitment") {
-        await addCommitment({
+        await tracker.addCommitment({
           ...common,
           changeability,
           refundable,
@@ -198,7 +208,7 @@ export function FutureCashFlowManager() {
           ],
         });
       } else {
-        await addCashFlowDecision({
+        await tracker.addCashFlowDecision({
           ...common,
           importance: optional(importance),
           confidence: percentage(confidence),
@@ -230,27 +240,14 @@ export function FutureCashFlowManager() {
       setConfidence("");
       setDependencyId(NO_SELECTION);
       setAlternativeId(NO_SELECTION);
-    } catch (cause) {
-      setError(formatAssetTrackerError(cause));
-    } finally {
-      setSubmitting(false);
-    }
+    });
+    setSubmitting(false);
   }
-
-  async function run(action: () => Promise<void>) {
-    setError(null);
-    try {
-      await action();
-    } catch (cause) {
-      setError(formatAssetTrackerError(cause));
-    }
-  }
-
   async function handleActual(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (actualFor == null) return;
+    if (!actualFor) return;
     await run(async () => {
-      await recordActualCashFlow({
+      await tracker.recordActualCashFlow({
         futureCashFlowId: actualFor.recordId,
         stageId: actualFor.stageId,
         date: actualDate,
@@ -262,7 +259,767 @@ export function FutureCashFlowManager() {
       setActualDirection("payment");
     });
   }
+  return {
+    ...tracker,
+    eligibleAccounts,
+    caseName,
+    setCaseName,
+    caseTargetDate,
+    setCaseTargetDate,
+    kind,
+    setKind,
+    name,
+    setName,
+    amount,
+    setAmount,
+    minimumAmount,
+    setMinimumAmount,
+    maximumAmount,
+    setMaximumAmount,
+    date,
+    setDate,
+    earliestDate,
+    setEarliestDate,
+    latestDate,
+    setLatestDate,
+    selectedAccountId,
+    setAccountId,
+    planningCaseId,
+    setPlanningCaseId,
+    labelText,
+    setLabelText,
+    importance,
+    setImportance,
+    confidence,
+    setConfidence,
+    dependencyId,
+    setDependencyId,
+    alternativeId,
+    setAlternativeId,
+    changeability,
+    setChangeability,
+    reversibility,
+    setReversibility,
+    refundable,
+    setRefundable,
+    actualFor,
+    setActualFor,
+    actualAmount,
+    setActualAmount,
+    actualDate,
+    setActualDate,
+    actualDirection,
+    setActualDirection,
+    error,
+    submitting,
+    caseNames,
+    recordNames,
+    run,
+    handleCreateCase,
+    handleAdd,
+    handleActual,
+  };
+}
 
+type FlowManager = ReturnType<typeof useFutureCashFlowManager>;
+
+function PlanningCaseForm({ model }: Readonly<{ model: FlowManager }>) {
+  return (
+    <form
+      onSubmit={model.handleCreateCase}
+      className="grid gap-2 rounded-md bg-muted/35 p-3 sm:grid-cols-[1fr_10rem_auto] sm:items-end"
+    >
+      <FormField id="planning-case-name" label="New planning case">
+        <Input
+          id="planning-case-name"
+          required
+          placeholder="e.g. Summer plans"
+          value={model.caseName}
+          onChange={(event) => model.setCaseName(event.target.value)}
+        />
+      </FormField>
+      <FormField id="planning-case-date" label="Target date (optional)">
+        <Input
+          id="planning-case-date"
+          type="date"
+          value={model.caseTargetDate}
+          onChange={(event) => model.setCaseTargetDate(event.target.value)}
+        />
+      </FormField>
+      <Button type="submit" variant="secondary" disabled={model.submitting}>
+        Add case
+      </Button>
+    </form>
+  );
+}
+
+function RecordIdentity({
+  record,
+  model,
+}: Readonly<{
+  record: FutureCashFlow;
+  model: FlowManager;
+}>) {
+  return (
+    <div className="min-w-0 flex-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="font-medium">{record.name}</p>
+        <Badge variant="secondary">
+          {record.kind === "commitment" ? "Commitment" : "Decision"}
+        </Badge>
+        <Badge variant="outline">{recordStatus(record)}</Badge>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {record.planningCaseId == null
+          ? "Unassigned"
+          : (model.caseNames.get(record.planningCaseId) ??
+            record.planningCaseId)}
+        {record.kind === "decision" && record.importance != null
+          ? ` · ${record.importance}`
+          : ""}
+      </p>
+    </div>
+  );
+}
+
+function RecordActions({
+  record,
+  model,
+}: Readonly<{
+  record: FutureCashFlow;
+  model: FlowManager;
+}>) {
+  return (
+    <>
+      {record.kind === "commitment" ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() =>
+            model.run(() =>
+              model.setCommitmentStatus(
+                record.id,
+                record.status === "active" ? "cancelled" : "active",
+              ),
+            )
+          }
+        >
+          {record.status === "active" ? "Cancel" : "Reactivate"}
+        </Button>
+      ) : (
+        <Select
+          value={record.status}
+          onValueChange={(status) =>
+            model.run(() =>
+              model.setCashFlowDecisionStatus(
+                record.id,
+                status as "considering" | "selected" | "declined",
+              ),
+            )
+          }
+        >
+          <SelectTrigger
+            aria-label={`Forecast status for ${record.name}`}
+            size="sm"
+            className="w-32"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="considering">Considering</SelectItem>
+            <SelectItem value="selected">Include</SelectItem>
+            <SelectItem value="declined">Set aside</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
+      <DeleteRecordButton record={record} model={model} />
+    </>
+  );
+}
+
+function DeleteRecordButton({
+  record,
+  model,
+}: Readonly<{ record: FutureCashFlow; model: FlowManager }>) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      aria-label={`Delete ${record.name}`}
+      onClick={() => model.run(() => model.deleteFutureCashFlow(record.id))}
+    >
+      <Trash2Icon />
+    </Button>
+  );
+}
+
+function RecordHeader({
+  record,
+  model,
+}: Readonly<{
+  record: FutureCashFlow;
+  model: FlowManager;
+}>) {
+  return (
+    <div className="flex flex-wrap items-start gap-2">
+      <RecordIdentity record={record} model={model} />
+      <RecordActions record={record} model={model} />
+    </div>
+  );
+}
+
+function StageRow({
+  record,
+  stageIndex,
+  onRecord,
+}: Readonly<{
+  record: FutureCashFlow;
+  stageIndex: number;
+  onRecord(): void;
+}>) {
+  const stage = record.stages[stageIndex];
+  if (!stage) return null;
+  const netActual = stage.actuals.reduce(
+    (total, actual) =>
+      total + (actual.direction === "payment" ? actual.amount : -actual.amount),
+    0,
+  );
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+      <span>{stage.name ?? `Stage ${stageIndex + 1}`}</span>
+      <span>{stageDate(record, stageIndex)}</span>
+      <span className="font-mono text-foreground">
+        {formatCurrency(stageAmount(record, stageIndex), record.currency)}
+      </span>
+      {"minimumAmount" in stage && (
+        <span>
+          range {formatCurrency(stage.minimumAmount, record.currency)}–
+          {formatCurrency(stage.maximumAmount, record.currency)}
+        </span>
+      )}
+      {netActual !== 0 && (
+        <span>actual {formatCurrency(netActual, record.currency)}</span>
+      )}
+      <Button
+        type="button"
+        variant="link"
+        size="sm"
+        className="h-auto p-0 text-xs"
+        onClick={onRecord}
+      >
+        Record actual
+      </Button>
+    </div>
+  );
+}
+
+function StageList({
+  record,
+  model,
+}: Readonly<{
+  record: FutureCashFlow;
+  model: FlowManager;
+}>) {
+  return (
+    <div className="grid gap-2">
+      {record.stages.map((stage, stageIndex) => (
+        <StageRow
+          key={stage.id}
+          record={record}
+          stageIndex={stageIndex}
+          onRecord={() =>
+            model.setActualFor({ recordId: record.id, stageId: stage.id })
+          }
+        />
+      ))}
+    </div>
+  );
+}
+
+function DecisionRelationships({
+  record,
+  model,
+}: Readonly<{
+  record: FutureCashFlow;
+  model: FlowManager;
+}>) {
+  if (
+    record.kind !== "decision" ||
+    (record.dependencyIds.length === 0 && record.alternativeToIds.length === 0)
+  )
+    return null;
+  return (
+    <p className="text-xs text-muted-foreground">
+      {record.dependencyIds.length > 0
+        ? `Depends on ${record.dependencyIds.map((id) => model.recordNames.get(id) ?? id).join(", ")}. `
+        : ""}
+      {record.alternativeToIds.length > 0
+        ? `Alternative to ${record.alternativeToIds.map((id) => model.recordNames.get(id) ?? id).join(", ")}.`
+        : ""}
+    </p>
+  );
+}
+
+function ActualAmountField({
+  record,
+  model,
+}: Readonly<{ record: FutureCashFlow; model: FlowManager }>) {
+  return (
+    <FormField id={`actual-amount-${record.id}`} label="Amount">
+      <Input
+        id={`actual-amount-${record.id}`}
+        type="number"
+        min="0.01"
+        step="0.01"
+        required
+        value={model.actualAmount}
+        onChange={(event) => model.setActualAmount(event.target.value)}
+      />
+    </FormField>
+  );
+}
+
+function ActualDateField({
+  record,
+  model,
+}: Readonly<{ record: FutureCashFlow; model: FlowManager }>) {
+  return (
+    <FormField id={`actual-date-${record.id}`} label="Date">
+      <Input
+        id={`actual-date-${record.id}`}
+        type="date"
+        max={todayIsoDate()}
+        required
+        value={model.actualDate}
+        onChange={(event) => model.setActualDate(event.target.value)}
+      />
+    </FormField>
+  );
+}
+
+function ActualDirectionField({
+  record,
+  model,
+}: Readonly<{ record: FutureCashFlow; model: FlowManager }>) {
+  return (
+    <FormField id={`actual-direction-${record.id}`} label="Direction">
+      <Select
+        value={model.actualDirection}
+        onValueChange={(value) =>
+          model.setActualDirection(value as "payment" | "refund")
+        }
+      >
+        <SelectTrigger id={`actual-direction-${record.id}`} className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="payment">Payment</SelectItem>
+          <SelectItem value="refund">Refund</SelectItem>
+        </SelectContent>
+      </Select>
+    </FormField>
+  );
+}
+
+function ActualCashFlowForm({
+  record,
+  model,
+}: Readonly<{
+  record: FutureCashFlow;
+  model: FlowManager;
+}>) {
+  if (model.actualFor?.recordId !== record.id) return null;
+  return (
+    <form
+      onSubmit={model.handleActual}
+      className="grid gap-2 rounded-md bg-muted/35 p-2 sm:grid-cols-[8rem_9rem_9rem_auto] sm:items-end"
+    >
+      <ActualAmountField record={record} model={model} />
+      <ActualDateField record={record} model={model} />
+      <ActualDirectionField record={record} model={model} />
+      <div className="flex gap-2">
+        <Button type="submit" size="sm">
+          Save
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={() => model.setActualFor(null)}
+        >
+          Close
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function FutureCashFlowRecord({
+  record,
+  model,
+}: Readonly<{
+  record: FutureCashFlow;
+  model: FlowManager;
+}>) {
+  return (
+    <li className="space-y-2 p-3 text-sm">
+      <RecordHeader record={record} model={model} />
+      <StageList record={record} model={model} />
+      <DecisionRelationships record={record} model={model} />
+      <ActualCashFlowForm record={record} model={model} />
+    </li>
+  );
+}
+
+function FutureCashFlowList({ model }: Readonly<{ model: FlowManager }>) {
+  if (model.futureCashFlows.length === 0) return null;
+  return (
+    <ul className="divide-y rounded-md border">
+      {model.futureCashFlows.map((record) => (
+        <FutureCashFlowRecord key={record.id} record={record} model={model} />
+      ))}
+    </ul>
+  );
+}
+
+function FlowPrimaryFields({ model }: Readonly<{ model: FlowManager }>) {
+  return (
+    <>
+      <FormField id="future-flow-type" label="Type">
+        <Select
+          value={model.kind}
+          onValueChange={(value) =>
+            model.setKind(value as "commitment" | "decision")
+          }
+        >
+          <SelectTrigger id="future-flow-type" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="commitment">Firm commitment</SelectItem>
+            <SelectItem value="decision">Weighted decision</SelectItem>
+          </SelectContent>
+        </Select>
+      </FormField>
+      <FormField id="future-flow-name" label="Name">
+        <Input
+          id="future-flow-name"
+          required
+          value={model.name}
+          onChange={(event) => model.setName(event.target.value)}
+        />
+      </FormField>
+      <FormField
+        id="future-flow-amount"
+        label={model.kind === "commitment" ? "Amount" : "Expected amount"}
+      >
+        <Input
+          id="future-flow-amount"
+          type="number"
+          min="0.01"
+          step="0.01"
+          required
+          value={model.amount}
+          onChange={(event) => model.setAmount(event.target.value)}
+        />
+      </FormField>
+      <FormField
+        id="future-flow-date"
+        label={model.kind === "commitment" ? "Due date" : "Expected date"}
+      >
+        <Input
+          id="future-flow-date"
+          type="date"
+          min={tomorrowIsoDate()}
+          required
+          value={model.date}
+          onChange={(event) => model.setDate(event.target.value)}
+        />
+      </FormField>
+    </>
+  );
+}
+
+function FlowContextFields({ model }: Readonly<{ model: FlowManager }>) {
+  return (
+    <>
+      <FormField id="future-flow-account" label="Pay from">
+        <Select
+          value={model.selectedAccountId}
+          onValueChange={model.setAccountId}
+        >
+          <SelectTrigger id="future-flow-account" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {model.eligibleAccounts.map((account) => (
+              <SelectItem key={account.id} value={account.id}>
+                {account.name} · {account.currency}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FormField>
+      <FormField id="future-flow-case" label="Planning case">
+        <Select
+          value={model.planningCaseId}
+          onValueChange={model.setPlanningCaseId}
+        >
+          <SelectTrigger id="future-flow-case" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_SELECTION}>None</SelectItem>
+            {model.planningCases.map((item) => (
+              <SelectItem key={item.id} value={item.id}>
+                {item.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FormField>
+      <FormField
+        id="future-flow-labels"
+        label="Labels (comma separated)"
+        className="sm:col-span-2"
+      >
+        <Input
+          id="future-flow-labels"
+          placeholder="priority, flexible"
+          value={model.labelText}
+          onChange={(event) => model.setLabelText(event.target.value)}
+        />
+      </FormField>
+    </>
+  );
+}
+
+function CommitmentFields({ model }: Readonly<{ model: FlowManager }>) {
+  return (
+    <div className="flex flex-wrap items-end gap-3">
+      <FormField
+        id="commitment-changeability"
+        label="Changeability"
+        className="w-40"
+      >
+        <Select
+          value={model.changeability}
+          onValueChange={(value) =>
+            model.setChangeability(value as "fixed" | "variable")
+          }
+        >
+          <SelectTrigger id="commitment-changeability" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="fixed">Fixed</SelectItem>
+            <SelectItem value="variable">Can change</SelectItem>
+          </SelectContent>
+        </Select>
+      </FormField>
+      <label className="flex h-9 items-center gap-2 text-xs font-medium">
+        <input
+          type="checkbox"
+          checked={model.refundable}
+          onChange={(event) => model.setRefundable(event.target.checked)}
+        />
+        Refundable
+      </label>
+    </div>
+  );
+}
+
+function DecisionAmountFields({ model }: Readonly<{ model: FlowManager }>) {
+  return (
+    <>
+      <FormField id="decision-minimum" label="Minimum amount">
+        <Input
+          id="decision-minimum"
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="Same as expected"
+          value={model.minimumAmount}
+          onChange={(event) => model.setMinimumAmount(event.target.value)}
+        />
+      </FormField>
+      <FormField id="decision-maximum" label="Maximum amount">
+        <Input
+          id="decision-maximum"
+          type="number"
+          min="0.01"
+          step="0.01"
+          placeholder="Same as expected"
+          value={model.maximumAmount}
+          onChange={(event) => model.setMaximumAmount(event.target.value)}
+        />
+      </FormField>
+    </>
+  );
+}
+
+function DecisionTimingFields({ model }: Readonly<{ model: FlowManager }>) {
+  return (
+    <>
+      <FormField id="decision-earliest" label="Earliest date">
+        <Input
+          id="decision-earliest"
+          type="date"
+          value={model.earliestDate}
+          onChange={(event) => model.setEarliestDate(event.target.value)}
+        />
+      </FormField>
+      <FormField id="decision-latest" label="Latest date">
+        <Input
+          id="decision-latest"
+          type="date"
+          value={model.latestDate}
+          onChange={(event) => model.setLatestDate(event.target.value)}
+        />
+      </FormField>
+    </>
+  );
+}
+
+function DecisionQualityFields({ model }: Readonly<{ model: FlowManager }>) {
+  return (
+    <>
+      <FormField id="decision-importance" label="Importance">
+        <Input
+          id="decision-importance"
+          placeholder="e.g. High, but flexible"
+          value={model.importance}
+          onChange={(event) => model.setImportance(event.target.value)}
+        />
+      </FormField>
+      <FormField id="decision-confidence" label="Confidence %">
+        <Input
+          id="decision-confidence"
+          type="number"
+          min="0"
+          max="100"
+          value={model.confidence}
+          onChange={(event) => model.setConfidence(event.target.value)}
+        />
+      </FormField>
+      <FormField id="decision-reversibility" label="Reversibility">
+        <Select
+          value={model.reversibility}
+          onValueChange={(value) =>
+            model.setReversibility(value as FlowManager["reversibility"])
+          }
+        >
+          <SelectTrigger id="decision-reversibility" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="reversible">Reversible</SelectItem>
+            <SelectItem value="partly-reversible">Partly reversible</SelectItem>
+            <SelectItem value="irreversible">Irreversible</SelectItem>
+          </SelectContent>
+        </Select>
+      </FormField>
+    </>
+  );
+}
+
+function RelationshipSelect({
+  id,
+  label,
+  value,
+  onChange,
+  model,
+}: Readonly<{
+  id: string;
+  label: string;
+  value: string;
+  onChange(value: string): void;
+  model: FlowManager;
+}>) {
+  return (
+    <FormField id={id} label={label}>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger id={id} className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NO_SELECTION}>Nothing</SelectItem>
+          {model.futureCashFlows.map((record) => (
+            <SelectItem key={record.id} value={record.id}>
+              {record.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FormField>
+  );
+}
+
+function DecisionRelationshipFields({
+  model,
+}: Readonly<{ model: FlowManager }>) {
+  return (
+    <>
+      <RelationshipSelect
+        id="decision-dependency"
+        label="Depends on"
+        value={model.dependencyId}
+        onChange={model.setDependencyId}
+        model={model}
+      />
+      <RelationshipSelect
+        id="decision-alternative"
+        label="Alternative to"
+        value={model.alternativeId}
+        onChange={model.setAlternativeId}
+        model={model}
+      />
+    </>
+  );
+}
+
+function DecisionFields({ model }: Readonly<{ model: FlowManager }>) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <DecisionAmountFields model={model} />
+      <DecisionTimingFields model={model} />
+      <DecisionQualityFields model={model} />
+      <DecisionRelationshipFields model={model} />
+    </div>
+  );
+}
+
+function AddFutureCashFlowForm({ model }: Readonly<{ model: FlowManager }>) {
+  if (model.eligibleAccounts.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Add an open cash or liquid investment account before recording future
+        cash flows.
+      </p>
+    );
+  }
+  return (
+    <form onSubmit={model.handleAdd} className="grid gap-3">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <FlowPrimaryFields model={model} />
+        <FlowContextFields model={model} />
+      </div>
+      {model.kind === "commitment" ? (
+        <CommitmentFields model={model} />
+      ) : (
+        <DecisionFields model={model} />
+      )}
+      <Button type="submit" className="w-fit" disabled={model.submitting}>
+        Add {model.kind}
+      </Button>
+    </form>
+  );
+}
+
+export function FutureCashFlowManager() {
+  const model = useFutureCashFlowManager();
   return (
     <div className="space-y-4 rounded-md border p-3">
       <div>
@@ -273,613 +1030,10 @@ export function FutureCashFlowManager() {
           context, not a budget.
         </p>
       </div>
-
-      <form
-        onSubmit={handleCreateCase}
-        className="grid gap-2 rounded-md bg-muted/35 p-3 sm:grid-cols-[1fr_10rem_auto] sm:items-end"
-      >
-        <div className="space-y-1.5">
-          <label htmlFor="planning-case-name" className="text-xs font-medium">
-            New planning case
-          </label>
-          <Input
-            id="planning-case-name"
-            required
-            placeholder="e.g. Summer plans"
-            value={caseName}
-            onChange={(event) => setCaseName(event.target.value)}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label htmlFor="planning-case-date" className="text-xs font-medium">
-            Target date (optional)
-          </label>
-          <Input
-            id="planning-case-date"
-            type="date"
-            value={caseTargetDate}
-            onChange={(event) => setCaseTargetDate(event.target.value)}
-          />
-        </div>
-        <Button type="submit" variant="secondary" disabled={submitting}>
-          Add case
-        </Button>
-      </form>
-
-      {futureCashFlows.length > 0 && (
-        <ul className="divide-y rounded-md border">
-          {
-            // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: The discriminated union drives the compact controls for each record.
-            futureCashFlows.map((record) => (
-              <li key={record.id} className="space-y-2 p-3 text-sm">
-                <div className="flex flex-wrap items-start gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-medium">{record.name}</p>
-                      <Badge variant="secondary">
-                        {record.kind === "commitment"
-                          ? "Commitment"
-                          : "Decision"}
-                      </Badge>
-                      <Badge variant="outline">{recordStatus(record)}</Badge>
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {record.planningCaseId == null
-                        ? "Unassigned"
-                        : (caseNames.get(record.planningCaseId) ??
-                          record.planningCaseId)}
-                      {record.kind === "decision" && record.importance != null
-                        ? ` · ${record.importance}`
-                        : ""}
-                    </p>
-                  </div>
-                  {record.kind === "commitment" ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        run(() =>
-                          setCommitmentStatus(
-                            record.id,
-                            record.status === "active" ? "cancelled" : "active",
-                          ),
-                        )
-                      }
-                    >
-                      {record.status === "active" ? "Cancel" : "Reactivate"}
-                    </Button>
-                  ) : (
-                    <Select
-                      value={record.status}
-                      onValueChange={(status) =>
-                        run(() =>
-                          setCashFlowDecisionStatus(
-                            record.id,
-                            status as "considering" | "selected" | "declined",
-                          ),
-                        )
-                      }
-                    >
-                      <SelectTrigger
-                        aria-label={`Forecast status for ${record.name}`}
-                        size="sm"
-                        className="w-32"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="considering">Considering</SelectItem>
-                        <SelectItem value="selected">Include</SelectItem>
-                        <SelectItem value="declined">Set aside</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Delete ${record.name}`}
-                    onClick={() => run(() => deleteFutureCashFlow(record.id))}
-                  >
-                    <Trash2Icon />
-                  </Button>
-                </div>
-
-                <div className="grid gap-2">
-                  {record.stages.map((stage, stageIndex) => {
-                    const netActual = stage.actuals.reduce(
-                      (total, actual) =>
-                        total +
-                        (actual.direction === "payment"
-                          ? actual.amount
-                          : -actual.amount),
-                      0,
-                    );
-                    return (
-                      <div
-                        key={stage.id}
-                        className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"
-                      >
-                        <span>{stage.name ?? `Stage ${stageIndex + 1}`}</span>
-                        <span>{stageDate(record, stageIndex)}</span>
-                        <span className="font-mono text-foreground">
-                          {formatCurrency(
-                            stageAmount(record, stageIndex),
-                            record.currency,
-                          )}
-                        </span>
-                        {"minimumAmount" in stage && (
-                          <span>
-                            range{" "}
-                            {formatCurrency(
-                              stage.minimumAmount,
-                              record.currency,
-                            )}
-                            –
-                            {formatCurrency(
-                              stage.maximumAmount,
-                              record.currency,
-                            )}
-                          </span>
-                        )}
-                        {netActual !== 0 && (
-                          <span>
-                            actual {formatCurrency(netActual, record.currency)}
-                          </span>
-                        )}
-                        <Button
-                          type="button"
-                          variant="link"
-                          size="sm"
-                          className="h-auto p-0 text-xs"
-                          onClick={() =>
-                            setActualFor({
-                              recordId: record.id,
-                              stageId: stage.id,
-                            })
-                          }
-                        >
-                          Record actual
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {record.kind === "decision" &&
-                  (record.dependencyIds.length > 0 ||
-                    record.alternativeToIds.length > 0) && (
-                    <p className="text-xs text-muted-foreground">
-                      {record.dependencyIds.length > 0
-                        ? `Depends on ${record.dependencyIds.map((id) => recordNames.get(id) ?? id).join(", ")}. `
-                        : ""}
-                      {record.alternativeToIds.length > 0
-                        ? `Alternative to ${record.alternativeToIds.map((id) => recordNames.get(id) ?? id).join(", ")}.`
-                        : ""}
-                    </p>
-                  )}
-
-                {actualFor?.recordId === record.id && (
-                  <form
-                    onSubmit={handleActual}
-                    className="grid gap-2 rounded-md bg-muted/35 p-2 sm:grid-cols-[8rem_9rem_9rem_auto] sm:items-end"
-                  >
-                    <div className="space-y-1">
-                      <label
-                        htmlFor={`actual-amount-${record.id}`}
-                        className="text-xs"
-                      >
-                        Amount
-                      </label>
-                      <Input
-                        id={`actual-amount-${record.id}`}
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        required
-                        value={actualAmount}
-                        onChange={(event) =>
-                          setActualAmount(event.target.value)
-                        }
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label
-                        htmlFor={`actual-date-${record.id}`}
-                        className="text-xs"
-                      >
-                        Date
-                      </label>
-                      <Input
-                        id={`actual-date-${record.id}`}
-                        type="date"
-                        max={todayIsoDate()}
-                        required
-                        value={actualDate}
-                        onChange={(event) => setActualDate(event.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label
-                        htmlFor={`actual-direction-${record.id}`}
-                        className="text-xs"
-                      >
-                        Direction
-                      </label>
-                      <Select
-                        value={actualDirection}
-                        onValueChange={(value) =>
-                          setActualDirection(value as "payment" | "refund")
-                        }
-                      >
-                        <SelectTrigger
-                          id={`actual-direction-${record.id}`}
-                          className="w-full"
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="payment">Payment</SelectItem>
-                          <SelectItem value="refund">Refund</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button type="submit" size="sm">
-                        Save
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setActualFor(null)}
-                      >
-                        Close
-                      </Button>
-                    </div>
-                  </form>
-                )}
-              </li>
-            ))
-          }
-        </ul>
-      )}
-
-      {eligibleAccounts.length > 0 ? (
-        <form onSubmit={handleAdd} className="grid gap-3">
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="space-y-1.5">
-              <label htmlFor="future-flow-type" className="text-xs font-medium">
-                Type
-              </label>
-              <Select
-                value={kind}
-                onValueChange={(value) =>
-                  setKind(value as "commitment" | "decision")
-                }
-              >
-                <SelectTrigger id="future-flow-type" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="commitment">Firm commitment</SelectItem>
-                  <SelectItem value="decision">Weighted decision</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <label htmlFor="future-flow-name" className="text-xs font-medium">
-                Name
-              </label>
-              <Input
-                id="future-flow-name"
-                required
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label
-                htmlFor="future-flow-amount"
-                className="text-xs font-medium"
-              >
-                {kind === "commitment" ? "Amount" : "Expected amount"}
-              </label>
-              <Input
-                id="future-flow-amount"
-                type="number"
-                min="0.01"
-                step="0.01"
-                required
-                value={amount}
-                onChange={(event) => setAmount(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label htmlFor="future-flow-date" className="text-xs font-medium">
-                {kind === "commitment" ? "Due date" : "Expected date"}
-              </label>
-              <Input
-                id="future-flow-date"
-                type="date"
-                min={tomorrowIsoDate()}
-                required
-                value={date}
-                onChange={(event) => setDate(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label
-                htmlFor="future-flow-account"
-                className="text-xs font-medium"
-              >
-                Pay from
-              </label>
-              <Select value={selectedAccountId} onValueChange={setAccountId}>
-                <SelectTrigger id="future-flow-account" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {eligibleAccounts.map((account) => (
-                    <SelectItem key={account.id} value={account.id}>
-                      {account.name} · {account.currency}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <label htmlFor="future-flow-case" className="text-xs font-medium">
-                Planning case
-              </label>
-              <Select value={planningCaseId} onValueChange={setPlanningCaseId}>
-                <SelectTrigger id="future-flow-case" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_SELECTION}>None</SelectItem>
-                  {planningCases.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <label
-                htmlFor="future-flow-labels"
-                className="text-xs font-medium"
-              >
-                Labels (comma separated)
-              </label>
-              <Input
-                id="future-flow-labels"
-                placeholder="priority, flexible"
-                value={labelText}
-                onChange={(event) => setLabelText(event.target.value)}
-              />
-            </div>
-          </div>
-
-          {kind === "commitment" ? (
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="w-40 space-y-1.5">
-                <label
-                  htmlFor="commitment-changeability"
-                  className="text-xs font-medium"
-                >
-                  Changeability
-                </label>
-                <Select
-                  value={changeability}
-                  onValueChange={(value) =>
-                    setChangeability(value as "fixed" | "variable")
-                  }
-                >
-                  <SelectTrigger
-                    id="commitment-changeability"
-                    className="w-full"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="fixed">Fixed</SelectItem>
-                    <SelectItem value="variable">Can change</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <label className="flex h-9 items-center gap-2 text-xs font-medium">
-                <input
-                  type="checkbox"
-                  checked={refundable}
-                  onChange={(event) => setRefundable(event.target.checked)}
-                />
-                Refundable
-              </label>
-            </div>
-          ) : (
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="decision-minimum"
-                  className="text-xs font-medium"
-                >
-                  Minimum amount
-                </label>
-                <Input
-                  id="decision-minimum"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="Same as expected"
-                  value={minimumAmount}
-                  onChange={(event) => setMinimumAmount(event.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="decision-maximum"
-                  className="text-xs font-medium"
-                >
-                  Maximum amount
-                </label>
-                <Input
-                  id="decision-maximum"
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  placeholder="Same as expected"
-                  value={maximumAmount}
-                  onChange={(event) => setMaximumAmount(event.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="decision-earliest"
-                  className="text-xs font-medium"
-                >
-                  Earliest date
-                </label>
-                <Input
-                  id="decision-earliest"
-                  type="date"
-                  value={earliestDate}
-                  onChange={(event) => setEarliestDate(event.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="decision-latest"
-                  className="text-xs font-medium"
-                >
-                  Latest date
-                </label>
-                <Input
-                  id="decision-latest"
-                  type="date"
-                  value={latestDate}
-                  onChange={(event) => setLatestDate(event.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="decision-importance"
-                  className="text-xs font-medium"
-                >
-                  Importance
-                </label>
-                <Input
-                  id="decision-importance"
-                  placeholder="e.g. High, but flexible"
-                  value={importance}
-                  onChange={(event) => setImportance(event.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="decision-confidence"
-                  className="text-xs font-medium"
-                >
-                  Confidence %
-                </label>
-                <Input
-                  id="decision-confidence"
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={confidence}
-                  onChange={(event) => setConfidence(event.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="decision-reversibility"
-                  className="text-xs font-medium"
-                >
-                  Reversibility
-                </label>
-                <Select
-                  value={reversibility}
-                  onValueChange={(value) =>
-                    setReversibility(
-                      value as
-                        | "reversible"
-                        | "partly-reversible"
-                        | "irreversible",
-                    )
-                  }
-                >
-                  <SelectTrigger id="decision-reversibility" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="reversible">Reversible</SelectItem>
-                    <SelectItem value="partly-reversible">
-                      Partly reversible
-                    </SelectItem>
-                    <SelectItem value="irreversible">Irreversible</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="decision-dependency"
-                  className="text-xs font-medium"
-                >
-                  Depends on
-                </label>
-                <Select value={dependencyId} onValueChange={setDependencyId}>
-                  <SelectTrigger id="decision-dependency" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NO_SELECTION}>Nothing</SelectItem>
-                    {futureCashFlows.map((record) => (
-                      <SelectItem key={record.id} value={record.id}>
-                        {record.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="decision-alternative"
-                  className="text-xs font-medium"
-                >
-                  Alternative to
-                </label>
-                <Select value={alternativeId} onValueChange={setAlternativeId}>
-                  <SelectTrigger id="decision-alternative" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NO_SELECTION}>Nothing</SelectItem>
-                    {futureCashFlows.map((record) => (
-                      <SelectItem key={record.id} value={record.id}>
-                        {record.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-
-          <Button type="submit" className="w-fit" disabled={submitting}>
-            Add {kind}
-          </Button>
-        </form>
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          Add an open cash or liquid investment account before recording future
-          cash flows.
-        </p>
-      )}
-
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      <PlanningCaseForm model={model} />
+      <FutureCashFlowList model={model} />
+      <AddFutureCashFlowForm model={model} />
+      {model.error && <p className="text-sm text-destructive">{model.error}</p>}
     </div>
   );
 }

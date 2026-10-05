@@ -258,9 +258,7 @@ function propertyEvidenceViews(
   };
 }
 
-export function AssetTrackerProvider({
-  children,
-}: Readonly<{ children: ReactNode }>) {
+function useLocalAssetTrackerData() {
   const [data, setData] = useState<AssetTrackerData>(getDemoAssetTrackerData);
   const [hasLocalChanges, setHasLocalChanges] = useState(false);
   const [localDataStatus, setLocalDataStatus] =
@@ -269,12 +267,10 @@ export function AssetTrackerProvider({
   const apiRef = useRef<AssetTrackerApi | null>(null);
   const hasMutatedRef = useRef(false);
   const loadRequestRef = useRef(0);
-
   const getApi = useCallback(() => {
     apiRef.current ??= createLocalAssetTrackerApi(window.localStorage);
     return apiRef.current;
   }, []);
-
   const loadLocalData = useCallback(async () => {
     const request = ++loadRequestRef.current;
     setLocalDataStatus("loading");
@@ -296,14 +292,12 @@ export function AssetTrackerProvider({
       );
     }
   }, [getApi]);
-
   useEffect(() => {
     void loadLocalData();
     return () => {
       loadRequestRef.current += 1;
     };
   }, [loadLocalData]);
-
   const mutate = useCallback(
     async (run: (api: AssetTrackerApi) => Promise<AssetTrackerData>) => {
       hasMutatedRef.current = true;
@@ -323,6 +317,37 @@ export function AssetTrackerProvider({
     },
     [getApi],
   );
+  return {
+    data,
+    setData,
+    hasLocalChanges,
+    setHasLocalChanges,
+    localDataStatus,
+    setLocalDataStatus,
+    localDataError,
+    setLocalDataError,
+    getApi,
+    loadLocalData,
+    mutate,
+  };
+}
+
+export function AssetTrackerProvider({
+  children,
+}: Readonly<{ children: ReactNode }>) {
+  const {
+    data,
+    setData,
+    hasLocalChanges,
+    setHasLocalChanges,
+    localDataStatus,
+    setLocalDataStatus,
+    localDataError,
+    setLocalDataError,
+    getApi,
+    loadLocalData,
+    mutate,
+  } = useLocalAssetTrackerData();
 
   const views = useMemo(() => {
     const repository = buildRepository(scopeAssetTrackerData(data));
@@ -529,6 +554,10 @@ export function AssetTrackerProvider({
       mutate,
       getApi,
       loadLocalData,
+      setData,
+      setHasLocalChanges,
+      setLocalDataStatus,
+      setLocalDataError,
     ],
   );
 

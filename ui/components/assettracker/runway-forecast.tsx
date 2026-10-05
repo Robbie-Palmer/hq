@@ -212,7 +212,7 @@ function formatRange(
   return `${expected} (${formatCurrency(Math.round(range.minimum), currency)}–${formatCurrency(Math.round(range.maximum), currency)})`;
 }
 
-function MonthlyBreakdown({
+function BreakdownRows({
   breakdown,
   currency,
 }: Readonly<{
@@ -226,7 +226,63 @@ function MonthlyBreakdown({
     ["Debt payments", breakdown.debtPayments],
     ["Committed cash flows", breakdown.committedCashFlows],
   ] as const;
+  const ranges = [
+    ["Explicit income change", breakdown.explicitIncomeChange],
+    ["Explicit expenditure change", breakdown.explicitExpenditureChange],
+    ["Possible decisions", breakdown.possibleDecisions],
+  ] as const;
+  return (
+    <dl className="grid gap-1 text-xs sm:grid-cols-2">
+      {amounts.map(([label, value]) => (
+        <div key={label} className="flex justify-between gap-3">
+          <dt className="text-muted-foreground">{label}</dt>
+          <dd className="font-mono tabular-nums">
+            {formatCurrency(Math.round(value), currency)}
+          </dd>
+        </div>
+      ))}
+      {ranges.map(([label, range]) => (
+        <div key={label} className="flex justify-between gap-3">
+          <dt className="text-muted-foreground">{label}</dt>
+          <dd className="font-mono tabular-nums">
+            {formatRange(range, currency)}
+          </dd>
+        </div>
+      ))}
+      <div className="flex justify-between gap-3">
+        <dt className="text-muted-foreground">Selected decisions</dt>
+        <dd className="font-mono tabular-nums">
+          {formatCurrency(
+            Math.round(breakdown.selectedDecisionCashFlows),
+            currency,
+          )}
+        </dd>
+      </div>
+    </dl>
+  );
+}
 
+function BaselineCoverageNote({
+  amount,
+  currency,
+}: Readonly<{ amount: number; currency: Currency }>) {
+  if (amount <= 0) return null;
+  return (
+    <p className="text-xs text-muted-foreground">
+      {formatCurrency(Math.round(amount), currency)} of ordinary recurring
+      outflows is already represented by the historical baseline and is not
+      counted again.
+    </p>
+  );
+}
+
+function MonthlyBreakdown({
+  breakdown,
+  currency,
+}: Readonly<{
+  breakdown: MonthlyForecastBreakdown;
+  currency: Currency;
+}>) {
   return (
     <div className="space-y-2 rounded-md bg-muted/40 p-3">
       <div>
@@ -235,53 +291,11 @@ function MonthlyBreakdown({
           Changes are forecast assumptions, not spending limits.
         </p>
       </div>
-      <dl className="grid gap-1 text-xs sm:grid-cols-2">
-        {amounts.map(([label, value]) => (
-          <div key={label} className="flex justify-between gap-3">
-            <dt className="text-muted-foreground">{label}</dt>
-            <dd className="font-mono tabular-nums">
-              {formatCurrency(Math.round(value), currency)}
-            </dd>
-          </div>
-        ))}
-        <div className="flex justify-between gap-3">
-          <dt className="text-muted-foreground">Explicit income change</dt>
-          <dd className="font-mono tabular-nums">
-            {formatRange(breakdown.explicitIncomeChange, currency)}
-          </dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="text-muted-foreground">Explicit expenditure change</dt>
-          <dd className="font-mono tabular-nums">
-            {formatRange(breakdown.explicitExpenditureChange, currency)}
-          </dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="text-muted-foreground">Selected decisions</dt>
-          <dd className="font-mono tabular-nums">
-            {formatCurrency(
-              Math.round(breakdown.selectedDecisionCashFlows),
-              currency,
-            )}
-          </dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="text-muted-foreground">Possible decisions</dt>
-          <dd className="font-mono tabular-nums">
-            {formatRange(breakdown.possibleDecisions, currency)}
-          </dd>
-        </div>
-      </dl>
-      {breakdown.ordinaryRecurringOutflowsCoveredByBaseline > 0 && (
-        <p className="text-xs text-muted-foreground">
-          {formatCurrency(
-            Math.round(breakdown.ordinaryRecurringOutflowsCoveredByBaseline),
-            currency,
-          )}{" "}
-          of ordinary recurring outflows is already represented by the
-          historical baseline and is not counted again.
-        </p>
-      )}
+      <BreakdownRows breakdown={breakdown} currency={currency} />
+      <BaselineCoverageNote
+        amount={breakdown.ordinaryRecurringOutflowsCoveredByBaseline}
+        currency={currency}
+      />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { Trash2Icon } from "lucide-react";
-import { type SubmitEvent, useMemo, useState } from "react";
+import { type ReactNode, type SubmitEvent, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,13 +36,120 @@ function numberOr(value: string, fallback: number): number {
 }
 
 function sourceLabel(assumption: ForecastAssumption): string {
-  if (assumption.source.kind === "manual-take-home") {
+  if (assumption.source.kind === "manual-take-home")
     return "Manual take-home income";
-  }
   if (assumption.source.kind === "tax-derived") {
     return `${assumption.source.taxYear} tax rules · dataset ${assumption.source.ruleDatasetVersion}`;
   }
   return "Manual assumption";
+}
+
+function FormField({
+  id,
+  label,
+  children,
+  className = "",
+}: Readonly<{
+  id: string;
+  label: string;
+  children: ReactNode;
+  className?: string;
+}>) {
+  return (
+    <div className={`space-y-1.5 ${className}`}>
+      <label htmlFor={id} className="text-xs font-medium">
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function AssumptionRow({
+  assumption,
+  canDelete,
+  onDelete,
+}: Readonly<{
+  assumption: ForecastAssumption;
+  canDelete: boolean;
+  onDelete(): void;
+}>) {
+  return (
+    <li className="flex flex-wrap items-start gap-2 py-2 text-xs">
+      <div className="min-w-0 flex-1">
+        <p className="font-medium text-foreground">{assumption.name}</p>
+        <p className="text-muted-foreground">
+          {assumption.kind === "income" ? "Income" : "Expenditure"} ·{" "}
+          {assumption.startDate}
+          {assumption.endDate == null ? " onward" : ` to ${assumption.endDate}`}
+        </p>
+        <p className="text-muted-foreground">
+          {sourceLabel(assumption)}
+          {assumption.sourceNotes == null ? "" : ` · ${assumption.sourceNotes}`}
+        </p>
+      </div>
+      <div className="text-right font-mono">
+        <p>
+          {formatCurrency(
+            assumption.monthlyChange.expected,
+            assumption.currency,
+          )}
+          /mo
+        </p>
+        <p className="text-muted-foreground">
+          {formatCurrency(
+            assumption.monthlyChange.minimum,
+            assumption.currency,
+          )}
+          –
+          {formatCurrency(
+            assumption.monthlyChange.maximum,
+            assumption.currency,
+          )}
+        </p>
+      </div>
+      {canDelete && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Delete assumption ${assumption.name}`}
+          onClick={onDelete}
+        >
+          <Trash2Icon />
+        </Button>
+      )}
+    </li>
+  );
+}
+
+function AssumptionSetHeader({
+  set,
+  onVersion,
+}: Readonly<{
+  set: ForecastAssumptionSet;
+  onVersion(): void;
+}>) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <p className="font-medium">{set.name}</p>
+      <Badge variant="outline">v{set.version}</Badge>
+      <Badge variant={set.status === "active" ? "secondary" : "outline"}>
+        {set.status === "active" ? "Active" : "Superseded"}
+      </Badge>
+      {set.status === "active" && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="ml-auto"
+          onClick={onVersion}
+        >
+          Create next version
+        </Button>
+      )}
+    </div>
+  );
 }
 
 function AssumptionSetSummary({
@@ -56,81 +163,18 @@ function AssumptionSetSummary({
 }>) {
   return (
     <div className="space-y-2 rounded-md border p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <p className="font-medium">{set.name}</p>
-        <Badge variant="outline">v{set.version}</Badge>
-        <Badge variant={set.status === "active" ? "secondary" : "outline"}>
-          {set.status === "active" ? "Active" : "Superseded"}
-        </Badge>
-        {set.status === "active" && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="ml-auto"
-            onClick={() => onVersion(set.id)}
-          >
-            Create next version
-          </Button>
-        )}
-      </div>
+      <AssumptionSetHeader set={set} onVersion={() => onVersion(set.id)} />
       {set.assumptions.length === 0 ? (
         <p className="text-xs text-muted-foreground">No changes in this set.</p>
       ) : (
         <ul className="divide-y">
           {set.assumptions.map((assumption) => (
-            <li
+            <AssumptionRow
               key={assumption.id}
-              className="flex flex-wrap items-start gap-2 py-2 text-xs"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="font-medium text-foreground">{assumption.name}</p>
-                <p className="text-muted-foreground">
-                  {assumption.kind === "income" ? "Income" : "Expenditure"} ·{" "}
-                  {assumption.startDate}
-                  {assumption.endDate == null
-                    ? " onward"
-                    : ` to ${assumption.endDate}`}
-                </p>
-                <p className="text-muted-foreground">
-                  {sourceLabel(assumption)}
-                  {assumption.sourceNotes == null
-                    ? ""
-                    : ` · ${assumption.sourceNotes}`}
-                </p>
-              </div>
-              <div className="text-right font-mono">
-                <p>
-                  {formatCurrency(
-                    assumption.monthlyChange.expected,
-                    assumption.currency,
-                  )}
-                  /mo
-                </p>
-                <p className="text-muted-foreground">
-                  {formatCurrency(
-                    assumption.monthlyChange.minimum,
-                    assumption.currency,
-                  )}
-                  –
-                  {formatCurrency(
-                    assumption.monthlyChange.maximum,
-                    assumption.currency,
-                  )}
-                </p>
-              </div>
-              {set.status === "active" && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Delete assumption ${assumption.name}`}
-                  onClick={() => onDelete(set.id, assumption.id)}
-                >
-                  <Trash2Icon />
-                </Button>
-              )}
-            </li>
+              assumption={assumption}
+              canDelete={set.status === "active"}
+              onDelete={() => onDelete(set.id, assumption.id)}
+            />
           ))}
         </ul>
       )}
@@ -138,28 +182,19 @@ function AssumptionSetSummary({
   );
 }
 
-export function ForecastAssumptionManager() {
-  const {
-    accounts,
-    household,
-    taxEstimate,
-    forecastAssumptionSets,
-    createForecastAssumptionSet,
-    addForecastAssumption,
-    versionForecastAssumptionSet,
-    deleteForecastAssumption,
-  } = useAssetTracker();
+function useForecastAssumptionManager() {
+  const tracker = useAssetTracker();
   const eligibleAccounts = useMemo(
     () =>
-      accounts.filter(
+      tracker.accounts.filter(
         (account) =>
           account.isOpen &&
           !isLiability(account.assetType) &&
           accountLiquidity(account) !== "illiquid",
       ),
-    [accounts],
+    [tracker.accounts],
   );
-  const activeSets = forecastAssumptionSets.filter(
+  const activeSets = tracker.forecastAssumptionSets.filter(
     ({ status }) => status === "active",
   );
   const [newSetName, setNewSetName] = useState("");
@@ -180,7 +215,6 @@ export function ForecastAssumptionManager() {
   const [sourceNotes, setSourceNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
   const selectedSetId = activeSets.some(({ id }) => id === setId)
     ? setId
     : (activeSets[0]?.id ?? "");
@@ -190,7 +224,6 @@ export function ForecastAssumptionManager() {
   const selectedAccount = eligibleAccounts.find(
     ({ id }) => id === selectedAccountId,
   );
-
   async function run(action: () => Promise<void>) {
     setError(null);
     try {
@@ -199,42 +232,35 @@ export function ForecastAssumptionManager() {
       setError(formatAssetTrackerError(cause));
     }
   }
-
   async function handleCreateSet(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
     await run(async () => {
-      await createForecastAssumptionSet({ name: newSetName });
+      await tracker.createForecastAssumptionSet({ name: newSetName });
       setNewSetName("");
     });
     setSubmitting(false);
   }
-
   async function handleAdd(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (
-      selectedSetId === "" ||
-      (kind === "income" && selectedAccount == null)
-    ) {
-      return;
-    }
+    if (selectedSetId === "" || (kind === "income" && !selectedAccount)) return;
     const expectedChange = Number(expected);
     const ownership =
       ownerId === HOUSEHOLD_OWNER
-        ? equalSharedOwnership(household.members)
+        ? equalSharedOwnership(tracker.household.members)
         : personalOwnership(ownerId);
     const source =
       sourceKind === "tax-derived"
         ? {
             kind: "tax-derived" as const,
-            taxYear: taxEstimate.taxYear,
-            calculationVersion: taxEstimate.calculationVersion,
-            ruleDatasetVersion: taxEstimate.lineage.ruleDatasetVersion,
+            taxYear: tracker.taxEstimate.taxYear,
+            calculationVersion: tracker.taxEstimate.calculationVersion,
+            ruleDatasetVersion: tracker.taxEstimate.lineage.ruleDatasetVersion,
           }
         : { kind: sourceKind };
     setSubmitting(true);
     await run(async () => {
-      await addForecastAssumption({
+      await tracker.addForecastAssumption({
         setId: selectedSetId,
         name,
         kind,
@@ -245,7 +271,8 @@ export function ForecastAssumptionManager() {
           expected: expectedChange,
           maximum: numberOr(maximum, expectedChange),
         },
-        currency: selectedAccount?.currency ?? accounts[0]?.currency ?? "GBP",
+        currency:
+          selectedAccount?.currency ?? tracker.accounts[0]?.currency ?? "GBP",
         confidence:
           optional(confidence) == null ? undefined : Number(confidence) / 100,
         ownership,
@@ -263,7 +290,323 @@ export function ForecastAssumptionManager() {
     });
     setSubmitting(false);
   }
+  return {
+    ...tracker,
+    eligibleAccounts,
+    activeSets,
+    newSetName,
+    setNewSetName,
+    selectedSetId,
+    setSetId,
+    kind,
+    setKind,
+    name,
+    setName,
+    expected,
+    setExpected,
+    minimum,
+    setMinimum,
+    maximum,
+    setMaximum,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    selectedAccountId,
+    setAccountId,
+    ownerId,
+    setOwnerId,
+    sourceKind,
+    setSourceKind,
+    confidence,
+    setConfidence,
+    sourceNotes,
+    setSourceNotes,
+    error,
+    submitting,
+    run,
+    handleCreateSet,
+    handleAdd,
+  };
+}
 
+type ForecastManager = ReturnType<typeof useForecastAssumptionManager>;
+
+function CreateAssumptionSetForm({
+  model,
+}: Readonly<{ model: ForecastManager }>) {
+  return (
+    <form
+      onSubmit={model.handleCreateSet}
+      className="flex flex-col gap-2 rounded-md bg-muted/35 p-3 sm:flex-row sm:items-end"
+    >
+      <FormField
+        id="assumption-set-name"
+        label="New reusable assumption set"
+        className="flex-1"
+      >
+        <Input
+          id="assumption-set-name"
+          required
+          placeholder="e.g. Household baseline"
+          value={model.newSetName}
+          onChange={(event) => model.setNewSetName(event.target.value)}
+        />
+      </FormField>
+      <Button type="submit" variant="secondary" disabled={model.submitting}>
+        Add set
+      </Button>
+    </form>
+  );
+}
+
+function AssumptionIdentityFields({
+  model,
+}: Readonly<{ model: ForecastManager }>) {
+  return (
+    <>
+      <FormField id="assumption-set" label="Assumption set">
+        <Select value={model.selectedSetId} onValueChange={model.setSetId}>
+          <SelectTrigger id="assumption-set" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {model.activeSets.map((set) => (
+              <SelectItem key={set.id} value={set.id}>
+                {set.name} · v{set.version}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FormField>
+      <FormField id="assumption-kind" label="Change to">
+        <Select
+          value={model.kind}
+          onValueChange={(value) => {
+            const nextKind = value as "income" | "expenditure";
+            model.setKind(nextKind);
+            if (nextKind === "expenditure") model.setSourceKind("manual");
+          }}
+        >
+          <SelectTrigger id="assumption-kind" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="income">Income</SelectItem>
+            <SelectItem value="expenditure">Expenditure</SelectItem>
+          </SelectContent>
+        </Select>
+      </FormField>
+      <FormField id="assumption-name" label="Name" className="sm:col-span-2">
+        <Input
+          id="assumption-name"
+          required
+          placeholder="e.g. Reduced working hours"
+          value={model.name}
+          onChange={(event) => model.setName(event.target.value)}
+        />
+      </FormField>
+    </>
+  );
+}
+
+function AssumptionAmountFields({
+  model,
+}: Readonly<{ model: ForecastManager }>) {
+  return (
+    <>
+      <FormField id="assumption-expected" label="Expected monthly change">
+        <Input
+          id="assumption-expected"
+          type="number"
+          step="0.01"
+          required
+          value={model.expected}
+          onChange={(event) => model.setExpected(event.target.value)}
+        />
+      </FormField>
+      <FormField id="assumption-minimum" label="Minimum">
+        <Input
+          id="assumption-minimum"
+          type="number"
+          step="0.01"
+          placeholder="Same as expected"
+          value={model.minimum}
+          onChange={(event) => model.setMinimum(event.target.value)}
+        />
+      </FormField>
+      <FormField id="assumption-maximum" label="Maximum">
+        <Input
+          id="assumption-maximum"
+          type="number"
+          step="0.01"
+          placeholder="Same as expected"
+          value={model.maximum}
+          onChange={(event) => model.setMaximum(event.target.value)}
+        />
+      </FormField>
+      <FormField id="assumption-confidence" label="Confidence % (optional)">
+        <Input
+          id="assumption-confidence"
+          type="number"
+          min="0"
+          max="100"
+          value={model.confidence}
+          onChange={(event) => model.setConfidence(event.target.value)}
+        />
+      </FormField>
+    </>
+  );
+}
+
+function AssumptionTimingFields({
+  model,
+}: Readonly<{ model: ForecastManager }>) {
+  return (
+    <>
+      <FormField id="assumption-start" label="Starts">
+        <Input
+          id="assumption-start"
+          type="date"
+          required
+          value={model.startDate}
+          onChange={(event) => model.setStartDate(event.target.value)}
+        />
+      </FormField>
+      <FormField id="assumption-end" label="Ends (optional)">
+        <Input
+          id="assumption-end"
+          type="date"
+          value={model.endDate}
+          onChange={(event) => model.setEndDate(event.target.value)}
+        />
+      </FormField>
+    </>
+  );
+}
+
+function AssumptionAccountField({
+  model,
+}: Readonly<{ model: ForecastManager }>) {
+  if (model.kind !== "income") return null;
+  return (
+    <FormField id="assumption-account" label="Paid into">
+      <Select
+        value={model.selectedAccountId}
+        onValueChange={model.setAccountId}
+      >
+        <SelectTrigger id="assumption-account" className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {model.eligibleAccounts.map((account) => (
+            <SelectItem key={account.id} value={account.id}>
+              {account.name} · {account.currency}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FormField>
+  );
+}
+
+function AssumptionOwnerField({ model }: Readonly<{ model: ForecastManager }>) {
+  return (
+    <FormField id="assumption-owner" label="Applies to">
+      <Select value={model.ownerId} onValueChange={model.setOwnerId}>
+        <SelectTrigger id="assumption-owner" className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={HOUSEHOLD_OWNER}>Household</SelectItem>
+          {model.household.members.map((member) => (
+            <SelectItem key={member.id} value={member.id}>
+              {member.displayName}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FormField>
+  );
+}
+
+function AssumptionSourceField({
+  model,
+}: Readonly<{ model: ForecastManager }>) {
+  return (
+    <FormField id="assumption-source" label="Source">
+      <Select
+        value={model.sourceKind}
+        onValueChange={(value) =>
+          model.setSourceKind(value as ForecastManager["sourceKind"])
+        }
+      >
+        <SelectTrigger id="assumption-source" className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {model.kind === "income" && (
+            <SelectItem value="manual-take-home">
+              Manual take-home income
+            </SelectItem>
+          )}
+          <SelectItem value="manual">Manual estimate</SelectItem>
+          {model.kind === "income" && (
+            <SelectItem value="tax-derived">
+              {model.taxEstimate.taxYear} tax estimate
+            </SelectItem>
+          )}
+        </SelectContent>
+      </Select>
+    </FormField>
+  );
+}
+
+function AssumptionScopeFields({
+  model,
+}: Readonly<{ model: ForecastManager }>) {
+  return (
+    <>
+      <AssumptionAccountField model={model} />
+      <AssumptionOwnerField model={model} />
+      <AssumptionSourceField model={model} />
+      <FormField
+        id="assumption-notes"
+        label="Source notes (optional)"
+        className="sm:col-span-2"
+      >
+        <Input
+          id="assumption-notes"
+          value={model.sourceNotes}
+          onChange={(event) => model.setSourceNotes(event.target.value)}
+        />
+      </FormField>
+    </>
+  );
+}
+
+function AssumptionForm({ model }: Readonly<{ model: ForecastManager }>) {
+  return (
+    <form onSubmit={model.handleAdd} className="grid gap-3">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <AssumptionIdentityFields model={model} />
+        <AssumptionAmountFields model={model} />
+        <AssumptionTimingFields model={model} />
+        <AssumptionScopeFields model={model} />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Use negative values for a reduction. Minimum and maximum remain a range;
+        the forecast does not assign probabilities to them.
+      </p>
+      <Button type="submit" className="w-fit" disabled={model.submitting}>
+        Add forecast change
+      </Button>
+    </form>
+  );
+}
+
+export function ForecastAssumptionManager() {
+  const model = useForecastAssumptionManager();
   return (
     <div className="space-y-4 rounded-md border p-3">
       <div>
@@ -273,279 +616,27 @@ export function ForecastAssumptionManager() {
           baseline. These are monthly changes, not category limits or budgets.
         </p>
       </div>
-
-      <form
-        onSubmit={handleCreateSet}
-        className="flex flex-col gap-2 rounded-md bg-muted/35 p-3 sm:flex-row sm:items-end"
-      >
-        <div className="flex-1 space-y-1.5">
-          <label htmlFor="assumption-set-name" className="text-xs font-medium">
-            New reusable assumption set
-          </label>
-          <Input
-            id="assumption-set-name"
-            required
-            placeholder="e.g. Household baseline"
-            value={newSetName}
-            onChange={(event) => setNewSetName(event.target.value)}
-          />
-        </div>
-        <Button type="submit" variant="secondary" disabled={submitting}>
-          Add set
-        </Button>
-      </form>
-
-      {forecastAssumptionSets.length > 0 && (
+      <CreateAssumptionSetForm model={model} />
+      {model.forecastAssumptionSets.length > 0 && (
         <div className="grid gap-2">
-          {forecastAssumptionSets.map((set) => (
+          {model.forecastAssumptionSets.map((set) => (
             <AssumptionSetSummary
               key={set.id}
               set={set}
-              onVersion={(id) => run(() => versionForecastAssumptionSet(id))}
-              onDelete={(candidateSetId, assumptionId) =>
-                run(() =>
-                  deleteForecastAssumption(candidateSetId, assumptionId),
+              onVersion={(id) =>
+                model.run(() => model.versionForecastAssumptionSet(id))
+              }
+              onDelete={(setId, assumptionId) =>
+                model.run(() =>
+                  model.deleteForecastAssumption(setId, assumptionId),
                 )
               }
             />
           ))}
         </div>
       )}
-
-      {activeSets.length > 0 && (
-        <form onSubmit={handleAdd} className="grid gap-3">
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="space-y-1.5">
-              <label htmlFor="assumption-set" className="text-xs font-medium">
-                Assumption set
-              </label>
-              <Select value={selectedSetId} onValueChange={setSetId}>
-                <SelectTrigger id="assumption-set" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {activeSets.map((set) => (
-                    <SelectItem key={set.id} value={set.id}>
-                      {set.name} · v{set.version}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <label htmlFor="assumption-kind" className="text-xs font-medium">
-                Change to
-              </label>
-              <Select
-                value={kind}
-                onValueChange={(value) => {
-                  const nextKind = value as "income" | "expenditure";
-                  setKind(nextKind);
-                  if (nextKind === "expenditure") setSourceKind("manual");
-                }}
-              >
-                <SelectTrigger id="assumption-kind" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="income">Income</SelectItem>
-                  <SelectItem value="expenditure">Expenditure</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <label htmlFor="assumption-name" className="text-xs font-medium">
-                Name
-              </label>
-              <Input
-                id="assumption-name"
-                required
-                placeholder="e.g. Reduced working hours"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label
-                htmlFor="assumption-expected"
-                className="text-xs font-medium"
-              >
-                Expected monthly change
-              </label>
-              <Input
-                id="assumption-expected"
-                type="number"
-                step="0.01"
-                required
-                value={expected}
-                onChange={(event) => setExpected(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label
-                htmlFor="assumption-minimum"
-                className="text-xs font-medium"
-              >
-                Minimum
-              </label>
-              <Input
-                id="assumption-minimum"
-                type="number"
-                step="0.01"
-                placeholder="Same as expected"
-                value={minimum}
-                onChange={(event) => setMinimum(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label
-                htmlFor="assumption-maximum"
-                className="text-xs font-medium"
-              >
-                Maximum
-              </label>
-              <Input
-                id="assumption-maximum"
-                type="number"
-                step="0.01"
-                placeholder="Same as expected"
-                value={maximum}
-                onChange={(event) => setMaximum(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label
-                htmlFor="assumption-confidence"
-                className="text-xs font-medium"
-              >
-                Confidence % (optional)
-              </label>
-              <Input
-                id="assumption-confidence"
-                type="number"
-                min="0"
-                max="100"
-                value={confidence}
-                onChange={(event) => setConfidence(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label htmlFor="assumption-start" className="text-xs font-medium">
-                Starts
-              </label>
-              <Input
-                id="assumption-start"
-                type="date"
-                required
-                value={startDate}
-                onChange={(event) => setStartDate(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label htmlFor="assumption-end" className="text-xs font-medium">
-                Ends (optional)
-              </label>
-              <Input
-                id="assumption-end"
-                type="date"
-                value={endDate}
-                onChange={(event) => setEndDate(event.target.value)}
-              />
-            </div>
-            {kind === "income" && (
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="assumption-account"
-                  className="text-xs font-medium"
-                >
-                  Paid into
-                </label>
-                <Select value={selectedAccountId} onValueChange={setAccountId}>
-                  <SelectTrigger id="assumption-account" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {eligibleAccounts.map((account) => (
-                      <SelectItem key={account.id} value={account.id}>
-                        {account.name} · {account.currency}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            <div className="space-y-1.5">
-              <label htmlFor="assumption-owner" className="text-xs font-medium">
-                Applies to
-              </label>
-              <Select value={ownerId} onValueChange={setOwnerId}>
-                <SelectTrigger id="assumption-owner" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={HOUSEHOLD_OWNER}>Household</SelectItem>
-                  {household.members.map((member) => (
-                    <SelectItem key={member.id} value={member.id}>
-                      {member.displayName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <label
-                htmlFor="assumption-source"
-                className="text-xs font-medium"
-              >
-                Source
-              </label>
-              <Select
-                value={sourceKind}
-                onValueChange={(value) =>
-                  setSourceKind(
-                    value as "manual-take-home" | "manual" | "tax-derived",
-                  )
-                }
-              >
-                <SelectTrigger id="assumption-source" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {kind === "income" && (
-                    <SelectItem value="manual-take-home">
-                      Manual take-home income
-                    </SelectItem>
-                  )}
-                  <SelectItem value="manual">Manual estimate</SelectItem>
-                  {kind === "income" && (
-                    <SelectItem value="tax-derived">
-                      {taxEstimate.taxYear} tax estimate
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <label htmlFor="assumption-notes" className="text-xs font-medium">
-                Source notes (optional)
-              </label>
-              <Input
-                id="assumption-notes"
-                value={sourceNotes}
-                onChange={(event) => setSourceNotes(event.target.value)}
-              />
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Use negative values for a reduction. Minimum and maximum remain a
-            range; the forecast does not assign probabilities to them.
-          </p>
-          <Button type="submit" className="w-fit" disabled={submitting}>
-            Add forecast change
-          </Button>
-        </form>
-      )}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {model.activeSets.length > 0 && <AssumptionForm model={model} />}
+      {model.error && <p className="text-sm text-destructive">{model.error}</p>}
     </div>
   );
 }
