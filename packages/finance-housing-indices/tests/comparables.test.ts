@@ -87,6 +87,33 @@ describe("completed-sale comparables", () => {
     });
   });
 
+  it("ignores malformed source postcodes while validating the target", () => {
+    const firstTransaction = release.transactions[0];
+    if (firstTransaction == null) throw new Error("Expected a transaction");
+    const releaseWithMalformedPostcode = {
+      ...release,
+      transactions: [
+        {
+          ...firstTransaction,
+          transactionId: "malformed-postcode",
+          postcode: "NOT RECORDED",
+        },
+        ...release.transactions,
+      ],
+    };
+
+    const result = findComparableSales(releaseWithMalformedPostcode, query);
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") throw new Error("Expected comparables");
+    expect(result.sales.map(({ transactionId }) => transactionId)).toEqual([
+      "tx-2",
+      "tx-1",
+    ]);
+    expect(() =>
+      findComparableSales(release, { ...query, postcode: "NOT A POSTCODE" }),
+    ).toThrow("Invalid UK postcode: NOT A POSTCODE");
+  });
+
   it.each(["scotland", "northern-ireland"] as const)(
     "reports %s as unsupported instead of implying equivalent coverage",
     (nation) => {

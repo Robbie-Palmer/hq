@@ -107,11 +107,16 @@ function compactPostcode(postcode: string): string {
   return postcode.toUpperCase().replaceAll(/\s/g, "");
 }
 
-function postcodeDistrict(postcode: string): string {
+function tryPostcodeDistrict(postcode: string): string | undefined {
   const compact = compactPostcode(postcode);
   const match = /^([A-Z]{1,2}\d[A-Z\d]?)\d[A-Z]{2}$/.exec(compact);
-  if (match?.[1] == null) throw new Error(`Invalid UK postcode: ${postcode}`);
-  return match[1];
+  return match?.[1];
+}
+
+function postcodeDistrict(postcode: string): string {
+  const district = tryPostcodeDistrict(postcode);
+  if (district == null) throw new Error(`Invalid UK postcode: ${postcode}`);
+  return district;
 }
 
 function evidenceFor(release: PricePaidRelease): ComparableSalesEvidence {
@@ -206,7 +211,8 @@ export function findComparableSales(
       (transaction) =>
         transaction.recordStatus !== "deleted" &&
         transaction.postcode != null &&
-        postcodeDistrict(transaction.postcode) === criteria.searchArea.value &&
+        tryPostcodeDistrict(transaction.postcode) ===
+          criteria.searchArea.value &&
         transaction.completionDate >= query.completedFrom &&
         transaction.completionDate <= query.completedTo &&
         query.propertyTypes.includes(transaction.propertyType) &&
