@@ -27,6 +27,7 @@ import {
   ForecastAssumptionSetSchema,
 } from "./forecastAssumption";
 import {
+  type ActualCashFlow,
   type CashFlowDecision,
   CashFlowDecisionSchema,
   type Commitment,
@@ -1379,6 +1380,53 @@ export function applySetCommitmentStatus(
   };
 }
 
+function appendActualToStages<TStage extends FutureCashFlow["stages"][number]>(
+  stages: TStage[],
+  stageId: string,
+  actual: ActualCashFlow,
+): TStage[] {
+  return stages.map((candidateStage) =>
+    candidateStage.id === stageId
+      ? {
+          ...candidateStage,
+          actuals: [...candidateStage.actuals, actual],
+        }
+      : candidateStage,
+  );
+}
+
+function appendActualToCommitment(
+  record: Commitment,
+  stageId: string,
+  actual: ActualCashFlow,
+): Commitment {
+  return {
+    ...record,
+    stages: appendActualToStages(record.stages, stageId, actual),
+  };
+}
+
+function appendActualToDecision(
+  record: CashFlowDecision,
+  stageId: string,
+  actual: ActualCashFlow,
+): CashFlowDecision {
+  return {
+    ...record,
+    stages: appendActualToStages(record.stages, stageId, actual),
+  };
+}
+
+function appendActualToRecord(
+  record: FutureCashFlow,
+  stageId: string,
+  actual: ActualCashFlow,
+): FutureCashFlow {
+  return record.kind === "commitment"
+    ? appendActualToCommitment(record, stageId, actual)
+    : appendActualToDecision(record, stageId, actual);
+}
+
 export function applyRecordActualCashFlow(
   data: AssetTrackerData,
   input: RecordActualCashFlowInput,
@@ -1438,30 +1486,7 @@ export function applyRecordActualCashFlow(
     amount: parsed.amount,
     direction: parsed.direction,
   };
-  const updatedRecord: FutureCashFlow =
-    record.kind === "commitment"
-      ? {
-          ...record,
-          stages: record.stages.map((candidateStage) =>
-            candidateStage.id === stage.id
-              ? {
-                  ...candidateStage,
-                  actuals: [...candidateStage.actuals, actual],
-                }
-              : candidateStage,
-          ),
-        }
-      : {
-          ...record,
-          stages: record.stages.map((candidateStage) =>
-            candidateStage.id === stage.id
-              ? {
-                  ...candidateStage,
-                  actuals: [...candidateStage.actuals, actual],
-                }
-              : candidateStage,
-          ),
-        };
+  const updatedRecord = appendActualToRecord(record, stage.id, actual);
   return {
     ...data,
     futureCashFlows: data.futureCashFlows.map((candidate) =>

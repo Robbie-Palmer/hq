@@ -825,7 +825,7 @@ function CommitmentFields({ model }: Readonly<{ model: FlowManager }>) {
           checked={model.refundable}
           onChange={(event) => model.setRefundable(event.target.checked)}
         />
-        Refundable
+        <span>Refundable</span>
       </label>
     </div>
   );
