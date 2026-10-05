@@ -376,18 +376,17 @@ function calculatePensionAllowance(
     dividendPence +
     employerPensionContributions;
   let allowance = pensionRule.annualAllowancePence;
+  const taperedAllowance = pensionRule.taperedAnnualAllowance;
   if (
-    thresholdIncome >
-      pensionRule.taperedAnnualAllowance.thresholdIncomeLimitPence &&
-    adjustedIncome > pensionRule.taperedAnnualAllowance.adjustedIncomeLimitPence
+    taperedAllowance != null &&
+    thresholdIncome > taperedAllowance.thresholdIncomeLimitPence &&
+    adjustedIncome > taperedAllowance.adjustedIncomeLimitPence
   ) {
     allowance = Math.max(
-      pensionRule.taperedAnnualAllowance.minimumAllowancePence,
+      taperedAllowance.minimumAllowancePence,
       allowance -
         Math.floor(
-          (adjustedIncome -
-            pensionRule.taperedAnnualAllowance.adjustedIncomeLimitPence) /
-            2,
+          (adjustedIncome - taperedAllowance.adjustedIncomeLimitPence) / 2,
         ),
     );
   }

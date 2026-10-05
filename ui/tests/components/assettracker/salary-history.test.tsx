@@ -16,6 +16,7 @@ import {
   vi,
 } from "vitest";
 import { useAssetTracker } from "@/components/assettracker/asset-tracker-provider";
+import { SalaryCalculationHistory } from "@/components/assettracker/salary-calculation-history";
 import { SalaryHistoryImportDrawer } from "@/components/assettracker/salary-history-import-drawer";
 import { SalaryHistoryManager } from "@/components/assettracker/salary-history-manager";
 import { SalaryRecordDrawer } from "@/components/assettracker/salary-record-drawer";
@@ -82,6 +83,10 @@ describe("salary history controls", () => {
     await user.click(screen.getByRole("button", { name: "Add manually" }));
     await user.type(screen.getByLabelText("Employer"), "Fieldwork Co-op");
     await user.type(screen.getByLabelText("Employment ID"), "sam-fieldwork");
+    await user.selectOptions(
+      screen.getByLabelText("Tax jurisdiction"),
+      "England",
+    );
     fireEvent.change(screen.getByLabelText("Effective start"), {
       target: { value: "2023-04-01" },
     });
@@ -144,6 +149,10 @@ describe("salary history controls", () => {
       payFrequency: "monthly",
       amountKind: "annualSalary",
       grossPay: 70_000,
+      otherTaxableIncome: 0,
+      otherDeductions: 0,
+      nationalInsuranceCategory: "A",
+      isCompanyDirector: false,
       source: { kind: "manual" },
       acceptedAt: "2025-01-01T00:00:00.000Z",
     };
@@ -152,6 +161,10 @@ describe("salary history controls", () => {
     render(<SalaryRecordDrawer record={record} />);
 
     await user.click(screen.getByRole("button", { name: "Correct" }));
+    const jurisdiction = screen.getByLabelText("Tax jurisdiction");
+    expect(jurisdiction).toBeRequired();
+    expect(jurisdiction).toHaveValue("");
+    await user.selectOptions(jurisdiction, "Scotland");
     const gross = screen.getByLabelText("Gross pay before pension");
     await user.clear(gross);
     await user.type(gross, "72000");
@@ -161,7 +174,10 @@ describe("salary history controls", () => {
       expect(saveSalaryRecord).toHaveBeenCalledWith(
         expect.objectContaining({
           correctsId: "salary-original",
-          facts: expect.objectContaining({ grossPay: 72_000 }),
+          facts: expect.objectContaining({
+            grossPay: 72_000,
+            jurisdiction: "Scotland",
+          }),
         }),
       ),
     );
@@ -307,5 +323,86 @@ describe("salary history controls", () => {
 
     await userEvent.click(screen.getByText("Prior accepted facts"));
     expect(screen.getAllByText("salary.csv, row 7")).not.toHaveLength(0);
+  });
+
+  it("shows a sourced estimate and observed reconciliation", async () => {
+    const record: SalaryHistoryRecord = {
+      id: "salary-calculation",
+      person: "Alex",
+      employer: "Cirrus Systems",
+      employmentId: "alex-cirrus",
+      currency: "GBP",
+      jurisdiction: "England",
+      effectiveStart: "2025-04-06",
+      effectiveEnd: "2026-04-05",
+      payFrequency: "monthly",
+      amountKind: "annualSalary",
+      grossPay: 60_000,
+      takeHomePay: 41_878,
+      observedIncomeTax: 9_032,
+      observedEmployeeNationalInsurance: 3_090,
+      otherTaxableIncome: 0,
+      otherDeductions: 0,
+      taxCode: "1257L",
+      nationalInsuranceCategory: "A",
+      isCompanyDirector: false,
+      employeePension: {
+        arrangement: "salarySacrifice",
+        amount: 6_000,
+        basis: "grossPay",
+      },
+      employerPension: { arrangement: "none", basis: "unknown" },
+      source: { kind: "manual" },
+      acceptedAt: "2026-10-04T10:00:00Z",
+    };
+    mockUseAssetTracker.mockReturnValue({
+      currentSalaryHistory: [record],
+    } as unknown as ReturnType<typeof useAssetTracker>);
+    const user = userEvent.setup();
+
+    render(<SalaryCalculationHistory />);
+
+    const ready = screen.getByText("Estimate ready");
+    expect(ready).toBeVisible();
+    expect(ready.closest("summary")).toHaveTextContent(
+      "Estimated take-home £41,878.00 per year",
+    );
+    await user.click(screen.getByText("Alex · Cirrus Systems"));
+    expect(screen.getAllByText("Matches")).toHaveLength(3);
+    await user.click(screen.getByText("Rules and assumptions"));
+    expect(screen.getByText(/Dataset 2026.10.3/)).toBeVisible();
+    expect(
+      screen.getByRole("link", {
+        name: /Rates and thresholds for employers 2025 to 2026/,
+      }),
+    ).toHaveAttribute("href", expect.stringContaining("gov.uk"));
+  });
+
+  it("lists missing salary assumptions instead of calculating with zero", async () => {
+    const record: SalaryHistoryRecord = {
+      id: "salary-blocked",
+      person: "Alex",
+      employer: "Cirrus Systems",
+      employmentId: "alex-cirrus",
+      currency: "GBP",
+      jurisdiction: "UK",
+      effectiveStart: "2025-04-06",
+      effectiveEnd: "2026-04-05",
+      payFrequency: "monthly",
+      amountKind: "annualSalary",
+      grossPay: 60_000,
+      source: { kind: "manual" },
+      acceptedAt: "2026-10-04T10:00:00Z",
+    };
+    mockUseAssetTracker.mockReturnValue({
+      currentSalaryHistory: [record],
+    } as unknown as ReturnType<typeof useAssetTracker>);
+
+    render(<SalaryCalculationHistory />);
+    await userEvent.click(screen.getByText("Alex · Cirrus Systems"));
+
+    expect(screen.getByText("Needs input")).toBeVisible();
+    expect(screen.getByText(/A generic UK value is not enough/)).toBeVisible();
+    expect(screen.getAllByText(/including zero/)).toHaveLength(2);
   });
 });

@@ -9,7 +9,7 @@ household estimates.
 
 | Area | Supported |
 | --- | --- |
-| Tax years | 2022/23 through 2026/27 |
+| Tax years | 2015/16 through 2026/27 |
 | Jurisdictions | England and Northern Ireland, Scotland, Wales |
 | Income Tax | Annual liability on employment non-savings, non-dividend income; standard Personal Allowance and taper |
 | National Insurance | Employee Class 1 category A; weekly and monthly pay periods; non-directors |
@@ -73,6 +73,10 @@ employees who are not directors; callers must exclude directors. The package als
 does not model PAYE tax codes or withholding, multiple employments, savings,
 Marriage Allowance, or Blind Person's Allowance. Those cases need more
 facts and rules than this dataset contains.
+
+The 2015/16 pension data has separate pre-alignment and post-alignment intervals
+around 9 July 2015. Its annual and money purchase allowances require the special
+HMRC transitional rules and are recorded with carry-forward notes.
 
 The 2022/23 NI data has separate intervals for the July threshold change and the
 November rate reversal. The 2023/24 data has a separate interval for the January

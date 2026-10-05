@@ -50,7 +50,6 @@ const validateSources = (dataset: RuleDataset) => {
 const validateRuleIntervals = (dataset: RuleDataset) => {
   for (const rule of [
     ...dataset.incomeTax,
-    ...dataset.pensions,
     ...dataset.householdTax,
   ]) {
     const expected = taxYearDates(rule.taxYear);
@@ -60,38 +59,62 @@ const validateRuleIntervals = (dataset: RuleDataset) => {
     );
   }
 
-  const byTaxYear = new Map<
-    string,
-    RuleDataset["nationalInsurance"]
-  >();
-  for (const rule of dataset.nationalInsurance) {
-    const rules = byTaxYear.get(rule.taxYear) ?? [];
-    rules.push(rule);
-    byTaxYear.set(rule.taxYear, rules);
-  }
-  for (const [taxYear, rules] of byTaxYear) {
-    const sorted = rules.toSorted((left, right) =>
-      left.effectiveFrom.localeCompare(right.effectiveFrom),
-    );
-    const expected = taxYearDates(taxYear);
-    assert(sorted[0]?.effectiveFrom === expected.from, `${taxYear} NI starts late`);
-    assert(sorted.at(-1)?.effectiveTo === expected.to, `${taxYear} NI ends early`);
-    for (let index = 1; index < sorted.length; index += 1) {
-      const previous = sorted[index - 1];
-      const current = sorted[index];
-      assert(previous && current, `${taxYear} NI interval is missing`);
-      const dayAfterPrevious = new Date(`${previous.effectiveTo}T00:00:00Z`);
-      dayAfterPrevious.setUTCDate(dayAfterPrevious.getUTCDate() + 1);
-      assert(
-        dayAfterPrevious.toISOString().slice(0, 10) === current.effectiveFrom,
-        `${taxYear} NI intervals overlap or have a gap`,
-      );
+  const validateContinuousIntervals = (
+    label: string,
+    rules: Array<{ taxYear: string; effectiveFrom: string; effectiveTo: string }>,
+  ) => {
+    const byTaxYear = new Map<string, typeof rules>();
+    for (const rule of rules) {
+      const intervals = byTaxYear.get(rule.taxYear) ?? [];
+      intervals.push(rule);
+      byTaxYear.set(rule.taxYear, intervals);
     }
-  }
+    for (const [taxYear, intervals] of byTaxYear) {
+      const sorted = intervals.toSorted((left, right) =>
+        left.effectiveFrom.localeCompare(right.effectiveFrom),
+      );
+      const expected = taxYearDates(taxYear);
+      assert(
+        sorted[0]?.effectiveFrom === expected.from,
+        `${taxYear} ${label} starts late`,
+      );
+      assert(
+        sorted.at(-1)?.effectiveTo === expected.to,
+        `${taxYear} ${label} ends early`,
+      );
+      for (let index = 1; index < sorted.length; index += 1) {
+        const previous = sorted[index - 1];
+        const current = sorted[index];
+        assert(previous && current, `${taxYear} ${label} interval is missing`);
+        const dayAfterPrevious = new Date(`${previous.effectiveTo}T00:00:00Z`);
+        dayAfterPrevious.setUTCDate(dayAfterPrevious.getUTCDate() + 1);
+        assert(
+          dayAfterPrevious.toISOString().slice(0, 10) === current.effectiveFrom,
+          `${taxYear} ${label} intervals overlap or have a gap`,
+        );
+      }
+    }
+  };
+
+  validateContinuousIntervals("NI", dataset.nationalInsurance);
+  validateContinuousIntervals("pension", dataset.pensions);
 };
 
 const validateCoverage = (dataset: RuleDataset) => {
-  const taxYears = ["2022-23", "2023-24", "2024-25", "2025-26", "2026-27"];
+  const taxYears = [
+    "2015-16",
+    "2016-17",
+    "2017-18",
+    "2018-19",
+    "2019-20",
+    "2020-21",
+    "2021-22",
+    "2022-23",
+    "2023-24",
+    "2024-25",
+    "2025-26",
+    "2026-27",
+  ];
   const jurisdictions = [
     "england-and-northern-ireland",
     "scotland",
@@ -237,6 +260,13 @@ export const buildArtifacts = (packageRoot: string) => {
   const coverage = {
     ...commonArtifact,
     supportedTaxYears: [
+      "2015-16",
+      "2016-17",
+      "2017-18",
+      "2018-19",
+      "2019-20",
+      "2020-21",
+      "2021-22",
       "2022-23",
       "2023-24",
       "2024-25",
