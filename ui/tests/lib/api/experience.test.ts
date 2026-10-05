@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   formatExperienceDateRange,
   getAllExperience,
@@ -74,5 +74,23 @@ describe("getExperienceDuration", () => {
     expect(getExperienceDuration("2020-01", "2021-03")).toBe(
       "1 year, 3 months",
     );
+  });
+
+  describe("in a timezone west of UTC", () => {
+    const originalTimezone = process.env.TZ;
+
+    afterEach(() => {
+      vi.useRealTimers();
+      if (originalTimezone === undefined) delete process.env.TZ;
+      else process.env.TZ = originalTimezone;
+    });
+
+    it("counts open-ended roles the same as UTC", () => {
+      process.env.TZ = "America/Los_Angeles";
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-10-04T12:00:00Z"));
+
+      expect(getExperienceDuration("2024-05")).toBe("2 years, 6 months");
+    });
   });
 });
