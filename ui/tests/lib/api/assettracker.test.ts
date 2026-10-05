@@ -383,7 +383,7 @@ describe("createLocalAssetTrackerApi", () => {
     if (!source) throw new Error("seed data has no current account");
 
     await api.addPlannedExpenditure({
-      name: "Wedding",
+      name: "Large purchase",
       amount: 15_000,
       date: "2099-08-01",
       fromAccountId: source.id,
@@ -391,17 +391,168 @@ describe("createLocalAssetTrackerApi", () => {
 
     const { data } = await createApi().load();
     expect(data.plannedExpenditures).toContainEqual({
-      id: "wedding",
-      name: "Wedding",
+      id: "large-purchase",
+      name: "Large purchase",
       amount: 15_000,
       date: "2099-08-01",
       fromAccountId: source.id,
     });
+    expect(data.futureCashFlows).toContainEqual(
+      expect.objectContaining({
+        id: "large-purchase",
+        name: "Large purchase",
+        kind: "commitment",
+      }),
+    );
 
     const withoutExpenditure = await api.deletePlannedExpenditure({
-      id: "wedding",
+      id: "large-purchase",
     });
     expect(withoutExpenditure.plannedExpenditures).toEqual([]);
+    expect(withoutExpenditure.futureCashFlows).not.toContainEqual(
+      expect.objectContaining({ id: "large-purchase" }),
+    );
+  });
+
+  it("persists planning cases, commitments, decisions, and actual cash flows", async () => {
+    const api = createApi();
+    const source = getDemoAssetTrackerData().accounts.find(
+      (account) =>
+        account.id === "nationwide-current" && account.currency === "GBP",
+    );
+    if (!source) throw new Error("seed data has no GBP current account");
+
+    await api.createPlanningCase({
+      name: "Summer plans",
+      labels: ["shared"],
+      targetDate: "2099-08-01",
+    });
+    await api.addCommitment({
+      name: "Firm booking",
+      planningCaseId: "summer-plans",
+      labels: [],
+      currency: "GBP",
+      refundable: true,
+      stages: [
+        {
+          fromAccountId: source.id,
+          dueDate: "2099-03-01",
+          amount: 1_000,
+        },
+      ],
+    });
+    await api.addCashFlowDecision({
+      name: "Optional upgrade",
+      planningCaseId: "summer-plans",
+      labels: [],
+      currency: "GBP",
+      confidence: 0.7,
+      dependencyIds: ["firm-booking"],
+      alternativeToIds: [],
+      stages: [
+        {
+          fromAccountId: source.id,
+          expectedDate: "2099-05-01",
+          minimumAmount: 500,
+          expectedAmount: 750,
+          maximumAmount: 1_000,
+        },
+      ],
+    });
+    await api.setCashFlowDecisionStatus({
+      id: "optional-upgrade",
+      status: "selected",
+    });
+    await api.recordActualCashFlow({
+      futureCashFlowId: "firm-booking",
+      stageId: "payment-1",
+      date: "2026-01-01",
+      amount: 250,
+      direction: "payment",
+    });
+
+    const { data } = await createApi().load();
+    expect(data.planningCases).toContainEqual(
+      expect.objectContaining({ id: "summer-plans", name: "Summer plans" }),
+    );
+    expect(data.futureCashFlows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "firm-booking",
+          kind: "commitment",
+          stages: [
+            expect.objectContaining({
+              actuals: [expect.objectContaining({ amount: 250 })],
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          id: "optional-upgrade",
+          kind: "decision",
+          status: "selected",
+        }),
+      ]),
+    );
+  });
+
+  it("persists reusable, versioned household forecast assumptions", async () => {
+    const seed = getDemoAssetTrackerData();
+    const account = seed.accounts.find(
+      (candidate) =>
+        candidate.currency === "GBP" &&
+        candidate.closedAt == null &&
+        candidate.assetType === "cash",
+    );
+    const member = seed.household.members[0];
+    if (account == null || member == null) {
+      throw new Error("seed data has no eligible account or household member");
+    }
+    const api = createApi();
+
+    await api.createForecastAssumptionSet({ name: "Household baseline" });
+    await api.addForecastAssumption({
+      setId: "household-baseline-v1",
+      name: "Temporary take-home change",
+      kind: "income",
+      startDate: "2099-01-01",
+      endDate: "2099-06-30",
+      monthlyChange: { minimum: -600, expected: -500, maximum: -350 },
+      currency: "GBP",
+      confidence: 0.7,
+      ownership: { kind: "personal", memberId: member.id },
+      accountId: account.id,
+      source: { kind: "manual-take-home" },
+      sourceNotes: "Based on current payslips",
+    });
+    await api.versionForecastAssumptionSet({
+      id: "household-baseline-v1",
+    });
+
+    const { data } = await createApi().load();
+    expect(data.incomeHistory).toEqual(seed.incomeHistory);
+    expect(data.forecastAssumptionSets).toMatchObject([
+      {
+        id: "household-baseline-v1",
+        status: "superseded",
+        assumptions: [
+          {
+            name: "Temporary take-home change",
+            monthlyChange: {
+              minimum: -600,
+              expected: -500,
+              maximum: -350,
+            },
+            source: { kind: "manual-take-home" },
+          },
+        ],
+      },
+      {
+        id: "household-baseline-v2",
+        version: 2,
+        status: "active",
+        supersedesId: "household-baseline-v1",
+      },
+    ]);
   });
 
   it("persists transfers and history deletions", async () => {

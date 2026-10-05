@@ -28,6 +28,9 @@ import {
   type AccountDetailView,
   type AccountId,
   type AccountSummaryView,
+  type AddCashFlowDecisionInput,
+  type AddCommitmentInput,
+  type AddForecastAssumptionInput,
   type AddPlannedExpenditureInput,
   type AddRecurringFlowInput,
   type AssetAllocationDataPoint,
@@ -39,11 +42,15 @@ import {
   buildRepository,
   type ClearAccountHistoryInput,
   type CreateAccountInput,
+  type CreateForecastAssumptionSetInput,
+  type CreatePlanningCaseInput,
   type Currency,
   currentSalaryHistory,
   type DeleteCapitalFlowInput,
   type DeleteSnapshotInput,
   type FinancialDecisionRecord,
+  type ForecastAssumptionSet,
+  type FutureCashFlow,
   getAssetAllocationTimeSeries,
   getHouseholdTaxEstimate,
   getHousingPlanningPosition,
@@ -66,12 +73,14 @@ import {
   type NetWorthDataPoint,
   type Ownership,
   type PlannedExpenditure,
+  type PlanningCase,
   type PortfolioContributionDataPoint,
   type PortfolioFinancialIndependence,
   type PortfolioPositionSummary,
   type PropertyComparableView,
   type PropertyValueHistoryView,
   personalOwnership,
+  type RecordActualCashFlowInput,
   type RecordBalanceInput,
   type RecordTransferInput,
   type RecurringFlow,
@@ -97,6 +106,9 @@ interface AssetTrackerContextValue {
   transfers: Transfer[];
   recurringFlows: RecurringFlow[];
   plannedExpenditures: PlannedExpenditure[];
+  planningCases: PlanningCase[];
+  futureCashFlows: FutureCashFlow[];
+  forecastAssumptionSets: ForecastAssumptionSet[];
   mortgageScenarios: MortgageScenario[];
   decisionRecords: FinancialDecisionRecord[];
   incomeHistory: IncomeRecord[];
@@ -151,6 +163,25 @@ interface AssetTrackerContextValue {
   saveSalaryRecord(input: SaveSalaryRecordInput): Promise<void>;
   clearIncomeHistory(): Promise<void>;
   addRecurringFlow(input: AddRecurringFlowInput): Promise<void>;
+  createPlanningCase(input: CreatePlanningCaseInput): Promise<void>;
+  addCommitment(input: AddCommitmentInput): Promise<void>;
+  addCashFlowDecision(input: AddCashFlowDecisionInput): Promise<void>;
+  setCashFlowDecisionStatus(
+    id: string,
+    status: "considering" | "selected" | "declined",
+  ): Promise<void>;
+  setCommitmentStatus(
+    id: string,
+    status: "active" | "cancelled",
+  ): Promise<void>;
+  recordActualCashFlow(input: RecordActualCashFlowInput): Promise<void>;
+  deleteFutureCashFlow(id: string): Promise<void>;
+  createForecastAssumptionSet(
+    input: CreateForecastAssumptionSetInput,
+  ): Promise<void>;
+  addForecastAssumption(input: AddForecastAssumptionInput): Promise<void>;
+  versionForecastAssumptionSet(id: string): Promise<void>;
+  deleteForecastAssumption(setId: string, assumptionId: string): Promise<void>;
   addPlannedExpenditure(input: AddPlannedExpenditureInput): Promise<void>;
   deleteRecurringFlow(id: string): Promise<void>;
   deletePlannedExpenditure(id: string): Promise<void>;
@@ -326,6 +357,9 @@ export function AssetTrackerProvider({
       transfers: repository.transfers,
       recurringFlows: repository.recurringFlows,
       plannedExpenditures: repository.plannedExpenditures,
+      planningCases: repository.planningCases,
+      futureCashFlows: repository.futureCashFlows,
+      forecastAssumptionSets: repository.forecastAssumptionSets,
       mortgageScenarios: repository.mortgageScenarios,
       decisionRecords: repository.decisionRecords,
       incomeHistory: repository.incomeHistory,
@@ -400,6 +434,27 @@ export function AssetTrackerProvider({
       saveSalaryRecord: (input) => mutate((api) => api.saveSalaryRecord(input)),
       clearIncomeHistory: () => mutate((api) => api.clearIncomeHistory()),
       addRecurringFlow: (input) => mutate((api) => api.addRecurringFlow(input)),
+      createPlanningCase: (input) =>
+        mutate((api) => api.createPlanningCase(input)),
+      addCommitment: (input) => mutate((api) => api.addCommitment(input)),
+      addCashFlowDecision: (input) =>
+        mutate((api) => api.addCashFlowDecision(input)),
+      setCashFlowDecisionStatus: (id, status) =>
+        mutate((api) => api.setCashFlowDecisionStatus({ id, status })),
+      setCommitmentStatus: (id, status) =>
+        mutate((api) => api.setCommitmentStatus({ id, status })),
+      recordActualCashFlow: (input) =>
+        mutate((api) => api.recordActualCashFlow(input)),
+      deleteFutureCashFlow: (id) =>
+        mutate((api) => api.deleteFutureCashFlow({ id })),
+      createForecastAssumptionSet: (input) =>
+        mutate((api) => api.createForecastAssumptionSet(input)),
+      addForecastAssumption: (input) =>
+        mutate((api) => api.addForecastAssumption(input)),
+      versionForecastAssumptionSet: (id) =>
+        mutate((api) => api.versionForecastAssumptionSet({ id })),
+      deleteForecastAssumption: (setId, assumptionId) =>
+        mutate((api) => api.deleteForecastAssumption({ setId, assumptionId })),
       addPlannedExpenditure: (input) =>
         mutate((api) => api.addPlannedExpenditure(input)),
       deleteRecurringFlow: (id) =>

@@ -2,11 +2,17 @@ import { promiseFromSync } from "ts-base/promises";
 import { todayIsoDate } from "@/lib/assettracker/date";
 import { getDemoAssetTrackerData } from "@/lib/assettracker/demoData";
 import {
+  type AddCashFlowDecisionInput,
+  type AddCommitmentInput,
+  type AddForecastAssumptionInput,
   type AddHouseholdMemberInput,
   type AddPlannedExpenditureInput,
   type AddRecurringFlowInput,
   type AssetTrackerData,
   AssetTrackerDataSchema,
+  applyAddCashFlowDecision,
+  applyAddCommitment,
+  applyAddForecastAssumption,
   applyAddHouseholdMember,
   applyAddPlannedExpenditure,
   applyAddRecurringFlow,
@@ -14,7 +20,11 @@ import {
   applyClearIncomeHistory,
   applyCloseAccount,
   applyCreateAccount,
+  applyCreateForecastAssumptionSet,
+  applyCreatePlanningCase,
   applyDeleteCapitalFlow,
+  applyDeleteForecastAssumption,
+  applyDeleteFutureCashFlow,
   applyDeletePlannedExpenditure,
   applyDeleteRecurringFlow,
   applyDeleteSnapshot,
@@ -22,6 +32,7 @@ import {
   applyImportIncomeHistory,
   applyImportSalaryHistory,
   applyMaterializeFlow,
+  applyRecordActualCashFlow,
   applyRecordBalance,
   applyRecordTransfer,
   applyRenameHouseholdMember,
@@ -31,15 +42,22 @@ import {
   applySetAccountOwnership,
   applySetActiveHouseholdScope,
   applySetBaseCurrency,
+  applySetCashFlowDecisionStatus,
+  applySetCommitmentStatus,
   applySetExpectedReturn,
   applySetInflation,
   applySetNetWorthTarget,
   applySetWithdrawalRate,
+  applyVersionForecastAssumptionSet,
   buildRepository,
   type ClearAccountHistoryInput,
   type CloseAccountInput,
   type CreateAccountInput,
+  type CreateForecastAssumptionSetInput,
+  type CreatePlanningCaseInput,
   type DeleteCapitalFlowInput,
+  type DeleteForecastAssumptionInput,
+  type DeleteFutureCashFlowInput,
   type DeletePlannedExpenditureInput,
   type DeleteRecurringFlowInput,
   type DeleteSnapshotInput,
@@ -49,6 +67,7 @@ import {
   type ImportIncomeHistoryInput,
   type ImportSalaryHistoryInput,
   type MaterializeFlowInput,
+  type RecordActualCashFlowInput,
   type RecordBalanceInput,
   type RecordTransferInput,
   type RenameHouseholdMemberInput,
@@ -57,10 +76,13 @@ import {
   type SetAccountLiquidityInput,
   type SetAccountOwnershipInput,
   type SetBaseCurrencyInput,
+  type SetCashFlowDecisionStatusInput,
+  type SetCommitmentStatusInput,
   type SetExpectedReturnInput,
   type SetInflationInput,
   type SetNetWorthTargetInput,
   type SetWithdrawalRateInput,
+  type VersionForecastAssumptionSetInput,
 } from "@/lib/domain/assettracker";
 
 /**
@@ -94,6 +116,35 @@ export interface AssetTrackerApi {
   saveSalaryRecord(input: SaveSalaryRecordInput): Promise<AssetTrackerData>;
   clearIncomeHistory(): Promise<AssetTrackerData>;
   addRecurringFlow(input: AddRecurringFlowInput): Promise<AssetTrackerData>;
+  createPlanningCase(input: CreatePlanningCaseInput): Promise<AssetTrackerData>;
+  addCommitment(input: AddCommitmentInput): Promise<AssetTrackerData>;
+  addCashFlowDecision(
+    input: AddCashFlowDecisionInput,
+  ): Promise<AssetTrackerData>;
+  setCashFlowDecisionStatus(
+    input: SetCashFlowDecisionStatusInput,
+  ): Promise<AssetTrackerData>;
+  setCommitmentStatus(
+    input: SetCommitmentStatusInput,
+  ): Promise<AssetTrackerData>;
+  recordActualCashFlow(
+    input: RecordActualCashFlowInput,
+  ): Promise<AssetTrackerData>;
+  deleteFutureCashFlow(
+    input: DeleteFutureCashFlowInput,
+  ): Promise<AssetTrackerData>;
+  createForecastAssumptionSet(
+    input: CreateForecastAssumptionSetInput,
+  ): Promise<AssetTrackerData>;
+  addForecastAssumption(
+    input: AddForecastAssumptionInput,
+  ): Promise<AssetTrackerData>;
+  versionForecastAssumptionSet(
+    input: VersionForecastAssumptionSetInput,
+  ): Promise<AssetTrackerData>;
+  deleteForecastAssumption(
+    input: DeleteForecastAssumptionInput,
+  ): Promise<AssetTrackerData>;
   addPlannedExpenditure(
     input: AddPlannedExpenditureInput,
   ): Promise<AssetTrackerData>;
@@ -320,6 +371,73 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
     addRecurringFlow(input) {
       return promiseFromSync(() =>
         write(applyAddRecurringFlow(current(), input, currentDate())),
+      );
+    },
+    createPlanningCase(input) {
+      return promiseFromSync(() =>
+        write(applyCreatePlanningCase(current(), input)),
+      );
+    },
+    addCommitment(input) {
+      return promiseFromSync(() =>
+        write(applyAddCommitment(current(), input, currentDate())),
+      );
+    },
+    addCashFlowDecision(input) {
+      return promiseFromSync(() =>
+        write(applyAddCashFlowDecision(current(), input, currentDate())),
+      );
+    },
+    setCashFlowDecisionStatus(input) {
+      return promiseFromSync(() =>
+        write(applySetCashFlowDecisionStatus(current(), input)),
+      );
+    },
+    setCommitmentStatus(input) {
+      return promiseFromSync(() =>
+        write(applySetCommitmentStatus(current(), input)),
+      );
+    },
+    recordActualCashFlow(input) {
+      return promiseFromSync(() =>
+        write(applyRecordActualCashFlow(current(), input, currentDate())),
+      );
+    },
+    deleteFutureCashFlow(input) {
+      return promiseFromSync(() =>
+        write(applyDeleteFutureCashFlow(current(), input)),
+      );
+    },
+    createForecastAssumptionSet(input) {
+      return promiseFromSync(() =>
+        write(
+          applyCreateForecastAssumptionSet(
+            current(),
+            input,
+            new Date().toISOString(),
+          ),
+        ),
+      );
+    },
+    addForecastAssumption(input) {
+      return promiseFromSync(() =>
+        write(applyAddForecastAssumption(current(), input)),
+      );
+    },
+    versionForecastAssumptionSet(input) {
+      return promiseFromSync(() =>
+        write(
+          applyVersionForecastAssumptionSet(
+            current(),
+            input,
+            new Date().toISOString(),
+          ),
+        ),
+      );
+    },
+    deleteForecastAssumption(input) {
+      return promiseFromSync(() =>
+        write(applyDeleteForecastAssumption(current(), input)),
       );
     },
     addPlannedExpenditure(input) {

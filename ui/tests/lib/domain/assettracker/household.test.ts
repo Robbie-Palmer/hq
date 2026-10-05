@@ -346,6 +346,7 @@ describe("browser household ownership", () => {
         { id: "spending", fromAccountId: "cash" },
       ],
       plannedExpenditures: [{ id: "holiday", fromAccountId: "cash" }],
+      futureCashFlows: [],
       holdingObservations: [{ id: "holding", accountId: "cash" }],
     });
 
@@ -425,6 +426,32 @@ describe("browser household ownership", () => {
           fromAccountId: "cash",
         },
       ],
+      forecastAssumptionSets: [
+        {
+          id: "household-v1",
+          seriesId: "household",
+          name: "Household",
+          version: 1,
+          status: "active",
+          createdAt: "2025-01-31T12:00:00Z",
+          assumptions: [
+            {
+              id: "temporary-cost",
+              name: "Temporary cost",
+              kind: "expenditure",
+              startDate: "2025-06-01",
+              monthlyChange: {
+                minimum: 100,
+                expected: 200,
+                maximum: 300,
+              },
+              currency: "GBP",
+              ownership: shared,
+              source: { kind: "manual" },
+            },
+          ],
+        },
+      ],
       instruments: [
         { id: "fund", symbol: "FUND", name: "Fund", currency: "GBP" },
       ],
@@ -483,11 +510,24 @@ describe("browser household ownership", () => {
       grossAmount: 240,
     });
     expect(scoped.plannedExpenditures[0]?.amount).toBe(400);
+    const scopedCommitment = scoped.futureCashFlows[0];
+    expect(scopedCommitment?.kind).toBe("commitment");
+    if (scopedCommitment?.kind !== "commitment") {
+      throw new Error("fixture has no migrated commitment");
+    }
+    expect(scopedCommitment.stages[0]?.amount).toBe(400);
+    expect(scoped.forecastAssumptionSets[0]?.assumptions[0]).toMatchObject({
+      monthlyChange: { minimum: 40, expected: 80, maximum: 120 },
+      ownership: personalOwnership("sam"),
+    });
     expect(scoped.holdingObservations?.[0]?.quantity).toBe(4);
     expect(reassigned.ownership.holdingObservations.holding).toEqual(
       personalOwnership("primary"),
     );
     expect(cashReassigned.ownership.plannedExpenditures.holiday).toEqual(
+      personalOwnership("primary"),
+    );
+    expect(cashReassigned.ownership.futureCashFlows.holiday).toEqual(
       personalOwnership("primary"),
     );
   });
