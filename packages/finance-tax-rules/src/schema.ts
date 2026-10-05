@@ -123,11 +123,14 @@ export const pensionRuleSchema = baseRuleSchema.extend({
     basicAmountPence: moneyPenceSchema,
   }),
   annualAllowancePence: moneyPenceSchema,
-  taperedAnnualAllowance: z.object({
-    thresholdIncomeLimitPence: moneyPenceSchema,
-    adjustedIncomeLimitPence: moneyPenceSchema,
-    minimumAllowancePence: moneyPenceSchema,
-  }),
+  annualAllowanceNotes: z.array(z.string().min(1)).min(1),
+  taperedAnnualAllowance: z
+    .object({
+      thresholdIncomeLimitPence: moneyPenceSchema,
+      adjustedIncomeLimitPence: moneyPenceSchema,
+      minimumAllowancePence: moneyPenceSchema,
+    })
+    .nullable(),
   moneyPurchaseAnnualAllowancePence: moneyPenceSchema,
   methods: z.array(pensionMethodSchema).length(3),
 });

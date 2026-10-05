@@ -114,6 +114,31 @@ describe("salary history calculations", () => {
     ).toEqual([471_768, 396_384]);
   });
 
+  it("splits a July 2015 record at the pension alignment change", () => {
+    const calculations = calculateSalaryHistory(
+      [
+        salaryRecord({
+          effectiveStart: "2015-07-01",
+          effectiveEnd: "2016-04-05",
+          employeePension: { arrangement: "none", basis: "unknown" },
+          employerPension: { arrangement: "none", basis: "unknown" },
+        }),
+      ],
+      "2016-04-05",
+    );
+
+    expect(
+      calculations.map(({ effectiveFrom, effectiveTo, result }) => [
+        effectiveFrom,
+        effectiveTo,
+        result.available ? result.lineage.rules[2]?.id : null,
+      ]),
+    ).toEqual([
+      ["2015-07-01", "2015-07-08", "pension-2015-16-pre-alignment"],
+      ["2015-07-09", "2016-04-05", "pension-2015-16-post-alignment"],
+    ]);
+  });
+
   it("annualises period pay and observations without changing their provenance", () => {
     const [calculation] = calculateSalaryHistory(
       [

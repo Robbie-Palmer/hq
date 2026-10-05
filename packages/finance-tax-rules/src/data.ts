@@ -51,14 +51,19 @@ const hmrcSource = ({
   coverageTo,
   sourceContentSha256,
   snapshotPath,
-}: SourceInput): SourceRecord => ({
+  publisher = "HM Revenue & Customs",
+  retrievalDate = "2026-10-01",
+}: SourceInput & {
+  publisher?: string;
+  retrievalDate?: string;
+}): SourceRecord => ({
   id,
   title,
-  publisher: "HM Revenue & Customs",
+  publisher,
   url,
   archiveUrl,
   publicationDate,
-  retrievalDate: "2026-10-01",
+  retrievalDate,
   coverageFrom,
   coverageTo,
   sourceContentSha256,
@@ -66,21 +71,24 @@ const hmrcSource = ({
   ...sourceLicence,
 });
 
-const standardAllowance = {
-  standardPersonalAllowancePence: gbp(12_570),
+const standardAllowance = (amount: number) => ({
+  standardPersonalAllowancePence: gbp(amount),
   personalAllowanceTaper: {
     adjustedNetIncomeStartsAtPence: gbp(100_000),
     allowanceReductionPence: gbp(1),
     perExcessIncomePence: gbp(2),
   },
-};
+});
 
-const mainRateBands = (additionalRateThreshold: number) => [
-  { name: "basic", rateBasisPoints: 2_000, widthPence: gbp(37_700) },
+const mainRateBands = (
+  additionalRateThreshold: number,
+  basicRateBand = 37_700,
+) => [
+  { name: "basic", rateBasisPoints: 2_000, widthPence: gbp(basicRateBand) },
   {
     name: "higher",
     rateBasisPoints: 4_000,
-    widthPence: gbp(additionalRateThreshold - 37_700),
+    widthPence: gbp(additionalRateThreshold - basicRateBand),
   },
   { name: "additional", rateBasisPoints: 4_500, widthPence: null },
 ];
@@ -110,6 +118,7 @@ const taxRule = (
   jurisdictions: RuleDataset["incomeTax"][number]["jurisdictions"],
   bands: RuleDataset["incomeTax"][number]["bands"],
   sourceId: string,
+  personalAllowance = 12_570,
 ): RuleDataset["incomeTax"][number] => ({
   ...common,
   id,
@@ -121,7 +130,7 @@ const taxRule = (
   jurisdictions,
   incomeScope: "employment-non-savings-non-dividend",
   calculationScope: "annual-liability",
-  ...standardAllowance,
+  ...standardAllowance(personalAllowance),
   bands,
   provenance: review(
     ["hmrc-income-tax-current-and-past", sourceId],
@@ -225,17 +234,24 @@ const pensionMethods = (): RuleDataset["pensions"][number]["methods"] => [
   },
 ];
 
+type TaperedAnnualAllowance = {
+  thresholdIncomeLimit: number;
+  adjustedIncomeLimit: number;
+  minimumAllowance: number;
+};
+
 const pensionRule = (
+  id: string,
   taxYear: string,
   effectiveFrom: string,
   effectiveTo: string,
   annualAllowance: number,
-  adjustedIncomeLimit: number,
-  minimumAllowance: number,
+  annualAllowanceNotes: string[],
+  taperedAnnualAllowance: TaperedAnnualAllowance | null,
   moneyPurchaseAnnualAllowance: number,
 ): RuleDataset["pensions"][number] => ({
   ...common,
-  id: `pension-${taxYear}`,
+  id,
   version: "1",
   taxYear,
   effectiveFrom,
@@ -251,11 +267,21 @@ const pensionRule = (
     basicAmountPence: gbp(3_600),
   },
   annualAllowancePence: gbp(annualAllowance),
-  taperedAnnualAllowance: {
-    thresholdIncomeLimitPence: gbp(200_000),
-    adjustedIncomeLimitPence: gbp(adjustedIncomeLimit),
-    minimumAllowancePence: gbp(minimumAllowance),
-  },
+  annualAllowanceNotes,
+  taperedAnnualAllowance:
+    taperedAnnualAllowance == null
+      ? null
+      : {
+          thresholdIncomeLimitPence: gbp(
+            taperedAnnualAllowance.thresholdIncomeLimit,
+          ),
+          adjustedIncomeLimitPence: gbp(
+            taperedAnnualAllowance.adjustedIncomeLimit,
+          ),
+          minimumAllowancePence: gbp(
+            taperedAnnualAllowance.minimumAllowance,
+          ),
+        },
   moneyPurchaseAnnualAllowancePence: gbp(moneyPurchaseAnnualAllowance),
   methods: pensionMethods(),
   provenance: review(
@@ -324,10 +350,221 @@ const householdTaxRule = (
   ),
 });
 
+const historicalIncomeTaxRules: RuleDataset["incomeTax"] = [
+  {
+    taxYear: "2015-16",
+    personalAllowance: 10_600,
+    basicRateBand: 31_785,
+    scottishBands: mainRateBands(150_000, 31_785),
+  },
+  {
+    taxYear: "2016-17",
+    personalAllowance: 11_000,
+    basicRateBand: 32_000,
+    scottishBands: mainRateBands(150_000, 32_000),
+  },
+  {
+    taxYear: "2017-18",
+    personalAllowance: 11_500,
+    basicRateBand: 33_500,
+    scottishBands: mainRateBands(150_000, 31_500),
+  },
+  {
+    taxYear: "2018-19",
+    personalAllowance: 11_850,
+    basicRateBand: 34_500,
+    scottishBands: [
+      { name: "starter", rateBasisPoints: 1_900, widthPence: gbp(2_000) },
+      { name: "basic", rateBasisPoints: 2_000, widthPence: gbp(10_150) },
+      { name: "intermediate", rateBasisPoints: 2_100, widthPence: gbp(19_430) },
+      { name: "higher", rateBasisPoints: 4_100, widthPence: gbp(118_420) },
+      { name: "top", rateBasisPoints: 4_600, widthPence: null },
+    ],
+  },
+  {
+    taxYear: "2019-20",
+    personalAllowance: 12_500,
+    basicRateBand: 37_500,
+    scottishBands: [
+      { name: "starter", rateBasisPoints: 1_900, widthPence: gbp(2_049) },
+      { name: "basic", rateBasisPoints: 2_000, widthPence: gbp(10_395) },
+      { name: "intermediate", rateBasisPoints: 2_100, widthPence: gbp(18_486) },
+      { name: "higher", rateBasisPoints: 4_100, widthPence: gbp(119_070) },
+      { name: "top", rateBasisPoints: 4_600, widthPence: null },
+    ],
+  },
+  {
+    taxYear: "2020-21",
+    personalAllowance: 12_500,
+    basicRateBand: 37_500,
+    scottishBands: [
+      { name: "starter", rateBasisPoints: 1_900, widthPence: gbp(2_085) },
+      { name: "basic", rateBasisPoints: 2_000, widthPence: gbp(10_573) },
+      { name: "intermediate", rateBasisPoints: 2_100, widthPence: gbp(18_272) },
+      { name: "higher", rateBasisPoints: 4_100, widthPence: gbp(119_070) },
+      { name: "top", rateBasisPoints: 4_600, widthPence: null },
+    ],
+  },
+  {
+    taxYear: "2021-22",
+    personalAllowance: 12_570,
+    basicRateBand: 37_700,
+    scottishBands: [
+      { name: "starter", rateBasisPoints: 1_900, widthPence: gbp(2_097) },
+      { name: "basic", rateBasisPoints: 2_000, widthPence: gbp(10_629) },
+      { name: "intermediate", rateBasisPoints: 2_100, widthPence: gbp(18_366) },
+      { name: "higher", rateBasisPoints: 4_100, widthPence: gbp(118_908) },
+      { name: "top", rateBasisPoints: 4_600, widthPence: null },
+    ],
+  },
+].flatMap(({ taxYear, personalAllowance, basicRateBand, scottishBands }) => {
+  const startYear = Number.parseInt(taxYear.slice(0, 4), 10);
+  const effectiveFrom = `${startYear}-04-06`;
+  const effectiveTo = `${startYear + 1}-04-05`;
+  const sourceId = `hmrc-employer-${taxYear}`;
+  return [
+    taxRule(
+      `income-tax-${taxYear}-england-northern-ireland`,
+      taxYear,
+      effectiveFrom,
+      effectiveTo,
+      ["england-and-northern-ireland"],
+      mainRateBands(150_000, basicRateBand),
+      sourceId,
+      personalAllowance,
+    ),
+    taxRule(
+      `income-tax-${taxYear}-wales`,
+      taxYear,
+      effectiveFrom,
+      effectiveTo,
+      ["wales"],
+      mainRateBands(150_000, basicRateBand),
+      sourceId,
+      personalAllowance,
+    ),
+    taxRule(
+      `income-tax-${taxYear}-scotland`,
+      taxYear,
+      effectiveFrom,
+      effectiveTo,
+      ["scotland"],
+      scottishBands,
+      sourceId,
+      personalAllowance,
+    ),
+  ];
+});
+
+const historicalNationalInsuranceRules: RuleDataset["nationalInsurance"] = [
+  ["2015-16", 112, 486, 155, 672, 815, 3_532],
+  ["2016-17", 112, 486, 155, 672, 827, 3_583],
+  ["2017-18", 113, 490, 157, 680, 866, 3_750],
+  ["2018-19", 116, 503, 162, 702, 892, 3_863],
+  ["2019-20", 118, 512, 166, 719, 962, 4_167],
+  ["2020-21", 120, 520, 183, 792, 962, 4_167],
+  ["2021-22", 120, 520, 184, 797, 967, 4_189],
+].map(
+  ([taxYearValue, lelWeekly, lelMonthly, ptWeekly, ptMonthly, uelWeekly, uelMonthly]) => {
+    const taxYear = String(taxYearValue);
+    const startYear = Number.parseInt(taxYear.slice(0, 4), 10);
+    return niRule({
+      id: `ni-${taxYear}`,
+      taxYear,
+      effectiveFrom: `${startYear}-04-06`,
+      effectiveTo: `${startYear + 1}-04-05`,
+      sourceId: `hmrc-employer-${taxYear}`,
+      lowerEarningsLimit: {
+        weekly: Number(lelWeekly),
+        monthly: Number(lelMonthly),
+      },
+      primaryThreshold: {
+        weekly: Number(ptWeekly),
+        monthly: Number(ptMonthly),
+      },
+      upperEarningsLimit: {
+        weekly: Number(uelWeekly),
+        monthly: Number(uelMonthly),
+      },
+      mainRate: 1_200,
+      upperRate: 200,
+    });
+  },
+);
+
+const taper = (
+  thresholdIncomeLimit: number,
+  adjustedIncomeLimit: number,
+  minimumAllowance: number,
+): TaperedAnnualAllowance => ({
+  thresholdIncomeLimit,
+  adjustedIncomeLimit,
+  minimumAllowance,
+});
+
+const historicalPensionRules: RuleDataset["pensions"] = [
+  pensionRule(
+    "pension-2015-16-pre-alignment",
+    "2015-16",
+    "2015-04-06",
+    "2015-07-08",
+    80_000,
+    ["Pre-alignment allowance; the 2015/16 transitional rules also cap post-alignment carry-forward."],
+    null,
+    20_000,
+  ),
+  pensionRule(
+    "pension-2015-16-post-alignment",
+    "2015-16",
+    "2015-07-09",
+    "2016-04-05",
+    0,
+    ["Post-alignment allowance before up to £40,000 of unused pre-alignment allowance and other eligible carry-forward."],
+    null,
+    0,
+  ),
+  pensionRule(
+    "pension-2016-17",
+    "2016-17",
+    "2016-04-06",
+    "2017-04-05",
+    40_000,
+    ["Standard annual allowance before eligible carry-forward."],
+    taper(110_000, 150_000, 10_000),
+    10_000,
+  ),
+  ...["2017-18", "2018-19", "2019-20"].map((taxYear) => {
+    const startYear = Number.parseInt(taxYear.slice(0, 4), 10);
+    return pensionRule(
+      `pension-${taxYear}`,
+      taxYear,
+      `${startYear}-04-06`,
+      `${startYear + 1}-04-05`,
+      40_000,
+      ["Standard annual allowance before eligible carry-forward."],
+      taper(110_000, 150_000, 10_000),
+      4_000,
+    );
+  }),
+  ...["2020-21", "2021-22"].map((taxYear) => {
+    const startYear = Number.parseInt(taxYear.slice(0, 4), 10);
+    return pensionRule(
+      `pension-${taxYear}`,
+      taxYear,
+      `${startYear}-04-06`,
+      `${startYear + 1}-04-05`,
+      40_000,
+      ["Standard annual allowance before eligible carry-forward."],
+      taper(200_000, 240_000, 4_000),
+      4_000,
+    );
+  }),
+];
+
 export const ruleDataset = {
-  datasetVersion: "2026.10.2",
-  releasedAt: "2026-10-04",
-  supersedes: "2026.10.1",
+  datasetVersion: "2026.10.3",
+  releasedAt: "2026-10-05",
+  supersedes: "2026.10.2",
   corrections: [],
   dataLicence,
   sources: [
@@ -337,13 +574,33 @@ export const ruleDataset = {
       url: "https://www.gov.uk/government/publications/rates-and-allowances-income-tax/income-tax-rates-and-allowances-current-and-past",
       archiveUrl: null,
       publicationDate: "2014-02-01",
-      coverageFrom: "2022-04-06",
+      coverageFrom: "2015-04-06",
       coverageTo: "2027-04-05",
       sourceContentSha256:
         "89b4d254fc3303af663cd405c1f5a880400e4890364fd774e851557c4fa67263",
       snapshotPath: "source-snapshots/income-tax-current-and-past.md",
     }),
+    hmrcSource({
+      id: "hmrc-employer-2015-16",
+      title: "Tax and tax credit rates and thresholds for 2015-16",
+      url: "https://www.gov.uk/government/publications/tax-and-tax-credit-rates-and-thresholds-for-2015-16/tax-and-tax-credit-rates-and-thresholds-for-2015-16",
+      archiveUrl: null,
+      publicationDate: "2014-12-03",
+      retrievalDate: "2026-10-05",
+      coverageFrom: "2015-04-06",
+      coverageTo: "2016-04-05",
+      sourceContentSha256:
+        "088ccfbf90602d68ca11443036419e9e25a805f62c68ede833b55b6bf74972e0",
+      snapshotPath: "source-snapshots/employer-2015-16.md",
+      publisher: "HM Treasury",
+    }),
     ...[
+      ["2016-17", "2016-02-04", "2016-04-06", "2017-04-05", "023073dc371420dd4126be24c1df76a288bc0bfb3b753452bfcb2a1df1e7153f"],
+      ["2017-18", "2017-02-09", "2017-04-06", "2018-04-05", "0e07cb69272bba06fddcb45b326e7485b7439b4b181d9c117d05d70a4d9faeb3"],
+      ["2018-19", "2018-01-04", "2018-04-06", "2019-04-05", "bbef86a5650a570ab9bd8fd0b544f6e4631c8f1ac253f6549e30a18b6af872b3"],
+      ["2019-20", "2019-01-11", "2019-04-06", "2020-04-05", "1765965881cd2b8205450e339b462d7165efcff2f9cc5557197fa507b158c045"],
+      ["2020-21", "2020-02-25", "2020-04-06", "2021-04-05", "cf2b23c3a8defb45db369914ac890237203d58e3c2b3510bd5b5cea54b21b599"],
+      ["2021-22", "2021-02-02", "2021-04-06", "2022-04-05", "076719d2a5749b84c4298ee075dbd7e49b6d7330712bf4d16f4b5c6c064b0bf3"],
       ["2022-23", "2022-02-07", "2022-04-06", "2023-04-05", "33bd9fa84534216d2a6a4fd5e35273f9c989eba771f845e9bdcfa8e3ce014c64"],
       ["2023-24", "2023-02-27", "2023-04-06", "2024-04-05", "42b48eb2abd884ac3997b9a073f5b04ccb2a97ccfb43150fdc6e5d181e86cae7"],
       ["2024-25", "2024-02-06", "2024-04-06", "2025-04-05", "cc3304f6650804bc9578557f8897e713cd1dcd22e4bc1b27a234c5f191a80943"],
@@ -358,6 +615,7 @@ export const ruleDataset = {
           ? "https://webarchive.nationalarchives.gov.uk/ukgwa/*/https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2022-to-2023"
           : null,
       publicationDate: publicationDate ?? "",
+      retrievalDate: year && year < "2022-23" ? "2026-10-05" : "2026-10-01",
       coverageFrom: coverageFrom ?? "",
       coverageTo: coverageTo ?? "",
       sourceContentSha256: sourceContentSha256 ?? "",
@@ -369,7 +627,7 @@ export const ruleDataset = {
       url: "https://www.gov.uk/government/publications/rates-and-allowances-pension-schemes/pension-schemes-rates",
       archiveUrl: null,
       publicationDate: "2014-02-01",
-      coverageFrom: "2022-04-06",
+      coverageFrom: "2015-04-06",
       coverageTo: "2027-04-05",
       sourceContentSha256:
         "90652c9268a5e0e1f46fa27bfc3549cc01d23c45ae340916c2c6561409c78ef8",
@@ -381,7 +639,7 @@ export const ruleDataset = {
       url: "https://www.gov.uk/hmrc-internal-manuals/pensions-tax-manual/ptm044220",
       archiveUrl: null,
       publicationDate: "2015-03-27",
-      coverageFrom: "2022-04-06",
+      coverageFrom: "2015-04-06",
       coverageTo: null,
       sourceContentSha256:
         "554eb9d33a0f76ba18b11dd466988c9f0b3042b5e7c5a7b2d059019a3d16405b",
@@ -393,7 +651,7 @@ export const ruleDataset = {
       url: "https://www.gov.uk/hmrc-internal-manuals/pensions-tax-manual/ptm044230",
       archiveUrl: null,
       publicationDate: "2015-03-27",
-      coverageFrom: "2022-04-06",
+      coverageFrom: "2015-04-06",
       coverageTo: null,
       sourceContentSha256:
         "aade57fbc5948c3f3a21c9392502c71414099e53fe98e7f6ceb1a4283080a34b",
@@ -405,7 +663,7 @@ export const ruleDataset = {
       url: "https://www.gov.uk/guidance/salary-sacrifice-and-the-effects-on-paye",
       archiveUrl: null,
       publicationDate: "2014-06-12",
-      coverageFrom: "2022-04-06",
+      coverageFrom: "2015-04-06",
       coverageTo: null,
       sourceContentSha256:
         "bd8fa64edd90b24e7a21008ba84b8ab71aaac1db48e902b3141b6ebd7a1e6857",
@@ -449,6 +707,7 @@ export const ruleDataset = {
     }),
   ],
   incomeTax: [
+    ...historicalIncomeTaxRules,
     taxRule(
       "income-tax-2022-23-england-northern-ireland",
       "2022-23",
@@ -598,6 +857,7 @@ export const ruleDataset = {
     ),
   ],
   nationalInsurance: [
+    ...historicalNationalInsuranceRules,
     niRule({
       id: "ni-2022-23-a",
       taxYear: "2022-23",
@@ -696,11 +956,30 @@ export const ruleDataset = {
     }),
   ],
   pensions: [
-    pensionRule("2022-23", "2022-04-06", "2023-04-05", 40_000, 240_000, 4_000, 4_000),
-    pensionRule("2023-24", "2023-04-06", "2024-04-05", 60_000, 260_000, 10_000, 10_000),
-    pensionRule("2024-25", "2024-04-06", "2025-04-05", 60_000, 260_000, 10_000, 10_000),
-    pensionRule("2025-26", "2025-04-06", "2026-04-05", 60_000, 260_000, 10_000, 10_000),
-    pensionRule("2026-27", "2026-04-06", "2027-04-05", 60_000, 260_000, 10_000, 10_000),
+    ...historicalPensionRules,
+    pensionRule(
+      "pension-2022-23",
+      "2022-23",
+      "2022-04-06",
+      "2023-04-05",
+      40_000,
+      ["Standard annual allowance before eligible carry-forward."],
+      taper(200_000, 240_000, 4_000),
+      4_000,
+    ),
+    ...["2023-24", "2024-25", "2025-26", "2026-27"].map((taxYear) => {
+      const startYear = Number.parseInt(taxYear.slice(0, 4), 10);
+      return pensionRule(
+        `pension-${taxYear}`,
+        taxYear,
+        `${startYear}-04-06`,
+        `${startYear + 1}-04-05`,
+        60_000,
+        ["Standard annual allowance before eligible carry-forward."],
+        taper(200_000, 260_000, 10_000),
+        10_000,
+      );
+    }),
   ],
   householdTax: [
     householdTaxRule(

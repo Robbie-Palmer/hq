@@ -110,7 +110,7 @@ export const resolveRules = (request: RuleRequest): RuleResolution => {
     return {
       available: false,
       reason: "unsupported-date",
-      detail: `${request.date} is outside the reviewed 2022-23 to 2026-27 range`,
+      detail: `${request.date} is outside the reviewed 2015-16 to 2026-27 range`,
     };
   }
 

@@ -359,7 +359,7 @@ describe("salary history controls", () => {
     await user.click(screen.getByText("Alex · Cirrus Systems"));
     expect(screen.getAllByText("Matches")).toHaveLength(3);
     await user.click(screen.getByText("Rules and assumptions"));
-    expect(screen.getByText(/Dataset 2026.10.2/)).toBeVisible();
+    expect(screen.getByText(/Dataset 2026.10.3/)).toBeVisible();
     expect(
       screen.getByRole("link", {
         name: /Rates and thresholds for employers 2025 to 2026/,

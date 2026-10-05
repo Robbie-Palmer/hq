@@ -254,7 +254,7 @@ export function SalaryCalculationHistory() {
       <CardHeader>
         <CardTitle>Historical tax and pension estimates</CardTitle>
         <CardDescription>
-          Annual liability estimates for 2022/23 through 2026/27. Each period
+          Annual liability estimates for 2015/16 through 2026/27. Each period
           uses the reviewed UK rules effective on its start date. These are not
           exact PAYE deductions.
         </CardDescription>

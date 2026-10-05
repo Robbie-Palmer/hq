@@ -181,9 +181,11 @@ function savingToolTax(
   taxYear: string,
   jurisdiction: HistoricalSalaryRequest["jurisdiction"],
 ): number | null {
+  const startYear = Number.parseInt(taxYear.slice(0, 4), 10);
   const country: Country =
     jurisdiction === "scotland" ? "Scotland" : "England/NI/Wales";
   if (
+    startYear < 2022 ||
     country === "Scotland" &&
     (taxYear === "2022-23" || taxYear === "2023-24")
   ) {

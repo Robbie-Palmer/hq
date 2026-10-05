@@ -83,12 +83,18 @@ function recordTaxYearSegments(
   return segments;
 }
 
-function splitAtNationalInsuranceChanges(segment: {
+function previousDate(date: string): string {
+  const previous = new Date(`${date}T00:00:00Z`);
+  previous.setUTCDate(previous.getUTCDate() - 1);
+  return previous.toISOString().slice(0, 10);
+}
+
+function splitAtRuleChanges(segment: {
   taxYear: string;
   from: string;
   to: string;
 }): Array<{ taxYear: string; from: string; to: string }> {
-  const rules = ruleDataset.nationalInsurance
+  const rules = [...ruleDataset.nationalInsurance, ...ruleDataset.pensions]
     .filter(
       ({ taxYear, legalStatus, effectiveFrom, effectiveTo }) =>
         taxYear === segment.taxYear &&
@@ -100,10 +106,21 @@ function splitAtNationalInsuranceChanges(segment: {
       left.effectiveFrom.localeCompare(right.effectiveFrom),
     );
   if (rules.length === 0) return [segment];
-  return rules.map(({ effectiveFrom, effectiveTo }) => ({
+  const boundaries = [
+    ...new Set([
+      segment.from,
+      ...rules
+        .map(({ effectiveFrom }) => effectiveFrom)
+        .filter((date) => date > segment.from && date <= segment.to),
+    ]),
+  ].toSorted();
+  return boundaries.map((from, index) => ({
     taxYear: segment.taxYear,
-    from: effectiveFrom > segment.from ? effectiveFrom : segment.from,
-    to: effectiveTo < segment.to ? effectiveTo : segment.to,
+    from,
+    to:
+      index + 1 < boundaries.length
+        ? previousDate(boundaries[index + 1] ?? segment.to)
+        : segment.to,
   }));
 }
 
@@ -558,7 +575,7 @@ export function calculateSalaryHistory(
 ): SalaryPeriodCalculation[] {
   return records.flatMap((record) =>
     recordTaxYearSegments(record, asOf)
-      .flatMap(splitAtNationalInsuranceChanges)
+      .flatMap(splitAtRuleChanges)
       .map((segment) =>
         calculateSegment(
           record,

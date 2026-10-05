@@ -97,9 +97,9 @@ const payrollSources = [
 ];
 
 export const validationCorpus = {
-  corpusVersion: "2026.10.2",
+  corpusVersion: "2026.10.3",
   libraryVersion: "finance-tax-rules@0.1.0",
-  ruleDatasetVersion: "2026.10.2",
+  ruleDatasetVersion: "2026.10.3",
   calculationContractVersion: "salary-validation-v1",
   releasedAt: "2026-10-02",
   syntheticDataOnly: true,
