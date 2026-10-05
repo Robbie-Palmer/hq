@@ -18,6 +18,7 @@
       "lib/**",
       "public/**/*.js",
       "public/**/*.mjs",
+      "!public/cesium",
       "scripts/**",
       "tests/**",
       "*.ts",

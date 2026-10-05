@@ -242,6 +242,21 @@ k3s kubectl --namespace t3-code get secret t3-code-work-graph --output=json \
         )
     ' >/dev/null
 echo "operator Work Graph credentials are present"
+k3s kubectl --namespace t3-code get secret t3-code-runtime --output=json \
+  | jq --exit-status '
+      .data.AGENT_AUTH_ENCRYPTION_KEY
+      | type == "string"
+        and length > 0
+        and ((@base64d | length) >= 32)
+    ' >/dev/null
+echo "operator Agent Auth encryption key is present"
+k3s kubectl --namespace t3-code exec deployment/t3-code --container t3-code -- \
+  /bin/sh -eu -c '
+    test "$(command -v auth-agent)" = /usr/local/bin/auth-agent
+    codex mcp get recipe-agent >/dev/null
+    test "$(stat -c %a /data/home/.codex/agent-auth/recipes)" = 700
+  '
+echo "operator recipe-agent MCP server is configured"
 k3s kubectl get namespaces --output=json \
   | jq -e 'all(.items[]; .metadata.name != "t3-code-pilot")' >/dev/null
 REMOTE

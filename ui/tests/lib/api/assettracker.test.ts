@@ -58,6 +58,66 @@ describe("createLocalAssetTrackerApi", () => {
     expect(data.accounts.map((a) => a.id)).toContain("premium-bonds");
   });
 
+  it("persists mortgage scenarios with linked decision records", async () => {
+    const seed = getDemoAssetTrackerData();
+    await createApi().saveMortgageScenario({
+      name: "Two-year fix",
+      recordDecision: true,
+      source: {
+        mortgageAccountId: "home-mortgage",
+        propertyAccountId: "home",
+        snapshotDate: "2026-01-31",
+      },
+      assumptions: {
+        purchasePrice: 350_000,
+        availableFunds: 150_000,
+        depositAmount: 100_000,
+        initialAnnualRate: 0.04,
+        termMonths: 240,
+        repaymentType: "repayment",
+        accrualStartDate: "2026-01-31",
+        firstPaymentDate: "2026-02-28",
+        fixedPeriodEnd: "2031-02-28",
+        followOnAnnualRate: 0.055,
+        refinanceFee: 999,
+        purchaseFees: 500,
+        taxes: 7_500,
+        transactionCosts: 2_000,
+        monthlyOverpayment: 250,
+        overpaymentAllowance: 25_000,
+        overpaymentChargeRate: 0.05,
+      },
+    });
+
+    const { data } = await createApi().load();
+    expect(data.mortgageScenarios).toHaveLength(
+      (seed.mortgageScenarios?.length ?? 0) + 1,
+    );
+    expect(data.mortgageScenarios).toContainEqual(
+      expect.objectContaining({
+        id: "two-year-fix",
+        name: "Two-year fix",
+        decisionRecordId: "two-year-fix-decision",
+        source: {
+          mortgageAccountId: "home-mortgage",
+          propertyAccountId: "home",
+          snapshotDate: "2026-01-31",
+        },
+      }),
+    );
+    expect(data.decisionRecords).toHaveLength(
+      (seed.decisionRecords?.length ?? 0) + 1,
+    );
+    expect(data.decisionRecords).toContainEqual({
+      id: "two-year-fix-decision",
+      kind: "mortgage",
+      title: "Two-year fix",
+      scenarioId: "two-year-fix",
+      recordedAt: expect.any(String),
+      status: "recorded",
+    });
+  });
+
   it("persists an atomic account-history import", async () => {
     const seed = getDemoAssetTrackerData();
     const accountId = seed.accounts.find((account) => !account.closedAt)?.id;
@@ -146,6 +206,82 @@ describe("createLocalAssetTrackerApi", () => {
 
     expect(persisted).toBe(true);
     expect(data.incomeHistory).toEqual([]);
+  });
+
+  it("loads older saved data with no salary history", async () => {
+    const { salaryHistory: _salaryHistory, ...legacy } =
+      getDemoAssetTrackerData();
+    window.localStorage.setItem(
+      ASSET_TRACKER_STORAGE_KEY,
+      JSON.stringify(legacy),
+    );
+
+    const { data, persisted } = await createApi().load();
+
+    expect(persisted).toBe(true);
+    expect(data.salaryHistory).toEqual([]);
+  });
+
+  it("migrates old saved data to one stable local household member", async () => {
+    const seed = getDemoAssetTrackerData();
+    const { household: _household, ownership: _ownership, ...legacy } = seed;
+    window.localStorage.setItem(
+      ASSET_TRACKER_STORAGE_KEY,
+      JSON.stringify(legacy),
+    );
+
+    const { data, persisted } = await createApi().load();
+
+    expect(persisted).toBe(true);
+    expect(data.household.members).toEqual([
+      { id: "primary", displayName: "Me" },
+    ]);
+    expect(data.accounts).toEqual(seed.accounts);
+    const firstAccount = data.accounts[0];
+    if (firstAccount == null) throw new Error("Seed has no account");
+    expect(data.ownership.accounts[firstAccount.id]).toEqual({
+      kind: "personal",
+      memberId: "primary",
+    });
+  });
+
+  it("persists household members, display names, scope, and account ownership", async () => {
+    const api = createApi();
+    await api.addHouseholdMember({ displayName: "Jordan" });
+    await api.renameHouseholdMember({
+      memberId: "alex",
+      displayName: "Alexandra",
+    });
+    await api.setActiveHouseholdScope({ kind: "member", memberId: "jordan" });
+    const accountId = getDemoAssetTrackerData().accounts[0]?.id;
+    if (accountId == null) throw new Error("Seed has no account");
+    await api.setAccountOwnership({
+      accountId,
+      ownership: {
+        kind: "shared",
+        shares: [
+          { memberId: "alex", share: 0.6 },
+          { memberId: "jordan", share: 0.4 },
+        ],
+      },
+    });
+
+    const { data } = await createApi().load();
+    expect(data.household).toEqual({
+      members: [
+        { id: "alex", displayName: "Alexandra" },
+        { id: "sam", displayName: "Sam" },
+        { id: "jordan", displayName: "Jordan" },
+      ],
+      activeScope: { kind: "member", memberId: "jordan" },
+    });
+    expect(data.ownership.accounts[accountId]).toEqual({
+      kind: "shared",
+      shares: [
+        { memberId: "alex", share: 0.6 },
+        { memberId: "jordan", share: 0.4 },
+      ],
+    });
   });
 
   it("loads older saved data with no planned expenditures", async () => {
@@ -392,6 +528,55 @@ describe("createLocalAssetTrackerApi", () => {
     expect(imported).toEqual(exported);
     const { persisted } = await createApi().load();
     expect(persisted).toBe(true);
+  });
+
+  it("round-trips salary provenance and prior accepted facts", async () => {
+    const api = createApi();
+    const seededSalaryCount = getDemoAssetTrackerData().salaryHistory.length;
+    const original = {
+      id: "salary-fixture-2",
+      person: "Alex Example",
+      employer: "Northstar Ltd",
+      employmentId: "northstar-engineer",
+      currency: "GBP" as const,
+      jurisdiction: "UK",
+      effectiveStart: "2021-04-01",
+      effectiveEnd: "2021-09-30",
+      payFrequency: "monthly" as const,
+      amountKind: "annualSalary" as const,
+      grossPay: 48_000,
+      source: {
+        kind: "file" as const,
+        fileName: "salary.csv",
+        fingerprint: "fixture",
+        row: 2,
+      },
+      acceptedAt: "2025-01-01T00:00:00.000Z",
+    };
+    await api.importSalaryHistory({ records: [original] });
+    await api.importSalaryHistory({ records: [original] });
+    const corrected = await api.saveSalaryRecord({
+      correctsId: original.id,
+      facts: {
+        person: original.person,
+        employer: original.employer,
+        employmentId: original.employmentId,
+        currency: original.currency,
+        jurisdiction: original.jurisdiction,
+        effectiveStart: original.effectiveStart,
+        effectiveEnd: original.effectiveEnd,
+        payFrequency: original.payFrequency,
+        amountKind: original.amountKind,
+        grossPay: 50_000,
+      },
+    });
+
+    expect(corrected.salaryHistory).toHaveLength(seededSalaryCount + 2);
+    expect(corrected.salaryHistory).toContainEqual(original);
+    const restored = await createApi().importData(
+      JSON.parse(JSON.stringify(corrected)),
+    );
+    expect(restored.salaryHistory).toEqual(corrected.salaryHistory);
   });
 
   it("reset clears stored data and returns the seed", async () => {

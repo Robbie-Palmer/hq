@@ -1,6 +1,6 @@
-import { beforeEach, describe, it, expect, vi } from "vitest";
 import postgres from "postgres";
 import type { PantryLocation } from "recipe-domain/pantry";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -35,6 +35,7 @@ const dbMock = vi.hoisted(() => {
     slug: string;
     logo: string | null;
     metadata: string | null;
+    equipmentRecipeMatchMode?: "hide" | "warn" | "disabled";
     createdAt: Date;
     updatedAt: Date;
   };
@@ -61,6 +62,11 @@ const dbMock = vi.hoisted(() => {
     status: string;
     expiresAt: Date;
     inviterId: string;
+    createdAt: Date;
+  };
+  type HouseholdEquipmentRow = {
+    organizationId: string;
+    equipmentSlug: string;
     createdAt: Date;
   };
   type RecipeRow = {
@@ -117,6 +123,23 @@ const dbMock = vi.hoisted(() => {
     createdAt: Date;
     updatedAt: Date;
   };
+  type AuthoredTermRow = {
+    id: string;
+    userId: string | null;
+    organizationId: string | null;
+    kind: "ingredient" | "equipment";
+    rawText: string;
+    normalizedText: string;
+    locale: string;
+    sourceContext: Record<string, unknown>;
+    provenance: Record<string, unknown>;
+    candidateMatches: Array<{ slug: string; score: number }>;
+    frequency: number;
+    canonicalSlug: string | null;
+    createdAt: Date;
+    lastSeenAt: Date;
+    updatedAt: Date;
+  };
   type PantryItemRow = {
     id: string;
     userId: string | null;
@@ -164,6 +187,7 @@ const dbMock = vi.hoisted(() => {
     organizations: [] as OrganizationRow[],
     members: [] as MemberRow[],
     invitations: [] as InvitationRow[],
+    householdEquipment: [] as HouseholdEquipmentRow[],
     notificationEvents: [] as NotificationEventRow[],
     notificationDeliveries: [] as {
       id: string;
@@ -204,6 +228,7 @@ const dbMock = vi.hoisted(() => {
     dietPresets: [] as DietPresetRow[],
     ingredientGroups: [] as IngredientGroupRow[],
     ingredients: [] as IngredientRow[],
+    authoredTerms: [] as AuthoredTermRow[],
     pantryItems: [] as PantryItemRow[],
     pantryAggregates: [] as PantryAggregateRow[],
     pantryOperations: [] as PantryOperationRow[],
@@ -247,6 +272,7 @@ const dbMock = vi.hoisted(() => {
     organization.slug,
     organization.logo,
     organization.metadata,
+    organization.equipmentRecipeMatchMode ?? "warn",
     organization.createdAt,
     organization.updatedAt,
   ];
@@ -279,6 +305,7 @@ const dbMock = vi.hoisted(() => {
     recipe.visibility,
     recipe.createdAt,
     recipe.updatedAt,
+    null,
   ];
   // Emulates the paginated recipe list query: newest-first ordering, an
   // optional keyset cursor (three params), a limit param, and the trailing
@@ -327,6 +354,7 @@ const dbMock = vi.hoisted(() => {
     state.organizations = [];
     state.members = [];
     state.invitations = [];
+    state.householdEquipment = [];
     state.notificationEvents = [];
     state.notificationDeliveries = [];
     state.notificationAgentApprovalEvents = [];
@@ -339,6 +367,7 @@ const dbMock = vi.hoisted(() => {
     state.dietPresets = [];
     state.ingredientGroups = [];
     state.ingredients = [];
+    state.authoredTerms = [];
     state.pantryItems = [];
     state.pantryAggregates = [];
     state.pantryOperations = [];
@@ -502,6 +531,7 @@ const dbMock = vi.hoisted(() => {
         slug: params[2] as string,
         logo: null,
         metadata: null,
+        equipmentRecipeMatchMode: "warn",
         createdAt: date,
         updatedAt: date,
       };
@@ -680,6 +710,57 @@ const dbMock = vi.hoisted(() => {
     return undefined;
   }
 
+  function householdEquipmentRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
+    if (query.startsWith('insert into "household_equipment"')) {
+      const organizationId = params[0] as string;
+      const equipmentSlug = params[1] as string;
+      const existing = state.householdEquipment.find(
+        (item) =>
+          item.organizationId === organizationId &&
+          item.equipmentSlug === equipmentSlug,
+      );
+      if (existing) return [];
+      const item = { organizationId, equipmentSlug, createdAt: date };
+      state.householdEquipment.push(item);
+      return [[item.organizationId, item.equipmentSlug, item.createdAt]];
+    }
+
+    if (query.startsWith('delete from "household_equipment"')) {
+      const organizationId = params[0] as string;
+      const equipmentSlug = params[1] as string;
+      state.householdEquipment = state.householdEquipment.filter(
+        (item) =>
+          item.organizationId !== organizationId ||
+          item.equipmentSlug !== equipmentSlug,
+      );
+      return [];
+    }
+
+    if (query.includes('from "household_equipment"')) {
+      const organizationId = params[0] as string;
+      const equipmentSlug = params[1] as string | undefined;
+      return state.householdEquipment
+        .filter(
+          (item) =>
+            item.organizationId === organizationId &&
+            (!equipmentSlug || item.equipmentSlug === equipmentSlug),
+        )
+        .sort((left, right) =>
+          left.equipmentSlug.localeCompare(right.equipmentSlug),
+        )
+        .map((item) =>
+          query.startsWith('select "equipment_slug", "created_at"')
+            ? [item.equipmentSlug, item.createdAt]
+            : [item.organizationId, item.equipmentSlug, item.createdAt],
+        );
+    }
+
+    return undefined;
+  }
+
   function insertPantryRows(
     query: string,
     params: unknown[],
@@ -808,6 +889,86 @@ const dbMock = vi.hoisted(() => {
       };
       state.dietProfiles.push(profile);
       return [dietProfileRow(profile)];
+    }
+
+    return undefined;
+  }
+
+  function authoredTermRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
+    const jsonValue = <T>(value: unknown): T =>
+      (typeof value === "string" ? JSON.parse(value) : value) as T;
+
+    if (query.startsWith('insert into "authored_term"')) {
+      const row: AuthoredTermRow = {
+        id: crypto.randomUUID(),
+        userId: (params[0] as string | null) ?? null,
+        organizationId: (params[1] as string | null) ?? null,
+        kind: params[2] as AuthoredTermRow["kind"],
+        rawText: params[3] as string,
+        normalizedText: params[4] as string,
+        locale: params[5] as string,
+        sourceContext: jsonValue(params[6]),
+        provenance: jsonValue(params[7]),
+        candidateMatches: jsonValue(params[8]),
+        canonicalSlug: (params[10] as string | null) ?? null,
+        frequency: 1,
+        createdAt: date,
+        lastSeenAt: params[11] as Date,
+        updatedAt: params[12] as Date,
+      };
+      const existing = state.authoredTerms.find(
+        (candidate) =>
+          candidate.userId === row.userId &&
+          candidate.organizationId === row.organizationId &&
+          candidate.kind === row.kind &&
+          candidate.normalizedText === row.normalizedText,
+      );
+      if (existing) return [];
+      state.authoredTerms.push(row);
+      return [[row.id]];
+    }
+
+    if (query.startsWith('update "authored_term"')) {
+      const normalizedText = params.at(-1) as string;
+      const kind = params.at(-2) as AuthoredTermRow["kind"];
+      const ownerId = params.at(-3) as string;
+      const row = state.authoredTerms.find(
+        (candidate) =>
+          (candidate.userId === ownerId || candidate.organizationId === ownerId) &&
+          candidate.kind === kind &&
+          candidate.normalizedText === normalizedText,
+      );
+      if (row) {
+        row.rawText = params[0] as string;
+        row.frequency += 1;
+      }
+      return [];
+    }
+
+    if (query.includes('from "authored_term"')) {
+      const ownerId = params[0] as string;
+      const kind = params[1] as AuthoredTermRow["kind"] | undefined;
+      return state.authoredTerms
+        .filter(
+          (row) =>
+            (row.userId === ownerId || row.organizationId === ownerId) &&
+            row.canonicalSlug === null &&
+            (kind === undefined || row.kind === kind),
+        )
+        .map((row) => [
+          row.id,
+          row.kind,
+          row.rawText,
+          row.normalizedText,
+          row.locale,
+          row.sourceContext,
+          row.provenance,
+          row.candidateMatches,
+          row.frequency,
+        ]);
     }
 
     return undefined;
@@ -1099,20 +1260,37 @@ const dbMock = vi.hoisted(() => {
     }
   }
 
+  function updateOrganizationRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
+    if (!query.startsWith('update "organization"')) return undefined;
+    const householdId = params.at(-1) as string;
+    const organization = state.organizations.find(
+      (candidate) => candidate.id === householdId,
+    );
+    if (!organization) return [];
+    if (query.includes('set "equipment_recipe_match_mode"')) {
+      organization.equipmentRecipeMatchMode = params[0] as
+        | "hide"
+        | "warn"
+        | "disabled";
+    } else {
+      organization.name = params[0] as string;
+    }
+    organization.updatedAt = date;
+    if (!query.includes("returning")) return [];
+    return query.includes('returning "equipment_recipe_match_mode"')
+      ? [[organization.equipmentRecipeMatchMode]]
+      : [organizationRow(organization)];
+  }
+
   function updateHouseholdRows(
     query: string,
     params: unknown[],
   ): QueryRows | undefined {
-    if (query.startsWith('update "organization"')) {
-      const householdId = params.at(-1) as string;
-      const organization = state.organizations.find(
-        (candidate) => candidate.id === householdId,
-      );
-      if (!organization) return [];
-      organization.name = params[0] as string;
-      organization.updatedAt = date;
-      return query.includes("returning") ? [organizationRow(organization)] : [];
-    }
+    const organizationRows = updateOrganizationRows(query, params);
+    if (organizationRows) return organizationRows;
 
     if (query.startsWith('update "cooking_session"')) {
       const completedAt = params[0] as Date;
@@ -1294,6 +1472,9 @@ const dbMock = vi.hoisted(() => {
       state.invitations = state.invitations.filter(
         (invitation) => invitation.organizationId !== householdId,
       );
+      state.householdEquipment = state.householdEquipment.filter(
+        (item) => item.organizationId !== householdId,
+      );
       return [];
     }
 
@@ -1397,6 +1578,12 @@ const dbMock = vi.hoisted(() => {
     query: string,
     params: unknown[],
   ): QueryRows | undefined {
+    if (query.startsWith('select "equipment_recipe_match_mode" from "organization"')) {
+      const householdId = params[0] as string;
+      return state.organizations
+        .filter((organization) => organization.id === householdId)
+        .map((organization) => [organization.equipmentRecipeMatchMode ?? "warn"]);
+    }
     if (query.includes('from "organization"') && query.includes('"organization"."id"')) {
       const householdId = params[0] as string;
       return state.organizations
@@ -2376,10 +2563,12 @@ const dbMock = vi.hoisted(() => {
     insertAccountRows,
     insertFollowRows,
     insertMembershipRows,
+    householdEquipmentRows,
     insertPantryRows,
     insertPantryOperationRows,
     insertPantryItemRows,
     insertUserStateRows,
+    authoredTermRows,
     insertRecipeBoxStateRows,
     insertCookingSessionRows,
     insertDietSelectionRows,
@@ -4585,7 +4774,7 @@ describe("profile diet preferences", () => {
     ]);
   });
 
-  it("rejects validly-shaped diet keys that are not in the catalog", async () => {
+  it("accepts authored ingredient terms but rejects unknown catalog keys", async () => {
     authzMock.session = sessionFor({
       id: "owner-user",
       email: "owner@example.test",
@@ -4615,7 +4804,6 @@ describe("profile diet preferences", () => {
       error: "Unknown diet reference",
       details: expect.arrayContaining([
         expect.objectContaining({ path: ["presetDietKeys"] }),
-        expect.objectContaining({ path: ["excludedIngredientSlugs"] }),
         expect.objectContaining({ path: ["excludedGroupKeys"] }),
       ]),
     });
@@ -4637,7 +4825,7 @@ describe("profile diet preferences", () => {
           origin: "http://localhost:3000",
         },
         body: JSON.stringify({
-          excludedIngredientSlugs: ["Not a slug"],
+          excludedIngredientSlugs: [""],
           recipeMatchMode: "block",
         }),
       },
@@ -5267,7 +5455,7 @@ describe("pantry mutation flows", () => {
     );
   });
 
-  it("replaces a personal pantry and validates every ingredient", async () => {
+  it("replaces a personal pantry and retains authored ingredients", async () => {
     const response = await app.request(
       "/pantry",
       {
@@ -5313,10 +5501,49 @@ describe("pantry mutation flows", () => {
       },
       env,
     );
-    expect(unknownIngredient.status).toBe(400);
-    expect(await unknownIngredient.json()).toEqual({
-      error: "Unknown ingredient: dragonfruit",
+    expect(unknownIngredient.status).toBe(200);
+    expect(await unknownIngredient.json()).toMatchObject({
+      stock: { dragonfruit: "fresh" },
+      unresolvedTerms: [
+        expect.objectContaining({
+          kind: "ingredient",
+          rawText: "dragonfruit",
+          normalizedText: "dragonfruit",
+          resolutionStatus: "unresolved",
+        }),
+      ],
     });
+
+    const repeatedIngredient = await app.request(
+      "/pantry/items/Dragonfruit",
+      {
+        method: "PUT",
+        headers: mutationHeaders,
+        body: JSON.stringify({ location: "fridge" }),
+      },
+      env,
+    );
+    expect(await repeatedIngredient.json()).toMatchObject({
+      stock: { dragonfruit: "fridge" },
+      unresolvedTerms: [
+        expect.objectContaining({ rawText: "Dragonfruit", frequency: 2 }),
+      ],
+    });
+
+    const removeIngredient = await app.request(
+      "/pantry/items/dragonfruit",
+      {
+        method: "DELETE",
+        headers: { origin: "http://localhost:3000" },
+      },
+      env,
+    );
+    expect(removeIngredient.status).toBe(200);
+    expect(
+      dbMock.state.authoredTerms.find(
+        (term) => term.normalizedText === "dragonfruit",
+      ),
+    ).toMatchObject({ rawText: "Dragonfruit", frequency: 2 });
 
     const invalidBody = await app.request(
       "/pantry",
@@ -5590,6 +5817,9 @@ describe("pantry mutation flows", () => {
       stock: { milk: "fresh", onion: "cupboards" },
       itemVersions: { milk: "1", onion: "1" },
     });
+    expect(dbMock.state.authoredTerms).toEqual([
+      expect.objectContaining({ rawText: "onion", normalizedText: "onion" }),
+    ]);
   });
 
   it("replays a duplicate pantry operation without incrementing its revision", async () => {
@@ -5702,8 +5932,8 @@ describe("pantry mutation flows", () => {
     );
     expect(invalidLocation.status).toBe(400);
 
-    const unknownIngredient = await app.request(
-      "/pantry/items/dragonfruit",
+    const authoredIngredient = await app.request(
+      "/pantry/items/Dragonfruit%20Powder",
       {
         method: "PUT",
         headers: mutationHeaders,
@@ -5711,9 +5941,15 @@ describe("pantry mutation flows", () => {
       },
       env,
     );
-    expect(unknownIngredient.status).toBe(400);
-    expect(await unknownIngredient.json()).toEqual({
-      error: "Unknown ingredient: dragonfruit",
+    expect(authoredIngredient.status).toBe(200);
+    expect(await authoredIngredient.json()).toMatchObject({
+      stock: { "dragonfruit powder": "fresh" },
+      unresolvedTerms: [
+        expect.objectContaining({
+          rawText: "Dragonfruit Powder",
+          normalizedText: "dragonfruit powder",
+        }),
+      ],
     });
 
     const invalidDelete = await app.request(
@@ -6194,6 +6430,241 @@ describe("household membership flows", () => {
 
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({ error: "Authorization required" });
+  });
+
+  it("shares an idempotent equipment inventory with every household member", async () => {
+    seedHousehold();
+    authzMock.session = sessionFor({
+      id: "member-user",
+      email: "member@example.test",
+      name: "Member",
+    });
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const addResponse = await app.request(
+        `/households/${HOUSEHOLD_ID}/equipment/frying-pan`,
+        {
+          method: "PUT",
+          headers: { origin: "http://localhost:3000" },
+        },
+        env,
+      );
+      expect(addResponse.status).toBe(200);
+      expect(await addResponse.json()).toMatchObject({
+        slug: "frying-pan",
+        name: "frying pan",
+        category: "cookware",
+        retired: false,
+      });
+    }
+    expect(dbMock.state.householdEquipment).toHaveLength(1);
+
+    authzMock.session = sessionFor({
+      id: "owner-user",
+      email: "owner@example.test",
+      name: "Owner",
+    });
+    const listResponse = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment`,
+      {},
+      env,
+    );
+
+    expect(listResponse.status).toBe(200);
+    expect(await listResponse.json()).toMatchObject({
+      recipeMatchMode: "warn",
+      catalog: expect.arrayContaining([
+        expect.objectContaining({ slug: "frying-pan" }),
+      ]),
+      owned: [
+        expect.objectContaining({
+          slug: "frying-pan",
+          name: "frying pan",
+          category: "cookware",
+        }),
+      ],
+    });
+  });
+
+  it("lets members choose or disable equipment matching", async () => {
+    seedHousehold();
+    authzMock.session = sessionFor({
+      id: "member-user",
+      email: "member@example.test",
+      name: "Member",
+    });
+
+    for (const recipeMatchMode of ["hide", "disabled"] as const) {
+      const updateResponse = await app.request(
+        `/households/${HOUSEHOLD_ID}/equipment`,
+        {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+            origin: "http://localhost:3000",
+          },
+          body: JSON.stringify({ recipeMatchMode }),
+        },
+        env,
+      );
+
+      expect(updateResponse.status).toBe(200);
+      expect(await updateResponse.json()).toEqual({ recipeMatchMode });
+    }
+
+    const listResponse = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment`,
+      {},
+      env,
+    );
+    expect(await listResponse.json()).toMatchObject({
+      recipeMatchMode: "disabled",
+    });
+  });
+
+  it("lets members remove equipment and retain authored equipment", async () => {
+    seedHousehold();
+    dbMock.state.householdEquipment.push(
+      {
+        organizationId: HOUSEHOLD_ID,
+        equipmentSlug: "frying-pan",
+        createdAt: dbMock.date,
+      },
+      {
+        organizationId: HOUSEHOLD_ID,
+        equipmentSlug: "rotary-dial-oven",
+        createdAt: dbMock.date,
+      },
+    );
+    authzMock.session = sessionFor({
+      id: "member-user",
+      email: "member@example.test",
+      name: "Member",
+    });
+
+    const listResponse = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment`,
+      {},
+      env,
+    );
+    expect(listResponse.status).toBe(200);
+    const listBody = (await listResponse.json()) as {
+      owned: Array<{ slug: string; [key: string]: unknown }>;
+    };
+    expect(listBody).toMatchObject({
+      owned: expect.arrayContaining([
+        {
+          slug: "rotary-dial-oven",
+          name: "rotary dial oven",
+          createdAt: dbMock.date.toISOString(),
+          retired: true,
+        },
+      ]),
+    });
+    expect(
+      listBody.owned.find((item) => item.slug === "rotary-dial-oven"),
+    ).not.toHaveProperty("category");
+
+    const retiredDeleteResponse = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment/rotary-dial-oven`,
+      {
+        method: "DELETE",
+        headers: { origin: "http://localhost:3000" },
+      },
+      env,
+    );
+    expect(retiredDeleteResponse.status).toBe(204);
+
+    const deleteResponse = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment/frying-pan`,
+      {
+        method: "DELETE",
+        headers: { origin: "http://localhost:3000" },
+      },
+      env,
+    );
+    expect(deleteResponse.status).toBe(204);
+    expect(dbMock.state.householdEquipment).toHaveLength(0);
+    expect(dbMock.state.authoredTerms).toHaveLength(0);
+
+    const unknownResponse = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment/laser-whisk`,
+      {
+        method: "PUT",
+        headers: { origin: "http://localhost:3000" },
+      },
+      env,
+    );
+    expect(unknownResponse.status).toBe(200);
+    expect(await unknownResponse.json()).toMatchObject({
+      slug: "laser-whisk",
+      name: "laser-whisk",
+      unresolved: true,
+    });
+    expect(dbMock.state.authoredTerms).toContainEqual(
+      expect.objectContaining({
+        organizationId: HOUSEHOLD_ID,
+        kind: "equipment",
+        rawText: "laser-whisk",
+        normalizedText: "laser-whisk",
+        canonicalSlug: null,
+      }),
+    );
+
+    const aliasResponse = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment/large%20skillet`,
+      {
+        method: "PUT",
+        headers: { origin: "http://localhost:3000" },
+      },
+      env,
+    );
+    expect(aliasResponse.status).toBe(200);
+    expect(await aliasResponse.json()).toMatchObject({
+      slug: "frying-pan",
+      name: "frying pan",
+      retired: false,
+    });
+    expect(dbMock.state.authoredTerms).toContainEqual(
+      expect.objectContaining({
+        organizationId: HOUSEHOLD_ID,
+        rawText: "large skillet",
+        canonicalSlug: "frying-pan",
+        candidateMatches: [{ slug: "frying-pan", score: 1 }],
+      }),
+    );
+  });
+
+  it("keeps household equipment private from non-members", async () => {
+    seedHousehold();
+    authzMock.session = sessionFor({
+      id: "outsider-user",
+      email: "outsider@example.test",
+      name: "Outsider",
+    });
+
+    const response = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment`,
+      {},
+      env,
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "Authorization required" });
+  });
+
+  it("rejects overlong authored equipment terms", async () => {
+    const response = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment/${"a".repeat(101)}`,
+      {
+        method: "PUT",
+        headers: { origin: "http://localhost:3000" },
+      },
+      env,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Invalid equipment term" });
   });
 
   it("allows owners to invite household members", async () => {
@@ -7404,6 +7875,30 @@ describe("PATCH /recipes/:slug", () => {
 });
 
 describe("POST /api/auth/sign-in/social", () => {
+  it("requires a current user before agent-approval reauthentication", async () => {
+    const res = await app.request(
+      "/api/auth/sign-in/social",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "http://localhost:3000",
+        },
+        body: JSON.stringify({
+          provider: "github",
+          callbackURL: "/recipes/settings/agents/approve",
+          additionalData: { flow: "agent-approval" },
+        }),
+      },
+      env,
+    );
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({
+      code: "agent_reauth_session_required",
+    });
+  });
+
   it.each(["google", "github"] as const)(
     "uses the public frontend callback for %s",
     async (provider) => {

@@ -10,7 +10,6 @@
         "api-governance/spectral-functions/*.js",
         "cpp/autonomic-satellite-swarm/browser/tests/browser_parity.mjs",
         "cpp/autonomic-satellite-swarm/scripts/*.ts",
-        "homelab/images/t3-code/bootstrap-settings.mjs",
         "homelab/scripts/codex-add-provider.mjs",
         "homelab/tests/**/*.test.ts",
         "scripts/prose-lint.ts"
@@ -30,6 +29,19 @@
       ],
       "ignoreDependencies": ["cloudflare"]
     },
+    "homelab/images/t3-code": {
+      "entry": ["bootstrap-settings.mjs"],
+      "ignoreDependencies": [
+        "@anthropic-ai/claude-code",
+        "@auth/agent-cli",
+        "@openai/codex",
+        "@xai-official/grok",
+        "opencode-ai",
+        "pnpm",
+        "t3"
+      ]
+    },
+    "packages/agent-auth-mcp": {},
     "packages/agent-coordinator-domain": {},
     "packages/ai-review-domain": {},
     "packages/work-graph-domain": {
@@ -43,9 +55,11 @@
       "entry": ["vitest.integration.config.ts", "scripts/operational-report.ts"]
     },
     "packages/writing-editor-domain": {},
+    "packages/wedding-planner-domain": {},
     "ui": {
       "ignore": [
         "content/**",
+        "lib/wedding-planner/browser-node-module.ts",
         "public/recipes-sw.js",
         "public/simulations/autonomic-satellite-swarm/**/*.mjs"
       ],
@@ -60,6 +74,14 @@
     },
     "workers/recipe-ingest": {
       "ignoreDependencies": ["cloudflare"]
+    },
+    "workers/finance-tax-monitor": {
+      "entry": [
+        "drizzle.config.ts",
+        "vitest.coverage.config.ts",
+        "vitest.integration.config.ts"
+      ],
+      "ignoreDependencies": ["cloudflare", "wrangler"]
     },
     "workers/work-graph-api": {
       "entry": [
@@ -88,6 +110,7 @@
       ]
     },
     "ml-pipelines/writing-editor-evaluation": {
+      "ignoreBinaries": ["vale"],
       "entry": [
         "src/extract-dataset.ts",
         "src/freeze-cohort.ts",

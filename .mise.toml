@@ -16,8 +16,13 @@ config_roots = [
     "ml-pipelines/wsi-analysis",
     "packages/agent-coordinator-domain",
     "packages/agent-auth",
+    "packages/agent-auth-mcp",
     "packages/ai-review-domain",
     "packages/browser-base",
+    "packages/drizzle-postgres",
+    "packages/finance-inflation-indices",
+    "packages/finance-housing-indices",
+    "packages/finance-tax-rules",
     "packages/github-client",
     "packages/node-base",
     "packages/recipe-db",
@@ -30,9 +35,11 @@ config_roots = [
     "packages/work-graph-db",
     "packages/work-graph-domain",
     "packages/writing-editor-domain",
+    "packages/wedding-planner-domain",
     "ai-review",
     "workers/recipe-api",
     "workers/recipe-ingest",
+    "workers/finance-tax-monitor",
     "workers/work-graph-api",
     "workers/work-graph-observer",
     "homelab",
@@ -46,16 +53,15 @@ verbose = false
 
 [tools]
 node = "lts"
-"github:pnpm/pnpm" = "12.7.0"
-vale = "3.23.0"
+"github:pnpm/pnpm" = "12.8.2"
 terraform = "1.16.4"
 tflint = "0.64.0"
 actionlint = "1.7.12"
 zizmor = "1.30.1"
 gitleaks = "8.30.1"
 typos = "1.50.3"
-"github:oasdiff/oasdiff" = "1.32.1"
-duckdb = "1.5.5"
+"github:oasdiff/oasdiff" = "v1.33.0"
+duckdb = "1.5.6"
 
 [env]
 MISE_EXPERIMENTAL = "1"
@@ -63,7 +69,7 @@ MISE_EXPERIMENTAL = "1"
 # Root-level tasks for repo-wide tooling
 [tasks.lint]
 description = "Lint all files across the entire repo"
-depends = ["//:lint:markdown", "//:lint:mdx", "//:lint:yaml", "//:lint:typos", "//:lint:knip", "//:lint:actions", "//:lint:api", "//:lint:prose", "//:lint:typescript", "//packages/agent-auth:check", "//packages/agent-coordinator-domain:check", "//packages/ai-review-domain:check", "//packages/browser-base:check", "//packages/github-client:check", "//packages/node-base:check", "//packages/openrouter-client:check", "//packages/recipe-domain:check", "//packages/ts-base:check", "//packages/work-graph-cli:check", "//packages/work-graph-db:check", "//packages/work-graph-domain:check", "//packages/writing-editor-domain:check", "//ai-review:check", "//ml-pipelines/ai-review-evaluation:check", "//ml-pipelines/writing-editor-evaluation:check", "//workers/work-graph-observer:check", "//ui:lint", "//infra/public-platform:lint", "//infra/public-platform:lint:tflint", "//infra/bootstrap:lint", "//infra/bootstrap:lint:tflint", "//infra/remote-development:lint", "//infra/remote-development:lint:tflint", "//infra/work-graph:lint", "//infra/work-graph:lint:tflint"]
+depends = ["//:lint:markdown", "//:lint:mdx", "//:lint:yaml", "//:lint:typos", "//:lint:knip", "//:lint:actions", "//:lint:api", "//:lint:prose", "//:lint:typescript", "//packages/agent-auth:check", "//packages/agent-auth-mcp:check", "//packages/agent-coordinator-domain:check", "//packages/ai-review-domain:check", "//packages/browser-base:check", "//packages/drizzle-postgres:check", "//packages/finance-housing-indices:check", "//packages/finance-inflation-indices:check", "//packages/finance-tax-rules:check", "//packages/github-client:check", "//packages/node-base:check", "//packages/openrouter-client:check", "//packages/recipe-domain:check", "//packages/ts-base:check", "//packages/work-graph-cli:check", "//packages/work-graph-db:check", "//packages/work-graph-domain:check", "//packages/writing-editor-domain:check", "//packages/wedding-planner-domain:check", "//ai-review:check", "//ml-pipelines/ai-review-evaluation:check", "//ml-pipelines/writing-editor-evaluation:check", "//workers/finance-tax-monitor:check", "//workers/work-graph-observer:check", "//ui:lint", "//infra/public-platform:lint", "//infra/public-platform:lint:tflint", "//infra/bootstrap:lint", "//infra/bootstrap:lint:tflint", "//infra/remote-development:lint", "//infra/remote-development:lint:tflint", "//infra/work-graph:lint", "//infra/work-graph:lint:tflint"]
 
 [tasks."lint:typescript"]
 description = "Lint TypeScript and JavaScript outside the UI (optionally pass files as args)"
@@ -364,9 +370,14 @@ depends = [
     "//cpp/autonomic-satellite-swarm:coverage",
     "//ui:test:coverage",
     "//packages/agent-auth:test:coverage",
+    "//packages/agent-auth-mcp:test:coverage",
     "//packages/agent-coordinator-domain:test:coverage",
     "//packages/ai-review-domain:test:coverage",
     "//packages/browser-base:test:coverage",
+    "//packages/drizzle-postgres:test:coverage",
+    "//packages/finance-housing-indices:test:coverage",
+    "//packages/finance-inflation-indices:test:coverage",
+    "//packages/finance-tax-rules:test:coverage",
     "//packages/node-base:test:coverage",
     "//packages/observability:test:coverage",
     "//packages/recipe-domain:test:coverage",
@@ -376,6 +387,7 @@ depends = [
     "//packages/work-graph-db:test:coverage",
     "//packages/work-graph-domain:test:coverage",
     "//packages/writing-editor-domain:test:coverage",
+    "//packages/wedding-planner-domain:test:coverage",
     "//ml-pipelines/recipe-parsing:test:coverage",
     "//ml-pipelines/ai-review-evaluation:test:coverage",
     "//ml-pipelines/wsi-analysis:test:coverage",
@@ -383,6 +395,7 @@ depends = [
     "//workers/recipe-api:test:coverage",
     "//workers/recipe-api:test:integration:coverage",
     "//workers/recipe-ingest:test:coverage",
+    "//workers/finance-tax-monitor:test:coverage",
     "//workers/work-graph-api:test:coverage",
     "//workers/work-graph-observer:test:coverage",
 ]

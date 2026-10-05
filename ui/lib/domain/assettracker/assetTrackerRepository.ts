@@ -11,9 +11,16 @@ import {
 } from "./assetTrackerData";
 import type { BalanceSnapshot } from "./balanceSnapshot";
 import { type CapitalFlow, capitalFlowKind } from "./capitalFlow";
+import { validateHouseholdOwnership } from "./household";
 import type { IncomeRecord } from "./incomeRecord";
+import type {
+  FinancialDecisionRecord,
+  MortgageScenario,
+} from "./mortgageCalculator";
 import type { PlannedExpenditure } from "./plannedExpenditure";
+import type { PropertyIndexHistoryDefinition } from "./propertyIndexHistory";
 import type { RecurringFlow } from "./recurringFlow";
+import { compareAcceptedAt, type SalaryHistoryRecord } from "./salaryHistory";
 import type { Transfer } from "./transfer";
 import type {
   ExchangeRateObservation,
@@ -27,9 +34,13 @@ export interface AssetTrackerRepository {
   snapshots: BalanceSnapshot[];
   capitalFlows: CapitalFlow[];
   incomeHistory: IncomeRecord[];
+  salaryHistory: SalaryHistoryRecord[];
   transfers: Transfer[];
   recurringFlows: RecurringFlow[];
   plannedExpenditures: PlannedExpenditure[];
+  mortgageScenarios: MortgageScenario[];
+  decisionRecords: FinancialDecisionRecord[];
+  propertyIndexHistories: PropertyIndexHistoryDefinition[];
   instruments: Map<string, Instrument>;
   holdingObservations: HoldingObservation[];
   priceObservations: PriceObservation[];
@@ -126,7 +137,7 @@ function assertValidCorrections<
         `${label} observation "${record.id}" must correct the same series`,
       );
     }
-    if (record.acceptedAt <= corrected.acceptedAt) {
+    if (compareAcceptedAt(record.acceptedAt, corrected.acceptedAt) <= 0) {
       throw new AssetTrackerDataError(
         `${label} correction "${record.id}" must be accepted after "${record.correctsId}"`,
       );
@@ -143,6 +154,34 @@ function assertUniqueIncomeDates(incomeHistory: readonly IncomeRecord[]): void {
       );
     }
     incomeDates.add(income.date);
+  }
+}
+
+function validateSalaryHistory(records: readonly SalaryHistoryRecord[]): void {
+  const byId = new Map(records.map((record) => [record.id, record]));
+  if (byId.size !== records.length) {
+    throw new AssetTrackerDataError("Salary history IDs must be unique");
+  }
+  const corrected = new Set<string>();
+  for (const record of records) {
+    if (record.correctsId == null) continue;
+    const prior = byId.get(record.correctsId);
+    if (prior == null) {
+      throw new AssetTrackerDataError(
+        `Salary record "${record.id}" corrects unknown record "${record.correctsId}"`,
+      );
+    }
+    if (corrected.has(record.correctsId)) {
+      throw new AssetTrackerDataError(
+        `Salary record "${record.correctsId}" has more than one correction`,
+      );
+    }
+    if (compareAcceptedAt(record.acceptedAt, prior.acceptedAt) <= 0) {
+      throw new AssetTrackerDataError(
+        `Salary correction "${record.id}" must be accepted after "${record.correctsId}"`,
+      );
+    }
+    corrected.add(record.correctsId);
   }
 }
 
@@ -195,6 +234,7 @@ function validateCoreReferences(
   assertUniqueAccountDates(data.snapshots, "snapshot");
   assertUniqueCapitalFlows(data.capitalFlows);
   assertUniqueIncomeDates(data.incomeHistory);
+  validateSalaryHistory(data.salaryHistory);
   for (const account of data.accounts) {
     assertKnownAccount(
       accounts,
@@ -332,6 +372,32 @@ function validateValuationReferences(
   );
 }
 
+function validatePropertyIndexHistoryReferences(
+  data: AssetTrackerData,
+  accounts: Map<AccountId, Account>,
+): void {
+  const propertyHistoryAccounts = new Set<string>();
+  for (const history of data.propertyIndexHistories ?? []) {
+    assertKnownAccount(
+      accounts,
+      history.accountId,
+      `Property index history for account "${history.accountId}"`,
+    );
+    const account = accounts.get(history.accountId);
+    if (account != null && account.assetType !== "property") {
+      throw new AssetTrackerDataError(
+        `Property index history references non-property account "${history.accountId}"`,
+      );
+    }
+    if (propertyHistoryAccounts.has(history.accountId)) {
+      throw new AssetTrackerDataError(
+        `Duplicate property index history for account "${history.accountId}"`,
+      );
+    }
+    propertyHistoryAccounts.add(history.accountId);
+  }
+}
+
 function validateReferences(
   data: AssetTrackerData,
   accounts: Map<AccountId, Account>,
@@ -339,11 +405,54 @@ function validateReferences(
   validateCoreReferences(data, accounts);
   validatePlannedExpenditureReferences(data, accounts);
   validateValuationReferences(data, accounts);
+  validatePropertyIndexHistoryReferences(data, accounts);
+  const mortgageScenarios = data.mortgageScenarios ?? [];
+  const decisionRecords = data.decisionRecords ?? [];
+  const scenarios = new Map(
+    mortgageScenarios.map((scenario) => [scenario.id, scenario]),
+  );
+  if (scenarios.size !== mortgageScenarios.length) {
+    throw new AssetTrackerDataError("Mortgage scenario IDs must be unique");
+  }
+  const decisions = new Map(
+    decisionRecords.map((decision) => [decision.id, decision]),
+  );
+  if (decisions.size !== decisionRecords.length) {
+    throw new AssetTrackerDataError("Decision record IDs must be unique");
+  }
+  for (const scenario of mortgageScenarios) {
+    assertKnownAccount(
+      accounts,
+      scenario.source.mortgageAccountId,
+      `Mortgage scenario "${scenario.name}"`,
+    );
+    assertKnownAccount(
+      accounts,
+      scenario.source.propertyAccountId,
+      `Mortgage scenario "${scenario.name}"`,
+    );
+    if (
+      scenario.decisionRecordId != null &&
+      !decisions.has(scenario.decisionRecordId)
+    ) {
+      throw new AssetTrackerDataError(
+        `Mortgage scenario "${scenario.name}" references unknown decision "${scenario.decisionRecordId}"`,
+      );
+    }
+  }
+  for (const decision of decisionRecords) {
+    if (!scenarios.has(decision.scenarioId)) {
+      throw new AssetTrackerDataError(
+        `Decision "${decision.title}" references unknown mortgage scenario "${decision.scenarioId}"`,
+      );
+    }
+  }
 }
 
 export function buildRepository(
   data: AssetTrackerData,
 ): AssetTrackerRepository {
+  validateHouseholdOwnership(data);
   const accounts = indexAccounts(data.accounts);
   validateReferences(data, accounts);
   const snapshots = [...data.snapshots].sort((a, b) =>
@@ -359,11 +468,17 @@ export function buildRepository(
     incomeHistory: [...data.incomeHistory].sort((a, b) =>
       a.date.localeCompare(b.date),
     ),
+    salaryHistory: [...data.salaryHistory].sort((a, b) =>
+      compareAcceptedAt(a.acceptedAt, b.acceptedAt),
+    ),
     transfers: data.transfers,
     recurringFlows: data.recurringFlows,
     plannedExpenditures: [...data.plannedExpenditures].sort((a, b) =>
       a.date.localeCompare(b.date),
     ),
+    mortgageScenarios: data.mortgageScenarios ?? [],
+    decisionRecords: data.decisionRecords ?? [],
+    propertyIndexHistories: data.propertyIndexHistories ?? [],
     instruments: new Map(
       (data.instruments ?? []).map((instrument) => [instrument.id, instrument]),
     ),

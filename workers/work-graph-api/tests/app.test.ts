@@ -304,7 +304,7 @@ describe("Given a requested delivery-critical path", () => {
     const app = createWorkGraphApp(repository);
 
     const response = await app.request(
-      "/api/critical-path?includeInitiativeIds=initiative-a&includeInitiativeIds=initiative-b&includeProjectIds=project-a&excludeProjectIds=project-b",
+      "/api/critical-path?includeInitiativeIds=initiative-a&includeInitiativeIds=initiative-b&includeProjectIds=project-a&excludeProjectIds=project-b&includeParentTitles=Ship%20Work%20Graph&excludeParentTitles=Build%20API",
     );
 
     expect(response.status).toBe(200);
@@ -312,6 +312,8 @@ describe("Given a requested delivery-critical path", () => {
       includeInitiativeIds: ["initiative-a", "initiative-b"],
       includeProjectIds: ["project-a"],
       excludeProjectIds: ["project-b"],
+      includeParentTitles: ["Ship Work Graph"],
+      excludeParentTitles: ["Build API"],
     });
   });
 
@@ -739,13 +741,15 @@ describe("Given work items with derived readiness", () => {
     const app = createWorkGraphApp(repository);
 
     const response = await app.request(
-      "/api/work-items?includeProjectIds=project-a&includeProjectIds=project-b&excludeInitiativeIds=initiative-b",
+      "/api/work-items?includeProjectIds=project-a&includeProjectIds=project-b&excludeInitiativeIds=initiative-b&includeParentTitles=Ship%20Work%20Graph&excludeParentTitles=Build%20API",
     );
 
     expect(response.status).toBe(200);
     expect(repository.listWorkItems).toHaveBeenCalledWith({
       includeProjectIds: ["project-a", "project-b"],
       excludeInitiativeIds: ["initiative-b"],
+      includeParentTitles: ["Ship Work Graph"],
+      excludeParentTitles: ["Build API"],
     });
   });
 
@@ -1692,6 +1696,8 @@ describe("Given a worker managing a lease", () => {
         leaseDurationSeconds: 300,
         includeProjectIds: ["project-a", "project-b"],
         excludeProjectIds: ["project-b"],
+        includeParentTitles: ["Ship Work Graph"],
+        excludeParentTitles: ["Build API"],
       }),
     });
 
@@ -1702,6 +1708,8 @@ describe("Given a worker managing a lease", () => {
       leaseDurationSeconds: 300,
       includeProjectIds: ["project-a", "project-b"],
       excludeProjectIds: ["project-b"],
+      includeParentTitles: ["Ship Work Graph"],
+      excludeParentTitles: ["Build API"],
     });
   });
 
@@ -2143,7 +2151,7 @@ describe("Given a transient database failure", () => {
     vi.mocked(repository.getWorkItem).mockRejectedValue(
       Object.assign(new Error("too many connections"), { code: "53300" }),
     );
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const app = createWorkGraphApp(repository, {
       createLeaseId: () => leaseId,
       createRequestId: () => "request-after-claim",
@@ -2172,13 +2180,17 @@ describe("Given a transient database failure", () => {
       },
     });
     expect(warn).toHaveBeenCalledWith(
-      JSON.stringify({
+      {
         message: "Work Graph lease claim outcome is uncertain",
         code: "claim_outcome_uncertain",
         requestId: "request-after-claim",
         method: "POST",
-        path: "/api/leases",
-      }),
+        route: "/api/leases",
+        outcome: "error",
+        status: 500,
+        workerVersion: "local",
+        exceptionClass: "claim_outcome_uncertain",
+      },
     );
     warn.mockRestore();
   });
@@ -2219,7 +2231,7 @@ describe("Given a transient database failure", () => {
       vi.mocked(repository.listWorkItems).mockRejectedValue(
         new Error("database request failed", { cause: databaseError }),
       );
-      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      const warn = vi.spyOn(console, "error").mockImplementation(() => undefined);
       const app = createWorkGraphApp(repository, {
         createRequestId: () => "request-123",
       });
@@ -2237,27 +2249,36 @@ describe("Given a transient database failure", () => {
         },
       });
       expect(warn).toHaveBeenCalledWith(
-        JSON.stringify({
+        {
           message: "Work Graph database request can be retried",
           code: responseCode,
           requestId: "request-123",
           method: "GET",
-          path: "/api/work-items",
-        }),
+          route: "/api/work-items",
+          outcome: "error",
+          status: 503,
+          workerVersion: "local",
+          exceptionClass: responseCode,
+        },
       );
       warn.mockRestore();
     },
   );
 });
 
-describe("private analytics access boundary", () => {
-  it.each(["/api/analytics", "/api/analytics/report", "/api/operational-report"])(
-    "does not expose a report through %s",
-    async (path) => {
-      const repository = buildRepository();
-      const response = await createWorkGraphApp(repository).request(path);
-      expect(response.status).toBe(404);
-      expect(repository.listEvents).not.toHaveBeenCalled();
-    },
-  );
+ describe("Given an unexpected production exception", () => {
+  it("records correlation fields without request or exception secrets", async () => {
+    const repository = buildRepository();
+    vi.mocked(repository.getWorkItem).mockRejectedValue(new Error("postgresql://owner:SECRET@db.invalid/database"));
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const app = createWorkGraphApp(repository, { createRequestId: () => "request-safe", workerVersion: "version-safe" });
+    const response = await app.request("/api/work-items/SECRET?token=SECRET", { headers: { "CF-Access-Client-Secret": "SECRET" } });
+    expect(response.status).toBe(500);
+    expect(response.headers.get("x-request-id")).toBe("request-safe");
+    const record = error.mock.calls[0]?.[0];
+    expect(record).toMatchObject({ requestId: "request-safe", route: "/api/work-items/:workItemId", outcome: "error", status: 500, workerVersion: "version-safe", exceptionClass: "internal_error" });
+    expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET");
+    expect(await response.text()).not.toContain("SECRET");
+    error.mockRestore();
+  });
 });

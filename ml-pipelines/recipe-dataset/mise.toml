@@ -24,4 +24,10 @@ run = "bash scripts/push.sh"
 
 [tasks.check]
 description = "Check recipe dataset pipeline scripts"
+depends = ["test"]
 run = "bash -n scripts/download.sh scripts/push.sh && node --check src/stages/prepare.mjs && node --check src/stages/stats.mjs"
+
+[tasks.test]
+description = "Test the recipe dataset pipeline and its dependency contracts"
+depends = ["//:install"]
+run = "node --test tests/*.test.mjs"

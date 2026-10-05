@@ -136,6 +136,25 @@ describe("PostHog browser instrumentation", () => {
     expect(beforeSend(null)).toBeNull();
   });
 
+  it("drops all analytics events while the private wedding planner is open", async () => {
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "phc_test");
+    await import("../instrumentation-client");
+    const beforeSend = posthog.init.mock.calls[0]?.[1]?.before_send;
+    const previous = window.location.pathname;
+    window.history.pushState({}, "", "/wedding-planner");
+    try {
+      expect(
+        beforeSend({ event: "$autocapture", properties: { text: "guest" } }),
+      ).toBeNull();
+      expect(
+        beforeSend({ event: "$snapshot", properties: { text: "guest" } }),
+      ).toBeNull();
+      expect(beforeSend(exception("guest-related error"))).toBeNull();
+    } finally {
+      window.history.replaceState({}, "", previous);
+    }
+  });
+
   describe("before_send exception filter", () => {
     type CaptureResult = {
       event: string;

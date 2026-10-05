@@ -1,0 +1,22 @@
+[tasks.install]
+description = "Install shared Drizzle PostgreSQL dependencies"
+run = "pnpm install --frozen-lockfile --filter drizzle-postgres..."
+
+[tasks.typecheck]
+description = "Typecheck shared Drizzle PostgreSQL helpers"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test shared Drizzle PostgreSQL helpers"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test shared Drizzle PostgreSQL helpers with coverage"
+depends = ["install"]
+run = "pnpm test:coverage"
+
+[tasks.check]
+description = "Check shared Drizzle PostgreSQL helpers"
+depends = ["typecheck", "test"]

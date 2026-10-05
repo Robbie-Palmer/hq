@@ -27,6 +27,8 @@ export const EXACT_ALIASES: Record<string, string> = {
   scallions: "spring-onion",
   mayo: "mayonnaise",
   mayonaise: "mayonnaise",
+  "neutral-oil": "vegetable-oil",
+  "rice-vinegar": "rice-wine-vinegar",
 };
 
 function tokenize(slug: string): string[] {

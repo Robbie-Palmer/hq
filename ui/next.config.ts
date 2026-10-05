@@ -150,7 +150,7 @@ function createNextConfig(phase: string): NextConfig {
     // Prevent 'fs' and 'path' from being bundled into client-side chunks.
     // Recipe .cook files are read server-side at build time only; these modules
     // are never called in the browser, so replacing them with empty modules is safe.
-    webpack(config, { isServer }) {
+    webpack(config, { isServer, webpack }) {
       config.experiments = {
         ...config.experiments,
         asyncWebAssembly: true,
@@ -168,6 +168,15 @@ function createNextConfig(phase: string): NextConfig {
       }
 
       if (!isServer) {
+        // HiGHS' Emscripten glue contains a Node-only dynamic import behind a
+        // runtime check. Replace that import for the browser compilation.
+        config.plugins = config.plugins ?? [];
+        config.plugins.push(
+          new webpack.NormalModuleReplacementPlugin(
+            /^node:module$/,
+            path.join(__dirname, "lib/wedding-planner/browser-node-module.ts"),
+          ),
+        );
         config.resolve = {
           ...config.resolve,
           fallback: {

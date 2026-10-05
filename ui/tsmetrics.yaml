@@ -1,0 +1,20 @@
+exclude:
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.spec.ts"
+  - "**/*.spec.tsx"
+  - "**/generated/**"
+
+thresholds:
+  cyclomatic_complexity:
+    warning: 8
+    error: 15
+  loc:
+    warning: 40
+    error: 60
+  nesting:
+    warning: 2
+    error: 4
+  params:
+    warning: 4
+    error: 6

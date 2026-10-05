@@ -2,7 +2,7 @@
  * update never mixes incompatible application shells or private data. */
 const SHELL_CACHE = "recipe-shell-v5";
 const ASSET_CACHE = "recipe-assets-v5";
-const IMAGE_CACHE = "recipe-images-v1";
+const IMAGE_CACHE = "recipe-images-v2";
 const SESSION_CACHE = "recipe-session-v1";
 const SESSION_CACHE_KEY = "/recipes/__offline-session";
 const MAX_RECIPE_IMAGES = 60;
@@ -74,8 +74,10 @@ function isVersionedAsset(url, request) {
   );
 }
 
-function isRecipeImage(request) {
-  return request.destination === "image";
+function isRecipeImage(url, request) {
+  return (
+    request.destination === "image" && url.hostname === "imagedelivery.net"
+  );
 }
 
 async function responseForStorage(response) {
@@ -405,7 +407,7 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(cacheFirst(request, ASSET_CACHE));
     return;
   }
-  if (isRecipeImage(request)) {
+  if (isRecipeImage(url, request)) {
     event.respondWith(cacheRecipeImage(request));
   }
 });

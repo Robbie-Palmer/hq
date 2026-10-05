@@ -26,6 +26,7 @@ import {
   type AssetTrackerData,
   AssetTrackerDataError,
 } from "@/lib/domain/assettracker/assetTrackerData";
+import { defaultHouseholdFields } from "@/lib/domain/assettracker/household";
 import { flowOccurrenceDates } from "@/lib/domain/assettracker/recurringFlow";
 
 const TEST_AS_OF_DATE = "2026-01-01";
@@ -44,6 +45,7 @@ const applyAddPlannedExpenditure = (
 
 function baseData(): AssetTrackerData {
   return {
+    ...defaultHouseholdFields(),
     accounts: [
       {
         id: "stocks-isa",
@@ -92,6 +94,7 @@ function baseData(): AssetTrackerData {
     ],
     capitalFlows: [],
     incomeHistory: [],
+    salaryHistory: [],
     transfers: [],
     recurringFlows: [],
     plannedExpenditures: [],

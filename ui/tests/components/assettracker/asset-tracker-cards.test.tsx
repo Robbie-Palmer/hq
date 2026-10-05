@@ -15,8 +15,10 @@ import {
 import { AccountFlows } from "@/components/assettracker/account-flows";
 import { AccountsTable } from "@/components/assettracker/accounts-table";
 import { AssetAllocationHistoryChart } from "@/components/assettracker/asset-allocation-history-chart";
+import { AssetTrackerDashboard } from "@/components/assettracker/asset-tracker-dashboard";
 import { useAssetTracker } from "@/components/assettracker/asset-tracker-provider";
 import { FlowSankeyChart } from "@/components/assettracker/flow-sankey-chart";
+import { HousingStrategyPlanner } from "@/components/assettracker/housing-strategy-planner";
 import { PortfolioContributionChart } from "@/components/assettracker/portfolio-contribution-chart";
 import { PortfolioGoal } from "@/components/assettracker/portfolio-goal";
 import {
@@ -147,6 +149,14 @@ vi.mock("@/components/assettracker/asset-tracker-provider", () => ({
   useAssetTracker: vi.fn(),
 }));
 
+vi.mock("@/components/assettracker/asset-allocation-chart", () => ({
+  AssetAllocationChart: () => <p>Net worth composition</p>,
+}));
+
+vi.mock("@/components/assettracker/account-balance-chart", () => ({
+  AccountBalanceChart: () => <p>Account balances</p>,
+}));
+
 const mockUseAssetTracker = vi.mocked(useAssetTracker);
 const FIXED_NOW = new Date("2026-07-03T12:00:00+01:00");
 const originalScrollIntoView = Element.prototype.scrollIntoView;
@@ -154,6 +164,9 @@ const EMPTY_FI: PortfolioFinancialIndependence = {
   periods: [],
   representativeAnnualExpenditure: null,
   representativeAnnualCurrentExpenditure: null,
+  mortgageCashFlow: null,
+  annualCashFlowWhileMortgage: null,
+  annualExpenditureAfterMortgage: null,
   representativeAnnualSavings: null,
   savingsRate: null,
   takeHomeSavingsRate: null,
@@ -206,6 +219,7 @@ function mockAssetTracker(
     accounts: [],
     accountDetails: [],
     netWorthData: [],
+    netWorthDataByCurrency: { GBP: [], USD: [], EUR: [] },
     contributionData: [],
     assetAllocation: [],
     assetAllocationHistory: [],
@@ -214,8 +228,13 @@ function mockAssetTracker(
     plannedExpenditures: [],
     incomeHistory: [],
     financialIndependence: EMPTY_FI,
+    housingPlanningPosition: null,
     portfolioReturn: null,
+    positionSummary: null,
     inflation: 0.025,
+    baseCurrency: "GBP" as const,
+    valuationDate: null,
+    valuationIssues: [],
     netWorthTarget: null,
     netWorthTargetIsReal: false,
     withdrawalRate: 0.04,
@@ -248,6 +267,130 @@ function mockAssetTracker(
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+describe("HousingStrategyPlanner", () => {
+  it("compares four strategies while keeping net worth and withdrawal capital distinct", async () => {
+    mockAssetTracker({
+      housingPlanningPosition: {
+        asOfDate: "2026-01-01",
+        totalNetWorth: 500_000,
+        withdrawalCapital: 300_000,
+        homeValue: 400_000,
+        mortgageBalance: 200_000,
+        homeEquity: 200_000,
+        annualNonHousingExpenditure: 24_000,
+        annualInvestableIncome: 48_000,
+        annualMortgageExpenditureRemoved: 0,
+        expectedRealReturn: 0.04,
+        withdrawalRate: 0.04,
+        mortgagePayoffDate: "2046-01-01",
+      },
+    });
+
+    render(<HousingStrategyPlanner />);
+
+    const table = screen.getByRole("table", {
+      name: "Housing strategy comparison",
+    });
+    expect(
+      within(table).getByRole("rowheader", { name: "Stay" }),
+    ).toBeVisible();
+    expect(
+      within(table).getByRole("rowheader", { name: "Sell and rent" }),
+    ).toBeVisible();
+    expect(
+      within(table).getByRole("rowheader", { name: "Downsize" }),
+    ).toBeVisible();
+    expect(
+      within(table).getByRole("rowheader", { name: "Equity release" }),
+    ).toBeVisible();
+    expect(screen.getByText("Available capital")).toBeVisible();
+    expect(screen.getByLabelText("Housing move date")).not.toBeVisible();
+
+    await userEvent.click(screen.getByText("Adjust assumptions"));
+    await userEvent.click(
+      screen.getByText("Sell and rent", { selector: "summary" }),
+    );
+    await userEvent.clear(
+      screen.getByRole("spinbutton", { name: "Sell and rent Annual rent" }),
+    );
+    await userEvent.type(
+      screen.getByRole("spinbutton", { name: "Sell and rent Annual rent" }),
+      "18000",
+    );
+
+    const sellRow = within(table)
+      .getByRole("rowheader", { name: "Sell and rent" })
+      .closest("tr");
+    expect(sellRow).not.toBeNull();
+    expect(sellRow).toHaveTextContent("£42,000");
+
+    await userEvent.clear(
+      screen.getByLabelText("Housing move date", { selector: "input" }),
+    );
+    expect(screen.getByLabelText("Housing move date")).toHaveValue(
+      "2026-01-01",
+    );
+  });
+});
+
+describe("AssetTrackerDashboard", () => {
+  it("shows the household position instead of account and type counts", () => {
+    mockAssetTracker({
+      accountDetails: [{ id: "account" } as AccountDetailView],
+      positionSummary: {
+        date: "2026-01-31",
+        grossAssets: 361_750,
+        liabilities: 199_000,
+        liquidAssets: 10_000,
+        netWorth: 162_750,
+      },
+    });
+
+    render(<AssetTrackerDashboard />);
+
+    expect(screen.getByText("Total assets")).toBeVisible();
+    expect(screen.getByText("£361,750.00")).toBeVisible();
+    expect(screen.getByText("Liabilities")).toBeVisible();
+    expect(screen.getByText("£199,000.00")).toBeVisible();
+    expect(screen.getByText("Net worth")).toBeVisible();
+    expect(screen.getByText("£162,750.00")).toBeVisible();
+    expect(screen.getByText("Liquid assets")).toBeVisible();
+    expect(screen.getByText("£10,000.00")).toBeVisible();
+    expect(screen.queryByText("Open Accounts")).not.toBeInTheDocument();
+    expect(screen.queryByText("Asset Types")).not.toBeInTheDocument();
+  });
+
+  it("marks position values unavailable when the portfolio cannot be valued", () => {
+    mockAssetTracker({
+      accountDetails: [{ id: "account" } as AccountDetailView],
+    });
+
+    render(<AssetTrackerDashboard />);
+
+    expect(screen.getByText("Total assets")).toBeVisible();
+    expect(screen.getByText("Liabilities")).toBeVisible();
+    expect(screen.getByText("Net worth")).toBeVisible();
+    expect(screen.getByText("Liquid assets")).toBeVisible();
+    expect(screen.getAllByText("Unavailable")).toHaveLength(6);
+  });
+
+  it("offers clear next steps for an empty portfolio", () => {
+    mockAssetTracker();
+
+    render(<AssetTrackerDashboard />);
+
+    expect(
+      screen.getByRole("heading", { name: "Start with an account" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Add an account" }),
+    ).toHaveAttribute("href", "/assettracker/accounts");
+    expect(
+      screen.getByRole("link", { name: "Import history" }),
+    ).toHaveAttribute("href", "/assettracker/imports");
+  });
 });
 
 describe("PortfolioGoal", () => {
@@ -458,6 +601,36 @@ describe("PortfolioGoal", () => {
     expect(
       document.querySelector('[data-series="difference"]'),
     ).toHaveAttribute("data-dots", "visible");
+  });
+
+  it("separates mortgage cash flow, principal, and post-payoff spending", () => {
+    mockAssetTracker({
+      financialIndependence: {
+        ...EMPTY_FI,
+        representativeAnnualExpenditure: 24_000,
+        representativeAnnualCurrentExpenditure: 30_000,
+        mortgageCashFlow: {
+          annualRequiredCashFlow: 14_400,
+          annualEconomicCost: 7_200,
+          annualPrincipal: 7_200,
+          payoffDate: "2045-12-01",
+        },
+        annualCashFlowWhileMortgage: 31_200,
+        annualExpenditureAfterMortgage: 16_800,
+        target: 420_000,
+      },
+    });
+
+    render(<PortfolioGoal />);
+
+    expect(screen.getByText("Mortgage cash flow")).toBeVisible();
+    expect(screen.getByText(/after payoff in Dec 2045/)).toBeVisible();
+    expect(screen.getByText("Cash needed while mortgaged")).toBeVisible();
+    expect(screen.getByText("£31,200/yr")).toBeVisible();
+    expect(screen.getByText("Of which principal")).toBeVisible();
+    expect(screen.getByText("£7,200/yr")).toBeVisible();
+    expect(screen.getByText("Spending after payoff")).toBeVisible();
+    expect(screen.getByText("£16,800/yr")).toBeVisible();
   });
 
   it("shows emergency runway, savings rate, and a portfolio years-to-FI projection", () => {
@@ -1020,6 +1193,10 @@ describe("AccountsTable", () => {
     const user = userEvent.setup();
     render(
       <AccountsTable
+        ownerLabels={{
+          current: "Alex",
+          "old-fund": "Alex 60%, Sam 40%",
+        }}
         accounts={[
           {
             id: "current",
@@ -1081,6 +1258,7 @@ describe("AccountsTable", () => {
     render(
       <AccountsTable
         initialShowClosed
+        ownerLabels={{ "old-fund": "Alex" }}
         accounts={[
           {
             id: "old-fund",

@@ -2,10 +2,12 @@ import { promiseFromSync } from "ts-base/promises";
 import { todayIsoDate } from "@/lib/assettracker/date";
 import { getDemoAssetTrackerData } from "@/lib/assettracker/demoData";
 import {
+  type AddHouseholdMemberInput,
   type AddPlannedExpenditureInput,
   type AddRecurringFlowInput,
   type AssetTrackerData,
   AssetTrackerDataSchema,
+  applyAddHouseholdMember,
   applyAddPlannedExpenditure,
   applyAddRecurringFlow,
   applyClearAccountHistory,
@@ -18,10 +20,16 @@ import {
   applyDeleteSnapshot,
   applyImportAccountHistory,
   applyImportIncomeHistory,
+  applyImportSalaryHistory,
   applyMaterializeFlow,
   applyRecordBalance,
   applyRecordTransfer,
+  applyRenameHouseholdMember,
+  applySaveMortgageScenario,
+  applySaveSalaryRecord,
   applySetAccountLiquidity,
+  applySetAccountOwnership,
+  applySetActiveHouseholdScope,
   applySetBaseCurrency,
   applySetExpectedReturn,
   applySetInflation,
@@ -36,12 +44,18 @@ import {
   type DeleteRecurringFlowInput,
   type DeleteSnapshotInput,
   getEmptyData,
+  type HouseholdScope,
   type ImportAccountHistoryInput,
   type ImportIncomeHistoryInput,
+  type ImportSalaryHistoryInput,
   type MaterializeFlowInput,
   type RecordBalanceInput,
   type RecordTransferInput,
+  type RenameHouseholdMemberInput,
+  type SaveMortgageScenarioInput,
+  type SaveSalaryRecordInput,
   type SetAccountLiquidityInput,
+  type SetAccountOwnershipInput,
   type SetBaseCurrencyInput,
   type SetExpectedReturnInput,
   type SetInflationInput,
@@ -74,6 +88,10 @@ export interface AssetTrackerApi {
   importIncomeHistory(
     input: ImportIncomeHistoryInput,
   ): Promise<AssetTrackerData>;
+  importSalaryHistory(
+    input: ImportSalaryHistoryInput,
+  ): Promise<AssetTrackerData>;
+  saveSalaryRecord(input: SaveSalaryRecordInput): Promise<AssetTrackerData>;
   clearIncomeHistory(): Promise<AssetTrackerData>;
   addRecurringFlow(input: AddRecurringFlowInput): Promise<AssetTrackerData>;
   addPlannedExpenditure(
@@ -94,6 +112,17 @@ export interface AssetTrackerApi {
   setInflation(input: SetInflationInput): Promise<AssetTrackerData>;
   setNetWorthTarget(input: SetNetWorthTargetInput): Promise<AssetTrackerData>;
   setWithdrawalRate(input: SetWithdrawalRateInput): Promise<AssetTrackerData>;
+  saveMortgageScenario(
+    input: SaveMortgageScenarioInput,
+  ): Promise<AssetTrackerData>;
+  addHouseholdMember(input: AddHouseholdMemberInput): Promise<AssetTrackerData>;
+  renameHouseholdMember(
+    input: RenameHouseholdMemberInput,
+  ): Promise<AssetTrackerData>;
+  setActiveHouseholdScope(scope: HouseholdScope): Promise<AssetTrackerData>;
+  setAccountOwnership(
+    input: SetAccountOwnershipInput,
+  ): Promise<AssetTrackerData>;
   importData(raw: unknown): Promise<AssetTrackerData>;
   clear(): Promise<AssetTrackerData>;
   reset(): Promise<AssetTrackerData>;
@@ -142,8 +171,10 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
   }
 
   function write(data: AssetTrackerData): AssetTrackerData {
-    storage.setItem(ASSET_TRACKER_STORAGE_KEY, JSON.stringify(data));
-    return data;
+    const parsed = AssetTrackerDataSchema.parse(data);
+    buildRepository(parsed);
+    storage.setItem(ASSET_TRACKER_STORAGE_KEY, JSON.stringify(parsed));
+    return parsed;
   }
 
   function current(): AssetTrackerData {
@@ -201,6 +232,29 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
         write(applyImportIncomeHistory(current(), input)),
       );
     },
+    importSalaryHistory(input) {
+      return promiseFromSync(() => {
+        const data = current();
+        return write({
+          ...data,
+          salaryHistory: applyImportSalaryHistory(data.salaryHistory, input),
+        });
+      });
+    },
+    saveSalaryRecord(input) {
+      return promiseFromSync(() => {
+        const data = current();
+        return write({
+          ...data,
+          salaryHistory: applySaveSalaryRecord(
+            data.salaryHistory,
+            input,
+            `salary-${globalThis.crypto.randomUUID()}`,
+            new Date().toISOString(),
+          ),
+        });
+      });
+    },
     clearIncomeHistory() {
       return promiseFromSync(() => write(applyClearIncomeHistory(current())));
     },
@@ -255,6 +309,31 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
     setWithdrawalRate(input) {
       return promiseFromSync(() =>
         write(applySetWithdrawalRate(current(), input)),
+      );
+    },
+    saveMortgageScenario(input) {
+      return promiseFromSync(() =>
+        write(applySaveMortgageScenario(current(), input, currentDate())),
+      );
+    },
+    addHouseholdMember(input) {
+      return promiseFromSync(() =>
+        write(applyAddHouseholdMember(current(), input)),
+      );
+    },
+    renameHouseholdMember(input) {
+      return promiseFromSync(() =>
+        write(applyRenameHouseholdMember(current(), input)),
+      );
+    },
+    setActiveHouseholdScope(scope) {
+      return promiseFromSync(() =>
+        write(applySetActiveHouseholdScope(current(), scope)),
+      );
+    },
+    setAccountOwnership(input) {
+      return promiseFromSync(() =>
+        write(applySetAccountOwnership(current(), input)),
       );
     },
     importData(raw) {

@@ -18,8 +18,11 @@ const settingsPath = join(
 const codexConfigPath = join(codexHomePath, "config.toml");
 const codexModelsCachePath = join(codexHomePath, "models_cache.json");
 const codexModelCatalogPath = join(codexHomePath, "model-catalog.json");
+const recipeAgentStoragePath = join(codexHomePath, "agent-auth/recipes");
 const preferredModel = "gpt-5.6-sol";
 const preferredReasoningEffort = "high";
+const configureRecipeAgentMcp =
+  process.env.CONFIGURE_RECIPE_AGENT_MCP === "true";
 
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -39,6 +42,19 @@ function atomicWrite(path, contents) {
     rmSync(temporaryPath, { force: true });
   }
   chmodSync(path, 0o600);
+}
+
+function withoutRecipeAgentMcp(lines) {
+  let insideManagedTable = false;
+  return lines.filter((line) => {
+    const table = /^\s*\[([^\]]+)]\s*(?:#.*)?$/.exec(line)?.[1];
+    if (table !== undefined) {
+      insideManagedTable =
+        table === "mcp_servers.recipe-agent" ||
+        table.startsWith("mcp_servers.recipe-agent.");
+    }
+    return !insideManagedTable;
+  });
 }
 
 function configureCodexDefaults(includeModelCatalog) {
@@ -74,7 +90,7 @@ function configureCodexDefaults(includeModelCatalog) {
     );
   }
 
-  const remainingLines = lines.slice(rootEnd);
+  const remainingLines = withoutRecipeAgentMcp(lines.slice(rootEnd));
   const newLines = [...managedLines];
   if (unmanagedRootLines.some((line) => line !== "") || remainingLines.length > 0) {
     newLines.push("");
@@ -82,6 +98,25 @@ function configureCodexDefaults(includeModelCatalog) {
   newLines.push(...unmanagedRootLines, ...remainingLines);
   while (newLines.at(-1) === "") {
     newLines.pop();
+  }
+  if (configureRecipeAgentMcp) {
+    if (newLines.length > 0) {
+      newLines.push("");
+    }
+    newLines.push(
+      "[mcp_servers.recipe-agent]",
+      `command = ${JSON.stringify("/usr/local/bin/node")}`,
+      `args = ${JSON.stringify([
+        "/usr/local/lib/agent-auth-mcp/src/cli.mjs",
+        "--storage-dir",
+        recipeAgentStoragePath,
+        "--host-name",
+        "T3 Code Codex",
+        "--url",
+        "https://robbiepalmer.me",
+      ])}`,
+      'env_vars = ["AGENT_AUTH_ENCRYPTION_KEY"]',
+    );
   }
   atomicWrite(codexConfigPath, `${newLines.join("\n")}\n`);
 }
@@ -133,6 +168,10 @@ function refreshModelCatalog() {
 }
 
 mkdirSync(dirname(settingsPath), { recursive: true });
+if (configureRecipeAgentMcp) {
+  mkdirSync(recipeAgentStoragePath, { recursive: true, mode: 0o700 });
+  chmodSync(recipeAgentStoragePath, 0o700);
+}
 
 let settings = {};
 if (existsSync(settingsPath)) {

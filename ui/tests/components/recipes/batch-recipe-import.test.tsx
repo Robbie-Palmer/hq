@@ -105,6 +105,26 @@ beforeEach(() => {
   });
 });
 
+function undoFixture(started: boolean) {
+  return {
+    state: started ? "completed" : "preview",
+    items: [
+      {
+        itemId: "item-1",
+        label: "soup.cook",
+        outcome: started ? "deleted" : "eligible",
+        message: started ? "Imported recipe deleted" : "Ready to delete",
+      },
+      {
+        itemId: "item-2",
+        label: "bread.cook",
+        outcome: "preserved",
+        message: "Recipe has been forked",
+      },
+    ],
+  };
+}
+
 describe("batch workspace", () => {
   it("captures a mixed URL and file batch after preflight", async () => {
     mocks.apiRequest.mockImplementation(
@@ -120,9 +140,14 @@ describe("batch workspace", () => {
     });
     const file = new File([draft.source], "soup.cook");
     Object.defineProperty(file, "text", { value: async () => draft.source });
-    fireEvent.change(screen.getByLabelText("Cooklang or schema.org files"), {
-      target: { files: [file] },
-    });
+    fireEvent.change(
+      screen.getByLabelText(
+        "Cooklang, schema.org files, or Cooklang collection ZIP",
+      ),
+      {
+        target: { files: [file] },
+      },
+    );
     await waitFor(() =>
       expect(
         screen.getByRole("button", { name: "Check sources" }),
@@ -141,6 +166,85 @@ describe("batch workspace", () => {
       { type: "file", filename: "soup.cook", content: draft.source },
     ]);
     expect(window.location.search).toContain(`batch=${batchId}`);
+  });
+
+  it("captures an archive with shared visibility and an explicit duplicate policy", async () => {
+    mocks.apiRequest.mockImplementation(
+      async (url: string, options?: { method: string }) =>
+        options || url.endsWith(batchId) ? batch() : { batches: [] },
+    );
+    render(<BatchRecipeImport />);
+    const file = new File(["ZIP"], "collection.zip");
+    Object.defineProperty(file, "arrayBuffer", {
+      value: async () => new Uint8Array([80, 75, 3, 4]).buffer,
+    });
+    fireEvent.change(
+      screen.getByLabelText(
+        "Cooklang, schema.org files, or Cooklang collection ZIP",
+      ),
+      { target: { files: [file] } },
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Check sources" }),
+      ).toBeEnabled(),
+    );
+    fireEvent.change(screen.getByLabelText("Default visibility"), {
+      target: { value: "public" },
+    });
+    fireEvent.change(screen.getByLabelText("Duplicate archive recipes"), {
+      target: { value: "allow" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Check sources" }));
+    await screen.findByRole("button", { name: "Start batch" });
+    const request = mocks.apiRequest.mock.calls.find(
+      ([, options]) => options?.method === "POST",
+    );
+    expect(request?.[1].json).toMatchObject({
+      sources: [
+        { type: "archive", filename: "collection.zip", content: "UEsDBA==" },
+      ],
+      visibility: "public",
+      duplicatePolicy: "allow",
+    });
+  });
+
+  it("previews undo before confirmation and shows per-item outcomes", async () => {
+    window.history.replaceState(null, "", `/recipes/import?batch=${batchId}`);
+    let started = false;
+    mocks.apiRequest.mockImplementation(
+      async (url: string, options?: { method: string }) => {
+        if (url.endsWith("/undo")) {
+          if (options?.method === "PUT") started = true;
+          return undoFixture(started);
+        }
+        if (url.endsWith(batchId)) {
+          const value = batch();
+          Object.assign(value.items[0]!, {
+            reviewState: "accepted",
+            archive: {
+              archiveName: "collection.zip",
+              archiveChecksum: "abc",
+              entryPath: "soup.cook",
+            },
+          });
+          return value;
+        }
+        return { batches: [] };
+      },
+    );
+    render(<BatchRecipeImport />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Preview batch undo" }),
+    );
+    await screen.findByText("bread.cook: Recipe has been forked");
+    expect(started).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Confirm batch undo" }));
+    await screen.findByText("soup.cook: Imported recipe deleted");
+    expect(mocks.apiRequest).toHaveBeenCalledWith(
+      expect.stringContaining("/undo"),
+      { method: "PUT", json: { state: "started" } },
+    );
   });
 
   it("resumes a stable item URL and waits for autosave before switching", async () => {

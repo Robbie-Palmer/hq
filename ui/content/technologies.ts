@@ -117,6 +117,22 @@ export const technologies: TechnologyContent[] = [
     type: "tool",
   },
   {
+    name: "tsmetrics",
+    added: "2026-10-04",
+    description:
+      "Tree-sitter-based TypeScript and TSX metrics for component responsibility, rendering complexity, and structural hotspots",
+    website: "https://gabrielrf97.github.io/tsmetrics/",
+    type: "tool",
+  },
+  {
+    name: "React Doctor",
+    added: "2026-10-04",
+    description:
+      "React-specific static analysis, including project-wide detection of repeated JSX subtrees",
+    website: "https://www.react.doctor/",
+    type: "tool",
+  },
+  {
     name: "Vale",
     added: "2026-09-04",
     description: "A configurable command-line linter for prose",
@@ -1465,5 +1481,13 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
       "Social tracker for movies and shows whose watchlist feeds Sonarr and Radarr import lists",
     website: "https://trakt.tv",
     type: "tool",
+  },
+  {
+    name: "Frankfurter",
+    added: "2026-10-02",
+    description:
+      "Open source API for current and historical reference exchange rates from official sources",
+    website: "https://frankfurter.dev",
+    type: "platform",
   },
 ];

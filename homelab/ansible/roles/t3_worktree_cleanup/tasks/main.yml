@@ -1,0 +1,84 @@
+---
+- name: Confirm T3 cleanup is running on macOS
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.system == "Darwin"
+    fail_msg: T3 worktree cleanup currently supports macOS launchd only.
+
+- name: Create T3 cleanup directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+  loop:
+    - path: "{{ ansible_facts.env.HOME }}/.local/bin"
+      mode: "0755"
+    - path: "{{ t3_worktree_cleanup_sql_dir }}"
+      mode: "0700"
+    - path: "{{ ansible_facts.env.HOME }}/Library/LaunchAgents"
+      mode: "0755"
+    - path: "{{ ansible_facts.env.HOME }}/Library/Logs/homelab"
+      mode: "0700"
+    - path: "{{ t3_worktree_cleanup_state_dir }}"
+      mode: "0700"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Install the T3 worktree cleanup script
+  ansible.builtin.copy:
+    src: t3-worktree-cleanup
+    dest: "{{ t3_worktree_cleanup_script_path }}"
+    mode: "0700"
+    validate: /bin/bash -n %s
+  notify: Reload T3 worktree cleanup job
+
+- name: Install the T3 worktree cleanup SQL files
+  ansible.builtin.copy:
+    src: "sql/{{ item }}"
+    dest: "{{ t3_worktree_cleanup_sql_dir }}/{{ item }}"
+    mode: "0600"
+  loop: "{{ t3_worktree_cleanup_sql_files }}"
+  notify: Reload T3 worktree cleanup job
+
+- name: Find installed T3 worktree cleanup SQL files
+  ansible.builtin.find:
+    paths:
+      - "{{ t3_worktree_cleanup_sql_dir }}"
+    patterns:
+      - "*.sql"
+    file_type: file
+    recurse: false
+  register: t3_worktree_cleanup_installed_sql_files
+
+- name: Remove obsolete T3 worktree cleanup SQL files
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ t3_worktree_cleanup_installed_sql_files.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when: item.path | basename not in t3_worktree_cleanup_sql_files
+  notify: Reload T3 worktree cleanup job
+
+- name: Install the T3 worktree cleanup launchd definition
+  ansible.builtin.template:
+    src: homelab.t3-worktree-cleanup.plist.j2
+    dest: "{{ ansible_facts.env.HOME }}/Library/LaunchAgents/{{ t3_worktree_cleanup_launchd_label }}.plist"
+    mode: "0600"
+    validate: /usr/bin/plutil -lint %s
+  notify: Reload T3 worktree cleanup job
+
+- name: Inspect the T3 worktree cleanup launchd job
+  ansible.builtin.command:
+    argv:
+      - launchctl
+      - print
+      - "gui/{{ ansible_facts.user_uid }}/{{ t3_worktree_cleanup_launchd_label }}"
+  check_mode: false
+  changed_when: t3_worktree_cleanup_launchd_status.rc != 0
+  failed_when: false
+  register: t3_worktree_cleanup_launchd_status
+  notify: Reload T3 worktree cleanup job
+
+- name: Apply pending T3 worktree cleanup handlers
+  ansible.builtin.meta: flush_handlers

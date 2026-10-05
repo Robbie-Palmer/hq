@@ -45,7 +45,9 @@ Create two Doppler configs before installation:
 - `homelab/prd_remote_development_host` stores the restricted
   `DATA_VOLUME_LUKS_KEY` and the one-use `TAILSCALE_AUTH_KEY`.
 - `homelab/prd_remote_development` supplies runtime values to the Doppler
-  Kubernetes Operator. Do not put interactive OAuth sessions in this config.
+  Kubernetes Operator. Set `AGENT_AUTH_ENCRYPTION_KEY` there to a random
+  32-byte value so the recipe Agent Auth MCP server encrypts its persisted
+  host and agent keys. Do not put interactive OAuth sessions in this config.
 
 The operator workspace also reads `personal-site/dev_agent` through a separate
 read-only Doppler token. Keep only `CF_ACCESS_CLIENT_ID`,
@@ -175,6 +177,19 @@ image, Doppler, Kubernetes manifests, Terraform, logs, tickets, or chat. GitHub
 access should use a fine-grained repository token or GitHub App held in the
 remote workload Doppler config. Other interactive coding-harness sessions
 belong under `/data/home`, not in an image layer.
+
+The remote workspace image includes the Better Auth Agent Auth client and
+registers a reuse-aware MCP server as `recipe-agent` in the primary Codex
+configuration. Codex starts the stdio process when a thread uses one of its
+tools. A thread's first `connect_agent` call reuses the newest matching active
+connection unless it explicitly requests fresh approval or asks for constrained
+capabilities. The pinned client does not expose enough stored constraint detail
+to prove that two constrained grants match. Host and agent state lives under
+`/data/home/.codex/agent-auth/recipes` on the encrypted persistent volume. The
+K3s deployment reads `AGENT_AUTH_ENCRYPTION_KEY` from
+`homelab/prd_remote_development` and refuses to start without it. After the
+first deployment, create an enrollment code under Recipe Settings, then give
+that code to the agent so it can enroll and request pantry capabilities.
 
 ### Tailnet QA ports
 
@@ -437,10 +452,13 @@ mise run //homelab:ansible-verify-ente-fail-closed
 ```
 
 The facts and verification commands connect to each live host in turn without
-changing remote state. The Mac configuration command owns the native Ente job
-and a separate `homelab-k3s` Colima profile. See
+changing remote state. The Mac configuration command owns the native Ente job,
+daily T3 worktree cleanup, and a separate `homelab-k3s` Colima profile. The
+cleanup retains branches and archives dirty tracked and untracked files in
+durable `refs/t3-worktree-archive/...` refs before removing a checkout. See
 [`ansible/README.md`](ansible/README.md) for first-connection setup and the
-reviewed apply command, profile boundaries, and ADR 022 acceptance run.
+reviewed apply command, cleanup policy, profile boundaries, and ADR 022
+acceptance run.
 
 [ADR 024](/projects/homelab/adrs/024-doppler-secrets) assigns homelab secrets
 to the separate Doppler `homelab` project. Check access without printing values

@@ -4,17 +4,15 @@ import {
   randomUUID,
   sign as signBytes,
 } from "node:crypto";
+import type { BrowserContext } from "@playwright/test";
 import {
-  type APIResponse,
-  type BrowserContext,
   expect,
-  test,
-} from "@playwright/test";
-import {
-  createPreviewContext,
+  expectPreviewJSON,
+  expectPreviewStatus,
+  previewRequest,
   previewSiteURL,
   previewURL,
-  signInPreviewScenario,
+  test,
 } from "./preview-test-helpers";
 
 const agentName = `Playwright recipe agent ${randomUUID()}`;
@@ -138,44 +136,6 @@ function agentJWT(
   });
 }
 
-type RequestOptions = {
-  data?: unknown;
-  headers?: Record<string, string>;
-  method?: string;
-};
-
-function previewRequest(
-  context: BrowserContext,
-  input: string,
-  options: RequestOptions = {},
-): Promise<APIResponse> {
-  return context.request.fetch(previewURL(input), {
-    data: options.data,
-    failOnStatusCode: false,
-    headers: { origin: previewSiteURL.origin, ...options.headers },
-    method: options.method,
-  });
-}
-
-async function expectJSON<T>(
-  context: BrowserContext,
-  input: string,
-  options: RequestOptions = {},
-  expectedStatus = 200,
-): Promise<T> {
-  const response = await previewRequest(context, input, options);
-  if (response.status() !== expectedStatus) {
-    const text = (await response.text()).slice(0, 2_000);
-    await response.dispose();
-    throw new Error(
-      `${options.method ?? "GET"} ${new URL(input, previewSiteURL).pathname} returned ${response.status()}: ${text}`,
-    );
-  }
-  const body = (await response.json()) as T;
-  await response.dispose();
-  return body;
-}
-
 async function executeCapability<T>(
   context: BrowserContext,
   discovery: Discovery,
@@ -185,7 +145,7 @@ async function executeCapability<T>(
   arguments_: Record<string, unknown>,
 ): Promise<T> {
   const token = agentJWT(identity, registration, discovery.issuer, capability);
-  const response = await expectJSON<{ data: T }>(
+  const response = await expectPreviewJSON<{ data: T }>(
     context,
     discovery.endpoints.execute,
     {
@@ -197,23 +157,21 @@ async function executeCapability<T>(
   return response.data;
 }
 
-test.describe.configure({ mode: "serial" });
-
 test.describe("deployed delegated Agent Auth", () => {
   test("approves scoped reads in the UI and enforces revocation", async ({
-    browser,
+    createPreviewSession,
   }) => {
     test.setTimeout(60_000);
-    const userContext = await createPreviewContext(browser);
+    const userSession = await createPreviewSession("user-with-recipes");
+    const userContext = userSession.context;
     let agentContext: BrowserContext | undefined;
     let hostId: string | undefined;
 
     try {
-      agentContext = await createPreviewContext(browser);
-      const page = await userContext.newPage();
-      await signInPreviewScenario(page, "User with recipes");
+      agentContext = (await createPreviewSession()).context;
+      const page = userSession.page;
 
-      const discovery = await expectJSON<Discovery>(
+      const discovery = await expectPreviewJSON<Discovery>(
         agentContext,
         "/.well-known/agent-configuration",
       );
@@ -224,19 +182,32 @@ test.describe("deployed delegated Agent Auth", () => {
 
       const hostIdentity = signingIdentity("playwright-host");
       const agentIdentity = signingIdentity("playwright-agent");
-      const host = await expectJSON<{ hostId: string; status: string }>(
-        userContext,
-        "/api/auth/host/create",
+      const pendingHost = await expectPreviewJSON<{
+        enrollmentToken: string;
+        hostId: string;
+        status: string;
+      }>(userContext, "/api/auth/host/create", {
+        method: "POST",
+        data: {
+          default_capabilities: [],
+          name: hostName,
+        },
+      });
+      expect(pendingHost.status).toBe("pending_enrollment");
+      const host = await expectPreviewJSON<{ hostId: string; status: string }>(
+        agentContext,
+        "/api/auth/host/enroll",
         {
           method: "POST",
           data: {
-            default_capabilities: [],
             name: hostName,
             public_key: hostIdentity.publicKey,
+            token: pendingHost.enrollmentToken,
           },
         },
       );
       hostId = host.hostId;
+      expect(host.hostId).toBe(pendingHost.hostId);
       expect(host.status).toBe("active");
 
       const registrationToken = hostJWT(
@@ -248,7 +219,7 @@ test.describe("deployed delegated Agent Auth", () => {
           host_name: hostName,
         },
       );
-      const registration = await expectJSON<Registration>(
+      const registration = await expectPreviewJSON<Registration>(
         agentContext,
         discovery.endpoints.register,
         {
@@ -272,7 +243,7 @@ test.describe("deployed delegated Agent Auth", () => {
         discovery.issuer,
         "recipes.search",
       );
-      const pendingExecution = await previewRequest(
+      await expectPreviewStatus(
         agentContext,
         discovery.endpoints.execute,
         {
@@ -283,9 +254,8 @@ test.describe("deployed delegated Agent Auth", () => {
             arguments: { query: "Preview" },
           },
         },
+        403,
       );
-      expect(pendingExecution.status()).toBe(403);
-      await pendingExecution.dispose();
 
       await page.goto(
         previewURL(registration.approval.verification_uri_complete),
@@ -307,7 +277,7 @@ test.describe("deployed delegated Agent Auth", () => {
       ).toBeVisible();
 
       const statusToken = hostJWT(hostIdentity, host.hostId, discovery.issuer);
-      const status = await expectJSON<{
+      const status = await expectPreviewJSON<{
         status: string;
         agent_capability_grants: Array<{
           capability: string;
@@ -455,7 +425,7 @@ test.describe("deployed delegated Agent Auth", () => {
         discovery.issuer,
         "recipes.read",
       );
-      const revokedExecution = await previewRequest(
+      await expectPreviewStatus(
         agentContext,
         discovery.endpoints.execute,
         {
@@ -466,9 +436,8 @@ test.describe("deployed delegated Agent Auth", () => {
             arguments: { slug: "preview-private-weeknight-pasta" },
           },
         },
+        403,
       );
-      expect(revokedExecution.status()).toBe(403);
-      await revokedExecution.dispose();
     } finally {
       if (hostId) {
         const cleanup = await previewRequest(
@@ -481,7 +450,6 @@ test.describe("deployed delegated Agent Auth", () => {
         ).catch(() => undefined);
         await cleanup?.dispose();
       }
-      await Promise.allSettled([agentContext?.close(), userContext.close()]);
     }
   });
 });

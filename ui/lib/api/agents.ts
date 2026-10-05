@@ -47,6 +47,12 @@ export type AgentHost = {
   status: string;
 };
 
+export type AgentHostEnrollment = {
+  expiresAt: string;
+  hostId: string;
+  token: string;
+};
+
 const agentDateTime = z.iso.datetime({ offset: true });
 
 function nullableDateTime(value: unknown): string | null | undefined {
@@ -214,6 +220,33 @@ export async function getAgentHost(
   return { id: body.id, name: body.name, status: body.status };
 }
 
+export async function createAgentHostEnrollment(
+  name: string,
+): Promise<AgentHostEnrollment> {
+  const body = await apiRequest<unknown>("/api/auth/host/create", {
+    method: "POST",
+    json: { default_capabilities: [], name },
+    fallbackMessage: "The agent connection code could not be created.",
+  });
+  if (
+    !isRecord(body) ||
+    typeof body.hostId !== "string" ||
+    body.status !== "pending_enrollment" ||
+    typeof body.enrollmentToken !== "string"
+  ) {
+    throw new TypeError("The agent connection response was invalid.");
+  }
+  const expiresAt = nullableDateTime(body.enrollmentTokenExpiresAt);
+  if (typeof expiresAt !== "string") {
+    throw new TypeError("The agent connection response was invalid.");
+  }
+  return {
+    expiresAt,
+    hostId: body.hostId,
+    token: body.enrollmentToken,
+  };
+}
+
 export async function revokeAgent(agentId: string): Promise<void> {
   const body = await apiRequest<unknown>("/api/auth/agent/revoke", {
     method: "POST",
@@ -229,26 +262,53 @@ export async function revokeAgent(agentId: string): Promise<void> {
   }
 }
 
+export class FreshSessionRequiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "FreshSessionRequiredError";
+  }
+}
+
 export async function decideAgentApproval(input: {
   agentId: string;
   code: string;
   action: "approve" | "deny";
 }): Promise<void> {
-  const body = await apiRequest<unknown>("/api/auth/agent/approve-capability", {
-    method: "POST",
-    json: {
-      agent_id: input.agentId,
-      user_code: input.code,
-      action: input.action,
-    },
-    fallbackMessage: "The approval decision could not be saved.",
-  });
-  const expectedStatus = input.action === "approve" ? "approved" : "denied";
-  if (
-    !isRecord(body) ||
-    body.status !== expectedStatus ||
-    (body.agentId !== undefined && body.agentId !== input.agentId)
-  ) {
-    throw new Error("The approval decision response was invalid.");
+  let body: unknown;
+  try {
+    body = await apiRequest<unknown>("/api/auth/agent/approve-capability", {
+      method: "POST",
+      json: {
+        agent_id: input.agentId,
+        user_code: input.code,
+        action: input.action,
+      },
+      fallbackMessage: "The approval decision could not be saved.",
+    });
+  } catch (cause) {
+    if (cause instanceof Error && cause.message === "fresh_session_required") {
+      throw new FreshSessionRequiredError(
+        "Confirm your identity to approve this agent.",
+      );
+    }
+    throw cause;
   }
+  const expectedStatus = input.action === "approve" ? "approved" : "denied";
+  if (isRecord(body) && body.status === expectedStatus) {
+    if (body.agentId !== undefined && body.agentId !== input.agentId) {
+      throw new Error("The approval decision response was invalid.");
+    }
+    return;
+  }
+  if (
+    isRecord(body) &&
+    typeof body.error === "string" &&
+    typeof body.message === "string"
+  ) {
+    if (body.error === "fresh_session_required") {
+      throw new FreshSessionRequiredError(body.message);
+    }
+    throw new Error(body.message);
+  }
+  throw new Error("The approval decision response was invalid.");
 }

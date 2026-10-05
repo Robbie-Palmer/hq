@@ -14,7 +14,7 @@ stages:
   prepare:
     cmd: node src/stages/prepare.mjs
     deps:
-      - ../../patches/@cooklang__cooklang@0.18.7.patch
+      - ../../patches/@cooklang__cooklang.patch
       - ../../pnpm-lock.yaml
       - ../../pnpm-workspace.yaml
       - data/raw

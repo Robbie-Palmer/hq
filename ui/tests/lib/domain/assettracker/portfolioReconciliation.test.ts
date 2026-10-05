@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AssetTrackerData } from "@/lib/domain/assettracker";
 import {
   buildRepository,
+  defaultHouseholdFields,
+  getHousingPlanningPosition,
   getNetWorthTimeSeries,
   getPortfolioFinancialIndependence,
   reconcilePortfolio,
@@ -16,6 +18,7 @@ afterEach(() => {
 
 function portfolioData(): AssetTrackerData {
   return {
+    ...defaultHouseholdFields(),
     accounts: [
       {
         id: "portfolio",
@@ -40,6 +43,7 @@ function portfolioData(): AssetTrackerData {
       { date: "2024-02-29", amount: 10_000, currency: "GBP" },
       { date: "2024-03-31", amount: 8_000, currency: "GBP" },
     ],
+    salaryHistory: [],
     transfers: [],
     recurringFlows: [],
     plannedExpenditures: [],
@@ -414,6 +418,13 @@ describe("reconcilePortfolio", () => {
         assetType: "mortgage",
         expectedAnnualReturn: 0.04,
         linkedAccountId: "home",
+        mortgageTerms: {
+          firstPaymentDate: "2024-03-31",
+          remainingTermMonths: 240,
+          fees: [],
+          overpayments: [],
+          termChanges: [],
+        },
         createdAt: "2024-01-01",
       },
     ];
@@ -434,5 +445,32 @@ describe("reconcilePortfolio", () => {
 
     expect(currentNetWorth).toBe(100_000);
     expect(result.progress).toBeGreaterThan(0);
+    expect(result.mortgageCashFlow).toMatchObject({
+      annualRequiredCashFlow: expect.any(Number),
+      annualEconomicCost: expect.any(Number),
+      annualPrincipal: expect.any(Number),
+    });
+    expect(result.annualCashFlowWhileMortgage).toBeGreaterThan(
+      result.annualExpenditureAfterMortgage ?? 0,
+    );
+    expect(result.target).toBeCloseTo(
+      (result.annualExpenditureAfterMortgage ?? 0) / 0.04,
+    );
+    const housingPosition = getHousingPlanningPosition(
+      repository,
+      result,
+      "2026-01-01",
+    );
+    const removedMortgageCost =
+      (result.representativeAnnualExpenditure ?? 0) -
+      (result.annualExpenditureAfterMortgage ?? 0);
+    expect(housingPosition?.annualMortgageExpenditureRemoved).toBeCloseTo(
+      removedMortgageCost,
+    );
+    expect(housingPosition?.annualInvestableIncome).toBeCloseTo(
+      (result.annualExpenditureAfterMortgage ?? 0) +
+        (result.representativeAnnualSavings ?? 0) +
+        removedMortgageCost,
+    );
   });
 });

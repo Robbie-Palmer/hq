@@ -7,7 +7,7 @@ import { authClient } from "@/lib/auth-client";
 import { clearOfflineRecipeSnapshots } from "@/lib/pwa/offline-recipe-cache";
 import { recipeQueryKeys } from "@/lib/query/recipe-query-keys";
 
-const PRIVATE_RECIPE_CACHE_NAMES = ["recipe-session-v1", "recipe-images-v1"];
+const PRIVATE_RECIPE_CACHE_NAMES = ["recipe-session-v1", "recipe-images-v2"];
 
 async function connectionIsUnavailable(): Promise<boolean> {
   if (navigator.onLine) return false;

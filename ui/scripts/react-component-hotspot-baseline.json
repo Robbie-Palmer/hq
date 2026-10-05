@@ -1,0 +1,1767 @@
+[
+  {
+    "component": "BlogPostPage",
+    "maximums": {
+      "lines": 84
+    },
+    "path": "app/(site)/blog/[slug]/page.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ExperiencePage",
+    "maximums": {
+      "lines": 85
+    },
+    "path": "app/(site)/experience/page.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "IdeaPage",
+    "maximums": {
+      "lines": 134,
+      "renderComplexity": 11
+    },
+    "path": "app/(site)/ideas/[slug]/page.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "InitiativePage",
+    "maximums": {
+      "lines": 93
+    },
+    "path": "app/(site)/initiatives/[slug]/page.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "Home",
+    "maximums": {
+      "lines": 160
+    },
+    "path": "app/(site)/page.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AgentPlatformSection",
+    "maximums": {
+      "lines": 186
+    },
+    "path": "app/(site)/posthog/agent-platform-section.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "CultureSection",
+    "maximums": {
+      "lines": 146
+    },
+    "path": "app/(site)/posthog/culture-section.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "PostHogFooterActions",
+    "maximums": {
+      "lines": 88
+    },
+    "path": "app/(site)/posthog/footer-actions.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "HomelabDiagramSwitcher",
+    "maximums": {
+      "lines": 70
+    },
+    "path": "app/(site)/posthog/homelab-diagram-switcher.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "PersonalityCard",
+    "maximums": {
+      "lines": 99
+    },
+    "path": "app/(site)/posthog/page.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "PostHogApplicationPage",
+    "maximums": {
+      "lines": 599,
+      "renderComplexity": 16,
+      "responsibility": 85
+    },
+    "path": "app/(site)/posthog/page.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ADRPage",
+    "maximums": {
+      "lines": 200,
+      "renderComplexity": 12
+    },
+    "path": "app/(site)/projects/[slug]/adrs/[adrSlug]/page.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ProjectPage",
+    "maximums": {
+      "lines": 217,
+      "renderComplexity": 10
+    },
+    "path": "app/(site)/projects/[slug]/page.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "TechnologyPage",
+    "maximums": {
+      "lines": 167
+    },
+    "path": "app/(site)/technologies/[slug]/page.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "RecipesLayout",
+    "maximums": {
+      "lines": 70
+    },
+    "path": "app/recipes/layout.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AccountBalanceChart",
+    "maximums": {
+      "lines": 121
+    },
+    "path": "components/assettracker/account-balance-chart.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AccountDetailSheet",
+    "maximums": {
+      "lines": 107,
+      "renderComplexity": 13
+    },
+    "path": "components/assettracker/account-detail-sheet.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "BalanceHistory",
+    "maximums": {
+      "lines": 62
+    },
+    "path": "components/assettracker/account-detail-sheet.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "CapitalFlowHistory",
+    "maximums": {
+      "lines": 68
+    },
+    "path": "components/assettracker/account-detail-sheet.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AccountFlowRow",
+    "maximums": {
+      "lines": 60
+    },
+    "path": "components/assettracker/account-flows.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AccountFlows",
+    "maximums": {
+      "lines": 268,
+      "renderComplexity": 15,
+      "responsibility": 42
+    },
+    "path": "components/assettracker/account-flows.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AccountHistoryImportDrawer",
+    "maximums": {
+      "lines": 283,
+      "renderComplexity": 16,
+      "responsibility": 39.5
+    },
+    "path": "components/assettracker/account-history-import-drawer.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "HistoryPreview",
+    "maximums": {
+      "lines": 88
+    },
+    "path": "components/assettracker/account-history-import-drawer.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AccountProjection",
+    "maximums": {
+      "lines": 146
+    },
+    "path": "components/assettracker/account-projection.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AccountTrajectoryChart",
+    "maximums": {
+      "lines": 131,
+      "nesting": 5,
+      "renderComplexity": 11
+    },
+    "path": "components/assettracker/account-trajectory-chart.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AccountsRoute",
+    "maximums": {
+      "lines": 82
+    },
+    "path": "components/assettracker/accounts-route.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AccountsTable",
+    "maximums": {
+      "lines": 75
+    },
+    "path": "components/assettracker/accounts-table.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AddAccountDrawer",
+    "maximums": {
+      "lines": 330,
+      "renderComplexity": 13,
+      "responsibility": 62
+    },
+    "path": "components/assettracker/add-account-drawer.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AssetAllocationChart",
+    "maximums": {
+      "lines": 102
+    },
+    "path": "components/assettracker/asset-allocation-chart.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AssetAllocationHistoryChart",
+    "maximums": {
+      "lines": 106
+    },
+    "path": "components/assettracker/asset-allocation-history-chart.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AssetTrackerDashboard",
+    "maximums": {
+      "lines": 170,
+      "renderComplexity": 10
+    },
+    "path": "components/assettracker/asset-tracker-dashboard.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AssetTrackerProvider",
+    "maximums": {
+      "lines": 260
+    },
+    "path": "components/assettracker/asset-tracker-provider.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AssetTrackerShell",
+    "maximums": {
+      "lines": 67
+    },
+    "path": "components/assettracker/asset-tracker-shell.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ClearAccountHistoryButton",
+    "maximums": {
+      "lines": 67
+    },
+    "path": "components/assettracker/clear-account-history-button.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "CloseAccountControls",
+    "maximums": {
+      "lines": 72
+    },
+    "path": "components/assettracker/close-account-controls.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "DataControls",
+    "maximums": {
+      "lines": 195,
+      "renderComplexity": 12
+    },
+    "path": "components/assettracker/data-controls.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "DecisionsRoute",
+    "maximums": {
+      "lines": 79
+    },
+    "path": "components/assettracker/decisions-route.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "EquityProjection",
+    "maximums": {
+      "lines": 123
+    },
+    "path": "components/assettracker/equity-projection.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ExpectedReturnEditor",
+    "maximums": {
+      "lines": 99
+    },
+    "path": "components/assettracker/expected-return-editor.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "FinancialRunwayChart",
+    "maximums": {
+      "lines": 77
+    },
+    "path": "components/assettracker/financial-runway-chart.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "FlowSankeyChart",
+    "maximums": {
+      "lines": 171
+    },
+    "path": "components/assettracker/flow-sankey-chart.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "FlowSankeyNodeShape",
+    "maximums": {
+      "lines": 64
+    },
+    "path": "components/assettracker/flow-sankey-chart.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "HistoricalCurrencyDisclosure",
+    "maximums": {
+      "lines": 78
+    },
+    "path": "components/assettracker/historical-currency-disclosure.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "HistoryRoute",
+    "maximums": {
+      "lines": 72
+    },
+    "path": "components/assettracker/history-route.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "HouseholdScopeControl",
+    "maximums": {
+      "lines": 204,
+      "renderComplexity": 12
+    },
+    "path": "components/assettracker/household-scope-control.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "HousingAssumptionControls",
+    "maximums": {
+      "lines": 88
+    },
+    "path": "components/assettracker/housing-strategy-assumptions.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "HousingStrategyPlanner",
+    "maximums": {
+      "lines": 85
+    },
+    "path": "components/assettracker/housing-strategy-planner.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "HousingCalculatedMeasures",
+    "maximums": {
+      "lines": 71
+    },
+    "path": "components/assettracker/housing-strategy-results.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "IncomeExpenditureChart",
+    "maximums": {
+      "lines": 217,
+      "renderComplexity": 16
+    },
+    "path": "components/assettracker/income-expenditure-chart.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "IncomeHistoryImportDrawer",
+    "maximums": {
+      "lines": 141,
+      "renderComplexity": 11
+    },
+    "path": "components/assettracker/income-history-import-drawer.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "LogBalanceDrawer",
+    "maximums": {
+      "lines": 158,
+      "responsibility": 30.5
+    },
+    "path": "components/assettracker/log-balance-drawer.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "MortgageCalculatorControls",
+    "maximums": {
+      "lines": 94
+    },
+    "path": "components/assettracker/mortgage-calculator-controls.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "MortgageCalculator",
+    "maximums": {
+      "lines": 171
+    },
+    "path": "components/assettracker/mortgage-calculator.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "MortgageInvestmentComparison",
+    "maximums": {
+      "lines": 86
+    },
+    "path": "components/assettracker/mortgage-investment-comparison.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "MortgageInvestmentSensitivityTable",
+    "maximums": {
+      "lines": 71
+    },
+    "path": "components/assettracker/mortgage-investment-sensitivity.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "MortgageSchedule",
+    "maximums": {
+      "lines": 92
+    },
+    "path": "components/assettracker/mortgage-schedule.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "LegendPill",
+    "maximums": {
+      "lines": 62
+    },
+    "path": "components/assettracker/net-worth-chart.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "NetWorthChart",
+    "maximums": {
+      "lines": 250,
+      "nesting": 4
+    },
+    "path": "components/assettracker/net-worth-chart.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "NetWorthChartHeader",
+    "maximums": {
+      "lines": 90
+    },
+    "path": "components/assettracker/net-worth-chart.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "NetWorthChartSeries",
+    "maximums": {
+      "lines": 63
+    },
+    "path": "components/assettracker/net-worth-chart.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "NetWorthChartSummary",
+    "maximums": {
+      "lines": 62
+    },
+    "path": "components/assettracker/net-worth-chart.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "NetWorthDataTable",
+    "maximums": {
+      "lines": 82
+    },
+    "path": "components/assettracker/net-worth-chart.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "PortfolioContributionChart",
+    "maximums": {
+      "lines": 74
+    },
+    "path": "components/assettracker/portfolio-contribution-chart.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "PortfolioFiProjectionChart",
+    "maximums": {
+      "lines": 92
+    },
+    "path": "components/assettracker/portfolio-fi-projection-chart.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "PortfolioGoal",
+    "maximums": {
+      "lines": 397,
+      "renderComplexity": 16,
+      "responsibility": 56
+    },
+    "path": "components/assettracker/portfolio-goal.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "PropertyValueHistory",
+    "maximums": {
+      "lines": 183
+    },
+    "path": "components/assettracker/property-value-history.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "RealIncomeHistoryChart",
+    "maximums": {
+      "lines": 122,
+      "renderComplexity": 12
+    },
+    "path": "components/assettracker/real-income-history-chart.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "RecordTransferDrawer",
+    "maximums": {
+      "lines": 266,
+      "renderComplexity": 12,
+      "responsibility": 49
+    },
+    "path": "components/assettracker/record-transfer-drawer.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "RecurringFlowsManager",
+    "maximums": {
+      "lines": 66
+    },
+    "path": "components/assettracker/recurring-flows-manager.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "RunwayChartTooltip",
+    "maximums": {
+      "lines": 64
+    },
+    "path": "components/assettracker/runway-forecast.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "RunwayForecast",
+    "maximums": {
+      "lines": 438,
+      "renderComplexity": 15,
+      "responsibility": 51.5
+    },
+    "path": "components/assettracker/runway-forecast.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "SalaryHistoryImportDrawer",
+    "maximums": {
+      "lines": 263,
+      "renderComplexity": 17,
+      "responsibility": 41
+    },
+    "path": "components/assettracker/salary-history-import-drawer.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "SalaryTable",
+    "maximums": {
+      "lines": 187,
+      "renderComplexity": 19,
+      "responsibility": 33
+    },
+    "path": "components/assettracker/salary-history-manager.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "PensionFields",
+    "maximums": {
+      "lines": 62
+    },
+    "path": "components/assettracker/salary-record-drawer.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "SalaryRecordDrawer",
+    "maximums": {
+      "lines": 241,
+      "responsibility": 32.5
+    },
+    "path": "components/assettracker/salary-record-drawer.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "SpreadsheetImportDrawer",
+    "maximums": {
+      "lines": 337,
+      "renderComplexity": 12,
+      "responsibility": 47
+    },
+    "path": "components/assettracker/spreadsheet-import-drawer.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "SpreadsheetReview",
+    "maximums": {
+      "lines": 68
+    },
+    "path": "components/assettracker/spreadsheet-import-drawer.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "UpcomingFlows",
+    "maximums": {
+      "lines": 94
+    },
+    "path": "components/assettracker/upcoming-flows.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "BlogCarousel",
+    "maximums": {
+      "lines": 65
+    },
+    "path": "components/blog/blog-carousel.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "BlogCollectionTabs",
+    "maximums": {
+      "lines": 80
+    },
+    "path": "components/blog/blog-collection-tabs.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "BlogList",
+    "maximums": {
+      "lines": 284,
+      "renderComplexity": 14
+    },
+    "path": "components/blog/blog-list.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "LineChartCard",
+    "maximums": {
+      "lines": 71
+    },
+    "path": "components/blog/how-to-build-wealth/line-chart-card.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ShareButtons",
+    "maximums": {
+      "lines": 74
+    },
+    "path": "components/blog/share-buttons.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "CommandPaletteProvider",
+    "maximums": {
+      "lines": 68
+    },
+    "path": "components/command-palette-shell.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "CommandPaletteDialog",
+    "maximums": {
+      "lines": 430,
+      "renderComplexity": 19,
+      "responsibility": 32.5
+    },
+    "path": "components/command-palette.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ExperienceCard",
+    "maximums": {
+      "lines": 291,
+      "renderComplexity": 27,
+      "responsibility": 38.5
+    },
+    "path": "components/experience/experience-card.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "SearchableTechnologyGrid",
+    "maximums": {
+      "lines": 176
+    },
+    "path": "components/experience/searchable-technology-grid.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "FooterLinks",
+    "maximums": {
+      "lines": 74
+    },
+    "path": "components/footer-links.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "HomeKnowledgeGraph",
+    "maximums": {
+      "lines": 66
+    },
+    "path": "components/home-knowledge-graph.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "HomeInitiatives",
+    "maximums": {
+      "lines": 184,
+      "renderComplexity": 14
+    },
+    "path": "components/initiatives/home-initiatives.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "Mermaid",
+    "maximums": {
+      "lines": 67
+    },
+    "path": "components/mermaid.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ADRCarousel",
+    "maximums": {
+      "lines": 103
+    },
+    "path": "components/projects/adr-carousel.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ADRList",
+    "maximums": {
+      "lines": 320,
+      "renderComplexity": 13
+    },
+    "path": "components/projects/adr-list.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ADRNavContent",
+    "maximums": {
+      "lines": 120
+    },
+    "path": "components/projects/adr-nav-content.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ADRPagination",
+    "maximums": {
+      "lines": 92,
+      "renderComplexity": 12
+    },
+    "path": "components/projects/adr-pagination.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "InitiativeOverview",
+    "maximums": {
+      "lines": 100
+    },
+    "path": "components/projects/initiative-overview.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "PitchDeckFrame",
+    "maximums": {
+      "lines": 429,
+      "responsibility": 42
+    },
+    "path": "components/projects/pitch-deck/pitch-deck-frame.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "PresentationControls",
+    "maximums": {
+      "lines": 70
+    },
+    "path": "components/projects/pitch-deck/pitch-deck-frame.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "PresenterTopbar",
+    "maximums": {
+      "lines": 90,
+      "renderComplexity": 10
+    },
+    "path": "components/projects/pitch-deck/pitch-deck-frame.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "PitchDeckPresenter",
+    "maximums": {
+      "lines": 152
+    },
+    "path": "components/projects/pitch-deck/pitch-deck-presenter.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "PlatformManifest",
+    "maximums": {
+      "lines": 232,
+      "renderComplexity": 28
+    },
+    "path": "components/projects/platform-manifest.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "PlatformSummary",
+    "maximums": {
+      "lines": 191,
+      "renderComplexity": 22
+    },
+    "path": "components/projects/platform-summary.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ProjectCard",
+    "maximums": {
+      "lines": 209,
+      "renderComplexity": 14
+    },
+    "path": "components/projects/project-card.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "InitiativeProjectNavigation",
+    "maximums": {
+      "lines": 64
+    },
+    "path": "components/projects/project-initiative-context.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ProjectList",
+    "maximums": {
+      "lines": 226
+    },
+    "path": "components/projects/project-list.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ProjectTabs",
+    "maximums": {
+      "lines": 91
+    },
+    "path": "components/projects/project-tabs.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ProjectTechStack",
+    "maximums": {
+      "lines": 103
+    },
+    "path": "components/projects/project-tech-stack.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ProjectsPageTabs",
+    "maximums": {
+      "lines": 74
+    },
+    "path": "components/projects/projects-page-tabs.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "DeferredSatelliteSwarmSimulation",
+    "maximums": {
+      "lines": 148
+    },
+    "path": "components/projects/satellite-swarm/deferred-satellite-swarm-simulation.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "MissionControls",
+    "maximums": {
+      "lines": 110
+    },
+    "path": "components/projects/satellite-swarm/deferred-satellite-swarm-simulation.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "SatelliteSwarmApp",
+    "maximums": {
+      "lines": 91
+    },
+    "path": "components/projects/satellite-swarm/satellite-swarm-app.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "SatelliteSwarmGlobe",
+    "maximums": {
+      "lines": 60
+    },
+    "path": "components/projects/satellite-swarm/satellite-swarm-globe.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "SatelliteSwarmSimulation",
+    "maximums": {
+      "lines": 341,
+      "renderComplexity": 16,
+      "responsibility": 46
+    },
+    "path": "components/projects/satellite-swarm/satellite-swarm-simulation.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AddRecipeView",
+    "maximums": {
+      "lines": 548,
+      "responsibility": 68
+    },
+    "path": "components/recipes/add-recipe-view.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "RecipeImportControls",
+    "maximums": {
+      "lines": 168,
+      "renderComplexity": 16
+    },
+    "path": "components/recipes/add-recipe-view.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AddTimerPopover",
+    "maximums": {
+      "lines": 160
+    },
+    "path": "components/recipes/add-timer-popover.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AuthButton",
+    "maximums": {
+      "lines": 240,
+      "renderComplexity": 12
+    },
+    "path": "components/recipes/auth-button.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AuthOptions",
+    "maximums": {
+      "lines": 79
+    },
+    "path": "components/recipes/auth-button.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AuthenticatedAccountMenu",
+    "maximums": {
+      "lines": 103
+    },
+    "path": "components/recipes/auth-button.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "BatchImportCapture",
+    "maximums": {
+      "lines": 182
+    },
+    "path": "components/recipes/batch-import-capture.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "BatchItemReview",
+    "maximums": {
+      "lines": 67
+    },
+    "path": "components/recipes/batch-recipe-import.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "BatchRecipeImport",
+    "maximums": {
+      "lines": 88
+    },
+    "path": "components/recipes/batch-recipe-import.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "CookMode",
+    "maximums": {
+      "lines": 475,
+      "renderComplexity": 19,
+      "responsibility": 42.5
+    },
+    "path": "components/recipes/cook-mode.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "CookModeTimer",
+    "maximums": {
+      "lines": 157,
+      "renderComplexity": 14
+    },
+    "path": "components/recipes/cook-mode.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "IngredientReference",
+    "maximums": {
+      "lines": 62
+    },
+    "path": "components/recipes/cook-mode.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "CookingLog",
+    "maximums": {
+      "lines": 165
+    },
+    "path": "components/recipes/cooking-log.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "DiscoverFeed",
+    "maximums": {
+      "lines": 95
+    },
+    "path": "components/recipes/discover-feed.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "FeedCard",
+    "maximums": {
+      "lines": 67
+    },
+    "path": "components/recipes/discover-feed.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "FeedResults",
+    "maximums": {
+      "lines": 66,
+      "renderComplexity": 12
+    },
+    "path": "components/recipes/discover-feed.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "InlineTimer",
+    "maximums": {
+      "lines": 116
+    },
+    "path": "components/recipes/inline-timer.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "KitchenView",
+    "maximums": {
+      "lines": 574,
+      "renderComplexity": 35,
+      "responsibility": 58.5
+    },
+    "path": "components/recipes/kitchen/kitchen-view.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "LoggedOutLanding",
+    "maximums": {
+      "lines": 156
+    },
+    "path": "components/recipes/logged-out-landing.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "NotificationsView",
+    "maximums": {
+      "lines": 299,
+      "responsibility": 34.5
+    },
+    "path": "components/recipes/notifications/notifications-view.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "OnboardingStage",
+    "maximums": {
+      "lines": 149
+    },
+    "path": "components/recipes/onboarding/recipe-onboarding.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "RecipeOnboarding",
+    "maximums": {
+      "lines": 249
+    },
+    "path": "components/recipes/onboarding/recipe-onboarding.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "StepRailItem",
+    "maximums": {
+      "lines": 70,
+      "renderComplexity": 10
+    },
+    "path": "components/recipes/onboarding/recipe-onboarding.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "PantryRealtimeBoundary",
+    "maximums": {
+      "lines": 107
+    },
+    "path": "components/recipes/pantry-realtime-boundary.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "PhotoRecipeImport",
+    "maximums": {
+      "lines": 270
+    },
+    "path": "components/recipes/photo-recipe-import.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ProfileView",
+    "maximums": {
+      "lines": 208,
+      "renderComplexity": 15,
+      "responsibility": 33
+    },
+    "path": "components/recipes/profile/profile-view.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "CookProfile",
+    "maximums": {
+      "lines": 72
+    },
+    "path": "components/recipes/public-cooks-view.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "FollowCookAction",
+    "maximums": {
+      "lines": 83
+    },
+    "path": "components/recipes/public-cooks-view.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "RecipeBoxView",
+    "maximums": {
+      "lines": 77
+    },
+    "path": "components/recipes/recipe-box-view.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "RecipeMatchCard",
+    "maximums": {
+      "lines": 152,
+      "renderComplexity": 19
+    },
+    "path": "components/recipes/recipe-card.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "RecipeCollection",
+    "maximums": {
+      "lines": 88
+    },
+    "path": "components/recipes/recipe-collection.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "IngredientGroup",
+    "maximums": {
+      "lines": 68
+    },
+    "path": "components/recipes/recipe-content.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "RecipeContent",
+    "maximums": {
+      "lines": 619,
+      "renderComplexity": 30,
+      "responsibility": 66.5
+    },
+    "path": "components/recipes/recipe-content.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "RecipeCard",
+    "maximums": {
+      "lines": 100
+    },
+    "path": "components/recipes/recipe-list.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "RecipeListContent",
+    "maximums": {
+      "lines": 243
+    },
+    "path": "components/recipes/recipe-list.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "RecipePagination",
+    "maximums": {
+      "lines": 71
+    },
+    "path": "components/recipes/recipe-pagination.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "RecipePwa",
+    "maximums": {
+      "lines": 73
+    },
+    "path": "components/recipes/recipe-pwa.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "OfflineRecipeCacheBoundary",
+    "maximums": {
+      "lines": 69
+    },
+    "path": "components/recipes/recipe-query-provider.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "RecipeShoppingListButton",
+    "maximums": {
+      "lines": 110
+    },
+    "path": "components/recipes/recipe-shopping-list-button.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "SavedRecipeView",
+    "maximums": {
+      "lines": 110
+    },
+    "path": "components/recipes/saved-recipe-view.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AccountPanel",
+    "maximums": {
+      "lines": 114
+    },
+    "path": "components/recipes/settings/account-panel.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AgentApprovalView",
+    "maximums": {
+      "lines": 302,
+      "responsibility": 46.5
+    },
+    "path": "components/recipes/settings/agent-approval-view.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ReauthenticationPrompt",
+    "maximums": {
+      "lines": 70
+    },
+    "path": "components/recipes/settings/agent-approval-view.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AgentConnectionCard",
+    "maximums": {
+      "lines": 118
+    },
+    "path": "components/recipes/settings/agent-connection-card.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AgentsPanel",
+    "maximums": {
+      "lines": 296,
+      "renderComplexity": 20,
+      "responsibility": 39
+    },
+    "path": "components/recipes/settings/agents-panel.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "DietPanel",
+    "maximums": {
+      "lines": 225,
+      "renderComplexity": 14
+    },
+    "path": "components/recipes/settings/diet-panel.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "IngredientPicker",
+    "maximums": {
+      "lines": 113
+    },
+    "path": "components/recipes/settings/diet-panel.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "EmptyHouseholdView",
+    "maximums": {
+      "lines": 91
+    },
+    "path": "components/recipes/settings/household-panel.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "HouseholdEquipmentSection",
+    "maximums": {
+      "lines": 151,
+      "renderComplexity": 10
+    },
+    "path": "components/recipes/settings/household-panel.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "HouseholdInvitationsSection",
+    "maximums": {
+      "lines": 61
+    },
+    "path": "components/recipes/settings/household-panel.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "HouseholdPanel",
+    "maximums": {
+      "lines": 348
+    },
+    "path": "components/recipes/settings/household-panel.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ManagedHouseholdView",
+    "maximums": {
+      "lines": 115
+    },
+    "path": "components/recipes/settings/household-panel.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "SecurityPanel",
+    "maximums": {
+      "lines": 289,
+      "renderComplexity": 19,
+      "responsibility": 38.5
+    },
+    "path": "components/recipes/settings/security-panel.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "SettingsView",
+    "maximums": {
+      "lines": 101,
+      "renderComplexity": 10
+    },
+    "path": "components/recipes/settings/settings-view.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "Ladder",
+    "maximums": {
+      "lines": 127,
+      "renderComplexity": 14
+    },
+    "path": "components/recipes/settings/units-panel.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ThresholdRuler",
+    "maximums": {
+      "lines": 113
+    },
+    "path": "components/recipes/settings/units-panel.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "UnitsPanel",
+    "maximums": {
+      "lines": 152
+    },
+    "path": "components/recipes/settings/units-panel.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "RecipePicker",
+    "maximums": {
+      "lines": 129
+    },
+    "path": "components/recipes/shopping/recipe-picker.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ShareShoppingList",
+    "maximums": {
+      "lines": 123
+    },
+    "path": "components/recipes/shopping/share-shopping-list.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ShoppingListBoundary",
+    "maximums": {
+      "lines": 195
+    },
+    "path": "components/recipes/shopping/shopping-list-boundary.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ExtrasSection",
+    "maximums": {
+      "lines": 176,
+      "renderComplexity": 10
+    },
+    "path": "components/recipes/shopping/shopping-list.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ShoppingList",
+    "maximums": {
+      "lines": 391,
+      "renderComplexity": 24
+    },
+    "path": "components/recipes/shopping/shopping-list.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ShoppingViewContent",
+    "maximums": {
+      "lines": 129
+    },
+    "path": "components/recipes/shopping/shopping-view.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "SpellcheckEditor",
+    "maximums": {
+      "lines": 147
+    },
+    "path": "components/recipes/spellcheck-editor.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "SpellcheckSummary",
+    "maximums": {
+      "lines": 90
+    },
+    "path": "components/recipes/spellcheck-editor.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "CollapsedTimerDock",
+    "maximums": {
+      "lines": 94
+    },
+    "path": "components/recipes/timer-dock.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "DockRow",
+    "maximums": {
+      "lines": 112,
+      "renderComplexity": 13
+    },
+    "path": "components/recipes/timer-dock.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "TimerDock",
+    "maximums": {
+      "lines": 298,
+      "responsibility": 38
+    },
+    "path": "components/recipes/timer-dock.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "CesiumDemoCanvas",
+    "maximums": {
+      "lines": 109
+    },
+    "path": "components/technology/cesium/cesium-demo-canvas.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "CesiumDemo",
+    "maximums": {
+      "lines": 125
+    },
+    "path": "components/technology/cesium/cesium-demo.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "CosmosCanvas",
+    "maximums": {
+      "lines": 262
+    },
+    "path": "components/technology/cosmos-graph-client.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "CosmosGraphClient",
+    "maximums": {
+      "lines": 312,
+      "renderComplexity": 11,
+      "responsibility": 38
+    },
+    "path": "components/technology/cosmos-graph-client.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "FilterControls",
+    "maximums": {
+      "lines": 76
+    },
+    "path": "components/technology/cosmos-graph-client.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "LeafletMapDemo",
+    "maximums": {
+      "lines": 67
+    },
+    "path": "components/technology/leaflet-map-demo.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "RechartsDemoChart",
+    "maximums": {
+      "lines": 123
+    },
+    "path": "components/technology/recharts-demo-chart.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "TechNavContent",
+    "maximums": {
+      "lines": 119
+    },
+    "path": "components/technology/tech-nav-content.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "TechPagination",
+    "maximums": {
+      "lines": 80,
+      "renderComplexity": 12
+    },
+    "path": "components/technology/tech-pagination.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AnimatedThemeToggler",
+    "maximums": {
+      "lines": 85
+    },
+    "path": "components/ui/animated-theme-toggler.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "ContentCarousel",
+    "maximums": {
+      "lines": 157
+    },
+    "path": "components/ui/content-carousel.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "DateRangeFilter",
+    "maximums": {
+      "lines": 181
+    },
+    "path": "components/ui/date-range-filter.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "FilterBar",
+    "maximums": {
+      "lines": 395,
+      "renderComplexity": 33,
+      "responsibility": 41
+    },
+    "path": "components/ui/filter-bar.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "FilterChip",
+    "maximums": {
+      "lines": 90,
+      "renderComplexity": 11
+    },
+    "path": "components/ui/filter-chip.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "FilterableCardGrid",
+    "maximums": {
+      "lines": 364,
+      "renderComplexity": 12
+    },
+    "path": "components/ui/filterable-card-grid.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "LightRays",
+    "maximums": {
+      "lines": 79
+    },
+    "path": "components/ui/light-rays.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "MultiSelect",
+    "maximums": {
+      "lines": 327,
+      "renderComplexity": 32
+    },
+    "path": "components/ui/multi-select.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "TechOrbit",
+    "maximums": {
+      "lines": 238
+    },
+    "path": "components/ui/tech-icon-orbit.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "AccommodationEditor",
+    "maximums": {
+      "lines": 1765,
+      "renderComplexity": 90,
+      "responsibility": 222.5
+    },
+    "path": "components/wedding-planner/accommodation-editor.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "PaymentBreakdown",
+    "maximums": {
+      "lines": 98,
+      "renderComplexity": 11
+    },
+    "path": "components/wedding-planner/result-payments.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "CanvasTable",
+    "maximums": {
+      "lines": 105
+    },
+    "path": "components/wedding-planner/room-canvas/canvas-table.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "RoomScene",
+    "maximums": {
+      "lines": 64
+    },
+    "path": "components/wedding-planner/room-canvas/room-scene.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "TableEditor",
+    "maximums": {
+      "lines": 81
+    },
+    "path": "components/wedding-planner/table-editor.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "TableGuestList",
+    "maximums": {
+      "lines": 85
+    },
+    "path": "components/wedding-planner/table-editor.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "TablePreferences",
+    "maximums": {
+      "lines": 144,
+      "renderComplexity": 10
+    },
+    "path": "components/wedding-planner/table-editor.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "TableResults",
+    "maximums": {
+      "lines": 91,
+      "renderComplexity": 15
+    },
+    "path": "components/wedding-planner/table-editor.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "TableSetup",
+    "maximums": {
+      "lines": 87
+    },
+    "path": "components/wedding-planner/table-editor.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  },
+  {
+    "component": "TableRoomMap",
+    "maximums": {
+      "lines": 202,
+      "renderComplexity": 10
+    },
+    "path": "components/wedding-planner/table-room-map.tsx",
+    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+  }
+]

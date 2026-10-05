@@ -1,3 +1,4 @@
+import type { UnresolvedAuthoredTerm } from "@/lib/api/authored-terms";
 import { apiRequest } from "@/lib/api/http";
 import type { IngredientSlug } from "@/lib/domain/recipe/ingredient";
 import type {
@@ -19,6 +20,7 @@ export type Pantry = {
   scope: PantryScope;
   stock: KitchenStock;
   itemVersions: Record<string, string>;
+  unresolvedTerms?: UnresolvedAuthoredTerm[];
 };
 
 const LEGACY_PANTRY_STORAGE_KEY = "recipe-kitchen-stock-v1";

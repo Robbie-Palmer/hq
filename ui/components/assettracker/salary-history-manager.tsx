@@ -1,0 +1,281 @@
+"use client";
+
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  annualisedGrossPay,
+  type PensionContribution,
+  type SalaryHistoryRecord,
+} from "@/lib/domain/assettracker";
+import { useAssetTracker } from "./asset-tracker-provider";
+import { SalaryHistoryImportDrawer } from "./salary-history-import-drawer";
+import { SalaryRecordDrawer } from "./salary-record-drawer";
+
+function formatMoney(record: SalaryHistoryRecord, amount: number): string {
+  return new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency: record.currency,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+function pensionLabel(contribution: PensionContribution | undefined): string {
+  if (contribution == null) return "Unknown";
+  if (contribution.rate != null) {
+    return `${(contribution.rate * 100).toLocaleString("en-GB")}%`;
+  }
+  if (contribution.amount != null) {
+    return contribution.amount.toLocaleString("en-GB");
+  }
+  return "Details unknown";
+}
+
+function sourceLabel(record: SalaryHistoryRecord): string {
+  if (record.source.kind === "manual") return "Manual entry";
+  return `${record.source.fileName}, row ${record.source.row}`;
+}
+
+function SalaryTable({
+  records,
+  allowCorrection,
+}: Readonly<{
+  records: readonly SalaryHistoryRecord[];
+  allowCorrection: boolean;
+}>) {
+  return (
+    <>
+      <div className="space-y-3 sm:hidden">
+        {records.map((record) => {
+          const annualised = annualisedGrossPay(record);
+          return (
+            <article
+              key={record.id}
+              className="space-y-3 rounded-md border p-3 text-sm"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">{record.person}</p>
+                  <p className="text-muted-foreground">{record.employer}</p>
+                  <p className="font-mono text-xs text-muted-foreground">
+                    {record.employmentId}
+                  </p>
+                </div>
+                {allowCorrection && <SalaryRecordDrawer record={record} />}
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <p className="text-muted-foreground">Effective</p>
+                  <p className="font-mono">{record.effectiveStart}</p>
+                  <p className="font-mono">
+                    to {record.effectiveEnd ?? "present"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Gross before pension</p>
+                  <p className="font-medium">
+                    {formatMoney(record, record.grossPay)}
+                  </p>
+                  <p>
+                    {record.amountKind === "annualSalary"
+                      ? "Annual rate"
+                      : `${record.payFrequency} pay`}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Pay detail</p>
+                  <p>
+                    Base:{" "}
+                    {record.baseSalary == null
+                      ? "Unknown"
+                      : formatMoney(record, record.baseSalary)}
+                  </p>
+                  <p>
+                    Variable:{" "}
+                    {record.variablePay == null
+                      ? "Unknown"
+                      : formatMoney(record, record.variablePay)}
+                  </p>
+                  {annualised != null && record.amountKind === "periodPay" && (
+                    <p>{formatMoney(record, annualised)} annualised</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Pension and source</p>
+                  <p>Employee: {pensionLabel(record.employeePension)}</p>
+                  <p>Employer: {pensionLabel(record.employerPension)}</p>
+                  <p className="mt-1 text-muted-foreground">
+                    {sourceLabel(record)}
+                  </p>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+      <div className="hidden w-full min-w-0 max-w-full overflow-x-auto rounded-md border sm:block">
+        <table className="w-full min-w-[58rem] text-sm">
+          <thead className="bg-muted/50 text-left">
+            <tr>
+              <th className="px-3 py-2 font-medium">Person and employment</th>
+              <th className="px-3 py-2 font-medium">Effective dates</th>
+              <th className="px-3 py-2 font-medium">Gross before pension</th>
+              <th className="px-3 py-2 font-medium">Pay detail</th>
+              <th className="px-3 py-2 font-medium">Pension</th>
+              <th className="px-3 py-2 font-medium">Source</th>
+              {allowCorrection && (
+                <th className="px-3 py-2">
+                  <span className="sr-only">Actions</span>
+                </th>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {records.map((record) => {
+              const annualised = annualisedGrossPay(record);
+              return (
+                <tr key={record.id} className="border-t align-top">
+                  <td className="px-3 py-3">
+                    <span className="block font-medium">{record.person}</span>
+                    <span className="block text-muted-foreground">
+                      {record.employer}
+                    </span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {record.employmentId}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 font-mono text-xs">
+                    {record.effectiveStart}
+                    <span className="block text-muted-foreground">
+                      to {record.effectiveEnd ?? "present"}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 tabular-nums">
+                    <span className="block font-medium">
+                      {formatMoney(record, record.grossPay)}
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      {record.amountKind === "annualSalary"
+                        ? "Annual salary rate"
+                        : `Actual ${record.payFrequency} pay`}
+                    </span>
+                    {record.workFraction != null && (
+                      <span className="block text-xs text-muted-foreground">
+                        {(record.workFraction * 100).toLocaleString("en-GB")}%
+                        of full-time
+                      </span>
+                    )}
+                    {record.amountKind === "periodPay" &&
+                      annualised != null && (
+                        <span className="block text-xs text-muted-foreground">
+                          {formatMoney(record, annualised)} annualised
+                        </span>
+                      )}
+                  </td>
+                  <td className="px-3 py-3 text-xs">
+                    <span className="block">
+                      Base:{" "}
+                      {record.baseSalary == null
+                        ? "Unknown"
+                        : formatMoney(record, record.baseSalary)}
+                    </span>
+                    <span className="block">
+                      Variable:{" "}
+                      {record.variablePay == null
+                        ? "Unknown"
+                        : formatMoney(record, record.variablePay)}
+                    </span>
+                    <span className="block">
+                      Taxable:{" "}
+                      {record.taxablePay == null
+                        ? "Unknown"
+                        : formatMoney(record, record.taxablePay)}
+                    </span>
+                    <span className="block">
+                      Take-home:{" "}
+                      {record.takeHomePay == null
+                        ? "Unknown"
+                        : formatMoney(record, record.takeHomePay)}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 text-xs">
+                    <span className="block">
+                      Employee: {pensionLabel(record.employeePension)}
+                    </span>
+                    <span className="block">
+                      Employer: {pensionLabel(record.employerPension)}
+                    </span>
+                  </td>
+                  <td className="max-w-48 px-3 py-3 text-xs text-muted-foreground">
+                    {sourceLabel(record)}
+                  </td>
+                  {allowCorrection && (
+                    <td className="px-3 py-2 text-right">
+                      <SalaryRecordDrawer record={record} />
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+export function SalaryHistoryManager() {
+  const { currentSalaryHistory, salaryHistory } = useAssetTracker();
+  const currentIds = new Set(currentSalaryHistory.map((record) => record.id));
+  const prior = salaryHistory.filter((record) => !currentIds.has(record.id));
+
+  return (
+    <Card className="min-w-0">
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="space-y-1.5">
+            <CardTitle>Salary history</CardTitle>
+            <CardDescription>
+              Preserve annual salary rates and actual period pay across jobs,
+              raises, part-time periods, bonuses, and pension changes. Gaps are
+              allowed and stay visible.
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <SalaryHistoryImportDrawer />
+            <SalaryRecordDrawer />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="min-w-0 space-y-4">
+        {currentSalaryHistory.length === 0 ? (
+          <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
+            No salary facts are stored yet. Download the import template or add
+            the first record manually.
+          </div>
+        ) : (
+          <SalaryTable records={currentSalaryHistory} allowCorrection />
+        )}
+        {prior.length > 0 && (
+          <details className="rounded-md border p-3">
+            <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+              Prior accepted facts
+              <Badge variant="outline">{prior.length}</Badge>
+            </summary>
+            <p className="my-3 text-xs text-muted-foreground">
+              Corrections append a new accepted fact. These superseded records
+              remain in the local export with their original source and
+              acceptance time.
+            </p>
+            <SalaryTable records={prior} allowCorrection={false} />
+          </details>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

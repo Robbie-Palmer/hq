@@ -3,10 +3,12 @@ import {
   type AssetTrackerData,
   buildRepository,
   buildRunwayForecast,
+  defaultHouseholdFields,
 } from "@/lib/domain/assettracker";
 
 function forecastData(): AssetTrackerData {
   return {
+    ...defaultHouseholdFields(),
     accounts: [
       {
         id: "current",
@@ -56,6 +58,7 @@ function forecastData(): AssetTrackerData {
     ],
     capitalFlows: [],
     incomeHistory: [],
+    salaryHistory: [],
     transfers: [],
     recurringFlows: [
       {

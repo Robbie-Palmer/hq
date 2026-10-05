@@ -89,6 +89,7 @@ export function buildKitchenCatalog(records: SavedRecipeApiRecord[]): {
       ingredients: Array.from(recipeIngredients.values()).sort((left, right) =>
         left.name.localeCompare(right.name),
       ),
+      cookware: recipe.cookware,
     };
   });
 

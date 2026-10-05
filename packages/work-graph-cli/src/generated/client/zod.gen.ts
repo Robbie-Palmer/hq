@@ -554,6 +554,12 @@ export const zGetCriticalPathQuery = z.object({
     excludeInitiativeIds: z.array(z.string().min(1).max(200)).max(100).register(z.globalRegistry, {
         description: 'Repeat the query parameter to select more than one scope.'
     }).optional(),
+    includeParentTitles: z.array(z.string().min(1).max(10000)).max(100).register(z.globalRegistry, {
+        description: 'Repeat the query parameter to select more than one exact ticket title, ignoring case.'
+    }).optional(),
+    excludeParentTitles: z.array(z.string().min(1).max(10000)).max(100).register(z.globalRegistry, {
+        description: 'Repeat the query parameter to select more than one exact ticket title, ignoring case.'
+    }).optional(),
     includeProjectIds: z.array(z.string().min(1).max(200)).max(100).register(z.globalRegistry, {
         description: 'Repeat the query parameter to select more than one scope.'
     }).optional(),
@@ -764,6 +770,8 @@ export const zCreateLeaseBody = z.union([
         leaseDurationSeconds: z.int().gte(1).lte(86400),
         includeInitiativeIds: z.array(z.string().min(1).max(200)).max(100).optional(),
         excludeInitiativeIds: z.array(z.string().min(1).max(200)).max(100).optional(),
+        includeParentTitles: z.array(z.string().min(1).max(10000)).max(100).optional(),
+        excludeParentTitles: z.array(z.string().min(1).max(10000)).max(100).optional(),
         includeProjectIds: z.array(z.string().min(1).max(200)).max(100).optional(),
         excludeProjectIds: z.array(z.string().min(1).max(200)).max(100).optional(),
         initiativeId: z.string().min(1).max(200).register(z.globalRegistry, {
@@ -854,6 +862,12 @@ export const zListWorkItemsQuery = z.object({
     }).optional(),
     excludeInitiativeIds: z.array(z.string().min(1).max(200)).max(100).register(z.globalRegistry, {
         description: 'Repeat the query parameter to select more than one scope.'
+    }).optional(),
+    includeParentTitles: z.array(z.string().min(1).max(10000)).max(100).register(z.globalRegistry, {
+        description: 'Repeat the query parameter to select more than one exact ticket title, ignoring case.'
+    }).optional(),
+    excludeParentTitles: z.array(z.string().min(1).max(10000)).max(100).register(z.globalRegistry, {
+        description: 'Repeat the query parameter to select more than one exact ticket title, ignoring case.'
     }).optional(),
     includeProjectIds: z.array(z.string().min(1).max(200)).max(100).register(z.globalRegistry, {
         description: 'Repeat the query parameter to select more than one scope.'

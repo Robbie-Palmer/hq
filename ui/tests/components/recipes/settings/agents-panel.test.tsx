@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  createAgentHostEnrollment: vi.fn(),
   listAgents: vi.fn(),
   listAgentMutations: vi.fn(),
   revokeAgent: vi.fn(),
@@ -11,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/api/agents", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/agents")>()),
+  createAgentHostEnrollment: mocks.createAgentHostEnrollment,
   listAgents: mocks.listAgents,
   revokeAgent: mocks.revokeAgent,
 }));
@@ -49,6 +51,11 @@ describe("AgentsPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.listAgents.mockResolvedValue([activeAgent]);
+    mocks.createAgentHostEnrollment.mockResolvedValue({
+      hostId: "host-new",
+      token: "enroll-once",
+      expiresAt: "2026-10-02T13:00:00.000Z",
+    });
     mocks.listAgentMutations.mockResolvedValue([]);
     mocks.revokeAgent.mockResolvedValue(undefined);
     mocks.undoAgentMutation.mockResolvedValue(undefined);
@@ -78,10 +85,32 @@ describe("AgentsPanel", () => {
       screen.getByText(/Any write access appears as a separate grant/),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        /Start the connection from an Agent Auth-compatible app/,
-      ),
+      screen.getByText(/Create a connection code above/),
     ).toBeInTheDocument();
+  });
+
+  it("creates and copies a one-use host enrollment code", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    render(<AgentsPanel />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Create connection code" }),
+    );
+
+    expect(mocks.createAgentHostEnrollment).toHaveBeenCalledWith("Codex");
+    expect(screen.getByText(/enroll-once/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/does not grant pantry access yet/),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Copy code" }));
+    expect(writeText).toHaveBeenCalledWith("enroll-once");
+    expect(screen.getByRole("button", { name: "Copied" })).toBeInTheDocument();
   });
 
   it("revokes one agent and reloads the list", async () => {

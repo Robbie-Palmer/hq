@@ -150,3 +150,9 @@ discussion only after release. Both forms are append-only and appear in the
 notes collection. A comment does not change the work-item row, the release
 event or its evidence, or any lease. Cloudflare Access rejects unauthenticated
 and unauthorized requests before they reach the Worker with HTTP 401 or 403.
+
+## Production diagnostics
+
+See [the incident runbook](../../docs/runbooks/work-graph-production-observability.md) for the dedicated diagnostic token,
+historical 5XX queries, Hyperdrive correlation, retention, and scheduled health
+checks.

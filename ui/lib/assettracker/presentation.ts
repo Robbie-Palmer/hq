@@ -7,6 +7,7 @@ import {
   type Currency,
   DEFAULT_BASE_CURRENCY,
 } from "@/lib/domain/assettracker/currency";
+import { formatCurrencyAmount } from "@/lib/generic/money";
 
 export const ASSET_TYPE_LABELS: Record<AssetType, string> = {
   cash: "Cash",
@@ -49,11 +50,7 @@ export function formatCurrency(
   value: number,
   currency: Currency = DEFAULT_BASE_CURRENCY,
 ): string {
-  return new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(value);
+  return formatCurrencyAmount(value, currency, { maximumFractionDigits: 0 });
 }
 
 export function formatAccountCurrency(
@@ -61,10 +58,7 @@ export function formatAccountCurrency(
   currency: Currency,
 ): string {
   // Fixed locale keeps the statically generated HTML and client render in sync
-  return new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency,
-  }).format(amount);
+  return formatCurrencyAmount(amount, currency);
 }
 
 /**
@@ -80,12 +74,10 @@ export function formatCurrencyAxisTick(
   value: number,
   currency: Currency,
 ): string {
-  return new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency,
+  return formatCurrencyAmount(value, currency, {
     notation: "compact",
     maximumFractionDigits: 0,
-  }).format(value);
+  });
 }
 
 export function formatAnnualRate(rate: number): string {

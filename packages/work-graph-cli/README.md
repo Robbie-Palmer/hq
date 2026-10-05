@@ -324,19 +324,24 @@ endpoints.
 project. Children inherit that assignment. Omit both scope flags to return the
 ticket to the unscoped queue. Queue and scheduler-selected claim commands accept
 repeatable `--project`, `--exclude-project`, `--initiative`, and
-`--exclude-initiative` flags, plus `--parent-id`. Each flag occurrence adds one
-literal ID. IDs do not use CSV parsing or exclusion sigils. Inclusion IDs match
-with OR within one kind. Project and initiative inclusion kinds combine with
-AND. Exclusions take precedence, including when an ID also appears in an
-inclusion list. Filtering only by exclusions starts with the global queue.
+`--exclude-initiative` flags, plus `--parent-title`, `--exclude-parent-title`,
+and `--parent-id`. Each flag occurrence adds one literal ID or title. Values do
+not use CSV parsing or exclusion sigils. Parent titles use case-insensitive
+exact matching against the candidate ticket or any ancestor, so they select a
+whole subtree. Inclusion values match with OR within one kind. Project,
+initiative, and parent-title
+inclusion kinds combine with AND. Exclusions take precedence, including when a
+value also appears in an inclusion list. Filtering only by exclusions starts
+with the global queue.
 An empty inclusion array in JSON imposes no restriction for that kind.
 The deprecated `--project-id` and `--initiative-id` aliases each accept one
 included ID and add it to the corresponding inclusion list. Filtering preserves
-the relative global priority order. A claim that
-names a ticket directly cannot also use scope filters.
+the relative global priority order. A claim that names a ticket directly cannot
+also use scope filters.
 
 ```sh
 work-graph claim --exclude-project recipe-site
+work-graph claim --parent-title "Ship Work Graph" --exclude-parent-title "Build API"
 work-graph ready --project work-graph --project agent-coordinator --exclude-initiative paused
 work-graph queue --json '{"includeProjectIds":["work-graph"],"excludeProjectIds":["recipe-site"]}'
 work-graph critical-path --json '{"excludeProjectIds":["recipe-site"],"outputJson":true}'
@@ -344,10 +349,11 @@ work-graph critical-path --json '{"excludeProjectIds":["recipe-site"],"outputJso
 
 Complete JSON input for `ready`, `queue`, `claim`, and `critical-path` accepts
 `includeProjectIds`, `excludeProjectIds`, `includeInitiativeIds`, and
-`excludeInitiativeIds`. Supply the whole input with `--json '<object>'` instead
-of combining it with selection flags. A bare `critical-path --json` still prints
-the complete response as JSON. With JSON input, set `outputJson` to `true` for
-that output. An exact root projection rejects all scope selection fields.
+`excludeInitiativeIds`, plus `includeParentTitles` and `excludeParentTitles`.
+Supply the whole input with `--json '<object>'` instead of combining it with
+selection flags. A bare `critical-path --json` still prints the complete
+response as JSON. With JSON input, set `outputJson` to `true` for that output.
+An exact root projection rejects all scope selection fields.
 
 Priority commands use relative anchors. `scope move` compares active
 initiatives only with active initiatives and active projects only with active

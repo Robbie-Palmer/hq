@@ -6,6 +6,7 @@ import CashFlowPage from "@/app/assettracker/cash-flow/page";
 import DecisionsPage from "@/app/assettracker/decisions/page";
 import HistoryPage from "@/app/assettracker/history/page";
 import ImportsPage from "@/app/assettracker/imports/page";
+import MortgagePage from "@/app/assettracker/mortgage/page";
 import PlanningPage from "@/app/assettracker/planning/page";
 import SettingsPage from "@/app/assettracker/settings/page";
 
@@ -22,7 +23,15 @@ vi.mock("@/components/assettracker/cash-flow-route", () => ({
 }));
 
 vi.mock("@/components/assettracker/planning-route", () => ({
-  PlanningRoute: () => <h1>Planning</h1>,
+  PlanningRoute: () => <h1>Financial independence</h1>,
+}));
+
+vi.mock("@/components/assettracker/mortgage-route", () => ({
+  MortgageRoute: () => <h1>Mortgage planning</h1>,
+}));
+
+vi.mock("@/components/assettracker/decisions-route", () => ({
+  DecisionsRoute: () => <p>Recorded mortgage decisions</p>,
 }));
 
 vi.mock("@/components/assettracker/imports-route", () => ({
@@ -42,7 +51,8 @@ import { AssetTrackerApp } from "@/components/assettracker/asset-tracker-app";
 const routes: Array<{ title: string; page: () => ReactNode }> = [
   { title: "History", page: HistoryPage },
   { title: "Cash flow", page: CashFlowPage },
-  { title: "Planning", page: PlanningPage },
+  { title: "Financial independence", page: PlanningPage },
+  { title: "Mortgage planning", page: MortgagePage },
   { title: "Decisions", page: DecisionsPage },
   { title: "Imports", page: ImportsPage },
   { title: "Settings", page: SettingsPage },
@@ -63,10 +73,10 @@ describe("Asset Tracker routes", () => {
     expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
   });
 
-  it("states honestly that decision recording is unavailable", () => {
+  it("renders recorded mortgage decisions", () => {
     render(<DecisionsPage />);
 
-    expect(screen.getByText(/not available/)).toBeVisible();
+    expect(screen.getByText("Recorded mortgage decisions")).toBeVisible();
   });
 
   it("keeps the existing dashboard on the overview", () => {

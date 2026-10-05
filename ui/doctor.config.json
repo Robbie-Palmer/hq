@@ -1,0 +1,19 @@
+{
+  "$schema": "https://react.doctor/schema/config.json",
+  "blocking": "warning",
+  "noScore": true,
+  "share": false,
+  "supplyChain": {
+    "enabled": false
+  },
+  "categories": {
+    "Security": "off",
+    "Bugs": "off",
+    "Performance": "off",
+    "Accessibility": "off",
+    "Maintainability": "off"
+  },
+  "rules": {
+    "react-doctor/duplicate-jsx-subtree": "warn"
+  }
+}

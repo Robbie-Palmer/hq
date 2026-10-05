@@ -66,6 +66,8 @@ export const snapshots: BalanceSnapshot[] = [
   { accountId: "amex-credit-card", date: "2023-12-01", balance: -2100 },
   { accountId: "amex-credit-card", date: "2024-06-01", balance: -1200 },
   { accountId: "amex-credit-card", date: "2024-12-01", balance: -1800 },
+  // Workplace Pension
+  { accountId: "workplace-pension", date: "2024-12-01", balance: 0 },
   // Old Mutual Pension (closed)
   { accountId: "old-mutual-pension", date: "2020-06-01", balance: 12000 },
   { accountId: "old-mutual-pension", date: "2020-12-01", balance: 13500 },

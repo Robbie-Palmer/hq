@@ -9,6 +9,10 @@ import { and, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import type { Db } from "recipe-db";
 import * as schema from "recipe-db/schema";
 import { createRecipeAgentAuthPlugin } from "./agent-auth";
+import {
+  agentApprovalReauthentication,
+  validateAgentApprovalReauthIdentity,
+} from "./agent-reauthentication";
 import { enforceRateLimit } from "./http/rate-limit";
 import { createHouseholdNotification } from "./notifications";
 import { purgeMutationHistoryForUser } from "./pantry/repositories/mutation-ledger-repository";
@@ -288,6 +292,7 @@ export function createAuth(
         plugins: [
           admin(),
           lastLoginMethod(),
+          agentApprovalReauthentication(),
           createRecipeAgentAuthPlugin(db, {
             artifacts: env.ARTIFACTS,
             workflow: env.RECIPE_INGEST_WORKFLOW,
@@ -307,6 +312,8 @@ export function createAuth(
           },
         },
         user: {
+          validateUserInfo: ({ user }) =>
+            validateAgentApprovalReauthIdentity(user.id),
           deleteUser: {
             enabled: true,
           },

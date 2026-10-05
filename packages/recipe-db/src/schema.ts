@@ -15,6 +15,13 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import {
+  AUTHORED_TERM_KINDS,
+  AUTHORED_TERM_RESOLUTION_STATUSES,
+  type AuthoredTermCandidate,
+  type AuthoredTermProvenance,
+  type AuthoredTermSourceContext,
+} from "recipe-domain/authored-term";
 import type { CookLogMutationValue } from "recipe-domain/cook-log";
 import {
   RECIPE_IMPORT_STAGES,
@@ -307,12 +314,20 @@ export const dietRecipeMatchModeEnum = pgEnum("diet_recipe_match_mode", [
   "warn",
 ]);
 
+export const equipmentRecipeMatchModeEnum = pgEnum(
+  "equipment_recipe_match_mode",
+  ["hide", "warn", "disabled"],
+);
+
 export const organization = pgTable("organization", {
   id: text().primaryKey(),
   name: text().notNull(),
   slug: text().notNull().unique(),
   logo: text(),
   metadata: text(),
+  equipmentRecipeMatchMode: equipmentRecipeMatchModeEnum()
+    .notNull()
+    .default("warn"),
   createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp({ withTimezone: true })
     .notNull()
@@ -337,6 +352,25 @@ export const member = pgTable(
     index("member_organization_id_idx").on(table.organizationId),
     index("member_user_id_idx").on(table.userId),
     uniqueIndex("member_user_unique").on(table.userId),
+  ],
+);
+
+/** Durable kitchen equipment shared by every member of a household. */
+export const householdEquipment = pgTable(
+  "household_equipment",
+  {
+    organizationId: text()
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    equipmentSlug: text().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.organizationId, table.equipmentSlug],
+      name: "household_equipment_pk",
+    }),
+    index("household_equipment_slug_idx").on(table.equipmentSlug),
   ],
 );
 
@@ -501,8 +535,10 @@ export const recipe = pgTable(
       .notNull()
       .defaultNow()
       .$onUpdate(() => new Date()),
+    parentRecipeId: uuid().references((): AnyPgColumn => recipe.id, { onDelete: "restrict" }),
   },
   (table) => [
+    index("recipe_parent_recipe_idx").on(table.parentRecipeId),
     index("recipe_user_id_idx").on(table.userId),
     index("recipe_public_feed_idx").on(
       table.visibility,
@@ -543,6 +579,78 @@ export const ingredient = pgTable("ingredient", {
     .defaultNow()
     .$onUpdate(() => new Date()),
 });
+
+export const authoredTermKindEnum = pgEnum(
+  "authored_term_kind",
+  AUTHORED_TERM_KINDS,
+);
+export const authoredTermResolutionStatusEnum = pgEnum(
+  "authored_term_resolution_status",
+  AUTHORED_TERM_RESOLUTION_STATUSES,
+);
+
+/**
+ * A tenant-scoped observation of text that may not exist in a canonical
+ * ingredient or equipment registry. Structured features use canonicalSlug;
+ * raw and normalized text remain available when that link is absent.
+ */
+export const authoredTerm = pgTable(
+  "authored_term",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    userId: text().references(() => user.id, { onDelete: "cascade" }),
+    organizationId: text().references(() => organization.id, {
+      onDelete: "cascade",
+    }),
+    kind: authoredTermKindEnum().notNull(),
+    rawText: text().notNull(),
+    normalizedText: text().notNull(),
+    locale: text().notNull().default("und"),
+    sourceContext: jsonb().$type<AuthoredTermSourceContext>().notNull(),
+    provenance: jsonb().$type<AuthoredTermProvenance>().notNull(),
+    candidateMatches: jsonb()
+      .$type<AuthoredTermCandidate[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    frequency: integer().notNull().default(1),
+    resolutionStatus: authoredTermResolutionStatusEnum()
+      .notNull()
+      .default("unresolved"),
+    canonicalSlug: text(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    check(
+      "authored_term_owner_check",
+      sql`num_nonnulls(${table.userId}, ${table.organizationId}) = 1`,
+    ),
+    check("authored_term_raw_text_check", sql`length(${table.rawText}) > 0`),
+    check(
+      "authored_term_normalized_text_check",
+      sql`length(${table.normalizedText}) > 0`,
+    ),
+    check("authored_term_frequency_check", sql`${table.frequency} > 0`),
+    check(
+      "authored_term_resolution_check",
+      sql`(${table.resolutionStatus} = 'resolved') = (${table.canonicalSlug} is not null)`,
+    ),
+    uniqueIndex("authored_term_user_kind_normalized_uidx")
+      .on(table.userId, table.kind, table.normalizedText)
+      .where(sql`${table.userId} is not null`),
+    uniqueIndex("authored_term_household_kind_normalized_uidx")
+      .on(table.organizationId, table.kind, table.normalizedText)
+      .where(sql`${table.organizationId} is not null`),
+    index("authored_term_canonical_slug_idx").on(
+      table.kind,
+      table.canonicalSlug,
+    ),
+  ],
+);
 
 export const pantryLocationEnum = pgEnum("pantry_location", PANTRY_LOCATIONS);
 
@@ -607,9 +715,7 @@ export const pantryItem = pgTable(
     organizationId: text().references(() => organization.id, {
       onDelete: "cascade",
     }),
-    ingredientSlug: text()
-      .notNull()
-      .references(() => ingredient.slug, { onDelete: "cascade" }),
+    ingredientSlug: text().notNull(),
     location: pantryLocationEnum().notNull(),
     version: bigint({ mode: "bigint" }).notNull().default(sql`1`),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
@@ -978,9 +1084,7 @@ export const userDietExcludedIngredient = pgTable(
     userId: text()
       .notNull()
       .references(() => userDietProfile.userId, { onDelete: "cascade" }),
-    ingredientSlug: text()
-      .notNull()
-      .references(() => ingredient.slug, { onDelete: "cascade" }),
+    ingredientSlug: text().notNull(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -1109,11 +1213,22 @@ export const recipeImportStageEnum = pgEnum(
 
 export const recipeImportDraftKindEnum = pgEnum("recipe_import_draft_kind", ["generated", "editable"]);
 
+export const recipeImportArchiveEntry = pgTable("recipe_import_archive_entry", {
+  jobId: uuid().primaryKey().references(() => recipeImportJob.id, { onDelete: "cascade" }),
+  archiveName: text().notNull(),
+  archiveChecksum: text().notNull(),
+  entryPath: text().notNull(),
+  contentChecksum: text().notNull(),
+}, table => [index("recipe_import_archive_entry_content_idx").on(table.contentChecksum)]);
+
 export const recipeImportBatch = pgTable("recipe_import_batch", {
   id: uuid().primaryKey().defaultRandom(),
   userId: text().notNull().references(() => user.id, { onDelete: "cascade" }),
   idempotencyKey: uuid().notNull(),
   fingerprint: text().notNull(),
+  duplicatePolicy: text().notNull().default("skip"),
+  undoStartedAt: timestamp({ withTimezone: true }),
+  undoCompletedAt: timestamp({ withTimezone: true }),
   startedAt: timestamp({ withTimezone: true }),
   visibility: visibilityEnum().notNull().default("private"),
   createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
@@ -1142,6 +1257,10 @@ export const recipeImportJob = pgTable(
     draftVersion: integer().notNull().default(1),
     executionAttempt: integer().notNull().default(1),
     acceptedRecipeId: uuid().references(() => recipe.id, { onDelete: "set null" }),
+    acceptedRecipeSnapshotId: uuid(),
+    acceptedRecipeUpdatedAt: timestamp({ withTimezone: true }),
+    undoOutcome: text(),
+    undoMessage: text(),
     acceptKey: uuid(),
     acceptFingerprint: text(),
     acceptedVersion: integer(),

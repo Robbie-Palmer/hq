@@ -22,6 +22,16 @@ import {
 } from "./capitalFlow";
 import { CurrencySchema } from "./currency";
 import {
+  capitalFlowOwnershipKey,
+  OwnershipSchema,
+  snapshotOwnershipKey,
+} from "./household";
+import { MortgageTermsSchema } from "./mortgage";
+import {
+  type SaveMortgageScenarioInput,
+  SaveMortgageScenarioInputSchema,
+} from "./mortgageCalculator";
+import {
   flowOccurrenceDates,
   monthlyAmount,
   RecurringFlowDefinitionShape,
@@ -78,6 +88,7 @@ export const CreateAccountInputSchema = z.object({
   expectedAnnualReturn: AnnualRateSchema,
   /** e.g. the property a mortgage is secured on */
   linkedAccountId: AccountIdSchema.optional(),
+  mortgageTerms: MortgageTermsSchema.optional(),
   openingBalance: z.number().optional(),
   openingDate: IsoDateSchema.optional(),
 });
@@ -143,6 +154,7 @@ export const ImportIncomeHistoryInputSchema = z.object({
       }),
     )
     .min(1, "Paste at least one income row"),
+  ownership: OwnershipSchema.optional(),
 });
 export type ImportIncomeHistoryInput = z.infer<
   typeof ImportIncomeHistoryInputSchema
@@ -157,6 +169,7 @@ export const ImportAccountHistoryInputSchema = z
     capitalFlowKind: CapitalFlowKindSchema.optional(),
     /** Complete cumulative imports replace this account's selected classified series. */
     replaceCapitalFlows: z.boolean().optional(),
+    ownership: OwnershipSchema.optional(),
   })
   .refine(
     (input) => input.balances.length > 0 || input.capitalFlows.length > 0,
@@ -277,6 +290,8 @@ export type SetNetWorthTargetInput = z.infer<
   typeof SetNetWorthTargetInputSchema
 >;
 
+export type { SaveMortgageScenarioInput };
+
 function uniqueId(taken: Set<string>, base: string): string {
   if (!taken.has(base)) return base;
   let suffix = 2;
@@ -380,6 +395,7 @@ export function applyCreateAccount(
     liquidity: parsed.liquidity,
     expectedAnnualReturn: parsed.expectedAnnualReturn,
     linkedAccountId: parsed.linkedAccountId,
+    mortgageTerms: parsed.mortgageTerms,
     createdAt: openingDate,
   });
   const snapshots =
@@ -470,10 +486,40 @@ export function applyImportAccountHistory(
       flow,
     );
   }
+  const ownership = parsed.ownership;
+  const nextOwnership =
+    ownership == null
+      ? data.ownership
+      : {
+          ...data.ownership,
+          accounts: {
+            ...data.ownership.accounts,
+            [parsed.accountId]: ownership,
+          },
+          snapshots: { ...data.ownership.snapshots },
+          capitalFlows: { ...data.ownership.capitalFlows },
+        };
+  if (ownership != null) {
+    for (const row of parsed.balances) {
+      nextOwnership.snapshots[
+        snapshotOwnershipKey(parsed.accountId, row.date)
+      ] = ownership;
+    }
+    for (const row of parsed.capitalFlows) {
+      nextOwnership.capitalFlows[
+        capitalFlowOwnershipKey({
+          accountId: parsed.accountId,
+          date: row.date,
+          kind: parsed.capitalFlowKind,
+        })
+      ] = ownership;
+    }
+  }
   return {
     ...data,
     snapshots: Array.from(snapshotsByAccountDate.values()),
     capitalFlows: Array.from(capitalFlowsByAccountDate.values()),
+    ownership: nextOwnership,
   };
 }
 
@@ -493,6 +539,12 @@ export function applyImportIncomeHistory(
     }
     byDate.set(row.date, row.amount);
   }
+  const incomeOwnership = { ...data.ownership.incomeHistory };
+  if (parsed.ownership != null) {
+    for (const row of parsed.income) {
+      incomeOwnership[row.date] = parsed.ownership;
+    }
+  }
   return {
     ...data,
     incomeHistory: Array.from(byDate, ([date, amount]) => ({
@@ -500,6 +552,10 @@ export function applyImportIncomeHistory(
       amount,
       currency: data.settings.baseCurrency,
     })).sort((a, b) => a.date.localeCompare(b.date)),
+    ownership: {
+      ...data.ownership,
+      incomeHistory: incomeOwnership,
+    },
   };
 }
 
@@ -984,6 +1040,61 @@ export function applySetNetWorthTarget(
         ? undefined
         : (parsed.inTodaysMoney ?? false),
     },
+  };
+}
+
+export function applySaveMortgageScenario(
+  data: AssetTrackerData,
+  input: SaveMortgageScenarioInput,
+  recordedAt: string,
+): AssetTrackerData {
+  const parsed = SaveMortgageScenarioInputSchema.parse(input);
+  const takenScenarioIds = new Set(
+    (data.mortgageScenarios ?? []).map((scenario) => scenario.id),
+  );
+  const scenarioId = uniqueId(
+    takenScenarioIds,
+    normalizeSlug(parsed.name) || "mortgage-scenario",
+  );
+  if (parsed.source.mortgageAccountId != null) {
+    requireAccount(data, parsed.source.mortgageAccountId);
+  }
+  if (parsed.source.propertyAccountId != null) {
+    requireAccount(data, parsed.source.propertyAccountId);
+  }
+  const decisionId = parsed.recordDecision
+    ? uniqueId(
+        new Set((data.decisionRecords ?? []).map((decision) => decision.id)),
+        `${scenarioId}-decision`,
+      )
+    : undefined;
+  return {
+    ...data,
+    mortgageScenarios: [
+      ...(data.mortgageScenarios ?? []),
+      {
+        id: scenarioId,
+        name: parsed.name,
+        createdAt: recordedAt,
+        assumptions: parsed.assumptions,
+        source: parsed.source,
+        ...(decisionId == null ? {} : { decisionRecordId: decisionId }),
+      },
+    ],
+    decisionRecords:
+      decisionId == null
+        ? (data.decisionRecords ?? [])
+        : [
+            ...(data.decisionRecords ?? []),
+            {
+              id: decisionId,
+              kind: "mortgage",
+              title: parsed.name,
+              scenarioId,
+              recordedAt,
+              status: "recorded",
+            },
+          ],
   };
 }
 

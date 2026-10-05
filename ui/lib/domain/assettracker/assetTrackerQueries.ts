@@ -2,6 +2,7 @@ import {
   type Account,
   type AccountId,
   type AssetType,
+  accountLiquidity,
   isLiability,
 } from "./account";
 import {
@@ -26,6 +27,37 @@ import {
   valuePortfolioAtDate,
 } from "./portfolioValuation";
 import { transferAmountFrom, transferAmountTo } from "./transfer";
+import {
+  type ExchangeRateObservation,
+  effectiveObservations,
+} from "./valuation";
+
+function exchangeRateDetail(
+  observation: ExchangeRateObservation,
+  date: string,
+  targetCurrency: string,
+) {
+  const inverted = observation.fromCurrency === targetCurrency;
+  let method: "direct" | "inverse" | "triangulated" = "direct";
+  if (observation.derivation?.method === "triangulated") {
+    method = "triangulated";
+  } else if (inverted || observation.derivation?.method === "inverse") {
+    method = "inverse";
+  }
+  return {
+    observationId: observation.id,
+    fromCurrency: observation.fromCurrency,
+    toCurrency: observation.toCurrency,
+    rate: observation.rate,
+    source: observation.source.label ?? observation.source.id,
+    effectiveDate: observation.validAt,
+    carriedForward:
+      observation.validAt < date ||
+      (observation.providerObservations?.some((provider) => provider.carried) ??
+        false),
+    method,
+  };
+}
 
 function needsExplicitValuation(repository: AssetTrackerRepository): boolean {
   const baseCurrency =
@@ -36,6 +68,54 @@ function needsExplicitValuation(repository: AssetTrackerRepository): boolean {
       (account) => account.currency !== baseCurrency,
     )
   );
+}
+
+function netWorthConversionDetail(
+  repository: AssetTrackerRepository,
+  valuation: ReturnType<typeof valuePortfolioAtDate>,
+  effectiveRates: ReadonlyMap<string, ExchangeRateObservation>,
+  date: string,
+): NonNullable<NetWorthDataPoint["conversion"]> {
+  return {
+    targetCurrency: valuation.baseCurrency,
+    status: valuation.total == null ? "incomplete" : "complete",
+    partialTotal: valuation.partialTotal,
+    accounts: [...valuation.byAccount.values()]
+      .filter(
+        (accountValuation) =>
+          accountValuation.nativeValue != null ||
+          accountValuation.value != null ||
+          accountValuation.issues.length > 0,
+      )
+      .map((accountValuation) => {
+        const account = repository.accounts.get(accountValuation.accountId);
+        const rates = accountValuation.inputObservationIds.flatMap((id) => {
+          const observation = effectiveRates.get(id);
+          return observation == null
+            ? []
+            : [
+                exchangeRateDetail(
+                  observation,
+                  date,
+                  accountValuation.baseCurrency,
+                ),
+              ];
+        });
+        return {
+          accountId: accountValuation.accountId,
+          accountName: account?.name ?? accountValuation.accountId,
+          nativeValue: accountValuation.nativeValue,
+          nativeCurrency: accountValuation.nativeCurrency,
+          convertedValue: accountValuation.value,
+          rates,
+          issues: accountValuation.issues.map((issue) => ({
+            kind: issue.kind,
+            currency: issue.currency,
+            observedAt: issue.observedAt,
+          })),
+        };
+      }),
+  };
 }
 
 export function getAllAccountSummaries(
@@ -122,9 +202,23 @@ export function getNetWorthTimeSeries(
   if (needsExplicitValuation(repository)) {
     const accounts = Array.from(repository.accounts.values());
     const { absorbedIds, mortgagesByProperty } = buildLinkage(accounts);
+    const effectiveRates = new Map(
+      effectiveObservations(repository.exchangeRateObservations).map(
+        (observation) => [observation.id, observation],
+      ),
+    );
     return valuationDates(repository).map((date) => {
       const valuation = valuePortfolioAtDate(repository, date);
-      const point: NetWorthDataPoint = { date, total: valuation.total };
+      const point: NetWorthDataPoint = {
+        date,
+        total: valuation.total,
+        conversion: netWorthConversionDetail(
+          repository,
+          valuation,
+          effectiveRates,
+          date,
+        ),
+      };
       for (const account of accounts) {
         if (
           absorbedIds.has(account.id) ||
@@ -160,6 +254,54 @@ export function getLatestPortfolioValuation(
 ) {
   const date = valuationDates(repository).at(-1);
   return date == null ? null : valuePortfolioAtDate(repository, date);
+}
+
+export type PortfolioPositionSummary = {
+  date: string;
+  grossAssets: number;
+  liabilities: number;
+  liquidAssets: number;
+  netWorth: number;
+};
+
+/**
+ * Current household position in the reporting currency. Gross assets and
+ * liabilities stay separate here, even when a liability is linked to an asset.
+ */
+export function getPortfolioPositionSummary(
+  repository: AssetTrackerRepository,
+): PortfolioPositionSummary | null {
+  const valuation = getLatestPortfolioValuation(repository);
+  if (valuation?.total == null) return null;
+
+  let grossAssets = 0;
+  let liabilities = 0;
+  let liquidAssets = 0;
+  for (const account of repository.accounts.values()) {
+    if (account.closedAt != null && account.closedAt <= valuation.date)
+      continue;
+    const value = valuation.byAccount.get(account.id)?.value;
+    if (value == null) return null;
+    if (value >= 0) {
+      grossAssets += value;
+      if (
+        !isLiability(account.assetType) &&
+        accountLiquidity(account) !== "illiquid"
+      ) {
+        liquidAssets += value;
+      }
+    } else {
+      liabilities += Math.abs(value);
+    }
+  }
+
+  return {
+    date: valuation.date,
+    grossAssets,
+    liabilities,
+    liquidAssets,
+    netWorth: valuation.total,
+  };
 }
 
 export type PortfolioContributionDataPoint = {

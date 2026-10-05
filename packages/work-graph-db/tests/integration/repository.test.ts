@@ -2296,13 +2296,20 @@ describe("lease-backed claiming", () => {
       title: "Second child",
       parentId: "plan",
     });
+    await repository.createWorkItem({
+      id: "child-a-leaf",
+      title: "First leaf",
+      parentId: "child-a",
+    });
 
     const allIds = (await repository.listWorkItems()).map(({ id }) => id);
     const projectIds = (
       await repository.listWorkItems({ projectId: "work-graph" })
     ).map(({ id }) => id);
     expect(projectIds).toEqual(
-      allIds.filter((id) => ["plan", "child-a", "child-b"].includes(id)),
+      allIds.filter((id) =>
+        ["plan", "child-a", "child-a-leaf", "child-b"].includes(id),
+      ),
     );
     await expect(
       repository.listWorkItems({ initiativeId: "initiative" }),
@@ -2319,6 +2326,30 @@ describe("lease-backed claiming", () => {
       expect.objectContaining({ id: "child-a" }),
       expect.objectContaining({ id: "child-b" }),
     ]);
+    await expect(
+      repository.listWorkItems({ includeParentTitles: ["pLaN"] }),
+    ).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "plan" }),
+        expect.objectContaining({ id: "child-a-leaf" }),
+      ]),
+    );
+    expect(
+      (
+        await repository.listWorkItems({
+          includeParentTitles: ["Plan"],
+          excludeParentTitles: ["fIrSt ChIlD"],
+        })
+      ).map(({ id }) => id),
+    ).toEqual(expect.arrayContaining(["plan", "child-b"]));
+    const withoutFirstChild = (
+      await repository.listWorkItems({
+        includeParentTitles: ["Plan"],
+        excludeParentTitles: ["First child"],
+      })
+    ).map(({ id }) => id);
+    expect(withoutFirstChild).not.toContain("child-a");
+    expect(withoutFirstChild).not.toContain("child-a-leaf");
     const includedProjects = await repository.listWorkItems({
       includeProjectIds: ["work-graph", "other-project"],
       excludeProjectIds: ["other-project"],
@@ -2346,9 +2377,11 @@ describe("lease-backed claiming", () => {
         leaseId: leaseId(24),
         workerId: "worker-a",
         leaseDurationSeconds: 300,
-        projectId: "work-graph",
+        includeParentTitles: ["Plan"],
       }),
-    ).resolves.toEqual(expect.objectContaining({ workItemId: "child-a" }));
+    ).resolves.toEqual(
+      expect.objectContaining({ workItemId: "child-a-leaf" }),
+    );
     await expect(
       repository.claimWorkItem({
         leaseId: leaseId(25),

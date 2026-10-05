@@ -34,6 +34,19 @@ describe("canonicalizeIngredientSlug", () => {
     expect(decision.method).toBe("exact");
   });
 
+  it.each([
+    ["neutral-oil", "vegetable-oil"],
+    ["rice-vinegar", "rice-wine-vinegar"],
+  ])("maps %s to the existing canonical ingredient", (rawSlug, canonicalSlug) => {
+    const decision = canonicalizeIngredientSlug({
+      rawSlug,
+      ontology: new Set([canonicalSlug]),
+    });
+
+    expect(decision.canonicalSlug).toBe(canonicalSlug);
+    expect(decision.method).toBe("exact");
+  });
+
   it("should keep unknown if below strict threshold", () => {
     const decision = canonicalizeIngredientSlug({
       rawSlug: "salt-and-pepper",
@@ -41,6 +54,16 @@ describe("canonicalizeIngredientSlug", () => {
     });
     expect(decision.method).toBe("none");
     expect(decision.canonicalSlug).toBe("salt-and-pepper");
+  });
+
+  it("flags tomato-pure as a typo instead of treating it as an alias", () => {
+    const decision = canonicalizeIngredientSlug({
+      rawSlug: "tomato-pure",
+      ontology: new Set(["tomato-puree"]),
+    });
+
+    expect(decision.method).toBe("none");
+    expect(decision.canonicalSlug).toBe("tomato-pure");
   });
 
   it("should not collapse garlic-powder to garlic", () => {

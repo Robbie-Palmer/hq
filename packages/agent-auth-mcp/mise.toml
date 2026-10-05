@@ -1,0 +1,22 @@
+[tasks.install]
+description = "Install the Agent Auth MCP dependencies"
+run = "pnpm install --frozen-lockfile --filter agent-auth-mcp..."
+
+[tasks.test]
+description = "Test the portable Agent Auth MCP server"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test the Agent Auth MCP server with LCOV coverage"
+depends = ["install"]
+run = "pnpm test:coverage"
+
+[tasks."pack:check"]
+description = "Check the installable Agent Auth MCP package"
+depends = ["install"]
+run = "pnpm pack:check"
+
+[tasks.check]
+description = "Check the portable Agent Auth MCP package"
+depends = ["test:coverage", "pack:check"]

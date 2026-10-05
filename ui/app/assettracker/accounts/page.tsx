@@ -15,7 +15,7 @@ export default function AssetTrackerAccountsPage() {
 function AccountsRouteFallback() {
   return (
     <div className="space-y-2">
-      <h1 className="text-4xl font-bold">Accounts</h1>
+      <h1 className="text-3xl font-bold sm:text-4xl">Accounts</h1>
       <p className="text-lg text-muted-foreground">Loading accounts...</p>
     </div>
   );

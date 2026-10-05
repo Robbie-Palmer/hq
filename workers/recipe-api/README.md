@@ -15,6 +15,42 @@ Schema changes use committed Drizzle migrations. See the
 [database operations runbook](../../docs/database.md) for generation, seeding,
 integration testing, content inspection, deployment, and recovery.
 
+## Collection imports
+
+`POST /api/recipe-import-batches` accepts a source with `type: "archive"`, a
+`.zip` filename, and base64-encoded `content`. The supported format is a ZIP of
+Cooklang `.cook` or `.cooklang` files, including files in subdirectories.
+Attachments are ignored. Recipe entries use the existing file workflows and
+require independent review and acceptance at `/recipes/import`.
+
+Upload requests are limited to 8 MB before JSON parsing. The adapter checks the
+50-recipe batch budget after each archive. Limits are 1 MB compressed, 5 MB of expanded recipe text, 100 archive entries,
+50 recipes per batch, 100 KB per recipe, and a 100:1 expansion ratio. Unsafe or
+duplicate paths reject the archive. Oversized or invalid UTF-8 recipe entries
+receive individual diagnostics. Archive names, SHA-256 checksums, entry paths,
+and content checksums remain in relational provenance rows. Recipe source text
+uses the existing import artifact retention policy; uploaded ZIPs and
+attachments are not retained.
+
+The batch's `visibility` applies to each accepted draft unless the cook edits
+that draft's visibility. `duplicatePolicy` defaults to `skip` for identical
+Cooklang text within the archive or previously accepted collection imports.
+`allow` permits separate copies after review. Acceptance rechecks duplicates
+under the owner's database lock.
+
+`GET /api/recipe-import-batches/{batchId}/undo` previews per-item deletion and
+reads persisted outcomes. `PUT` on that resource with `{ "state": "started" }`
+starts or resumes background undo. Processing must finish first. Starting undo
+blocks further acceptance. Each deletion locks the batch, item, and recipe,
+then rechecks ownership, edits, forks, and protected references in a serializable
+transaction. Transferred, forked, edited, cooked, saved-by-others, recommended,
+or meal-planned recipes are preserved. Results report `deleted`, `preserved`,
+or `failed`; repeating the operation retries failures and preserves receipts.
+
+Recipe creation accepts an optional `parentRecipeId` for a fork. The parent
+must be readable by the cook. The database retains that relationship and
+prevents deleting a parent with surviving forks.
+
 ## Local OAuth setup
 
 Configure local credentials in Doppler config `dev_recipe_api`. Start both the

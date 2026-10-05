@@ -114,7 +114,7 @@ function writeParams(file: string, seed = "fixture-seed"): void {
         minTokenProbability: 0,
         additionalConfidence: 0.1,
       },
-      vale: { binaryVersion: "3.20.0", timeoutMs: 1_000 },
+      vale: { timeoutMs: 1_000 },
     },
     matching: { characterDiff: { maxEditLength: 1_000 } },
   });

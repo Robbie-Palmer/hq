@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 
 import { afterEach, describe, expect, it } from "vitest";
 import { sha256 } from "writing-editor-domain/suggestions";
@@ -10,10 +11,9 @@ import { ValeProducerRunSchema } from "../src/schemas";
 
 const temporaryDirectories = new Set<string>();
 const repositoryRoot = path.resolve(import.meta.dirname, "../../..");
-const projectRoot = path.resolve(import.meta.dirname, "..");
-const valeBinaryVersion = JSON.parse(
-  fs.readFileSync(path.join(projectRoot, "params.yaml"), "utf8"),
-).producers.vale.binaryVersion as string;
+const valeBinaryVersion = execFileSync("vale", ["--version"], { encoding: "utf8" })
+  .trim()
+  .replace(/^vale version /, "");
 const fixtureProducerVersion = `vale@${valeBinaryVersion}+rules.fixture`;
 
 afterEach(() => {
@@ -104,7 +104,7 @@ function fixture(temporary: string): {
         minTokenProbability: 0,
         additionalConfidence: 0.1,
       },
-      vale: { binaryVersion: valeBinaryVersion, timeoutMs: 1_000 },
+      vale: { timeoutMs: 1_000 },
     },
     matching: { characterDiff: { maxEditLength: 1_000 } },
   });
@@ -267,22 +267,6 @@ describe("Vale producer", () => {
       mutate(tampered);
       expect(() => ValeProducerRunSchema.parse(tampered)).toThrow();
     }
-  });
-
-  it("stops when the installed Vale version differs from the pinned version", () => {
-    const temporary = temporaryDirectory("writing-vale-version-");
-    const options = fixture(temporary);
-    const params = JSON.parse(fs.readFileSync(options.paramsFile, "utf8"));
-    params.producers.vale.binaryVersion = "9.9.9";
-    writeJson(options.paramsFile, params);
-
-    expect(() => runValeProducer({
-      ...options,
-      configFile: path.join(repositoryRoot, ".vale.ini"),
-      stylesDirectory: path.join(repositoryRoot, ".vale/styles/Unslop"),
-      valeBinary: "vale",
-    })).toThrow(`Vale version mismatch: expected 9.9.9, got ${valeBinaryVersion}`);
-    expect(fs.existsSync(options.outputFile)).toBe(false);
   });
 
   it("rejects malformed version output and unexpected Vale result paths", () => {

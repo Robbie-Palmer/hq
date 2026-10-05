@@ -1,6 +1,37 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { JsonClient } from "../src/http";
+import { fetchWithRetry, JsonClient } from "../src/http";
+
+describe("fetchWithRetry", () => {
+  it("retries transient responses and network failures", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }))
+      .mockRejectedValueOnce(new Error("network unavailable"))
+      .mockResolvedValueOnce(new Response("ok"));
+
+    await expect(
+      fetchWithRetry("https://example.com/resource", { fetch }),
+    ).resolves.toBeInstanceOf(Response);
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("returns non-retryable responses without another request", async () => {
+    const response = new Response("missing", { status: 404 });
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response);
+
+    await expect(
+      fetchWithRetry("https://example.com/missing", { fetch }),
+    ).resolves.toBe(response);
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("requires at least one attempt", async () => {
+    await expect(
+      fetchWithRetry("https://example.com/resource", { attempts: 0 }),
+    ).rejects.toThrow("Fetch attempts must be a positive integer");
+  });
+});
 
 describe("JsonClient", () => {
   it("retries retryable responses using an injected wait", async () => {

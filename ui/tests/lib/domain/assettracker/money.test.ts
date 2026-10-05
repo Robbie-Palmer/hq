@@ -11,7 +11,8 @@ import {
 describe("Money", () => {
   it("keeps amount and currency together", () => {
     expect(money(125.5, "USD")).toEqual({ amount: 125.5, currency: "USD" });
-    expect(() => MoneySchema.parse({ amount: 10, currency: "EUR" })).toThrow();
+    expect(money(10, "EUR")).toEqual({ amount: 10, currency: "EUR" });
+    expect(() => MoneySchema.parse({ amount: 10, currency: "CHF" })).toThrow();
   });
 
   it("normalizes legacy income and recurring flows at the persistence boundary", () => {

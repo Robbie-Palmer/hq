@@ -63,3 +63,22 @@ ente_export_success_marker: >-
 ente_export_max_age_hours: 48
 ente_export_max_runtime_seconds: 1800
 netdata_launchd_label: homebrew.mxcl.netdata
+
+t3_worktree_cleanup_launchd_label: homelab.t3-worktree-cleanup
+t3_worktree_cleanup_script_path: "{{ ansible_facts.env.HOME }}/.local/bin/t3-worktree-cleanup"
+t3_worktree_cleanup_sql_dir: >-
+  {{ ansible_facts.env.HOME }}/.local/share/homelab/t3-worktree-cleanup/sql
+t3_worktree_cleanup_sql_files:
+  - check-column.sql
+  - select-candidates.sql
+t3_worktree_cleanup_database_path: "{{ ansible_facts.env.HOME }}/.t3/userdata/state.sqlite"
+t3_worktree_cleanup_root: "{{ ansible_facts.env.HOME }}/.t3/worktrees"
+t3_worktree_cleanup_state_dir: >-
+  {{ ansible_facts.env.HOME }}/Library/Application Support/homelab/t3-worktree-cleanup
+t3_worktree_cleanup_log_path: >-
+  {{ ansible_facts.env.HOME }}/Library/Logs/homelab/t3-worktree-cleanup.log
+t3_worktree_cleanup_deleted_days: 2
+t3_worktree_cleanup_archived_days: 7
+t3_worktree_cleanup_settled_days: 7
+t3_worktree_cleanup_hour: 4
+t3_worktree_cleanup_minute: 30

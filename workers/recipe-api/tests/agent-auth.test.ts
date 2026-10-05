@@ -198,6 +198,7 @@ function recipe(
     visibility: "private",
     createdAt: new Date("2026-08-20T08:00:00Z"),
     updatedAt: new Date("2026-08-21T08:00:00Z"),
+    parentRecipeId: null,
     ...overrides,
   };
 }

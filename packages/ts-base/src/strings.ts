@@ -7,6 +7,22 @@ export const compareStrings = (left: string, right: string): number => {
   return 0;
 };
 
+export const normalizeWhitespace = (value: string): string =>
+  value.trim().replaceAll(/\s+/g, " ");
+
+export function truncateWithEllipsis(
+  value: string,
+  maxLength: number,
+  ellipsis = "...",
+): string {
+  if (!Number.isSafeInteger(maxLength) || maxLength < ellipsis.length) {
+    throw new RangeError("maxLength must fit the ellipsis");
+  }
+  return value.length <= maxLength
+    ? value
+    : `${value.slice(0, maxLength - ellipsis.length)}${ellipsis}`;
+}
+
 export function primitiveString(value: unknown, fallback = ""): string {
   if (typeof value === "string") return value;
   if (

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { AssetTrackerData } from "@/lib/domain/assettracker/assetTrackerData";
 import { buildRepository } from "@/lib/domain/assettracker/assetTrackerRepository";
+import { defaultHouseholdFields } from "@/lib/domain/assettracker/household";
 
 function repositoryData(): AssetTrackerData {
   return {
+    ...defaultHouseholdFields(),
     accounts: [
       {
         id: "isa-1",
@@ -31,6 +33,7 @@ function repositoryData(): AssetTrackerData {
     ],
     capitalFlows: [],
     incomeHistory: [],
+    salaryHistory: [],
     transfers: [],
     recurringFlows: [],
     plannedExpenditures: [],
@@ -72,5 +75,45 @@ describe("buildRepository", () => {
     });
 
     expect(() => buildRepository(data)).toThrow(/ghost-account/);
+  });
+
+  it("accepts and orders salary corrections by timestamp instant", () => {
+    const data = repositoryData();
+    data.salaryHistory = [
+      {
+        id: "salary-correction",
+        person: "Alex Example",
+        employer: "Northstar Ltd",
+        employmentId: "northstar-engineer",
+        currency: "GBP",
+        jurisdiction: "UK",
+        effectiveStart: "2025-01-01",
+        payFrequency: "monthly",
+        amountKind: "annualSalary",
+        grossPay: 52_000,
+        source: { kind: "manual" },
+        acceptedAt: "2026-10-04T10:00:00.100Z",
+        correctsId: "salary-original",
+      },
+      {
+        id: "salary-original",
+        person: "Alex Example",
+        employer: "Northstar Ltd",
+        employmentId: "northstar-engineer",
+        currency: "GBP",
+        jurisdiction: "UK",
+        effectiveStart: "2025-01-01",
+        payFrequency: "monthly",
+        amountKind: "annualSalary",
+        grossPay: 50_000,
+        source: { kind: "manual" },
+        acceptedAt: "2026-10-04T10:00:00Z",
+      },
+    ];
+
+    expect(buildRepository(data).salaryHistory.map(({ id }) => id)).toEqual([
+      "salary-original",
+      "salary-correction",
+    ]);
   });
 });

@@ -1,0 +1,40 @@
+---
+- name: Inspect the loaded T3 worktree cleanup job
+  ansible.builtin.command:
+    argv:
+      - launchctl
+      - print
+      - "gui/{{ ansible_facts.user_uid }}/{{ t3_worktree_cleanup_launchd_label }}"
+  check_mode: false
+  changed_when: false
+  failed_when: false
+  register: t3_worktree_cleanup_loaded_job
+  listen: Reload T3 worktree cleanup job
+
+- name: Refuse to reload an active T3 worktree cleanup job
+  ansible.builtin.assert:
+    that:
+      - "'state = running' not in (t3_worktree_cleanup_loaded_job.stdout | default(''))"
+    fail_msg: Refusing to reload launchd while T3 worktree cleanup is running.
+  when: t3_worktree_cleanup_loaded_job.rc == 0
+  listen: Reload T3 worktree cleanup job
+
+- name: Unload the T3 worktree cleanup job
+  ansible.builtin.command:
+    argv:
+      - launchctl
+      - bootout
+      - "gui/{{ ansible_facts.user_uid }}/{{ t3_worktree_cleanup_launchd_label }}"
+  changed_when: true
+  when: t3_worktree_cleanup_loaded_job.rc == 0
+  listen: Reload T3 worktree cleanup job
+
+- name: Load the T3 worktree cleanup job
+  ansible.builtin.command:
+    argv:
+      - launchctl
+      - bootstrap
+      - "gui/{{ ansible_facts.user_uid }}"
+      - "{{ ansible_facts.env.HOME }}/Library/LaunchAgents/{{ t3_worktree_cleanup_launchd_label }}.plist"
+  changed_when: true
+  listen: Reload T3 worktree cleanup job

@@ -335,6 +335,7 @@ export function valuePortfolioAtDate(
   const issues: ValuationIssue[] = [];
   let partialTotal = 0;
   for (const account of repository.accounts.values()) {
+    if (account.createdAt > date) continue;
     if (account.closedAt != null && account.closedAt <= date) continue;
     const valuation = valueAccountAtDate(repository, account, date, asKnownAt);
     byAccount.set(account.id, valuation);

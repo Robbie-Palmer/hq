@@ -10,6 +10,7 @@ on:
       - "workers/work-graph-api/**"
       - ".github/actions/setup-mise/**"
       - ".github/workflows/work-graph-api-ci.yml"
+      - ".github/workflows/work-graph-production-health.yml"
 
 permissions:
   contents: read
@@ -27,6 +28,9 @@ jobs:
 
       - name: Check TypeScript, scenarios, and generated OpenAPI
         run: mise run //workers/work-graph-api:check
+
+      - name: Test production diagnostic queries
+        run: mise run //workers/work-graph-api:diagnostics:test
 
       - name: Check generated client and schema drift, then the installable CLI
         run: mise run //packages/work-graph-cli:check

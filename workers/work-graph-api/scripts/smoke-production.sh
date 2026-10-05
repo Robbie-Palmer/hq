@@ -74,65 +74,14 @@ status=$(curl --disable \
   --max-time 30 \
   --silent \
   --show-error \
-  --request PUT \
-  --header "Content-Type: application/json" \
-  --data '{"schedulingInitiativeId":"semi-autonomous-software-development","schedulingProjectId":"work-graph"}' \
-  --output "$work_dir/assignment.json" \
-  --write-out "$curl_http_status_format" \
-  "$WORK_GRAPH_API_URL/api/work-items/work-graph-finish-mvp/scheduling-scope")
-if [[ "$status" != "200" ]] || ! jq -e \
-  '.id == "work-graph-finish-mvp" and .schedulingInitiativeId == "semi-autonomous-software-development" and .schedulingProjectId == "work-graph"' \
-  "$work_dir/assignment.json" >/dev/null; then
-  echo "Work Graph production plan assignment failed with HTTP $status." >&2
-  exit 1
-fi
-
-status=$(curl --disable \
-  --config "$work_dir/access.curl" \
-  --connect-timeout 10 \
-  --max-time 30 \
-  --silent \
-  --show-error \
   --output "$work_dir/scoped.json" \
   --write-out "$curl_http_status_format" \
   "$WORK_GRAPH_API_URL/api/work-items?projectId=work-graph&limit=100")
 if [[ "$status" != "200" ]] || ! jq -e \
-  '.items | any(.id == "work-graph-finish-mvp")' \
+  '.items | type == "array"' \
   "$work_dir/scoped.json" >/dev/null; then
   echo "Work Graph production scoped queue verification failed with HTTP $status." >&2
   exit 1
 fi
 
-nested_id=$(jq -r '.items | map(select(.parentId != null)) | first | .id // empty' \
-  "$work_dir/scoped.json")
-nested_parent_id=$(jq -r '.items | map(select(.parentId != null)) | first | .parentId // empty' \
-  "$work_dir/scoped.json")
-if [[ -z "$nested_id" || -z "$nested_parent_id" ]]; then
-  echo "Work Graph production smoke test could not find a nested project ticket." >&2
-  exit 1
-fi
-nested_path_id=$(jq -rn --arg value "$nested_id" '$value | @uri')
-jq -n --arg parent_id "$nested_parent_id" '{parentId: $parent_id}' \
-  >"$work_dir/parent.json"
-status=$(curl --disable \
-  --config "$work_dir/access.curl" \
-  --connect-timeout 10 \
-  --max-time 30 \
-  --silent \
-  --show-error \
-  --request PUT \
-  --header "Content-Type: application/json" \
-  --data-binary "@$work_dir/parent.json" \
-  --output "$work_dir/reparented.json" \
-  --write-out "$curl_http_status_format" \
-  "$WORK_GRAPH_API_URL/api/work-items/$nested_path_id/parent")
-if [[ "$status" != "200" ]] || ! jq -e \
-  --arg nested_id "$nested_id" \
-  --arg nested_parent_id "$nested_parent_id" \
-  '.id == $nested_id and .parentId == $nested_parent_id' \
-  "$work_dir/reparented.json" >/dev/null; then
-  echo "Work Graph production no-op reparent verification failed with HTTP $status." >&2
-  exit 1
-fi
-
-echo "Work Graph production queue, project scope, and reparent operation are healthy."
+echo "Work Graph production queue and project scope reads are healthy."

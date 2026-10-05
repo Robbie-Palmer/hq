@@ -1,11 +1,13 @@
 import { queryOptions } from "@tanstack/react-query";
 import { errorMessage } from "ts-base/errors";
 import {
+  getHouseholdEquipment,
   getHouseholdInvitations,
   getHouseholdMembers,
   getHouseholds,
   getIncomingHouseholdInvitations,
   type Household,
+  type HouseholdEquipment,
   type HouseholdInvitation,
   type HouseholdMember,
   type IncomingHouseholdInvitation,
@@ -14,6 +16,7 @@ import { recipeQueryKeys } from "@/lib/query/recipe-query-keys";
 
 export type HouseholdSettingsData = {
   household: Household | null;
+  equipment: HouseholdEquipment | null;
   members: HouseholdMember[];
   invitations: HouseholdInvitation[];
   incoming: IncomingHouseholdInvitation[];
@@ -29,7 +32,7 @@ async function fetchHouseholdSettings(
 ): Promise<HouseholdSettingsData> {
   const households = await getHouseholds(signal);
   const household = households[0] ?? null;
-  const [incomingResult, membersResult, invitationsResult] =
+  const [incomingResult, membersResult, invitationsResult, equipmentResult] =
     await Promise.allSettled([
       getIncomingHouseholdInvitations(signal),
       household
@@ -38,13 +41,20 @@ async function fetchHouseholdSettings(
       household?.membership.role === "owner"
         ? getHouseholdInvitations(household.id, signal)
         : Promise.resolve([]),
+      household
+        ? getHouseholdEquipment(household.id, signal)
+        : Promise.resolve(null),
     ]);
-  const failedResult = [incomingResult, membersResult, invitationsResult].find(
-    (result) => result.status === "rejected",
-  );
+  const failedResult = [
+    incomingResult,
+    membersResult,
+    invitationsResult,
+    equipmentResult,
+  ].find((result) => result.status === "rejected");
 
   return {
     household,
+    equipment: fulfilledValue(equipmentResult, null),
     incoming: fulfilledValue(incomingResult, []),
     members: fulfilledValue(membersResult, []),
     invitations: fulfilledValue(invitationsResult, []),
@@ -62,5 +72,23 @@ export const householdSettingsQuery = (userId: string) =>
   queryOptions({
     queryKey: recipeQueryKeys.householdSettings(userId),
     queryFn: ({ signal }) => fetchHouseholdSettings(signal),
+    staleTime: 5 * 60_000,
+  });
+
+async function fetchEquipmentReadiness(signal?: AbortSignal) {
+  const households = await getHouseholds(signal);
+  const household = households[0] ?? null;
+  return {
+    household,
+    equipment: household
+      ? await getHouseholdEquipment(household.id, signal)
+      : null,
+  };
+}
+
+export const equipmentReadinessQuery = (userId: string) =>
+  queryOptions({
+    queryKey: recipeQueryKeys.equipmentReadiness(userId),
+    queryFn: ({ signal }) => fetchEquipmentReadiness(signal),
     staleTime: 5 * 60_000,
   });

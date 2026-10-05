@@ -6,7 +6,7 @@ import { Worker } from "node:worker_threads";
 import createSatelliteSwarmModule from "../../build/browser/browser/satellite-swarm.mjs";
 
 const module = await createSatelliteSwarmModule();
-assert.equal(module._satellite_swarm_browser_api_version(), 7);
+assert.equal(module._satellite_swarm_browser_api_version(), 8);
 const sourceRevision = module.UTF8ToString(
   module._satellite_swarm_source_revision(),
 );
@@ -26,7 +26,7 @@ function run(longitudeDegrees, latitudeDegrees, scenario = 0) {
 }
 
 const fixtureUrl = new URL(
-  "../../../../ui/public/simulations/autonomic-satellite-swarm/demonstration.v6.json",
+  "../../../../ui/public/simulations/autonomic-satellite-swarm/demonstration.v7.json",
   import.meta.url,
 );
 const nativeFixture = await readFile(fixtureUrl, "utf8");
@@ -37,20 +37,25 @@ assert.deepEqual(customResult.objective, {
   latitudeDegrees: -37.5,
   longitudeDegrees: 14.25,
 });
-assert.equal(customResult.frames.length, 4);
+assert.ok(customResult.frames.length > 140);
 assert.ok(customResult.events.length > 0);
 
 const faultResult = JSON.parse(run(0, -90, 1));
 assert.equal(faultResult.scenario, "three-node-assignment-loss");
-assert.ok(
-  faultResult.events.some(
-    (event) =>
-      event.type === "message-dropped" &&
-      event.nodeId === 0 &&
-      event.recipientNode === 1,
-  ),
+const droppedAssignment = faultResult.events.find(
+  (event) =>
+    event.type === "message-dropped" &&
+    event.message.type === "mission-assignment" &&
+    event.message.target === event.recipientNode &&
+    event.nodeId !== event.recipientNode,
 );
-assert.equal(faultResult.frames.at(-1).nodes[1].state, "idle");
+assert.ok(droppedAssignment);
+assert.equal(
+  faultResult.frames
+    .at(-1)
+    .nodes.find((node) => node.id === droppedAssignment.recipientNode).state,
+  "idle",
+);
 
 const safeStateResult = JSON.parse(run(0, -90, 2));
 assert.equal(safeStateResult.scenario, "three-node-safe-state-success");

@@ -117,6 +117,9 @@ export function PortfolioGoal({
     periods,
     representativeAnnualExpenditure,
     representativeAnnualCurrentExpenditure,
+    mortgageCashFlow,
+    annualCashFlowWhileMortgage,
+    annualExpenditureAfterMortgage,
     representativeAnnualSavings,
     savingsRate,
     takeHomeSavingsRate,
@@ -231,7 +234,7 @@ export function PortfolioGoal({
               {optionalCurrency(target, baseCurrency)}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Long-term FI spending ÷ withdrawal rate
+              Post-mortgage spending ÷ withdrawal rate
             </p>
           </div>
           <div className="rounded-md border p-3">
@@ -278,6 +281,71 @@ export function PortfolioGoal({
             </p>
           </div>
         </div>
+
+        {mortgageCashFlow != null && (
+          <div className="rounded-md border p-4">
+            <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-start">
+              <div>
+                <h3 className="text-sm font-medium">Mortgage cash flow</h3>
+                <p className="text-xs text-muted-foreground">
+                  Next 12 scheduled payments, then the requirement after payoff
+                  in {format(parseISO(mortgageCashFlow.payoffDate), "MMM yyyy")}
+                  .
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Principal builds home equity. Interest and fees are spending.
+              </p>
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  Cash needed while mortgaged
+                </p>
+                <p className="font-semibold">
+                  {optionalCurrency(annualCashFlowWhileMortgage, baseCurrency)}
+                  /yr
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  Mortgage payments
+                </p>
+                <p className="font-semibold">
+                  {formatCurrency(
+                    Math.round(mortgageCashFlow.annualRequiredCashFlow),
+                    baseCurrency,
+                  )}
+                  /yr
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  Of which principal
+                </p>
+                <p className="font-semibold">
+                  {formatCurrency(
+                    Math.round(mortgageCashFlow.annualPrincipal),
+                    baseCurrency,
+                  )}
+                  /yr
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  Spending after payoff
+                </p>
+                <p className="font-semibold">
+                  {optionalCurrency(
+                    annualExpenditureAfterMortgage,
+                    baseCurrency,
+                  )}
+                  /yr
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {progress != null && (
           <progress

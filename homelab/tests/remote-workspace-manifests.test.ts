@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -162,7 +163,7 @@ test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", ()
     );
     writeFileSync(
       configPath,
-      '"model" = "gpt-6-astra"\n\'model_reasoning_effort\' = \'medium\'\n"custom-key" = "keep"\npersonality = "pragmatic"\n\n[features]\njs_repl = false\n',
+      '"model" = "gpt-6-astra"\n\'model_reasoning_effort\' = \'medium\'\n"custom-key" = "keep"\npersonality = "pragmatic"\n\n[features]\njs_repl = false\n\n[mcp_servers.recipe-agent]\ncommand = "stale-command"\n\n[mcp_servers.other]\ncommand = "keep-command"\n',
     );
     writeFileSync(
       join(codexHome, "models_cache.json"),
@@ -185,6 +186,7 @@ test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", ()
 
     const environment = {
       ...process.env,
+      CONFIGURE_RECIPE_AGENT_MCP: "true",
       HOME: testHome,
       T3CODE_HOME: t3Home,
     };
@@ -211,6 +213,23 @@ test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", ()
     assert.doesNotMatch(firstConfig, /^"model"\s*=/m);
     assert.doesNotMatch(firstConfig, /^'model_reasoning_effort'\s*=/m);
     assert.match(firstConfig, /^\[features\]$/m);
+    assert.match(firstConfig, /^\[mcp_servers\.other\]$/m);
+    assert.match(firstConfig, /^command = "keep-command"$/m);
+    assert.match(firstConfig, /^\[mcp_servers\.recipe-agent\]$/m);
+    assert.match(firstConfig, /^command = "\/usr\/local\/bin\/node"$/m);
+    assert.match(
+      firstConfig,
+      /^args = \["\/usr\/local\/lib\/agent-auth-mcp\/src\/cli\.mjs","--storage-dir",".*\/\.codex\/agent-auth\/recipes","--host-name","T3 Code Codex","--url","https:\/\/robbiepalmer\.me"\]$/m,
+    );
+    assert.match(
+      firstConfig,
+      /^env_vars = \["AGENT_AUTH_ENCRYPTION_KEY"\]$/m,
+    );
+    assert.doesNotMatch(firstConfig, /stale-command/);
+    assert.equal(
+      statSync(join(codexHome, "agent-auth/recipes")).mode & 0o777,
+      0o700,
+    );
 
     const settings = JSON.parse(firstSettings) as Record<string, unknown>;
     assert.deepEqual(settings.defaultModelSelection, {
@@ -693,6 +712,35 @@ test("the remote overlay isolates durable data from rebuildable caches", () => {
       ]),
     ).includes("/data/home/.t3/worktrees"),
   );
+  assert.deepEqual(
+    valueAt(operatorDeployment, [
+      "spec",
+      "template",
+      "spec",
+      "initContainers",
+      0,
+      "env",
+    ]),
+    [{ name: "CONFIGURE_RECIPE_AGENT_MCP", value: "true" }],
+  );
+  assert.deepEqual(
+    operatorEnvironment.find(
+      (entry) =>
+        typeof entry === "object" &&
+        entry !== null &&
+        entry.name === "AGENT_AUTH_ENCRYPTION_KEY",
+    ),
+    {
+      name: "AGENT_AUTH_ENCRYPTION_KEY",
+      valueFrom: {
+        secretKeyRef: {
+          key: "AGENT_AUTH_ENCRYPTION_KEY",
+          name: "t3-code-runtime",
+          optional: false,
+        },
+      },
+    },
+  );
 
   const initContainers = valueAt(operatorDeployment, [
     "spec",
@@ -1024,6 +1072,14 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
     healthCheck.indexOf('runtime_summary=$(') <
       healthCheck.indexOf('return "${rollout_status}"'),
     "restart diagnostics must be collected before a failed rollout is returned",
+  );
+  assert.ok(
+    healthCheck.includes(".data.AGENT_AUTH_ENCRYPTION_KEY"),
+    "remote health must verify the Agent Auth encryption key",
+  );
+  assert.ok(
+    healthCheck.includes("codex mcp get recipe-agent"),
+    "remote health must verify the recipe-agent MCP registration",
   );
   assert.ok(healthCheck.includes(".CF_ACCESS_CLIENT_ID"));
   assert.ok(healthCheck.includes(".CF_ACCESS_CLIENT_SECRET"));

@@ -91,7 +91,7 @@ describe("GECToR producer", () => {
       },
       producers: {
         gector: gectorParams,
-        vale: { binaryVersion: "3.20.0", timeoutMs: 1_000 },
+        vale: { timeoutMs: 1_000 },
       },
       matching: { characterDiff: { maxEditLength: 1_000 } },
     });

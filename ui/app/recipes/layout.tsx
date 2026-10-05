@@ -3,6 +3,7 @@ import { Caveat, JetBrains_Mono, Kalam } from "next/font/google";
 import { AuthButton } from "@/components/recipes/auth-button";
 import { CookingCompletionOutbox } from "@/components/recipes/cooking-completion-outbox";
 import { DietProvider } from "@/components/recipes/diet-provider";
+import { EquipmentReadinessProvider } from "@/components/recipes/equipment-readiness-provider";
 import { NotificationBell } from "@/components/recipes/notifications/notification-bell";
 import { RecipeAnalyticsIdentity } from "@/components/recipes/recipe-analytics-identity";
 import { RecipeNavigationProvider } from "@/components/recipes/recipe-page-link";
@@ -91,7 +92,7 @@ export default function RecipesLayout({
                   <AuthButton intent="signup" compactOnMobile />
                   <AuthButton compactOnMobile />
                 </div>
-                <div className="order-3 w-full sm:order-2 sm:w-auto">
+                <div className="order-3 min-w-0 w-full sm:order-2 sm:flex-1">
                   <RecipeSiteNav />
                 </div>
               </nav>
@@ -100,9 +101,11 @@ export default function RecipesLayout({
             <RecipePwa />
 
             <DietProvider>
-              <main className="relative z-0 flex-1 flex flex-col">
-                {children}
-              </main>
+              <EquipmentReadinessProvider>
+                <main className="relative z-0 flex-1 flex flex-col">
+                  {children}
+                </main>
+              </EquipmentReadinessProvider>
             </DietProvider>
 
             <footer className="border-t border-[var(--line)] mt-auto">

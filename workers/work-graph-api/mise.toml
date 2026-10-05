@@ -1,5 +1,6 @@
 [tasks.install]
 description = "Install Work Graph API dependencies"
+depends = ["//:install"]
 run = "pnpm install --frozen-lockfile --filter work-graph-api..."
 
 [tasks.typecheck]
@@ -54,4 +55,24 @@ run = "pnpm lint:api"
 
 [tasks.check]
 description = "Check the Work Graph API"
-depends = ["typecheck", "test", "lint:api", "deploy:check"]
+depends = ["typecheck", "test", "lint:api", "lint:queries", "deploy:check"]
+
+[tasks."diagnostics:query"]
+depends = ["install"]
+description = "Query historical Work Graph failures and Hyperdrive pool metrics"
+run = "bash scripts/diagnostics.sh"
+
+[tasks."diagnostics:monitor"]
+depends = ["install"]
+description = "Fail on recent production 5XX, Hyperdrive errors, or pool contention"
+run = "bash scripts/diagnostics.sh --monitor"
+
+[tasks."diagnostics:test"]
+description = "Test diagnostic queries, sanitization, and failure detection"
+depends = ["install"]
+run = "pnpm exec vitest run tests/diagnostics.test.ts"
+
+[tasks."lint:queries"]
+description = "Check GraphQL query syntax, lint rules, and formatting"
+depends = ["//:install"]
+run = "pnpm exec biome check --config-path ../../biome.json queries"

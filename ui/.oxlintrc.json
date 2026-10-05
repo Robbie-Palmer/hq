@@ -43,6 +43,12 @@
       }
     },
     {
+      "files": ["components/wedding-planner/**"],
+      "rules": {
+        "shadcn/no-unknown-classes": "off"
+      }
+    },
+    {
       "files": ["app/recipes/**", "components/recipes/**"],
       "rules": {
         "shadcn/no-raw-colors": [

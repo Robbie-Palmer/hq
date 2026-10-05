@@ -1,3 +1,4 @@
+import type { UnresolvedAuthoredTerm } from "@/lib/api/authored-terms";
 import { apiRequest } from "@/lib/api/http";
 
 export type HouseholdRole = "owner" | "member";
@@ -46,12 +47,46 @@ export type IncomingHouseholdInvitation = HouseholdInvitation & {
   };
 };
 
+export type EquipmentCategory =
+  | "cookware"
+  | "bakeware"
+  | "appliance"
+  | "utensil"
+  | "measuring"
+  | "vessel"
+  | "surface"
+  | "consumable";
+
+export type HouseholdEquipmentCatalogItem = {
+  slug: string;
+  name: string;
+  category: EquipmentCategory;
+};
+
+export type HouseholdEquipmentItem = {
+  slug: string;
+  name: string;
+  category?: EquipmentCategory;
+  createdAt: string;
+  retired: boolean;
+  unresolved?: boolean;
+};
+
+export type HouseholdEquipment = {
+  catalog: HouseholdEquipmentCatalogItem[];
+  owned: HouseholdEquipmentItem[];
+  recipeMatchMode: EquipmentRecipeMatchMode;
+  unresolvedTerms?: UnresolvedAuthoredTerm[];
+};
+
+export type EquipmentRecipeMatchMode = "hide" | "warn" | "disabled";
+
 function householdRequest<T>(
   path: string,
   fallback: string,
   options?: {
     body?: unknown;
-    method?: "GET" | "POST" | "PATCH" | "DELETE";
+    method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
     signal?: AbortSignal;
   },
 ): Promise<T> {
@@ -107,6 +142,50 @@ export async function getHouseholdMembers(
     `/api/households/${householdId}/members`,
     "Couldn't load household members.",
     { signal },
+  );
+}
+
+export async function getHouseholdEquipment(
+  householdId: string,
+  signal?: AbortSignal,
+): Promise<HouseholdEquipment> {
+  return householdRequest(
+    `/api/households/${householdId}/equipment`,
+    "Couldn't load household equipment.",
+    { signal },
+  );
+}
+
+export async function addHouseholdEquipment(
+  householdId: string,
+  equipmentSlug: string,
+): Promise<HouseholdEquipmentItem> {
+  return householdRequest(
+    `/api/households/${householdId}/equipment/${encodeURIComponent(equipmentSlug)}`,
+    "Couldn't add the equipment.",
+    { method: "PUT" },
+  );
+}
+
+export async function removeHouseholdEquipment(
+  householdId: string,
+  equipmentSlug: string,
+): Promise<void> {
+  await householdRequest<void>(
+    `/api/households/${householdId}/equipment/${encodeURIComponent(equipmentSlug)}`,
+    "Couldn't remove the equipment.",
+    { method: "DELETE" },
+  );
+}
+
+export async function saveHouseholdEquipmentMatchMode(
+  householdId: string,
+  recipeMatchMode: EquipmentRecipeMatchMode,
+): Promise<{ recipeMatchMode: EquipmentRecipeMatchMode }> {
+  return householdRequest(
+    `/api/households/${householdId}/equipment`,
+    "Couldn't save the equipment matching preference.",
+    { method: "PATCH", body: { recipeMatchMode } },
   );
 }
 

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{{ t3_worktree_cleanup_launchd_label }}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{ t3_worktree_cleanup_script_path }}</string>
+        <string>--apply</string>
+        <string>--database</string>
+        <string>{{ t3_worktree_cleanup_database_path }}</string>
+        <string>--worktree-root</string>
+        <string>{{ t3_worktree_cleanup_root }}</string>
+        <string>--state-dir</string>
+        <string>{{ t3_worktree_cleanup_state_dir }}</string>
+        <string>--sql-dir</string>
+        <string>{{ t3_worktree_cleanup_sql_dir }}</string>
+        <string>--deleted-days</string>
+        <string>{{ t3_worktree_cleanup_deleted_days }}</string>
+        <string>--archived-days</string>
+        <string>{{ t3_worktree_cleanup_archived_days }}</string>
+        <string>--settled-days</string>
+        <string>{{ t3_worktree_cleanup_settled_days }}</string>
+    </array>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>{{ t3_worktree_cleanup_hour }}</integer>
+        <key>Minute</key>
+        <integer>{{ t3_worktree_cleanup_minute }}</integer>
+    </dict>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>LowPriorityIO</key>
+    <true/>
+    <key>Nice</key>
+    <integer>10</integer>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>{{ ansible_facts.env.HOME }}</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>{{ t3_worktree_cleanup_log_path }}</string>
+    <key>StandardErrorPath</key>
+    <string>{{ t3_worktree_cleanup_log_path }}</string>
+</dict>
+</plist>
