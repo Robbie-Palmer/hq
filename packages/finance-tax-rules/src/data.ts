@@ -110,11 +110,20 @@ const scottishBandsFrom2024 = (
   { name: "top", rateBasisPoints: 4_800, widthPence: null },
 ];
 
+type EffectiveDates = {
+  effectiveFrom: string;
+  effectiveTo: string;
+};
+
+const effectiveDates = (
+  effectiveFrom: string,
+  effectiveTo: string,
+): EffectiveDates => ({ effectiveFrom, effectiveTo });
+
 const taxRule = (
   id: string,
   taxYear: string,
-  effectiveFrom: string,
-  effectiveTo: string,
+  dates: EffectiveDates,
   jurisdictions: RuleDataset["incomeTax"][number]["jurisdictions"],
   bands: RuleDataset["incomeTax"][number]["bands"],
   sourceId: string,
@@ -124,8 +133,7 @@ const taxRule = (
   id,
   version: "1",
   taxYear,
-  effectiveFrom,
-  effectiveTo,
+  ...dates,
   kind: "income-tax",
   jurisdictions,
   incomeScope: "employment-non-savings-non-dividend",
@@ -243,8 +251,7 @@ type TaperedAnnualAllowance = {
 const pensionRule = (
   id: string,
   taxYear: string,
-  effectiveFrom: string,
-  effectiveTo: string,
+  dates: EffectiveDates,
   annualAllowance: number,
   annualAllowanceNotes: string[],
   taperedAnnualAllowance: TaperedAnnualAllowance | null,
@@ -254,8 +261,7 @@ const pensionRule = (
   id,
   version: "1",
   taxYear,
-  effectiveFrom,
-  effectiveTo,
+  ...dates,
   kind: "pension",
   jurisdictions: [
     "england-and-northern-ireland",
@@ -426,8 +432,7 @@ const historicalIncomeTaxRules: RuleDataset["incomeTax"] = [
     taxRule(
       `income-tax-${taxYear}-england-northern-ireland`,
       taxYear,
-      effectiveFrom,
-      effectiveTo,
+      effectiveDates(effectiveFrom, effectiveTo),
       ["england-and-northern-ireland"],
       mainRateBands(150_000, basicRateBand),
       sourceId,
@@ -436,8 +441,7 @@ const historicalIncomeTaxRules: RuleDataset["incomeTax"] = [
     taxRule(
       `income-tax-${taxYear}-wales`,
       taxYear,
-      effectiveFrom,
-      effectiveTo,
+      effectiveDates(effectiveFrom, effectiveTo),
       ["wales"],
       mainRateBands(150_000, basicRateBand),
       sourceId,
@@ -446,8 +450,7 @@ const historicalIncomeTaxRules: RuleDataset["incomeTax"] = [
     taxRule(
       `income-tax-${taxYear}-scotland`,
       taxYear,
-      effectiveFrom,
-      effectiveTo,
+      effectiveDates(effectiveFrom, effectiveTo),
       ["scotland"],
       scottishBands,
       sourceId,
@@ -506,8 +509,7 @@ const historicalPensionRules: RuleDataset["pensions"] = [
   pensionRule(
     "pension-2015-16-pre-alignment",
     "2015-16",
-    "2015-04-06",
-    "2015-07-08",
+    effectiveDates("2015-04-06", "2015-07-08"),
     80_000,
     ["Pre-alignment allowance; the 2015/16 transitional rules also cap post-alignment carry-forward."],
     null,
@@ -516,8 +518,7 @@ const historicalPensionRules: RuleDataset["pensions"] = [
   pensionRule(
     "pension-2015-16-post-alignment",
     "2015-16",
-    "2015-07-09",
-    "2016-04-05",
+    effectiveDates("2015-07-09", "2016-04-05"),
     0,
     ["Post-alignment allowance before up to £40,000 of unused pre-alignment allowance and other eligible carry-forward."],
     null,
@@ -526,8 +527,7 @@ const historicalPensionRules: RuleDataset["pensions"] = [
   pensionRule(
     "pension-2016-17",
     "2016-17",
-    "2016-04-06",
-    "2017-04-05",
+    effectiveDates("2016-04-06", "2017-04-05"),
     40_000,
     ["Standard annual allowance before eligible carry-forward."],
     taper(110_000, 150_000, 10_000),
@@ -538,8 +538,7 @@ const historicalPensionRules: RuleDataset["pensions"] = [
     return pensionRule(
       `pension-${taxYear}`,
       taxYear,
-      `${startYear}-04-06`,
-      `${startYear + 1}-04-05`,
+      effectiveDates(`${startYear}-04-06`, `${startYear + 1}-04-05`),
       40_000,
       ["Standard annual allowance before eligible carry-forward."],
       taper(110_000, 150_000, 10_000),
@@ -551,8 +550,7 @@ const historicalPensionRules: RuleDataset["pensions"] = [
     return pensionRule(
       `pension-${taxYear}`,
       taxYear,
-      `${startYear}-04-06`,
-      `${startYear + 1}-04-05`,
+      effectiveDates(`${startYear}-04-06`, `${startYear + 1}-04-05`),
       40_000,
       ["Standard annual allowance before eligible carry-forward."],
       taper(200_000, 240_000, 4_000),
@@ -711,8 +709,7 @@ export const ruleDataset = {
     taxRule(
       "income-tax-2022-23-england-northern-ireland",
       "2022-23",
-      "2022-04-06",
-      "2023-04-05",
+      effectiveDates("2022-04-06", "2023-04-05"),
       ["england-and-northern-ireland"],
       mainRateBands(150_000),
       "hmrc-employer-2022-23",
@@ -720,8 +717,7 @@ export const ruleDataset = {
     taxRule(
       "income-tax-2022-23-wales",
       "2022-23",
-      "2022-04-06",
-      "2023-04-05",
+      effectiveDates("2022-04-06", "2023-04-05"),
       ["wales"],
       mainRateBands(150_000),
       "hmrc-employer-2022-23",
@@ -729,8 +725,7 @@ export const ruleDataset = {
     taxRule(
       "income-tax-2022-23-scotland",
       "2022-23",
-      "2022-04-06",
-      "2023-04-05",
+      effectiveDates("2022-04-06", "2023-04-05"),
       ["scotland"],
       [
         { name: "starter", rateBasisPoints: 1_900, widthPence: gbp(2_162) },
@@ -744,8 +739,7 @@ export const ruleDataset = {
     taxRule(
       "income-tax-2023-24-england-northern-ireland",
       "2023-24",
-      "2023-04-06",
-      "2024-04-05",
+      effectiveDates("2023-04-06", "2024-04-05"),
       ["england-and-northern-ireland"],
       mainRateBands(125_140),
       "hmrc-employer-2023-24",
@@ -753,8 +747,7 @@ export const ruleDataset = {
     taxRule(
       "income-tax-2023-24-wales",
       "2023-24",
-      "2023-04-06",
-      "2024-04-05",
+      effectiveDates("2023-04-06", "2024-04-05"),
       ["wales"],
       mainRateBands(125_140),
       "hmrc-employer-2023-24",
@@ -762,8 +755,7 @@ export const ruleDataset = {
     taxRule(
       "income-tax-2023-24-scotland",
       "2023-24",
-      "2023-04-06",
-      "2024-04-05",
+      effectiveDates("2023-04-06", "2024-04-05"),
       ["scotland"],
       [
         { name: "starter", rateBasisPoints: 1_900, widthPence: gbp(2_162) },
@@ -777,8 +769,7 @@ export const ruleDataset = {
     taxRule(
       "income-tax-2024-25-england-northern-ireland",
       "2024-25",
-      "2024-04-06",
-      "2025-04-05",
+      effectiveDates("2024-04-06", "2025-04-05"),
       ["england-and-northern-ireland"],
       mainRateBands(125_140),
       "hmrc-employer-2024-25",
@@ -786,8 +777,7 @@ export const ruleDataset = {
     taxRule(
       "income-tax-2024-25-wales",
       "2024-25",
-      "2024-04-06",
-      "2025-04-05",
+      effectiveDates("2024-04-06", "2025-04-05"),
       ["wales"],
       mainRateBands(125_140),
       "hmrc-employer-2024-25",
@@ -795,8 +785,7 @@ export const ruleDataset = {
     taxRule(
       "income-tax-2024-25-scotland",
       "2024-25",
-      "2024-04-06",
-      "2025-04-05",
+      effectiveDates("2024-04-06", "2025-04-05"),
       ["scotland"],
       scottishBandsFrom2024(2_306, 11_685, 17_101),
       "hmrc-employer-2024-25",
@@ -804,8 +793,7 @@ export const ruleDataset = {
     taxRule(
       "income-tax-2025-26-england-northern-ireland",
       "2025-26",
-      "2025-04-06",
-      "2026-04-05",
+      effectiveDates("2025-04-06", "2026-04-05"),
       ["england-and-northern-ireland"],
       mainRateBands(125_140),
       "hmrc-employer-2025-26",
@@ -813,8 +801,7 @@ export const ruleDataset = {
     taxRule(
       "income-tax-2025-26-wales",
       "2025-26",
-      "2025-04-06",
-      "2026-04-05",
+      effectiveDates("2025-04-06", "2026-04-05"),
       ["wales"],
       mainRateBands(125_140),
       "hmrc-employer-2025-26",
@@ -822,8 +809,7 @@ export const ruleDataset = {
     taxRule(
       "income-tax-2025-26-scotland",
       "2025-26",
-      "2025-04-06",
-      "2026-04-05",
+      effectiveDates("2025-04-06", "2026-04-05"),
       ["scotland"],
       scottishBandsFrom2024(2_827, 12_094, 16_171),
       "hmrc-employer-2025-26",
@@ -831,8 +817,7 @@ export const ruleDataset = {
     taxRule(
       "income-tax-2026-27-england-northern-ireland",
       "2026-27",
-      "2026-04-06",
-      "2027-04-05",
+      effectiveDates("2026-04-06", "2027-04-05"),
       ["england-and-northern-ireland"],
       mainRateBands(125_140),
       "hmrc-employer-2026-27",
@@ -840,8 +825,7 @@ export const ruleDataset = {
     taxRule(
       "income-tax-2026-27-wales",
       "2026-27",
-      "2026-04-06",
-      "2027-04-05",
+      effectiveDates("2026-04-06", "2027-04-05"),
       ["wales"],
       mainRateBands(125_140),
       "hmrc-employer-2026-27",
@@ -849,8 +833,7 @@ export const ruleDataset = {
     taxRule(
       "income-tax-2026-27-scotland",
       "2026-27",
-      "2026-04-06",
-      "2027-04-05",
+      effectiveDates("2026-04-06", "2027-04-05"),
       ["scotland"],
       scottishBandsFrom2024(3_967, 12_989, 14_136),
       "hmrc-employer-2026-27",
@@ -960,8 +943,7 @@ export const ruleDataset = {
     pensionRule(
       "pension-2022-23",
       "2022-23",
-      "2022-04-06",
-      "2023-04-05",
+      effectiveDates("2022-04-06", "2023-04-05"),
       40_000,
       ["Standard annual allowance before eligible carry-forward."],
       taper(200_000, 240_000, 4_000),
@@ -972,8 +954,7 @@ export const ruleDataset = {
       return pensionRule(
         `pension-${taxYear}`,
         taxYear,
-        `${startYear}-04-06`,
-        `${startYear + 1}-04-05`,
+        effectiveDates(`${startYear}-04-06`, `${startYear + 1}-04-05`),
         60_000,
         ["Standard annual allowance before eligible carry-forward."],
         taper(200_000, 260_000, 10_000),
