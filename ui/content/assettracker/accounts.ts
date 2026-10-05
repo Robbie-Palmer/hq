@@ -77,6 +77,16 @@ export const accounts: AccountContent[] = [
     expectedAnnualReturn: 0.03,
   },
   {
+    id: "cardiff-property",
+    name: "Cardiff Rental",
+    provider: "Owned",
+    currency: "GBP",
+    createdAt: "2024-06-01",
+    assetType: "property",
+    liquidity: "illiquid",
+    expectedAnnualReturn: 0.03,
+  },
+  {
     id: "home-mortgage",
     name: "Home Mortgage",
     provider: "Nationwide",

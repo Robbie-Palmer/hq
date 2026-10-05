@@ -1,5 +1,6 @@
 import { accounts } from "@/content/assettracker/accounts";
 import { incomeHistory } from "@/content/assettracker/incomeHistory";
+import { propertyComparableSearches } from "@/content/assettracker/propertyComparables";
 import { propertyIndexHistories } from "@/content/assettracker/propertyIndexHistory";
 import { recurringFlows } from "@/content/assettracker/recurringFlows";
 import { salaryHistory } from "@/content/assettracker/salaryHistory";
@@ -50,6 +51,7 @@ export function getDemoAssetTrackerData(): AssetTrackerData {
     holdingObservations,
     priceObservations,
     exchangeRateObservations,
+    propertyComparableSearches,
     propertyIndexHistories,
     mortgageScenarios: [
       {
@@ -109,6 +111,7 @@ export function getDemoAssetTrackerData(): AssetTrackerData {
         "coinbase-btc": alexOwnership,
         "nationwide-current": equalHouseholdOwnership,
         home: homeOwnership,
+        "cardiff-property": equalHouseholdOwnership,
         "home-mortgage": homeOwnership,
         "amex-credit-card": samOwnership,
         "workplace-pension": alexOwnership,

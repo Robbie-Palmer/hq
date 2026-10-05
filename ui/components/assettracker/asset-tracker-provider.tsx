@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { pricePaidArchive } from "@/content/assettracker/propertyComparables";
 import { housePriceIndexArchive } from "@/content/assettracker/propertyIndexHistory";
 import {
   type AssetTrackerApi,
@@ -33,6 +34,7 @@ import {
   type AssetTrackerData,
   type AssetType,
   buildAccountReadModels,
+  buildPropertyComparableViews,
   buildPropertyValueHistoryViews,
   buildRepository,
   type ClearAccountHistoryInput,
@@ -67,6 +69,7 @@ import {
   type PortfolioContributionDataPoint,
   type PortfolioFinancialIndependence,
   type PortfolioPositionSummary,
+  type PropertyComparableView,
   type PropertyValueHistoryView,
   personalOwnership,
   type RecordBalanceInput,
@@ -118,6 +121,7 @@ interface AssetTrackerContextValue {
   baseCurrency: Currency;
   valuationDate: string | null;
   valuationIssues: ValuationIssue[];
+  propertyComparableViews: PropertyComparableView[];
   propertyValueHistories: PropertyValueHistoryView[];
   household: Household;
   householdAccounts: Array<{
@@ -202,6 +206,25 @@ function downloadTaxEstimate(estimate: HouseholdTaxEstimate): void {
     JSON.stringify(estimate, null, 2),
     "application/json",
   );
+}
+
+function propertyEvidenceViews(
+  repository: ReturnType<typeof buildRepository>,
+): Pick<
+  AssetTrackerContextValue,
+  "propertyComparableViews" | "propertyValueHistories"
+> {
+  return {
+    propertyComparableViews: buildPropertyComparableViews(
+      repository.propertyComparableSearches,
+      pricePaidArchive,
+      housePriceIndexArchive,
+    ),
+    propertyValueHistories: buildPropertyValueHistoryViews(
+      repository.propertyIndexHistories,
+      housePriceIndexArchive,
+    ),
+  };
 }
 
 export function AssetTrackerProvider({
@@ -330,10 +353,7 @@ export function AssetTrackerProvider({
       baseCurrency: repository.settings.baseCurrency,
       valuationDate: latestValuation?.date ?? null,
       valuationIssues: latestValuation?.issues ?? [],
-      propertyValueHistories: buildPropertyValueHistoryViews(
-        repository.propertyIndexHistories,
-        housePriceIndexArchive,
-      ),
+      ...propertyEvidenceViews(repository),
       household: data.household,
       householdAccounts: data.accounts.map(({ id, name, provider }) => ({
         id,

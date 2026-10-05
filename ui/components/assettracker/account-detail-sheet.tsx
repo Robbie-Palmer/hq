@@ -27,6 +27,8 @@ import {
   effectiveExpectedReturn,
   formatAssetTrackerError,
   isLiability,
+  type PropertyComparableView,
+  type PropertyValueHistoryView,
   realRate,
   transferAmountFrom,
   transferAmountTo,
@@ -43,6 +45,7 @@ import { EquityProjection } from "./equity-projection";
 import { ExpectedReturnEditor } from "./expected-return-editor";
 import { LogBalanceDrawer } from "./log-balance-drawer";
 import { MortgageSchedule } from "./mortgage-schedule";
+import { PropertyComparables } from "./property-comparables";
 import { PropertyValueHistory } from "./property-value-history";
 import { RecordTransferDrawer } from "./record-transfer-drawer";
 
@@ -57,6 +60,29 @@ const CAPITAL_FLOW_LABELS: Record<CapitalFlowKind, string> = {
   external: "Outside entered income",
 };
 
+function PropertyEvidence({
+  accountId,
+  comparableViews,
+  valueHistories,
+}: Readonly<{
+  accountId: string;
+  comparableViews: PropertyComparableView[];
+  valueHistories: PropertyValueHistoryView[];
+}>) {
+  const valueHistory = valueHistories.find(
+    (history) => history.accountId === accountId,
+  );
+  const comparables = comparableViews.find(
+    (view) => view.accountId === accountId,
+  );
+  return (
+    <>
+      {valueHistory && <PropertyValueHistory view={valueHistory} />}
+      {comparables && <PropertyComparables view={comparables} />}
+    </>
+  );
+}
+
 export function AccountDetailSheet({
   accountId,
   onClose,
@@ -68,6 +94,7 @@ export function AccountDetailSheet({
     inflation,
     transfers,
     netWorthData,
+    propertyComparableViews = [],
     propertyValueHistories = [],
   } = useAssetTracker();
 
@@ -83,10 +110,6 @@ export function AccountDetailSheet({
   const hasOtherOpenAccounts = account
     ? accounts.some((a) => a.isOpen && a.id !== account.id)
     : false;
-  const propertyValueHistory = propertyValueHistories.find(
-    (history) => history.accountId === account?.id,
-  );
-
   function handleOpenChange(open: boolean) {
     if (!open) onClose();
   }
@@ -107,9 +130,11 @@ export function AccountDetailSheet({
                 transfers={transfers}
                 netWorthData={netWorthData}
               />
-              {propertyValueHistory && (
-                <PropertyValueHistory view={propertyValueHistory} />
-              )}
+              <PropertyEvidence
+                accountId={account.id}
+                comparableViews={propertyComparableViews}
+                valueHistories={propertyValueHistories}
+              />
               {equity && <EquityCard account={account} equity={equity} />}
               {account.isOpen && (
                 <AccountProjection

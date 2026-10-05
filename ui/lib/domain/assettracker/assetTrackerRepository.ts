@@ -18,6 +18,7 @@ import type {
   MortgageScenario,
 } from "./mortgageCalculator";
 import type { PlannedExpenditure } from "./plannedExpenditure";
+import type { PropertyComparableSearchDefinition } from "./propertyComparables";
 import type { PropertyIndexHistoryDefinition } from "./propertyIndexHistory";
 import type { RecurringFlow } from "./recurringFlow";
 import { compareAcceptedAt, type SalaryHistoryRecord } from "./salaryHistory";
@@ -40,6 +41,7 @@ export interface AssetTrackerRepository {
   plannedExpenditures: PlannedExpenditure[];
   mortgageScenarios: MortgageScenario[];
   decisionRecords: FinancialDecisionRecord[];
+  propertyComparableSearches: PropertyComparableSearchDefinition[];
   propertyIndexHistories: PropertyIndexHistoryDefinition[];
   instruments: Map<string, Instrument>;
   holdingObservations: HoldingObservation[];
@@ -398,6 +400,32 @@ function validatePropertyIndexHistoryReferences(
   }
 }
 
+function validatePropertyComparableSearchReferences(
+  data: AssetTrackerData,
+  accounts: Map<AccountId, Account>,
+): void {
+  const comparableSearchAccounts = new Set<string>();
+  for (const search of data.propertyComparableSearches ?? []) {
+    assertKnownAccount(
+      accounts,
+      search.accountId,
+      `Property comparable search for account "${search.accountId}"`,
+    );
+    const account = accounts.get(search.accountId);
+    if (account != null && account.assetType !== "property") {
+      throw new AssetTrackerDataError(
+        `Property comparable search references non-property account "${search.accountId}"`,
+      );
+    }
+    if (comparableSearchAccounts.has(search.accountId)) {
+      throw new AssetTrackerDataError(
+        `Duplicate property comparable search for account "${search.accountId}"`,
+      );
+    }
+    comparableSearchAccounts.add(search.accountId);
+  }
+}
+
 function validateReferences(
   data: AssetTrackerData,
   accounts: Map<AccountId, Account>,
@@ -405,6 +433,7 @@ function validateReferences(
   validateCoreReferences(data, accounts);
   validatePlannedExpenditureReferences(data, accounts);
   validateValuationReferences(data, accounts);
+  validatePropertyComparableSearchReferences(data, accounts);
   validatePropertyIndexHistoryReferences(data, accounts);
   const mortgageScenarios = data.mortgageScenarios ?? [];
   const decisionRecords = data.decisionRecords ?? [];
@@ -478,6 +507,7 @@ export function buildRepository(
     ),
     mortgageScenarios: data.mortgageScenarios ?? [],
     decisionRecords: data.decisionRecords ?? [],
+    propertyComparableSearches: data.propertyComparableSearches ?? [],
     propertyIndexHistories: data.propertyIndexHistories ?? [],
     instruments: new Map(
       (data.instruments ?? []).map((instrument) => [instrument.id, instrument]),
