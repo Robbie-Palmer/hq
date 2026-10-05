@@ -69,6 +69,7 @@ const hmrcSource = ({
   sourceContentSha256,
   snapshotPath,
   ...sourceLicence,
+  attribution: `Contains public sector information from ${publisher} licensed under the Open Government Licence v3.0.`,
 });
 
 const standardAllowance = (amount: number) => ({

@@ -12,7 +12,7 @@
   "artifacts": [
     {
       "path": "artifacts/enacted/2026.10.3.json",
-      "sha256": "c404b0a30f3801ab5f09c8f776e0d3d6fa37741ec2d506a95306b58eb08a7e45"
+      "sha256": "f4a8540d26ffc105c6a7ab0708c68f0683bb21a3d304be122c2acc9c645a54c5"
     },
     {
       "path": "artifacts/coverage-matrix/2026.10.3.json",
