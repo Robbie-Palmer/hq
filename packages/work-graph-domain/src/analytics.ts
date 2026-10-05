@@ -88,7 +88,7 @@ function leaseExpiry(event: OperationalEvent, at: number) {
   const expires =
     typeof event.data.expiresAt === "string"
       ? Date.parse(event.data.expiresAt)
-      : NaN;
+      : Number.NaN;
   if (!Number.isFinite(expires) || expires < at)
     throw new Error("Invalid lease expiry.");
   return expires;
@@ -171,7 +171,7 @@ class ReportProjection {
   private resolve(event: OperationalEvent, item: string, at: number) {
     if (typeof event.data.attentionRequestId !== "string") return;
     const request = this.requests.get(event.data.attentionRequestId);
-    if (!request || request.item !== item) return;
+    if (request?.item !== item) return;
     if (request.blocking) this.wait(item, request.cause, request.began, at);
     if (at >= this.start) this.metric(item, request.cause).row.resolutions++;
     this.requests.delete(event.data.attentionRequestId);
@@ -189,7 +189,7 @@ class ReportProjection {
       return;
     }
     const lease = this.leases.get(id);
-    if (!lease || lease.item !== item) return;
+    if (lease?.item !== item) return;
     switch (event.type) {
       case "lease.renewed":
         lease.expires = leaseExpiry(event, at);
@@ -248,7 +248,11 @@ class ReportProjection {
   }
 }
 
-/** Replay complete history, then clip waits to the half-open reporting period. */
+/**
+ * Storage-independent reference semantics for exported work-state events.
+ * Callers supply complete history and an explicit current-scope snapshot.
+ * This module performs no I/O and does not implement extraction or a report job.
+ */
 export function operationalReport(
   events: readonly OperationalEvent[],
   scopes: readonly AnalyticsScope[],

@@ -15,7 +15,6 @@
   "include": [
     "drizzle.config.ts",
     "src/**/*.ts",
-    "scripts/operational-report.ts",
     "tests/**/*.ts",
     "vitest.integration.config.ts"
   ]
