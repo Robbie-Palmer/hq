@@ -436,12 +436,12 @@
         "components": {
           "grossCashPayPence": 6000000,
           "taxablePayPence": 4743000,
-          "incomeTaxPence": 1143200,
+          "incomeTaxPence": 1023200,
           "employeeNationalInsurancePence": 321000,
           "memberPensionDeductionPence": 480000,
           "employerPensionContributionPence": 0,
           "providerTaxReliefPence": 120000,
-          "takeHomePayPence": 4055800
+          "takeHomePayPence": 4175800
         },
         "rounding": [
           {

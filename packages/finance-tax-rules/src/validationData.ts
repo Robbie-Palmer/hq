@@ -329,11 +329,11 @@ export const validationCorpus = {
         components: components({
           grossCashPayPence: 6_000_000,
           taxablePayPence: 4_743_000,
-          incomeTaxPence: 1_143_200,
+          incomeTaxPence: 1_023_200,
           employeeNationalInsurancePence: 321_000,
           memberPensionDeductionPence: 480_000,
           providerTaxReliefPence: 120_000,
-          takeHomePayPence: 4_055_800,
+          takeHomePayPence: 4_175_800,
         }),
         rounding: annualRounding,
       },

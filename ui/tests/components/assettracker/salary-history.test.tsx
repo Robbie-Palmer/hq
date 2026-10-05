@@ -83,6 +83,10 @@ describe("salary history controls", () => {
     await user.click(screen.getByRole("button", { name: "Add manually" }));
     await user.type(screen.getByLabelText("Employer"), "Fieldwork Co-op");
     await user.type(screen.getByLabelText("Employment ID"), "sam-fieldwork");
+    await user.selectOptions(
+      screen.getByLabelText("Tax jurisdiction"),
+      "England",
+    );
     fireEvent.change(screen.getByLabelText("Effective start"), {
       target: { value: "2023-04-01" },
     });
@@ -157,6 +161,10 @@ describe("salary history controls", () => {
     render(<SalaryRecordDrawer record={record} />);
 
     await user.click(screen.getByRole("button", { name: "Correct" }));
+    const jurisdiction = screen.getByLabelText("Tax jurisdiction");
+    expect(jurisdiction).toBeRequired();
+    expect(jurisdiction).toHaveValue("");
+    await user.selectOptions(jurisdiction, "Scotland");
     const gross = screen.getByLabelText("Gross pay before pension");
     await user.clear(gross);
     await user.type(gross, "72000");
@@ -166,7 +174,10 @@ describe("salary history controls", () => {
       expect(saveSalaryRecord).toHaveBeenCalledWith(
         expect.objectContaining({
           correctsId: "salary-original",
-          facts: expect.objectContaining({ grossPay: 72_000 }),
+          facts: expect.objectContaining({
+            grossPay: 72_000,
+            jurisdiction: "Scotland",
+          }),
         }),
       ),
     );

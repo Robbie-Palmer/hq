@@ -40,11 +40,18 @@ function optionalBoolean(data: FormData, name: string): boolean | undefined {
 }
 
 function jurisdictionValue(value: string | undefined): string {
-  const normalised = value?.toLocaleLowerCase("en-GB") ?? "";
+  const normalised = (value ?? "")
+    .trim()
+    .toLocaleLowerCase("en-GB")
+    .replaceAll("&", "and")
+    .replace(/\s+/g, " ");
   if (normalised.includes("scotland")) return "Scotland";
   if (normalised === "wales") return "Wales";
   if (normalised.includes("northern ireland")) return "Northern Ireland";
-  return "England";
+  if (normalised === "england" || normalised === "england and wales") {
+    return "England";
+  }
+  return "";
 }
 
 function pensionFromForm(
@@ -110,11 +117,13 @@ function SelectField({
   name,
   defaultValue,
   options,
+  required = false,
 }: Readonly<{
   label: string;
   name: string;
   defaultValue?: string;
   options: readonly (readonly [string, string])[];
+  required?: boolean;
 }>) {
   return (
     <label className="space-y-1.5 text-sm">
@@ -122,6 +131,7 @@ function SelectField({
       <select
         name={name}
         defaultValue={defaultValue}
+        required={required}
         className="h-10 w-full rounded-md border bg-background px-3"
       >
         {options.map(([value, text]) => (
@@ -260,6 +270,7 @@ function defaultDirectorValue(record: SalaryHistoryRecord | undefined): string {
 }
 
 const jurisdictionOptions = [
+  ["", "Choose jurisdiction"],
   ["England", "England"],
   ["Northern Ireland", "Northern Ireland"],
   ["Scotland", "Scotland"],
@@ -311,6 +322,7 @@ function EmploymentFields({
         name="jurisdiction"
         defaultValue={jurisdictionValue(record?.jurisdiction)}
         options={jurisdictionOptions}
+        required
       />
       <SelectField
         label="Currency"

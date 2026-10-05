@@ -136,8 +136,70 @@ export type AssetTrackerLoadResult = {
 
 export const ASSET_TRACKER_STORAGE_KEY = "assettracker:data:v1";
 
+const NO_PENSION_CONTRIBUTION_MARKER =
+  "assetTrackerConfirmedNoPensionContribution";
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function restoreNoContribution(value: unknown): unknown {
+  if (
+    !isObject(value) ||
+    value.arrangement !== "unknown" ||
+    value[NO_PENSION_CONTRIBUTION_MARKER] !== true
+  ) {
+    return value;
+  }
+  const { [NO_PENSION_CONTRIBUTION_MARKER]: _marker, ...contribution } = value;
+  return { ...contribution, arrangement: "none" };
+}
+
+function restoreStorageCompatibility(value: unknown): unknown {
+  if (!isObject(value) || !Array.isArray(value.salaryHistory)) return value;
+  return {
+    ...value,
+    salaryHistory: value.salaryHistory.map((record) =>
+      isObject(record)
+        ? {
+            ...record,
+            employeePension: restoreNoContribution(record.employeePension),
+            employerPension: restoreNoContribution(record.employerPension),
+          }
+        : record,
+    ),
+  };
+}
+
+function storeNoContribution(
+  contribution:
+    | AssetTrackerData["salaryHistory"][number]["employeePension"]
+    | undefined,
+) {
+  return contribution?.arrangement === "none"
+    ? {
+        ...contribution,
+        arrangement: "unknown" as const,
+        [NO_PENSION_CONTRIBUTION_MARKER]: true,
+      }
+    : contribution;
+}
+
+function storageCompatibleData(data: AssetTrackerData): unknown {
+  return {
+    ...data,
+    salaryHistory: data.salaryHistory.map((record) => ({
+      ...record,
+      employeePension: storeNoContribution(record.employeePension),
+      employerPension: storeNoContribution(record.employerPension),
+    })),
+  };
+}
+
 function parseStored(raw: string): AssetTrackerData {
-  const parsed = AssetTrackerDataSchema.parse(JSON.parse(raw));
+  const parsed = AssetTrackerDataSchema.parse(
+    restoreStorageCompatibility(JSON.parse(raw)),
+  );
   const incomeByDate = new Map(
     parsed.incomeHistory.map((record) => [record.date, record]),
   );
@@ -161,19 +223,16 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
   function readStored(): AssetTrackerData | null {
     const raw = storage.getItem(ASSET_TRACKER_STORAGE_KEY);
     if (raw == null) return null;
-    try {
-      return parseStored(raw);
-    } catch {
-      // Unreadable local data: fall back to the seed but leave the stored
-      // value untouched until the next successful write
-      return null;
-    }
+    return parseStored(raw);
   }
 
   function write(data: AssetTrackerData): AssetTrackerData {
     const parsed = AssetTrackerDataSchema.parse(data);
     buildRepository(parsed);
-    storage.setItem(ASSET_TRACKER_STORAGE_KEY, JSON.stringify(parsed));
+    storage.setItem(
+      ASSET_TRACKER_STORAGE_KEY,
+      JSON.stringify(storageCompatibleData(parsed)),
+    );
     return parsed;
   }
 

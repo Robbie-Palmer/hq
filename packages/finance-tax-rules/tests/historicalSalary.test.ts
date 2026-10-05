@@ -83,12 +83,31 @@ describe("historical salary calculation", () => {
     expect(reliefAtSource.available && reliefAtSource.components).toMatchObject(
       {
         taxablePayPence: 4_743_000,
-        incomeTaxPence: 1_143_200,
+        incomeTaxPence: 1_023_200,
         employeeNationalInsurancePence: 321_000,
         memberPensionDeductionPence: 480_000,
         providerTaxReliefPence: 120_000,
-        takeHomePayPence: 4_055_800,
+        takeHomePayPence: 4_175_800,
       },
+    );
+  });
+
+  it("extends the Scottish basic band for relief-at-source contributions", () => {
+    const result = calculateHistoricalSalary({
+      ...request,
+      jurisdiction: "scotland",
+      pension: {
+        method: "relief-at-source",
+        employeeGrossContributionPence: 600_000,
+        employeeCashDeductionPence: 480_000,
+        salarySacrificePence: 0,
+        employerContributionPence: 0,
+        providerTaxReliefPence: 120_000,
+      },
+    });
+
+    expect(result.available && result.components.incomeTaxPence).toBe(
+      1_189_380,
     );
   });
 

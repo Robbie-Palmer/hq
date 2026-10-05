@@ -161,8 +161,8 @@ function taxAcrossBands(
 ): number {
   let remaining = taxablePence;
   let tax = 0;
-  for (const [index, band] of rule.bands.entries()) {
-    const bandExtension = index === 0 ? bandExtensionPence : 0;
+  for (const band of rule.bands) {
+    const bandExtension = band.name === "basic" ? bandExtensionPence : 0;
     const width =
       band.widthPence == null
         ? Number.POSITIVE_INFINITY
@@ -205,15 +205,21 @@ function incomeTaxFor(
   allowancePence: number,
   rule: IncomeTaxRule,
   jurisdiction: HistoricalSalaryRequest["jurisdiction"],
+  bandExtensionPence: number,
 ): number {
   const taxablePence = Math.max(0, incomePence - allowancePence);
-  const libraryResult = savingToolTax(
-    incomePence,
-    allowancePence,
-    rule.taxYear,
-    jurisdiction,
+  const libraryResult =
+    bandExtensionPence === 0
+      ? savingToolTax(
+          incomePence,
+          allowancePence,
+          rule.taxYear,
+          jurisdiction,
+        )
+      : null;
+  return (
+    libraryResult ?? taxAcrossBands(taxablePence, rule, bandExtensionPence)
   );
-  return libraryResult ?? taxAcrossBands(taxablePence, rule, 0);
 }
 
 function annualNationalInsurance(
@@ -326,12 +332,14 @@ export function calculateHistoricalSalary(
       allowancePence,
       rules.incomeTax,
       request.jurisdiction,
+      reliefAtSource,
     ) -
       incomeTaxFor(
         request.otherTaxableIncomePence,
         allowancePence,
         rules.incomeTax,
         request.jurisdiction,
+        reliefAtSource,
       ),
   );
   const employeeNationalInsurancePence = annualNationalInsurance(

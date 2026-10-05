@@ -4,6 +4,7 @@ import {
   createLocalAssetTrackerApi,
 } from "@/lib/api/assettracker";
 import { getDemoAssetTrackerData } from "@/lib/assettracker/demoData";
+import { AssetTrackerDataSchema } from "@/lib/domain/assettracker";
 
 describe("createLocalAssetTrackerApi", () => {
   beforeEach(() => {
@@ -162,22 +163,33 @@ describe("createLocalAssetTrackerApi", () => {
     );
   });
 
-  it("falls back to seed data when stored JSON is corrupt", async () => {
-    window.localStorage.setItem(ASSET_TRACKER_STORAGE_KEY, "{not json");
+  it("rejects corrupt stored JSON without overwriting it", async () => {
+    const corrupt = "{not json";
+    window.localStorage.setItem(ASSET_TRACKER_STORAGE_KEY, corrupt);
 
-    const { data, persisted } = await createApi().load();
-    expect(persisted).toBe(false);
-    expect(data).toEqual(getDemoAssetTrackerData());
+    const api = createApi();
+    await expect(api.load()).rejects.toThrow();
+    await expect(
+      api.createAccount({
+        name: "Must not replace saved data",
+        provider: "Test provider",
+        currency: "GBP",
+        assetType: "cash",
+        expectedAnnualReturn: 0,
+      }),
+    ).rejects.toThrow();
+    expect(window.localStorage.getItem(ASSET_TRACKER_STORAGE_KEY)).toBe(
+      corrupt,
+    );
   });
 
-  it("falls back to seed data when stored data fails validation", async () => {
+  it("rejects stored data that fails validation", async () => {
     window.localStorage.setItem(
       ASSET_TRACKER_STORAGE_KEY,
       JSON.stringify({ accounts: [{ id: "broken" }], snapshots: [] }),
     );
 
-    const { persisted } = await createApi().load();
-    expect(persisted).toBe(false);
+    await expect(createApi().load()).rejects.toThrow();
   });
 
   it("loads older saved data with no capital-flow collection", async () => {
@@ -577,6 +589,39 @@ describe("createLocalAssetTrackerApi", () => {
       JSON.parse(JSON.stringify(corrected)),
     );
     expect(restored.salaryHistory).toEqual(corrected.salaryHistory);
+  });
+
+  it("stores an explicit no-pension answer in a rollback-compatible form", async () => {
+    const seed = getDemoAssetTrackerData();
+    const api = createApi();
+    await api.saveSalaryRecord({
+      facts: {
+        person: "Alex Example",
+        employer: "Northstar Ltd",
+        employmentId: "northstar-engineer",
+        currency: "GBP",
+        jurisdiction: "England",
+        effectiveStart: "2015-07-01",
+        payFrequency: "monthly",
+        amountKind: "annualSalary",
+        grossPay: 48_000,
+        employeePension: { arrangement: "none", basis: "unknown" },
+        employerPension: { arrangement: "none", basis: "unknown" },
+      },
+    });
+
+    const raw = window.localStorage.getItem(ASSET_TRACKER_STORAGE_KEY);
+    if (raw == null) throw new Error("Expected saved Asset Tracker data");
+    const stored = AssetTrackerDataSchema.parse(JSON.parse(raw));
+    const storedRecord = stored.salaryHistory.at(-1);
+    expect(storedRecord?.employeePension?.arrangement).toBe("unknown");
+    expect(storedRecord?.employerPension?.arrangement).toBe("unknown");
+
+    const { data } = await api.load();
+    const restored = data.salaryHistory.at(-1);
+    expect(data.salaryHistory).toHaveLength(seed.salaryHistory.length + 1);
+    expect(restored?.employeePension?.arrangement).toBe("none");
+    expect(restored?.employerPension?.arrangement).toBe("none");
   });
 
   it("reset clears stored data and returns the seed", async () => {
