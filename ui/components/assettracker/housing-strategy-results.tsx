@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type {
   HousingPlanningPosition,
   HousingStrategyOutcome,
@@ -7,6 +8,39 @@ type Formatters = {
   money: (value: number) => string;
   fiDate: (value: string | null) => string;
 };
+
+function ExpandableTable({
+  children,
+  label,
+}: Readonly<{ children: ReactNode; label: string }>) {
+  return (
+    <details className="rounded-md border p-4">
+      <summary className="cursor-pointer text-sm font-medium">{label}</summary>
+      <div className="mt-4 overflow-x-auto rounded-md border">{children}</div>
+    </details>
+  );
+}
+
+function HousingTableHeader({
+  columns,
+}: Readonly<{
+  columns: readonly { label: string; align?: "right" }[];
+}>) {
+  return (
+    <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+      <tr>
+        {columns.map(({ align, label }) => (
+          <th
+            className={`px-3 py-2 font-medium${align === "right" ? " text-right" : ""}`}
+            key={label}
+          >
+            {label}
+          </th>
+        ))}
+      </tr>
+    </thead>
+  );
+}
 
 export function HousingPositionSummary({
   position,
@@ -48,19 +82,15 @@ export function HousingStrategySummary({
         className="w-full min-w-[680px] text-sm"
         aria-label="Housing strategy comparison"
       >
-        <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-          <tr>
-            <th className="px-3 py-2 font-medium">Strategy</th>
-            <th className="px-3 py-2 text-right font-medium">Net worth</th>
-            <th className="px-3 py-2 text-right font-medium">
-              Available capital
-            </th>
-            <th className="px-3 py-2 text-right font-medium">
-              FI spending / yr
-            </th>
-            <th className="px-3 py-2 font-medium">Projected FI</th>
-          </tr>
-        </thead>
+        <HousingTableHeader
+          columns={[
+            { label: "Strategy" },
+            { label: "Net worth", align: "right" },
+            { label: "Available capital", align: "right" },
+            { label: "FI spending / yr", align: "right" },
+            { label: "Projected FI" },
+          ]}
+        />
         <tbody>
           {outcomes.map((outcome) => (
             <tr className="border-t" key={outcome.kind}>
@@ -132,49 +162,43 @@ export function HousingCalculatedMeasures({
     ["FI target", "fiTarget"],
   ] as const;
   return (
-    <details className="rounded-md border p-4">
-      <summary className="cursor-pointer text-sm font-medium">
-        All calculated measures
-      </summary>
-      <div className="mt-4 overflow-x-auto rounded-md border">
-        <table
-          className="w-full min-w-[1500px] text-sm"
-          aria-label="Housing strategy calculated measures"
-        >
-          <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2 font-medium">Strategy</th>
-              {moneyColumns.map(([label]) => (
-                <th className="px-3 py-2 text-right font-medium" key={label}>
-                  {label}
-                </th>
-              ))}
-              <th className="px-3 py-2 font-medium">Projected FI</th>
-            </tr>
-          </thead>
-          <tbody>
-            {outcomes.map((outcome) => (
-              <tr className="border-t" key={outcome.kind}>
-                <th
-                  scope="row"
-                  className="whitespace-nowrap px-3 py-2 text-left font-medium"
-                >
-                  {outcome.label}
-                </th>
-                {moneyColumns.map(([, field]) => (
-                  <td className="px-3 py-2 text-right" key={field}>
-                    {money(outcome[field])}
-                  </td>
-                ))}
-                <td className="whitespace-nowrap px-3 py-2">
-                  {fiDate(outcome.projectedFiDate)}
+    <ExpandableTable label="All calculated measures">
+      <table
+        className="w-full min-w-[1500px] text-sm"
+        aria-label="Housing strategy calculated measures"
+      >
+        <HousingTableHeader
+          columns={[
+            { label: "Strategy" },
+            ...moneyColumns.map(([label]) => ({
+              label,
+              align: "right" as const,
+            })),
+            { label: "Projected FI" },
+          ]}
+        />
+        <tbody>
+          {outcomes.map((outcome) => (
+            <tr className="border-t" key={outcome.kind}>
+              <th
+                scope="row"
+                className="whitespace-nowrap px-3 py-2 text-left font-medium"
+              >
+                {outcome.label}
+              </th>
+              {moneyColumns.map(([, field]) => (
+                <td className="px-3 py-2 text-right" key={field}>
+                  {money(outcome[field])}
                 </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </details>
+              ))}
+              <td className="whitespace-nowrap px-3 py-2">
+                {fiDate(outcome.projectedFiDate)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ExpandableTable>
   );
 }
 
@@ -182,46 +206,41 @@ export function HousingTimelines({
   outcomes,
 }: Readonly<{ outcomes: HousingStrategyOutcome[] }>) {
   return (
-    <details className="rounded-md border p-4">
-      <summary className="cursor-pointer text-sm font-medium">
-        Housing timelines
-      </summary>
-      <div className="mt-4 overflow-x-auto rounded-md border">
-        <table className="w-full min-w-[680px] text-sm">
-          <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2 font-medium">Strategy</th>
-              <th className="px-3 py-2 font-medium">From</th>
-              <th className="px-3 py-2 font-medium">Until</th>
-              <th className="px-3 py-2 font-medium">Housing</th>
-            </tr>
-          </thead>
-          <tbody>
-            {outcomes.flatMap((outcome) =>
-              outcome.timeline.map((phase, index) => (
-                <tr
-                  className="border-t"
-                  key={`${outcome.kind}:${phase.startDate}:${phase.housingState}`}
+    <ExpandableTable label="Housing timelines">
+      <table className="w-full min-w-[680px] text-sm">
+        <HousingTableHeader
+          columns={[
+            { label: "Strategy" },
+            { label: "From" },
+            { label: "Until" },
+            { label: "Housing" },
+          ]}
+        />
+        <tbody>
+          {outcomes.flatMap((outcome) =>
+            outcome.timeline.map((phase, index) => (
+              <tr
+                className="border-t"
+                key={`${outcome.kind}:${phase.startDate}:${phase.housingState}`}
+              >
+                <th
+                  scope="row"
+                  className="whitespace-nowrap px-3 py-3 text-left font-medium"
                 >
-                  <th
-                    scope="row"
-                    className="whitespace-nowrap px-3 py-3 text-left font-medium"
-                  >
-                    {index === 0 ? outcome.label : ""}
-                  </th>
-                  <td className="whitespace-nowrap px-3 py-3">
-                    {phase.startDate}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-3">
-                    {phase.endDate ?? "Ongoing"}
-                  </td>
-                  <td className="px-3 py-3">{phase.housingState}</td>
-                </tr>
-              )),
-            )}
-          </tbody>
-        </table>
-      </div>
-    </details>
+                  {index === 0 ? outcome.label : ""}
+                </th>
+                <td className="whitespace-nowrap px-3 py-3">
+                  {phase.startDate}
+                </td>
+                <td className="whitespace-nowrap px-3 py-3">
+                  {phase.endDate ?? "Ongoing"}
+                </td>
+                <td className="px-3 py-3">{phase.housingState}</td>
+              </tr>
+            )),
+          )}
+        </tbody>
+      </table>
+    </ExpandableTable>
   );
 }
