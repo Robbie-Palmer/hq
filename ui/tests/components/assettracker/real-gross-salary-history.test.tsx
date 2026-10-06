@@ -1,8 +1,14 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { latestOnsInflationRelease } from "finance-inflation-indices/dataset";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { RealGrossSalaryHistory } from "@/components/assettracker/real-gross-salary-history";
 import type { SalaryHistoryRecord } from "@/lib/domain/assettracker";
+
+const latestCpihRelease = latestOnsInflationRelease("CPIH");
+if (latestCpihRelease == null) {
+  throw new Error("The bundled CPIH release is required by this test");
+}
 
 vi.mock("recharts", () => ({
   ResponsiveContainer: ({ children }: { children: ReactNode }) => (
@@ -56,10 +62,16 @@ describe("RealGrossSalaryHistory", () => {
       "CPIH",
     );
     expect(screen.getByLabelText("Salary reference month")).toHaveValue(
-      "2026-08",
+      latestCpihRelease.source.coverageThrough,
     );
     expect(screen.getByText("£60,000")).toBeVisible();
-    expect(screen.getByText(/Dataset 2026-09-16:/)).toBeVisible();
+    expect(
+      screen.getByText(
+        new RegExp(
+          `Dataset ${latestCpihRelease.versionId.replaceAll(".", "\\.")}`,
+        ),
+      ),
+    ).toBeVisible();
     expect(screen.getByText(/Salary fact salary-2024/)).toBeVisible();
   });
 

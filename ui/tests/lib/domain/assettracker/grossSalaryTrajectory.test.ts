@@ -225,6 +225,40 @@ describe("gross salary trajectory", () => {
     ).toHaveLength(2);
   });
 
+  it("breaks the GBP line across an intervening non-GBP record", () => {
+    const february = salaryRecord({
+      id: "salary-february-usd",
+      currency: "USD",
+      effectiveStart: "2025-02-01",
+      effectiveEnd: "2025-02-28",
+      acceptedAt: "2025-02-01T00:00:00.000Z",
+    });
+    const march = salaryRecord({
+      id: "salary-march",
+      effectiveStart: "2025-03-01",
+      effectiveEnd: "2025-03-31",
+      acceptedAt: "2025-03-01T00:00:00.000Z",
+    });
+    const points = buildGrossSalaryTrajectory(
+      [salaryRecord(), february, march],
+      release,
+      "2025-03-01",
+      "Alex",
+      "annualSalary",
+    );
+
+    expect(points.map((point) => point.continuity)).toEqual([
+      "first",
+      "continuous",
+      "continuous",
+    ]);
+    expect(grossSalaryChartData(points).map((point) => point.id)).toEqual([
+      "salary-january",
+      "salary-march:break",
+      "salary-march",
+    ]);
+  });
+
   it("does not compare overlaps or connect changes in working hours", () => {
     const overlapping = salaryRecord({
       id: "salary-overlap",
