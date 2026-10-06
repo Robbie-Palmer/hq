@@ -1,4 +1,5 @@
 import { format, parseISO } from "date-fns";
+import type { ReactElement } from "react";
 import { CartesianGrid, XAxis, YAxis } from "recharts";
 import { ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { formatCurrency, formatCurrencyAxisTick } from "@/lib/assettracker";
@@ -6,7 +7,11 @@ import type { Currency } from "@/lib/domain/assettracker";
 
 export function CurrencyHistoryChartAxes({
   currency,
-}: Readonly<{ currency: Currency }>) {
+  tooltipContent,
+}: Readonly<{
+  currency: Currency;
+  tooltipContent?: ReactElement;
+}>) {
   return (
     <>
       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -24,7 +29,7 @@ export function CurrencyHistoryChartAxes({
         }
       />
       <ChartTooltip
-        content={<ChartTooltipContent />}
+        content={tooltipContent ?? <ChartTooltipContent />}
         formatter={(value) => formatCurrency(value as number, currency)}
       />
     </>

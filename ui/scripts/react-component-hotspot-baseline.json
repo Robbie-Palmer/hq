@@ -360,14 +360,6 @@
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
-    "component": "HistoryRoute",
-    "maximums": {
-      "lines": 72
-    },
-    "path": "components/assettracker/history-route.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
     "component": "HouseholdScopeControl",
     "maximums": {
       "lines": 204,
