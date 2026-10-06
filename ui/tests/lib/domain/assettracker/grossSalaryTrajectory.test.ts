@@ -188,7 +188,7 @@ describe("gross salary trajectory", () => {
     expect(periods[0]?.nominalGross).toBe(3_500);
   });
 
-  it("breaks the plotted line across gaps and employment changes", () => {
+  it("connects known salary facts across gaps and employment changes", () => {
     const february = salaryRecord({
       id: "salary-february",
       effectiveStart: "2025-02-10",
@@ -218,14 +218,14 @@ describe("gross salary trajectory", () => {
       "gap",
       "employment-change",
     ]);
-    expect(
-      grossSalaryChartData(points).filter(
-        (point) => point.nominalGross == null,
-      ),
-    ).toHaveLength(2);
+    expect(grossSalaryChartData(points).map((point) => point.id)).toEqual([
+      "salary-january",
+      "salary-february",
+      "salary-march",
+    ]);
   });
 
-  it("breaks the GBP line across an intervening non-GBP record", () => {
+  it("omits non-GBP records without splitting the GBP trajectory", () => {
     const february = salaryRecord({
       id: "salary-february-usd",
       currency: "USD",
@@ -254,12 +254,11 @@ describe("gross salary trajectory", () => {
     ]);
     expect(grossSalaryChartData(points).map((point) => point.id)).toEqual([
       "salary-january",
-      "salary-march:break",
       "salary-march",
     ]);
   });
 
-  it("does not compare overlaps or connect changes in working hours", () => {
+  it("does not compare overlaps or changes in working hours", () => {
     const overlapping = salaryRecord({
       id: "salary-overlap",
       effectiveStart: "2025-01-15",
@@ -290,7 +289,7 @@ describe("gross salary trajectory", () => {
       "work-hours-change",
     ]);
     expect(points[1]?.realChange).toBeNull();
-    expect(grossSalaryChartData(points)).toHaveLength(5);
+    expect(grossSalaryChartData(points)).toHaveLength(3);
   });
 
   it("keeps unsupported currencies and missing periods visible", () => {

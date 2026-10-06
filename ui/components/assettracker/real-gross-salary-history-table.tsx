@@ -26,11 +26,11 @@ function basisLabel(point: GrossSalaryTrajectoryPoint): string {
 function continuityLabel(point: GrossSalaryTrajectoryPoint): string {
   const labels = {
     continuous: "Continuous period",
-    "employment-change": "Employment changed; chart line breaks",
+    "employment-change": "Employment changed",
     first: "First record",
-    gap: "Employment gap; chart line breaks",
+    gap: "Employment gap between records",
     overlap: "Overlapping record; changes unavailable",
-    "work-hours-change": "Work hours changed; chart line breaks",
+    "work-hours-change": "Work hours changed",
   } as const;
   return labels[point.continuity];
 }

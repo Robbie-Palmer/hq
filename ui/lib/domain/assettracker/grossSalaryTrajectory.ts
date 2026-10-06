@@ -234,28 +234,12 @@ export function buildGrossSalaryTrajectory(
 export function grossSalaryChartData(
   points: readonly GrossSalaryTrajectoryPoint[],
 ): GrossSalaryChartPoint[] {
-  const firstGbpIndex = points.findIndex((point) => point.currency === "GBP");
-  return points.flatMap((point, index) => {
-    if (point.currency !== "GBP") return [];
-    const chartPoint: GrossSalaryChartPoint = {
+  return points
+    .filter((point) => point.currency === "GBP")
+    .map((point) => ({
       id: point.recordId,
       date: point.effectiveStart,
       nominalGross: point.nominalGross,
       realGross: point.realGross ?? undefined,
-    };
-    if (
-      index === firstGbpIndex ||
-      (point.continuity === "continuous" &&
-        points[index - 1]?.currency === "GBP")
-    ) {
-      return [chartPoint];
-    }
-    return [
-      {
-        id: `${point.recordId}:break`,
-        date: point.effectiveStart,
-      },
-      chartPoint,
-    ];
-  });
+    }));
 }

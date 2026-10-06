@@ -19,7 +19,9 @@ vi.mock("recharts", () => ({
       {children}
     </div>
   ),
-  Line: ({ dataKey }: { dataKey: string }) => <div data-series={dataKey} />,
+  Line: ({ dataKey, type }: { dataKey: string; type: string }) => (
+    <div data-line-type={type} data-series={dataKey} />
+  ),
   CartesianGrid: () => null,
   Legend: () => null,
   Tooltip: () => null,
@@ -96,6 +98,48 @@ describe("RealGrossSalaryHistory", () => {
     expect(screen.getByLabelText("Salary reference month")).toHaveValue(
       "2024-04",
     );
+  });
+
+  it("interpolates known facts and toggles chart series from the legend", () => {
+    const { container } = render(
+      <RealGrossSalaryHistory
+        salaryHistory={[
+          salaryRecord(),
+          salaryRecord({
+            id: "salary-2025",
+            effectiveStart: "2025-04-01",
+            effectiveEnd: "2026-03-31",
+            grossPay: 65_000,
+          }),
+        ]}
+      />,
+    );
+
+    expect(
+      container.querySelector('[data-series="nominalGross"]'),
+    ).toHaveAttribute("data-line-type", "linear");
+    expect(
+      container.querySelector('[data-series="realGross"]'),
+    ).toHaveAttribute("data-line-type", "linear");
+
+    const nominal = screen.getByRole("button", { name: "Nominal gross pay" });
+    const real = screen.getByRole("button", {
+      name: "Inflation-adjusted gross pay",
+    });
+    expect(nominal).toHaveAttribute("aria-pressed", "true");
+    expect(real).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(nominal);
+    expect(nominal).toHaveAttribute("aria-pressed", "false");
+    expect(container.querySelector('[data-series="nominalGross"]')).toBeNull();
+    expect(container.querySelector('[data-series="realGross"]')).toBeVisible();
+
+    fireEvent.click(nominal);
+    fireEvent.click(real);
+    expect(
+      container.querySelector('[data-series="nominalGross"]'),
+    ).toBeVisible();
+    expect(container.querySelector('[data-series="realGross"]')).toBeNull();
   });
 
   it("keeps non-GBP salary facts visible as unavailable", () => {
