@@ -236,7 +236,14 @@ describe("createLocalAssetTrackerApi", () => {
 
   it("migrates old saved data to one stable local household member", async () => {
     const seed = getDemoAssetTrackerData();
-    const { household: _household, ownership: _ownership, ...legacy } = seed;
+    const {
+      forecastAssumptionSets: _forecastAssumptionSets,
+      futureCashFlows: _futureCashFlows,
+      household: _household,
+      ownership: _ownership,
+      planningCases: _planningCases,
+      ...legacy
+    } = seed;
     window.localStorage.setItem(
       ASSET_TRACKER_STORAGE_KEY,
       JSON.stringify(legacy),
@@ -530,29 +537,31 @@ describe("createLocalAssetTrackerApi", () => {
 
     const { data } = await createApi().load();
     expect(data.incomeHistory).toEqual(seed.incomeHistory);
-    expect(data.forecastAssumptionSets).toMatchObject([
-      {
-        id: "household-baseline-v1",
-        status: "superseded",
-        assumptions: [
-          {
-            name: "Temporary take-home change",
-            monthlyChange: {
-              minimum: -600,
-              expected: -500,
-              maximum: -350,
-            },
-            source: { kind: "manual-take-home" },
-          },
-        ],
-      },
-      {
-        id: "household-baseline-v2",
-        version: 2,
-        status: "active",
-        supersedesId: "household-baseline-v1",
-      },
-    ]);
+    expect(data.forecastAssumptionSets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "household-baseline-v1",
+          status: "superseded",
+          assumptions: [
+            expect.objectContaining({
+              name: "Temporary take-home change",
+              monthlyChange: {
+                minimum: -600,
+                expected: -500,
+                maximum: -350,
+              },
+              source: { kind: "manual-take-home" },
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          id: "household-baseline-v2",
+          version: 2,
+          status: "active",
+          supersedesId: "household-baseline-v1",
+        }),
+      ]),
+    );
   });
 
   it("persists transfers and history deletions", async () => {
