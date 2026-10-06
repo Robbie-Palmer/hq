@@ -225,6 +225,51 @@ describe("gross salary trajectory", () => {
     ]);
   });
 
+  it("carries an open-ended salary to the reference date as an assumption", () => {
+    const points = buildGrossSalaryTrajectory(
+      [salaryRecord({ effectiveEnd: undefined })],
+      release,
+      "2025-03-01",
+      "Alex",
+      "annualSalary",
+    );
+
+    expect(grossSalaryChartData(points, "2025-03-01")).toEqual([
+      expect.objectContaining({
+        id: "salary-january",
+        nominalGross: 40_000,
+        realGross: 44_000,
+        assumedNominalGross: 40_000,
+        assumedRealGross: 44_000,
+      }),
+      {
+        id: "salary-january:assumed",
+        date: "2025-03-01",
+        assumedNominalGross: 40_000,
+        assumedRealGross: 40_000,
+      },
+    ]);
+  });
+
+  it("does not carry a salary beyond its supplied end date", () => {
+    const points = buildGrossSalaryTrajectory(
+      [salaryRecord()],
+      release,
+      "2025-03-01",
+      "Alex",
+      "annualSalary",
+    );
+
+    expect(grossSalaryChartData(points, "2025-03-01")).toEqual([
+      {
+        id: "salary-january",
+        date: "2025-01-01",
+        nominalGross: 40_000,
+        realGross: 44_000,
+      },
+    ]);
+  });
+
   it("omits non-GBP records without splitting the GBP trajectory", () => {
     const february = salaryRecord({
       id: "salary-february-usd",

@@ -62,7 +62,7 @@ export function useRealGrossSalaryHistory(
 
   return {
     amountKind,
-    chartData: grossSalaryChartData(points),
+    chartData: grossSalaryChartData(points, selectedReferenceDate),
     hasRealValues: points.some((point) => point.realGross != null),
     hasSalaryHistory: currentRecords.length > 0,
     inflationIndex,

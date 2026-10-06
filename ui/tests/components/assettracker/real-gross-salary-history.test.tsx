@@ -19,8 +19,20 @@ vi.mock("recharts", () => ({
       {children}
     </div>
   ),
-  Line: ({ dataKey, type }: { dataKey: string; type: string }) => (
-    <div data-line-type={type} data-series={dataKey} />
+  Line: ({
+    dataKey,
+    strokeDasharray,
+    type,
+  }: {
+    dataKey: string;
+    strokeDasharray?: string;
+    type: string;
+  }) => (
+    <div
+      data-line-type={type}
+      data-series={dataKey}
+      data-stroke-dasharray={strokeDasharray}
+    />
   ),
   CartesianGrid: () => null,
   Legend: () => null,
@@ -140,6 +152,46 @@ describe("RealGrossSalaryHistory", () => {
       container.querySelector('[data-series="nominalGross"]'),
     ).toBeVisible();
     expect(container.querySelector('[data-series="realGross"]')).toBeNull();
+  });
+
+  it("marks an open-ended salary carried to the reference month as assumed", () => {
+    const { container } = render(
+      <RealGrossSalaryHistory
+        salaryHistory={[salaryRecord({ effectiveEnd: undefined })]}
+      />,
+    );
+    const chart = screen.getByTestId("salary-chart");
+    const chartData = JSON.parse(chart.dataset.chartData ?? "[]");
+
+    expect(chartData).toEqual([
+      expect.objectContaining({
+        id: "salary-2024",
+        nominalGross: 60_000,
+        assumedNominalGross: 60_000,
+      }),
+      expect.objectContaining({
+        id: "salary-2024:assumed",
+        date: `${latestCpihRelease.source.coverageThrough}-01`,
+        assumedNominalGross: 60_000,
+        assumedRealGross: 60_000,
+      }),
+    ]);
+    expect(
+      container.querySelector('[data-series="assumedNominalGross"]'),
+    ).toHaveAttribute("data-stroke-dasharray", "6 4");
+    expect(
+      screen.getByText(/Dashed segments assume the latest open-ended salary/),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Nominal gross pay" }));
+    expect(container.querySelector('[data-series="nominalGross"]')).toBeNull();
+    expect(
+      container.querySelector('[data-series="assumedNominalGross"]'),
+    ).toBeNull();
+    expect(container.querySelector('[data-series="realGross"]')).toBeVisible();
+    expect(
+      container.querySelector('[data-series="assumedRealGross"]'),
+    ).toBeVisible();
   });
 
   it("keeps non-GBP salary facts visible as unavailable", () => {

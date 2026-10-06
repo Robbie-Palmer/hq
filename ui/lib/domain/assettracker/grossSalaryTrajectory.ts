@@ -58,6 +58,8 @@ export type GrossSalaryChartPoint = {
   date: string;
   nominalGross?: number;
   realGross?: number;
+  assumedNominalGross?: number;
+  assumedRealGross?: number;
 };
 
 function dayAfter(date: string): string {
@@ -233,8 +235,9 @@ export function buildGrossSalaryTrajectory(
 
 export function grossSalaryChartData(
   points: readonly GrossSalaryTrajectoryPoint[],
+  referenceDate?: string,
 ): GrossSalaryChartPoint[] {
-  return points
+  const chartData: GrossSalaryChartPoint[] = points
     .filter((point) => point.currency === "GBP")
     .map((point) => ({
       id: point.recordId,
@@ -242,4 +245,32 @@ export function grossSalaryChartData(
       nominalGross: point.nominalGross,
       realGross: point.realGross ?? undefined,
     }));
+  const latest = points.at(-1);
+  const latestChartPoint = chartData.at(-1);
+  if (
+    referenceDate == null ||
+    latest == null ||
+    latestChartPoint == null ||
+    latest.currency !== "GBP" ||
+    latest.effectiveEnd != null ||
+    referenceDate <= latest.effectiveStart
+  ) {
+    return chartData;
+  }
+
+  return [
+    ...chartData.slice(0, -1),
+    {
+      ...latestChartPoint,
+      assumedNominalGross: latest.nominalGross,
+      assumedRealGross: latest.realGross ?? undefined,
+    },
+    {
+      id: `${latest.recordId}:assumed`,
+      date: referenceDate,
+      assumedNominalGross: latest.nominalGross,
+      assumedRealGross:
+        latest.realGross == null ? undefined : latest.nominalGross,
+    },
+  ];
 }
