@@ -129,7 +129,7 @@ export function getKitchenFreshnessStatus(
   if (estimatedEnd && estimatedEnd < today) return "estimate_elapsed";
   const nextDate = [freshness.useBy, freshness.bestBefore, estimatedEnd]
     .filter((date): date is string => date !== null)
-    .toSorted()[0];
+    .toSorted((left, right) => left.localeCompare(right))[0];
   return nextDate && daysBetween(today, nextDate) <= 3 ? "use_soon" : null;
 }
 

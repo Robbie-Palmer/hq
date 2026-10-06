@@ -87,7 +87,7 @@ function KitchenQuantityFields({
         htmlFor="kitchen-item-unit"
         className="rt-body grid gap-1 text-sm text-[var(--ink-2)]"
       >
-        Unit
+        <span>Unit</span>
         <select
           id="kitchen-item-unit"
           value={unit}
