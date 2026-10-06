@@ -51,6 +51,10 @@ vi.mock("@/components/assettracker/real-income-history-chart", () => ({
   RealIncomeHistoryChart: () => <p>Real income history</p>,
 }));
 
+vi.mock("@/components/assettracker/real-gross-salary-history", () => ({
+  RealGrossSalaryHistory: () => <p>Real gross salary history</p>,
+}));
+
 vi.mock("@/components/assettracker/upcoming-flows", () => ({
   UpcomingFlows: () => <p>Upcoming flows</p>,
 }));
@@ -106,6 +110,7 @@ describe("Asset Tracker feature routes", () => {
       setBaseCurrency: vi.fn(),
       flowSankeyData: { nodes: [], links: [] },
       incomeHistory: [],
+      salaryHistory: [],
       financialIndependence: { periods: [] },
       household: {
         members: [
@@ -126,6 +131,7 @@ describe("Asset Tracker feature routes", () => {
     expect(screen.getByText("Net worth history")).toBeVisible();
     expect(screen.getByText("Contribution history")).toBeVisible();
     expect(screen.getByText("Real income history")).toBeVisible();
+    expect(screen.getByText("Real gross salary history")).toBeVisible();
     expect(screen.getByText("Allocation history")).toBeVisible();
     expect(
       screen.getByRole("combobox", { name: "Historical target currency" }),

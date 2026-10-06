@@ -1,0 +1,154 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { describe, expect, it, vi } from "vitest";
+import { RealGrossSalaryHistory } from "@/components/assettracker/real-gross-salary-history";
+import type { SalaryHistoryRecord } from "@/lib/domain/assettracker";
+
+vi.mock("recharts", () => ({
+  ResponsiveContainer: ({ children }: { children: ReactNode }) => (
+    <div>{children}</div>
+  ),
+  LineChart: ({ children, data }: { children: ReactNode; data: unknown[] }) => (
+    <div data-chart-data={JSON.stringify(data)} data-testid="salary-chart">
+      {children}
+    </div>
+  ),
+  Line: ({ dataKey }: { dataKey: string }) => <div data-series={dataKey} />,
+  CartesianGrid: () => null,
+  Legend: () => null,
+  Tooltip: () => null,
+  XAxis: () => null,
+  YAxis: () => null,
+}));
+
+function salaryRecord(
+  overrides: Partial<SalaryHistoryRecord> = {},
+): SalaryHistoryRecord {
+  return {
+    id: "salary-2024",
+    person: "Alex",
+    employer: "Example Ltd",
+    employmentId: "example",
+    currency: "GBP",
+    jurisdiction: "England",
+    effectiveStart: "2024-04-01",
+    effectiveEnd: "2025-03-31",
+    payFrequency: "monthly",
+    amountKind: "annualSalary",
+    grossPay: 60_000,
+    source: { kind: "manual" },
+    acceptedAt: "2025-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+describe("RealGrossSalaryHistory", () => {
+  it("plots salary facts and exposes the calculation table and controls", () => {
+    render(<RealGrossSalaryHistory salaryHistory={[salaryRecord()]} />);
+
+    expect(screen.getByText("Gross salary over time")).toBeVisible();
+    expect(
+      screen.getByRole("img", {
+        name: "Nominal and inflation-adjusted annual salary rate for Alex",
+      }),
+    ).toBeVisible();
+    expect(screen.getByLabelText("Salary inflation index")).toHaveTextContent(
+      "CPIH",
+    );
+    expect(screen.getByLabelText("Salary reference month")).toHaveValue(
+      "2026-08",
+    );
+    expect(screen.getByText("£60,000")).toBeVisible();
+    expect(screen.getByText(/Dataset 2026-09-16:/)).toBeVisible();
+    expect(screen.getByText(/Salary fact salary-2024/)).toBeVisible();
+  });
+
+  it("recalculates the table for another reference month", () => {
+    render(<RealGrossSalaryHistory salaryHistory={[salaryRecord()]} />);
+    const latestRealValue = screen.getAllByText(/^£[\d,]+$/)[1]?.textContent;
+
+    fireEvent.change(screen.getByLabelText("Salary reference month"), {
+      target: { value: "2024-04" },
+    });
+
+    expect(screen.getByLabelText("Salary reference month")).toHaveValue(
+      "2024-04",
+    );
+    expect(screen.getAllByText(/^£[\d,]+$/)[1]?.textContent).not.toBe(
+      latestRealValue,
+    );
+
+    fireEvent.change(screen.getByLabelText("Salary reference month"), {
+      target: { value: "" },
+    });
+    expect(screen.getByLabelText("Salary reference month")).toHaveValue(
+      "2024-04",
+    );
+  });
+
+  it("keeps non-GBP salary facts visible as unavailable", () => {
+    render(
+      <RealGrossSalaryHistory
+        salaryHistory={[salaryRecord({ currency: "USD" })]}
+      />,
+    );
+
+    expect(screen.getByText(/60,000/)).toBeVisible();
+    expect(screen.getByText("Unavailable")).toBeVisible();
+    expect(screen.getByText(/cannot adjust USD values/)).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "1 salary record has no real-terms value",
+    );
+  });
+
+  it("switches salary basis, person, and inflation index", () => {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    render(
+      <RealGrossSalaryHistory
+        salaryHistory={[
+          salaryRecord(),
+          salaryRecord({
+            id: "sam-period-pay",
+            person: "Sam",
+            amountKind: "periodPay",
+            grossPay: 4_000,
+          }),
+        ]}
+      />,
+    );
+
+    fireEvent.keyDown(screen.getByLabelText("Salary person"), {
+      key: "ArrowDown",
+    });
+    fireEvent.click(screen.getByRole("option", { name: "Sam" }));
+    expect(
+      screen.getByText(/No annual salary rate records for Sam/),
+    ).toBeVisible();
+
+    fireEvent.keyDown(screen.getByLabelText("Gross salary figure"), {
+      key: "ArrowDown",
+    });
+    fireEvent.click(
+      screen.getByRole("option", { name: "Actual period earnings" }),
+    );
+    expect(screen.getByText("£4,000")).toBeVisible();
+
+    fireEvent.keyDown(screen.getByLabelText("Salary inflation index"), {
+      key: "ArrowDown",
+    });
+    fireEvent.click(screen.getByRole("option", { name: "RPI" }));
+    expect(screen.getByText(/RPI is a legacy measure/)).toBeVisible();
+  });
+
+  it("links to salary import when no history exists", () => {
+    render(<RealGrossSalaryHistory salaryHistory={[]} />);
+
+    expect(screen.getByText("No salary history yet")).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Import salary history" }),
+    ).toHaveAttribute("href", "/assettracker/imports");
+  });
+});
