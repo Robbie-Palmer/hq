@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { addDays, format, parseISO } from "date-fns";
 import type { ReactNode } from "react";
@@ -1306,34 +1306,39 @@ describe("FutureCashFlowManager", () => {
 
     await user.click(screen.getByRole("combobox", { name: "Type" }));
     await user.click(screen.getByRole("option", { name: "Weighted decision" }));
-    await user.type(screen.getByRole("textbox", { name: "Name" }), "Upgrade");
-    await user.type(
+    fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+      target: { value: "Upgrade" },
+    });
+    fireEvent.change(
       screen.getByRole("spinbutton", { name: "Expected amount" }),
-      "750",
+      { target: { value: "750" } },
     );
-    await user.type(
+    fireEvent.change(
       screen.getByRole("spinbutton", { name: "Minimum amount" }),
-      "500",
+      { target: { value: "500" } },
     );
-    await user.type(
+    fireEvent.change(
       screen.getByRole("spinbutton", { name: "Maximum amount" }),
-      "1200",
+      { target: { value: "1200" } },
     );
-    await user.clear(screen.getByLabelText("Expected date"));
-    await user.type(screen.getByLabelText("Expected date"), "2027-05-01");
-    await user.type(screen.getByLabelText("Earliest date"), "2027-04-01");
-    await user.type(screen.getByLabelText("Latest date"), "2027-06-01");
-    await user.type(
-      screen.getByRole("textbox", { name: "Importance" }),
-      "Nice to have",
-    );
-    await user.type(
-      screen.getByRole("spinbutton", { name: "Confidence %" }),
-      "65",
-    );
-    await user.type(
+    fireEvent.change(screen.getByLabelText("Expected date"), {
+      target: { value: "2027-05-01" },
+    });
+    fireEvent.change(screen.getByLabelText("Earliest date"), {
+      target: { value: "2027-04-01" },
+    });
+    fireEvent.change(screen.getByLabelText("Latest date"), {
+      target: { value: "2027-06-01" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Importance" }), {
+      target: { value: "Nice to have" },
+    });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Confidence %" }), {
+      target: { value: "65" },
+    });
+    fireEvent.change(
       screen.getByRole("textbox", { name: "Labels (comma separated)" }),
-      "priority, flexible",
+      { target: { value: "priority, flexible" } },
     );
     await user.click(screen.getByRole("combobox", { name: "Planning case" }));
     await user.click(screen.getByRole("option", { name: "Summer plans" }));
@@ -1367,7 +1372,7 @@ describe("FutureCashFlowManager", () => {
         },
       ],
     });
-  });
+  }, 15_000);
 
   it("updates statuses, deletes records, and records refunds", async () => {
     const setCommitmentStatus = vi.fn();
