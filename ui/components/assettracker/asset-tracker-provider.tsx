@@ -36,6 +36,7 @@ import {
   type AssetAllocationDataPoint,
   type AssetTrackerData,
   type AssetType,
+  analyseEmergencyFund,
   buildAccountReadModels,
   buildPropertyComparableViews,
   buildPropertyValueHistoryViews,
@@ -48,6 +49,9 @@ import {
   currentSalaryHistory,
   type DeleteCapitalFlowInput,
   type DeleteSnapshotInput,
+  type EmergencyFundAnalysis,
+  type EmergencyFundPlan,
+  type EmergencyFundPlanInput,
   type FinancialDecisionRecord,
   type ForecastAssumptionSet,
   type FutureCashFlow,
@@ -85,6 +89,7 @@ import {
   type RecordTransferInput,
   type RecurringFlow,
   type SalaryHistoryRecord,
+  type SaveEmergencyFundPlanInput,
   type SaveMortgageScenarioInput,
   type SaveSalaryRecordInput,
   type SetAccountLiquidityInput,
@@ -109,6 +114,11 @@ interface AssetTrackerContextValue {
   planningCases: PlanningCase[];
   futureCashFlows: FutureCashFlow[];
   forecastAssumptionSets: ForecastAssumptionSet[];
+  emergencyFundPlans: EmergencyFundPlan[];
+  emergencyFundAnalysis: EmergencyFundAnalysis | null;
+  analyseEmergencyFundDraft(
+    input: EmergencyFundPlanInput,
+  ): EmergencyFundAnalysis;
   mortgageScenarios: MortgageScenario[];
   decisionRecords: FinancialDecisionRecord[];
   incomeHistory: IncomeRecord[];
@@ -192,6 +202,7 @@ interface AssetTrackerContextValue {
   setBaseCurrency(currency: Currency): Promise<void>;
   setWithdrawalRate(rate: number): Promise<void>;
   saveMortgageScenario(input: SaveMortgageScenarioInput): Promise<void>;
+  saveEmergencyFundPlan(input: SaveEmergencyFundPlanInput): Promise<void>;
   setNetWorthTarget(
     target: number | null,
     inTodaysMoney?: boolean,
@@ -371,6 +382,9 @@ export function AssetTrackerProvider({
       repository,
       valuationDate,
     );
+    const activeEmergencyFundPlan = repository.emergencyFundPlans.find(
+      ({ status }) => status === "active",
+    );
     return {
       accounts,
       accountDetails,
@@ -385,6 +399,17 @@ export function AssetTrackerProvider({
       planningCases: repository.planningCases,
       futureCashFlows: repository.futureCashFlows,
       forecastAssumptionSets: repository.forecastAssumptionSets,
+      emergencyFundPlans: repository.emergencyFundPlans,
+      emergencyFundAnalysis:
+        activeEmergencyFundPlan == null
+          ? null
+          : analyseEmergencyFund(
+              repository,
+              activeEmergencyFundPlan,
+              valuationDate,
+            ),
+      analyseEmergencyFundDraft: (input: EmergencyFundPlanInput) =>
+        analyseEmergencyFund(repository, input, valuationDate),
       mortgageScenarios: repository.mortgageScenarios,
       decisionRecords: repository.decisionRecords,
       incomeHistory: repository.incomeHistory,
@@ -501,6 +526,8 @@ export function AssetTrackerProvider({
         mutate((api) => api.setWithdrawalRate({ rate })),
       saveMortgageScenario: (input) =>
         mutate((api) => api.saveMortgageScenario(input)),
+      saveEmergencyFundPlan: (input) =>
+        mutate((api) => api.saveEmergencyFundPlan(input)),
       setNetWorthTarget: (target, inTodaysMoney) =>
         mutate((api) => api.setNetWorthTarget({ target, inTodaysMoney })),
       addHouseholdMember: (displayName) =>

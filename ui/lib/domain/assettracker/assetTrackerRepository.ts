@@ -11,6 +11,7 @@ import {
 } from "./assetTrackerData";
 import type { BalanceSnapshot } from "./balanceSnapshot";
 import { type CapitalFlow, capitalFlowKind } from "./capitalFlow";
+import type { EmergencyFundPlan } from "./emergencyFund";
 import type { ForecastAssumptionSet } from "./forecastAssumption";
 import {
   type FutureCashFlow,
@@ -48,6 +49,7 @@ export interface AssetTrackerRepository {
   planningCases: PlanningCase[];
   futureCashFlows: FutureCashFlow[];
   forecastAssumptionSets: ForecastAssumptionSet[];
+  emergencyFundPlans: EmergencyFundPlan[];
   mortgageScenarios: MortgageScenario[];
   decisionRecords: FinancialDecisionRecord[];
   propertyComparableSearches: PropertyComparableSearchDefinition[];
@@ -499,6 +501,46 @@ function validateForecastAssumptionSets(
   }
 }
 
+function validateEmergencyFundPlans(
+  data: AssetTrackerData,
+  accounts: ReadonlyMap<AccountId, Account>,
+): void {
+  const ids = new Set<string>();
+  const activeSeries = new Set<string>();
+  const plans = data.emergencyFundPlans ?? [];
+  for (const plan of plans) {
+    if (ids.has(plan.id)) {
+      throw new AssetTrackerDataError(
+        `Duplicate emergency-fund plan ID "${plan.id}"`,
+      );
+    }
+    ids.add(plan.id);
+    if (plan.status === "active") {
+      if (activeSeries.has(plan.seriesId)) {
+        throw new AssetTrackerDataError(
+          `Emergency-fund plan series "${plan.seriesId}" has more than one active version`,
+        );
+      }
+      activeSeries.add(plan.seriesId);
+    }
+    for (const policy of plan.accountPolicies) {
+      assertKnownAccount(
+        accounts,
+        policy.accountId,
+        `Emergency-fund plan "${plan.name}"`,
+      );
+    }
+    if (
+      plan.supersedesId != null &&
+      !plans.some(({ id }) => id === plan.supersedesId)
+    ) {
+      throw new AssetTrackerDataError(
+        `Emergency-fund plan "${plan.name}" supersedes unknown version "${plan.supersedesId}"`,
+      );
+    }
+  }
+}
+
 function indexInstruments(data: AssetTrackerData): Map<string, Instrument> {
   const instruments = new Map(
     (data.instruments ?? []).map((instrument) => [instrument.id, instrument]),
@@ -636,6 +678,7 @@ function validateReferences(
   validatePlannedExpenditureReferences(data, accounts);
   validateFutureCashFlowReferences(data, accounts);
   validateForecastAssumptionSets(data, accounts);
+  validateEmergencyFundPlans(data, accounts);
   validateValuationReferences(data, accounts);
   validatePropertyComparableSearchReferences(data, accounts);
   validatePropertyIndexHistoryReferences(data, accounts);
@@ -719,6 +762,9 @@ export function buildRepository(
     }),
     forecastAssumptionSets: [...data.forecastAssumptionSets].sort(
       (a, b) => a.name.localeCompare(b.name) || b.version - a.version,
+    ),
+    emergencyFundPlans: [...(data.emergencyFundPlans ?? [])].sort(
+      (a, b) => b.version - a.version,
     ),
     mortgageScenarios: data.mortgageScenarios ?? [],
     decisionRecords: data.decisionRecords ?? [],

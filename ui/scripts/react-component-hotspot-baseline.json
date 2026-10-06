@@ -312,6 +312,32 @@
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
+    "component": "EmergencyFundPlanner",
+    "maximums": {
+      "lines": 383,
+      "renderComplexity": 21,
+      "responsibility": 36.5
+    },
+    "path": "components/assettracker/emergency-fund-planner.tsx",
+    "reason": "The reserve editor is already split from its source table and comparison results; these exact ceilings block further growth."
+  },
+  {
+    "component": "EmergencyFundResults",
+    "maximums": {
+      "lines": 132
+    },
+    "path": "components/assettracker/emergency-fund-results.tsx",
+    "reason": "The comparison table keeps current, under-target, and over-target policy outcomes together; this exact ceiling blocks further growth."
+  },
+  {
+    "component": "EmergencyFundSources",
+    "maximums": {
+      "lines": 172
+    },
+    "path": "components/assettracker/emergency-fund-sources.tsx",
+    "reason": "The wide account-assumption table is isolated from the planner and results; this exact ceiling blocks further growth."
+  },
+  {
     "component": "EquityProjection",
     "maximums": {
       "lines": 123

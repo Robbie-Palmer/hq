@@ -3,6 +3,7 @@ import { AccountContentSchema } from "./account";
 import { BalanceSnapshotSchema } from "./balanceSnapshot";
 import { CapitalFlowSchema } from "./capitalFlow";
 import { CurrencySchema, DEFAULT_BASE_CURRENCY } from "./currency";
+import { EmergencyFundPlanSchema } from "./emergencyFund";
 import { ForecastAssumptionSetSchema } from "./forecastAssumption";
 import {
   FutureCashFlowSchema,
@@ -100,6 +101,7 @@ export const AssetTrackerDataSchema = z
     planningCases: z.array(PlanningCaseSchema).default([]),
     futureCashFlows: z.array(FutureCashFlowSchema).default([]),
     forecastAssumptionSets: z.array(ForecastAssumptionSetSchema).default([]),
+    emergencyFundPlans: z.array(EmergencyFundPlanSchema).optional(),
     mortgageScenarios: z.array(MortgageScenarioSchema).optional(),
     decisionRecords: z.array(FinancialDecisionRecordSchema).optional(),
     instruments: z.array(InstrumentSchema).optional(),

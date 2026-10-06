@@ -17,6 +17,7 @@ import {
   type NetWorthDataPoint,
   toFxImpactTimeSeries,
 } from "@/lib/domain/assettracker/assetTrackerViews";
+import { analyseEmergencyFund } from "@/lib/domain/assettracker/emergencyFund";
 import { futureCashFlowForecastItems } from "@/lib/domain/assettracker/futureCashFlow";
 import {
   scopeAssetTrackerData,
@@ -370,6 +371,65 @@ describe("Asset Tracker demo-data adapter", () => {
         status: "superseded",
       },
     ]);
+
+    const emergencyFundPlan = repository.emergencyFundPlans[0];
+    expect(emergencyFundPlan).toMatchObject({
+      id: "household-emergency-reserves-v1",
+      version: 1,
+      status: "active",
+      dependantCount: 1,
+      coverageMonths: [6, 12, 18],
+      missingData: [
+        "Childcare renewal cost after 2027",
+        "Outcome of the next contract renewal",
+      ],
+      stressScenarios: [
+        expect.objectContaining({
+          employmentIncomeLossRate: 1,
+          sideIncomeDelayMonths: 3,
+          unexpectedCost: 2_500,
+          annualInflationRate: 0.04,
+        }),
+      ],
+    });
+    expect(emergencyFundPlan).toBeDefined();
+    if (emergencyFundPlan == null) return;
+
+    const emergencyFundAnalysis = analyseEmergencyFund(
+      repository,
+      emergencyFundPlan,
+      "2024-12-01",
+    );
+    expect(emergencyFundAnalysis.accessibleFunds).toBe(18_900);
+    expect(emergencyFundAnalysis.policyTargets).toEqual([
+      {
+        months: 6,
+        target: 9_300,
+        fundingGap: 0,
+        availableAboveTarget: 9_600,
+      },
+      {
+        months: 12,
+        target: 18_600,
+        fundingGap: 0,
+        availableAboveTarget: 300,
+      },
+      {
+        months: 18,
+        target: 27_900,
+        fundingGap: 9_000,
+        availableAboveTarget: 0,
+      },
+    ]);
+    expect(emergencyFundAnalysis.selectedDecisionCosts).toBe(45_000);
+    expect(
+      emergencyFundAnalysis.sources.filter(({ included }) => included),
+    ).toHaveLength(2);
+    expect(
+      emergencyFundAnalysis.sources
+        .filter(({ included }) => included)
+        .every(({ protectedBalance }) => protectedBalance != null),
+    ).toBe(true);
   });
 
   it("includes a decision-ready mortgage product in the demo household", () => {

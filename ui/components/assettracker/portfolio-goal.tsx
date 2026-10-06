@@ -17,6 +17,7 @@ import {
   formatAssetTrackerError,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { EmergencyFundPlanner } from "./emergency-fund-planner";
 import { FinancialRunwayChart } from "./financial-runway-chart";
 import { IncomeExpenditureChart } from "./income-expenditure-chart";
 import { IncomeHistoryImportDrawer } from "./income-history-import-drawer";
@@ -60,11 +61,6 @@ function getAnnualSavingsDescription(
     return `${formatCurrency(Math.round(annualSavings), currency)}/yr saved: ${formatCurrency(Math.round(currentCompensation.annualTakeHomeSavings), currency)} from take-home pay, ${formatCurrency(Math.round(currentCompensation.annualEmployeePensionContribution), currency)} employee pension, and ${formatCurrency(Math.round(currentCompensation.annualEmployerPensionContribution), currency)} employer pension`;
   }
   return `${formatCurrency(Math.round(annualSavings), currency)}/yr median total capital added`;
-}
-
-function getEmergencyFundDescription(months: number | null): string {
-  if (months == null) return "Add reconciled spending to calculate runway";
-  return `${months.toFixed(1)} months without income`;
 }
 
 function getProjectedFiDescription({
@@ -124,8 +120,6 @@ export function PortfolioGoal({
     savingsRate,
     takeHomeSavingsRate,
     currentCompensation,
-    emergencyFund,
-    emergencyFundMonths,
     runway,
     target,
     progress,
@@ -265,15 +259,6 @@ export function PortfolioGoal({
             </p>
           </div>
           <div className="rounded-md border p-3">
-            <p className="text-xs text-muted-foreground">Emergency fund</p>
-            <p className="mt-1 text-xl font-semibold">
-              {formatCurrency(Math.round(emergencyFund), baseCurrency)}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {getEmergencyFundDescription(emergencyFundMonths)}
-            </p>
-          </div>
-          <div className="rounded-md border p-3">
             <p className="text-xs text-muted-foreground">Projected FI</p>
             <p className="mt-1 text-xl font-semibold">{yearsToFiLabel}</p>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -357,6 +342,8 @@ export function PortfolioGoal({
         )}
 
         <FinancialRunwayChart runway={runway} currency={baseCurrency} />
+
+        <EmergencyFundPlanner />
 
         <RunwayForecast />
 
