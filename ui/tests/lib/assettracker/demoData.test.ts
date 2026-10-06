@@ -237,8 +237,16 @@ describe("Asset Tracker demo-data adapter", () => {
     const data = getDemoAssetTrackerData();
     const current = currentSalaryHistory(data.salaryHistory);
 
-    expect(data.salaryHistory).toHaveLength(7);
-    expect(current).toHaveLength(6);
+    expect(data.salaryHistory).toHaveLength(9);
+    expect(current).toHaveLength(8);
+    expect(current).toContainEqual(
+      expect.objectContaining({
+        id: "alex-brightwell-2016",
+        effectiveStart: "2016-01-01",
+        effectiveEnd: "2017-12-31",
+        grossPay: 28_000,
+      }),
+    );
     expect(current).toContainEqual(
       expect.objectContaining({
         id: "sam-fieldwork-part-time",
@@ -251,7 +259,7 @@ describe("Asset Tracker demo-data adapter", () => {
         source: expect.objectContaining({
           kind: "file",
           fileName: "salary-history-demo.csv",
-          row: 4,
+          row: 6,
         }),
       }),
     );
