@@ -82,17 +82,20 @@ vi.mock("recharts", () => ({
     dataKey,
     domain,
     scale,
+    ticks,
     type,
   }: {
     dataKey?: string;
     domain?: readonly number[];
     scale?: string;
+    ticks?: readonly number[];
     type?: string;
   }) => (
     <div
       data-axis-domain={JSON.stringify(domain)}
       data-axis-key={dataKey}
       data-axis-scale={scale}
+      data-axis-ticks={JSON.stringify(ticks)}
       data-axis-type={type}
       data-testid="salary-x-axis"
     />
@@ -183,6 +186,11 @@ describe("RealGrossSalaryHistory", () => {
       "data-axis-domain",
       grossAxis?.getAttribute("data-axis-domain"),
     );
+    expect(grossAxis).toHaveAttribute("data-axis-ticks");
+    expect(netAxis).toHaveAttribute(
+      "data-axis-ticks",
+      grossAxis?.getAttribute("data-axis-ticks"),
+    );
     expect(netNominal).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(netNominal);
     expect(netChart.querySelector('[data-series="nominal"]')).toBeNull();
@@ -224,13 +232,23 @@ describe("RealGrossSalaryHistory", () => {
       target: { value: "2025-03" },
     });
 
-    const expectedDomain = JSON.stringify([
-      Date.parse("2024-04-01"),
-      Date.parse("2025-03-01"),
-    ]);
-    for (const axis of screen.getAllByTestId("salary-x-axis")) {
+    const start = Date.parse("2024-04-01");
+    const end = Date.parse("2025-03-01");
+    const expectedDomain = JSON.stringify([start, end]);
+    const axes = screen.getAllByTestId("salary-x-axis");
+    for (const axis of axes) {
       expect(axis).toHaveAttribute("data-axis-domain", expectedDomain);
     }
+    const ticks = JSON.parse(
+      axes[0]?.getAttribute("data-axis-ticks") ?? "[]",
+    ) as number[];
+    expect(ticks).toHaveLength(4);
+    expect(ticks[0]).toBe(start);
+    expect(ticks.at(-1)).toBe(end);
+    expect(axes[1]).toHaveAttribute(
+      "data-axis-ticks",
+      axes[0]?.getAttribute("data-axis-ticks"),
+    );
   });
 
   it("interpolates known facts and toggles chart series from the legend", () => {

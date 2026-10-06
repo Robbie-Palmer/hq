@@ -25,6 +25,7 @@ export type SalaryTrajectoryChartDatum = {
 export type SalaryTrajectoryDateDomain = readonly [number, number];
 
 const ONE_DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1_000;
+const SALARY_DATE_TICK_COUNT = 4;
 
 export function salaryTrajectoryDateDomain(
   ...series: ReadonlyArray<readonly { date: string }[]>
@@ -41,6 +42,15 @@ export function salaryTrajectoryDateDomain(
   return [start, end];
 }
 
+function salaryTrajectoryDateTicks([
+  start,
+  end,
+]: SalaryTrajectoryDateDomain): readonly number[] {
+  return Array.from({ length: SALARY_DATE_TICK_COUNT }, (_, index) =>
+    Math.round(start + ((end - start) * index) / (SALARY_DATE_TICK_COUNT - 1)),
+  );
+}
+
 type SalarySeries = "nominal" | "real";
 
 type SalaryTrajectoryChartProps = Readonly<{
@@ -50,6 +60,16 @@ type SalaryTrajectoryChartProps = Readonly<{
   label: string;
   nominalLabel: string;
   realLabel: string;
+}>;
+
+type SalaryChartCanvasProps = Readonly<{
+  chartData: readonly SalaryTrajectoryChartDatum[];
+  dateDomain: SalaryTrajectoryDateDomain;
+  hasAssumption: boolean;
+  hasRealValues: boolean;
+  hidden: ReadonlySet<SalarySeries>;
+  label: string;
+  labels: Readonly<Record<SalarySeries, string>>;
 }>;
 
 const RECORDED_TOOLTIP_KEY = {
@@ -181,15 +201,7 @@ function SalaryChartCanvas({
   hidden,
   label,
   labels,
-}: Readonly<{
-  chartData: readonly SalaryTrajectoryChartDatum[];
-  dateDomain: SalaryTrajectoryDateDomain;
-  hasAssumption: boolean;
-  hasRealValues: boolean;
-  hidden: ReadonlySet<SalarySeries>;
-  label: string;
-  labels: Readonly<Record<SalarySeries, string>>;
-}>) {
+}: SalaryChartCanvasProps) {
   const timestampedChartData = chartData.map((point) => ({
     ...point,
     timestamp: Date.parse(point.date),
@@ -211,6 +223,7 @@ function SalaryChartCanvas({
             currency="GBP"
             dateDomain={dateDomain}
             dateKey="timestamp"
+            dateTicks={salaryTrajectoryDateTicks(dateDomain)}
             tooltipContent={<SalaryTooltipContent />}
           />
           <SalaryLines

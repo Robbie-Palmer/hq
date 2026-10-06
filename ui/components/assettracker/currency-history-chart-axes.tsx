@@ -9,11 +9,13 @@ export function CurrencyHistoryChartAxes({
   currency,
   dateDomain,
   dateKey = "date",
+  dateTicks,
   tooltipContent,
 }: Readonly<{
   currency: Currency;
   dateDomain?: readonly [number, number];
   dateKey?: string;
+  dateTicks?: readonly number[];
   tooltipContent?: ReactElement;
 }>) {
   const isTimeAxis = dateDomain != null;
@@ -26,6 +28,7 @@ export function CurrencyHistoryChartAxes({
         type={isTimeAxis ? "number" : "category"}
         scale={isTimeAxis ? "time" : "auto"}
         domain={dateDomain}
+        ticks={dateTicks}
         allowDataOverflow={isTimeAxis}
         className="text-xs"
         minTickGap={24}
