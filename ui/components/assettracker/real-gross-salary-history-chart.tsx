@@ -105,8 +105,10 @@ function AssumptionKey() {
         aria-hidden="true"
         className="w-7 border-t-2 border-dashed border-muted-foreground"
       />
-      Dashed segments assume the latest open-ended salary remained unchanged to
-      the reference month.
+      <span>
+        Dashed segments assume the latest open-ended salary remained unchanged
+        to the reference month.
+      </span>
     </p>
   );
 }
