@@ -17,6 +17,7 @@ import {
   type NetWorthDataPoint,
   toFxImpactTimeSeries,
 } from "@/lib/domain/assettracker/assetTrackerViews";
+import { futureCashFlowForecastItems } from "@/lib/domain/assettracker/futureCashFlow";
 import {
   scopeAssetTrackerData,
   snapshotOwnershipKey,
@@ -268,6 +269,99 @@ describe("Asset Tracker demo-data adapter", () => {
     expect(current.map(({ id }) => id)).not.toContain(
       "alex-cirrus-2024-original",
     );
+  });
+
+  it("showcases commitments, weighted choices, and versioned forecasts", () => {
+    const repository = buildRepository(getDemoAssetTrackerData());
+
+    expect(repository.planningCases).toContainEqual({
+      id: "2027-home-upgrade",
+      name: "2027 home upgrade",
+      description:
+        "Compare committed preparation work with two possible ways to add space.",
+      labels: ["home", "2027"],
+      targetDate: "2027-09-01",
+    });
+    expect(repository.futureCashFlows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "architect-and-survey",
+          kind: "commitment",
+          stages: expect.arrayContaining([
+            expect.objectContaining({
+              id: "design-deposit",
+              actuals: [
+                expect.objectContaining({
+                  amount: 1_500,
+                  direction: "payment",
+                }),
+              ],
+            }),
+          ]),
+        }),
+        expect.objectContaining({
+          id: "single-storey-extension",
+          kind: "decision",
+          status: "selected",
+          confidence: 0.6,
+          dependencyIds: ["architect-and-survey"],
+          alternativeToIds: ["loft-conversion"],
+          stages: [
+            expect.objectContaining({
+              minimumAmount: 35_000,
+              expectedAmount: 45_000,
+              maximumAmount: 55_000,
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          id: "loft-conversion",
+          kind: "decision",
+          status: "considering",
+          alternativeToIds: ["single-storey-extension"],
+        }),
+      ]),
+    );
+    expect(
+      futureCashFlowForecastItems(repository.futureCashFlows).map(
+        ({ futureCashFlowId, amount }) => ({ futureCashFlowId, amount }),
+      ),
+    ).toEqual([
+      { futureCashFlowId: "architect-and-survey", amount: 1_000 },
+      { futureCashFlowId: "single-storey-extension", amount: 45_000 },
+    ]);
+    expect(repository.forecastAssumptionSets).toMatchObject([
+      {
+        id: "household-outlook-v2",
+        version: 2,
+        status: "active",
+        supersedesId: "household-outlook-v1",
+        assumptions: [
+          {
+            id: "alex-pay-rise-v2",
+            source: {
+              kind: "tax-derived",
+              taxYear: "2027-28",
+              calculationVersion: "uk-income-tax-v2",
+              ruleDatasetVersion: "2026-10-01",
+            },
+          },
+          {
+            id: "temporary-storage",
+            monthlyChange: { minimum: 150, expected: 250, maximum: 400 },
+          },
+          {
+            id: "lower-energy-bills",
+            monthlyChange: { minimum: -150, expected: -100, maximum: -50 },
+          },
+        ],
+      },
+      {
+        id: "household-outlook-v1",
+        version: 1,
+        status: "superseded",
+      },
+    ]);
   });
 
   it("includes a decision-ready mortgage product in the demo household", () => {

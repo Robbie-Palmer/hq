@@ -7,7 +7,15 @@ import {
 } from "./account";
 import { realRate } from "./assetTrackerAnalytics";
 import type { AssetTrackerRepository } from "./assetTrackerRepository";
-import type { PlannedExpenditure } from "./plannedExpenditure";
+import type {
+  ForecastAmountRange,
+  ForecastAssumption,
+} from "./forecastAssumption";
+import {
+  type DecisionStage,
+  type ForecastCashFlow,
+  futureCashFlowForecastItems,
+} from "./futureCashFlow";
 import {
   convertAccountAmountAtDate,
   convertMoneyAtDate,
@@ -34,6 +42,20 @@ export type RunwayForecastPoint = {
   baselineCashMonths: number;
   baselineLiquidMonths: number;
   baselineTotalMonths: number;
+  monthlyBreakdown: MonthlyForecastBreakdown;
+};
+
+export type MonthlyForecastBreakdown = {
+  baselineExpenditure: number;
+  explicitIncomeChange: ForecastAmountRange;
+  explicitExpenditureChange: ForecastAmountRange;
+  externalIncome: number;
+  accountTransfers: number;
+  debtPayments: number;
+  ordinaryRecurringOutflowsCoveredByBaseline: number;
+  committedCashFlows: number;
+  selectedDecisionCashFlows: number;
+  possibleDecisions: ForecastAmountRange;
 };
 
 type ProjectedAccount = {
@@ -46,6 +68,23 @@ type ForecastBalances = {
   liquidBalance: number;
   totalBalance: number;
 };
+
+const ZERO_RANGE: ForecastAmountRange = {
+  minimum: 0,
+  expected: 0,
+  maximum: 0,
+};
+
+function addRange(
+  total: ForecastAmountRange,
+  value: ForecastAmountRange,
+): ForecastAmountRange {
+  return {
+    minimum: total.minimum + value.minimum,
+    expected: total.expected + value.expected,
+    maximum: total.maximum + value.maximum,
+  };
+}
 
 function balancesByAccess(accounts: ProjectedAccount[]): ForecastBalances {
   let cashBalance = 0;
@@ -167,21 +206,37 @@ function compoundAccounts(
   }
 }
 
-function applyPlannedExpenditures(
+function applyFutureCashFlows(
   accounts: ProjectedAccount[],
-  expenditures: PlannedExpenditure[],
+  cashFlows: ForecastCashFlow[],
   afterDate: string,
   throughDate: string,
 ): void {
   const byId = new Map(
     accounts.map((projected) => [projected.account.id, projected]),
   );
-  for (const expenditure of expenditures) {
-    if (expenditure.date <= afterDate || expenditure.date > throughDate) {
+  for (const cashFlow of cashFlows) {
+    if (cashFlow.date <= afterDate || cashFlow.date > throughDate) {
       continue;
     }
-    const source = byId.get(expenditure.fromAccountId);
-    if (source) source.balance -= expenditure.amount;
+    const source = byId.get(cashFlow.fromAccountId);
+    if (source) source.balance -= cashFlow.amount;
+  }
+}
+
+function applyIncomeAssumptions(
+  accounts: ProjectedAccount[],
+  assumptions: readonly ForecastAssumption[],
+): void {
+  const byId = new Map(
+    accounts.map((projected) => [projected.account.id, projected]),
+  );
+  for (const assumption of assumptions) {
+    if (assumption.kind !== "income" || assumption.accountId == null) continue;
+    const destination = byId.get(assumption.accountId);
+    if (destination != null) {
+      destination.balance += assumption.monthlyChange.expected;
+    }
   }
 }
 
@@ -260,22 +315,200 @@ function convertProjectionFlow(
   };
 }
 
-function convertProjectionExpenditures(
+function convertProjectionCashFlows(
   repository: AssetTrackerRepository,
   valuationDate: string,
-): PlannedExpenditure[] | null {
-  const converted: PlannedExpenditure[] = [];
-  for (const expenditure of repository.plannedExpenditures) {
+): ForecastCashFlow[] | null {
+  const converted: ForecastCashFlow[] = [];
+  for (const cashFlow of futureCashFlowForecastItems(
+    repository.futureCashFlows,
+  )) {
     const amount = convertAccountAmountAtDate(
       repository,
-      expenditure.fromAccountId,
-      expenditure.amount,
+      cashFlow.fromAccountId,
+      cashFlow.amount,
       valuationDate,
     );
     if (amount == null) return null;
-    converted.push({ ...expenditure, amount });
+    converted.push({
+      ...cashFlow,
+      amount,
+      currency: repository.settings.baseCurrency,
+    });
   }
   return converted;
+}
+
+function convertForecastAssumptions(
+  repository: AssetTrackerRepository,
+  valuationDate: string,
+): ForecastAssumption[] | null {
+  const converted: ForecastAssumption[] = [];
+  for (const assumption of repository.forecastAssumptionSets.flatMap(
+    ({ assumptions }) => assumptions,
+  )) {
+    const values = [
+      assumption.monthlyChange.minimum,
+      assumption.monthlyChange.expected,
+      assumption.monthlyChange.maximum,
+    ].map((amount) =>
+      convertMoneyAtDate(
+        repository,
+        { amount, currency: assumption.currency },
+        valuationDate,
+      ),
+    );
+    if (values.some((value) => value == null)) return null;
+    const [minimum, expected, maximum] = values;
+    if (minimum == null || expected == null || maximum == null) return null;
+    converted.push({
+      ...assumption,
+      currency: repository.settings.baseCurrency,
+      monthlyChange: { minimum, expected, maximum },
+    });
+  }
+  return converted;
+}
+
+function activeFlows(flows: readonly RecurringFlow[], date: string) {
+  return flows.filter((flow) => flowIsActive(flow, date));
+}
+
+function recurringFlowBreakdown(
+  repository: AssetTrackerRepository,
+  flows: readonly RecurringFlow[],
+  date: string,
+) {
+  let externalIncome = 0;
+  let accountTransfers = 0;
+  let debtPayments = 0;
+  let ordinaryRecurringOutflowsCoveredByBaseline = 0;
+  for (const flow of activeFlows(flows, date)) {
+    const amount = monthlyAmount(flow);
+    if (flow.fromAccountId == null) externalIncome += amount;
+    if (flow.fromAccountId != null && flow.toAccountId == null) {
+      ordinaryRecurringOutflowsCoveredByBaseline += amount;
+    }
+    if (flow.fromAccountId != null && flow.toAccountId != null) {
+      const destination = repository.accounts.get(flow.toAccountId);
+      if (destination != null && isLiability(destination.assetType)) {
+        debtPayments += amount;
+      } else {
+        accountTransfers += amount;
+      }
+    }
+  }
+  return {
+    externalIncome,
+    accountTransfers,
+    debtPayments,
+    ordinaryRecurringOutflowsCoveredByBaseline,
+  };
+}
+
+function selectedCashFlowBreakdown(
+  cashFlows: readonly ForecastCashFlow[],
+  afterDate: string,
+  throughDate: string,
+) {
+  let committedCashFlows = 0;
+  let selectedDecisionCashFlows = 0;
+  for (const cashFlow of cashFlows) {
+    if (cashFlow.date <= afterDate || cashFlow.date > throughDate) continue;
+    if (cashFlow.kind === "commitment") committedCashFlows += cashFlow.amount;
+    else selectedDecisionCashFlows += cashFlow.amount;
+  }
+  return { committedCashFlows, selectedDecisionCashFlows };
+}
+
+function convertDecisionStageRange(
+  repository: AssetTrackerRepository,
+  stage: DecisionStage,
+  valuationDate: string,
+): ForecastAmountRange | null {
+  const minimum = convertAccountAmountAtDate(
+    repository,
+    stage.fromAccountId,
+    stage.minimumAmount,
+    valuationDate,
+  );
+  const expected = convertAccountAmountAtDate(
+    repository,
+    stage.fromAccountId,
+    stage.expectedAmount,
+    valuationDate,
+  );
+  const maximum = convertAccountAmountAtDate(
+    repository,
+    stage.fromAccountId,
+    stage.maximumAmount,
+    valuationDate,
+  );
+  return minimum == null || expected == null || maximum == null
+    ? null
+    : { minimum, expected, maximum };
+}
+
+function possibleDecisionBreakdown(
+  repository: AssetTrackerRepository,
+  afterDate: string,
+  throughDate: string,
+  valuationDate: string,
+): ForecastAmountRange {
+  let possibleDecisions = ZERO_RANGE;
+  for (const record of repository.futureCashFlows) {
+    if (record.kind !== "decision" || record.status !== "considering") continue;
+    for (const stage of record.stages) {
+      if (stage.expectedDate <= afterDate || stage.expectedDate > throughDate) {
+        continue;
+      }
+      const range = convertDecisionStageRange(repository, stage, valuationDate);
+      if (range != null) possibleDecisions = addRange(possibleDecisions, range);
+    }
+  }
+  return possibleDecisions;
+}
+
+function futureCashFlowBreakdown(
+  repository: AssetTrackerRepository,
+  cashFlows: readonly ForecastCashFlow[],
+  afterDate: string,
+  throughDate: string,
+  valuationDate: string,
+) {
+  return {
+    ...selectedCashFlowBreakdown(cashFlows, afterDate, throughDate),
+    possibleDecisions: possibleDecisionBreakdown(
+      repository,
+      afterDate,
+      throughDate,
+      valuationDate,
+    ),
+  };
+}
+
+function assumptionBreakdown(
+  assumptions: readonly ForecastAssumption[],
+): Pick<
+  MonthlyForecastBreakdown,
+  "explicitIncomeChange" | "explicitExpenditureChange"
+> {
+  let explicitIncomeChange = ZERO_RANGE;
+  let explicitExpenditureChange = ZERO_RANGE;
+  for (const assumption of assumptions) {
+    if (assumption.kind === "income") {
+      explicitIncomeChange = addRange(
+        explicitIncomeChange,
+        assumption.monthlyChange,
+      );
+    } else {
+      explicitExpenditureChange = addRange(
+        explicitExpenditureChange,
+        assumption.monthlyChange,
+      );
+    }
+  }
+  return { explicitIncomeChange, explicitExpenditureChange };
 }
 
 function projectBalances(input: {
@@ -284,7 +517,11 @@ function projectBalances(input: {
   months: number;
   includePlannedExpenditures: boolean;
   startDate: string;
-}): { date: string; balances: ForecastBalances }[] {
+}): Array<{
+  date: string;
+  balances: ForecastBalances;
+  monthlyBreakdown: MonthlyForecastBreakdown;
+}> {
   const latest = latestValuedBalances(input.repository);
   if (latest == null) return [];
   const valuationDate = valuationDates(input.repository).at(-1);
@@ -293,11 +530,13 @@ function projectBalances(input: {
     convertProjectionFlow(input.repository, flow, valuationDate),
   );
   if (flows.some((flow) => flow == null)) return [];
-  const expenditures = convertProjectionExpenditures(
+  const cashFlows = convertProjectionCashFlows(input.repository, valuationDate);
+  if (cashFlows == null) return [];
+  const assumptions = convertForecastAssumptions(
     input.repository,
     valuationDate,
   );
-  if (expenditures == null) return [];
+  if (assumptions == null) return [];
   const accounts = Array.from(input.repository.accounts.values())
     .filter((account) => account.closedAt == null)
     .map((account) => ({
@@ -305,7 +544,22 @@ function projectBalances(input: {
       balance: latest.get(account.id) ?? 0,
     }));
   const points = [
-    { date: input.startDate, balances: balancesByAccess(accounts) },
+    {
+      date: input.startDate,
+      balances: balancesByAccess(accounts),
+      monthlyBreakdown: {
+        baselineExpenditure: 0,
+        explicitIncomeChange: ZERO_RANGE,
+        explicitExpenditureChange: ZERO_RANGE,
+        externalIncome: 0,
+        accountTransfers: 0,
+        debtPayments: 0,
+        ordinaryRecurringOutflowsCoveredByBaseline: 0,
+        committedCashFlows: 0,
+        selectedDecisionCashFlows: 0,
+        possibleDecisions: ZERO_RANGE,
+      },
+    },
   ];
   const start = parseISO(input.startDate);
   let previousDate = input.startDate;
@@ -321,11 +575,52 @@ function projectBalances(input: {
       flows.filter((flow) => flow != null),
       date,
     );
-    applySpending(accounts, input.annualExpenditure / 12);
+    const activeSetAssumptionIds = new Set(
+      input.repository.forecastAssumptionSets
+        .filter(({ status }) => status === "active")
+        .flatMap(({ assumptions: setAssumptions }) =>
+          setAssumptions.map(({ id }) => id),
+        ),
+    );
+    const activeAssumptions = assumptions.filter(
+      (assumption) =>
+        activeSetAssumptionIds.has(assumption.id) &&
+        assumption.startDate <= date &&
+        (assumption.endDate == null || assumption.endDate > previousDate),
+    );
+    applyIncomeAssumptions(accounts, activeAssumptions);
+    const changes = assumptionBreakdown(activeAssumptions);
+    const baselineExpenditure = input.annualExpenditure / 12;
+    applySpending(
+      accounts,
+      Math.max(
+        baselineExpenditure + changes.explicitExpenditureChange.expected,
+        0,
+      ),
+    );
     if (input.includePlannedExpenditures) {
-      applyPlannedExpenditures(accounts, expenditures, previousDate, date);
+      applyFutureCashFlows(accounts, cashFlows, previousDate, date);
     }
-    points.push({ date, balances: balancesByAccess(accounts) });
+    points.push({
+      date,
+      balances: balancesByAccess(accounts),
+      monthlyBreakdown: {
+        baselineExpenditure,
+        ...changes,
+        ...recurringFlowBreakdown(
+          input.repository,
+          flows.filter((flow) => flow != null),
+          date,
+        ),
+        ...futureCashFlowBreakdown(
+          input.repository,
+          input.includePlannedExpenditures ? cashFlows : [],
+          previousDate,
+          date,
+          valuationDate,
+        ),
+      },
+    });
     previousDate = date;
   }
   return points;
@@ -393,6 +688,7 @@ export function buildRunwayForecast(input: {
         withoutPlanned.totalBalance,
         input.annualCurrentExpenditure as number,
       ),
+      monthlyBreakdown: point.monthlyBreakdown,
     };
   });
 }
