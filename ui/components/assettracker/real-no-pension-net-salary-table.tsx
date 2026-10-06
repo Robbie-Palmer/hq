@@ -18,6 +18,25 @@ function signedMoney(
   return `${sign}${formatCurrency(Math.abs(value), point.currency)}`;
 }
 
+function InflationEvidence({
+  point,
+}: Readonly<{ point: NoPensionNetTrajectoryPoint }>) {
+  if (point.inflation == null) {
+    return <p>Inflation dataset unavailable.</p>;
+  }
+  if ("unavailableCode" in point.inflation) {
+    return <p>{point.inflation.unavailableReason}</p>;
+  }
+  return (
+    <p>
+      {point.inflation.index} {point.inflation.sourcePeriod} at{" "}
+      {point.inflation.sourceIndexLevel} to {point.inflation.referencePeriod} at{" "}
+      {point.inflation.referenceIndexLevel}. Dataset{" "}
+      {point.inflation.datasetVersion}.
+    </p>
+  );
+}
+
 function CalculationEvidence({
   point,
 }: Readonly<{ point: NoPensionNetTrajectoryPoint }>) {
@@ -45,19 +64,7 @@ function CalculationEvidence({
           {result.lineage.ruleDatasetVersion}; rules{" "}
           {result.lineage.rules.map((rule) => rule.id).join(", ")}.
         </p>
-        {point.inflation == null ? (
-          <p>Inflation dataset unavailable.</p>
-        ) : "unavailableCode" in point.inflation ? (
-          <p>{point.inflation.unavailableReason}</p>
-        ) : (
-          <p>
-            {point.inflation.index} {point.inflation.sourcePeriod} at{" "}
-            {point.inflation.sourceIndexLevel} to{" "}
-            {point.inflation.referencePeriod} at{" "}
-            {point.inflation.referenceIndexLevel}. Dataset{" "}
-            {point.inflation.datasetVersion}.
-          </p>
-        )}
+        <InflationEvidence point={point} />
         <ul className="list-disc space-y-1 pl-4">
           {result.lineage.sources.map((source) => (
             <li key={source.id}>
