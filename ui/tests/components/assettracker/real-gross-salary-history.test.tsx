@@ -1,6 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { latestOnsInflationRelease } from "finance-inflation-indices/dataset";
-import type { ReactNode } from "react";
+import {
+  cloneElement,
+  isValidElement,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import { describe, expect, it, vi } from "vitest";
 import { RealGrossSalaryHistory } from "@/components/assettracker/real-gross-salary-history";
 import type { SalaryHistoryRecord } from "@/lib/domain/assettracker";
@@ -36,7 +41,43 @@ vi.mock("recharts", () => ({
   ),
   CartesianGrid: () => null,
   Legend: () => null,
-  Tooltip: () => null,
+  Tooltip: ({ content }: { content?: ReactNode }) => (
+    <div data-testid="salary-tooltip">
+      {isValidElement(content)
+        ? cloneElement(
+            content as ReactElement<{
+              active: boolean;
+              payload: Array<{
+                color: string;
+                dataKey: string;
+                value: number;
+              }>;
+            }>,
+            {
+              active: true,
+              payload: [
+                {
+                  color: "blue",
+                  dataKey: "nominalGross",
+                  value: 60_000,
+                },
+                { color: "green", dataKey: "realGross", value: 62_000 },
+                {
+                  color: "blue",
+                  dataKey: "assumedNominalGross",
+                  value: 60_000,
+                },
+                {
+                  color: "green",
+                  dataKey: "assumedRealGross",
+                  value: 62_000,
+                },
+              ],
+            },
+          )
+        : content}
+    </div>
+  ),
   XAxis: () => null,
   YAxis: () => null,
 }));
@@ -182,6 +223,12 @@ describe("RealGrossSalaryHistory", () => {
     expect(
       screen.getByText(/Dashed segments assume the latest open-ended salary/),
     ).toBeVisible();
+    expect(
+      screen.queryByText("Nominal gross pay, assumed unchanged"),
+    ).toBeNull();
+    expect(
+      screen.queryByText("Inflation-adjusted gross pay, assumed unchanged"),
+    ).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Nominal gross pay" }));
     expect(container.querySelector('[data-series="nominalGross"]')).toBeNull();
@@ -201,7 +248,7 @@ describe("RealGrossSalaryHistory", () => {
       />,
     );
 
-    expect(screen.getByText(/60,000/)).toBeVisible();
+    expect(screen.getByText("US$60,000")).toBeVisible();
     expect(screen.getByText("Unavailable")).toBeVisible();
     expect(screen.getByText(/cannot adjust USD values/)).toBeVisible();
     expect(screen.getByRole("status")).toHaveTextContent(

@@ -1,8 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { type ComponentProps, useState } from "react";
 import { Line, LineChart, ResponsiveContainer } from "recharts";
-import { type ChartConfig, ChartContainer } from "@/components/ui/chart";
+import {
+  type ChartConfig,
+  ChartContainer,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
 import type { GrossSalaryChartPoint } from "@/lib/domain/assettracker";
 import { cn } from "@/lib/generic/styles";
 import { CurrencyHistoryChartAxes } from "./currency-history-chart-axes";
@@ -26,6 +30,34 @@ const SALARY_SERIES = [
   { key: "realGross", ...CHART_CONFIG.realGross },
 ] as const;
 type SalarySeries = (typeof SALARY_SERIES)[number]["key"];
+
+const RECORDED_TOOLTIP_KEY = {
+  assumedNominalGross: "nominalGross",
+  assumedRealGross: "realGross",
+} as const;
+
+function SalaryTooltipContent({
+  payload,
+  ...props
+}: ComponentProps<typeof ChartTooltipContent>) {
+  const payloadKeys = new Set(payload?.map((item) => item.dataKey));
+  const collapsedPayload = payload?.filter((item) => {
+    const recordedKey =
+      RECORDED_TOOLTIP_KEY[item.dataKey as keyof typeof RECORDED_TOOLTIP_KEY];
+    return recordedKey == null || !payloadKeys.has(recordedKey);
+  });
+
+  return <ChartTooltipContent {...props} payload={collapsedPayload} />;
+}
+
+function SalaryChartAxes() {
+  return (
+    <CurrencyHistoryChartAxes
+      currency="GBP"
+      tooltipContent={<SalaryTooltipContent />}
+    />
+  );
+}
 
 function Legend({
   hasRealValues,
@@ -187,7 +219,7 @@ export function RealGrossSalaryChart({
             data={chartData}
             margin={{ top: 10, right: 18, left: 0, bottom: 5 }}
           >
-            <CurrencyHistoryChartAxes currency="GBP" />
+            <SalaryChartAxes />
             <RecordedSalaryLines
               hasRealValues={hasRealValues}
               hidden={hidden}
