@@ -7,7 +7,9 @@ import {
 import { SalaryTrajectoryTable } from "./real-gross-salary-history-table";
 import type { RealGrossSalaryHistoryView } from "./use-real-gross-salary-history";
 
-function NoMatchingSalary({ view }: { view: RealGrossSalaryHistoryView }) {
+function NoMatchingSalary({
+  view,
+}: Readonly<{ view: RealGrossSalaryHistoryView }>) {
   return (
     <div className="rounded-lg border border-dashed px-6 py-12 text-center">
       <p className="font-medium">
@@ -21,7 +23,9 @@ function NoMatchingSalary({ view }: { view: RealGrossSalaryHistoryView }) {
   );
 }
 
-function DatasetNotes({ view }: { view: RealGrossSalaryHistoryView }) {
+function DatasetNotes({
+  view,
+}: Readonly<{ view: RealGrossSalaryHistoryView }>) {
   return (
     <div className="space-y-2">
       <InflationDatasetDisclosure
@@ -38,12 +42,12 @@ function DatasetNotes({ view }: { view: RealGrossSalaryHistoryView }) {
         </p>
       )}
       {view.unavailableCount > 0 && (
-        <p role="status" className="text-sm text-muted-foreground">
+        <output className="block text-sm text-muted-foreground">
           {view.unavailableCount} salary{" "}
           {view.unavailableCount === 1 ? "record has" : "records have"} no
           real-terms value. The table keeps each nominal fact and explains why
           its adjustment is unavailable.
-        </p>
+        </output>
       )}
     </div>
   );

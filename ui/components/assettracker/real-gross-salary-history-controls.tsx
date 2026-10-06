@@ -17,18 +17,20 @@ export const SALARY_AMOUNT_LABELS = {
   periodPay: "Actual period earnings",
 } as const;
 
-type ControlsProps = Pick<
-  RealGrossSalaryHistoryView,
-  | "amountKind"
-  | "inflationIndex"
-  | "people"
-  | "person"
-  | "referencePeriod"
-  | "release"
-  | "selectIndex"
-  | "setAmountKind"
-  | "setReferencePeriod"
-  | "setSelectedPerson"
+type ControlsProps = Readonly<
+  Pick<
+    RealGrossSalaryHistoryView,
+    | "amountKind"
+    | "inflationIndex"
+    | "people"
+    | "person"
+    | "referencePeriod"
+    | "release"
+    | "selectIndex"
+    | "setAmountKind"
+    | "setReferencePeriod"
+    | "setSelectedPerson"
+  >
 >;
 
 function PersonControl(props: ControlsProps) {
