@@ -25,6 +25,31 @@ function stressDescription(
   return `Shortfall starts in month ${result.firstShortfallMonth}; ${formatCurrency(Math.round(result.totalShortfall), currency)} uncovered across ${duration}, up to ${formatCurrency(Math.round(result.maximumMonthlyShortfall), currency)} in one month`;
 }
 
+function PolicyPosition({
+  baseCurrency,
+  policy,
+}: Readonly<{
+  baseCurrency: Currency;
+  policy: EmergencyFundAnalysis["policyTargets"][number];
+}>) {
+  if (policy.fundingGap > 0) {
+    return (
+      <span className="text-amber-700 dark:text-amber-300">
+        {formatCurrency(Math.round(policy.fundingGap), baseCurrency)} short
+      </span>
+    );
+  }
+  if (policy.availableAboveTarget > 0) {
+    return (
+      <span className="text-emerald-700 dark:text-emerald-300">
+        {formatCurrency(Math.round(policy.availableAboveTarget), baseCurrency)}{" "}
+        above target
+      </span>
+    );
+  }
+  return <span>On target</span>;
+}
+
 export function EmergencyFundResults({
   analysis,
   baseCurrency,
@@ -108,25 +133,10 @@ export function EmergencyFundResults({
                     {formatCurrency(Math.round(policy.target), baseCurrency)}
                   </td>
                   <td className="px-3 py-2 text-right">
-                    {policy.fundingGap > 0 ? (
-                      <span className="text-amber-700 dark:text-amber-300">
-                        {formatCurrency(
-                          Math.round(policy.fundingGap),
-                          baseCurrency,
-                        )}{" "}
-                        short
-                      </span>
-                    ) : policy.availableAboveTarget > 0 ? (
-                      <span className="text-emerald-700 dark:text-emerald-300">
-                        {formatCurrency(
-                          Math.round(policy.availableAboveTarget),
-                          baseCurrency,
-                        )}{" "}
-                        above target
-                      </span>
-                    ) : (
-                      <span>On target</span>
-                    )}
+                    <PolicyPosition
+                      baseCurrency={baseCurrency}
+                      policy={policy}
+                    />
                   </td>
                   <td className="px-3 py-2">
                     {stressDescription(result, baseCurrency)}

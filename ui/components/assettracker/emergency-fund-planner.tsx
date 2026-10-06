@@ -19,6 +19,12 @@ function numberValue(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function saveButtonLabel(saving: boolean, hasActivePlan: boolean): string {
+  if (saving) return "Saving…";
+  if (hasActivePlan) return "Save as new version";
+  return "Save reserve plan";
+}
+
 function Field({
   label,
   value,
@@ -169,7 +175,7 @@ export function EmergencyFundPlanner() {
     setSaving(true);
     try {
       if (typeof saveEmergencyFundPlan !== "function") {
-        throw new Error("Emergency-fund persistence is unavailable");
+        throw new TypeError("Emergency-fund persistence is unavailable");
       }
       await saveEmergencyFundPlan(EmergencyFundPlanInputSchema.parse(draft));
       setError(null);
@@ -469,11 +475,7 @@ export function EmergencyFundPlanner() {
 
       <div className="flex flex-wrap items-center gap-3">
         <Button type="button" onClick={save} disabled={saving}>
-          {saving
-            ? "Saving…"
-            : activePlan == null
-              ? "Save reserve plan"
-              : "Save as new version"}
+          {saveButtonLabel(saving, activePlan != null)}
         </Button>
         {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
