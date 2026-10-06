@@ -1613,6 +1613,38 @@ describe("recipe API PostgreSQL integration", () => {
         onion: "1",
         salt: "1",
       },
+      items: {
+        "almond-milk": {
+          location: "fridge",
+          quantity: null,
+          freshness: "unknown",
+          source: {
+            kind: "user",
+            confidence: 1,
+            provenance: "Household member update",
+          },
+        },
+        onion: {
+          location: "fresh",
+          quantity: null,
+          freshness: "unknown",
+          source: {
+            kind: "user",
+            confidence: 1,
+            provenance: "Manual kitchen update",
+          },
+        },
+        salt: {
+          location: "cupboards",
+          quantity: null,
+          freshness: "unknown",
+          source: {
+            kind: "user",
+            confidence: 1,
+            provenance: "Manual kitchen update",
+          },
+        },
+      },
     });
 
     const recipeResponse = await authenticatedRequest(invitee, "/recipes", {
