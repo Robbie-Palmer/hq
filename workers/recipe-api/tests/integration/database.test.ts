@@ -393,6 +393,18 @@ describe("recipe API PostgreSQL integration", () => {
       scope: { type: "personal" },
       stock: { onion: "fresh" },
       itemVersions: { onion: "2" },
+      items: {
+        onion: {
+          location: "fresh",
+          quantity: null,
+          freshness: "unknown",
+          source: {
+            kind: "user",
+            confidence: 1,
+            provenance: "Manual kitchen update",
+          },
+        },
+      },
     });
   });
 
@@ -767,6 +779,18 @@ describe("recipe API PostgreSQL integration", () => {
       revision: "1",
       stock: { onion: "fresh" },
       itemVersions: { onion: "1" },
+      items: {
+        onion: {
+          location: "fresh",
+          quantity: null,
+          freshness: "unknown",
+          source: {
+            kind: "user",
+            confidence: 1,
+            provenance: "Manual kitchen update",
+          },
+        },
+      },
     });
 
     const householdResponse = await authenticatedRequest(cook, "/households", {
@@ -784,6 +808,18 @@ describe("recipe API PostgreSQL integration", () => {
       revision: "1",
       stock: { onion: "fresh" },
       itemVersions: { onion: "1" },
+      items: {
+        onion: {
+          location: "fresh",
+          quantity: null,
+          freshness: "unknown",
+          source: {
+            kind: "user",
+            confidence: 1,
+            provenance: "Manual kitchen update",
+          },
+        },
+      },
     });
   });
 
@@ -1503,6 +1539,28 @@ describe("recipe API PostgreSQL integration", () => {
       },
       stock: { onion: "fresh", salt: "cupboards" },
       itemVersions: { onion: "1", salt: "1" },
+      items: {
+        onion: {
+          location: "fresh",
+          quantity: null,
+          freshness: "unknown",
+          source: {
+            kind: "user",
+            confidence: 1,
+            provenance: "Manual kitchen update",
+          },
+        },
+        salt: {
+          location: "cupboards",
+          quantity: null,
+          freshness: "unknown",
+          source: {
+            kind: "user",
+            confidence: 1,
+            provenance: "Household member update",
+          },
+        },
+      },
     });
 
     const clearSharedPantry = await authenticatedRequest(invitee, "/pantry", {
