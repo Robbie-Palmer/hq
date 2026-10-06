@@ -165,6 +165,81 @@ describe("browser household ownership", () => {
     );
   });
 
+  it("keeps future cash-flow ownership tied to its first-stage account", () => {
+    const migrated = AssetTrackerDataSchema.parse(oldSinglePersonData());
+    const data = AssetTrackerDataSchema.parse({
+      ...migrated,
+      household: {
+        members: [
+          { id: "primary", displayName: "Alex" },
+          { id: "sam", displayName: "Sam" },
+        ],
+        activeScope: { kind: "household" },
+      },
+      accounts: [
+        migrated.accounts[0],
+        {
+          id: "sam-cash",
+          name: "Sam cash",
+          provider: "Bank",
+          currency: "GBP",
+          assetType: "cash",
+          expectedAnnualReturn: 0,
+          createdAt: "2025-01-01",
+        },
+      ],
+      futureCashFlows: [
+        {
+          id: "staged-commitment",
+          name: "Staged commitment",
+          kind: "commitment",
+          currency: "GBP",
+          stages: [
+            {
+              id: "deposit",
+              fromAccountId: "cash",
+              dueDate: "2025-12-01",
+              amount: 500,
+            },
+            {
+              id: "balance",
+              fromAccountId: "sam-cash",
+              dueDate: "2026-01-01",
+              amount: 1_000,
+            },
+          ],
+        },
+      ],
+      ownership: {
+        ...migrated.ownership,
+        accounts: {
+          cash: personalOwnership("primary"),
+          "sam-cash": personalOwnership("sam"),
+        },
+        futureCashFlows: {
+          "staged-commitment": personalOwnership("primary"),
+        },
+      },
+    });
+    const shared = equalSharedOwnership(data.household.members);
+
+    const laterStageUpdated = applySetAccountOwnership(data, {
+      accountId: "sam-cash",
+      ownership: shared,
+    });
+    const firstStageUpdated = applySetAccountOwnership(data, {
+      accountId: "cash",
+      ownership: shared,
+    });
+
+    expect(
+      laterStageUpdated.ownership.futureCashFlows["staged-commitment"],
+    ).toEqual(personalOwnership("primary"));
+    expect(
+      firstStageUpdated.ownership.futureCashFlows["staged-commitment"],
+    ).toEqual(shared);
+  });
+
   it("removes scoped references to accounts and future cash flows that were dropped", () => {
     const migrated = AssetTrackerDataSchema.parse(oldSinglePersonData());
     const data = AssetTrackerDataSchema.parse({

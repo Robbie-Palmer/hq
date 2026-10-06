@@ -395,10 +395,8 @@ export function applySetAccountOwnership(
   )) {
     ownership.plannedExpenditures[row.id] = parsed.ownership;
   }
-  for (const row of data.futureCashFlows.filter((record) =>
-    record.stages.some(
-      ({ fromAccountId }) => fromAccountId === parsed.accountId,
-    ),
+  for (const row of data.futureCashFlows.filter(
+    (record) => record.stages[0]?.fromAccountId === parsed.accountId,
   )) {
     ownership.futureCashFlows[row.id] = parsed.ownership;
   }
