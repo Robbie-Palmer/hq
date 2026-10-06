@@ -67,7 +67,6 @@ const ChartTooltipContent = React.forwardRef<
     hideLabel?: boolean;
     hideIndicator?: boolean;
     active?: boolean;
-    label?: number | string;
     payload?: Array<{
       dataKey: string;
       value: number | string;

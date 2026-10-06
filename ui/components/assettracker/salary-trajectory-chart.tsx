@@ -84,7 +84,9 @@ function SalaryTooltipContent({
   label,
   payload,
   ...props
-}: ComponentProps<typeof ChartTooltipContent>) {
+}: Omit<ComponentProps<typeof ChartTooltipContent>, "label"> & {
+  label?: number | string;
+}) {
   const payloadKeys = new Set(payload?.map((item) => item.dataKey));
   const collapsedPayload = payload?.filter((item) => {
     const recordedKey =
