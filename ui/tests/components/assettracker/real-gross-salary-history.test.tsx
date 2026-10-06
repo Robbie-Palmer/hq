@@ -213,6 +213,26 @@ describe("RealGrossSalaryHistory", () => {
     );
   });
 
+  it("bounds both chart axes by the selected reference month", () => {
+    render(
+      <RealGrossSalaryHistory
+        salaryHistory={[salaryRecord({ effectiveEnd: undefined })]}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Salary reference month"), {
+      target: { value: "2025-03" },
+    });
+
+    const expectedDomain = JSON.stringify([
+      Date.parse("2024-04-01"),
+      Date.parse("2025-03-01"),
+    ]);
+    for (const axis of screen.getAllByTestId("salary-x-axis")) {
+      expect(axis).toHaveAttribute("data-axis-domain", expectedDomain);
+    }
+  });
+
   it("interpolates known facts and toggles chart series from the legend", () => {
     render(
       <RealGrossSalaryHistory

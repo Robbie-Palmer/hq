@@ -53,6 +53,7 @@ export function useRealGrossSalaryHistory(
     selectedReferenceDate,
     person,
     amountKind,
+    selectedReferenceDate,
   );
 
   function selectIndex(value: string) {
