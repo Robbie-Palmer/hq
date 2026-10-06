@@ -1,6 +1,7 @@
 import type { AgentAuthEvent, AgentSession } from "@better-auth/agent-auth";
 import type { Db } from "recipe-db";
 import * as schema from "recipe-db/schema";
+import { emptyPantryFreshness } from "recipe-domain/pantry";
 import { describe, expect, it, vi } from "vitest";
 
 const mutationMocks = vi.hoisted(() => ({
@@ -915,10 +916,14 @@ describe("recipe Agent Auth capabilities", () => {
             ingredientSlug: "onion",
             location: "fresh",
             quantity: "2.000",
-            quantityUnit: "items",
-            freshness: "use_soon",
+            quantityUnit: "piece",
+            useBy: "2026-10-12",
+            bestBefore: "2026-10-10",
+            stockedAt: "2026-10-07",
+            openedAt: null,
+            frozenAt: null,
+            freshnessEstimate: null,
             sourceKind: "inferred",
-            confidence: "0.750",
             provenance: "Receipt scan",
             version: 3n,
           },
@@ -927,9 +932,13 @@ describe("recipe Agent Auth capabilities", () => {
             location: "fridge",
             quantity: null,
             quantityUnit: null,
-            freshness: "unknown",
+            useBy: null,
+            bestBefore: null,
+            stockedAt: null,
+            openedAt: null,
+            frozenAt: null,
+            freshnessEstimate: null,
             sourceKind: "user",
-            confidence: "1",
             provenance: "Manual kitchen update",
             version: 1n,
           },
@@ -949,21 +958,24 @@ describe("recipe Agent Auth capabilities", () => {
       items: {
         onion: {
           location: "fresh",
-          quantity: { amount: 2, unit: "items" },
-          freshness: "use_soon",
+          quantity: { amount: 2, unit: "piece" },
+          freshness: {
+            ...emptyPantryFreshness(),
+            useBy: "2026-10-12",
+            bestBefore: "2026-10-10",
+            stockedAt: "2026-10-07",
+          },
           source: {
             kind: "inferred",
-            confidence: 0.75,
             provenance: "Receipt scan",
           },
         },
         milk: {
           location: "fridge",
           quantity: null,
-          freshness: "unknown",
+          freshness: emptyPantryFreshness(),
           source: {
             kind: "user",
-            confidence: 1,
             provenance: "Manual kitchen update",
           },
         },

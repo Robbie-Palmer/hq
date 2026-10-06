@@ -4,6 +4,7 @@ import {
   type QueryClientProviderProps,
 } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { emptyPantryFreshness } from "recipe-domain/pantry";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   useKitchenStock,
@@ -215,21 +216,19 @@ describe("useKitchenStockActions", () => {
         items: {
           milk: {
             location: "fridge",
-            quantity: { amount: 2, unit: "litres" },
-            freshness: "fresh",
+            quantity: { amount: 2, unit: "l" },
+            freshness: emptyPantryFreshness(),
             source: {
               kind: "inferred",
-              confidence: 0.9,
               provenance: "Receipt import",
             },
           },
           onion: {
             location: "fresh",
             quantity: null,
-            freshness: "unknown",
+            freshness: emptyPantryFreshness(),
             source: {
               kind: "user",
-              confidence: 1,
               provenance: "Manual kitchen update",
             },
           },
@@ -243,21 +242,19 @@ describe("useKitchenStockActions", () => {
           items: {
             milk: {
               location: "fridge",
-              quantity: { amount: 2, unit: "litres" },
-              freshness: "fresh",
+              quantity: { amount: 2, unit: "l" },
+              freshness: emptyPantryFreshness(),
               source: {
                 kind: "inferred",
-                confidence: 0.9,
                 provenance: "Receipt import",
               },
             },
             onion: {
               location: "fresh",
               quantity: null,
-              freshness: "unknown",
+              freshness: emptyPantryFreshness(),
               source: {
                 kind: "user",
-                confidence: 1,
                 provenance: "Manual kitchen update",
               },
             },

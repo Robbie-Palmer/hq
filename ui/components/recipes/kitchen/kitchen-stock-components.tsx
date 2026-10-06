@@ -3,21 +3,26 @@
 import type { LucideIcon } from "lucide-react";
 import { CirclePlus, Pencil, X } from "lucide-react";
 import { useState } from "react";
+import { MAX_PANTRY_FRESHNESS_ESTIMATE_DAYS } from "recipe-domain/pantry";
+import { UNIT_LABELS, type Unit, UnitSchema } from "recipe-domain/unit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  getKitchenFreshnessStatus,
   KITCHEN_LOCATIONS,
   type KitchenIngredientView,
   type KitchenItemDetails,
   type KitchenLocation,
+  localIsoDate,
+  pantryEstimateEndDate,
 } from "@/lib/domain/recipe/kitchen";
 
-const FRESHNESS_LABELS = {
-  fresh: "Fresh",
-  use_soon: "Use soon",
+const FRESHNESS_STATUS_LABELS = {
+  past_use_by: "Past use by",
   past_best_before: "Past best before",
-  unknown: "Not recorded",
+  estimate_elapsed: "Check freshness",
+  use_soon: "Use soon",
 } as const;
 
 type ItemCorrection = Pick<
@@ -25,52 +30,28 @@ type ItemCorrection = Pick<
   "location" | "quantity" | "freshness"
 >;
 
-function KitchenItemSelects({
-  freshness,
+function KitchenItemLocationField({
   location,
-  setFreshness,
   setLocation,
 }: Readonly<{
-  freshness: KitchenItemDetails["freshness"];
   location: KitchenLocation;
-  setFreshness: (value: KitchenItemDetails["freshness"]) => void;
   setLocation: (value: KitchenLocation) => void;
 }>) {
   return (
-    <>
-      <label className="rt-body grid gap-1 text-sm text-[var(--ink-2)]">
-        <span>Location</span>
-        <select
-          value={location}
-          onChange={(event) =>
-            setLocation(event.target.value as KitchenLocation)
-          }
-          className="h-10 rounded-md border border-[var(--line-strong)] bg-[var(--card)] px-3"
-        >
-          {KITCHEN_LOCATIONS.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="rt-body grid gap-1 text-sm text-[var(--ink-2)]">
-        <span>Freshness</span>
-        <select
-          value={freshness}
-          onChange={(event) =>
-            setFreshness(event.target.value as KitchenItemDetails["freshness"])
-          }
-          className="h-10 rounded-md border border-[var(--line-strong)] bg-[var(--card)] px-3"
-        >
-          {Object.entries(FRESHNESS_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </label>
-    </>
+    <label className="rt-body grid gap-1 text-sm text-[var(--ink-2)]">
+      <span>Location</span>
+      <select
+        value={location}
+        onChange={(event) => setLocation(event.target.value as KitchenLocation)}
+        className="h-10 rounded-md border border-[var(--line-strong)] bg-[var(--card)] px-3"
+      >
+        {KITCHEN_LOCATIONS.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -107,15 +88,48 @@ function KitchenQuantityFields({
         className="rt-body grid gap-1 text-sm text-[var(--ink-2)]"
       >
         Unit
-        <Input
+        <select
           id="kitchen-item-unit"
-          maxLength={32}
           value={unit}
           onChange={(event) => setUnit(event.target.value)}
-          placeholder="g, ml, tins..."
-        />
+          className="h-10 rounded-md border border-[var(--line-strong)] bg-[var(--card)] px-3"
+        >
+          <option value="">Select a unit</option>
+          {UnitSchema.options.map((option) => (
+            <option key={option} value={option}>
+              {UNIT_LABELS[option].plural}
+            </option>
+          ))}
+        </select>
       </label>
     </>
+  );
+}
+
+function KitchenDateField({
+  id,
+  label,
+  onChange,
+  value,
+}: Readonly<{
+  id: string;
+  label: string;
+  onChange: (value: string) => void;
+  value: string;
+}>) {
+  return (
+    <label
+      htmlFor={id}
+      className="rt-body grid gap-1 text-sm text-[var(--ink-2)]"
+    >
+      <span>{label}</span>
+      <Input
+        id={id}
+        type="date"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
   );
 }
 
@@ -125,25 +139,153 @@ function useKitchenItemCorrection(item: KitchenItemDetails) {
     item.quantity ? String(item.quantity.amount) : "",
   );
   const [unit, setUnit] = useState(item.quantity?.unit ?? "");
-  const [freshness, setFreshness] = useState(item.freshness);
+  const [useBy, setUseBy] = useState(item.freshness.useBy ?? "");
+  const [bestBefore, setBestBefore] = useState(item.freshness.bestBefore ?? "");
+  const [stockedAt, setStockedAt] = useState(
+    item.freshness.stockedAt ?? item.freshness.estimate?.startingOn ?? "",
+  );
+  const [openedAt, setOpenedAt] = useState(item.freshness.openedAt ?? "");
+  const [frozenAt, setFrozenAt] = useState(item.freshness.frozenAt ?? "");
+  const [estimateDays, setEstimateDays] = useState(
+    item.freshness.estimate ? String(item.freshness.estimate.expectedDays) : "",
+  );
   const parsedAmount = Number(amount);
+  const parsedEstimateDays = Number(estimateDays);
   const quantityIsValid =
-    amount === "" ||
+    (amount === "" && unit === "") ||
     (Number.isFinite(parsedAmount) &&
       parsedAmount > 0 &&
-      unit.trim().length > 0);
+      UnitSchema.safeParse(unit).success);
+  const estimateIsValid =
+    estimateDays === "" ||
+    (Number.isInteger(parsedEstimateDays) &&
+      parsedEstimateDays >= 1 &&
+      parsedEstimateDays <= MAX_PANTRY_FRESHNESS_ESTIMATE_DAYS);
   return {
     amount,
-    freshness,
+    bestBefore,
+    estimateDays,
+    estimateIsValid,
+    frozenAt,
     location,
+    openedAt,
     parsedAmount,
+    parsedEstimateDays,
     quantityIsValid,
     setAmount,
-    setFreshness,
+    setBestBefore,
+    setEstimateDays,
+    setFrozenAt,
     setLocation,
+    setOpenedAt,
+    setStockedAt,
     setUnit,
+    setUseBy,
+    stockedAt,
     unit,
+    useBy,
   };
+}
+
+type KitchenItemCorrectionState = ReturnType<typeof useKitchenItemCorrection>;
+
+function KitchenEstimateDaysField({
+  correction,
+}: Readonly<{ correction: KitchenItemCorrectionState }>) {
+  return (
+    <label
+      htmlFor="kitchen-estimate-days"
+      className="rt-body grid gap-1 text-sm text-[var(--ink-2)]"
+    >
+      <span>Expected fresh for (days)</span>
+      <Input
+        id="kitchen-estimate-days"
+        inputMode="numeric"
+        min="1"
+        max={MAX_PANTRY_FRESHNESS_ESTIMATE_DAYS}
+        step="1"
+        value={correction.estimateDays}
+        onChange={(event) => correction.setEstimateDays(event.target.value)}
+        placeholder="Optional estimate"
+      />
+    </label>
+  );
+}
+
+function KitchenFreshnessFields({
+  correction,
+}: Readonly<{ correction: KitchenItemCorrectionState }>) {
+  const dateFields = [
+    ["kitchen-use-by", "Use by", correction.useBy, correction.setUseBy],
+    [
+      "kitchen-best-before",
+      "Best before",
+      correction.bestBefore,
+      correction.setBestBefore,
+    ],
+    [
+      "kitchen-stocked-at",
+      "Stocked on",
+      correction.stockedAt,
+      correction.setStockedAt,
+    ],
+    [
+      "kitchen-opened-at",
+      "Opened on",
+      correction.openedAt,
+      correction.setOpenedAt,
+    ],
+    [
+      "kitchen-frozen-at",
+      "Frozen on",
+      correction.frozenAt,
+      correction.setFrozenAt,
+    ],
+  ] as const;
+  return (
+    <>
+      {dateFields.map(([id, label, value, onChange]) => (
+        <KitchenDateField
+          key={id}
+          id={id}
+          label={label}
+          value={value}
+          onChange={onChange}
+        />
+      ))}
+      <KitchenEstimateDaysField correction={correction} />
+    </>
+  );
+}
+
+function saveKitchenItemCorrection(
+  correction: KitchenItemCorrectionState,
+  onSave: (item: ItemCorrection) => void,
+): void {
+  if (!correction.quantityIsValid || !correction.estimateIsValid) return;
+  onSave({
+    location: correction.location,
+    quantity:
+      correction.amount === ""
+        ? null
+        : { amount: correction.parsedAmount, unit: correction.unit as Unit },
+    freshness: {
+      useBy: correction.useBy || null,
+      bestBefore: correction.bestBefore || null,
+      stockedAt: correction.stockedAt || null,
+      openedAt: correction.openedAt || null,
+      frozenAt: correction.frozenAt || null,
+      estimate:
+        correction.estimateDays === ""
+          ? null
+          : {
+              expectedDays: correction.parsedEstimateDays,
+              startingOn: correction.stockedAt || localIsoDate(),
+              storage: correction.location,
+              basis: "user",
+            },
+    },
+  });
 }
 
 function KitchenItemEditorActions({
@@ -160,7 +302,8 @@ function KitchenItemEditorActions({
           role="alert"
           className="rt-body text-sm text-[var(--berry)] sm:col-span-2"
         >
-          Enter a positive quantity and a unit, or leave both blank.
+          Enter a positive quantity with a unit, and keep freshness estimates as
+          a positive whole number of days.
         </p>
       )}
       <div className="flex justify-end gap-2 sm:col-span-2">
@@ -192,27 +335,14 @@ export function KitchenItemEditor({
       className="grid gap-3 rounded-md border border-[var(--line-strong)] bg-[var(--paper)] p-3 sm:grid-cols-2"
       onSubmit={(event) => {
         event.preventDefault();
-        if (!correction.quantityIsValid) return;
-        onSave({
-          location: correction.location,
-          quantity:
-            correction.amount === ""
-              ? null
-              : {
-                  amount: correction.parsedAmount,
-                  unit: correction.unit.trim(),
-                },
-          freshness: correction.freshness,
-        });
+        saveKitchenItemCorrection(correction, onSave);
       }}
     >
       <p className="rt-body font-medium text-[var(--ink)] sm:col-span-2">
         Correct {ingredient.name}
       </p>
-      <KitchenItemSelects
-        freshness={correction.freshness}
+      <KitchenItemLocationField
         location={correction.location}
-        setFreshness={correction.setFreshness}
         setLocation={correction.setLocation}
       />
       <KitchenQuantityFields
@@ -221,8 +351,9 @@ export function KitchenItemEditor({
         setUnit={correction.setUnit}
         unit={correction.unit}
       />
+      <KitchenFreshnessFields correction={correction} />
       <KitchenItemEditorActions
-        isValid={correction.quantityIsValid}
+        isValid={correction.quantityIsValid && correction.estimateIsValid}
         onCancel={onCancel}
       />
     </form>
@@ -235,6 +366,70 @@ export interface KitchenStockGroup {
   id: KitchenLocation;
   items: KitchenIngredientView[];
   label: string;
+}
+
+function KitchenFreshnessBadges({
+  item,
+}: Readonly<{ item: KitchenItemDetails }>) {
+  const freshnessStatus = getKitchenFreshnessStatus(item.freshness);
+  const estimateEnd = item.freshness.estimate
+    ? pantryEstimateEndDate(item.freshness.estimate)
+    : null;
+  return (
+    <>
+      {item.freshness.useBy && (
+        <span className="rt-mono text-[var(--ink-3)]">
+          Use by {item.freshness.useBy}
+        </span>
+      )}
+      {item.freshness.bestBefore && (
+        <span className="rt-mono text-[var(--ink-3)]">
+          Best before {item.freshness.bestBefore}
+        </span>
+      )}
+      {estimateEnd && (
+        <span className="rt-mono text-[var(--ink-3)]">
+          Estimated through {estimateEnd}
+        </span>
+      )}
+      {freshnessStatus && (
+        <span className="rt-mono text-[var(--ink-3)]">
+          {FRESHNESS_STATUS_LABELS[freshnessStatus]}
+        </span>
+      )}
+    </>
+  );
+}
+
+function KitchenStockItemActions({
+  ingredientName,
+  onEdit,
+  onRemove,
+}: Readonly<{
+  ingredientName: string;
+  onEdit: () => void;
+  onRemove: () => void;
+}>) {
+  return (
+    <>
+      <button
+        type="button"
+        onClick={onEdit}
+        className="rounded-sm p-0.5 text-[var(--ink-3)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--terracotta)]"
+        aria-label={`Edit ${ingredientName}`}
+      >
+        <Pencil className="size-3" />
+      </button>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="rounded-sm p-0.5 text-[var(--ink-3)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--berry)]"
+        aria-label={`Remove ${ingredientName}`}
+      >
+        <X className="size-3" />
+      </button>
+    </>
+  );
 }
 
 function KitchenStockItem({
@@ -259,36 +454,20 @@ function KitchenStockItem({
           {item.quantity.amount} {item.quantity.unit}
         </span>
       )}
-      {item.freshness !== "unknown" && (
-        <span className="rt-mono text-[var(--ink-3)]">
-          {FRESHNESS_LABELS[item.freshness]}
-        </span>
-      )}
+      <KitchenFreshnessBadges item={item} />
       {item.source.kind === "inferred" && (
         <span
           className="max-w-48 truncate rt-mono text-[var(--ink-3)]"
           title={item.source.provenance}
         >
-          {Math.round(item.source.confidence * 100)}% inferred ·{" "}
-          {item.source.provenance}
+          Inferred · {item.source.provenance}
         </span>
       )}
-      <button
-        type="button"
-        onClick={onEdit}
-        className="rounded-sm p-0.5 text-[var(--ink-3)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--terracotta)]"
-        aria-label={`Edit ${ingredient.name}`}
-      >
-        <Pencil className="size-3" />
-      </button>
-      <button
-        type="button"
-        onClick={onRemove}
-        className="rounded-sm p-0.5 text-[var(--ink-3)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--berry)]"
-        aria-label={`Remove ${ingredient.name}`}
-      >
-        <X className="size-3" />
-      </button>
+      <KitchenStockItemActions
+        ingredientName={ingredient.name}
+        onEdit={onEdit}
+        onRemove={onRemove}
+      />
     </Badge>
   );
 }

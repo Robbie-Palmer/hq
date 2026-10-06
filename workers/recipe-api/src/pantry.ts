@@ -5,6 +5,8 @@ import type {
   PantryItemDetails,
   PantryLocation,
 } from "recipe-domain/pantry";
+import { emptyPantryFreshness } from "recipe-domain/pantry";
+import { UnitSchema } from "recipe-domain/unit";
 import {
   listUnresolvedTerms,
   type UnresolvedTermSummary,
@@ -102,9 +104,13 @@ export async function pantryResponseForScope(
       location: schema.pantryItem.location,
       quantity: schema.pantryItem.quantity,
       quantityUnit: schema.pantryItem.quantityUnit,
-      freshness: schema.pantryItem.freshness,
+      useBy: schema.pantryItem.useBy,
+      bestBefore: schema.pantryItem.bestBefore,
+      stockedAt: schema.pantryItem.stockedAt,
+      openedAt: schema.pantryItem.openedAt,
+      frozenAt: schema.pantryItem.frozenAt,
+      freshnessEstimate: schema.pantryItem.freshnessEstimate,
       sourceKind: schema.pantryItem.sourceKind,
-      confidence: schema.pantryItem.confidence,
       provenance: schema.pantryItem.provenance,
       version: schema.pantryItem.version,
     })
@@ -151,9 +157,13 @@ export async function pantryResponseForScope(
           location,
           quantity,
           quantityUnit,
-          freshness,
+          useBy,
+          bestBefore,
+          stockedAt,
+          openedAt,
+          frozenAt,
+          freshnessEstimate,
           sourceKind,
-          confidence,
           provenance,
         }) => [
           ingredientSlug,
@@ -162,11 +172,21 @@ export async function pantryResponseForScope(
             quantity:
               quantity === null || quantityUnit === null
                 ? null
-                : { amount: Number(quantity), unit: quantityUnit },
-            freshness,
+                : {
+                    amount: Number(quantity),
+                    unit: UnitSchema.parse(quantityUnit),
+                  },
+            freshness: {
+              ...emptyPantryFreshness(),
+              useBy,
+              bestBefore,
+              stockedAt,
+              openedAt,
+              frozenAt,
+              estimate: freshnessEstimate,
+            },
             source: {
               kind: sourceKind,
-              confidence: Number(confidence),
               provenance,
             },
           },

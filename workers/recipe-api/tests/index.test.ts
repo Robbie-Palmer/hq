@@ -1,8 +1,9 @@
 import postgres from "postgres";
-import type {
-  PantryFreshness,
-  PantryLocation,
-  PantrySourceKind,
+import {
+  emptyPantryFreshness,
+  type PantryFreshnessEstimate,
+  type PantryLocation,
+  type PantrySourceKind,
 } from "recipe-domain/pantry";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -33,9 +34,13 @@ type PantryItemRow = {
   location: PantryLocation;
   quantity?: string | null;
   quantityUnit?: string | null;
-  freshness?: PantryFreshness;
+  useBy?: string | null;
+  bestBefore?: string | null;
+  stockedAt?: string | null;
+  openedAt?: string | null;
+  frozenAt?: string | null;
+  freshnessEstimate?: PantryFreshnessEstimate | null;
   sourceKind?: PantrySourceKind;
-  confidence?: string;
   provenance?: string;
   version?: bigint;
   createdAt: Date;
@@ -58,17 +63,39 @@ function pantryItemFromInsert(
     location: value("location") as PantryItemRow["location"],
     quantity: (value("quantity") as string | null) ?? null,
     quantityUnit: (value("quantity_unit") as string | null) ?? null,
-    freshness:
-      (value("freshness") as PantryFreshness | undefined) ?? "unknown",
+    useBy: (value("use_by") as string | null) ?? null,
+    bestBefore: (value("best_before") as string | null) ?? null,
+    stockedAt: (value("stocked_at") as string | null) ?? null,
+    openedAt: (value("opened_at") as string | null) ?? null,
+    frozenAt: (value("frozen_at") as string | null) ?? null,
+    freshnessEstimate:
+      (value("freshness_estimate") as PantryFreshnessEstimate | null) ?? null,
     sourceKind:
       (value("source_kind") as PantrySourceKind | undefined) ?? "user",
-    confidence: (value("confidence") as string | undefined) ?? "1",
     provenance:
       (value("provenance") as string | undefined) ?? "Manual kitchen update",
     version: 1n,
     createdAt: date,
     updatedAt: date,
   };
+}
+
+function pantryItemDetailsRow(item: PantryItemRow): unknown[] {
+  return [
+    item.ingredientSlug,
+    item.location,
+    item.quantity ?? null,
+    item.quantityUnit ?? null,
+    item.useBy ?? null,
+    item.bestBefore ?? null,
+    item.stockedAt ?? null,
+    item.openedAt ?? null,
+    item.frozenAt ?? null,
+    item.freshnessEstimate ?? null,
+    item.sourceKind ?? "user",
+    item.provenance ?? "Manual kitchen update",
+    (item.version ?? 1n).toString(),
+  ];
 }
 
 const authzMock = vi.hoisted(() => ({
@@ -886,11 +913,15 @@ const dbMock = vi.hoisted(() => {
         existing.quantity = pantryItem.quantity;
         existing.quantityUnit = pantryItem.quantityUnit;
       }
-      if (updateClause.includes('"freshness" =')) {
-        existing.freshness = pantryItem.freshness;
+      if (updateClause.includes('"use_by" =')) {
+        existing.useBy = pantryItem.useBy;
+        existing.bestBefore = pantryItem.bestBefore;
+        existing.stockedAt = pantryItem.stockedAt;
+        existing.openedAt = pantryItem.openedAt;
+        existing.frozenAt = pantryItem.frozenAt;
+        existing.freshnessEstimate = pantryItem.freshnessEstimate;
       }
       existing.sourceKind = pantryItem.sourceKind;
-      existing.confidence = pantryItem.confidence;
       existing.provenance = pantryItem.provenance;
       existing.version = (existing.version ?? 1n) + 1n;
       existing.updatedAt = date;
@@ -2019,30 +2050,16 @@ const dbMock = vi.hoisted(() => {
           ? item.userId === ownerId
           : item.organizationId === ownerId,
       );
-      return pantryItems.map((item) => {
-        if (
-          query.includes(
-            'select "ingredient_slug", "location", "quantity", "quantity_unit", "freshness", "source_kind", "confidence", "provenance", "version"',
-          )
-        ) {
-          return [
-            item.ingredientSlug,
-            item.location,
-            item.quantity ?? null,
-            item.quantityUnit ?? null,
-            item.freshness ?? "unknown",
-            item.sourceKind ?? "user",
-            item.confidence ?? "1",
-            item.provenance ?? "Manual kitchen update",
-            (item.version ?? 1n).toString(),
-          ];
-        }
-        return query.includes('select "ingredient_slug"')
+      const selectsDetails = query.includes(
+        'select "ingredient_slug", "location", "quantity", "quantity_unit", "use_by", "best_before", "stocked_at", "opened_at", "frozen_at", "freshness_estimate", "source_kind", "provenance", "version"',
+      );
+      if (selectsDetails) return pantryItems.map(pantryItemDetailsRow);
+      return pantryItems.map((item) =>
+        query.includes('select "ingredient_slug"')
           ? [item.ingredientSlug]
-          : [item.id];
-      });
+          : [item.id],
+      );
     }
-
 
     if (query.includes('from "pantry_aggregate"')) {
       const ownerId = params[0] as string;
@@ -5548,20 +5565,18 @@ describe("pantry mutation flows", () => {
         milk: {
           location: "fridge",
           quantity: null,
-          freshness: "unknown",
+          freshness: emptyPantryFreshness(),
           source: {
             kind: "user",
-            confidence: 1,
             provenance: "Manual kitchen update",
           },
         },
         onion: {
           location: "fresh",
           quantity: null,
-          freshness: "unknown",
+          freshness: emptyPantryFreshness(),
           source: {
             kind: "user",
-            confidence: 1,
             provenance: "Manual kitchen update",
           },
         },
@@ -5674,10 +5689,9 @@ describe("pantry mutation flows", () => {
         onion: {
           location: "cupboards",
           quantity: null,
-          freshness: "unknown",
+          freshness: emptyPantryFreshness(),
           source: {
             kind: "user",
-            confidence: 1,
             provenance: "Household member update",
           },
         },
@@ -5716,10 +5730,9 @@ describe("pantry mutation flows", () => {
         onion: {
           location: "fresh",
           quantity: null,
-          freshness: "unknown",
+          freshness: emptyPantryFreshness(),
           source: {
             kind: "user",
-            confidence: 1,
             provenance: "Household member update",
           },
         },
@@ -5762,9 +5775,13 @@ describe("pantry mutation flows", () => {
       location: "cupboards",
       quantity: "1.000",
       quantityUnit: "bag",
-      freshness: "use_soon",
+      useBy: "2026-10-12",
+      bestBefore: "2026-10-10",
+      stockedAt: "2026-10-07",
+      openedAt: null,
+      frozenAt: null,
+      freshnessEstimate: null,
       sourceKind: "inferred",
-      confidence: "0.620",
       provenance: "Receipt scan on 5 October",
       version: 1n,
       createdAt: dbMock.date,
@@ -5781,7 +5798,6 @@ describe("pantry mutation flows", () => {
         onion: {
           source: {
             kind: "inferred",
-            confidence: 0.62,
             provenance: "Receipt scan on 5 October",
           },
         },
@@ -5795,8 +5811,13 @@ describe("pantry mutation flows", () => {
         headers: mutationHeaders,
         body: JSON.stringify({
           location: "freezer",
-          quantity: { amount: 2.5, unit: "portions" },
-          freshness: "fresh",
+          quantity: { amount: 2.5, unit: "piece" },
+          freshness: {
+            ...emptyPantryFreshness(),
+            useBy: "2026-10-12",
+            bestBefore: "2026-10-10",
+            frozenAt: "2026-10-07",
+          },
         }),
       },
       env,
@@ -5809,11 +5830,15 @@ describe("pantry mutation flows", () => {
       items: {
         onion: {
           location: "freezer",
-          quantity: { amount: 2.5, unit: "portions" },
-          freshness: "fresh",
+          quantity: { amount: 2.5, unit: "piece" },
+          freshness: {
+            ...emptyPantryFreshness(),
+            useBy: "2026-10-12",
+            bestBefore: "2026-10-10",
+            frozenAt: "2026-10-07",
+          },
           source: {
             kind: "user",
-            confidence: 1,
             provenance: "Household member update",
           },
         },
@@ -5831,8 +5856,13 @@ describe("pantry mutation flows", () => {
       items: {
         onion: {
           location: "freezer",
-          quantity: { amount: 2.5, unit: "portions" },
-          freshness: "fresh",
+          quantity: { amount: 2.5, unit: "piece" },
+          freshness: {
+            ...emptyPantryFreshness(),
+            useBy: "2026-10-12",
+            bestBefore: "2026-10-10",
+            frozenAt: "2026-10-07",
+          },
         },
       },
     });
@@ -5928,10 +5958,9 @@ describe("pantry mutation flows", () => {
             onion: {
               location: "fresh",
               quantity: null,
-              freshness: "unknown",
+              freshness: emptyPantryFreshness(),
               source: {
                 kind: "user",
-                confidence: 1,
                 provenance: "Household member update",
               },
             },
@@ -6030,11 +6059,14 @@ describe("pantry mutation flows", () => {
           items: {
             onion: {
               location: "cupboards",
-              quantity: { amount: 2, unit: "bags" },
-              freshness: "use_soon",
+              quantity: { amount: 2, unit: "bag" },
+              freshness: {
+                ...emptyPantryFreshness(),
+                useBy: "2026-10-12",
+                bestBefore: "2026-10-10",
+              },
               source: {
                 kind: "inferred",
-                confidence: 0.82,
                 provenance: "Receipt import",
               },
             },
@@ -6057,20 +6089,22 @@ describe("pantry mutation flows", () => {
         milk: {
           location: "fresh",
           quantity: null,
-          freshness: "unknown",
+          freshness: emptyPantryFreshness(),
           source: {
             kind: "user",
-            confidence: 1,
             provenance: "Manual kitchen update",
           },
         },
         onion: {
           location: "cupboards",
-          quantity: { amount: 2, unit: "bags" },
-          freshness: "use_soon",
+          quantity: { amount: 2, unit: "bag" },
+          freshness: {
+            ...emptyPantryFreshness(),
+            useBy: "2026-10-12",
+            bestBefore: "2026-10-10",
+          },
           source: {
             kind: "inferred",
-            confidence: 0.82,
             provenance: "Receipt import",
           },
         },
@@ -6369,10 +6403,9 @@ describe("household membership flows", () => {
           onion: {
             location: "fresh",
             quantity: null,
-            freshness: "unknown",
+            freshness: emptyPantryFreshness(),
             source: {
               kind: "user",
-              confidence: 1,
               provenance: "Manual kitchen update",
             },
           },

@@ -4,6 +4,7 @@ import { strToU8, zipSync } from "fflate";
 import { createDb, schema } from "recipe-db";
 import { insertGeneratedDraft, readBatchDrafts } from "recipe-db/batch-drafts";
 import { artifactKey, sourceImageKey } from "recipe-domain/import-storage";
+import { emptyPantryFreshness } from "recipe-domain/pantry";
 import {
   afterAll,
   beforeAll,
@@ -397,10 +398,9 @@ describe("recipe API PostgreSQL integration", () => {
         onion: {
           location: "fresh",
           quantity: null,
-          freshness: "unknown",
+          freshness: emptyPantryFreshness(),
           source: {
             kind: "user",
-            confidence: 1,
             provenance: "Manual kitchen update",
           },
         },
@@ -783,10 +783,9 @@ describe("recipe API PostgreSQL integration", () => {
         onion: {
           location: "fresh",
           quantity: null,
-          freshness: "unknown",
+          freshness: emptyPantryFreshness(),
           source: {
             kind: "user",
-            confidence: 1,
             provenance: "Manual kitchen update",
           },
         },
@@ -812,10 +811,9 @@ describe("recipe API PostgreSQL integration", () => {
         onion: {
           location: "fresh",
           quantity: null,
-          freshness: "unknown",
+          freshness: emptyPantryFreshness(),
           source: {
             kind: "user",
-            confidence: 1,
             provenance: "Manual kitchen update",
           },
         },
@@ -1543,20 +1541,18 @@ describe("recipe API PostgreSQL integration", () => {
         onion: {
           location: "fresh",
           quantity: null,
-          freshness: "unknown",
+          freshness: emptyPantryFreshness(),
           source: {
             kind: "user",
-            confidence: 1,
             provenance: "Manual kitchen update",
           },
         },
         salt: {
           location: "cupboards",
           quantity: null,
-          freshness: "unknown",
+          freshness: emptyPantryFreshness(),
           source: {
             kind: "user",
-            confidence: 1,
             provenance: "Household member update",
           },
         },
@@ -1617,30 +1613,27 @@ describe("recipe API PostgreSQL integration", () => {
         "almond-milk": {
           location: "fridge",
           quantity: null,
-          freshness: "unknown",
+          freshness: emptyPantryFreshness(),
           source: {
             kind: "user",
-            confidence: 1,
             provenance: "Household member update",
           },
         },
         onion: {
           location: "fresh",
           quantity: null,
-          freshness: "unknown",
+          freshness: emptyPantryFreshness(),
           source: {
             kind: "user",
-            confidence: 1,
             provenance: "Manual kitchen update",
           },
         },
         salt: {
           location: "cupboards",
           quantity: null,
-          freshness: "unknown",
+          freshness: emptyPantryFreshness(),
           source: {
             kind: "user",
-            confidence: 1,
             provenance: "Manual kitchen update",
           },
         },
@@ -1692,30 +1685,27 @@ describe("recipe API PostgreSQL integration", () => {
         "almond-milk": {
           location: "fridge",
           quantity: null,
-          freshness: "unknown",
+          freshness: emptyPantryFreshness(),
           source: {
             kind: "user",
-            confidence: 1,
             provenance: "Household member update",
           },
         },
         onion: {
           location: "fresh",
           quantity: null,
-          freshness: "unknown",
+          freshness: emptyPantryFreshness(),
           source: {
             kind: "user",
-            confidence: 1,
             provenance: "Manual kitchen update",
           },
         },
         salt: {
           location: "cupboards",
           quantity: null,
-          freshness: "unknown",
+          freshness: emptyPantryFreshness(),
           source: {
             kind: "user",
-            confidence: 1,
             provenance: "Manual kitchen update",
           },
         },

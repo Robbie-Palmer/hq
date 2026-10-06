@@ -6,6 +6,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { emptyPantryFreshness } from "recipe-domain/pantry";
 import { captureRecipeProductActivity } from "@/lib/analytics/recipe-product";
 import {
   installPantrySnapshot,
@@ -125,10 +126,9 @@ export function useKitchenStockQuery() {
                     freshness:
                       operation.item.freshness ??
                       current?.freshness ??
-                      "unknown",
+                      emptyPantryFreshness(),
                     source: {
                       kind: "user" as const,
-                      confidence: 1,
                       provenance: "Manual kitchen update",
                     },
                   };

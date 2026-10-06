@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { emptyPantryFreshness } from "recipe-domain/pantry";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { KitchenView } from "@/components/recipes/kitchen/kitchen-view";
 import type { UnresolvedAuthoredTerm } from "@/lib/api/authored-terms";
@@ -194,11 +195,13 @@ describe("KitchenView diet ingredient catalog", () => {
       items: {
         chickpeas: {
           location: "cupboards",
-          quantity: { amount: 2, unit: "tins" },
-          freshness: "use_soon",
+          quantity: { amount: 2, unit: "tin" },
+          freshness: {
+            ...emptyPantryFreshness(),
+            bestBefore: "2026-10-06",
+          },
           source: {
             kind: "inferred",
-            confidence: 0.82,
             provenance: "Receipt import",
           },
         },
@@ -226,11 +229,13 @@ describe("KitchenView diet ingredient catalog", () => {
       items: {
         chickpeas: {
           location: "cupboards",
-          quantity: { amount: 2, unit: "tins" },
-          freshness: "use_soon",
+          quantity: { amount: 2, unit: "tin" },
+          freshness: {
+            ...emptyPantryFreshness(),
+            bestBefore: "2026-10-06",
+          },
           source: {
             kind: "inferred",
-            confidence: 0.82,
             provenance: "Receipt import",
           },
         },
@@ -267,10 +272,9 @@ describe("KitchenView diet ingredient catalog", () => {
         chickpeas: {
           location: "cupboards",
           quantity: null,
-          freshness: "unknown",
+          freshness: emptyPantryFreshness(),
           source: {
             kind: "inferred",
-            confidence: 0.3,
             provenance: "Receipt scan on 5 October",
           },
         },
@@ -281,21 +285,37 @@ describe("KitchenView diet ingredient catalog", () => {
     render(<KitchenView ingredients={ingredients} recipes={recipes} />);
 
     expect(
-      screen.getByText("30% inferred · Receipt scan on 5 October"),
+      screen.getByText("Inferred · Receipt scan on 5 October"),
     ).toHaveAttribute("title", "Receipt scan on 5 October");
     await user.click(screen.getByRole("button", { name: "Edit Chickpeas" }));
     await user.selectOptions(screen.getByLabelText("Location"), "freezer");
-    await user.selectOptions(screen.getByLabelText("Freshness"), "fresh");
     await user.type(screen.getByLabelText("Quantity"), "2.5");
-    await user.type(screen.getByLabelText("Unit"), "bags");
+    await user.selectOptions(screen.getByLabelText("Unit"), "bag");
+    await user.type(screen.getByLabelText("Use by"), "2026-10-12");
+    await user.type(screen.getByLabelText("Best before"), "2026-10-10");
+    await user.type(screen.getByLabelText("Stocked on"), "2026-10-07");
+    await user.type(screen.getByLabelText("Frozen on"), "2026-10-07");
+    await user.type(screen.getByLabelText("Expected fresh for (days)"), "5");
     await user.click(screen.getByRole("button", { name: "Save correction" }));
 
     expect(kitchenStockState.actions.updateStockItem).toHaveBeenCalledWith(
       "chickpeas",
       {
         location: "freezer",
-        quantity: { amount: 2.5, unit: "bags" },
-        freshness: "fresh",
+        quantity: { amount: 2.5, unit: "bag" },
+        freshness: {
+          useBy: "2026-10-12",
+          bestBefore: "2026-10-10",
+          stockedAt: "2026-10-07",
+          openedAt: null,
+          frozenAt: "2026-10-07",
+          estimate: {
+            expectedDays: 5,
+            startingOn: "2026-10-07",
+            storage: "freezer",
+            basis: "user",
+          },
+        },
       },
     );
   });

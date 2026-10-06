@@ -1,3 +1,4 @@
+import { emptyPantryFreshness } from "recipe-domain/pantry";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getPantry,
@@ -52,7 +53,11 @@ describe("pantry API client", () => {
 
     await setPantryItem(
       "red-onion",
-      { location: "fridge", quantity: null, freshness: "unknown" },
+      {
+        location: "fridge",
+        quantity: null,
+        freshness: emptyPantryFreshness(),
+      },
       operationId,
     );
     await removePantryItem("red-onion", operationId);
@@ -62,11 +67,14 @@ describe("pantry API client", () => {
         items: {
           red: {
             location: "fresh",
-            quantity: { amount: 3, unit: "items" },
-            freshness: "use_soon",
+            quantity: { amount: 3, unit: "piece" },
+            freshness: {
+              ...emptyPantryFreshness(),
+              useBy: "2026-10-12",
+              bestBefore: "2026-10-10",
+            },
             source: {
               kind: "inferred",
-              confidence: 0.7,
               provenance: "Receipt import",
             },
           },
@@ -84,7 +92,7 @@ describe("pantry API client", () => {
         body: JSON.stringify({
           location: "fridge",
           quantity: null,
-          freshness: "unknown",
+          freshness: emptyPantryFreshness(),
         }),
       }),
     );
@@ -107,11 +115,14 @@ describe("pantry API client", () => {
           items: {
             red: {
               location: "fresh",
-              quantity: { amount: 3, unit: "items" },
-              freshness: "use_soon",
+              quantity: { amount: 3, unit: "piece" },
+              freshness: {
+                ...emptyPantryFreshness(),
+                useBy: "2026-10-12",
+                bestBefore: "2026-10-10",
+              },
               source: {
                 kind: "inferred",
-                confidence: 0.7,
                 provenance: "Receipt import",
               },
             },

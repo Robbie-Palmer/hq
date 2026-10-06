@@ -23,11 +23,12 @@ import {
 } from "recipe-domain/cook-log";
 import {
   MAX_PANTRY_ITEMS,
+  MAX_PANTRY_FRESHNESS_ESTIMATE_DAYS,
   MAX_PANTRY_MUTATION_CHANGES,
-  PANTRY_FRESHNESS_STATES,
   PANTRY_LOCATIONS,
   PantryLocationSchema,
 } from "recipe-domain/pantry";
+import { UnitSchema } from "recipe-domain/unit";
 import { RECIPE_VISIBILITIES } from "recipe-domain/visibility";
 import { z } from "zod";
 import {
@@ -278,19 +279,56 @@ const pantrySnapshotSchema = {
                 required: ["amount", "unit"],
                 properties: {
                   amount: { type: "number", exclusiveMinimum: 0 },
-                  unit: { type: "string", minLength: 1, maxLength: 32 },
+                  unit: { enum: UnitSchema.options },
                 },
               },
             ],
           },
-          freshness: { enum: PANTRY_FRESHNESS_STATES },
+          freshness: {
+            type: "object",
+            additionalProperties: false,
+            required: [
+              "useBy",
+              "bestBefore",
+              "stockedAt",
+              "openedAt",
+              "frozenAt",
+              "estimate",
+            ],
+            properties: {
+              useBy: { type: ["string", "null"], format: "date" },
+              bestBefore: { type: ["string", "null"], format: "date" },
+              stockedAt: { type: ["string", "null"], format: "date" },
+              openedAt: { type: ["string", "null"], format: "date" },
+              frozenAt: { type: ["string", "null"], format: "date" },
+              estimate: {
+                anyOf: [
+                  { type: "null" },
+                  {
+                    type: "object",
+                    additionalProperties: false,
+                    required: ["expectedDays", "startingOn", "storage", "basis"],
+                    properties: {
+                      expectedDays: {
+                        type: "integer",
+                        minimum: 1,
+                        maximum: MAX_PANTRY_FRESHNESS_ESTIMATE_DAYS,
+                      },
+                      startingOn: { type: "string", format: "date" },
+                      storage: { enum: PANTRY_LOCATIONS },
+                      basis: { enum: ["user", "catalog"] },
+                    },
+                  },
+                ],
+              },
+            },
+          },
           source: {
             type: "object",
             additionalProperties: false,
-            required: ["kind", "confidence", "provenance"],
+            required: ["kind", "provenance"],
             properties: {
               kind: { enum: ["user", "inferred"] },
-              confidence: { type: "number", minimum: 0, maximum: 1 },
               provenance: { type: "string", minLength: 1, maxLength: 200 },
             },
           },

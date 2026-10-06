@@ -50,13 +50,14 @@ import {
 } from "recipe-domain/import-storage";
 import {
   MAX_PANTRY_ITEMS,
+  MAX_PANTRY_FRESHNESS_ESTIMATE_DAYS,
   MAX_PANTRY_MUTATION_CHANGES,
-  PantryFreshnessSchema,
   PantryItemLimitError,
   PantryLocationSchema,
   PantryMutationConflictError,
 } from "recipe-domain/pantry";
 import { SavedRecipePayloadSchema } from "recipe-domain/serialization";
+import { UnitSchema } from "recipe-domain/unit";
 import { normalizeAuthoredTerm } from "recipe-domain/authored-term";
 import {
   isRecipeAppRouteSlug,
@@ -248,7 +249,30 @@ const creatableRecipeSlugSchema = recipeSlugSchema.refine(
 const dietRecipeMatchModeSchema = z.enum(["hide", "warn"]);
 const equipmentRecipeMatchModeSchema = z.enum(["hide", "warn", "disabled"]);
 const pantryLocationSchema = PantryLocationSchema;
-const pantryFreshnessSchema = PantryFreshnessSchema;
+const pantryDateSchema = z.iso.date().max(10);
+const pantryFreshnessSchema = z
+  .object({
+    useBy: pantryDateSchema.nullable(),
+    bestBefore: pantryDateSchema.nullable(),
+    stockedAt: pantryDateSchema.nullable(),
+    openedAt: pantryDateSchema.nullable(),
+    frozenAt: pantryDateSchema.nullable(),
+    estimate: z
+      .object({
+        expectedDays: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_PANTRY_FRESHNESS_ESTIMATE_DAYS)
+          .openapi({ format: "int32" }),
+        startingOn: pantryDateSchema,
+        storage: pantryLocationSchema,
+        basis: z.enum(["user", "catalog"]),
+      })
+      .strict()
+      .nullable(),
+  })
+  .strict();
 const authoredTermInputSchema = z.string().trim().min(1).max(200);
 const equipmentTermInputSchema = z.string().trim().min(1).max(100);
 const pantryIngredientSlugSchema = authoredTermInputSchema;
@@ -314,7 +338,7 @@ const pantryResponseSchema = z
           quantity: z
             .object({
               amount: z.number().min(0.001),
-              unit: z.string().min(1).max(32),
+              unit: UnitSchema,
             })
             .strict()
             .nullable(),
@@ -322,7 +346,6 @@ const pantryResponseSchema = z
           source: z
             .object({
               kind: z.enum(["user", "inferred"]),
-              confidence: z.number().min(0).max(1),
               provenance: z.string().min(1).max(200),
             })
             .strict(),
@@ -661,7 +684,7 @@ const pantryRestoreItemSchema = z
     quantity: z
       .object({
         amount: z.number().min(0.001).max(999_999_999),
-        unit: z.string().trim().min(1).max(32),
+        unit: UnitSchema,
       })
       .strict()
       .nullable(),
@@ -669,7 +692,6 @@ const pantryRestoreItemSchema = z
     source: z
       .object({
         kind: z.enum(["user", "inferred"]),
-        confidence: z.number().min(0).max(1),
         provenance: z.string().trim().min(1).max(200),
       })
       .strict(),
@@ -708,7 +730,7 @@ const pantryItemBodySchema = z
     quantity: z
       .object({
         amount: z.number().min(0.001).max(999_999_999),
-        unit: z.string().trim().min(1).max(32),
+        unit: UnitSchema,
       })
       .strict()
       .nullable()
@@ -2323,9 +2345,13 @@ function pantryRestoreItemValues(
     ...base,
     quantity: item.quantity === null ? null : String(item.quantity.amount),
     quantityUnit: item.quantity?.unit ?? null,
-    freshness: item.freshness,
+    useBy: item.freshness.useBy,
+    bestBefore: item.freshness.bestBefore,
+    stockedAt: item.freshness.stockedAt,
+    openedAt: item.freshness.openedAt,
+    frozenAt: item.freshness.frozenAt,
+    freshnessEstimate: item.freshness.estimate,
     sourceKind: item.source.kind,
-    confidence: String(item.source.confidence),
     provenance: item.source.provenance,
   };
 }
@@ -2338,14 +2364,17 @@ function pantryItemCorrectionValues(
     location: PantryLocation;
     quantity?: string | null;
     quantityUnit?: string | null;
-    freshness?: z.infer<typeof pantryFreshnessSchema>;
+    useBy?: string | null;
+    bestBefore?: string | null;
+    stockedAt?: string | null;
+    openedAt?: string | null;
+    frozenAt?: string | null;
+    freshnessEstimate?: z.infer<typeof pantryFreshnessSchema>["estimate"];
     sourceKind: "user";
-    confidence: string;
     provenance: string;
   } = {
     location: item.location,
     sourceKind: "user",
-    confidence: "1",
     provenance:
       scope.type === "household"
         ? "Household member update"
@@ -2356,7 +2385,14 @@ function pantryItemCorrectionValues(
       item.quantity === null ? null : String(item.quantity.amount);
     values.quantityUnit = item.quantity?.unit ?? null;
   }
-  if (item.freshness !== undefined) values.freshness = item.freshness;
+  if (item.freshness !== undefined) {
+    values.useBy = item.freshness.useBy;
+    values.bestBefore = item.freshness.bestBefore;
+    values.stockedAt = item.freshness.stockedAt;
+    values.openedAt = item.freshness.openedAt;
+    values.frozenAt = item.freshness.frozenAt;
+    values.freshnessEstimate = item.freshness.estimate;
+  }
   return values;
 }
 

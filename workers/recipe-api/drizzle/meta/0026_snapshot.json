@@ -1,5 +1,5 @@
 {
-  "id": "daa7c7f8-c122-49b0-9efd-78955ba756b3",
+  "id": "02bc0358-15bd-48ba-b742-8f0a9aa292db",
   "prevId": "b6fa3b67-46fb-4dd9-96f0-345a2965716d",
   "version": "7",
   "dialect": "postgresql",
@@ -3588,13 +3588,41 @@
           "primaryKey": false,
           "notNull": false
         },
-        "freshness": {
-          "name": "freshness",
-          "type": "pantry_freshness",
-          "typeSchema": "public",
+        "use_by": {
+          "name": "use_by",
+          "type": "date",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'unknown'"
+          "notNull": false
+        },
+        "best_before": {
+          "name": "best_before",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stocked_at": {
+          "name": "stocked_at",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "opened_at": {
+          "name": "opened_at",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "frozen_at": {
+          "name": "frozen_at",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "freshness_estimate": {
+          "name": "freshness_estimate",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
         },
         "source_kind": {
           "name": "source_kind",
@@ -3603,13 +3631,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'user'"
-        },
-        "confidence": {
-          "name": "confidence",
-          "type": "numeric(4, 3)",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'1'"
         },
         "provenance": {
           "name": "provenance",
@@ -3737,11 +3758,7 @@
         },
         "pantry_item_quantity_check": {
           "name": "pantry_item_quantity_check",
-          "value": "(\"pantry_item\".\"quantity\" IS NULL AND \"pantry_item\".\"quantity_unit\" IS NULL) OR (\"pantry_item\".\"quantity\" > 0 AND length(\"pantry_item\".\"quantity_unit\") BETWEEN 1 AND 32)"
-        },
-        "pantry_item_confidence_check": {
-          "name": "pantry_item_confidence_check",
-          "value": "\"pantry_item\".\"confidence\" >= 0 AND \"pantry_item\".\"confidence\" <= 1"
+          "value": "(\"pantry_item\".\"quantity\" IS NULL AND \"pantry_item\".\"quantity_unit\" IS NULL) OR (\"pantry_item\".\"quantity\" > 0 AND \"pantry_item\".\"quantity_unit\" IS NOT NULL)"
         }
       },
       "isRLSEnabled": false
@@ -6241,16 +6258,6 @@
       "values": [
         "agent",
         "user"
-      ]
-    },
-    "public.pantry_freshness": {
-      "name": "pantry_freshness",
-      "schema": "public",
-      "values": [
-        "fresh",
-        "use_soon",
-        "past_best_before",
-        "unknown"
       ]
     },
     "public.pantry_location": {

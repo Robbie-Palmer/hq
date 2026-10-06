@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
+import { emptyPantryFreshness } from "recipe-domain/pantry";
 import { DietListNotice } from "@/components/recipes/diet-notice";
 import { useDiet } from "@/components/recipes/diet-provider";
 import { EquipmentListNotice } from "@/components/recipes/equipment-readiness-notice";
@@ -78,10 +79,9 @@ function defaultItemDetails(location: KitchenLocation): KitchenItemDetails {
   return {
     location,
     quantity: null,
-    freshness: "unknown",
+    freshness: emptyPantryFreshness(),
     source: {
       kind: "user",
-      confidence: 1,
       provenance: "Manual kitchen update",
     },
   };

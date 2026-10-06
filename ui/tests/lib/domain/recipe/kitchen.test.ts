@@ -1,6 +1,8 @@
+import { emptyPantryFreshness } from "recipe-domain/pantry";
 import { describe, expect, it } from "vitest";
 import {
   getDietRelevantKitchenIngredients,
+  getKitchenFreshnessStatus,
   getKitchenRecipeMatches,
   isKitchenLocation,
   KITCHEN_LOCATIONS,
@@ -110,7 +112,39 @@ describe("kitchen helpers", () => {
     });
   });
 
-  it("uses quantity, freshness, and confidence when matching stock", () => {
+  it("derives warnings without conflating safety and quality dates", () => {
+    const bothDates = {
+      ...emptyPantryFreshness(),
+      useBy: "2026-10-10",
+      bestBefore: "2026-10-01",
+    };
+
+    expect(getKitchenFreshnessStatus(bothDates, "2026-10-07")).toBe(
+      "past_best_before",
+    );
+    expect(
+      getKitchenFreshnessStatus(
+        { ...bothDates, useBy: "2026-10-06" },
+        "2026-10-07",
+      ),
+    ).toBe("past_use_by");
+    expect(
+      getKitchenFreshnessStatus(
+        {
+          ...emptyPantryFreshness(),
+          estimate: {
+            expectedDays: 4,
+            startingOn: "2026-10-01",
+            storage: "fresh",
+            basis: "user",
+          },
+        },
+        "2026-10-07",
+      ),
+    ).toBe("estimate_elapsed");
+  });
+
+  it("uses use-by dates and compatible quantities when matching stock", () => {
     const [match] = getKitchenRecipeMatches(
       [
         {
@@ -121,51 +155,89 @@ describe("kitchen helpers", () => {
             { slug: "stock", name: "stock", amount: 500, unit: "ml" },
             { slug: "peas", name: "peas" },
             { slug: "mint", name: "mint" },
+            { slug: "yogurt", name: "yogurt" },
           ],
         },
       ],
       {
         stock: {
           location: "cupboards",
-          quantity: { amount: 250, unit: "ml" },
-          freshness: "fresh",
+          quantity: { amount: 0.5, unit: "l" },
+          freshness: emptyPantryFreshness(),
           source: {
             kind: "user",
-            confidence: 1,
             provenance: "Household member update",
           },
         },
         peas: {
           location: "freezer",
           quantity: null,
-          freshness: "past_best_before",
+          freshness: {
+            ...emptyPantryFreshness(),
+            bestBefore: "2026-10-01",
+          },
           source: {
             kind: "user",
-            confidence: 1,
             provenance: "Household member update",
           },
         },
         mint: {
           location: "fresh",
           quantity: null,
-          freshness: "fresh",
+          freshness: emptyPantryFreshness(),
           source: {
             kind: "inferred",
-            confidence: 0.3,
             provenance: "Receipt scan on 5 October",
           },
         },
+        yogurt: {
+          location: "fridge",
+          quantity: null,
+          freshness: {
+            ...emptyPantryFreshness(),
+            useBy: "2026-10-01",
+          },
+          source: {
+            kind: "user",
+            provenance: "Household member update",
+          },
+        },
       },
+      null,
+      "2026-10-07",
     );
 
     expect(match).toMatchObject({
       canCook: false,
-      haveCount: 0,
-      missingIngredients: [
-        { slug: "stock", name: "stock", amount: 500, unit: "ml" },
-        { slug: "peas", name: "peas" },
-        { slug: "mint", name: "mint" },
-      ],
+      haveCount: 3,
+      missingIngredients: [{ slug: "yogurt", name: "yogurt" }],
     });
+  });
+
+  it("marks a compatible but insufficient quantity as missing", () => {
+    const [match] = getKitchenRecipeMatches(
+      [
+        {
+          slug: "soup",
+          title: "Soup",
+          cuisine: [],
+          ingredients: [
+            { slug: "stock", name: "stock", amount: 500, unit: "ml" },
+          ],
+        },
+      ],
+      {
+        stock: {
+          location: "cupboards",
+          quantity: { amount: 0.25, unit: "l" },
+          freshness: emptyPantryFreshness(),
+          source: { kind: "user", provenance: "Manual kitchen update" },
+        },
+      },
+      null,
+      "2026-10-07",
+    );
+
+    expect(match?.missingCount).toBe(1);
   });
 });
