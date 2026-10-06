@@ -165,6 +165,118 @@ describe("browser household ownership", () => {
     );
   });
 
+  it("removes scoped references to accounts and future cash flows that were dropped", () => {
+    const migrated = AssetTrackerDataSchema.parse(oldSinglePersonData());
+    const data = AssetTrackerDataSchema.parse({
+      ...migrated,
+      household: {
+        members: [
+          { id: "primary", displayName: "Alex" },
+          { id: "sam", displayName: "Sam" },
+        ],
+        activeScope: { kind: "member", memberId: "sam" },
+      },
+      accounts: [
+        migrated.accounts[0],
+        {
+          id: "sam-cash",
+          name: "Sam cash",
+          provider: "Bank",
+          currency: "GBP",
+          assetType: "cash",
+          expectedAnnualReturn: 0,
+          createdAt: "2025-01-01",
+        },
+      ],
+      futureCashFlows: [
+        {
+          id: "primary-commitment",
+          name: "Primary commitment",
+          kind: "commitment",
+          currency: "GBP",
+          stages: [
+            {
+              id: "payment",
+              fromAccountId: "cash",
+              dueDate: "2025-12-01",
+              amount: 500,
+            },
+          ],
+        },
+        {
+          id: "sam-decision",
+          name: "Sam decision",
+          kind: "decision",
+          currency: "GBP",
+          dependencyIds: ["primary-commitment"],
+          alternativeToIds: ["primary-commitment"],
+          stages: [
+            {
+              id: "choice",
+              fromAccountId: "sam-cash",
+              expectedDate: "2025-12-01",
+              minimumAmount: 100,
+              expectedAmount: 200,
+              maximumAmount: 300,
+            },
+          ],
+        },
+      ],
+      forecastAssumptionSets: [
+        {
+          id: "shared-income-v1",
+          seriesId: "shared-income",
+          name: "Shared income",
+          version: 1,
+          status: "active",
+          createdAt: "2025-01-31T12:00:00Z",
+          assumptions: [
+            {
+              id: "income-change",
+              name: "Income change",
+              kind: "income",
+              startDate: "2025-06-01",
+              monthlyChange: {
+                minimum: 100,
+                expected: 200,
+                maximum: 300,
+              },
+              currency: "GBP",
+              ownership: {
+                kind: "shared",
+                shares: [
+                  { memberId: "primary", share: 0.5 },
+                  { memberId: "sam", share: 0.5 },
+                ],
+              },
+              accountId: "cash",
+              source: { kind: "manual-take-home" },
+            },
+          ],
+        },
+      ],
+      ownership: {
+        ...migrated.ownership,
+        accounts: {
+          cash: personalOwnership("primary"),
+          "sam-cash": personalOwnership("sam"),
+        },
+      },
+    });
+
+    const scoped = scopeAssetTrackerData(data);
+
+    expect(scoped.futureCashFlows).toMatchObject([
+      {
+        id: "sam-decision",
+        dependencyIds: [],
+        alternativeToIds: [],
+      },
+    ]);
+    expect(scoped.forecastAssumptionSets[0]?.assumptions).toEqual([]);
+    expect(() => buildRepository(scoped)).not.toThrow();
+  });
+
   it("applies reviewed import ownership to every committed row", () => {
     const migrated = AssetTrackerDataSchema.parse(oldSinglePersonData());
     const householdData = AssetTrackerDataSchema.parse({

@@ -29,7 +29,6 @@ import {
 import { formatCurrency, todayIsoDate } from "@/lib/assettracker";
 import {
   type Currency,
-  DEFAULT_BASE_CURRENCY,
   type ForecastCashFlow,
   futureCashFlowForecastItems,
   type MonthlyForecastBreakdown,
@@ -122,11 +121,9 @@ export function plannedExpenditureSourceId(
 export function RunwayChartTooltip({
   active,
   payload,
-  baseCurrency = DEFAULT_BASE_CURRENCY,
 }: Readonly<{
   active?: boolean;
   payload?: RunwayTooltipPayload[];
-  baseCurrency?: Currency;
 }>) {
   if (!active || !payload?.length) return null;
   const point = payload.find((item) => item.payload != null)?.payload;
@@ -173,7 +170,7 @@ export function RunwayChartTooltip({
                 {cashFlow.name} · {format(parseISO(cashFlow.date), "d MMM")}
               </span>
               <span className="font-mono tabular-nums">
-                {formatCurrency(cashFlow.amount, baseCurrency)}
+                {formatCurrency(cashFlow.amount, cashFlow.currency)}
               </span>
             </div>
           ))}
@@ -408,9 +405,7 @@ export function RunwayForecast() {
                   }
                 />
                 <YAxis width={48} tickFormatter={formatAxisRunway} />
-                <ChartTooltip
-                  content={<RunwayChartTooltip baseCurrency={baseCurrency} />}
-                />
+                <ChartTooltip content={<RunwayChartTooltip />} />
                 <ChartLegend content={<ChartLegendContent />} />
                 {visibleForecastCashFlows.map((cashFlow) => (
                   <ReferenceLine
@@ -420,7 +415,7 @@ export function RunwayForecast() {
                     strokeDasharray="4 3"
                     strokeWidth={1.5}
                     label={{
-                      value: formatCurrency(cashFlow.amount, baseCurrency),
+                      value: formatCurrency(cashFlow.amount, cashFlow.currency),
                       position: "insideTopRight",
                       fill: FUTURE_CASH_FLOW_COLOR,
                       fontSize: 10,

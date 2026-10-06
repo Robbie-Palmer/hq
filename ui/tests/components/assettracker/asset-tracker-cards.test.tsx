@@ -685,7 +685,7 @@ describe("PortfolioGoal", () => {
           changeability: "variable",
           refundable: false,
           labels: [],
-          currency: "GBP",
+          currency: "EUR",
           stages: [
             {
               id: "payment-1",
@@ -780,7 +780,7 @@ describe("PortfolioGoal", () => {
       }),
     ).toBeVisible();
     expect(screen.getByTestId("planned-spending-marker")).toHaveTextContent(
-      "£7,200",
+      "€7,200",
     );
     expect(screen.getByText(/marked on their expected dates/)).toBeVisible();
     expect(
@@ -828,7 +828,7 @@ describe("RunwayForecast", () => {
           ...holiday,
           futureCashFlowId: holiday.id,
           stageId: "payment-1",
-          currency: "GBP" as const,
+          currency: "EUR" as const,
           kind: "commitment" as const,
         },
       ],
@@ -853,7 +853,7 @@ describe("RunwayForecast", () => {
     expect(screen.getByText("15 years, 8 months, 0 days")).toBeVisible();
     expect(screen.getByText("Future cash flows applied")).toBeVisible();
     expect(screen.getByText("Japan holiday · 15 Jan")).toBeVisible();
-    expect(screen.getByText("£7,200")).toBeVisible();
+    expect(screen.getByText("€7,200")).toBeVisible();
   });
 
   it("adds a dated commitment from the selected account", async () => {

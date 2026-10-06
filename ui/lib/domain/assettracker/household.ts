@@ -537,7 +537,7 @@ export function scopeAssetTrackerData(
       ? [{ ...row, amount: scale(row.amount, fraction) }]
       : [];
   });
-  const futureCashFlows = data.futureCashFlows.flatMap(
+  const scopedFutureCashFlows = data.futureCashFlows.flatMap(
     (record): FutureCashFlow[] => {
       const stages = record.stages.filter(({ fromAccountId }) =>
         keptAccountIds.has(fromAccountId),
@@ -580,10 +580,32 @@ export function scopeAssetTrackerData(
       ];
     },
   );
+  const keptFutureCashFlowIds = new Set(
+    scopedFutureCashFlows.map(({ id }) => id),
+  );
+  const futureCashFlows = scopedFutureCashFlows.map((record) =>
+    record.kind === "decision"
+      ? {
+          ...record,
+          dependencyIds: record.dependencyIds.filter((id) =>
+            keptFutureCashFlowIds.has(id),
+          ),
+          alternativeToIds: record.alternativeToIds.filter((id) =>
+            keptFutureCashFlowIds.has(id),
+          ),
+        }
+      : record,
+  );
   const forecastAssumptionSets = data.forecastAssumptionSets.map(
     (set): ForecastAssumptionSet => ({
       ...set,
       assumptions: set.assumptions.flatMap((assumption) => {
+        if (
+          assumption.accountId != null &&
+          !keptAccountIds.has(assumption.accountId)
+        ) {
+          return [];
+        }
         const fraction = share(assumption.ownership);
         if (fraction <= 0) return [];
         return [
