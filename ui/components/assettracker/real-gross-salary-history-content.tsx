@@ -7,6 +7,10 @@ import {
 import { SalaryTrajectoryTable } from "./real-gross-salary-history-table";
 import { RealNoPensionNetSalaryChart } from "./real-no-pension-net-salary-chart";
 import { NoPensionNetSalaryTable } from "./real-no-pension-net-salary-table";
+import {
+  type SalaryTrajectoryDateDomain,
+  salaryTrajectoryDateDomain,
+} from "./salary-trajectory-chart";
 import type { RealGrossSalaryHistoryView } from "./use-real-gross-salary-history";
 
 function NoMatchingSalary({
@@ -64,9 +68,14 @@ function DatasetNotes({
 }
 
 function GrossSalarySection({
+  dateDomain,
   label,
   view,
-}: Readonly<{ label: string; view: RealGrossSalaryHistoryView }>) {
+}: Readonly<{
+  dateDomain: SalaryTrajectoryDateDomain;
+  label: string;
+  view: RealGrossSalaryHistoryView;
+}>) {
   return (
     <section aria-labelledby="gross-salary-heading" className="space-y-4">
       <div className="space-y-1">
@@ -79,6 +88,7 @@ function GrossSalarySection({
       </div>
       <RealGrossSalaryChart
         chartData={view.chartData}
+        dateDomain={dateDomain}
         hasRealValues={view.hasRealValues}
         label={`Nominal and inflation-adjusted ${label} for ${view.person}`}
       />
@@ -88,9 +98,14 @@ function GrossSalarySection({
 }
 
 function NoPensionSalarySection({
+  dateDomain,
   label,
   view,
-}: Readonly<{ label: string; view: RealGrossSalaryHistoryView }>) {
+}: Readonly<{
+  dateDomain: SalaryTrajectoryDateDomain;
+  label: string;
+  view: RealGrossSalaryHistoryView;
+}>) {
   return (
     <section
       aria-labelledby="no-pension-net-heading"
@@ -115,6 +130,7 @@ function NoPensionSalarySection({
         <>
           <RealNoPensionNetSalaryChart
             chartData={view.noPensionChartData}
+            dateDomain={dateDomain}
             label={`Hypothetical nominal and inflation-adjusted net ${label} with no employee pension for ${view.person}`}
           />
           <NoPensionNetSalaryTable points={view.noPensionPoints} />
@@ -129,6 +145,10 @@ export function RealGrossSalaryContent({
 }: Readonly<{ view: RealGrossSalaryHistoryView }>) {
   const label =
     SALARY_AMOUNT_LABELS[view.amountKind].toLocaleLowerCase("en-GB");
+  const dateDomain = salaryTrajectoryDateDomain(
+    view.chartData,
+    view.noPensionChartData,
+  );
   return (
     <>
       <RealGrossSalaryControls {...view} />
@@ -136,8 +156,16 @@ export function RealGrossSalaryContent({
         <NoMatchingSalary view={view} />
       ) : (
         <>
-          <GrossSalarySection label={label} view={view} />
-          <NoPensionSalarySection label={label} view={view} />
+          <GrossSalarySection
+            dateDomain={dateDomain}
+            label={label}
+            view={view}
+          />
+          <NoPensionSalarySection
+            dateDomain={dateDomain}
+            label={label}
+            view={view}
+          />
         </>
       )}
       <DatasetNotes view={view} />

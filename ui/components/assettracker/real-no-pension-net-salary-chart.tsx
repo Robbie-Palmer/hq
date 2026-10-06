@@ -1,13 +1,18 @@
 "use client";
 
 import type { NoPensionNetChartPoint } from "@/lib/domain/assettracker";
-import { SalaryTrajectoryChart } from "./salary-trajectory-chart";
+import {
+  SalaryTrajectoryChart,
+  type SalaryTrajectoryDateDomain,
+} from "./salary-trajectory-chart";
 
 export function RealNoPensionNetSalaryChart({
   chartData,
+  dateDomain,
   label,
 }: Readonly<{
   chartData: readonly NoPensionNetChartPoint[];
+  dateDomain: SalaryTrajectoryDateDomain;
   label: string;
 }>) {
   return (
@@ -20,6 +25,7 @@ export function RealNoPensionNetSalaryChart({
         assumedNominal: point.assumedNominalNet,
         assumedReal: point.assumedRealNet,
       }))}
+      dateDomain={dateDomain}
       label={label}
       nominalLabel="Hypothetical nominal net pay"
       realLabel="Hypothetical inflation-adjusted net pay"

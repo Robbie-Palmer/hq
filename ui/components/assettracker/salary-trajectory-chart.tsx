@@ -22,7 +22,35 @@ export type SalaryTrajectoryChartDatum = {
   assumedReal?: number;
 };
 
+export type SalaryTrajectoryDateDomain = readonly [number, number];
+
+const ONE_DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1_000;
+
+export function salaryTrajectoryDateDomain(
+  ...series: ReadonlyArray<readonly { date: string }[]>
+): SalaryTrajectoryDateDomain {
+  const timestamps = series
+    .flatMap((points) => points.map((point) => Date.parse(point.date)))
+    .filter(Number.isFinite);
+  if (timestamps.length === 0) return [0, ONE_DAY_IN_MILLISECONDS];
+
+  const start = Math.min(...timestamps);
+  const end = Math.max(...timestamps);
+
+  if (start === end) return [start, end + ONE_DAY_IN_MILLISECONDS];
+  return [start, end];
+}
+
 type SalarySeries = "nominal" | "real";
+
+type SalaryTrajectoryChartProps = Readonly<{
+  assumptionCopy: string;
+  chartData: readonly SalaryTrajectoryChartDatum[];
+  dateDomain: SalaryTrajectoryDateDomain;
+  label: string;
+  nominalLabel: string;
+  realLabel: string;
+}>;
 
 const RECORDED_TOOLTIP_KEY = {
   assumedNominal: "nominal",
@@ -147,6 +175,7 @@ function chartConfig(labels: Readonly<Record<SalarySeries, string>>) {
 
 function SalaryChartCanvas({
   chartData,
+  dateDomain,
   hasAssumption,
   hasRealValues,
   hidden,
@@ -154,12 +183,18 @@ function SalaryChartCanvas({
   labels,
 }: Readonly<{
   chartData: readonly SalaryTrajectoryChartDatum[];
+  dateDomain: SalaryTrajectoryDateDomain;
   hasAssumption: boolean;
   hasRealValues: boolean;
   hidden: ReadonlySet<SalarySeries>;
   label: string;
   labels: Readonly<Record<SalarySeries, string>>;
 }>) {
+  const timestampedChartData = chartData.map((point) => ({
+    ...point,
+    timestamp: Date.parse(point.date),
+  }));
+
   return (
     <ChartContainer
       config={chartConfig(labels)}
@@ -169,11 +204,13 @@ function SalaryChartCanvas({
     >
       <ResponsiveContainer width="100%" height={340}>
         <LineChart
-          data={chartData}
+          data={timestampedChartData}
           margin={{ top: 10, right: 18, left: 0, bottom: 5 }}
         >
           <CurrencyHistoryChartAxes
             currency="GBP"
+            dateDomain={dateDomain}
+            dateKey="timestamp"
             tooltipContent={<SalaryTooltipContent />}
           />
           <SalaryLines
@@ -199,16 +236,11 @@ function SalaryChartCanvas({
 export function SalaryTrajectoryChart({
   assumptionCopy,
   chartData,
+  dateDomain,
   label,
   nominalLabel,
   realLabel,
-}: Readonly<{
-  assumptionCopy: string;
-  chartData: readonly SalaryTrajectoryChartDatum[];
-  label: string;
-  nominalLabel: string;
-  realLabel: string;
-}>) {
+}: SalaryTrajectoryChartProps) {
   const [hidden, setHidden] = useState<ReadonlySet<SalarySeries>>(new Set());
   const hasRealValues = chartData.some(
     (point) => point.real != null || point.assumedReal != null,
@@ -229,6 +261,7 @@ export function SalaryTrajectoryChart({
     <>
       <SalaryChartCanvas
         chartData={chartData}
+        dateDomain={dateDomain}
         hasAssumption={hasAssumption}
         hasRealValues={hasRealValues}
         hidden={hidden}

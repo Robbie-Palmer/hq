@@ -78,7 +78,25 @@ vi.mock("recharts", () => ({
         : content}
     </div>
   ),
-  XAxis: () => null,
+  XAxis: ({
+    dataKey,
+    domain,
+    scale,
+    type,
+  }: {
+    dataKey?: string;
+    domain?: readonly number[];
+    scale?: string;
+    type?: string;
+  }) => (
+    <div
+      data-axis-domain={JSON.stringify(domain)}
+      data-axis-key={dataKey}
+      data-axis-scale={scale}
+      data-axis-type={type}
+      data-testid="salary-x-axis"
+    />
+  ),
   YAxis: () => null,
 }));
 
@@ -157,6 +175,14 @@ describe("RealGrossSalaryHistory", () => {
       name: "Hypothetical nominal net pay",
     });
     expect(netChart).toBeVisible();
+    const [grossAxis, netAxis] = screen.getAllByTestId("salary-x-axis");
+    expect(grossAxis).toHaveAttribute("data-axis-key", "timestamp");
+    expect(grossAxis).toHaveAttribute("data-axis-type", "number");
+    expect(grossAxis).toHaveAttribute("data-axis-scale", "time");
+    expect(netAxis).toHaveAttribute(
+      "data-axis-domain",
+      grossAxis?.getAttribute("data-axis-domain"),
+    );
     expect(netNominal).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(netNominal);
     expect(netChart.querySelector('[data-series="nominal"]')).toBeNull();

@@ -7,19 +7,34 @@ import type { Currency } from "@/lib/domain/assettracker";
 
 export function CurrencyHistoryChartAxes({
   currency,
+  dateDomain,
+  dateKey = "date",
   tooltipContent,
 }: Readonly<{
   currency: Currency;
+  dateDomain?: readonly [number, number];
+  dateKey?: string;
   tooltipContent?: ReactElement;
 }>) {
+  const isTimeAxis = dateDomain != null;
+
   return (
     <>
       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
       <XAxis
-        dataKey="date"
+        dataKey={dateKey}
+        type={isTimeAxis ? "number" : "category"}
+        scale={isTimeAxis ? "time" : "auto"}
+        domain={dateDomain}
+        allowDataOverflow={isTimeAxis}
         className="text-xs"
         minTickGap={24}
-        tickFormatter={(date: string) => format(parseISO(date), "MMM yy")}
+        tickFormatter={(date: string | number) =>
+          format(
+            typeof date === "number" ? new Date(date) : parseISO(date),
+            "MMM yy",
+          )
+        }
       />
       <YAxis
         className="text-xs"
@@ -31,6 +46,11 @@ export function CurrencyHistoryChartAxes({
       <ChartTooltip
         content={tooltipContent ?? <ChartTooltipContent />}
         formatter={(value) => formatCurrency(value as number, currency)}
+        labelFormatter={
+          isTimeAxis
+            ? (value) => format(new Date(Number(value)), "MMMM yyyy")
+            : undefined
+        }
       />
     </>
   );

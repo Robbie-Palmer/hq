@@ -1,13 +1,18 @@
 "use client";
 
 import type { GrossSalaryChartPoint } from "@/lib/domain/assettracker";
-import { SalaryTrajectoryChart } from "./salary-trajectory-chart";
+import {
+  SalaryTrajectoryChart,
+  type SalaryTrajectoryDateDomain,
+} from "./salary-trajectory-chart";
 
 export function RealGrossSalaryChart({
   chartData,
+  dateDomain,
   label,
 }: Readonly<{
   chartData: readonly GrossSalaryChartPoint[];
+  dateDomain: SalaryTrajectoryDateDomain;
   hasRealValues: boolean;
   label: string;
 }>) {
@@ -21,6 +26,7 @@ export function RealGrossSalaryChart({
         assumedNominal: point.assumedNominalGross,
         assumedReal: point.assumedRealGross,
       }))}
+      dateDomain={dateDomain}
       label={label}
       nominalLabel="Nominal gross pay"
       realLabel="Inflation-adjusted gross pay"
