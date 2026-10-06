@@ -253,11 +253,23 @@ describe("salary history calculations", () => {
     expect(calculation?.comparison).toBeNull();
   });
 
-  it("keeps missing employer pension and unsupported years unavailable", () => {
+  it("keeps net pay available when only employer pension is unknown", () => {
     const [missingEmployer] = calculateNoPensionSalaryHistory(
       [salaryRecord({ employerPension: undefined })],
       "2026-04-05",
     );
+
+    expect(missingEmployer?.result.available).toBe(true);
+    expect(missingEmployer?.employerPension).toMatchObject({
+      contributionPence: null,
+      unavailableReasons: [
+        expect.objectContaining({ code: "missing-employer-pension" }),
+      ],
+    });
+    expect(missingEmployer?.comparison).toBeNull();
+  });
+
+  it("keeps unsupported years unavailable", () => {
     const [unsupportedYear] = calculateNoPensionSalaryHistory(
       [
         salaryRecord({
@@ -268,10 +280,6 @@ describe("salary history calculations", () => {
       "2015-04-05",
     );
 
-    expect(missingEmployer?.result).toMatchObject({
-      available: false,
-      reasons: [expect.objectContaining({ code: "missing-employer-pension" })],
-    });
     expect(unsupportedYear?.result).toMatchObject({
       available: false,
       reasons: [expect.objectContaining({ code: "unsupported-rules" })],

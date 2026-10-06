@@ -44,6 +44,10 @@ export type NoPensionSalaryPeriodCalculation = Omit<
   scenario: "hypothetical-no-employee-pension";
   baselineResult: HistoricalSalaryResult;
   result: HistoricalSalaryResult;
+  employerPension: {
+    contributionPence: number | null;
+    unavailableReasons: CalculationReason[];
+  };
   comparison: {
     grossCashPayChangePence: number;
     incomeTaxChangePence: number;
@@ -354,7 +358,10 @@ function buildPension(
 function buildNoEmployeePension(
   record: SalaryHistoryRecord,
   multiplier: number,
-): ReturnType<typeof buildPension> {
+): ReturnType<typeof buildPension> & {
+  employerContributionPence: number | null;
+  employerUnavailableReasons: CalculationReason[];
+} {
   const employer = contributionAmount(
     record.employerPension,
     record,
@@ -362,7 +369,12 @@ function buildNoEmployeePension(
     "employer",
   );
   if (employer.reasons.length > 0) {
-    return { pension: null, reasons: employer.reasons };
+    return {
+      pension: null,
+      reasons: [],
+      employerContributionPence: null,
+      employerUnavailableReasons: employer.reasons,
+    };
   }
   const employerAmount = employer.amountPence ?? 0;
   return {
@@ -378,6 +390,8 @@ function buildNoEmployeePension(
             providerTaxReliefPence: 0,
           },
     reasons: [],
+    employerContributionPence: employerAmount,
+    employerUnavailableReasons: [],
   };
 }
 
@@ -640,7 +654,12 @@ function calculateNoPensionSegment(
   }
   const pension =
     multiplier == null
-      ? { pension: null, reasons: [] }
+      ? {
+          pension: null,
+          reasons: [],
+          employerContributionPence: null,
+          employerUnavailableReasons: [],
+        }
       : buildNoEmployeePension(record, multiplier);
   reasons.push(...pension.reasons);
   const result = calculateResult(
@@ -660,6 +679,10 @@ function calculateNoPensionSegment(
     scenario: "hypothetical-no-employee-pension",
     baselineResult: baseline.result,
     result,
+    employerPension: {
+      contributionPence: pension.employerContributionPence,
+      unavailableReasons: pension.employerUnavailableReasons,
+    },
     comparison: noPensionComparison(baseline.result, result),
     notes: [
       ...baseline.notes,

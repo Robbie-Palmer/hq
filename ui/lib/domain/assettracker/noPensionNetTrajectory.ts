@@ -168,9 +168,9 @@ function calculationPoint(
     foregoneEmployeeContribution: pounds(
       comparison?.foregoneEmployeeContributionPence ?? null,
     ),
-    employerPensionContribution: result.available
-      ? pounds(result.components.employerPensionContributionPence)
-      : null,
+    employerPensionContribution: pounds(
+      calculation.employerPension.contributionPence,
+    ),
     takeHomePayChange: pounds(comparison?.takeHomePayChangePence ?? null),
     calculation,
     inflation: adjusted.inflation,

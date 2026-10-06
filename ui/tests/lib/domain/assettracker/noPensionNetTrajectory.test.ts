@@ -179,6 +179,43 @@ describe("no-pension net salary trajectory", () => {
     });
   });
 
+  it("plots net pay when a separate employer pension amount is unavailable", () => {
+    const [point] = buildNoPensionNetTrajectory(
+      [
+        salaryRecord({
+          effectiveStart: "2016-01-01",
+          effectiveEnd: "2016-04-05",
+          employeePension: {
+            arrangement: "netPay",
+            rate: 0.03,
+            basis: "qualifyingEarnings",
+          },
+          employerPension: {
+            arrangement: "other",
+            rate: 0.03,
+            basis: "qualifyingEarnings",
+          },
+        }),
+      ],
+      null,
+      "2025-03-01",
+      "Alex",
+      "annualSalary",
+      "2016-04-05",
+    );
+
+    expect(point).toMatchObject({
+      effectiveStart: "2016-01-01",
+      nominalNet: 42_126.28,
+      employerPensionContribution: null,
+    });
+    expect(point?.calculation.employerPension.unavailableReasons).toEqual([
+      expect.objectContaining({ code: "unsupported-qualifying-earnings" }),
+    ]);
+    if (point == null) throw new Error("Expected an early net salary point");
+    expect(noPensionNetChartData([point])[0]?.nominalNet).toBe(42_126.28);
+  });
+
   it("carries an open-ended estimate to the reference date as an assumption", () => {
     const points = buildNoPensionNetTrajectory(
       [salaryRecord({ effectiveEnd: undefined })],

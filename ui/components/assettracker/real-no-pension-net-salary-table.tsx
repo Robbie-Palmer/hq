@@ -64,6 +64,18 @@ function CalculationEvidence({
           {result.lineage.ruleDatasetVersion}; rules{" "}
           {result.lineage.rules.map((rule) => rule.id).join(", ")}.
         </p>
+        {point.calculation.employerPension.unavailableReasons.length > 0 && (
+          <div>
+            <p>Employer pension amount unavailable:</p>
+            <ul className="list-disc space-y-1 pl-4">
+              {point.calculation.employerPension.unavailableReasons.map(
+                (reason) => (
+                  <li key={reason.code}>{reason.detail}</li>
+                ),
+              )}
+            </ul>
+          </div>
+        )}
         <InflationEvidence point={point} />
         <ul className="list-disc space-y-1 pl-4">
           {result.lineage.sources.map((source) => (

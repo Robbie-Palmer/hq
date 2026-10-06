@@ -11,10 +11,17 @@ const SHORT_UTC_DATE_FORMATTER = new Intl.DateTimeFormat("en-GB", {
   year: "2-digit",
 });
 const LONG_UTC_DATE_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
   month: "long",
   timeZone: "UTC",
   year: "numeric",
 });
+
+export function formatHistoryDateLabel(date: string | number): string {
+  return typeof date === "number"
+    ? LONG_UTC_DATE_FORMATTER.format(date)
+    : format(parseISO(date), "d MMMM yyyy");
+}
 
 function formatDateTick(date: string | number): string {
   return typeof date === "number"
@@ -63,7 +70,7 @@ export function CurrencyHistoryChartAxes({
         formatter={(value) => formatCurrency(value as number, currency)}
         labelFormatter={
           isTimeAxis
-            ? (value) => LONG_UTC_DATE_FORMATTER.format(Number(value))
+            ? (value) => formatHistoryDateLabel(Number(value))
             : undefined
         }
       />

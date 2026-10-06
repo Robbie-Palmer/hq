@@ -56,6 +56,7 @@ vi.mock("recharts", () => ({
         ? cloneElement(
             content as ReactElement<{
               active: boolean;
+              label: number;
               payload: Array<{
                 color: string;
                 dataKey: string;
@@ -64,6 +65,7 @@ vi.mock("recharts", () => ({
             }>,
             {
               active: true,
+              label: Date.parse("2024-01-01"),
               payload: [
                 {
                   color: "blue",
@@ -205,8 +207,9 @@ describe("RealGrossSalaryHistory", () => {
       grossAxis?.getAttribute("data-axis-ticks"),
     );
     for (const tooltip of screen.getAllByTestId("salary-tooltip")) {
-      expect(tooltip).toHaveAttribute("data-tooltip-label", "January 2024");
+      expect(tooltip).toHaveAttribute("data-tooltip-label", "1 January 2024");
     }
+    expect(screen.getAllByText("1 January 2024")).toHaveLength(2);
     expect(netNominal).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(netNominal);
     expect(netChart.querySelector('[data-series="nominal"]')).toBeNull();

@@ -8,7 +8,10 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { cn } from "@/lib/generic/styles";
-import { CurrencyHistoryChartAxes } from "./currency-history-chart-axes";
+import {
+  CurrencyHistoryChartAxes,
+  formatHistoryDateLabel,
+} from "./currency-history-chart-axes";
 
 const NOMINAL_COLOR = "hsl(220, 70%, 50%)";
 const REAL_COLOR = "hsl(160, 60%, 34%)";
@@ -78,6 +81,7 @@ const RECORDED_TOOLTIP_KEY = {
 } as const;
 
 function SalaryTooltipContent({
+  label,
   payload,
   ...props
 }: ComponentProps<typeof ChartTooltipContent>) {
@@ -88,7 +92,18 @@ function SalaryTooltipContent({
     return recordedKey == null || !payloadKeys.has(recordedKey);
   });
 
-  return <ChartTooltipContent {...props} payload={collapsedPayload} />;
+  const heading =
+    typeof label === "number" && Number.isFinite(label)
+      ? formatHistoryDateLabel(label)
+      : undefined;
+
+  return (
+    <ChartTooltipContent
+      {...props}
+      heading={heading}
+      payload={collapsedPayload}
+    />
+  );
 }
 
 function Legend({
