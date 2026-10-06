@@ -39,7 +39,7 @@ function KitchenItemSelects({
   return (
     <>
       <label className="rt-body grid gap-1 text-sm text-[var(--ink-2)]">
-        Location
+        <span>Location</span>
         <select
           value={location}
           onChange={(event) =>
@@ -55,7 +55,7 @@ function KitchenItemSelects({
         </select>
       </label>
       <label className="rt-body grid gap-1 text-sm text-[var(--ink-2)]">
-        Freshness
+        <span>Freshness</span>
         <select
           value={freshness}
           onChange={(event) =>
