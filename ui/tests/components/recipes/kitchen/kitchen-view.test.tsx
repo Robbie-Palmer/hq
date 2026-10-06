@@ -191,7 +191,18 @@ describe("KitchenView diet ingredient catalog", () => {
     kitchenStockState.pantry.data = {
       scope: { type: "personal" },
       stock: { chickpeas: "cupboards" },
-      items: undefined,
+      items: {
+        chickpeas: {
+          location: "cupboards",
+          quantity: { amount: 2, unit: "tins" },
+          freshness: "use_soon",
+          source: {
+            kind: "inferred",
+            confidence: 0.82,
+            provenance: "Receipt import",
+          },
+        },
+      },
       unresolvedTerms: undefined,
     };
     const user = userEvent.setup();
@@ -211,7 +222,19 @@ describe("KitchenView diet ingredient catalog", () => {
     await user.click(screen.getByRole("button", { name: "undo clear" }));
 
     expect(kitchenStockState.actions.restoreStock).toHaveBeenCalledWith({
-      chickpeas: "cupboards",
+      stock: { chickpeas: "cupboards" },
+      items: {
+        chickpeas: {
+          location: "cupboards",
+          quantity: { amount: 2, unit: "tins" },
+          freshness: "use_soon",
+          source: {
+            kind: "inferred",
+            confidence: 0.82,
+            provenance: "Receipt import",
+          },
+        },
+      },
     });
     expect(kitchenStockState.actions.replaceStock).not.toHaveBeenCalled();
   });

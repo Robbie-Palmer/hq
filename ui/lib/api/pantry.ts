@@ -24,6 +24,10 @@ export type Pantry = {
   unresolvedTerms?: UnresolvedAuthoredTerm[];
 };
 
+export type PantryRestore = Pick<Pantry, "stock"> & {
+  items: Record<string, KitchenItemDetails>;
+};
+
 const LEGACY_PANTRY_STORAGE_KEY = "recipe-kitchen-stock-v1";
 const LEGACY_PANTRY_OWNER_KEY = "recipe-kitchen-stock-v1-owner";
 
@@ -66,10 +70,10 @@ export async function replacePantry(
 }
 
 export async function restorePantry(
-  stock: KitchenStock,
+  snapshot: PantryRestore,
   operationId?: string,
 ): Promise<Pantry> {
-  return pantryRequest("/api/pantry", "PATCH", { stock }, operationId);
+  return pantryRequest("/api/pantry", "PATCH", snapshot, operationId);
 }
 
 export async function setPantryItem(

@@ -33,6 +33,7 @@ import {
 } from "@/hooks/use-kitchen-stock";
 import { useShoppingList } from "@/hooks/use-shopping-list";
 import type { UnresolvedAuthoredTerm } from "@/lib/api/authored-terms";
+import type { PantryRestore } from "@/lib/api/pantry";
 import {
   applyDietRecipeVisibility,
   buildDietRecipeMatches,
@@ -255,9 +256,8 @@ export function KitchenView({
   );
   const [stockQuery, setStockQuery] = useState("");
   const [catalogQuery, setCatalogQuery] = useState("");
-  const [lastClearedStock, setLastClearedStock] = useState<KitchenStock | null>(
-    null,
-  );
+  const [lastClearedPantry, setLastClearedPantry] =
+    useState<PantryRestore | null>(null);
   const [targetLocation, setTargetLocation] =
     useState<KitchenLocation>("cupboards");
   const [editingIngredientSlug, setEditingIngredientSlug] =
@@ -396,7 +396,7 @@ export function KitchenView({
     location = targetLocation,
   ) => {
     stockActions.setStockLocation(ingredient.slug, location);
-    setLastClearedStock(null);
+    setLastClearedPantry(null);
   };
 
   const addCustomIngredient = () => {
@@ -406,7 +406,7 @@ export function KitchenView({
       targetLocation,
     );
     setCatalogQuery("");
-    setLastClearedStock(null);
+    setLastClearedPantry(null);
   };
 
   const removeIngredient = (slug: IngredientSlug) => {
@@ -425,14 +425,14 @@ export function KitchenView({
   };
 
   const clearStock = () => {
-    setLastClearedStock(stock);
+    setLastClearedPantry({ stock, items: pantryItems });
     stockActions.clearStock();
   };
 
   const undoClear = () => {
-    if (!lastClearedStock) return;
-    stockActions.restoreStock(lastClearedStock);
-    setLastClearedStock(null);
+    if (!lastClearedPantry) return;
+    stockActions.restoreStock(lastClearedPantry);
+    setLastClearedPantry(null);
   };
 
   const stockedCount = Object.keys(stock).length;
@@ -526,16 +526,18 @@ export function KitchenView({
                     <button
                       type="button"
                       onClick={clearStock}
-                      className="inline-flex items-center gap-1 rt-mono text-[var(--ink-3)] transition-colors hover:text-[var(--berry)]"
+                      disabled={stockActions.isPending}
+                      className="inline-flex items-center gap-1 rt-mono text-[var(--ink-3)] transition-colors hover:text-[var(--berry)] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Trash2 className="h-3.5 w-3.5" /> clear all
                     </button>
                   )}
-                  {lastClearedStock && stockedCount === 0 && (
+                  {lastClearedPantry && stockedCount === 0 && (
                     <button
                       type="button"
                       onClick={undoClear}
-                      className="inline-flex items-center gap-1 rt-mono text-[var(--ink-3)] transition-colors hover:text-[var(--terracotta)]"
+                      disabled={stockActions.isPending}
+                      className="inline-flex items-center gap-1 rt-mono text-[var(--ink-3)] transition-colors hover:text-[var(--terracotta)] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Undo2 className="h-3.5 w-3.5" /> undo clear
                     </button>

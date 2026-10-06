@@ -655,6 +655,53 @@ const pantryStockBodySchema = z
   })
   .strict();
 
+const pantryRestoreItemSchema = z
+  .object({
+    location: pantryLocationSchema,
+    quantity: z
+      .object({
+        amount: z.number().min(0.001).max(999_999_999),
+        unit: z.string().trim().min(1).max(32),
+      })
+      .strict()
+      .nullable(),
+    freshness: pantryFreshnessSchema,
+    source: z
+      .object({
+        kind: z.enum(["user", "inferred"]),
+        confidence: z.number().min(0).max(1),
+        provenance: z.string().trim().min(1).max(200),
+      })
+      .strict(),
+  })
+  .strict();
+
+const pantryRestoreBodySchema = pantryStockBodySchema
+  .extend({
+    items: z
+      .record(pantryIngredientSlugSchema, pantryRestoreItemSchema)
+      .optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    for (const [ingredientSlug, item] of Object.entries(value.items ?? {})) {
+      const location = value.stock[ingredientSlug];
+      if (location === undefined) {
+        context.addIssue({
+          code: "custom",
+          message: "Restored item details must belong to the stock snapshot",
+          path: ["items", ingredientSlug],
+        });
+      } else if (item.location !== location) {
+        context.addIssue({
+          code: "custom",
+          message: "Restored item location must match the stock snapshot",
+          path: ["items", ingredientSlug, "location"],
+        });
+      }
+    }
+  });
+
 const pantryItemBodySchema = z
   .object({
     location: pantryLocationSchema,
@@ -894,7 +941,7 @@ export const routeMetadata = {
     headersSchema: pantryOperationHeadersSchema,
   },
   "PATCH /pantry": {
-    requestBodySchema: pantryStockBodySchema,
+    requestBodySchema: pantryRestoreBodySchema,
     headersSchema: pantryOperationHeadersSchema,
   },
   "PUT /pantry/items/:ingredientSlug": {
@@ -1909,11 +1956,20 @@ function pantryOperationId(c: Context<AppEnv>): string | Response {
 function pantryStockFingerprint(
   kind: "replace" | "restore",
   stock: Record<string, PantryLocation>,
+  items?: Record<string, z.infer<typeof pantryRestoreItemSchema>>,
 ): string {
-  return JSON.stringify([
-    kind,
-    Object.entries(stock).sort(([a], [b]) => a.localeCompare(b)),
-  ]);
+  const sortedStock = Object.entries(stock).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
+  return JSON.stringify(
+    items === undefined
+      ? [kind, sortedStock]
+      : [
+          kind,
+          sortedStock,
+          Object.entries(items).sort(([a], [b]) => a.localeCompare(b)),
+        ],
+  );
 }
 
 async function executePantryOperation(
@@ -2193,7 +2249,7 @@ async function observeNewPantryEntries(
     locale: string;
     stockEntries: Array<[string, PantryLocation]>;
   },
-): Promise<Array<[string, PantryLocation]>> {
+): Promise<NormalizedPantryEntry[]> {
   const currentRows = await tx
     .select({ ingredientSlug: schema.pantryItem.ingredientSlug })
     .from(schema.pantryItem)
@@ -2224,12 +2280,54 @@ async function observeNewPantryEntries(
   const observedKeys = new Map(
     newEntries.map(([index], termIndex) => [index, observed[termIndex]?.key]),
   );
-  const normalizedEntries: Array<[string, PantryLocation]> = [];
-  for (const [index, [, location]] of input.stockEntries.entries()) {
+  const normalizedEntries: NormalizedPantryEntry[] = [];
+  for (const [
+    index,
+    [rawIngredientSlug, location],
+  ] of input.stockEntries.entries()) {
     const key = existingKeys.get(index) ?? observedKeys.get(index);
-    if (key) normalizedEntries.push([key, location]);
+    if (key) {
+      normalizedEntries.push({
+        ingredientSlug: key,
+        location,
+        rawIngredientSlug,
+      });
+    }
   }
   return normalizedEntries;
+}
+
+type NormalizedPantryEntry = {
+  ingredientSlug: string;
+  location: PantryLocation;
+  rawIngredientSlug: string;
+};
+
+function pantryRestoreItemValues(
+  scope: PantryScope,
+  entry: NormalizedPantryEntry,
+  item: z.infer<typeof pantryRestoreItemSchema> | undefined,
+) {
+  const owner =
+    scope.type === "personal"
+      ? { userId: scope.userId, organizationId: null }
+      : { userId: null, organizationId: scope.householdId };
+  const base = {
+    ...owner,
+    ingredientSlug: entry.ingredientSlug,
+    location: entry.location,
+  };
+  if (!item) return base;
+
+  return {
+    ...base,
+    quantity: item.quantity === null ? null : String(item.quantity.amount),
+    quantityUnit: item.quantity?.unit ?? null,
+    freshness: item.freshness,
+    sourceKind: item.source.kind,
+    confidence: String(item.source.confidence),
+    provenance: item.source.provenance,
+  };
 }
 
 function pantryItemCorrectionValues(
@@ -2307,9 +2405,9 @@ async function correctPantryItem(
 async function replacePantryStock(
   tx: DbTransaction,
   scope: PantryScope,
-  entries: Array<[string, PantryLocation]>,
+  entries: NormalizedPantryEntry[],
 ): Promise<void> {
-  const ingredientSlugs = entries.map(([ingredientSlug]) => ingredientSlug);
+  const ingredientSlugs = entries.map(({ ingredientSlug }) => ingredientSlug);
   const scopeFilter = pantryScopeFilter(scope);
   await tx
     .delete(schema.pantryItem)
@@ -2326,7 +2424,7 @@ async function replacePantryStock(
   await tx
     .insert(schema.pantryItem)
     .values(
-      entries.map(([ingredientSlug, location]) => ({
+      entries.map(({ ingredientSlug, location }) => ({
         userId: scope.type === "personal" ? scope.userId : null,
         organizationId:
           scope.type === "household" ? scope.householdId : null,
@@ -4301,7 +4399,7 @@ registerRoute("patch", "/pantry", async (c) => {
     "mutation",
     "PATCH /pantry mutation failed",
     async ({ db, session }) => {
-      const body = await parseJsonBody(c, pantryStockBodySchema);
+      const body = await parseJsonBody(c, pantryRestoreBodySchema);
       if (!body.success) return body.response;
 
       const stockEntries = Object.entries(body.data.stock);
@@ -4312,7 +4410,7 @@ registerRoute("patch", "/pantry", async (c) => {
         db,
         session.user.id,
         operationId,
-        pantryStockFingerprint("restore", body.data.stock),
+        pantryStockFingerprint("restore", body.data.stock, body.data.items),
         "pantry.restored",
         async (tx, scope) => {
           const normalizedEntries = await observeNewPantryEntries(tx, scope, {
@@ -4324,13 +4422,13 @@ registerRoute("patch", "/pantry", async (c) => {
             await tx
               .insert(schema.pantryItem)
               .values(
-                normalizedEntries.map(([ingredientSlug, location]) => ({
-                  userId: scope.type === "personal" ? scope.userId : null,
-                  organizationId:
-                    scope.type === "household" ? scope.householdId : null,
-                  ingredientSlug,
-                  location,
-                })),
+                normalizedEntries.map((entry) =>
+                  pantryRestoreItemValues(
+                    scope,
+                    entry,
+                    body.data.items?.[entry.rawIngredientSlug],
+                  ),
+                ),
               )
               .onConflictDoNothing();
           }

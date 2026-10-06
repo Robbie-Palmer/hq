@@ -56,7 +56,24 @@ describe("pantry API client", () => {
       operationId,
     );
     await removePantryItem("red-onion", operationId);
-    await restorePantry({ red: "fresh" }, operationId);
+    await restorePantry(
+      {
+        stock: { red: "fresh" },
+        items: {
+          red: {
+            location: "fresh",
+            quantity: { amount: 3, unit: "items" },
+            freshness: "use_soon",
+            source: {
+              kind: "inferred",
+              confidence: 0.7,
+              provenance: "Receipt import",
+            },
+          },
+        },
+      },
+      operationId,
+    );
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -85,7 +102,21 @@ describe("pantry API client", () => {
       expect.objectContaining({
         method: "PATCH",
         credentials: "same-origin",
-        body: JSON.stringify({ stock: { red: "fresh" } }),
+        body: JSON.stringify({
+          stock: { red: "fresh" },
+          items: {
+            red: {
+              location: "fresh",
+              quantity: { amount: 3, unit: "items" },
+              freshness: "use_soon",
+              source: {
+                kind: "inferred",
+                confidence: 0.7,
+                provenance: "Receipt import",
+              },
+            },
+          },
+        }),
       }),
     );
     for (const [, request] of fetchMock.mock.calls) {

@@ -10,6 +10,7 @@ import { captureRecipeProductActivity } from "@/lib/analytics/recipe-product";
 import {
   installPantrySnapshot,
   type Pantry,
+  type PantryRestore,
   removePantryItem,
   replacePantry,
   restorePantry,
@@ -49,7 +50,7 @@ type PantryMutation =
   | {
       kind: "restore";
       operationId: string;
-      stock: KitchenStock;
+      snapshot: PantryRestore;
     };
 
 function applyPantryMutation(
@@ -70,7 +71,7 @@ function applyPantryMutation(
     case "replace":
       return { ...operation.stock };
     case "restore":
-      return { ...operation.stock, ...stock };
+      return { ...operation.snapshot.stock, ...stock };
   }
 }
 
@@ -169,7 +170,7 @@ export function useKitchenStockActions() {
         case "replace":
           return replacePantry(operation.stock, operation.operationId);
         case "restore":
-          return restorePantry(operation.stock, operation.operationId);
+          return restorePantry(operation.snapshot, operation.operationId);
       }
     },
     onMutate: (operation) => {
@@ -221,11 +222,14 @@ export function useKitchenStockActions() {
         stock: { ...stock },
       });
     },
-    restoreStock(stock: KitchenStock) {
+    restoreStock(snapshot: PantryRestore) {
       mutation.mutate({
         kind: "restore",
         operationId: crypto.randomUUID(),
-        stock: { ...stock },
+        snapshot: {
+          stock: { ...snapshot.stock },
+          items: { ...snapshot.items },
+        },
       });
     },
     setStockLocation(

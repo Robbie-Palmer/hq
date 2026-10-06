@@ -4986,6 +4986,88 @@
                         "fresh"
                       ]
                     }
+                  },
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "location": {
+                          "type": "string",
+                          "enum": [
+                            "fridge",
+                            "freezer",
+                            "cupboards",
+                            "fresh"
+                          ]
+                        },
+                        "quantity": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "amount": {
+                              "type": "number",
+                              "minimum": 0.001,
+                              "maximum": 999999999
+                            },
+                            "unit": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 32
+                            }
+                          },
+                          "required": [
+                            "amount",
+                            "unit"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "freshness": {
+                          "type": "string",
+                          "enum": [
+                            "fresh",
+                            "use_soon",
+                            "past_best_before",
+                            "unknown"
+                          ]
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "user",
+                                "inferred"
+                              ]
+                            },
+                            "confidence": {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 1
+                            },
+                            "provenance": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "confidence",
+                            "provenance"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "location",
+                        "quantity",
+                        "freshness",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    }
                   }
                 },
                 "required": [

@@ -6027,6 +6027,18 @@ describe("pantry mutation flows", () => {
         headers: mutationHeaders,
         body: JSON.stringify({
           stock: { onion: "cupboards", milk: "fridge" },
+          items: {
+            onion: {
+              location: "cupboards",
+              quantity: { amount: 2, unit: "bags" },
+              freshness: "use_soon",
+              source: {
+                kind: "inferred",
+                confidence: 0.82,
+                provenance: "Receipt import",
+              },
+            },
+          },
         }),
       },
       env,
@@ -6054,12 +6066,12 @@ describe("pantry mutation flows", () => {
         },
         onion: {
           location: "cupboards",
-          quantity: null,
-          freshness: "unknown",
+          quantity: { amount: 2, unit: "bags" },
+          freshness: "use_soon",
           source: {
-            kind: "user",
-            confidence: 1,
-            provenance: "Manual kitchen update",
+            kind: "inferred",
+            confidence: 0.82,
+            provenance: "Receipt import",
           },
         },
       },

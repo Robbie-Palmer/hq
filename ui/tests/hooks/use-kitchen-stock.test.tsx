@@ -211,13 +211,58 @@ describe("useKitchenStockActions", () => {
 
     act(() =>
       result.current.restoreStock({
-        milk: "fridge",
-        onion: "fresh",
+        stock: { milk: "fridge", onion: "fresh" },
+        items: {
+          milk: {
+            location: "fridge",
+            quantity: { amount: 2, unit: "litres" },
+            freshness: "fresh",
+            source: {
+              kind: "inferred",
+              confidence: 0.9,
+              provenance: "Receipt import",
+            },
+          },
+          onion: {
+            location: "fresh",
+            quantity: null,
+            freshness: "unknown",
+            source: {
+              kind: "user",
+              confidence: 1,
+              provenance: "Manual kitchen update",
+            },
+          },
+        },
       }),
     );
     await waitFor(() =>
       expect(mocks.restorePantry).toHaveBeenCalledWith(
-        { milk: "fridge", onion: "fresh" },
+        {
+          stock: { milk: "fridge", onion: "fresh" },
+          items: {
+            milk: {
+              location: "fridge",
+              quantity: { amount: 2, unit: "litres" },
+              freshness: "fresh",
+              source: {
+                kind: "inferred",
+                confidence: 0.9,
+                provenance: "Receipt import",
+              },
+            },
+            onion: {
+              location: "fresh",
+              quantity: null,
+              freshness: "unknown",
+              source: {
+                kind: "user",
+                confidence: 1,
+                provenance: "Manual kitchen update",
+              },
+            },
+          },
+        },
         expect.any(String),
       ),
     );
