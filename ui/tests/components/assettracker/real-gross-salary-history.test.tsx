@@ -41,8 +41,17 @@ vi.mock("recharts", () => ({
   ),
   CartesianGrid: () => null,
   Legend: () => null,
-  Tooltip: ({ content }: { content?: ReactNode }) => (
-    <div data-testid="salary-tooltip">
+  Tooltip: ({
+    content,
+    labelFormatter,
+  }: {
+    content?: ReactNode;
+    labelFormatter?: (value: number) => string;
+  }) => (
+    <div
+      data-testid="salary-tooltip"
+      data-tooltip-label={labelFormatter?.(Date.parse("2024-01-01"))}
+    >
       {isValidElement(content)
         ? cloneElement(
             content as ReactElement<{
@@ -82,12 +91,14 @@ vi.mock("recharts", () => ({
     dataKey,
     domain,
     scale,
+    tickFormatter,
     ticks,
     type,
   }: {
     dataKey?: string;
     domain?: readonly number[];
     scale?: string;
+    tickFormatter?: (date: number) => string;
     ticks?: readonly number[];
     type?: string;
   }) => (
@@ -95,6 +106,7 @@ vi.mock("recharts", () => ({
       data-axis-domain={JSON.stringify(domain)}
       data-axis-key={dataKey}
       data-axis-scale={scale}
+      data-axis-test-label={tickFormatter?.(Date.parse("2024-01-01"))}
       data-axis-ticks={JSON.stringify(ticks)}
       data-axis-type={type}
       data-testid="salary-x-axis"
@@ -182,6 +194,7 @@ describe("RealGrossSalaryHistory", () => {
     expect(grossAxis).toHaveAttribute("data-axis-key", "timestamp");
     expect(grossAxis).toHaveAttribute("data-axis-type", "number");
     expect(grossAxis).toHaveAttribute("data-axis-scale", "time");
+    expect(grossAxis).toHaveAttribute("data-axis-test-label", "Jan 24");
     expect(netAxis).toHaveAttribute(
       "data-axis-domain",
       grossAxis?.getAttribute("data-axis-domain"),
@@ -191,6 +204,9 @@ describe("RealGrossSalaryHistory", () => {
       "data-axis-ticks",
       grossAxis?.getAttribute("data-axis-ticks"),
     );
+    for (const tooltip of screen.getAllByTestId("salary-tooltip")) {
+      expect(tooltip).toHaveAttribute("data-tooltip-label", "January 2024");
+    }
     expect(netNominal).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(netNominal);
     expect(netChart.querySelector('[data-series="nominal"]')).toBeNull();

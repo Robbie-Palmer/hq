@@ -5,6 +5,23 @@ import { ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { formatCurrency, formatCurrencyAxisTick } from "@/lib/assettracker";
 import type { Currency } from "@/lib/domain/assettracker";
 
+const SHORT_UTC_DATE_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  month: "short",
+  timeZone: "UTC",
+  year: "2-digit",
+});
+const LONG_UTC_DATE_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  month: "long",
+  timeZone: "UTC",
+  year: "numeric",
+});
+
+function formatDateTick(date: string | number): string {
+  return typeof date === "number"
+    ? SHORT_UTC_DATE_FORMATTER.format(date)
+    : format(parseISO(date), "MMM yy");
+}
+
 export function CurrencyHistoryChartAxes({
   currency,
   dateDomain,
@@ -32,12 +49,7 @@ export function CurrencyHistoryChartAxes({
         allowDataOverflow={isTimeAxis}
         className="text-xs"
         minTickGap={24}
-        tickFormatter={(date: string | number) =>
-          format(
-            typeof date === "number" ? new Date(date) : parseISO(date),
-            "MMM yy",
-          )
-        }
+        tickFormatter={formatDateTick}
       />
       <YAxis
         className="text-xs"
@@ -51,7 +63,7 @@ export function CurrencyHistoryChartAxes({
         formatter={(value) => formatCurrency(value as number, currency)}
         labelFormatter={
           isTimeAxis
-            ? (value) => format(new Date(Number(value)), "MMMM yyyy")
+            ? (value) => LONG_UTC_DATE_FORMATTER.format(Number(value))
             : undefined
         }
       />
