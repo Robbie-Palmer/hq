@@ -58,18 +58,18 @@ vi.mock("recharts", () => ({
               payload: [
                 {
                   color: "blue",
-                  dataKey: "nominalGross",
+                  dataKey: "nominal",
                   value: 60_000,
                 },
-                { color: "green", dataKey: "realGross", value: 62_000 },
+                { color: "green", dataKey: "real", value: 62_000 },
                 {
                   color: "blue",
-                  dataKey: "assumedNominalGross",
+                  dataKey: "assumedNominal",
                   value: 60_000,
                 },
                 {
                   color: "green",
-                  dataKey: "assumedRealGross",
+                  dataKey: "assumedReal",
                   value: 62_000,
                 },
               ],
@@ -97,6 +97,20 @@ function salaryRecord(
     payFrequency: "monthly",
     amountKind: "annualSalary",
     grossPay: 60_000,
+    otherTaxableIncome: 0,
+    otherDeductions: 0,
+    nationalInsuranceCategory: "A",
+    isCompanyDirector: false,
+    employeePension: {
+      arrangement: "salarySacrifice",
+      amount: 6_000,
+      basis: "grossPay",
+    },
+    employerPension: {
+      arrangement: "other",
+      amount: 3_000,
+      basis: "grossPay",
+    },
     source: { kind: "manual" },
     acceptedAt: "2025-01-01T00:00:00.000Z",
     ...overrides,
@@ -107,7 +121,7 @@ describe("RealGrossSalaryHistory", () => {
   it("plots salary facts and exposes the calculation table and controls", () => {
     render(<RealGrossSalaryHistory salaryHistory={[salaryRecord()]} />);
 
-    expect(screen.getByText("Gross salary over time")).toBeVisible();
+    expect(screen.getByText("Salary over time")).toBeVisible();
     expect(
       screen.getByRole("img", {
         name: "Nominal and inflation-adjusted annual salary rate for Alex",
@@ -121,13 +135,33 @@ describe("RealGrossSalaryHistory", () => {
     );
     expect(screen.getByText("£60,000")).toBeVisible();
     expect(
-      screen.getByText(
+      screen.getAllByText(
         new RegExp(
           `Dataset ${latestCpihRelease.versionId.replaceAll(".", "\\.")}`,
         ),
-      ),
+      )[0],
     ).toBeVisible();
-    expect(screen.getByText(/Salary fact salary-2024/)).toBeVisible();
+    expect(screen.getAllByText(/Salary fact salary-2024/)[0]).toBeVisible();
+    expect(
+      screen.getByRole("heading", {
+        name: "Hypothetical net salary with no employee pension",
+      }),
+    ).toBeVisible();
+    const grossChart = screen.getByRole("img", {
+      name: "Nominal and inflation-adjusted annual salary rate for Alex",
+    });
+    const netChart = screen.getByRole("img", {
+      name: "Hypothetical nominal and inflation-adjusted net annual salary rate with no employee pension for Alex",
+    });
+    const netNominal = screen.getByRole("button", {
+      name: "Hypothetical nominal net pay",
+    });
+    expect(netChart).toBeVisible();
+    expect(netNominal).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(netNominal);
+    expect(netChart.querySelector('[data-series="nominal"]')).toBeNull();
+    expect(grossChart.querySelector('[data-series="nominal"]')).toBeVisible();
+    expect(screen.getByText(/Employer pension remains separate/)).toBeVisible();
   });
 
   it("recalculates the table for another reference month", () => {
@@ -154,7 +188,7 @@ describe("RealGrossSalaryHistory", () => {
   });
 
   it("interpolates known facts and toggles chart series from the legend", () => {
-    const { container } = render(
+    render(
       <RealGrossSalaryHistory
         salaryHistory={[
           salaryRecord(),
@@ -168,12 +202,17 @@ describe("RealGrossSalaryHistory", () => {
       />,
     );
 
-    expect(
-      container.querySelector('[data-series="nominalGross"]'),
-    ).toHaveAttribute("data-line-type", "linear");
-    expect(
-      container.querySelector('[data-series="realGross"]'),
-    ).toHaveAttribute("data-line-type", "linear");
+    const grossChart = screen.getByRole("img", {
+      name: "Nominal and inflation-adjusted annual salary rate for Alex",
+    });
+    expect(grossChart.querySelector('[data-series="nominal"]')).toHaveAttribute(
+      "data-line-type",
+      "linear",
+    );
+    expect(grossChart.querySelector('[data-series="real"]')).toHaveAttribute(
+      "data-line-type",
+      "linear",
+    );
 
     const nominal = screen.getByRole("button", { name: "Nominal gross pay" });
     const real = screen.getByRole("button", {
@@ -184,44 +223,50 @@ describe("RealGrossSalaryHistory", () => {
 
     fireEvent.click(nominal);
     expect(nominal).toHaveAttribute("aria-pressed", "false");
-    expect(container.querySelector('[data-series="nominalGross"]')).toBeNull();
-    expect(container.querySelector('[data-series="realGross"]')).toBeVisible();
+    expect(grossChart.querySelector('[data-series="nominal"]')).toBeNull();
+    expect(grossChart.querySelector('[data-series="real"]')).toBeVisible();
 
     fireEvent.click(nominal);
     fireEvent.click(real);
-    expect(
-      container.querySelector('[data-series="nominalGross"]'),
-    ).toBeVisible();
-    expect(container.querySelector('[data-series="realGross"]')).toBeNull();
+    expect(grossChart.querySelector('[data-series="nominal"]')).toBeVisible();
+    expect(grossChart.querySelector('[data-series="real"]')).toBeNull();
   });
 
   it("marks an open-ended salary carried to the reference month as assumed", () => {
-    const { container } = render(
+    render(
       <RealGrossSalaryHistory
         salaryHistory={[salaryRecord({ effectiveEnd: undefined })]}
       />,
     );
-    const chart = screen.getByTestId("salary-chart");
+    const grossChart = screen.getByRole("img", {
+      name: "Nominal and inflation-adjusted annual salary rate for Alex",
+    });
+    const chart = grossChart.querySelector('[data-testid="salary-chart"]');
+    if (!(chart instanceof HTMLElement)) {
+      throw new Error("Expected the gross salary chart");
+    }
     const chartData = JSON.parse(chart.dataset.chartData ?? "[]");
 
     expect(chartData).toEqual([
       expect.objectContaining({
         id: "salary-2024",
-        nominalGross: 60_000,
-        assumedNominalGross: 60_000,
+        nominal: 60_000,
+        assumedNominal: 60_000,
       }),
       expect.objectContaining({
         id: "salary-2024:assumed",
         date: `${latestCpihRelease.source.coverageThrough}-01`,
-        assumedNominalGross: 60_000,
-        assumedRealGross: 60_000,
+        assumedNominal: 60_000,
+        assumedReal: 60_000,
       }),
     ]);
     expect(
-      container.querySelector('[data-series="assumedNominalGross"]'),
+      grossChart.querySelector('[data-series="assumedNominal"]'),
     ).toHaveAttribute("data-stroke-dasharray", "6 4");
     expect(
-      screen.getByText(/Dashed segments assume the latest open-ended salary/),
+      screen.getByText(
+        "Dashed segments assume the latest open-ended salary remained unchanged to the reference month.",
+      ),
     ).toBeVisible();
     expect(
       screen.queryByText("Nominal gross pay, assumed unchanged"),
@@ -231,13 +276,13 @@ describe("RealGrossSalaryHistory", () => {
     ).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Nominal gross pay" }));
-    expect(container.querySelector('[data-series="nominalGross"]')).toBeNull();
+    expect(grossChart.querySelector('[data-series="nominal"]')).toBeNull();
     expect(
-      container.querySelector('[data-series="assumedNominalGross"]'),
+      grossChart.querySelector('[data-series="assumedNominal"]'),
     ).toBeNull();
-    expect(container.querySelector('[data-series="realGross"]')).toBeVisible();
+    expect(grossChart.querySelector('[data-series="real"]')).toBeVisible();
     expect(
-      container.querySelector('[data-series="assumedRealGross"]'),
+      grossChart.querySelector('[data-series="assumedReal"]'),
     ).toBeVisible();
   });
 
@@ -249,9 +294,9 @@ describe("RealGrossSalaryHistory", () => {
     );
 
     expect(screen.getByText("US$60,000")).toBeVisible();
-    expect(screen.getByText("Unavailable")).toBeVisible();
+    expect(screen.getAllByText("Unavailable")[0]).toBeVisible();
     expect(screen.getByText(/cannot adjust USD values/)).toBeVisible();
-    expect(screen.getByRole("status")).toHaveTextContent(
+    expect(screen.getAllByRole("status")[0]).toHaveTextContent(
       "1 salary record has no real-terms value",
     );
   });

@@ -37,6 +37,23 @@ export type SalaryPeriodCalculation = {
   notes: string[];
 };
 
+export type NoPensionSalaryPeriodCalculation = Omit<
+  SalaryPeriodCalculation,
+  "reconciliation" | "result"
+> & {
+  scenario: "hypothetical-no-employee-pension";
+  baselineResult: HistoricalSalaryResult;
+  result: HistoricalSalaryResult;
+  comparison: {
+    grossCashPayChangePence: number;
+    incomeTaxChangePence: number;
+    employeeNationalInsuranceChangePence: number;
+    foregoneEmployeeContributionPence: number;
+    employerPensionContributionPence: number;
+    takeHomePayChangePence: number;
+  } | null;
+};
+
 const PERIODS_PER_YEAR: Record<SalaryPayFrequency, number | null> = {
   weekly: 52,
   fortnightly: 26,
@@ -334,6 +351,36 @@ function buildPension(
   };
 }
 
+function buildNoEmployeePension(
+  record: SalaryHistoryRecord,
+  multiplier: number,
+): ReturnType<typeof buildPension> {
+  const employer = contributionAmount(
+    record.employerPension,
+    record,
+    multiplier,
+    "employer",
+  );
+  if (employer.reasons.length > 0) {
+    return { pension: null, reasons: employer.reasons };
+  }
+  const employerAmount = employer.amountPence ?? 0;
+  return {
+    pension:
+      employerAmount === 0
+        ? null
+        : {
+            method: "net-pay",
+            employeeGrossContributionPence: 0,
+            employeeCashDeductionPence: 0,
+            salarySacrificePence: 0,
+            employerContributionPence: employerAmount,
+            providerTaxReliefPence: 0,
+          },
+    reasons: [],
+  };
+}
+
 function inputReasons(record: SalaryHistoryRecord): CalculationReason[] {
   const reasons: CalculationReason[] = [];
   if (record.currency !== "GBP") {
@@ -405,6 +452,10 @@ function calculateResult(
   multiplier: number | null,
   pension: ReturnType<typeof buildPension>,
   reasons: CalculationReason[],
+  scenarioAssumptions: Array<{
+    id: string;
+    value: string | number | boolean;
+  }> = [],
 ): HistoricalSalaryResult {
   const selectedJurisdiction = jurisdiction(record.jurisdiction);
   if (
@@ -445,6 +496,7 @@ function calculateResult(
       ...(record.taxCode == null
         ? []
         : [{ id: "observed-tax-code", value: record.taxCode }]),
+      ...scenarioAssumptions,
     ],
   });
 }
@@ -547,6 +599,75 @@ function calculateSegment(
   };
 }
 
+function noPensionComparison(
+  baseline: HistoricalSalaryResult,
+  scenario: HistoricalSalaryResult,
+): NoPensionSalaryPeriodCalculation["comparison"] {
+  if (!(baseline.available && scenario.available)) return null;
+  return {
+    grossCashPayChangePence:
+      scenario.components.grossCashPayPence -
+      baseline.components.grossCashPayPence,
+    incomeTaxChangePence:
+      scenario.components.incomeTaxPence - baseline.components.incomeTaxPence,
+    employeeNationalInsuranceChangePence:
+      scenario.components.employeeNationalInsurancePence -
+      baseline.components.employeeNationalInsurancePence,
+    foregoneEmployeeContributionPence:
+      baseline.components.employeePensionContributionPence,
+    employerPensionContributionPence:
+      scenario.components.employerPensionContributionPence,
+    takeHomePayChangePence:
+      scenario.components.takeHomePayPence -
+      baseline.components.takeHomePayPence,
+  };
+}
+
+function calculateNoPensionSegment(
+  record: SalaryHistoryRecord,
+  segment: { taxYear: string; from: string; to: string },
+  multipleEmployment: boolean,
+): NoPensionSalaryPeriodCalculation {
+  const baseline = calculateSegment(record, segment, multipleEmployment);
+  const multiplier = annualMultiplier(record);
+  const reasons = inputReasons(record);
+  if (multiplier == null) {
+    reasons.push({
+      code: "unsupported-pay-frequency",
+      detail:
+        "Irregular pay cannot be annualised without a user-supplied period.",
+    });
+  }
+  const pension =
+    multiplier == null
+      ? { pension: null, reasons: [] }
+      : buildNoEmployeePension(record, multiplier);
+  reasons.push(...pension.reasons);
+  const result = calculateResult(
+    record,
+    segment,
+    multiplier,
+    pension,
+    reasons,
+    [
+      { id: "scenario", value: "hypothetical-no-employee-pension" },
+      { id: "employee-pension-contribution-pence", value: 0 },
+      { id: "salary-sacrifice-pence", value: 0 },
+    ],
+  );
+  return {
+    ...baseline,
+    scenario: "hypothetical-no-employee-pension",
+    baselineResult: baseline.result,
+    result,
+    comparison: noPensionComparison(baseline.result, result),
+    notes: [
+      ...baseline.notes,
+      "Hypothetical scenario: employee pension contributions and salary sacrifice are zero. Employer pension remains outside spendable pay.",
+    ],
+  };
+}
+
 function overlaps(
   left: SalaryHistoryRecord,
   right: SalaryHistoryRecord,
@@ -578,6 +699,23 @@ export function calculateSalaryHistory(
       .flatMap(splitAtRuleChanges)
       .map((segment) =>
         calculateSegment(
+          record,
+          segment,
+          hasMultipleEmployment(record, records),
+        ),
+      ),
+  );
+}
+
+export function calculateNoPensionSalaryHistory(
+  records: readonly SalaryHistoryRecord[],
+  asOf = new Date().toISOString().slice(0, 10),
+): NoPensionSalaryPeriodCalculation[] {
+  return records.flatMap((record) =>
+    recordTaxYearSegments(record, asOf)
+      .flatMap(splitAtRuleChanges)
+      .map((segment) =>
+        calculateNoPensionSegment(
           record,
           segment,
           hasMultipleEmployment(record, records),

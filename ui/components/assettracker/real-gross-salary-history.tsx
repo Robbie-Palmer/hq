@@ -38,10 +38,10 @@ export function RealGrossSalaryHistory({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Gross salary over time</CardTitle>
+        <CardTitle>Salary over time</CardTitle>
         <CardDescription>
-          Compare gross pay before tax, employee pension deductions, and salary
-          sacrifice in nominal pounds and reference-period purchasing power.
+          Compare recorded gross pay with a hypothetical no-employee-pension net
+          salary in nominal pounds and reference-period purchasing power.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5 px-2 sm:px-6">

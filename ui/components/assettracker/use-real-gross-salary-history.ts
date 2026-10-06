@@ -4,10 +4,12 @@ import { latestOnsInflationRelease } from "finance-inflation-indices/dataset";
 import { useState } from "react";
 import {
   buildGrossSalaryTrajectory,
+  buildNoPensionNetTrajectory,
   currentSalaryHistory,
   grossSalaryChartData,
   type InflationIndex,
   InflationIndexSchema,
+  noPensionNetChartData,
   type SalaryAmountKind,
   type SalaryHistoryRecord,
 } from "@/lib/domain/assettracker";
@@ -45,6 +47,13 @@ export function useRealGrossSalaryHistory(
     person,
     amountKind,
   );
+  const noPensionPoints = buildNoPensionNetTrajectory(
+    salaryHistory,
+    release,
+    selectedReferenceDate,
+    person,
+    amountKind,
+  );
 
   function selectIndex(value: string) {
     const next = InflationIndexSchema.parse(value);
@@ -66,6 +75,14 @@ export function useRealGrossSalaryHistory(
     hasRealValues: points.some((point) => point.realGross != null),
     hasSalaryHistory: currentRecords.length > 0,
     inflationIndex,
+    noPensionChartData: noPensionNetChartData(
+      noPensionPoints,
+      selectedReferenceDate,
+    ),
+    noPensionPoints,
+    noPensionUnavailableCount: noPensionPoints.filter(
+      (point) => point.nominalNet == null || point.realNet == null,
+    ).length,
     people,
     person,
     points,
