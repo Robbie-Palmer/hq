@@ -50,7 +50,11 @@ describe("pantry API client", () => {
         Response.json({ scope: { type: "personal" }, stock: {} }),
       );
 
-    await setPantryItem("red-onion", "fridge", operationId);
+    await setPantryItem(
+      "red-onion",
+      { location: "fridge", quantity: null, freshness: "unknown" },
+      operationId,
+    );
     await removePantryItem("red-onion", operationId);
     await restorePantry({ red: "fresh" }, operationId);
 
@@ -60,7 +64,11 @@ describe("pantry API client", () => {
       expect.objectContaining({
         method: "PUT",
         credentials: "same-origin",
-        body: JSON.stringify({ location: "fridge" }),
+        body: JSON.stringify({
+          location: "fridge",
+          quantity: null,
+          freshness: "unknown",
+        }),
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(

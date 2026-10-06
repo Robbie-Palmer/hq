@@ -51,6 +51,7 @@ import {
 import {
   MAX_PANTRY_ITEMS,
   MAX_PANTRY_MUTATION_CHANGES,
+  PantryFreshnessSchema,
   PantryItemLimitError,
   PantryLocationSchema,
   PantryMutationConflictError,
@@ -247,6 +248,7 @@ const creatableRecipeSlugSchema = recipeSlugSchema.refine(
 const dietRecipeMatchModeSchema = z.enum(["hide", "warn"]);
 const equipmentRecipeMatchModeSchema = z.enum(["hide", "warn", "disabled"]);
 const pantryLocationSchema = PantryLocationSchema;
+const pantryFreshnessSchema = PantryFreshnessSchema;
 const authoredTermInputSchema = z.string().trim().min(1).max(200);
 const equipmentTermInputSchema = z.string().trim().min(1).max(100);
 const pantryIngredientSlugSchema = authoredTermInputSchema;
@@ -304,6 +306,29 @@ const pantryResponseSchema = z
         .strict(),
     ]),
     stock: z.record(z.string().min(1), pantryLocationSchema),
+    items: z.record(
+      z.string().min(1),
+      z
+        .object({
+          location: pantryLocationSchema,
+          quantity: z
+            .object({
+              amount: z.number().min(0.001),
+              unit: z.string().min(1).max(32),
+            })
+            .strict()
+            .nullable(),
+          freshness: pantryFreshnessSchema,
+          source: z
+            .object({
+              kind: z.enum(["user", "inferred"]),
+              confidence: z.number().min(0).max(1),
+              provenance: z.string().min(1).max(200),
+            })
+            .strict(),
+        })
+        .strict(),
+    ),
     itemVersions: z.record(z.string().min(1), z.string().regex(/^\d+$/)),
     unresolvedTerms: z.array(unresolvedTermSchema).max(MAX_PANTRY_ITEMS).optional(),
   })
@@ -633,6 +658,15 @@ const pantryStockBodySchema = z
 const pantryItemBodySchema = z
   .object({
     location: pantryLocationSchema,
+    quantity: z
+      .object({
+        amount: z.number().min(0.001).max(999_999_999),
+        unit: z.string().trim().min(1).max(32),
+      })
+      .strict()
+      .nullable()
+      .optional(),
+    freshness: pantryFreshnessSchema.optional(),
   })
   .strict();
 
@@ -2196,6 +2230,78 @@ async function observeNewPantryEntries(
     if (key) normalizedEntries.push([key, location]);
   }
   return normalizedEntries;
+}
+
+function pantryItemCorrectionValues(
+  scope: PantryScope,
+  item: z.infer<typeof pantryItemBodySchema>,
+) {
+  const values: {
+    location: PantryLocation;
+    quantity?: string | null;
+    quantityUnit?: string | null;
+    freshness?: z.infer<typeof pantryFreshnessSchema>;
+    sourceKind: "user";
+    confidence: string;
+    provenance: string;
+  } = {
+    location: item.location,
+    sourceKind: "user",
+    confidence: "1",
+    provenance:
+      scope.type === "household"
+        ? "Household member update"
+        : "Manual kitchen update",
+  };
+  if (item.quantity !== undefined) {
+    values.quantity =
+      item.quantity === null ? null : String(item.quantity.amount);
+    values.quantityUnit = item.quantity?.unit ?? null;
+  }
+  if (item.freshness !== undefined) values.freshness = item.freshness;
+  return values;
+}
+
+async function correctPantryItem(
+  tx: DbTransaction,
+  scope: PantryScope,
+  input: {
+    actorUserId: string;
+    rawIngredient: string;
+    locale: string;
+    item: z.infer<typeof pantryItemBodySchema>;
+  },
+): Promise<void> {
+  const [term] = await observeIngredientTerms(tx, {
+    owner: pantryTermOwner(scope),
+    actorUserId: input.actorUserId,
+    rawTerms: [input.rawIngredient],
+    locale: input.locale,
+    flow: "pantry",
+    resourceId: pantryResourceId(scope),
+  });
+  if (!term) throw new Error("Pantry term was not recorded");
+
+  const owner =
+    scope.type === "household"
+      ? { userId: null, organizationId: scope.householdId }
+      : { userId: scope.userId, organizationId: null };
+  const conflictTarget =
+    scope.type === "household"
+      ? [schema.pantryItem.organizationId, schema.pantryItem.ingredientSlug]
+      : [schema.pantryItem.userId, schema.pantryItem.ingredientSlug];
+  const correction = pantryItemCorrectionValues(scope, input.item);
+  await tx
+    .insert(schema.pantryItem)
+    .values({ ...owner, ingredientSlug: term.key, ...correction })
+    .onConflictDoUpdate({
+      target: conflictTarget,
+      set: {
+        ...correction,
+        version: sql`${schema.pantryItem.version} + 1`,
+        updatedAt: new Date(),
+      },
+    });
 }
 
 async function replacePantryStock(
@@ -4264,46 +4370,15 @@ registerRoute("put", "/pantry/items/:ingredientSlug", async (c) => {
         db,
         session.user.id,
         operationId,
-        `set:${rawIngredient}:${body.data.location}`,
+        JSON.stringify(["set", rawIngredient, body.data]),
         "pantry.item-set",
-        async (tx, scope) => {
-          const [term] = await observeIngredientTerms(tx, {
-            owner: pantryTermOwner(scope),
+        (tx, scope) =>
+          correctPantryItem(tx, scope, {
             actorUserId: session.user.id,
-            rawTerms: [rawIngredient],
+            rawIngredient,
             locale,
-            flow: "pantry",
-            resourceId: pantryResourceId(scope),
-          });
-          if (!term) throw new Error("Pantry term was not recorded");
-          const ingredientSlug = term.key;
-          await tx
-            .insert(schema.pantryItem)
-            .values({
-              userId: scope.type === "personal" ? scope.userId : null,
-              organizationId:
-                scope.type === "household" ? scope.householdId : null,
-              ingredientSlug,
-              location: body.data.location,
-            })
-            .onConflictDoUpdate({
-              target:
-                scope.type === "household"
-                  ? [
-                      schema.pantryItem.organizationId,
-                      schema.pantryItem.ingredientSlug,
-                    ]
-                  : [
-                      schema.pantryItem.userId,
-                      schema.pantryItem.ingredientSlug,
-                    ],
-              set: {
-                location: body.data.location,
-                version: sql`${schema.pantryItem.version} + 1`,
-                updatedAt: new Date(),
-              },
-            });
-        },
+            item: body.data,
+          }),
       );
 
       return c.json(pantry);

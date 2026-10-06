@@ -10,10 +10,12 @@ describe("kitchen helpers", () => {
   it("defines the supported locations once for kitchen features", () => {
     expect(KITCHEN_LOCATIONS.map((location) => location.id)).toEqual([
       "fridge",
+      "freezer",
       "cupboards",
       "fresh",
     ]);
-    expect(isKitchenLocation("freezer")).toBe(false);
+    expect(isKitchenLocation("garage")).toBe(false);
+    expect(isKitchenLocation("freezer")).toBe(true);
     expect(isKitchenLocation("fridge")).toBe(true);
   });
 
@@ -105,6 +107,65 @@ describe("kitchen helpers", () => {
       equipmentHaveCount: 1,
       equipmentTotalCount: 2,
       missingEquipment: [{ slug: "stick-blender", name: "stick blender" }],
+    });
+  });
+
+  it("uses quantity, freshness, and confidence when matching stock", () => {
+    const [match] = getKitchenRecipeMatches(
+      [
+        {
+          slug: "soup",
+          title: "Soup",
+          cuisine: [],
+          ingredients: [
+            { slug: "stock", name: "stock", amount: 500, unit: "ml" },
+            { slug: "peas", name: "peas" },
+            { slug: "mint", name: "mint" },
+          ],
+        },
+      ],
+      {
+        stock: {
+          location: "cupboards",
+          quantity: { amount: 250, unit: "ml" },
+          freshness: "fresh",
+          source: {
+            kind: "user",
+            confidence: 1,
+            provenance: "Household member update",
+          },
+        },
+        peas: {
+          location: "freezer",
+          quantity: null,
+          freshness: "past_best_before",
+          source: {
+            kind: "user",
+            confidence: 1,
+            provenance: "Household member update",
+          },
+        },
+        mint: {
+          location: "fresh",
+          quantity: null,
+          freshness: "fresh",
+          source: {
+            kind: "inferred",
+            confidence: 0.3,
+            provenance: "Receipt scan on 5 October",
+          },
+        },
+      },
+    );
+
+    expect(match).toMatchObject({
+      canCook: false,
+      haveCount: 0,
+      missingIngredients: [
+        { slug: "stock", name: "stock", amount: 500, unit: "ml" },
+        { slug: "peas", name: "peas" },
+        { slug: "mint", name: "mint" },
+      ],
     });
   });
 });

@@ -7,6 +7,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgEnum,
   pgTable,
   primaryKey,
@@ -29,7 +30,9 @@ import {
 } from "recipe-domain/import-storage";
 import { MUTATION_ACTOR_TYPES } from "recipe-domain/mutation";
 import {
+  PANTRY_FRESHNESS_STATES,
   PANTRY_LOCATIONS,
+  PANTRY_SOURCE_KINDS,
   type PantryMutationValue,
 } from "recipe-domain/pantry";
 import { RECIPE_VISIBILITIES } from "recipe-domain/visibility";
@@ -653,6 +656,14 @@ export const authoredTerm = pgTable(
 );
 
 export const pantryLocationEnum = pgEnum("pantry_location", PANTRY_LOCATIONS);
+export const pantryFreshnessEnum = pgEnum(
+  "pantry_freshness",
+  PANTRY_FRESHNESS_STATES,
+);
+export const pantrySourceKindEnum = pgEnum(
+  "pantry_source_kind",
+  PANTRY_SOURCE_KINDS,
+);
 
 /**
  * Revision state for one logical pantry. The owner mirrors pantry_item so a
@@ -717,6 +728,12 @@ export const pantryItem = pgTable(
     }),
     ingredientSlug: text().notNull(),
     location: pantryLocationEnum().notNull(),
+    quantity: numeric({ precision: 12, scale: 3 }),
+    quantityUnit: text(),
+    freshness: pantryFreshnessEnum().notNull().default("unknown"),
+    sourceKind: pantrySourceKindEnum().notNull().default("user"),
+    confidence: numeric({ precision: 4, scale: 3 }).notNull().default("1"),
+    provenance: text().notNull().default("Manual kitchen update"),
     version: bigint({ mode: "bigint" }).notNull().default(sql`1`),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp({ withTimezone: true })
@@ -728,6 +745,14 @@ export const pantryItem = pgTable(
     check(
       "pantry_item_owner_check",
       sql`num_nonnulls(${table.userId}, ${table.organizationId}) = 1`,
+    ),
+    check(
+      "pantry_item_quantity_check",
+      sql`(${table.quantity} IS NULL AND ${table.quantityUnit} IS NULL) OR (${table.quantity} > 0 AND length(${table.quantityUnit}) BETWEEN 1 AND 32)`,
+    ),
+    check(
+      "pantry_item_confidence_check",
+      sql`${table.confidence} >= 0 AND ${table.confidence} <= 1`,
     ),
     uniqueIndex("pantry_item_user_ingredient_uidx").on(
       table.userId,

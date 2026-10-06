@@ -2,7 +2,7 @@ import type { UnresolvedAuthoredTerm } from "@/lib/api/authored-terms";
 import { apiRequest } from "@/lib/api/http";
 import type { IngredientSlug } from "@/lib/domain/recipe/ingredient";
 import type {
-  KitchenLocation,
+  KitchenItemDetails,
   KitchenStock,
 } from "@/lib/domain/recipe/kitchen";
 
@@ -19,6 +19,7 @@ export type Pantry = {
   operationId?: string;
   scope: PantryScope;
   stock: KitchenStock;
+  items?: Record<string, KitchenItemDetails>;
   itemVersions: Record<string, string>;
   unresolvedTerms?: UnresolvedAuthoredTerm[];
 };
@@ -73,13 +74,14 @@ export async function restorePantry(
 
 export async function setPantryItem(
   ingredientSlug: IngredientSlug,
-  location: KitchenLocation,
+  item: Pick<KitchenItemDetails, "location"> &
+    Partial<Pick<KitchenItemDetails, "quantity" | "freshness">>,
   operationId?: string,
 ): Promise<Pantry> {
   return pantryRequest(
     `/api/pantry/items/${encodeURIComponent(ingredientSlug)}`,
     "PUT",
-    { location },
+    item,
     operationId,
   );
 }

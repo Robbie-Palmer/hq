@@ -157,7 +157,7 @@ describe("useKitchenStockActions", () => {
     await waitFor(() =>
       expect(mocks.setPantryItem).toHaveBeenCalledWith(
         "onion",
-        "fresh",
+        { location: "fresh" },
         expect.any(String),
       ),
     );
@@ -339,7 +339,7 @@ describe("useKitchenStockActions", () => {
     await waitFor(() =>
       expect(mocks.setPantryItem).toHaveBeenCalledWith(
         "onion",
-        "fresh",
+        { location: "fresh" },
         expect.any(String),
       ),
     );

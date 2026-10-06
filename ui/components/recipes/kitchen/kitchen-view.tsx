@@ -2,9 +2,11 @@
 
 import {
   CirclePlus,
+  Pencil,
   Refrigerator,
   Search,
   ShoppingBasket,
+  Snowflake,
   Sprout,
   Trash2,
   TriangleAlert,
@@ -41,6 +43,7 @@ import {
   getKitchenRecipeMatches,
   KITCHEN_LOCATIONS,
   type KitchenIngredientView,
+  type KitchenItemDetails,
   type KitchenLocation,
   type KitchenRecipeView,
   type KitchenStock,
@@ -52,6 +55,7 @@ const CATALOG_RESULT_LIMIT = 18;
 
 const LOCATION_ICONS = {
   fridge: Refrigerator,
+  freezer: Snowflake,
   cupboards: ShoppingBasket,
   fresh: Sprout,
 } satisfies Record<KitchenLocation, typeof Refrigerator>;
@@ -63,6 +67,149 @@ function normalizeQuery(value: string) {
 function LocationIcon({ location }: Readonly<{ location: KitchenLocation }>) {
   const Icon = LOCATION_ICONS[location];
   return <Icon className="size-4" />;
+}
+
+const FRESHNESS_LABELS = {
+  fresh: "Fresh",
+  use_soon: "Use soon",
+  past_best_before: "Past best before",
+  unknown: "Not recorded",
+} as const;
+
+function defaultItemDetails(location: KitchenLocation): KitchenItemDetails {
+  return {
+    location,
+    quantity: null,
+    freshness: "unknown",
+    source: {
+      kind: "user",
+      confidence: 1,
+      provenance: "Manual kitchen update",
+    },
+  };
+}
+
+function KitchenItemEditor({
+  ingredient,
+  item,
+  onCancel,
+  onSave,
+}: Readonly<{
+  ingredient: KitchenIngredientView;
+  item: KitchenItemDetails;
+  onCancel: () => void;
+  onSave: (
+    item: Pick<KitchenItemDetails, "location" | "quantity" | "freshness">,
+  ) => void;
+}>) {
+  const [location, setLocation] = useState(item.location);
+  const [amount, setAmount] = useState(
+    item.quantity ? String(item.quantity.amount) : "",
+  );
+  const [unit, setUnit] = useState(item.quantity?.unit ?? "");
+  const [freshness, setFreshness] = useState(item.freshness);
+  const parsedAmount = Number(amount);
+  const quantityIsValid =
+    amount === "" ||
+    (Number.isFinite(parsedAmount) &&
+      parsedAmount > 0 &&
+      unit.trim().length > 0);
+
+  return (
+    <form
+      className="grid gap-3 rounded-md border border-[var(--line-strong)] bg-[var(--paper)] p-3 sm:grid-cols-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!quantityIsValid) return;
+        onSave({
+          location,
+          quantity:
+            amount === "" ? null : { amount: parsedAmount, unit: unit.trim() },
+          freshness,
+        });
+      }}
+    >
+      <p className="rt-body font-medium text-[var(--ink)] sm:col-span-2">
+        Correct {ingredient.name}
+      </p>
+      <label className="rt-body grid gap-1 text-sm text-[var(--ink-2)]">
+        Location
+        <select
+          value={location}
+          onChange={(event) =>
+            setLocation(event.target.value as KitchenLocation)
+          }
+          className="h-10 rounded-md border border-[var(--line-strong)] bg-[var(--card)] px-3"
+        >
+          {KITCHEN_LOCATIONS.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="rt-body grid gap-1 text-sm text-[var(--ink-2)]">
+        Freshness
+        <select
+          value={freshness}
+          onChange={(event) =>
+            setFreshness(event.target.value as KitchenItemDetails["freshness"])
+          }
+          className="h-10 rounded-md border border-[var(--line-strong)] bg-[var(--card)] px-3"
+        >
+          {Object.entries(FRESHNESS_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label
+        htmlFor="kitchen-item-quantity"
+        className="rt-body grid gap-1 text-sm text-[var(--ink-2)]"
+      >
+        Quantity
+        <Input
+          id="kitchen-item-quantity"
+          inputMode="decimal"
+          min="0"
+          step="any"
+          value={amount}
+          onChange={(event) => setAmount(event.target.value)}
+          placeholder="Optional"
+        />
+      </label>
+      <label
+        htmlFor="kitchen-item-unit"
+        className="rt-body grid gap-1 text-sm text-[var(--ink-2)]"
+      >
+        Unit
+        <Input
+          id="kitchen-item-unit"
+          maxLength={32}
+          value={unit}
+          onChange={(event) => setUnit(event.target.value)}
+          placeholder="g, ml, tins..."
+        />
+      </label>
+      {!quantityIsValid && (
+        <p
+          role="alert"
+          className="rt-body text-sm text-[var(--berry)] sm:col-span-2"
+        >
+          Enter a positive quantity and a unit, or leave both blank.
+        </p>
+      )}
+      <div className="flex justify-end gap-2 sm:col-span-2">
+        <Button type="button" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={!quantityIsValid}>
+          Save correction
+        </Button>
+      </div>
+    </form>
+  );
 }
 
 function canSaveCustomIngredient(
@@ -215,6 +362,16 @@ export function KitchenView({
   );
   const pantry = useKitchenStockQuery();
   const stock = pantry.data?.stock ?? {};
+  const pantryItems = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(stock).map(([slug, location]) => [
+          slug,
+          pantry.data?.items?.[slug] ?? defaultItemDetails(location),
+        ]),
+      ),
+    [pantry.data?.items, stock],
+  );
   const unresolvedStock = pantry.data?.unresolvedTerms ?? [];
   const stockActions = useKitchenStockActions();
   const shoppingList = useShoppingList();
@@ -229,6 +386,8 @@ export function KitchenView({
   );
   const [targetLocation, setTargetLocation] =
     useState<KitchenLocation>("cupboards");
+  const [editingIngredientSlug, setEditingIngredientSlug] =
+    useState<IngredientSlug | null>(null);
   const catalogCardRef = useRef<HTMLDivElement>(null);
   const catalogSearchRef = useRef<HTMLInputElement>(null);
 
@@ -303,14 +462,14 @@ export function KitchenView({
     () =>
       getKitchenRecipeMatches(
         readinessFilteredRecipes,
-        stockedSlugs,
+        pantryItems,
         equipment.active ? equipment.ownedSlugs : null,
       ),
     [
       equipment.active,
       equipment.ownedSlugs,
+      pantryItems,
       readinessFilteredRecipes,
-      stockedSlugs,
     ],
   );
   const cookNow = matches.filter((recipe) => recipe.canCook).slice(0, 4);
@@ -407,6 +566,12 @@ export function KitchenView({
     pantry.data?.scope.type === "household"
       ? pantry.data.scope.household.name
       : null;
+  const editingIngredient = editingIngredientSlug
+    ? ingredientBySlug.get(editingIngredientSlug)
+    : undefined;
+  const editingItem = editingIngredientSlug
+    ? pantryItems[editingIngredientSlug]
+    : undefined;
 
   return (
     <div className="container mx-auto min-h-screen max-w-7xl px-4 pt-5 pb-16 md:pt-7">
@@ -521,6 +686,18 @@ export function KitchenView({
                 terms={unresolvedStock}
                 onRemove={removeIngredient}
               />
+              {editingIngredientSlug && editingIngredient && editingItem && (
+                <KitchenItemEditor
+                  key={editingIngredientSlug}
+                  ingredient={editingIngredient}
+                  item={editingItem}
+                  onCancel={() => setEditingIngredientSlug(null)}
+                  onSave={(item) => {
+                    stockActions.updateStockItem(editingIngredientSlug, item);
+                    setEditingIngredientSlug(null);
+                  }}
+                />
+              )}
               {groupedStock.map((group) => {
                 const Icon = group.icon;
                 return (
@@ -549,23 +726,60 @@ export function KitchenView({
                     </div>
                     {group.items.length > 0 ? (
                       <div className="flex min-w-0 flex-wrap gap-2">
-                        {group.items.map((ingredient) => (
-                          <Badge
-                            key={ingredient.slug}
-                            variant="outline"
-                            className="max-w-full gap-1.5 bg-[var(--paper-warm)] px-2 py-1 text-sm text-[var(--ink)]"
-                          >
-                            <span className="truncate">{ingredient.name}</span>
-                            <button
-                              type="button"
-                              onClick={() => removeIngredient(ingredient.slug)}
-                              className="rounded-sm p-0.5 text-[var(--ink-3)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--berry)]"
-                              aria-label={`Remove ${ingredient.name}`}
+                        {group.items.map((ingredient) => {
+                          const item = pantryItems[ingredient.slug];
+                          if (!item) return null;
+                          return (
+                            <Badge
+                              key={ingredient.slug}
+                              variant="outline"
+                              className="max-w-full gap-1.5 bg-[var(--paper-warm)] px-2 py-1 text-sm text-[var(--ink)]"
                             >
-                              <X className="size-3" />
-                            </button>
-                          </Badge>
-                        ))}
+                              <span className="truncate">
+                                {ingredient.name}
+                              </span>
+                              {item.quantity && (
+                                <span className="rt-mono text-[var(--ink-3)]">
+                                  {item.quantity.amount} {item.quantity.unit}
+                                </span>
+                              )}
+                              {item.freshness !== "unknown" && (
+                                <span className="rt-mono text-[var(--ink-3)]">
+                                  {FRESHNESS_LABELS[item.freshness]}
+                                </span>
+                              )}
+                              {item.source.kind === "inferred" && (
+                                <span
+                                  className="max-w-48 truncate rt-mono text-[var(--ink-3)]"
+                                  title={item.source.provenance}
+                                >
+                                  {Math.round(item.source.confidence * 100)}%
+                                  inferred · {item.source.provenance}
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setEditingIngredientSlug(ingredient.slug)
+                                }
+                                className="rounded-sm p-0.5 text-[var(--ink-3)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--terracotta)]"
+                                aria-label={`Edit ${ingredient.name}`}
+                              >
+                                <Pencil className="size-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  removeIngredient(ingredient.slug)
+                                }
+                                className="rounded-sm p-0.5 text-[var(--ink-3)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--berry)]"
+                                aria-label={`Remove ${ingredient.name}`}
+                              >
+                                <X className="size-3" />
+                              </button>
+                            </Badge>
+                          );
+                        })}
                       </div>
                     ) : (
                       <p className="rt-body text-sm text-[var(--ink-3)]">
@@ -627,7 +841,7 @@ export function KitchenView({
                     className="h-10 border-[var(--line-strong)] bg-[var(--paper)] pl-9"
                   />
                 </div>
-                <div className="grid grid-cols-3 rounded-md border border-[var(--line-strong)] bg-[var(--paper-warm)] p-1">
+                <div className="grid grid-cols-4 rounded-md border border-[var(--line-strong)] bg-[var(--paper-warm)] p-1">
                   {KITCHEN_LOCATIONS.map((location) => (
                     <button
                       key={location.id}

@@ -1,5 +1,7 @@
 import {
   PANTRY_LOCATIONS,
+  type PantryFreshness,
+  type PantryItemDetails,
   type PantryLocation,
   PantryLocationSchema,
 } from "recipe-domain/pantry";
@@ -11,6 +13,8 @@ import type {
 } from "./ingredient";
 
 export type KitchenLocation = PantryLocation;
+export type KitchenFreshness = PantryFreshness;
+export type KitchenItemDetails = PantryItemDetails;
 
 export type KitchenStock = Record<string, KitchenLocation>;
 
@@ -24,6 +28,10 @@ const KITCHEN_LOCATION_DETAILS = {
   fridge: {
     label: "Fridge",
     description: "Dairy, eggs, proteins, opened jars.",
+  },
+  freezer: {
+    label: "Freezer",
+    description: "Frozen meals, vegetables, proteins, ice.",
   },
   cupboards: {
     label: "Cupboards",
@@ -48,6 +56,8 @@ export type KitchenIngredientView = {
 export type KitchenRecipeIngredientView = {
   slug: IngredientSlug;
   name: string;
+  amount?: number;
+  unit?: string;
 };
 
 export type KitchenRecipeView = {
@@ -101,21 +111,51 @@ export function getDietRelevantKitchenIngredients(
   );
 }
 
+function kitchenItemIsAvailable(
+  ingredient: KitchenRecipeIngredientView,
+  item: KitchenItemDetails | undefined,
+): boolean {
+  if (!item) return false;
+  if (item.freshness === "past_best_before") return false;
+  if (item.source.kind === "inferred" && item.source.confidence < 0.5) {
+    return false;
+  }
+  if (
+    ingredient.amount !== undefined &&
+    ingredient.unit !== undefined &&
+    item.quantity?.unit === ingredient.unit
+  ) {
+    return item.quantity.amount >= ingredient.amount;
+  }
+  return true;
+}
+
 export function getKitchenRecipeMatches(
   recipes: KitchenRecipeView[],
-  availableIngredientSlugs: Iterable<IngredientSlug>,
+  availableIngredientSlugs:
+    | Iterable<IngredientSlug>
+    | Record<string, KitchenItemDetails>,
   availableEquipmentSlugs: Iterable<string> | null = null,
 ): KitchenRecipeMatch[] {
-  const available = new Set(availableIngredientSlugs);
+  const itemDetails =
+    Symbol.iterator in Object(availableIngredientSlugs)
+      ? null
+      : (availableIngredientSlugs as Record<string, KitchenItemDetails>);
+  const available = itemDetails
+    ? new Set(Object.keys(itemDetails))
+    : new Set(availableIngredientSlugs as Iterable<IngredientSlug>);
   const availableEquipment = availableEquipmentSlugs
     ? new Set(availableEquipmentSlugs)
     : null;
 
   return recipes
     .map((recipe) => {
-      const missingIngredients = recipe.ingredients.filter(
-        (ingredient) => !available.has(ingredient.slug),
-      );
+      const missingIngredients = recipe.ingredients.filter((ingredient) => {
+        if (!available.has(ingredient.slug)) return true;
+        return itemDetails
+          ? !kitchenItemIsAvailable(ingredient, itemDetails[ingredient.slug])
+          : false;
+      });
       const totalCount = recipe.ingredients.length;
       const missingCount = missingIngredients.length;
       const haveCount = totalCount - missingCount;

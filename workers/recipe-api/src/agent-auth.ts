@@ -24,6 +24,7 @@ import {
 import {
   MAX_PANTRY_ITEMS,
   MAX_PANTRY_MUTATION_CHANGES,
+  PANTRY_FRESHNESS_STATES,
   PANTRY_LOCATIONS,
   PantryLocationSchema,
 } from "recipe-domain/pantry";
@@ -242,7 +243,14 @@ const completedCookingSessionSchema = {
 const pantrySnapshotSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["resourceId", "scope", "revision", "stock", "itemVersions"],
+  required: [
+    "resourceId",
+    "scope",
+    "revision",
+    "stock",
+    "items",
+    "itemVersions",
+  ],
   properties: {
     resourceId: { type: "string" },
     scope: { enum: ["personal", "household"] },
@@ -251,6 +259,43 @@ const pantrySnapshotSchema = {
       type: "object",
       maxProperties: MAX_PANTRY_ITEMS,
       additionalProperties: { enum: PANTRY_LOCATIONS },
+    },
+    items: {
+      type: "object",
+      maxProperties: MAX_PANTRY_ITEMS,
+      additionalProperties: {
+        type: "object",
+        additionalProperties: false,
+        required: ["location", "quantity", "freshness", "source"],
+        properties: {
+          location: { enum: PANTRY_LOCATIONS },
+          quantity: {
+            anyOf: [
+              { type: "null" },
+              {
+                type: "object",
+                additionalProperties: false,
+                required: ["amount", "unit"],
+                properties: {
+                  amount: { type: "number", exclusiveMinimum: 0 },
+                  unit: { type: "string", minLength: 1, maxLength: 32 },
+                },
+              },
+            ],
+          },
+          freshness: { enum: PANTRY_FRESHNESS_STATES },
+          source: {
+            type: "object",
+            additionalProperties: false,
+            required: ["kind", "confidence", "provenance"],
+            properties: {
+              kind: { enum: ["user", "inferred"] },
+              confidence: { type: "number", minimum: 0, maximum: 1 },
+              provenance: { type: "string", minLength: 1, maxLength: 200 },
+            },
+          },
+        },
+      },
     },
     itemVersions: {
       type: "object",

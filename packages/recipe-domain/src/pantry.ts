@@ -1,10 +1,44 @@
 import { z } from "zod";
 
-export const PANTRY_LOCATIONS = ["fridge", "cupboards", "fresh"] as const;
+export const PANTRY_LOCATIONS = [
+  "fridge",
+  "freezer",
+  "cupboards",
+  "fresh",
+] as const;
+
+export const PANTRY_FRESHNESS_STATES = [
+  "fresh",
+  "use_soon",
+  "past_best_before",
+  "unknown",
+] as const;
+
+export const PANTRY_SOURCE_KINDS = ["user", "inferred"] as const;
 
 export const PantryLocationSchema = z.enum(PANTRY_LOCATIONS);
+export const PantryFreshnessSchema = z.enum(PANTRY_FRESHNESS_STATES);
+export const PantrySourceKindSchema = z.enum(PANTRY_SOURCE_KINDS);
 
 export type PantryLocation = z.infer<typeof PantryLocationSchema>;
+export type PantryFreshness = z.infer<typeof PantryFreshnessSchema>;
+export type PantrySourceKind = z.infer<typeof PantrySourceKindSchema>;
+
+export type PantryQuantity = {
+  amount: number;
+  unit: string;
+};
+
+export type PantryItemDetails = {
+  location: PantryLocation;
+  quantity: PantryQuantity | null;
+  freshness: PantryFreshness;
+  source: {
+    kind: PantrySourceKind;
+    confidence: number;
+    provenance: string;
+  };
+};
 
 export const MAX_PANTRY_ITEMS = 500;
 export const MAX_PANTRY_MUTATION_CHANGES = 100;

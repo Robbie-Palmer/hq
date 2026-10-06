@@ -7,6 +7,7 @@ import {
   Refrigerator,
   RotateCcw,
   ShoppingBasket,
+  Snowflake,
   Sprout,
   X,
 } from "lucide-react";
@@ -55,6 +56,7 @@ const LOCATION_META: Record<
   { label: string; icon: typeof Refrigerator }
 > = {
   fridge: { label: "fridge", icon: Refrigerator },
+  freezer: { label: "freezer", icon: Snowflake },
   cupboards: { label: "cupboards", icon: ShoppingBasket },
   fresh: { label: "fresh", icon: Sprout },
 };

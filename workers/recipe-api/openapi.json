@@ -4804,6 +4804,7 @@
                       "type": "string",
                       "enum": [
                         "fridge",
+                        "freezer",
                         "cupboards",
                         "fresh"
                       ]
@@ -4980,6 +4981,7 @@
                       "type": "string",
                       "enum": [
                         "fridge",
+                        "freezer",
                         "cupboards",
                         "fresh"
                       ]
@@ -5166,8 +5168,39 @@
                     "type": "string",
                     "enum": [
                       "fridge",
+                      "freezer",
                       "cupboards",
                       "fresh"
+                    ]
+                  },
+                  "quantity": {
+                    "type": "object",
+                    "nullable": true,
+                    "properties": {
+                      "amount": {
+                        "type": "number",
+                        "minimum": 0.001,
+                        "maximum": 999999999
+                      },
+                      "unit": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32
+                      }
+                    },
+                    "required": [
+                      "amount",
+                      "unit"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "freshness": {
+                    "type": "string",
+                    "enum": [
+                      "fresh",
+                      "use_soon",
+                      "past_best_before",
+                      "unknown"
                     ]
                   }
                 },

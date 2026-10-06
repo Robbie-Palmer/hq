@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { KitchenView } from "@/components/recipes/kitchen/kitchen-view";
 import type { UnresolvedAuthoredTerm } from "@/lib/api/authored-terms";
+import type { Pantry } from "@/lib/api/pantry";
 import type { KitchenStock } from "@/lib/domain/recipe/kitchen";
 
 const dietState = vi.hoisted(() => ({ mode: "hide" as "hide" | "warn" }));
@@ -15,11 +16,13 @@ const kitchenStockState = vi.hoisted(() => ({
     replaceStock: vi.fn(),
     restoreStock: vi.fn(),
     setStockLocation: vi.fn(),
+    updateStockItem: vi.fn(),
   },
   pantry: {
     data: {
       scope: { type: "personal" as const },
       stock: {} as KitchenStock,
+      items: undefined as Pantry["items"],
       unresolvedTerms: undefined as UnresolvedAuthoredTerm[] | undefined,
     },
     error: null as Error | null,
@@ -94,6 +97,7 @@ describe("KitchenView diet ingredient catalog", () => {
     kitchenStockState.pantry.data = {
       scope: { type: "personal" },
       stock: {},
+      items: undefined,
       unresolvedTerms: undefined,
     };
     kitchenStockState.pantry.error = null;
@@ -187,6 +191,7 @@ describe("KitchenView diet ingredient catalog", () => {
     kitchenStockState.pantry.data = {
       scope: { type: "personal" },
       stock: { chickpeas: "cupboards" },
+      items: undefined,
       unresolvedTerms: undefined,
     };
     const user = userEvent.setup();
@@ -199,6 +204,7 @@ describe("KitchenView diet ingredient catalog", () => {
     kitchenStockState.pantry.data = {
       scope: { type: "personal" },
       stock: {},
+      items: undefined,
       unresolvedTerms: undefined,
     };
     view.rerender(<KitchenView ingredients={ingredients} recipes={[]} />);
@@ -228,6 +234,47 @@ describe("KitchenView diet ingredient catalog", () => {
     expect(
       screen.getByText(/Doesn't match your diet: Bacon/),
     ).toBeInTheDocument();
+  });
+
+  it("shows inferred provenance and saves a household correction", async () => {
+    kitchenStockState.pantry.data = {
+      scope: { type: "personal" },
+      stock: { chickpeas: "cupboards" },
+      items: {
+        chickpeas: {
+          location: "cupboards",
+          quantity: null,
+          freshness: "unknown",
+          source: {
+            kind: "inferred",
+            confidence: 0.3,
+            provenance: "Receipt scan on 5 October",
+          },
+        },
+      },
+      unresolvedTerms: undefined,
+    };
+    const user = userEvent.setup();
+    render(<KitchenView ingredients={ingredients} recipes={recipes} />);
+
+    expect(
+      screen.getByText("30% inferred · Receipt scan on 5 October"),
+    ).toHaveAttribute("title", "Receipt scan on 5 October");
+    await user.click(screen.getByRole("button", { name: "Edit Chickpeas" }));
+    await user.selectOptions(screen.getByLabelText("Location"), "freezer");
+    await user.selectOptions(screen.getByLabelText("Freshness"), "fresh");
+    await user.type(screen.getByLabelText("Quantity"), "2.5");
+    await user.type(screen.getByLabelText("Unit"), "bags");
+    await user.click(screen.getByRole("button", { name: "Save correction" }));
+
+    expect(kitchenStockState.actions.updateStockItem).toHaveBeenCalledWith(
+      "chickpeas",
+      {
+        location: "freezer",
+        quantity: { amount: 2.5, unit: "bags" },
+        freshness: "fresh",
+      },
+    );
   });
 
   it("shows excluded ingredients with warnings in warn mode", () => {

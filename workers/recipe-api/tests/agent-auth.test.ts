@@ -911,8 +911,28 @@ describe("recipe Agent Auth capabilities", () => {
           },
         ],
         [
-          { ingredientSlug: "onion", location: "fresh", version: 3n },
-          { ingredientSlug: "milk", location: "fridge", version: 1n },
+          {
+            ingredientSlug: "onion",
+            location: "fresh",
+            quantity: "2.000",
+            quantityUnit: "items",
+            freshness: "use_soon",
+            sourceKind: "inferred",
+            confidence: "0.750",
+            provenance: "Receipt scan",
+            version: 3n,
+          },
+          {
+            ingredientSlug: "milk",
+            location: "fridge",
+            quantity: null,
+            quantityUnit: null,
+            freshness: "unknown",
+            sourceKind: "user",
+            confidence: "1",
+            provenance: "Manual kitchen update",
+            version: 1n,
+          },
         ],
         [{ revision: 7n }],
       ),
@@ -926,6 +946,28 @@ describe("recipe Agent Auth capabilities", () => {
       scope: "household",
       revision: "7",
       stock: { onion: "fresh", milk: "fridge" },
+      items: {
+        onion: {
+          location: "fresh",
+          quantity: { amount: 2, unit: "items" },
+          freshness: "use_soon",
+          source: {
+            kind: "inferred",
+            confidence: 0.75,
+            provenance: "Receipt scan",
+          },
+        },
+        milk: {
+          location: "fridge",
+          quantity: null,
+          freshness: "unknown",
+          source: {
+            kind: "user",
+            confidence: 1,
+            provenance: "Manual kitchen update",
+          },
+        },
+      },
       itemVersions: { onion: "3", milk: "1" },
     });
   });
@@ -943,6 +985,7 @@ describe("recipe Agent Auth capabilities", () => {
       scope: "personal",
       revision: "0",
       stock: {},
+      items: {},
       itemVersions: {},
     });
   });
