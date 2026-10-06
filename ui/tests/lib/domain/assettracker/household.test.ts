@@ -165,6 +165,193 @@ describe("browser household ownership", () => {
     );
   });
 
+  it("keeps future cash-flow ownership tied to its first-stage account", () => {
+    const migrated = AssetTrackerDataSchema.parse(oldSinglePersonData());
+    const data = AssetTrackerDataSchema.parse({
+      ...migrated,
+      household: {
+        members: [
+          { id: "primary", displayName: "Alex" },
+          { id: "sam", displayName: "Sam" },
+        ],
+        activeScope: { kind: "household" },
+      },
+      accounts: [
+        migrated.accounts[0],
+        {
+          id: "sam-cash",
+          name: "Sam cash",
+          provider: "Bank",
+          currency: "GBP",
+          assetType: "cash",
+          expectedAnnualReturn: 0,
+          createdAt: "2025-01-01",
+        },
+      ],
+      futureCashFlows: [
+        {
+          id: "staged-commitment",
+          name: "Staged commitment",
+          kind: "commitment",
+          currency: "GBP",
+          stages: [
+            {
+              id: "deposit",
+              fromAccountId: "cash",
+              dueDate: "2025-12-01",
+              amount: 500,
+            },
+            {
+              id: "balance",
+              fromAccountId: "sam-cash",
+              dueDate: "2026-01-01",
+              amount: 1_000,
+            },
+          ],
+        },
+      ],
+      ownership: {
+        ...migrated.ownership,
+        accounts: {
+          cash: personalOwnership("primary"),
+          "sam-cash": personalOwnership("sam"),
+        },
+        futureCashFlows: {
+          "staged-commitment": personalOwnership("primary"),
+        },
+      },
+    });
+    const shared = equalSharedOwnership(data.household.members);
+
+    const laterStageUpdated = applySetAccountOwnership(data, {
+      accountId: "sam-cash",
+      ownership: shared,
+    });
+    const firstStageUpdated = applySetAccountOwnership(data, {
+      accountId: "cash",
+      ownership: shared,
+    });
+
+    expect(
+      laterStageUpdated.ownership.futureCashFlows["staged-commitment"],
+    ).toEqual(personalOwnership("primary"));
+    expect(
+      firstStageUpdated.ownership.futureCashFlows["staged-commitment"],
+    ).toEqual(shared);
+  });
+
+  it("removes scoped references to accounts and future cash flows that were dropped", () => {
+    const migrated = AssetTrackerDataSchema.parse(oldSinglePersonData());
+    const data = AssetTrackerDataSchema.parse({
+      ...migrated,
+      household: {
+        members: [
+          { id: "primary", displayName: "Alex" },
+          { id: "sam", displayName: "Sam" },
+        ],
+        activeScope: { kind: "member", memberId: "sam" },
+      },
+      accounts: [
+        migrated.accounts[0],
+        {
+          id: "sam-cash",
+          name: "Sam cash",
+          provider: "Bank",
+          currency: "GBP",
+          assetType: "cash",
+          expectedAnnualReturn: 0,
+          createdAt: "2025-01-01",
+        },
+      ],
+      futureCashFlows: [
+        {
+          id: "primary-commitment",
+          name: "Primary commitment",
+          kind: "commitment",
+          currency: "GBP",
+          stages: [
+            {
+              id: "payment",
+              fromAccountId: "cash",
+              dueDate: "2025-12-01",
+              amount: 500,
+            },
+          ],
+        },
+        {
+          id: "sam-decision",
+          name: "Sam decision",
+          kind: "decision",
+          currency: "GBP",
+          dependencyIds: ["primary-commitment"],
+          alternativeToIds: ["primary-commitment"],
+          stages: [
+            {
+              id: "choice",
+              fromAccountId: "sam-cash",
+              expectedDate: "2025-12-01",
+              minimumAmount: 100,
+              expectedAmount: 200,
+              maximumAmount: 300,
+            },
+          ],
+        },
+      ],
+      forecastAssumptionSets: [
+        {
+          id: "shared-income-v1",
+          seriesId: "shared-income",
+          name: "Shared income",
+          version: 1,
+          status: "active",
+          createdAt: "2025-01-31T12:00:00Z",
+          assumptions: [
+            {
+              id: "income-change",
+              name: "Income change",
+              kind: "income",
+              startDate: "2025-06-01",
+              monthlyChange: {
+                minimum: 100,
+                expected: 200,
+                maximum: 300,
+              },
+              currency: "GBP",
+              ownership: {
+                kind: "shared",
+                shares: [
+                  { memberId: "primary", share: 0.5 },
+                  { memberId: "sam", share: 0.5 },
+                ],
+              },
+              accountId: "cash",
+              source: { kind: "manual-take-home" },
+            },
+          ],
+        },
+      ],
+      ownership: {
+        ...migrated.ownership,
+        accounts: {
+          cash: personalOwnership("primary"),
+          "sam-cash": personalOwnership("sam"),
+        },
+      },
+    });
+
+    const scoped = scopeAssetTrackerData(data);
+
+    expect(scoped.futureCashFlows).toMatchObject([
+      {
+        id: "sam-decision",
+        dependencyIds: [],
+        alternativeToIds: [],
+      },
+    ]);
+    expect(scoped.forecastAssumptionSets[0]?.assumptions).toEqual([]);
+    expect(() => buildRepository(scoped)).not.toThrow();
+  });
+
   it("applies reviewed import ownership to every committed row", () => {
     const migrated = AssetTrackerDataSchema.parse(oldSinglePersonData());
     const householdData = AssetTrackerDataSchema.parse({
@@ -346,6 +533,7 @@ describe("browser household ownership", () => {
         { id: "spending", fromAccountId: "cash" },
       ],
       plannedExpenditures: [{ id: "holiday", fromAccountId: "cash" }],
+      futureCashFlows: [],
       holdingObservations: [{ id: "holding", accountId: "cash" }],
     });
 
@@ -425,6 +613,32 @@ describe("browser household ownership", () => {
           fromAccountId: "cash",
         },
       ],
+      forecastAssumptionSets: [
+        {
+          id: "household-v1",
+          seriesId: "household",
+          name: "Household",
+          version: 1,
+          status: "active",
+          createdAt: "2025-01-31T12:00:00Z",
+          assumptions: [
+            {
+              id: "temporary-cost",
+              name: "Temporary cost",
+              kind: "expenditure",
+              startDate: "2025-06-01",
+              monthlyChange: {
+                minimum: 100,
+                expected: 200,
+                maximum: 300,
+              },
+              currency: "GBP",
+              ownership: shared,
+              source: { kind: "manual" },
+            },
+          ],
+        },
+      ],
       instruments: [
         { id: "fund", symbol: "FUND", name: "Fund", currency: "GBP" },
       ],
@@ -483,11 +697,24 @@ describe("browser household ownership", () => {
       grossAmount: 240,
     });
     expect(scoped.plannedExpenditures[0]?.amount).toBe(400);
+    const scopedCommitment = scoped.futureCashFlows[0];
+    expect(scopedCommitment?.kind).toBe("commitment");
+    if (scopedCommitment?.kind !== "commitment") {
+      throw new Error("fixture has no migrated commitment");
+    }
+    expect(scopedCommitment.stages[0]?.amount).toBe(400);
+    expect(scoped.forecastAssumptionSets[0]?.assumptions[0]).toMatchObject({
+      monthlyChange: { minimum: 40, expected: 80, maximum: 120 },
+      ownership: personalOwnership("sam"),
+    });
     expect(scoped.holdingObservations?.[0]?.quantity).toBe(4);
     expect(reassigned.ownership.holdingObservations.holding).toEqual(
       personalOwnership("primary"),
     );
     expect(cashReassigned.ownership.plannedExpenditures.holiday).toEqual(
+      personalOwnership("primary"),
+    );
+    expect(cashReassigned.ownership.futureCashFlows.holiday).toEqual(
       personalOwnership("primary"),
     );
   });

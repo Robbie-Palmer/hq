@@ -3,6 +3,12 @@ import { AccountContentSchema } from "./account";
 import { BalanceSnapshotSchema } from "./balanceSnapshot";
 import { CapitalFlowSchema } from "./capitalFlow";
 import { CurrencySchema, DEFAULT_BASE_CURRENCY } from "./currency";
+import { ForecastAssumptionSetSchema } from "./forecastAssumption";
+import {
+  FutureCashFlowSchema,
+  legacyPlannedExpenditureToCommitment,
+  PlanningCaseSchema,
+} from "./futureCashFlow";
 import {
   DEFAULT_HOUSEHOLD,
   EMPTY_HOUSEHOLD_OWNERSHIP,
@@ -91,6 +97,9 @@ export const AssetTrackerDataSchema = z
     transfers: z.array(TransferSchema).default([]),
     recurringFlows: z.array(RecurringFlowSchema).default([]),
     plannedExpenditures: z.array(PlannedExpenditureSchema).default([]),
+    planningCases: z.array(PlanningCaseSchema).default([]),
+    futureCashFlows: z.array(FutureCashFlowSchema).default([]),
+    forecastAssumptionSets: z.array(ForecastAssumptionSetSchema).default([]),
     mortgageScenarios: z.array(MortgageScenarioSchema).optional(),
     decisionRecords: z.array(FinancialDecisionRecordSchema).optional(),
     instruments: z.array(InstrumentSchema).optional(),
@@ -132,7 +141,26 @@ export const AssetTrackerDataSchema = z
         flow.currency;
       return currency === flow.currency ? flow : { ...flow, currency };
     });
-    return migrateHouseholdOwnership({ ...data, recurringFlows });
+    const futureCashFlowIds = new Set(
+      data.futureCashFlows.map((record) => record.id),
+    );
+    const migratedPlannedExpenditures = data.plannedExpenditures.flatMap(
+      (expenditure) => {
+        if (futureCashFlowIds.has(expenditure.id)) return [];
+        const currency =
+          accountCurrencies.get(expenditure.fromAccountId) ??
+          data.settings.baseCurrency;
+        return [legacyPlannedExpenditureToCommitment(expenditure, currency)];
+      },
+    );
+    return migrateHouseholdOwnership({
+      ...data,
+      recurringFlows,
+      futureCashFlows: [
+        ...data.futureCashFlows,
+        ...migratedPlannedExpenditures,
+      ],
+    });
   });
 
 export type AssetTrackerData = z.infer<typeof AssetTrackerDataSchema>;

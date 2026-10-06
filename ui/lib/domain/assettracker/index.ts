@@ -12,6 +12,8 @@ export * from "./currency";
 export * from "./currentExchangeRate";
 export * from "./exchangeRateDecimal";
 export * from "./exchangeRateImport";
+export * from "./forecastAssumption";
+export * from "./futureCashFlow";
 export * from "./grossSalaryTrajectory";
 export * from "./household";
 export * from "./housingStrategy";
