@@ -2,13 +2,8 @@ import { formatCurrency } from "@/lib/assettracker";
 import type {
   Currency,
   EmergencyFundAnalysis,
-  EmergencyFundPlanInput,
   EmergencyFundStressResult,
 } from "@/lib/domain/assettracker";
-
-function percentage(value: number): string {
-  return `${(value * 100).toFixed(0)}%`;
-}
 
 function stressDescription(
   result: EmergencyFundStressResult | undefined,
@@ -53,11 +48,9 @@ function PolicyPosition({
 export function EmergencyFundResults({
   analysis,
   baseCurrency,
-  plan,
 }: Readonly<{
   analysis: EmergencyFundAnalysis;
   baseCurrency: Currency;
-  plan: EmergencyFundPlanInput;
 }>) {
   return (
     <div className="space-y-4 border-t pt-5">
@@ -69,9 +62,7 @@ export function EmergencyFundResults({
           </p>
         </div>
         <div>
-          <p className="text-xs text-muted-foreground">
-            Reviewed essential need
-          </p>
+          <p className="text-xs text-muted-foreground">Reserve spending need</p>
           <p className="text-lg font-semibold">
             {formatCurrency(
               Math.round(analysis.monthlyEssentialNeed),
@@ -150,9 +141,7 @@ export function EmergencyFundResults({
       <p className="text-xs text-muted-foreground">
         Money above a selected policy is available for another use. It can be
         spent now, invested for the future, or kept as extra margin. This view
-        reports the trade-off; it does not choose for the household. Income
-        reliability is currently {percentage(plan.employmentIncomeReliability)}{" "}
-        and side-income reliability is {percentage(plan.sideIncomeReliability)}.
+        reports the trade-off; it does not choose for the household.
       </p>
       {analysis.selectedDecisionCosts > 0 && (
         <p className="text-xs text-muted-foreground">

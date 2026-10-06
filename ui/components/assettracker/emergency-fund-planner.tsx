@@ -6,11 +6,13 @@ import { Input } from "@/components/ui/input";
 import {
   defaultEmergencyFundAccountPolicy,
   type EmergencyFundAccountPolicy,
+  type EmergencyFundDerivedFacts,
   type EmergencyFundPlanInput,
   EmergencyFundPlanInputSchema,
   formatAssetTrackerError,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { EmergencyFundFacts } from "./emergency-fund-facts";
 import { EmergencyFundResults } from "./emergency-fund-results";
 import { EmergencyFundSources } from "./emergency-fund-sources";
 
@@ -67,26 +69,28 @@ function Field({
 }
 
 function initialPlan(
-  annualCurrentExpenditure: number | null,
-  inflation: number,
+  facts: EmergencyFundDerivedFacts,
   accounts: ReturnType<typeof useAssetTracker>["accountDetails"],
 ): EmergencyFundPlanInput {
-  const monthly = Math.max((annualCurrentExpenditure ?? 0) / 12, 0);
+  const monthly = facts.essentialMonthlyExpenditure ?? 0;
   return {
     name: "Household emergency reserves",
     essentialMonthlyExpenditure: Math.round(monthly),
     annualIrregularEssentialCosts: 0,
-    monthlyDebtPayments: 0,
-    dependantCount: 0,
-    employmentMonthlyIncome: Math.round(monthly),
-    employmentIncomeReliability: 0.8,
-    monthlySideIncome: 0,
-    sideIncomeReliability: 0.5,
+    monthlyDebtPayments: facts.monthlyDebtPayments,
+    employmentMonthlyIncome: facts.employmentMonthlyIncome ?? 0,
+    monthlySideIncome: facts.monthlySideIncome,
     accessNeedDays: 7,
-    missingData:
-      annualCurrentExpenditure == null
-        ? ["Reconciled essential household expenditure"]
-        : ["Irregular essential costs", "Income stability review"],
+    missingData: [
+      ...(facts.essentialMonthlyExpenditure == null
+        ? ["Reconciled household spending"]
+        : []),
+      ...(facts.employmentMonthlyIncome == null
+        ? ["Active take-home income flow"]
+        : []),
+      "Essential and non-essential spending classification",
+      "Irregular essential costs",
+    ],
     coverageMonths: [3, 6, 9],
     accountPolicies: accounts.map(defaultEmergencyFundAccountPolicy),
     stressScenarios: [
@@ -97,7 +101,7 @@ function initialPlan(
         employmentIncomeLossRate: 1,
         sideIncomeDelayMonths: 2,
         unexpectedCost: Math.round(monthly),
-        annualInflationRate: inflation,
+        annualInflationRate: facts.annualInflationRate,
       },
     ],
   };
@@ -109,8 +113,7 @@ export function EmergencyFundPlanner() {
     accountDetails,
     analyseEmergencyFundDraft,
     baseCurrency,
-    financialIndependence,
-    inflation,
+    emergencyFundFacts,
     saveEmergencyFundPlan,
   } = context;
   const emergencyFundPlans = context.emergencyFundPlans ?? [];
@@ -118,17 +121,8 @@ export function EmergencyFundPlanner() {
     ({ status }) => status === "active",
   );
   const fallback = useMemo(
-    () =>
-      initialPlan(
-        financialIndependence.representativeAnnualCurrentExpenditure,
-        inflation,
-        accountDetails,
-      ),
-    [
-      accountDetails,
-      financialIndependence.representativeAnnualCurrentExpenditure,
-      inflation,
-    ],
+    () => initialPlan(emergencyFundFacts, accountDetails),
+    [accountDetails, emergencyFundFacts],
   );
   const [draft, setDraft] = useState<EmergencyFundPlanInput>(
     activePlan ?? fallback,
@@ -221,17 +215,12 @@ export function EmergencyFundPlanner() {
         </div>
       </div>
 
+      <EmergencyFundFacts
+        baseCurrency={baseCurrency}
+        facts={emergencyFundFacts}
+      />
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Field
-          label="Essential spending per month"
-          value={draft.essentialMonthlyExpenditure}
-          onChange={(value) =>
-            setDraft((current) => ({
-              ...current,
-              essentialMonthlyExpenditure: value,
-            }))
-          }
-        />
         <Field
           label="Irregular essentials per year"
           value={draft.annualIrregularEssentialCosts}
@@ -239,61 +228,6 @@ export function EmergencyFundPlanner() {
             setDraft((current) => ({
               ...current,
               annualIrregularEssentialCosts: value,
-            }))
-          }
-        />
-        <Field
-          label="Debt payments per month"
-          value={draft.monthlyDebtPayments}
-          onChange={(value) =>
-            setDraft((current) => ({ ...current, monthlyDebtPayments: value }))
-          }
-        />
-        <Field
-          label="Dependants"
-          value={draft.dependantCount}
-          onChange={(value) =>
-            setDraft((current) => ({ ...current, dependantCount: value }))
-          }
-        />
-        <Field
-          label="Employment income per month"
-          value={draft.employmentMonthlyIncome}
-          onChange={(value) =>
-            setDraft((current) => ({
-              ...current,
-              employmentMonthlyIncome: value,
-            }))
-          }
-        />
-        <Field
-          label="Employment income reliability"
-          value={draft.employmentIncomeReliability * 100}
-          max={100}
-          suffix="%"
-          onChange={(value) =>
-            setDraft((current) => ({
-              ...current,
-              employmentIncomeReliability: value / 100,
-            }))
-          }
-        />
-        <Field
-          label="Side income per month"
-          value={draft.monthlySideIncome}
-          onChange={(value) =>
-            setDraft((current) => ({ ...current, monthlySideIncome: value }))
-          }
-        />
-        <Field
-          label="Side income reliability"
-          value={draft.sideIncomeReliability * 100}
-          max={100}
-          suffix="%"
-          onChange={(value) =>
-            setDraft((current) => ({
-              ...current,
-              sideIncomeReliability: value / 100,
             }))
           }
         />
@@ -372,13 +306,14 @@ export function EmergencyFundPlanner() {
         <div>
           <h4 className="text-sm font-medium">Stress assumptions</h4>
           <p className="text-xs text-muted-foreground">
-            Editable inputs, not a risk score or recommendation.
+            These are explicit what-if events, not probability scores. Inflation
+            comes from the shared tracker setting.
           </p>
         </div>
         {draft.stressScenarios.map((scenario, index) => (
           <div
             key={scenario.id}
-            className="grid gap-3 rounded-md bg-muted/40 p-3 sm:grid-cols-2 lg:grid-cols-5"
+            className="grid gap-3 rounded-md bg-muted/40 p-3 sm:grid-cols-2 lg:grid-cols-4"
           >
             <Field
               label="Duration"
@@ -444,33 +379,12 @@ export function EmergencyFundPlanner() {
                 }))
               }
             />
-            <Field
-              label="Annual inflation"
-              value={scenario.annualInflationRate * 100}
-              step={0.1}
-              suffix="%"
-              onChange={(value) =>
-                setDraft((current) => ({
-                  ...current,
-                  stressScenarios: current.stressScenarios.map(
-                    (item, itemIndex) =>
-                      itemIndex === index
-                        ? { ...item, annualInflationRate: value / 100 }
-                        : item,
-                  ),
-                }))
-              }
-            />
           </div>
         ))}
       </div>
 
       {analysis && (
-        <EmergencyFundResults
-          analysis={analysis}
-          baseCurrency={baseCurrency}
-          plan={draft}
-        />
+        <EmergencyFundResults analysis={analysis} baseCurrency={baseCurrency} />
       )}
 
       <div className="flex flex-wrap items-center gap-3">

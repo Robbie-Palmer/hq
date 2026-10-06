@@ -10,8 +10,16 @@ import type { AssetTrackerRepository } from "./assetTrackerRepository";
 import { futureCashFlowForecastItems } from "./futureCashFlow";
 import {
   convertAccountAmountAtDate,
+  convertMoneyAtDate,
   latestValuedBalances,
 } from "./portfolioValuation";
+import {
+  type CompensationKind,
+  monthlyAmount,
+  monthlyReceivedAmount,
+  type RecurringFlow,
+  recurringFlowReceivedMoney,
+} from "./recurringFlow";
 
 const OptionalTextSchema = z.string().trim().min(1).optional();
 
@@ -59,11 +67,8 @@ export const EmergencyFundPlanInputSchema = z.object({
   essentialMonthlyExpenditure: z.number().nonnegative(),
   annualIrregularEssentialCosts: z.number().nonnegative(),
   monthlyDebtPayments: z.number().nonnegative(),
-  dependantCount: z.number().int().nonnegative(),
   employmentMonthlyIncome: z.number().nonnegative(),
-  employmentIncomeReliability: z.number().min(0).max(1),
   monthlySideIncome: z.number().nonnegative(),
-  sideIncomeReliability: z.number().min(0).max(1),
   accessNeedDays: z.number().int().nonnegative(),
   missingData: z
     .array(z.string().trim().min(1))
@@ -94,6 +99,14 @@ export const EmergencyFundPlanInputSchema = z.object({
 export type EmergencyFundPlanInput = z.infer<
   typeof EmergencyFundPlanInputSchema
 >;
+
+export type EmergencyFundDerivedFacts = {
+  essentialMonthlyExpenditure: number | null;
+  monthlyDebtPayments: number;
+  employmentMonthlyIncome: number | null;
+  monthlySideIncome: number;
+  annualInflationRate: number;
+};
 
 export const EmergencyFundPlanSchema = EmergencyFundPlanInputSchema.extend({
   id: z.string().trim().min(1),
@@ -196,23 +209,32 @@ export function defaultEmergencyFundAccountPolicy(
 export function defaultEmergencyFundPlanInput(
   repository: AssetTrackerRepository,
   annualCurrentExpenditure: number | null,
+  asOfDate: string,
 ): EmergencyFundPlanInput {
-  const monthlyExpenditure = Math.max((annualCurrentExpenditure ?? 0) / 12, 0);
+  const facts = deriveEmergencyFundFacts(
+    repository,
+    annualCurrentExpenditure,
+    asOfDate,
+  );
+  const monthlyExpenditure = facts.essentialMonthlyExpenditure ?? 0;
   return {
     name: "Household emergency reserves",
     essentialMonthlyExpenditure: Math.round(monthlyExpenditure),
     annualIrregularEssentialCosts: 0,
-    monthlyDebtPayments: 0,
-    dependantCount: 0,
-    employmentMonthlyIncome: Math.round(monthlyExpenditure),
-    employmentIncomeReliability: 0.8,
-    monthlySideIncome: 0,
-    sideIncomeReliability: 0.5,
+    monthlyDebtPayments: facts.monthlyDebtPayments,
+    employmentMonthlyIncome: facts.employmentMonthlyIncome ?? 0,
+    monthlySideIncome: facts.monthlySideIncome,
     accessNeedDays: 7,
-    missingData:
-      annualCurrentExpenditure == null
-        ? ["Reconciled essential household expenditure"]
-        : ["Irregular essential costs", "Income stability review"],
+    missingData: [
+      ...(annualCurrentExpenditure == null
+        ? ["Reconciled household spending"]
+        : []),
+      ...(facts.employmentMonthlyIncome == null
+        ? ["Active take-home income flow"]
+        : []),
+      "Essential and non-essential spending classification",
+      "Irregular essential costs",
+    ],
     coverageMonths: [3, 6, 9],
     accountPolicies: Array.from(repository.accounts.values()).map(
       defaultEmergencyFundAccountPolicy,
@@ -225,10 +247,121 @@ export function defaultEmergencyFundPlanInput(
         employmentIncomeLossRate: 1,
         sideIncomeDelayMonths: 2,
         unexpectedCost: Math.round(monthlyExpenditure),
-        annualInflationRate: repository.settings.expectedAnnualInflation,
+        annualInflationRate: facts.annualInflationRate,
       },
     ],
   };
+}
+
+function activeOn(flow: { startDate: string; endDate?: string }, date: string) {
+  return (
+    flow.startDate <= date && (flow.endDate == null || flow.endDate >= date)
+  );
+}
+
+function monthlyDebtPayments(
+  repository: AssetTrackerRepository,
+  asOfDate: string,
+): number {
+  const balances =
+    latestValuedBalances(repository) ?? new Map<string, number>();
+  return repository.recurringFlows.reduce((total, flow) => {
+    if (!activeOn(flow, asOfDate)) return total;
+    const destination =
+      flow.toAccountId == null
+        ? null
+        : repository.accounts.get(flow.toAccountId);
+    if (destination == null || !isLiability(destination.assetType))
+      return total;
+    const amount = monthlyAmount(flow, balances.get(destination.id));
+    const converted = convertMoneyAtDate(
+      repository,
+      { amount, currency: flow.currency },
+      asOfDate,
+    );
+    return total + (converted ?? 0);
+  }, 0);
+}
+
+function monthlyCompensation(
+  repository: AssetTrackerRepository,
+  asOfDate: string,
+  kind: CompensationKind,
+): { found: boolean; value: number } {
+  const flows = repository.recurringFlows.filter(
+    (flow) => flow.compensationKind === kind && activeOn(flow, asOfDate),
+  );
+  return {
+    found: flows.length > 0,
+    value: flows.reduce(
+      (total, flow) =>
+        total + monthlyCompensationFlow(repository, flow, asOfDate),
+      0,
+    ),
+  };
+}
+
+function monthlyCompensationFlow(
+  repository: AssetTrackerRepository,
+  flow: RecurringFlow,
+  asOfDate: string,
+): number {
+  const received = recurringFlowReceivedMoney(flow);
+  if (received == null) return 0;
+  return (
+    convertMoneyAtDate(
+      repository,
+      { amount: monthlyReceivedAmount(flow), currency: received.currency },
+      asOfDate,
+    ) ?? 0
+  );
+}
+
+export function deriveEmergencyFundFacts(
+  repository: AssetTrackerRepository,
+  annualCurrentExpenditure: number | null,
+  asOfDate: string,
+): EmergencyFundDerivedFacts {
+  const debtPayments = monthlyDebtPayments(repository, asOfDate);
+  const employmentIncome = monthlyCompensation(
+    repository,
+    asOfDate,
+    "takeHomeIncome",
+  );
+  const sideIncome = monthlyCompensation(repository, asOfDate, "sideIncome");
+
+  const monthlyCurrentExpenditure =
+    annualCurrentExpenditure == null
+      ? null
+      : Math.max(annualCurrentExpenditure / 12, 0);
+  return {
+    essentialMonthlyExpenditure:
+      monthlyCurrentExpenditure == null
+        ? null
+        : Math.round(Math.max(monthlyCurrentExpenditure - debtPayments, 0)),
+    monthlyDebtPayments: Math.round(debtPayments),
+    employmentMonthlyIncome: employmentIncome.found
+      ? Math.round(employmentIncome.value)
+      : null,
+    monthlySideIncome: Math.round(sideIncome.value),
+    annualInflationRate: repository.settings.expectedAnnualInflation,
+  };
+}
+
+export function applyEmergencyFundDerivedFacts<
+  T extends EmergencyFundPlanInput,
+>(plan: T, facts: EmergencyFundDerivedFacts): T {
+  return {
+    ...plan,
+    essentialMonthlyExpenditure: facts.essentialMonthlyExpenditure ?? 0,
+    monthlyDebtPayments: facts.monthlyDebtPayments,
+    employmentMonthlyIncome: facts.employmentMonthlyIncome ?? 0,
+    monthlySideIncome: facts.monthlySideIncome,
+    stressScenarios: plan.stressScenarios.map((scenario) => ({
+      ...scenario,
+      annualInflationRate: facts.annualInflationRate,
+    })),
+  } as T;
 }
 
 function exclusionReason(
@@ -319,13 +452,9 @@ function simulateStress(input: {
       input.monthlyEssentialNeed *
       (1 + scenario.annualInflationRate) ** (month / 12);
     const employmentIncome =
-      plan.employmentMonthlyIncome *
-      (1 - scenario.employmentIncomeLossRate) *
-      plan.employmentIncomeReliability;
+      plan.employmentMonthlyIncome * (1 - scenario.employmentIncomeLossRate);
     const sideIncome =
-      month <= scenario.sideIncomeDelayMonths
-        ? 0
-        : plan.monthlySideIncome * plan.sideIncomeReliability;
+      month <= scenario.sideIncomeDelayMonths ? 0 : plan.monthlySideIncome;
     const availableIncome = employmentIncome + sideIncome;
     const decisionCosts = input.decisionCosts.get(month) ?? 0;
     const unexpectedCost = month === 1 ? scenario.unexpectedCost : 0;

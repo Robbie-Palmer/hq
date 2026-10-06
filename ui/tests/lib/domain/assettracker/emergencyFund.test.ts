@@ -3,9 +3,11 @@ import {
   type AssetTrackerData,
   AssetTrackerDataSchema,
   analyseEmergencyFund,
+  applyEmergencyFundDerivedFacts,
   applySaveEmergencyFundPlan,
   buildRepository,
   defaultEmergencyFundAccountPolicy,
+  deriveEmergencyFundFacts,
   type EmergencyFundPlanInput,
 } from "@/lib/domain/assettracker";
 
@@ -84,11 +86,8 @@ function plan(
     essentialMonthlyExpenditure: 1_000,
     annualIrregularEssentialCosts: 1_200,
     monthlyDebtPayments: 100,
-    dependantCount: 1,
     employmentMonthlyIncome: 2_000,
-    employmentIncomeReliability: 0.8,
     monthlySideIncome: 1_000,
-    sideIncomeReliability: 0.5,
     accessNeedDays: 7,
     missingData: [],
     coverageMonths: [3, 6],
@@ -111,6 +110,98 @@ function plan(
 }
 
 describe("emergency-fund planning", () => {
+  it("derives observed spending, debt, income, and inflation from tracker data", () => {
+    const base = data();
+    const source = AssetTrackerDataSchema.parse({
+      ...base,
+      accounts: [
+        ...base.accounts,
+        {
+          id: "mortgage",
+          name: "Home mortgage",
+          provider: "Bank A",
+          currency: "GBP",
+          assetType: "mortgage",
+          liquidity: "illiquid",
+          expectedAnnualReturn: 0.04,
+          createdAt: "2024-01-01",
+        },
+      ],
+      snapshots: [
+        ...base.snapshots,
+        { accountId: "mortgage", date: "2026-10-01", balance: -100_000 },
+      ],
+      recurringFlows: [
+        {
+          id: "salary",
+          name: "Salary",
+          toAccountId: "cash",
+          amount: 4_000,
+          currency: "GBP",
+          compensationKind: "takeHomeIncome",
+          frequency: "monthly",
+          startDate: "2024-01-01",
+        },
+        {
+          id: "consulting",
+          name: "Consulting invoices",
+          toAccountId: "cash",
+          amount: 500,
+          currency: "GBP",
+          compensationKind: "sideIncome",
+          frequency: "monthly",
+          startDate: "2024-01-01",
+        },
+        {
+          id: "mortgage-payment",
+          name: "Mortgage payment",
+          fromAccountId: "cash",
+          toAccountId: "mortgage",
+          amount: 1_000,
+          currency: "GBP",
+          frequency: "monthly",
+          startDate: "2024-01-01",
+        },
+      ],
+      settings: { ...base.settings, expectedAnnualInflation: 0.04 },
+    });
+    const repository = buildRepository(source);
+    const facts = deriveEmergencyFundFacts(repository, 18_000, "2026-10-01");
+
+    expect(facts).toEqual({
+      essentialMonthlyExpenditure: 500,
+      monthlyDebtPayments: 1_000,
+      employmentMonthlyIncome: 4_000,
+      monthlySideIncome: 500,
+      annualInflationRate: 0.04,
+    });
+    expect(applyEmergencyFundDerivedFacts(plan(source), facts)).toMatchObject({
+      essentialMonthlyExpenditure: 500,
+      monthlyDebtPayments: 1_000,
+      employmentMonthlyIncome: 4_000,
+      monthlySideIncome: 500,
+      stressScenarios: [expect.objectContaining({ annualInflationRate: 0.04 })],
+    });
+  });
+
+  it("does not reuse stale saved facts when current tracker data is missing", () => {
+    const resolved = applyEmergencyFundDerivedFacts(plan(), {
+      essentialMonthlyExpenditure: null,
+      monthlyDebtPayments: 0,
+      employmentMonthlyIncome: null,
+      monthlySideIncome: 0,
+      annualInflationRate: 0.03,
+    });
+
+    expect(resolved).toMatchObject({
+      essentialMonthlyExpenditure: 0,
+      monthlyDebtPayments: 0,
+      employmentMonthlyIncome: 0,
+      monthlySideIncome: 0,
+      stressScenarios: [expect.objectContaining({ annualInflationRate: 0.03 })],
+    });
+  });
+
   it("uses reviewed essential and irregular costs without counting inaccessible assets", () => {
     const repository = buildRepository(data());
     const result = analyseEmergencyFund(repository, plan(), "2026-10-01");
@@ -242,7 +333,7 @@ describe("emergency-fund planning", () => {
       result.currentResults[0]?.path.map(
         ({ availableIncome }) => availableIncome,
       ),
-    ).toEqual([0, 0, 500]);
+    ).toEqual([0, 0, 1_000]);
   });
 
   it("applies access delays, capital risk, and withdrawal fees", () => {
@@ -334,7 +425,7 @@ describe("emergency-fund planning", () => {
     expect(result.currentResults[0]?.path[0]?.decisionCosts).toBe(2_000);
   });
 
-  it("versions revised household facts and preserves lineage", () => {
+  it("versions revised assumptions and preserves lineage", () => {
     const first = applySaveEmergencyFundPlan(
       data(),
       plan(),
@@ -342,7 +433,10 @@ describe("emergency-fund planning", () => {
     );
     const revised = applySaveEmergencyFundPlan(
       first,
-      plan(first, { dependantCount: 2, essentialMonthlyExpenditure: 1_400 }),
+      plan(first, {
+        annualIrregularEssentialCosts: 2_400,
+        essentialMonthlyExpenditure: 1_400,
+      }),
       "2026-10-02T12:00:00Z",
     );
 
@@ -352,7 +446,7 @@ describe("emergency-fund planning", () => {
       version: 2,
       status: "active",
       supersedesId: "household-emergency-reserves-v1",
-      dependantCount: 2,
+      annualIrregularEssentialCosts: 2_400,
       essentialMonthlyExpenditure: 1_400,
     });
   });

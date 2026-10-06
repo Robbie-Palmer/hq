@@ -13,6 +13,16 @@ export const recurringFlows: RecurringFlow[] = [
     startDate: "2024-01-01",
   },
   {
+    id: "freelance-invoices",
+    name: "Freelance invoices",
+    toAccountId: "nationwide-current",
+    amount: 650,
+    currency: "GBP",
+    compensationKind: "sideIncome",
+    frequency: "monthly",
+    startDate: "2024-01-01",
+  },
+  {
     id: "isa-contribution",
     name: "ISA contribution",
     fromAccountId: "nationwide-current",

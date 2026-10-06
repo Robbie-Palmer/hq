@@ -17,12 +17,17 @@ import {
   type NetWorthDataPoint,
   toFxImpactTimeSeries,
 } from "@/lib/domain/assettracker/assetTrackerViews";
-import { analyseEmergencyFund } from "@/lib/domain/assettracker/emergencyFund";
+import {
+  analyseEmergencyFund,
+  applyEmergencyFundDerivedFacts,
+  deriveEmergencyFundFacts,
+} from "@/lib/domain/assettracker/emergencyFund";
 import { futureCashFlowForecastItems } from "@/lib/domain/assettracker/futureCashFlow";
 import {
   scopeAssetTrackerData,
   snapshotOwnershipKey,
 } from "@/lib/domain/assettracker/household";
+import { getPortfolioFinancialIndependence } from "@/lib/domain/assettracker/portfolioReconciliation";
 import { valueAccountAtDate } from "@/lib/domain/assettracker/portfolioValuation";
 import { buildPropertyComparableViews } from "@/lib/domain/assettracker/propertyComparables";
 import { buildPropertyValueHistoryViews } from "@/lib/domain/assettracker/propertyIndexHistory";
@@ -377,7 +382,6 @@ describe("Asset Tracker demo-data adapter", () => {
       id: "household-emergency-reserves-v1",
       version: 1,
       status: "active",
-      dependantCount: 1,
       coverageMonths: [6, 12, 18],
       missingData: [
         "Childcare renewal cost after 2027",
@@ -395,9 +399,26 @@ describe("Asset Tracker demo-data adapter", () => {
     expect(emergencyFundPlan).toBeDefined();
     if (emergencyFundPlan == null) return;
 
+    expect(repository.recurringFlows).toContainEqual(
+      expect.objectContaining({
+        id: "freelance-invoices",
+        compensationKind: "sideIncome",
+        amount: 650,
+      }),
+    );
+    const financialIndependence = getPortfolioFinancialIndependence(
+      repository,
+      "2024-12-01",
+    );
+    const facts = deriveEmergencyFundFacts(
+      repository,
+      financialIndependence.representativeAnnualCurrentExpenditure,
+      "2024-12-01",
+    );
+
     const emergencyFundAnalysis = analyseEmergencyFund(
       repository,
-      emergencyFundPlan,
+      applyEmergencyFundDerivedFacts(emergencyFundPlan, facts),
       "2024-12-01",
     );
     expect(emergencyFundAnalysis.accessibleFunds).toBe(18_900);

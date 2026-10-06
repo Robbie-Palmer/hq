@@ -37,6 +37,7 @@ import {
   type AssetTrackerData,
   type AssetType,
   analyseEmergencyFund,
+  applyEmergencyFundDerivedFacts,
   buildAccountReadModels,
   buildPropertyComparableViews,
   buildPropertyValueHistoryViews,
@@ -49,7 +50,9 @@ import {
   currentSalaryHistory,
   type DeleteCapitalFlowInput,
   type DeleteSnapshotInput,
+  deriveEmergencyFundFacts,
   type EmergencyFundAnalysis,
+  type EmergencyFundDerivedFacts,
   type EmergencyFundPlan,
   type EmergencyFundPlanInput,
   type FinancialDecisionRecord,
@@ -115,6 +118,7 @@ interface AssetTrackerContextValue {
   futureCashFlows: FutureCashFlow[];
   forecastAssumptionSets: ForecastAssumptionSet[];
   emergencyFundPlans: EmergencyFundPlan[];
+  emergencyFundFacts: EmergencyFundDerivedFacts;
   emergencyFundAnalysis: EmergencyFundAnalysis | null;
   analyseEmergencyFundDraft(
     input: EmergencyFundPlanInput,
@@ -343,6 +347,26 @@ function useLocalAssetTrackerData() {
   };
 }
 
+function resolveEmergencyFundViews(
+  repository: ReturnType<typeof buildRepository>,
+  annualCurrentExpenditure: number | null,
+  valuationDate: string,
+) {
+  const facts = deriveEmergencyFundFacts(
+    repository,
+    annualCurrentExpenditure,
+    valuationDate,
+  );
+  const plans = repository.emergencyFundPlans.map((plan) =>
+    applyEmergencyFundDerivedFacts(plan, facts),
+  );
+  return {
+    activePlan: plans.find(({ status }) => status === "active"),
+    facts,
+    plans,
+  };
+}
+
 export function AssetTrackerProvider({
   children,
 }: Readonly<{ children: ReactNode }>) {
@@ -382,8 +406,10 @@ export function AssetTrackerProvider({
       repository,
       valuationDate,
     );
-    const activeEmergencyFundPlan = repository.emergencyFundPlans.find(
-      ({ status }) => status === "active",
+    const emergencyFund = resolveEmergencyFundViews(
+      repository,
+      financialIndependence.representativeAnnualCurrentExpenditure,
+      valuationDate,
     );
     return {
       accounts,
@@ -399,17 +425,22 @@ export function AssetTrackerProvider({
       planningCases: repository.planningCases,
       futureCashFlows: repository.futureCashFlows,
       forecastAssumptionSets: repository.forecastAssumptionSets,
-      emergencyFundPlans: repository.emergencyFundPlans,
+      emergencyFundPlans: emergencyFund.plans,
+      emergencyFundFacts: emergencyFund.facts,
       emergencyFundAnalysis:
-        activeEmergencyFundPlan == null
+        emergencyFund.activePlan == null
           ? null
           : analyseEmergencyFund(
               repository,
-              activeEmergencyFundPlan,
+              emergencyFund.activePlan,
               valuationDate,
             ),
       analyseEmergencyFundDraft: (input: EmergencyFundPlanInput) =>
-        analyseEmergencyFund(repository, input, valuationDate),
+        analyseEmergencyFund(
+          repository,
+          applyEmergencyFundDerivedFacts(input, emergencyFund.facts),
+          valuationDate,
+        ),
       mortgageScenarios: repository.mortgageScenarios,
       decisionRecords: repository.decisionRecords,
       incomeHistory: repository.incomeHistory,

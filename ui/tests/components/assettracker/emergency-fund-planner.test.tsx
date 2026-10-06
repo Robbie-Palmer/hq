@@ -34,6 +34,14 @@ const cashPolicy = {
   protectionGroup: "Example Bank",
 };
 
+const emergencyFundFacts = {
+  essentialMonthlyExpenditure: 1_000,
+  monthlyDebtPayments: 175,
+  employmentMonthlyIncome: 4_200,
+  monthlySideIncome: 500,
+  annualInflationRate: 0.025,
+};
+
 const analysis: EmergencyFundAnalysis = {
   monthlyEssentialNeed: 1_000,
   accessibleFunds: 12_000,
@@ -143,6 +151,7 @@ beforeEach(() => {
     accountDetails: [cashAccount],
     analyseEmergencyFundDraft: () => analysis,
     baseCurrency: "GBP",
+    emergencyFundFacts,
     emergencyFundPlans: [],
     financialIndependence: {
       representativeAnnualCurrentExpenditure: 12_000,
@@ -171,19 +180,15 @@ describe("EmergencyFundPlanner", () => {
     expect(
       screen.getAllByText(/No uncovered shortfall over 12 months/),
     ).toHaveLength(2);
+    expect(screen.queryByText(/income reliability/i)).not.toBeInTheDocument();
+    expect(screen.getByText("£4,200/month")).toBeVisible();
+    expect(screen.getByText("Active take-home income flows")).toBeVisible();
   });
 
   it("edits each assumption and persists a reviewed plan", async () => {
     render(<EmergencyFundPlanner />);
     const changes: Array<[string, string]> = [
-      ["Essential spending per month", "1100"],
       ["Irregular essentials per year", "2400"],
-      ["Debt payments per month", "175"],
-      ["Dependants", "2"],
-      ["Employment income per month", "4200"],
-      ["Employment income reliability", "70"],
-      ["Side income per month", "500"],
-      ["Side income reliability", "40"],
       ["Funds needed within", "5"],
       ["Policies to compare, in months", "6, 18"],
       ["Missing or uncertain facts", "Childcare, contract renewal"],
@@ -196,7 +201,6 @@ describe("EmergencyFundPlanner", () => {
       ["Employment income lost", "80"],
       ["Side-income delay", "4"],
       ["Unexpected cost", "3000"],
-      ["Annual inflation", "4"],
     ];
     for (const [label, value] of changes) {
       fireEvent.change(screen.getByLabelText(label), {
@@ -213,14 +217,11 @@ describe("EmergencyFundPlanner", () => {
 
     expect(saveEmergencyFundPlan).toHaveBeenCalledWith(
       expect.objectContaining({
-        essentialMonthlyExpenditure: 1_100,
+        essentialMonthlyExpenditure: 1_000,
         annualIrregularEssentialCosts: 2_400,
         monthlyDebtPayments: 175,
-        dependantCount: 2,
         employmentMonthlyIncome: 4_200,
-        employmentIncomeReliability: 0.7,
         monthlySideIncome: 500,
-        sideIncomeReliability: 0.4,
         accessNeedDays: 5,
         coverageMonths: [6, 18],
         missingData: ["Childcare", "contract renewal"],
@@ -241,7 +242,7 @@ describe("EmergencyFundPlanner", () => {
             employmentIncomeLossRate: 0.8,
             sideIncomeDelayMonths: 4,
             unexpectedCost: 3_000,
-            annualInflationRate: 0.04,
+            annualInflationRate: 0.025,
           }),
         ],
       }),
@@ -271,6 +272,7 @@ describe("EmergencyFundPlanner", () => {
       accountDetails: [cashAccount],
       analyseEmergencyFundDraft: () => analysis,
       baseCurrency: "GBP",
+      emergencyFundFacts,
       emergencyFundPlans: [
         {
           id: "household-emergency-reserves-v2",
@@ -282,11 +284,8 @@ describe("EmergencyFundPlanner", () => {
           essentialMonthlyExpenditure: 1_000,
           annualIrregularEssentialCosts: 0,
           monthlyDebtPayments: 0,
-          dependantCount: 0,
           employmentMonthlyIncome: 1_000,
-          employmentIncomeReliability: 0.8,
           monthlySideIncome: 0,
-          sideIncomeReliability: 0.5,
           accessNeedDays: 7,
           missingData: [],
           coverageMonths: [6, 18],
@@ -324,6 +323,7 @@ describe("EmergencyFundPlanner", () => {
       accountDetails: [cashAccount],
       analyseEmergencyFundDraft: () => analysis,
       baseCurrency: "GBP",
+      emergencyFundFacts,
       emergencyFundPlans: [],
       financialIndependence: {
         representativeAnnualCurrentExpenditure: 12_000,

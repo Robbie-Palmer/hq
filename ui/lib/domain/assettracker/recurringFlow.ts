@@ -27,6 +27,7 @@ export type FlowFrequency = z.infer<typeof FlowFrequencySchema>;
  */
 export const CompensationKindSchema = z.enum([
   "takeHomeIncome",
+  "sideIncome",
   "employeePension",
   "employerPension",
 ]);
