@@ -22,6 +22,11 @@ import {
 } from "./capitalFlow";
 import { CurrencySchema } from "./currency";
 import {
+  type EmergencyFundPlanInput,
+  EmergencyFundPlanInputSchema,
+  EmergencyFundPlanSchema,
+} from "./emergencyFund";
+import {
   ForecastAssumptionBaseSchema,
   ForecastAssumptionSchema,
   ForecastAssumptionSetSchema,
@@ -384,6 +389,9 @@ export const CreateForecastAssumptionSetInputSchema = z.object({
 export type CreateForecastAssumptionSetInput = z.infer<
   typeof CreateForecastAssumptionSetInputSchema
 >;
+
+export const SaveEmergencyFundPlanInputSchema = EmergencyFundPlanInputSchema;
+export type SaveEmergencyFundPlanInput = EmergencyFundPlanInput;
 
 export const AddForecastAssumptionInputSchema =
   ForecastAssumptionBaseSchema.omit({
@@ -1688,6 +1696,39 @@ export function applySetExpectedReturn(
     a.id === account.id ? { ...a, expectedReturnChanges: changes } : a,
   );
   return { ...data, accounts };
+}
+
+export function applySaveEmergencyFundPlan(
+  data: AssetTrackerData,
+  input: SaveEmergencyFundPlanInput,
+  createdAt: string,
+): AssetTrackerData {
+  const parsed = SaveEmergencyFundPlanInputSchema.parse(input);
+  const plans = data.emergencyFundPlans ?? [];
+  const active = plans.find(({ status }) => status === "active");
+  const seriesId = active?.seriesId ?? "household-emergency-reserves";
+  const version = active == null ? 1 : active.version + 1;
+  const takenIds = new Set(plans.map(({ id }) => id));
+  const plan = EmergencyFundPlanSchema.parse({
+    ...parsed,
+    id: uniqueId(takenIds, `${seriesId}-v${version}`),
+    seriesId,
+    version,
+    status: "active",
+    createdAt,
+    ...(active == null ? {} : { supersedesId: active.id }),
+  });
+  return {
+    ...data,
+    emergencyFundPlans: [
+      ...plans.map((candidate) =>
+        candidate.id === active?.id
+          ? { ...candidate, status: "superseded" as const }
+          : candidate,
+      ),
+      plan,
+    ],
+  };
 }
 
 export function applySetAccountLiquidity(

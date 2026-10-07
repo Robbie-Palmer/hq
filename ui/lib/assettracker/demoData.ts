@@ -16,6 +16,7 @@ import {
   type AssetTrackerData,
   AssetTrackerDataSchema,
 } from "@/lib/domain/assettracker/assetTrackerData";
+import { defaultEmergencyFundAccountPolicy } from "@/lib/domain/assettracker/emergencyFund";
 import {
   type Ownership,
   personalOwnership,
@@ -37,6 +38,22 @@ const homeOwnership: Ownership = {
     { memberId: "sam", share: 0.4 },
   ],
 };
+
+const DEPOSIT_PROTECTION_SOURCE =
+  "https://www.bankofengland.co.uk/prudential-regulation/authorisations/financial-services-compensation-scheme";
+
+function demoEmergencyFundAccountPolicies() {
+  return accounts.map((account) => {
+    const policy = defaultEmergencyFundAccountPolicy(account);
+    if (account.assetType !== "cash") return policy;
+    return {
+      ...policy,
+      protectionLimit: 120_000,
+      protectionGroup: account.provider,
+      protectionSourceUrl: DEPOSIT_PROTECTION_SOURCE,
+    };
+  });
+}
 
 /** Builds the bundled demo dataset used by the static UI and local adapter. */
 export function getDemoAssetTrackerData(): AssetTrackerData {
@@ -252,6 +269,39 @@ export function getDemoAssetTrackerData(): AssetTrackerData {
             ownership: equalHouseholdOwnership,
             source: { kind: "manual" },
             sourceNotes: "Expected reduction after the completed work",
+          },
+        ],
+      },
+    ],
+    emergencyFundPlans: [
+      {
+        id: "household-emergency-reserves-v1",
+        seriesId: "household-emergency-reserves",
+        name: "Household emergency reserves",
+        version: 1,
+        status: "active",
+        createdAt: "2026-10-05T12:00:00Z",
+        essentialMonthlyExpenditure: 1_250,
+        annualIrregularEssentialCosts: 1_200,
+        monthlyDebtPayments: 150,
+        employmentMonthlyIncome: 6_500,
+        monthlySideIncome: 650,
+        accessNeedDays: 7,
+        missingData: [
+          "Childcare renewal cost after 2027",
+          "Outcome of the next contract renewal",
+        ],
+        coverageMonths: [6, 12, 18],
+        accountPolicies: demoEmergencyFundAccountPolicies(),
+        stressScenarios: [
+          {
+            id: "income-loss-delayed-invoices-and-repairs",
+            name: "Income loss, delayed invoices and home repairs",
+            durationMonths: 36,
+            employmentIncomeLossRate: 1,
+            sideIncomeDelayMonths: 3,
+            unexpectedCost: 2_500,
+            annualInflationRate: 0.04,
           },
         ],
       },

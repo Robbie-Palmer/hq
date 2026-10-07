@@ -36,6 +36,8 @@ import {
   type AssetAllocationDataPoint,
   type AssetTrackerData,
   type AssetType,
+  analyseEmergencyFund,
+  applyEmergencyFundDerivedFacts,
   buildAccountReadModels,
   buildPropertyComparableViews,
   buildPropertyValueHistoryViews,
@@ -48,6 +50,11 @@ import {
   currentSalaryHistory,
   type DeleteCapitalFlowInput,
   type DeleteSnapshotInput,
+  deriveEmergencyFundFacts,
+  type EmergencyFundAnalysis,
+  type EmergencyFundDerivedFacts,
+  type EmergencyFundPlan,
+  type EmergencyFundPlanInput,
   type FinancialDecisionRecord,
   type ForecastAssumptionSet,
   type FutureCashFlow,
@@ -85,6 +92,7 @@ import {
   type RecordTransferInput,
   type RecurringFlow,
   type SalaryHistoryRecord,
+  type SaveEmergencyFundPlanInput,
   type SaveMortgageScenarioInput,
   type SaveSalaryRecordInput,
   type SetAccountLiquidityInput,
@@ -109,6 +117,12 @@ interface AssetTrackerContextValue {
   planningCases: PlanningCase[];
   futureCashFlows: FutureCashFlow[];
   forecastAssumptionSets: ForecastAssumptionSet[];
+  emergencyFundPlans: EmergencyFundPlan[];
+  emergencyFundFacts: EmergencyFundDerivedFacts;
+  emergencyFundAnalysis: EmergencyFundAnalysis | null;
+  analyseEmergencyFundDraft(
+    input: EmergencyFundPlanInput,
+  ): EmergencyFundAnalysis;
   mortgageScenarios: MortgageScenario[];
   decisionRecords: FinancialDecisionRecord[];
   incomeHistory: IncomeRecord[];
@@ -192,6 +206,7 @@ interface AssetTrackerContextValue {
   setBaseCurrency(currency: Currency): Promise<void>;
   setWithdrawalRate(rate: number): Promise<void>;
   saveMortgageScenario(input: SaveMortgageScenarioInput): Promise<void>;
+  saveEmergencyFundPlan(input: SaveEmergencyFundPlanInput): Promise<void>;
   setNetWorthTarget(
     target: number | null,
     inTodaysMoney?: boolean,
@@ -332,6 +347,26 @@ function useLocalAssetTrackerData() {
   };
 }
 
+function resolveEmergencyFundViews(
+  repository: ReturnType<typeof buildRepository>,
+  annualCurrentExpenditure: number | null,
+  valuationDate: string,
+) {
+  const facts = deriveEmergencyFundFacts(
+    repository,
+    annualCurrentExpenditure,
+    valuationDate,
+  );
+  const plans = repository.emergencyFundPlans.map((plan) =>
+    applyEmergencyFundDerivedFacts(plan, facts),
+  );
+  return {
+    activePlan: plans.find(({ status }) => status === "active"),
+    facts,
+    plans,
+  };
+}
+
 export function AssetTrackerProvider({
   children,
 }: Readonly<{ children: ReactNode }>) {
@@ -371,6 +406,11 @@ export function AssetTrackerProvider({
       repository,
       valuationDate,
     );
+    const emergencyFund = resolveEmergencyFundViews(
+      repository,
+      financialIndependence.representativeAnnualCurrentExpenditure,
+      valuationDate,
+    );
     return {
       accounts,
       accountDetails,
@@ -385,6 +425,22 @@ export function AssetTrackerProvider({
       planningCases: repository.planningCases,
       futureCashFlows: repository.futureCashFlows,
       forecastAssumptionSets: repository.forecastAssumptionSets,
+      emergencyFundPlans: emergencyFund.plans,
+      emergencyFundFacts: emergencyFund.facts,
+      emergencyFundAnalysis:
+        emergencyFund.activePlan == null
+          ? null
+          : analyseEmergencyFund(
+              repository,
+              emergencyFund.activePlan,
+              valuationDate,
+            ),
+      analyseEmergencyFundDraft: (input: EmergencyFundPlanInput) =>
+        analyseEmergencyFund(
+          repository,
+          applyEmergencyFundDerivedFacts(input, emergencyFund.facts),
+          valuationDate,
+        ),
       mortgageScenarios: repository.mortgageScenarios,
       decisionRecords: repository.decisionRecords,
       incomeHistory: repository.incomeHistory,
@@ -501,6 +557,8 @@ export function AssetTrackerProvider({
         mutate((api) => api.setWithdrawalRate({ rate })),
       saveMortgageScenario: (input) =>
         mutate((api) => api.saveMortgageScenario(input)),
+      saveEmergencyFundPlan: (input) =>
+        mutate((api) => api.saveEmergencyFundPlan(input)),
       setNetWorthTarget: (target, inTodaysMoney) =>
         mutate((api) => api.setNetWorthTarget({ target, inTodaysMoney })),
       addHouseholdMember: (displayName) =>

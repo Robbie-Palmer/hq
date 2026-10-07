@@ -620,6 +620,12 @@ export function scopeAssetTrackerData(
       }),
     }),
   );
+  const emergencyFundPlans = (data.emergencyFundPlans ?? []).map((plan) => ({
+    ...plan,
+    accountPolicies: plan.accountPolicies.filter(({ accountId }) =>
+      keptAccountIds.has(accountId),
+    ),
+  }));
   const mortgageScenarios = (data.mortgageScenarios ?? []).filter(
     ({ source }) =>
       (source.mortgageAccountId == null ||
@@ -677,6 +683,7 @@ export function scopeAssetTrackerData(
     plannedExpenditures,
     futureCashFlows,
     forecastAssumptionSets,
+    emergencyFundPlans,
     mortgageScenarios,
     decisionRecords,
     holdingObservations,

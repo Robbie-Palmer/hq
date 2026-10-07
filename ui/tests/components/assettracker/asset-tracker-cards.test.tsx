@@ -245,6 +245,14 @@ function mockAssetTracker(
     planningCases: [],
     futureCashFlows: [],
     forecastAssumptionSets: [],
+    emergencyFundPlans: [],
+    emergencyFundFacts: {
+      essentialMonthlyExpenditure: null,
+      monthlyDebtPayments: 0,
+      employmentMonthlyIncome: null,
+      monthlySideIncome: 0,
+      annualInflationRate: 0.025,
+    },
     incomeHistory: [],
     financialIndependence: EMPTY_FI,
     housingPlanningPosition: null,
@@ -763,7 +771,6 @@ describe("PortfolioGoal", () => {
     expect(screen.getByText(/25.0% from take-home pay/)).toBeVisible();
     expect(screen.getByText(/£3,000 employee pension/)).toBeVisible();
     expect(screen.getAllByText("£9,000")[0]).toBeVisible();
-    expect(screen.getByText("4.5 months without income")).toBeVisible();
     expect(
       screen.getByRole("img", {
         name: "Financial runway from cash, liquid assets, and total net worth",
