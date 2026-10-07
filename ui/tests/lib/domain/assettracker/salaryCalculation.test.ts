@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  calculateNoPensionSalaryHistory,
   calculateSalaryHistory,
   type SalaryHistoryRecord,
 } from "@/lib/domain/assettracker";
@@ -189,6 +190,127 @@ describe("salary history calculations", () => {
     expect(first?.available && first.lineage.assumptions).toContainEqual({
       id: "observed-tax-code",
       value: "1257L",
+    });
+  });
+
+  it.each(["salarySacrifice", "netPay", "reliefAtSource"] as const)(
+    "calculates a zero-employee-pension counterfactual from %s",
+    (arrangement) => {
+      const [calculation] = calculateNoPensionSalaryHistory(
+        [
+          salaryRecord({
+            employeePension: {
+              arrangement,
+              amount: 6_000,
+              basis: "grossPay",
+            },
+          }),
+        ],
+        "2026-04-05",
+      );
+
+      expect(calculation?.scenario).toBe("hypothetical-no-employee-pension");
+      expect(calculation?.result.available).toBe(true);
+      if (!calculation?.result.available) return;
+      expect(calculation.result.components).toMatchObject({
+        contractualGrossPayPence: 6_000_000,
+        grossCashPayPence: 6_000_000,
+        employeePensionContributionPence: 0,
+        salarySacrificePence: 0,
+        memberPensionDeductionPence: 0,
+        employerPensionContributionPence: 300_000,
+        providerTaxReliefPence: 0,
+      });
+      expect(calculation.result.lineage.assumptions).toEqual(
+        expect.arrayContaining([
+          {
+            id: "scenario",
+            value: "hypothetical-no-employee-pension",
+          },
+          { id: "employee-pension-contribution-pence", value: 0 },
+          { id: "salary-sacrifice-pence", value: 0 },
+        ]),
+      );
+      expect(calculation.comparison).toMatchObject({
+        foregoneEmployeeContributionPence:
+          arrangement === "reliefAtSource" ? 750_000 : 600_000,
+        employerPensionContributionPence: 300_000,
+      });
+    },
+  );
+
+  it("can calculate the scenario when the employee pension was not recorded", () => {
+    const [calculation] = calculateNoPensionSalaryHistory(
+      [salaryRecord({ employeePension: undefined })],
+      "2026-04-05",
+    );
+
+    expect(calculation?.baselineResult).toMatchObject({
+      available: false,
+      reasons: [expect.objectContaining({ code: "missing-employee-pension" })],
+    });
+    expect(calculation?.result.available).toBe(true);
+    expect(calculation?.comparison).toBeNull();
+  });
+
+  it("keeps net pay available when only employer pension is unknown", () => {
+    const [missingEmployer] = calculateNoPensionSalaryHistory(
+      [salaryRecord({ employerPension: undefined })],
+      "2026-04-05",
+    );
+
+    expect(missingEmployer?.result.available).toBe(true);
+    expect(missingEmployer?.employerPension).toMatchObject({
+      contributionPence: null,
+      unavailableReasons: [
+        expect.objectContaining({ code: "missing-employer-pension" }),
+      ],
+    });
+    expect(missingEmployer?.comparison).toBeNull();
+  });
+
+  it("keeps unsupported years unavailable", () => {
+    const [unsupportedYear] = calculateNoPensionSalaryHistory(
+      [
+        salaryRecord({
+          effectiveStart: "2014-04-06",
+          effectiveEnd: "2015-04-05",
+        }),
+      ],
+      "2015-04-05",
+    );
+
+    expect(unsupportedYear?.result).toMatchObject({
+      available: false,
+      reasons: [expect.objectContaining({ code: "unsupported-rules" })],
+    });
+  });
+
+  it("does not guess unsupported counterfactual inputs", () => {
+    const [calculation] = calculateNoPensionSalaryHistory(
+      [
+        salaryRecord({
+          currency: "USD",
+          jurisdiction: "UK",
+          otherTaxableIncome: undefined,
+          otherDeductions: undefined,
+          nationalInsuranceCategory: "B",
+          isCompanyDirector: true,
+        }),
+      ],
+      "2026-04-05",
+    );
+
+    expect(calculation?.result).toMatchObject({
+      available: false,
+      reasons: expect.arrayContaining([
+        expect.objectContaining({ code: "unsupported-currency" }),
+        expect.objectContaining({ code: "unsupported-jurisdiction" }),
+        expect.objectContaining({ code: "missing-other-income" }),
+        expect.objectContaining({ code: "missing-other-deductions" }),
+        expect.objectContaining({ code: "unsupported-ni-category" }),
+        expect.objectContaining({ code: "unsupported-director-ni" }),
+      ]),
     });
   });
 });

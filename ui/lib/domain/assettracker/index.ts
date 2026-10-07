@@ -22,6 +22,7 @@ export * from "./money";
 export * from "./mortgage";
 export * from "./mortgageCalculator";
 export * from "./mortgageInvestment";
+export * from "./noPensionNetTrajectory";
 export * from "./pastedHistory";
 export * from "./plannedExpenditure";
 export * from "./portfolioReconciliation";
