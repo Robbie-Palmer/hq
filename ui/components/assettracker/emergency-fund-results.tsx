@@ -45,6 +45,128 @@ function PolicyPosition({
   return <span>On target</span>;
 }
 
+function ResultsSummary({
+  analysis,
+  currency,
+}: Readonly<{
+  analysis: EmergencyFundAnalysis;
+  currency: Currency;
+}>) {
+  const coverage = analysis.accessibleCoverageMonths;
+  return (
+    <div className="grid gap-3 sm:grid-cols-3">
+      <div>
+        <p className="text-xs text-muted-foreground">Accessible now</p>
+        <p className="text-lg font-semibold">
+          {formatCurrency(Math.round(analysis.accessibleFunds), currency)}
+        </p>
+      </div>
+      <div>
+        <p className="text-xs text-muted-foreground">Reserve spending need</p>
+        <p className="text-lg font-semibold">
+          {formatCurrency(Math.round(analysis.monthlyEssentialNeed), currency)}
+          /month
+        </p>
+      </div>
+      <div>
+        <p className="text-xs text-muted-foreground">Current coverage</p>
+        <p className="text-lg font-semibold">
+          {coverage == null
+            ? "No spend basis"
+            : `${coverage.toFixed(1)} months`}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function CurrentResultRow({
+  result,
+  currency,
+}: Readonly<{
+  result: EmergencyFundStressResult;
+  currency: Currency;
+}>) {
+  return (
+    <tr className="border-t">
+      <td className="px-3 py-2 font-medium">Current accessible funds</td>
+      <td className="px-3 py-2 text-right font-mono tabular-nums">
+        {formatCurrency(Math.round(result.startingReserve), currency)}
+      </td>
+      <td className="px-3 py-2 text-right text-muted-foreground">
+        Observed position
+      </td>
+      <td className="px-3 py-2">{stressDescription(result, currency)}</td>
+    </tr>
+  );
+}
+
+function PolicyResultRow({
+  analysis,
+  currency,
+  policy,
+}: Readonly<{
+  analysis: EmergencyFundAnalysis;
+  currency: Currency;
+  policy: EmergencyFundAnalysis["policyTargets"][number];
+}>) {
+  const result = analysis.policyResults.find(
+    ({ policyMonths }) => policyMonths === policy.months,
+  );
+  return (
+    <tr className="border-t">
+      <td className="px-3 py-2 font-medium">{policy.months} months</td>
+      <td className="px-3 py-2 text-right font-mono tabular-nums">
+        {formatCurrency(Math.round(policy.target), currency)}
+      </td>
+      <td className="px-3 py-2 text-right">
+        <PolicyPosition baseCurrency={currency} policy={policy} />
+      </td>
+      <td className="px-3 py-2">{stressDescription(result, currency)}</td>
+    </tr>
+  );
+}
+
+function ResultsTable({
+  analysis,
+  currency,
+}: Readonly<{
+  analysis: EmergencyFundAnalysis;
+  currency: Currency;
+}>) {
+  return (
+    <div className="overflow-x-auto rounded-md border">
+      <table className="w-full min-w-[720px] text-sm">
+        <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+          <tr>
+            <th className="px-3 py-2">Policy</th>
+            <th className="px-3 py-2 text-right">Target</th>
+            <th className="px-3 py-2 text-right">Current position</th>
+            <th className="px-3 py-2">Stress result</th>
+          </tr>
+        </thead>
+        <tbody>
+          {analysis.currentResults.map((result) => (
+            <CurrentResultRow
+              key={`current-${result.scenarioId}`}
+              result={result}
+              currency={currency}
+            />
+          ))}
+          {analysis.policyTargets.map((policy) => (
+            <PolicyResultRow
+              key={policy.months}
+              analysis={analysis}
+              currency={currency}
+              policy={policy}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function EmergencyFundResults({
   analysis,
   baseCurrency,
@@ -54,90 +176,8 @@ export function EmergencyFundResults({
 }>) {
   return (
     <div className="space-y-4 border-t pt-5">
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div>
-          <p className="text-xs text-muted-foreground">Accessible now</p>
-          <p className="text-lg font-semibold">
-            {formatCurrency(Math.round(analysis.accessibleFunds), baseCurrency)}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground">Reserve spending need</p>
-          <p className="text-lg font-semibold">
-            {formatCurrency(
-              Math.round(analysis.monthlyEssentialNeed),
-              baseCurrency,
-            )}
-            /month
-          </p>
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground">Current coverage</p>
-          <p className="text-lg font-semibold">
-            {analysis.accessibleCoverageMonths == null
-              ? "No spend basis"
-              : `${analysis.accessibleCoverageMonths.toFixed(1)} months`}
-          </p>
-        </div>
-      </div>
-
-      <div className="overflow-x-auto rounded-md border">
-        <table className="w-full min-w-[720px] text-sm">
-          <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2">Policy</th>
-              <th className="px-3 py-2 text-right">Target</th>
-              <th className="px-3 py-2 text-right">Current position</th>
-              <th className="px-3 py-2">Stress result</th>
-            </tr>
-          </thead>
-          <tbody>
-            {analysis.currentResults.map((result) => (
-              <tr key={`current-${result.scenarioId}`} className="border-t">
-                <td className="px-3 py-2 font-medium">
-                  Current accessible funds
-                </td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums">
-                  {formatCurrency(
-                    Math.round(result.startingReserve),
-                    baseCurrency,
-                  )}
-                </td>
-                <td className="px-3 py-2 text-right text-muted-foreground">
-                  Observed position
-                </td>
-                <td className="px-3 py-2">
-                  {stressDescription(result, baseCurrency)}
-                </td>
-              </tr>
-            ))}
-            {analysis.policyTargets.map((policy) => {
-              const result = analysis.policyResults.find(
-                ({ policyMonths }) => policyMonths === policy.months,
-              );
-              return (
-                <tr key={policy.months} className="border-t">
-                  <td className="px-3 py-2 font-medium">
-                    {policy.months} months
-                  </td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums">
-                    {formatCurrency(Math.round(policy.target), baseCurrency)}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <PolicyPosition
-                      baseCurrency={baseCurrency}
-                      policy={policy}
-                    />
-                  </td>
-                  <td className="px-3 py-2">
-                    {stressDescription(result, baseCurrency)}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <ResultsSummary analysis={analysis} currency={baseCurrency} />
+      <ResultsTable analysis={analysis} currency={baseCurrency} />
       <p className="text-xs text-muted-foreground">
         Money above a selected policy is available for another use. It can be
         spent now, invested for the future, or kept as extra margin. This view
