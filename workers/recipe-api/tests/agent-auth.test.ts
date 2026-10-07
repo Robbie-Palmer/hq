@@ -1,6 +1,7 @@
 import type { AgentAuthEvent, AgentSession } from "@better-auth/agent-auth";
 import type { Db } from "recipe-db";
 import * as schema from "recipe-db/schema";
+import { emptyPantryFreshness } from "recipe-domain/pantry";
 import { describe, expect, it, vi } from "vitest";
 
 const mutationMocks = vi.hoisted(() => ({
@@ -911,8 +912,36 @@ describe("recipe Agent Auth capabilities", () => {
           },
         ],
         [
-          { ingredientSlug: "onion", location: "fresh", version: 3n },
-          { ingredientSlug: "milk", location: "fridge", version: 1n },
+          {
+            ingredientSlug: "onion",
+            location: "fresh",
+            quantity: "2.000",
+            quantityUnit: "piece",
+            useBy: "2026-10-12",
+            bestBefore: "2026-10-10",
+            stockedAt: "2026-10-07",
+            openedAt: null,
+            frozenAt: null,
+            freshnessEstimate: null,
+            sourceKind: "inferred",
+            provenance: "Receipt scan",
+            version: 3n,
+          },
+          {
+            ingredientSlug: "milk",
+            location: "fridge",
+            quantity: null,
+            quantityUnit: null,
+            useBy: null,
+            bestBefore: null,
+            stockedAt: null,
+            openedAt: null,
+            frozenAt: null,
+            freshnessEstimate: null,
+            sourceKind: "user",
+            provenance: "Manual kitchen update",
+            version: 1n,
+          },
         ],
         [{ revision: 7n }],
       ),
@@ -926,6 +955,31 @@ describe("recipe Agent Auth capabilities", () => {
       scope: "household",
       revision: "7",
       stock: { onion: "fresh", milk: "fridge" },
+      items: {
+        onion: {
+          location: "fresh",
+          quantity: { amount: 2, unit: "piece" },
+          freshness: {
+            ...emptyPantryFreshness(),
+            useBy: "2026-10-12",
+            bestBefore: "2026-10-10",
+            stockedAt: "2026-10-07",
+          },
+          source: {
+            kind: "inferred",
+            provenance: "Receipt scan",
+          },
+        },
+        milk: {
+          location: "fridge",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Manual kitchen update",
+          },
+        },
+      },
       itemVersions: { onion: "3", milk: "1" },
     });
   });
@@ -943,6 +997,7 @@ describe("recipe Agent Auth capabilities", () => {
       scope: "personal",
       revision: "0",
       stock: {},
+      items: {},
       itemVersions: {},
     });
   });

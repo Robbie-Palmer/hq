@@ -23,10 +23,12 @@ import {
 } from "recipe-domain/cook-log";
 import {
   MAX_PANTRY_ITEMS,
+  MAX_PANTRY_FRESHNESS_ESTIMATE_DAYS,
   MAX_PANTRY_MUTATION_CHANGES,
   PANTRY_LOCATIONS,
   PantryLocationSchema,
 } from "recipe-domain/pantry";
+import { UnitSchema } from "recipe-domain/unit";
 import { RECIPE_VISIBILITIES } from "recipe-domain/visibility";
 import { z } from "zod";
 import {
@@ -242,7 +244,14 @@ const completedCookingSessionSchema = {
 const pantrySnapshotSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["resourceId", "scope", "revision", "stock", "itemVersions"],
+  required: [
+    "resourceId",
+    "scope",
+    "revision",
+    "stock",
+    "items",
+    "itemVersions",
+  ],
   properties: {
     resourceId: { type: "string" },
     scope: { enum: ["personal", "household"] },
@@ -251,6 +260,80 @@ const pantrySnapshotSchema = {
       type: "object",
       maxProperties: MAX_PANTRY_ITEMS,
       additionalProperties: { enum: PANTRY_LOCATIONS },
+    },
+    items: {
+      type: "object",
+      maxProperties: MAX_PANTRY_ITEMS,
+      additionalProperties: {
+        type: "object",
+        additionalProperties: false,
+        required: ["location", "quantity", "freshness", "source"],
+        properties: {
+          location: { enum: PANTRY_LOCATIONS },
+          quantity: {
+            anyOf: [
+              { type: "null" },
+              {
+                type: "object",
+                additionalProperties: false,
+                required: ["amount", "unit"],
+                properties: {
+                  amount: { type: "number", exclusiveMinimum: 0 },
+                  unit: { enum: UnitSchema.options },
+                },
+              },
+            ],
+          },
+          freshness: {
+            type: "object",
+            additionalProperties: false,
+            required: [
+              "useBy",
+              "bestBefore",
+              "stockedAt",
+              "openedAt",
+              "frozenAt",
+              "estimate",
+            ],
+            properties: {
+              useBy: { type: ["string", "null"], format: "date" },
+              bestBefore: { type: ["string", "null"], format: "date" },
+              stockedAt: { type: ["string", "null"], format: "date" },
+              openedAt: { type: ["string", "null"], format: "date" },
+              frozenAt: { type: ["string", "null"], format: "date" },
+              estimate: {
+                anyOf: [
+                  { type: "null" },
+                  {
+                    type: "object",
+                    additionalProperties: false,
+                    required: ["expectedDays", "startingOn", "storage", "basis"],
+                    properties: {
+                      expectedDays: {
+                        type: "integer",
+                        minimum: 1,
+                        maximum: MAX_PANTRY_FRESHNESS_ESTIMATE_DAYS,
+                      },
+                      startingOn: { type: "string", format: "date" },
+                      storage: { enum: PANTRY_LOCATIONS },
+                      basis: { enum: ["user", "catalog"] },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+          source: {
+            type: "object",
+            additionalProperties: false,
+            required: ["kind", "provenance"],
+            properties: {
+              kind: { enum: ["user", "inferred"] },
+              provenance: { type: "string", minLength: 1, maxLength: 200 },
+            },
+          },
+        },
+      },
     },
     itemVersions: {
       type: "object",

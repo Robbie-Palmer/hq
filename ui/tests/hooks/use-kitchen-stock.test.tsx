@@ -4,6 +4,7 @@ import {
   type QueryClientProviderProps,
 } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { emptyPantryFreshness } from "recipe-domain/pantry";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   useKitchenStock,
@@ -157,7 +158,7 @@ describe("useKitchenStockActions", () => {
     await waitFor(() =>
       expect(mocks.setPantryItem).toHaveBeenCalledWith(
         "onion",
-        "fresh",
+        { location: "fresh" },
         expect.any(String),
       ),
     );
@@ -211,13 +212,54 @@ describe("useKitchenStockActions", () => {
 
     act(() =>
       result.current.restoreStock({
-        milk: "fridge",
-        onion: "fresh",
+        stock: { milk: "fridge", onion: "fresh" },
+        items: {
+          milk: {
+            location: "fridge",
+            quantity: { amount: 2, unit: "l" },
+            freshness: emptyPantryFreshness(),
+            source: {
+              kind: "inferred",
+              provenance: "Receipt import",
+            },
+          },
+          onion: {
+            location: "fresh",
+            quantity: null,
+            freshness: emptyPantryFreshness(),
+            source: {
+              kind: "user",
+              provenance: "Manual kitchen update",
+            },
+          },
+        },
       }),
     );
     await waitFor(() =>
       expect(mocks.restorePantry).toHaveBeenCalledWith(
-        { milk: "fridge", onion: "fresh" },
+        {
+          stock: { milk: "fridge", onion: "fresh" },
+          items: {
+            milk: {
+              location: "fridge",
+              quantity: { amount: 2, unit: "l" },
+              freshness: emptyPantryFreshness(),
+              source: {
+                kind: "inferred",
+                provenance: "Receipt import",
+              },
+            },
+            onion: {
+              location: "fresh",
+              quantity: null,
+              freshness: emptyPantryFreshness(),
+              source: {
+                kind: "user",
+                provenance: "Manual kitchen update",
+              },
+            },
+          },
+        },
         expect.any(String),
       ),
     );
@@ -339,7 +381,7 @@ describe("useKitchenStockActions", () => {
     await waitFor(() =>
       expect(mocks.setPantryItem).toHaveBeenCalledWith(
         "onion",
-        "fresh",
+        { location: "fresh" },
         expect.any(String),
       ),
     );
