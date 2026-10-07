@@ -13,6 +13,12 @@ function numberValue(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function saveButtonLabel(saving: boolean, hasActivePlan: boolean): string {
+  if (saving) return "Saving…";
+  if (hasActivePlan) return "Save as new version";
+  return "Save reserve plan";
+}
+
 export function NumberField({
   label,
   value,
@@ -243,11 +249,7 @@ export function SaveControls({
   error: string | null;
   onSave(): void;
 }>) {
-  const label = saving
-    ? "Saving…"
-    : hasActivePlan
-      ? "Save as new version"
-      : "Save reserve plan";
+  const label = saveButtonLabel(saving, hasActivePlan);
   return (
     <div className="flex flex-wrap items-center gap-3">
       <Button type="button" onClick={onSave} disabled={saving}>
