@@ -149,6 +149,8 @@ export type EmergencyFundStressResult = {
   shortfallMonths: number;
   totalShortfall: number;
   maximumMonthlyShortfall: number;
+  decisionCostsComplete: boolean;
+  unconvertedDecisionCostIds: string[];
   path: EmergencyFundPathPoint[];
 };
 
@@ -158,6 +160,7 @@ export type EmergencyFundAnalysis = {
   accessibleCoverageMonths: number | null;
   sources: EmergencyFundSource[];
   selectedDecisionCosts: number;
+  unconvertedDecisionCostIds: string[];
   policyTargets: Array<{
     months: number;
     target: number;
@@ -204,6 +207,22 @@ export function defaultEmergencyFundAccountPolicy(
     withdrawalFee: 0,
     protectionGroup: account.provider,
   };
+}
+
+export function includeAllEmergencyFundAccounts<
+  T extends EmergencyFundPlanInput,
+>(plan: T, accounts: Iterable<ReserveAccount>): T {
+  const knownAccountIds = new Set(
+    plan.accountPolicies.map(({ accountId }) => accountId),
+  );
+  const missingPolicies = Array.from(accounts)
+    .filter(({ id }) => !knownAccountIds.has(id))
+    .map(defaultEmergencyFundAccountPolicy);
+  if (missingPolicies.length === 0) return plan;
+  return {
+    ...plan,
+    accountPolicies: [...plan.accountPolicies, ...missingPolicies],
+  } as T;
 }
 
 export function defaultEmergencyFundPlanInput(
@@ -404,12 +423,18 @@ function protectionByAccount(
   return protectedByAccount;
 }
 
+type DecisionCostSchedule = {
+  costs: Map<number, number>;
+  unconvertedIds: Map<number, string[]>;
+};
+
 function selectedDecisionCostsByMonth(
   repository: AssetTrackerRepository,
   startDate: string,
   durationMonths: number,
-): Map<number, number> {
+): DecisionCostSchedule {
   const costs = new Map<number, number>();
+  const unconvertedIds = new Map<number, string[]>();
   const start = parseISO(startDate);
   for (const item of futureCashFlowForecastItems(repository.futureCashFlows)) {
     if (item.kind !== "decision") continue;
@@ -417,18 +442,22 @@ function selectedDecisionCostsByMonth(
       const through = format(addMonths(start, month), "yyyy-MM-dd");
       const after = format(addMonths(start, month - 1), "yyyy-MM-dd");
       if (item.date <= after || item.date > through) continue;
-      const amount =
-        convertAccountAmountAtDate(
-          repository,
-          item.fromAccountId,
-          item.amount,
-          item.date,
-        ) ?? 0;
+      const amount = convertAccountAmountAtDate(
+        repository,
+        item.fromAccountId,
+        item.amount,
+        item.date,
+      );
+      if (amount == null) {
+        const ids = unconvertedIds.get(month) ?? [];
+        unconvertedIds.set(month, [...ids, item.id]);
+        break;
+      }
       costs.set(month, (costs.get(month) ?? 0) + amount);
       break;
     }
   }
-  return costs;
+  return { costs, unconvertedIds };
 }
 
 function simulateStress(input: {
@@ -438,6 +467,7 @@ function simulateStress(input: {
   policyMonths: number | null;
   monthlyEssentialNeed: number;
   decisionCosts: ReadonlyMap<number, number>;
+  unconvertedDecisionCostIds: ReadonlyMap<number, string[]>;
   startDate: string;
 }): EmergencyFundStressResult {
   const { plan, scenario } = input;
@@ -447,6 +477,11 @@ function simulateStress(input: {
   let shortfallMonths = 0;
   let totalShortfall = 0;
   let maximumMonthlyShortfall = 0;
+  const unconvertedDecisionCostIds = Array.from(
+    input.unconvertedDecisionCostIds.entries(),
+  )
+    .filter(([month]) => month <= scenario.durationMonths)
+    .flatMap(([, ids]) => ids);
   for (let month = 1; month <= scenario.durationMonths; month++) {
     const monthlyNeed =
       input.monthlyEssentialNeed *
@@ -493,6 +528,8 @@ function simulateStress(input: {
     shortfallMonths,
     totalShortfall,
     maximumMonthlyShortfall,
+    decisionCostsComplete: unconvertedDecisionCostIds.length === 0,
+    unconvertedDecisionCostIds,
     path,
   };
 }
@@ -502,7 +539,10 @@ export function analyseEmergencyFund(
   rawPlan: EmergencyFundPlanInput,
   startDate: string,
 ): EmergencyFundAnalysis {
-  const plan = EmergencyFundPlanInputSchema.parse(rawPlan);
+  const plan = includeAllEmergencyFundAccounts(
+    EmergencyFundPlanInputSchema.parse(rawPlan),
+    repository.accounts.values(),
+  );
   const balances =
     latestValuedBalances(repository) ?? new Map<string, number>();
   const protectedBalances = protectionByAccount(plan.accountPolicies, balances);
@@ -545,7 +585,7 @@ export function analyseEmergencyFund(
   const maxDuration = Math.max(
     ...plan.stressScenarios.map(({ durationMonths }) => durationMonths),
   );
-  const decisionCosts = selectedDecisionCostsByMonth(
+  const decisionCostSchedule = selectedDecisionCostsByMonth(
     repository,
     startDate,
     maxDuration,
@@ -564,10 +604,12 @@ export function analyseEmergencyFund(
     accessibleFunds,
     accessibleCoverageMonths,
     sources,
-    selectedDecisionCosts: Array.from(decisionCosts.values()).reduce(
-      (total, amount) => total + amount,
-      0,
-    ),
+    selectedDecisionCosts: Array.from(
+      decisionCostSchedule.costs.values(),
+    ).reduce((total, amount) => total + amount, 0),
+    unconvertedDecisionCostIds: Array.from(
+      decisionCostSchedule.unconvertedIds.values(),
+    ).flat(),
     policyTargets,
     currentResults: plan.stressScenarios.map((scenario) =>
       simulateStress({
@@ -576,7 +618,8 @@ export function analyseEmergencyFund(
         startingReserve: accessibleFunds,
         policyMonths: null,
         monthlyEssentialNeed,
-        decisionCosts,
+        decisionCosts: decisionCostSchedule.costs,
+        unconvertedDecisionCostIds: decisionCostSchedule.unconvertedIds,
         startDate,
       }),
     ),
@@ -588,7 +631,8 @@ export function analyseEmergencyFund(
           startingReserve: target,
           policyMonths: months,
           monthlyEssentialNeed,
-          decisionCosts,
+          decisionCosts: decisionCostSchedule.costs,
+          unconvertedDecisionCostIds: decisionCostSchedule.unconvertedIds,
           startDate,
         }),
       ),

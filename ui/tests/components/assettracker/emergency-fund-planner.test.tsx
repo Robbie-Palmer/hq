@@ -34,6 +34,12 @@ const cashPolicy = {
   protectionGroup: "Example Bank",
 };
 
+const savingsAccount = {
+  ...cashAccount,
+  id: "new-savings",
+  name: "New savings account",
+};
+
 const emergencyFundFacts = {
   essentialMonthlyExpenditure: 1_000,
   monthlyDebtPayments: 175,
@@ -59,6 +65,7 @@ const analysis: EmergencyFundAnalysis = {
     },
   ],
   selectedDecisionCosts: 45_000,
+  unconvertedDecisionCostIds: [],
   policyTargets: [
     {
       months: 6,
@@ -90,6 +97,8 @@ const analysis: EmergencyFundAnalysis = {
       shortfallMonths: 0,
       totalShortfall: 0,
       maximumMonthlyShortfall: 0,
+      decisionCostsComplete: true,
+      unconvertedDecisionCostIds: [],
       path: Array.from({ length: 12 }, (_, index) => ({
         month: index + 1,
         date: `2027-${String(index + 1).padStart(2, "0")}-01`,
@@ -112,6 +121,8 @@ const analysis: EmergencyFundAnalysis = {
       shortfallMonths: 6,
       totalShortfall: 6_000,
       maximumMonthlyShortfall: 1_000,
+      decisionCostsComplete: true,
+      unconvertedDecisionCostIds: [],
       path: Array.from({ length: 12 }, (_, index) => ({
         month: index + 1,
         date: `2027-${String(index + 1).padStart(2, "0")}-01`,
@@ -132,6 +143,8 @@ const analysis: EmergencyFundAnalysis = {
       shortfallMonths: 0,
       totalShortfall: 0,
       maximumMonthlyShortfall: 0,
+      decisionCostsComplete: true,
+      unconvertedDecisionCostIds: [],
       path: Array.from({ length: 12 }, (_, index) => ({
         month: index + 1,
         date: `2027-${String(index + 1).padStart(2, "0")}-01`,
@@ -145,9 +158,8 @@ const analysis: EmergencyFundAnalysis = {
   ],
 };
 
-beforeEach(() => {
-  saveEmergencyFundPlan.mockReset().mockResolvedValue(undefined);
-  mockUseAssetTracker.mockReturnValue({
+function trackerContext(update: Record<string, unknown> = {}) {
+  return {
     accountDetails: [cashAccount],
     analyseEmergencyFundDraft: () => analysis,
     baseCurrency: "GBP",
@@ -158,7 +170,13 @@ beforeEach(() => {
     },
     inflation: 0.025,
     saveEmergencyFundPlan,
-  } as never);
+    ...update,
+  } as never;
+}
+
+beforeEach(() => {
+  saveEmergencyFundPlan.mockReset().mockResolvedValue(undefined);
+  mockUseAssetTracker.mockReturnValue(trackerContext());
 });
 
 describe("EmergencyFundPlanner", () => {
@@ -265,6 +283,52 @@ describe("EmergencyFundPlanner", () => {
     );
 
     expect(await screen.findByText("Something went wrong")).toBeVisible();
+  });
+
+  it("preserves unsaved edits and adds policies when tracker data changes", () => {
+    const { rerender } = render(<EmergencyFundPlanner />);
+    fireEvent.change(screen.getByLabelText("Irregular essentials per year"), {
+      target: { value: "2400" },
+    });
+    mockUseAssetTracker.mockReturnValue(
+      trackerContext({
+        accountDetails: [cashAccount, savingsAccount],
+        emergencyFundFacts: { ...emergencyFundFacts, monthlySideIncome: 750 },
+      }),
+    );
+
+    rerender(<EmergencyFundPlanner />);
+
+    expect(screen.getByLabelText("Irregular essentials per year")).toHaveValue(
+      2400,
+    );
+    expect(
+      screen.getByLabelText("Use New savings account as an emergency reserve"),
+    ).toBeChecked();
+  });
+
+  it("warns when a selected decision cost cannot be converted", () => {
+    const incompleteResult = {
+      ...analysis.currentResults[0],
+      decisionCostsComplete: false,
+      unconvertedDecisionCostIds: ["foreign-decision:payment"],
+    };
+    mockUseAssetTracker.mockReturnValue(
+      trackerContext({
+        analyseEmergencyFundDraft: () => ({
+          ...analysis,
+          unconvertedDecisionCostIds: ["foreign-decision:payment"],
+          currentResults: [incompleteResult],
+        }),
+      }),
+    );
+
+    render(<EmergencyFundPlanner />);
+
+    expect(
+      screen.getByText(/affected stress results are marked incomplete/),
+    ).toBeVisible();
+    expect(screen.getByText(/omitted from this stress path/)).toBeVisible();
   });
 
   it("shows saved lineage and switches the save action to versioning", () => {

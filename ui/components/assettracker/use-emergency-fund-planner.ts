@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   defaultEmergencyFundAccountPolicy,
   type EmergencyFundAccountPolicy,
@@ -7,6 +7,7 @@ import {
   EmergencyFundPlanInputSchema,
   type EmergencyFundStressScenario,
   formatAssetTrackerError,
+  includeAllEmergencyFundAccounts,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
 
@@ -71,7 +72,16 @@ export function useEmergencyFundPlanner() {
     () => initialPlan(context.emergencyFundFacts, context.accountDetails),
     [context.accountDetails, context.emergencyFundFacts],
   );
-  const currentPlan = activePlan ?? fallback;
+  const currentPlan = useMemo(
+    () =>
+      includeAllEmergencyFundAccounts(
+        activePlan ?? fallback,
+        context.accountDetails,
+      ),
+    [activePlan, context.accountDetails, fallback],
+  );
+  const planKey = activePlan?.id ?? null;
+  const loadedPlanKey = useRef(planKey);
   const [draft, setDraft] = useState<EmergencyFundPlanInput>(currentPlan);
   const [coverageText, setCoverageText] = useState(() =>
     currentPlan.coverageMonths.join(", "),
@@ -84,10 +94,18 @@ export function useEmergencyFundPlanner() {
   const analyseDraft = context.analyseEmergencyFundDraft;
 
   useEffect(() => {
+    if (loadedPlanKey.current === planKey) return;
+    loadedPlanKey.current = planKey;
     setDraft(currentPlan);
     setCoverageText(currentPlan.coverageMonths.join(", "));
     setMissingDataText(currentPlan.missingData.join(", "));
-  }, [currentPlan]);
+  }, [currentPlan, planKey]);
+
+  useEffect(() => {
+    setDraft((current) =>
+      includeAllEmergencyFundAccounts(current, context.accountDetails),
+    );
+  }, [context.accountDetails]);
 
   const analysis = useMemo(() => {
     try {

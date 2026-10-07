@@ -10,6 +10,11 @@ function stressDescription(
   currency: Currency,
 ) {
   if (result == null) return "No stress result";
+  if (!result.decisionCostsComplete) {
+    const count = result.unconvertedDecisionCostIds.length;
+    const costs = count === 1 ? "cost" : "costs";
+    return `Incomplete: ${count} selected decision ${costs} could not be converted and are omitted from this stress path`;
+  }
   if (result.firstShortfallMonth == null) {
     return `No uncovered shortfall over ${result.path.length} months; ${formatCurrency(Math.round(result.endingReserve), currency)} remains`;
   }
@@ -167,6 +172,18 @@ function ResultsTable({
   );
 }
 
+function DecisionCostWarning({ itemIds }: Readonly<{ itemIds: string[] }>) {
+  if (itemIds.length === 0) return null;
+  const costs = itemIds.length === 1 ? "cost" : "costs";
+  return (
+    <p className="text-xs text-amber-700 dark:text-amber-300">
+      {itemIds.length} selected decision {costs} could not be converted into the
+      household currency. The affected stress results are marked incomplete and
+      omit those costs.
+    </p>
+  );
+}
+
 export function EmergencyFundResults({
   analysis,
   baseCurrency,
@@ -178,6 +195,7 @@ export function EmergencyFundResults({
     <div className="space-y-4 border-t pt-5">
       <ResultsSummary analysis={analysis} currency={baseCurrency} />
       <ResultsTable analysis={analysis} currency={baseCurrency} />
+      <DecisionCostWarning itemIds={analysis.unconvertedDecisionCostIds} />
       <p className="text-xs text-muted-foreground">
         Money above a selected policy is available for another use. It can be
         spent now, invested for the future, or kept as extra margin. This view

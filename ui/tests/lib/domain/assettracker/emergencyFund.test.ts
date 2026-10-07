@@ -425,6 +425,101 @@ describe("emergency-fund planning", () => {
     expect(result.currentResults[0]?.path[0]?.decisionCosts).toBe(2_000);
   });
 
+  it("adds policies for accounts created after a plan was saved", () => {
+    const original = data();
+    const savedPlan = plan(original);
+    const updated = AssetTrackerDataSchema.parse({
+      ...original,
+      accounts: [
+        ...original.accounts,
+        {
+          id: "new-savings",
+          name: "New savings account",
+          provider: "Bank C",
+          currency: "GBP",
+          assetType: "cash",
+          liquidity: "cash",
+          expectedAnnualReturn: 0.03,
+          createdAt: "2026-10-02",
+        },
+      ],
+      snapshots: [
+        ...original.snapshots,
+        { accountId: "new-savings", date: "2026-10-02", balance: 3_000 },
+      ],
+    });
+
+    const result = analyseEmergencyFund(
+      buildRepository(updated),
+      savedPlan,
+      "2026-10-02",
+    );
+
+    expect(
+      result.sources.find(({ accountId }) => accountId === "new-savings"),
+    ).toMatchObject({ included: true, effectiveBalance: 3_000 });
+    expect(result.accessibleFunds).toBe(15_000);
+  });
+
+  it("marks stress results incomplete when a decision cost cannot be converted", () => {
+    const base = data();
+    const source = AssetTrackerDataSchema.parse({
+      ...base,
+      accounts: [
+        ...base.accounts,
+        {
+          id: "usd-cash",
+          name: "Dollar account",
+          provider: "Bank D",
+          currency: "USD",
+          assetType: "cash",
+          liquidity: "cash",
+          expectedAnnualReturn: 0,
+          createdAt: "2026-01-01",
+        },
+      ],
+      futureCashFlows: [
+        {
+          id: "foreign-decision",
+          name: "Overseas move",
+          labels: [],
+          currency: "USD",
+          kind: "decision",
+          status: "selected",
+          reversibility: "irreversible",
+          dependencyIds: [],
+          alternativeToIds: [],
+          stages: [
+            {
+              id: "payment",
+              fromAccountId: "usd-cash",
+              expectedDate: "2026-11-01",
+              minimumAmount: 900,
+              expectedAmount: 1_000,
+              maximumAmount: 1_100,
+              actuals: [],
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = analyseEmergencyFund(
+      buildRepository(source),
+      plan(source),
+      "2026-10-01",
+    );
+
+    expect(result.selectedDecisionCosts).toBe(0);
+    expect(result.unconvertedDecisionCostIds).toEqual([
+      "foreign-decision:payment",
+    ]);
+    expect(result.currentResults[0]).toMatchObject({
+      decisionCostsComplete: false,
+      unconvertedDecisionCostIds: ["foreign-decision:payment"],
+    });
+  });
+
   it("versions revised assumptions and preserves lineage", () => {
     const first = applySaveEmergencyFundPlan(
       data(),
