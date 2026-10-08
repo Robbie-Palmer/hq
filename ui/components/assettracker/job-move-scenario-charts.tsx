@@ -567,7 +567,7 @@ function ChartWindowSelect({
   if (windows.length === 0) return null;
   return (
     <label className="flex items-center gap-2 text-xs">
-      Chart window
+      <span>Chart window</span>
       <select
         aria-label="Chart time window"
         className="h-8 rounded-md border bg-background px-2"

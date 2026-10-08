@@ -937,7 +937,7 @@ function Comparison({ scenario }: Readonly<{ scenario: JobMoveScenario }>) {
 
 function useJobMoveManager() {
   const tracker = useAssetTracker();
-  const [editingId, setEditingId] = useState<string | "new" | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState(
     tracker.jobMoveScenarios[0]?.id ?? "",
   );
