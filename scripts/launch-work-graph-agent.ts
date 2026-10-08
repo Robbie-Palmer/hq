@@ -83,7 +83,7 @@ const securitySignal =
 const broadChangeSignal =
   /\b(?:migration|infrastructure|terraform|kubernetes|platform|distributed|concurrency|orchestration|database schema)\b/iu;
 const protectedMutationSignal =
-  /\b(?:deploy(?:ment)? to production|production deploy(?:ment)?|provision(?:ing)?|rotate (?:a |the )?(?:credential|key|secret)|database migration|schema migration|delete production|destructive operation|terraform apply|kubectl apply|payment|billing)\b/iu;
+  /\b(?:deploy to production|deployment to production|production deploy|production deployment|provision(?:ing)?|rotate (?:a |the )?(?:credential|key|secret)|database migration|schema migration|delete production|destructive operation|terraform apply|kubectl apply|payment|billing)\b/iu;
 const routineSignal =
   /\b(?:typo|copy edit|broken link|link fix|rename|small prose|single page)\b/iu;
 
