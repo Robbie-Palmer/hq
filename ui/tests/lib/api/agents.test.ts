@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createAgentHostEnrollment,
   decideAgentApproval,
+  FreshSessionRequiredError,
   listAgents,
   revokeAgent,
 } from "@/lib/api/agents";
@@ -222,9 +223,33 @@ describe("agent access API", () => {
         code: "ABCD-1234",
         action: "approve",
       }),
-    ).rejects.toThrow(
-      "A fresh authentication session is required for this operation. Please re-authenticate and try again.",
+    ).rejects.toEqual(
+      expect.objectContaining({
+        name: "FreshSessionRequiredError",
+        message:
+          "A fresh authentication session is required for this operation. Please re-authenticate and try again.",
+      }),
     );
+  });
+
+  it("normalises a forbidden fresh-session response", async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json(
+        {
+          error: "fresh_session_required",
+          message: "Confirm your identity.",
+        },
+        { status: 403 },
+      ),
+    );
+
+    await expect(
+      decideAgentApproval({
+        agentId: "agent-1",
+        code: "ABCD-1234",
+        action: "approve",
+      }),
+    ).rejects.toBeInstanceOf(FreshSessionRequiredError);
   });
 
   it("rejects a malformed approval response", async () => {

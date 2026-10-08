@@ -3,10 +3,32 @@ import { AccountContentSchema } from "./account";
 import { BalanceSnapshotSchema } from "./balanceSnapshot";
 import { CapitalFlowSchema } from "./capitalFlow";
 import { CurrencySchema, DEFAULT_BASE_CURRENCY } from "./currency";
+import { EmergencyFundPlanSchema } from "./emergencyFund";
+import { ForecastAssumptionSetSchema } from "./forecastAssumption";
+import {
+  FutureCashFlowSchema,
+  legacyPlannedExpenditureToCommitment,
+  PlanningCaseSchema,
+} from "./futureCashFlow";
+import {
+  DEFAULT_HOUSEHOLD,
+  EMPTY_HOUSEHOLD_OWNERSHIP,
+  HouseholdOwnershipIndexSchema,
+  HouseholdSchema,
+  migrateHouseholdOwnership,
+} from "./household";
 import { IncomeRecordSchema } from "./incomeRecord";
 import { PositiveMoneySchema } from "./money";
+import {
+  FinancialDecisionRecordSchema,
+  MortgageScenarioSchema,
+} from "./mortgageCalculator";
 import { PlannedExpenditureSchema } from "./plannedExpenditure";
+import { PropertyComparableSearchDefinitionSchema } from "./propertyComparables";
+import { PropertyIndexHistoryDefinitionSchema } from "./propertyIndexHistory";
 import { RecurringFlowSchema } from "./recurringFlow";
+import { SalaryHistoryRecordSchema } from "./salaryHistory";
+import { TaxPositionDataSchema } from "./taxPosition";
 import { TransferSchema } from "./transfer";
 import {
   ExchangeRateObservationSchema,
@@ -72,13 +94,29 @@ export const AssetTrackerDataSchema = z
     snapshots: z.array(BalanceSnapshotSchema),
     capitalFlows: z.array(CapitalFlowSchema).default([]),
     incomeHistory: z.array(IncomeRecordSchema).default([]),
+    salaryHistory: z.array(SalaryHistoryRecordSchema).default([]),
     transfers: z.array(TransferSchema).default([]),
     recurringFlows: z.array(RecurringFlowSchema).default([]),
     plannedExpenditures: z.array(PlannedExpenditureSchema).default([]),
+    planningCases: z.array(PlanningCaseSchema).default([]),
+    futureCashFlows: z.array(FutureCashFlowSchema).default([]),
+    forecastAssumptionSets: z.array(ForecastAssumptionSetSchema).default([]),
+    emergencyFundPlans: z.array(EmergencyFundPlanSchema).optional(),
+    mortgageScenarios: z.array(MortgageScenarioSchema).optional(),
+    decisionRecords: z.array(FinancialDecisionRecordSchema).optional(),
     instruments: z.array(InstrumentSchema).optional(),
     holdingObservations: z.array(HoldingObservationSchema).optional(),
     priceObservations: z.array(PriceObservationSchema).optional(),
     exchangeRateObservations: z.array(ExchangeRateObservationSchema).optional(),
+    propertyIndexHistories: z
+      .array(PropertyIndexHistoryDefinitionSchema)
+      .optional(),
+    propertyComparableSearches: z
+      .array(PropertyComparableSearchDefinitionSchema)
+      .optional(),
+    household: HouseholdSchema.default(DEFAULT_HOUSEHOLD),
+    ownership: HouseholdOwnershipIndexSchema.default(EMPTY_HOUSEHOLD_OWNERSHIP),
+    taxPosition: TaxPositionDataSchema.optional(),
     settings: AssetTrackerSettingsSchema.default({
       expectedAnnualInflation: DEFAULT_EXPECTED_INFLATION,
       withdrawalRate: DEFAULT_WITHDRAWAL_RATE,
@@ -105,7 +143,26 @@ export const AssetTrackerDataSchema = z
         flow.currency;
       return currency === flow.currency ? flow : { ...flow, currency };
     });
-    return { ...data, recurringFlows };
+    const futureCashFlowIds = new Set(
+      data.futureCashFlows.map((record) => record.id),
+    );
+    const migratedPlannedExpenditures = data.plannedExpenditures.flatMap(
+      (expenditure) => {
+        if (futureCashFlowIds.has(expenditure.id)) return [];
+        const currency =
+          accountCurrencies.get(expenditure.fromAccountId) ??
+          data.settings.baseCurrency;
+        return [legacyPlannedExpenditureToCommitment(expenditure, currency)];
+      },
+    );
+    return migrateHouseholdOwnership({
+      ...data,
+      recurringFlows,
+      futureCashFlows: [
+        ...data.futureCashFlows,
+        ...migratedPlannedExpenditures,
+      ],
+    });
   });
 
 export type AssetTrackerData = z.infer<typeof AssetTrackerDataSchema>;

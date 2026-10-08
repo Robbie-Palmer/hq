@@ -6,6 +6,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./dataset": "./src/data.ts",
+    "./historical-salary": "./src/historicalSalaryApi.ts",
+    "./household-tax": "./src/householdTax.ts",
+    "./gov-uk-monitor": "./src/govUkMonitor.ts",
     "./validation": "./src/validationApi.ts"
   },
   "scripts": {
@@ -16,9 +19,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@saving-tool/hmrc-income-tax": "3.0.1",
+    "html-to-text": "^10.0.1",
+    "microdiff": "^1.6.0",
+    "ts-base": "workspace:*",
     "zod": "^4.2.1"
   },
   "devDependencies": {
+    "@types/html-to-text": "^9.0.4",
     "@types/node": "^24",
     "@vitest/coverage-v8": "^5.0.0",
     "tsx": "^4.23.12",

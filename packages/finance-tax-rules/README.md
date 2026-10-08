@@ -1,19 +1,41 @@
-# UK employment tax rule data
+# UK tax rule data
 
-This package contains reviewed, versioned UK tax and pension rule data. Its first
-dataset covers employment income, employee Class 1 National Insurance, and pension
-rules for historical salary estimates. Future datasets can add Capital Gains Tax,
-Inheritance Tax, and other personal-finance rules without moving the existing data.
+This package contains reviewed, versioned UK tax and pension rule data. It covers
+employment income, savings interest, employee Class 1 National Insurance,
+pensions, dividends, Capital Gains Tax, and ISA limits used by salary history and
+household estimates.
 
 ## Coverage
 
 | Area | Supported |
 | --- | --- |
-| Tax years | 2022/23 through 2026/27 |
+| Tax years | 2015/16 through 2026/27 |
 | Jurisdictions | England and Northern Ireland, Scotland, Wales |
 | Income Tax | Annual liability on employment non-savings, non-dividend income; standard Personal Allowance and taper |
 | National Insurance | Employee Class 1 category A; weekly and monthly pay periods; non-directors |
 | Pensions | Salary sacrifice, net pay, relief at source; relief limit, annual allowance, taper, and MPAA |
+
+## Household tax position
+
+The household calculator covers 2025/26 and 2026/27. It combines employment
+income, taxable savings interest, employee Class 1 National Insurance,
+dividends, disposals, ISA subscriptions, and pension input amounts for each
+household member. Savings calculations apply unused Personal Allowance, the
+starting rate for savings, the taxpayer's Personal Savings Allowance, and the
+applicable savings rate. Account wrappers determine which interest, dividend,
+and disposal records are taxable.
+
+Each result lists the source record IDs, rule IDs, dataset version, government
+sources, allowances, and rounding method. The exported result keeps observed
+records separate from user assumptions. Corrections replace the records they
+name without deleting the earlier evidence.
+
+The calculator does not show a total for Scottish taxpayers, partial-year or
+non-UK residence, taxable benefits, company directors, unsupported National
+Insurance categories, Capital Gains Tax reliefs, or a pension annual allowance
+excess. It also does not model foreign savings, accrued income securities,
+chargeable-event gains, property income, Marriage Allowance, Blind Person's
+Allowance, pension carry forward, or defined benefit input amounts.
 
 ## Salary validation corpus
 
@@ -44,13 +66,17 @@ governs both. Wales has a separate rule identity because the Senedd sets Welsh r
 Those rates produce the same overall 20%, 40%, and 45% rates in every supported year.
 Scotland has different rates and bands for employment income.
 
-The package does not approximate missing data. `resolveRules` returns an unavailable
+The employment resolver does not approximate missing data. `resolveRules` returns an unavailable
 result for dates outside the supported range, NI categories other than A, annual or
 irregular NI pay periods, and unknown jurisdictions. The NI rules apply only to
 employees who are not directors; callers must exclude directors. The package also
 does not model PAYE tax codes or withholding, multiple employments, savings,
-dividends, Marriage Allowance, or Blind Person's Allowance. Those cases need more
+Marriage Allowance, or Blind Person's Allowance. Those cases need more
 facts and rules than this dataset contains.
+
+The 2015/16 pension data has separate pre-alignment and post-alignment intervals
+around 9 July 2015. Its annual and money purchase allowances require the special
+HMRC transitional rules and are recorded with carry-forward notes.
 
 The 2022/23 NI data has separate intervals for the July threshold change and the
 November rate reversal. The 2023/24 data has a separate interval for the January
@@ -75,6 +101,39 @@ Each source record includes the SHA-256 digest of the retrieved official page.
 Artifacts also include the digest of each checked-in extract, and the manifest
 records every generated artifact digest. A saved calculation can record the
 dataset version and verify the exact inputs later.
+
+## Monitoring official guidance
+
+The source registry derives affected rule IDs and effective periods from the
+dataset's provenance. A page cannot be monitored without naming the rules that
+depend on it. The `finance-tax-monitor` Cloudflare Workflow runs the registry on
+a weekly schedule. Cloudflare Workflows owns checkpoints, retry backoff, and
+short-lived execution state.
+
+The Workflow writes exact GOV.UK Content API responses and normalized snapshots
+to private R2 as compressed, content-addressed objects. PostgreSQL stores compact
+revision manifests, the recorded last successful check, meaningful differences,
+and review decisions. Raw responses and HTML do not live in Git or PostgreSQL.
+
+A change proposal separates content, metadata, and document-link differences. It
+records the GOV.UK publication date and detection date, lists the effective periods
+of the rules that may be affected, and leaves the reviewed effective date and
+activation date empty. That is deliberate. GOV.UK publishes content and metadata,
+not executable tax rules.
+
+For each proposal, a reviewer must:
+
+1. Decide whether the change is an enacted rule, a future announcement, or a
+   correction to a past year.
+2. Record the effective date in the replacement rule data and the activation date
+   in the new dataset release.
+3. Add or amend authoritative validation fixtures.
+4. Run `mise run //packages/finance-tax-rules:check`.
+5. Increase `datasetVersion`, set `supersedes`, and keep the previous versioned
+   artifacts.
+
+Monitoring requests contain only the public source URL and HTTP headers. The
+monitor has no access to household or salary records and sends none to GOV.UK.
 
 ## Updating and correcting data
 

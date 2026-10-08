@@ -2,8 +2,8 @@ import { and, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import type { Db } from "recipe-db";
 import { readBatchDrafts, updateEditableDraft } from "recipe-db/batch-drafts";
 import {
-  recipeImportBatch as batches,
   recipeImportArchiveEntry as archiveEntries,
+  recipeImportBatch as batches,
   recipeImportReviewEvent as events,
   recipeImportJob as jobs,
   recipe,
@@ -17,7 +17,8 @@ import {
 } from "recipe-domain/batch-import";
 import { SavedRecipePayloadSchema } from "recipe-domain/serialization";
 import { sha256Hex } from "ts-base/crypto";
-import { expandCooklangArchive, type ArchiveEntry } from "./collection-archive";
+import { observeRecipeTerms } from "./authored-terms";
+import { type ArchiveEntry, expandCooklangArchive } from "./collection-archive";
 import { validateRecipeUrl } from "./recipe-url-import";
 
 export class BatchImportError extends Error {
@@ -565,6 +566,18 @@ export async function acceptDraft(
       .values({ ...input.recipe, userId })
       .returning();
     if (!saved) throw new Error("Recipe insert returned no row");
+    const payload = SavedRecipePayloadSchema.parse(
+      JSON.parse(input.recipe.body),
+    );
+    await observeRecipeTerms(tx, {
+      userId,
+      recipeId: saved.id,
+      importJobId: jobId,
+      ingredientTerms: payload.recipe.ingredientGroups.flatMap((group) =>
+        group.items.map((ingredient) => ingredient.ingredient),
+      ),
+      equipmentTerms: payload.recipe.cookware,
+    });
     await tx
       .update(jobs)
       .set({

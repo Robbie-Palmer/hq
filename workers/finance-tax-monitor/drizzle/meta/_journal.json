@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791099505315,
+      "tag": "0000_create_tax_guidance_review_tables",
+      "breakpoints": true
+    }
+  ]
+}

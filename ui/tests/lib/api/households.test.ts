@@ -5,6 +5,7 @@ import {
   getIncomingHouseholdInvitations,
   removeHouseholdMember,
   revokeHouseholdInvitation,
+  saveHouseholdEquipmentMatchMode,
 } from "@/lib/api/households";
 
 describe("household API client", () => {
@@ -122,5 +123,22 @@ describe("household API client", () => {
     await expect(
       revokeHouseholdInvitation("household-1", "invitation-1"),
     ).resolves.toBeUndefined();
+  });
+
+  it("saves the household equipment matching preference", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(Response.json({ recipeMatchMode: "disabled" }));
+
+    await expect(
+      saveHouseholdEquipmentMatchMode("household-1", "disabled"),
+    ).resolves.toEqual({ recipeMatchMode: "disabled" });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/households/household-1/equipment",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ recipeMatchMode: "disabled" }),
+      }),
+    );
   });
 });

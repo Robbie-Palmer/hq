@@ -70,6 +70,8 @@ export function buildKitchenCatalog(records: SavedRecipeApiRecord[]): {
         recipeIngredients.set(item.ingredient, {
           slug: item.ingredient,
           name: item.name,
+          amount: item.amount,
+          unit: item.unit,
         });
         ingredients.set(item.ingredient, {
           slug: item.ingredient,
@@ -89,6 +91,7 @@ export function buildKitchenCatalog(records: SavedRecipeApiRecord[]): {
       ingredients: Array.from(recipeIngredients.values()).sort((left, right) =>
         left.name.localeCompare(right.name),
       ),
+      cookware: recipe.cookware,
     };
   });
 

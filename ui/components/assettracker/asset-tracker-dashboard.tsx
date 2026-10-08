@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { formatAccountCurrency, formatAnnualRate } from "@/lib/assettracker";
 import { realRate } from "@/lib/domain/assettracker";
 import { AccountBalanceChart } from "./account-balance-chart";
@@ -45,10 +47,43 @@ export function AssetTrackerDashboard() {
     "holding prices",
   );
 
+  if (accountDetails.length === 0) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="mb-2 text-3xl font-bold sm:text-4xl">Asset Tracker</h1>
+          <p className="text-lg text-muted-foreground">
+            Track and visualise your portfolio across accounts.
+          </p>
+        </div>
+        <section
+          aria-labelledby="empty-portfolio-heading"
+          className="rounded-lg border border-dashed px-6 py-12 text-center"
+        >
+          <h2 id="empty-portfolio-heading" className="text-lg font-semibold">
+            Start with an account
+          </h2>
+          <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+            Add an account and its first balance, or import existing history.
+            Your data stays in this browser.
+          </p>
+          <div className="mt-5 flex flex-wrap justify-center gap-2">
+            <Button asChild className="min-h-11">
+              <Link href="/assettracker/accounts">Add an account</Link>
+            </Button>
+            <Button asChild variant="outline" className="min-h-11">
+              <Link href="/assettracker/imports">Import history</Link>
+            </Button>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-4xl font-bold mb-2">Asset Tracker</h1>
+        <h1 className="mb-2 text-3xl font-bold sm:text-4xl">Asset Tracker</h1>
         <p className="text-lg text-muted-foreground">
           Track and visualise your portfolio across accounts.
         </p>

@@ -12,6 +12,7 @@ sie = "sie" # split from the SIEM(s) acronym
 
 [default.extend-identifiers]
 CelesTrak = "CelesTrak" # orbital-data and reference-software publisher
+654a541934ba = "654a541934ba" # generated UK HPI release checksum prefix
 
 [files]
 extend-exclude = [

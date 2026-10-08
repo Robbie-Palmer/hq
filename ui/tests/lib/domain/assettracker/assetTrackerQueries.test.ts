@@ -14,9 +14,11 @@ import {
   getTotalByAssetType,
 } from "@/lib/domain/assettracker/assetTrackerQueries";
 import { buildRepository } from "@/lib/domain/assettracker/assetTrackerRepository";
+import { defaultHouseholdFields } from "@/lib/domain/assettracker/household";
 
 function homeData(): AssetTrackerData {
   return {
+    ...defaultHouseholdFields(),
     accounts: [
       {
         id: "home",
@@ -54,9 +56,13 @@ function homeData(): AssetTrackerData {
     ],
     capitalFlows: [],
     incomeHistory: [],
+    salaryHistory: [],
     transfers: [],
     recurringFlows: [],
     plannedExpenditures: [],
+    planningCases: [],
+    futureCashFlows: [],
+    forecastAssumptionSets: [],
     settings: {
       expectedAnnualInflation: 0.025,
       withdrawalRate: 0.04,
@@ -69,6 +75,7 @@ function homeData(): AssetTrackerData {
 function mixedCurrencyData(): AssetTrackerData {
   const source = { kind: "manual" as const, id: "test" };
   return {
+    ...defaultHouseholdFields(),
     accounts: [
       {
         id: "cash-gbp",
@@ -97,6 +104,7 @@ function mixedCurrencyData(): AssetTrackerData {
       { accountId: "broker-usd", date: "2025-01-10", amount: 100 },
     ],
     incomeHistory: [],
+    salaryHistory: [],
     transfers: [
       {
         id: "usd-income",
@@ -123,6 +131,9 @@ function mixedCurrencyData(): AssetTrackerData {
     ],
     recurringFlows: [],
     plannedExpenditures: [],
+    planningCases: [],
+    futureCashFlows: [],
+    forecastAssumptionSets: [],
     instruments: [
       {
         id: "fund-usd",

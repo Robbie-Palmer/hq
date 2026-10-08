@@ -7,11 +7,12 @@ import {
   Refrigerator,
   RotateCcw,
   ShoppingBasket,
+  Snowflake,
   Sprout,
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import { ShoppingCheckbox } from "@/components/recipes/shopping/shopping-checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,7 @@ import {
 import { useShoppingList } from "@/hooks/use-shopping-list";
 import { useUnitPreference } from "@/hooks/use-unit-preference";
 import { captureRecipeValue } from "@/lib/analytics/recipe-product";
+import type { DietIngredientOption } from "@/lib/api/diet";
 import type { ShoppingRecipe } from "@/lib/api/shopping";
 import type { MeasurementPreference } from "@/lib/domain/recipe";
 import type { IngredientSlug } from "@/lib/domain/recipe/ingredient";
@@ -47,11 +49,14 @@ import {
 
 type ListView = "aisle" | "recipe" | "flat";
 
+const INGREDIENT_SUGGESTION_LIMIT = 7;
+
 const LOCATION_META: Record<
   KitchenLocation,
   { label: string; icon: typeof Refrigerator }
 > = {
   fridge: { label: "fridge", icon: Refrigerator },
+  freezer: { label: "freezer", icon: Snowflake },
   cupboards: { label: "cupboards", icon: ShoppingBasket },
   fresh: { label: "fresh", icon: Sprout },
 };
@@ -239,19 +244,60 @@ function SectionHeading({
 
 function ExtrasSection({
   extras,
+  ingredientCatalog,
   onToggle,
   showItems = true,
 }: Readonly<{
   extras: { id: string; text: string; checked: boolean }[];
+  ingredientCatalog: DietIngredientOption[];
   onToggle: (id: string, checked: boolean) => void;
   showItems?: boolean;
 }>) {
   const [text, setText] = useState("");
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [activeSuggestion, setActiveSuggestion] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const submit = () => {
-    addExtra(text);
+  const suggestionListId = useId();
+  const normalizedText = text.trim().toLowerCase();
+  const existingItems = useMemo(
+    () => new Set(extras.map((extra) => extra.text.toLowerCase())),
+    [extras],
+  );
+  const suggestions = useMemo(() => {
+    if (!normalizedText) return [];
+    const terms = normalizedText.split(/\s+/);
+    return ingredientCatalog
+      .filter((ingredient) => !existingItems.has(ingredient.name.toLowerCase()))
+      .filter((ingredient) => {
+        const searchable =
+          `${ingredient.name} ${ingredient.category ?? ""}`.toLowerCase();
+        return terms.every((term) => searchable.includes(term));
+      })
+      .sort((left, right) => {
+        const leftName = left.name.toLowerCase();
+        const rightName = right.name.toLowerCase();
+        const leftStartsWith = leftName.startsWith(normalizedText);
+        const rightStartsWith = rightName.startsWith(normalizedText);
+        if (leftStartsWith !== rightStartsWith) return leftStartsWith ? -1 : 1;
+        return leftName.localeCompare(rightName);
+      })
+      .slice(0, INGREDIENT_SUGGESTION_LIMIT);
+  }, [existingItems, ingredientCatalog, normalizedText]);
+  const showSuggestions =
+    suggestionsOpen && normalizedText.length > 0 && suggestions.length > 0;
+
+  const addItem = (value: string) => {
+    addExtra(value);
     setText("");
+    setSuggestionsOpen(false);
+    setActiveSuggestion(0);
     inputRef.current?.focus();
+  };
+  const submit = () => {
+    addItem(text);
+  };
+  const selectSuggestion = (ingredient: DietIngredientOption) => {
+    addItem(ingredient.name);
   };
   // Ticked extras sink to the bottom too, matching the ingredient rows.
   const ordered = [
@@ -273,16 +319,94 @@ function ExtrasSection({
           e.preventDefault();
           submit();
         }}
-        className="mt-3 flex gap-2 max-w-sm"
+        className="mt-3 flex max-w-sm gap-2"
       >
-        <Input
-          ref={inputRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Add an item (milk, bread…)"
-          aria-label="Add a shopping-list item"
-          className="bg-[var(--card)]"
-        />
+        <div className="relative min-w-0 flex-1">
+          <Input
+            ref={inputRef}
+            value={text}
+            onBlur={() => setSuggestionsOpen(false)}
+            onChange={(event) => {
+              setText(event.target.value);
+              setActiveSuggestion(0);
+              setSuggestionsOpen(true);
+            }}
+            onFocus={() => setSuggestionsOpen(true)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                setSuggestionsOpen(false);
+                return;
+              }
+              if (!showSuggestions) return;
+              if (event.key === "ArrowDown") {
+                event.preventDefault();
+                setActiveSuggestion((current) =>
+                  Math.min(current + 1, suggestions.length - 1),
+                );
+              } else if (event.key === "ArrowUp") {
+                event.preventDefault();
+                setActiveSuggestion((current) => Math.max(current - 1, 0));
+              } else if (event.key === "Enter") {
+                event.preventDefault();
+                const suggestion = suggestions[activeSuggestion];
+                if (suggestion) selectSuggestion(suggestion);
+              }
+            }}
+            placeholder="Add an item (milk, bread…)"
+            aria-activedescendant={
+              showSuggestions
+                ? `${suggestionListId}-${suggestions[activeSuggestion]?.slug}`
+                : undefined
+            }
+            aria-autocomplete="list"
+            aria-controls={showSuggestions ? suggestionListId : undefined}
+            aria-expanded={showSuggestions}
+            aria-label="Add a shopping-list item"
+            role="combobox"
+            className="bg-[var(--card)]"
+          />
+          {showSuggestions && (
+            <div
+              id={suggestionListId}
+              role="listbox"
+              aria-label="Matching ingredients"
+              className="absolute z-20 mt-1.5 max-h-72 w-full overflow-auto rounded-lg border border-[var(--line-strong)] bg-[var(--card)] p-1.5 shadow-lg"
+            >
+              {suggestions.map((ingredient, index) => (
+                <button
+                  key={ingredient.slug}
+                  id={`${suggestionListId}-${ingredient.slug}`}
+                  type="button"
+                  role="option"
+                  aria-label={`${ingredient.name}, ${
+                    ingredient.category?.replaceAll("-", " & ") ?? "ingredient"
+                  }`}
+                  aria-selected={index === activeSuggestion}
+                  onMouseEnter={() => setActiveSuggestion(index)}
+                  onPointerDown={(event) => event.preventDefault()}
+                  onClick={() => selectSuggestion(ingredient)}
+                  className={[
+                    "flex w-full min-w-0 items-center justify-between gap-3 rounded-md px-3 py-2 text-left transition-colors",
+                    index === activeSuggestion
+                      ? "bg-[var(--butter-soft)]"
+                      : "hover:bg-[var(--paper-warm)]",
+                  ].join(" ")}
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium text-[var(--ink)]">
+                      {ingredient.name}
+                    </span>
+                    <span className="rt-mono block truncate text-[var(--ink-3)]">
+                      {ingredient.category?.replaceAll("-", " & ") ??
+                        "ingredient"}
+                    </span>
+                  </span>
+                  <Plus className="size-4 shrink-0 text-[var(--terracotta)]" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <button
           type="submit"
           disabled={!text.trim()}
@@ -336,8 +460,12 @@ function ExtraItemRow({
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function ShoppingList({
+  ingredientCatalog = [],
   recipes,
-}: Readonly<{ recipes: ShoppingRecipe[] }>) {
+}: Readonly<{
+  ingredientCatalog?: DietIngredientOption[];
+  recipes: ShoppingRecipe[];
+}>) {
   const state = useShoppingList();
   const pantry = useKitchenStockQuery();
   const stock = pantry.data?.stock ?? {};
@@ -520,6 +648,7 @@ export function ShoppingList({
         <div className="flex justify-center">
           <ExtrasSection
             extras={state.extras}
+            ingredientCatalog={ingredientCatalog}
             onToggle={handleExtraToggle}
             showItems={false}
           />
@@ -714,6 +843,7 @@ export function ShoppingList({
 
       <ExtrasSection
         extras={state.extras}
+        ingredientCatalog={ingredientCatalog}
         onToggle={handleExtraToggle}
         showItems={view !== "flat"}
       />

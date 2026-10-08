@@ -9,7 +9,7 @@ python = "3.12.14"
 "pipx:ansible-lint" = "26.9.0"
 "aqua:kubernetes/kubernetes/kubectl" = "1.37.1"
 "aqua:kubernetes-sigs/kustomize" = "5.8.1"
-"github:fluxcd/flux-schema" = "0.14.0"
+"github:fluxcd/flux-schema" = "0.15.0"
 
 # ---------------------------------------------------------------------------
 # Ansible migration bridge
@@ -65,10 +65,23 @@ description = "Apply Mac host and isolated K3s pilot configuration"
 dir = "ansible"
 run = "ansible-playbook playbooks/configure-mac.yml --diff"
 
+[tasks.ansible-configure-t3-worktree-cleanup]
+description = "Install or update only the Mac T3 worktree cleanup job"
+dir = "ansible"
+run = "ansible-playbook playbooks/configure-mac.yml --diff --tags t3_worktree_cleanup"
+
 [tasks.ansible-verify-ente-fail-closed]
 description = "Prove the Ente wrapper rejects an absent volume and enforces its runtime limit"
 dir = "ansible"
 run = "ansible-playbook playbooks/verify-ente-fail-closed.yml"
+
+[tasks.t3-worktree-cleanup-dry-run]
+description = "Report T3 worktrees eligible for cleanup without changing them"
+run = '"$HOME/.local/bin/t3-worktree-cleanup" --dry-run'
+
+[tasks.t3-worktree-cleanup]
+description = "Archive dirty changes and remove eligible T3 worktree checkouts"
+run = '"$HOME/.local/bin/t3-worktree-cleanup" --apply'
 
 [tasks.doppler-check]
 description = "Verify access to the homelab production secret config without printing values"
@@ -241,12 +254,12 @@ run = "bash scripts/fetch-remote-development-kubeconfig"
 [tasks.t3-image-build]
 description = "Build the pinned t3-code runtime image"
 run = '''
-mise_version=$(tr -d '\r\n' < ../.github/actions/setup-mise/mise-version)
 docker build \
   --platform linux/amd64 \
-  --build-arg "MISE_VERSION=$mise_version" \
+  --build-context shared-tool-config=../.config/mise \
+  --build-context agent-auth-mcp=../packages/agent-auth-mcp \
   --pull=false \
-  --tag ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-14 \
+  --tag ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-16 \
   images/t3-code
 '''
 
@@ -254,9 +267,13 @@ docker build \
 description = "Check agent CLI versions and start the t3-code image as its runtime UID"
 run = "bash scripts/check-t3-image"
 
+[tasks.t3-image-build-check]
+description = "Build and test the pinned t3-code runtime image"
+run = "bash scripts/build-and-check-t3-image"
+
 [tasks.t3-image-push]
 description = "Push the checked t3-code image to GHCR"
-run = "docker push ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-14"
+run = "docker push ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-16"
 
 [tasks.t3-image-load-remote]
 description = "Load the checked image into remote-development K3s over SSH"

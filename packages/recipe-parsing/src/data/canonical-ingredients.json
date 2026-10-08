@@ -201,8 +201,24 @@
       "category": "dairy"
     },
     {
+      "slug": "dried-bay-leaves",
+      "category": "herb"
+    },
+    {
+      "slug": "dried-chives",
+      "category": "herb"
+    },
+    {
+      "slug": "dried-dill",
+      "category": "herb"
+    },
+    {
       "slug": "dried-parsley",
       "category": "spice"
+    },
+    {
+      "slug": "dried-tarragon",
+      "category": "herb"
     },
     {
       "slug": "dried-thyme",
@@ -226,6 +242,10 @@
     },
     {
       "slug": "fajita-and-taco-mix",
+      "category": "spice"
+    },
+    {
+      "slug": "fajita-seasoning",
       "category": "spice"
     },
     {
@@ -293,6 +313,10 @@
       "category": "spice"
     },
     {
+      "slug": "garlic-italian-seasoning",
+      "category": "spice"
+    },
+    {
       "slug": "garlic-powder",
       "category": "spice"
     },
@@ -321,11 +345,31 @@
       "category": "dairy"
     },
     {
+      "slug": "ground-allspice",
+      "category": "spice"
+    },
+    {
       "slug": "ground-almonds",
       "category": "other"
     },
     {
+      "slug": "ground-cinnamon",
+      "category": "spice"
+    },
+    {
       "slug": "ground-coriander",
+      "category": "spice"
+    },
+    {
+      "slug": "ground-ginger",
+      "category": "spice"
+    },
+    {
+      "slug": "ground-nutmeg",
+      "category": "spice"
+    },
+    {
+      "slug": "ground-white-pepper",
       "category": "spice"
     },
     {
@@ -335,6 +379,10 @@
     {
       "slug": "harissa-paste",
       "category": "condiment"
+    },
+    {
+      "slug": "harissa-seasoning",
+      "category": "spice"
     },
     {
       "slug": "herbes-de-provence",
@@ -425,6 +473,10 @@
       "category": "condiment"
     },
     {
+      "slug": "medium-curry-powder",
+      "category": "spice"
+    },
+    {
       "slug": "mexican-seasoning",
       "category": "spice"
     },
@@ -439,6 +491,10 @@
     {
       "slug": "mixed-beans",
       "category": "legume"
+    },
+    {
+      "slug": "mixed-spice",
+      "category": "spice"
     },
     {
       "slug": "mozzarella",
@@ -743,6 +799,10 @@
     {
       "slug": "white-wine-vinegar",
       "category": "condiment"
+    },
+    {
+      "slug": "whole-cloves",
+      "category": "spice"
     },
     {
       "slug": "yoghurt",

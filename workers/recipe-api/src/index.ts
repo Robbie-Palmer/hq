@@ -30,15 +30,14 @@ import {
   withPostHogSpan,
 } from "observability";
 import {
-  withDb,
   closeDbClient,
   createDb,
   type Db,
   type DbClient,
   databaseConnection,
   schema,
+  withDb,
 } from "recipe-db";
-import { beginBatchUndo, executeBatchUndo, previewBatchUndo } from "./batch-undo";
 import { AutosaveBatchDraftSchema, CreateBatchSchema } from "recipe-domain/batch-import";
 import { CookLogMutationConflictError } from "recipe-domain/cook-log";
 import {
@@ -51,25 +50,43 @@ import {
 } from "recipe-domain/import-storage";
 import {
   MAX_PANTRY_ITEMS,
+  MAX_PANTRY_FRESHNESS_ESTIMATE_DAYS,
   MAX_PANTRY_MUTATION_CHANGES,
   PantryItemLimitError,
   PantryLocationSchema,
   PantryMutationConflictError,
 } from "recipe-domain/pantry";
 import { SavedRecipePayloadSchema } from "recipe-domain/serialization";
+import { UnitSchema } from "recipe-domain/unit";
+import { normalizeAuthoredTerm } from "recipe-domain/authored-term";
 import {
   isRecipeAppRouteSlug,
   LOWERCASE_KEBAB_CASE_PATTERN,
+  normalizeSlug,
   RECIPE_SLUG_MAX_LENGTH,
 } from "recipe-domain/slugs";
 import { RecipeVisibilitySchema } from "recipe-domain/visibility";
+import { canonicalEquipment } from "recipe-parsing/canonical-equipment-data";
+import { equipmentDisplayName } from "recipe-parsing/equipment-canonicalization";
 import { parseRecipeFile } from "recipe-parsing/recipe-file";
 import { parseSchemaOrgRecipeHtml } from "recipe-parsing/schema-org";
+import { EquipmentCategorySchema } from "recipe-parsing/schemas/canonical-equipment";
 import { z } from "zod";
 import { recipeAgentConfiguration } from "./agent-auth";
 import { recipeImportQuotaReason } from "./agent-recipe-imports";
 import { createAuth, isPreviewAuthEnabled } from "./auth";
+import {
+  type AuthoredTermOwner,
+  canonicalEquipmentTerm,
+  listUnresolvedTerms,
+  newAuthoredTermOccurrences,
+  observeAuthoredTerm,
+  observeRecipeTerms,
+  requestLocale,
+  type UnresolvedTermSummary,
+} from "./authored-terms";
 import { acceptDraft, autosaveDraft, BatchImportError, createBatch, listBatches, readBatch, readBatchItem, reviewAction, startBatch } from "./batch-imports";
+import { beginBatchUndo, executeBatchUndo, previewBatchUndo } from "./batch-undo";
 import { verifyCloudflareAccess } from "./cloudflare-access";
 import { listCookLogMutationHistory } from "./cook-log/services/list-cook-log-mutation-history";
 import { previewCookLogMutationUndo } from "./cook-log/services/preview-cook-log-mutation-undo";
@@ -197,6 +214,7 @@ type DietProfileResponse = {
   excludedIngredientSlugs: string[];
   excludedGroupKeys: string[];
   recipeMatchMode: "hide" | "warn";
+  unresolvedTerms?: UnresolvedTermSummary[];
 };
 type AppEnv = {
   Bindings: Bindings;
@@ -229,8 +247,72 @@ const creatableRecipeSlugSchema = recipeSlugSchema.refine(
   { message: "Slug is reserved for a recipe application route" },
 );
 const dietRecipeMatchModeSchema = z.enum(["hide", "warn"]);
+const equipmentRecipeMatchModeSchema = z.enum(["hide", "warn", "disabled"]);
 const pantryLocationSchema = PantryLocationSchema;
-const pantryIngredientSlugSchema = z.string().min(1).max(200);
+const pantryDateSchema = z.iso.date().max(10);
+const pantryFreshnessSchema = z
+  .object({
+    useBy: pantryDateSchema.nullable(),
+    bestBefore: pantryDateSchema.nullable(),
+    stockedAt: pantryDateSchema.nullable(),
+    openedAt: pantryDateSchema.nullable(),
+    frozenAt: pantryDateSchema.nullable(),
+    estimate: z
+      .object({
+        expectedDays: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_PANTRY_FRESHNESS_ESTIMATE_DAYS)
+          .openapi({ format: "int32" }),
+        startingOn: pantryDateSchema,
+        storage: pantryLocationSchema,
+        basis: z.enum(["user", "catalog"]),
+      })
+      .strict()
+      .nullable(),
+  })
+  .strict();
+const authoredTermInputSchema = z.string().trim().min(1).max(200);
+const equipmentTermInputSchema = z.string().trim().min(1).max(100);
+const pantryIngredientSlugSchema = authoredTermInputSchema;
+const authoredTermCandidateSchema = z
+  .object({
+    slug: z.string().min(1).max(200),
+    score: z.number().min(0).max(1),
+  })
+  .strict();
+const unresolvedTermSchema = z
+  .object({
+    id: z.uuid().max(36),
+    kind: z.enum(["ingredient", "equipment"]),
+    rawText: z.string().min(1).max(200),
+    normalizedText: z.string().min(1).max(200),
+    locale: z.string().min(1).max(35),
+    sourceContext: z
+      .object({
+        flow: z.enum(["recipe", "pantry", "diet", "equipment"]),
+        resourceId: z.string().min(1).max(200).optional(),
+        field: z.string().min(1).max(100).optional(),
+      })
+      .strict(),
+    provenance: z
+      .object({
+        kind: z.enum(["user", "import"]),
+        actorUserId: z.string().min(1).max(128),
+        importJobId: z.uuid().max(36).optional(),
+      })
+      .strict(),
+    candidateMatches: z.array(authoredTermCandidateSchema).max(20),
+    frequency: z
+      .number()
+      .int()
+      .min(1)
+      .max(2_147_483_647)
+      .openapi({ format: "int32" }),
+    resolutionStatus: z.literal("unresolved"),
+  })
+  .strict();
 const pantryResponseSchema = z
   .object({
     resourceId: z.string().min(1),
@@ -248,7 +330,30 @@ const pantryResponseSchema = z
         .strict(),
     ]),
     stock: z.record(z.string().min(1), pantryLocationSchema),
+    items: z.record(
+      z.string().min(1),
+      z
+        .object({
+          location: pantryLocationSchema,
+          quantity: z
+            .object({
+              amount: z.number().min(0.001),
+              unit: UnitSchema,
+            })
+            .strict()
+            .nullable(),
+          freshness: pantryFreshnessSchema,
+          source: z
+            .object({
+              kind: z.enum(["user", "inferred"]),
+              provenance: z.string().min(1).max(200),
+            })
+            .strict(),
+        })
+        .strict(),
+    ),
     itemVersions: z.record(z.string().min(1), z.string().regex(/^\d+$/)),
+    unresolvedTerms: z.array(unresolvedTermSchema).max(MAX_PANTRY_ITEMS).optional(),
   })
   .strict();
 const pantryOperationReceiptSchema = z
@@ -297,6 +402,11 @@ const dietKeySchema = z
 
 const uniqueDietKeysSchema = z
   .array(dietKeySchema)
+  .max(80)
+  .transform((values) => Array.from(new Set(values)));
+
+const uniqueAuthoredTermsSchema = z
+  .array(authoredTermInputSchema)
   .max(80)
   .transform((values) => Array.from(new Set(values)));
 
@@ -386,6 +496,44 @@ const savedRecipeBodySchema = z
       }
     }
   });
+
+async function recordRecipeBodyTerms(
+  tx: DbTransaction,
+  input: {
+    body: string;
+    locale: string;
+    previousBody?: string | null;
+    recipeId: string;
+    userId: string;
+  },
+): Promise<void> {
+  const payload = SavedRecipePayloadSchema.parse(JSON.parse(input.body));
+  const previousPayload = input.previousBody
+    ? SavedRecipePayloadSchema.parse(JSON.parse(input.previousBody))
+    : undefined;
+  const ingredientTerms = payload.recipe.ingredientGroups.flatMap((group) =>
+    group.items.map((item) => item.ingredient),
+  );
+  const previousIngredientTerms =
+    previousPayload?.recipe.ingredientGroups.flatMap((group) =>
+      group.items.map((item) => item.ingredient),
+    ) ?? [];
+  await observeRecipeTerms(tx, {
+    userId: input.userId,
+    recipeId: input.recipeId,
+    locale: input.locale,
+    ingredientTerms: newAuthoredTermOccurrences(
+      ingredientTerms,
+      previousIngredientTerms,
+      input.locale,
+    ),
+    equipmentTerms: newAuthoredTermOccurrences(
+      payload.recipe.cookware,
+      previousPayload?.recipe.cookware ?? [],
+      input.locale,
+    ),
+  });
+}
 
 // Household invitations stay valid for 48 hours after they are created.
 const INVITATION_EXPIRY_MS = 48 * 60 * 60 * 1000;
@@ -482,6 +630,44 @@ const inviteHouseholdMemberBodySchema = z
   })
   .strict();
 
+const householdEquipmentCatalog = canonicalEquipment.equipment.map((item) => ({
+  ...item,
+  name: equipmentDisplayName(item.slug),
+}));
+const householdEquipmentBySlug = new Map(
+  householdEquipmentCatalog.map((item) => [item.slug, item]),
+);
+const householdEquipmentCatalogItemSchema = z
+  .object({
+    slug: z.string().min(1).max(100),
+    name: z.string().min(1).max(100),
+    category: EquipmentCategorySchema,
+  })
+  .strict();
+const householdEquipmentOwnedItemSchema = z
+  .object({
+    slug: z.string().min(1).max(100),
+    name: z.string().min(1).max(100),
+    category: EquipmentCategorySchema.optional(),
+    createdAt: z.iso.datetime().max(40),
+    retired: z.boolean(),
+    unresolved: z.boolean().optional(),
+  })
+  .strict();
+const householdEquipmentResponseSchema = z
+  .object({
+    catalog: z
+      .array(householdEquipmentCatalogItemSchema)
+      .max(householdEquipmentCatalog.length),
+    owned: z
+      .array(householdEquipmentOwnedItemSchema)
+      .max(500),
+    unresolvedTerms: z.array(unresolvedTermSchema).max(500).optional(),
+    recipeMatchMode: equipmentRecipeMatchModeSchema,
+  })
+  .strict()
+  .openapi("HouseholdEquipment");
+
 const pantryStockBodySchema = z
   .object({
     stock: z
@@ -492,9 +678,64 @@ const pantryStockBodySchema = z
   })
   .strict();
 
+const pantryRestoreItemSchema = z
+  .object({
+    location: pantryLocationSchema,
+    quantity: z
+      .object({
+        amount: z.number().min(0.001).max(999_999_999),
+        unit: UnitSchema,
+      })
+      .strict()
+      .nullable(),
+    freshness: pantryFreshnessSchema,
+    source: z
+      .object({
+        kind: z.enum(["user", "inferred"]),
+        provenance: z.string().trim().min(1).max(200),
+      })
+      .strict(),
+  })
+  .strict();
+
+const pantryRestoreBodySchema = pantryStockBodySchema
+  .extend({
+    items: z
+      .record(pantryIngredientSlugSchema, pantryRestoreItemSchema)
+      .optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    for (const [ingredientSlug, item] of Object.entries(value.items ?? {})) {
+      const location = value.stock[ingredientSlug];
+      if (location === undefined) {
+        context.addIssue({
+          code: "custom",
+          message: "Restored item details must belong to the stock snapshot",
+          path: ["items", ingredientSlug],
+        });
+      } else if (item.location !== location) {
+        context.addIssue({
+          code: "custom",
+          message: "Restored item location must match the stock snapshot",
+          path: ["items", ingredientSlug, "location"],
+        });
+      }
+    }
+  });
+
 const pantryItemBodySchema = z
   .object({
     location: pantryLocationSchema,
+    quantity: z
+      .object({
+        amount: z.number().min(0.001).max(999_999_999),
+        unit: UnitSchema,
+      })
+      .strict()
+      .nullable()
+      .optional(),
+    freshness: pantryFreshnessSchema.optional(),
   })
   .strict();
 
@@ -586,10 +827,14 @@ const shareShoppingListResponseSchema = z
 const updateDietProfileBodySchema = z
   .object({
     presetDietKeys: uniqueDietKeysSchema.default([]),
-    excludedIngredientSlugs: uniqueDietKeysSchema.default([]),
+    excludedIngredientSlugs: uniqueAuthoredTermsSchema.default([]),
     excludedGroupKeys: uniqueDietKeysSchema.default([]),
     recipeMatchMode: dietRecipeMatchModeSchema.default("hide"),
   })
+  .strict();
+
+const updateHouseholdEquipmentPreferencesBodySchema = z
+  .object({ recipeMatchMode: equipmentRecipeMatchModeSchema })
   .strict();
 
 const errorSchema = z
@@ -718,7 +963,7 @@ export const routeMetadata = {
     headersSchema: pantryOperationHeadersSchema,
   },
   "PATCH /pantry": {
-    requestBodySchema: pantryStockBodySchema,
+    requestBodySchema: pantryRestoreBodySchema,
     headersSchema: pantryOperationHeadersSchema,
   },
   "PUT /pantry/items/:ingredientSlug": {
@@ -739,6 +984,16 @@ export const routeMetadata = {
     requestBodySchema: updateHouseholdBodySchema,
   },
   "GET /households/:householdId/members": {},
+  "GET /households/:householdId/equipment": {
+    successResponseSchema: householdEquipmentResponseSchema,
+  },
+  "PATCH /households/:householdId/equipment": {
+    requestBodySchema: updateHouseholdEquipmentPreferencesBodySchema,
+  },
+  "PUT /households/:householdId/equipment/:equipmentSlug": {
+    successResponseSchema: householdEquipmentOwnedItemSchema,
+  },
+  "DELETE /households/:householdId/equipment/:equipmentSlug": {},
   "GET /households/:householdId/invitations": {},
   "POST /households/:householdId/invitations": {
     requestBodySchema: inviteHouseholdMemberBodySchema,
@@ -1177,6 +1432,9 @@ function dietProfileResponse(profile: DietProfileResponse) {
     excludedIngredientSlugs: profile.excludedIngredientSlugs,
     excludedGroupKeys: profile.excludedGroupKeys,
     recipeMatchMode: profile.recipeMatchMode,
+    ...(profile.unresolvedTerms && profile.unresolvedTerms.length > 0
+      ? { unresolvedTerms: profile.unresolvedTerms }
+      : {}),
   };
 }
 
@@ -1266,6 +1524,13 @@ function uuidParam(
   return result.success
     ? result.data
     : c.json({ error: `Invalid ${label}` }, 400);
+}
+
+function equipmentSlugParam(c: Context<AppEnv>): string | Response {
+  const result = equipmentTermInputSchema.safeParse(c.req.param("equipmentSlug"));
+  return result.success
+    ? result.data
+    : c.json({ error: "Invalid equipment term" }, 400);
 }
 
 function hasAuthConfiguration(env: Bindings): boolean {
@@ -1701,12 +1966,6 @@ class PantryOperationConflictError extends Error {
   }
 }
 
-class UnknownPantryIngredientError extends Error {
-  constructor(readonly ingredientSlug: string) {
-    super(`Unknown ingredient: ${ingredientSlug}`);
-  }
-}
-
 function pantryOperationId(c: Context<AppEnv>): string | Response {
   const supplied = c.req.header("Idempotency-Key");
   if (!supplied) return crypto.randomUUID();
@@ -1719,11 +1978,20 @@ function pantryOperationId(c: Context<AppEnv>): string | Response {
 function pantryStockFingerprint(
   kind: "replace" | "restore",
   stock: Record<string, PantryLocation>,
+  items?: Record<string, z.infer<typeof pantryRestoreItemSchema>>,
 ): string {
-  return JSON.stringify([
-    kind,
-    Object.entries(stock).sort(([a], [b]) => a.localeCompare(b)),
-  ]);
+  const sortedStock = Object.entries(stock).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
+  return JSON.stringify(
+    items === undefined
+      ? [kind, sortedStock]
+      : [
+          kind,
+          sortedStock,
+          Object.entries(items).sort(([a], [b]) => a.localeCompare(b)),
+        ],
+  );
 }
 
 async function executePantryOperation(
@@ -1940,27 +2208,280 @@ function pantryMutationErrorResponse(c: Context<AppEnv>, error: unknown) {
   if (error instanceof PantryOperationConflictError) {
     return c.json({ error: error.message }, 409);
   }
-  if (error instanceof UnknownPantryIngredientError) {
-    return c.json({ error: error.message }, 400);
-  }
   if (error instanceof PantryItemLimitError) {
     return c.json({ error: error.message }, 409);
   }
   return undefined;
 }
 
-async function findUnknownPantryIngredient(
-  db: Pick<Db, "select">,
-  ingredientSlugs: string[],
-): Promise<string | undefined> {
-  if (ingredientSlugs.length === 0) return undefined;
+function pantryTermOwner(scope: PantryScope): AuthoredTermOwner {
+  return scope.type === "household"
+    ? { type: "household", organizationId: scope.householdId }
+    : { type: "user", userId: scope.userId };
+}
 
-  const knownIngredients = await db
-    .select({ slug: schema.ingredient.slug })
-    .from(schema.ingredient)
-    .where(inArray(schema.ingredient.slug, ingredientSlugs));
-  const knownSlugs = new Set(knownIngredients.map(({ slug }) => slug));
-  return ingredientSlugs.find((slug) => !knownSlugs.has(slug));
+async function observeIngredientTerms(
+  tx: DbTransaction,
+  input: {
+    owner: AuthoredTermOwner;
+    actorUserId: string;
+    rawTerms: string[];
+    locale: string;
+    flow: "recipe" | "pantry" | "diet";
+    resourceId?: string;
+  },
+): Promise<Array<{ key: string; canonicalSlug: string | null }>> {
+  const candidateSlugs = Array.from(
+    new Set(input.rawTerms.map(normalizeSlug).filter(Boolean)),
+  );
+  const knownRows =
+    candidateSlugs.length === 0
+      ? []
+      : await tx
+          .select({ slug: schema.ingredient.slug })
+          .from(schema.ingredient)
+          .where(inArray(schema.ingredient.slug, candidateSlugs));
+  const canonicalSlugs = new Set(knownRows.map(({ slug }) => slug));
+  return Promise.all(input.rawTerms.map((rawText) => {
+    const normalizedSlug = normalizeSlug(rawText);
+    return observeAuthoredTerm(tx, input.owner, {
+      kind: "ingredient",
+      rawText,
+      locale: input.locale,
+      sourceContext: {
+        flow: input.flow,
+        ...(input.resourceId ? { resourceId: input.resourceId } : {}),
+        field: input.flow === "recipe" ? "ingredients" : "ingredient",
+      },
+      provenance: { kind: "user", actorUserId: input.actorUserId },
+      candidateMatches:
+        normalizedSlug && canonicalSlugs.has(normalizedSlug)
+          ? [{ slug: normalizedSlug, score: 1 }]
+          : [],
+      canonicalSlugs,
+    });
+  }));
+}
+
+async function observeNewPantryEntries(
+  tx: DbTransaction,
+  scope: PantryScope,
+  input: {
+    actorUserId: string;
+    locale: string;
+    stockEntries: Array<[string, PantryLocation]>;
+  },
+): Promise<NormalizedPantryEntry[]> {
+  const currentRows = await tx
+    .select({ ingredientSlug: schema.pantryItem.ingredientSlug })
+    .from(schema.pantryItem)
+    .where(pantryScopeFilter(scope));
+  const currentKeys = new Set(
+    currentRows.map(({ ingredientSlug }) => ingredientSlug),
+  );
+  const existingKeys = new Map<number, string>();
+  const newEntries: Array<[number, string]> = [];
+  for (const [index, [rawText]] of input.stockEntries.entries()) {
+    const existingKey = [
+      rawText,
+      normalizeAuthoredTerm(rawText),
+      normalizeSlug(rawText),
+    ].find((candidate) => currentKeys.has(candidate));
+    if (existingKey) existingKeys.set(index, existingKey);
+    else newEntries.push([index, rawText]);
+  }
+
+  const observed = await observeIngredientTerms(tx, {
+    owner: pantryTermOwner(scope),
+    actorUserId: input.actorUserId,
+    rawTerms: newEntries.map(([, rawText]) => rawText),
+    locale: input.locale,
+    flow: "pantry",
+    resourceId: pantryResourceId(scope),
+  });
+  const observedKeys = new Map(
+    newEntries.map(([index], termIndex) => [index, observed[termIndex]?.key]),
+  );
+  const normalizedEntries: NormalizedPantryEntry[] = [];
+  for (const [
+    index,
+    [rawIngredientSlug, location],
+  ] of input.stockEntries.entries()) {
+    const key = existingKeys.get(index) ?? observedKeys.get(index);
+    if (key) {
+      normalizedEntries.push({
+        ingredientSlug: key,
+        location,
+        rawIngredientSlug,
+      });
+    }
+  }
+  return normalizedEntries;
+}
+
+type NormalizedPantryEntry = {
+  ingredientSlug: string;
+  location: PantryLocation;
+  rawIngredientSlug: string;
+};
+
+function pantryRestoreItemValues(
+  scope: PantryScope,
+  entry: NormalizedPantryEntry,
+  item: z.infer<typeof pantryRestoreItemSchema> | undefined,
+) {
+  const owner =
+    scope.type === "personal"
+      ? { userId: scope.userId, organizationId: null }
+      : { userId: null, organizationId: scope.householdId };
+  const base = {
+    ...owner,
+    ingredientSlug: entry.ingredientSlug,
+    location: entry.location,
+  };
+  if (!item) return base;
+
+  return {
+    ...base,
+    quantity: item.quantity === null ? null : String(item.quantity.amount),
+    quantityUnit: item.quantity?.unit ?? null,
+    useBy: item.freshness.useBy,
+    bestBefore: item.freshness.bestBefore,
+    stockedAt: item.freshness.stockedAt,
+    openedAt: item.freshness.openedAt,
+    frozenAt: item.freshness.frozenAt,
+    freshnessEstimate: item.freshness.estimate,
+    sourceKind: item.source.kind,
+    provenance: item.source.provenance,
+  };
+}
+
+function pantryItemCorrectionValues(
+  scope: PantryScope,
+  item: z.infer<typeof pantryItemBodySchema>,
+) {
+  const values: {
+    location: PantryLocation;
+    quantity?: string | null;
+    quantityUnit?: string | null;
+    useBy?: string | null;
+    bestBefore?: string | null;
+    stockedAt?: string | null;
+    openedAt?: string | null;
+    frozenAt?: string | null;
+    freshnessEstimate?: z.infer<typeof pantryFreshnessSchema>["estimate"];
+    sourceKind: "user";
+    provenance: string;
+  } = {
+    location: item.location,
+    sourceKind: "user",
+    provenance:
+      scope.type === "household"
+        ? "Household member update"
+        : "Manual kitchen update",
+  };
+  if (item.quantity !== undefined) {
+    values.quantity =
+      item.quantity === null ? null : String(item.quantity.amount);
+    values.quantityUnit = item.quantity?.unit ?? null;
+  }
+  if (item.freshness !== undefined) {
+    values.useBy = item.freshness.useBy;
+    values.bestBefore = item.freshness.bestBefore;
+    values.stockedAt = item.freshness.stockedAt;
+    values.openedAt = item.freshness.openedAt;
+    values.frozenAt = item.freshness.frozenAt;
+    values.freshnessEstimate = item.freshness.estimate;
+  }
+  return values;
+}
+
+async function correctPantryItem(
+  tx: DbTransaction,
+  scope: PantryScope,
+  input: {
+    actorUserId: string;
+    rawIngredient: string;
+    locale: string;
+    item: z.infer<typeof pantryItemBodySchema>;
+  },
+): Promise<void> {
+  const [term] = await observeIngredientTerms(tx, {
+    owner: pantryTermOwner(scope),
+    actorUserId: input.actorUserId,
+    rawTerms: [input.rawIngredient],
+    locale: input.locale,
+    flow: "pantry",
+    resourceId: pantryResourceId(scope),
+  });
+  if (!term) throw new Error("Pantry term was not recorded");
+
+  const owner =
+    scope.type === "household"
+      ? { userId: null, organizationId: scope.householdId }
+      : { userId: scope.userId, organizationId: null };
+  const conflictTarget =
+    scope.type === "household"
+      ? [schema.pantryItem.organizationId, schema.pantryItem.ingredientSlug]
+      : [schema.pantryItem.userId, schema.pantryItem.ingredientSlug];
+  const correction = pantryItemCorrectionValues(scope, input.item);
+  await tx
+    .insert(schema.pantryItem)
+    .values({ ...owner, ingredientSlug: term.key, ...correction })
+    .onConflictDoUpdate({
+      target: conflictTarget,
+      set: {
+        ...correction,
+        version: sql`${schema.pantryItem.version} + 1`,
+        updatedAt: new Date(),
+      },
+    });
+}
+
+async function replacePantryStock(
+  tx: DbTransaction,
+  scope: PantryScope,
+  entries: NormalizedPantryEntry[],
+): Promise<void> {
+  const ingredientSlugs = entries.map(({ ingredientSlug }) => ingredientSlug);
+  const scopeFilter = pantryScopeFilter(scope);
+  await tx
+    .delete(schema.pantryItem)
+    .where(
+      ingredientSlugs.length > 0
+        ? and(
+            scopeFilter,
+            notInArray(schema.pantryItem.ingredientSlug, ingredientSlugs),
+          )
+        : scopeFilter,
+    );
+  if (entries.length === 0) return;
+
+  await tx
+    .insert(schema.pantryItem)
+    .values(
+      entries.map(({ ingredientSlug, location }) => ({
+        userId: scope.type === "personal" ? scope.userId : null,
+        organizationId:
+          scope.type === "household" ? scope.householdId : null,
+        ingredientSlug,
+        location,
+      })),
+    )
+    .onConflictDoUpdate({
+      target:
+        scope.type === "household"
+          ? [
+              schema.pantryItem.organizationId,
+              schema.pantryItem.ingredientSlug,
+            ]
+          : [schema.pantryItem.userId, schema.pantryItem.ingredientSlug],
+      set: {
+        location: sql`excluded.location`,
+        version: sql`${schema.pantryItem.version} + 1`,
+        updatedAt: new Date(),
+      },
+    });
 }
 
 async function acceptPendingInvitation(
@@ -2692,7 +3213,7 @@ async function findDietProfile(
   db: Db,
   userId: string,
 ): Promise<DietProfileResponse | undefined> {
-  const [profiles, presets, ingredients, groups] = await Promise.all([
+  const [profiles, presets, ingredients, groups, unresolvedTerms] = await Promise.all([
     db
       .select()
       .from(schema.userDietProfile)
@@ -2710,6 +3231,7 @@ async function findDietProfile(
       .select({ key: schema.userDietExcludedGroup.groupKey })
       .from(schema.userDietExcludedGroup)
       .where(eq(schema.userDietExcludedGroup.userId, userId)),
+    listUnresolvedTerms(db, { type: "user", userId }, "ingredient"),
   ]);
   const profile = profiles[0];
   if (!profile) return undefined;
@@ -2719,6 +3241,11 @@ async function findDietProfile(
     excludedIngredientSlugs: ingredients.map((ingredient) => ingredient.slug),
     excludedGroupKeys: groups.map((group) => group.key),
     recipeMatchMode: profile.recipeMatchMode,
+    unresolvedTerms: unresolvedTerms.filter((term) =>
+      ingredients.some(
+        (ingredient) => ingredient.slug === term.normalizedText,
+      ),
+    ),
   };
 }
 
@@ -2934,23 +3461,12 @@ async function findMissingDietReferences(
   db: Pick<Db, "select">,
   body: z.infer<typeof updateDietProfileBodySchema>,
 ) {
-  const [presets, ingredients, groups] = await Promise.all([
+  const [presets, groups] = await Promise.all([
     body.presetDietKeys.length > 0
       ? db
           .select({ key: schema.dietPreset.key })
           .from(schema.dietPreset)
           .where(inArray(schema.dietPreset.key, body.presetDietKeys))
-      : [],
-    body.excludedIngredientSlugs.length > 0
-      ? db
-          .select({ slug: schema.ingredient.slug })
-          .from(schema.ingredient)
-          .where(
-            inArray(
-              schema.ingredient.slug,
-              body.excludedIngredientSlugs,
-            ),
-          )
       : [],
     body.excludedGroupKeys.length > 0
       ? db
@@ -2961,9 +3477,6 @@ async function findMissingDietReferences(
   ]);
 
   const presetKeys = new Set(presets.map((preset) => preset.key));
-  const ingredientSlugs = new Set(
-    ingredients.map((ingredient) => ingredient.slug),
-  );
   const groupKeys = new Set(groups.map((group) => group.key));
 
   return [
@@ -2972,12 +3485,6 @@ async function findMissingDietReferences(
       .map((key) => ({
         path: ["presetDietKeys"],
         message: `Unknown diet preset: ${key}`,
-      })),
-    ...body.excludedIngredientSlugs
-      .filter((slug) => !ingredientSlugs.has(slug))
-      .map((slug) => ({
-        path: ["excludedIngredientSlugs"],
-        message: `Unknown ingredient: ${slug}`,
       })),
     ...body.excludedGroupKeys
       .filter((key) => !groupKeys.has(key))
@@ -3214,6 +3721,7 @@ registerRoute("put", "/api/profile/diet", async (c) => {
 
   const body = await parseJsonBody(c, updateDietProfileBodySchema);
   if (!body.success) return body.response;
+  const locale = requestLocale(c.req.header("Accept-Language"));
 
   return withRecipeSession(
     c,
@@ -3244,6 +3752,18 @@ registerRoute("put", "/api/profile/diet", async (c) => {
 
           if (!savedProfile) throw new Error("Diet profile upsert failed");
 
+          const observedIngredients = await observeIngredientTerms(tx, {
+            owner: { type: "user", userId: session.user.id },
+            actorUserId: session.user.id,
+            rawTerms: body.data.excludedIngredientSlugs,
+            locale,
+            flow: "diet",
+            resourceId: session.user.id,
+          });
+          const excludedIngredientSlugs = Array.from(
+            new Set(observedIngredients.map((term) => term.key)),
+          );
+
           await Promise.all([
             tx
               .delete(schema.userDietPreset)
@@ -3267,9 +3787,9 @@ registerRoute("put", "/api/profile/diet", async (c) => {
             );
           }
 
-          if (body.data.excludedIngredientSlugs.length > 0) {
+          if (excludedIngredientSlugs.length > 0) {
             await tx.insert(schema.userDietExcludedIngredient).values(
-              body.data.excludedIngredientSlugs.map((ingredientSlug) => ({
+              excludedIngredientSlugs.map((ingredientSlug) => ({
                 userId: session.user.id,
                 ingredientSlug,
               })),
@@ -3287,9 +3807,18 @@ registerRoute("put", "/api/profile/diet", async (c) => {
 
           return {
             presetDietKeys: body.data.presetDietKeys,
-            excludedIngredientSlugs: body.data.excludedIngredientSlugs,
+            excludedIngredientSlugs,
             excludedGroupKeys: body.data.excludedGroupKeys,
             recipeMatchMode: savedProfile.recipeMatchMode,
+            unresolvedTerms: (
+              await listUnresolvedTerms(
+                tx,
+                { type: "user", userId: session.user.id },
+                "ingredient",
+              )
+            ).filter((term) =>
+              excludedIngredientSlugs.includes(term.normalizedText),
+            ),
           };
         });
 
@@ -3870,9 +4399,7 @@ registerRoute("put", "/pantry", async (c) => {
       if (!body.success) return body.response;
 
       const stockEntries = Object.entries(body.data.stock);
-      const ingredientSlugs = stockEntries.map(
-        ([ingredientSlug]) => ingredientSlug,
-      );
+      const locale = requestLocale(c.req.header("Accept-Language"));
 
       const pantry = await executeCollaborativePantryOperation(
         c,
@@ -3882,55 +4409,12 @@ registerRoute("put", "/pantry", async (c) => {
         pantryStockFingerprint("replace", body.data.stock),
         "pantry.replaced",
         async (tx, scope) => {
-          const unknownSlug = await findUnknownPantryIngredient(
-            tx,
-            ingredientSlugs,
-          );
-          if (unknownSlug) throw new UnknownPantryIngredientError(unknownSlug);
-          const scopeFilter = pantryScopeFilter(scope);
-          await tx
-            .delete(schema.pantryItem)
-            .where(
-              ingredientSlugs.length > 0
-                ? and(
-                    scopeFilter,
-                    notInArray(
-                      schema.pantryItem.ingredientSlug,
-                      ingredientSlugs,
-                    ),
-                  )
-                : scopeFilter,
-            );
-          if (ingredientSlugs.length > 0) {
-            await tx
-              .insert(schema.pantryItem)
-              .values(
-                stockEntries.map(([ingredientSlug, location]) => ({
-                  userId: scope.type === "personal" ? scope.userId : null,
-                  organizationId:
-                    scope.type === "household" ? scope.householdId : null,
-                  ingredientSlug,
-                  location,
-                })),
-              )
-              .onConflictDoUpdate({
-                target:
-                  scope.type === "household"
-                    ? [
-                        schema.pantryItem.organizationId,
-                        schema.pantryItem.ingredientSlug,
-                      ]
-                    : [
-                        schema.pantryItem.userId,
-                        schema.pantryItem.ingredientSlug,
-                      ],
-                set: {
-                  location: sql`excluded.location`,
-                  version: sql`${schema.pantryItem.version} + 1`,
-                  updatedAt: new Date(),
-                },
-              });
-          }
+          const normalizedEntries = await observeNewPantryEntries(tx, scope, {
+            actorUserId: session.user.id,
+            locale,
+            stockEntries,
+          });
+          await replacePantryStock(tx, scope, normalizedEntries);
         },
       );
 
@@ -3951,38 +4435,36 @@ registerRoute("patch", "/pantry", async (c) => {
     "mutation",
     "PATCH /pantry mutation failed",
     async ({ db, session }) => {
-      const body = await parseJsonBody(c, pantryStockBodySchema);
+      const body = await parseJsonBody(c, pantryRestoreBodySchema);
       if (!body.success) return body.response;
 
       const stockEntries = Object.entries(body.data.stock);
-      const ingredientSlugs = stockEntries.map(
-        ([ingredientSlug]) => ingredientSlug,
-      );
+      const locale = requestLocale(c.req.header("Accept-Language"));
 
       const pantry = await executeCollaborativePantryOperation(
         c,
         db,
         session.user.id,
         operationId,
-        pantryStockFingerprint("restore", body.data.stock),
+        pantryStockFingerprint("restore", body.data.stock, body.data.items),
         "pantry.restored",
         async (tx, scope) => {
-          const unknownSlug = await findUnknownPantryIngredient(
-            tx,
-            ingredientSlugs,
-          );
-          if (unknownSlug) throw new UnknownPantryIngredientError(unknownSlug);
-          if (stockEntries.length > 0) {
+          const normalizedEntries = await observeNewPantryEntries(tx, scope, {
+            actorUserId: session.user.id,
+            locale,
+            stockEntries,
+          });
+          if (normalizedEntries.length > 0) {
             await tx
               .insert(schema.pantryItem)
               .values(
-                stockEntries.map(([ingredientSlug, location]) => ({
-                  userId: scope.type === "personal" ? scope.userId : null,
-                  organizationId:
-                    scope.type === "household" ? scope.householdId : null,
-                  ingredientSlug,
-                  location,
-                })),
+                normalizedEntries.map((entry) =>
+                  pantryRestoreItemValues(
+                    scope,
+                    entry,
+                    body.data.items?.[entry.rawIngredientSlug],
+                  ),
+                ),
               )
               .onConflictDoNothing();
           }
@@ -4015,46 +4497,22 @@ registerRoute("put", "/pantry/items/:ingredientSlug", async (c) => {
       const body = await parseJsonBody(c, pantryItemBodySchema);
       if (!body.success) return body.response;
 
-      const ingredientSlug = ingredientSlugResult.data;
+      const rawIngredient = ingredientSlugResult.data;
+      const locale = requestLocale(c.req.header("Accept-Language"));
       const pantry = await executeCollaborativePantryOperation(
         c,
         db,
         session.user.id,
         operationId,
-        `set:${ingredientSlug}:${body.data.location}`,
+        JSON.stringify(["set", rawIngredient, body.data]),
         "pantry.item-set",
-        async (tx, scope) => {
-          const unknownSlug = await findUnknownPantryIngredient(tx, [
-            ingredientSlug,
-          ]);
-          if (unknownSlug) throw new UnknownPantryIngredientError(unknownSlug);
-          await tx
-            .insert(schema.pantryItem)
-            .values({
-              userId: scope.type === "personal" ? scope.userId : null,
-              organizationId:
-                scope.type === "household" ? scope.householdId : null,
-              ingredientSlug,
-              location: body.data.location,
-            })
-            .onConflictDoUpdate({
-              target:
-                scope.type === "household"
-                  ? [
-                      schema.pantryItem.organizationId,
-                      schema.pantryItem.ingredientSlug,
-                    ]
-                  : [
-                      schema.pantryItem.userId,
-                      schema.pantryItem.ingredientSlug,
-                    ],
-              set: {
-                location: body.data.location,
-                version: sql`${schema.pantryItem.version} + 1`,
-                updatedAt: new Date(),
-              },
-            });
-        },
+        (tx, scope) =>
+          correctPantryItem(tx, scope, {
+            actorUserId: session.user.id,
+            rawIngredient,
+            locale,
+            item: body.data,
+          }),
       );
 
       return c.json(pantry);
@@ -4080,7 +4538,6 @@ registerRoute("delete", "/pantry/items/:ingredientSlug", async (c) => {
       if (!ingredientSlugResult.success) {
         return c.json({ error: "Invalid ingredient slug" }, 400);
       }
-
       const pantry = await executeCollaborativePantryOperation(
         c,
         db,
@@ -4094,10 +4551,7 @@ registerRoute("delete", "/pantry/items/:ingredientSlug", async (c) => {
             .where(
               and(
                 pantryScopeFilter(scope),
-                eq(
-                  schema.pantryItem.ingredientSlug,
-                  ingredientSlugResult.data,
-                ),
+                eq(schema.pantryItem.ingredientSlug, ingredientSlugResult.data),
               ),
             );
         },
@@ -4331,6 +4785,273 @@ registerRoute("get", "/households/:householdId/members", async (c) => {
     },
   );
 });
+
+function householdEquipmentItemResponse(
+  equipmentSlug: string,
+  createdAt: Date,
+  unresolvedByText: ReadonlyMap<string, UnresolvedTermSummary> = new Map(),
+) {
+  const catalogItem = householdEquipmentBySlug.get(equipmentSlug);
+  if (catalogItem) {
+    return {
+        ...catalogItem,
+        createdAt: createdAt.toISOString(),
+        retired: false,
+      };
+  }
+  const unresolved = unresolvedByText.get(equipmentSlug);
+  return {
+    slug: equipmentSlug,
+    name: unresolved?.rawText ?? equipmentDisplayName(equipmentSlug),
+    createdAt: createdAt.toISOString(),
+    retired: !unresolved,
+    ...(unresolved ? { unresolved: true } : {}),
+  };
+}
+
+async function withHouseholdEquipmentMutation(
+  c: Context<AppEnv>,
+  logMessage: string,
+  termMode: "observe" | "stored-key",
+  mutate: (
+    db: DbTransaction,
+    householdId: string,
+    equipmentSlug: string,
+    unresolvedByText: ReadonlyMap<string, UnresolvedTermSummary>,
+  ) => Promise<Response>,
+): Promise<Response> {
+  const householdId = uuidParam(c, "householdId", "household ID");
+  if (householdId instanceof Response) return householdId;
+  const rawEquipment = equipmentSlugParam(c);
+  if (rawEquipment instanceof Response) return rawEquipment;
+  const csrfFailure = validateCsrf(c);
+  if (csrfFailure) return csrfFailure;
+
+  return withRecipeSession(c, "mutation", logMessage, async ({ db, session }) => {
+    const memberFailure = await requireHouseholdMemberResponse(
+      c,
+      db,
+      householdId,
+      session,
+    );
+    if (memberFailure) return memberFailure;
+    return db.transaction(async (tx) => {
+      let equipmentSlug = rawEquipment;
+      if (termMode === "observe") {
+        const equipment = canonicalEquipmentTerm(rawEquipment);
+        const term = await observeAuthoredTerm(
+          tx,
+          { type: "household", organizationId: householdId },
+          {
+            kind: "equipment",
+            rawText: rawEquipment,
+            locale: requestLocale(c.req.header("Accept-Language")),
+            sourceContext: {
+              flow: "equipment",
+              resourceId: householdId,
+              field: "inventory",
+            },
+            provenance: { kind: "user", actorUserId: session.user.id },
+            candidateMatches: equipment.candidateMatches,
+            canonicalSlug: equipment.canonicalSlug,
+          },
+        );
+        equipmentSlug = term.key;
+      }
+      const unresolvedTerms =
+        termMode === "observe"
+          ? await listUnresolvedTerms(
+              tx,
+              { type: "household", organizationId: householdId },
+              "equipment",
+              [equipmentSlug],
+            )
+          : [];
+      return mutate(
+        tx,
+        householdId,
+        equipmentSlug,
+        new Map(
+          unresolvedTerms.map((unresolved) => [
+            unresolved.normalizedText,
+            unresolved,
+          ]),
+        ),
+      );
+    });
+  });
+}
+
+registerRoute("get", "/households/:householdId/equipment", async (c) => {
+  const householdId = uuidParam(c, "householdId", "household ID");
+  if (householdId instanceof Response) return householdId;
+
+  return withRecipeSession(
+    c,
+    "query",
+    "GET /households/:householdId/equipment failed",
+    async ({ db, session }) => {
+      const memberFailure = await requireHouseholdMemberResponse(
+        c,
+        db,
+        householdId,
+        session,
+      );
+      if (memberFailure) return memberFailure;
+
+      const [household] = await db
+        .select({
+          recipeMatchMode: schema.organization.equipmentRecipeMatchMode,
+        })
+        .from(schema.organization)
+        .where(eq(schema.organization.id, householdId))
+        .limit(1);
+      if (!household) return c.notFound();
+
+      const equipment = await db
+        .select({
+          equipmentSlug: schema.householdEquipment.equipmentSlug,
+          createdAt: schema.householdEquipment.createdAt,
+        })
+        .from(schema.householdEquipment)
+        .where(eq(schema.householdEquipment.organizationId, householdId))
+        .orderBy(schema.householdEquipment.equipmentSlug);
+
+      const equipmentKeys = equipment.map(({ equipmentSlug }) => equipmentSlug);
+      const unresolvedTerms =
+        equipmentKeys.length === 0
+          ? []
+          : await listUnresolvedTerms(
+              db,
+              { type: "household", organizationId: householdId },
+              "equipment",
+              equipmentKeys,
+            );
+      const unresolvedByText = new Map(
+        unresolvedTerms.map((term) => [term.normalizedText, term]),
+      );
+
+      return c.json({
+        catalog: householdEquipmentCatalog,
+        owned: equipment.map(({ equipmentSlug, createdAt }) =>
+          householdEquipmentItemResponse(
+            equipmentSlug,
+            createdAt,
+            unresolvedByText,
+          ),
+        ),
+        ...(unresolvedTerms.length > 0 ? { unresolvedTerms } : {}),
+        recipeMatchMode: household.recipeMatchMode,
+      });
+    },
+  );
+});
+
+registerRoute("patch", "/households/:householdId/equipment", async (c) => {
+  const householdId = uuidParam(c, "householdId", "household ID");
+  if (householdId instanceof Response) return householdId;
+  const csrfFailure = validateCsrf(c);
+  if (csrfFailure) return csrfFailure;
+
+  return withRecipeSession(
+    c,
+    "mutation",
+    "PATCH /households/:householdId/equipment failed",
+    async ({ db, session }) => {
+      const memberFailure = await requireHouseholdMemberResponse(
+        c,
+        db,
+        householdId,
+        session,
+      );
+      if (memberFailure) return memberFailure;
+
+      const body = await parseJsonBody(
+        c,
+        updateHouseholdEquipmentPreferencesBodySchema,
+      );
+      if (!body.success) return body.response;
+
+      const [household] = await db
+        .update(schema.organization)
+        .set({ equipmentRecipeMatchMode: body.data.recipeMatchMode })
+        .where(eq(schema.organization.id, householdId))
+        .returning({
+          recipeMatchMode: schema.organization.equipmentRecipeMatchMode,
+        });
+      if (!household) return c.notFound();
+      return c.json(household);
+    },
+  );
+});
+
+registerRoute(
+  "put",
+  "/households/:householdId/equipment/:equipmentSlug",
+  (c) =>
+    withHouseholdEquipmentMutation(
+      c,
+      "PUT /households/:householdId/equipment/:equipmentSlug failed",
+      "observe",
+      async (db, householdId, equipmentSlug, unresolvedByText) => {
+        const [created] = await db
+          .insert(schema.householdEquipment)
+          .values({ organizationId: householdId, equipmentSlug })
+          .onConflictDoNothing()
+          .returning();
+        if (created) {
+          return c.json(
+            householdEquipmentItemResponse(
+              created.equipmentSlug,
+              created.createdAt,
+              unresolvedByText,
+            ),
+          );
+        }
+
+        const [existing] = await db
+          .select()
+          .from(schema.householdEquipment)
+          .where(
+            and(
+              eq(schema.householdEquipment.organizationId, householdId),
+              eq(schema.householdEquipment.equipmentSlug, equipmentSlug),
+            ),
+          )
+          .limit(1);
+        if (!existing) throw new Error("Equipment insert failed");
+        return c.json(
+          householdEquipmentItemResponse(
+            existing.equipmentSlug,
+            existing.createdAt,
+            unresolvedByText,
+          ),
+        );
+      },
+    ),
+);
+
+registerRoute(
+  "delete",
+  "/households/:householdId/equipment/:equipmentSlug",
+  (c) =>
+    withHouseholdEquipmentMutation(
+      c,
+      "DELETE /households/:householdId/equipment/:equipmentSlug failed",
+      "stored-key",
+      async (db, householdId, equipmentSlug) => {
+        await db
+          .delete(schema.householdEquipment)
+          .where(
+            and(
+              eq(schema.householdEquipment.organizationId, householdId),
+              eq(schema.householdEquipment.equipmentSlug, equipmentSlug),
+            ),
+        );
+        return c.body(null, 204);
+      },
+    ),
+);
 
 registerRoute("get", "/households/:householdId/invitations", async (c) => {
   const householdId = uuidParam(c, "householdId", "household ID");
@@ -5726,6 +6447,7 @@ registerRoute("post", "/recipes", async (c) => {
     async ({ db, session }) => {
       const body = await parseJsonBody(c, createRecipeBodySchema);
       if (!body.success) return body.response;
+      const locale = requestLocale(c.req.header("Accept-Language"));
 
       if (body.data.visibility === "household") {
         const membership = await findUserHouseholdMembership(
@@ -5741,6 +6463,14 @@ registerRoute("post", "/recipes", async (c) => {
           if (!parent || !authorizeRecipeRead(session.user, parent, { userSharesHouseholdWithOwner: await usersShareHousehold(tx, parent.userId, session.user.id) }).allowed) return undefined;
         }
         const [saved] = await tx.insert(schema.recipe).values({ ...body.data, userId: session.user.id }).returning();
+        if (saved) {
+          await recordRecipeBodyTerms(tx, {
+            body: body.data.body,
+            locale,
+            recipeId: saved.id,
+            userId: session.user.id,
+          });
+        }
         return saved;
       });
 
@@ -5784,6 +6514,7 @@ registerRoute("patch", "/recipes/:slug", async (c) => {
 
       const body = await parseJsonBody(c, updateRecipeBodySchema);
       if (!body.success) return body.response;
+      const locale = requestLocale(c.req.header("Accept-Language"));
 
       if (body.data.visibility === "household") {
         const membership = await findUserHouseholdMembership(
@@ -5797,16 +6528,28 @@ registerRoute("patch", "/recipes/:slug", async (c) => {
         ...body.data,
       };
 
-      const [updatedRecipe] = await db
-        .update(schema.recipe)
-        .set(updates)
-        .where(
-          and(
-            eq(schema.recipe.id, recipe.id),
-            eq(schema.recipe.userId, session.user.id),
-          ),
-        )
-        .returning();
+      const updatedRecipe = await db.transaction(async (tx) => {
+        const [saved] = await tx
+          .update(schema.recipe)
+          .set(updates)
+          .where(
+            and(
+              eq(schema.recipe.id, recipe.id),
+              eq(schema.recipe.userId, session.user.id),
+            ),
+          )
+          .returning();
+        if (saved && body.data.body) {
+          await recordRecipeBodyTerms(tx, {
+            body: body.data.body,
+            locale,
+            previousBody: recipe.body,
+            recipeId: saved.id,
+            userId: session.user.id,
+          });
+        }
+        return saved;
+      });
 
       if (!updatedRecipe) return c.notFound();
 

@@ -66,7 +66,7 @@ describe("ShoppingView", () => {
 
   it("shows the shopping list followed by the recipe picker", () => {
     mocks.extras.splice(0);
-    render(<ShoppingView recipes={[]} />);
+    render(<ShoppingView ingredientCatalog={[]} recipes={[]} />);
 
     expect(
       screen.getByRole("heading", { name: "Shopping list." }),
@@ -92,7 +92,7 @@ describe("ShoppingView", () => {
 
   it("starts a new list without changing the page", async () => {
     const user = userEvent.setup();
-    render(<ShoppingView recipes={[]} />);
+    render(<ShoppingView ingredientCatalog={[]} recipes={[]} />);
 
     await user.click(screen.getByRole("button", { name: /start a new list/i }));
 
@@ -103,7 +103,7 @@ describe("ShoppingView", () => {
   });
 
   it("offers sharing for a household shopping list", () => {
-    render(<ShoppingView recipes={[]} />);
+    render(<ShoppingView ingredientCatalog={[]} recipes={[]} />);
 
     expect(screen.getByRole("button", { name: "share" })).toBeInTheDocument();
   });
@@ -111,7 +111,7 @@ describe("ShoppingView", () => {
   it("links personal shopping lists to household setup", () => {
     mocks.household = false;
 
-    render(<ShoppingView recipes={[]} />);
+    render(<ShoppingView ingredientCatalog={[]} recipes={[]} />);
 
     expect(
       screen.getByRole("link", { name: "share with a household" }),

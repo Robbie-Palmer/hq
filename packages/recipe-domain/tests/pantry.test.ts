@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   MAX_PANTRY_MUTATION_CHANGES,
+  emptyPantryFreshness,
+  PantryFreshnessSchema,
   PantryItemLimitError,
   PantryLocationSchema,
   PantryMutationConflictError,
@@ -29,6 +31,41 @@ describe("pantry mutation rules", () => {
   it("owns and validates the pantry location vocabulary", () => {
     expect(PantryLocationSchema.parse("fridge")).toBe("fridge");
     expect(PantryLocationSchema.safeParse("garage").success).toBe(false);
+  });
+
+  it("models use-by and best-before as independent optional dates", () => {
+    expect(
+      PantryFreshnessSchema.parse({
+        ...emptyPantryFreshness(),
+        useBy: "2026-10-12",
+        bestBefore: "2026-10-10",
+      }),
+    ).toMatchObject({
+      useBy: "2026-10-12",
+      bestBefore: "2026-10-10",
+    });
+    expect(PantryFreshnessSchema.parse(emptyPantryFreshness())).toEqual(
+      emptyPantryFreshness(),
+    );
+  });
+
+  it("records produce freshness as an explicit day-count estimate", () => {
+    expect(
+      PantryFreshnessSchema.parse({
+        ...emptyPantryFreshness(),
+        estimate: {
+          expectedDays: 5,
+          startingOn: "2026-10-07",
+          storage: "fresh",
+          basis: "user",
+        },
+      }).estimate,
+    ).toEqual({
+      expectedDays: 5,
+      startingOn: "2026-10-07",
+      storage: "fresh",
+      basis: "user",
+    });
   });
 
   it("plans inserts, updates, and deletions with stable identities", () => {

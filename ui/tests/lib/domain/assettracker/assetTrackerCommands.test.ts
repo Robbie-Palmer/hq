@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   AssetTrackerCommandError,
+  applyAddCashFlowDecision,
+  applyAddCommitment,
+  applyAddForecastAssumption,
   applyAddPlannedExpenditure as applyAddPlannedExpenditureDomain,
   applyAddRecurringFlow as applyAddRecurringFlowDomain,
   applyClearAccountHistory,
   applyClearIncomeHistory,
   applyCloseAccount,
   applyCreateAccount as applyCreateAccountDomain,
+  applyCreateForecastAssumptionSet,
+  applyCreatePlanningCase,
   applyDeleteCapitalFlow,
   applyDeletePlannedExpenditure,
   applyDeleteRecurringFlow,
@@ -14,18 +19,28 @@ import {
   applyImportAccountHistory,
   applyImportIncomeHistory,
   applyMaterializeFlow,
+  applyRecordActualCashFlow,
   applyRecordBalance,
   applyRecordTransfer,
   applySetAccountLiquidity,
+  applySetCashFlowDecisionStatus,
+  applySetCommitmentStatus,
   applySetExpectedReturn,
   applySetNetWorthTarget,
   applySetWithdrawalRate,
+  applyVersionForecastAssumptionSet,
   formatAssetTrackerError,
 } from "@/lib/domain/assettracker/assetTrackerCommands";
 import {
   type AssetTrackerData,
   AssetTrackerDataError,
 } from "@/lib/domain/assettracker/assetTrackerData";
+import {
+  activeForecastAssumptions,
+  ForecastAssumptionSchema,
+} from "@/lib/domain/assettracker/forecastAssumption";
+import { futureCashFlowForecastItems } from "@/lib/domain/assettracker/futureCashFlow";
+import { defaultHouseholdFields } from "@/lib/domain/assettracker/household";
 import { flowOccurrenceDates } from "@/lib/domain/assettracker/recurringFlow";
 
 const TEST_AS_OF_DATE = "2026-01-01";
@@ -44,6 +59,7 @@ const applyAddPlannedExpenditure = (
 
 function baseData(): AssetTrackerData {
   return {
+    ...defaultHouseholdFields(),
     accounts: [
       {
         id: "stocks-isa",
@@ -92,9 +108,13 @@ function baseData(): AssetTrackerData {
     ],
     capitalFlows: [],
     incomeHistory: [],
+    salaryHistory: [],
     transfers: [],
     recurringFlows: [],
     plannedExpenditures: [],
+    planningCases: [],
+    futureCashFlows: [],
+    forecastAssumptionSets: [],
     settings: {
       expectedAnnualInflation: 0.025,
       withdrawalRate: 0.04,
@@ -919,7 +939,7 @@ describe("applyCloseAccount", () => {
         accountId: "savings",
         closedAt: "2025-01-01",
       }),
-    ).toThrow(/funds planned spending/);
+    ).toThrow(/funds a future cash flow/);
   });
 
   it("does not overwrite a balance already recorded on the close date", () => {
@@ -1336,7 +1356,366 @@ describe("applySetAccountLiquidity", () => {
         accountId: "stocks-isa",
         liquidity: "illiquid",
       }),
-    ).toThrow(/funds planned spending/);
+    ).toThrow(/funds a future cash flow/);
+  });
+});
+
+describe("future cash-flow planning", () => {
+  it("captures a domain-neutral planning case and a staged commitment", () => {
+    const withCase = applyCreatePlanningCase(baseData(), {
+      name: "Summer plans",
+      description: "A group of related choices",
+      labels: ["shared", "shared"],
+      targetDate: "2099-08-01",
+    });
+    const next = applyAddCommitment(
+      withCase,
+      {
+        name: "Venue deposit",
+        planningCaseId: "summer-plans",
+        labels: ["priority"],
+        currency: "GBP",
+        counterparty: "Example supplier",
+        changeability: "fixed",
+        refundable: true,
+        stages: [
+          {
+            name: "Deposit",
+            fromAccountId: "savings",
+            dueDate: "2099-03-01",
+            amount: 1_000,
+          },
+          {
+            name: "Balance",
+            fromAccountId: "savings",
+            dueDate: "2099-07-01",
+            amount: 4_000,
+          },
+        ],
+      },
+      TEST_AS_OF_DATE,
+    );
+
+    expect(withCase.planningCases).toEqual([
+      expect.objectContaining({
+        id: "summer-plans",
+        name: "Summer plans",
+        labels: ["shared"],
+      }),
+    ]);
+    expect(next.futureCashFlows[0]).toMatchObject({
+      id: "venue-deposit",
+      kind: "commitment",
+      planningCaseId: "summer-plans",
+      status: "active",
+      refundable: true,
+      stages: [
+        { id: "payment-1", amount: 1_000 },
+        { id: "payment-2", amount: 4_000 },
+      ],
+    });
+  });
+
+  it("keeps a weighted decision out of the forecast until selected", () => {
+    const commitment = applyAddCommitment(
+      baseData(),
+      {
+        name: "Firm booking",
+        labels: [],
+        currency: "GBP",
+        stages: [
+          {
+            fromAccountId: "savings",
+            dueDate: "2099-03-01",
+            amount: 1_000,
+          },
+        ],
+      },
+      TEST_AS_OF_DATE,
+    );
+    const considering = applyAddCashFlowDecision(
+      commitment,
+      {
+        name: "Optional upgrade",
+        labels: ["optional"],
+        currency: "GBP",
+        importance: "Nice to have",
+        confidence: 0.6,
+        reversibility: "reversible",
+        dependencyIds: ["firm-booking"],
+        alternativeToIds: [],
+        stages: [
+          {
+            fromAccountId: "savings",
+            earliestDate: "2099-04-01",
+            expectedDate: "2099-05-01",
+            latestDate: "2099-06-01",
+            minimumAmount: 500,
+            expectedAmount: 750,
+            maximumAmount: 1_200,
+          },
+        ],
+      },
+      TEST_AS_OF_DATE,
+    );
+
+    expect(
+      futureCashFlowForecastItems(considering.futureCashFlows),
+    ).toHaveLength(1);
+    const selected = applySetCashFlowDecisionStatus(considering, {
+      id: "optional-upgrade",
+      status: "selected",
+    });
+    expect(futureCashFlowForecastItems(selected.futureCashFlows)).toEqual([
+      expect.objectContaining({
+        futureCashFlowId: "firm-booking",
+        amount: 1_000,
+      }),
+      expect.objectContaining({
+        futureCashFlowId: "optional-upgrade",
+        amount: 750,
+      }),
+    ]);
+  });
+
+  it("reduces remaining commitment value by payments and restores it with refunds", () => {
+    const added = applyAddCommitment(
+      baseData(),
+      {
+        name: "Refundable reservation",
+        labels: [],
+        currency: "GBP",
+        refundable: true,
+        stages: [
+          {
+            fromAccountId: "savings",
+            dueDate: "2099-03-01",
+            amount: 1_000,
+          },
+        ],
+      },
+      TEST_AS_OF_DATE,
+    );
+    const paid = applyRecordActualCashFlow(
+      added,
+      {
+        futureCashFlowId: "refundable-reservation",
+        stageId: "payment-1",
+        date: TEST_AS_OF_DATE,
+        amount: 400,
+        direction: "payment",
+      },
+      TEST_AS_OF_DATE,
+    );
+    const refunded = applyRecordActualCashFlow(
+      paid,
+      {
+        futureCashFlowId: "refundable-reservation",
+        stageId: "payment-1",
+        date: TEST_AS_OF_DATE,
+        amount: 100,
+        direction: "refund",
+      },
+      TEST_AS_OF_DATE,
+    );
+
+    expect(futureCashFlowForecastItems(paid.futureCashFlows)[0]?.amount).toBe(
+      600,
+    );
+    expect(() =>
+      applyRecordActualCashFlow(
+        paid,
+        {
+          futureCashFlowId: "refundable-reservation",
+          stageId: "payment-1",
+          date: TEST_AS_OF_DATE,
+          amount: 401,
+          direction: "refund",
+        },
+        TEST_AS_OF_DATE,
+      ),
+    ).toThrow(/refund cannot exceed/);
+    expect(
+      futureCashFlowForecastItems(refunded.futureCashFlows)[0]?.amount,
+    ).toBe(700);
+    expect(
+      applySetCommitmentStatus(refunded, {
+        id: "refundable-reservation",
+        status: "cancelled",
+      }).futureCashFlows[0],
+    ).toMatchObject({ status: "cancelled" });
+  });
+});
+
+describe("forecast assumption sets", () => {
+  it("selects only assumptions active in the current version and date", () => {
+    const current = ForecastAssumptionSchema.parse({
+      id: "current",
+      name: "Current cost",
+      kind: "expenditure",
+      startDate: "2026-01-01",
+      endDate: "2026-12-31",
+      monthlyChange: { minimum: 100, expected: 150, maximum: 200 },
+      ownership: { kind: "personal", memberId: "primary" },
+      source: { kind: "manual" },
+    });
+    const expired = {
+      ...current,
+      id: "expired",
+      endDate: "2025-12-31",
+    };
+
+    expect(
+      activeForecastAssumptions(
+        [
+          {
+            id: "baseline-v1",
+            seriesId: "baseline",
+            name: "Baseline",
+            version: 1,
+            status: "superseded",
+            createdAt: "2025-01-01T12:00:00Z",
+            assumptions: [{ ...current, id: "old-version" }],
+          },
+          {
+            id: "baseline-v2",
+            seriesId: "baseline",
+            name: "Baseline",
+            version: 2,
+            status: "active",
+            createdAt: "2026-01-01T12:00:00Z",
+            assumptions: [current, expired],
+          },
+        ],
+        "2026-12-31",
+      ).map(({ id }) => id),
+    ).toEqual(["current"]);
+  });
+
+  it("rejects inconsistent assumption dates, ranges, and sources", () => {
+    const base = {
+      id: "invalid",
+      name: "Invalid",
+      kind: "expenditure" as const,
+      startDate: "2026-02-01",
+      monthlyChange: { minimum: 100, expected: 80, maximum: 120 },
+      ownership: { kind: "personal" as const, memberId: "primary" },
+      source: { kind: "manual" as const },
+    };
+
+    expect(() => ForecastAssumptionSchema.parse(base)).toThrow(
+      /minimum to expected to maximum/,
+    );
+    expect(() =>
+      ForecastAssumptionSchema.parse({
+        ...base,
+        monthlyChange: { minimum: 100, expected: 100, maximum: 100 },
+        endDate: "2026-01-01",
+      }),
+    ).toThrow(/cannot end before/);
+    expect(() =>
+      ForecastAssumptionSchema.parse({
+        ...base,
+        kind: "income",
+        monthlyChange: { minimum: 100, expected: 100, maximum: 100 },
+      }),
+    ).toThrow(/destination account/);
+    expect(() =>
+      ForecastAssumptionSchema.parse({
+        ...base,
+        monthlyChange: { minimum: 100, expected: 100, maximum: 100 },
+        source: { kind: "manual-take-home" },
+      }),
+    ).toThrow(/only an income source/);
+  });
+
+  it("captures owned manual and tax-derived changes without touching history", () => {
+    const created = applyCreateForecastAssumptionSet(
+      baseData(),
+      { name: "Household baseline" },
+      "2026-01-01T12:00:00Z",
+    );
+    const withIncome = applyAddForecastAssumption(created, {
+      setId: "household-baseline-v1",
+      name: "Reduced working hours",
+      kind: "income",
+      startDate: "2027-01-01",
+      monthlyChange: { minimum: -800, expected: -600, maximum: -400 },
+      currency: "GBP",
+      confidence: 0.8,
+      ownership: { kind: "personal", memberId: "primary" },
+      accountId: "savings",
+      source: { kind: "manual-take-home" },
+      sourceNotes: "Estimate from current payslips",
+    });
+    const next = applyAddForecastAssumption(withIncome, {
+      setId: "household-baseline-v1",
+      name: "Tax-adjusted pay change",
+      kind: "income",
+      startDate: "2028-01-01",
+      monthlyChange: { minimum: 300, expected: 350, maximum: 400 },
+      currency: "GBP",
+      ownership: { kind: "personal", memberId: "primary" },
+      accountId: "savings",
+      source: {
+        kind: "tax-derived",
+        taxYear: "2026-27",
+        calculationVersion: "1",
+        ruleDatasetVersion: "2026-10-01",
+      },
+    });
+
+    expect(next.incomeHistory).toEqual(baseData().incomeHistory);
+    expect(next.forecastAssumptionSets[0]).toMatchObject({
+      id: "household-baseline-v1",
+      version: 1,
+      status: "active",
+      assumptions: [
+        expect.objectContaining({
+          id: "reduced-working-hours",
+          source: { kind: "manual-take-home" },
+        }),
+        expect.objectContaining({
+          id: "tax-adjusted-pay-change",
+          source: expect.objectContaining({ kind: "tax-derived" }),
+        }),
+      ],
+    });
+  });
+
+  it("creates an immutable next version with the previous assumptions", () => {
+    const created = applyCreateForecastAssumptionSet(
+      baseData(),
+      { name: "Household baseline" },
+      "2026-01-01T12:00:00Z",
+    );
+    const versioned = applyVersionForecastAssumptionSet(
+      created,
+      { id: "household-baseline-v1" },
+      "2026-02-01T12:00:00Z",
+    );
+
+    expect(versioned.forecastAssumptionSets).toMatchObject([
+      { id: "household-baseline-v1", status: "superseded", version: 1 },
+      {
+        id: "household-baseline-v2",
+        status: "active",
+        version: 2,
+        supersedesId: "household-baseline-v1",
+      },
+    ]);
+    expect(() =>
+      applyAddForecastAssumption(versioned, {
+        setId: "household-baseline-v1",
+        name: "Late edit",
+        kind: "expenditure",
+        startDate: "2027-01-01",
+        monthlyChange: { minimum: 100, expected: 100, maximum: 100 },
+        currency: "GBP",
+        ownership: { kind: "personal", memberId: "primary" },
+        source: { kind: "manual" },
+      }),
+    ).toThrow(/read-only/);
   });
 });
 

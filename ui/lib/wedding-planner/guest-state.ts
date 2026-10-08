@@ -3,12 +3,12 @@ import {
   type WeddingRole,
 } from "wedding-planner-domain";
 import { editDomain } from "./editor-projection";
-import type { State } from "./types";
+import type { WeddingPlanDraft } from "./types";
 
 export function setWeddingRoles(
-  state: State,
+  plan: WeddingPlanDraft,
   id: string,
   value: WeddingRole[],
 ): void {
-  editDomain(state, (plan) => roles(plan, id, value));
+  editDomain(plan, (wedding) => roles(wedding, id, value));
 }

@@ -73,6 +73,12 @@ const recipes: ShoppingRecipe[] = [
   },
 ];
 
+const ingredientCatalog = [
+  { slug: "milk", name: "milk", category: "dairy" },
+  { slug: "almond-milk", name: "almond milk", category: "dairy" },
+  { slug: "garlic", name: "garlic", category: "vegetable" },
+];
+
 const butterRecipes: ShoppingRecipe[] = [
   {
     slug: "salted-butter-dish",
@@ -375,7 +381,7 @@ describe("ShoppingList extras", () => {
     const user = userEvent.setup();
     render(<ShoppingList recipes={recipes} />);
 
-    const input = screen.getByRole("textbox", {
+    const input = screen.getByRole("combobox", {
       name: "Add a shopping-list item",
     });
     await user.type(input, "milk");
@@ -432,7 +438,7 @@ describe("ShoppingList extras", () => {
     const user = userEvent.setup();
     render(<ShoppingList recipes={recipes} />);
 
-    const input = screen.getByRole("textbox", {
+    const input = screen.getByRole("combobox", {
       name: "Add a shopping-list item",
     });
     await user.clear(input);
@@ -442,5 +448,65 @@ describe("ShoppingList extras", () => {
     expect(input).toHaveFocus();
     expect(input).toHaveValue("");
     expect(screen.getByText("milk")).toBeInTheDocument();
+  });
+
+  it("suggests matching ingredients from the catalog", async () => {
+    const user = userEvent.setup();
+    render(
+      <ShoppingList ingredientCatalog={ingredientCatalog} recipes={recipes} />,
+    );
+
+    const input = screen.getByRole("combobox", {
+      name: "Add a shopping-list item",
+    });
+    await user.type(input, "mil");
+
+    expect(
+      screen.getByRole("listbox", { name: "Matching ingredients" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: /^milk, dairy$/i }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen.getByRole("option", { name: /^almond milk, dairy$/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: /garlic/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("adds a catalog suggestion and keeps the input ready for another item", async () => {
+    const user = userEvent.setup();
+    render(
+      <ShoppingList ingredientCatalog={ingredientCatalog} recipes={recipes} />,
+    );
+
+    const input = screen.getByRole("combobox", {
+      name: "Add a shopping-list item",
+    });
+    await user.type(input, "mil");
+    await user.click(screen.getByRole("option", { name: /^milk, dairy$/i }));
+
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(input).toHaveValue("");
+    expect(input).toHaveFocus();
+    expect(screen.getByRole("button", { name: "milk" })).toBeInTheDocument();
+  });
+
+  it("supports choosing a catalog suggestion with the keyboard", async () => {
+    const user = userEvent.setup();
+    render(
+      <ShoppingList ingredientCatalog={ingredientCatalog} recipes={recipes} />,
+    );
+
+    const input = screen.getByRole("combobox", {
+      name: "Add a shopping-list item",
+    });
+    await user.type(input, "milk");
+    await user.keyboard("{ArrowDown}{Enter}");
+
+    expect(
+      screen.getByRole("button", { name: "almond milk" }),
+    ).toBeInTheDocument();
   });
 });

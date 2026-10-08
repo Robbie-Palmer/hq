@@ -15,10 +15,6 @@ export function GuestRoles({
   return (
     <fieldset className="guest-wedding-roles mb-6">
       <legend className="editor-label">Wedding roles</legend>
-      <p className="editor-hint">
-        Choose every role that applies. Top-table seats and free accommodation
-        are separate choices.
-      </p>
       <div className="toggle-grid">
         {WeddingRoleSchema.options.map((role) => (
           <label className="editor-toggle" key={role}>

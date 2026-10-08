@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { ownershipLabel } from "@/lib/domain/assettracker";
 import { AccountDetailSheet } from "./account-detail-sheet";
 import { AccountHistoryImportDrawer } from "./account-history-import-drawer";
 import { AccountsTable } from "./accounts-table";
@@ -14,7 +15,13 @@ const ACCOUNTS_PATH = "/assettracker/accounts";
 export function AccountsRoute() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { accountDetails } = useAssetTracker();
+  const { accountDetails, household, householdAccounts } = useAssetTracker();
+  const ownerLabels = Object.fromEntries(
+    householdAccounts.map((account) => [
+      account.id,
+      ownershipLabel(account.ownership, household.members),
+    ]),
+  );
   const requestedAccountId = searchParams.get("account");
   const selectedAccount =
     accountDetails.find((account) => account.id === requestedAccountId) ?? null;
@@ -29,7 +36,7 @@ export function AccountsRoute() {
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-4xl font-bold mb-2">Accounts</h1>
+          <h1 className="mb-2 text-3xl font-bold sm:text-4xl">Accounts</h1>
           <p className="text-lg text-muted-foreground">
             Review assets and liabilities, record balances, and maintain each
             account's history and expected flows.
@@ -75,6 +82,7 @@ export function AccountsRoute() {
       ) : (
         <AccountsTable
           accounts={accountDetails}
+          ownerLabels={ownerLabels}
           initialShowClosed={selectedAccount?.isOpen === false}
         />
       )}

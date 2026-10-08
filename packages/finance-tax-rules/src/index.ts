@@ -2,11 +2,11 @@ import { ruleDataset } from "./data";
 import {
   datasetSchema,
   isoDateSchema,
-  jurisdictionSchema,
-  supportedNationalInsuranceCategorySchema,
-  payPeriodSchema,
   type Jurisdiction,
+  jurisdictionSchema,
   type PayPeriod,
+  payPeriodSchema,
+  supportedNationalInsuranceCategorySchema,
 } from "./schema";
 
 const dataset = datasetSchema.parse(ruleDataset);
@@ -110,7 +110,7 @@ export const resolveRules = (request: RuleRequest): RuleResolution => {
     return {
       available: false,
       reason: "unsupported-date",
-      detail: `${request.date} is outside the reviewed 2022-23 to 2026-27 range`,
+      detail: `${request.date} is outside the reviewed 2015-16 to 2026-27 range`,
     };
   }
 
@@ -127,28 +127,32 @@ export const resolveRules = (request: RuleRequest): RuleResolution => {
 };
 
 export { ruleDataset } from "./data";
+export * from "./householdTax";
+export * from "./historicalSalary";
+export * from "./salaryAdapter";
+export type {
+  Jurisdiction,
+  PayPeriod,
+  PensionContributionMethod,
+  RuleDataset,
+} from "./schema";
 export {
   datasetSchema,
   datasetVersionSchema,
+  householdTaxRuleSchema,
   isoDateSchema,
   jurisdictionSchema,
   legalStatusSchema,
   moneyPenceSchema,
   nationalInsuranceCategorySchema,
   nationalInsuranceRuleSchema,
-  payPeriodSchema,
   payeTaxBasisSchema,
+  payPeriodSchema,
   pensionContributionMethodSchema,
   pensionRuleSchema,
   rateBasisPointsSchema,
   sourceSchema,
   supportedNationalInsuranceCategorySchema,
   taxYearSchema,
-} from "./schema";
-export type {
-  Jurisdiction,
-  PayPeriod,
-  PensionContributionMethod,
-  RuleDataset,
 } from "./schema";
 export * from "./validationApi";

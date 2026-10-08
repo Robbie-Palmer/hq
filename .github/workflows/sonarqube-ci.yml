@@ -127,9 +127,11 @@ jobs:
             cpp/autonomic-satellite-swarm/coverage/sonarqube.xml
             ui/coverage/lcov.info
             packages/agent-auth/coverage/lcov.info
+            packages/agent-auth-mcp/coverage/lcov.info
             packages/agent-coordinator-domain/coverage/lcov.info
             packages/ai-review-domain/coverage/lcov.info
             packages/browser-base/coverage/lcov.info
+            packages/drizzle-postgres/coverage/lcov.info
             packages/finance-housing-indices/coverage/lcov.info
             packages/finance-inflation-indices/coverage/lcov.info
             packages/finance-tax-rules/coverage/lcov.info
@@ -147,6 +149,7 @@ jobs:
             ml-pipelines/recipe-parsing/coverage/lcov.info
             ml-pipelines/writing-editor-evaluation/coverage/lcov.info
             ml-pipelines/wsi-analysis/coverage.xml
+            workers/finance-tax-monitor/coverage/lcov.info
             workers/recipe-api/coverage/lcov.info
             workers/recipe-api/coverage-integration/lcov.info
             workers/recipe-ingest/coverage/lcov.info

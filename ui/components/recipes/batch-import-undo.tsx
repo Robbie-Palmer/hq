@@ -4,14 +4,28 @@ import { Button } from "@/components/ui/button";
 import { useBatchImportUndo } from "@/hooks/use-batch-import-undo";
 import type { ImportBatch } from "@/lib/api/recipe-import-batches";
 
+type UndoItems = NonNullable<
+  ReturnType<typeof useBatchImportUndo>["preview"]
+>["items"];
+
+function summarizeUndo(items: UndoItems) {
+  const count = (outcome: UndoItems[number]["outcome"]) =>
+    items.filter((item) => item.outcome === outcome).length;
+  return {
+    deleted: count("deleted"),
+    eligible: count("eligible"),
+    failed: count("failed"),
+    preserved: count("preserved"),
+  };
+}
+
 export function BatchImportUndo({
   batch,
   busy,
 }: Readonly<{ batch: ImportBatch; busy: boolean }>) {
   const undo = useBatchImportUndo(batch.id);
   const results = undo.preview?.items ?? [];
-  const eligible = results.filter((item) => item.outcome === "eligible").length;
-  const failed = results.filter((item) => item.outcome === "failed").length;
+  const { deleted, eligible, failed, preserved } = summarizeUndo(results);
   return (
     <section
       className="my-4 rounded-lg border border-[var(--line)] p-4"
@@ -36,11 +50,8 @@ export function BatchImportUndo({
       {undo.preview && (
         <>
           <output className="my-2 block text-sm">
-            {eligible} to delete ·{" "}
-            {results.filter((item) => item.outcome === "deleted").length}{" "}
-            deleted ·{" "}
-            {results.filter((item) => item.outcome === "preserved").length}{" "}
-            preserved · {failed} failed
+            {eligible} to delete · {deleted} deleted · {preserved} preserved ·{" "}
+            {failed} failed
           </output>
           <ul className="my-2 text-sm">
             {results.map((item) => (

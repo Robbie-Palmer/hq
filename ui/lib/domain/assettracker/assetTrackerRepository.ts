@@ -11,9 +11,24 @@ import {
 } from "./assetTrackerData";
 import type { BalanceSnapshot } from "./balanceSnapshot";
 import { type CapitalFlow, capitalFlowKind } from "./capitalFlow";
+import type { EmergencyFundPlan } from "./emergencyFund";
+import type { ForecastAssumptionSet } from "./forecastAssumption";
+import {
+  type FutureCashFlow,
+  futureCashFlowForecastItems,
+  type PlanningCase,
+} from "./futureCashFlow";
+import { validateHouseholdOwnership } from "./household";
 import type { IncomeRecord } from "./incomeRecord";
+import type {
+  FinancialDecisionRecord,
+  MortgageScenario,
+} from "./mortgageCalculator";
 import type { PlannedExpenditure } from "./plannedExpenditure";
+import type { PropertyComparableSearchDefinition } from "./propertyComparables";
+import type { PropertyIndexHistoryDefinition } from "./propertyIndexHistory";
 import type { RecurringFlow } from "./recurringFlow";
+import { compareAcceptedAt, type SalaryHistoryRecord } from "./salaryHistory";
 import type { Transfer } from "./transfer";
 import type {
   ExchangeRateObservation,
@@ -27,9 +42,18 @@ export interface AssetTrackerRepository {
   snapshots: BalanceSnapshot[];
   capitalFlows: CapitalFlow[];
   incomeHistory: IncomeRecord[];
+  salaryHistory: SalaryHistoryRecord[];
   transfers: Transfer[];
   recurringFlows: RecurringFlow[];
   plannedExpenditures: PlannedExpenditure[];
+  planningCases: PlanningCase[];
+  futureCashFlows: FutureCashFlow[];
+  forecastAssumptionSets: ForecastAssumptionSet[];
+  emergencyFundPlans: EmergencyFundPlan[];
+  mortgageScenarios: MortgageScenario[];
+  decisionRecords: FinancialDecisionRecord[];
+  propertyComparableSearches: PropertyComparableSearchDefinition[];
+  propertyIndexHistories: PropertyIndexHistoryDefinition[];
   instruments: Map<string, Instrument>;
   holdingObservations: HoldingObservation[];
   priceObservations: PriceObservation[];
@@ -57,7 +81,7 @@ function indexAccounts(accounts: Account[]): Map<AccountId, Account> {
 }
 
 function assertKnownAccount(
-  accounts: Map<AccountId, Account>,
+  accounts: ReadonlyMap<AccountId, Account>,
   accountId: AccountId | undefined,
   referrer: string,
 ): void {
@@ -126,7 +150,7 @@ function assertValidCorrections<
         `${label} observation "${record.id}" must correct the same series`,
       );
     }
-    if (record.acceptedAt <= corrected.acceptedAt) {
+    if (compareAcceptedAt(record.acceptedAt, corrected.acceptedAt) <= 0) {
       throw new AssetTrackerDataError(
         `${label} correction "${record.id}" must be accepted after "${record.correctsId}"`,
       );
@@ -143,6 +167,34 @@ function assertUniqueIncomeDates(incomeHistory: readonly IncomeRecord[]): void {
       );
     }
     incomeDates.add(income.date);
+  }
+}
+
+function validateSalaryHistory(records: readonly SalaryHistoryRecord[]): void {
+  const byId = new Map(records.map((record) => [record.id, record]));
+  if (byId.size !== records.length) {
+    throw new AssetTrackerDataError("Salary history IDs must be unique");
+  }
+  const corrected = new Set<string>();
+  for (const record of records) {
+    if (record.correctsId == null) continue;
+    const prior = byId.get(record.correctsId);
+    if (prior == null) {
+      throw new AssetTrackerDataError(
+        `Salary record "${record.id}" corrects unknown record "${record.correctsId}"`,
+      );
+    }
+    if (corrected.has(record.correctsId)) {
+      throw new AssetTrackerDataError(
+        `Salary record "${record.correctsId}" has more than one correction`,
+      );
+    }
+    if (compareAcceptedAt(record.acceptedAt, prior.acceptedAt) <= 0) {
+      throw new AssetTrackerDataError(
+        `Salary correction "${record.id}" must be accepted after "${record.correctsId}"`,
+      );
+    }
+    corrected.add(record.correctsId);
   }
 }
 
@@ -195,6 +247,7 @@ function validateCoreReferences(
   assertUniqueAccountDates(data.snapshots, "snapshot");
   assertUniqueCapitalFlows(data.capitalFlows);
   assertUniqueIncomeDates(data.incomeHistory);
+  validateSalaryHistory(data.salaryHistory);
   for (const account of data.accounts) {
     assertKnownAccount(
       accounts,
@@ -250,6 +303,239 @@ function validatePlannedExpenditureReferences(
     ) {
       throw new AssetTrackerDataError(
         `Planned expenditure "${expenditure.name}" references ineligible account "${expenditure.fromAccountId}"`,
+      );
+    }
+  }
+}
+
+function indexPlanningCases(data: AssetTrackerData): Set<string> {
+  const ids = new Set<string>();
+  for (const planningCase of data.planningCases) {
+    if (ids.has(planningCase.id)) {
+      throw new AssetTrackerDataError(
+        `Duplicate planning case ID "${planningCase.id}"`,
+      );
+    }
+    ids.add(planningCase.id);
+  }
+  return ids;
+}
+
+function validateFutureCashFlowStages(
+  record: FutureCashFlow,
+  accounts: Map<AccountId, Account>,
+): void {
+  const stageIds = new Set<string>();
+  const actualIds = new Set<string>();
+  for (const stage of record.stages) {
+    assertKnownAccount(
+      accounts,
+      stage.fromAccountId,
+      `Future cash flow "${record.name}"`,
+    );
+    if (accounts.get(stage.fromAccountId)?.currency !== record.currency) {
+      throw new AssetTrackerDataError(
+        `Future cash flow "${record.name}" must use the currency of account "${stage.fromAccountId}"`,
+      );
+    }
+    if (stageIds.has(stage.id)) {
+      throw new AssetTrackerDataError(
+        `Future cash flow "${record.name}" has duplicate stage ID "${stage.id}"`,
+      );
+    }
+    stageIds.add(stage.id);
+    for (const actual of stage.actuals) {
+      if (actualIds.has(actual.id)) {
+        throw new AssetTrackerDataError(
+          `Future cash flow "${record.name}" has duplicate actual cash flow ID "${actual.id}"`,
+        );
+      }
+      actualIds.add(actual.id);
+    }
+  }
+}
+
+function indexFutureCashFlows(
+  data: AssetTrackerData,
+  accounts: Map<AccountId, Account>,
+  planningCaseIds: ReadonlySet<string>,
+): Map<string, FutureCashFlow> {
+  const records = new Map<string, FutureCashFlow>();
+  for (const record of data.futureCashFlows) {
+    if (records.has(record.id)) {
+      throw new AssetTrackerDataError(
+        `Duplicate future cash flow ID "${record.id}"`,
+      );
+    }
+    records.set(record.id, record);
+    if (
+      record.planningCaseId != null &&
+      !planningCaseIds.has(record.planningCaseId)
+    ) {
+      throw new AssetTrackerDataError(
+        `Future cash flow "${record.name}" references unknown planning case "${record.planningCaseId}"`,
+      );
+    }
+    validateFutureCashFlowStages(record, accounts);
+  }
+  return records;
+}
+
+function validateDecisionReferences(
+  records: ReadonlyMap<string, FutureCashFlow>,
+): void {
+  for (const record of records.values()) {
+    if (record.kind !== "decision") continue;
+    validateDecisionReferenceList(record, records, record.dependencyIds);
+    validateDecisionReferenceList(record, records, record.alternativeToIds);
+  }
+}
+
+function validateDecisionReferenceList(
+  record: FutureCashFlow & { kind: "decision" },
+  records: ReadonlyMap<string, FutureCashFlow>,
+  referencedIds: readonly string[],
+): void {
+  for (const referencedId of referencedIds) {
+    if (referencedId === record.id) {
+      throw new AssetTrackerDataError(
+        `Decision "${record.name}" cannot reference itself`,
+      );
+    }
+    if (!records.has(referencedId)) {
+      throw new AssetTrackerDataError(
+        `Decision "${record.name}" references unknown future cash flow "${referencedId}"`,
+      );
+    }
+  }
+}
+
+function validateForecastAccounts(
+  records: readonly FutureCashFlow[],
+  accounts: ReadonlyMap<AccountId, Account>,
+): void {
+  for (const forecast of futureCashFlowForecastItems(records)) {
+    const source = accounts.get(forecast.fromAccountId);
+    if (
+      source != null &&
+      (source.closedAt != null ||
+        isLiability(source.assetType) ||
+        accountLiquidity(source) === "illiquid")
+    ) {
+      throw new AssetTrackerDataError(
+        `Future cash flow "${forecast.name}" references ineligible account "${forecast.fromAccountId}"`,
+      );
+    }
+  }
+}
+
+function validateFutureCashFlowReferences(
+  data: AssetTrackerData,
+  accounts: Map<AccountId, Account>,
+): void {
+  const planningCaseIds = indexPlanningCases(data);
+  const records = indexFutureCashFlows(data, accounts, planningCaseIds);
+  validateDecisionReferences(records);
+  validateForecastAccounts(data.futureCashFlows, accounts);
+}
+
+function validateForecastAssumptions(
+  set: ForecastAssumptionSet,
+  accounts: ReadonlyMap<AccountId, Account>,
+  assumptionIds: Set<string>,
+): void {
+  for (const assumption of set.assumptions) {
+    if (assumptionIds.has(assumption.id)) {
+      throw new AssetTrackerDataError(
+        `Duplicate forecast assumption ID "${assumption.id}"`,
+      );
+    }
+    assumptionIds.add(assumption.id);
+    assertKnownAccount(
+      accounts,
+      assumption.accountId,
+      `Forecast assumption "${assumption.name}"`,
+    );
+    if (
+      assumption.accountId != null &&
+      accounts.get(assumption.accountId)?.currency !== assumption.currency
+    ) {
+      throw new AssetTrackerDataError(
+        `Forecast assumption "${assumption.name}" must use the currency of account "${assumption.accountId}"`,
+      );
+    }
+  }
+}
+
+function validateForecastAssumptionSets(
+  data: AssetTrackerData,
+  accounts: ReadonlyMap<AccountId, Account>,
+): void {
+  const ids = new Set<string>();
+  const activeSeries = new Set<string>();
+  const assumptionIds = new Set<string>();
+  for (const set of data.forecastAssumptionSets) {
+    if (ids.has(set.id)) {
+      throw new AssetTrackerDataError(
+        `Duplicate forecast assumption set ID "${set.id}"`,
+      );
+    }
+    ids.add(set.id);
+    if (set.status === "active") {
+      if (activeSeries.has(set.seriesId)) {
+        throw new AssetTrackerDataError(
+          `Forecast assumption series "${set.seriesId}" has more than one active version`,
+        );
+      }
+      activeSeries.add(set.seriesId);
+    }
+    validateForecastAssumptions(set, accounts, assumptionIds);
+    if (
+      set.supersedesId != null &&
+      !data.forecastAssumptionSets.some(({ id }) => id === set.supersedesId)
+    ) {
+      throw new AssetTrackerDataError(
+        `Forecast assumption set "${set.name}" supersedes unknown version "${set.supersedesId}"`,
+      );
+    }
+  }
+}
+
+function validateEmergencyFundPlans(
+  data: AssetTrackerData,
+  accounts: ReadonlyMap<AccountId, Account>,
+): void {
+  const ids = new Set<string>();
+  const activeSeries = new Set<string>();
+  const plans = data.emergencyFundPlans ?? [];
+  for (const plan of plans) {
+    if (ids.has(plan.id)) {
+      throw new AssetTrackerDataError(
+        `Duplicate emergency-fund plan ID "${plan.id}"`,
+      );
+    }
+    ids.add(plan.id);
+    if (plan.status === "active") {
+      if (activeSeries.has(plan.seriesId)) {
+        throw new AssetTrackerDataError(
+          `Emergency-fund plan series "${plan.seriesId}" has more than one active version`,
+        );
+      }
+      activeSeries.add(plan.seriesId);
+    }
+    for (const policy of plan.accountPolicies) {
+      assertKnownAccount(
+        accounts,
+        policy.accountId,
+        `Emergency-fund plan "${plan.name}"`,
+      );
+    }
+    if (
+      plan.supersedesId != null &&
+      !plans.some(({ id }) => id === plan.supersedesId)
+    ) {
+      throw new AssetTrackerDataError(
+        `Emergency-fund plan "${plan.name}" supersedes unknown version "${plan.supersedesId}"`,
       );
     }
   }
@@ -332,18 +618,117 @@ function validateValuationReferences(
   );
 }
 
+function validatePropertyIndexHistoryReferences(
+  data: AssetTrackerData,
+  accounts: Map<AccountId, Account>,
+): void {
+  const propertyHistoryAccounts = new Set<string>();
+  for (const history of data.propertyIndexHistories ?? []) {
+    assertKnownAccount(
+      accounts,
+      history.accountId,
+      `Property index history for account "${history.accountId}"`,
+    );
+    const account = accounts.get(history.accountId);
+    if (account != null && account.assetType !== "property") {
+      throw new AssetTrackerDataError(
+        `Property index history references non-property account "${history.accountId}"`,
+      );
+    }
+    if (propertyHistoryAccounts.has(history.accountId)) {
+      throw new AssetTrackerDataError(
+        `Duplicate property index history for account "${history.accountId}"`,
+      );
+    }
+    propertyHistoryAccounts.add(history.accountId);
+  }
+}
+
+function validatePropertyComparableSearchReferences(
+  data: AssetTrackerData,
+  accounts: Map<AccountId, Account>,
+): void {
+  const comparableSearchAccounts = new Set<string>();
+  for (const search of data.propertyComparableSearches ?? []) {
+    assertKnownAccount(
+      accounts,
+      search.accountId,
+      `Property comparable search for account "${search.accountId}"`,
+    );
+    const account = accounts.get(search.accountId);
+    if (account != null && account.assetType !== "property") {
+      throw new AssetTrackerDataError(
+        `Property comparable search references non-property account "${search.accountId}"`,
+      );
+    }
+    if (comparableSearchAccounts.has(search.accountId)) {
+      throw new AssetTrackerDataError(
+        `Duplicate property comparable search for account "${search.accountId}"`,
+      );
+    }
+    comparableSearchAccounts.add(search.accountId);
+  }
+}
+
 function validateReferences(
   data: AssetTrackerData,
   accounts: Map<AccountId, Account>,
 ): void {
   validateCoreReferences(data, accounts);
   validatePlannedExpenditureReferences(data, accounts);
+  validateFutureCashFlowReferences(data, accounts);
+  validateForecastAssumptionSets(data, accounts);
+  validateEmergencyFundPlans(data, accounts);
   validateValuationReferences(data, accounts);
+  validatePropertyComparableSearchReferences(data, accounts);
+  validatePropertyIndexHistoryReferences(data, accounts);
+  const mortgageScenarios = data.mortgageScenarios ?? [];
+  const decisionRecords = data.decisionRecords ?? [];
+  const scenarios = new Map(
+    mortgageScenarios.map((scenario) => [scenario.id, scenario]),
+  );
+  if (scenarios.size !== mortgageScenarios.length) {
+    throw new AssetTrackerDataError("Mortgage scenario IDs must be unique");
+  }
+  const decisions = new Map(
+    decisionRecords.map((decision) => [decision.id, decision]),
+  );
+  if (decisions.size !== decisionRecords.length) {
+    throw new AssetTrackerDataError("Decision record IDs must be unique");
+  }
+  for (const scenario of mortgageScenarios) {
+    assertKnownAccount(
+      accounts,
+      scenario.source.mortgageAccountId,
+      `Mortgage scenario "${scenario.name}"`,
+    );
+    assertKnownAccount(
+      accounts,
+      scenario.source.propertyAccountId,
+      `Mortgage scenario "${scenario.name}"`,
+    );
+    if (
+      scenario.decisionRecordId != null &&
+      !decisions.has(scenario.decisionRecordId)
+    ) {
+      throw new AssetTrackerDataError(
+        `Mortgage scenario "${scenario.name}" references unknown decision "${scenario.decisionRecordId}"`,
+      );
+    }
+  }
+  for (const decision of decisionRecords) {
+    if (!scenarios.has(decision.scenarioId)) {
+      throw new AssetTrackerDataError(
+        `Decision "${decision.title}" references unknown mortgage scenario "${decision.scenarioId}"`,
+      );
+    }
+  }
 }
 
 export function buildRepository(
   data: AssetTrackerData,
 ): AssetTrackerRepository {
+  validateHouseholdOwnership(data);
   const accounts = indexAccounts(data.accounts);
   validateReferences(data, accounts);
   const snapshots = [...data.snapshots].sort((a, b) =>
@@ -359,11 +744,32 @@ export function buildRepository(
     incomeHistory: [...data.incomeHistory].sort((a, b) =>
       a.date.localeCompare(b.date),
     ),
+    salaryHistory: [...data.salaryHistory].sort((a, b) =>
+      compareAcceptedAt(a.acceptedAt, b.acceptedAt),
+    ),
     transfers: data.transfers,
     recurringFlows: data.recurringFlows,
     plannedExpenditures: [...data.plannedExpenditures].sort((a, b) =>
       a.date.localeCompare(b.date),
     ),
+    planningCases: [...data.planningCases].sort((a, b) =>
+      a.name.localeCompare(b.name),
+    ),
+    futureCashFlows: [...data.futureCashFlows].sort((a, b) => {
+      const aDate = futureCashFlowForecastItems([a])[0]?.date ?? "9999-12-31";
+      const bDate = futureCashFlowForecastItems([b])[0]?.date ?? "9999-12-31";
+      return aDate.localeCompare(bDate) || a.name.localeCompare(b.name);
+    }),
+    forecastAssumptionSets: [...data.forecastAssumptionSets].sort(
+      (a, b) => a.name.localeCompare(b.name) || b.version - a.version,
+    ),
+    emergencyFundPlans: [...(data.emergencyFundPlans ?? [])].sort(
+      (a, b) => b.version - a.version,
+    ),
+    mortgageScenarios: data.mortgageScenarios ?? [],
+    decisionRecords: data.decisionRecords ?? [],
+    propertyComparableSearches: data.propertyComparableSearches ?? [],
+    propertyIndexHistories: data.propertyIndexHistories ?? [],
     instruments: new Map(
       (data.instruments ?? []).map((instrument) => [instrument.id, instrument]),
     ),

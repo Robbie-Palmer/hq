@@ -21,7 +21,38 @@ import {
   capitalFlowKind,
 } from "./capitalFlow";
 import { CurrencySchema } from "./currency";
+import {
+  type EmergencyFundPlanInput,
+  EmergencyFundPlanInputSchema,
+  EmergencyFundPlanSchema,
+} from "./emergencyFund";
+import {
+  ForecastAssumptionBaseSchema,
+  ForecastAssumptionSchema,
+  ForecastAssumptionSetSchema,
+} from "./forecastAssumption";
+import {
+  type ActualCashFlow,
+  type CashFlowDecision,
+  CashFlowDecisionSchema,
+  type Commitment,
+  CommitmentSchema,
+  type FutureCashFlow,
+  FutureCashFlowSchema,
+  futureCashFlowAccountIds,
+  PlanningCaseSchema,
+} from "./futureCashFlow";
+import {
+  assertOwnershipMembers,
+  capitalFlowOwnershipKey,
+  OwnershipSchema,
+  snapshotOwnershipKey,
+} from "./household";
 import { MortgageTermsSchema } from "./mortgage";
+import {
+  type SaveMortgageScenarioInput,
+  SaveMortgageScenarioInputSchema,
+} from "./mortgageCalculator";
 import {
   flowOccurrenceDates,
   monthlyAmount,
@@ -47,6 +78,11 @@ export type AssetTrackerCommandErrorCode =
   | "FLOW_NOT_FOUND"
   | "PLANNED_EXPENDITURE_NOT_FOUND"
   | "INVALID_PLANNED_EXPENDITURE"
+  | "PLANNING_CASE_NOT_FOUND"
+  | "FUTURE_CASH_FLOW_NOT_FOUND"
+  | "INVALID_FUTURE_CASH_FLOW"
+  | "FORECAST_ASSUMPTION_SET_NOT_FOUND"
+  | "INVALID_FORECAST_ASSUMPTION"
   | "INVALID_RECURRING_FLOW_CONVERSION"
   | "DUPLICATE_INCOME_DATE"
   | "RECEIVED_AMOUNT_REQUIRED"
@@ -145,6 +181,7 @@ export const ImportIncomeHistoryInputSchema = z.object({
       }),
     )
     .min(1, "Paste at least one income row"),
+  ownership: OwnershipSchema.optional(),
 });
 export type ImportIncomeHistoryInput = z.infer<
   typeof ImportIncomeHistoryInputSchema
@@ -159,6 +196,7 @@ export const ImportAccountHistoryInputSchema = z
     capitalFlowKind: CapitalFlowKindSchema.optional(),
     /** Complete cumulative imports replace this account's selected classified series. */
     replaceCapitalFlows: z.boolean().optional(),
+    ownership: OwnershipSchema.optional(),
   })
   .refine(
     (input) => input.balances.length > 0 || input.capitalFlows.length > 0,
@@ -230,6 +268,156 @@ export type DeletePlannedExpenditureInput = z.infer<
   typeof DeletePlannedExpenditureInputSchema
 >;
 
+export const CreatePlanningCaseInputSchema = PlanningCaseSchema.omit({
+  id: true,
+});
+export type CreatePlanningCaseInput = z.input<
+  typeof CreatePlanningCaseInputSchema
+>;
+
+const AddCommitmentStageInputSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  fromAccountId: AccountIdSchema,
+  dueDate: IsoDateSchema,
+  amount: z.number().positive("Amount must be positive"),
+});
+
+export const AddCommitmentInputSchema = z.object({
+  name: z.string().trim().min(1, "Give the commitment a name"),
+  description: z.string().trim().min(1).optional(),
+  planningCaseId: z.string().trim().min(1).optional(),
+  labels: z.array(z.string().trim().min(1)).default([]),
+  currency: CurrencySchema,
+  counterparty: z.string().trim().min(1).optional(),
+  changeability: z.enum(["fixed", "variable"]).default("fixed"),
+  refundable: z.boolean().default(false),
+  notes: z.string().trim().min(1).optional(),
+  stages: z.array(AddCommitmentStageInputSchema).min(1),
+});
+export type AddCommitmentInput = z.input<typeof AddCommitmentInputSchema>;
+
+const AddDecisionStageInputSchema = z
+  .object({
+    name: z.string().trim().min(1).optional(),
+    fromAccountId: AccountIdSchema,
+    earliestDate: IsoDateSchema.optional(),
+    expectedDate: IsoDateSchema,
+    latestDate: IsoDateSchema.optional(),
+    minimumAmount: z.number().nonnegative(),
+    expectedAmount: z.number().positive("Expected amount must be positive"),
+    maximumAmount: z.number().positive("Maximum amount must be positive"),
+  })
+  .superRefine((stage, context) => {
+    if (
+      stage.minimumAmount > stage.expectedAmount ||
+      stage.expectedAmount > stage.maximumAmount
+    ) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "Decision amounts must run from minimum to expected to maximum",
+      });
+    }
+    if (
+      (stage.earliestDate != null && stage.earliestDate > stage.expectedDate) ||
+      (stage.latestDate != null && stage.expectedDate > stage.latestDate)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Decision dates must run from earliest to expected to latest",
+      });
+    }
+  });
+
+export const AddCashFlowDecisionInputSchema = z.object({
+  name: z.string().trim().min(1, "Give the decision a name"),
+  description: z.string().trim().min(1).optional(),
+  planningCaseId: z.string().trim().min(1).optional(),
+  labels: z.array(z.string().trim().min(1)).default([]),
+  currency: CurrencySchema,
+  importance: z.string().trim().min(1).optional(),
+  confidence: z.number().min(0).max(1).optional(),
+  reversibility: z
+    .enum(["reversible", "partly-reversible", "irreversible"])
+    .default("reversible"),
+  dependencyIds: z.array(z.string().trim().min(1)).default([]),
+  alternativeToIds: z.array(z.string().trim().min(1)).default([]),
+  notes: z.string().trim().min(1).optional(),
+  stages: z.array(AddDecisionStageInputSchema).min(1),
+});
+export type AddCashFlowDecisionInput = z.input<
+  typeof AddCashFlowDecisionInputSchema
+>;
+
+export const SetCashFlowDecisionStatusInputSchema = z.object({
+  id: z.string().trim().min(1),
+  status: z.enum(["considering", "selected", "declined"]),
+});
+export type SetCashFlowDecisionStatusInput = z.infer<
+  typeof SetCashFlowDecisionStatusInputSchema
+>;
+
+export const SetCommitmentStatusInputSchema = z.object({
+  id: z.string().trim().min(1),
+  status: z.enum(["active", "cancelled"]),
+});
+export type SetCommitmentStatusInput = z.infer<
+  typeof SetCommitmentStatusInputSchema
+>;
+
+export const RecordActualCashFlowInputSchema = z.object({
+  futureCashFlowId: z.string().trim().min(1),
+  stageId: z.string().trim().min(1),
+  date: IsoDateSchema,
+  amount: z.number().positive("Amount must be positive"),
+  direction: z.enum(["payment", "refund"]),
+});
+export type RecordActualCashFlowInput = z.infer<
+  typeof RecordActualCashFlowInputSchema
+>;
+
+export const DeleteFutureCashFlowInputSchema = z.object({
+  id: z.string().trim().min(1),
+});
+export type DeleteFutureCashFlowInput = z.infer<
+  typeof DeleteFutureCashFlowInputSchema
+>;
+
+export const CreateForecastAssumptionSetInputSchema = z.object({
+  name: z.string().trim().min(1, "Give the assumption set a name"),
+});
+export type CreateForecastAssumptionSetInput = z.infer<
+  typeof CreateForecastAssumptionSetInputSchema
+>;
+
+export const SaveEmergencyFundPlanInputSchema = EmergencyFundPlanInputSchema;
+export type SaveEmergencyFundPlanInput = EmergencyFundPlanInput;
+
+export const AddForecastAssumptionInputSchema =
+  ForecastAssumptionBaseSchema.omit({
+    id: true,
+  }).extend({
+    setId: z.string().trim().min(1),
+  });
+export type AddForecastAssumptionInput = z.input<
+  typeof AddForecastAssumptionInputSchema
+>;
+
+export const VersionForecastAssumptionSetInputSchema = z.object({
+  id: z.string().trim().min(1),
+});
+export type VersionForecastAssumptionSetInput = z.infer<
+  typeof VersionForecastAssumptionSetInputSchema
+>;
+
+export const DeleteForecastAssumptionInputSchema = z.object({
+  setId: z.string().trim().min(1),
+  assumptionId: z.string().trim().min(1),
+});
+export type DeleteForecastAssumptionInput = z.infer<
+  typeof DeleteForecastAssumptionInputSchema
+>;
+
 export const SetExpectedReturnInputSchema = z.object({
   accountId: AccountIdSchema,
   rate: AnnualRateSchema,
@@ -278,6 +466,8 @@ export const SetNetWorthTargetInputSchema = z.object({
 export type SetNetWorthTargetInput = z.infer<
   typeof SetNetWorthTargetInputSchema
 >;
+
+export type { SaveMortgageScenarioInput };
 
 function uniqueId(taken: Set<string>, base: string): string {
   if (!taken.has(base)) return base;
@@ -332,11 +522,14 @@ function assertNoPlannedExpendituresFrom(
   if (
     data.plannedExpenditures.some(
       (expenditure) => expenditure.fromAccountId === account.id,
+    ) ||
+    data.futureCashFlows.some((record) =>
+      futureCashFlowAccountIds(record).includes(account.id),
     )
   ) {
     throw new AssetTrackerCommandError(
       "ACCOUNT_HAS_PLANNED_EXPENDITURES",
-      `"${account.name}" funds planned spending; delete or reassign it before ${action}`,
+      `"${account.name}" funds a future cash flow; delete or reassign it before ${action}`,
     );
   }
 }
@@ -473,10 +666,40 @@ export function applyImportAccountHistory(
       flow,
     );
   }
+  const ownership = parsed.ownership;
+  const nextOwnership =
+    ownership == null
+      ? data.ownership
+      : {
+          ...data.ownership,
+          accounts: {
+            ...data.ownership.accounts,
+            [parsed.accountId]: ownership,
+          },
+          snapshots: { ...data.ownership.snapshots },
+          capitalFlows: { ...data.ownership.capitalFlows },
+        };
+  if (ownership != null) {
+    for (const row of parsed.balances) {
+      nextOwnership.snapshots[
+        snapshotOwnershipKey(parsed.accountId, row.date)
+      ] = ownership;
+    }
+    for (const row of parsed.capitalFlows) {
+      nextOwnership.capitalFlows[
+        capitalFlowOwnershipKey({
+          accountId: parsed.accountId,
+          date: row.date,
+          kind: parsed.capitalFlowKind,
+        })
+      ] = ownership;
+    }
+  }
   return {
     ...data,
     snapshots: Array.from(snapshotsByAccountDate.values()),
     capitalFlows: Array.from(capitalFlowsByAccountDate.values()),
+    ownership: nextOwnership,
   };
 }
 
@@ -496,6 +719,12 @@ export function applyImportIncomeHistory(
     }
     byDate.set(row.date, row.amount);
   }
+  const incomeOwnership = { ...data.ownership.incomeHistory };
+  if (parsed.ownership != null) {
+    for (const row of parsed.income) {
+      incomeOwnership[row.date] = parsed.ownership;
+    }
+  }
   return {
     ...data,
     incomeHistory: Array.from(byDate, ([date, amount]) => ({
@@ -503,6 +732,10 @@ export function applyImportIncomeHistory(
       amount,
       currency: data.settings.baseCurrency,
     })).sort((a, b) => a.date.localeCompare(b.date)),
+    ownership: {
+      ...data.ownership,
+      incomeHistory: incomeOwnership,
+    },
   };
 }
 
@@ -894,7 +1127,557 @@ export function applyDeletePlannedExpenditure(
       `No planned expenditure found with ID ${parsed.id}`,
     );
   }
-  return { ...data, plannedExpenditures };
+  return {
+    ...data,
+    plannedExpenditures,
+    futureCashFlows: data.futureCashFlows.filter(
+      (record) => record.id !== parsed.id,
+    ),
+    ownership: {
+      ...data.ownership,
+      futureCashFlows: Object.fromEntries(
+        Object.entries(data.ownership.futureCashFlows).filter(
+          ([id]) => id !== parsed.id,
+        ),
+      ),
+    },
+  };
+}
+
+function requirePlanningCase(
+  data: AssetTrackerData,
+  planningCaseId: string | undefined,
+): void {
+  if (
+    planningCaseId != null &&
+    !data.planningCases.some(({ id }) => id === planningCaseId)
+  ) {
+    throw new AssetTrackerCommandError(
+      "PLANNING_CASE_NOT_FOUND",
+      `No planning case found with ID ${planningCaseId}`,
+    );
+  }
+}
+
+function requireEligibleFutureCashFlowAccount(
+  data: AssetTrackerData,
+  accountId: AccountId,
+): Account {
+  const account = requireAccount(data, accountId);
+  if (account.closedAt != null) {
+    throw new AssetTrackerCommandError(
+      "INVALID_FUTURE_CASH_FLOW",
+      "Future cash flows must come from an open account",
+    );
+  }
+  if (
+    isLiability(account.assetType) ||
+    accountLiquidity(account) === "illiquid"
+  ) {
+    throw new AssetTrackerCommandError(
+      "INVALID_FUTURE_CASH_FLOW",
+      "Future cash flows must come from cash or a liquid investment",
+    );
+  }
+  return account;
+}
+
+function futureCashFlowOwnership(data: AssetTrackerData, accountId: AccountId) {
+  return data.ownership.accounts[accountId];
+}
+
+function addFutureCashFlowOwnership(
+  data: AssetTrackerData,
+  recordId: string,
+  accountId: AccountId,
+): AssetTrackerData["ownership"] {
+  const owner = futureCashFlowOwnership(data, accountId);
+  if (owner == null) return data.ownership;
+  return {
+    ...data.ownership,
+    futureCashFlows: {
+      ...data.ownership.futureCashFlows,
+      [recordId]: owner,
+    },
+  };
+}
+
+export function applyCreatePlanningCase(
+  data: AssetTrackerData,
+  input: CreatePlanningCaseInput,
+): AssetTrackerData {
+  const parsed = CreatePlanningCaseInputSchema.parse(input);
+  const id = uniqueId(
+    new Set(data.planningCases.map((planningCase) => planningCase.id)),
+    normalizeSlug(parsed.name) || "planning-case",
+  );
+  return {
+    ...data,
+    planningCases: [
+      ...data.planningCases,
+      PlanningCaseSchema.parse({ id, ...parsed }),
+    ],
+  };
+}
+
+export function applyAddCommitment(
+  data: AssetTrackerData,
+  input: AddCommitmentInput,
+  asOfDate: string,
+): AssetTrackerData {
+  const parsed = AddCommitmentInputSchema.parse(input);
+  requirePlanningCase(data, parsed.planningCaseId);
+  for (const stage of parsed.stages) {
+    const account = requireEligibleFutureCashFlowAccount(
+      data,
+      stage.fromAccountId,
+    );
+    if (account.currency !== parsed.currency) {
+      throw new AssetTrackerCommandError(
+        "INVALID_FUTURE_CASH_FLOW",
+        "A commitment must use the currency of its source account",
+      );
+    }
+    if (stage.dueDate <= asOfDate) {
+      throw new AssetTrackerCommandError(
+        "INVALID_FUTURE_CASH_FLOW",
+        "Commitment stages must have a future due date",
+      );
+    }
+  }
+  const firstStage = parsed.stages[0];
+  if (firstStage == null) {
+    throw new AssetTrackerCommandError(
+      "INVALID_FUTURE_CASH_FLOW",
+      "A commitment needs at least one stage",
+    );
+  }
+  const id = uniqueId(
+    new Set(data.futureCashFlows.map((record) => record.id)),
+    normalizeSlug(parsed.name) || "commitment",
+  );
+  const commitment: Commitment = CommitmentSchema.parse({
+    id,
+    ...parsed,
+    kind: "commitment",
+    status: "active",
+    stages: parsed.stages.map((stage, index) => ({
+      id: `payment-${index + 1}`,
+      ...stage,
+      actuals: [],
+    })),
+  });
+  return {
+    ...data,
+    futureCashFlows: [...data.futureCashFlows, commitment],
+    ownership: addFutureCashFlowOwnership(
+      data,
+      id,
+      commitment.stages[0]?.fromAccountId ?? firstStage.fromAccountId,
+    ),
+  };
+}
+
+export function applyAddCashFlowDecision(
+  data: AssetTrackerData,
+  input: AddCashFlowDecisionInput,
+  asOfDate: string,
+): AssetTrackerData {
+  const parsed = AddCashFlowDecisionInputSchema.parse(input);
+  requirePlanningCase(data, parsed.planningCaseId);
+  const referencedIds = new Set(data.futureCashFlows.map(({ id }) => id));
+  for (const referencedId of [
+    ...parsed.dependencyIds,
+    ...parsed.alternativeToIds,
+  ]) {
+    if (!referencedIds.has(referencedId)) {
+      throw new AssetTrackerCommandError(
+        "FUTURE_CASH_FLOW_NOT_FOUND",
+        `No future cash flow found with ID ${referencedId}`,
+      );
+    }
+  }
+  for (const stage of parsed.stages) {
+    const account = requireEligibleFutureCashFlowAccount(
+      data,
+      stage.fromAccountId,
+    );
+    if (account.currency !== parsed.currency) {
+      throw new AssetTrackerCommandError(
+        "INVALID_FUTURE_CASH_FLOW",
+        "A decision must use the currency of its source account",
+      );
+    }
+    if (stage.expectedDate <= asOfDate) {
+      throw new AssetTrackerCommandError(
+        "INVALID_FUTURE_CASH_FLOW",
+        "Decision stages must have a future expected date",
+      );
+    }
+  }
+  const firstStage = parsed.stages[0];
+  if (firstStage == null) {
+    throw new AssetTrackerCommandError(
+      "INVALID_FUTURE_CASH_FLOW",
+      "A decision needs at least one stage",
+    );
+  }
+  const id = uniqueId(referencedIds, normalizeSlug(parsed.name) || "decision");
+  const decision: CashFlowDecision = CashFlowDecisionSchema.parse({
+    id,
+    ...parsed,
+    kind: "decision",
+    status: "considering",
+    stages: parsed.stages.map((stage, index) => ({
+      id: `cash-flow-${index + 1}`,
+      ...stage,
+      actuals: [],
+    })),
+  });
+  return {
+    ...data,
+    futureCashFlows: [...data.futureCashFlows, decision],
+    ownership: addFutureCashFlowOwnership(
+      data,
+      id,
+      decision.stages[0]?.fromAccountId ?? firstStage.fromAccountId,
+    ),
+  };
+}
+
+export function applySetCashFlowDecisionStatus(
+  data: AssetTrackerData,
+  input: SetCashFlowDecisionStatusInput,
+): AssetTrackerData {
+  const parsed = SetCashFlowDecisionStatusInputSchema.parse(input);
+  const record = data.futureCashFlows.find(({ id }) => id === parsed.id);
+  if (record?.kind !== "decision") {
+    throw new AssetTrackerCommandError(
+      "FUTURE_CASH_FLOW_NOT_FOUND",
+      `No cash-flow decision found with ID ${parsed.id}`,
+    );
+  }
+  return {
+    ...data,
+    futureCashFlows: data.futureCashFlows.map((candidate) =>
+      candidate.id === record.id
+        ? { ...record, status: parsed.status }
+        : candidate,
+    ),
+  };
+}
+
+export function applySetCommitmentStatus(
+  data: AssetTrackerData,
+  input: SetCommitmentStatusInput,
+): AssetTrackerData {
+  const parsed = SetCommitmentStatusInputSchema.parse(input);
+  const record = data.futureCashFlows.find(({ id }) => id === parsed.id);
+  if (record?.kind !== "commitment") {
+    throw new AssetTrackerCommandError(
+      "FUTURE_CASH_FLOW_NOT_FOUND",
+      `No commitment found with ID ${parsed.id}`,
+    );
+  }
+  return {
+    ...data,
+    futureCashFlows: data.futureCashFlows.map((candidate) =>
+      candidate.id === record.id
+        ? { ...record, status: parsed.status }
+        : candidate,
+    ),
+  };
+}
+
+function appendActualToRecord(
+  record: FutureCashFlow,
+  stageId: string,
+  actual: ActualCashFlow,
+): FutureCashFlow {
+  return FutureCashFlowSchema.parse({
+    ...record,
+    stages: record.stages.map((candidateStage) =>
+      candidateStage.id === stageId
+        ? {
+            ...candidateStage,
+            actuals: [...candidateStage.actuals, actual],
+          }
+        : candidateStage,
+    ),
+  });
+}
+
+export function applyRecordActualCashFlow(
+  data: AssetTrackerData,
+  input: RecordActualCashFlowInput,
+  asOfDate: string,
+): AssetTrackerData {
+  const parsed = RecordActualCashFlowInputSchema.parse(input);
+  if (parsed.date > asOfDate) {
+    throw new AssetTrackerCommandError(
+      "INVALID_FUTURE_CASH_FLOW",
+      "Actual cash flows cannot have a future date",
+    );
+  }
+  const record = data.futureCashFlows.find(
+    ({ id }) => id === parsed.futureCashFlowId,
+  );
+  const stage = record?.stages.find(({ id }) => id === parsed.stageId);
+  if (record == null || stage == null) {
+    throw new AssetTrackerCommandError(
+      "FUTURE_CASH_FLOW_NOT_FOUND",
+      "No matching future cash-flow stage was found",
+    );
+  }
+  if (
+    parsed.direction === "refund" &&
+    record.kind === "commitment" &&
+    !record.refundable
+  ) {
+    throw new AssetTrackerCommandError(
+      "INVALID_FUTURE_CASH_FLOW",
+      "This commitment is not marked as refundable",
+    );
+  }
+  const netPayments = stage.actuals.reduce(
+    (total, actual) =>
+      total + (actual.direction === "payment" ? actual.amount : -actual.amount),
+    0,
+  );
+  if (parsed.direction === "refund" && parsed.amount > netPayments) {
+    throw new AssetTrackerCommandError(
+      "INVALID_FUTURE_CASH_FLOW",
+      "A refund cannot exceed the net amount already paid",
+    );
+  }
+  const takenActualIds = new Set(
+    data.futureCashFlows.flatMap((candidate) =>
+      candidate.stages.flatMap((candidateStage) =>
+        candidateStage.actuals.map(({ id }) => id),
+      ),
+    ),
+  );
+  const actual = {
+    id: uniqueId(
+      takenActualIds,
+      `${record.id}-${stage.id}-${parsed.direction}`,
+    ),
+    date: parsed.date,
+    amount: parsed.amount,
+    direction: parsed.direction,
+  };
+  const updatedRecord = appendActualToRecord(record, stage.id, actual);
+  return {
+    ...data,
+    futureCashFlows: data.futureCashFlows.map((candidate) =>
+      candidate.id === record.id ? updatedRecord : candidate,
+    ),
+  };
+}
+
+export function applyDeleteFutureCashFlow(
+  data: AssetTrackerData,
+  input: DeleteFutureCashFlowInput,
+): AssetTrackerData {
+  const parsed = DeleteFutureCashFlowInputSchema.parse(input);
+  if (!data.futureCashFlows.some(({ id }) => id === parsed.id)) {
+    throw new AssetTrackerCommandError(
+      "FUTURE_CASH_FLOW_NOT_FOUND",
+      `No future cash flow found with ID ${parsed.id}`,
+    );
+  }
+  const dependent = data.futureCashFlows.find(
+    (record) =>
+      record.kind === "decision" &&
+      (record.dependencyIds.includes(parsed.id) ||
+        record.alternativeToIds.includes(parsed.id)),
+  );
+  if (dependent != null) {
+    throw new AssetTrackerCommandError(
+      "INVALID_FUTURE_CASH_FLOW",
+      `"${dependent.name}" still references this future cash flow`,
+    );
+  }
+  return {
+    ...data,
+    futureCashFlows: data.futureCashFlows.filter(({ id }) => id !== parsed.id),
+    plannedExpenditures: data.plannedExpenditures.filter(
+      ({ id }) => id !== parsed.id,
+    ),
+    ownership: {
+      ...data.ownership,
+      plannedExpenditures: Object.fromEntries(
+        Object.entries(data.ownership.plannedExpenditures).filter(
+          ([id]) => id !== parsed.id,
+        ),
+      ),
+      futureCashFlows: Object.fromEntries(
+        Object.entries(data.ownership.futureCashFlows).filter(
+          ([id]) => id !== parsed.id,
+        ),
+      ),
+    },
+  };
+}
+
+function requireActiveForecastAssumptionSet(
+  data: AssetTrackerData,
+  id: string,
+) {
+  const set = data.forecastAssumptionSets.find(
+    (candidate) => candidate.id === id,
+  );
+  if (set == null) {
+    throw new AssetTrackerCommandError(
+      "FORECAST_ASSUMPTION_SET_NOT_FOUND",
+      `No forecast assumption set found with ID ${id}`,
+    );
+  }
+  if (set.status !== "active") {
+    throw new AssetTrackerCommandError(
+      "INVALID_FORECAST_ASSUMPTION",
+      "Superseded assumption sets are read-only; create changes on the active version",
+    );
+  }
+  return set;
+}
+
+export function applyCreateForecastAssumptionSet(
+  data: AssetTrackerData,
+  input: CreateForecastAssumptionSetInput,
+  acceptedAt: string,
+): AssetTrackerData {
+  const parsed = CreateForecastAssumptionSetInputSchema.parse(input);
+  const seriesId = uniqueId(
+    new Set(data.forecastAssumptionSets.map(({ seriesId: id }) => id)),
+    normalizeSlug(parsed.name) || "forecast-assumptions",
+  );
+  const set = ForecastAssumptionSetSchema.parse({
+    id: `${seriesId}-v1`,
+    seriesId,
+    name: parsed.name,
+    version: 1,
+    status: "active",
+    createdAt: acceptedAt,
+    assumptions: [],
+  });
+  return {
+    ...data,
+    forecastAssumptionSets: [...data.forecastAssumptionSets, set],
+  };
+}
+
+export function applyAddForecastAssumption(
+  data: AssetTrackerData,
+  input: AddForecastAssumptionInput,
+): AssetTrackerData {
+  const parsed = AddForecastAssumptionInputSchema.parse(input);
+  const set = requireActiveForecastAssumptionSet(data, parsed.setId);
+  assertOwnershipMembers(data.household, parsed.ownership);
+  if (parsed.accountId != null) {
+    const account = requireEligibleFutureCashFlowAccount(
+      data,
+      parsed.accountId,
+    );
+    if (account.currency !== parsed.currency) {
+      throw new AssetTrackerCommandError(
+        "INVALID_FORECAST_ASSUMPTION",
+        "An income assumption must use the currency of its destination account",
+      );
+    }
+  }
+  const takenIds = new Set(
+    data.forecastAssumptionSets.flatMap(({ assumptions }) =>
+      assumptions.map(({ id }) => id),
+    ),
+  );
+  const assumption = ForecastAssumptionSchema.parse({
+    id: uniqueId(takenIds, normalizeSlug(parsed.name) || "assumption"),
+    ...parsed,
+  });
+  return {
+    ...data,
+    forecastAssumptionSets: data.forecastAssumptionSets.map((candidate) =>
+      candidate.id === set.id
+        ? { ...candidate, assumptions: [...candidate.assumptions, assumption] }
+        : candidate,
+    ),
+  };
+}
+
+export function applyVersionForecastAssumptionSet(
+  data: AssetTrackerData,
+  input: VersionForecastAssumptionSetInput,
+  acceptedAt: string,
+): AssetTrackerData {
+  const parsed = VersionForecastAssumptionSetInputSchema.parse(input);
+  const set = requireActiveForecastAssumptionSet(data, parsed.id);
+  const nextVersion =
+    Math.max(
+      ...data.forecastAssumptionSets
+        .filter(({ seriesId }) => seriesId === set.seriesId)
+        .map(({ version }) => version),
+    ) + 1;
+  const takenAssumptionIds = new Set(
+    data.forecastAssumptionSets.flatMap(({ assumptions }) =>
+      assumptions.map(({ id }) => id),
+    ),
+  );
+  const assumptions = set.assumptions.map((assumption) => {
+    const id = uniqueId(
+      takenAssumptionIds,
+      `${normalizeSlug(assumption.name) || "assumption"}-v${nextVersion}`,
+    );
+    takenAssumptionIds.add(id);
+    return { ...assumption, id };
+  });
+  const versioned = ForecastAssumptionSetSchema.parse({
+    ...set,
+    id: `${set.seriesId}-v${nextVersion}`,
+    version: nextVersion,
+    status: "active",
+    createdAt: acceptedAt,
+    supersedesId: set.id,
+    assumptions,
+  });
+  return {
+    ...data,
+    forecastAssumptionSets: [
+      ...data.forecastAssumptionSets.map((candidate) =>
+        candidate.id === set.id
+          ? { ...candidate, status: "superseded" as const }
+          : candidate,
+      ),
+      versioned,
+    ],
+  };
+}
+
+export function applyDeleteForecastAssumption(
+  data: AssetTrackerData,
+  input: DeleteForecastAssumptionInput,
+): AssetTrackerData {
+  const parsed = DeleteForecastAssumptionInputSchema.parse(input);
+  const set = requireActiveForecastAssumptionSet(data, parsed.setId);
+  if (!set.assumptions.some(({ id }) => id === parsed.assumptionId)) {
+    throw new AssetTrackerCommandError(
+      "INVALID_FORECAST_ASSUMPTION",
+      `No forecast assumption found with ID ${parsed.assumptionId}`,
+    );
+  }
+  return {
+    ...data,
+    forecastAssumptionSets: data.forecastAssumptionSets.map((candidate) =>
+      candidate.id === set.id
+        ? {
+            ...candidate,
+            assumptions: candidate.assumptions.filter(
+              ({ id }) => id !== parsed.assumptionId,
+            ),
+          }
+        : candidate,
+    ),
+  };
 }
 
 export function applySetExpectedReturn(
@@ -913,6 +1696,39 @@ export function applySetExpectedReturn(
     a.id === account.id ? { ...a, expectedReturnChanges: changes } : a,
   );
   return { ...data, accounts };
+}
+
+export function applySaveEmergencyFundPlan(
+  data: AssetTrackerData,
+  input: SaveEmergencyFundPlanInput,
+  createdAt: string,
+): AssetTrackerData {
+  const parsed = SaveEmergencyFundPlanInputSchema.parse(input);
+  const plans = data.emergencyFundPlans ?? [];
+  const active = plans.find(({ status }) => status === "active");
+  const seriesId = active?.seriesId ?? "household-emergency-reserves";
+  const version = active == null ? 1 : active.version + 1;
+  const takenIds = new Set(plans.map(({ id }) => id));
+  const plan = EmergencyFundPlanSchema.parse({
+    ...parsed,
+    id: uniqueId(takenIds, `${seriesId}-v${version}`),
+    seriesId,
+    version,
+    status: "active",
+    createdAt,
+    ...(active == null ? {} : { supersedesId: active.id }),
+  });
+  return {
+    ...data,
+    emergencyFundPlans: [
+      ...plans.map((candidate) =>
+        candidate.id === active?.id
+          ? { ...candidate, status: "superseded" as const }
+          : candidate,
+      ),
+      plan,
+    ],
+  };
 }
 
 export function applySetAccountLiquidity(
@@ -987,6 +1803,61 @@ export function applySetNetWorthTarget(
         ? undefined
         : (parsed.inTodaysMoney ?? false),
     },
+  };
+}
+
+export function applySaveMortgageScenario(
+  data: AssetTrackerData,
+  input: SaveMortgageScenarioInput,
+  recordedAt: string,
+): AssetTrackerData {
+  const parsed = SaveMortgageScenarioInputSchema.parse(input);
+  const takenScenarioIds = new Set(
+    (data.mortgageScenarios ?? []).map((scenario) => scenario.id),
+  );
+  const scenarioId = uniqueId(
+    takenScenarioIds,
+    normalizeSlug(parsed.name) || "mortgage-scenario",
+  );
+  if (parsed.source.mortgageAccountId != null) {
+    requireAccount(data, parsed.source.mortgageAccountId);
+  }
+  if (parsed.source.propertyAccountId != null) {
+    requireAccount(data, parsed.source.propertyAccountId);
+  }
+  const decisionId = parsed.recordDecision
+    ? uniqueId(
+        new Set((data.decisionRecords ?? []).map((decision) => decision.id)),
+        `${scenarioId}-decision`,
+      )
+    : undefined;
+  return {
+    ...data,
+    mortgageScenarios: [
+      ...(data.mortgageScenarios ?? []),
+      {
+        id: scenarioId,
+        name: parsed.name,
+        createdAt: recordedAt,
+        assumptions: parsed.assumptions,
+        source: parsed.source,
+        ...(decisionId == null ? {} : { decisionRecordId: decisionId }),
+      },
+    ],
+    decisionRecords:
+      decisionId == null
+        ? (data.decisionRecords ?? [])
+        : [
+            ...(data.decisionRecords ?? []),
+            {
+              id: decisionId,
+              kind: "mortgage",
+              title: parsed.name,
+              scenarioId,
+              recordedAt,
+              status: "recorded",
+            },
+          ],
   };
 }
 

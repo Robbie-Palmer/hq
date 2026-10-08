@@ -141,6 +141,55 @@
       "when": 1790893214000,
       "tag": "0019_reconcile_recipe_ingredients",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791021493497,
+      "tag": "0020_household_equipment",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1791037196555,
+      "tag": "0021_add_pantry_spices_and_herbs",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791046841526,
+      "tag": "0022_add_more_pantry_seasonings",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791054534739,
+      "tag": "0023_add_equipment_recipe_match_mode",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791096791115,
+      "tag": "0024_use_equipment_recipe_match_mode_enum",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791100822874,
+      "tag": "0025_store_flexible_authored_terms",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791307742060,
+      "tag": "0026_kitchen_state_details",
+      "breakpoints": true
     }
   ]
 }

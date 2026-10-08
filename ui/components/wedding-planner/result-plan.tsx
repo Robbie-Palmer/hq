@@ -38,8 +38,7 @@ export function ResultPlan({
       <details className="relation full-report">
         <summary>
           <span>
-            <strong>Full calculation details</strong>
-            <small>Show the complete text report</small>
+            <strong>Calculation details</strong>
           </span>
           <ChevronRight size={17} />
         </summary>

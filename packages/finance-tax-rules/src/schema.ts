@@ -123,13 +123,46 @@ export const pensionRuleSchema = baseRuleSchema.extend({
     basicAmountPence: moneyPenceSchema,
   }),
   annualAllowancePence: moneyPenceSchema,
-  taperedAnnualAllowance: z.object({
-    thresholdIncomeLimitPence: moneyPenceSchema,
-    adjustedIncomeLimitPence: moneyPenceSchema,
-    minimumAllowancePence: moneyPenceSchema,
-  }),
+  annualAllowanceNotes: z.array(z.string().min(1)).min(1),
+  taperedAnnualAllowance: z
+    .object({
+      thresholdIncomeLimitPence: moneyPenceSchema,
+      adjustedIncomeLimitPence: moneyPenceSchema,
+      minimumAllowancePence: moneyPenceSchema,
+    })
+    .nullable(),
   moneyPurchaseAnnualAllowancePence: moneyPenceSchema,
   methods: z.array(pensionMethodSchema).length(3),
+});
+
+export const householdTaxRuleSchema = baseRuleSchema.extend({
+  kind: z.literal("household-tax"),
+  jurisdictions: z.array(jurisdictionSchema).min(1),
+  dividendAllowancePence: moneyPenceSchema,
+  dividendRates: z.object({
+    basicBasisPoints: rateBasisPointsSchema,
+    higherBasisPoints: rateBasisPointsSchema,
+    additionalBasisPoints: rateBasisPointsSchema,
+  }),
+  savings: z.object({
+    startingRateLimitPence: moneyPenceSchema,
+    personalSavingsAllowancePence: z.object({
+      basic: moneyPenceSchema,
+      higher: moneyPenceSchema,
+      additional: moneyPenceSchema,
+    }),
+    rates: z.object({
+      basicBasisPoints: rateBasisPointsSchema,
+      higherBasisPoints: rateBasisPointsSchema,
+      additionalBasisPoints: rateBasisPointsSchema,
+    }),
+  }),
+  capitalGains: z.object({
+    annualExemptAmountPence: moneyPenceSchema,
+    basicRateBasisPoints: rateBasisPointsSchema,
+    higherRateBasisPoints: rateBasisPointsSchema,
+  }),
+  isaAnnualAllowancePence: moneyPenceSchema,
 });
 
 export const datasetSchema = z.object({
@@ -154,6 +187,7 @@ export const datasetSchema = z.object({
   incomeTax: z.array(incomeTaxRuleSchema).min(1),
   nationalInsurance: z.array(nationalInsuranceRuleSchema).min(1),
   pensions: z.array(pensionRuleSchema).min(1),
+  householdTax: z.array(householdTaxRuleSchema).min(1),
 });
 
 export type RuleDataset = z.infer<typeof datasetSchema>;

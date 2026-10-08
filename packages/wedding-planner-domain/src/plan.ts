@@ -88,7 +88,6 @@ function validateGuestLinks(
     throw new Error(`${id}: preferences have an invalid guest`);
 }
 
-/** Older v2 plans used wedding-party membership to represent fixed top-table seats. */
 function migrateLegacyWeddingParty(value: unknown): unknown {
   if (
     !value ||

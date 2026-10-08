@@ -1,18 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export HOME={{ ansible_facts.env.HOME | quote }}
-export PATH={{ ([
-  colima_k3s_colima_binary.stdout | dirname,
-  colima_k3s_lima_binary.stdout | dirname,
-  colima_k3s_kubectl_binary.stdout | dirname,
-  colima_k3s_docker_binary.stdout | dirname,
-  '/opt/homebrew/bin',
-  '/usr/local/bin',
-  '/usr/bin',
-  '/bin',
-  '/usr/sbin',
-  '/sbin'
-] | unique | join(':')) | quote }}
+HOME={{ ansible_facts.env.HOME | quote }}
+PATH={{ colima_k3s_wrapper_path | quote }}
+export HOME PATH
 
 exec {{ colima_k3s_colima_binary.stdout | quote }} start {{ colima_k3s_profile | quote }} --foreground

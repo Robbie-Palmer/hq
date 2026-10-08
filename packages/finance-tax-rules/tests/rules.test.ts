@@ -1,13 +1,23 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { buildArtifacts, validateDataset } from "../src/build";
+import {
+  buildArtifacts,
+  validateDataset,
+  validateReleaseLineage,
+} from "../src/build";
 import { ruleDataset } from "../src/data";
 import { resolveRules } from "../src/index";
 import {
+  salaryCalculationRequestSchema,
+  salaryCalculationResultSchema,
+} from "../src/salaryAdapter";
+import {
   evaluateValidationFixture,
-  validateValidationCorpus,
   type ValidationCandidate,
+  validateValidationCorpus,
 } from "../src/validation";
 import { validationCorpus } from "../src/validationData";
 
@@ -15,7 +25,7 @@ const packageRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
 describe("UK tax rule dataset", () => {
   it("passes structural and semantic validation", () => {
-    expect(validateDataset(ruleDataset).datasetVersion).toBe("2026.10.0");
+    expect(validateDataset(ruleDataset).datasetVersion).toBe("2026.10.3");
   });
 
   it("builds deterministic artifacts without an empty announced release", () => {
@@ -23,17 +33,40 @@ describe("UK tax rule dataset", () => {
     const second = buildArtifacts(packageRoot);
 
     expect([...first]).toEqual([...second]);
-    expect(first.get("artifacts/enacted/2026.10.0.json")).toContain(
+    expect(first.get("artifacts/enacted/2026.10.3.json")).toContain(
       '"legalStatus": "enacted"',
     );
-    expect(first.has("artifacts/announced/2026.10.0.json")).toBe(false);
+    expect(first.has("artifacts/announced/2026.10.3.json")).toBe(false);
     expect(first.get("artifacts/manifest.json")).not.toContain(
-      "artifacts/announced/2026.10.0.json",
+      "artifacts/announced/2026.10.3.json",
     );
-    expect(first.get("artifacts/validation/2026.10.0.json")).toContain(
+    expect(first.get("artifacts/validation/2026.10.3.json")).toContain(
       '"calculationContractVersion": "salary-validation-v1"',
     );
     expect(first.get("artifacts/manifest.json")).toContain('"fixtureCount": 16');
+  });
+
+  it("requires a superseded enacted artifact to remain available", () => {
+    const releaseRoot = mkdtempSync(resolve(tmpdir(), "finance-tax-rules-"));
+    const enactedDirectory = resolve(releaseRoot, "artifacts/enacted");
+    mkdirSync(enactedDirectory, { recursive: true });
+    writeFileSync(
+      resolve(enactedDirectory, "2026.10.0.json"),
+      JSON.stringify({ datasetVersion: "2026.10.0" }),
+    );
+    const nextDataset = validateDataset({
+      ...ruleDataset,
+      datasetVersion: "2026.10.1",
+      supersedes: "2026.10.0",
+    });
+
+    expect(() => validateReleaseLineage(releaseRoot, nextDataset)).not.toThrow();
+    expect(() =>
+      validateReleaseLineage(releaseRoot, {
+        ...nextDataset,
+        supersedes: "2026.09.0",
+      }),
+    ).toThrow("Superseded artifact artifacts/enacted/2026.09.0.json");
   });
 });
 
@@ -150,6 +183,49 @@ describe("rule resolution", () => {
     ).toBe(1_000);
   });
 
+  it.each([
+    ["2015-07-01", "ni-2015-16", 67_200, 353_200],
+    ["2016-07-01", "ni-2016-17", 67_200, 358_300],
+    ["2017-07-01", "ni-2017-18", 68_000, 375_000],
+    ["2018-07-01", "ni-2018-19", 70_200, 386_300],
+    ["2019-07-01", "ni-2019-20", 71_900, 416_700],
+    ["2020-07-01", "ni-2020-21", 79_200, 416_700],
+    ["2021-07-01", "ni-2021-22", 79_700, 418_900],
+  ])(
+    "selects reviewed historical NI thresholds for %s",
+    (date, ruleId, primaryThreshold, upperEarningsLimit) => {
+      const result = resolveRules({ ...request, date });
+
+      expect(result.available).toBe(true);
+      if (!result.available) return;
+      expect(result.nationalInsurance).toMatchObject({
+        id: ruleId,
+        thresholds: {
+          primaryThresholdPence: { monthly: primaryThreshold },
+          upperEarningsLimitPence: { monthly: upperEarningsLimit },
+        },
+      });
+    },
+  );
+
+  it("selects both 2015/16 pension alignment intervals", () => {
+    const before = resolveRules({ ...request, date: "2015-07-08" });
+    const after = resolveRules({ ...request, date: "2015-07-09" });
+
+    expect(before.available && before.pension).toMatchObject({
+      id: "pension-2015-16-pre-alignment",
+      annualAllowancePence: 8_000_000,
+      moneyPurchaseAnnualAllowancePence: 2_000_000,
+      taperedAnnualAllowance: null,
+    });
+    expect(after.available && after.pension).toMatchObject({
+      id: "pension-2015-16-post-alignment",
+      annualAllowancePence: 0,
+      moneyPurchaseAnnualAllowancePence: 0,
+      taperedAnnualAllowance: null,
+    });
+  });
+
   it("selects Scottish bands and pension limits", () => {
     const result = resolveRules({
       ...request,
@@ -201,7 +277,7 @@ describe("rule resolution", () => {
 
   it.each([
     [
-      { ...request, date: "2021-04-06" },
+      { ...request, date: "2014-04-06" },
       "unsupported-date",
     ],
     [
@@ -218,5 +294,124 @@ describe("rule resolution", () => {
     ],
   ])("returns unavailable for unsupported input %#", (input, reason) => {
     expect(resolveRules(input)).toMatchObject({ available: false, reason });
+  });
+});
+
+describe("salary calculator adapter contract", () => {
+  const request = {
+    effectiveDate: "2025-06-30",
+    taxYear: "2025-26",
+    jurisdiction: "england-and-northern-ireland",
+    precision: "annual-liability-estimate",
+    pay: {
+      contractualGrossPayPence: 6_000_000,
+      grossCashPayPence: 5_400_000,
+      taxablePayPence: 5_400_000,
+      nationalInsuranceEarningsPence: 5_400_000,
+    },
+    pension: {
+      method: "salary-sacrifice",
+      grossContributionPence: 600_000,
+      memberDeductionPence: 0,
+      employerContributionPence: 600_000,
+      providerTaxReliefPence: 0,
+    },
+    assumptions: [
+      { id: "employment-type", value: "employee-not-director" },
+    ],
+  };
+
+  it("keeps tax, NI, and pension pay bases distinct", () => {
+    expect(salaryCalculationRequestSchema.parse(request)).toEqual(request);
+    expect(() =>
+      salaryCalculationRequestSchema.parse({
+        ...request,
+        pay: {
+          contractualGrossPayPence: 6_000_000,
+          grossCashPayPence: 5_400_000,
+          taxablePayPence: 4_143_000,
+        },
+      }),
+    ).toThrow();
+
+    expect(() =>
+      salaryCalculationRequestSchema.parse({
+        ...request,
+        precision: "exact-payroll-deduction",
+      }),
+    ).toThrow();
+    expect(() =>
+      salaryCalculationRequestSchema.parse({
+        ...request,
+        taxYear: "2024-25",
+      }),
+    ).toThrow();
+  });
+
+  it("requires reproducible result lineage and rounding", () => {
+    const roundingRule = "Round the calculated value to the nearest penny.";
+    const result = {
+      precision: "annual-liability-estimate",
+      components: {
+        grossCashPayPence: 5_400_000,
+        taxablePayPence: 5_400_000,
+        incomeTaxPence: 903_200,
+        employeeNationalInsurancePence: 309_000,
+        memberPensionDeductionPence: 0,
+        employerPensionContributionPence: 600_000,
+        providerTaxReliefPence: 0,
+        takeHomePayPence: 4_187_800,
+      },
+      lineage: {
+        adapterId: "saving-tool-annual-v1",
+        adapterVersion: "1",
+        engineId: "@saving-tool/hmrc-income-tax",
+        engineVersion: "3.0.1",
+        ruleDatasetVersion: "2026.10.1",
+        effectiveRuleVersion: "2025-26",
+        calculationVersion: "salary-estimate-v1",
+        sourceRuleIds: [
+          "income-tax-2025-26-england-northern-ireland",
+          "ni-2025-26",
+        ],
+        assumptions: request.assumptions,
+        rounding: [
+          { component: "grossCashPayPence", rule: roundingRule },
+          { component: "taxablePayPence", rule: roundingRule },
+          { component: "incomeTaxPence", rule: roundingRule },
+          { component: "employeeNationalInsurancePence", rule: roundingRule },
+          { component: "memberPensionDeductionPence", rule: roundingRule },
+          { component: "employerPensionContributionPence", rule: roundingRule },
+          { component: "providerTaxReliefPence", rule: roundingRule },
+          { component: "takeHomePayPence", rule: roundingRule },
+        ],
+      },
+    };
+
+    expect(salaryCalculationResultSchema.parse(result)).toEqual(result);
+    expect(() =>
+      salaryCalculationResultSchema.parse({
+        ...result,
+        lineage: { ...result.lineage, sourceRuleIds: [] },
+      }),
+    ).toThrow();
+    expect(() =>
+      salaryCalculationResultSchema.parse({
+        ...result,
+        lineage: { ...result.lineage, rounding: result.lineage.rounding.slice(1) },
+      }),
+    ).toThrow();
+    expect(() =>
+      salaryCalculationResultSchema.parse({
+        ...result,
+        lineage: {
+          ...result.lineage,
+          rounding: [
+            ...result.lineage.rounding.slice(0, -1),
+            result.lineage.rounding[0],
+          ],
+        },
+      }),
+    ).toThrow();
   });
 });

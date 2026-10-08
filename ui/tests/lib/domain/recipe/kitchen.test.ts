@@ -1,6 +1,8 @@
+import { emptyPantryFreshness } from "recipe-domain/pantry";
 import { describe, expect, it } from "vitest";
 import {
   getDietRelevantKitchenIngredients,
+  getKitchenFreshnessStatus,
   getKitchenRecipeMatches,
   isKitchenLocation,
   KITCHEN_LOCATIONS,
@@ -10,10 +12,12 @@ describe("kitchen helpers", () => {
   it("defines the supported locations once for kitchen features", () => {
     expect(KITCHEN_LOCATIONS.map((location) => location.id)).toEqual([
       "fridge",
+      "freezer",
       "cupboards",
       "fresh",
     ]);
-    expect(isKitchenLocation("freezer")).toBe(false);
+    expect(isKitchenLocation("garage")).toBe(false);
+    expect(isKitchenLocation("freezer")).toBe(true);
     expect(isKitchenLocation("fridge")).toBe(true);
   });
 
@@ -82,5 +86,158 @@ describe("kitchen helpers", () => {
         true,
       ),
     ).toEqual(ingredients);
+  });
+
+  it("requires both ingredients and household equipment to cook", () => {
+    const [match] = getKitchenRecipeMatches(
+      [
+        {
+          slug: "soup",
+          title: "Soup",
+          cuisine: [],
+          ingredients: [{ slug: "stock", name: "stock" }],
+          cookware: ["saucepan", "stick blender"],
+        },
+      ],
+      ["stock"],
+      ["saucepan"],
+    );
+
+    expect(match).toMatchObject({
+      canCook: false,
+      missingCount: 0,
+      equipmentHaveCount: 1,
+      equipmentTotalCount: 2,
+      missingEquipment: [{ slug: "stick-blender", name: "stick blender" }],
+    });
+  });
+
+  it("derives warnings without conflating safety and quality dates", () => {
+    const bothDates = {
+      ...emptyPantryFreshness(),
+      useBy: "2026-10-10",
+      bestBefore: "2026-10-01",
+    };
+
+    expect(getKitchenFreshnessStatus(bothDates, "2026-10-07")).toBe(
+      "past_best_before",
+    );
+    expect(
+      getKitchenFreshnessStatus(
+        { ...bothDates, useBy: "2026-10-06" },
+        "2026-10-07",
+      ),
+    ).toBe("past_use_by");
+    expect(
+      getKitchenFreshnessStatus(
+        {
+          ...emptyPantryFreshness(),
+          estimate: {
+            expectedDays: 4,
+            startingOn: "2026-10-01",
+            storage: "fresh",
+            basis: "user",
+          },
+        },
+        "2026-10-07",
+      ),
+    ).toBe("estimate_elapsed");
+  });
+
+  it("uses use-by dates and compatible quantities when matching stock", () => {
+    const [match] = getKitchenRecipeMatches(
+      [
+        {
+          slug: "soup",
+          title: "Soup",
+          cuisine: [],
+          ingredients: [
+            { slug: "stock", name: "stock", amount: 500, unit: "ml" },
+            { slug: "peas", name: "peas" },
+            { slug: "mint", name: "mint" },
+            { slug: "yogurt", name: "yogurt" },
+          ],
+        },
+      ],
+      {
+        stock: {
+          location: "cupboards",
+          quantity: { amount: 0.5, unit: "l" },
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Household member update",
+          },
+        },
+        peas: {
+          location: "freezer",
+          quantity: null,
+          freshness: {
+            ...emptyPantryFreshness(),
+            bestBefore: "2026-10-01",
+          },
+          source: {
+            kind: "user",
+            provenance: "Household member update",
+          },
+        },
+        mint: {
+          location: "fresh",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "inferred",
+            provenance: "Receipt scan on 5 October",
+          },
+        },
+        yogurt: {
+          location: "fridge",
+          quantity: null,
+          freshness: {
+            ...emptyPantryFreshness(),
+            useBy: "2026-10-01",
+          },
+          source: {
+            kind: "user",
+            provenance: "Household member update",
+          },
+        },
+      },
+      null,
+      "2026-10-07",
+    );
+
+    expect(match).toMatchObject({
+      canCook: false,
+      haveCount: 3,
+      missingIngredients: [{ slug: "yogurt", name: "yogurt" }],
+    });
+  });
+
+  it("marks a compatible but insufficient quantity as missing", () => {
+    const [match] = getKitchenRecipeMatches(
+      [
+        {
+          slug: "soup",
+          title: "Soup",
+          cuisine: [],
+          ingredients: [
+            { slug: "stock", name: "stock", amount: 500, unit: "ml" },
+          ],
+        },
+      ],
+      {
+        stock: {
+          location: "cupboards",
+          quantity: { amount: 0.25, unit: "l" },
+          freshness: emptyPantryFreshness(),
+          source: { kind: "user", provenance: "Manual kitchen update" },
+        },
+      },
+      null,
+      "2026-10-07",
+    );
+
+    expect(match?.missingCount).toBe(1);
   });
 });

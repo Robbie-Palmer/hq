@@ -1,7 +1,16 @@
 import { asc, eq, type SQL } from "drizzle-orm";
 import type { Db } from "recipe-db";
 import * as schema from "recipe-db/schema";
-import type { PantryLocation } from "recipe-domain/pantry";
+import type {
+  PantryItemDetails,
+  PantryLocation,
+} from "recipe-domain/pantry";
+import { emptyPantryFreshness } from "recipe-domain/pantry";
+import { UnitSchema } from "recipe-domain/unit";
+import {
+  listUnresolvedTerms,
+  type UnresolvedTermSummary,
+} from "./authored-terms";
 
 export { MAX_PANTRY_ITEMS, type PantryLocation } from "recipe-domain/pantry";
 
@@ -21,7 +30,9 @@ export type PantryResponse = {
     | { type: "personal" }
     | { type: "household"; household: { id: string; name: string } };
   stock: Record<string, PantryLocation>;
+  items: Record<string, PantryItemDetails>;
   itemVersions: Record<string, string>;
+  unresolvedTerms?: UnresolvedTermSummary[];
 };
 
 export async function resolvePantryScope(
@@ -91,6 +102,16 @@ export async function pantryResponseForScope(
     .select({
       ingredientSlug: schema.pantryItem.ingredientSlug,
       location: schema.pantryItem.location,
+      quantity: schema.pantryItem.quantity,
+      quantityUnit: schema.pantryItem.quantityUnit,
+      useBy: schema.pantryItem.useBy,
+      bestBefore: schema.pantryItem.bestBefore,
+      stockedAt: schema.pantryItem.stockedAt,
+      openedAt: schema.pantryItem.openedAt,
+      frozenAt: schema.pantryItem.frozenAt,
+      freshnessEstimate: schema.pantryItem.freshnessEstimate,
+      sourceKind: schema.pantryItem.sourceKind,
+      provenance: schema.pantryItem.provenance,
       version: schema.pantryItem.version,
     })
     .from(schema.pantryItem)
@@ -99,6 +120,18 @@ export async function pantryResponseForScope(
 
   const revision =
     options.revision ?? (await findPantryAggregate(db, scope))?.revision ?? 0n;
+  const pantryKeys = items.map(({ ingredientSlug }) => ingredientSlug);
+  const unresolvedTerms =
+    pantryKeys.length === 0
+      ? []
+      : await listUnresolvedTerms(
+          db,
+          scope.type === "household"
+            ? { type: "household", organizationId: scope.householdId }
+            : { type: "user", userId: scope.userId },
+          "ingredient",
+          pantryKeys,
+        );
 
   return {
     resourceId: pantryResourceId(scope),
@@ -117,12 +150,56 @@ export async function pantryResponseForScope(
     stock: Object.fromEntries(
       items.map(({ ingredientSlug, location }) => [ingredientSlug, location]),
     ) as Record<string, PantryLocation>,
+    items: Object.fromEntries(
+      items.map(
+        ({
+          ingredientSlug,
+          location,
+          quantity,
+          quantityUnit,
+          useBy,
+          bestBefore,
+          stockedAt,
+          openedAt,
+          frozenAt,
+          freshnessEstimate,
+          sourceKind,
+          provenance,
+        }) => [
+          ingredientSlug,
+          {
+            location,
+            quantity:
+              quantity === null || quantityUnit === null
+                ? null
+                : {
+                    amount: Number(quantity),
+                    unit: UnitSchema.parse(quantityUnit),
+                  },
+            freshness: {
+              ...emptyPantryFreshness(),
+              useBy,
+              bestBefore,
+              stockedAt,
+              openedAt,
+              frozenAt,
+              estimate: freshnessEstimate,
+            },
+            source: {
+              kind: sourceKind,
+              provenance,
+            },
+          },
+        ],
+      ),
+    ),
     itemVersions: Object.fromEntries(
       items.map(({ ingredientSlug, version }) => [
         ingredientSlug,
         version.toString(),
       ]),
     ),
+    ...(unresolvedTerms.length > 0 ? { unresolvedTerms } : {}),
   };
 }
 

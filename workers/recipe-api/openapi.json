@@ -393,6 +393,253 @@
         ],
         "additionalProperties": false
       },
+      "HouseholdEquipment": {
+        "type": "object",
+        "properties": {
+          "catalog": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "slug": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "cookware",
+                    "bakeware",
+                    "appliance",
+                    "utensil",
+                    "measuring",
+                    "vessel",
+                    "surface",
+                    "consumable"
+                  ]
+                }
+              },
+              "required": [
+                "slug",
+                "name",
+                "category"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 81
+          },
+          "owned": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "slug": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "cookware",
+                    "bakeware",
+                    "appliance",
+                    "utensil",
+                    "measuring",
+                    "vessel",
+                    "surface",
+                    "consumable"
+                  ]
+                },
+                "createdAt": {
+                  "type": "string",
+                  "maxLength": 40,
+                  "format": "date-time"
+                },
+                "retired": {
+                  "type": "boolean"
+                },
+                "unresolved": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "slug",
+                "name",
+                "createdAt",
+                "retired"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 500
+          },
+          "unresolvedTerms": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 36,
+                  "format": "uuid"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "ingredient",
+                    "equipment"
+                  ]
+                },
+                "rawText": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "normalizedText": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "locale": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 35
+                },
+                "sourceContext": {
+                  "type": "object",
+                  "properties": {
+                    "flow": {
+                      "type": "string",
+                      "enum": [
+                        "recipe",
+                        "pantry",
+                        "diet",
+                        "equipment"
+                      ]
+                    },
+                    "resourceId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "field": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    }
+                  },
+                  "required": [
+                    "flow"
+                  ],
+                  "additionalProperties": false
+                },
+                "provenance": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "import"
+                      ]
+                    },
+                    "actorUserId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "importJobId": {
+                      "type": "string",
+                      "maxLength": 36,
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "actorUserId"
+                  ],
+                  "additionalProperties": false
+                },
+                "candidateMatches": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "slug": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "score": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      }
+                    },
+                    "required": [
+                      "slug",
+                      "score"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "maxItems": 20
+                },
+                "frequency": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 2147483647,
+                  "format": "int32"
+                },
+                "resolutionStatus": {
+                  "type": "string",
+                  "enum": [
+                    "unresolved"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "rawText",
+                "normalizedText",
+                "locale",
+                "sourceContext",
+                "provenance",
+                "candidateMatches",
+                "frequency",
+                "resolutionStatus"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 500
+          },
+          "recipeMatchMode": {
+            "type": "string",
+            "enum": [
+              "hide",
+              "warn",
+              "disabled"
+            ]
+          }
+        },
+        "required": [
+          "catalog",
+          "owned",
+          "recipeMatchMode"
+        ],
+        "additionalProperties": false
+      },
       "NotificationUnreadCountResponse": {
         "type": "object",
         "properties": {
@@ -1366,6 +1613,678 @@
             },
             "required": true,
             "name": "householdId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful response with no content"
+          },
+          "400": {
+            "description": "Error (400)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error (401)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error (403)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error (404)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error (409)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error (410)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Error (415)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error (422)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error (500)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Error (502)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error (503)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/households/{householdId}/equipment": {
+      "get": {
+        "operationId": "getHouseholdsHouseholdIdEquipment",
+        "summary": "GET /households/:householdId/equipment",
+        "description": "Recipe API operation for GET /households/:householdId/equipment.",
+        "tags": [
+          "households"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 36,
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "householdId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HouseholdEquipment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error (400)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error (401)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error (403)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error (404)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error (409)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error (410)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Error (415)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error (422)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error (500)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Error (502)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error (503)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchHouseholdsHouseholdIdEquipment",
+        "summary": "PATCH /households/:householdId/equipment",
+        "description": "Recipe API operation for PATCH /households/:householdId/equipment.",
+        "tags": [
+          "households"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 36,
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "householdId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "recipeMatchMode": {
+                    "type": "string",
+                    "enum": [
+                      "hide",
+                      "warn",
+                      "disabled"
+                    ]
+                  }
+                },
+                "required": [
+                  "recipeMatchMode"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error (400)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error (401)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error (403)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error (404)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error (409)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error (410)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Error (415)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error (422)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error (500)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Error (502)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error (503)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/households/{householdId}/equipment/{equipmentSlug}": {
+      "put": {
+        "operationId": "putHouseholdsHouseholdIdEquipmentEquipmentSlug",
+        "summary": "PUT /households/:householdId/equipment/:equipmentSlug",
+        "description": "Recipe API operation for PUT /households/:householdId/equipment/:equipmentSlug.",
+        "tags": [
+          "households"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 36,
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "householdId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": true,
+            "name": "equipmentSlug",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "slug": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    "category": {
+                      "type": "string",
+                      "enum": [
+                        "cookware",
+                        "bakeware",
+                        "appliance",
+                        "utensil",
+                        "measuring",
+                        "vessel",
+                        "surface",
+                        "consumable"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "maxLength": 40,
+                      "format": "date-time"
+                    },
+                    "retired": {
+                      "type": "boolean"
+                    },
+                    "unresolved": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "slug",
+                    "name",
+                    "createdAt",
+                    "retired"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error (400)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error (401)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error (403)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error (404)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error (409)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error (410)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Error (415)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error (422)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error (500)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Error (502)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error (503)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteHouseholdsHouseholdIdEquipmentEquipmentSlug",
+        "summary": "DELETE /households/:householdId/equipment/:equipmentSlug",
+        "description": "Recipe API operation for DELETE /households/:householdId/equipment/:equipmentSlug.",
+        "tags": [
+          "households"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 36,
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "householdId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": true,
+            "name": "equipmentSlug",
             "in": "path"
           }
         ],
@@ -3885,6 +4804,7 @@
                       "type": "string",
                       "enum": [
                         "fridge",
+                        "freezer",
                         "cupboards",
                         "fresh"
                       ]
@@ -4061,9 +4981,188 @@
                       "type": "string",
                       "enum": [
                         "fridge",
+                        "freezer",
                         "cupboards",
                         "fresh"
                       ]
+                    }
+                  },
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "location": {
+                          "type": "string",
+                          "enum": [
+                            "fridge",
+                            "freezer",
+                            "cupboards",
+                            "fresh"
+                          ]
+                        },
+                        "quantity": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "amount": {
+                              "type": "number",
+                              "minimum": 0.001,
+                              "maximum": 999999999
+                            },
+                            "unit": {
+                              "type": "string",
+                              "enum": [
+                                "g",
+                                "kg",
+                                "oz",
+                                "lb",
+                                "ml",
+                                "l",
+                                "tsp",
+                                "tbsp",
+                                "au_tbsp",
+                                "us_cup",
+                                "uk_cup",
+                                "au_cup",
+                                "uk_imperial_cup",
+                                "uk_pint",
+                                "us_pint",
+                                "us_fl_oz",
+                                "uk_fl_oz",
+                                "pinch",
+                                "handful",
+                                "piece",
+                                "slice",
+                                "clove",
+                                "tin",
+                                "cube",
+                                "sachet",
+                                "bag",
+                                "bunch"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "amount",
+                            "unit"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "freshness": {
+                          "type": "object",
+                          "properties": {
+                            "useBy": {
+                              "type": "string",
+                              "nullable": true,
+                              "maxLength": 10,
+                              "format": "date"
+                            },
+                            "bestBefore": {
+                              "type": "string",
+                              "nullable": true,
+                              "maxLength": 10,
+                              "format": "date"
+                            },
+                            "stockedAt": {
+                              "type": "string",
+                              "nullable": true,
+                              "maxLength": 10,
+                              "format": "date"
+                            },
+                            "openedAt": {
+                              "type": "string",
+                              "nullable": true,
+                              "maxLength": 10,
+                              "format": "date"
+                            },
+                            "frozenAt": {
+                              "type": "string",
+                              "nullable": true,
+                              "maxLength": 10,
+                              "format": "date"
+                            },
+                            "estimate": {
+                              "type": "object",
+                              "nullable": true,
+                              "properties": {
+                                "expectedDays": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 2147483647,
+                                  "format": "int32"
+                                },
+                                "startingOn": {
+                                  "type": "string",
+                                  "maxLength": 10,
+                                  "format": "date"
+                                },
+                                "storage": {
+                                  "type": "string",
+                                  "enum": [
+                                    "fridge",
+                                    "freezer",
+                                    "cupboards",
+                                    "fresh"
+                                  ]
+                                },
+                                "basis": {
+                                  "type": "string",
+                                  "enum": [
+                                    "user",
+                                    "catalog"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "expectedDays",
+                                "startingOn",
+                                "storage",
+                                "basis"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "useBy",
+                            "bestBefore",
+                            "stockedAt",
+                            "openedAt",
+                            "frozenAt",
+                            "estimate"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "user",
+                                "inferred"
+                              ]
+                            },
+                            "provenance": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "provenance"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "location",
+                        "quantity",
+                        "freshness",
+                        "source"
+                      ],
+                      "additionalProperties": false
                     }
                   }
                 },
@@ -4247,9 +5346,142 @@
                     "type": "string",
                     "enum": [
                       "fridge",
+                      "freezer",
                       "cupboards",
                       "fresh"
                     ]
+                  },
+                  "quantity": {
+                    "type": "object",
+                    "nullable": true,
+                    "properties": {
+                      "amount": {
+                        "type": "number",
+                        "minimum": 0.001,
+                        "maximum": 999999999
+                      },
+                      "unit": {
+                        "type": "string",
+                        "enum": [
+                          "g",
+                          "kg",
+                          "oz",
+                          "lb",
+                          "ml",
+                          "l",
+                          "tsp",
+                          "tbsp",
+                          "au_tbsp",
+                          "us_cup",
+                          "uk_cup",
+                          "au_cup",
+                          "uk_imperial_cup",
+                          "uk_pint",
+                          "us_pint",
+                          "us_fl_oz",
+                          "uk_fl_oz",
+                          "pinch",
+                          "handful",
+                          "piece",
+                          "slice",
+                          "clove",
+                          "tin",
+                          "cube",
+                          "sachet",
+                          "bag",
+                          "bunch"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "amount",
+                      "unit"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "freshness": {
+                    "type": "object",
+                    "properties": {
+                      "useBy": {
+                        "type": "string",
+                        "nullable": true,
+                        "maxLength": 10,
+                        "format": "date"
+                      },
+                      "bestBefore": {
+                        "type": "string",
+                        "nullable": true,
+                        "maxLength": 10,
+                        "format": "date"
+                      },
+                      "stockedAt": {
+                        "type": "string",
+                        "nullable": true,
+                        "maxLength": 10,
+                        "format": "date"
+                      },
+                      "openedAt": {
+                        "type": "string",
+                        "nullable": true,
+                        "maxLength": 10,
+                        "format": "date"
+                      },
+                      "frozenAt": {
+                        "type": "string",
+                        "nullable": true,
+                        "maxLength": 10,
+                        "format": "date"
+                      },
+                      "estimate": {
+                        "type": "object",
+                        "nullable": true,
+                        "properties": {
+                          "expectedDays": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 2147483647,
+                            "format": "int32"
+                          },
+                          "startingOn": {
+                            "type": "string",
+                            "maxLength": 10,
+                            "format": "date"
+                          },
+                          "storage": {
+                            "type": "string",
+                            "enum": [
+                              "fridge",
+                              "freezer",
+                              "cupboards",
+                              "fresh"
+                            ]
+                          },
+                          "basis": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "catalog"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "expectedDays",
+                          "startingOn",
+                          "storage",
+                          "basis"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "useBy",
+                      "bestBefore",
+                      "stockedAt",
+                      "openedAt",
+                      "frozenAt",
+                      "estimate"
+                    ],
+                    "additionalProperties": false
                   }
                 },
                 "required": [
@@ -5814,8 +7046,7 @@
                     "items": {
                       "type": "string",
                       "minLength": 1,
-                      "maxLength": 80,
-                      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                      "maxLength": 200
                     },
                     "maxItems": 80,
                     "default": []

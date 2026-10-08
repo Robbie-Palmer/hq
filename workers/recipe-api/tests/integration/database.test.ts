@@ -1,10 +1,10 @@
-import { strToU8, zipSync } from "fflate";
-import { beginBatchUndo, executeBatchUndo, previewBatchUndo } from "../../src/batch-undo";
 import type { AgentSession } from "@better-auth/agent-auth";
 import { and, eq } from "drizzle-orm";
+import { strToU8, zipSync } from "fflate";
 import { createDb, schema } from "recipe-db";
 import { insertGeneratedDraft, readBatchDrafts } from "recipe-db/batch-drafts";
 import { artifactKey, sourceImageKey } from "recipe-domain/import-storage";
+import { emptyPantryFreshness } from "recipe-domain/pantry";
 import {
   afterAll,
   beforeAll,
@@ -16,6 +16,7 @@ import {
 } from "vitest";
 import { executeRecipeAgentCapability } from "../../src/agent-auth";
 import { createAuth } from "../../src/auth";
+import { beginBatchUndo, executeBatchUndo, previewBatchUndo } from "../../src/batch-undo";
 import { betterAuthSessionCookie } from "../../src/better-auth-session-cookie";
 import { undoCookLogMutation } from "../../src/cook-log/services/undo-cook-log-mutation";
 import {
@@ -188,21 +189,102 @@ beforeAll(async () => {
     where table_schema = 'public'
   `;
   const catalogRows = await client<
-    { category: string | null; slug: string }[]
+    { category: string | null; name: string; slug: string }[]
   >`
-    select slug, category
+    select slug, name, category
     from ingredient
-    where slug in ('almond-milk', 'cajun-powder', 'cajun-seasoning', 'chilli-oil', 'maple-syrup', 'salted-butter')
+    where slug in (
+      'almond-milk',
+      'cajun-powder',
+      'cajun-seasoning',
+      'chilli-oil',
+      'dried-bay-leaves',
+      'dried-chives',
+      'dried-dill',
+      'dried-tarragon',
+      'fajita-seasoning',
+      'garlic-italian-seasoning',
+      'ground-allspice',
+      'ground-cinnamon',
+      'ground-ginger',
+      'ground-nutmeg',
+      'ground-white-pepper',
+      'harissa-seasoning',
+      'maple-syrup',
+      'medium-curry-powder',
+      'mixed-spice',
+      'salted-butter',
+      'whole-cloves'
+    )
     order by slug
   `;
-  expect(migrationCount?.count).toBe(20);
-  expect(tableCount?.count).toBe(53);
+  expect(migrationCount?.count).toBe(27);
+  expect(tableCount?.count).toBe(55);
   expect(catalogRows).toEqual([
-    { category: "dairy", slug: "almond-milk" },
-    { category: "spice", slug: "cajun-seasoning" },
-    { category: "oil-fat", slug: "chilli-oil" },
-    { category: "condiment", slug: "maple-syrup" },
-    { category: "dairy", slug: "salted-butter" },
+    { category: "dairy", name: "almond milk", slug: "almond-milk" },
+    {
+      category: "spice",
+      name: "cajun seasoning",
+      slug: "cajun-seasoning",
+    },
+    { category: "oil-fat", name: "chilli oil", slug: "chilli-oil" },
+    {
+      category: "herb",
+      name: "dried bay leaves",
+      slug: "dried-bay-leaves",
+    },
+    { category: "herb", name: "dried chives", slug: "dried-chives" },
+    { category: "herb", name: "dried dill", slug: "dried-dill" },
+    {
+      category: "herb",
+      name: "dried tarragon",
+      slug: "dried-tarragon",
+    },
+    {
+      category: "spice",
+      name: "fajita seasoning",
+      slug: "fajita-seasoning",
+    },
+    {
+      category: "spice",
+      name: "garlic Italian seasoning",
+      slug: "garlic-italian-seasoning",
+    },
+    {
+      category: "spice",
+      name: "ground allspice",
+      slug: "ground-allspice",
+    },
+    {
+      category: "spice",
+      name: "ground cinnamon",
+      slug: "ground-cinnamon",
+    },
+    { category: "spice", name: "ground ginger", slug: "ground-ginger" },
+    {
+      category: "spice",
+      name: "ground nutmeg",
+      slug: "ground-nutmeg",
+    },
+    {
+      category: "spice",
+      name: "ground white pepper",
+      slug: "ground-white-pepper",
+    },
+    {
+      category: "spice",
+      name: "harissa seasoning",
+      slug: "harissa-seasoning",
+    },
+    { category: "condiment", name: "maple syrup", slug: "maple-syrup" },
+    {
+      category: "spice",
+      name: "medium curry powder",
+      slug: "medium-curry-powder",
+    },
+    { category: "spice", name: "mixed spice", slug: "mixed-spice" },
+    { category: "dairy", name: "salted butter", slug: "salted-butter" },
+    { category: "spice", name: "whole cloves", slug: "whole-cloves" },
   ]);
 });
 
@@ -312,7 +394,162 @@ describe("recipe API PostgreSQL integration", () => {
       scope: { type: "personal" },
       stock: { onion: "fresh" },
       itemVersions: { onion: "2" },
+      items: {
+        onion: {
+          location: "fresh",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Manual kitchen update",
+          },
+        },
+      },
     });
+  });
+
+  it("round-trips tenant-scoped authored terms across recipe settings", async () => {
+    const cook = await createUser("Flexible Cook", "flexible@example.test");
+    const otherCook = await createUser(
+      "Other Flexible Cook",
+      "other-flexible@example.test",
+    );
+    const householdResponse = await authenticatedRequest(cook, "/households", {
+      method: "POST",
+      body: { name: "Flexible Kitchen" },
+    });
+    expect(householdResponse.status).toBe(201);
+    const household = await json<{ id: string }>(householdResponse);
+
+    const pantryResponse = await authenticatedRequest(
+      cook,
+      `/pantry/items/${encodeURIComponent("Purple  Corn Meal")}`,
+      { method: "PUT", body: { location: "cupboards" } },
+    );
+    expect(pantryResponse.status).toBe(200);
+    expect(await json(pantryResponse)).toMatchObject({
+      stock: { "purple corn meal": "cupboards" },
+      unresolvedTerms: [
+        expect.objectContaining({
+          rawText: "Purple  Corn Meal",
+          normalizedText: "purple corn meal",
+          resolutionStatus: "unresolved",
+        }),
+      ],
+    });
+
+    const dietResponse = await authenticatedRequest(cook, "/api/profile/diet", {
+      method: "PUT",
+      body: {
+        presetDietKeys: [],
+        excludedIngredientSlugs: ["Tigernut Flour"],
+        excludedGroupKeys: [],
+        recipeMatchMode: "warn",
+      },
+    });
+    expect(dietResponse.status).toBe(200);
+    expect(await json(dietResponse)).toMatchObject({
+      excludedIngredientSlugs: ["tigernut flour"],
+      unresolvedTerms: [
+        expect.objectContaining({
+          rawText: "Tigernut Flour",
+          normalizedText: "tigernut flour",
+        }),
+      ],
+    });
+
+    const equipmentResponse = await authenticatedRequest(
+      cook,
+      `/households/${household.id}/equipment/${encodeURIComponent("Clay Tagine")}`,
+      { method: "PUT" },
+    );
+    expect(equipmentResponse.status).toBe(200);
+    expect(await json(equipmentResponse)).toMatchObject({
+      slug: "clay tagine",
+      name: "Clay Tagine",
+      unresolved: true,
+    });
+
+    const recipeBody = JSON.parse(
+      savedRecipeBody("flexible-stew", "Flexible Stew"),
+    ) as {
+      recipe: {
+        cookware: string[];
+        ingredientGroups: Array<{ items: Array<{ ingredient: string }> }>;
+      };
+    };
+    recipeBody.recipe.cookware = ["Stone Griddle"];
+    const ingredient = recipeBody.recipe.ingredientGroups.at(0)?.items.at(0);
+    if (!ingredient) throw new Error("Recipe fixture has no ingredient");
+    ingredient.ingredient = "Sea Asparagus";
+    const recipeResponse = await authenticatedRequest(cook, "/recipes", {
+      method: "POST",
+      body: {
+        slug: "flexible-stew",
+        title: "Flexible Stew",
+        body: JSON.stringify(recipeBody),
+        visibility: "private",
+      },
+    });
+    expect(recipeResponse.status).toBe(201);
+
+    const terms = await db
+      .select()
+      .from(schema.authoredTerm)
+      .orderBy(schema.authoredTerm.rawText);
+    expect(terms).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          organizationId: household.id,
+          userId: null,
+          kind: "ingredient",
+          rawText: "Purple  Corn Meal",
+          normalizedText: "purple corn meal",
+          canonicalSlug: null,
+          candidateMatches: [],
+          frequency: 1,
+          sourceContext: expect.objectContaining({ flow: "pantry" }),
+          provenance: {
+            kind: "user",
+            actorUserId: cook.id,
+          },
+        }),
+        expect.objectContaining({
+          organizationId: household.id,
+          kind: "equipment",
+          rawText: "Clay Tagine",
+          normalizedText: "clay tagine",
+          canonicalSlug: null,
+        }),
+        expect.objectContaining({
+          userId: cook.id,
+          kind: "ingredient",
+          rawText: "Sea Asparagus",
+          normalizedText: "sea asparagus",
+          sourceContext: expect.objectContaining({ flow: "recipe" }),
+        }),
+        expect.objectContaining({
+          userId: cook.id,
+          kind: "equipment",
+          rawText: "Stone Griddle",
+          normalizedText: "stone griddle",
+          sourceContext: expect.objectContaining({ flow: "recipe" }),
+        }),
+        expect.objectContaining({
+          userId: cook.id,
+          kind: "ingredient",
+          rawText: "Tigernut Flour",
+          normalizedText: "tigernut flour",
+          sourceContext: expect.objectContaining({ flow: "diet" }),
+        }),
+      ]),
+    );
+    expect(terms.some((term) => term.userId === otherCook.id)).toBe(false);
+
+    const otherPantry = await authenticatedRequest(otherCook, "/pantry");
+    expect(await json(otherPantry)).toMatchObject({ stock: {} });
+    const otherDiet = await authenticatedRequest(otherCook, "/api/profile/diet");
+    expect(await json(otherDiet)).not.toHaveProperty("unresolvedTerms");
   });
 
   it("records idempotent agent pantry mutations and compensates them", async () => {
@@ -542,6 +779,17 @@ describe("recipe API PostgreSQL integration", () => {
       revision: "1",
       stock: { onion: "fresh" },
       itemVersions: { onion: "1" },
+      items: {
+        onion: {
+          location: "fresh",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Manual kitchen update",
+          },
+        },
+      },
     });
 
     const householdResponse = await authenticatedRequest(cook, "/households", {
@@ -559,6 +807,17 @@ describe("recipe API PostgreSQL integration", () => {
       revision: "1",
       stock: { onion: "fresh" },
       itemVersions: { onion: "1" },
+      items: {
+        onion: {
+          location: "fresh",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Manual kitchen update",
+          },
+        },
+      },
     });
   });
 
@@ -1278,6 +1537,26 @@ describe("recipe API PostgreSQL integration", () => {
       },
       stock: { onion: "fresh", salt: "cupboards" },
       itemVersions: { onion: "1", salt: "1" },
+      items: {
+        onion: {
+          location: "fresh",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Manual kitchen update",
+          },
+        },
+        salt: {
+          location: "cupboards",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Household member update",
+          },
+        },
+      },
     });
 
     const clearSharedPantry = await authenticatedRequest(invitee, "/pantry", {
@@ -1330,6 +1609,35 @@ describe("recipe API PostgreSQL integration", () => {
         onion: "1",
         salt: "1",
       },
+      items: {
+        "almond-milk": {
+          location: "fridge",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Household member update",
+          },
+        },
+        onion: {
+          location: "fresh",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Manual kitchen update",
+          },
+        },
+        salt: {
+          location: "cupboards",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Manual kitchen update",
+          },
+        },
+      },
     });
 
     const recipeResponse = await authenticatedRequest(invitee, "/recipes", {
@@ -1372,6 +1680,35 @@ describe("recipe API PostgreSQL integration", () => {
         "almond-milk": "1",
         onion: "1",
         salt: "1",
+      },
+      items: {
+        "almond-milk": {
+          location: "fridge",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Household member update",
+          },
+        },
+        onion: {
+          location: "fresh",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Manual kitchen update",
+          },
+        },
+        salt: {
+          location: "cupboards",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Manual kitchen update",
+          },
+        },
       },
     });
 

@@ -15,9 +15,9 @@ import {
 } from "@/lib/wedding-planner/table-state";
 import type {
   Guest,
-  State,
   TableAllocation,
   TableInput,
+  WeddingPlanDraft,
 } from "@/lib/wedding-planner/types";
 
 function guest(id: string, changes: Partial<Guest> = {}): Guest {
@@ -330,7 +330,7 @@ describe("table allocation", () => {
 });
 
 describe("shared table state", () => {
-  function state(): State {
+  function state(): WeddingPlanDraft {
     return parseState(
       {
         guests: [
@@ -364,6 +364,16 @@ describe("shared table state", () => {
       top_table_capacity: 3,
       top_table_guest_ids: ["a"],
       table_capacities: [6, 8],
+      table_layout: {
+        top: {
+          name: "Wedding party",
+          shape: "long",
+          x: 450,
+          y: 120,
+          rotation: 90,
+        },
+        "table-1": { name: "Dublin", shape: "round", x: 250, y: 400 },
+      },
     };
     setTablePairDecision(plan, "a", "b", "yes");
     const source = createPlannerApplication(
@@ -377,8 +387,10 @@ describe("shared table state", () => {
     );
     try {
       await source.save(plan);
-      expect(await source.load()).toEqual(
-        toEditorState(editorStateToPlan(plan)),
+      const reloaded = await source.load();
+      expect(reloaded).toEqual(toEditorState(editorStateToPlan(plan)));
+      expect(reloaded?.table_plan?.table_layout).toEqual(
+        plan.table_plan.table_layout,
       );
       setTablePairDecision(plan, "a", "b", "no");
       expect(plan.guests[0]?.prefer_table_with).toEqual([]);

@@ -24,10 +24,12 @@ import {
 } from "@/lib/wedding-planner/table-state";
 import type {
   Guest,
-  State,
   TableAllocation,
   TablePlan,
+  WeddingPlanDraft,
 } from "@/lib/wedding-planner/types";
+
+import { TableRoomMap } from "./table-room-map";
 
 function SeatInput({
   label,
@@ -87,10 +89,6 @@ function TableSetup({
     <Card>
       <CardHeader>
         <CardTitle>Tables &amp; seats</CardTitle>
-        <CardDescription>
-          Capacities include every person at the table, including the hosts and
-          selected wedding party at the top table.
-        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="field-grid">
@@ -110,6 +108,10 @@ function TableSetup({
             value={plan.table_capacities.length}
             onChange={(value) =>
               onChange((draft) => {
+                for (const id of Object.keys(draft.table_layout ?? {})) {
+                  if (id !== "top" && Number(id.slice(6)) > value)
+                    delete draft.table_layout?.[id];
+                }
                 draft.table_capacities = Array.from(
                   { length: value },
                   (_, index) =>
@@ -161,20 +163,15 @@ function TableGuestList({
   plan,
   onUpdate,
 }: Readonly<{
-  state: State;
+  state: WeddingPlanDraft;
   plan: TablePlan;
-  onUpdate: (change: (draft: State) => void) => void;
+  onUpdate: (change: (draft: WeddingPlanDraft) => void) => void;
 }>) {
   const [search, setSearch] = useState("");
   return (
     <Card>
       <CardHeader>
         <CardTitle>Attendance &amp; top table</CardTitle>
-        <CardDescription>
-          Confirm wedding attendance even for guests who are not staying
-          overnight. Wedding roles are recorded in Guests. Choose who sits at
-          the top table here.
-        </CardDescription>
       </CardHeader>
       <CardContent>
         <Button
@@ -251,8 +248,8 @@ function TablePreferences({
   state,
   onUpdate,
 }: Readonly<{
-  state: State;
-  onUpdate: (change: (draft: State) => void) => void;
+  state: WeddingPlanDraft;
+  onUpdate: (change: (draft: WeddingPlanDraft) => void) => void;
 }>) {
   const searchId = useId();
   const [selectedId, setSelectedId] = useState(state.guests[0]?.id ?? "");
@@ -271,21 +268,9 @@ function TablePreferences({
   return (
     <Card className="table-preferences">
       <CardHeader>
-        <CardTitle>Who would they like to sit with?</CardTitle>
-        <CardDescription>
-          Love to sit together is a preference. Keep apart is a firm rule.
-          Choices work both ways and apply when both guests attend. Confirmed
-          couples recorded in Guests stay together unless one is at the top
-          table.
-        </CardDescription>
+        <CardTitle>Seating preferences</CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="editor-hint">
-          Explicit room and cottage sharing choices suggest who might like to
-          sit together. Review and accept them here. No preference dismisses a
-          suggestion for that pair. General willingness to share adds no
-          suggestions.
-        </p>
         {suggestions.length > 0 && (
           <Button
             type="button"
@@ -407,7 +392,12 @@ function TablePreferences({
 function TableResults({
   allocation,
   guests,
-}: Readonly<{ allocation: TableAllocation; guests: Guest[] }>) {
+  plan,
+}: Readonly<{
+  allocation: TableAllocation;
+  guests: Guest[];
+  plan: TablePlan;
+}>) {
   const names = new Map(guests.map((guest) => [guest.id, guest.name]));
   return (
     <section aria-label="Calculated table plan" className="table-results">
@@ -435,7 +425,12 @@ function TableResults({
             className={table.id === "top" ? "table-result-top" : ""}
           >
             <CardHeader>
-              <CardTitle>{table.name}</CardTitle>
+              <CardTitle>
+                {plan.table_layout?.[table.id]?.name?.trim() ||
+                  (table.id === "top"
+                    ? "Top table"
+                    : `Table ${table.id.slice(6)}`)}
+              </CardTitle>
               <CardDescription>
                 {table.guest_ids.length + table.fixed_guests.length} /{" "}
                 {table.capacity} seats
@@ -492,12 +487,14 @@ export function TableEditor({
   busy,
   onUpdate,
   onCalculate,
+  onLayoutUpdate,
 }: Readonly<{
-  state: State;
+  state: WeddingPlanDraft;
   allocation: TableAllocation | null;
   busy: boolean;
-  onUpdate: (change: (draft: State) => void) => void;
+  onUpdate: (change: (draft: WeddingPlanDraft) => void) => void;
   onCalculate: () => void;
+  onLayoutUpdate: (change: (draft: WeddingPlanDraft) => void) => void;
 }>) {
   const plan = getTablePlan(state);
   const attending = state.guests.filter(
@@ -510,12 +507,7 @@ export function TableEditor({
     <>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">TABLE PLAN</span>
-          <h2>A place at the table.</h2>
-          <p>
-            Set the wedding party, choose table sizes, then calculate who sits
-            together.
-          </p>
+          <h2>Tables</h2>
         </div>
         <Button onClick={onCalculate} disabled={busy}>
           {busy ? "Calculating tables…" : "Calculate tables"}{" "}
@@ -542,8 +534,17 @@ export function TableEditor({
           other seats
         </span>
       </div>
+      <TableRoomMap
+        state={state}
+        allocation={allocation}
+        onUpdate={onLayoutUpdate}
+      />
       {allocation && (
-        <TableResults allocation={allocation} guests={state.guests} />
+        <TableResults
+          allocation={allocation}
+          guests={state.guests}
+          plan={plan}
+        />
       )}
       <div className="table-setup-grid">
         <TableSetup

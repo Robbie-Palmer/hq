@@ -1,7 +1,7 @@
 {
-  "datasetVersion": "2026.10.0",
-  "releasedAt": "2026-10-01",
-  "supersedes": null,
+  "datasetVersion": "2026.10.3",
+  "releasedAt": "2026-10-05",
+  "supersedes": "2026.10.2",
   "corrections": [],
   "dataLicence": {
     "name": "Open Government Licence v3.0",
@@ -11,24 +11,66 @@
   },
   "artifacts": [
     {
-      "path": "artifacts/enacted/2026.10.0.json",
-      "sha256": "a3eb84b2eb8fdb5f8e12d92e105dca4842918cfbc3b119c0df9ee906ac5a37e9"
+      "path": "artifacts/enacted/2026.10.3.json",
+      "sha256": "f4a8540d26ffc105c6a7ab0708c68f0683bb21a3d304be122c2acc9c645a54c5"
     },
     {
-      "path": "artifacts/coverage-matrix/2026.10.0.json",
-      "sha256": "4cecaa4df9ad8a5dad1398c5ea16b0b0ffe15569b5953733b5678b73cae7a39e"
+      "path": "artifacts/coverage-matrix/2026.10.3.json",
+      "sha256": "c809761878be2b31c74ad0f7e980742d157cedac6f5b25f4f97d4dfa06c85ef2"
     },
     {
-      "path": "artifacts/validation/2026.10.0.json",
-      "sha256": "9c86180412f16ba3076d81257c05ef5ecec940dcd7ee308b30aef0018a550306"
+      "path": "artifacts/validation/2026.10.3.json",
+      "sha256": "833d0d625a92ede786b52b189d27904499d589e03882707fbde1e2b02d93904c"
     }
   ],
   "sourceSnapshots": [
     {
       "id": "hmrc-income-tax-current-and-past",
       "path": "source-snapshots/income-tax-current-and-past.md",
-      "snapshotSha256": "25ce7045c82d2c4636405af82844dc97c913304146750a6c2c07b6890ef6e2f0",
+      "snapshotSha256": "8558e770617beba4ca1ddb4a8e9b3952436fbb411feeb00032d21e4bce734fc6",
       "sourceContentSha256": "89b4d254fc3303af663cd405c1f5a880400e4890364fd774e851557c4fa67263"
+    },
+    {
+      "id": "hmrc-employer-2015-16",
+      "path": "source-snapshots/employer-2015-16.md",
+      "snapshotSha256": "c8655d6f1c2a4117733f6bcca96fb09f3e243a8b4ebe3a8c08ea64daae5ba8b3",
+      "sourceContentSha256": "088ccfbf90602d68ca11443036419e9e25a805f62c68ede833b55b6bf74972e0"
+    },
+    {
+      "id": "hmrc-employer-2016-17",
+      "path": "source-snapshots/employer-2016-17.md",
+      "snapshotSha256": "0be4c8d87763b4955382cb6858fa8be8c10d3de8394d259dada3c85d62f6c5ad",
+      "sourceContentSha256": "023073dc371420dd4126be24c1df76a288bc0bfb3b753452bfcb2a1df1e7153f"
+    },
+    {
+      "id": "hmrc-employer-2017-18",
+      "path": "source-snapshots/employer-2017-18.md",
+      "snapshotSha256": "b81b76f00ef23c0178f225b64d52ab070146ae5559e83a81770b825633cb349a",
+      "sourceContentSha256": "0e07cb69272bba06fddcb45b326e7485b7439b4b181d9c117d05d70a4d9faeb3"
+    },
+    {
+      "id": "hmrc-employer-2018-19",
+      "path": "source-snapshots/employer-2018-19.md",
+      "snapshotSha256": "03e8777933b636a6a8361a77a6e8971ec27ad2833fa72c0b76ca39f6e4d4d547",
+      "sourceContentSha256": "bbef86a5650a570ab9bd8fd0b544f6e4631c8f1ac253f6549e30a18b6af872b3"
+    },
+    {
+      "id": "hmrc-employer-2019-20",
+      "path": "source-snapshots/employer-2019-20.md",
+      "snapshotSha256": "e2386a02d0262ee0e5046eec63935ced4c6f6d624705a078bdf5dddb718830ce",
+      "sourceContentSha256": "1765965881cd2b8205450e339b462d7165efcff2f9cc5557197fa507b158c045"
+    },
+    {
+      "id": "hmrc-employer-2020-21",
+      "path": "source-snapshots/employer-2020-21.md",
+      "snapshotSha256": "f5b7426c76faf0c478965f523983c4621eee3354d26b22d44fc35ee433b03a6b",
+      "sourceContentSha256": "cf2b23c3a8defb45db369914ac890237203d58e3c2b3510bd5b5cea54b21b599"
+    },
+    {
+      "id": "hmrc-employer-2021-22",
+      "path": "source-snapshots/employer-2021-22.md",
+      "snapshotSha256": "5b869887694fc8f767c7b21033024d51829495ebc0305d02117bbb6a135df2fb",
+      "sourceContentSha256": "076719d2a5749b84c4298ee075dbd7e49b6d7330712bf4d16f4b5c6c064b0bf3"
     },
     {
       "id": "hmrc-employer-2022-23",
@@ -63,7 +105,7 @@
     {
       "id": "hmrc-pension-scheme-rates",
       "path": "source-snapshots/pension-scheme-rates.md",
-      "snapshotSha256": "d9e43a6e4ecfdcc4796086c9cde97d43978f1d8260dc918bf5bd358b75ed1116",
+      "snapshotSha256": "03929cadbfed9a498614cf2337b44071f0ea3a8836e082c001f2b212299f5210",
       "sourceContentSha256": "90652c9268a5e0e1f46fa27bfc3549cc01d23c45ae340916c2c6561409c78ef8"
     },
     {
@@ -83,12 +125,30 @@
       "path": "source-snapshots/salary-sacrifice.md",
       "snapshotSha256": "ffc3963ac389507f19450d63168ea87b567c38206f43d8593a849fb9277d8aea",
       "sourceContentSha256": "bd8fa64edd90b24e7a21008ba84b8ab71aaac1db48e902b3141b6ebd7a1e6857"
+    },
+    {
+      "id": "hmrc-tax-on-savings-interest",
+      "path": "source-snapshots/tax-on-savings-interest.md",
+      "snapshotSha256": "3a83071ccbadf2d395bf5c0adfcfd9fefc6dde087a3128a33a0d83a0b54ca656",
+      "sourceContentSha256": "fd17a54431051eec5c8f09076baf07b35c3e20ad957858fc043c6312a8360554"
+    },
+    {
+      "id": "hmrc-capital-gains-rates-and-allowances",
+      "path": "source-snapshots/capital-gains-rates-and-allowances.md",
+      "snapshotSha256": "7db8099aa8e06f638f27a5f4381fcf995571b291d8f30b1f69e1fcf9da37199f",
+      "sourceContentSha256": "d2b662859a7ea7e35913425c3005c90d24a572cdec3f2cda14898a964e42a198"
+    },
+    {
+      "id": "hmrc-isa-overview",
+      "path": "source-snapshots/isa-overview.md",
+      "snapshotSha256": "48dd1e1ce5376ba004fa226c6374dc2e59ccc4da3ccb5b69b514d2b65a204773",
+      "sourceContentSha256": "748e1c62ce74773bf9a0b43e11ac48735d802c3cc85a8a7ffc6fc1570a12b6c0"
     }
   ],
   "validation": {
-    "corpusVersion": "2026.10.0",
+    "corpusVersion": "2026.10.3",
     "libraryVersion": "finance-tax-rules@0.1.0",
-    "ruleDatasetVersion": "2026.10.0",
+    "ruleDatasetVersion": "2026.10.3",
     "calculationContractVersion": "salary-validation-v1",
     "fixtureCount": 16,
     "sourceSnapshots": [

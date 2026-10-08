@@ -20,6 +20,9 @@ export type AssetType = z.infer<typeof AssetTypeSchema>;
 export const LiquidityTierSchema = z.enum(["cash", "liquid", "illiquid"]);
 export type LiquidityTier = z.infer<typeof LiquidityTierSchema>;
 
+export const TaxWrapperSchema = z.enum(["taxable", "isa", "pension"]);
+export type TaxWrapper = z.infer<typeof TaxWrapperSchema>;
+
 /** Liabilities carry negative balances; their rate is the interest charged */
 export function isLiability(assetType: AssetType): boolean {
   return assetType === "mortgage" || assetType === "debt";
@@ -42,6 +45,8 @@ export const AccountContentSchema = z.object({
   provider: z.string().min(1),
   currency: CurrencySchema,
   assetType: AssetTypeSchema,
+  /** UK tax treatment for income, disposals, and annual contributions. */
+  taxWrapper: TaxWrapperSchema.optional(),
   /** How readily this account can fund spending without waiting or penalties. */
   liquidity: LiquidityTierSchema.optional(),
   // For debt accounts this is the interest rate, compounding the (negative)

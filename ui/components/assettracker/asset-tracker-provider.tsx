@@ -1,5 +1,6 @@
 "use client";
 
+import type { HouseholdTaxEstimate } from "finance-tax-rules/household-tax";
 import {
   createContext,
   type ReactNode,
@@ -10,6 +11,8 @@ import {
   useRef,
   useState,
 } from "react";
+import { pricePaidArchive } from "@/content/assettracker/propertyComparables";
+import { housePriceIndexArchive } from "@/content/assettracker/propertyIndexHistory";
 import {
   type AssetTrackerApi,
   createLocalAssetTrackerApi,
@@ -25,19 +28,38 @@ import {
   type AccountDetailView,
   type AccountId,
   type AccountSummaryView,
+  type AddCashFlowDecisionInput,
+  type AddCommitmentInput,
+  type AddForecastAssumptionInput,
   type AddPlannedExpenditureInput,
   type AddRecurringFlowInput,
   type AssetAllocationDataPoint,
   type AssetTrackerData,
   type AssetType,
+  analyseEmergencyFund,
+  applyEmergencyFundDerivedFacts,
   buildAccountReadModels,
+  buildPropertyComparableViews,
+  buildPropertyValueHistoryViews,
   buildRepository,
   type ClearAccountHistoryInput,
   type CreateAccountInput,
+  type CreateForecastAssumptionSetInput,
+  type CreatePlanningCaseInput,
   type Currency,
+  currentSalaryHistory,
   type DeleteCapitalFlowInput,
   type DeleteSnapshotInput,
+  deriveEmergencyFundFacts,
+  type EmergencyFundAnalysis,
+  type EmergencyFundDerivedFacts,
+  type EmergencyFundPlan,
+  type EmergencyFundPlanInput,
+  type FinancialDecisionRecord,
+  type ForecastAssumptionSet,
+  type FutureCashFlow,
   getAssetAllocationTimeSeries,
+  getHouseholdTaxEstimate,
   getHousingPlanningPosition,
   getLatestPortfolioValuation,
   getNetWorthTimeSeries,
@@ -46,22 +68,37 @@ import {
   getPortfolioFinancialIndependence,
   getPortfolioPositionSummary,
   getTotalByAssetType,
+  type Household,
+  type HouseholdScope,
   type HousingPlanningPosition,
   type ImportAccountHistoryInput,
   type ImportIncomeHistoryInput,
+  type ImportSalaryHistoryInput,
   type IncomeRecord,
   type Money,
+  type MortgageScenario,
   type NetWorthDataPoint,
+  type Ownership,
   type PlannedExpenditure,
+  type PlanningCase,
   type PortfolioContributionDataPoint,
   type PortfolioFinancialIndependence,
   type PortfolioPositionSummary,
+  type PropertyComparableView,
+  type PropertyValueHistoryView,
+  personalOwnership,
+  type RecordActualCashFlowInput,
   type RecordBalanceInput,
   type RecordTransferInput,
   type RecurringFlow,
+  type SalaryHistoryRecord,
+  type SaveEmergencyFundPlanInput,
+  type SaveMortgageScenarioInput,
+  type SaveSalaryRecordInput,
   type SetAccountLiquidityInput,
   type SetExpectedReturnInput,
   SUPPORTED_CURRENCIES,
+  scopeAssetTrackerData,
   type Transfer,
   type ValuationIssue,
 } from "@/lib/domain/assettracker";
@@ -77,10 +114,24 @@ interface AssetTrackerContextValue {
   transfers: Transfer[];
   recurringFlows: RecurringFlow[];
   plannedExpenditures: PlannedExpenditure[];
+  planningCases: PlanningCase[];
+  futureCashFlows: FutureCashFlow[];
+  forecastAssumptionSets: ForecastAssumptionSet[];
+  emergencyFundPlans: EmergencyFundPlan[];
+  emergencyFundFacts: EmergencyFundDerivedFacts;
+  emergencyFundAnalysis: EmergencyFundAnalysis | null;
+  analyseEmergencyFundDraft(
+    input: EmergencyFundPlanInput,
+  ): EmergencyFundAnalysis;
+  mortgageScenarios: MortgageScenario[];
+  decisionRecords: FinancialDecisionRecord[];
   incomeHistory: IncomeRecord[];
+  salaryHistory: SalaryHistoryRecord[];
+  currentSalaryHistory: SalaryHistoryRecord[];
   flowSankeyData: FlowSankeyData;
   financialIndependence: PortfolioFinancialIndependence;
   housingPlanningPosition: HousingPlanningPosition | null;
+  taxEstimate: HouseholdTaxEstimate;
   /** Annualised portfolio growth, excluding recorded external money in/out */
   portfolioReturn: number | null;
   positionSummary: PortfolioPositionSummary | null;
@@ -96,8 +147,20 @@ interface AssetTrackerContextValue {
   baseCurrency: Currency;
   valuationDate: string | null;
   valuationIssues: ValuationIssue[];
+  propertyComparableViews: PropertyComparableView[];
+  propertyValueHistories: PropertyValueHistoryView[];
+  household: Household;
+  householdAccounts: Array<{
+    id: string;
+    name: string;
+    provider: string;
+    ownership: Ownership;
+  }>;
   /** True once the user has made changes that are persisted in this browser */
   hasLocalChanges: boolean;
+  localDataStatus: "loading" | "ready" | "error";
+  localDataError: string | null;
+  retryLocalData(): void;
   createAccount(input: CreateAccountInput): Promise<void>;
   recordBalance(input: RecordBalanceInput): Promise<void>;
   recordTransfer(input: RecordTransferInput): Promise<void>;
@@ -110,8 +173,29 @@ interface AssetTrackerContextValue {
   deleteCapitalFlow(input: DeleteCapitalFlowInput): Promise<void>;
   importAccountHistory(input: ImportAccountHistoryInput): Promise<void>;
   importIncomeHistory(input: ImportIncomeHistoryInput): Promise<void>;
+  importSalaryHistory(input: ImportSalaryHistoryInput): Promise<void>;
+  saveSalaryRecord(input: SaveSalaryRecordInput): Promise<void>;
   clearIncomeHistory(): Promise<void>;
   addRecurringFlow(input: AddRecurringFlowInput): Promise<void>;
+  createPlanningCase(input: CreatePlanningCaseInput): Promise<void>;
+  addCommitment(input: AddCommitmentInput): Promise<void>;
+  addCashFlowDecision(input: AddCashFlowDecisionInput): Promise<void>;
+  setCashFlowDecisionStatus(
+    id: string,
+    status: "considering" | "selected" | "declined",
+  ): Promise<void>;
+  setCommitmentStatus(
+    id: string,
+    status: "active" | "cancelled",
+  ): Promise<void>;
+  recordActualCashFlow(input: RecordActualCashFlowInput): Promise<void>;
+  deleteFutureCashFlow(id: string): Promise<void>;
+  createForecastAssumptionSet(
+    input: CreateForecastAssumptionSetInput,
+  ): Promise<void>;
+  addForecastAssumption(input: AddForecastAssumptionInput): Promise<void>;
+  versionForecastAssumptionSet(id: string): Promise<void>;
+  deleteForecastAssumption(setId: string, assumptionId: string): Promise<void>;
   addPlannedExpenditure(input: AddPlannedExpenditureInput): Promise<void>;
   deleteRecurringFlow(id: string): Promise<void>;
   deletePlannedExpenditure(id: string): Promise<void>;
@@ -121,14 +205,21 @@ interface AssetTrackerContextValue {
   setInflation(rate: number): Promise<void>;
   setBaseCurrency(currency: Currency): Promise<void>;
   setWithdrawalRate(rate: number): Promise<void>;
+  saveMortgageScenario(input: SaveMortgageScenarioInput): Promise<void>;
+  saveEmergencyFundPlan(input: SaveEmergencyFundPlanInput): Promise<void>;
   setNetWorthTarget(
     target: number | null,
     inTodaysMoney?: boolean,
   ): Promise<void>;
+  addHouseholdMember(displayName: string): Promise<void>;
+  renameHouseholdMember(memberId: string, displayName: string): Promise<void>;
+  setActiveHouseholdScope(scope: HouseholdScope): Promise<void>;
+  setAccountOwnership(accountId: string, ownership: Ownership): Promise<void>;
   clearData(): Promise<void>;
   resetData(): Promise<void>;
   exportData(): void;
   exportCsv(): void;
+  exportTaxEstimate(): void;
   importData(file: File): Promise<void>;
 }
 
@@ -146,52 +237,156 @@ function downloadFile(filename: string, content: string, mime: string): void {
   URL.revokeObjectURL(url);
 }
 
-export function AssetTrackerProvider({
-  children,
-}: Readonly<{ children: ReactNode }>) {
-  // Seed synchronously so the static build renders the full demo dashboard;
-  // locally saved changes are applied after mount to avoid hydration mismatch
+function taxFlowContext(
+  data: AssetTrackerData,
+  estimate: HouseholdTaxEstimate,
+) {
+  return data.taxPosition == null
+    ? undefined
+    : { estimate, records: data.taxPosition };
+}
+
+function downloadTaxEstimate(estimate: HouseholdTaxEstimate): void {
+  downloadFile(
+    `assettracker-tax-estimate-${estimate.taxYear}.json`,
+    JSON.stringify(estimate, null, 2),
+    "application/json",
+  );
+}
+
+function propertyEvidenceViews(
+  repository: ReturnType<typeof buildRepository>,
+): Pick<
+  AssetTrackerContextValue,
+  "propertyComparableViews" | "propertyValueHistories"
+> {
+  return {
+    propertyComparableViews: buildPropertyComparableViews(
+      repository.propertyComparableSearches,
+      pricePaidArchive,
+      housePriceIndexArchive,
+    ),
+    propertyValueHistories: buildPropertyValueHistoryViews(
+      repository.propertyIndexHistories,
+      housePriceIndexArchive,
+    ),
+  };
+}
+
+function useLocalAssetTrackerData() {
   const [data, setData] = useState<AssetTrackerData>(getDemoAssetTrackerData);
   const [hasLocalChanges, setHasLocalChanges] = useState(false);
+  const [localDataStatus, setLocalDataStatus] =
+    useState<AssetTrackerContextValue["localDataStatus"]>("loading");
+  const [localDataError, setLocalDataError] = useState<string | null>(null);
   const apiRef = useRef<AssetTrackerApi | null>(null);
-  // Once the user has mutated, a late-resolving load() must not clobber the
-  // fresher state with the older persisted snapshot
   const hasMutatedRef = useRef(false);
-
+  const loadRequestRef = useRef(0);
   const getApi = useCallback(() => {
     apiRef.current ??= createLocalAssetTrackerApi(window.localStorage);
     return apiRef.current;
   }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    getApi()
-      .load()
-      .then(({ data: stored, persisted }) => {
-        if (cancelled || hasMutatedRef.current || !persisted) return;
+  const loadLocalData = useCallback(async () => {
+    const request = ++loadRequestRef.current;
+    setLocalDataStatus("loading");
+    setLocalDataError(null);
+    try {
+      const { data: stored, persisted } = await getApi().load();
+      if (request !== loadRequestRef.current) return;
+      if (!hasMutatedRef.current && persisted) {
         setData(stored);
         setHasLocalChanges(true);
-      })
-      .catch((err) => {
-        console.warn("AssetTracker: failed to load stored data", err);
-      });
-    return () => {
-      cancelled = true;
-    };
+      }
+      setLocalDataStatus("ready");
+    } catch (error) {
+      if (request !== loadRequestRef.current) return;
+      console.warn("AssetTracker: failed to load stored data", error);
+      setLocalDataStatus("error");
+      setLocalDataError(
+        "Asset Tracker could not read this browser's saved data. Nothing has been changed. Check that browser storage is available, then try again.",
+      );
+    }
   }, [getApi]);
-
+  useEffect(() => {
+    void loadLocalData();
+    return () => {
+      loadRequestRef.current += 1;
+    };
+  }, [loadLocalData]);
   const mutate = useCallback(
     async (run: (api: AssetTrackerApi) => Promise<AssetTrackerData>) => {
       hasMutatedRef.current = true;
-      const next = await run(getApi());
-      setData(next);
-      setHasLocalChanges(true);
+      try {
+        const next = await run(getApi());
+        setData(next);
+        setHasLocalChanges(true);
+        setLocalDataStatus("ready");
+        setLocalDataError(null);
+      } catch (error) {
+        setLocalDataStatus("error");
+        setLocalDataError(
+          "Asset Tracker could not save the last change in this browser. The change was not applied. Check that browser storage is available, then try again.",
+        );
+        throw error;
+      }
     },
     [getApi],
   );
+  return {
+    data,
+    setData,
+    hasLocalChanges,
+    setHasLocalChanges,
+    localDataStatus,
+    setLocalDataStatus,
+    localDataError,
+    setLocalDataError,
+    getApi,
+    loadLocalData,
+    mutate,
+  };
+}
+
+function resolveEmergencyFundViews(
+  repository: ReturnType<typeof buildRepository>,
+  annualCurrentExpenditure: number | null,
+  valuationDate: string,
+) {
+  const facts = deriveEmergencyFundFacts(
+    repository,
+    annualCurrentExpenditure,
+    valuationDate,
+  );
+  const plans = repository.emergencyFundPlans.map((plan) =>
+    applyEmergencyFundDerivedFacts(plan, facts),
+  );
+  return {
+    activePlan: plans.find(({ status }) => status === "active"),
+    facts,
+    plans,
+  };
+}
+
+export function AssetTrackerProvider({
+  children,
+}: Readonly<{ children: ReactNode }>) {
+  const {
+    data,
+    setData,
+    hasLocalChanges,
+    setHasLocalChanges,
+    localDataStatus,
+    setLocalDataStatus,
+    localDataError,
+    setLocalDataError,
+    getApi,
+    loadLocalData,
+    mutate,
+  } = useLocalAssetTrackerData();
 
   const views = useMemo(() => {
-    const repository = buildRepository(data);
+    const repository = buildRepository(scopeAssetTrackerData(data));
+    const taxEstimate = getHouseholdTaxEstimate(data);
     const { summaries: accounts, details: accountDetails } =
       buildAccountReadModels(repository);
     const netWorthDataByCurrency = Object.fromEntries(
@@ -211,6 +406,11 @@ export function AssetTrackerProvider({
       repository,
       valuationDate,
     );
+    const emergencyFund = resolveEmergencyFundViews(
+      repository,
+      financialIndependence.representativeAnnualCurrentExpenditure,
+      valuationDate,
+    );
     return {
       accounts,
       accountDetails,
@@ -222,11 +422,35 @@ export function AssetTrackerProvider({
       transfers: repository.transfers,
       recurringFlows: repository.recurringFlows,
       plannedExpenditures: repository.plannedExpenditures,
+      planningCases: repository.planningCases,
+      futureCashFlows: repository.futureCashFlows,
+      forecastAssumptionSets: repository.forecastAssumptionSets,
+      emergencyFundPlans: emergencyFund.plans,
+      emergencyFundFacts: emergencyFund.facts,
+      emergencyFundAnalysis:
+        emergencyFund.activePlan == null
+          ? null
+          : analyseEmergencyFund(
+              repository,
+              emergencyFund.activePlan,
+              valuationDate,
+            ),
+      analyseEmergencyFundDraft: (input: EmergencyFundPlanInput) =>
+        analyseEmergencyFund(
+          repository,
+          applyEmergencyFundDerivedFacts(input, emergencyFund.facts),
+          valuationDate,
+        ),
+      mortgageScenarios: repository.mortgageScenarios,
+      decisionRecords: repository.decisionRecords,
       incomeHistory: repository.incomeHistory,
+      salaryHistory: repository.salaryHistory,
+      currentSalaryHistory: currentSalaryHistory(repository.salaryHistory),
       flowSankeyData: buildBaseCurrencyFlowSankeyData(
         repository,
         accountDetails,
         valuationDate,
+        taxFlowContext(data, taxEstimate),
       ),
       financialIndependence,
       housingPlanningPosition: getHousingPlanningPosition(
@@ -234,6 +458,7 @@ export function AssetTrackerProvider({
         financialIndependence,
         valuationDate,
       ),
+      taxEstimate,
       portfolioReturn: getPortfolioAnnualReturn(repository),
       positionSummary: getPortfolioPositionSummary(repository),
       inflation: repository.settings.expectedAnnualInflation,
@@ -243,6 +468,16 @@ export function AssetTrackerProvider({
       baseCurrency: repository.settings.baseCurrency,
       valuationDate: latestValuation?.date ?? null,
       valuationIssues: latestValuation?.issues ?? [],
+      ...propertyEvidenceViews(repository),
+      household: data.household,
+      householdAccounts: data.accounts.map(({ id, name, provider }) => ({
+        id,
+        name,
+        provider,
+        ownership:
+          data.ownership.accounts[id] ??
+          personalOwnership(data.household.members[0]?.id ?? "primary"),
+      })),
     };
   }, [data]);
 
@@ -250,6 +485,11 @@ export function AssetTrackerProvider({
     () => ({
       ...views,
       hasLocalChanges,
+      localDataStatus,
+      localDataError,
+      retryLocalData: () => {
+        void loadLocalData();
+      },
       createAccount: (input) => mutate((api) => api.createAccount(input)),
       recordBalance: (input) => mutate((api) => api.recordBalance(input)),
       recordTransfer: (input) => mutate((api) => api.recordTransfer(input)),
@@ -270,8 +510,32 @@ export function AssetTrackerProvider({
         mutate((api) => api.importAccountHistory(input)),
       importIncomeHistory: (input) =>
         mutate((api) => api.importIncomeHistory(input)),
+      importSalaryHistory: (input) =>
+        mutate((api) => api.importSalaryHistory(input)),
+      saveSalaryRecord: (input) => mutate((api) => api.saveSalaryRecord(input)),
       clearIncomeHistory: () => mutate((api) => api.clearIncomeHistory()),
       addRecurringFlow: (input) => mutate((api) => api.addRecurringFlow(input)),
+      createPlanningCase: (input) =>
+        mutate((api) => api.createPlanningCase(input)),
+      addCommitment: (input) => mutate((api) => api.addCommitment(input)),
+      addCashFlowDecision: (input) =>
+        mutate((api) => api.addCashFlowDecision(input)),
+      setCashFlowDecisionStatus: (id, status) =>
+        mutate((api) => api.setCashFlowDecisionStatus({ id, status })),
+      setCommitmentStatus: (id, status) =>
+        mutate((api) => api.setCommitmentStatus({ id, status })),
+      recordActualCashFlow: (input) =>
+        mutate((api) => api.recordActualCashFlow(input)),
+      deleteFutureCashFlow: (id) =>
+        mutate((api) => api.deleteFutureCashFlow({ id })),
+      createForecastAssumptionSet: (input) =>
+        mutate((api) => api.createForecastAssumptionSet(input)),
+      addForecastAssumption: (input) =>
+        mutate((api) => api.addForecastAssumption(input)),
+      versionForecastAssumptionSet: (id) =>
+        mutate((api) => api.versionForecastAssumptionSet({ id })),
+      deleteForecastAssumption: (setId, assumptionId) =>
+        mutate((api) => api.deleteForecastAssumption({ setId, assumptionId })),
       addPlannedExpenditure: (input) =>
         mutate((api) => api.addPlannedExpenditure(input)),
       deleteRecurringFlow: (id) =>
@@ -291,13 +555,35 @@ export function AssetTrackerProvider({
         mutate((api) => api.setBaseCurrency({ currency })),
       setWithdrawalRate: (rate) =>
         mutate((api) => api.setWithdrawalRate({ rate })),
+      saveMortgageScenario: (input) =>
+        mutate((api) => api.saveMortgageScenario(input)),
+      saveEmergencyFundPlan: (input) =>
+        mutate((api) => api.saveEmergencyFundPlan(input)),
       setNetWorthTarget: (target, inTodaysMoney) =>
         mutate((api) => api.setNetWorthTarget({ target, inTodaysMoney })),
+      addHouseholdMember: (displayName) =>
+        mutate((api) => api.addHouseholdMember({ displayName })),
+      renameHouseholdMember: (memberId, displayName) =>
+        mutate((api) => api.renameHouseholdMember({ memberId, displayName })),
+      setActiveHouseholdScope: (scope) =>
+        mutate((api) => api.setActiveHouseholdScope(scope)),
+      setAccountOwnership: (accountId, ownership) =>
+        mutate((api) => api.setAccountOwnership({ accountId, ownership })),
       clearData: () => mutate((api) => api.clear()),
       resetData: async () => {
-        const seed = await getApi().reset();
-        setData(seed);
-        setHasLocalChanges(false);
+        try {
+          const seed = await getApi().reset();
+          setData(seed);
+          setHasLocalChanges(false);
+          setLocalDataStatus("ready");
+          setLocalDataError(null);
+        } catch (error) {
+          setLocalDataStatus("error");
+          setLocalDataError(
+            "Asset Tracker could not reset data in this browser. Nothing has been changed. Check that browser storage is available, then try again.",
+          );
+          throw error;
+        }
       },
       exportData: () =>
         downloadFile(
@@ -311,12 +597,26 @@ export function AssetTrackerProvider({
           toBalancesCsv(data),
           "text/csv",
         ),
+      exportTaxEstimate: () => downloadTaxEstimate(views.taxEstimate),
       importData: async (file) => {
         const raw = JSON.parse(await file.text());
         await mutate((api) => api.importData(raw));
       },
     }),
-    [views, hasLocalChanges, data, mutate, getApi],
+    [
+      views,
+      hasLocalChanges,
+      localDataStatus,
+      localDataError,
+      data,
+      mutate,
+      getApi,
+      loadLocalData,
+      setData,
+      setHasLocalChanges,
+      setLocalDataStatus,
+      setLocalDataError,
+    ],
   );
 
   return (
