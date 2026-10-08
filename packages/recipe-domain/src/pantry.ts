@@ -1,10 +1,77 @@
 import { z } from "zod";
+import type { Unit } from "./unit";
 
-export const PANTRY_LOCATIONS = ["fridge", "cupboards", "fresh"] as const;
+export const PANTRY_LOCATIONS = [
+  "fridge",
+  "freezer",
+  "cupboards",
+  "fresh",
+] as const;
+
+export const PANTRY_SOURCE_KINDS = ["user", "inferred"] as const;
+export const PANTRY_FRESHNESS_ESTIMATE_BASES = ["user", "catalog"] as const;
+export const MAX_PANTRY_FRESHNESS_ESTIMATE_DAYS = 2_147_483_647;
 
 export const PantryLocationSchema = z.enum(PANTRY_LOCATIONS);
+export const PantrySourceKindSchema = z.enum(PANTRY_SOURCE_KINDS);
+export const PantryFreshnessEstimateBasisSchema = z.enum(
+  PANTRY_FRESHNESS_ESTIMATE_BASES,
+);
+export const PantryFreshnessEstimateSchema = z
+  .object({
+    expectedDays: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_PANTRY_FRESHNESS_ESTIMATE_DAYS),
+    startingOn: z.iso.date(),
+    storage: PantryLocationSchema,
+    basis: PantryFreshnessEstimateBasisSchema,
+  })
+  .strict();
+export const PantryFreshnessSchema = z
+  .object({
+    useBy: z.iso.date().nullable(),
+    bestBefore: z.iso.date().nullable(),
+    stockedAt: z.iso.date().nullable(),
+    openedAt: z.iso.date().nullable(),
+    frozenAt: z.iso.date().nullable(),
+    estimate: PantryFreshnessEstimateSchema.nullable(),
+  })
+  .strict();
 
 export type PantryLocation = z.infer<typeof PantryLocationSchema>;
+export type PantryFreshness = z.infer<typeof PantryFreshnessSchema>;
+export type PantryFreshnessEstimate = z.infer<
+  typeof PantryFreshnessEstimateSchema
+>;
+export type PantrySourceKind = z.infer<typeof PantrySourceKindSchema>;
+
+export type PantryQuantity = {
+  amount: number;
+  unit: Unit;
+};
+
+export type PantryItemDetails = {
+  location: PantryLocation;
+  quantity: PantryQuantity | null;
+  freshness: PantryFreshness;
+  source: {
+    kind: PantrySourceKind;
+    provenance: string;
+  };
+};
+
+export function emptyPantryFreshness(): PantryFreshness {
+  return {
+    useBy: null,
+    bestBefore: null,
+    stockedAt: null,
+    openedAt: null,
+    frozenAt: null,
+    estimate: null,
+  };
+}
 
 export const MAX_PANTRY_ITEMS = 500;
 export const MAX_PANTRY_MUTATION_CHANGES = 100;

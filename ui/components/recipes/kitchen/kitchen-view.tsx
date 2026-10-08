@@ -5,6 +5,7 @@ import {
   Refrigerator,
   Search,
   ShoppingBasket,
+  Snowflake,
   Sprout,
   Trash2,
   TriangleAlert,
@@ -12,10 +13,16 @@ import {
   X,
 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
+import { emptyPantryFreshness } from "recipe-domain/pantry";
 import { DietListNotice } from "@/components/recipes/diet-notice";
 import { useDiet } from "@/components/recipes/diet-provider";
 import { EquipmentListNotice } from "@/components/recipes/equipment-readiness-notice";
 import { useEquipmentReadiness } from "@/components/recipes/equipment-readiness-provider";
+import {
+  KitchenItemEditor,
+  type KitchenStockGroup,
+  KitchenStockGroups,
+} from "@/components/recipes/kitchen/kitchen-stock-components";
 import { RecipeMatchCard } from "@/components/recipes/recipe-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,6 +34,7 @@ import {
 } from "@/hooks/use-kitchen-stock";
 import { useShoppingList } from "@/hooks/use-shopping-list";
 import type { UnresolvedAuthoredTerm } from "@/lib/api/authored-terms";
+import type { PantryRestore } from "@/lib/api/pantry";
 import {
   applyDietRecipeVisibility,
   buildDietRecipeMatches,
@@ -41,6 +49,7 @@ import {
   getKitchenRecipeMatches,
   KITCHEN_LOCATIONS,
   type KitchenIngredientView,
+  type KitchenItemDetails,
   type KitchenLocation,
   type KitchenRecipeView,
   type KitchenStock,
@@ -52,6 +61,7 @@ const CATALOG_RESULT_LIMIT = 18;
 
 const LOCATION_ICONS = {
   fridge: Refrigerator,
+  freezer: Snowflake,
   cupboards: ShoppingBasket,
   fresh: Sprout,
 } satisfies Record<KitchenLocation, typeof Refrigerator>;
@@ -63,6 +73,18 @@ function normalizeQuery(value: string) {
 function LocationIcon({ location }: Readonly<{ location: KitchenLocation }>) {
   const Icon = LOCATION_ICONS[location];
   return <Icon className="size-4" />;
+}
+
+function defaultItemDetails(location: KitchenLocation): KitchenItemDetails {
+  return {
+    location,
+    quantity: null,
+    freshness: emptyPantryFreshness(),
+    source: {
+      kind: "user",
+      provenance: "Manual kitchen update",
+    },
+  };
 }
 
 function canSaveCustomIngredient(
@@ -215,6 +237,16 @@ export function KitchenView({
   );
   const pantry = useKitchenStockQuery();
   const stock = pantry.data?.stock ?? {};
+  const pantryItems = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(stock).map(([slug, location]) => [
+          slug,
+          pantry.data?.items?.[slug] ?? defaultItemDetails(location),
+        ]),
+      ),
+    [pantry.data?.items, stock],
+  );
   const unresolvedStock = pantry.data?.unresolvedTerms ?? [];
   const stockActions = useKitchenStockActions();
   const shoppingList = useShoppingList();
@@ -224,11 +256,12 @@ export function KitchenView({
   );
   const [stockQuery, setStockQuery] = useState("");
   const [catalogQuery, setCatalogQuery] = useState("");
-  const [lastClearedStock, setLastClearedStock] = useState<KitchenStock | null>(
-    null,
-  );
+  const [lastClearedPantry, setLastClearedPantry] =
+    useState<PantryRestore | null>(null);
   const [targetLocation, setTargetLocation] =
     useState<KitchenLocation>("cupboards");
+  const [editingIngredientSlug, setEditingIngredientSlug] =
+    useState<IngredientSlug | null>(null);
   const catalogCardRef = useRef<HTMLDivElement>(null);
   const catalogSearchRef = useRef<HTMLInputElement>(null);
 
@@ -303,14 +336,14 @@ export function KitchenView({
     () =>
       getKitchenRecipeMatches(
         readinessFilteredRecipes,
-        stockedSlugs,
+        pantryItems,
         equipment.active ? equipment.ownedSlugs : null,
       ),
     [
       equipment.active,
       equipment.ownedSlugs,
+      pantryItems,
       readinessFilteredRecipes,
-      stockedSlugs,
     ],
   );
   const cookNow = matches.filter((recipe) => recipe.canCook).slice(0, 4);
@@ -336,7 +369,7 @@ export function KitchenView({
   );
 
   const stockQueryNormalized = normalizeQuery(stockQuery);
-  const groupedStock = useMemo(
+  const groupedStock = useMemo<KitchenStockGroup[]>(
     () =>
       KITCHEN_LOCATIONS.map((location) => ({
         id: location.id,
@@ -363,7 +396,7 @@ export function KitchenView({
     location = targetLocation,
   ) => {
     stockActions.setStockLocation(ingredient.slug, location);
-    setLastClearedStock(null);
+    setLastClearedPantry(null);
   };
 
   const addCustomIngredient = () => {
@@ -373,7 +406,7 @@ export function KitchenView({
       targetLocation,
     );
     setCatalogQuery("");
-    setLastClearedStock(null);
+    setLastClearedPantry(null);
   };
 
   const removeIngredient = (slug: IngredientSlug) => {
@@ -392,14 +425,14 @@ export function KitchenView({
   };
 
   const clearStock = () => {
-    setLastClearedStock(stock);
+    setLastClearedPantry({ stock, items: pantryItems });
     stockActions.clearStock();
   };
 
   const undoClear = () => {
-    if (!lastClearedStock) return;
-    stockActions.restoreStock(lastClearedStock);
-    setLastClearedStock(null);
+    if (!lastClearedPantry) return;
+    stockActions.restoreStock(lastClearedPantry);
+    setLastClearedPantry(null);
   };
 
   const stockedCount = Object.keys(stock).length;
@@ -407,6 +440,12 @@ export function KitchenView({
     pantry.data?.scope.type === "household"
       ? pantry.data.scope.household.name
       : null;
+  const editingIngredient = editingIngredientSlug
+    ? ingredientBySlug.get(editingIngredientSlug)
+    : undefined;
+  const editingItem = editingIngredientSlug
+    ? pantryItems[editingIngredientSlug]
+    : undefined;
 
   return (
     <div className="container mx-auto min-h-screen max-w-7xl px-4 pt-5 pb-16 md:pt-7">
@@ -487,16 +526,18 @@ export function KitchenView({
                     <button
                       type="button"
                       onClick={clearStock}
-                      className="inline-flex items-center gap-1 rt-mono text-[var(--ink-3)] transition-colors hover:text-[var(--berry)]"
+                      disabled={stockActions.isPending}
+                      className="inline-flex items-center gap-1 rt-mono text-[var(--ink-3)] transition-colors hover:text-[var(--berry)] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Trash2 className="h-3.5 w-3.5" /> clear all
                     </button>
                   )}
-                  {lastClearedStock && stockedCount === 0 && (
+                  {lastClearedPantry && stockedCount === 0 && (
                     <button
                       type="button"
                       onClick={undoClear}
-                      className="inline-flex items-center gap-1 rt-mono text-[var(--ink-3)] transition-colors hover:text-[var(--terracotta)]"
+                      disabled={stockActions.isPending}
+                      className="inline-flex items-center gap-1 rt-mono text-[var(--ink-3)] transition-colors hover:text-[var(--terracotta)] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Undo2 className="h-3.5 w-3.5" /> undo clear
                     </button>
@@ -521,60 +562,25 @@ export function KitchenView({
                 terms={unresolvedStock}
                 onRemove={removeIngredient}
               />
-              {groupedStock.map((group) => {
-                const Icon = group.icon;
-                return (
-                  <section key={group.id} className="min-w-0">
-                    <div className="mb-3 flex flex-wrap items-end justify-between gap-2 border-b border-[var(--line)] pb-2">
-                      <div className="min-w-0">
-                        <h2 className="rt-display flex items-center gap-2 text-3xl text-[var(--terracotta)]">
-                          <Icon className="size-5" />
-                          {group.label}
-                        </h2>
-                        <p className="rt-body text-sm text-[var(--ink-3)]">
-                          {group.description}
-                        </p>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-[var(--terracotta)]"
-                        onClick={() => focusAddIngredients(group.id)}
-                        aria-label={`Add ingredients to ${group.label}`}
-                      >
-                        <CirclePlus className="size-4" />
-                        Add here
-                      </Button>
-                    </div>
-                    {group.items.length > 0 ? (
-                      <div className="flex min-w-0 flex-wrap gap-2">
-                        {group.items.map((ingredient) => (
-                          <Badge
-                            key={ingredient.slug}
-                            variant="outline"
-                            className="max-w-full gap-1.5 bg-[var(--paper-warm)] px-2 py-1 text-sm text-[var(--ink)]"
-                          >
-                            <span className="truncate">{ingredient.name}</span>
-                            <button
-                              type="button"
-                              onClick={() => removeIngredient(ingredient.slug)}
-                              className="rounded-sm p-0.5 text-[var(--ink-3)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--berry)]"
-                              aria-label={`Remove ${ingredient.name}`}
-                            >
-                              <X className="size-3" />
-                            </button>
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="rt-body text-sm text-[var(--ink-3)]">
-                        Nothing here yet.
-                      </p>
-                    )}
-                  </section>
-                );
-              })}
+              {editingIngredientSlug && editingIngredient && editingItem && (
+                <KitchenItemEditor
+                  key={editingIngredientSlug}
+                  ingredient={editingIngredient}
+                  item={editingItem}
+                  onCancel={() => setEditingIngredientSlug(null)}
+                  onSave={(item) => {
+                    stockActions.updateStockItem(editingIngredientSlug, item);
+                    setEditingIngredientSlug(null);
+                  }}
+                />
+              )}
+              <KitchenStockGroups
+                groups={groupedStock}
+                items={pantryItems}
+                onAdd={focusAddIngredients}
+                onEdit={setEditingIngredientSlug}
+                onRemove={removeIngredient}
+              />
             </CardContent>
           </Card>
 
@@ -627,7 +633,7 @@ export function KitchenView({
                     className="h-10 border-[var(--line-strong)] bg-[var(--paper)] pl-9"
                   />
                 </div>
-                <div className="grid grid-cols-3 rounded-md border border-[var(--line-strong)] bg-[var(--paper-warm)] p-1">
+                <div className="grid grid-cols-4 rounded-md border border-[var(--line-strong)] bg-[var(--paper-warm)] p-1">
                   {KITCHEN_LOCATIONS.map((location) => (
                     <button
                       key={location.id}

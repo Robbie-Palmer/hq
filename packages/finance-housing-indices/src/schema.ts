@@ -16,6 +16,8 @@ export const HousePriceIndexObservationSchema = z.object({
   geographyCode: z.string().min(1),
   geographyName: z.string().min(1),
   propertyType: HousePropertyTypeSchema,
+  averagePrice: z.number().positive().optional(),
+  salesVolume: z.number().int().nonnegative().optional(),
   index: z.number().positive(),
   provisional: z.boolean(),
 });

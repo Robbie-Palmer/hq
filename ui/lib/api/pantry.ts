@@ -2,7 +2,7 @@ import type { UnresolvedAuthoredTerm } from "@/lib/api/authored-terms";
 import { apiRequest } from "@/lib/api/http";
 import type { IngredientSlug } from "@/lib/domain/recipe/ingredient";
 import type {
-  KitchenLocation,
+  KitchenItemDetails,
   KitchenStock,
 } from "@/lib/domain/recipe/kitchen";
 
@@ -19,8 +19,13 @@ export type Pantry = {
   operationId?: string;
   scope: PantryScope;
   stock: KitchenStock;
+  items?: Record<string, KitchenItemDetails>;
   itemVersions: Record<string, string>;
   unresolvedTerms?: UnresolvedAuthoredTerm[];
+};
+
+export type PantryRestore = Pick<Pantry, "stock"> & {
+  items: Record<string, KitchenItemDetails>;
 };
 
 const LEGACY_PANTRY_STORAGE_KEY = "recipe-kitchen-stock-v1";
@@ -65,21 +70,22 @@ export async function replacePantry(
 }
 
 export async function restorePantry(
-  stock: KitchenStock,
+  snapshot: PantryRestore,
   operationId?: string,
 ): Promise<Pantry> {
-  return pantryRequest("/api/pantry", "PATCH", { stock }, operationId);
+  return pantryRequest("/api/pantry", "PATCH", snapshot, operationId);
 }
 
 export async function setPantryItem(
   ingredientSlug: IngredientSlug,
-  location: KitchenLocation,
+  item: Pick<KitchenItemDetails, "location"> &
+    Partial<Pick<KitchenItemDetails, "quantity" | "freshness">>,
   operationId?: string,
 ): Promise<Pantry> {
   return pantryRequest(
     `/api/pantry/items/${encodeURIComponent(ingredientSlug)}`,
     "PUT",
-    { location },
+    item,
     operationId,
   );
 }

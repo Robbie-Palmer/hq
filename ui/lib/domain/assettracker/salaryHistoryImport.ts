@@ -23,6 +23,13 @@ export const SALARY_IMPORT_FIELDS = [
   "variablePay",
   "taxablePay",
   "takeHomePay",
+  "observedIncomeTax",
+  "observedEmployeeNationalInsurance",
+  "otherDeductions",
+  "otherTaxableIncome",
+  "taxCode",
+  "nationalInsuranceCategory",
+  "isCompanyDirector",
   "employeePensionType",
   "employeePensionAmount",
   "employeePensionRate",
@@ -51,6 +58,13 @@ export const SALARY_IMPORT_FIELD_LABELS: Record<SalaryImportField, string> = {
   variablePay: "Variable pay or bonus",
   taxablePay: "Taxable pay",
   takeHomePay: "Take-home pay",
+  observedIncomeTax: "Observed Income Tax",
+  observedEmployeeNationalInsurance: "Observed employee National Insurance",
+  otherDeductions: "Other deductions",
+  otherTaxableIncome: "Other annual taxable income",
+  taxCode: "Observed tax code",
+  nationalInsuranceCategory: "National Insurance category",
+  isCompanyDirector: "Company director",
   employeePensionType: "Employee pension type",
   employeePensionAmount: "Employee pension amount",
   employeePensionRate: "Employee pension rate",
@@ -118,6 +132,22 @@ const HEADER_ALIASES: Record<SalaryImportField, readonly string[]> = {
   variablePay: ["variable pay", "bonus", "commission"],
   taxablePay: ["taxable pay", "taxable salary"],
   takeHomePay: ["take home pay", "take home", "net pay", "net salary"],
+  observedIncomeTax: ["observed income tax", "income tax", "paye tax"],
+  observedEmployeeNationalInsurance: [
+    "observed employee national insurance",
+    "employee national insurance",
+    "employee ni",
+    "national insurance",
+  ],
+  otherDeductions: ["other deductions", "other payroll deductions"],
+  otherTaxableIncome: ["other annual taxable income", "other taxable income"],
+  taxCode: ["observed tax code", "tax code"],
+  nationalInsuranceCategory: [
+    "national insurance category",
+    "ni category",
+    "ni letter",
+  ],
+  isCompanyDirector: ["company director", "is company director", "director"],
   employeePensionType: ["employee pension type", "pension type"],
   employeePensionAmount: ["employee pension amount", "pension amount"],
   employeePensionRate: ["employee pension rate", "pension rate"],
@@ -363,9 +393,19 @@ const PENSION_TYPES: Record<string, PensionArrangement> = {
   sacrifice: "salarySacrifice",
   "net pay": "netPay",
   "relief at source": "reliefAtSource",
+  none: "none",
+  "no contribution": "none",
   other: "other",
   unknown: "unknown",
 };
+
+function booleanValue(value: unknown): boolean | undefined {
+  const text = textValue(value)?.toLocaleLowerCase("en-GB");
+  if (text == null) return undefined;
+  if (["true", "yes", "y", "1"].includes(text)) return true;
+  if (["false", "no", "n", "0"].includes(text)) return false;
+  return undefined;
+}
 
 const PENSION_BASES: Record<string, PensionBasis> = {
   "gross pay": "grossPay",
@@ -628,6 +668,17 @@ function parseSalaryRow(
     variablePay: numberValue(cell(row, mapping, "variablePay")),
     taxablePay: numberValue(cell(row, mapping, "taxablePay")),
     takeHomePay: numberValue(cell(row, mapping, "takeHomePay")),
+    observedIncomeTax: numberValue(cell(row, mapping, "observedIncomeTax")),
+    observedEmployeeNationalInsurance: numberValue(
+      cell(row, mapping, "observedEmployeeNationalInsurance"),
+    ),
+    otherDeductions: numberValue(cell(row, mapping, "otherDeductions")),
+    otherTaxableIncome: numberValue(cell(row, mapping, "otherTaxableIncome")),
+    taxCode: textValue(cell(row, mapping, "taxCode")),
+    nationalInsuranceCategory: textValue(
+      cell(row, mapping, "nationalInsuranceCategory"),
+    ),
+    isCompanyDirector: booleanValue(cell(row, mapping, "isCompanyDirector")),
     employeePension: pensionWithDates(
       pensionValue(row, mapping, "employee"),
       effectiveStart,
@@ -685,7 +736,7 @@ export function parseSalaryImport(
   return { records, diagnostics };
 }
 
-export const SALARY_HISTORY_TEMPLATE_CSV = `person,employer,employment_id,currency,jurisdiction,effective_start,effective_end,pay_frequency,amount_type,work_fraction,gross_pay_before_pension,base_salary,variable_pay,taxable_pay,take_home_pay,employee_pension_type,employee_pension_rate,employee_pension_basis,employer_pension_type,employer_pension_rate,employer_pension_basis
-Alex Example,Northstar Ltd,northstar-engineer,GBP,UK,2022-04-01,2022-09-30,monthly,annual salary,100%,48000,48000,0,45600,3100,salary sacrifice,5%,gross pay,salary sacrifice,4%,gross pay
-Alex Example,Northstar Ltd,northstar-engineer,GBP,UK,2022-10-01,2023-03-31,monthly,annual salary,100%,54000,52000,2000,51300,3450,salary sacrifice,5%,gross pay,salary sacrifice,4%,gross pay
+export const SALARY_HISTORY_TEMPLATE_CSV = `person,employer,employment_id,currency,jurisdiction,effective_start,effective_end,pay_frequency,amount_type,work_fraction,gross_pay_before_pension,base_salary,variable_pay,taxable_pay,take_home_pay,observed_income_tax,observed_employee_national_insurance,other_deductions,other_annual_taxable_income,observed_tax_code,national_insurance_category,company_director,employee_pension_type,employee_pension_rate,employee_pension_basis,employer_pension_type,employer_pension_rate,employer_pension_basis
+Alex Example,Northstar Ltd,northstar-engineer,GBP,England,2022-04-01,2022-09-30,monthly,annual salary,100%,48000,48000,0,45600,35200,8300,4300,200,0,1257L,A,no,salary sacrifice,5%,gross pay,other,4%,gross pay
+Alex Example,Northstar Ltd,northstar-engineer,GBP,England,2022-10-01,2023-03-31,monthly,annual salary,100%,54000,52000,2000,51300,38900,10400,4900,200,0,1257L,A,no,salary sacrifice,5%,gross pay,other,4%,gross pay
 `;

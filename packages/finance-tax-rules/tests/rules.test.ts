@@ -25,7 +25,7 @@ const packageRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
 describe("UK tax rule dataset", () => {
   it("passes structural and semantic validation", () => {
-    expect(validateDataset(ruleDataset).datasetVersion).toBe("2026.10.2");
+    expect(validateDataset(ruleDataset).datasetVersion).toBe("2026.10.3");
   });
 
   it("builds deterministic artifacts without an empty announced release", () => {
@@ -33,14 +33,14 @@ describe("UK tax rule dataset", () => {
     const second = buildArtifacts(packageRoot);
 
     expect([...first]).toEqual([...second]);
-    expect(first.get("artifacts/enacted/2026.10.2.json")).toContain(
+    expect(first.get("artifacts/enacted/2026.10.3.json")).toContain(
       '"legalStatus": "enacted"',
     );
-    expect(first.has("artifacts/announced/2026.10.2.json")).toBe(false);
+    expect(first.has("artifacts/announced/2026.10.3.json")).toBe(false);
     expect(first.get("artifacts/manifest.json")).not.toContain(
-      "artifacts/announced/2026.10.2.json",
+      "artifacts/announced/2026.10.3.json",
     );
-    expect(first.get("artifacts/validation/2026.10.2.json")).toContain(
+    expect(first.get("artifacts/validation/2026.10.3.json")).toContain(
       '"calculationContractVersion": "salary-validation-v1"',
     );
     expect(first.get("artifacts/manifest.json")).toContain('"fixtureCount": 16');
@@ -183,6 +183,49 @@ describe("rule resolution", () => {
     ).toBe(1_000);
   });
 
+  it.each([
+    ["2015-07-01", "ni-2015-16", 67_200, 353_200],
+    ["2016-07-01", "ni-2016-17", 67_200, 358_300],
+    ["2017-07-01", "ni-2017-18", 68_000, 375_000],
+    ["2018-07-01", "ni-2018-19", 70_200, 386_300],
+    ["2019-07-01", "ni-2019-20", 71_900, 416_700],
+    ["2020-07-01", "ni-2020-21", 79_200, 416_700],
+    ["2021-07-01", "ni-2021-22", 79_700, 418_900],
+  ])(
+    "selects reviewed historical NI thresholds for %s",
+    (date, ruleId, primaryThreshold, upperEarningsLimit) => {
+      const result = resolveRules({ ...request, date });
+
+      expect(result.available).toBe(true);
+      if (!result.available) return;
+      expect(result.nationalInsurance).toMatchObject({
+        id: ruleId,
+        thresholds: {
+          primaryThresholdPence: { monthly: primaryThreshold },
+          upperEarningsLimitPence: { monthly: upperEarningsLimit },
+        },
+      });
+    },
+  );
+
+  it("selects both 2015/16 pension alignment intervals", () => {
+    const before = resolveRules({ ...request, date: "2015-07-08" });
+    const after = resolveRules({ ...request, date: "2015-07-09" });
+
+    expect(before.available && before.pension).toMatchObject({
+      id: "pension-2015-16-pre-alignment",
+      annualAllowancePence: 8_000_000,
+      moneyPurchaseAnnualAllowancePence: 2_000_000,
+      taperedAnnualAllowance: null,
+    });
+    expect(after.available && after.pension).toMatchObject({
+      id: "pension-2015-16-post-alignment",
+      annualAllowancePence: 0,
+      moneyPurchaseAnnualAllowancePence: 0,
+      taperedAnnualAllowance: null,
+    });
+  });
+
   it("selects Scottish bands and pension limits", () => {
     const result = resolveRules({
       ...request,
@@ -234,7 +277,7 @@ describe("rule resolution", () => {
 
   it.each([
     [
-      { ...request, date: "2021-04-06" },
+      { ...request, date: "2014-04-06" },
       "unsupported-date",
     ],
     [

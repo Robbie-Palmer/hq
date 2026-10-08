@@ -56,6 +56,9 @@ export const snapshots: BalanceSnapshot[] = [
   { accountId: "home", date: "2023-03-01", balance: 285000 },
   { accountId: "home", date: "2024-03-01", balance: 292000 },
   { accountId: "home", date: "2024-12-01", balance: 298000 },
+  // Cardiff Rental (property)
+  { accountId: "cardiff-property", date: "2024-06-01", balance: 300000 },
+  { accountId: "cardiff-property", date: "2024-12-01", balance: 315000 },
   // Home Mortgage (linked to the property)
   { accountId: "home-mortgage", date: "2023-03-01", balance: -228000 },
   { accountId: "home-mortgage", date: "2023-12-01", balance: -221500 },

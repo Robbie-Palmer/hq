@@ -1,20 +1,62 @@
 import { format, parseISO } from "date-fns";
+import type { ReactElement } from "react";
 import { CartesianGrid, XAxis, YAxis } from "recharts";
 import { ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { formatCurrency, formatCurrencyAxisTick } from "@/lib/assettracker";
 import type { Currency } from "@/lib/domain/assettracker";
 
+const SHORT_UTC_DATE_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  month: "short",
+  timeZone: "UTC",
+  year: "2-digit",
+});
+const LONG_UTC_DATE_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "long",
+  timeZone: "UTC",
+  year: "numeric",
+});
+
+export function formatHistoryDateLabel(date: string | number): string {
+  return typeof date === "number"
+    ? LONG_UTC_DATE_FORMATTER.format(date)
+    : format(parseISO(date), "d MMMM yyyy");
+}
+
+function formatDateTick(date: string | number): string {
+  return typeof date === "number"
+    ? SHORT_UTC_DATE_FORMATTER.format(date)
+    : format(parseISO(date), "MMM yy");
+}
+
 export function CurrencyHistoryChartAxes({
   currency,
-}: Readonly<{ currency: Currency }>) {
+  dateDomain,
+  dateKey = "date",
+  dateTicks,
+  tooltipContent,
+}: Readonly<{
+  currency: Currency;
+  dateDomain?: readonly [number, number];
+  dateKey?: string;
+  dateTicks?: readonly number[];
+  tooltipContent?: ReactElement;
+}>) {
+  const isTimeAxis = dateDomain != null;
+
   return (
     <>
       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
       <XAxis
-        dataKey="date"
+        dataKey={dateKey}
+        type={isTimeAxis ? "number" : "category"}
+        scale={isTimeAxis ? "time" : "auto"}
+        domain={dateDomain}
+        ticks={dateTicks}
+        allowDataOverflow={isTimeAxis}
         className="text-xs"
         minTickGap={24}
-        tickFormatter={(date: string) => format(parseISO(date), "MMM yy")}
+        tickFormatter={formatDateTick}
       />
       <YAxis
         className="text-xs"
@@ -24,8 +66,13 @@ export function CurrencyHistoryChartAxes({
         }
       />
       <ChartTooltip
-        content={<ChartTooltipContent />}
+        content={tooltipContent ?? <ChartTooltipContent />}
         formatter={(value) => formatCurrency(value as number, currency)}
+        labelFormatter={
+          isTimeAxis
+            ? (value) => formatHistoryDateLabel(Number(value))
+            : undefined
+        }
       />
     </>
   );

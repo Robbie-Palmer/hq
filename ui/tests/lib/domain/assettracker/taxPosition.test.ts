@@ -14,7 +14,7 @@ describe("household tax position", () => {
     expect(result.available).toBe(true);
     expect(result.totalTaxPence).toBe(2_120_621);
     expect(result.people).toHaveLength(2);
-    expect(result.lineage.ruleDatasetVersion).toBe("2026.10.2");
+    expect(result.lineage.ruleDatasetVersion).toBe("2026.10.3");
     expect(result.lineage.observedRecordIds).toContain(
       "alex-payroll-to-date-2026-10-04",
     );

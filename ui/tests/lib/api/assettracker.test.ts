@@ -4,6 +4,7 @@ import {
   createLocalAssetTrackerApi,
 } from "@/lib/api/assettracker";
 import { getDemoAssetTrackerData } from "@/lib/assettracker/demoData";
+import { AssetTrackerDataSchema } from "@/lib/domain/assettracker";
 
 describe("createLocalAssetTrackerApi", () => {
   beforeEach(() => {
@@ -162,22 +163,33 @@ describe("createLocalAssetTrackerApi", () => {
     );
   });
 
-  it("falls back to seed data when stored JSON is corrupt", async () => {
-    window.localStorage.setItem(ASSET_TRACKER_STORAGE_KEY, "{not json");
+  it("rejects corrupt stored JSON without overwriting it", async () => {
+    const corrupt = "{not json";
+    window.localStorage.setItem(ASSET_TRACKER_STORAGE_KEY, corrupt);
 
-    const { data, persisted } = await createApi().load();
-    expect(persisted).toBe(false);
-    expect(data).toEqual(getDemoAssetTrackerData());
+    const api = createApi();
+    await expect(api.load()).rejects.toThrow();
+    await expect(
+      api.createAccount({
+        name: "Must not replace saved data",
+        provider: "Test provider",
+        currency: "GBP",
+        assetType: "cash",
+        expectedAnnualReturn: 0,
+      }),
+    ).rejects.toThrow();
+    expect(window.localStorage.getItem(ASSET_TRACKER_STORAGE_KEY)).toBe(
+      corrupt,
+    );
   });
 
-  it("falls back to seed data when stored data fails validation", async () => {
+  it("rejects stored data that fails validation", async () => {
     window.localStorage.setItem(
       ASSET_TRACKER_STORAGE_KEY,
       JSON.stringify({ accounts: [{ id: "broken" }], snapshots: [] }),
     );
 
-    const { persisted } = await createApi().load();
-    expect(persisted).toBe(false);
+    await expect(createApi().load()).rejects.toThrow();
   });
 
   it("loads older saved data with no capital-flow collection", async () => {
@@ -224,7 +236,14 @@ describe("createLocalAssetTrackerApi", () => {
 
   it("migrates old saved data to one stable local household member", async () => {
     const seed = getDemoAssetTrackerData();
-    const { household: _household, ownership: _ownership, ...legacy } = seed;
+    const {
+      forecastAssumptionSets: _forecastAssumptionSets,
+      futureCashFlows: _futureCashFlows,
+      household: _household,
+      ownership: _ownership,
+      planningCases: _planningCases,
+      ...legacy
+    } = seed;
     window.localStorage.setItem(
       ASSET_TRACKER_STORAGE_KEY,
       JSON.stringify(legacy),
@@ -371,7 +390,7 @@ describe("createLocalAssetTrackerApi", () => {
     if (!source) throw new Error("seed data has no current account");
 
     await api.addPlannedExpenditure({
-      name: "Wedding",
+      name: "Large purchase",
       amount: 15_000,
       date: "2099-08-01",
       fromAccountId: source.id,
@@ -379,17 +398,170 @@ describe("createLocalAssetTrackerApi", () => {
 
     const { data } = await createApi().load();
     expect(data.plannedExpenditures).toContainEqual({
-      id: "wedding",
-      name: "Wedding",
+      id: "large-purchase",
+      name: "Large purchase",
       amount: 15_000,
       date: "2099-08-01",
       fromAccountId: source.id,
     });
+    expect(data.futureCashFlows).toContainEqual(
+      expect.objectContaining({
+        id: "large-purchase",
+        name: "Large purchase",
+        kind: "commitment",
+      }),
+    );
 
     const withoutExpenditure = await api.deletePlannedExpenditure({
-      id: "wedding",
+      id: "large-purchase",
     });
     expect(withoutExpenditure.plannedExpenditures).toEqual([]);
+    expect(withoutExpenditure.futureCashFlows).not.toContainEqual(
+      expect.objectContaining({ id: "large-purchase" }),
+    );
+  });
+
+  it("persists planning cases, commitments, decisions, and actual cash flows", async () => {
+    const api = createApi();
+    const source = getDemoAssetTrackerData().accounts.find(
+      (account) =>
+        account.id === "nationwide-current" && account.currency === "GBP",
+    );
+    if (!source) throw new Error("seed data has no GBP current account");
+
+    await api.createPlanningCase({
+      name: "Summer plans",
+      labels: ["shared"],
+      targetDate: "2099-08-01",
+    });
+    await api.addCommitment({
+      name: "Firm booking",
+      planningCaseId: "summer-plans",
+      labels: [],
+      currency: "GBP",
+      refundable: true,
+      stages: [
+        {
+          fromAccountId: source.id,
+          dueDate: "2099-03-01",
+          amount: 1_000,
+        },
+      ],
+    });
+    await api.addCashFlowDecision({
+      name: "Optional upgrade",
+      planningCaseId: "summer-plans",
+      labels: [],
+      currency: "GBP",
+      confidence: 0.7,
+      dependencyIds: ["firm-booking"],
+      alternativeToIds: [],
+      stages: [
+        {
+          fromAccountId: source.id,
+          expectedDate: "2099-05-01",
+          minimumAmount: 500,
+          expectedAmount: 750,
+          maximumAmount: 1_000,
+        },
+      ],
+    });
+    await api.setCashFlowDecisionStatus({
+      id: "optional-upgrade",
+      status: "selected",
+    });
+    await api.recordActualCashFlow({
+      futureCashFlowId: "firm-booking",
+      stageId: "payment-1",
+      date: "2026-01-01",
+      amount: 250,
+      direction: "payment",
+    });
+
+    const { data } = await createApi().load();
+    expect(data.planningCases).toContainEqual(
+      expect.objectContaining({ id: "summer-plans", name: "Summer plans" }),
+    );
+    expect(data.futureCashFlows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "firm-booking",
+          kind: "commitment",
+          stages: [
+            expect.objectContaining({
+              actuals: [expect.objectContaining({ amount: 250 })],
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          id: "optional-upgrade",
+          kind: "decision",
+          status: "selected",
+        }),
+      ]),
+    );
+  });
+
+  it("persists reusable, versioned household forecast assumptions", async () => {
+    const seed = getDemoAssetTrackerData();
+    const account = seed.accounts.find(
+      (candidate) =>
+        candidate.currency === "GBP" &&
+        candidate.closedAt == null &&
+        candidate.assetType === "cash",
+    );
+    const member = seed.household.members[0];
+    if (account == null || member == null) {
+      throw new Error("seed data has no eligible account or household member");
+    }
+    const api = createApi();
+
+    await api.createForecastAssumptionSet({ name: "Household baseline" });
+    await api.addForecastAssumption({
+      setId: "household-baseline-v1",
+      name: "Temporary take-home change",
+      kind: "income",
+      startDate: "2099-01-01",
+      endDate: "2099-06-30",
+      monthlyChange: { minimum: -600, expected: -500, maximum: -350 },
+      currency: "GBP",
+      confidence: 0.7,
+      ownership: { kind: "personal", memberId: member.id },
+      accountId: account.id,
+      source: { kind: "manual-take-home" },
+      sourceNotes: "Based on current payslips",
+    });
+    await api.versionForecastAssumptionSet({
+      id: "household-baseline-v1",
+    });
+
+    const { data } = await createApi().load();
+    expect(data.incomeHistory).toEqual(seed.incomeHistory);
+    expect(data.forecastAssumptionSets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "household-baseline-v1",
+          status: "superseded",
+          assumptions: [
+            expect.objectContaining({
+              name: "Temporary take-home change",
+              monthlyChange: {
+                minimum: -600,
+                expected: -500,
+                maximum: -350,
+              },
+              source: { kind: "manual-take-home" },
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          id: "household-baseline-v2",
+          version: 2,
+          status: "active",
+          supersedesId: "household-baseline-v1",
+        }),
+      ]),
+    );
   });
 
   it("persists transfers and history deletions", async () => {
@@ -577,6 +749,39 @@ describe("createLocalAssetTrackerApi", () => {
       JSON.parse(JSON.stringify(corrected)),
     );
     expect(restored.salaryHistory).toEqual(corrected.salaryHistory);
+  });
+
+  it("stores an explicit no-pension answer in a rollback-compatible form", async () => {
+    const seed = getDemoAssetTrackerData();
+    const api = createApi();
+    await api.saveSalaryRecord({
+      facts: {
+        person: "Alex Example",
+        employer: "Northstar Ltd",
+        employmentId: "northstar-engineer",
+        currency: "GBP",
+        jurisdiction: "England",
+        effectiveStart: "2015-07-01",
+        payFrequency: "monthly",
+        amountKind: "annualSalary",
+        grossPay: 48_000,
+        employeePension: { arrangement: "none", basis: "unknown" },
+        employerPension: { arrangement: "none", basis: "unknown" },
+      },
+    });
+
+    const raw = window.localStorage.getItem(ASSET_TRACKER_STORAGE_KEY);
+    if (raw == null) throw new Error("Expected saved Asset Tracker data");
+    const stored = AssetTrackerDataSchema.parse(JSON.parse(raw));
+    const storedRecord = stored.salaryHistory.at(-1);
+    expect(storedRecord?.employeePension?.arrangement).toBe("unknown");
+    expect(storedRecord?.employerPension?.arrangement).toBe("unknown");
+
+    const { data } = await api.load();
+    const restored = data.salaryHistory.at(-1);
+    expect(data.salaryHistory).toHaveLength(seed.salaryHistory.length + 1);
+    expect(restored?.employeePension?.arrangement).toBe("none");
+    expect(restored?.employerPension?.arrangement).toBe("none");
   });
 
   it("reset clears stored data and returns the seed", async () => {

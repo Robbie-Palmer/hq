@@ -2,6 +2,8 @@ import { z } from "zod";
 import { normalizeSlug } from "../../generic/slugs";
 import type { AssetTrackerData } from "./assetTrackerData";
 import { capitalFlowKind } from "./capitalFlow";
+import type { ForecastAssumptionSet } from "./forecastAssumption";
+import type { FutureCashFlow } from "./futureCashFlow";
 
 export const DEFAULT_HOUSEHOLD_MEMBER_ID = "primary";
 
@@ -76,6 +78,7 @@ export const HouseholdOwnershipIndexSchema = z.object({
   transfers: OwnershipRecordSchema.default({}),
   recurringFlows: OwnershipRecordSchema.default({}),
   plannedExpenditures: OwnershipRecordSchema.default({}),
+  futureCashFlows: OwnershipRecordSchema.default({}),
   holdingObservations: OwnershipRecordSchema.default({}),
 });
 export type HouseholdOwnershipIndex = z.infer<
@@ -90,6 +93,7 @@ export const EMPTY_HOUSEHOLD_OWNERSHIP: HouseholdOwnershipIndex = {
   transfers: {},
   recurringFlows: {},
   plannedExpenditures: {},
+  futureCashFlows: {},
   holdingObservations: {},
 };
 
@@ -110,6 +114,7 @@ export function defaultHouseholdFields(): Pick<
       transfers: {},
       recurringFlows: {},
       plannedExpenditures: {},
+      futureCashFlows: {},
       holdingObservations: {},
     },
   };
@@ -215,6 +220,10 @@ type MigratableData = {
     toAccountId?: string;
   }>;
   plannedExpenditures: Array<{ id: string; fromAccountId: string }>;
+  futureCashFlows: Array<{
+    id: string;
+    stages: Array<{ fromAccountId: string }>;
+  }>;
   holdingObservations?: Array<{ id: string; accountId: string }>;
 };
 
@@ -256,6 +265,10 @@ export function migrateHouseholdOwnership<T extends MigratableData>(
   for (const row of data.plannedExpenditures) {
     plannedExpenditures[row.id] ??= ownerFor(row.fromAccountId);
   }
+  const futureCashFlows = { ...data.ownership.futureCashFlows };
+  for (const row of data.futureCashFlows) {
+    futureCashFlows[row.id] ??= ownerFor(row.stages[0]?.fromAccountId);
+  }
   const holdingObservations = { ...data.ownership.holdingObservations };
   for (const row of data.holdingObservations ?? []) {
     holdingObservations[row.id] ??= ownerFor(row.accountId);
@@ -270,6 +283,7 @@ export function migrateHouseholdOwnership<T extends MigratableData>(
       transfers,
       recurringFlows,
       plannedExpenditures,
+      futureCashFlows,
       holdingObservations,
     },
   };
@@ -358,6 +372,7 @@ export function applySetAccountOwnership(
     capitalFlows: { ...data.ownership.capitalFlows },
     holdingObservations: { ...data.ownership.holdingObservations },
     plannedExpenditures: { ...data.ownership.plannedExpenditures },
+    futureCashFlows: { ...data.ownership.futureCashFlows },
   };
   for (const row of data.snapshots.filter(
     ({ accountId }) => accountId === parsed.accountId,
@@ -379,6 +394,11 @@ export function applySetAccountOwnership(
     ({ fromAccountId }) => fromAccountId === parsed.accountId,
   )) {
     ownership.plannedExpenditures[row.id] = parsed.ownership;
+  }
+  for (const row of data.futureCashFlows.filter(
+    (record) => record.stages[0]?.fromAccountId === parsed.accountId,
+  )) {
+    ownership.futureCashFlows[row.id] = parsed.ownership;
   }
   return { ...data, ownership };
 }
@@ -414,6 +434,11 @@ export function validateHouseholdOwnership(data: AssetTrackerData): void {
     for (const ownership of Object.values(collection)) {
       assertOwnershipMembers(data.household, ownership);
     }
+  }
+  for (const assumption of data.forecastAssumptionSets.flatMap(
+    ({ assumptions }) => assumptions,
+  )) {
+    assertOwnershipMembers(data.household, assumption.ownership);
   }
 }
 
@@ -510,6 +535,97 @@ export function scopeAssetTrackerData(
       ? [{ ...row, amount: scale(row.amount, fraction) }]
       : [];
   });
+  const scopedFutureCashFlows = data.futureCashFlows.flatMap(
+    (record): FutureCashFlow[] => {
+      const stages = record.stages.filter(({ fromAccountId }) =>
+        keptAccountIds.has(fromAccountId),
+      );
+      const fraction = share(data.ownership.futureCashFlows[record.id]);
+      if (stages.length === 0 || fraction <= 0) return [];
+      if (record.kind === "commitment") {
+        return [
+          {
+            ...record,
+            stages: record.stages
+              .filter(({ fromAccountId }) => keptAccountIds.has(fromAccountId))
+              .map((stage) => ({
+                ...stage,
+                amount: scale(stage.amount, fraction),
+                actuals: stage.actuals.map((actual) => ({
+                  ...actual,
+                  amount: scale(actual.amount, fraction),
+                })),
+              })),
+          },
+        ];
+      }
+      return [
+        {
+          ...record,
+          stages: record.stages
+            .filter(({ fromAccountId }) => keptAccountIds.has(fromAccountId))
+            .map((stage) => ({
+              ...stage,
+              minimumAmount: scale(stage.minimumAmount, fraction),
+              expectedAmount: scale(stage.expectedAmount, fraction),
+              maximumAmount: scale(stage.maximumAmount, fraction),
+              actuals: stage.actuals.map((actual) => ({
+                ...actual,
+                amount: scale(actual.amount, fraction),
+              })),
+            })),
+        },
+      ];
+    },
+  );
+  const keptFutureCashFlowIds = new Set(
+    scopedFutureCashFlows.map(({ id }) => id),
+  );
+  const futureCashFlows = scopedFutureCashFlows.map((record) =>
+    record.kind === "decision"
+      ? {
+          ...record,
+          dependencyIds: record.dependencyIds.filter((id) =>
+            keptFutureCashFlowIds.has(id),
+          ),
+          alternativeToIds: record.alternativeToIds.filter((id) =>
+            keptFutureCashFlowIds.has(id),
+          ),
+        }
+      : record,
+  );
+  const forecastAssumptionSets = data.forecastAssumptionSets.map(
+    (set): ForecastAssumptionSet => ({
+      ...set,
+      assumptions: set.assumptions.flatMap((assumption) => {
+        if (
+          assumption.accountId != null &&
+          !keptAccountIds.has(assumption.accountId)
+        ) {
+          return [];
+        }
+        const fraction = share(assumption.ownership);
+        if (fraction <= 0) return [];
+        return [
+          {
+            ...assumption,
+            monthlyChange: {
+              minimum: scale(assumption.monthlyChange.minimum, fraction),
+              expected: scale(assumption.monthlyChange.expected, fraction),
+              maximum: scale(assumption.monthlyChange.maximum, fraction),
+            },
+            ownership: personalOwnership(scope.memberId),
+          },
+        ];
+      }),
+    }),
+  );
+  const emergencyFundPlans = (data.emergencyFundPlans ?? []).map((plan) => ({
+    ...plan,
+    accountPolicies: plan.accountPolicies.filter(({ accountId }) =>
+      keptAccountIds.has(accountId),
+    ),
+  }));
   const mortgageScenarios = (data.mortgageScenarios ?? []).filter(
     ({ source }) =>
       (source.mortgageAccountId == null ||
@@ -553,6 +669,9 @@ export function scopeAssetTrackerData(
       ];
     },
   );
+  const propertyComparableSearches = (
+    data.propertyComparableSearches ?? []
+  ).filter(({ accountId }) => keptAccountIds.has(accountId));
   return {
     ...data,
     accounts,
@@ -562,9 +681,13 @@ export function scopeAssetTrackerData(
     transfers,
     recurringFlows,
     plannedExpenditures,
+    futureCashFlows,
+    forecastAssumptionSets,
+    emergencyFundPlans,
     mortgageScenarios,
     decisionRecords,
     holdingObservations,
+    propertyComparableSearches,
     propertyIndexHistories,
   };
 }

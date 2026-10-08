@@ -28,3 +28,7 @@ export async function storeHousePriceIndexRelease(
 export * from "./schema";
 export * from "./propertyHistory";
 export * from "./archive";
+export * from "./comparables";
+export * from "./marketTrend";
+export * from "./pricePaid";
+export * from "./pricePaidSchema";

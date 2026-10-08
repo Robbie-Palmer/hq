@@ -21,7 +21,7 @@
     "pack:check": "pnpm pack --dry-run"
   },
   "dependencies": {
-    "@auth/agent": "0.5.1",
+    "@auth/agent": "0.6.2",
     "@modelcontextprotocol/sdk": "1.32.0",
     "zod": "3.25.76"
   },

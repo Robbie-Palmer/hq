@@ -4804,6 +4804,7 @@
                       "type": "string",
                       "enum": [
                         "fridge",
+                        "freezer",
                         "cupboards",
                         "fresh"
                       ]
@@ -4980,9 +4981,188 @@
                       "type": "string",
                       "enum": [
                         "fridge",
+                        "freezer",
                         "cupboards",
                         "fresh"
                       ]
+                    }
+                  },
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "location": {
+                          "type": "string",
+                          "enum": [
+                            "fridge",
+                            "freezer",
+                            "cupboards",
+                            "fresh"
+                          ]
+                        },
+                        "quantity": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "amount": {
+                              "type": "number",
+                              "minimum": 0.001,
+                              "maximum": 999999999
+                            },
+                            "unit": {
+                              "type": "string",
+                              "enum": [
+                                "g",
+                                "kg",
+                                "oz",
+                                "lb",
+                                "ml",
+                                "l",
+                                "tsp",
+                                "tbsp",
+                                "au_tbsp",
+                                "us_cup",
+                                "uk_cup",
+                                "au_cup",
+                                "uk_imperial_cup",
+                                "uk_pint",
+                                "us_pint",
+                                "us_fl_oz",
+                                "uk_fl_oz",
+                                "pinch",
+                                "handful",
+                                "piece",
+                                "slice",
+                                "clove",
+                                "tin",
+                                "cube",
+                                "sachet",
+                                "bag",
+                                "bunch"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "amount",
+                            "unit"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "freshness": {
+                          "type": "object",
+                          "properties": {
+                            "useBy": {
+                              "type": "string",
+                              "nullable": true,
+                              "maxLength": 10,
+                              "format": "date"
+                            },
+                            "bestBefore": {
+                              "type": "string",
+                              "nullable": true,
+                              "maxLength": 10,
+                              "format": "date"
+                            },
+                            "stockedAt": {
+                              "type": "string",
+                              "nullable": true,
+                              "maxLength": 10,
+                              "format": "date"
+                            },
+                            "openedAt": {
+                              "type": "string",
+                              "nullable": true,
+                              "maxLength": 10,
+                              "format": "date"
+                            },
+                            "frozenAt": {
+                              "type": "string",
+                              "nullable": true,
+                              "maxLength": 10,
+                              "format": "date"
+                            },
+                            "estimate": {
+                              "type": "object",
+                              "nullable": true,
+                              "properties": {
+                                "expectedDays": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 2147483647,
+                                  "format": "int32"
+                                },
+                                "startingOn": {
+                                  "type": "string",
+                                  "maxLength": 10,
+                                  "format": "date"
+                                },
+                                "storage": {
+                                  "type": "string",
+                                  "enum": [
+                                    "fridge",
+                                    "freezer",
+                                    "cupboards",
+                                    "fresh"
+                                  ]
+                                },
+                                "basis": {
+                                  "type": "string",
+                                  "enum": [
+                                    "user",
+                                    "catalog"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "expectedDays",
+                                "startingOn",
+                                "storage",
+                                "basis"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "useBy",
+                            "bestBefore",
+                            "stockedAt",
+                            "openedAt",
+                            "frozenAt",
+                            "estimate"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "user",
+                                "inferred"
+                              ]
+                            },
+                            "provenance": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "provenance"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "location",
+                        "quantity",
+                        "freshness",
+                        "source"
+                      ],
+                      "additionalProperties": false
                     }
                   }
                 },
@@ -5166,9 +5346,142 @@
                     "type": "string",
                     "enum": [
                       "fridge",
+                      "freezer",
                       "cupboards",
                       "fresh"
                     ]
+                  },
+                  "quantity": {
+                    "type": "object",
+                    "nullable": true,
+                    "properties": {
+                      "amount": {
+                        "type": "number",
+                        "minimum": 0.001,
+                        "maximum": 999999999
+                      },
+                      "unit": {
+                        "type": "string",
+                        "enum": [
+                          "g",
+                          "kg",
+                          "oz",
+                          "lb",
+                          "ml",
+                          "l",
+                          "tsp",
+                          "tbsp",
+                          "au_tbsp",
+                          "us_cup",
+                          "uk_cup",
+                          "au_cup",
+                          "uk_imperial_cup",
+                          "uk_pint",
+                          "us_pint",
+                          "us_fl_oz",
+                          "uk_fl_oz",
+                          "pinch",
+                          "handful",
+                          "piece",
+                          "slice",
+                          "clove",
+                          "tin",
+                          "cube",
+                          "sachet",
+                          "bag",
+                          "bunch"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "amount",
+                      "unit"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "freshness": {
+                    "type": "object",
+                    "properties": {
+                      "useBy": {
+                        "type": "string",
+                        "nullable": true,
+                        "maxLength": 10,
+                        "format": "date"
+                      },
+                      "bestBefore": {
+                        "type": "string",
+                        "nullable": true,
+                        "maxLength": 10,
+                        "format": "date"
+                      },
+                      "stockedAt": {
+                        "type": "string",
+                        "nullable": true,
+                        "maxLength": 10,
+                        "format": "date"
+                      },
+                      "openedAt": {
+                        "type": "string",
+                        "nullable": true,
+                        "maxLength": 10,
+                        "format": "date"
+                      },
+                      "frozenAt": {
+                        "type": "string",
+                        "nullable": true,
+                        "maxLength": 10,
+                        "format": "date"
+                      },
+                      "estimate": {
+                        "type": "object",
+                        "nullable": true,
+                        "properties": {
+                          "expectedDays": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 2147483647,
+                            "format": "int32"
+                          },
+                          "startingOn": {
+                            "type": "string",
+                            "maxLength": 10,
+                            "format": "date"
+                          },
+                          "storage": {
+                            "type": "string",
+                            "enum": [
+                              "fridge",
+                              "freezer",
+                              "cupboards",
+                              "fresh"
+                            ]
+                          },
+                          "basis": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "catalog"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "expectedDays",
+                          "startingOn",
+                          "storage",
+                          "basis"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "useBy",
+                      "bestBefore",
+                      "stockedAt",
+                      "openedAt",
+                      "frozenAt",
+                      "estimate"
+                    ],
+                    "additionalProperties": false
                   }
                 },
                 "required": [

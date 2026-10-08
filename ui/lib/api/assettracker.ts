@@ -2,11 +2,17 @@ import { promiseFromSync } from "ts-base/promises";
 import { todayIsoDate } from "@/lib/assettracker/date";
 import { getDemoAssetTrackerData } from "@/lib/assettracker/demoData";
 import {
+  type AddCashFlowDecisionInput,
+  type AddCommitmentInput,
+  type AddForecastAssumptionInput,
   type AddHouseholdMemberInput,
   type AddPlannedExpenditureInput,
   type AddRecurringFlowInput,
   type AssetTrackerData,
   AssetTrackerDataSchema,
+  applyAddCashFlowDecision,
+  applyAddCommitment,
+  applyAddForecastAssumption,
   applyAddHouseholdMember,
   applyAddPlannedExpenditure,
   applyAddRecurringFlow,
@@ -14,7 +20,11 @@ import {
   applyClearIncomeHistory,
   applyCloseAccount,
   applyCreateAccount,
+  applyCreateForecastAssumptionSet,
+  applyCreatePlanningCase,
   applyDeleteCapitalFlow,
+  applyDeleteForecastAssumption,
+  applyDeleteFutureCashFlow,
   applyDeletePlannedExpenditure,
   applyDeleteRecurringFlow,
   applyDeleteSnapshot,
@@ -22,24 +32,33 @@ import {
   applyImportIncomeHistory,
   applyImportSalaryHistory,
   applyMaterializeFlow,
+  applyRecordActualCashFlow,
   applyRecordBalance,
   applyRecordTransfer,
   applyRenameHouseholdMember,
+  applySaveEmergencyFundPlan,
   applySaveMortgageScenario,
   applySaveSalaryRecord,
   applySetAccountLiquidity,
   applySetAccountOwnership,
   applySetActiveHouseholdScope,
   applySetBaseCurrency,
+  applySetCashFlowDecisionStatus,
+  applySetCommitmentStatus,
   applySetExpectedReturn,
   applySetInflation,
   applySetNetWorthTarget,
   applySetWithdrawalRate,
+  applyVersionForecastAssumptionSet,
   buildRepository,
   type ClearAccountHistoryInput,
   type CloseAccountInput,
   type CreateAccountInput,
+  type CreateForecastAssumptionSetInput,
+  type CreatePlanningCaseInput,
   type DeleteCapitalFlowInput,
+  type DeleteForecastAssumptionInput,
+  type DeleteFutureCashFlowInput,
   type DeletePlannedExpenditureInput,
   type DeleteRecurringFlowInput,
   type DeleteSnapshotInput,
@@ -49,18 +68,23 @@ import {
   type ImportIncomeHistoryInput,
   type ImportSalaryHistoryInput,
   type MaterializeFlowInput,
+  type RecordActualCashFlowInput,
   type RecordBalanceInput,
   type RecordTransferInput,
   type RenameHouseholdMemberInput,
+  type SaveEmergencyFundPlanInput,
   type SaveMortgageScenarioInput,
   type SaveSalaryRecordInput,
   type SetAccountLiquidityInput,
   type SetAccountOwnershipInput,
   type SetBaseCurrencyInput,
+  type SetCashFlowDecisionStatusInput,
+  type SetCommitmentStatusInput,
   type SetExpectedReturnInput,
   type SetInflationInput,
   type SetNetWorthTargetInput,
   type SetWithdrawalRateInput,
+  type VersionForecastAssumptionSetInput,
 } from "@/lib/domain/assettracker";
 
 /**
@@ -94,6 +118,35 @@ export interface AssetTrackerApi {
   saveSalaryRecord(input: SaveSalaryRecordInput): Promise<AssetTrackerData>;
   clearIncomeHistory(): Promise<AssetTrackerData>;
   addRecurringFlow(input: AddRecurringFlowInput): Promise<AssetTrackerData>;
+  createPlanningCase(input: CreatePlanningCaseInput): Promise<AssetTrackerData>;
+  addCommitment(input: AddCommitmentInput): Promise<AssetTrackerData>;
+  addCashFlowDecision(
+    input: AddCashFlowDecisionInput,
+  ): Promise<AssetTrackerData>;
+  setCashFlowDecisionStatus(
+    input: SetCashFlowDecisionStatusInput,
+  ): Promise<AssetTrackerData>;
+  setCommitmentStatus(
+    input: SetCommitmentStatusInput,
+  ): Promise<AssetTrackerData>;
+  recordActualCashFlow(
+    input: RecordActualCashFlowInput,
+  ): Promise<AssetTrackerData>;
+  deleteFutureCashFlow(
+    input: DeleteFutureCashFlowInput,
+  ): Promise<AssetTrackerData>;
+  createForecastAssumptionSet(
+    input: CreateForecastAssumptionSetInput,
+  ): Promise<AssetTrackerData>;
+  addForecastAssumption(
+    input: AddForecastAssumptionInput,
+  ): Promise<AssetTrackerData>;
+  versionForecastAssumptionSet(
+    input: VersionForecastAssumptionSetInput,
+  ): Promise<AssetTrackerData>;
+  deleteForecastAssumption(
+    input: DeleteForecastAssumptionInput,
+  ): Promise<AssetTrackerData>;
   addPlannedExpenditure(
     input: AddPlannedExpenditureInput,
   ): Promise<AssetTrackerData>;
@@ -114,6 +167,9 @@ export interface AssetTrackerApi {
   setWithdrawalRate(input: SetWithdrawalRateInput): Promise<AssetTrackerData>;
   saveMortgageScenario(
     input: SaveMortgageScenarioInput,
+  ): Promise<AssetTrackerData>;
+  saveEmergencyFundPlan(
+    input: SaveEmergencyFundPlanInput,
   ): Promise<AssetTrackerData>;
   addHouseholdMember(input: AddHouseholdMemberInput): Promise<AssetTrackerData>;
   renameHouseholdMember(
@@ -136,8 +192,70 @@ export type AssetTrackerLoadResult = {
 
 export const ASSET_TRACKER_STORAGE_KEY = "assettracker:data:v1";
 
+const NO_PENSION_CONTRIBUTION_MARKER =
+  "assetTrackerConfirmedNoPensionContribution";
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function restoreNoContribution(value: unknown): unknown {
+  if (
+    !isObject(value) ||
+    value.arrangement !== "unknown" ||
+    value[NO_PENSION_CONTRIBUTION_MARKER] !== true
+  ) {
+    return value;
+  }
+  const { [NO_PENSION_CONTRIBUTION_MARKER]: _marker, ...contribution } = value;
+  return { ...contribution, arrangement: "none" };
+}
+
+function restoreStorageCompatibility(value: unknown): unknown {
+  if (!isObject(value) || !Array.isArray(value.salaryHistory)) return value;
+  return {
+    ...value,
+    salaryHistory: value.salaryHistory.map((record) =>
+      isObject(record)
+        ? {
+            ...record,
+            employeePension: restoreNoContribution(record.employeePension),
+            employerPension: restoreNoContribution(record.employerPension),
+          }
+        : record,
+    ),
+  };
+}
+
+function storeNoContribution(
+  contribution:
+    | AssetTrackerData["salaryHistory"][number]["employeePension"]
+    | undefined,
+) {
+  return contribution?.arrangement === "none"
+    ? {
+        ...contribution,
+        arrangement: "unknown" as const,
+        [NO_PENSION_CONTRIBUTION_MARKER]: true,
+      }
+    : contribution;
+}
+
+function storageCompatibleData(data: AssetTrackerData): unknown {
+  return {
+    ...data,
+    salaryHistory: data.salaryHistory.map((record) => ({
+      ...record,
+      employeePension: storeNoContribution(record.employeePension),
+      employerPension: storeNoContribution(record.employerPension),
+    })),
+  };
+}
+
 function parseStored(raw: string): AssetTrackerData {
-  const parsed = AssetTrackerDataSchema.parse(JSON.parse(raw));
+  const parsed = AssetTrackerDataSchema.parse(
+    restoreStorageCompatibility(JSON.parse(raw)),
+  );
   const incomeByDate = new Map(
     parsed.incomeHistory.map((record) => [record.date, record]),
   );
@@ -161,19 +279,16 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
   function readStored(): AssetTrackerData | null {
     const raw = storage.getItem(ASSET_TRACKER_STORAGE_KEY);
     if (raw == null) return null;
-    try {
-      return parseStored(raw);
-    } catch {
-      // Unreadable local data: fall back to the seed but leave the stored
-      // value untouched until the next successful write
-      return null;
-    }
+    return parseStored(raw);
   }
 
   function write(data: AssetTrackerData): AssetTrackerData {
     const parsed = AssetTrackerDataSchema.parse(data);
     buildRepository(parsed);
-    storage.setItem(ASSET_TRACKER_STORAGE_KEY, JSON.stringify(parsed));
+    storage.setItem(
+      ASSET_TRACKER_STORAGE_KEY,
+      JSON.stringify(storageCompatibleData(parsed)),
+    );
     return parsed;
   }
 
@@ -263,6 +378,73 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
         write(applyAddRecurringFlow(current(), input, currentDate())),
       );
     },
+    createPlanningCase(input) {
+      return promiseFromSync(() =>
+        write(applyCreatePlanningCase(current(), input)),
+      );
+    },
+    addCommitment(input) {
+      return promiseFromSync(() =>
+        write(applyAddCommitment(current(), input, currentDate())),
+      );
+    },
+    addCashFlowDecision(input) {
+      return promiseFromSync(() =>
+        write(applyAddCashFlowDecision(current(), input, currentDate())),
+      );
+    },
+    setCashFlowDecisionStatus(input) {
+      return promiseFromSync(() =>
+        write(applySetCashFlowDecisionStatus(current(), input)),
+      );
+    },
+    setCommitmentStatus(input) {
+      return promiseFromSync(() =>
+        write(applySetCommitmentStatus(current(), input)),
+      );
+    },
+    recordActualCashFlow(input) {
+      return promiseFromSync(() =>
+        write(applyRecordActualCashFlow(current(), input, currentDate())),
+      );
+    },
+    deleteFutureCashFlow(input) {
+      return promiseFromSync(() =>
+        write(applyDeleteFutureCashFlow(current(), input)),
+      );
+    },
+    createForecastAssumptionSet(input) {
+      return promiseFromSync(() =>
+        write(
+          applyCreateForecastAssumptionSet(
+            current(),
+            input,
+            new Date().toISOString(),
+          ),
+        ),
+      );
+    },
+    addForecastAssumption(input) {
+      return promiseFromSync(() =>
+        write(applyAddForecastAssumption(current(), input)),
+      );
+    },
+    versionForecastAssumptionSet(input) {
+      return promiseFromSync(() =>
+        write(
+          applyVersionForecastAssumptionSet(
+            current(),
+            input,
+            new Date().toISOString(),
+          ),
+        ),
+      );
+    },
+    deleteForecastAssumption(input) {
+      return promiseFromSync(() =>
+        write(applyDeleteForecastAssumption(current(), input)),
+      );
+    },
     addPlannedExpenditure(input) {
       return promiseFromSync(() =>
         write(applyAddPlannedExpenditure(current(), input, currentDate())),
@@ -314,6 +496,17 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
     saveMortgageScenario(input) {
       return promiseFromSync(() =>
         write(applySaveMortgageScenario(current(), input, currentDate())),
+      );
+    },
+    saveEmergencyFundPlan(input) {
+      return promiseFromSync(() =>
+        write(
+          applySaveEmergencyFundPlan(
+            current(),
+            input,
+            new Date().toISOString(),
+          ),
+        ),
       );
     },
     addHouseholdMember(input) {

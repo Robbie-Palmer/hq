@@ -183,6 +183,13 @@
       "when": 1791100822874,
       "tag": "0025_store_flexible_authored_terms",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791307742060,
+      "tag": "0026_kitchen_state_details",
+      "breakpoints": true
     }
   ]
 }
