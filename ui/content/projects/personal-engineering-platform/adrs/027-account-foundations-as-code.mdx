@@ -84,11 +84,13 @@ and an account setting that makes the Zero Trust dashboard
 Enable that setting only after every intended resource is imported and the
 break-glass repair path has been exercised.
 
-Use the same protected workflow shape as the existing infrastructure roots.
-Pull requests run static checks and plans with read or narrowly scoped
-credentials. Applies run from the default branch with a protected write
-environment. Coding agents may change declarations and produce plans, but
-they do not receive the owner credentials in the manual seed.
+Follow the existing infrastructure workflows for static checks and plan
+comments, but separate credentials more strictly than those workflows do
+today. Pull requests run static checks and plans in a plan-only environment
+whose provider credentials are read-only. Applies run from the default branch
+in a separate protected write environment. Coding agents may change
+declarations and produce plans, but they do not receive the owner credentials
+in the manual seed.
 
 Keep continuous reconciliation separate from this decision. GitHub Actions
 can make account administration code-driven without a Kubernetes management

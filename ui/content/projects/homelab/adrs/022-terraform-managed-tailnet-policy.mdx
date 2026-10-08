@@ -114,6 +114,12 @@ it under a non-cancelling concurrency group. It does not apply a plan produced
 from pull-request code. It deletes the local saved plan in an `always()` cleanup
 step and never uploads it as an artifact.
 
+If an operator cancels an apply or its runner times out, verify that no
+Terraform operation is still active and inspect the `hq-tailnet` workspace for
+an orphaned state lock. Unlock it only after confirming the operation has
+stopped, then refresh state and create a new plan before attempting another
+apply.
+
 Run a read-only drift workflow from the default branch every six hours and on
 manual dispatch. It uses the drift environment, runs a fresh Terraform plan
 with detailed exit codes, and has no path to a write credential. The
