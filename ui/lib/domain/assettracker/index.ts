@@ -1,6 +1,7 @@
 export * from "finance-inflation-indices";
 export * from "./account";
 export * from "./assetTrackerAnalytics";
+export * from "./assetTrackerBackup";
 export * from "./assetTrackerCommands";
 export * from "./assetTrackerData";
 export * from "./assetTrackerQueries";

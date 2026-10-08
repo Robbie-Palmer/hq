@@ -326,9 +326,10 @@ function mockAssetTracker(
     importIncomeHistory: vi.fn(),
     clearIncomeHistory: vi.fn(),
     resetData: vi.fn(),
-    exportData: vi.fn(),
+    downloadBackup: vi.fn(),
     exportCsv: vi.fn(),
-    importData: vi.fn(),
+    previewBackup: vi.fn(),
+    restoreBackup: vi.fn(),
     ...overrides,
   } as ReturnType<typeof useAssetTracker>;
   mockUseAssetTracker.mockReturnValue(value);

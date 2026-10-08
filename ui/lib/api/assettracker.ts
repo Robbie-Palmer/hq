@@ -8,6 +8,7 @@ import {
   type AddHouseholdMemberInput,
   type AddPlannedExpenditureInput,
   type AddRecurringFlowInput,
+  type AssetTrackerBackup,
   type AssetTrackerData,
   AssetTrackerDataSchema,
   applyAddCashFlowDecision,
@@ -72,6 +73,7 @@ import {
   type ImportSalaryHistoryInput,
   type JobMoveScenarioIdInput,
   type MaterializeFlowInput,
+  parseAssetTrackerBackup,
   type RecordActualCashFlowInput,
   type RecordBalanceInput,
   type RecordTransferInput,
@@ -194,6 +196,7 @@ export interface AssetTrackerApi {
     input: SetAccountOwnershipInput,
   ): Promise<AssetTrackerData>;
   importData(raw: unknown): Promise<AssetTrackerData>;
+  restoreBackup(backup: AssetTrackerBackup): Promise<AssetTrackerData>;
   clear(): Promise<AssetTrackerData>;
   reset(): Promise<AssetTrackerData>;
 }
@@ -572,6 +575,9 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
         buildRepository(data);
         return write(data);
       });
+    },
+    restoreBackup(raw) {
+      return promiseFromSync(() => write(parseAssetTrackerBackup(raw).data));
     },
     clear() {
       return promiseFromSync(() => write(getEmptyData()));

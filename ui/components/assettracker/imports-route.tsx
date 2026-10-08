@@ -13,8 +13,8 @@ export function ImportsRoute() {
       <div>
         <h1 className="mb-2 text-3xl font-bold sm:text-4xl">Imports</h1>
         <p className="text-lg text-muted-foreground">
-          Move account, income, and salary history plus portable Asset Tracker
-          data in or out of this browser.
+          Import account, income, and salary history or back up the complete
+          household stored in this browser.
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
