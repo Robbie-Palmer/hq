@@ -21,6 +21,16 @@ interface PageProps {
   params: Promise<{ slug?: string[] }>;
 }
 
+type ProductDecisionView = NonNullable<ReturnType<typeof getProductDecision>>;
+
+interface RelatedRecord {
+  external?: boolean;
+  href: string;
+  key: string;
+  label: string;
+  title: string;
+}
+
 export function generateStaticParams() {
   return [
     { slug: [] },
@@ -95,6 +105,121 @@ function ProductDecisionIndex() {
   );
 }
 
+function ProductDecisionHeader({
+  decision,
+}: Readonly<{ decision: ProductDecisionView }>) {
+  return (
+    <header className="space-y-4">
+      <h1 className="text-3xl font-bold md:text-4xl">{decision.title}</h1>
+      <div className="flex flex-wrap items-center gap-4 text-sm">
+        <Badge variant="secondary">{decision.status}</Badge>
+        <span className="flex items-center gap-1.5 text-muted-foreground">
+          <Calendar className="size-4" /> {decision.date}
+        </span>
+        <span className="text-muted-foreground">{decision.readingTime}</span>
+      </div>
+      {decision.supersedes && (
+        <p className="rounded-lg border bg-muted/30 p-4 text-sm">
+          Supersedes{" "}
+          <Link
+            className="font-medium underline underline-offset-4"
+            href={`/product-decisions/${decision.supersedes}`}
+          >
+            {decision.supersedes}
+          </Link>
+        </p>
+      )}
+      {decision.supersededBy && (
+        <p className="rounded-lg border bg-muted/30 p-4 text-sm">
+          Superseded by{" "}
+          <Link
+            className="font-medium underline underline-offset-4"
+            href={`/product-decisions/${decision.supersededBy}`}
+          >
+            {decision.supersededBy}
+          </Link>
+        </p>
+      )}
+    </header>
+  );
+}
+
+function relatedRecords(decision: ProductDecisionView): RelatedRecord[] {
+  return [
+    ...decision.backlinks.projects.map((project) => ({
+      key: `project:${project.slug}`,
+      label: "Project",
+      href: `/projects/${project.slug}`,
+      title: project.title,
+    })),
+    ...decision.backlinks.ideas.map((idea) => ({
+      key: `idea:${idea.slug}`,
+      label: "Idea",
+      href: `/ideas/${idea.slug}`,
+      title: idea.title,
+    })),
+    ...decision.backlinks.informedByADRs.map((adr) => ({
+      key: `informed:${adr.adrRef}`,
+      label: "Informed by",
+      href: `/projects/${adr.projectSlug}/adrs/${adr.slug}`,
+      title: adr.title,
+    })),
+    ...decision.backlinks.implementingADRs.map((adr) => ({
+      key: `implemented:${adr.adrRef}`,
+      label: "Implemented by",
+      href: `/projects/${adr.projectSlug}/adrs/${adr.slug}`,
+      title: adr.title,
+    })),
+    ...decision.backlinks.blogs.map((blog) => ({
+      key: `blog:${blog.slug}`,
+      label: "Blog post",
+      href: `/blog/${blog.slug}`,
+      title: blog.title,
+    })),
+    ...decision.backlinks.evidence.map((evidence) => ({
+      key: `evidence:${evidence.url}`,
+      label: "Evidence",
+      href: evidence.url,
+      title: evidence.title,
+      external: true,
+    })),
+  ];
+}
+
+function RelatedRecords({
+  decision,
+}: Readonly<{ decision: ProductDecisionView }>) {
+  return (
+    <section className="space-y-4" aria-labelledby="decision-links">
+      <h2 id="decision-links" className="text-2xl font-semibold">
+        Related records
+      </h2>
+      <ul className="space-y-2 text-sm">
+        {relatedRecords(decision).map((record) => (
+          <li key={record.key}>
+            {record.label}:{" "}
+            {record.external ? (
+              <a
+                className="inline-flex items-center gap-1 underline"
+                href={record.href}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                {record.title}
+                <ExternalLink className="size-3" />
+              </a>
+            ) : (
+              <Link className="underline" href={record.href}>
+                {record.title}
+              </Link>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export default async function ProductDecisionPage({
   params,
 }: Readonly<PageProps>) {
@@ -114,106 +239,11 @@ export default async function ProductDecisionPage({
           Product decisions
         </Link>
       </nav>
-      <header className="space-y-4">
-        <h1 className="text-3xl font-bold md:text-4xl">{decision.title}</h1>
-        <div className="flex flex-wrap items-center gap-4 text-sm">
-          <Badge variant="secondary">{decision.status}</Badge>
-          <span className="flex items-center gap-1.5 text-muted-foreground">
-            <Calendar className="size-4" /> {decision.date}
-          </span>
-          <span className="text-muted-foreground">{decision.readingTime}</span>
-        </div>
-        {decision.supersedes && (
-          <p className="rounded-lg border bg-muted/30 p-4 text-sm">
-            Supersedes{" "}
-            <Link
-              className="font-medium underline underline-offset-4"
-              href={`/product-decisions/${decision.supersedes}`}
-            >
-              {decision.supersedes}
-            </Link>
-          </p>
-        )}
-        {decision.supersededBy && (
-          <p className="rounded-lg border bg-muted/30 p-4 text-sm">
-            Superseded by{" "}
-            <Link
-              className="font-medium underline underline-offset-4"
-              href={`/product-decisions/${decision.supersededBy}`}
-            >
-              {decision.supersededBy}
-            </Link>
-          </p>
-        )}
-      </header>
+      <ProductDecisionHeader decision={decision} />
       <Separator className="my-8" />
       <Markdown source={decision.content} />
       <Separator className="my-8" />
-      <section className="space-y-4" aria-labelledby="decision-links">
-        <h2 id="decision-links" className="text-2xl font-semibold">
-          Related records
-        </h2>
-        <ul className="space-y-2 text-sm">
-          {decision.backlinks.projects.map((project) => (
-            <li key={project.slug}>
-              Project:{" "}
-              <Link className="underline" href={`/projects/${project.slug}`}>
-                {project.title}
-              </Link>
-            </li>
-          ))}
-          {decision.backlinks.ideas.map((idea) => (
-            <li key={idea.slug}>
-              Idea:{" "}
-              <Link className="underline" href={`/ideas/${idea.slug}`}>
-                {idea.title}
-              </Link>
-            </li>
-          ))}
-          {decision.backlinks.informedByADRs.map((adr) => (
-            <li key={adr.adrRef}>
-              Informed by:{" "}
-              <Link
-                className="underline"
-                href={`/projects/${adr.projectSlug}/adrs/${adr.slug}`}
-              >
-                {adr.title}
-              </Link>
-            </li>
-          ))}
-          {decision.backlinks.implementingADRs.map((adr) => (
-            <li key={adr.adrRef}>
-              Implemented by:{" "}
-              <Link
-                className="underline"
-                href={`/projects/${adr.projectSlug}/adrs/${adr.slug}`}
-              >
-                {adr.title}
-              </Link>
-            </li>
-          ))}
-          {decision.backlinks.blogs.map((blog) => (
-            <li key={blog.slug}>
-              Blog post:{" "}
-              <Link className="underline" href={`/blog/${blog.slug}`}>
-                {blog.title}
-              </Link>
-            </li>
-          ))}
-          {decision.backlinks.evidence.map((evidence) => (
-            <li key={evidence.url}>
-              Evidence:{" "}
-              <a
-                className="inline-flex items-center gap-1 underline"
-                href={evidence.url}
-              >
-                {evidence.title}
-                <ExternalLink className="size-3" />
-              </a>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <RelatedRecords decision={decision} />
     </div>
   );
 }
