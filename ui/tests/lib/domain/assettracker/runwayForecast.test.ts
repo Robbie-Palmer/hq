@@ -171,6 +171,39 @@ describe("buildRunwayForecast", () => {
     ).toEqual([]);
   });
 
+  it("records when spending moves from cash to liquid and illiquid assets", () => {
+    const data = forecastData();
+    data.recurringFlows = [];
+    data.plannedExpenditures = [];
+    data.futureCashFlows = [];
+    const projection = buildRunwayForecast({
+      repository: buildRepository(data),
+      annualExpenditure: 12_000,
+      annualCurrentExpenditure: 12_000,
+      startDate: "2026-01-01",
+      months: 31,
+    });
+
+    expect(projection[1]?.monthlyBreakdown.spendingDrawdown).toEqual({
+      cash: 1_000,
+      liquid: 0,
+      illiquid: 0,
+      unfunded: 0,
+    });
+    expect(projection[11]?.monthlyBreakdown.spendingDrawdown).toEqual({
+      cash: 0,
+      liquid: 1_000,
+      illiquid: 0,
+      unfunded: 0,
+    });
+    expect(projection[31]?.monthlyBreakdown.spendingDrawdown).toEqual({
+      cash: 0,
+      liquid: 0,
+      illiquid: 1_000,
+      unfunded: 0,
+    });
+  });
+
   it("can fund a purchase from an ISA without reducing the cash line", () => {
     const data = forecastData();
     const cashFlow = data.futureCashFlows[0];
@@ -429,6 +462,12 @@ describe("buildRunwayForecast", () => {
         committedCashFlows: 1_300,
         selectedDecisionCashFlows: 0,
         possibleDecisions: { minimum: 200, expected: 400, maximum: 900 },
+        spendingDrawdown: {
+          cash: 0,
+          liquid: 0,
+          illiquid: 0,
+          unfunded: 0,
+        },
       },
     });
     expect(projection[2]?.monthlyBreakdown).toMatchObject({

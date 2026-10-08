@@ -6,6 +6,7 @@ import { useAssetTracker } from "./asset-tracker-provider";
 import { DecisionScenarioComparison } from "./decision-scenario-comparison";
 import { ForecastAssumptionManager } from "./forecast-assumption-manager";
 import { FutureCashFlowManager } from "./future-cash-flow-manager";
+import { JobMoveScenarioManager } from "./job-move-scenario-manager";
 
 function sourceDescription(sourceAccounts: string, snapshotDate?: string) {
   if (sourceAccounts === "") return "Based on explicitly entered assumptions.";
@@ -112,11 +113,15 @@ export function DecisionsRoute() {
     <Tabs defaultValue="compare" className="space-y-5">
       <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
         <TabsTrigger value="compare">Compare</TabsTrigger>
+        <TabsTrigger value="jobs">Job moves</TabsTrigger>
         <TabsTrigger value="inputs">Forecast inputs</TabsTrigger>
         <TabsTrigger value="recorded">Recorded</TabsTrigger>
       </TabsList>
       <TabsContent value="compare" className="mt-0">
         <DecisionScenarioComparison />
+      </TabsContent>
+      <TabsContent value="jobs" className="mt-0">
+        <JobMoveScenarioManager />
       </TabsContent>
       <TabsContent value="inputs" className="mt-0 space-y-6">
         <ForecastAssumptionManager />

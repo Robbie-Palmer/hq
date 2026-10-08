@@ -20,6 +20,7 @@ import {
 } from "./futureCashFlow";
 import { validateHouseholdOwnership } from "./household";
 import type { IncomeRecord } from "./incomeRecord";
+import type { JobMoveScenario } from "./jobMoveScenario";
 import type {
   FinancialDecisionRecord,
   MortgageScenario,
@@ -43,6 +44,7 @@ export interface AssetTrackerRepository {
   capitalFlows: CapitalFlow[];
   incomeHistory: IncomeRecord[];
   salaryHistory: SalaryHistoryRecord[];
+  jobMoveScenarios: JobMoveScenario[];
   transfers: Transfer[];
   recurringFlows: RecurringFlow[];
   plannedExpenditures: PlannedExpenditure[];
@@ -670,6 +672,39 @@ function validatePropertyComparableSearchReferences(
   }
 }
 
+function validateJobMoveScenarioReferences(
+  data: AssetTrackerData,
+  accounts: Map<AccountId, Account>,
+): void {
+  const recurringFlowIds = new Set(data.recurringFlows.map(({ id }) => id));
+  const scenarioIds = new Set<string>();
+  for (const scenario of data.jobMoveScenarios ?? []) {
+    if (scenarioIds.has(scenario.id)) {
+      throw new AssetTrackerDataError(
+        `Duplicate job-move scenario ID "${scenario.id}"`,
+      );
+    }
+    scenarioIds.add(scenario.id);
+    assertKnownAccount(
+      accounts,
+      scenario.destinationAccountId,
+      `Job-move scenario "${scenario.name}"`,
+    );
+    assertKnownAccount(
+      accounts,
+      scenario.pensionAccountId,
+      `Job-move scenario "${scenario.name}"`,
+    );
+    for (const flowId of scenario.replacedRecurringFlowIds) {
+      if (!recurringFlowIds.has(flowId)) {
+        throw new AssetTrackerDataError(
+          `Job-move scenario "${scenario.name}" replaces unknown recurring flow "${flowId}"`,
+        );
+      }
+    }
+  }
+}
+
 function validateReferences(
   data: AssetTrackerData,
   accounts: Map<AccountId, Account>,
@@ -682,6 +717,7 @@ function validateReferences(
   validateValuationReferences(data, accounts);
   validatePropertyComparableSearchReferences(data, accounts);
   validatePropertyIndexHistoryReferences(data, accounts);
+  validateJobMoveScenarioReferences(data, accounts);
   const mortgageScenarios = data.mortgageScenarios ?? [];
   const decisionRecords = data.decisionRecords ?? [];
   const scenarios = new Map(
@@ -746,6 +782,9 @@ export function buildRepository(
     ),
     salaryHistory: [...data.salaryHistory].sort((a, b) =>
       compareAcceptedAt(a.acceptedAt, b.acceptedAt),
+    ),
+    jobMoveScenarios: [...(data.jobMoveScenarios ?? [])].sort((a, b) =>
+      a.name.localeCompare(b.name),
     ),
     transfers: data.transfers,
     recurringFlows: data.recurringFlows,

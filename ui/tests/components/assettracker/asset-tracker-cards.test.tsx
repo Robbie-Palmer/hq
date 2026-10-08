@@ -189,6 +189,7 @@ const EMPTY_MONTHLY_BREAKDOWN = {
   committedCashFlows: 0,
   selectedDecisionCashFlows: 0,
   possibleDecisions: { minimum: 0, expected: 0, maximum: 0 },
+  spendingDrawdown: { cash: 0, liquid: 0, illiquid: 0, unfunded: 0 },
 };
 const EMPTY_FI: PortfolioFinancialIndependence = {
   periods: [],

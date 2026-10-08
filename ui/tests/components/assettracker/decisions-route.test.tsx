@@ -16,6 +16,9 @@ vi.mock("@/components/assettracker/forecast-assumption-manager", () => ({
 vi.mock("@/components/assettracker/future-cash-flow-manager", () => ({
   FutureCashFlowManager: () => <div>Future cash flow workspace</div>,
 }));
+vi.mock("@/components/assettracker/job-move-scenario-manager", () => ({
+  JobMoveScenarioManager: () => <div>Job move workspace</div>,
+}));
 
 const mockUseAssetTracker = vi.mocked(useAssetTracker);
 
@@ -45,6 +48,20 @@ describe("DecisionsRoute", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Recorded" }));
 
     expect(screen.getByText("No decision records yet")).toBeVisible();
+  });
+
+  it("opens the job-move workspace", async () => {
+    mockUseAssetTracker.mockReturnValue({
+      accountDetails: [],
+      baseCurrency: "GBP",
+      decisionRecords: [],
+      mortgageScenarios: [],
+    } as unknown as ReturnType<typeof useAssetTracker>);
+
+    render(<DecisionsRoute />);
+    await userEvent.click(screen.getByRole("tab", { name: "Job moves" }));
+
+    expect(screen.getByText("Job move workspace")).toBeVisible();
   });
 
   it("shows a mortgage decision with its linked source facts", async () => {

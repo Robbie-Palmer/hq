@@ -48,6 +48,14 @@ import {
   OwnershipSchema,
   snapshotOwnershipKey,
 } from "./household";
+import {
+  calculateJobMoveCompensation,
+  type JobMoveScenarioIdInput,
+  JobMoveScenarioIdInputSchema,
+  JobMoveScenarioSchema,
+  type SaveJobMoveScenarioInput,
+  SaveJobMoveScenarioInputSchema,
+} from "./jobMoveScenario";
 import { MortgageTermsSchema } from "./mortgage";
 import {
   type SaveMortgageScenarioInput,
@@ -84,6 +92,7 @@ export type AssetTrackerCommandErrorCode =
   | "FORECAST_ASSUMPTION_SET_NOT_FOUND"
   | "INVALID_FORECAST_ASSUMPTION"
   | "INVALID_RECURRING_FLOW_CONVERSION"
+  | "JOB_MOVE_SCENARIO_NOT_FOUND"
   | "DUPLICATE_INCOME_DATE"
   | "RECEIVED_AMOUNT_REQUIRED"
   | "INVALID_ACCOUNT_NAME";
@@ -467,7 +476,11 @@ export type SetNetWorthTargetInput = z.infer<
   typeof SetNetWorthTargetInputSchema
 >;
 
-export type { SaveMortgageScenarioInput };
+export type {
+  JobMoveScenarioIdInput,
+  SaveJobMoveScenarioInput,
+  SaveMortgageScenarioInput,
+};
 
 function uniqueId(taken: Set<string>, base: string): string {
   if (!taken.has(base)) return base;
@@ -1858,6 +1871,111 @@ export function applySaveMortgageScenario(
               status: "recorded",
             },
           ],
+  };
+}
+
+function requireJobMoveScenario(data: AssetTrackerData, id: string) {
+  const scenario = (data.jobMoveScenarios ?? []).find(
+    (candidate) => candidate.id === id,
+  );
+  if (scenario == null) {
+    throw new AssetTrackerCommandError(
+      "JOB_MOVE_SCENARIO_NOT_FOUND",
+      `No job-move scenario found with ID ${id}`,
+    );
+  }
+  return scenario;
+}
+
+function validateJobMoveScenarioReferences(
+  data: AssetTrackerData,
+  input: SaveJobMoveScenarioInput["scenario"],
+) {
+  if (input.destinationAccountId != null) {
+    requireAccount(data, input.destinationAccountId);
+  }
+  if (input.pensionAccountId != null) {
+    requireAccount(data, input.pensionAccountId);
+  }
+  const flowIds = new Set(data.recurringFlows.map(({ id }) => id));
+  for (const flowId of input.replacedRecurringFlowIds) {
+    if (!flowIds.has(flowId)) {
+      throw new AssetTrackerCommandError(
+        "FLOW_NOT_FOUND",
+        `No recurring flow found with ID ${flowId}`,
+      );
+    }
+  }
+}
+
+export function applySaveJobMoveScenario(
+  data: AssetTrackerData,
+  input: SaveJobMoveScenarioInput,
+  recordedAt: string,
+): AssetTrackerData {
+  const parsed = SaveJobMoveScenarioInputSchema.parse(input);
+  validateJobMoveScenarioReferences(data, parsed.scenario);
+  const existing =
+    parsed.id == null ? null : requireJobMoveScenario(data, parsed.id);
+  const id =
+    existing?.id ??
+    uniqueId(
+      new Set((data.jobMoveScenarios ?? []).map((scenario) => scenario.id)),
+      normalizeSlug(parsed.scenario.name) || "job-move-scenario",
+    );
+  const scenario = JobMoveScenarioSchema.parse({
+    ...parsed.scenario,
+    id,
+    createdAt: existing?.createdAt ?? recordedAt,
+    updatedAt: recordedAt,
+  });
+  calculateJobMoveCompensation(scenario);
+  return {
+    ...data,
+    jobMoveScenarios:
+      existing == null
+        ? [...(data.jobMoveScenarios ?? []), scenario]
+        : (data.jobMoveScenarios ?? []).map((candidate) =>
+            candidate.id === existing.id ? scenario : candidate,
+          ),
+  };
+}
+
+export function applyDuplicateJobMoveScenario(
+  data: AssetTrackerData,
+  input: JobMoveScenarioIdInput,
+  recordedAt: string,
+): AssetTrackerData {
+  const parsed = JobMoveScenarioIdInputSchema.parse(input);
+  const source = requireJobMoveScenario(data, parsed.id);
+  const name = `${source.name} copy`;
+  const duplicate = JobMoveScenarioSchema.parse({
+    ...source,
+    id: uniqueId(
+      new Set((data.jobMoveScenarios ?? []).map((scenario) => scenario.id)),
+      normalizeSlug(name) || "job-move-scenario-copy",
+    ),
+    name,
+    createdAt: recordedAt,
+    updatedAt: recordedAt,
+  });
+  return {
+    ...data,
+    jobMoveScenarios: [...(data.jobMoveScenarios ?? []), duplicate],
+  };
+}
+
+export function applyDeleteJobMoveScenario(
+  data: AssetTrackerData,
+  input: JobMoveScenarioIdInput,
+): AssetTrackerData {
+  const parsed = JobMoveScenarioIdInputSchema.parse(input);
+  requireJobMoveScenario(data, parsed.id);
+  return {
+    ...data,
+    jobMoveScenarios: (data.jobMoveScenarios ?? []).filter(
+      (scenario) => scenario.id !== parsed.id,
+    ),
   };
 }
 

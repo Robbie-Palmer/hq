@@ -528,6 +528,20 @@ export function scopeAssetTrackerData(
       },
     ];
   });
+  const keptRecurringFlowIds = new Set(recurringFlows.map(({ id }) => id));
+  const jobMoveScenarios = (data.jobMoveScenarios ?? []).flatMap((scenario) => {
+    const referencesKeptAccounts =
+      (scenario.destinationAccountId == null ||
+        keptAccountIds.has(scenario.destinationAccountId)) &&
+      (scenario.pensionAccountId == null ||
+        keptAccountIds.has(scenario.pensionAccountId));
+    const replacedRecurringFlowIds = scenario.replacedRecurringFlowIds.filter(
+      (id) => keptRecurringFlowIds.has(id),
+    );
+    return referencesKeptAccounts && replacedRecurringFlowIds.length > 0
+      ? [{ ...scenario, replacedRecurringFlowIds }]
+      : [];
+  });
   const plannedExpenditures = data.plannedExpenditures.flatMap((row) => {
     if (!keptAccountIds.has(row.fromAccountId)) return [];
     const fraction = share(data.ownership.plannedExpenditures[row.id]);
@@ -680,6 +694,7 @@ export function scopeAssetTrackerData(
     incomeHistory,
     transfers,
     recurringFlows,
+    jobMoveScenarios,
     plannedExpenditures,
     futureCashFlows,
     forecastAssumptionSets,

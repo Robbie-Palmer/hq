@@ -61,6 +61,14 @@ export type MonthlyForecastBreakdown = {
   committedCashFlows: number;
   selectedDecisionCashFlows: number;
   possibleDecisions: ForecastAmountRange;
+  spendingDrawdown: SpendingDrawdown;
+};
+
+export type SpendingDrawdown = {
+  cash: number;
+  liquid: number;
+  illiquid: number;
+  unfunded: number;
 };
 
 type ProjectedAccount = {
@@ -78,6 +86,13 @@ const ZERO_RANGE: ForecastAmountRange = {
   minimum: 0,
   expected: 0,
   maximum: 0,
+};
+
+const ZERO_SPENDING_DRAWDOWN: SpendingDrawdown = {
+  cash: 0,
+  liquid: 0,
+  illiquid: 0,
+  unfunded: 0,
 };
 
 function addRange(
@@ -126,24 +141,41 @@ function capLiabilityPayment(
   return Math.min(receivedAmount, Math.max(-destination.balance, 0));
 }
 
+function externalIncomeByLiquidity(
+  source: ProjectedAccount | null | undefined,
+  destination: ProjectedAccount | null,
+  amount: number,
+): SpendingDrawdown {
+  const income = { ...ZERO_SPENDING_DRAWDOWN };
+  if (
+    source == null &&
+    destination != null &&
+    !isLiability(destination.account.assetType)
+  ) {
+    income[accountLiquidity(destination.account)] = amount;
+  }
+  return income;
+}
+
 function applyExpectedFlow(
   byId: Map<string, ProjectedAccount>,
   flow: RecurringFlow,
   date: string,
-): void {
-  if (!flowIsActive(flow, date)) return;
+): SpendingDrawdown {
+  const income = { ...ZERO_SPENDING_DRAWDOWN };
+  if (!flowIsActive(flow, date)) return income;
   const source =
     flow.fromAccountId == null ? null : byId.get(flow.fromAccountId);
   const destination =
     flow.toAccountId == null ? null : (byId.get(flow.toAccountId) ?? null);
 
-  if (flow.fromAccountId != null && source == null) return;
-  if (flow.toAccountId != null && destination == null) return;
+  if (flow.fromAccountId != null && source == null) return income;
+  if (flow.toAccountId != null && destination == null) return income;
 
   // Historical spending already covers regular money leaving the portfolio.
   // External income still enters here, and owned-account transfers move the
   // appropriate liquidity pool without changing total net worth.
-  if (source != null && destination == null) return;
+  if (source != null && destination == null) return income;
   const amount = monthlyAmount(flow, destination?.balance);
   const uncappedReceivedAmount =
     flow.conversion == null ? amount : monthlyReceivedAmount(flow);
@@ -151,28 +183,38 @@ function applyExpectedFlow(
     destination,
     uncappedReceivedAmount,
   );
-  if (amount <= 0 || uncappedReceivedAmount <= 0) return;
+  if (amount <= 0 || uncappedReceivedAmount <= 0) return income;
   const receivedRatio = receivedAmount / uncappedReceivedAmount;
   if (source) {
     source.balance -= (amount + monthlyFeeAmount(flow)) * receivedRatio;
   }
   if (destination) destination.balance += receivedAmount;
+  return externalIncomeByLiquidity(source, destination, receivedAmount);
 }
 
 function applyExpectedFlows(
   accounts: ProjectedAccount[],
   flows: RecurringFlow[],
   date: string,
-): void {
+): SpendingDrawdown {
   const byId = new Map(
     accounts.map((projected) => [projected.account.id, projected]),
   );
+  const income = { ...ZERO_SPENDING_DRAWDOWN };
   for (const flow of flows) {
-    applyExpectedFlow(byId, flow, date);
+    const applied = applyExpectedFlow(byId, flow, date);
+    income.cash += applied.cash;
+    income.liquid += applied.liquid;
+    income.illiquid += applied.illiquid;
   }
+  return income;
 }
 
-function applySpending(accounts: ProjectedAccount[], amount: number): void {
+function applySpending(
+  accounts: ProjectedAccount[],
+  amount: number,
+  income: SpendingDrawdown,
+): SpendingDrawdown {
   const assets = accounts.filter(
     ({ account }) => !isLiability(account.assetType),
   );
@@ -185,15 +227,25 @@ function applySpending(accounts: ProjectedAccount[], amount: number): void {
     };
     return liquidityRank(a) - liquidityRank(b) || b.balance - a.balance;
   });
+  const drawdown = { ...ZERO_SPENDING_DRAWDOWN };
+  const incomeRemaining = { ...income };
   let remaining = amount;
   for (const projected of ranked) {
-    if (remaining <= 0) return;
+    if (remaining <= 0) return drawdown;
     const available = Math.max(projected.balance, 0);
     const withdrawn = Math.min(available, remaining);
     projected.balance -= withdrawn;
     remaining -= withdrawn;
+    const liquidity = accountLiquidity(projected.account);
+    const fundedByIncome = Math.min(incomeRemaining[liquidity], withdrawn);
+    incomeRemaining[liquidity] -= fundedByIncome;
+    drawdown[liquidity] += withdrawn - fundedByIncome;
   }
-  if (remaining > 0 && ranked[0]) ranked[0].balance -= remaining;
+  if (remaining > 0 && ranked[0]) {
+    ranked[0].balance -= remaining;
+    drawdown.unfunded = remaining;
+  }
+  return drawdown;
 }
 
 function compoundAccounts(
@@ -232,17 +284,25 @@ function applyFutureCashFlows(
 function applyIncomeAssumptions(
   accounts: ProjectedAccount[],
   assumptions: readonly ForecastAssumption[],
-): void {
+): SpendingDrawdown {
   const byId = new Map(
     accounts.map((projected) => [projected.account.id, projected]),
   );
+  const income = { ...ZERO_SPENDING_DRAWDOWN };
   for (const assumption of assumptions) {
     if (assumption.kind !== "income" || assumption.accountId == null) continue;
     const destination = byId.get(assumption.accountId);
     if (destination != null) {
       destination.balance += assumption.monthlyChange.expected;
+      if (!isLiability(destination.account.assetType)) {
+        income[accountLiquidity(destination.account)] += Math.max(
+          assumption.monthlyChange.expected,
+          0,
+        );
+      }
     }
   }
+  return income;
 }
 
 function convertProjectionFlow(
@@ -521,6 +581,10 @@ function assumptionBreakdown(
 function projectBalances(input: {
   repository: AssetTrackerRepository;
   annualExpenditure: number;
+  expenditureChange?: {
+    startDate: string;
+    annualExpenditure: number;
+  };
   months: number;
   includePlannedExpenditures: boolean;
   startDate: string;
@@ -574,6 +638,7 @@ function projectBalances(input: {
         committedCashFlows: 0,
         selectedDecisionCashFlows: 0,
         possibleDecisions: ZERO_RANGE,
+        spendingDrawdown: ZERO_SPENDING_DRAWDOWN,
       },
     },
   ];
@@ -586,7 +651,7 @@ function projectBalances(input: {
       input.repository.settings.expectedAnnualInflation,
       date,
     );
-    applyExpectedFlows(
+    const recurringIncome = applyExpectedFlows(
       accounts,
       flows.filter((flow) => flow != null),
       date,
@@ -604,15 +669,25 @@ function projectBalances(input: {
         assumption.startDate <= date &&
         (assumption.endDate == null || assumption.endDate > previousDate),
     );
-    applyIncomeAssumptions(accounts, activeAssumptions);
+    const assumedIncome = applyIncomeAssumptions(accounts, activeAssumptions);
     const changes = assumptionBreakdown(activeAssumptions);
-    const baselineExpenditure = input.annualExpenditure / 12;
-    applySpending(
+    const baselineExpenditure =
+      (input.expenditureChange != null &&
+      date >= input.expenditureChange.startDate
+        ? input.expenditureChange.annualExpenditure
+        : input.annualExpenditure) / 12;
+    const spendingDrawdown = applySpending(
       accounts,
       Math.max(
         baselineExpenditure + changes.explicitExpenditureChange.expected,
         0,
       ),
+      {
+        cash: recurringIncome.cash + assumedIncome.cash,
+        liquid: recurringIncome.liquid + assumedIncome.liquid,
+        illiquid: recurringIncome.illiquid + assumedIncome.illiquid,
+        unfunded: 0,
+      },
     );
     if (input.includePlannedExpenditures) {
       applyFutureCashFlows(accounts, cashFlows, previousDate, date);
@@ -638,6 +713,7 @@ function projectBalances(input: {
           date,
           valuationDate,
         ),
+        spendingDrawdown,
       },
     });
     previousDate = date;
@@ -716,6 +792,11 @@ export function buildRunwayScenarioProjection(input: {
   repository: AssetTrackerRepository;
   annualExpenditure: number | null;
   annualCurrentExpenditure: number | null;
+  expenditureChange?: {
+    startDate: string;
+    annualExpenditure: number;
+    annualCurrentExpenditure: number;
+  };
   startDate: string;
   months: number;
   decisionSelection: DecisionForecastSelection;
@@ -730,29 +811,37 @@ export function buildRunwayScenarioProjection(input: {
   return projectBalances({
     repository: input.repository,
     annualExpenditure: input.annualExpenditure,
+    expenditureChange: input.expenditureChange,
     months: input.months,
     startDate: input.startDate,
     includePlannedExpenditures: true,
     decisionSelection: input.decisionSelection,
-  }).map((point) => ({
-    date: point.date,
-    ...point.balances,
-    accountBalances: point.accountBalances,
-    cashMonths: monthsOfSpending(
-      point.balances.cashBalance,
-      input.annualCurrentExpenditure as number,
-    ),
-    liquidMonths: monthsOfSpending(
-      point.balances.liquidBalance,
-      input.annualCurrentExpenditure as number,
-    ),
-    totalMonths: monthsOfSpending(
-      point.balances.totalBalance,
-      input.annualCurrentExpenditure as number,
-    ),
-    baselineCashMonths: 0,
-    baselineLiquidMonths: 0,
-    baselineTotalMonths: 0,
-    monthlyBreakdown: point.monthlyBreakdown,
-  }));
+  }).map((point) => {
+    const annualCurrentExpenditure =
+      input.expenditureChange != null &&
+      point.date >= input.expenditureChange.startDate
+        ? input.expenditureChange.annualCurrentExpenditure
+        : (input.annualCurrentExpenditure as number);
+    return {
+      date: point.date,
+      ...point.balances,
+      accountBalances: point.accountBalances,
+      cashMonths: monthsOfSpending(
+        point.balances.cashBalance,
+        annualCurrentExpenditure,
+      ),
+      liquidMonths: monthsOfSpending(
+        point.balances.liquidBalance,
+        annualCurrentExpenditure,
+      ),
+      totalMonths: monthsOfSpending(
+        point.balances.totalBalance,
+        annualCurrentExpenditure,
+      ),
+      baselineCashMonths: 0,
+      baselineLiquidMonths: 0,
+      baselineTotalMonths: 0,
+      monthlyBreakdown: point.monthlyBreakdown,
+    };
+  });
 }

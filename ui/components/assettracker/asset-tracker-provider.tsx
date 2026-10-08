@@ -48,6 +48,7 @@ import {
   type CreatePlanningCaseInput,
   type Currency,
   compareDecisionScenarios,
+  compareJobMoveScenario,
   currentSalaryHistory,
   type DecisionScenarioComparison,
   type DecisionScenarioComparisonInput,
@@ -78,6 +79,8 @@ import {
   type ImportIncomeHistoryInput,
   type ImportSalaryHistoryInput,
   type IncomeRecord,
+  type JobMoveScenario,
+  type JobMoveScenarioComparison,
   type Money,
   type MortgageScenario,
   type NetWorthDataPoint,
@@ -96,6 +99,7 @@ import {
   type RecurringFlow,
   type SalaryHistoryRecord,
   type SaveEmergencyFundPlanInput,
+  type SaveJobMoveScenarioInput,
   type SaveMortgageScenarioInput,
   type SaveSalaryRecordInput,
   type SetAccountLiquidityInput,
@@ -137,6 +141,11 @@ interface AssetTrackerContextValue {
   incomeHistory: IncomeRecord[];
   salaryHistory: SalaryHistoryRecord[];
   currentSalaryHistory: SalaryHistoryRecord[];
+  jobMoveScenarios: JobMoveScenario[];
+  compareJobMoveScenario(
+    scenarioId: string,
+    horizonMonths: number,
+  ): JobMoveScenarioComparison;
   flowSankeyData: FlowSankeyData;
   financialIndependence: PortfolioFinancialIndependence;
   housingPlanningPosition: HousingPlanningPosition | null;
@@ -216,6 +225,9 @@ interface AssetTrackerContextValue {
   setWithdrawalRate(rate: number): Promise<void>;
   saveMortgageScenario(input: SaveMortgageScenarioInput): Promise<void>;
   saveEmergencyFundPlan(input: SaveEmergencyFundPlanInput): Promise<void>;
+  saveJobMoveScenario(input: SaveJobMoveScenarioInput): Promise<void>;
+  duplicateJobMoveScenario(id: string): Promise<void>;
+  deleteJobMoveScenario(id: string): Promise<void>;
   setNetWorthTarget(
     target: number | null,
     inTodaysMoney?: boolean,
@@ -399,6 +411,32 @@ function decisionComparison(
     });
 }
 
+function jobMoveComparison(
+  repository: ReturnType<typeof buildRepository>,
+  financialIndependence: PortfolioFinancialIndependence,
+  emergencyFundAnalysis: EmergencyFundAnalysis | null,
+  valuationDate: string,
+) {
+  return (scenarioId: string, horizonMonths: number) => {
+    const scenario = repository.jobMoveScenarios.find(
+      (candidate) => candidate.id === scenarioId,
+    );
+    if (scenario == null) throw new Error("Job-move scenario not found");
+    return compareJobMoveScenario({
+      repository,
+      scenario,
+      horizonMonths,
+      startDate: valuationDate,
+      annualExpenditure: financialIndependence.representativeAnnualExpenditure,
+      annualCurrentExpenditure:
+        financialIndependence.representativeAnnualCurrentExpenditure,
+      financialIndependenceTarget: financialIndependence.target,
+      baselineCompensation: financialIndependence.currentCompensation,
+      emergencyFundAnalysis,
+    });
+  };
+}
+
 function useAssetTrackerViews(data: AssetTrackerData) {
   return useMemo(() => {
     const repository = buildRepository(scopeAssetTrackerData(data));
@@ -469,6 +507,13 @@ function useAssetTrackerViews(data: AssetTrackerData) {
       incomeHistory: repository.incomeHistory,
       salaryHistory: repository.salaryHistory,
       currentSalaryHistory: currentSalaryHistory(repository.salaryHistory),
+      jobMoveScenarios: repository.jobMoveScenarios,
+      compareJobMoveScenario: jobMoveComparison(
+        repository,
+        financialIndependence,
+        emergencyFundAnalysis,
+        valuationDate,
+      ),
       flowSankeyData: buildBaseCurrencyFlowSankeyData(
         repository,
         accountDetails,
@@ -602,6 +647,12 @@ export function AssetTrackerProvider({
         mutate((api) => api.saveMortgageScenario(input)),
       saveEmergencyFundPlan: (input) =>
         mutate((api) => api.saveEmergencyFundPlan(input)),
+      saveJobMoveScenario: (input) =>
+        mutate((api) => api.saveJobMoveScenario(input)),
+      duplicateJobMoveScenario: (id) =>
+        mutate((api) => api.duplicateJobMoveScenario({ id })),
+      deleteJobMoveScenario: (id) =>
+        mutate((api) => api.deleteJobMoveScenario({ id })),
       setNetWorthTarget: (target, inTodaysMoney) =>
         mutate((api) => api.setNetWorthTarget({ target, inTodaysMoney })),
       addHouseholdMember: (displayName) =>
