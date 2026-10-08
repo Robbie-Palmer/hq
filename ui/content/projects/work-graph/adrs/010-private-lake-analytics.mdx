@@ -1,0 +1,119 @@
+---
+title: "ADR 010: Private lake analytics with R2, Parquet, and DuckDB"
+date: "2026-10-05"
+status: "Accepted"
+tech_stack: ["DuckDB", "Parquet"]
+---
+
+## Context
+
+Work Graph needs reports on recurring waits, intervention requests, stale
+leases, and failed handoffs. Their inputs are immutable work-state events.
+PostgreSQL owns live coordination as defined by
+[ADR 001](/projects/work-graph/adrs/001-postgresql-coordination-boundary), and
+[ADR 002](/projects/work-graph/adrs/002-leases-with-fencing) defines lease expiry
+and takeover.
+
+Reading the complete event history from PostgreSQL for every report repeats
+compute and transfer against the operational database. The concern is keeping
+analytics within usage budgets as history and report frequency grow. We have
+not measured a cost threshold or a required refresh latency. The initial
+assumption is that scheduled batch freshness is sufficient.
+
+The repository already uses private R2 storage and has a DuckDB/Parquet batch
+analytics implementation for AI Review. Work-state analysis can use that
+approach while keeping prompts, tokens, model calls, private logs, and detailed
+worker telemetry outside the public graph.
+
+## Decision
+
+Export allowlisted work-state fields in bounded, scheduled batches from
+PostgreSQL to a private R2 analytics dataset. Use immutable event sequence as
+the extraction cursor, with a fixed committed upper watermark for each batch.
+The exporter reads new rows through the indexed sequence range, applies
+redaction before upload, and advances its durable checkpoint only after the
+batch and its manifest are durably published. Sequence gaps are valid.
+Retries must preserve event identity and cannot skip or double-count events.
+
+Capture current scheduling scope, including child inheritance, as a separate
+versioned snapshot. Record its extraction provenance and pair it with an event
+watermark so reports have reproducible inputs. Attribute report history to
+the current assignment in the supplied scope snapshot.
+
+Transform the exported records into versioned Parquet event and wait-episode
+datasets with DuckDB. Keep immutable exported inputs so derived datasets can
+be rebuilt. Each published dataset version has a manifest with schema version,
+source sequence coverage, scope snapshot identity, row counts, and checksums.
+Readers use complete manifest-listed versions rather than partially written
+objects or an unrestricted bucket glob.
+
+Run report queries with DuckDB against Parquet in R2 or a private local cache.
+Report execution must work without PostgreSQL credentials or a database
+connection. DuckDB documents
+[R2 access through its S3-compatible interface](https://duckdb.org/docs/stable/guides/network_cloud_storage/cloudflare_r2_import)
+and [Parquet filter and projection pushdown](https://duckdb.org/docs/stable/data/parquet/overview).
+
+Preserve the storage-independent metric definitions and replay fixtures as a
+reference contract for the transformations and SQL reports. Derive wait
+intervals before filtering to a reporting period so pre-period requests and
+lease renewals remain available. Late data must correct affected derived
+intervals in a new dataset version. Reports identify input versions and
+freshness, count immutable identities once, and clip waits to a half-open
+period.
+
+Keep source exports, Parquet datasets, caches, and reports private. Give
+extractors, transformers, and report readers separate permissions. Report
+readers need no operational database access. Export no request or resolution
+text, note contents, worker identities, or private execution telemetry.
+Retain a work-note presence marker for the documented failed-handoff proxy;
+its existence does not prove the note was useful. Intervention resolutions
+also do not establish that a human acted.
+
+Use scheduled extraction initially. Continuous CDC is deferred because fresh
+reports do not yet justify a persistent subscriber and its operating cost.
+Neon notes that
+[replication subscribers can prevent compute suspension](https://neon.com/blog/building-patterns-unlocked-by-scale-to-zero).
+
+## Consequences
+
+Repeated reports consume analytical storage and query resources without
+replaying the operational database. Extraction still consumes PostgreSQL
+compute and transfer. Measure its rows, bytes, duration, query plan, and
+frequency before choosing production refresh and usage budgets; this decision
+does not claim a measured saving.
+
+Batch freshness, checkpoint recovery, schema evolution, access controls, and
+Parquet compaction become responsibilities. Small objects and repeated remote
+reads can increase R2 requests. Retention must preserve a recoverable source
+history or a verified replacement snapshot. Pure replay tests alone do not
+prove that extraction, publication, or SQL transformations are correct.
+
+Revisit continuous CDC when a measured freshness requirement exceeds the batch
+schedule. Revisit the query engine or dataset layout when measured scan cost,
+rebuild time, or concurrent reporting exceeds the practical operating budget.
+
+## Alternatives
+
+### Query PostgreSQL for each report
+
+This is simple for occasional manual diagnostics on a small graph. It couples
+report frequency to operational compute and transfer and repeats history
+reads, so it is unsuitable as the normal analytics path.
+
+### Continuous logical replication
+
+CDC fits low-latency consumers, but adds replication-slot recovery, subscriber
+availability, and potential continuously active compute. Scheduled extraction
+fits the initial freshness assumption and append-only event identities.
+
+### Full database snapshots or backup archives
+
+These can support restoration or an explicit bootstrap. Repeated full exports
+read unchanged data and copy fields analytics does not need. Encrypted recovery
+backups remain separate from the redacted analytics dataset.
+
+### Managed warehouse or lakehouse catalog
+
+These would help with shared concurrency, transactional table updates, or
+centrally governed multi-product data. The initial workload does not establish
+those needs. Versioned Parquet manifests preserve a later migration path.
