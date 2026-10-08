@@ -28,6 +28,7 @@ docker run --rm \
   nix run .#nixosConfigurations.remote-development.config.system.build.nixos-rebuild -- \
     switch \
     --flake .#remote-development \
+    --build-host "${target}" \
     --target-host "${target}"
 
 if [ "${REMOTE_DEVELOPMENT_SKIP_HEALTH:-0}" = 1 ]; then

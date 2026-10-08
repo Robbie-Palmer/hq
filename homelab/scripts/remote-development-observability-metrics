@@ -1,0 +1,146 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+config_file=${REMOTE_DEVELOPMENT_OBSERVABILITY_CONFIG:-/etc/remote-development-observability/metrics.env}
+if [ ! -r "${config_file}" ]; then
+  echo "observability metrics config is not readable" >&2
+  exit 1
+fi
+
+# shellcheck disable=SC1090
+source "${config_file}"
+
+required_values=(
+  WORKSPACE_ID
+  DATA_MOUNT
+  OPERATOR_PROJECT_ID
+  CACHE_PROJECT_ID
+  BACKUP_STATUS_FILE
+  BACKUP_MAXIMUM_AGE_SECONDS
+  KUBE_STATE_METRICS_URL
+)
+for name in "${required_values[@]}"; do
+  if [ -z "${!name:-}" ]; then
+    echo "${name} is required" >&2
+    exit 1
+  fi
+done
+if [[ ! ${WORKSPACE_ID} =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
+  echo "WORKSPACE_ID must be a stable non-personal identifier" >&2
+  exit 1
+fi
+
+quota_report=$(repquota --project --verbose --no-names --output=csv "${DATA_MOUNT}")
+
+quota_field() {
+  local project_id=$1
+  local field=$2
+  awk -F, -v project_id="#${project_id}" -v field="${field}" '
+    $1 == project_id { print $field; found = 1; exit }
+    END { if (!found) exit 1 }
+  ' <<<"${quota_report}"
+}
+
+operator_used_kib=$(quota_field "${OPERATOR_PROJECT_ID}" 4)
+operator_limit_kib=$(quota_field "${OPERATOR_PROJECT_ID}" 6)
+operator_used_inodes=$(quota_field "${OPERATOR_PROJECT_ID}" 8)
+operator_limit_inodes=$(quota_field "${OPERATOR_PROJECT_ID}" 10)
+cache_used_kib=$(quota_field "${CACHE_PROJECT_ID}" 4)
+cache_limit_kib=$(quota_field "${CACHE_PROJECT_ID}" 6)
+cache_used_inodes=$(quota_field "${CACHE_PROJECT_ID}" 8)
+cache_limit_inodes=$(quota_field "${CACHE_PROJECT_ID}" 10)
+
+percent_used() {
+  df --output=pcent "$1" | tail -1 | tr -cd '0-9'
+}
+
+inode_percent_used() {
+  df --output=ipcent "$1" | tail -1 | tr -cd '0-9'
+}
+
+root_used_percent=$(percent_used /)
+data_used_percent=$(percent_used "${DATA_MOUNT}")
+root_inode_used_percent=$(inode_percent_used /)
+data_inode_used_percent=$(inode_percent_used "${DATA_MOUNT}")
+
+backup_age_seconds=$((BACKUP_MAXIMUM_AGE_SECONDS + 1))
+backup_fresh=0
+if [ -r "${BACKUP_STATUS_FILE}" ]; then
+  last_success_unix=$(jq --raw-output '.lastSuccessUnix // empty' "${BACKUP_STATUS_FILE}")
+  if [[ ${last_success_unix} =~ ^[0-9]+$ ]]; then
+    now=$(date +%s)
+    backup_age_seconds=$((now - last_success_unix))
+    if [ "${backup_age_seconds}" -ge 0 ] && [ "${backup_age_seconds}" -le "${BACKUP_MAXIMUM_AGE_SECONDS}" ]; then
+      backup_fresh=1
+    fi
+  fi
+fi
+
+k3s_up=0
+if systemctl is-active --quiet k3s.service; then
+  k3s_up=1
+fi
+
+kube_state_metrics_up=0
+oom_killed=0
+evicted=0
+crash_loop=0
+if kube_metrics=$(curl --fail --silent --show-error --max-time 5 "${KUBE_STATE_METRICS_URL}"); then
+  kube_state_metrics_up=1
+  metric_sum() {
+    local metric=$1
+    local required_label=$2
+    awk -v metric="${metric}" -v namespace_label='namespace="t3-code"' -v required_label="${required_label}" '
+      index($1, metric "{") == 1 && index($1, namespace_label) && index($1, required_label) { sum += $2 }
+      END { print sum + 0 }
+    ' <<<"${kube_metrics}"
+  }
+  oom_killed=$(metric_sum kube_pod_container_status_last_terminated_reason 'reason="OOMKilled"')
+  evicted=$(metric_sum kube_pod_status_reason 'reason="Evicted"')
+  crash_loop=$(metric_sum kube_pod_container_status_waiting_reason 'reason="CrashLoopBackOff"')
+fi
+
+read_pressure() {
+  if [ ! -r "$1" ]; then
+    printf '0\n'
+    return
+  fi
+  awk '$1 == "some" { for (i = 1; i <= NF; i += 1) if ($i ~ /^avg10=/) { sub(/^avg10=/, "", $i); print $i; exit } }' "$1"
+}
+
+cpu_pressure=$(read_pressure /proc/pressure/cpu)
+memory_pressure=$(read_pressure /proc/pressure/memory)
+io_pressure=$(read_pressure /proc/pressure/io)
+
+metric_prefix="remote_development.${WORKSPACE_ID}"
+metrics=$(printf '%s\n' \
+  "${metric_prefix}.durable_bytes_used:$((operator_used_kib * 1024))|g" \
+  "${metric_prefix}.durable_bytes_limit:$((operator_limit_kib * 1024))|g" \
+  "${metric_prefix}.durable_inodes_used:${operator_used_inodes}|g" \
+  "${metric_prefix}.durable_inodes_limit:${operator_limit_inodes}|g" \
+  "${metric_prefix}.cache_bytes_used:$((cache_used_kib * 1024))|g" \
+  "${metric_prefix}.cache_bytes_limit:$((cache_limit_kib * 1024))|g" \
+  "${metric_prefix}.cache_inodes_used:${cache_used_inodes}|g" \
+  "${metric_prefix}.cache_inodes_limit:${cache_limit_inodes}|g" \
+  "${metric_prefix}.root_used_percent:${root_used_percent}|g" \
+  "${metric_prefix}.data_used_percent:${data_used_percent}|g" \
+  "${metric_prefix}.root_inode_used_percent:${root_inode_used_percent}|g" \
+  "${metric_prefix}.data_inode_used_percent:${data_inode_used_percent}|g" \
+  "${metric_prefix}.backup_age_seconds:${backup_age_seconds}|g" \
+  "${metric_prefix}.backup_fresh:${backup_fresh}|g" \
+  "${metric_prefix}.k3s_up:${k3s_up}|g" \
+  "${metric_prefix}.kube_state_metrics_up:${kube_state_metrics_up}|g" \
+  "${metric_prefix}.oom_killed:${oom_killed}|g" \
+  "${metric_prefix}.evicted:${evicted}|g" \
+  "${metric_prefix}.crash_loop:${crash_loop}|g" \
+  "${metric_prefix}.cpu_pressure_percent:${cpu_pressure}|g" \
+  "${metric_prefix}.memory_pressure_percent:${memory_pressure}|g" \
+  "${metric_prefix}.io_pressure_percent:${io_pressure}|g")
+
+if [ -n "${STATSD_OUTPUT_FILE:-}" ]; then
+  printf '%s\n' "${metrics}" >"${STATSD_OUTPUT_FILE}"
+else
+  statsd_host=${STATSD_HOST:-127.0.0.1}
+  statsd_port=${STATSD_PORT:-8125}
+  printf '%s\n' "${metrics}" >"/dev/udp/${statsd_host}/${statsd_port}"
+fi

@@ -242,6 +242,14 @@ run = '''
 bash scripts/run-remote-development-backup
 '''
 
+[tasks.remote-observability-credentials]
+description = "Install Netdata Slack and Healthchecks.io secrets without printing them"
+run = "bash scripts/install-remote-development-observability-credentials"
+
+[tasks.remote-healthchecks-reconcile]
+description = "Reconcile the Healthchecks.io host check and store its ping URL in Doppler"
+run = "bash scripts/reconcile-remote-development-healthchecks"
+
 [tasks.remote-backup-test]
 description = "Test workspace backup, restore, retention, failure, and export behavior"
 depends = ["//:install"]

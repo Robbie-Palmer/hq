@@ -1,0 +1,88 @@
+---
+title: "ADR 013: Managed heartbeat monitoring with Healthchecks.io"
+date: "2026-09-29"
+status: "Accepted"
+tech_stack: ["Healthchecks.io"]
+---
+
+# Context
+
+[ADR 010](/projects/agent-friendly-remote-development/adrs/010-layered-workspace-observability)
+requires an off-host heartbeat because monitoring on the remote host cannot
+report the loss of that host or its network path. The heartbeat service must
+run outside Hetzner and outside infrastructure operated by this project.
+Self-hosting it would preserve the same failure and maintenance risks that the
+external check is meant to remove.
+
+The first deployment needs one check. A systemd timer sends an outbound HTTPS
+request every minute, and the service should notify the private project Slack
+channel after a two-minute grace period and again after recovery. It must not
+need an inbound port or receive logs, command output, repository data, or user
+data. The only expected disclosure is the request time, source IP address, and
+opaque check identifier.
+
+# Decision
+
+Use the managed Healthchecks.io service for the external heartbeat. Do not run
+the open-source server within this project's infrastructure.
+
+Create the check in a project-owned Healthchecks.io account, connect it to the
+project's private Slack channel, and store its ping URL as a secret outside
+Git. The timer sends an empty request body to that URL with a bounded timeout.
+Give the check and its Slack messages a non-personal host identifier.
+
+Healthchecks.io is narrowly designed around dead man's switch monitoring. Its
+[host and process monitoring model](https://healthchecks.io/) matches the
+required outbound ping, period, grace time, missed-ping notification, and
+recovery notification without introducing another metrics or incident
+management platform. Its current
+[Hobbyist plan](https://healthchecks.io/pricing/) includes 20 checks and Slack
+notifications through its
+[Slack integration](https://healthchecks.io/integrations/add_slack/), which
+leaves room for the first host and a small evaluation cluster. Its
+[management API](https://healthchecks.io/docs/api/) can later reconcile the
+check without putting the ping URL in Git.
+
+# Comparison
+
+All considered services are hosted by a third party and accept outbound
+heartbeats. Self-hosted products and general metrics stacks are outside this
+decision.
+
+| Service                                                                | Small deployment                                                                                                                            | Relevant strengths                                                                                                                                                                | Reason not chosen                                                                                                                                                                                                                                   |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Healthchecks.io                                                        | Free Hobbyist plan with 20 checks                                                                                                           | Focused heartbeat model, configurable period and grace time, Slack integration, and management API                                                                                | Chosen. It meets the requirement with the smallest product and data boundary.                                                                                                                                                                       |
+| [Cronitor](https://cronitor.io/pricing)                                | Free Hacker plan with 5 monitors; its fastest free check frequency is 5 minutes                                                             | Slack notifications and direct HTTP telemetry, with richer cron diagnostics available                                                                                             | The free detection interval is slower than the required window. Its paid plan adds job-monitoring and on-call features that this deployment does not need. The optional agent can also capture command output, which would widen the data boundary. |
+| [Better Stack Heartbeats](https://betterstack.com/pricing)             | Free plan with 10 heartbeats                                                                                                                | Configurable heartbeat checks, Slack notifications, incident handling, and an official [Terraform provider](https://betterstack.com/docs/getting-started/integrations/terraform/) | It is a broader uptime, status-page, logging, and incident-response platform. That breadth is useful if those functions are adopted together, but it adds account and configuration surface for one heartbeat.                                      |
+| [Dead Man's Snitch](https://deadmanssnitch.com/plans)                  | Free plan with 1 check at hourly or longer intervals; the $19 monthly plan adds enhanced intervals and integrations                         | A focused outbound heartbeat, recovery alerts, API, and Slack on the integration plan                                                                                             | The free interval cannot meet the required window, and Slack plus a one-minute interval costs more than the requirement warrants.                                                                                                                   |
+| [UptimeRobot Heartbeats](https://uptimerobot.com/cron-job-monitoring/) | Heartbeat monitoring and 60-second intervals require the paid Solo plan, currently listed at €10 monthly or €9 monthly when billed annually | Simple heartbeat URL, grace periods, Slack notifications, and incident history                                                                                                    | It is a credible hosted option, but the current [pricing](https://uptimerobot.com/pricing/) charges for the required monitor type and interval while also bundling broader website and status-page monitoring.                                      |
+
+# Rollout checks
+
+Do not rely on the alert until a disposable test proves all of the following:
+
+1. Missing heartbeats produce one Slack alert within the configured period and
+   grace window.
+2. A resumed heartbeat produces one matching recovery notification.
+3. The host needs only outbound HTTPS access and sends an empty body.
+4. The Healthchecks.io event history and Slack message contain no user data,
+   command output, source paths, or repository data.
+5. The check remains effective while the monitored host and its Hetzner
+   network path are unavailable.
+
+# Consequences
+
+Host-loss detection no longer depends on the monitored host, its K3s cluster,
+or the Hetzner account. Healthchecks.io becomes a small external dependency,
+and an outage at that service can delay or suppress a host-loss alert.
+
+The ping URL is a bearer secret. Anyone who obtains it could send false
+heartbeats and hide an outage, so it must stay out of Git, logs, and alert
+messages. Healthchecks.io necessarily observes heartbeat timing and the public
+source IP address. Netdata remains the diagnostic source because the heartbeat
+service records reachability, not the cause of a failure.
+
+The free plan retains limited ping history. That is sufficient for alerting,
+but it is not an audit log. Revisit the decision if the deployment needs a
+contractual service level, longer event retention, role-based access for a
+larger team, or a combined on-call and status-page platform.
