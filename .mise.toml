@@ -77,7 +77,15 @@ set -euo pipefail
 
 git_common_dir="$(git rev-parse --path-format=absolute --git-common-dir)"
 export T3_WORK_GRAPH_PROJECT_ROOT="$(dirname "$git_common_dir")"
-export T3_WORK_GRAPH_BASE_BRANCH="$(git symbolic-ref --short refs/remotes/origin/HEAD | sed 's#^origin/##')"
+base_branch="${T3_WORK_GRAPH_BASE_BRANCH:-}"
+if [[ -z "$base_branch" ]]; then
+  remote_head="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+  base_branch="${remote_head#origin/}"
+fi
+if [[ -z "$base_branch" ]]; then
+  base_branch="$(git config --get init.defaultBranch || true)"
+fi
+export T3_WORK_GRAPH_BASE_BRANCH="${base_branch:-main}"
 t3_home="${T3CODE_HOME:-$HOME/.t3}"
 export T3_WORK_GRAPH_ORIGIN="$(jq -er '.origin' "$t3_home/userdata/server-runtime.json")"
 ready="$(work-graph ready --limit 1)"
