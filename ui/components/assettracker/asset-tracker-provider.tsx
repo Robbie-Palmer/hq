@@ -34,6 +34,8 @@ import {
   type AddPlannedExpenditureInput,
   type AddRecurringFlowInput,
   type AssetAllocationDataPoint,
+  type AssetTrackerBackup,
+  type AssetTrackerBackupPreview,
   type AssetTrackerData,
   type AssetType,
   analyseEmergencyFund,
@@ -49,6 +51,7 @@ import {
   type Currency,
   compareDecisionScenarios,
   compareJobMoveScenario,
+  createAssetTrackerBackup,
   currentSalaryHistory,
   type DecisionScenarioComparison,
   type DecisionScenarioComparisonInput,
@@ -93,6 +96,7 @@ import {
   type PropertyComparableView,
   type PropertyValueHistoryView,
   personalOwnership,
+  previewAssetTrackerBackup,
   type RecordActualCashFlowInput,
   type RecordBalanceInput,
   type RecordTransferInput,
@@ -238,10 +242,11 @@ interface AssetTrackerContextValue {
   setAccountOwnership(accountId: string, ownership: Ownership): Promise<void>;
   clearData(): Promise<void>;
   resetData(): Promise<void>;
-  exportData(): void;
+  downloadBackup(): void;
   exportCsv(): void;
   exportTaxEstimate(): void;
-  importData(file: File): Promise<void>;
+  previewBackup(file: File): Promise<AssetTrackerBackupPreview>;
+  restoreBackup(backup: AssetTrackerBackup): Promise<void>;
 }
 
 const AssetTrackerContext = createContext<AssetTrackerContextValue | null>(
@@ -679,10 +684,10 @@ export function AssetTrackerProvider({
           throw error;
         }
       },
-      exportData: () =>
+      downloadBackup: () =>
         downloadFile(
-          `assettracker-${todayIsoDate()}.json`,
-          JSON.stringify(data, null, 2),
+          `assettracker-backup-${todayIsoDate()}.json`,
+          JSON.stringify(createAssetTrackerBackup(data), null, 2),
           "application/json",
         ),
       exportCsv: () =>
@@ -692,10 +697,11 @@ export function AssetTrackerProvider({
           "text/csv",
         ),
       exportTaxEstimate: () => downloadTaxEstimate(views.taxEstimate),
-      importData: async (file) => {
+      previewBackup: async (file) => {
         const raw = JSON.parse(await file.text());
-        await mutate((api) => api.importData(raw));
+        return previewAssetTrackerBackup(data, raw);
       },
+      restoreBackup: (backup) => mutate((api) => api.restoreBackup(backup)),
     }),
     [
       views,

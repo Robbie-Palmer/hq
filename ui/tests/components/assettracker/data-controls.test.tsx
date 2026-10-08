@@ -49,6 +49,40 @@ describe("DataControls", () => {
   const clearData = vi.fn().mockResolvedValue(undefined);
   const resetData = vi.fn().mockResolvedValue(undefined);
   const setBaseCurrency = vi.fn().mockResolvedValue(undefined);
+  const downloadBackup = vi.fn();
+  const restoreBackup = vi.fn().mockResolvedValue(undefined);
+  const preview = {
+    backup: {
+      format: "assettracker-household-backup",
+      schemaVersion: 1,
+      createdAt: "2026-10-08T16:00:00.000Z",
+      summary: {
+        householdMembers: 2,
+        accounts: 4,
+        balanceObservations: 8,
+        storedRecords: 20,
+        latestAccountBalances: [],
+      },
+      data: {},
+    },
+    sourceVersion: 1,
+    migrated: false,
+    current: {
+      householdMembers: 1,
+      accounts: 2,
+      balanceObservations: 3,
+      storedRecords: 10,
+      latestAccountBalances: [{ currency: "GBP", amount: 100 }],
+    },
+    replacement: {
+      householdMembers: 2,
+      accounts: 4,
+      balanceObservations: 8,
+      storedRecords: 20,
+      latestAccountBalances: [{ currency: "GBP", amount: 200 }],
+    },
+  };
+  const previewBackup = vi.fn().mockResolvedValue(preview);
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -58,9 +92,10 @@ describe("DataControls", () => {
       baseCurrency: "GBP",
       setInflation: vi.fn(),
       setBaseCurrency,
-      exportData: vi.fn(),
+      downloadBackup,
       exportCsv: vi.fn(),
-      importData: vi.fn(),
+      previewBackup,
+      restoreBackup,
       clearData,
       resetData,
     } as unknown as ReturnType<typeof useAssetTracker>);
@@ -110,9 +145,16 @@ describe("DataControls", () => {
   it("keeps portable data actions on imports", () => {
     render(<DataControls mode="data" />);
 
-    expect(screen.getByRole("button", { name: "Export" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Download backup" }),
+    ).toBeVisible();
     expect(screen.getByRole("button", { name: "CSV" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Import" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Restore backup" }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(/Clearing browser data can remove the working copy/),
+    ).toBeVisible();
     expect(
       screen.queryByRole("combobox", { name: "Household base currency" }),
     ).toBeNull();
@@ -130,7 +172,65 @@ describe("DataControls", () => {
     expect(
       screen.getByRole("button", { name: "Clear demo data" }),
     ).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Export" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Import" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Download backup" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Restore backup" })).toBeNull();
+  });
+
+  it("downloads a versioned household backup", async () => {
+    const user = userEvent.setup();
+    render(<DataControls mode="data" />);
+
+    await user.click(screen.getByRole("button", { name: "Download backup" }));
+
+    expect(downloadBackup).toHaveBeenCalledOnce();
+  });
+
+  it("previews a backup and requires confirmation before replacement", async () => {
+    const user = userEvent.setup();
+    render(<DataControls mode="data" />);
+    const file = new File(["backup"], "household.json", {
+      type: "application/json",
+    });
+
+    await user.upload(
+      screen.getByLabelText("Choose Asset Tracker backup file"),
+      file,
+    );
+
+    expect(previewBackup).toHaveBeenCalledWith(file);
+    expect(
+      screen.getByRole("heading", { name: "Review restore" }),
+    ).toBeVisible();
+    expect(screen.getByText("1 to 2")).toBeVisible();
+    expect(screen.getByText("2 to 4")).toBeVisible();
+    expect(screen.getByText("£100.00 to £200.00")).toBeVisible();
+    await user.click(
+      screen.getByRole("button", { name: "Restore this backup" }),
+    );
+    expect(restoreBackup).not.toHaveBeenCalled();
+    await user.click(
+      screen.getByRole("button", { name: "Replace current data?" }),
+    );
+    expect(restoreBackup).toHaveBeenCalledWith(preview.backup);
+    expect(screen.getByText("Restored household.json")).toBeVisible();
+  });
+
+  it("shows invalid backup errors without offering replacement", async () => {
+    previewBackup.mockRejectedValueOnce(new Error("broken"));
+    const user = userEvent.setup();
+    render(<DataControls mode="data" />);
+
+    await user.upload(
+      screen.getByLabelText("Choose Asset Tracker backup file"),
+      new File(["broken"], "broken.json", { type: "application/json" }),
+    );
+
+    expect(screen.getByText("Something went wrong")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Restore this backup" }),
+    ).toBeNull();
+    expect(restoreBackup).not.toHaveBeenCalled();
   });
 });

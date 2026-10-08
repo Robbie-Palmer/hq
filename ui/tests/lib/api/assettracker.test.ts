@@ -4,7 +4,10 @@ import {
   createLocalAssetTrackerApi,
 } from "@/lib/api/assettracker";
 import { getDemoAssetTrackerData } from "@/lib/assettracker/demoData";
-import { AssetTrackerDataSchema } from "@/lib/domain/assettracker";
+import {
+  AssetTrackerDataSchema,
+  createAssetTrackerBackup,
+} from "@/lib/domain/assettracker";
 
 describe("createLocalAssetTrackerApi", () => {
   beforeEach(() => {
@@ -740,6 +743,38 @@ describe("createLocalAssetTrackerApi", () => {
     expect(imported).toEqual(exported);
     const { persisted } = await createApi().load();
     expect(persisted).toBe(true);
+  });
+
+  it("restores a complete household backup into a clean browser", async () => {
+    const data = getDemoAssetTrackerData();
+    const backup = createAssetTrackerBackup(data, "2026-10-08T16:00:00.000Z");
+
+    const restored = await createApi().restoreBackup(backup);
+    const loaded = await createApi().load();
+
+    expect(restored).toEqual(data);
+    expect(loaded.persisted).toBe(true);
+    expect(loaded.data).toEqual(data);
+    expect(loaded.data.household.members).toHaveLength(2);
+    expect(loaded.data.ownership).toEqual(data.ownership);
+  });
+
+  it("does not mutate stored data when a backup fails validation", async () => {
+    const api = createApi();
+    await api.setInflation({ rate: 0.031 });
+    const before = window.localStorage.getItem(ASSET_TRACKER_STORAGE_KEY);
+    const backup = createAssetTrackerBackup(
+      getDemoAssetTrackerData(),
+      "2026-10-08T16:00:00.000Z",
+    );
+
+    await expect(
+      api.restoreBackup({
+        ...backup,
+        summary: { ...backup.summary, accounts: 999 },
+      }),
+    ).rejects.toThrow(/summary does not match/);
+    expect(window.localStorage.getItem(ASSET_TRACKER_STORAGE_KEY)).toBe(before);
   });
 
   it("round-trips salary provenance and prior accepted facts", async () => {
