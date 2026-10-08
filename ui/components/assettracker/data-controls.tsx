@@ -26,6 +26,7 @@ import {
 import { useAssetTracker } from "./asset-tracker-provider";
 
 type DataControlsMode = "all" | "data" | "settings";
+type DestructiveConfirmation = "clear" | "reset" | null;
 
 interface RestorePreviewState {
   fileName: string;
@@ -44,7 +45,7 @@ function storageMessage(hasLocalChanges: boolean): string {
 
 function clearButtonText(
   hasLocalChanges: boolean,
-  confirming: "clear" | "reset" | null,
+  confirming: DestructiveConfirmation,
 ): string {
   const label = hasLocalChanges ? "Clear all data" : "Clear demo data";
   return confirming === "clear" ? `${label}?` : label;
@@ -70,7 +71,7 @@ function useDataControlActions() {
   const [restorePreview, setRestorePreview] =
     useState<RestorePreviewState | null>(null);
   const [confirmingRestore, setConfirmingRestore] = useState(false);
-  const [confirming, setConfirming] = useState<"clear" | "reset" | null>(null);
+  const [confirming, setConfirming] = useState<DestructiveConfirmation>(null);
 
   async function handleInflationChange(value: string) {
     if (value === "") return;
@@ -377,7 +378,7 @@ function DestructiveDataActions({
   onReset,
 }: Readonly<{
   hasLocalChanges: boolean;
-  confirming: "clear" | "reset" | null;
+  confirming: DestructiveConfirmation;
   clearLabel: string;
   onClear(): void;
   onReset(): void;

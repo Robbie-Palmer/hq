@@ -30,7 +30,7 @@ export type AssetTrackerBackupSummary = z.infer<
 export const AssetTrackerBackupSchema = z.object({
   format: z.literal(ASSET_TRACKER_BACKUP_FORMAT),
   schemaVersion: z.literal(ASSET_TRACKER_BACKUP_VERSION),
-  createdAt: z.string().datetime({ offset: true }),
+  createdAt: z.iso.datetime({ offset: true }),
   summary: AssetTrackerBackupSummarySchema,
   data: z.unknown(),
 });
@@ -54,7 +54,7 @@ export interface AssetTrackerBackupPreview {
 const LegacyBackupSchema = z.object({
   format: z.literal(ASSET_TRACKER_BACKUP_FORMAT),
   schemaVersion: z.literal(0),
-  createdAt: z.string().datetime({ offset: true }).optional(),
+  createdAt: z.iso.datetime({ offset: true }).optional(),
   data: z.unknown(),
 });
 
