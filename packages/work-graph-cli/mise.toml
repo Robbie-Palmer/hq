@@ -1,0 +1,67 @@
+[tasks.install]
+description = "Install Work Graph CLI dependencies"
+run = "pnpm install --frozen-lockfile --filter work-graph-cli..."
+
+[tasks."openapi:generate"]
+description = "Generate the Work Graph Fetch SDK from the canonical OpenAPI contract"
+depends = ["install"]
+run = "pnpm openapi:generate"
+
+[tasks."openapi:check"]
+description = "Check the generated Work Graph Fetch SDK against the canonical OpenAPI contract"
+depends = ["install"]
+run = "pnpm openapi:check"
+
+[tasks.typecheck]
+description = "Typecheck the Work Graph CLI"
+depends = ["install", "openapi:check"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Run mocked Work Graph HTTP and CLI tests"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test the Work Graph CLI with coverage"
+depends = ["//:install"]
+run = "pnpm test:coverage"
+
+[tasks.build]
+description = "Build the installable Work Graph CLI"
+depends = ["install"]
+run = "pnpm build"
+
+[tasks."install:global"]
+description = "Build, pack, and globally install the Work Graph CLI"
+depends = ["build"]
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+archive_directory="$(mktemp -d)"
+trap 'rm -rf "$archive_directory"' EXIT
+
+pnpm pack --pack-destination "$archive_directory"
+archive_path="$(find "$archive_directory" -maxdepth 1 -name 'work-graph-cli-*.tgz' -print -quit)"
+if [ -z "$archive_path" ]; then
+  echo "Work Graph CLI package archive was not created." >&2
+  exit 1
+fi
+
+npm install --global "$archive_path"
+'''
+
+[tasks."build:check"]
+description = "Build the Work Graph CLI without changing generated files"
+depends = ["install", "openapi:check"]
+run = "pnpm build:check"
+
+[tasks."pack:check"]
+description = "Check the contents of the installable Work Graph CLI package"
+depends = ["build:check"]
+run = "pnpm pack:check"
+
+[tasks.check]
+description = "Check and package the Work Graph CLI"
+depends = ["typecheck", "test", "pack:check"]

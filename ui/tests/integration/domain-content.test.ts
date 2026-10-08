@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { extractGraphData } from "@/lib/api/graph-data";
 import {
   type DomainRepository,
   getADRSlugsForProject,
@@ -34,7 +35,7 @@ describe("Domain Content Validation (Integration)", () => {
     expect(repo.adrs.size).toBeGreaterThan(0);
     expect(repo.roles.size).toBeGreaterThan(0);
     expect(repo.technologies.size).toBeGreaterThan(0);
-    expect(repo.ideas.size).toBe(26);
+    expect(repo.ideas.size).toBe(37);
     expect(repo.referentialIntegrityErrors).toEqual([]);
   });
 
@@ -107,6 +108,23 @@ describe("Domain Content Validation (Integration)", () => {
         repo.initiatives.get(initiativeSlug)?.projectContributions[projectSlug],
       ).toBeTruthy();
     }
+  });
+
+  it("should publish research papers as linked knowledge graph nodes", () => {
+    const graph = extractGraphData(repo);
+
+    expect(graph.nodes).toContainEqual({
+      id: "paper:autonomic-satellite-swarm",
+      name: "Autonomic Providing Pre-Programmed Death of Cubesats for Avoiding Space JUNK",
+      type: "paper",
+      href: "https://doi.org/10.1109/SMC-IT.2019.00015",
+      connections: 1,
+    });
+    expect(graph.edges).toContainEqual({
+      source: "project:autonomic-satellite-swarm",
+      target: "paper:autonomic-satellite-swarm",
+      type: "HAS_RESEARCH_PAPER",
+    });
   });
 
   it("should have bidirectional technology relations in graph", () => {

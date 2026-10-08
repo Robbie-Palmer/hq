@@ -1,6 +1,9 @@
 import { generateKeyPairSync } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createInstallationToken } from "../src/github-app";
+import {
+  createInstallationToken,
+  githubApiClientFromToken,
+} from "../src/github-app";
 
 const keyPair = generateKeyPairSync("rsa", { modulusLength: 2048 });
 
@@ -37,6 +40,7 @@ describe("createInstallationToken", () => {
       expect.stringContaining("/app/installations/456/access_tokens"),
       expect.objectContaining({
         method: "POST",
+        signal: expect.any(AbortSignal),
         headers: expect.objectContaining({
           authorization: expect.stringMatching(/^bearer [^.]+\.[^.]+\.[^.]+$/i),
         }),
@@ -69,5 +73,34 @@ describe("createInstallationToken", () => {
         privateKey: pkcs1,
       }),
     ).rejects.toThrow("must be unencrypted PKCS#8 PEM");
+  });
+});
+
+describe("githubApiClientFromToken", () => {
+  it("applies the GitHub App request headers", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await githubApiClientFromToken("installation-token", {
+      retries: 1,
+    }).request("POST", "/repos/acme/widgets/issues/1/reactions", {
+      body: { content: "+1" },
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      new URL("https://api.github.com/repos/acme/widgets/issues/1/reactions"),
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Accept: "application/vnd.github+json",
+          Authorization: "Bearer installation-token",
+          "Content-Type": "application/json",
+          "User-Agent": "personal-site-ai-review/1",
+          "X-GitHub-Api-Version": "2022-11-28",
+        }),
+        body: JSON.stringify({ content: "+1" }),
+        signal: expect.any(AbortSignal),
+      }),
+    );
   });
 });

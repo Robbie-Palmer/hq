@@ -17,27 +17,80 @@ description = "Run Vale against the frozen writing cohort"
 depends = ["install"]
 run = "bash scripts/run-vale.sh"
 
+[tools]
+python = "3.12.12"
+
+[env]
+CUBLAS_WORKSPACE_CONFIG = ":4096:8"
+
+[tasks."runtime:sync"]
+description = "Install the locked CUDA GECToR runtime"
+run = "uv sync --locked --no-dev --no-build"
+
+[tasks."runtime:lock"]
+description = "Resolve the CUDA GECToR runtime lockfile"
+run = "uv lock"
+
+[tasks."runtime:check"]
+description = "Lint and test the GECToR runtime"
+depends = ["runtime:sync"]
+run = ["uv run --locked ruff check python python-tests", "uv run --locked pytest"]
+
+[tasks."runtime:smoke"]
+description = "Run the locked GECToR model against a one-sentence fixture"
+depends = ["runtime:sync"]
+run = ".venv/bin/python python/gector_runtime.py --mode runtime-smoke"
+
+[tasks."run:gector:smoke"]
+description = "Run GECToR against one frozen ADR"
+depends = ["install", "runtime:sync"]
+run = "bash scripts/smoke-gector.sh"
+
+[tasks."run:gector"]
+description = "Run the DVC GECToR stage over the frozen cohort"
+depends = ["install", "runtime:sync"]
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro run_gector"
+
+[tasks."model:prepare"]
+description = "Download and verify the pinned GECToR-2024 checkpoint"
+depends = ["install"]
+run = "bash scripts/prepare-gector-model.sh"
+
+[tasks."model:publish"]
+description = "Prepare and push the pinned GECToR-2024 checkpoint to DVC"
+depends = ["install"]
+run = "bash scripts/publish-gector-model.sh"
+
 [tasks."match:edits"]
 description = "Align Vale findings with observed published edits"
 depends = ["install"]
 run = "bash scripts/match-edits.sh"
 
+[tasks."evaluate:reviews"]
+description = "Validate review outcomes and produce the evidence-gated scorecard"
+depends = ["install", "review-evidence:pull"]
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro evaluate_reviews"
+
+[tasks."review-evidence:pull"]
+description = "Pull the governed writing-review evidence from DVC"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc pull data/review-evidence/repository-pilot.dvc"
+
 [tasks.repro]
 description = "Reproduce the local writing evaluation stages through DVC"
 depends = ["install"]
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc repro"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro"
 
 [tasks.pull]
 description = "Pull the writing evaluation corpus and outputs from R2"
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc pull"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc pull"
 
 [tasks.push]
 description = "Push the writing evaluation cache to its R2 prefix"
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc push"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc push"
 
 [tasks.dvc]
 description = "Run a DVC command in the writing evaluation project"
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc"
 
 [tasks.typecheck]
 description = "Typecheck the writing editor evaluation pipeline"

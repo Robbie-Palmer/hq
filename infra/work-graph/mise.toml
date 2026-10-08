@@ -1,0 +1,58 @@
+[tasks.init]
+description = "Initialize Work Graph Terraform"
+run = "bash scripts/doppler-terraform-env terraform init"
+sources = ["*.tf"]
+outputs = [".terraform/**/*"]
+
+[tasks.format]
+description = "Format Work Graph Terraform files"
+run = "terraform fmt -recursive ."
+
+[tasks."format:check"]
+description = "Check Work Graph Terraform formatting"
+run = "terraform fmt -check -recursive ."
+
+[tasks.lint]
+description = "Validate Work Graph Terraform and credential boundaries"
+run = "bash scripts/validate.sh"
+
+[tasks."lint:tflint"]
+description = "Lint Work Graph Terraform"
+run = "tflint --format compact"
+
+[tasks.precommit-lint]
+description = "Validate Work Graph Terraform without its remote backend"
+run = "bash scripts/validate.sh"
+
+[tasks.plan]
+description = "Plan Work Graph infrastructure"
+depends = ["//infra/work-graph:init"]
+run = "bash scripts/doppler-terraform-env terraform plan -out .planfile"
+outputs = [".planfile"]
+
+[tasks.apply]
+description = "Apply a reviewed Work Graph Terraform plan"
+depends = ["//infra/work-graph:init"]
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+bash scripts/doppler-terraform-env terraform apply .planfile
+bash scripts/doppler-terraform-env bash scripts/check-state-for-credentials.sh
+"""
+
+[tasks."state:check"]
+description = "Assert that Work Graph Terraform state contains no credentials"
+depends = ["//infra/work-graph:init"]
+run = "bash scripts/doppler-terraform-env bash scripts/check-state-for-credentials.sh"
+
+[tasks."access:rotate"]
+description = "Rotate the Work Graph Access secret into Doppler with overlap"
+run = """
+DOPPLER_AGENT_CONFIG=prd_work_graph \
+CF_ACCESS_SERVICE_TOKEN_NAME=work-graph-agents \
+bash scripts/doppler-terraform-env bash ../../scripts/rotate-preview-access-token.sh
+"""
+
+[tasks.check]
+description = "Check and plan Work Graph infrastructure"
+depends = ["format:check", "lint", "lint:tflint", "plan"]

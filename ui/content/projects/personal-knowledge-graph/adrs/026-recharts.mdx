@@ -1,0 +1,80 @@
+---
+title: "ADR 026: Recharts"
+date: "2025-11-08"
+status: "Accepted"
+tech_stack: ["Recharts"]
+---
+
+# Context
+
+I am migrating a "How to Build Wealth" blog post that was originally written as a Jupyter notebook on fastpages with plots generated using Altair. I need a charting library that integrates deeply with my [React](/projects/personal-knowledge-graph/adrs/002-react) and [Next.js](/projects/personal-knowledge-graph/adrs/003-next-js) stack.
+
+The requirements are:
+
+* **Deep React Integration**: The library should feel native to React (component-based, prop-driven) rather than a wrapper around an imperative library.
+* **Customizability**: Ability to style charts to match the site's [Tailwind CSS](/projects/personal-knowledge-graph/adrs/005-tailwindcss) design system.
+* **Performance**: Capable of handling reasonable datasets for personal finance without main-thread blocking.
+* **Responsiveness**: Charts must adapt seamlessly to mobile and desktop viewports.
+
+# Decision
+
+I will use **Recharts** for all data visualization on the site.
+
+Recharts is a composable charting library built on React components. It uses SVG for rendering, which offers excellent scalability and accessibility.
+
+## Interactive Demo
+
+Here are several chart types built with Recharts, demonstrating the composable API:
+
+<RechartsDemoChart />
+
+# Alternatives Considered
+
+## Non-React / Python-Centric Ecosystems
+
+**Plotly (React Wrapper)**:
+
+* **Pros**: I have deep experience with this tool from multiple jobs and data science visualization work. Incredible power, scientific standard, interactive out of the box (pan/zoom), consistent with Python data science workflow.
+* **Cons**: Massive bundle size (megabytes), API feels "foreign" in a React codebase (configuration objects vs components), distinct "Plotly look" that is hard to customize to match a specific brand without fighting the library.
+* **Why not**: Too heavy and biased towards scientific apps. I want charts that look like *my* site, not like a Jupyter notebook.
+
+**Altair (Vega-Lite)**:
+
+* **Pros**: The plots for the blog post already exist as Altair plots. Declarative grammar of graphics, immensely powerful for exploratory data analysis.
+* **Cons**: primarily Python-based generation. Embedding in React often involves passing JSON specs to a Vega listener. Styling is constrained by the grammar and hard to marry with Tailwind.
+* **Why not**: Great for analysis, poor for building bespoke custom frontend experiences.
+
+## React Ecosystem Competitors
+
+**Nivo**:
+
+* **Pros**: Built on D3, beautiful defaults, supports SVG, Canvas, and HTML layers.
+* **Cons**: API is heavily configuration-object based. You pass a giant prop object to configure everything.
+* **Why not**: Recharts' composable API (`<LineChart><Line /><XAxis /></LineChart>`) is more readable and flexible to me than Nivo's configuration objects. It feels more "React-like."
+
+**Victory**:
+
+* **Pros**: robust, opinionated, good React Native support.
+* **Cons**: Significantly less popular than Recharts, and their example page is much less impressive. Can be verbose.
+* **Why not**: Subjective preference for Recharts' API composition style. Recharts has slightly higher adoption and community resources.
+
+**Chart.js (react-chartjs-2)**:
+
+* **Pros**: Canvas-based (great for massive datasets with thousands of points), huge ecosystem.
+* **Cons**: Canvas rendering makes CSS styling tricky (everything is inside the canvas). Responsive resizing can sometimes be finicky. The React wrapper is just a thin layer over the imperative Chart.js API.
+* **Why not**: SVG (Recharts) is easier to style with CSS and debug in the DOM. I don't have massive datasets requiring Canvas performance.
+
+# Consequences
+
+**Positive:**
+
+* **Composition**: I can build complex charts by composing simple sub-components (`<XAxis />`, `<Tooltip />`, `<ReferenceLine />`).
+* **Styling**: SVG elements are part of the DOM, meaning I can inspect them and often style them with CSS/Tailwind classes (though Recharts has its own prop styling system too).
+* **Responsiveness**: `<ResponsiveContainer />` handles resizing logic automatically.
+* **Velocity**: Rapid development of standard chart types (Line, Bar, Area, Pie).
+
+**Negative:**
+
+* **Abstraction Leaks**: It is a wrapper around D3. Sometimes you hit a wall and wish you had raw D3 access, or have to deal with quirks of the wrapper.
+* **Performance**: SVG DOM nodes can get heavy if plotting thousands of points (unlike Canvas-based Chart.js).
+* **Animation Janky-ness**: Complex animations can sometimes cause re-render loops or jank if not careful.

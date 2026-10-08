@@ -11,7 +11,7 @@ if [ "${DOPPLER_TERRAFORM_ENV_WRAPPED:-}" != "1" ]; then
     exec doppler run --project "$project" --config "$pages_env_config" -- doppler run \
       --project "$project" \
       --config "$infra_config" \
-      --preserve-env=CF_IMAGES_ACCOUNT_HASH,NEXT_PUBLIC_CF_IMAGES_ACCOUNT_HASH,POSTHOG_KEY,NEXT_PUBLIC_POSTHOG_KEY,POSTHOG_HOST,NEXT_PUBLIC_POSTHOG_HOST,POSTHOG_OTLP_BASE_URL,RECIPE_API_URL,RECIPE_API_PREVIEW_ORIGIN_TEMPLATE,CF_PAGES_HOST,CF_PAGES_PREVIEW_ACCESS_APPLICATION_ID \
+      --preserve-env=CF_IMAGES_ACCOUNT_HASH,NEXT_PUBLIC_CF_IMAGES_ACCOUNT_HASH,POSTHOG_KEY,NEXT_PUBLIC_POSTHOG_KEY,POSTHOG_HOST,NEXT_PUBLIC_POSTHOG_HOST,POSTHOG_OTLP_BASE_URL,RECIPE_API_URL,RECIPE_API_PREVIEW_ORIGIN_TEMPLATE,CF_PAGES_HOST \
       -- bash "$0" "$@"
   elif [ "${CI:-}" != "true" ]; then
     echo "Cannot run Terraform locally: doppler is required." >&2
@@ -44,7 +44,6 @@ set_if_unset TF_VAR_posthog_api_key "${POSTHOG_API_KEY:-}"
 set_if_unset TF_VAR_recipe_api_preview_origin_template "${RECIPE_API_PREVIEW_ORIGIN_TEMPLATE:-}"
 set_if_unset TF_VAR_recipe_api_url "${RECIPE_API_URL:-}"
 set_if_unset TF_VAR_cf_pages_host "${CF_PAGES_HOST:-}"
-set_if_unset TF_VAR_cloudflare_pages_preview_access_application_id "${CF_PAGES_PREVIEW_ACCESS_APPLICATION_ID:-}"
 set_if_unset TF_VAR_slack_webhook_url "${CLOUDFLARE_SLACK_WEBHOOK_URL:-}"
 
 exec "$@"

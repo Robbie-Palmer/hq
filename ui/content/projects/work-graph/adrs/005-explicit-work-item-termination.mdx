@@ -1,0 +1,51 @@
+---
+title: "ADR 005: Explicit work-item termination"
+date: "2026-09-13"
+status: "Accepted"
+---
+
+## Context
+
+[ADR 000](/projects/work-graph/adrs/000-flexible-work-item-graph) makes a work
+item non-actionable while it has non-terminal direct children. Once its last
+child terminates, the parent becomes executable again. The graph still needs a
+clear rule for whether that event also completes the parent.
+
+Child completion does not prove that the parent outcome is complete. The
+parent may need synthesis, verification, a final note, or evidence assembled
+from several children. Automatically completing it would skip that work and
+make decomposition an implicit completion policy.
+
+The model also uses `released` and `cancelled` in stored lifecycle, projected
+board stage, and lease history. Their relationship must be explicit so those
+representations do not drift.
+
+## Decision
+
+Terminating the final direct child only removes the child blocker. The parent
+remains open, its readiness is recomputed, and a worker must claim it before an
+explicit release or cancellation. The system never completes or cancels a
+parent solely because all of its children are terminal.
+
+Use `released` and `cancelled` as the canonical terminal work-item values.
+Stored lifecycle and projected board stage share those values because they
+describe the same current terminal condition.
+
+Keep lease outcome as a separate historical type. A lease outcome of
+`released` or `cancelled` records how that lease ended and identifies the lease
+that performed the transition. It does not independently determine current
+work-item state.
+
+## Consequences
+
+A decomposed item may return to the ready queue after its children finish. A
+worker can then combine their results, check the parent acceptance criteria,
+attach evidence, and terminate the parent deliberately.
+
+Some parents will need a short final claim even when their children did all of
+the implementation. That extra transition preserves an accountable completion
+decision and avoids silently losing parent-level work.
+
+The domain package must define terminal work-item values once and compose the
+lifecycle and stage vocabularies from them. Lease outcomes may reuse the same
+strings while retaining their own type and storage meaning.

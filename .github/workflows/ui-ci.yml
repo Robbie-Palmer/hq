@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "ui/**"
+      - "cpp/autonomic-satellite-swarm/**"
+      - "cpp/mise.toml"
       - ".github/workflows/ui-ci.yml"
       - ".mise.toml"
       - ".remarkrc.js"
@@ -22,13 +24,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # The dependency detector reads the PR's recorded base SHA, which can
+          # predate the current base branch when a PR has been open for a while.
+          fetch-depth: 0
           persist-credentials: false
 
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-        with:
-          version: "2026.9.1"
-          experimental: true
-          minimum_release_age: 24h
+      - uses: $/.github/actions/setup-mise
 
       # Cache the pnpm content-addressable store so installs restore packages
       # from disk instead of re-downloading them on every run.
@@ -45,6 +46,16 @@ jobs:
 
       - name: Install dependencies
         run: mise run //:install
+
+      - name: Detect Mermaid dependency update
+        id: mermaid-dependency
+        working-directory: ui
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          changed=$(pnpm exec tsx scripts/dependency-version-changed.ts mermaid "$BASE_SHA" "$HEAD_SHA")
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
 
       - name: Lint MDX files
         run: mise run //:lint:mdx:check
@@ -75,3 +86,14 @@ jobs:
       # Depends on build output - mise caches the build
       - name: Run integration tests
         run: mise run //ui:test:integration
+
+      - name: Render Mermaid diagrams with Playwright
+        if: steps.mermaid-dependency.outputs.changed == 'true'
+        run: mise run //ui:test:e2e:mermaid
+
+      - name: Audit satellite-swarm browser simulation
+        run: mise run //ui:audit:satellite-swarm:serve
+        env:
+          NEXT_PUBLIC_CF_IMAGES_ACCOUNT_HASH: ${{ vars.CF_IMAGES_ACCOUNT_HASH }}
+          NEXT_PUBLIC_POSTHOG_KEY: ${{ vars.POSTHOG_KEY }}
+          NEXT_PUBLIC_POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}

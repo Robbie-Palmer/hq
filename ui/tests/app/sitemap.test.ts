@@ -8,6 +8,12 @@ describe("sitemap", () => {
     );
   });
 
+  it("includes the PostHog application", () => {
+    expect(sitemap().map((entry) => entry.url)).toContain(
+      "https://robbiepalmer.me/posthog",
+    );
+  });
+
   it("includes the ideas index and every idea detail page", () => {
     const ideaUrls = sitemap()
       .map((entry) => entry.url)
@@ -31,6 +37,36 @@ describe("sitemap", () => {
       "https://robbiepalmer.me/ideas/context-engineering",
     );
     expect(ideaUrls).toContain("https://robbiepalmer.me/ideas/commit-log");
-    expect(ideaUrls).toHaveLength(27);
+    expect(ideaUrls).toContain(
+      "https://robbiepalmer.me/ideas/adaptive-planning",
+    );
+    expect(ideaUrls).toContain("https://robbiepalmer.me/ideas/epistemology");
+    expect(ideaUrls).toContain(
+      "https://robbiepalmer.me/ideas/theory-ladenness",
+    );
+    expect(ideaUrls).toContain("https://robbiepalmer.me/ideas/falsifiability");
+    expect(ideaUrls).toContain("https://robbiepalmer.me/ideas/paradigm-shift");
+    expect(ideaUrls).toContain(
+      "https://robbiepalmer.me/ideas/incommensurability",
+    );
+    expect(ideaUrls).toContain("https://robbiepalmer.me/ideas/postpositivism");
+    expect(ideaUrls).toHaveLength(38);
+  });
+
+  it("excludes legacy ADR aliases", () => {
+    expect(sitemap().map((entry) => entry.url)).not.toContain(
+      "https://robbiepalmer.me/projects/recipe-site/adrs/000-github-public-repo",
+    );
+  });
+
+  it("excludes project aliases and their ADR paths", () => {
+    const urls = sitemap().map((entry) => entry.url);
+
+    expect(urls).not.toContain(
+      "https://robbiepalmer.me/projects/personal-site",
+    );
+    expect(urls).not.toContain(
+      "https://robbiepalmer.me/projects/personal-site/adrs/048-sonarqube",
+    );
   });
 });

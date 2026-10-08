@@ -1,0 +1,62 @@
+---
+title: "ADR 024: Renovate"
+date: "2025-11-02"
+status: "Accepted"
+supersedes: "personal-knowledge-graph:013-dependabot"
+tech_stack: ["Renovate"]
+---
+
+# Context
+
+Instead of duplicating version constraints in both package.json and
+dependency tooling config, use semver ranges (^) in package.json as the single
+source of truth.
+This prevents breaking changes from:
+
+* Next.js 16 (async APIs, caching changes, middleware → proxy)
+* Vitest 4 (vi.importActual breaking changes)
+* React 20 (future breaking changes)
+
+Dependabot correctly respects ranges for resolution, but effectively ignores them for update proposals. It defaults to proposing out-of-range updates (e.g. `^16.0.0` when `^15.0.0` is constrained) as immediate PRs. This creates avoidable noise for major versions that are intentionally deferred. This behavior is discussed in [Dependabot issue #5176](https://github.com/dependabot/dependabot-core/issues/5176).
+
+Configure Renovate for safer dependency updates
+
+* Require manual approval for major version updates via dependency dashboard
+* Auto-merge minor/patch updates for devDependencies when CI passes
+* Auto-merge minor/patch GitHub Actions updates when CI passes
+* Enable lock file maintenance with auto-merge
+
+# Decision
+
+I will migrate from Dependabot to [**Renovate**](https://docs.renovate.com/) for automated dependency updates.
+
+Renovate offers superior options for handling these out-of-range updates. Through the **Dependency Dashboard** and `rangeStrategy` configuration (e.g. `replace` vs `bump`), I can keep `package.json` as the source of truth while ensuring major updates are visible but not intrusive.
+
+The decision to migrate is driven by Renovate's **Dependency Dashboard**, which aggregates breaking changes into a single issue, reducing PR fatigue compared to Dependabot's one-PR-per-update model.
+
+Renovate is essentially a more sophisticated interface layer built on top of GitHub's dependency infrastructure. It integrates deeply with the same GitHub APIs and dependency graph that Dependabot uses, but provides significantly more configurability and control. The service is free for open-source projects, sponsored by Mend.io (the company behind Renovate).
+
+Configuration:
+
+* **Dependency Dashboard**: Manual approval required for major version updates via GitHub issues
+* **Auto-merge**: Minor/patch updates for devDependencies auto-merge when CI passes
+* **Auto-merge**: Minor/patch GitHub Actions updates auto-merge when CI passes
+* **Lock File Maintenance**: Enabled with auto-merge to keep transitive dependencies current
+
+# Consequences
+
+### Pros
+
+* **Noise Reduction**: Major version updates (e.g. Next.js 16, React 20) are batched in the Dependency Dashboard instead of opening immediate PRs. This respects the intent of the `package.json` semver range (don't install this yet) while keeping the upgrade path visible.
+* **Single Source of Truth**: Version constraints live in package.json, not duplicated in dependency tooling config. Cleaner, less error-prone.
+* **Reduced PR Noise**: Auto-merge for safe updates (minor/patch devDependencies, Actions updates) dramatically reduces manual review burden while maintaining safety via CI gates.
+* **Dependency Dashboard**: Major updates are grouped in a single GitHub issue for review, making it easy to see what's waiting and decide when to tackle breaking changes.
+* **Lock File Maintenance**: Automated updates to transitive dependencies keep the lock file fresh without manual intervention.
+* **GitHub Native Integration**: Builds on the same dependency infrastructure as Dependabot, leveraging GitHub's dependency graph and APIs. It's essentially a better UI layer on top of the same foundation.
+* **Still Boring Technology**: Renovate is widely used, well-documented, and has excellent AI/LLM training data. It's the industry standard for teams that need more control than Dependabot provides.
+
+### Cons
+
+* **More Complex Configuration**: Renovate requires more upfront configuration than Dependabot. The tradeoff is worthwhile for the control it provides, but it's not as zero-config as Dependabot.
+* **Sponsorship Dependency**: While free for open-source projects today (sponsored by Mend.io), this relies on continued corporate sponsorship. There's a risk that the free tier could be reduced or converted to paid in the future, forcing a migration back to Dependabot or another tool.
+* **External Platform**: Renovate runs as a GitHub App, adding a dependency on an external service (though still tightly integrated with GitHub). This slightly deviates from [Less Is More](/projects?tab=philosophy#less-is-more), but the velocity gains justify the tradeoff.

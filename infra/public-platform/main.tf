@@ -51,6 +51,12 @@ resource "cloudflare_pages_project" "personal_site" {
     }
   }
 
+  # Cloudflare keeps the existing GitHub connection working across repository
+  # renames, but the provider treats a repo_name change as project replacement.
+  lifecycle {
+    ignore_changes = [source[0].config[0].repo_name]
+  }
+
   deployment_configs {
     production {
       environment_variables = local.pages_production_environment_variables
@@ -131,6 +137,19 @@ resource "cloudflare_r2_bucket" "recipe_artifacts_preview" {
 resource "cloudflare_r2_bucket" "database_backups" {
   account_id = var.cloudflare_account_id
   name       = var.r2_database_backups_bucket_name
+  location   = "ENAM"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+# Restic encrypts every workspace object before upload. This bucket is separate
+# from database backups so the host receives no credential for another backup
+# set and can be recovered after loss of the Hetzner account or volume.
+resource "cloudflare_r2_bucket" "workspace_backups" {
+  account_id = var.cloudflare_account_id
+  name       = var.r2_workspace_backups_bucket_name
   location   = "ENAM"
 
   lifecycle {

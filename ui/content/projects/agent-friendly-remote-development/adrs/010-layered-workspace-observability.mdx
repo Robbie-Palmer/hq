@@ -1,5 +1,5 @@
 ---
-title: "ADR 010: Layered observability for shared agent workspaces"
+title: "ADR 010: Layered observability for agent workspaces"
 date: "2026-09-12"
 status: "Proposed"
 tech_stack:
@@ -8,7 +8,6 @@ tech_stack:
   - "OpenTelemetry"
   - "OpenTelemetry Collector"
   - "PostHog"
-  - "Healthchecks.io"
   - "Slack"
 ---
 
@@ -20,7 +19,8 @@ coding-agent sessions launched through T3 Code. An alert should name the
 affected workspace and distinguish host pressure, a Kubernetes action, and an
 application or child-process failure.
 
-The first deployment has one small host and two users. A self-hosted
+The first deployment has one small host and one user. A future multi-user
+cluster will use dedicated workspace nodes. A self-hosted
 Prometheus, Grafana, Loki, and Tempo stack would consume memory and create more
 stateful services than this deployment warrants. The chosen system should
 still use standard Kubernetes and OpenTelemetry signals so the project can
@@ -43,9 +43,9 @@ as described in its
 # Decision
 
 Create a layered observability system. Use Netdata for infrastructure and
-application metrics, PostHog for T3 Code logs and traces, Healthchecks.io for
-external host-loss detection, and a dedicated private Slack channel as the
-alert inbox.
+application metrics, PostHog for T3 Code logs and traces, a managed heartbeat
+service for external host-loss detection, and a dedicated private Slack
+channel as the alert inbox.
 
 ## Netdata dashboard and alerts
 
@@ -82,8 +82,9 @@ and limit.
 
 ## T3 Code telemetry
 
-Run one pinned OpenTelemetry Collector Contrib service on the host. T3 Code in
-both workspaces will send OTLP/HTTP to its cluster-private endpoint. The
+Run one pinned OpenTelemetry Collector Contrib service on the current host. T3
+Code will send OTLP/HTTP to its private endpoint. A future multi-node cluster
+will run an equivalent collector outside user namespaces. The
 Collector will:
 
 * send T3 Code metrics to Netdata's loopback OTLP/gRPC receiver;
@@ -110,20 +111,20 @@ and Slack destination.
 ## Host-loss detection
 
 A Netdata Agent running on the monitored host cannot deliver an alert after
-the host or its network path has failed. Add one Healthchecks.io check as an
-external dead man's switch. A NixOS systemd timer will send a short heartbeat
-with a bounded timeout. Healthchecks.io will notify the project's Slack
-channel when the heartbeat becomes late and again when it recovers. Its
-[systemd guidance](https://healthchecks.io/docs/monitoring_systemd_tasks/)
-explicitly covers whole-machine failure, and its free Hobbyist plan currently
-allows [20 checks](https://healthchecks.io/pricing/).
+the host or its network path has failed. Add one check at a managed heartbeat
+service that runs outside the host and its cloud provider. A NixOS systemd
+timer will send a short outbound HTTPS heartbeat with a bounded timeout. The
+service must notify the project's Slack channel when the heartbeat becomes
+late and again when it recovers.
 
-Treat the Healthchecks.io ping URL as a secret. The check is the only off-host
-dependency used to determine whether the remote machine itself is reachable.
+Treat the ping URL as a secret. The heartbeat provider is selected separately
+because it is an independently replaceable dependency. This ADR owns the need
+for the signal and its data boundary, not the provider choice.
 
 ## Attribution and data handling
 
-Use stable, non-personal workspace identifiers such as `operator` and `pilot`.
+Use stable, non-personal workspace identifiers such as `operator` and an
+opaque workspace ID.
 Apply them consistently as the Kubernetes namespace label,
 `T3CODE_OTLP_SERVICE_NAME`, `service.namespace`, and `workspace.id`. PostHog
 may retain a session or trace ID for investigation. Slack messages must contain
@@ -139,14 +140,14 @@ Use the following ownership split:
 | Why did a workspace container restart?                                       | kube-state-metrics                              | namespace, pod, container, reason, and exit code |
 | Did the kernel kill an agent child process without restarting the container? | Netdata eBPF OOM data plus the kernel journal   | cgroup, process, and mapped workspace ID         |
 | Which provider session or turn failed?                                       | T3 Code OTLP metrics, traces, and selected logs | workspace ID, provider, outcome, and trace ID    |
-| Has the entire remote host disappeared?                                      | Healthchecks.io                                 | host and last heartbeat time                     |
+| Has the entire remote host disappeared?                                      | Managed heartbeat service                       | host and last heartbeat time                     |
 
 The Collector must use an allowlist before exporting to PostHog. Do not export
 prompts, responses, file contents, diffs, terminal output, environment
 variables, credentials, provider event payloads, or full working-directory
 paths. Apply a default-deny filter to stdout and drop an unrecognised log line
 rather than risk exporting its body. Keep T3 Code's rotating local trace file
-and K3s container log rotation as fallbacks. The pilot user must know what the
+and K3s container log rotation as fallbacks. Any later user must know what the
 system records before their workspace is enabled.
 
 Alert immediately on an OOM kill, `OOMKilled`, eviction, crash loop, failed K3s
@@ -161,8 +162,9 @@ Keep this ADR Proposed until a disposable test proves all of the following:
 
 1. The Netdata dashboard works through its private URL without parent streaming
    or Netdata Cloud.
-2. Netdata shows separate host, `operator`, and `pilot` CPU, memory, pressure,
-   throttling, PID, filesystem, byte-quota, and inode-quota views.
+2. Netdata shows separate host and `operator` CPU, memory, pressure, throttling,
+   PID, filesystem, byte-quota, and inode-quota views. The multi-node evaluation
+   repeats this with a second opaque workspace ID.
 3. The deployed T3 Code image exports successful and failed provider turns, a
    terminal lifecycle event, and the documented counters through the Collector
    without losing its local trace file.
@@ -172,8 +174,8 @@ Keep this ADR Proposed until a disposable test proves all of the following:
    workspace ID and trace. Repeated failures trigger Slack without requiring a
    pod restart.
 6. Stopping K3s and stopping kube-state-metrics produce distinct alerts.
-7. Making the host unreachable causes Healthchecks.io to alert Slack. Recovery
-   produces one matching notification.
+7. Making the host unreachable causes the managed heartbeat service to alert
+   Slack. Recovery produces one matching notification.
 8. Stopping the Collector or either export path produces a pipeline alert
    rather than a silent gap.
 9. A review of exported records finds none of the disallowed prompt, source,
@@ -181,9 +183,9 @@ Keep this ADR Proposed until a disposable test proves all of the following:
 10. Netdata, kube-state-metrics, and the Collector stay below 512 MiB resident
     memory and 5 percent of one CPU at steady state during concurrent agent
     work. Each component also has a bounded memory policy.
-11. Seven days of pilot use produce no duplicate or unactionable pages. The
-    sample records PostHog volume and projected cost, with a billing limit that
-    prevents unplanned spend.
+11. Seven days of representative use produce no duplicate or unactionable
+    pages. The sample records PostHog volume and projected cost, with a billing
+    limit that prevents unplanned spend.
 
 # Alternatives
 
@@ -215,7 +217,8 @@ it records the cause.
 
 An incident can be checked at each level. Netdata shows machine and workspace
 pressure, kube-state-metrics records what K3s did, and PostHog shows what T3
-Code and the agent were doing. Healthchecks.io covers complete host loss.
+Code and the agent were doing. The managed heartbeat service covers complete
+host loss.
 
 The project adds one small Kubernetes exporter, two host services, and one
 hosted heartbeat check. It must patch and monitor those components. The

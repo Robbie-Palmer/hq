@@ -191,7 +191,11 @@ export function getADRDetailForProject(
   const matchingRef = projectADRRefs.find(
     (ref) => parseADRRef(ref).adrSlug === adrSlug,
   );
-  if (!matchingRef) return null;
+  if (!matchingRef) {
+    const aliasRef = makeADRRef(projectSlug, adrSlug);
+    const target = repository.adrAliases.get(aliasRef);
+    return target ? buildADRDetailView(repository, target) : null;
+  }
   return buildADRDetailView(repository, matchingRef, projectSlug);
 }
 

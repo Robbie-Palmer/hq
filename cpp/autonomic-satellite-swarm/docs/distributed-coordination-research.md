@@ -128,9 +128,9 @@ example: a radio anomaly prevented one spacecraft from receiving the DSA softwar
 update, so the planned four-node autonomy experiment ran with three. A production design must expect
 old code to reappear after a long partition and an update to stop halfway through the swarm.
 
-The current wire codec accepts exactly one 12-byte layout identified by `0xA1`. Rejecting every other
-version is safe for the bench prototype, but it creates a hard cutover. Before adding a second
-version, the project needs separate answers for four forms of compatibility:
+The first wire codec accepted exactly one 12-byte layout identified by `0xA1`. The stable-mission-key
+slice replaces it with an 18-byte `0xA2` layout and deliberately keeps the hard cutover. Before a
+mixed-version deployment, the project needs separate answers for four forms of compatibility:
 
 - wire compatibility, including how old readers handle new message types and fields;
 - behavioral compatibility, including whether two versions interpret an assignment the same way;
@@ -209,7 +209,7 @@ to avoid treating packet delivery as plan agreement.
 
 DARPA's [OFFSET program](https://www.darpa.mil/research/programs/offensive-swarm-enabled-tactics)
 worked at a different scale, with up to 250 air and ground systems, an open architecture, simulated
-environments, and a human-swarm interface. This connects directly to the proposed bounded telemetry:
+environments, and a human-swarm interface. This connects directly to the implemented bounded telemetry:
 an operator needs to reconstruct what the swarm believed, which decisions it made, and where agents
 disagreed. That view must remain an observer during autonomous operation. Its loss cannot stop local
 safety behavior. OFFSET's terrestrial tactical network does not answer the orbital contact and
@@ -346,12 +346,15 @@ Every applied fault is visible in the result. The browser's assignment-loss scen
 leader recording an assignee while the winning node waits and then returns to idle because its
 assignment never arrived.
 
-The next step is stable mission identity and executable invariant checks against the existing
-temporary-leader controller. Node-reset replay already captures one baseline failure: safe-disabled
-is volatile, so a reset clears the latch. That result identifies required persistence work and
-fails the intended safety property.
+Stable mission identity and executable invariant checks are now implemented against the existing
+temporary-leader controller. A mission key combines the origin node, its boot epoch, and a sequence
+within that epoch. Deterministic tests cover lost acknowledgements and assignments, duplication,
+one-way links, and node resets. The baseline preserves two failures: safe-disabled is volatile and a
+delayed request has no expiry, so either can start work after the intended boundary.
 
-That slice should answer one sharp question: when the assignment or its acknowledgement is lost,
-what can each node truthfully claim to know? The failures will show which operation semantics need a
-new design. Only then is it worth choosing a quorum protocol, a convergent state model, or a DTN
-routing strategy.
+The [coordination semantics and invariant baseline](invariant-baseline.md) states the fault,
+membership, clock, deadline, and duplicate-execution assumptions. It classifies local health,
+repeatable work, exclusive ownership, telemetry, and bulk data instead of assigning one guarantee to
+all traffic. Categorized deterministic checks keep safety, liveness, and cost separate. The next
+slice added a [bounded telemetry queue](telemetry.md) whose records use stable mission keys. A future
+protocol still needs to earn stronger quorum, convergent-state, or delay-tolerant routing claims.

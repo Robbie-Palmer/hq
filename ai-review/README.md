@@ -1,9 +1,7 @@
 # Stateful AI review
 
 This top-level project is the deployable service proposed by
-[ADR 056](../ui/content/projects/personal-site/adrs/056-stateful-ai-code-review.mdx).
-The ADR remains in the Personal Site content tree for now, but the service is
-not a Personal Site runtime component.
+[Agentic Code Review ADR 001](../ui/content/projects/agentic-code-review/adrs/001-stateful-ai-code-review.mdx).
 
 The service is a visible, stateful publisher. A Worker verifies GitHub App
 webhook signatures and rejects other repositories. One SQLite Durable Object
@@ -82,7 +80,7 @@ justify higher published prices than the current multi-provider route.
   of `ai-review/prd`.
 - The private
   [`robbie-palmer-ai-review`](https://github.com/apps/robbie-palmer-ai-review)
-  GitHub App is installed only on `Robbie-Palmer/personal-site`.
+  GitHub App is installed only on `Robbie-Palmer/hq`.
 
 ## Required Doppler values
 
@@ -290,7 +288,7 @@ stateful review against the same stateless evidence instead of entering
 baseline values by hand.
 
 Metric definitions follow
-[Agentic Code Review ADR 033](/projects/agentic-code-review/adrs/033-duckdb-ai-review-scorecard):
+[Agentic Code Review ADR 002](/projects/agentic-code-review/adrs/002-duckdb-ai-review-scorecard):
 acceptance excludes censored outcomes, fix-through and noise use published
 findings as their denominator, cost uses accepted findings, token efficiency
 uses uncached input tokens, and coverage uses reviewed over total hunks. Outputs
@@ -363,6 +361,10 @@ The production service and evaluation pipeline import their shared Zod schemas
 and inferred TypeScript types from `packages/ai-review-domain`. This keeps replay
 inputs, finding outcomes, coverage, change profiles, model metrics, provider
 names, and experiment contracts identical on both sides of the boundary.
+
+Production R2 paths are built in `src/r2-keys.ts`. The scorecard fixtures mirror
+those paths, and `tests/r2-keys.test.ts` pins the layout so a path change fails
+before the analytics job stops ingesting new records.
 
 Every request must declare model-count, token, cost, provider, privacy,
 timeout, and repetition limits. The default is a dry-run plan, which validates

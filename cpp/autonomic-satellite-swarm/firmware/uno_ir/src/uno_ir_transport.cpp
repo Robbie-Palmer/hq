@@ -43,11 +43,14 @@ bool UnoInfraredTransport::receive(satellite_swarm::Message& message) {
   const auto frame = static_cast<uint32_t>(IrReceiver.decodedIRData.decodedRawData);
   IrReceiver.resume();
   const auto header = static_cast<uint8_t>(frame >> 24U);
-  if ((header & 0xFCU) != kFramePrefix) {
+  if ((header & 0xF8U) != kFramePrefix) {
     return false;
   }
 
-  const uint8_t chunk = header & 0x03U;
+  const uint8_t chunk = header & 0x07U;
+  if (chunk >= kChunkCount) {
+    return false;
+  }
   if (chunk == 0U) {
     resetAssembly();
   }
@@ -58,7 +61,8 @@ bool UnoInfraredTransport::receive(satellite_swarm::Message& message) {
   received_chunks_ |= static_cast<uint8_t>(1U << chunk);
   last_chunk_at_ms_ = now_ms;
 
-  if (received_chunks_ != 0x0FU) {
+  constexpr auto kCompleteAssembly = static_cast<uint8_t>((1U << kChunkCount) - 1U);
+  if (received_chunks_ != kCompleteAssembly) {
     return false;
   }
   const bool decoded = satellite_swarm::WireCodec::decode(packet_, sizeof(packet_), message);

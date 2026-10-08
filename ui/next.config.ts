@@ -13,6 +13,26 @@ type WebpackCompiler = {
   };
 };
 
+function copyCooklangWasm(outputPath: string): void {
+  const sourceDir = path.join(outputPath, "chunks/static/wasm");
+  if (!fs.existsSync(sourceDir)) return;
+
+  const targetDirs = [
+    path.join(outputPath, "static/wasm"),
+    path.join(outputPath, "..", "static/wasm"),
+  ];
+  for (const targetDir of targetDirs) {
+    fs.mkdirSync(targetDir, { recursive: true });
+  }
+  for (const filename of fs.readdirSync(sourceDir)) {
+    if (!filename.endsWith(".wasm")) continue;
+    const sourceFile = path.join(sourceDir, filename);
+    for (const targetDir of targetDirs) {
+      fs.copyFileSync(sourceFile, path.join(targetDir, filename));
+    }
+  }
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function createNextConfig(phase: string): NextConfig {
@@ -24,6 +44,24 @@ function createNextConfig(phase: string): NextConfig {
     output: "export",
     images: {
       unoptimized: true,
+      remotePatterns: [
+        {
+          protocol: "https",
+          hostname: "a.storyblok.com",
+          pathname: "/f/337048/**",
+        },
+        {
+          protocol: "https",
+          hostname: "ugc.production.linktr.ee",
+          pathname:
+            "/4f88d739-d63c-434e-9683-0ca5142a4358_FF-CIRCULAR-DOUBLE-OUTLINE-SALMON-OUTER.png",
+        },
+        {
+          protocol: "https",
+          hostname: "res.cloudinary.com",
+          pathname: "/dmukukwp6/image/upload/deskhog_smiling_36bb2647ff",
+        },
+      ],
     },
     // `next build` runs its own `tsc` type-check, but a dedicated `//ui:check`
     // (PR CI) / `//ui:check:static` (deploy workflows) step already does, so the
@@ -37,8 +75,8 @@ function createNextConfig(phase: string): NextConfig {
     // In production the Cloudflare Pages Function (functions/api/auth/) handles this.
     ...(phase === PHASE_DEVELOPMENT_SERVER
       ? {
-          async rewrites() {
-            return [
+          rewrites() {
+            return Promise.resolve([
               {
                 source: "/.well-known/agent-configuration",
                 destination:
@@ -102,7 +140,7 @@ function createNextConfig(phase: string): NextConfig {
                 source: "/api/recipe-imports/:path*",
                 destination: "http://localhost:8787/recipe-imports/:path*",
               },
-            ];
+            ]);
           },
         }
       : {}),
@@ -112,7 +150,7 @@ function createNextConfig(phase: string): NextConfig {
     // Prevent 'fs' and 'path' from being bundled into client-side chunks.
     // Recipe .cook files are read server-side at build time only; these modules
     // are never called in the browser, so replacing them with empty modules is safe.
-    webpack(config, { isServer }) {
+    webpack(config, { isServer, webpack }) {
       config.experiments = {
         ...config.experiments,
         asyncWebAssembly: true,
@@ -123,37 +161,22 @@ function createNextConfig(phase: string): NextConfig {
         config.plugins.push({
           apply(compiler: WebpackCompiler) {
             compiler.hooks.afterEmit.tap("CooklangServerWasmPathPlugin", () => {
-              const outputPath = compiler.outputPath;
-              const sourceDir = path.join(outputPath, "chunks/static/wasm");
-              const targetDir = path.join(outputPath, "static/wasm");
-              const staticExportWasmDir = path.join(
-                outputPath,
-                "..",
-                "static/wasm",
-              );
-
-              if (!fs.existsSync(sourceDir)) {
-                return;
-              }
-
-              fs.mkdirSync(targetDir, { recursive: true });
-              fs.mkdirSync(staticExportWasmDir, { recursive: true });
-              for (const filename of fs.readdirSync(sourceDir)) {
-                if (filename.endsWith(".wasm")) {
-                  const sourceFile = path.join(sourceDir, filename);
-                  fs.copyFileSync(sourceFile, path.join(targetDir, filename));
-                  fs.copyFileSync(
-                    sourceFile,
-                    path.join(staticExportWasmDir, filename),
-                  );
-                }
-              }
+              copyCooklangWasm(compiler.outputPath);
             });
           },
         });
       }
 
       if (!isServer) {
+        // HiGHS' Emscripten glue contains a Node-only dynamic import behind a
+        // runtime check. Replace that import for the browser compilation.
+        config.plugins = config.plugins ?? [];
+        config.plugins.push(
+          new webpack.NormalModuleReplacementPlugin(
+            /^node:module$/,
+            path.join(__dirname, "lib/wedding-planner/browser-node-module.ts"),
+          ),
+        );
         config.resolve = {
           ...config.resolve,
           fallback: {

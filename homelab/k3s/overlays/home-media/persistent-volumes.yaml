@@ -1,7 +1,7 @@
 # Host-path persistent volumes on the single storage-media node. The config
 # paths live under the macOS host through the VM's /srv/homelab-media mount so
 # app state survives VM rebuilds; the media and downloads paths come from the
-# 10 TB disk exposed at /srv/expansion (ADR 023).
+# 10 TB disk exposed at /srv/expansion (ADR 020).
 apiVersion: v1
 kind: PersistentVolume
 metadata:

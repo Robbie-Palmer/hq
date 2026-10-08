@@ -5,6 +5,7 @@ import {
   Refrigerator,
   Search,
   ShoppingBasket,
+  Snowflake,
   Sprout,
   Trash2,
   TriangleAlert,
@@ -12,8 +13,16 @@ import {
   X,
 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
+import { emptyPantryFreshness } from "recipe-domain/pantry";
 import { DietListNotice } from "@/components/recipes/diet-notice";
 import { useDiet } from "@/components/recipes/diet-provider";
+import { EquipmentListNotice } from "@/components/recipes/equipment-readiness-notice";
+import { useEquipmentReadiness } from "@/components/recipes/equipment-readiness-provider";
+import {
+  KitchenItemEditor,
+  type KitchenStockGroup,
+  KitchenStockGroups,
+} from "@/components/recipes/kitchen/kitchen-stock-components";
 import { RecipeMatchCard } from "@/components/recipes/recipe-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,16 +33,23 @@ import {
   useKitchenStockQuery,
 } from "@/hooks/use-kitchen-stock";
 import { useShoppingList } from "@/hooks/use-shopping-list";
+import type { UnresolvedAuthoredTerm } from "@/lib/api/authored-terms";
+import type { PantryRestore } from "@/lib/api/pantry";
 import {
   applyDietRecipeVisibility,
   buildDietRecipeMatches,
 } from "@/lib/domain/diet";
+import {
+  applyEquipmentRecipeVisibility,
+  buildEquipmentRecipeMatches,
+} from "@/lib/domain/equipment-readiness";
 import type { IngredientSlug } from "@/lib/domain/recipe/ingredient";
 import {
   getDietRelevantKitchenIngredients,
   getKitchenRecipeMatches,
   KITCHEN_LOCATIONS,
   type KitchenIngredientView,
+  type KitchenItemDetails,
   type KitchenLocation,
   type KitchenRecipeView,
   type KitchenStock,
@@ -45,6 +61,7 @@ const CATALOG_RESULT_LIMIT = 18;
 
 const LOCATION_ICONS = {
   fridge: Refrigerator,
+  freezer: Snowflake,
   cupboards: ShoppingBasket,
   fresh: Sprout,
 } satisfies Record<KitchenLocation, typeof Refrigerator>;
@@ -58,6 +75,144 @@ function LocationIcon({ location }: Readonly<{ location: KitchenLocation }>) {
   return <Icon className="size-4" />;
 }
 
+function defaultItemDetails(location: KitchenLocation): KitchenItemDetails {
+  return {
+    location,
+    quantity: null,
+    freshness: emptyPantryFreshness(),
+    source: {
+      kind: "user",
+      provenance: "Manual kitchen update",
+    },
+  };
+}
+
+function canSaveCustomIngredient(
+  rawText: string,
+  ingredients: KitchenIngredientView[],
+  stock: KitchenStock,
+): boolean {
+  const normalized = normalizeQuery(rawText);
+  return (
+    normalized.length > 0 &&
+    !ingredients.some(
+      (ingredient) =>
+        normalizeQuery(ingredient.name) === normalized ||
+        normalizeQuery(ingredient.slug) === normalized,
+    ) &&
+    !Object.keys(stock).some((slug) => normalizeQuery(slug) === normalized)
+  );
+}
+
+function UnresolvedStockSection({
+  terms,
+  onRemove,
+}: Readonly<{
+  terms: UnresolvedAuthoredTerm[];
+  onRemove: (slug: IngredientSlug) => void;
+}>) {
+  if (terms.length === 0) return null;
+  return (
+    <section className="rounded-lg border border-dashed border-[var(--line-strong)] bg-[var(--paper-warm)] p-3">
+      <p className="rt-mono text-[var(--terracotta)]">Saved as written</p>
+      <p className="rt-body mt-1 text-sm text-[var(--ink-3)]">
+        These items stay in your pantry, but recipe matching and nutrition
+        remain unavailable until each term is linked to the ingredient catalog.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {terms.map((term) => (
+          <Badge
+            key={term.id}
+            variant="outline"
+            className="gap-1.5 bg-[var(--card)]"
+          >
+            <span>{term.rawText}</span>
+            <button
+              type="button"
+              onClick={() => onRemove(term.normalizedText as IngredientSlug)}
+              aria-label={`Remove ${term.rawText}`}
+            >
+              <X className="size-3" />
+            </button>
+          </Badge>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function KitchenCatalogFooter({
+  canAddCustom,
+  customIngredient,
+  filteredCount,
+  matchCount,
+  onAddCustom,
+}: Readonly<{
+  canAddCustom: boolean;
+  customIngredient: string;
+  filteredCount: number;
+  matchCount: number;
+  onAddCustom: () => void;
+}>) {
+  return (
+    <>
+      {canAddCustom && (
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onAddCustom}
+            className="mt-3 h-auto w-full max-w-full justify-start whitespace-normal text-left sm:w-auto"
+          >
+            <CirclePlus className="size-4" />
+            <span className="min-w-0 break-words">
+              Save "{customIngredient}" as written
+            </span>
+          </Button>
+          <p className="rt-body mt-2 text-sm text-[var(--ink-3)]">
+            It will stay in your pantry, but recipe matching and nutrition will
+            ignore it until it is linked to the ingredient catalog.
+          </p>
+        </>
+      )}
+      {matchCount > filteredCount && (
+        <p className="rt-body mt-3 text-sm text-[var(--ink-3)]">
+          Showing {filteredCount} of {matchCount} matching ingredients.
+        </p>
+      )}
+      {filteredCount === 0 && (
+        <p className="rt-body text-sm text-[var(--ink-3)]">
+          No matching ingredients left to add.
+        </p>
+      )}
+    </>
+  );
+}
+
+function KitchenHeader({
+  householdName,
+}: Readonly<{ householdName: string | null }>) {
+  return (
+    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div className="min-w-0">
+        <p className="rt-mono text-[var(--terracotta)]">
+          Kitchen · stock match
+        </p>
+        <h1 className="rt-display mt-2 text-5xl sm:text-6xl lg:text-7xl">
+          What can I <span className="text-[var(--terracotta)]">make?</span>
+        </h1>
+        <p className="rt-body mt-3 max-w-2xl text-[var(--ink-2)]">
+          Add ingredients from the recipe catalog or save your own wording,
+          split them across fridge, cupboards and fresh, then compare{" "}
+          {householdName ? `${householdName}'s shared kitchen` : "your kitchen"}{" "}
+          against the recipe box.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function KitchenView({
   ingredients,
   recipes,
@@ -66,7 +221,9 @@ export function KitchenView({
   recipes: KitchenRecipeView[];
 }>) {
   const { diet, matchRecipe } = useDiet();
+  const { equipment } = useEquipmentReadiness();
   const [showHidden, setShowHidden] = useState(false);
+  const [showEquipmentHidden, setShowEquipmentHidden] = useState(false);
   const [showDietExcludedIngredients, setShowDietExcludedIngredients] =
     useState(false);
   const ingredientBySlug = useMemo(
@@ -80,6 +237,17 @@ export function KitchenView({
   );
   const pantry = useKitchenStockQuery();
   const stock = pantry.data?.stock ?? {};
+  const pantryItems = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(stock).map(([slug, location]) => [
+          slug,
+          pantry.data?.items?.[slug] ?? defaultItemDetails(location),
+        ]),
+      ),
+    [pantry.data?.items, stock],
+  );
+  const unresolvedStock = pantry.data?.unresolvedTerms ?? [];
   const stockActions = useKitchenStockActions();
   const shoppingList = useShoppingList();
   const selectedRecipeSlugs = useMemo(
@@ -88,11 +256,12 @@ export function KitchenView({
   );
   const [stockQuery, setStockQuery] = useState("");
   const [catalogQuery, setCatalogQuery] = useState("");
-  const [lastClearedStock, setLastClearedStock] = useState<KitchenStock | null>(
-    null,
-  );
+  const [lastClearedPantry, setLastClearedPantry] =
+    useState<PantryRestore | null>(null);
   const [targetLocation, setTargetLocation] =
     useState<KitchenLocation>("cupboards");
+  const [editingIngredientSlug, setEditingIngredientSlug] =
+    useState<IngredientSlug | null>(null);
   const catalogCardRef = useRef<HTMLDivElement>(null);
   const catalogSearchRef = useRef<HTMLInputElement>(null);
 
@@ -143,16 +312,42 @@ export function KitchenView({
       ),
     [diet.active, diet.mode, dietMatches, recipes, showHidden],
   );
-  const matches = useMemo(
-    () => getKitchenRecipeMatches(dietFilteredRecipes, stockedSlugs),
-    [dietFilteredRecipes, stockedSlugs],
+  const equipmentMatches = useMemo(
+    () =>
+      buildEquipmentRecipeMatches(recipes, equipment, (recipe) => ({
+        cookware: recipe.cookware ?? [],
+      })),
+    [equipment, recipes],
   );
-  const cookNow = matches
-    .filter((recipe) => recipe.totalCount > 0 && recipe.missingCount === 0)
-    .slice(0, 4);
-  const closeMatches = matches
-    .filter((recipe) => recipe.missingCount > 0)
-    .slice(0, 5);
+  const {
+    visibleRecipes: readinessFilteredRecipes,
+    hiddenCount: equipmentHiddenCount,
+  } = useMemo(
+    () =>
+      applyEquipmentRecipeVisibility(
+        dietFilteredRecipes,
+        equipmentMatches,
+        equipment,
+        showEquipmentHidden,
+      ),
+    [dietFilteredRecipes, equipment, equipmentMatches, showEquipmentHidden],
+  );
+  const matches = useMemo(
+    () =>
+      getKitchenRecipeMatches(
+        readinessFilteredRecipes,
+        pantryItems,
+        equipment.active ? equipment.ownedSlugs : null,
+      ),
+    [
+      equipment.active,
+      equipment.ownedSlugs,
+      pantryItems,
+      readinessFilteredRecipes,
+    ],
+  );
+  const cookNow = matches.filter((recipe) => recipe.canCook).slice(0, 4);
+  const closeMatches = matches.filter((recipe) => !recipe.canCook).slice(0, 5);
 
   const catalogMatches = useMemo(() => {
     const query = normalizeQuery(catalogQuery);
@@ -166,10 +361,15 @@ export function KitchenView({
       });
   }, [catalogQuery, dietRelevantIngredients, stock]);
   const filteredCatalog = catalogMatches.slice(0, CATALOG_RESULT_LIMIT);
-  const isCatalogTruncated = catalogMatches.length > filteredCatalog.length;
+  const customIngredient = catalogQuery.trim();
+  const canAddCustomIngredient = canSaveCustomIngredient(
+    customIngredient,
+    ingredients,
+    stock,
+  );
 
   const stockQueryNormalized = normalizeQuery(stockQuery);
-  const groupedStock = useMemo(
+  const groupedStock = useMemo<KitchenStockGroup[]>(
     () =>
       KITCHEN_LOCATIONS.map((location) => ({
         id: location.id,
@@ -196,7 +396,17 @@ export function KitchenView({
     location = targetLocation,
   ) => {
     stockActions.setStockLocation(ingredient.slug, location);
-    setLastClearedStock(null);
+    setLastClearedPantry(null);
+  };
+
+  const addCustomIngredient = () => {
+    if (!canAddCustomIngredient) return;
+    stockActions.setStockLocation(
+      customIngredient as IngredientSlug,
+      targetLocation,
+    );
+    setCatalogQuery("");
+    setLastClearedPantry(null);
   };
 
   const removeIngredient = (slug: IngredientSlug) => {
@@ -215,42 +425,31 @@ export function KitchenView({
   };
 
   const clearStock = () => {
-    setLastClearedStock(stock);
+    setLastClearedPantry({ stock, items: pantryItems });
     stockActions.clearStock();
   };
 
   const undoClear = () => {
-    if (!lastClearedStock) return;
-    stockActions.restoreStock(lastClearedStock);
-    setLastClearedStock(null);
+    if (!lastClearedPantry) return;
+    stockActions.restoreStock(lastClearedPantry);
+    setLastClearedPantry(null);
   };
 
-  const stockedCount = stockedSlugs.length;
+  const stockedCount = Object.keys(stock).length;
   const householdName =
     pantry.data?.scope.type === "household"
       ? pantry.data.scope.household.name
       : null;
+  const editingIngredient = editingIngredientSlug
+    ? ingredientBySlug.get(editingIngredientSlug)
+    : undefined;
+  const editingItem = editingIngredientSlug
+    ? pantryItems[editingIngredientSlug]
+    : undefined;
 
   return (
     <div className="container mx-auto min-h-screen max-w-7xl px-4 pt-5 pb-16 md:pt-7">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0">
-          <p className="rt-mono text-[var(--terracotta)]">
-            Kitchen · stock match
-          </p>
-          <h1 className="rt-display mt-2 text-5xl sm:text-6xl lg:text-7xl">
-            What can I <span className="text-[var(--terracotta)]">make?</span>
-          </h1>
-          <p className="rt-body mt-3 max-w-2xl text-[var(--ink-2)]">
-            Add ingredients from the canonical recipe catalog, split them across
-            fridge, cupboards and fresh, then compare{" "}
-            {householdName
-              ? `${householdName}'s shared kitchen`
-              : "your kitchen"}{" "}
-            against the recipe box.
-          </p>
-        </div>
-      </div>
+      <KitchenHeader householdName={householdName} />
 
       {pantry.error && (
         <div
@@ -277,6 +476,15 @@ export function KitchenView({
           mode={diet.mode}
           showingHidden={showHidden}
           onToggleHidden={() => setShowHidden((current) => !current)}
+        />
+      )}
+
+      {equipment.active && (
+        <EquipmentListNotice
+          hiddenCount={equipmentHiddenCount}
+          mode={equipment.mode}
+          showingHidden={showEquipmentHidden}
+          onToggleHidden={() => setShowEquipmentHidden((current) => !current)}
         />
       )}
 
@@ -318,16 +526,18 @@ export function KitchenView({
                     <button
                       type="button"
                       onClick={clearStock}
-                      className="inline-flex items-center gap-1 rt-mono text-[var(--ink-3)] transition-colors hover:text-[var(--berry)]"
+                      disabled={stockActions.isPending}
+                      className="inline-flex items-center gap-1 rt-mono text-[var(--ink-3)] transition-colors hover:text-[var(--berry)] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Trash2 className="h-3.5 w-3.5" /> clear all
                     </button>
                   )}
-                  {lastClearedStock && stockedCount === 0 && (
+                  {lastClearedPantry && stockedCount === 0 && (
                     <button
                       type="button"
                       onClick={undoClear}
-                      className="inline-flex items-center gap-1 rt-mono text-[var(--ink-3)] transition-colors hover:text-[var(--terracotta)]"
+                      disabled={stockActions.isPending}
+                      className="inline-flex items-center gap-1 rt-mono text-[var(--ink-3)] transition-colors hover:text-[var(--terracotta)] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Undo2 className="h-3.5 w-3.5" /> undo clear
                     </button>
@@ -348,60 +558,29 @@ export function KitchenView({
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              {groupedStock.map((group) => {
-                const Icon = group.icon;
-                return (
-                  <section key={group.id} className="min-w-0">
-                    <div className="mb-3 flex flex-wrap items-end justify-between gap-2 border-b border-[var(--line)] pb-2">
-                      <div className="min-w-0">
-                        <h2 className="rt-display flex items-center gap-2 text-3xl text-[var(--terracotta)]">
-                          <Icon className="size-5" />
-                          {group.label}
-                        </h2>
-                        <p className="rt-body text-sm text-[var(--ink-3)]">
-                          {group.description}
-                        </p>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-[var(--terracotta)]"
-                        onClick={() => focusAddIngredients(group.id)}
-                        aria-label={`Add ingredients to ${group.label}`}
-                      >
-                        <CirclePlus className="size-4" />
-                        Add here
-                      </Button>
-                    </div>
-                    {group.items.length > 0 ? (
-                      <div className="flex min-w-0 flex-wrap gap-2">
-                        {group.items.map((ingredient) => (
-                          <Badge
-                            key={ingredient.slug}
-                            variant="outline"
-                            className="max-w-full gap-1.5 bg-[var(--paper-warm)] px-2 py-1 text-sm text-[var(--ink)]"
-                          >
-                            <span className="truncate">{ingredient.name}</span>
-                            <button
-                              type="button"
-                              onClick={() => removeIngredient(ingredient.slug)}
-                              className="rounded-sm p-0.5 text-[var(--ink-3)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--berry)]"
-                              aria-label={`Remove ${ingredient.name}`}
-                            >
-                              <X className="size-3" />
-                            </button>
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="rt-body text-sm text-[var(--ink-3)]">
-                        Nothing here yet.
-                      </p>
-                    )}
-                  </section>
-                );
-              })}
+              <UnresolvedStockSection
+                terms={unresolvedStock}
+                onRemove={removeIngredient}
+              />
+              {editingIngredientSlug && editingIngredient && editingItem && (
+                <KitchenItemEditor
+                  key={editingIngredientSlug}
+                  ingredient={editingIngredient}
+                  item={editingItem}
+                  onCancel={() => setEditingIngredientSlug(null)}
+                  onSave={(item) => {
+                    stockActions.updateStockItem(editingIngredientSlug, item);
+                    setEditingIngredientSlug(null);
+                  }}
+                />
+              )}
+              <KitchenStockGroups
+                groups={groupedStock}
+                items={pantryItems}
+                onAdd={focusAddIngredients}
+                onEdit={setEditingIngredientSlug}
+                onRemove={removeIngredient}
+              />
             </CardContent>
           </Card>
 
@@ -412,7 +591,7 @@ export function KitchenView({
             <CardHeader className="gap-3">
               <div>
                 <p className="rt-mono text-[var(--terracotta)]">
-                  Canonical ingredients
+                  Ingredient catalog
                 </p>
                 <CardTitle className="rt-display text-4xl">
                   Add to your kitchen.
@@ -454,7 +633,7 @@ export function KitchenView({
                     className="h-10 border-[var(--line-strong)] bg-[var(--paper)] pl-9"
                   />
                 </div>
-                <div className="grid grid-cols-3 rounded-md border border-[var(--line-strong)] bg-[var(--paper-warm)] p-1">
+                <div className="grid grid-cols-4 rounded-md border border-[var(--line-strong)] bg-[var(--paper-warm)] p-1">
                   {KITCHEN_LOCATIONS.map((location) => (
                     <button
                       key={location.id}
@@ -521,17 +700,13 @@ export function KitchenView({
                   );
                 })}
               </div>
-              {isCatalogTruncated && (
-                <p className="rt-body mt-3 text-sm text-[var(--ink-3)]">
-                  Showing {filteredCatalog.length} of {catalogMatches.length}{" "}
-                  matching ingredients.
-                </p>
-              )}
-              {filteredCatalog.length === 0 && (
-                <p className="rt-body text-sm text-[var(--ink-3)]">
-                  No matching ingredients left to add.
-                </p>
-              )}
+              <KitchenCatalogFooter
+                canAddCustom={canAddCustomIngredient}
+                customIngredient={customIngredient}
+                filteredCount={filteredCatalog.length}
+                matchCount={catalogMatches.length}
+                onAddCustom={addCustomIngredient}
+              />
             </CardContent>
           </Card>
         </div>

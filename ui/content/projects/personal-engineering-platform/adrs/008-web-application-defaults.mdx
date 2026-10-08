@@ -1,0 +1,38 @@
+---
+title: "ADR 008: React and Next.js for web applications"
+date: "2026-09-15"
+status: "Accepted"
+tech_stack:
+  - "React"
+  - "Next.js"
+  - "Tailwind CSS"
+  - "shadcn/ui"
+  - "Cloudflare Pages"
+---
+
+## Context
+
+The Personal Knowledge Graph and Recipe Site share the same browser application
+stack. Their product decisions differ, but React, Next.js, Tailwind CSS,
+shadcn/ui, and Cloudflare Pages form a repeated route to an accessible,
+previewable application.
+
+## Decision
+
+Use React as the UI library and Next.js as the application framework for the
+web application layer. Use Tailwind CSS for styling and shadcn/ui as the
+component starting point. Prefer Cloudflare Pages when the application needs a
+managed frontend host.
+
+The hosting slot remains preferred because a browser application may ship as part
+of another runtime or remain a local tool.
+
+## Consequences
+
+New web applications begin with a well-understood component model, shared
+design conventions, and the same preview deployment path. Next.js does not
+force every project to use its server runtime. APIs remain governed by the
+backend API layer.
+
+Framework-specific product choices such as rendering mode, authentication,
+client state, content format, and routing stay in project ADRs.

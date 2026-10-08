@@ -1,14 +1,21 @@
+import { APIError } from "better-auth";
 import { Hono } from "hono";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   type AuthenticatedSession,
   authorizeHouseholdMembershipManagement,
   authorizeOwnerOnly,
   authorizeRecipeRead,
   forbidden,
+  loadBetterAuthSession,
   requireAuthorization,
   requireAuthenticatedUser,
 } from "../src/http/authorization";
+import { createAuth } from "../src/auth";
+
+vi.mock("../src/auth", () => ({ createAuth: vi.fn() }));
+
+const mockedCreateAuth = vi.mocked(createAuth);
 
 const ownerSession = {
   user: {
@@ -105,6 +112,70 @@ describe("authorization policies", () => {
       status: 403,
       error: "Authorization required",
     });
+  });
+});
+
+function sessionContext(headers: Record<string, string>) {
+  const raw = new Headers(headers);
+  return {
+    req: {
+      header: (name: string) => raw.get(name) ?? undefined,
+      raw: { headers: raw },
+    },
+    env: { BETTER_AUTH_URL: "https://recipes.test", BETTER_AUTH_SECRET: "s" },
+  } as unknown as Parameters<typeof loadBetterAuthSession>[0];
+}
+
+const db = {} as Parameters<typeof loadBetterAuthSession>[1];
+
+function stubGetSession(
+  getSession: () => Promise<AuthenticatedSession | null>,
+) {
+  mockedCreateAuth.mockReturnValue({
+    api: { getSession },
+  } as unknown as ReturnType<typeof createAuth>);
+}
+
+describe("loadBetterAuthSession", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns no session before Better Auth runs when no session signal exists", async () => {
+    await expect(loadBetterAuthSession(sessionContext({}), db)).resolves.toBe(
+      null,
+    );
+    expect(mockedCreateAuth).not.toHaveBeenCalled();
+  });
+
+  it("treats an unusable session (401) as no session", async () => {
+    stubGetSession(() => {
+      throw new APIError("UNAUTHORIZED", { message: "Failed to get session" });
+    });
+
+    await expect(
+      loadBetterAuthSession(sessionContext({ authorization: "Bearer t" }), db),
+    ).resolves.toBe(null);
+  });
+
+  it("rethrows a genuine internal failure so it stays visible", async () => {
+    stubGetSession(() => {
+      throw new APIError("INTERNAL_SERVER_ERROR", {
+        message: "Failed to get session",
+      });
+    });
+
+    await expect(
+      loadBetterAuthSession(sessionContext({ authorization: "Bearer t" }), db),
+    ).rejects.toBeInstanceOf(APIError);
+  });
+
+  it("returns the session when Better Auth resolves one", async () => {
+    stubGetSession(() => Promise.resolve(ownerSession));
+
+    await expect(
+      loadBetterAuthSession(sessionContext({ authorization: "Bearer t" }), db),
+    ).resolves.toBe(ownerSession);
   });
 });
 

@@ -1,8 +1,31 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  formatExperienceDateLabel,
   formatExperienceDateRange,
+  getAllExperience,
   getExperienceDuration,
 } from "@/lib/api/experience";
+
+describe("getAllExperience", () => {
+  it("shows the Terminal Industries role transition", () => {
+    const terminalIndustries = getAllExperience().find(
+      ({ company }) => company === "Terminal Industries",
+    );
+
+    expect(terminalIndustries).toMatchObject({
+      title: "Principal Software Engineer & Engineering Manager",
+      startDate: "2024-05",
+      previousTitles: [
+        {
+          title: "Principal Software Engineer",
+          startDate: "2024-05",
+          endDate: "2026-03",
+        },
+      ],
+    });
+    expect(terminalIndustries?.endDate).toBeUndefined();
+  });
+});
 
 describe("formatExperienceDateRange", () => {
   it("formats a closed range", () => {
@@ -51,6 +74,32 @@ describe("getExperienceDuration", () => {
   it("formats years with remaining months", () => {
     expect(getExperienceDuration("2020-01", "2021-03")).toBe(
       "1 year, 3 months",
+    );
+  });
+
+  describe("in a timezone west of UTC", () => {
+    const originalTimezone = process.env.TZ;
+
+    afterEach(() => {
+      vi.useRealTimers();
+      if (originalTimezone === undefined) delete process.env.TZ;
+      else process.env.TZ = originalTimezone;
+    });
+
+    it("counts open-ended roles the same as UTC", () => {
+      process.env.TZ = "America/Los_Angeles";
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-10-04T12:00:00Z"));
+
+      expect(getExperienceDuration("2024-05")).toBe("2 years, 6 months");
+    });
+  });
+});
+
+describe("formatExperienceDateLabel", () => {
+  it("combines the range and duration", () => {
+    expect(formatExperienceDateLabel("2020-01", "2021-03")).toBe(
+      "Jan 2020 - Mar 2021 (1 year, 3 months)",
     );
   });
 });

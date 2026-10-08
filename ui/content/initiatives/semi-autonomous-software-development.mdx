@@ -34,7 +34,7 @@ use.
 The answer is not another board filled with more detailed tickets. The missing
 parts are connected systems with different responsibilities:
 
-* The [Personal Site and its knowledge graph](/projects/personal-site) record
+* The [Personal Knowledge Graph](/projects/personal-knowledge-graph) records
   what is known, why decisions were made, and which ideas, technologies, roles,
   and projects relate.
 * The [Agent-first Writing Editor](/projects/agent-first-writing) turns the
@@ -103,6 +103,77 @@ Analytics creates work graph changes that remove recurring bottlenecks. A data
 warehouse retains operational telemetry without filling the public graph with
 every model call and retry.
 
+# An adaptive model of the organisation
+
+The initial scope is me and my agents. Model my objectives, the work needed to
+reach them, my available attention, and agent capacity. The wider ambition is a
+digital twin of an organisation's objectives, plans, and capacity, but the first
+test is whether this model helps my own work move forward.
+
+This is an [adaptive planning](/ideas/adaptive-planning) problem. Keep the goal
+fixed, expect the plan to be wrong, and revise it as execution creates knowledge.
+Agents with equivalent capabilities, access, and starting context can often
+substitute for one another. The model should account for differences that affect
+delivery, including handoff costs, model limits, and tool access. My judgment and
+attention remain constraints that additional agents cannot automatically remove.
+
+The Work Graph stores the plan and its revisions. The knowledge graph holds
+accepted findings and their evidence. The Agent Coordinator matches ready work
+to actors. Analytics should use delivery results, waiting time, rework, and
+human interventions to propose changes across that system.
+
+For example, if review is repeatedly the bottleneck, starting more coding tasks
+may make delivery worse. Improving the
+[code review solution](/projects/agentic-code-review) may enable faster merges
+with greater confidence. Compare that investment with delivering another
+feature, limiting work in progress, or reserving review capacity. Use evidence
+about the critical path and lead times to decide which work advances the goal.
+
+The knowledge base is another investment choice. Repeated agent mistakes or
+reliance on weak ideas may justify correcting an explanation, adding missing
+evidence, or replacing outdated guidance. The system should connect those
+failures to proposed improvements and check whether the improvements reduce
+rework. Feature delivery, tooling, and knowledge maintenance compete for the
+same capacity and should be prioritised together.
+
+Begin with a simple policy: regularly replenish and reprioritise the queue,
+then pull the highest-priority eligible task when capacity becomes available.
+Only tasks in flight are committed. Test refinements against that policy by
+measuring lead times, avoidable waits, and rework. Identify what can run in
+parallel and what is holding up the critical path. Forecast only the delivery
+of an individual task after it is picked up. Historical replay can help reject
+weak proposals, but it cannot prove what an untried allocation would have achieved.
+
+Owners choose the outcomes and tradeoffs. Optimisation should account for
+delivery risk, cost, learning, and disruption. Neither maximum utilisation nor
+ticket throughput is a sufficient objective, as
+[Goodhart's Law](/ideas/goodharts-law) would suggest. The system should propose
+refinements we can inspect and learn from, with stronger evidence required
+before granting it more authority.
+
+## Related research and products
+
+Research and product documentation reviewed on 12 September 2026 show that parts
+of this approach already exist. I have reviewed these precedents through their
+documentation and have yet to validate the products in use.
+
+| Precedent                                                                                                                                                                                     | What it contributes                                                                                                                                               | What I still need to test                                                                               |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| [RAND's assumption-based planning](https://www.rand.org/pubs/monograph_reports/MR114.html)                                                                                                    | Identify vulnerable assumptions and signals that should trigger adaptation.                                                                                       | Can execution evidence keep assumptions and affected graph branches current at low cost?                |
+| [Herroelen and Leus, project scheduling under uncertainty, 2005](https://www.sciencedirect.com/science/article/pii/S0377221704002401)                                                         | Treat uncertainty, reactive scheduling, and schedule stability as explicit planning concerns.                                                                     | How should interruption costs and discoveries that change the task graph affect the planning policy?    |
+| [Autonomous Digital Twin of Enterprise, 2022](https://www.mdpi.com/2227-7390/10/10/1662)                                                                                                      | Combine an ontology with multi-agent task and resource allocation, event-driven replanning, and what-if simulation. The paper reports IT service desk validation. | Does the approach transfer to software discovery, where both the tasks and desired solution can change? |
+| [Tempo Portfolio Manager, formerly LiquidPlanner](https://help.tempo.io/portfoliomanager/latest/predicting-project-outcomes)                                                                  | Forecast using ranged estimates, priorities, dependencies, and resource availability; recalculate as inputs change.                                               | How well can it represent invalidated assumptions and changing scope, beyond rescheduling known tasks?  |
+| [Planview's Outcome Intelligence Graph and Agent Resource Management](https://newsroom.planview.com/planview-closes-the-gap-between-strategic-intent-and-business-outcomes-in-the-age-of-ai/) | Planview describes connected strategy and execution, scenario planning, and joint governance of human and AI agent capacity.                                      | Can its proposed plan changes expose evidence and control disruption in a small team's daily work?      |
+
+The enterprise digital twin paper is a close research precedent, and Planview's
+stated direction overlaps with this initiative. Neither establishes that this
+particular loop works for my projects. The case for building it must rest on
+that practical test.
+
+Tempo's portfolio forecasting is adjacent to this initiative's focus on critical
+paths, parallel work, and task lead times. The product test is whether a tool can
+keep the queue useful as evidence changes and help work in flight finish sooner.
+
 # Principles
 
 ## Public by default
@@ -130,13 +201,16 @@ Completion depends on context. It may mean accepted research, a recorded
 decision, a merged change, or a healthy deployment. Every executable task needs
 acceptance criteria and evidence strong enough for the owning project's risk.
 
-## Plans can change
+## Plans adapt without constant disruption
 
 Agents must be able to split work, add dependencies, invalidate earlier tasks,
 and reshape the critical path as they learn. Owners constrain the allowed
-shapes and transitions. The Work Graph should be more structured than a model
-inventing an arbitrary workflow during every session, while retaining that
-ability to adapt.
+shapes and transitions. Keep queued work provisional and commit only when a task
+starts. Reprioritise the queue as evidence arrives; interrupt work in flight only
+when the benefit justifies the disruption. Preserve the evidence behind each
+change. The Work Graph records that history;
+the initiative learns when adaptation improves outcomes and when it merely
+creates nervousness.
 
 ## Human attention is an exception worth learning from
 

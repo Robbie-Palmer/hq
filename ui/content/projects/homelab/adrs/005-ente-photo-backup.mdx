@@ -1,0 +1,84 @@
+---
+title: "ADR 005: Ente for photo backup"
+date: "2026-08-02"
+status: "Accepted"
+tech_stack: ["Ente"]
+---
+
+# Context
+
+My photo library lives in the cloud with Ente, an end-to-end encrypted photo
+provider. Ente already replicates the library across three cloud providers
+and it doubles as the sync mechanism between my devices. What it doesn't
+provide is a copy I own: if the service ever goes down or stops being a
+workable option, years of family photos live only behind someone else's
+decisions.
+
+I want a regular, automated sync from Ente down to a local 10TB HDD connected
+to the Mac mini, an offline backup I own. Manual syncing has already proven
+itself painful, so this must be a monitored, repeatable pipeline, not a
+script I have to remember to run.
+
+# Decision
+
+Connect the Mac mini to **Ente** and run regular syncs from it down to the
+connected 10TB HDD.
+
+Ente's CLI supports export/backup flows, so the hub can pull the library,
+which stays in Ente's cloud, down on a schedule into the backup drive. The
+drive is
+formatted as a straightforward filesystem layout (not a proprietary archive)
+so the photos remain readable by normal tools even if every Ente tool
+disappears. A backup that fails quietly is barely better than no backup, so
+the sync has to be watched and has to raise an alarm on failure or a full
+drive, a pipeline to monitor, not a script to forget.
+
+The Mac mini is the right owner for this: it's always on, and it already
+hosts the backup drive. That does mean sharing a box with the
+[agent stack](/projects/homelab/adrs/004-t3-code), which is a risk rather
+than a benefit. The Codex decision flags it as the reason to keep
+least-privilege rules tight around the photo library and backup drive.
+
+# Alternatives
+
+## Rely on Ente's cloud redundancy alone
+
+* **Pros**: Zero effort; the provider already replicates data across three
+  clouds.
+* **Cons**: Still a single vendor. Ente's redundancy protects against its
+  own infrastructure failures but not against the service being unavailable
+  or unusable from my side. "The cloud is the backup" is not a backup I own.
+* **Decision**: Rejected. The whole point of this ADR is owning a copy I
+  control.
+
+## Full manual export on a schedule
+
+* **Pros**: No tooling.
+* **Cons**: Exactly the painful, forgettable workflow this lab exists to
+  eliminate.
+* **Decision**: Rejected. Automate or it won't happen.
+
+## Different local backup target (e.g. NAS, cold storage)
+
+* **Pros**: NAS gives redundancy and network access.
+* **Cons**: More hardware and more complexity than the existing 10TB drive;
+  cold storage adds retrieval friction.
+* **Decision**: Deferred. The 10TB HDD covers the need today. A NAS or
+  offsite copy is on the [future direction](/projects/homelab#future-direction) list.
+
+# Consequences
+
+### Pros
+
+* **An offline copy I own**: photos are no longer hostage to one vendor.
+* **Automated and observable**: the sync runs on a schedule and is built to
+  surface its failures rather than swallow them.
+* **Plain files on disk**: readable with normal tools, no proprietary lock-in.
+
+### Cons
+
+* **Local storage dependency**: the 10TB drive is a single physical disk.
+  a NAS or offsite copy would close that gap.
+* **Sync pipeline to maintain**: Ente's CLI/export paths can change.
+* **Privacy boundary to respect**: the photo library and backup drive must
+  stay out of agent permission profiles on the same host.

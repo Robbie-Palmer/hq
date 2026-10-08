@@ -1,0 +1,5 @@
+# actionlint v1.7.12 predates GitHub's $/ self-repository action syntax.
+paths:
+  .github/workflows/**/*.{yml,yaml}:
+    ignore:
+      - 'specifying action "\$/\.github/actions/setup-mise" in invalid format because ref is missing'

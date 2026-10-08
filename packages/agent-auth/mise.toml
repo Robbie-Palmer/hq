@@ -1,0 +1,22 @@
+[tasks.install]
+description = "Install Agent Auth dependencies"
+run = "pnpm install --frozen-lockfile --filter agent-auth..."
+
+[tasks.typecheck]
+description = "Typecheck the shared Agent Auth package"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test the shared Agent Auth package"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test the Agent Auth package with coverage"
+depends = ["install"]
+run = "pnpm test:coverage"
+
+[tasks.check]
+description = "Check the shared Agent Auth package"
+depends = ["typecheck", "test"]

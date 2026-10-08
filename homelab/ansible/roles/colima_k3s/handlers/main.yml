@@ -52,3 +52,30 @@
       - "{{ ansible_facts.env.HOME }}/Library/LaunchAgents/{{ colima_k3s_launchd_label }}.plist"
   changed_when: true
   listen: Restart the managed Colima K3s profile
+
+- name: Unload the media K3s launchd jobs
+  ansible.builtin.command:
+    argv:
+      - launchctl
+      - bootout
+      - "gui/{{ ansible_facts.user_uid }}/{{ item }}"
+  changed_when: colima_k3s_media_job_unload.rc == 0
+  failed_when: false
+  loop:
+    - "{{ media_k3s_gate_launchd_label }}"
+    - "{{ media_k3s_backup_launchd_label }}"
+  register: colima_k3s_media_job_unload
+  listen: Reload the media K3s launchd jobs
+
+- name: Load the media K3s launchd jobs
+  ansible.builtin.command:
+    argv:
+      - launchctl
+      - bootstrap
+      - "gui/{{ ansible_facts.user_uid }}"
+      - "{{ ansible_facts.env.HOME }}/Library/LaunchAgents/{{ item }}.plist"
+  changed_when: true
+  loop:
+    - "{{ media_k3s_gate_launchd_label }}"
+    - "{{ media_k3s_backup_launchd_label }}"
+  listen: Reload the media K3s launchd jobs

@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "incremental": false,
+    "plugins": [],
+    "types": ["node"]
+  },
+  "include": [
+    "e2e/mermaid/**/*.ts",
+    "e2e/preview/**/*.ts",
+    "playwright.mermaid.config.ts",
+    "playwright.preview.config.ts"
+  ],
+  "exclude": ["node_modules"]
+}

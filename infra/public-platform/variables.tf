@@ -118,6 +118,12 @@ variable "r2_database_backups_bucket_name" {
   default     = "personal-site-database-backups"
 }
 
+variable "r2_workspace_backups_bucket_name" {
+  description = "Name of the private R2 bucket for encrypted remote workspace backups"
+  type        = string
+  default     = "remote-development-workspace-backups"
+}
+
 variable "recipe_api_url" {
   description = "URL of the recipe-api Worker for the auth proxy"
   type        = string
@@ -153,14 +159,14 @@ variable "cf_pages_host" {
   }
 }
 
-variable "cloudflare_pages_preview_access_application_id" {
-  description = "Account-level Access application ID created by Cloudflare Pages preview protection"
+variable "cloudflare_account_identity_provider_id" {
+  description = "Cloudflare identity provider ID used for Pages preview browser logins"
   type        = string
-  nullable    = false
+  default     = "69e998ae-23eb-45a4-b2ed-6f13bb62040b"
 
   validation {
-    condition     = can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", var.cloudflare_pages_preview_access_application_id))
-    error_message = "cloudflare_pages_preview_access_application_id must be a lowercase UUID."
+    condition     = can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", var.cloudflare_account_identity_provider_id))
+    error_message = "cloudflare_account_identity_provider_id must be a lowercase UUID."
   }
 }
 

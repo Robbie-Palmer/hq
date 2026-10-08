@@ -1,0 +1,419 @@
+{
+  "id": "14e4bf15-55c9-4ea1-aaff-8f174986b0a4",
+  "prevId": "cabe0b73-c5d6-408e-9b8e-81eb75891bf2",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.graph_mutation_locks": {
+      "name": "graph_mutation_locks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.leases": {
+      "name": "leases",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "work_item_id": {
+          "name": "work_item_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "worker_id": {
+          "name": "worker_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "epoch": {
+          "name": "epoch",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "acquired_at": {
+          "name": "acquired_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ended_at": {
+          "name": "ended_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "lease_outcome",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "leases_work_item_id_epoch_uidx": {
+          "name": "leases_work_item_id_epoch_uidx",
+          "columns": [
+            {
+              "expression": "work_item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "epoch",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "leases_one_current_per_work_item_uidx": {
+          "name": "leases_one_current_per_work_item_uidx",
+          "columns": [
+            {
+              "expression": "work_item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"leases\".\"ended_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "leases_work_item_id_work_items_id_fk": {
+          "name": "leases_work_item_id_work_items_id_fk",
+          "tableFrom": "leases",
+          "tableTo": "work_items",
+          "columnsFrom": [
+            "work_item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "leases_worker_id_not_blank_check": {
+          "name": "leases_worker_id_not_blank_check",
+          "value": "btrim(\"leases\".\"worker_id\") <> ''"
+        },
+        "leases_epoch_positive_check": {
+          "name": "leases_epoch_positive_check",
+          "value": "\"leases\".\"epoch\" > 0"
+        },
+        "leases_expiry_after_acquisition_check": {
+          "name": "leases_expiry_after_acquisition_check",
+          "value": "\"leases\".\"expires_at\" > \"leases\".\"acquired_at\""
+        },
+        "leases_end_and_outcome_check": {
+          "name": "leases_end_and_outcome_check",
+          "value": "(\"leases\".\"ended_at\" is null) = (\"leases\".\"outcome\" is null)"
+        },
+        "leases_end_after_acquisition_check": {
+          "name": "leases_end_after_acquisition_check",
+          "value": "\"leases\".\"ended_at\" is null or \"leases\".\"ended_at\" >= \"leases\".\"acquired_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.work_items": {
+      "name": "work_items",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lifecycle": {
+          "name": "lifecycle",
+          "type": "work_item_lifecycle",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "work_items_id_not_blank_check": {
+          "name": "work_items_id_not_blank_check",
+          "value": "btrim(\"work_items\".\"id\") <> ''"
+        },
+        "work_items_title_not_blank_check": {
+          "name": "work_items_title_not_blank_check",
+          "value": "btrim(\"work_items\".\"title\") <> ''"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.work_item_dependencies": {
+      "name": "work_item_dependencies",
+      "schema": "",
+      "columns": {
+        "dependent_work_item_id": {
+          "name": "dependent_work_item_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "blocker_work_item_id": {
+          "name": "blocker_work_item_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "work_item_dependencies_blocker_work_item_id_idx": {
+          "name": "work_item_dependencies_blocker_work_item_id_idx",
+          "columns": [
+            {
+              "expression": "blocker_work_item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "work_item_dependencies_dependent_work_item_id_work_items_id_fk": {
+          "name": "work_item_dependencies_dependent_work_item_id_work_items_id_fk",
+          "tableFrom": "work_item_dependencies",
+          "tableTo": "work_items",
+          "columnsFrom": [
+            "dependent_work_item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "work_item_dependencies_blocker_work_item_id_work_items_id_fk": {
+          "name": "work_item_dependencies_blocker_work_item_id_work_items_id_fk",
+          "tableFrom": "work_item_dependencies",
+          "tableTo": "work_items",
+          "columnsFrom": [
+            "blocker_work_item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "work_item_dependencies_pk": {
+          "name": "work_item_dependencies_pk",
+          "columns": [
+            "dependent_work_item_id",
+            "blocker_work_item_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "work_item_dependencies_not_self_check": {
+          "name": "work_item_dependencies_not_self_check",
+          "value": "\"work_item_dependencies\".\"dependent_work_item_id\" <> \"work_item_dependencies\".\"blocker_work_item_id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.work_item_hierarchy": {
+      "name": "work_item_hierarchy",
+      "schema": "",
+      "columns": {
+        "child_work_item_id": {
+          "name": "child_work_item_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "parent_work_item_id": {
+          "name": "parent_work_item_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "work_item_hierarchy_parent_work_item_id_idx": {
+          "name": "work_item_hierarchy_parent_work_item_id_idx",
+          "columns": [
+            {
+              "expression": "parent_work_item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "work_item_hierarchy_child_work_item_id_work_items_id_fk": {
+          "name": "work_item_hierarchy_child_work_item_id_work_items_id_fk",
+          "tableFrom": "work_item_hierarchy",
+          "tableTo": "work_items",
+          "columnsFrom": [
+            "child_work_item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "work_item_hierarchy_parent_work_item_id_work_items_id_fk": {
+          "name": "work_item_hierarchy_parent_work_item_id_work_items_id_fk",
+          "tableFrom": "work_item_hierarchy",
+          "tableTo": "work_items",
+          "columnsFrom": [
+            "parent_work_item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "work_item_hierarchy_not_self_check": {
+          "name": "work_item_hierarchy_not_self_check",
+          "value": "\"work_item_hierarchy\".\"child_work_item_id\" <> \"work_item_hierarchy\".\"parent_work_item_id\""
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.lease_outcome": {
+      "name": "lease_outcome",
+      "schema": "public",
+      "values": [
+        "released",
+        "cancelled",
+        "decomposed",
+        "attention_requested",
+        "expired"
+      ]
+    },
+    "public.work_item_lifecycle": {
+      "name": "work_item_lifecycle",
+      "schema": "public",
+      "values": [
+        "open",
+        "released",
+        "cancelled"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

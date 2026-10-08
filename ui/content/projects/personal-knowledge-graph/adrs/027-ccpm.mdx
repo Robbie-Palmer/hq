@@ -1,0 +1,71 @@
+---
+title: "ADR 027: CCPM"
+date: "2025-11-24"
+status: "Deprecated"
+tech_stack: ["ccpm"]
+---
+
+# Context
+
+I need a project management system that integrates seamlessly with an "Agentic" coding workflow while allowing remote/mobile access for planning.
+
+Drivers:
+
+1. **AI Integration**: I need easy CLI or SDK access for my AI agents (Claude Code) to create, manage, and update tasks without the context bloat of complex MCP servers.
+2. **Remote Context**: I often execute code via Claude Code Web on mobile. My previous system of local markdown files meant rich user stories and task details were trapped on my laptop, making it impossible to effectively guide the agent from my phone.
+3. **Minimize Bloat**: I want to avoid "Heavy" platforms like Jira (too complex/slow) or Trello (functionally stagnated).
+4. **GitHub Centric**: I want task data to live close to the code, leveraging GitHub Issues.
+
+# Decision
+
+I will trial **[CCPM](https://github.com/automazeio/ccpm/)** (Claude Code Project Management) as my primary issue tracking tool.
+
+This tool acts as a bridge, syncing local Product Requirement Documents (PRDs) and task files with GitHub Issues. This allows me to:
+
+* Define tasks locally in markdown for my agents to read/edit.
+* Sync them to GitHub Issues for remote viewing and management.
+* Use "Sub-Issues" for breaking down Epics.
+
+# Alternatives Considered
+
+### Jira / Trello
+
+* **Pros**: Industry standard.
+* **Cons**: Extreme platform bloat. "Unexciting" user experience. Overkill for a solo dev/monorepo.
+* **Decision**: Rejected.
+
+### Linear
+
+* **Pros**: Fast, modern UI.
+* **Cons**: Found it too "opinionated". It enforces a strict hierarchy (Projects -> Issues) that limits flexibility (e.g., needing 3-4 levels of nesting) and makes linking related issues cumbersome.
+* **Decision**: Rejected in favor of a customized GitHub workflow.
+
+### Standard GitHub Projects (Web UI)
+
+* **Pros**: Native to GitHub.
+* **Cons**: The GitHub CLI (`gh`) does not robustly support "Projects" (Kanban boards, priority views) for LLM interaction; it is primarily designed for Issues and PRs. I need a tool that bridges this gap.
+* **Decision**: Rejected as the *sole* interface.
+
+# Consequences
+
+### Positive
+
+* **Next-Gen Workflow**: Establishes a cutting-edge "Agentic" workflow where code execution and task management are tightly coupled.
+* **Platform Consolidation**: Keeps all data within GitHub (Issues/PRs) while providing a superior AI interface.
+* **Context Availability**: Rich task details/PRDs are synced to GitHub, making them available to Claude Code Web (Mobile) for remote guidance and execution.
+
+### Negative
+
+* **Risk**: CCPM is an immature/unstable tool. I may need to fork it or rewrite parts of it myself.
+* **Cost**: Potential for high token usage due to context shuttling.
+* **Experimental**: This violates [The Goldilocks Zone](/projects?tab=philosophy#the-goldilocks-zone) in favor of [LLM-Optimized](/projects?tab=philosophy#llm-optimized). It is a calculated risk.
+
+# Deprecation Note
+
+After trialing CCPM, it was deprecated in favor of Shortcut ([ADR 034](./034-shortcut)) for the following reasons:
+
+* **Didn't produce better results**: The local markdown + GitHub Issues sync didn't meaningfully improve workflow over a dedicated PM tool
+* **Too token hungry**: The context shuttling and sync operations consumed excessive tokens without commensurate value
+* **Mobile friction**: While GitHub Projects *does* support stack ranking, the feature is inaccessible on mobile. CCPM relied on this for prioritization, leaving me unable to stack rank tasks while away from my desk
+
+The core issue was that CCPM added complexity (local files + GitHub sync) without solving the fundamental problem: needing a mobile-friendly board with built-in stack-ranking and hierarchy.

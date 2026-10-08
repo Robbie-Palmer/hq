@@ -1,6 +1,16 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { type SpawnSyncReturns, spawnSync } from "node:child_process";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { parseAllDocuments } from "yaml";
@@ -35,18 +45,88 @@ const homelabDirectory = fileURLToPath(new URL("..", import.meta.url));
 const overlays = {
   home: "k3s/overlays/home",
   remote: "k3s/overlays/remote-development",
-  pilot: "k3s/overlays/remote-development-pilot",
 } as const;
 const renderedOverlays = new Map<string, string>();
+
+test("Serve health accepts the private Netdata route and rejects unexpected routes", () => {
+  const healthCheck = readFileSync(
+    new URL("../scripts/remote-development-health", import.meta.url),
+    "utf8",
+  );
+  const filter = healthCheck.match(
+    /tailscale serve status --json\s*\\\s*\| jq -e '([\s\S]*?)'/,
+  )?.[1];
+  assert.ok(filter, "the live health check must contain a Serve filter");
+  const workspacePorts = ["443", "3000", "3001", "3002", "3003", "3004"];
+  const base = {
+    TCP: Object.fromEntries(workspacePorts.map((port) => [port, { HTTPS: true }])),
+    Web: {},
+  };
+  const netdata = {
+    TCP: { ...base.TCP, "19999": { HTTPS: true } },
+    Web: {
+      "remote-development.example.ts.net:19999": {
+        Handlers: { "/": { Proxy: "http://127.0.0.1:19999" } },
+      },
+    },
+  };
+  const cases = [
+    { name: "workspace only", config: base, expected: true },
+    { name: "private Netdata", config: netdata, expected: true },
+    {
+      name: "retired pilot",
+      config: { ...netdata, TCP: { ...netdata.TCP, "8443": { HTTPS: true } } },
+      expected: false,
+    },
+    {
+      name: "missing workspace port",
+      config: { ...base, TCP: { ...base.TCP, "3004": undefined } },
+      expected: false,
+    },
+    {
+      name: "missing Netdata proxy",
+      config: { ...netdata, Web: {} },
+      expected: false,
+    },
+    {
+      name: "non-HTTPS Netdata",
+      config: { ...netdata, TCP: { ...netdata.TCP, "19999": { HTTPS: false } } },
+      expected: false,
+    },
+    {
+      name: "unexpected Netdata proxy",
+      config: {
+        ...netdata,
+        Web: {
+          "remote-development.example.ts.net:19999": {
+            Handlers: { "/": { Proxy: "http://192.0.2.1:19999" } },
+          },
+        },
+      },
+      expected: false,
+    },
+  ];
+  for (const { name, config, expected } of cases) {
+    const result: SpawnSyncReturns<string> = spawnSync("jq", ["-e", filter], {
+      encoding: "utf8",
+      input: JSON.stringify(config),
+      timeout: 5000,
+    });
+    assert.equal(result.error, undefined, name);
+    assert.equal(result.status === 0, expected, `${name}: ${result.stderr}`);
+  }
+});
 
 function run(
   command: string,
   args: readonly string[],
   input?: string,
+  environment?: NodeJS.ProcessEnv,
 ): { stdout: string; stderr: string } {
   const result = spawnSync(command, args, {
     cwd: homelabDirectory,
     encoding: "utf8",
+    env: environment,
     input,
     timeout: 30_000,
   });
@@ -58,6 +138,356 @@ function run(
   );
   return { stdout: result.stdout, stderr: result.stderr };
 }
+
+test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "t3-bootstrap-"));
+  const testHome = join(temporaryDirectory, "home");
+  const t3Home = join(testHome, ".t3");
+  const codexHome = join(testHome, ".codex");
+  const settingsPath = join(t3Home, "userdata/settings.json");
+  const configPath = join(codexHome, "config.toml");
+  const catalogPath = join(codexHome, "model-catalog.json");
+
+  try {
+    mkdirSync(join(t3Home, "userdata"), { recursive: true });
+    mkdirSync(codexHome, { recursive: true });
+    writeFileSync(
+      settingsPath,
+      `${JSON.stringify({
+        providerInstances: {
+          "codex-personal": {
+            accentColor: "#123456",
+            config: { launchArgs: "--legacy" },
+          },
+        },
+      })}\n`,
+    );
+    writeFileSync(
+      configPath,
+      '"model" = "gpt-6-astra"\n\'model_reasoning_effort\' = \'medium\'\n"custom-key" = "keep"\npersonality = "pragmatic"\n\n[features]\njs_repl = false\n\n[mcp_servers.recipe-agent]\ncommand = "stale-command"\n\n[mcp_servers.other]\ncommand = "keep-command"\n',
+    );
+    writeFileSync(
+      join(codexHome, "models_cache.json"),
+      `${JSON.stringify({
+        client_version: "test",
+        models: [
+          {
+            slug: "gpt-6-astra",
+            default_reasoning_level: "medium",
+            priority: 0,
+          },
+          {
+            slug: "gpt-5.6-sol",
+            default_reasoning_level: "low",
+            priority: 4,
+          },
+        ],
+      })}\n`,
+    );
+
+    const environment = {
+      ...process.env,
+      CONFIGURE_RECIPE_AGENT_MCP: "true",
+      HOME: testHome,
+      T3CODE_HOME: t3Home,
+    };
+    const scriptPath = fileURLToPath(
+      new URL("../images/t3-code/bootstrap-settings.mjs", import.meta.url),
+    );
+    run(process.execPath, [scriptPath], undefined, environment);
+    const firstConfig = readFileSync(configPath, "utf8");
+    const firstSettings = readFileSync(settingsPath, "utf8");
+    const firstCatalog = readFileSync(catalogPath, "utf8");
+    run(process.execPath, [scriptPath], undefined, environment);
+
+    assert.equal(readFileSync(configPath, "utf8"), firstConfig);
+    assert.equal(readFileSync(settingsPath, "utf8"), firstSettings);
+    assert.equal(readFileSync(catalogPath, "utf8"), firstCatalog);
+    assert.match(firstConfig, /^model = "gpt-5\.6-sol"$/m);
+    assert.match(firstConfig, /^model_reasoning_effort = "high"$/m);
+    assert.match(
+      firstConfig,
+      new RegExp(`^model_catalog_json = ${JSON.stringify(catalogPath)}$`, "m"),
+    );
+    assert.match(firstConfig, /^personality = "pragmatic"$/m);
+    assert.match(firstConfig, /^"custom-key" = "keep"$/m);
+    assert.doesNotMatch(firstConfig, /^"model"\s*=/m);
+    assert.doesNotMatch(firstConfig, /^'model_reasoning_effort'\s*=/m);
+    assert.match(firstConfig, /^\[features\]$/m);
+    assert.match(firstConfig, /^\[mcp_servers\.other\]$/m);
+    assert.match(firstConfig, /^command = "keep-command"$/m);
+    assert.match(firstConfig, /^\[mcp_servers\.recipe-agent\]$/m);
+    assert.match(firstConfig, /^command = "\/usr\/local\/bin\/node"$/m);
+    assert.match(
+      firstConfig,
+      /^args = \["\/usr\/local\/lib\/agent-auth-mcp\/src\/cli\.mjs","--storage-dir",".*\/\.codex\/agent-auth\/recipes","--host-name","T3 Code Codex","--url","https:\/\/robbiepalmer\.me"\]$/m,
+    );
+    assert.match(
+      firstConfig,
+      /^env_vars = \["AGENT_AUTH_ENCRYPTION_KEY"\]$/m,
+    );
+    assert.doesNotMatch(firstConfig, /stale-command/);
+    assert.equal(
+      statSync(join(codexHome, "agent-auth/recipes")).mode & 0o777,
+      0o700,
+    );
+
+    const settings = JSON.parse(firstSettings) as Record<string, unknown>;
+    assert.deepEqual(settings.defaultModelSelection, {
+      instanceId: "codex",
+      model: "gpt-5.6-sol",
+      options: [
+        { id: "reasoningEffort", value: "high" },
+        { id: "serviceTier", value: "default" },
+      ],
+    });
+    const instances = settings.providerInstances as Record<
+      string,
+      Record<string, unknown>
+    >;
+    assert.ok(!("codex-personal" in instances));
+    assert.equal(instances.codex2?.accentColor, "#123456");
+    const codex2Config = instances.codex2?.config as Record<string, unknown>;
+    assert.equal(codex2Config.homePath, codexHome);
+    assert.equal(
+      codex2Config.shadowHomePath,
+      join(testHome, ".codex-personal"),
+    );
+
+    const catalog = JSON.parse(firstCatalog) as {
+      models: Array<Record<string, unknown>>;
+    };
+    const sol = catalog.models.find(({ slug }) => slug === "gpt-5.6-sol");
+    const astra = catalog.models.find(({ slug }) => slug === "gpt-6-astra");
+    assert.equal(sol?.default_reasoning_level, "high");
+    assert.equal(sol?.priority, 0);
+    assert.equal(astra?.priority, 1);
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
+});
+
+test("the observability collector attributes quota, backup, and Kubernetes state to operator", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "remote-observability-"));
+  const binaryDirectory = join(temporaryDirectory, "bin");
+  const configPath = join(temporaryDirectory, "metrics.env");
+  const statusPath = join(temporaryDirectory, "status.json");
+  const outputPath = join(temporaryDirectory, "statsd.txt");
+
+  try {
+    mkdirSync(binaryDirectory);
+    const commands: Record<string, string> = {
+      curl: `#!/usr/bin/env bash
+cat <<'METRICS'
+kube_pod_container_status_last_terminated_reason{namespace="t3-code",reason="OOMKilled"} 1
+kube_pod_status_reason{namespace="t3-code",reason="Evicted"} 0
+kube_pod_container_status_waiting_reason{namespace="t3-code",reason="CrashLoopBackOff"} 2
+METRICS
+`,
+      df: `#!/usr/bin/env bash
+if [ "$1" = --output=pcent ]; then
+  printf 'Use%%\\n40%%\\n'
+else
+  printf 'IUse%%\\n10%%\\n'
+fi
+`,
+      repquota: `#!/usr/bin/env bash
+printf '%s\\n' \\
+  'Project,BlockStatus,FileStatus,BlockUsed,BlockSoftLimit,BlockHardLimit,BlockGrace,FileUsed,FileSoftLimit,FileHardLimit,FileGrace' \\
+  '#2000,--,--,1024,0,57671680,,20,0,3000000,' \\
+  '#2002,--,--,2048,0,31457280,,40,0,2000000,'
+`,
+      systemctl: "#!/usr/bin/env bash\nexit 0\n",
+    };
+    for (const [name, content] of Object.entries(commands)) {
+      const path = join(binaryDirectory, name);
+      writeFileSync(path, content);
+      chmodSync(path, 0o755);
+    }
+    writeFileSync(
+      configPath,
+      [
+        "WORKSPACE_ID=operator",
+        `DATA_MOUNT=${temporaryDirectory}`,
+        "OPERATOR_PROJECT_ID=2000",
+        "CACHE_PROJECT_ID=2002",
+        `BACKUP_STATUS_FILE=${statusPath}`,
+        "BACKUP_MAXIMUM_AGE_SECONDS=129600",
+        "KUBE_STATE_METRICS_URL=http://127.0.0.1:18080/api/v1/namespaces/observability/services/http:kube-state-metrics:8080/proxy/metrics",
+        "",
+      ].join("\n"),
+    );
+    writeFileSync(
+      statusPath,
+      `${JSON.stringify({ lastSuccessUnix: Math.floor(Date.now() / 1000) - 60 })}\n`,
+    );
+
+    run(
+      "bash",
+      [
+        fileURLToPath(
+          new URL(
+            "../scripts/remote-development-observability-metrics",
+            import.meta.url,
+          ),
+        ),
+      ],
+      undefined,
+      {
+        ...process.env,
+        PATH: `${binaryDirectory}:${process.env.PATH}`,
+        REMOTE_DEVELOPMENT_OBSERVABILITY_CONFIG: configPath,
+        STATSD_OUTPUT_FILE: outputPath,
+      },
+    );
+
+    const metrics = readFileSync(outputPath, "utf8");
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.durable_bytes_used:1048576\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.cache_bytes_used:2097152\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.durable_inodes_used:20\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.backup_fresh:1\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.k3s_up:1\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.kube_state_metrics_up:1\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.oom_killed:1\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.crash_loop:2\|g$/m,
+    );
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
+});
+
+test("the Healthchecks reconciler upserts the declared check and stores its ping URL", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "healthchecks-reconcile-"));
+  const binaryDirectory = join(temporaryDirectory, "bin");
+  const captureDirectory = join(temporaryDirectory, "capture");
+
+  try {
+    mkdirSync(binaryDirectory);
+    mkdirSync(captureDirectory);
+    const dopplerPath = join(binaryDirectory, "doppler");
+    writeFileSync(
+      dopplerPath,
+      `#!/usr/bin/env bash
+set -euo pipefail
+if [ "$1" = secrets ] && [ "$2" = get ] && [ "$3" = HEALTHCHECKS_API_KEY ]; then
+  printf 'test-api-key'
+elif [ "$1" = secrets ] && [ "$2" = set ] && [ "$3" = HEALTHCHECKS_PING_URL ]; then
+  cat >"$CAPTURE_DIRECTORY/stored-ping-url"
+else
+  exit 2
+fi
+`,
+    );
+    chmodSync(dopplerPath, 0o755);
+
+    const curlPath = join(binaryDirectory, "curl");
+    writeFileSync(
+      curlPath,
+      `#!/usr/bin/env bash
+set -euo pipefail
+output=
+payload=
+url=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --output)
+      output=$2
+      shift 2
+      ;;
+    --data-binary)
+      payload=$2
+      shift 2
+      ;;
+    --connect-timeout|--max-time|--header|--request)
+      shift 2
+      ;;
+    --fail|--silent|--show-error)
+      shift
+      ;;
+    http*)
+      url=$1
+      shift
+      ;;
+    *)
+      exit 2
+      ;;
+  esac
+done
+if [[ "$url" == */channels/ ]]; then
+  printf '%s' '{"channels":[{"id":"slack-id","name":"remote-development-alerts","kind":"slack"}]}' >"$output"
+elif [[ "$url" == */checks/ ]]; then
+  cp -- "\${payload#@}" "$CAPTURE_DIRECTORY/check-payload.json"
+  printf '%s' '{"slug":"remote-development-host","timeout":60,"grace":120,"methods":"POST","channels":"slack-id","ping_url":"https://hc-ping.com/test-check"}' >"$output"
+else
+  exit 2
+fi
+`,
+    );
+    chmodSync(curlPath, 0o755);
+
+    run(
+      "bash",
+      [
+        fileURLToPath(
+          new URL(
+            "../scripts/reconcile-remote-development-healthchecks",
+            import.meta.url,
+          ),
+        ),
+      ],
+      undefined,
+      {
+        ...process.env,
+        CAPTURE_DIRECTORY: captureDirectory,
+        PATH: `${binaryDirectory}:${process.env.PATH}`,
+      },
+    );
+
+    const payload = JSON.parse(
+      readFileSync(join(captureDirectory, "check-payload.json"), "utf8"),
+    ) as Record<string, unknown>;
+    assert.deepEqual(payload, {
+      name: "remote-development host",
+      slug: "remote-development-host",
+      tags: "remote-development host-loss",
+      desc: "External reachability check for the remote-development host",
+      timeout: 60,
+      grace: 120,
+      methods: "POST",
+      channels: "slack-id",
+      unique: ["slug"],
+    });
+    assert.equal(
+      readFileSync(join(captureDirectory, "stored-ping-url"), "utf8"),
+      "https://hc-ping.com/test-check",
+    );
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
+});
 
 function renderOverlay(overlay: string): string {
   const cached = renderedOverlays.get(overlay);
@@ -120,6 +550,20 @@ function valueAt(value: unknown, path: readonly (string | number)[]): unknown {
   }
 
   return current;
+}
+
+function servicePort(
+  service: KubernetesResource,
+  name: string,
+): Record<string, unknown> {
+  const ports = valueAt(service, ["spec", "ports"]);
+  assert.ok(Array.isArray(ports));
+  const matches = ports.filter(
+    (port): port is Record<string, unknown> =>
+      typeof port === "object" && port !== null && port.name === name,
+  );
+  assert.equal(matches.length, 1, `expected one service port named ${name}`);
+  return matches[0]!;
 }
 
 function kindCounts(resources: KubernetesResource[]): Record<string, number> {
@@ -218,18 +662,18 @@ test("the Doppler validation catalog matches the installed operator version", ()
   assert.equal(schemaVersion[1], installedVersion[1]);
 });
 
-test("the pilot overlay renders two distinct workspaces", () => {
-  const resources = parseResources(overlays.pilot);
+test("the remote overlay isolates durable data from rebuildable caches", () => {
+  const resources = parseResources(overlays.remote);
 
   assert.deepEqual(kindCounts(resources), {
+    ClusterRole: 1,
+    ClusterRoleBinding: 1,
     Deployment: 2,
-    DopplerSecret: 2,
+    DopplerSecret: 3,
     Namespace: 2,
-    NetworkPolicy: 3,
+    NetworkPolicy: 1,
     PersistentVolume: 2,
     PersistentVolumeClaim: 2,
-    PriorityClass: 1,
-    ResourceQuota: 1,
     Service: 2,
     ServiceAccount: 2,
   });
@@ -245,37 +689,43 @@ test("the pilot overlay renders two distinct workspaces", () => {
   );
 
   const operatorService = resource(resources, "Service", "t3-code", "t3-code");
-  const pilotService = resource(
-    resources,
-    "Service",
-    "t3-code",
-    "t3-code-pilot",
-  );
-  assert.equal(
-    valueAt(operatorService, ["spec", "ports", 0, "nodePort"]),
-    30773,
-  );
-  assert.equal(valueAt(pilotService, ["spec", "ports", 0, "nodePort"]), 30774);
-
+  assert.deepEqual(servicePort(operatorService, "http"), {
+    name: "http",
+    nodePort: 30773,
+    port: 3773,
+    protocol: "TCP",
+    targetPort: "http",
+  });
+  for (let offset = 0; offset < 5; offset += 1) {
+    assert.deepEqual(servicePort(operatorService, `qa-${3000 + offset}`), {
+      name: `qa-${3000 + offset}`,
+      nodePort: 31000 + offset,
+      port: 3000 + offset,
+      protocol: "TCP",
+      targetPort: 3000 + offset,
+    });
+  }
   const operatorVolume = resource(
     resources,
     "PersistentVolume",
     "t3-code-remote-development",
   );
-  const pilotVolume = resource(
+  const cacheVolume = resource(
     resources,
     "PersistentVolume",
-    "t3-code-remote-development-pilot",
+    "t3-code-remote-development-cache",
   );
   assert.equal(
     valueAt(operatorVolume, ["spec", "local", "path"]),
     "/srv/remote-development/t3-code",
   );
+  assert.equal(valueAt(operatorVolume, ["spec", "capacity", "storage"]), "90Gi");
   assert.equal(
-    valueAt(pilotVolume, ["spec", "local", "path"]),
-    "/srv/remote-development/t3-code-pilot",
+    valueAt(cacheVolume, ["spec", "local", "path"]),
+    "/srv/remote-development/t3-code-cache",
   );
-  for (const volume of [operatorVolume, pilotVolume]) {
+  assert.equal(valueAt(cacheVolume, ["spec", "capacity", "storage"]), "30Gi");
+  for (const volume of [operatorVolume, cacheVolume]) {
     assert.deepEqual(
       valueAt(volume, [
         "spec",
@@ -311,19 +761,27 @@ test("the pilot overlay renders two distinct workspaces", () => {
     "t3-code-data",
     "t3-code",
   );
-  const pilotClaim = resource(
+  const cacheClaim = resource(
     resources,
     "PersistentVolumeClaim",
-    "t3-code-data",
-    "t3-code-pilot",
+    "t3-code-cache",
+    "t3-code",
   );
   assert.equal(
     valueAt(operatorClaim, ["spec", "volumeName"]),
     "t3-code-remote-development",
   );
   assert.equal(
-    valueAt(pilotClaim, ["spec", "volumeName"]),
-    "t3-code-remote-development-pilot",
+    valueAt(operatorClaim, ["spec", "resources", "requests", "storage"]),
+    "90Gi",
+  );
+  assert.equal(
+    valueAt(cacheClaim, ["spec", "volumeName"]),
+    "t3-code-remote-development-cache",
+  );
+  assert.equal(
+    valueAt(cacheClaim, ["spec", "resources", "requests", "storage"]),
+    "30Gi",
   );
 
   const operatorDeployment = resource(
@@ -332,14 +790,7 @@ test("the pilot overlay renders two distinct workspaces", () => {
     "t3-code",
     "t3-code",
   );
-  const pilotDeployment = resource(
-    resources,
-    "Deployment",
-    "t3-code",
-    "t3-code-pilot",
-  );
   const operatorNamespace = resource(resources, "Namespace", "t3-code");
-  const pilotNamespace = resource(resources, "Namespace", "t3-code-pilot");
   assert.equal(
     valueAt(operatorNamespace, [
       "metadata",
@@ -360,19 +811,37 @@ test("the pilot overlay renders two distinct workspaces", () => {
     valueAt(operatorNamespace, [
       "metadata",
       "labels",
+      "observability.remote-development/workspace-id",
+    ]),
+    "operator",
+  );
+  assert.equal(
+    valueAt(operatorNamespace, [
+      "metadata",
+      "labels",
       "pod-security.kubernetes.io/warn",
     ]),
     "restricted",
   );
   assert.equal(
-    valueAt(pilotNamespace, [
-      "metadata",
-      "labels",
-      "pod-security.kubernetes.io/enforce",
+    valueAt(operatorDeployment, [
+      "spec",
+      "template",
+      "spec",
+      "initContainers",
+      0,
+      "image",
     ]),
-    "restricted",
+    valueAt(operatorDeployment, [
+      "spec",
+      "template",
+      "spec",
+      "containers",
+      0,
+      "image",
+    ]),
+    "operator init and main images must match",
   );
-  assert.equal(valueAt(pilotDeployment, ["spec", "strategy", "type"]), "Recreate");
   assert.deepEqual(
     valueAt(operatorDeployment, [
       "spec",
@@ -383,80 +852,10 @@ test("the pilot overlay renders two distinct workspaces", () => {
       "resources",
     ]),
     {
-      limits: { cpu: "3", memory: "6Gi" },
-      requests: { cpu: "500m", memory: "1Gi" },
+      limits: { cpu: "3", "ephemeral-storage": "12Gi", memory: "6Gi" },
+      requests: { cpu: "500m", "ephemeral-storage": "1Gi", memory: "1Gi" },
     },
   );
-  assert.deepEqual(
-    valueAt(pilotDeployment, [
-      "spec",
-      "template",
-      "spec",
-      "containers",
-      0,
-      "resources",
-    ]),
-    {
-      limits: { cpu: "1", memory: "1Gi" },
-      requests: { cpu: "250m", memory: "512Mi" },
-    },
-  );
-  assert.equal(
-    valueAt(pilotDeployment, ["spec", "template", "spec", "priorityClassName"]),
-    "pilot-workspace",
-  );
-  assert.deepEqual(
-    valueAt(pilotDeployment, [
-      "spec",
-      "template",
-      "spec",
-      "containers",
-      0,
-      "envFrom",
-      0,
-    ]),
-    { secretRef: { name: "t3-code-runtime", optional: false } },
-  );
-  assert.equal(
-    valueAt(pilotDeployment, [
-      "spec",
-      "template",
-      "spec",
-      "automountServiceAccountToken",
-    ]),
-    false,
-  );
-  assert.deepEqual(
-    valueAt(pilotDeployment, ["spec", "template", "spec", "securityContext"]),
-    {
-      fsGroup: 2000,
-      fsGroupChangePolicy: "OnRootMismatch",
-      runAsGroup: 2000,
-      runAsNonRoot: true,
-      runAsUser: 2000,
-      seccompProfile: { type: "RuntimeDefault" },
-    },
-  );
-  assert.deepEqual(
-    valueAt(pilotDeployment, [
-      "spec",
-      "template",
-      "spec",
-      "containers",
-      0,
-      "securityContext",
-    ]),
-    {
-      allowPrivilegeEscalation: false,
-      capabilities: { drop: ["ALL"] },
-      readOnlyRootFilesystem: true,
-    },
-  );
-  assert.deepEqual(
-    valueAt(pilotDeployment, ["spec", "template", "spec", "volumes", 1]),
-    { emptyDir: { sizeLimit: "1Gi" }, name: "tmp" },
-  );
-
   assert.deepEqual(
     valueAt(operatorDeployment, [
       "spec",
@@ -469,6 +868,171 @@ test("the pilot overlay renders two distinct workspaces", () => {
     ]),
     { name: "DOCKER_HOST", value: "tcp://127.0.0.1:2375" },
   );
+  assert.deepEqual(
+    valueAt(operatorDeployment, [
+      "spec",
+      "template",
+      "spec",
+      "containers",
+      0,
+      "envFrom",
+    ]),
+    [{ secretRef: { name: "t3-code-runtime", optional: true } }],
+  );
+  const operatorEnvironment = valueAt(operatorDeployment, [
+    "spec",
+    "template",
+    "spec",
+    "containers",
+    0,
+    "env",
+  ]);
+  assert.ok(Array.isArray(operatorEnvironment));
+  for (const name of [
+    "CF_ACCESS_CLIENT_ID",
+    "CF_ACCESS_CLIENT_SECRET",
+    "CLOUDFLARE_PAGES_HOST",
+  ]) {
+    assert.deepEqual(
+      operatorEnvironment.find(
+        (entry) =>
+          typeof entry === "object" && entry !== null && entry.name === name,
+      ),
+      {
+        name,
+        valueFrom: {
+          secretKeyRef: {
+            key: name,
+            name: "t3-code-preview-access",
+            optional: false,
+          },
+        },
+      },
+    );
+  }
+  for (const name of [
+    "WORK_GRAPH_API_URL",
+    "WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS",
+    "WORK_GRAPH_CF_ACCESS_CLIENT_ID",
+    "WORK_GRAPH_CF_ACCESS_CLIENT_SECRET",
+  ]) {
+    assert.deepEqual(
+      operatorEnvironment.find(
+        (entry) =>
+          typeof entry === "object" && entry !== null && entry.name === name,
+      ),
+      {
+        name,
+        valueFrom: {
+          secretKeyRef: {
+            key: name,
+            name: "t3-code-work-graph",
+            optional: false,
+          },
+        },
+      },
+    );
+  }
+  assert.ok(
+    String(
+      valueAt(operatorDeployment, [
+        "spec",
+        "template",
+        "spec",
+        "initContainers",
+        0,
+        "command",
+        3,
+      ]),
+    ).includes("/data/home/.t3/worktrees"),
+  );
+  assert.deepEqual(
+    valueAt(operatorDeployment, [
+      "spec",
+      "template",
+      "spec",
+      "initContainers",
+      0,
+      "env",
+    ]),
+    [{ name: "CONFIGURE_RECIPE_AGENT_MCP", value: "true" }],
+  );
+  assert.deepEqual(
+    operatorEnvironment.find(
+      (entry) =>
+        typeof entry === "object" &&
+        entry !== null &&
+        entry.name === "AGENT_AUTH_ENCRYPTION_KEY",
+    ),
+    {
+      name: "AGENT_AUTH_ENCRYPTION_KEY",
+      valueFrom: {
+        secretKeyRef: {
+          key: "AGENT_AUTH_ENCRYPTION_KEY",
+          name: "t3-code-runtime",
+          optional: false,
+        },
+      },
+    },
+  );
+
+  const initContainers = valueAt(operatorDeployment, [
+    "spec",
+    "template",
+    "spec",
+    "initContainers",
+  ]);
+  assert.ok(Array.isArray(initContainers));
+  const dockerImage = valueAt(operatorDeployment, [
+    "spec",
+    "template",
+    "spec",
+    "containers",
+    1,
+    "image",
+  ]);
+  if (typeof dockerImage !== "string") {
+    throw new TypeError("The Docker sidecar image must be a string");
+  }
+  assert.match(
+    dockerImage,
+    /^docker:\d+\.\d+\.\d+-dind-rootless@sha256:[a-f0-9]{64}$/,
+  );
+  const dockerDataInit = initContainers.find(
+    (container) =>
+      typeof container === "object" &&
+      container !== null &&
+      container.name === "prepare-docker-data",
+  );
+  assert.deepEqual(dockerDataInit, {
+    command: [
+      "/bin/sh",
+      "-eu",
+      "-c",
+      "chown 1000:1000 /home/rootless/.local/share/docker",
+    ],
+    image: dockerImage,
+    name: "prepare-docker-data",
+    resources: {
+      limits: { cpu: "100m", memory: "64Mi" },
+      requests: { cpu: "10m", memory: "16Mi" },
+    },
+    securityContext: {
+      allowPrivilegeEscalation: false,
+      capabilities: { add: ["CHOWN"], drop: ["ALL"] },
+      readOnlyRootFilesystem: true,
+      runAsGroup: 0,
+      runAsNonRoot: false,
+      runAsUser: 0,
+      seccompProfile: { type: "RuntimeDefault" },
+    },
+    volumeMounts: [
+      {
+        mountPath: "/home/rootless/.local/share/docker",
+        name: "docker-data",
+      },
+    ],
+  });
 
   const dockerSidecar = valueAt(operatorDeployment, [
     "spec",
@@ -485,8 +1049,7 @@ test("the pilot overlay renders two distinct workspaces", () => {
         value: "-p 127.0.0.1:2375:2375/tcp",
       },
     ],
-    image:
-      "docker:29.8.0-dind-rootless@sha256:e17fa54c2ffd511d8407c746eec77f7814e6f74fe20caf822dad1870599984c0",
+    image: dockerImage,
     name: "docker",
     startupProbe: {
       exec: {
@@ -525,8 +1088,8 @@ test("the pilot overlay renders two distinct workspaces", () => {
       timeoutSeconds: 5,
     },
     resources: {
-      limits: { cpu: "1", memory: "1Gi" },
-      requests: { cpu: "100m", memory: "256Mi" },
+      limits: { cpu: "1", "ephemeral-storage": "16Gi", memory: "1Gi" },
+      requests: { cpu: "100m", "ephemeral-storage": "2Gi", memory: "256Mi" },
     },
     securityContext: {
       privileged: true,
@@ -560,73 +1123,93 @@ test("the pilot overlay renders two distinct workspaces", () => {
     dockerDataVolume,
     { emptyDir: { sizeLimit: "10Gi" }, name: "docker-data" },
   );
-  assert.equal(
-    (valueAt(pilotDeployment, [
-      "spec",
-      "template",
-      "spec",
-      "containers",
-    ]) as unknown[]).length,
-    1,
+  const operatorTmpVolume = operatorVolumes.find(
+    (candidate: unknown) =>
+      typeof candidate === "object" &&
+      candidate !== null &&
+      (candidate as Record<string, unknown>).name === "tmp",
   );
-
-  const quota = resource(
-    resources,
-    "ResourceQuota",
-    "workspace",
-    "t3-code-pilot",
+  assert.deepEqual(
+    operatorTmpVolume,
+    { emptyDir: { sizeLimit: "8Gi" }, name: "tmp" },
   );
-  assert.deepEqual(valueAt(quota, ["spec", "hard"]), {
-    "limits.cpu": "1",
-    "limits.memory": "1Gi",
-    persistentvolumeclaims: "1",
-    pods: "1",
-    "requests.cpu": "1",
-    "requests.memory": "1Gi",
-    "requests.storage": "10Gi",
+  const operatorCacheVolume = operatorVolumes.find(
+    (candidate: unknown) =>
+      typeof candidate === "object" &&
+      candidate !== null &&
+      (candidate as Record<string, unknown>).name === "cache",
+  );
+  assert.deepEqual(operatorCacheVolume, {
+    name: "cache",
+    persistentVolumeClaim: { claimName: "t3-code-cache" },
   });
-
-  const priority = resource(resources, "PriorityClass", "pilot-workspace");
-  assert.equal(valueAt(priority, ["value"]), -10);
-  assert.equal(valueAt(priority, ["preemptionPolicy"]), "Never");
-
-  const policyNames = resources
-    .filter(({ kind }) => kind === "NetworkPolicy")
-    .map(({ metadata }) => metadata.name)
-    .sort();
-  assert.deepEqual(policyNames, [
-    "workspace-default-deny-ingress",
-    "workspace-dns",
-    "workspace-public-egress",
-  ]);
-
-  const pilotSecret = resource(
+  const previewAccessSecret = resource(
     resources,
     "DopplerSecret",
+    "t3-code-preview-access",
     "t3-code",
-    "t3-code-pilot",
   );
   assert.equal(
-    valueAt(pilotSecret, ["spec", "config"]),
-    "prd_remote_development_pilot",
+    valueAt(previewAccessSecret, ["spec", "project"]),
+    "personal-site",
+  );
+  assert.equal(valueAt(previewAccessSecret, ["spec", "config"]), "dev_agent");
+  assert.equal(
+    valueAt(previewAccessSecret, ["spec", "tokenSecret", "name"]),
+    "doppler-agent-token",
   );
   assert.equal(
-    valueAt(pilotSecret, ["spec", "managedSecret", "namespace"]),
-    "t3-code-pilot",
+    valueAt(previewAccessSecret, ["spec", "managedSecret", "name"]),
+    "t3-code-preview-access",
   );
+
+  const workGraphSecret = resource(
+    resources,
+    "DopplerSecret",
+    "t3-code-work-graph",
+    "t3-code",
+  );
+  assert.equal(valueAt(workGraphSecret, ["spec", "project"]), "work-graph");
+  assert.equal(
+    valueAt(workGraphSecret, ["spec", "config"]),
+    "prd_work_graph",
+  );
+  assert.equal(
+    valueAt(workGraphSecret, ["spec", "tokenSecret", "name"]),
+    "doppler-work-graph-token",
+  );
+  assert.deepEqual(valueAt(workGraphSecret, ["spec", "secrets"]), [
+    "WORK_GRAPH_API_URL",
+    "WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS",
+    "CF_ACCESS_CLIENT_ID",
+    "CF_ACCESS_CLIENT_SECRET",
+  ]);
+  assert.deepEqual(valueAt(workGraphSecret, ["spec", "processors"]), {
+    CF_ACCESS_CLIENT_ID: {
+      asName: "WORK_GRAPH_CF_ACCESS_CLIENT_ID",
+      type: "plain",
+    },
+    CF_ACCESS_CLIENT_SECRET: {
+      asName: "WORK_GRAPH_CF_ACCESS_CLIENT_SECRET",
+      type: "plain",
+    },
+  });
 });
 
 test("the default remote overlay contains only the operator workspace", () => {
   const resources = parseResources(overlays.remote);
 
   assert.deepEqual(kindCounts(resources), {
-    Deployment: 1,
-    DopplerSecret: 1,
-    Namespace: 1,
-    PersistentVolume: 1,
-    PersistentVolumeClaim: 1,
-    Service: 1,
-    ServiceAccount: 1,
+    ClusterRole: 1,
+    ClusterRoleBinding: 1,
+    Deployment: 2,
+    DopplerSecret: 3,
+    Namespace: 2,
+    NetworkPolicy: 1,
+    PersistentVolume: 2,
+    PersistentVolumeClaim: 2,
+    Service: 2,
+    ServiceAccount: 2,
   });
   assert.ok(
     resources.every(({ metadata }) => metadata.namespace !== "t3-code-pilot"),
@@ -636,7 +1219,66 @@ test("the default remote overlay contains only the operator workspace", () => {
   );
 });
 
-test("the NixOS host publishes, prepares, and limits both workspace paths", () => {
+test("the remote overlay runs a pinned and bounded kube-state-metrics exporter", () => {
+  const resources = parseResources(overlays.remote);
+  const deployment = resource(
+    resources,
+    "Deployment",
+    "kube-state-metrics",
+    "observability",
+  );
+  const containerValue = valueAt(deployment, [
+    "spec",
+    "template",
+    "spec",
+    "containers",
+    0,
+  ]);
+  assert.ok(typeof containerValue === "object" && containerValue !== null);
+  const container = containerValue as Record<string, unknown>;
+  assert.match(
+    String(container.image),
+    /^registry\.k8s\.io\/kube-state-metrics\/kube-state-metrics:v2\.18\.0@sha256:[a-f0-9]{64}$/,
+  );
+  assert.deepEqual(container.resources, {
+    limits: { cpu: "100m", memory: "128Mi" },
+    requests: { cpu: "10m", memory: "32Mi" },
+  });
+  const args = container.args;
+  assert.ok(Array.isArray(args));
+  assert.ok(args.includes("--resources=namespaces,nodes,pods"));
+  assert.ok(
+    args.includes(
+      "--metric-labels-allowlist=namespaces=[observability.remote-development/workspace-id]",
+    ),
+  );
+  const metricsPort = (container.ports as Array<Record<string, unknown>>).find(
+    ({ name }) => name === "metrics",
+  );
+  assert.deepEqual(metricsPort, {
+    containerPort: 8080,
+    name: "metrics",
+    protocol: "TCP",
+  });
+
+  const clusterRole = resource(resources, "ClusterRole", "kube-state-metrics");
+  assert.deepEqual(valueAt(clusterRole, ["rules"]), [
+    {
+      apiGroups: [""],
+      resources: ["namespaces", "nodes", "pods"],
+      verbs: ["list", "watch"],
+    },
+  ]);
+  const policy = resource(
+    resources,
+    "NetworkPolicy",
+    "kube-state-metrics",
+    "observability",
+  );
+  assert.deepEqual(valueAt(policy, ["spec", "ingress"]), []);
+});
+
+test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   const hostDefinition = readFileSync(
     new URL("../hosts/remote-development/default.nix", import.meta.url),
     "utf8",
@@ -647,41 +1289,71 @@ test("the NixOS host publishes, prepares, and limits both workspace paths", () =
       "tailscale serve --bg --https=443 http://127.0.0.1:30773",
     ),
   );
+  assert.ok(hostDefinition.includes("tailscale serve reset"));
+  assert.ok(!hostDefinition.includes("--https=8443"));
+  for (let offset = 0; offset < 5; offset += 1) {
+    assert.ok(
+      hostDefinition.includes(
+        `tailscale serve --bg --https=${3000 + offset} http://127.0.0.1:${31000 + offset}`,
+      ),
+    );
+  }
   assert.ok(
     hostDefinition.includes(
-      "tailscale serve --bg --https=8443 http://127.0.0.1:30774",
+      "install -d -m 2770 -o t3code -g t3code ${operatorDataPath}",
     ),
   );
   assert.ok(
     hostDefinition.includes(
-      "install -d -m 0700 -o t3code -g t3code ${pilotDataPath}/home/.codex",
+      "install -d -m 2770 -o t3code -g t3code ${cacheDataPath}",
     ),
   );
-  assert.ok(
-    hostDefinition.includes(
-      "install -d -m 0700 -o t3code -g t3code ${pilotDataPath}/workspaces",
-    ),
-  );
+  assert.ok(!hostDefinition.includes("pilotDataPath"));
   assert.ok(hostDefinition.includes('"prjquota"'));
-  assert.ok(hostDefinition.includes('pilotProjectId = "2001"'));
-  assert.ok(hostDefinition.includes('pilotBlockHardLimit = "10G"'));
-  assert.ok(hostDefinition.includes('pilotInodeHardLimit = "1000000"'));
+  assert.ok(hostDefinition.includes('operatorProjectId = "2000"'));
+  assert.ok(hostDefinition.includes('cacheProjectId = "2002"'));
+  assert.ok(hostDefinition.includes('operatorBlockHardLimit = "55G"'));
+  assert.ok(hostDefinition.includes('cacheBlockHardLimit = "30G"'));
+  assert.ok(hostDefinition.includes('operatorInodeHardLimit = "3000000"'));
+  assert.ok(hostDefinition.includes('cacheInodeHardLimit = "2000000"'));
   assert.ok(hostDefinition.includes('containerLogMaxFiles = 3'));
   assert.ok(hostDefinition.includes('containerLogMaxSize = "20Mi"'));
-  assert.ok(
-    hostDefinition.includes(
-      "chattr -R -p ${pilotProjectId} ${pilotDataPath}",
+  assert.ok(hostDefinition.includes("--request POST"));
+  assert.ok(hostDefinition.includes('--data ""'));
+  const netdataNotificationConfig = readFileSync(
+    new URL(
+      "../hosts/remote-development/netdata/health_alarm_notify.conf",
+      import.meta.url,
     ),
+    "utf8",
   );
-  assert.ok(hostDefinition.includes("chattr +P ${pilotDataPath}"));
-  assert.ok(
-    hostDefinition.includes(
-      "setquota --project ${pilotProjectId} 0 ${pilotBlockHardLimit} 0 ${pilotInodeHardLimit} ${dataMount}",
-    ),
-  );
+  assert.ok(netdataNotificationConfig.includes("#homelab-alerts"));
+  assert.ok(!netdataNotificationConfig.includes("robbie"));
+  assert.ok(hostDefinition.includes("zramSwap = {"));
+  assert.ok(hostDefinition.includes("memoryPercent = 25"));
+  assert.ok(hostDefinition.includes('memorySwap.swapBehavior = "NoSwap"'));
+  assert.ok(hostDefinition.includes('projectQuotaLayoutVersion = "2"'));
+  assert.ok(hostDefinition.includes("chattr +P ${operatorDataPath}"));
+  assert.ok(hostDefinition.includes("chattr +P ${cacheDataPath}"));
   assert.ok(
     hostDefinition.includes('"remote-development-project-quotas.service"'),
   );
+  assert.ok(
+    hostDefinition.includes(
+      "systemd.services.remote-development-k3s-state-migration",
+    ),
+  );
+  assert.ok(
+    hostDefinition.includes(
+      "systemd.services.remote-development-kubernetes-api-proxy",
+    ),
+  );
+  assert.ok(hostDefinition.includes('legacy=${dataMount}/k3s'));
+  assert.ok(hostDefinition.includes('test -s "$legacy/server/db/state.db"'));
+  assert.ok(hostDefinition.includes("trap cleanup_staging EXIT"));
+  assert.ok(hostDefinition.includes('sync -f "$staging"'));
+  assert.ok(hostDefinition.includes('mv -- "$staging" "$target"'));
+  assert.ok(hostDefinition.includes('test -s "$target/server/db/state.db"'));
 
   const volumePreparation = readFileSync(
     new URL("../scripts/prepare-remote-development-volume", import.meta.url),
@@ -694,10 +1366,67 @@ test("the NixOS host publishes, prepares, and limits both workspace paths", () =
     new URL("../scripts/remote-development-health", import.meta.url),
     "utf8",
   );
+  assert.ok(healthCheck.includes("check_project_quota t3-code-operator"));
+  assert.ok(!healthCheck.includes("check_project_quota t3-code-pilot"));
+  assert.ok(healthCheck.includes("check_project_quota t3-code-cache"));
+  assert.ok(healthCheck.includes("test ! -e /srv/remote-development/t3-code-pilot"));
+  assert.ok(healthCheck.includes('any(.type == "DiskPressure"'));
+  assert.ok(healthCheck.includes("check_disk_headroom /srv/remote-development"));
+  assert.ok(healthCheck.includes('if .TCP | has("19999") then'));
+  assert.ok(healthCheck.includes('$1 == "/dev/zram0"'));
+  assert.ok(healthCheck.includes("for _ in $(seq 1 60)"));
+  assert.ok(healthCheck.includes(".lastState.terminated.reason"));
+  assert.ok(healthCheck.includes(".lastState.terminated.exitCode"));
   assert.ok(
-    healthCheck.includes(
-      `pilot_project_id=$(awk -F: '$1 == "t3-code-pilot" { print $2 }' /etc/projid)`,
+    healthCheck.includes("no pods match app.kubernetes.io/name=t3-code"),
+  );
+  assert.ok(
+    healthCheck.indexOf('runtime_summary=$(') <
+      healthCheck.indexOf('return "${rollout_status}"'),
+    "restart diagnostics must be collected before a failed rollout is returned",
+  );
+  assert.ok(
+    healthCheck.includes(".data.AGENT_AUTH_ENCRYPTION_KEY"),
+    "remote health must verify the Agent Auth encryption key",
+  );
+  assert.ok(
+    healthCheck.includes("codex mcp get recipe-agent"),
+    "remote health must verify the recipe-agent MCP registration",
+  );
+  assert.ok(healthCheck.includes(".CF_ACCESS_CLIENT_ID"));
+  assert.ok(healthCheck.includes(".CF_ACCESS_CLIENT_SECRET"));
+  assert.ok(healthCheck.includes(".data as $data"));
+  assert.ok(healthCheck.includes('($data[$key] // "")'));
+  assert.ok(healthCheck.includes('"WORK_GRAPH_CF_ACCESS_CLIENT_ID"'));
+  assert.ok(healthCheck.includes('"WORK_GRAPH_CF_ACCESS_CLIENT_SECRET"'));
+  assert.ok(healthCheck.includes("@base64d"));
+  assert.ok(healthCheck.includes("deployment/kube-state-metrics"));
+  assert.ok(healthCheck.includes("remote_development.operator_quota_bytes"));
+  assert.ok(
+    healthCheck.includes("remote-development-healthcheck-heartbeat.service"),
+  );
+
+  const dopplerInstaller = readFileSync(
+    new URL("../scripts/install-doppler-operator", import.meta.url),
+    "utf8",
+  );
+  assert.ok(
+    dopplerInstaller.includes(
+      '"t3-code:doppler-agent-token:personal-site:dev_agent"',
     ),
   );
-  assert.ok(!healthCheck.includes('project_id="#2001"'));
+  assert.ok(
+    dopplerInstaller.includes(
+      '"t3-code:doppler-work-graph-token:work-graph:prd_work_graph"',
+    ),
+  );
+  assert.ok(
+    dopplerInstaller.includes(
+      'remote-development-k3s-${namespace}-${token_secret}-${doppler_config}',
+    ),
+  );
+  assert.ok(dopplerInstaller.includes("sha256sum -c -"));
+  assert.ok(dopplerInstaller.includes("| tr -d '\\r\\n'"));
+  assert.ok(dopplerInstaller.includes("--from-file=serviceToken=/dev/stdin"));
+  assert.ok(!dopplerInstaller.includes("token_file"));
 });

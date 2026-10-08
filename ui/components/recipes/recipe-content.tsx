@@ -23,7 +23,10 @@ import {
 } from "@/components/recipes/cook-mode";
 import { DietWarning } from "@/components/recipes/diet-notice";
 import { useDiet } from "@/components/recipes/diet-provider";
+import { EquipmentWarning } from "@/components/recipes/equipment-readiness-notice";
+import { useEquipmentReadiness } from "@/components/recipes/equipment-readiness-provider";
 import { InlineTimer } from "@/components/recipes/inline-timer";
+import { RecipeShoppingListButton } from "@/components/recipes/recipe-shopping-list-button";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -214,11 +217,19 @@ function ingredientGroupClassName(index: number, hasName: boolean) {
   return hasName ? "border-t border-border/50 pt-4 mt-4" : "mt-4";
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function RecipeContent({
   recipe,
   timersEnabled = true,
-}: Readonly<{ recipe: RecipeDetailView; timersEnabled?: boolean }>) {
+  shoppingListEnabled = true,
+}: Readonly<{
+  recipe: RecipeDetailView;
+  timersEnabled?: boolean;
+  shoppingListEnabled?: boolean;
+}>) {
   const { diet, matchRecipe } = useDiet();
+  const { equipment, matchRecipe: matchRecipeToEquipment } =
+    useEquipmentReadiness();
   const { data: authSession, isPending: authSessionPending } =
     authClient.useSession();
   const dietMatch = useMemo(
@@ -232,6 +243,10 @@ export function RecipeContent({
         ),
       }),
     [matchRecipe, recipe.ingredientGroups],
+  );
+  const equipmentMatch = useMemo(
+    () => matchRecipeToEquipment({ cookware: recipe.cookware }),
+    [matchRecipeToEquipment, recipe.cookware],
   );
   const baseServings = Math.max(1, recipe.servings);
   const [portions, setPortions] = useState(baseServings);
@@ -488,6 +503,9 @@ export function RecipeContent({
         </p>
 
         {diet.active && <DietWarning match={dietMatch} className="mb-4" />}
+        {equipment.active && (
+          <EquipmentWarning match={equipmentMatch} className="mb-4" />
+        )}
 
         {recipe.canonical && (
           <p className="rt-body text-sm text-[var(--ink-2)] italic mb-4 inline-flex items-center gap-2 rounded-lg border border-dashed border-[var(--line-strong)] bg-[var(--paper-warm)] px-3 py-2">
@@ -502,21 +520,31 @@ export function RecipeContent({
               >
                 the original recipe
               </a>
-              .
+              {"."}
             </span>
           </p>
         )}
 
-        {cookSteps.length > 0 && (
-          <div className="mb-4">
-            <Button
-              size="lg"
-              onClick={openCookMode}
-              className="w-full sm:w-auto bg-[var(--terracotta)] text-white hover:bg-[var(--terracotta-deep)] text-base"
-            >
-              <Flame className="size-5" />
-              Start cooking
-            </Button>
+        {(cookSteps.length > 0 ||
+          (shoppingListEnabled && Boolean(authSession))) && (
+          <div className="mb-4 flex flex-wrap gap-2">
+            {shoppingListEnabled && authSession && (
+              <RecipeShoppingListButton
+                recipeSlug={recipe.slug}
+                servings={portions}
+                userId={authSession.user.id}
+              />
+            )}
+            {cookSteps.length > 0 && (
+              <Button
+                size="lg"
+                onClick={openCookMode}
+                className="w-full sm:w-auto bg-[var(--terracotta)] text-white hover:bg-[var(--terracotta-deep)] text-base"
+              >
+                <Flame className="size-5" />
+                Start cooking
+              </Button>
+            )}
           </div>
         )}
 

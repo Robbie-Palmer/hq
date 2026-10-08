@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { once } from "node:events";
 import { readFile } from "node:fs/promises";
 import { Worker } from "node:worker_threads";
 import createSatelliteSwarmModule from "../../build/browser/browser/satellite-swarm.mjs";
 
 const module = await createSatelliteSwarmModule();
-assert.equal(module._satellite_swarm_browser_api_version(), 2);
+assert.equal(module._satellite_swarm_browser_api_version(), 8);
+const sourceRevision = module.UTF8ToString(
+  module._satellite_swarm_source_revision(),
+);
+assert.match(sourceRevision, /^[0-9a-f]{40}$/);
 
 function run(longitudeDegrees, latitudeDegrees, scenario = 0) {
   const resultPointer = module._satellite_swarm_run_demonstration(
@@ -21,7 +26,7 @@ function run(longitudeDegrees, latitudeDegrees, scenario = 0) {
 }
 
 const fixtureUrl = new URL(
-  "../../../../ui/public/simulations/autonomic-satellite-swarm/demonstration.v2.json",
+  "../../../../ui/public/simulations/autonomic-satellite-swarm/demonstration.v7.json",
   import.meta.url,
 );
 const nativeFixture = await readFile(fixtureUrl, "utf8");
@@ -32,24 +37,63 @@ assert.deepEqual(customResult.objective, {
   latitudeDegrees: -37.5,
   longitudeDegrees: 14.25,
 });
-assert.equal(customResult.frames.length, 4);
+assert.ok(customResult.frames.length > 140);
 assert.ok(customResult.events.length > 0);
 
 const faultResult = JSON.parse(run(0, -90, 1));
 assert.equal(faultResult.scenario, "three-node-assignment-loss");
+const droppedAssignment = faultResult.events.find(
+  (event) =>
+    event.type === "message-dropped" &&
+    event.message.type === "mission-assignment" &&
+    event.message.target === event.recipientNode &&
+    event.nodeId !== event.recipientNode,
+);
+assert.ok(droppedAssignment);
+assert.equal(
+  faultResult.frames
+    .at(-1)
+    .nodes.find((node) => node.id === droppedAssignment.recipientNode).state,
+  "idle",
+);
+
+const safeStateResult = JSON.parse(run(0, -90, 2));
+assert.equal(safeStateResult.scenario, "three-node-safe-state-success");
 assert.ok(
-  faultResult.events.some(
+  safeStateResult.events.some(
     (event) =>
-      event.type === "message-dropped" &&
-      event.nodeId === 0 &&
-      event.recipientNode === 1,
+      event.type === "controller-telemetry" &&
+      event.event === "safe-state-execution-result" &&
+      event.nodeId === 1 &&
+      event.reason === "health-fatal" &&
+      event.value === 1 &&
+      event.currentState === "safe-disabled",
   ),
 );
-assert.equal(faultResult.frames.at(-1).nodes[1].state, "idle");
+assert.equal(safeStateResult.frames.at(-1).nodes[1].state, "safe-disabled");
 
 assert.throws(
   () => run(181, 0),
   /mission objective is outside the coordinate bounds/,
+);
+
+const nativeFairnessEvidence = execFileSync(
+  "./build/dev/autonomic-satellite-swarm-simulation",
+  ["--fairness-json"],
+  { encoding: "utf8" },
+);
+const wasmFairnessPointer = module._satellite_swarm_run_fair_allocation_evidence();
+assert.notEqual(wasmFairnessPointer, 0);
+const wasmFairnessEvidence = module.UTF8ToString(wasmFairnessPointer);
+assert.equal(wasmFairnessEvidence, nativeFairnessEvidence);
+const fairness = JSON.parse(wasmFairnessEvidence);
+assert.deepEqual(
+  fairness.missions.map((mission) => mission.assignedNode),
+  [0, 1, 2, 0, 1, 2],
+);
+assert.deepEqual(
+  fairness.assignmentCounts.map(({ missions }) => missions),
+  [2, 2, 2],
 );
 
 const productionWorker = new Worker(
@@ -62,29 +106,45 @@ try {
   const requestId = "browser-parity";
   productionWorker.postMessage({
     objective: { latitudeDegrees: -90, longitudeDegrees: 0 },
-    protocolVersion: 2,
+    protocolVersion: 5,
     requestId,
     scenario: "nominal",
     type: "run",
   });
   const [workerResponse] = await once(productionWorker, "message");
-  assert.equal(workerResponse.protocolVersion, 2);
+  assert.equal(workerResponse.protocolVersion, 5);
   assert.equal(workerResponse.requestId, requestId);
+  assert.equal(workerResponse.sourceRevision, sourceRevision);
   assert.equal(workerResponse.type, "result");
   assert.deepEqual(workerResponse.result, JSON.parse(nativeFixture));
 
   const faultRequestId = "browser-parity-fault";
   productionWorker.postMessage({
     objective: { latitudeDegrees: -90, longitudeDegrees: 0 },
-    protocolVersion: 2,
+    protocolVersion: 5,
     requestId: faultRequestId,
     scenario: "lost-assignment",
     type: "run",
   });
   const [faultWorkerResponse] = await once(productionWorker, "message");
   assert.equal(faultWorkerResponse.requestId, faultRequestId);
+  assert.equal(faultWorkerResponse.sourceRevision, sourceRevision);
   assert.equal(faultWorkerResponse.type, "result");
   assert.deepEqual(faultWorkerResponse.result, faultResult);
+
+  const safeStateRequestId = "browser-parity-safe-state";
+  productionWorker.postMessage({
+    objective: { latitudeDegrees: -90, longitudeDegrees: 0 },
+    protocolVersion: 5,
+    requestId: safeStateRequestId,
+    scenario: "safe-state-success",
+    type: "run",
+  });
+  const [safeStateWorkerResponse] = await once(productionWorker, "message");
+  assert.equal(safeStateWorkerResponse.requestId, safeStateRequestId);
+  assert.equal(safeStateWorkerResponse.sourceRevision, sourceRevision);
+  assert.equal(safeStateWorkerResponse.type, "result");
+  assert.deepEqual(safeStateWorkerResponse.result, safeStateResult);
 } finally {
   await productionWorker.terminate();
 }

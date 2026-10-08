@@ -4,13 +4,20 @@
 
 Install [mise](https://mise.jdx.dev/), then run:
 
+- Linux requires Git and a C++20 build toolchain. Debian and Ubuntu users can install the `git` and
+  `build-essential` packages.
+- macOS requires Git and the Xcode Command Line Tools. Install the latter with
+  `xcode-select --install`.
+
 ```shell
 mise trust
 mise install
+mise run doctor
 mise run test
 ```
 
-Use the tasks in `mise.toml`; they are the same entry points used by CI.
+`doctor` checks the native compiler and SDK as well as the tools managed by mise. Use the tasks in
+`mise.toml`; they are the same entry points used by CI on Linux and macOS.
 
 ## Change behavior safely
 

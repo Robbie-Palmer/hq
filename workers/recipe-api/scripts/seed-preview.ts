@@ -3,10 +3,9 @@ import { requiredEnv } from "node-base/env";
 import { createAuth } from "../src/auth";
 import { createDb, schema } from "recipe-db";
 import { RecipeContentSchema } from "recipe-domain";
+import type { PantryLocation } from "recipe-domain/pantry";
 import { previewScenarios } from "../src/preview-scenarios";
 import { syncCanonicalUserEmail } from "../src/user-emails";
-
-type PantryLocation = (typeof schema.pantryLocationEnum.enumValues)[number];
 
 function previewRecipeBody(
   slug: string,
@@ -15,6 +14,7 @@ function previewRecipeBody(
   cookBody: string,
   ingredients: Array<{ ingredient: string; amount: number; unit?: string }>,
   instructions: string[],
+  cookware: string[] = [],
 ): string {
   const recipe = RecipeContentSchema.parse({
     slug,
@@ -25,7 +25,7 @@ function previewRecipeBody(
     cuisine: [],
     servings: 2,
     tags: [],
-    cookware: [],
+    cookware,
     ingredientGroups: [{ items: ingredients }],
     instructions,
   });
@@ -184,6 +184,7 @@ try {
           [
             "Fry the garlic and carrot, add the frozen vegetables, then simmer in coconut milk and vegetable stock.",
           ],
+          ["frying pan", "saucepan"],
         ),
         userId: householdOwnerUserId,
         visibility: "household",
@@ -204,6 +205,7 @@ try {
             { ingredient: "vine-tomato", amount: 1 },
           ],
           ["Top the bread with cheddar cheese and vine tomato, then grill."],
+          ["grill"],
         ),
         userId: householdOwnerUserId,
         visibility: "public",
@@ -236,10 +238,15 @@ try {
       id: HOUSEHOLD_ID,
       name: "Preview Shared Household",
       slug: HOUSEHOLD_SLUG,
+      equipmentRecipeMatchMode: "warn",
     })
     .onConflictDoUpdate({
       target: schema.organization.id,
-      set: { name: "Preview Shared Household", slug: HOUSEHOLD_SLUG },
+      set: {
+        name: "Preview Shared Household",
+        slug: HOUSEHOLD_SLUG,
+        equipmentRecipeMatchMode: "warn",
+      },
     });
 
   const householdMembers: Array<typeof schema.member.$inferInsert> = [
@@ -268,6 +275,22 @@ try {
         },
       });
   }
+
+  // The curry matches this equipment exactly. The household flatbread also
+  // requires a grill, which stays unowned so preview QA can see both readiness
+  // states without changing settings first.
+  await db
+    .delete(schema.householdEquipment)
+    .where(eq(schema.householdEquipment.organizationId, HOUSEHOLD_ID));
+  await db
+    .insert(schema.householdEquipment)
+    .values(
+      ["frying-pan", "saucepan"].map((equipmentSlug) => ({
+        organizationId: HOUSEHOLD_ID,
+        equipmentSlug,
+      })),
+    )
+    .onConflictDoNothing();
 
   // A reciprocal connection across household boundaries. This gives both the
   // household owner and the solo recipes cook a ready-made Following feed and
@@ -372,7 +395,7 @@ try {
     .onConflictDoNothing();
 
   console.log(
-    `Seeded ${previewScenarios.length} preview scenarios with household, pantry, diet, and cross-household follow fixtures.`,
+    `Seeded ${previewScenarios.length} preview scenarios with household, pantry, equipment, diet, and cross-household follow fixtures.`,
   );
 } finally {
   await client.end({ timeout: 5 });

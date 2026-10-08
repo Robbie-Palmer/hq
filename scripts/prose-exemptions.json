@@ -26,47 +26,47 @@
   },
   {
     "file": "ui/content/blog/2022-03-02-the-philosophy-of-data-science.mdx",
-    "line": 240,
+    "line": 250,
     "checks": ["Unslop.ContrastFormula"]
   },
   {
     "file": "ui/content/blog/2022-03-02-the-philosophy-of-data-science.mdx",
-    "line": 259,
+    "line": 269,
     "checks": ["Unslop.ContrastFormula"]
   },
   {
     "file": "ui/content/blog/2022-03-02-the-philosophy-of-data-science.mdx",
-    "line": 331,
+    "line": 341,
     "checks": ["Unslop.ContrastFormula"]
   },
   {
     "file": "ui/content/blog/2022-03-02-the-philosophy-of-data-science.mdx",
-    "line": 364,
+    "line": 374,
     "checks": ["Unslop.Puffery"]
   },
   {
     "file": "ui/content/blog/2022-03-02-the-philosophy-of-data-science.mdx",
-    "line": 439,
+    "line": 449,
     "checks": ["Unslop.Puffery"]
   },
   {
     "file": "ui/content/blog/2022-03-02-the-philosophy-of-data-science.mdx",
-    "line": 442,
+    "line": 452,
     "checks": ["Unslop.Puffery"]
   },
   {
     "file": "ui/content/blog/2022-03-02-the-philosophy-of-data-science.mdx",
-    "line": 446,
+    "line": 456,
     "checks": ["Unslop.Puffery"]
   },
   {
     "file": "ui/content/blog/2022-03-02-the-philosophy-of-data-science.mdx",
-    "line": 570,
+    "line": 580,
     "checks": ["Unslop.Puffery"]
   },
   {
     "file": "ui/content/blog/2022-03-02-the-philosophy-of-data-science.mdx",
-    "line": 708,
+    "line": 718,
     "checks": ["Unslop.ContrastFormula"]
   },
   {

@@ -4,7 +4,24 @@ import {
   OpenAPIHono,
   type RouteConfig,
 } from "@hono/zod-openapi";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  exists,
+  gt,
+  inArray,
+  isNull,
+  lt,
+  notInArray,
+  or,
+  type SQL,
+  sql,
+} from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import type { Context, Handler } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import {
   injectTraceContext,
   traceCarrierFromHeaders,
@@ -13,47 +30,67 @@ import {
   withPostHogSpan,
 } from "observability";
 import {
-  and,
-  count,
-  desc,
-  eq,
-  exists,
-  gt,
-  gte,
-  inArray,
-  isNull,
-  lt,
-  notInArray,
-  or,
-  sql,
-  type SQL,
-} from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
-import { z } from "zod";
-import {
   closeDbClient,
   createDb,
-  databaseConnection,
   type Db,
   type DbClient,
+  databaseConnection,
   schema,
+  withDb,
 } from "recipe-db";
+import { AutosaveBatchDraftSchema, CreateBatchSchema } from "recipe-domain/batch-import";
+import { CookLogMutationConflictError } from "recipe-domain/cook-log";
+import {
+  importJobPrefix,
+  RECIPE_IMPORT_MAX_IMAGE_BYTES,
+  RECIPE_IMPORT_MAX_IMAGES,
+  RECIPE_IMPORT_MAX_TOTAL_BYTES,
+  recipeImportImageExtension,
+  sourceImageKey,
+} from "recipe-domain/import-storage";
+import {
+  MAX_PANTRY_ITEMS,
+  MAX_PANTRY_FRESHNESS_ESTIMATE_DAYS,
+  MAX_PANTRY_MUTATION_CHANGES,
+  PantryItemLimitError,
+  PantryLocationSchema,
+  PantryMutationConflictError,
+} from "recipe-domain/pantry";
 import { SavedRecipePayloadSchema } from "recipe-domain/serialization";
+import { UnitSchema } from "recipe-domain/unit";
+import { normalizeAuthoredTerm } from "recipe-domain/authored-term";
 import {
   isRecipeAppRouteSlug,
   LOWERCASE_KEBAB_CASE_PATTERN,
+  normalizeSlug,
   RECIPE_SLUG_MAX_LENGTH,
 } from "recipe-domain/slugs";
 import { RecipeVisibilitySchema } from "recipe-domain/visibility";
-import {
-  importJobPrefix,
-  sourceImageKey,
-} from "recipe-domain/import-storage";
+import { canonicalEquipment } from "recipe-parsing/canonical-equipment-data";
+import { equipmentDisplayName } from "recipe-parsing/equipment-canonicalization";
 import { parseRecipeFile } from "recipe-parsing/recipe-file";
 import { parseSchemaOrgRecipeHtml } from "recipe-parsing/schema-org";
+import { EquipmentCategorySchema } from "recipe-parsing/schemas/canonical-equipment";
+import { z } from "zod";
 import { recipeAgentConfiguration } from "./agent-auth";
+import { recipeImportQuotaReason } from "./agent-recipe-imports";
 import { createAuth, isPreviewAuthEnabled } from "./auth";
+import {
+  type AuthoredTermOwner,
+  canonicalEquipmentTerm,
+  listUnresolvedTerms,
+  newAuthoredTermOccurrences,
+  observeAuthoredTerm,
+  observeRecipeTerms,
+  requestLocale,
+  type UnresolvedTermSummary,
+} from "./authored-terms";
+import { acceptDraft, autosaveDraft, BatchImportError, createBatch, listBatches, readBatch, readBatchItem, reviewAction, startBatch } from "./batch-imports";
+import { beginBatchUndo, executeBatchUndo, previewBatchUndo } from "./batch-undo";
 import { verifyCloudflareAccess } from "./cloudflare-access";
+import { listCookLogMutationHistory } from "./cook-log/services/list-cook-log-mutation-history";
+import { previewCookLogMutationUndo } from "./cook-log/services/preview-cook-log-mutation-undo";
+import { undoCookLogMutation } from "./cook-log/services/undo-cook-log-mutation";
 import { cookingInsightsResponse } from "./cooking-reads";
 import { hasPostgresErrorCode } from "./db/errors";
 import {
@@ -87,17 +124,35 @@ import {
   markInvitationNotificationRead,
   notifyAgentRegistrationApproval,
 } from "./notifications";
-import { fetchRecipePage, RecipeUrlImportError } from "./recipe-url-import";
+import {
+  findPantryAggregate,
+  type PantryLocation,
+  type PantryResponse,
+  type PantryScope,
+  pantryAggregateScopeFilter,
+  pantryResourceId,
+  pantryResponseForScope,
+  pantryScopeFilter,
+  readPantry,
+  resolvePantryScope,
+} from "./pantry";
+import { findMutationChangeSet } from "./pantry/repositories/mutation-ledger-repository";
+import { enforcePantryItemLimit } from "./pantry/repositories/pantry-repository";
+import { listPantryMutationHistory } from "./pantry/services/list-pantry-mutation-history";
+import { previewPantryMutationUndo } from "./pantry/services/preview-pantry-mutation-undo";
+import { undoPantryMutation } from "./pantry/services/undo-pantry-mutation";
+import {
+  findPreviewScenario,
+  previewScenarios,
+} from "./preview-scenarios";
 import {
   type PantryChangeKind,
   type PantryRealtimeEvent,
   REALTIME_AUTHORIZATION_LIFETIME_MS,
   realtimeRoomRequestHeaders,
 } from "./realtime-room";
-import {
-  findPreviewScenario,
-  previewScenarios,
-} from "./preview-scenarios";
+import { readableRecipeFilter } from "./recipe-access";
+import { fetchRecipePage, RecipeUrlImportError } from "./recipe-url-import";
 import {
   normalizeEmail,
   userOwnsVerifiedEmail,
@@ -130,24 +185,6 @@ type RecipeImportJob = typeof schema.recipeImportJob.$inferSelect;
 type Household = typeof schema.organization.$inferSelect;
 type HouseholdMember = typeof schema.member.$inferSelect;
 type HouseholdInvitation = typeof schema.invitation.$inferSelect;
-type PantryLocation = (typeof schema.pantryLocationEnum.enumValues)[number];
-type PantryScope =
-  | { type: "personal"; userId: string }
-  | {
-      type: "household";
-      householdId: string;
-      householdName: string;
-    };
-type PantryResponse = {
-  resourceId: string;
-  revision: string;
-  operationId?: string;
-  scope:
-    | { type: "personal" }
-    | { type: "household"; household: { id: string; name: string } };
-  stock: Record<string, PantryLocation>;
-  itemVersions: Record<string, string>;
-};
 type ShoppingListSnapshot = typeof schema.shoppingList.$inferInsert.snapshot;
 type ShoppingListResponse = {
   id: string;
@@ -177,6 +214,7 @@ type DietProfileResponse = {
   excludedIngredientSlugs: string[];
   excludedGroupKeys: string[];
   recipeMatchMode: "hide" | "warn";
+  unresolvedTerms?: UnresolvedTermSummary[];
 };
 type AppEnv = {
   Bindings: Bindings;
@@ -188,6 +226,7 @@ type SpanAttributes = Record<string, boolean | number | string>;
 extendZodWithOpenApi(z);
 
 const app = new OpenAPIHono<AppEnv>();
+app.use("/recipe-import-batches", bodyLimit({ maxSize: 8_000_000, onError: c => c.json({ error: "Batch request exceeds 8 MB" }, 413) }));
 
 const previewSignInBodySchema = z.object({
   scenario: z.string().trim().min(1).max(100),
@@ -208,8 +247,72 @@ const creatableRecipeSlugSchema = recipeSlugSchema.refine(
   { message: "Slug is reserved for a recipe application route" },
 );
 const dietRecipeMatchModeSchema = z.enum(["hide", "warn"]);
-const pantryLocationSchema = z.enum(schema.pantryLocationEnum.enumValues);
-const pantryIngredientSlugSchema = z.string().min(1).max(200);
+const equipmentRecipeMatchModeSchema = z.enum(["hide", "warn", "disabled"]);
+const pantryLocationSchema = PantryLocationSchema;
+const pantryDateSchema = z.iso.date().max(10);
+const pantryFreshnessSchema = z
+  .object({
+    useBy: pantryDateSchema.nullable(),
+    bestBefore: pantryDateSchema.nullable(),
+    stockedAt: pantryDateSchema.nullable(),
+    openedAt: pantryDateSchema.nullable(),
+    frozenAt: pantryDateSchema.nullable(),
+    estimate: z
+      .object({
+        expectedDays: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_PANTRY_FRESHNESS_ESTIMATE_DAYS)
+          .openapi({ format: "int32" }),
+        startingOn: pantryDateSchema,
+        storage: pantryLocationSchema,
+        basis: z.enum(["user", "catalog"]),
+      })
+      .strict()
+      .nullable(),
+  })
+  .strict();
+const authoredTermInputSchema = z.string().trim().min(1).max(200);
+const equipmentTermInputSchema = z.string().trim().min(1).max(100);
+const pantryIngredientSlugSchema = authoredTermInputSchema;
+const authoredTermCandidateSchema = z
+  .object({
+    slug: z.string().min(1).max(200),
+    score: z.number().min(0).max(1),
+  })
+  .strict();
+const unresolvedTermSchema = z
+  .object({
+    id: z.uuid().max(36),
+    kind: z.enum(["ingredient", "equipment"]),
+    rawText: z.string().min(1).max(200),
+    normalizedText: z.string().min(1).max(200),
+    locale: z.string().min(1).max(35),
+    sourceContext: z
+      .object({
+        flow: z.enum(["recipe", "pantry", "diet", "equipment"]),
+        resourceId: z.string().min(1).max(200).optional(),
+        field: z.string().min(1).max(100).optional(),
+      })
+      .strict(),
+    provenance: z
+      .object({
+        kind: z.enum(["user", "import"]),
+        actorUserId: z.string().min(1).max(128),
+        importJobId: z.uuid().max(36).optional(),
+      })
+      .strict(),
+    candidateMatches: z.array(authoredTermCandidateSchema).max(20),
+    frequency: z
+      .number()
+      .int()
+      .min(1)
+      .max(2_147_483_647)
+      .openapi({ format: "int32" }),
+    resolutionStatus: z.literal("unresolved"),
+  })
+  .strict();
 const pantryResponseSchema = z
   .object({
     resourceId: z.string().min(1),
@@ -227,11 +330,47 @@ const pantryResponseSchema = z
         .strict(),
     ]),
     stock: z.record(z.string().min(1), pantryLocationSchema),
+    items: z.record(
+      z.string().min(1),
+      z
+        .object({
+          location: pantryLocationSchema,
+          quantity: z
+            .object({
+              amount: z.number().min(0.001),
+              unit: UnitSchema,
+            })
+            .strict()
+            .nullable(),
+          freshness: pantryFreshnessSchema,
+          source: z
+            .object({
+              kind: z.enum(["user", "inferred"]),
+              provenance: z.string().min(1).max(200),
+            })
+            .strict(),
+        })
+        .strict(),
+    ),
     itemVersions: z.record(z.string().min(1), z.string().regex(/^\d+$/)),
+    unresolvedTerms: z.array(unresolvedTermSchema).max(MAX_PANTRY_ITEMS).optional(),
   })
   .strict();
 const pantryOperationReceiptSchema = z
   .object({ version: z.literal(1), pantry: pantryResponseSchema })
+  .strict();
+const undoAgentMutationBodySchema = z
+  .object({
+    stableItemIds: z
+      .array(z.uuid().max(36))
+      .min(1)
+      .max(MAX_PANTRY_MUTATION_CHANGES)
+      .optional(),
+    sessionIds: z.array(z.uuid().max(36)).min(1).max(50).optional(),
+  })
+  .refine((body) => !(body.stableItemIds && body.sessionIds), {
+    message: "Choose pantry items or cooking sessions, not both",
+  })
   .strict();
 const feedScopeSchema = z.enum(["public", "following"]);
 const feedLimitSchema = z.coerce.number().int().min(1).max(30).default(12);
@@ -263,6 +402,11 @@ const dietKeySchema = z
 
 const uniqueDietKeysSchema = z
   .array(dietKeySchema)
+  .max(80)
+  .transform((values) => Array.from(new Set(values)));
+
+const uniqueAuthoredTermsSchema = z
+  .array(authoredTermInputSchema)
   .max(80)
   .transform((values) => Array.from(new Set(values)));
 
@@ -299,6 +443,12 @@ const cookingSessionBodySchema = z
   .strict();
 
 const recommendRecipeBodySchema = z
+  .object({
+    recipientUserId: z.string().trim().min(1).max(128),
+  })
+  .strict();
+
+const shareShoppingListBodySchema = z
   .object({
     recipientUserId: z.string().trim().min(1).max(128),
   })
@@ -347,6 +497,44 @@ const savedRecipeBodySchema = z
     }
   });
 
+async function recordRecipeBodyTerms(
+  tx: DbTransaction,
+  input: {
+    body: string;
+    locale: string;
+    previousBody?: string | null;
+    recipeId: string;
+    userId: string;
+  },
+): Promise<void> {
+  const payload = SavedRecipePayloadSchema.parse(JSON.parse(input.body));
+  const previousPayload = input.previousBody
+    ? SavedRecipePayloadSchema.parse(JSON.parse(input.previousBody))
+    : undefined;
+  const ingredientTerms = payload.recipe.ingredientGroups.flatMap((group) =>
+    group.items.map((item) => item.ingredient),
+  );
+  const previousIngredientTerms =
+    previousPayload?.recipe.ingredientGroups.flatMap((group) =>
+      group.items.map((item) => item.ingredient),
+    ) ?? [];
+  await observeRecipeTerms(tx, {
+    userId: input.userId,
+    recipeId: input.recipeId,
+    locale: input.locale,
+    ingredientTerms: newAuthoredTermOccurrences(
+      ingredientTerms,
+      previousIngredientTerms,
+      input.locale,
+    ),
+    equipmentTerms: newAuthoredTermOccurrences(
+      payload.recipe.cookware,
+      previousPayload?.recipe.cookware ?? [],
+      input.locale,
+    ),
+  });
+}
+
 // Household invitations stay valid for 48 hours after they are created.
 const INVITATION_EXPIRY_MS = 48 * 60 * 60 * 1000;
 const NOTIFICATION_PAGE_SIZE = 100;
@@ -356,16 +544,34 @@ const RECIPE_RECOMMENDATION_RATE_LIMIT = {
   max: 30,
   windowSeconds: 60 * 60,
 };
+const SHOPPING_LIST_SHARE_RATE_LIMIT = { max: 30, windowSeconds: 60 * 60 };
 const RECIPE_URL_IMPORT_RATE_LIMIT = { max: 20, windowSeconds: 60 * 60 };
 const RECIPE_FILE_IMPORT_RATE_LIMIT = { max: 20, windowSeconds: 60 * 60 };
 const RECIPE_PHOTO_IMPORT_RATE_LIMIT = { max: 20, windowSeconds: 60 * 60 };
 
 const createRecipeBodySchema = z.object({
+  parentRecipeId: z.uuid().max(36).optional(),
   slug: creatableRecipeSlugSchema,
   title: z.string().trim().min(1).max(120),
   description: z.string().trim().min(1).max(500).optional(),
   body: savedRecipeBodySchema,
   visibility: RecipeVisibilitySchema.default("private"),
+});
+
+const batchVersionSchema = AutosaveBatchDraftSchema.shape.version.meta({ format: "int32" });
+const mutableBatchDraftSchema = AutosaveBatchDraftSchema.shape.draft;
+const autosaveBatchBodySchema = AutosaveBatchDraftSchema.extend({
+  version: batchVersionSchema,
+  draft: mutableBatchDraftSchema.extend({
+    servings: mutableBatchDraftSchema.shape.servings.meta({ format: "int32" }),
+    prepTime: mutableBatchDraftSchema.shape.prepTime.meta({ format: "int32" }),
+    cookTime: mutableBatchDraftSchema.shape.cookTime.meta({ format: "int32" }),
+  }),
+});
+const acceptBatchBodySchema = z.object({
+  version: batchVersionSchema,
+  idempotencyKey: z.uuid().max(36),
+  recipe: createRecipeBodySchema.omit({ parentRecipeId: true }),
 });
 
 const importRecipeUrlBodySchema = z
@@ -424,19 +630,112 @@ const inviteHouseholdMemberBodySchema = z
   })
   .strict();
 
+const householdEquipmentCatalog = canonicalEquipment.equipment.map((item) => ({
+  ...item,
+  name: equipmentDisplayName(item.slug),
+}));
+const householdEquipmentBySlug = new Map(
+  householdEquipmentCatalog.map((item) => [item.slug, item]),
+);
+const householdEquipmentCatalogItemSchema = z
+  .object({
+    slug: z.string().min(1).max(100),
+    name: z.string().min(1).max(100),
+    category: EquipmentCategorySchema,
+  })
+  .strict();
+const householdEquipmentOwnedItemSchema = z
+  .object({
+    slug: z.string().min(1).max(100),
+    name: z.string().min(1).max(100),
+    category: EquipmentCategorySchema.optional(),
+    createdAt: z.iso.datetime().max(40),
+    retired: z.boolean(),
+    unresolved: z.boolean().optional(),
+  })
+  .strict();
+const householdEquipmentResponseSchema = z
+  .object({
+    catalog: z
+      .array(householdEquipmentCatalogItemSchema)
+      .max(householdEquipmentCatalog.length),
+    owned: z
+      .array(householdEquipmentOwnedItemSchema)
+      .max(500),
+    unresolvedTerms: z.array(unresolvedTermSchema).max(500).optional(),
+    recipeMatchMode: equipmentRecipeMatchModeSchema,
+  })
+  .strict()
+  .openapi("HouseholdEquipment");
+
 const pantryStockBodySchema = z
   .object({
     stock: z
       .record(pantryIngredientSlugSchema, pantryLocationSchema)
-      .refine((stock) => Object.keys(stock).length <= 500, {
-        message: "A pantry can contain at most 500 ingredients",
+      .refine((stock) => Object.keys(stock).length <= MAX_PANTRY_ITEMS, {
+        message: `A pantry can contain at most ${MAX_PANTRY_ITEMS} ingredients`,
       }),
   })
   .strict();
 
+const pantryRestoreItemSchema = z
+  .object({
+    location: pantryLocationSchema,
+    quantity: z
+      .object({
+        amount: z.number().min(0.001).max(999_999_999),
+        unit: UnitSchema,
+      })
+      .strict()
+      .nullable(),
+    freshness: pantryFreshnessSchema,
+    source: z
+      .object({
+        kind: z.enum(["user", "inferred"]),
+        provenance: z.string().trim().min(1).max(200),
+      })
+      .strict(),
+  })
+  .strict();
+
+const pantryRestoreBodySchema = pantryStockBodySchema
+  .extend({
+    items: z
+      .record(pantryIngredientSlugSchema, pantryRestoreItemSchema)
+      .optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    for (const [ingredientSlug, item] of Object.entries(value.items ?? {})) {
+      const location = value.stock[ingredientSlug];
+      if (location === undefined) {
+        context.addIssue({
+          code: "custom",
+          message: "Restored item details must belong to the stock snapshot",
+          path: ["items", ingredientSlug],
+        });
+      } else if (item.location !== location) {
+        context.addIssue({
+          code: "custom",
+          message: "Restored item location must match the stock snapshot",
+          path: ["items", ingredientSlug, "location"],
+        });
+      }
+    }
+  });
+
 const pantryItemBodySchema = z
   .object({
     location: pantryLocationSchema,
+    quantity: z
+      .object({
+        amount: z.number().min(0.001).max(999_999_999),
+        unit: UnitSchema,
+      })
+      .strict()
+      .nullable()
+      .optional(),
+    freshness: pantryFreshnessSchema.optional(),
   })
   .strict();
 
@@ -520,13 +819,22 @@ const createShoppingListBodySchema = z
   })
   .strict();
 
+const shareShoppingListResponseSchema = z
+  .object({ shared: z.literal(true) })
+  .strict()
+  .openapi("ShoppingListShareResponse");
+
 const updateDietProfileBodySchema = z
   .object({
     presetDietKeys: uniqueDietKeysSchema.default([]),
-    excludedIngredientSlugs: uniqueDietKeysSchema.default([]),
+    excludedIngredientSlugs: uniqueAuthoredTermsSchema.default([]),
     excludedGroupKeys: uniqueDietKeysSchema.default([]),
     recipeMatchMode: dietRecipeMatchModeSchema.default("hide"),
   })
+  .strict();
+
+const updateHouseholdEquipmentPreferencesBodySchema = z
+  .object({ recipeMatchMode: equipmentRecipeMatchModeSchema })
   .strict();
 
 const errorSchema = z
@@ -575,29 +883,6 @@ const agentConfigurationSchema = z
   })
   .openapi("AgentConfiguration");
 
-const openApiRequestBodySchemas = new Map<string, z.ZodType>([
-  ["POST /api/auth/preview/sign-in", previewSignInBodySchema],
-  ["PUT /api/profile/diet", updateDietProfileBodySchema],
-  ["PUT /api/profile/recipe-box", recipeBoxBodySchema],
-  ["POST /api/profile/cooking-sessions", cookingSessionBodySchema],
-  ["PUT /pantry", pantryStockBodySchema],
-  ["PATCH /pantry", pantryStockBodySchema],
-  ["PUT /pantry/items/:ingredientSlug", pantryItemBodySchema],
-  ["PUT /shopping-lists/current", updateShoppingListBodySchema],
-  ["POST /shopping-lists", createShoppingListBodySchema],
-  ["POST /households", createHouseholdBodySchema],
-  ["PATCH /households/:householdId", updateHouseholdBodySchema],
-  [
-    "POST /households/:householdId/invitations",
-    inviteHouseholdMemberBodySchema,
-  ],
-  ["POST /recipe-drafts/url", importRecipeUrlBodySchema],
-  ["POST /recipe-drafts/file", importRecipeFileBodySchema],
-  ["POST /recipes/:slug/recommendations", recommendRecipeBodySchema],
-  ["POST /recipes", createRecipeBodySchema],
-  ["PATCH /recipes/:slug", updateRecipeBodySchema],
-]);
-
 const pantryOperationHeadersSchema = z.object({
   "idempotency-key": z.uuid().max(36).optional().openapi({
     description:
@@ -605,78 +890,206 @@ const pantryOperationHeadersSchema = z.object({
   }),
 });
 
-const PANTRY_MUTATION_OPERATIONS = new Set([
-  "PUT /pantry",
-  "PATCH /pantry",
-  "PUT /pantry/items/:ingredientSlug",
-  "DELETE /pantry/items/:ingredientSlug",
-]);
-
-const openApiQuerySchemas = new Map<string, z.ZodObject>([
-  [
-    "GET /notifications",
-    z.object({ offset: z.string().regex(/^\d+$/).max(10).optional() }),
-  ],
-  [
-    "GET /recipes",
-    z.object({
-      scope: z.literal("owned").optional(),
-      limit: z.string().regex(/^\d+$/).max(3).optional(),
-      cursor: z.string().max(500).optional(),
-    }),
-  ],
-  [
-    "GET /recipes/discover/feed",
-    z.object({
-      scope: feedScopeSchema.optional(),
-      limit: z.string().regex(/^\d+$/).max(2).optional(),
-      cursor: z.string().max(500).optional(),
-    }),
-  ],
-  ["GET /recipes/cooks", z.object({ cook: z.string().max(128).optional() })],
-]);
-
 const ERROR_STATUS_CODES = [
   400, 401, 403, 404, 409, 410, 415, 422, 500, 502, 503,
 ] as const;
 
-const SPECIAL_ERROR_STATUS_CODES = new Map<string, readonly number[]>([
-  ["GET /pantry/realtime", [426, 429]],
-]);
-
-const RATE_LIMITED_OPERATIONS = new Set([
-  "POST /households/:householdId/invitations",
-  "POST /recipe-drafts/url",
-  "POST /recipe-drafts/file",
-  "POST /recipes/:slug/recommendations",
-  "POST /recipe-imports",
-]);
-
 type SuccessStatus = 101 | 200 | 201 | 202 | 204;
 
-const SUCCESS_STATUS_OVERRIDES = new Map<string, readonly SuccessStatus[]>([
-  ["GET /pantry/realtime", [101]],
-  ["POST /api/profile/cooking-sessions", [200, 201]],
-  ["POST /households", [201]],
-  ["POST /households/:householdId/invitations", [201]],
-  ["POST /households/:householdId/leave", [204]],
-  ["POST /notifications/read-all", [204]],
-  ["POST /notifications/clear-all", [204]],
-  ["POST /recipes/:slug/recommendations", [201]],
-  ["POST /recipes", [201]],
-  ["POST /recipe-imports", [202]],
-  ["DELETE /pantry/items/:ingredientSlug", [200]],
-  ["POST /shopping-lists", [201]],
-  ["DELETE /recipes/cooks/:cookId/follow", [200]],
-  ["DELETE /recipes/:slug/household-share", [200]],
-]);
+type RouteMethod = "get" | "post" | "put" | "patch" | "delete";
+type RouteKey = `${Uppercase<RouteMethod>} /${string}`;
+type RouteMetadata = {
+  requestBodySchema?: z.ZodType;
+  querySchema?: z.ZodObject;
+  headersSchema?: z.ZodObject;
+  successStatuses?: readonly SuccessStatus[];
+  successResponseSchema?: z.ZodType;
+  additionalErrorStatuses?: readonly number[];
+  rateLimited?: true;
+};
 
-const openApiSuccessResponseSchemas = new Map<string, z.ZodType>([
-  ["GET /notifications/unread-count", notificationUnreadCountResponseSchema],
-  ["GET /shopping-lists/current", shoppingListResponseSchema],
-  ["PUT /shopping-lists/current", shoppingListResponseSchema],
-  ["POST /shopping-lists", shoppingListResponseSchema],
-]);
+export const routeMetadata = {
+  "GET /health": {},
+  "GET /.well-known/agent-configuration": {},
+  "GET /api/auth/preview/scenarios": {},
+  "POST /api/auth/preview/sign-up": {},
+  "POST /api/auth/preview/sign-in": {
+    requestBodySchema: previewSignInBodySchema,
+  },
+  "GET /api/profile/diet": {},
+  "GET /api/profile/diet/options": {},
+  "PUT /api/profile/diet": {
+    requestBodySchema: updateDietProfileBodySchema,
+  },
+  "GET /api/profile/recipe-box": {},
+  "GET /api/profile/bootstrap": {},
+  "PUT /api/profile/recipe-box": { requestBodySchema: recipeBoxBodySchema },
+  "GET /api/profile/cooking-insights": {},
+  "GET /api/profile/agent-mutations": {},
+  "GET /api/profile/agent-mutations/:changeSetId/undo-preview": {},
+  "POST /api/profile/agent-mutations/:changeSetId/undo": {
+    requestBodySchema: undoAgentMutationBodySchema,
+    headersSchema: pantryOperationHeadersSchema,
+  },
+  "POST /api/profile/cooking-sessions": {
+    requestBodySchema: cookingSessionBodySchema,
+    successStatuses: [200, 201],
+  },
+  "GET /shopping-lists/current": {
+    successResponseSchema: shoppingListResponseSchema,
+  },
+  "PUT /shopping-lists/current": {
+    requestBodySchema: updateShoppingListBodySchema,
+    successResponseSchema: shoppingListResponseSchema,
+  },
+  "POST /shopping-lists": {
+    requestBodySchema: createShoppingListBodySchema,
+    successStatuses: [201],
+    successResponseSchema: shoppingListResponseSchema,
+  },
+  "POST /shopping-lists/current/shares": {
+    requestBodySchema: shareShoppingListBodySchema,
+    successStatuses: [201],
+    successResponseSchema: shareShoppingListResponseSchema,
+    rateLimited: true,
+  },
+  "GET /pantry": {},
+  "GET /pantry/realtime": {
+    successStatuses: [101],
+    additionalErrorStatuses: [426, 429],
+  },
+  "PUT /pantry": {
+    requestBodySchema: pantryStockBodySchema,
+    headersSchema: pantryOperationHeadersSchema,
+  },
+  "PATCH /pantry": {
+    requestBodySchema: pantryRestoreBodySchema,
+    headersSchema: pantryOperationHeadersSchema,
+  },
+  "PUT /pantry/items/:ingredientSlug": {
+    requestBodySchema: pantryItemBodySchema,
+    headersSchema: pantryOperationHeadersSchema,
+  },
+  "DELETE /pantry/items/:ingredientSlug": {
+    headersSchema: pantryOperationHeadersSchema,
+    successStatuses: [200],
+  },
+  "GET /households": {},
+  "GET /households/invitations": {},
+  "POST /households": {
+    requestBodySchema: createHouseholdBodySchema,
+    successStatuses: [201],
+  },
+  "PATCH /households/:householdId": {
+    requestBodySchema: updateHouseholdBodySchema,
+  },
+  "GET /households/:householdId/members": {},
+  "GET /households/:householdId/equipment": {
+    successResponseSchema: householdEquipmentResponseSchema,
+  },
+  "PATCH /households/:householdId/equipment": {
+    requestBodySchema: updateHouseholdEquipmentPreferencesBodySchema,
+  },
+  "PUT /households/:householdId/equipment/:equipmentSlug": {
+    successResponseSchema: householdEquipmentOwnedItemSchema,
+  },
+  "DELETE /households/:householdId/equipment/:equipmentSlug": {},
+  "GET /households/:householdId/invitations": {},
+  "POST /households/:householdId/invitations": {
+    requestBodySchema: inviteHouseholdMemberBodySchema,
+    successStatuses: [201],
+    rateLimited: true,
+  },
+  "POST /households/invitations/:invitationId/accept": {},
+  "POST /households/invitations/:invitationId/decline": {},
+  "DELETE /households/:householdId/invitations/:invitationId": {},
+  "DELETE /households/:householdId/members/:memberId": {},
+  "POST /households/:householdId/leave": { successStatuses: [204] },
+  "DELETE /households/:householdId": {},
+  "GET /notifications/unread-count": {
+    successResponseSchema: notificationUnreadCountResponseSchema,
+  },
+  "GET /notifications": {
+    querySchema: z.object({
+      offset: z.string().regex(/^\d+$/).max(10).optional(),
+    }),
+  },
+  "POST /notifications/read-all": { successStatuses: [204] },
+  "POST /notifications/clear-all": { successStatuses: [204] },
+  "POST /notifications/:notificationId/actions/:actionKey": {},
+  "PATCH /notifications/:notificationId": {},
+  "GET /recipes": {
+    querySchema: z.object({
+      scope: z.literal("owned").optional(),
+      limit: z.string().regex(/^\d+$/).max(3).optional(),
+      cursor: z.string().max(500).optional(),
+    }),
+  },
+  "GET /recipes/discover/feed": {
+    querySchema: z.object({
+      scope: feedScopeSchema.optional(),
+      limit: z.string().regex(/^\d+$/).max(2).optional(),
+      cursor: z.string().max(500).optional(),
+    }),
+  },
+  "GET /recipes/cooks": {
+    querySchema: z.object({ cook: z.string().max(128).optional() }),
+  },
+  "GET /recipes/cooks/me/connections": {},
+  "GET /recipes/cooks/:cookId/follow": {},
+  "PUT /recipes/cooks/:cookId/follow": {},
+  "DELETE /recipes/cooks/:cookId/follow": { successStatuses: [200] },
+  "POST /recipe-drafts/url": {
+    requestBodySchema: importRecipeUrlBodySchema,
+    rateLimited: true,
+  },
+  "POST /recipe-drafts/file": {
+    requestBodySchema: importRecipeFileBodySchema,
+    rateLimited: true,
+  },
+  "GET /recipes/:slug": {},
+  "POST /recipes/:slug/recommendations": {
+    requestBodySchema: recommendRecipeBodySchema,
+    successStatuses: [201],
+    rateLimited: true,
+  },
+  "POST /recipes": {
+    requestBodySchema: createRecipeBodySchema,
+    successStatuses: [201],
+  },
+  "PATCH /recipes/:slug": { requestBodySchema: updateRecipeBodySchema },
+  "POST /recipes/:slug/household-share": {},
+  "DELETE /recipes/:slug/household-share": { successStatuses: [200] },
+  "DELETE /recipes/:slug": {},
+  "POST /recipe-imports": {
+    successStatuses: [202],
+    rateLimited: true,
+  },
+  "GET /recipe-imports": {},
+  "GET /recipe-imports/:jobId": {},
+  "POST /recipe-import-batches": { requestBodySchema: CreateBatchSchema, successStatuses: [201], additionalErrorStatuses: [413] },
+  "GET /recipe-import-batches/:batchId/undo": {},
+  "PUT /recipe-import-batches/:batchId/undo": { requestBodySchema: z.object({ state: z.literal("started") }), successStatuses: [202] },
+  "GET /recipe-import-batches": {},
+  "GET /recipe-import-batches/:batchId": {},
+  "GET /recipe-import-batches/:batchId/execution": {},
+  "PUT /recipe-import-batches/:batchId/execution": { requestBodySchema: z.object({ state: z.literal("started") }) },
+  "GET /recipe-import-batches/:batchId/items/:jobId/draft": {},
+  "GET /recipe-import-batches/:batchId/items/:jobId/review": {},
+  "GET /recipe-import-batches/:batchId/items/:jobId/acceptance": {},
+  "GET /recipe-import-batches/:batchId/items/:jobId/attempts/:attemptNumber": {},
+  "PUT /recipe-import-batches/:batchId/items/:jobId/draft": { requestBodySchema: autosaveBatchBodySchema },
+  "PUT /recipe-import-batches/:batchId/items/:jobId/review": { requestBodySchema: z.object({ state: z.literal("skipped") }) },
+  "POST /recipe-import-batches/:batchId/items/:jobId/attempts": { successStatuses: [201] },
+  "PUT /recipe-import-batches/:batchId/items/:jobId/acceptance": { requestBodySchema: acceptBatchBodySchema },
+} as const satisfies Record<RouteKey, RouteMetadata>;
+
+type RegisteredRouteKey = keyof typeof routeMetadata;
+type RegisteredRouteArguments = {
+  [Key in RegisteredRouteKey]: Key extends `${infer Method extends Uppercase<RouteMethod>} ${infer Path}`
+    ? [method: Lowercase<Method>, path: Path, handler: Handler<AppEnv>]
+    : never;
+}[RegisteredRouteKey];
 
 function openApiPath(path: string): string {
   return path.replace(/:(\w+)/g, "{$1}");
@@ -703,6 +1116,8 @@ const UUID_PATH_PARAMETER_NAMES = new Set([
   "invitationId",
   "memberId",
   "notificationId",
+  "changeSetId",
+  "batchId",
 ]);
 
 const notificationActionKeySchema = z.enum([
@@ -744,15 +1159,15 @@ function successDescription(status: SuccessStatus): string {
 }
 
 function successResponsesFor(
-  key: string,
-  method: "get" | "post" | "put" | "patch" | "delete",
+  metadata: RouteMetadata,
+  method: RouteMethod,
 ): RouteConfig["responses"] {
   const statuses =
-    SUCCESS_STATUS_OVERRIDES.get(key) ??
-    ([method === "delete" ? 204 : 200] as const);
+    metadata.successStatuses ??
+    ([method === "delete" ? 204 : 200] as readonly SuccessStatus[]);
   const responses: RouteConfig["responses"] = {};
   const responseSchema =
-    openApiSuccessResponseSchemas.get(key) ?? jsonResponseSchema;
+    metadata.successResponseSchema ?? jsonResponseSchema;
 
   for (const status of statuses) {
     if (status === 101) {
@@ -783,18 +1198,12 @@ function securityFor(path: string): NonNullable<RouteConfig["security"]> {
 }
 
 function registerRoute(
-  method: "get" | "post" | "put" | "patch" | "delete",
-  path: string,
-  handler: Handler<AppEnv>,
+  ...[method, path, handler]: RegisteredRouteArguments
 ): void {
-  const key = `${method.toUpperCase()} ${path}`;
+  const key = `${method.toUpperCase()} ${path}` as RegisteredRouteKey;
+  const metadata: RouteMetadata = routeMetadata[key];
   const isAgentConfiguration =
     key === "GET /.well-known/agent-configuration";
-  const requestBodySchema = openApiRequestBodySchemas.get(key);
-  const querySchema = openApiQuerySchemas.get(key);
-  const headersSchema = PANTRY_MUTATION_OPERATIONS.has(key)
-    ? pantryOperationHeadersSchema
-    : undefined;
   const paramsSchema = pathParamsSchema(path);
   const errorResponses: RouteConfig["responses"] = isAgentConfiguration
     ? {
@@ -806,7 +1215,7 @@ function registerRoute(
     : Object.fromEntries(
         [
           ...ERROR_STATUS_CODES,
-          ...(SPECIAL_ERROR_STATUS_CODES.get(key) ?? []),
+          ...(metadata.additionalErrorStatuses ?? []),
         ].map((status) => [
           status,
           {
@@ -833,9 +1242,9 @@ function registerRoute(
           },
         },
       }
-    : successResponsesFor(key, method);
+    : successResponsesFor(metadata, method);
   const rateLimitResponses: RouteConfig["responses"] = {};
-  if (RATE_LIMITED_OPERATIONS.has(key)) {
+  if (metadata.rateLimited) {
     rateLimitResponses[429] = {
       description: "Rate limit exceeded",
       headers: {
@@ -865,14 +1274,16 @@ function registerRoute(
     security: securityFor(path),
     request: {
       ...(paramsSchema ? { params: paramsSchema } : {}),
-      ...(querySchema ? { query: querySchema } : {}),
-      ...(headersSchema ? { headers: headersSchema } : {}),
-      ...(requestBodySchema
+      ...(metadata.querySchema ? { query: metadata.querySchema } : {}),
+      ...(metadata.headersSchema
+        ? { headers: metadata.headersSchema }
+        : {}),
+      ...(metadata.requestBodySchema
         ? {
             body: {
               required: true,
               content: {
-                "application/json": { schema: requestBodySchema },
+                "application/json": { schema: metadata.requestBodySchema },
               },
             },
           }
@@ -913,7 +1324,7 @@ app.notFound((c) => c.json({ error: "Not found" }, 404));
 
 registerRoute("get", "/health", (c) => c.json({ status: "ok" }));
 
-registerRoute("get", "/.well-known/agent-configuration", async (c) => {
+registerRoute("get", "/.well-known/agent-configuration", (c) => {
   if (!hasAuthConfiguration(c.env)) {
     return c.json({ error: "Auth configuration is incomplete" }, 503);
   }
@@ -1021,6 +1432,9 @@ function dietProfileResponse(profile: DietProfileResponse) {
     excludedIngredientSlugs: profile.excludedIngredientSlugs,
     excludedGroupKeys: profile.excludedGroupKeys,
     recipeMatchMode: profile.recipeMatchMode,
+    ...(profile.unresolvedTerms && profile.unresolvedTerms.length > 0
+      ? { unresolvedTerms: profile.unresolvedTerms }
+      : {}),
   };
 }
 
@@ -1098,13 +1512,25 @@ function parseRecipeSlug(c: Context<AppEnv>) {
 
 function uuidParam(
   c: Context<AppEnv>,
-  name: "householdId" | "invitationId" | "memberId" | "notificationId",
+  name:
+    | "householdId"
+    | "invitationId"
+    | "memberId"
+    | "notificationId"
+    | "changeSetId",
   label: string,
 ): string | Response {
   const result = uuidIdSchema.safeParse(c.req.param(name));
   return result.success
     ? result.data
     : c.json({ error: `Invalid ${label}` }, 400);
+}
+
+function equipmentSlugParam(c: Context<AppEnv>): string | Response {
+  const result = equipmentTermInputSchema.safeParse(c.req.param("equipmentSlug"));
+  return result.success
+    ? result.data
+    : c.json({ error: "Invalid equipment term" }, 400);
 }
 
 function hasAuthConfiguration(env: Bindings): boolean {
@@ -1188,7 +1614,7 @@ type WithDbOptions = {
 function withRecipeApiSpan<T>(
   c: Context<AppEnv>,
   spanName: string,
-  operation: () => Promise<T>,
+  operation: () => Promise<T> | T,
   attributes?: SpanAttributes,
   options?: { flush?: boolean },
 ): Promise<T> {
@@ -1231,7 +1657,7 @@ async function withDatabase(
     const connection = await withRecipeApiSpan(
       c,
       "db.client.create",
-      async () => createDb(connectionString),
+      () => createDb(connectionString),
       { "db.system.name": "postgresql" },
     );
     client = connection.client;
@@ -1296,37 +1722,6 @@ async function findRecipeBySlug(
   return recipe;
 }
 
-async function readableRecipeFilter(
-  db: Db,
-  userId: string | undefined,
-): Promise<SQL | undefined> {
-  if (!userId) return eq(schema.recipe.visibility, "public");
-
-  const householdMembership = await findUserHouseholdMembership(db, userId);
-  const householdMemberIds = householdMembership
-    ? await findHouseholdMemberUserIds(
-        db,
-        householdMembership.organizationId,
-      )
-    : [];
-
-  const householdFilter =
-    householdMemberIds.length > 0
-      ? and(
-          eq(schema.recipe.visibility, "household"),
-          inArray(schema.recipe.userId, householdMemberIds),
-        )
-      : undefined;
-
-  return householdFilter
-    ? or(
-        eq(schema.recipe.visibility, "public"),
-        eq(schema.recipe.userId, userId),
-        householdFilter,
-      )
-    : or(eq(schema.recipe.visibility, "public"), eq(schema.recipe.userId, userId));
-}
-
 async function listRecipesPage(
   db: Db,
   visibilityFilter: SQL | undefined,
@@ -1381,7 +1776,7 @@ async function findOwnedRecipeBySlug(
 }
 
 async function usersShareHousehold(
-  db: Db,
+  db: Pick<Db, "select">,
   firstUserId: string,
   secondUserId: string,
 ): Promise<boolean> {
@@ -1430,49 +1825,6 @@ async function lockHousehold(
     .for("update")
     .limit(1);
   return Boolean(household);
-}
-
-async function resolvePantryScope(
-  db: Pick<Db, "select">,
-  userId: string,
-): Promise<PantryScope> {
-  const [scope] = await db
-    .select({
-      householdId: schema.organization.id,
-      householdName: schema.organization.name,
-    })
-    .from(schema.member)
-    .leftJoin(
-      schema.organization,
-      eq(schema.member.organizationId, schema.organization.id),
-    )
-    .where(eq(schema.member.userId, userId))
-    .limit(1);
-  if (!scope) return { type: "personal", userId };
-  if (!scope.householdId || !scope.householdName) {
-    throw new Error("Household membership has no household");
-  }
-  return {
-    type: "household",
-    householdId: scope.householdId,
-    householdName: scope.householdName,
-  };
-}
-
-function pantryScopeFilter(scope: PantryScope): SQL {
-  return scope.type === "household"
-    ? eq(schema.pantryItem.organizationId, scope.householdId)
-    : eq(schema.pantryItem.userId, scope.userId);
-}
-
-function pantryAggregateScopeFilter(scope: PantryScope): SQL {
-  return scope.type === "household"
-    ? eq(schema.pantryAggregate.organizationId, scope.householdId)
-    : eq(schema.pantryAggregate.userId, scope.userId);
-}
-
-function pantryResourceId(scope: PantryScope): string {
-  return scope.type === "household" ? scope.householdId : scope.userId;
 }
 
 const EMPTY_SHOPPING_LIST: ShoppingListSnapshot = {
@@ -1570,21 +1922,6 @@ async function lockPantryScope(
   return scope;
 }
 
-async function findPantryAggregate(
-  db: Pick<Db, "select">,
-  scope: PantryScope,
-) {
-  const [aggregate] = await db
-    .select({
-      id: schema.pantryAggregate.id,
-      revision: schema.pantryAggregate.revision,
-    })
-    .from(schema.pantryAggregate)
-    .where(pantryAggregateScopeFilter(scope))
-    .limit(1);
-  return aggregate;
-}
-
 async function ensurePantryAggregate(tx: DbTransaction, scope: PantryScope) {
   const [created] = await tx
     .insert(schema.pantryAggregate)
@@ -1623,66 +1960,9 @@ async function clearPantryOperationsForScope(
     .where(eq(schema.pantryOperation.aggregateId, aggregate.id));
 }
 
-async function pantryResponseForScope(
-  db: Pick<Db, "select">,
-  scope: PantryScope,
-  options: { operationId?: string; revision?: bigint } = {},
-): Promise<PantryResponse> {
-  const items = await db
-    .select({
-      ingredientSlug: schema.pantryItem.ingredientSlug,
-      location: schema.pantryItem.location,
-      version: schema.pantryItem.version,
-    })
-    .from(schema.pantryItem)
-    .where(pantryScopeFilter(scope));
-
-  const revision =
-    options.revision ?? (await findPantryAggregate(db, scope))?.revision ?? 0n;
-
-  return {
-    resourceId: pantryResourceId(scope),
-    revision: revision.toString(),
-    ...(options.operationId ? { operationId: options.operationId } : {}),
-    scope:
-      scope.type === "household"
-        ? {
-            type: scope.type,
-            household: {
-              id: scope.householdId,
-              name: scope.householdName,
-            },
-          }
-        : { type: scope.type },
-    stock: Object.fromEntries(
-      items.map(({ ingredientSlug, location }) => [ingredientSlug, location]),
-    ) as Record<string, PantryLocation>,
-    itemVersions: Object.fromEntries(
-      items.map(({ ingredientSlug, version }) => [
-        ingredientSlug,
-        version.toString(),
-      ]),
-    ),
-  };
-}
-
-async function pantryResponse(db: Db, userId: string) {
-  return db.transaction(
-    async (tx) =>
-      pantryResponseForScope(tx, await resolvePantryScope(tx, userId)),
-    { accessMode: "read only", isolationLevel: "repeatable read" },
-  );
-}
-
 class PantryOperationConflictError extends Error {
   constructor() {
     super("Operation ID was already used for a different pantry command");
-  }
-}
-
-class UnknownPantryIngredientError extends Error {
-  constructor(readonly ingredientSlug: string) {
-    super(`Unknown ingredient: ${ingredientSlug}`);
   }
 }
 
@@ -1698,11 +1978,20 @@ function pantryOperationId(c: Context<AppEnv>): string | Response {
 function pantryStockFingerprint(
   kind: "replace" | "restore",
   stock: Record<string, PantryLocation>,
+  items?: Record<string, z.infer<typeof pantryRestoreItemSchema>>,
 ): string {
-  return JSON.stringify([
-    kind,
-    Object.entries(stock).sort(([a], [b]) => a.localeCompare(b)),
-  ]);
+  const sortedStock = Object.entries(stock).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
+  return JSON.stringify(
+    items === undefined
+      ? [kind, sortedStock]
+      : [
+          kind,
+          sortedStock,
+          Object.entries(items).sort(([a], [b]) => a.localeCompare(b)),
+        ],
+  );
 }
 
 async function executePantryOperation(
@@ -1745,6 +2034,13 @@ async function executePantryOperation(
     }
 
     await mutate(tx, scope);
+    // A human pantry command supersedes any agent-removal absence markers.
+    // Clearing them makes a later undo surface a conflict even if a recreated
+    // item has since been removed again.
+    await tx
+      .delete(schema.pantryItemAbsence)
+      .where(eq(schema.pantryItemAbsence.aggregateId, aggregate.id));
+    await enforcePantryItemLimit(tx, scope);
     const [updatedAggregate] = await tx
       .update(schema.pantryAggregate)
       .set({
@@ -1912,24 +2208,280 @@ function pantryMutationErrorResponse(c: Context<AppEnv>, error: unknown) {
   if (error instanceof PantryOperationConflictError) {
     return c.json({ error: error.message }, 409);
   }
-  if (error instanceof UnknownPantryIngredientError) {
-    return c.json({ error: error.message }, 400);
+  if (error instanceof PantryItemLimitError) {
+    return c.json({ error: error.message }, 409);
   }
   return undefined;
 }
 
-async function findUnknownPantryIngredient(
-  db: Pick<Db, "select">,
-  ingredientSlugs: string[],
-): Promise<string | undefined> {
-  if (ingredientSlugs.length === 0) return undefined;
+function pantryTermOwner(scope: PantryScope): AuthoredTermOwner {
+  return scope.type === "household"
+    ? { type: "household", organizationId: scope.householdId }
+    : { type: "user", userId: scope.userId };
+}
 
-  const knownIngredients = await db
-    .select({ slug: schema.ingredient.slug })
-    .from(schema.ingredient)
-    .where(inArray(schema.ingredient.slug, ingredientSlugs));
-  const knownSlugs = new Set(knownIngredients.map(({ slug }) => slug));
-  return ingredientSlugs.find((slug) => !knownSlugs.has(slug));
+async function observeIngredientTerms(
+  tx: DbTransaction,
+  input: {
+    owner: AuthoredTermOwner;
+    actorUserId: string;
+    rawTerms: string[];
+    locale: string;
+    flow: "recipe" | "pantry" | "diet";
+    resourceId?: string;
+  },
+): Promise<Array<{ key: string; canonicalSlug: string | null }>> {
+  const candidateSlugs = Array.from(
+    new Set(input.rawTerms.map(normalizeSlug).filter(Boolean)),
+  );
+  const knownRows =
+    candidateSlugs.length === 0
+      ? []
+      : await tx
+          .select({ slug: schema.ingredient.slug })
+          .from(schema.ingredient)
+          .where(inArray(schema.ingredient.slug, candidateSlugs));
+  const canonicalSlugs = new Set(knownRows.map(({ slug }) => slug));
+  return Promise.all(input.rawTerms.map((rawText) => {
+    const normalizedSlug = normalizeSlug(rawText);
+    return observeAuthoredTerm(tx, input.owner, {
+      kind: "ingredient",
+      rawText,
+      locale: input.locale,
+      sourceContext: {
+        flow: input.flow,
+        ...(input.resourceId ? { resourceId: input.resourceId } : {}),
+        field: input.flow === "recipe" ? "ingredients" : "ingredient",
+      },
+      provenance: { kind: "user", actorUserId: input.actorUserId },
+      candidateMatches:
+        normalizedSlug && canonicalSlugs.has(normalizedSlug)
+          ? [{ slug: normalizedSlug, score: 1 }]
+          : [],
+      canonicalSlugs,
+    });
+  }));
+}
+
+async function observeNewPantryEntries(
+  tx: DbTransaction,
+  scope: PantryScope,
+  input: {
+    actorUserId: string;
+    locale: string;
+    stockEntries: Array<[string, PantryLocation]>;
+  },
+): Promise<NormalizedPantryEntry[]> {
+  const currentRows = await tx
+    .select({ ingredientSlug: schema.pantryItem.ingredientSlug })
+    .from(schema.pantryItem)
+    .where(pantryScopeFilter(scope));
+  const currentKeys = new Set(
+    currentRows.map(({ ingredientSlug }) => ingredientSlug),
+  );
+  const existingKeys = new Map<number, string>();
+  const newEntries: Array<[number, string]> = [];
+  for (const [index, [rawText]] of input.stockEntries.entries()) {
+    const existingKey = [
+      rawText,
+      normalizeAuthoredTerm(rawText),
+      normalizeSlug(rawText),
+    ].find((candidate) => currentKeys.has(candidate));
+    if (existingKey) existingKeys.set(index, existingKey);
+    else newEntries.push([index, rawText]);
+  }
+
+  const observed = await observeIngredientTerms(tx, {
+    owner: pantryTermOwner(scope),
+    actorUserId: input.actorUserId,
+    rawTerms: newEntries.map(([, rawText]) => rawText),
+    locale: input.locale,
+    flow: "pantry",
+    resourceId: pantryResourceId(scope),
+  });
+  const observedKeys = new Map(
+    newEntries.map(([index], termIndex) => [index, observed[termIndex]?.key]),
+  );
+  const normalizedEntries: NormalizedPantryEntry[] = [];
+  for (const [
+    index,
+    [rawIngredientSlug, location],
+  ] of input.stockEntries.entries()) {
+    const key = existingKeys.get(index) ?? observedKeys.get(index);
+    if (key) {
+      normalizedEntries.push({
+        ingredientSlug: key,
+        location,
+        rawIngredientSlug,
+      });
+    }
+  }
+  return normalizedEntries;
+}
+
+type NormalizedPantryEntry = {
+  ingredientSlug: string;
+  location: PantryLocation;
+  rawIngredientSlug: string;
+};
+
+function pantryRestoreItemValues(
+  scope: PantryScope,
+  entry: NormalizedPantryEntry,
+  item: z.infer<typeof pantryRestoreItemSchema> | undefined,
+) {
+  const owner =
+    scope.type === "personal"
+      ? { userId: scope.userId, organizationId: null }
+      : { userId: null, organizationId: scope.householdId };
+  const base = {
+    ...owner,
+    ingredientSlug: entry.ingredientSlug,
+    location: entry.location,
+  };
+  if (!item) return base;
+
+  return {
+    ...base,
+    quantity: item.quantity === null ? null : String(item.quantity.amount),
+    quantityUnit: item.quantity?.unit ?? null,
+    useBy: item.freshness.useBy,
+    bestBefore: item.freshness.bestBefore,
+    stockedAt: item.freshness.stockedAt,
+    openedAt: item.freshness.openedAt,
+    frozenAt: item.freshness.frozenAt,
+    freshnessEstimate: item.freshness.estimate,
+    sourceKind: item.source.kind,
+    provenance: item.source.provenance,
+  };
+}
+
+function pantryItemCorrectionValues(
+  scope: PantryScope,
+  item: z.infer<typeof pantryItemBodySchema>,
+) {
+  const values: {
+    location: PantryLocation;
+    quantity?: string | null;
+    quantityUnit?: string | null;
+    useBy?: string | null;
+    bestBefore?: string | null;
+    stockedAt?: string | null;
+    openedAt?: string | null;
+    frozenAt?: string | null;
+    freshnessEstimate?: z.infer<typeof pantryFreshnessSchema>["estimate"];
+    sourceKind: "user";
+    provenance: string;
+  } = {
+    location: item.location,
+    sourceKind: "user",
+    provenance:
+      scope.type === "household"
+        ? "Household member update"
+        : "Manual kitchen update",
+  };
+  if (item.quantity !== undefined) {
+    values.quantity =
+      item.quantity === null ? null : String(item.quantity.amount);
+    values.quantityUnit = item.quantity?.unit ?? null;
+  }
+  if (item.freshness !== undefined) {
+    values.useBy = item.freshness.useBy;
+    values.bestBefore = item.freshness.bestBefore;
+    values.stockedAt = item.freshness.stockedAt;
+    values.openedAt = item.freshness.openedAt;
+    values.frozenAt = item.freshness.frozenAt;
+    values.freshnessEstimate = item.freshness.estimate;
+  }
+  return values;
+}
+
+async function correctPantryItem(
+  tx: DbTransaction,
+  scope: PantryScope,
+  input: {
+    actorUserId: string;
+    rawIngredient: string;
+    locale: string;
+    item: z.infer<typeof pantryItemBodySchema>;
+  },
+): Promise<void> {
+  const [term] = await observeIngredientTerms(tx, {
+    owner: pantryTermOwner(scope),
+    actorUserId: input.actorUserId,
+    rawTerms: [input.rawIngredient],
+    locale: input.locale,
+    flow: "pantry",
+    resourceId: pantryResourceId(scope),
+  });
+  if (!term) throw new Error("Pantry term was not recorded");
+
+  const owner =
+    scope.type === "household"
+      ? { userId: null, organizationId: scope.householdId }
+      : { userId: scope.userId, organizationId: null };
+  const conflictTarget =
+    scope.type === "household"
+      ? [schema.pantryItem.organizationId, schema.pantryItem.ingredientSlug]
+      : [schema.pantryItem.userId, schema.pantryItem.ingredientSlug];
+  const correction = pantryItemCorrectionValues(scope, input.item);
+  await tx
+    .insert(schema.pantryItem)
+    .values({ ...owner, ingredientSlug: term.key, ...correction })
+    .onConflictDoUpdate({
+      target: conflictTarget,
+      set: {
+        ...correction,
+        version: sql`${schema.pantryItem.version} + 1`,
+        updatedAt: new Date(),
+      },
+    });
+}
+
+async function replacePantryStock(
+  tx: DbTransaction,
+  scope: PantryScope,
+  entries: NormalizedPantryEntry[],
+): Promise<void> {
+  const ingredientSlugs = entries.map(({ ingredientSlug }) => ingredientSlug);
+  const scopeFilter = pantryScopeFilter(scope);
+  await tx
+    .delete(schema.pantryItem)
+    .where(
+      ingredientSlugs.length > 0
+        ? and(
+            scopeFilter,
+            notInArray(schema.pantryItem.ingredientSlug, ingredientSlugs),
+          )
+        : scopeFilter,
+    );
+  if (entries.length === 0) return;
+
+  await tx
+    .insert(schema.pantryItem)
+    .values(
+      entries.map(({ ingredientSlug, location }) => ({
+        userId: scope.type === "personal" ? scope.userId : null,
+        organizationId:
+          scope.type === "household" ? scope.householdId : null,
+        ingredientSlug,
+        location,
+      })),
+    )
+    .onConflictDoUpdate({
+      target:
+        scope.type === "household"
+          ? [
+              schema.pantryItem.organizationId,
+              schema.pantryItem.ingredientSlug,
+            ]
+          : [schema.pantryItem.userId, schema.pantryItem.ingredientSlug],
+      set: {
+        location: sql`excluded.location`,
+        version: sql`${schema.pantryItem.version} + 1`,
+        updatedAt: new Date(),
+      },
+    });
 }
 
 async function acceptPendingInvitation(
@@ -2081,6 +2633,7 @@ const householdNotificationKinds = new Set<HouseholdNotificationKind>([
   "household_invite_accepted",
   "household_invite_declined",
   "household_member_left",
+  "shopping_list_shared",
 ]);
 
 function isHouseholdNotificationKind(
@@ -2660,7 +3213,7 @@ async function findDietProfile(
   db: Db,
   userId: string,
 ): Promise<DietProfileResponse | undefined> {
-  const [profiles, presets, ingredients, groups] = await Promise.all([
+  const [profiles, presets, ingredients, groups, unresolvedTerms] = await Promise.all([
     db
       .select()
       .from(schema.userDietProfile)
@@ -2678,6 +3231,7 @@ async function findDietProfile(
       .select({ key: schema.userDietExcludedGroup.groupKey })
       .from(schema.userDietExcludedGroup)
       .where(eq(schema.userDietExcludedGroup.userId, userId)),
+    listUnresolvedTerms(db, { type: "user", userId }, "ingredient"),
   ]);
   const profile = profiles[0];
   if (!profile) return undefined;
@@ -2687,6 +3241,11 @@ async function findDietProfile(
     excludedIngredientSlugs: ingredients.map((ingredient) => ingredient.slug),
     excludedGroupKeys: groups.map((group) => group.key),
     recipeMatchMode: profile.recipeMatchMode,
+    unresolvedTerms: unresolvedTerms.filter((term) =>
+      ingredients.some(
+        (ingredient) => ingredient.slug === term.normalizedText,
+      ),
+    ),
   };
 }
 
@@ -2902,23 +3461,12 @@ async function findMissingDietReferences(
   db: Pick<Db, "select">,
   body: z.infer<typeof updateDietProfileBodySchema>,
 ) {
-  const [presets, ingredients, groups] = await Promise.all([
+  const [presets, groups] = await Promise.all([
     body.presetDietKeys.length > 0
       ? db
           .select({ key: schema.dietPreset.key })
           .from(schema.dietPreset)
           .where(inArray(schema.dietPreset.key, body.presetDietKeys))
-      : [],
-    body.excludedIngredientSlugs.length > 0
-      ? db
-          .select({ slug: schema.ingredient.slug })
-          .from(schema.ingredient)
-          .where(
-            inArray(
-              schema.ingredient.slug,
-              body.excludedIngredientSlugs,
-            ),
-          )
       : [],
     body.excludedGroupKeys.length > 0
       ? db
@@ -2929,9 +3477,6 @@ async function findMissingDietReferences(
   ]);
 
   const presetKeys = new Set(presets.map((preset) => preset.key));
-  const ingredientSlugs = new Set(
-    ingredients.map((ingredient) => ingredient.slug),
-  );
   const groupKeys = new Set(groups.map((group) => group.key));
 
   return [
@@ -2940,12 +3485,6 @@ async function findMissingDietReferences(
       .map((key) => ({
         path: ["presetDietKeys"],
         message: `Unknown diet preset: ${key}`,
-      })),
-    ...body.excludedIngredientSlugs
-      .filter((slug) => !ingredientSlugs.has(slug))
-      .map((slug) => ({
-        path: ["excludedIngredientSlugs"],
-        message: `Unknown ingredient: ${slug}`,
       })),
     ...body.excludedGroupKeys
       .filter((key) => !groupKeys.has(key))
@@ -3182,6 +3721,7 @@ registerRoute("put", "/api/profile/diet", async (c) => {
 
   const body = await parseJsonBody(c, updateDietProfileBodySchema);
   if (!body.success) return body.response;
+  const locale = requestLocale(c.req.header("Accept-Language"));
 
   return withRecipeSession(
     c,
@@ -3212,6 +3752,18 @@ registerRoute("put", "/api/profile/diet", async (c) => {
 
           if (!savedProfile) throw new Error("Diet profile upsert failed");
 
+          const observedIngredients = await observeIngredientTerms(tx, {
+            owner: { type: "user", userId: session.user.id },
+            actorUserId: session.user.id,
+            rawTerms: body.data.excludedIngredientSlugs,
+            locale,
+            flow: "diet",
+            resourceId: session.user.id,
+          });
+          const excludedIngredientSlugs = Array.from(
+            new Set(observedIngredients.map((term) => term.key)),
+          );
+
           await Promise.all([
             tx
               .delete(schema.userDietPreset)
@@ -3235,9 +3787,9 @@ registerRoute("put", "/api/profile/diet", async (c) => {
             );
           }
 
-          if (body.data.excludedIngredientSlugs.length > 0) {
+          if (excludedIngredientSlugs.length > 0) {
             await tx.insert(schema.userDietExcludedIngredient).values(
-              body.data.excludedIngredientSlugs.map((ingredientSlug) => ({
+              excludedIngredientSlugs.map((ingredientSlug) => ({
                 userId: session.user.id,
                 ingredientSlug,
               })),
@@ -3255,9 +3807,18 @@ registerRoute("put", "/api/profile/diet", async (c) => {
 
           return {
             presetDietKeys: body.data.presetDietKeys,
-            excludedIngredientSlugs: body.data.excludedIngredientSlugs,
+            excludedIngredientSlugs,
             excludedGroupKeys: body.data.excludedGroupKeys,
             recipeMatchMode: savedProfile.recipeMatchMode,
+            unresolvedTerms: (
+              await listUnresolvedTerms(
+                tx,
+                { type: "user", userId: session.user.id },
+                "ingredient",
+              )
+            ).filter((term) =>
+              excludedIngredientSlugs.includes(term.normalizedText),
+            ),
           };
         });
 
@@ -3298,9 +3859,6 @@ registerRoute("get", "/api/profile/bootstrap", async (c) => {
       c.header("Cache-Control", "private, no-store");
       const userId = session.user.id;
       const visibilityFilter = await readableRecipeFilter(db, userId);
-      if (!visibilityFilter) {
-        throw new Error("Authenticated recipe visibility filter is missing");
-      }
 
       const [
         ownedRecipes,
@@ -3379,6 +3937,123 @@ registerRoute("put", "/api/profile/recipe-box", async (c) => {
   );
 });
 
+registerRoute("get", "/api/profile/agent-mutations", async (c) => {
+  return withRecipeSession(
+    c,
+    "query",
+    "GET /api/profile/agent-mutations query failed",
+    async ({ db, session }) => {
+      const [pantry, cookLog] = await Promise.all([
+        listPantryMutationHistory(db, session.user.id),
+        listCookLogMutationHistory(db, session.user.id),
+      ]);
+      return c.json({
+        items: [...pantry, ...cookLog]
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+          .slice(0, 50),
+      });
+    },
+  );
+});
+
+registerRoute(
+  "get",
+  "/api/profile/agent-mutations/:changeSetId/undo-preview",
+  async (c) => {
+    const changeSetId = uuidParam(c, "changeSetId", "change-set ID");
+    if (changeSetId instanceof Response) return changeSetId;
+    return withRecipeSession(
+      c,
+      "query",
+      "GET agent mutation undo preview failed",
+      async ({ db, session }) => {
+        try {
+          const changeSet = await db.transaction((tx) =>
+            findMutationChangeSet(tx, session.user.id, changeSetId),
+          );
+          const preview =
+            changeSet?.targetType === "cook_log"
+              ? await previewCookLogMutationUndo(
+                  db,
+                  session.user.id,
+                  changeSetId,
+                )
+              : await previewPantryMutationUndo(
+                  db,
+                  session.user.id,
+                  changeSetId,
+                );
+          return preview
+            ? c.json(preview)
+            : c.json({ error: "Mutation change set not found" }, 404);
+        } catch (error) {
+          if (error instanceof PantryMutationConflictError) {
+            return c.json({ error: error.message }, 409);
+          }
+          throw error;
+        }
+      },
+    );
+  },
+);
+
+registerRoute(
+  "post",
+  "/api/profile/agent-mutations/:changeSetId/undo",
+  async (c) => {
+    const csrfFailure = validateCsrf(c);
+    if (csrfFailure) return csrfFailure;
+    const changeSetId = uuidParam(c, "changeSetId", "change-set ID");
+    if (changeSetId instanceof Response) return changeSetId;
+    const operationId = pantryOperationId(c);
+    if (operationId instanceof Response) return operationId;
+    const body = await parseJsonBody(c, undoAgentMutationBodySchema);
+    if (!body.success) return body.response;
+    return withRecipeSession(
+      c,
+      "mutation",
+      "POST agent mutation undo failed",
+      async ({ db, session }) => {
+        try {
+          const changeSet = await db.transaction((tx) =>
+            findMutationChangeSet(tx, session.user.id, changeSetId),
+          );
+          const result =
+            changeSet?.targetType === "cook_log"
+              ? await undoCookLogMutation(db, {
+                  userId: session.user.id,
+                  changeSetId,
+                  idempotencyKey: operationId,
+                  sessionIds: body.data.sessionIds,
+                })
+              : await undoPantryMutation(db, {
+                  userId: session.user.id,
+                  changeSetId,
+                  idempotencyKey: operationId,
+                  stableItemIds: body.data.stableItemIds,
+                });
+          if (!result) return c.json({ error: "Mutation change set not found" }, 404);
+          return result.applied
+            ? c.json(result)
+            : c.json(
+                { error: "Data changed after the agent mutation", ...result },
+                409,
+              );
+        } catch (error) {
+          if (
+            error instanceof PantryMutationConflictError ||
+            error instanceof PantryItemLimitError ||
+            error instanceof CookLogMutationConflictError
+          ) {
+            return c.json({ error: error.message }, 409);
+          }
+          throw error;
+        }
+      },
+    );
+  },
+);
+
 registerRoute("get", "/api/profile/cooking-insights", async (c) => {
   return withRecipeSession(
     c,
@@ -3419,7 +4094,10 @@ registerRoute("post", "/api/profile/cooking-sessions", async (c) => {
       if (!created && completedAt) {
         await db
           .update(schema.cookingSession)
-          .set({ completedAt })
+          .set({
+            completedAt,
+            version: sql`${schema.cookingSession.version} + 1`,
+          })
           .where(
             and(
               eq(schema.cookingSession.id, body.data.sessionId),
@@ -3561,6 +4239,65 @@ registerRoute("post", "/shopping-lists", async (c) => {
   );
 });
 
+registerRoute("post", "/shopping-lists/current/shares", async (c) => {
+  const csrfFailure = validateCsrf(c);
+  if (csrfFailure) return csrfFailure;
+
+  return withRecipeSession(
+    c,
+    "mutation",
+    "POST /shopping-lists/current/shares mutation failed",
+    async ({ db, session }) => {
+      const body = await parseJsonBody(c, shareShoppingListBodySchema);
+      if (!body.success) return body.response;
+      if (body.data.recipientUserId === session.user.id) {
+        return c.json(
+          { error: "You cannot share a shopping list with yourself" },
+          400,
+        );
+      }
+
+      const scope = await resolvePantryScope(db, session.user.id);
+      if (scope.type !== "household") {
+        return c.json(
+          { error: "Join a household before sharing a shopping list" },
+          409,
+        );
+      }
+      const recipientMembership = await findHouseholdMembership(
+        db,
+        scope.householdId,
+        body.data.recipientUserId,
+      );
+      if (!recipientMembership) {
+        return c.json(
+          { error: "Shopping lists can only be shared with household members" },
+          403,
+        );
+      }
+
+      const shareLimit = await enforceRateLimit(
+        db,
+        `shopping-list-share:${session.user.id}`,
+        SHOPPING_LIST_SHARE_RATE_LIMIT,
+      );
+      if (!shareLimit.allowed) {
+        return rateLimitedResponse(c, shareLimit.retryAfter);
+      }
+
+      await db.transaction((tx) =>
+        createHouseholdNotification(tx, {
+          recipientUserIds: [body.data.recipientUserId],
+          kind: "shopping_list_shared",
+          household: { id: scope.householdId, name: scope.householdName },
+          actor: { id: session.user.id, name: session.user.name },
+        }),
+      );
+      return c.json({ shared: true }, 201);
+    },
+  );
+});
+
 registerRoute("get", "/pantry", async (c) => {
   return withRecipeSession(
     c,
@@ -3569,9 +4306,9 @@ registerRoute("get", "/pantry", async (c) => {
     async ({ db, session }) => {
       c.header("Cache-Control", "private, no-store");
       const pantry = await withRecipeApiSpan(c, "pantry.read.query", () =>
-        pantryResponse(db, session.user.id),
+        readPantry(db, session.user.id),
       );
-      return withRecipeApiSpan(c, "http.response.serialize", async () =>
+      return withRecipeApiSpan(c, "http.response.serialize", () =>
         c.json(pantry),
       );
     },
@@ -3662,9 +4399,7 @@ registerRoute("put", "/pantry", async (c) => {
       if (!body.success) return body.response;
 
       const stockEntries = Object.entries(body.data.stock);
-      const ingredientSlugs = stockEntries.map(
-        ([ingredientSlug]) => ingredientSlug,
-      );
+      const locale = requestLocale(c.req.header("Accept-Language"));
 
       const pantry = await executeCollaborativePantryOperation(
         c,
@@ -3674,55 +4409,12 @@ registerRoute("put", "/pantry", async (c) => {
         pantryStockFingerprint("replace", body.data.stock),
         "pantry.replaced",
         async (tx, scope) => {
-          const unknownSlug = await findUnknownPantryIngredient(
-            tx,
-            ingredientSlugs,
-          );
-          if (unknownSlug) throw new UnknownPantryIngredientError(unknownSlug);
-          const scopeFilter = pantryScopeFilter(scope);
-          await tx
-            .delete(schema.pantryItem)
-            .where(
-              ingredientSlugs.length > 0
-                ? and(
-                    scopeFilter,
-                    notInArray(
-                      schema.pantryItem.ingredientSlug,
-                      ingredientSlugs,
-                    ),
-                  )
-                : scopeFilter,
-            );
-          if (ingredientSlugs.length > 0) {
-            await tx
-              .insert(schema.pantryItem)
-              .values(
-                stockEntries.map(([ingredientSlug, location]) => ({
-                  userId: scope.type === "personal" ? scope.userId : null,
-                  organizationId:
-                    scope.type === "household" ? scope.householdId : null,
-                  ingredientSlug,
-                  location,
-                })),
-              )
-              .onConflictDoUpdate({
-                target:
-                  scope.type === "household"
-                    ? [
-                        schema.pantryItem.organizationId,
-                        schema.pantryItem.ingredientSlug,
-                      ]
-                    : [
-                        schema.pantryItem.userId,
-                        schema.pantryItem.ingredientSlug,
-                      ],
-                set: {
-                  location: sql`excluded.location`,
-                  version: sql`${schema.pantryItem.version} + 1`,
-                  updatedAt: new Date(),
-                },
-              });
-          }
+          const normalizedEntries = await observeNewPantryEntries(tx, scope, {
+            actorUserId: session.user.id,
+            locale,
+            stockEntries,
+          });
+          await replacePantryStock(tx, scope, normalizedEntries);
         },
       );
 
@@ -3743,38 +4435,36 @@ registerRoute("patch", "/pantry", async (c) => {
     "mutation",
     "PATCH /pantry mutation failed",
     async ({ db, session }) => {
-      const body = await parseJsonBody(c, pantryStockBodySchema);
+      const body = await parseJsonBody(c, pantryRestoreBodySchema);
       if (!body.success) return body.response;
 
       const stockEntries = Object.entries(body.data.stock);
-      const ingredientSlugs = stockEntries.map(
-        ([ingredientSlug]) => ingredientSlug,
-      );
+      const locale = requestLocale(c.req.header("Accept-Language"));
 
       const pantry = await executeCollaborativePantryOperation(
         c,
         db,
         session.user.id,
         operationId,
-        pantryStockFingerprint("restore", body.data.stock),
+        pantryStockFingerprint("restore", body.data.stock, body.data.items),
         "pantry.restored",
         async (tx, scope) => {
-          const unknownSlug = await findUnknownPantryIngredient(
-            tx,
-            ingredientSlugs,
-          );
-          if (unknownSlug) throw new UnknownPantryIngredientError(unknownSlug);
-          if (stockEntries.length > 0) {
+          const normalizedEntries = await observeNewPantryEntries(tx, scope, {
+            actorUserId: session.user.id,
+            locale,
+            stockEntries,
+          });
+          if (normalizedEntries.length > 0) {
             await tx
               .insert(schema.pantryItem)
               .values(
-                stockEntries.map(([ingredientSlug, location]) => ({
-                  userId: scope.type === "personal" ? scope.userId : null,
-                  organizationId:
-                    scope.type === "household" ? scope.householdId : null,
-                  ingredientSlug,
-                  location,
-                })),
+                normalizedEntries.map((entry) =>
+                  pantryRestoreItemValues(
+                    scope,
+                    entry,
+                    body.data.items?.[entry.rawIngredientSlug],
+                  ),
+                ),
               )
               .onConflictDoNothing();
           }
@@ -3807,46 +4497,22 @@ registerRoute("put", "/pantry/items/:ingredientSlug", async (c) => {
       const body = await parseJsonBody(c, pantryItemBodySchema);
       if (!body.success) return body.response;
 
-      const ingredientSlug = ingredientSlugResult.data;
+      const rawIngredient = ingredientSlugResult.data;
+      const locale = requestLocale(c.req.header("Accept-Language"));
       const pantry = await executeCollaborativePantryOperation(
         c,
         db,
         session.user.id,
         operationId,
-        `set:${ingredientSlug}:${body.data.location}`,
+        JSON.stringify(["set", rawIngredient, body.data]),
         "pantry.item-set",
-        async (tx, scope) => {
-          const unknownSlug = await findUnknownPantryIngredient(tx, [
-            ingredientSlug,
-          ]);
-          if (unknownSlug) throw new UnknownPantryIngredientError(unknownSlug);
-          await tx
-            .insert(schema.pantryItem)
-            .values({
-              userId: scope.type === "personal" ? scope.userId : null,
-              organizationId:
-                scope.type === "household" ? scope.householdId : null,
-              ingredientSlug,
-              location: body.data.location,
-            })
-            .onConflictDoUpdate({
-              target:
-                scope.type === "household"
-                  ? [
-                      schema.pantryItem.organizationId,
-                      schema.pantryItem.ingredientSlug,
-                    ]
-                  : [
-                      schema.pantryItem.userId,
-                      schema.pantryItem.ingredientSlug,
-                    ],
-              set: {
-                location: body.data.location,
-                version: sql`${schema.pantryItem.version} + 1`,
-                updatedAt: new Date(),
-              },
-            });
-        },
+        (tx, scope) =>
+          correctPantryItem(tx, scope, {
+            actorUserId: session.user.id,
+            rawIngredient,
+            locale,
+            item: body.data,
+          }),
       );
 
       return c.json(pantry);
@@ -3872,7 +4538,6 @@ registerRoute("delete", "/pantry/items/:ingredientSlug", async (c) => {
       if (!ingredientSlugResult.success) {
         return c.json({ error: "Invalid ingredient slug" }, 400);
       }
-
       const pantry = await executeCollaborativePantryOperation(
         c,
         db,
@@ -3886,10 +4551,7 @@ registerRoute("delete", "/pantry/items/:ingredientSlug", async (c) => {
             .where(
               and(
                 pantryScopeFilter(scope),
-                eq(
-                  schema.pantryItem.ingredientSlug,
-                  ingredientSlugResult.data,
-                ),
+                eq(schema.pantryItem.ingredientSlug, ingredientSlugResult.data),
               ),
             );
         },
@@ -4123,6 +4785,273 @@ registerRoute("get", "/households/:householdId/members", async (c) => {
     },
   );
 });
+
+function householdEquipmentItemResponse(
+  equipmentSlug: string,
+  createdAt: Date,
+  unresolvedByText: ReadonlyMap<string, UnresolvedTermSummary> = new Map(),
+) {
+  const catalogItem = householdEquipmentBySlug.get(equipmentSlug);
+  if (catalogItem) {
+    return {
+        ...catalogItem,
+        createdAt: createdAt.toISOString(),
+        retired: false,
+      };
+  }
+  const unresolved = unresolvedByText.get(equipmentSlug);
+  return {
+    slug: equipmentSlug,
+    name: unresolved?.rawText ?? equipmentDisplayName(equipmentSlug),
+    createdAt: createdAt.toISOString(),
+    retired: !unresolved,
+    ...(unresolved ? { unresolved: true } : {}),
+  };
+}
+
+async function withHouseholdEquipmentMutation(
+  c: Context<AppEnv>,
+  logMessage: string,
+  termMode: "observe" | "stored-key",
+  mutate: (
+    db: DbTransaction,
+    householdId: string,
+    equipmentSlug: string,
+    unresolvedByText: ReadonlyMap<string, UnresolvedTermSummary>,
+  ) => Promise<Response>,
+): Promise<Response> {
+  const householdId = uuidParam(c, "householdId", "household ID");
+  if (householdId instanceof Response) return householdId;
+  const rawEquipment = equipmentSlugParam(c);
+  if (rawEquipment instanceof Response) return rawEquipment;
+  const csrfFailure = validateCsrf(c);
+  if (csrfFailure) return csrfFailure;
+
+  return withRecipeSession(c, "mutation", logMessage, async ({ db, session }) => {
+    const memberFailure = await requireHouseholdMemberResponse(
+      c,
+      db,
+      householdId,
+      session,
+    );
+    if (memberFailure) return memberFailure;
+    return db.transaction(async (tx) => {
+      let equipmentSlug = rawEquipment;
+      if (termMode === "observe") {
+        const equipment = canonicalEquipmentTerm(rawEquipment);
+        const term = await observeAuthoredTerm(
+          tx,
+          { type: "household", organizationId: householdId },
+          {
+            kind: "equipment",
+            rawText: rawEquipment,
+            locale: requestLocale(c.req.header("Accept-Language")),
+            sourceContext: {
+              flow: "equipment",
+              resourceId: householdId,
+              field: "inventory",
+            },
+            provenance: { kind: "user", actorUserId: session.user.id },
+            candidateMatches: equipment.candidateMatches,
+            canonicalSlug: equipment.canonicalSlug,
+          },
+        );
+        equipmentSlug = term.key;
+      }
+      const unresolvedTerms =
+        termMode === "observe"
+          ? await listUnresolvedTerms(
+              tx,
+              { type: "household", organizationId: householdId },
+              "equipment",
+              [equipmentSlug],
+            )
+          : [];
+      return mutate(
+        tx,
+        householdId,
+        equipmentSlug,
+        new Map(
+          unresolvedTerms.map((unresolved) => [
+            unresolved.normalizedText,
+            unresolved,
+          ]),
+        ),
+      );
+    });
+  });
+}
+
+registerRoute("get", "/households/:householdId/equipment", async (c) => {
+  const householdId = uuidParam(c, "householdId", "household ID");
+  if (householdId instanceof Response) return householdId;
+
+  return withRecipeSession(
+    c,
+    "query",
+    "GET /households/:householdId/equipment failed",
+    async ({ db, session }) => {
+      const memberFailure = await requireHouseholdMemberResponse(
+        c,
+        db,
+        householdId,
+        session,
+      );
+      if (memberFailure) return memberFailure;
+
+      const [household] = await db
+        .select({
+          recipeMatchMode: schema.organization.equipmentRecipeMatchMode,
+        })
+        .from(schema.organization)
+        .where(eq(schema.organization.id, householdId))
+        .limit(1);
+      if (!household) return c.notFound();
+
+      const equipment = await db
+        .select({
+          equipmentSlug: schema.householdEquipment.equipmentSlug,
+          createdAt: schema.householdEquipment.createdAt,
+        })
+        .from(schema.householdEquipment)
+        .where(eq(schema.householdEquipment.organizationId, householdId))
+        .orderBy(schema.householdEquipment.equipmentSlug);
+
+      const equipmentKeys = equipment.map(({ equipmentSlug }) => equipmentSlug);
+      const unresolvedTerms =
+        equipmentKeys.length === 0
+          ? []
+          : await listUnresolvedTerms(
+              db,
+              { type: "household", organizationId: householdId },
+              "equipment",
+              equipmentKeys,
+            );
+      const unresolvedByText = new Map(
+        unresolvedTerms.map((term) => [term.normalizedText, term]),
+      );
+
+      return c.json({
+        catalog: householdEquipmentCatalog,
+        owned: equipment.map(({ equipmentSlug, createdAt }) =>
+          householdEquipmentItemResponse(
+            equipmentSlug,
+            createdAt,
+            unresolvedByText,
+          ),
+        ),
+        ...(unresolvedTerms.length > 0 ? { unresolvedTerms } : {}),
+        recipeMatchMode: household.recipeMatchMode,
+      });
+    },
+  );
+});
+
+registerRoute("patch", "/households/:householdId/equipment", async (c) => {
+  const householdId = uuidParam(c, "householdId", "household ID");
+  if (householdId instanceof Response) return householdId;
+  const csrfFailure = validateCsrf(c);
+  if (csrfFailure) return csrfFailure;
+
+  return withRecipeSession(
+    c,
+    "mutation",
+    "PATCH /households/:householdId/equipment failed",
+    async ({ db, session }) => {
+      const memberFailure = await requireHouseholdMemberResponse(
+        c,
+        db,
+        householdId,
+        session,
+      );
+      if (memberFailure) return memberFailure;
+
+      const body = await parseJsonBody(
+        c,
+        updateHouseholdEquipmentPreferencesBodySchema,
+      );
+      if (!body.success) return body.response;
+
+      const [household] = await db
+        .update(schema.organization)
+        .set({ equipmentRecipeMatchMode: body.data.recipeMatchMode })
+        .where(eq(schema.organization.id, householdId))
+        .returning({
+          recipeMatchMode: schema.organization.equipmentRecipeMatchMode,
+        });
+      if (!household) return c.notFound();
+      return c.json(household);
+    },
+  );
+});
+
+registerRoute(
+  "put",
+  "/households/:householdId/equipment/:equipmentSlug",
+  (c) =>
+    withHouseholdEquipmentMutation(
+      c,
+      "PUT /households/:householdId/equipment/:equipmentSlug failed",
+      "observe",
+      async (db, householdId, equipmentSlug, unresolvedByText) => {
+        const [created] = await db
+          .insert(schema.householdEquipment)
+          .values({ organizationId: householdId, equipmentSlug })
+          .onConflictDoNothing()
+          .returning();
+        if (created) {
+          return c.json(
+            householdEquipmentItemResponse(
+              created.equipmentSlug,
+              created.createdAt,
+              unresolvedByText,
+            ),
+          );
+        }
+
+        const [existing] = await db
+          .select()
+          .from(schema.householdEquipment)
+          .where(
+            and(
+              eq(schema.householdEquipment.organizationId, householdId),
+              eq(schema.householdEquipment.equipmentSlug, equipmentSlug),
+            ),
+          )
+          .limit(1);
+        if (!existing) throw new Error("Equipment insert failed");
+        return c.json(
+          householdEquipmentItemResponse(
+            existing.equipmentSlug,
+            existing.createdAt,
+            unresolvedByText,
+          ),
+        );
+      },
+    ),
+);
+
+registerRoute(
+  "delete",
+  "/households/:householdId/equipment/:equipmentSlug",
+  (c) =>
+    withHouseholdEquipmentMutation(
+      c,
+      "DELETE /households/:householdId/equipment/:equipmentSlug failed",
+      "stored-key",
+      async (db, householdId, equipmentSlug) => {
+        await db
+          .delete(schema.householdEquipment)
+          .where(
+            and(
+              eq(schema.householdEquipment.organizationId, householdId),
+              eq(schema.householdEquipment.equipmentSlug, equipmentSlug),
+            ),
+        );
+        return c.body(null, 204);
+      },
+    ),
+);
 
 registerRoute("get", "/households/:householdId/invitations", async (c) => {
   const householdId = uuidParam(c, "householdId", "household ID");
@@ -4903,7 +5832,7 @@ registerRoute("get", "/recipes", async (c) => {
         c,
         !queryResult.authenticated && !hasSessionSignal(c),
       );
-      return withRecipeApiSpan(c, "http.response.serialize", async () =>
+      return withRecipeApiSpan(c, "http.response.serialize", () =>
         c.json(paginated ? { items, nextCursor: page.nextCursor } : items),
       );
     },
@@ -5378,7 +6307,7 @@ registerRoute("get", "/recipes/:slug", async (c) => {
           !queryResult.session &&
           !hasSessionSignal(c),
       );
-      return withRecipeApiSpan(c, "http.response.serialize", async () =>
+      return withRecipeApiSpan(c, "http.response.serialize", () =>
         c.json({
           ...recipeResponse(queryResult.recipe),
           owned: queryResult.session?.user.id === queryResult.recipe.userId,
@@ -5387,6 +6316,111 @@ registerRoute("get", "/recipes/:slug", async (c) => {
     },
   );
 });
+
+async function findRecommendableRecipe(
+  c: Context<AppEnv>,
+  db: Db,
+  session: AuthenticatedSession,
+  slug: string,
+  recipientUserId: string,
+): Promise<Recipe | Response> {
+  const recipe = await findRecipeBySlug(db, slug);
+  if (!recipe) return c.notFound();
+  if (recipe.visibility === "private") {
+    return c.json(
+      { error: "Only public or household recipes can be recommended" },
+      409,
+    );
+  }
+  if (recipe.visibility === "household") {
+    const decision = authorizeRecipeRead(session.user, recipe, {
+      userSharesHouseholdWithOwner: await usersShareHousehold(
+        db,
+        recipe.userId,
+        session.user.id,
+      ),
+    });
+    if (!decision.allowed) return c.notFound();
+  }
+  if (recipe.userId === recipientUserId) {
+    return c.json({ error: "That person already owns this recipe" }, 409);
+  }
+  return recipe;
+}
+
+async function validateRecommendationRecipient(
+  c: Context<AppEnv>,
+  db: Db,
+  senderUserId: string,
+  recipientUserId: string,
+): Promise<Response | undefined> {
+  const senderMembership = await findUserHouseholdMembership(db, senderUserId);
+  if (!senderMembership) {
+    return c.json(
+      { error: "Join a household before recommending recipes" },
+      409,
+    );
+  }
+  const recipientMembership = await findHouseholdMembership(
+    db,
+    senderMembership.organizationId,
+    recipientUserId,
+  );
+  if (!recipientMembership) {
+    return c.json(
+      { error: "Recipes can only be recommended to household members" },
+      403,
+    );
+  }
+}
+
+async function recommendRecipe(
+  c: Context<AppEnv>,
+  db: Db,
+  session: AuthenticatedSession,
+  slug: string,
+) {
+  const body = await parseJsonBody(c, recommendRecipeBodySchema);
+  if (!body.success) return body.response;
+  if (body.data.recipientUserId === session.user.id) {
+    return c.json({ error: "You cannot recommend a recipe to yourself" }, 400);
+  }
+
+  const recipe = await findRecommendableRecipe(
+    c,
+    db,
+    session,
+    slug,
+    body.data.recipientUserId,
+  );
+  if (recipe instanceof Response) return recipe;
+
+  const recipientFailure = await validateRecommendationRecipient(
+    c,
+    db,
+    session.user.id,
+    body.data.recipientUserId,
+  );
+  if (recipientFailure) return recipientFailure;
+
+  const recommendationLimit = await enforceRateLimit(
+    db,
+    `recipe-recommendation:${session.user.id}`,
+    RECIPE_RECOMMENDATION_RATE_LIMIT,
+  );
+  if (!recommendationLimit.allowed) {
+    return rateLimitedResponse(c, recommendationLimit.retryAfter);
+  }
+
+  await db.transaction(async (tx) => {
+    await createRecipeRecommendationNotification(tx, {
+      recipientUserId: body.data.recipientUserId,
+      recipe,
+      actor: { id: session.user.id, name: session.user.name },
+    });
+  });
+  return c.json({ recommended: true }, 201);
+}
 
 registerRoute("post", "/recipes/:slug/recommendations", async (c) => {
   const csrfFailure = validateCsrf(c);
@@ -5398,75 +6432,7 @@ registerRoute("post", "/recipes/:slug/recommendations", async (c) => {
     c,
     "mutation",
     "POST /recipes/:slug/recommendations failed",
-    async ({ db, session }) => {
-      const body = await parseJsonBody(c, recommendRecipeBodySchema);
-      if (!body.success) return body.response;
-      if (body.data.recipientUserId === session.user.id) {
-        return c.json({ error: "You cannot recommend a recipe to yourself" }, 400);
-      }
-
-      const recipe = await findRecipeBySlug(db, slug.slug);
-      if (!recipe) return c.notFound();
-      if (recipe.visibility === "private") {
-        return c.json(
-          { error: "Only public or household recipes can be recommended" },
-          409,
-        );
-      }
-      if (recipe.visibility === "household") {
-        const decision = authorizeRecipeRead(session.user, recipe, {
-          userSharesHouseholdWithOwner: await usersShareHousehold(
-            db,
-            recipe.userId,
-            session.user.id,
-          ),
-        });
-        if (!decision.allowed) return c.notFound();
-      }
-      if (recipe.userId === body.data.recipientUserId) {
-        return c.json({ error: "That person already owns this recipe" }, 409);
-      }
-
-      const senderMembership = await findUserHouseholdMembership(
-        db,
-        session.user.id,
-      );
-      if (!senderMembership) {
-        return c.json(
-          { error: "Join a household before recommending recipes" },
-          409,
-        );
-      }
-      const recipientMembership = await findHouseholdMembership(
-        db,
-        senderMembership.organizationId,
-        body.data.recipientUserId,
-      );
-      if (!recipientMembership) {
-        return c.json(
-          { error: "Recipes can only be recommended to household members" },
-          403,
-        );
-      }
-
-      const recommendationLimit = await enforceRateLimit(
-        db,
-        `recipe-recommendation:${session.user.id}`,
-        RECIPE_RECOMMENDATION_RATE_LIMIT,
-      );
-      if (!recommendationLimit.allowed) {
-        return rateLimitedResponse(c, recommendationLimit.retryAfter);
-      }
-
-      await db.transaction(async (tx) => {
-        await createRecipeRecommendationNotification(tx, {
-          recipientUserId: body.data.recipientUserId,
-          recipe,
-          actor: { id: session.user.id, name: session.user.name },
-        });
-      });
-      return c.json({ recommended: true }, 201);
-    },
+    ({ db, session }) => recommendRecipe(c, db, session, slug.slug),
   );
 });
 
@@ -5481,6 +6447,7 @@ registerRoute("post", "/recipes", async (c) => {
     async ({ db, session }) => {
       const body = await parseJsonBody(c, createRecipeBodySchema);
       if (!body.success) return body.response;
+      const locale = requestLocale(c.req.header("Accept-Language"));
 
       if (body.data.visibility === "household") {
         const membership = await findUserHouseholdMembership(
@@ -5490,15 +6457,24 @@ registerRoute("post", "/recipes", async (c) => {
         if (!membership) return authorizationResponse(c, forbidden());
       }
 
-      const [recipe] = await db
-        .insert(schema.recipe)
-        .values({
-          ...body.data,
-          userId: session.user.id,
-        })
-        .returning();
+      const recipe = await db.transaction(async tx => {
+        if (body.data.parentRecipeId) {
+          const [parent] = await tx.select().from(schema.recipe).where(eq(schema.recipe.id, body.data.parentRecipeId)).for("update");
+          if (!parent || !authorizeRecipeRead(session.user, parent, { userSharesHouseholdWithOwner: await usersShareHousehold(tx, parent.userId, session.user.id) }).allowed) return undefined;
+        }
+        const [saved] = await tx.insert(schema.recipe).values({ ...body.data, userId: session.user.id }).returning();
+        if (saved) {
+          await recordRecipeBodyTerms(tx, {
+            body: body.data.body,
+            locale,
+            recipeId: saved.id,
+            userId: session.user.id,
+          });
+        }
+        return saved;
+      });
 
-      if (!recipe) return c.json({ error: "Database mutation failed" }, 502);
+      if (!recipe) return c.notFound();
 
       return c.json(recipeResponse(recipe), 201);
     },
@@ -5538,6 +6514,7 @@ registerRoute("patch", "/recipes/:slug", async (c) => {
 
       const body = await parseJsonBody(c, updateRecipeBodySchema);
       if (!body.success) return body.response;
+      const locale = requestLocale(c.req.header("Accept-Language"));
 
       if (body.data.visibility === "household") {
         const membership = await findUserHouseholdMembership(
@@ -5551,16 +6528,28 @@ registerRoute("patch", "/recipes/:slug", async (c) => {
         ...body.data,
       };
 
-      const [updatedRecipe] = await db
-        .update(schema.recipe)
-        .set(updates)
-        .where(
-          and(
-            eq(schema.recipe.id, recipe.id),
-            eq(schema.recipe.userId, session.user.id),
-          ),
-        )
-        .returning();
+      const updatedRecipe = await db.transaction(async (tx) => {
+        const [saved] = await tx
+          .update(schema.recipe)
+          .set(updates)
+          .where(
+            and(
+              eq(schema.recipe.id, recipe.id),
+              eq(schema.recipe.userId, session.user.id),
+            ),
+          )
+          .returning();
+        if (saved && body.data.body) {
+          await recordRecipeBodyTerms(tx, {
+            body: body.data.body,
+            locale,
+            previousBody: recipe.body,
+            recipeId: saved.id,
+            userId: session.user.id,
+          });
+        }
+        return saved;
+      });
 
       if (!updatedRecipe) return c.notFound();
 
@@ -5688,22 +6677,12 @@ registerRoute("delete", "/recipes/:slug", async (c) => {
 
       return c.body(null, 204);
     },
+    { onError: error => isForeignKeyViolation(error) ? c.json({ error: "This recipe has forks and cannot be deleted." }, 409) : undefined },
   );
 });
 
 // This API owns recipe photo import auth, quotas, job creation,
 // and status reads; the recipe-ingest Workflow owns the parsing chain.
-
-const RECIPE_IMPORT_MAX_IMAGES = 6;
-const RECIPE_IMPORT_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
-const RECIPE_IMPORT_MAX_ACTIVE_JOBS = 2;
-const RECIPE_IMPORT_DAILY_JOB_LIMIT = 10;
-const RECIPE_IMPORT_MAX_TOTAL_BYTES = 30 * 1024 * 1024;
-const RECIPE_IMPORT_IMAGE_EXTENSIONS: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-};
 
 const recipeImportIdSchema = z.string().uuid();
 
@@ -5757,7 +6736,7 @@ async function parseImportImages(
         response: c.json({ error: "images must be file uploads" }, 400),
       };
     }
-    const extension = RECIPE_IMPORT_IMAGE_EXTENSIONS[entry.type];
+    const extension = recipeImportImageExtension(entry.type);
     if (!extension) {
       return {
         success: false,
@@ -5806,6 +6785,12 @@ async function parseImportImages(
   return { success: true, images };
 }
 
+function recipeImportQuotaError(reason: "active" | "daily") {
+  return reason === "active"
+    ? "Too many imports in progress"
+    : "Daily import limit reached";
+}
+
 registerRoute("post", "/recipe-imports", async (c) => {
   const csrfFailure = validateCsrf(c);
   if (csrfFailure) return csrfFailure;
@@ -5843,9 +6828,6 @@ registerRoute("post", "/recipe-imports", async (c) => {
       if (!parsed.success) return parsed.response;
       const { images } = parsed;
 
-      const dayStart = new Date();
-      dayStart.setUTCHours(0, 0, 0, 0);
-
       type QuotaOutcome =
         | { ok: true; job: RecipeImportJob }
         | { ok: false; reason: "active" | "daily" };
@@ -5858,31 +6840,8 @@ registerRoute("post", "/recipe-imports", async (c) => {
           .where(eq(schema.user.id, userId))
           .for("update");
 
-        const [active] = await tx
-          .select({ value: count() })
-          .from(schema.recipeImportJob)
-          .where(
-            and(
-              eq(schema.recipeImportJob.userId, userId),
-              inArray(schema.recipeImportJob.status, ["queued", "running"]),
-            ),
-          );
-        if ((active?.value ?? 0) >= RECIPE_IMPORT_MAX_ACTIVE_JOBS) {
-          return { ok: false, reason: "active" };
-        }
-
-        const [today] = await tx
-          .select({ value: count() })
-          .from(schema.recipeImportJob)
-          .where(
-            and(
-              eq(schema.recipeImportJob.userId, userId),
-              gte(schema.recipeImportJob.createdAt, dayStart),
-            ),
-          );
-        if ((today?.value ?? 0) >= RECIPE_IMPORT_DAILY_JOB_LIMIT) {
-          return { ok: false, reason: "daily" };
-        }
+        const quotaReason = await recipeImportQuotaReason(tx, userId);
+        if (quotaReason) return { ok: false, reason: quotaReason };
 
         const [job] = await tx
           .insert(schema.recipeImportJob)
@@ -5895,10 +6854,7 @@ registerRoute("post", "/recipe-imports", async (c) => {
       if (!outcome.ok) {
         return c.json(
           {
-            error:
-              outcome.reason === "active"
-                ? "Too many imports in progress"
-                : "Daily import limit reached",
+            error: recipeImportQuotaError(outcome.reason),
           },
           429,
         );
@@ -5984,6 +6940,106 @@ registerRoute("get", "/recipe-imports", async (c) => {
     },
   );
 });
+
+function batchParam(c: Context<AppEnv>, name: "batchId" | "jobId"): string {
+  const value = c.req.param(name);
+  if (!value) throw new BatchImportError("Batch item not found", 404);
+  return value;
+}
+
+function batchHandler(action: (c: Context<AppEnv>, context: RecipeSessionContext) => Promise<Response>, mutation = true): Handler<AppEnv> {
+  return async c => {
+    if (mutation) { const failure = validateCsrf(c); if (failure) return failure; }
+    const batchId = c.req.param("batchId");
+    const jobId = c.req.param("jobId");
+    if ((batchId && !z.uuid().safeParse(batchId).success) || (jobId && !z.uuid().safeParse(jobId).success)) return c.json({ error: "Batch item not found" }, 404);
+    return withRecipeSession(c, mutation ? "mutation" : "lookup", "Batch import request failed", context => action(c, context), {
+      onError: error => {
+        if (error instanceof BatchImportError) return c.json({ error: error.message }, error.status);
+        if (isUniqueViolation(error)) return c.json({ error: "A recipe with this name already exists. Choose another title." }, 409);
+        return undefined;
+      },
+    });
+  };
+}
+
+registerRoute("post", "/recipe-import-batches", batchHandler(async (c, { db, session }) => {
+  const body = await parseJsonBody(c, CreateBatchSchema);
+  if (!body.success) return body.response;
+  if (!c.env.ARTIFACTS) throw new BatchImportError("Batch import is not configured", 503);
+  const batch = await createBatch(db, session.user.id, body.data, c.env.ARTIFACTS);
+  c.header("Location", `/api/recipe-import-batches/${batch.id}`);
+  return c.json(await readBatch(db, session.user.id, batch.id), 201);
+}));
+registerRoute("get", "/recipe-import-batches", batchHandler(async (c, { db, session }) => c.json({ batches: await listBatches(db, session.user.id) }), false));
+registerRoute("get", "/recipe-import-batches/:batchId", batchHandler(async (c, { db, session }) => c.json(await readBatch(db, session.user.id, batchParam(c, "batchId"))), false));
+registerRoute("get", "/recipe-import-batches/:batchId/undo", batchHandler(async (c, { db, session }) => c.json(await previewBatchUndo(db, session.user.id, batchParam(c, "batchId"))), false));
+registerRoute("put", "/recipe-import-batches/:batchId/undo", batchHandler(async (c, { db, session }) => {
+  const body = await parseJsonBody(c, z.object({ state: z.literal("started") }));
+  if (!body.success) return body.response;
+  const id = batchParam(c, "batchId");
+  const executionCtx = requestExecutionContext(c);
+  if (!executionCtx) return c.json({ error: "Undo execution is unavailable" }, 503);
+  await beginBatchUndo(db, session.user.id, id);
+  executionCtx.waitUntil(withDb(c.env, database => executeBatchUndo(database, session.user.id, id)));
+  return c.json({ state: "running" }, 202);
+}));
+registerRoute("get", "/recipe-import-batches/:batchId/execution", batchHandler(async (c, { db, session }) => {
+  const batch = await readBatch(db, session.user.id, batchParam(c, "batchId"));
+  return c.json({ state: batch.startedAt ? "started" : "pending", startedAt: batch.startedAt });
+}, false));
+registerRoute("put", "/recipe-import-batches/:batchId/execution", batchHandler(async (c, { db, session }) => {
+  const body = await parseJsonBody(c, z.object({ state: z.literal("started") }));
+  if (!body.success) return body.response;
+  if (!c.env.RECIPE_INGEST_WORKFLOW) throw new BatchImportError("Batch import is not configured", 503);
+  await startBatch(db, session.user.id, batchParam(c, "batchId"), c.env.RECIPE_INGEST_WORKFLOW);
+  const batch = await readBatch(db, session.user.id, batchParam(c, "batchId"));
+  return c.json({ state: "started", startedAt: batch.startedAt });
+}));
+registerRoute("get", "/recipe-import-batches/:batchId/items/:jobId/draft", batchHandler(async (c, { db, session }) => {
+  const item = await readBatchItem(db, session.user.id, batchParam(c, "batchId"), batchParam(c, "jobId"));
+  if (!item.draft) throw new BatchImportError("Draft not found", 404);
+  return c.json({ draftVersion: item.draftVersion, draft: item.draft });
+}, false));
+registerRoute("get", "/recipe-import-batches/:batchId/items/:jobId/review", batchHandler(async (c, { db, session }) => {
+  const item = await readBatchItem(db, session.user.id, batchParam(c, "batchId"), batchParam(c, "jobId"));
+  return c.json({ state: item.reviewState });
+}, false));
+registerRoute("get", "/recipe-import-batches/:batchId/items/:jobId/acceptance", batchHandler(async (c, { db, session }) => {
+  const item = await readBatchItem(db, session.user.id, batchParam(c, "batchId"), batchParam(c, "jobId"));
+  if (item.reviewState !== "accepted") throw new BatchImportError("Acceptance not found", 404);
+  return c.json({ recipeId: item.acceptedRecipeId, version: item.acceptedVersion, idempotencyKey: item.acceptKey });
+}, false));
+registerRoute("get", "/recipe-import-batches/:batchId/items/:jobId/attempts/:attemptNumber", batchHandler(async (c, { db, session }) => {
+  const item = await readBatchItem(db, session.user.id, batchParam(c, "batchId"), batchParam(c, "jobId"));
+  const attempt = z.coerce.number().int().min(1).max(item.executionAttempt).safeParse(c.req.param("attemptNumber"));
+  if (!attempt.success) throw new BatchImportError("Attempt not found", 404);
+  return c.json({ attempt: attempt.data, workflowInstanceId: `${item.id}-${attempt.data}`, status: attempt.data === item.executionAttempt ? item.status : "failed" });
+}, false));
+registerRoute("put", "/recipe-import-batches/:batchId/items/:jobId/draft", batchHandler(async (c, { db, session }) => {
+  const body = await parseJsonBody(c, autosaveBatchBodySchema);
+  if (!body.success) return body.response;
+  return c.json(await autosaveDraft(db, session.user.id, batchParam(c, "batchId"), batchParam(c, "jobId"), body.data.version, body.data.draft));
+}));
+registerRoute("put", "/recipe-import-batches/:batchId/items/:jobId/review", batchHandler(async (c, { db, session }) => {
+  const body = await parseJsonBody(c, z.object({ state: z.literal("skipped") }));
+  if (!body.success) return body.response;
+  await reviewAction(db, session.user.id, batchParam(c, "batchId"), batchParam(c, "jobId"), "skip");
+  return c.json({ state: "skipped" });
+}));
+registerRoute("post", "/recipe-import-batches/:batchId/items/:jobId/attempts", batchHandler(async (c, { db, session }) => {
+  await reviewAction(db, session.user.id, batchParam(c, "batchId"), batchParam(c, "jobId"), "retry");
+  if (c.env.RECIPE_INGEST_WORKFLOW) await startBatch(db, session.user.id, batchParam(c, "batchId"), c.env.RECIPE_INGEST_WORKFLOW).catch(() => undefined);
+  const item = await readBatchItem(db, session.user.id, batchParam(c, "batchId"), batchParam(c, "jobId"));
+  c.header("Location", `/api/recipe-import-batches/${item.batchId}/items/${item.id}/attempts/${item.executionAttempt}`);
+  return c.json({ attempt: item.executionAttempt, status: item.status }, 201);
+}));
+registerRoute("put", "/recipe-import-batches/:batchId/items/:jobId/acceptance", batchHandler(async (c, { db, session }) => {
+  const body = await parseJsonBody(c, acceptBatchBodySchema);
+  if (!body.success) return body.response;
+  if (body.data.recipe.visibility === "household" && !await findUserHouseholdMembership(db, session.user.id)) return authorizationResponse(c, forbidden());
+  return c.json(await acceptDraft(db, session.user.id, batchParam(c, "batchId"), batchParam(c, "jobId"), body.data));
+}));
 
 registerRoute("get", "/recipe-imports/:jobId", async (c) => {
   const jobId = recipeImportIdSchema.safeParse(c.req.param("jobId"));

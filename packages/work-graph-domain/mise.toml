@@ -1,0 +1,22 @@
+[tasks.install]
+description = "Install Work Graph domain dependencies"
+depends = ["//:install"]
+
+[tasks.typecheck]
+description = "Typecheck the Work Graph domain package"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test the Work Graph domain package"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test the Work Graph domain package with coverage"
+depends = ["//:install"]
+run = "pnpm --filter ui exec vitest run --root ../packages/work-graph-domain --coverage --config ../packages/work-graph-domain/vitest.config.ts"
+
+[tasks.check]
+description = "Check the Work Graph domain package"
+depends = ["typecheck", "test"]

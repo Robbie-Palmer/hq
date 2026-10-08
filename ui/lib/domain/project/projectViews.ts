@@ -1,4 +1,15 @@
 import type { ADRCardView } from "../adr/adrViews";
+import type {
+  DefaultSelection,
+  DefaultSlot,
+  LayerSlotPolicy,
+  LayerSlug,
+  PlatformLayer,
+} from "../platform/platform";
+import type {
+  EffectivePolicySource,
+  EffectiveTechnologySource,
+} from "../platform/platformQueries";
 import type { RoleListItemView } from "../role/roleViews";
 import type { TechnologyBadgeView } from "../technology/technologyViews";
 import type { PitchDeck } from "./pitchDeck";
@@ -14,6 +25,8 @@ export type ProjectCardView = {
   repoUrl?: string;
   demoUrl?: string;
   productUrl?: string;
+  paperUrl?: string;
+  paperTitle?: string;
   technologies: TechnologyBadgeView[];
   adrCount: number;
   role?: RoleListItemView;
@@ -30,6 +43,8 @@ export type ProjectDetailView = {
   repoUrl?: string;
   demoUrl?: string;
   productUrl?: string;
+  paperUrl?: string;
+  paperTitle?: string;
   pitch?: PitchDeck;
   content: string;
   technologies: TechnologyBadgeView[];
@@ -54,6 +69,8 @@ export type ProjectWithADRsView = {
   repoUrl?: string;
   demoUrl?: string;
   productUrl?: string;
+  paperUrl?: string;
+  paperTitle?: string;
   pitch?: PitchDeck;
   content: string;
   technologies: TechnologyBadgeView[];
@@ -61,6 +78,56 @@ export type ProjectWithADRsView = {
   adrs: ADRCardView[];
   role?: RoleListItemView;
   tags: string[];
+  builtOn?: Array<{
+    slug: LayerSlug;
+    title: string;
+    adopted: string;
+    until?: string;
+    tracking: boolean;
+    decision?: string;
+    rationale?: string;
+  }>;
+  platformTechnologies?: Array<
+    TechnologyBadgeView & {
+      source: Exclude<EffectiveTechnologySource, "project-specific">;
+      layer?: LayerSlug;
+      slot?: string;
+      decision?: string;
+      policyDecision?: string;
+      originProjects?: string[];
+      evidenceADRs?: string[];
+      adoptionDecision?: string;
+      adoptionRationale?: string;
+    }
+  >;
+  platformPolicies?: Array<{
+    value: string;
+    source: EffectivePolicySource;
+    layer?: LayerSlug;
+    slot?: string;
+    decision?: string;
+    policyDecision?: string;
+    originProjects?: string[];
+    evidenceADRs?: string[];
+    adoptionDecision?: string;
+    adoptionRationale?: string;
+  }>;
+  platformManifest?: {
+    layers: PlatformLayer[];
+    policies: LayerSlotPolicy[];
+    slots: Array<
+      DefaultSlot & {
+        selections: Array<
+          DefaultSelection & {
+            lifecycleStatus: DefaultSelection["status"] | "Superseded";
+          }
+        >;
+        adopters: string[];
+        layerConsumers: string[];
+        overrides: string[];
+      }
+    >;
+  };
 };
 
 export function toProjectCardView(
@@ -80,6 +147,8 @@ export function toProjectCardView(
     repoUrl: project.repoUrl,
     demoUrl: project.demoUrl,
     productUrl: project.productUrl,
+    paperUrl: project.paperUrl,
+    paperTitle: project.paperTitle,
     technologies,
     adrCount,
     role,
@@ -104,6 +173,8 @@ export function toProjectDetailView(
     repoUrl: project.repoUrl,
     demoUrl: project.demoUrl,
     productUrl: project.productUrl,
+    paperUrl: project.paperUrl,
+    paperTitle: project.paperTitle,
     pitch: project.pitch,
     content: project.content,
     technologies,

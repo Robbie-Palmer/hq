@@ -23,11 +23,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-        with:
-          version: "2026.9.1"
-          experimental: true
-          minimum_release_age: 24h
+      - uses: $/.github/actions/setup-mise
 
       - name: Check AI reviewer evaluation pipeline
         run: mise run //ml-pipelines/ai-review-evaluation:check
@@ -42,11 +38,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-        with:
-          version: "2026.9.1"
-          experimental: true
-          minimum_release_age: 24h
+      - uses: $/.github/actions/setup-mise
 
       - name: Check WSI analysis Python project
         run: mise run //ml-pipelines/wsi-analysis:check
@@ -67,6 +59,7 @@ jobs:
         pipeline:
           - recipe-parsing
           - recipe-dataset
+          - writing-editor-evaluation
     defaults:
       run:
         working-directory: ml-pipelines/${{ matrix.pipeline }}
@@ -76,28 +69,15 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: "3.14"
-
-      - name: Install DVC
-        # Pin the resolved version and install wheels only, so no source-package
-        # setup scripts run during dependency installation. Renovate keeps the
-        # pin current. antlr4-python3-runtime (pulled in transitively via
-        # hydra-core, which pins it to 4.9.*) publishes no wheel for that range,
-        # so it is the sole allowed source build; it is a trivial pure-Python
-        # package. Quotes keep the ":all:" colon from parsing as YAML.
-        run: "pip install --only-binary :all: --no-binary antlr4-python3-runtime 'dvc[s3]==3.67.1'"
+      - uses: $/.github/actions/setup-mise
 
       - name: Validate DVC remote
-        run: dvc pull
+        if: matrix.pipeline != 'writing-editor-evaluation'
+        run: mise run //ml-pipelines:dvc -- pull
 
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-        if: matrix.pipeline == 'recipe-parsing'
-        with:
-          version: "2026.9.1"
-          experimental: true
-          minimum_release_age: 24h
+      - name: Pull writing review evidence
+        if: matrix.pipeline == 'writing-editor-evaluation'
+        run: mise run //ml-pipelines/writing-editor-evaluation:review-evidence:pull
 
       - name: Get pnpm store directory
         if: matrix.pipeline == 'recipe-parsing'
@@ -113,7 +93,6 @@ jobs:
           restore-keys: pnpm-store-${{ runner.os }}-
 
       - name: Install dependencies
-        if: matrix.pipeline == 'recipe-parsing'
         run: mise run //:install
 
       - name: Check shared parsing package
@@ -124,13 +103,29 @@ jobs:
         if: matrix.pipeline == 'recipe-parsing'
         run: mise :test
 
+      - name: Check recipe dataset pipeline
+        if: matrix.pipeline == 'recipe-dataset'
+        run: mise run //ml-pipelines/recipe-dataset:check
+
+      - name: Check writing editor evaluation pipeline
+        if: matrix.pipeline == 'writing-editor-evaluation'
+        run: mise run //ml-pipelines/writing-editor-evaluation:check
+
+      - name: Reproduce recipe dataset pipeline
+        if: matrix.pipeline == 'recipe-dataset'
+        run: mise run //ml-pipelines/recipe-dataset:repro
+
+      - name: Reproduce writing review scorecard
+        if: matrix.pipeline == 'writing-editor-evaluation'
+        run: mise run //ml-pipelines/writing-editor-evaluation:evaluate:reviews
+
       - name: Comment metrics on PR
         run: |
           # Fetch main to ensure we have a reference for diff
           git fetch origin main:refs/remotes/origin/main || echo "Failed to fetch origin/main"
           
           echo "Debug: Running dvc metrics diff..."
-          DIFF=$(dvc metrics diff --md origin/main || echo "DVC diff failed")
+          DIFF=$(mise run //ml-pipelines:dvc -- metrics diff --md origin/main || echo "DVC diff failed")
           echo "Debug: DIFF Content:"
           echo "$DIFF"
           
@@ -142,7 +137,7 @@ jobs:
           else
              echo "Debug: Running dvc metrics show..."
              # Note: --all is not valid for 'show', removing it.
-             SHOW=$(dvc metrics show --md || echo "DVC show failed")
+             SHOW=$(mise run //ml-pipelines:dvc -- metrics show --md || echo "DVC show failed")
              echo "Debug: SHOW Content:"
              echo "$SHOW"
              BODY="## ${{ matrix.pipeline }} metrics"$'\n\n'"$SHOW"

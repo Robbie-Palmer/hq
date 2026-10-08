@@ -1,3 +1,4 @@
+import { Rss } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { InitiativeStatusBadge } from "@/components/initiatives/initiative-status-badge";
@@ -5,6 +6,7 @@ import { Markdown } from "@/components/markdown";
 import { Mermaid } from "@/components/mermaid";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardDescription,
@@ -36,6 +38,16 @@ export async function generateMetadata({ params }: PageProps) {
   return {
     title: `${initiative.title} - Initiative`,
     description: initiative.description,
+    alternates: {
+      types: {
+        "application/rss+xml": [
+          {
+            url: `/initiatives/${initiative.slug}/feed.xml`,
+            title: `${initiative.title} RSS feed`,
+          },
+        ],
+      },
+    },
   };
 }
 
@@ -77,6 +89,17 @@ export default async function InitiativePage({ params }: Readonly<PageProps>) {
           <p className="max-w-3xl text-xl leading-relaxed text-muted-foreground">
             {initiative.description}
           </p>
+          <Button asChild variant="outline" size="sm">
+            <a
+              href={`/initiatives/${initiative.slug}/feed.xml`}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Subscribe to ${initiative.title}`}
+            >
+              <Rss className="h-4 w-4" />
+              Subscribe
+            </a>
+          </Button>
           <div className="flex flex-wrap gap-2">
             {initiative.projects.map((project) => (
               <Badge key={project.slug} variant="outline" asChild>

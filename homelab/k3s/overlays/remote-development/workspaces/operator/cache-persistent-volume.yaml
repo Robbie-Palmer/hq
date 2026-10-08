@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: t3-code-remote-development-cache
+spec:
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 30Gi
+  local:
+    path: /srv/remote-development/t3-code-cache
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: homelab.dev/location
+              operator: In
+              values:
+                - cloud
+            - key: homelab.dev/capability
+              operator: In
+              values:
+                - agent-workspace
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - remote-development
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: t3-code-cache-local
+  volumeMode: Filesystem

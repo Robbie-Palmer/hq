@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { isValid, parse } from "date-fns";
 import readingTime from "reading-time";
+import { parse as parseYaml } from "yaml";
+import { legacyADRAliases } from "../../content/adr-aliases";
 import { experiences as definedExperiences } from "../../content/experience";
 import { technologies as definedTechnologies } from "../../content/technologies";
 import { parseFrontmatter } from "../content/frontmatter";
@@ -10,7 +12,10 @@ import {
   type ADRRef,
   type ADRRelations,
   ADRSchema,
+  type LegacyADRAlias,
+  LegacyADRAliasSchema,
   makeADRRef,
+  parseADRRef,
 } from "../domain/adr/adr";
 import {
   type BlogPost,
@@ -30,6 +35,21 @@ import {
   InitiativeSchema,
   type InitiativeSlug,
 } from "../domain/initiative/initiative";
+import {
+  compareUtcInstants,
+  type DefaultOverride,
+  DefaultOverrideSchema,
+  type DefaultSelection,
+  type PlatformManifest,
+  PlatformManifestSchema,
+  type ProjectLayerUse,
+} from "../domain/platform/platform";
+import {
+  type ProductDecision,
+  ProductDecisionFrontmatterSchema,
+  type ProductDecisionRelations,
+  ProductDecisionSchema,
+} from "../domain/product-decision/productDecision";
 import { type PitchDeck, PitchDeckSchema } from "../domain/project/pitchDeck";
 import {
   type Project,
@@ -44,6 +64,11 @@ import {
   type RoleRelations,
   type RoleSlug,
 } from "../domain/role/jobRole";
+import {
+  type ProductDecisionSlug,
+  ProductDecisionSlugSchema,
+  ProjectSlugSchema,
+} from "../domain/slugs";
 import {
   type Technology,
   TechnologySchema,
@@ -82,10 +107,24 @@ const BLOG_DIR = path.join(CONTENT_DIR, "blog");
 const INITIATIVES_DIR = path.join(CONTENT_DIR, "initiatives");
 const IDEAS_DIR = path.join(CONTENT_DIR, "ideas");
 const PROJECTS_DIR = path.join(CONTENT_DIR, "projects");
+const PRODUCT_DECISIONS_DIR = path.join(CONTENT_DIR, "product-decisions");
 const BUILDING_PHILOSOPHY_PATH = path.join(
   PROJECTS_DIR,
   "building-philosophy.mdx",
 );
+const PLATFORM_MANIFEST_PATH = path.join(
+  PROJECTS_DIR,
+  "personal-engineering-platform",
+  "platform.yaml",
+);
+
+function projectDirectories(): string[] {
+  if (!fs.existsSync(PROJECTS_DIR)) return [];
+  return fs
+    .readdirSync(PROJECTS_DIR, { withFileTypes: true })
+    .filter((dirent) => dirent.isDirectory())
+    .map((dirent) => dirent.name);
+}
 
 export function loadTechnologies(): Map<TechnologySlug, Technology> {
   const techMap = new Map<TechnologySlug, Technology>();
@@ -102,6 +141,33 @@ export function loadTechnologies(): Map<TechnologySlug, Technology> {
   }
 
   return techMap;
+}
+
+function collectProjectTechnologyReferences(
+  projectSlug: string,
+  collectMissingTech: (name: string, source: string) => void,
+): void {
+  const projectPath = path.join(PROJECTS_DIR, projectSlug, "index.mdx");
+  if (!fs.existsSync(projectPath)) return;
+  const { data } = parseFrontmatter(fs.readFileSync(projectPath, "utf-8"));
+  if (Array.isArray(data.tech_stack)) {
+    for (const tech of data.tech_stack) {
+      collectMissingTech(tech, `project: ${projectSlug}`);
+    }
+  }
+  const adrsDir = path.join(PROJECTS_DIR, projectSlug, "adrs");
+  if (!fs.existsSync(adrsDir)) return;
+  for (const adrFile of fs
+    .readdirSync(adrsDir)
+    .filter((file) => file.endsWith(".mdx"))) {
+    const { data: adrData } = parseFrontmatter(
+      fs.readFileSync(path.join(adrsDir, adrFile), "utf-8"),
+    );
+    if (!Array.isArray(adrData.tech_stack)) continue;
+    for (const tech of adrData.tech_stack) {
+      collectMissingTech(tech, `ADR: ${projectSlug}/${adrFile}`);
+    }
+  }
 }
 
 // Validate that all referenced technologies are defined
@@ -131,33 +197,7 @@ export function validateTechnologyReferences(
       .map((dirent) => dirent.name);
 
     projectDirs.forEach((projectSlug) => {
-      const projectPath = path.join(PROJECTS_DIR, projectSlug, "index.mdx");
-      if (fs.existsSync(projectPath)) {
-        const fileContent = fs.readFileSync(projectPath, "utf-8");
-        const { data } = parseFrontmatter(fileContent);
-        if (Array.isArray(data.tech_stack)) {
-          for (const tech of data.tech_stack) {
-            collectMissingTech(tech, `project: ${projectSlug}`);
-          }
-        }
-
-        const adrsDir = path.join(PROJECTS_DIR, projectSlug, "adrs");
-        if (fs.existsSync(adrsDir)) {
-          const adrFiles = fs
-            .readdirSync(adrsDir)
-            .filter((f) => f.endsWith(".mdx"));
-          adrFiles.forEach((adrFile) => {
-            const adrPath = path.join(adrsDir, adrFile);
-            const adrContent = fs.readFileSync(adrPath, "utf-8");
-            const { data: adrData } = parseFrontmatter(adrContent);
-            if (Array.isArray(adrData.tech_stack)) {
-              for (const tech of adrData.tech_stack) {
-                collectMissingTech(tech, `ADR: ${projectSlug}/${adrFile}`);
-              }
-            }
-          });
-        }
-      }
+      collectProjectTechnologyReferences(projectSlug, collectMissingTech);
     });
   }
 
@@ -307,6 +347,7 @@ export function loadBlogPosts(): BlogLoadResult {
       ideas: (data.ideas || []).map((idea: string) => normalizeSlug(idea)),
       tags: data.tags || [],
       role: data.role ? normalizeSlug(data.role) : undefined,
+      productDecisions: data.product_decisions || [],
     };
 
     const validation = validateBlogPost(post);
@@ -441,19 +482,130 @@ export function validateInitiative(
 interface ProjectLoadResult {
   entities: Map<ProjectSlug, Project>;
   relations: Map<ProjectSlug, ProjectRelations>;
+  aliases: Map<ProjectSlug, ProjectSlug>;
+}
+
+function parseProjectAliases(
+  rawAliases: unknown,
+  projectSlug: ProjectSlug,
+): ProjectSlug[] {
+  const validation = ProjectSlugSchema.array().safeParse(rawAliases ?? []);
+  if (!validation.success) {
+    console.error(
+      `Failed to validate aliases for project ${projectSlug}:`,
+      validation.error,
+    );
+    throw new Error(`Project ${projectSlug} aliases failed validation`);
+  }
+  return validation.data;
+}
+
+function registerProjectAliases(
+  aliases: Map<ProjectSlug, ProjectSlug>,
+  projectAliases: ProjectSlug[],
+  projectSlug: ProjectSlug,
+): void {
+  for (const alias of projectAliases) {
+    const existingTarget = aliases.get(alias);
+    if (existingTarget) {
+      throw new Error(
+        `Project alias '${alias}' points to both '${existingTarget}' and '${projectSlug}'`,
+      );
+    }
+    aliases.set(alias, projectSlug);
+  }
+}
+
+function loadPitchDeck(projectSlug: string): PitchDeck | undefined {
+  const pitchPath = path.join(PROJECTS_DIR, projectSlug, "pitch.mdx");
+  if (!fs.existsSync(pitchPath)) return undefined;
+  const { data, content } = parseFrontmatter(
+    fs.readFileSync(pitchPath, "utf-8"),
+  );
+  const result = PitchDeckSchema.safeParse({
+    title: data.title,
+    description: data.description,
+    content,
+  });
+  if (result.success) return result.data;
+  console.error(`Failed to validate pitch deck ${projectSlug}:`, result.error);
+  throw new Error(`Pitch deck ${projectSlug} failed validation`);
+}
+
+function loadProjectAdrRefs(projectSlug: string): ADRRef[] {
+  const adrsDir = path.join(PROJECTS_DIR, projectSlug, "adrs");
+  if (!fs.existsSync(adrsDir)) return [];
+  return fs
+    .readdirSync(adrsDir)
+    .filter((file) => file.endsWith(".mdx"))
+    .sort((left, right) => left.localeCompare(right, "en"))
+    .map((adrFile) => {
+      const adrSlug = adrFile.replace(/\.mdx$/, "");
+      const { data } = parseFrontmatter(
+        fs.readFileSync(path.join(adrsDir, adrFile), "utf-8"),
+      );
+      if (data.inherits_from !== undefined) {
+        throw new Error(
+          `ADR alias ${projectSlug}:${adrSlug} must be declared in content/adr-aliases.ts instead of an inherited stub file`,
+        );
+      }
+      return makeADRRef(projectSlug, adrSlug);
+    });
+}
+
+function parseProjectInitiatives(raw: unknown, projectSlug: string) {
+  const normalized = Array.isArray(raw)
+    ? raw.map((initiative) =>
+        typeof initiative === "string" ? normalizeSlug(initiative) : initiative,
+      )
+    : raw;
+  const result = ProjectRelationsSchema.shape.initiatives.safeParse(normalized);
+  if (result.success) return result.data;
+  console.error(`Failed to validate project ${projectSlug}:`, result.error);
+  throw new Error(`Project ${projectSlug} failed validation`);
+}
+
+function parseProjectPlatformLayers(raw: unknown, projectSlug: string) {
+  const normalized = Array.isArray(raw)
+    ? raw.map((entry) => {
+        const use = entry as Record<string, unknown>;
+        const slots = Array.isArray(use.slots) ? use.slots : [];
+        return {
+          layer: use.layer,
+          adopted: use.adopted,
+          until: use.until,
+          tracking: use.tracking,
+          decision: use.decision,
+          rationale: use.rationale,
+          slots: slots.map((entry) => {
+            const slot = entry as Record<string, unknown>;
+            return {
+              slot: slot.slot,
+              adopted: slot.adopted,
+              until: slot.until,
+              decision: slot.decision,
+              rationale: slot.rationale,
+            };
+          }),
+        };
+      })
+    : raw;
+  const result =
+    ProjectRelationsSchema.shape.platformLayers.safeParse(normalized);
+  if (result.success) return result.data;
+  console.error(
+    `Failed to validate platform layers for ${projectSlug}:`,
+    result.error,
+  );
+  throw new Error(`Project ${projectSlug} failed validation`);
 }
 
 export function loadProjects(): ProjectLoadResult {
   const entities = new Map<ProjectSlug, Project>();
   const relations = new Map<ProjectSlug, ProjectRelations>();
+  const aliases = new Map<ProjectSlug, ProjectSlug>();
 
-  if (!fs.existsSync(PROJECTS_DIR)) {
-    return { entities, relations };
-  }
-  const projectDirs = fs
-    .readdirSync(PROJECTS_DIR, { withFileTypes: true })
-    .filter((dirent) => dirent.isDirectory())
-    .map((dirent) => dirent.name);
+  const projectDirs = projectDirectories();
 
   projectDirs.forEach((projectSlug) => {
     const projectPath = path.join(PROJECTS_DIR, projectSlug, "index.mdx");
@@ -463,48 +615,18 @@ export function loadProjects(): ProjectLoadResult {
     const fileContent = fs.readFileSync(projectPath, "utf-8");
     const { data, content } = parseFrontmatter(fileContent);
 
-    let pitch: PitchDeck | undefined;
-    const pitchPath = path.join(PROJECTS_DIR, projectSlug, "pitch.mdx");
-    if (fs.existsSync(pitchPath)) {
-      const pitchFileContent = fs.readFileSync(pitchPath, "utf-8");
-      const { data: pitchData, content: pitchContent } =
-        parseFrontmatter(pitchFileContent);
-      const pitchResult = PitchDeckSchema.safeParse({
-        title: pitchData.title,
-        description: pitchData.description,
-        content: pitchContent,
-      });
-      if (!pitchResult.success) {
-        console.error(
-          `Failed to validate pitch deck ${projectSlug}:`,
-          pitchResult.error,
-        );
-        throw new Error(`Pitch deck ${projectSlug} failed validation`);
-      }
-      pitch = pitchResult.data;
-    }
-
-    const adrRefs: ADRRef[] = [];
-    const adrsDir = path.join(PROJECTS_DIR, projectSlug, "adrs");
-    if (fs.existsSync(adrsDir)) {
-      const adrFiles = fs
-        .readdirSync(adrsDir)
-        .filter((f) => f.endsWith(".mdx"))
-        .sort((a, b) => a.localeCompare(b, "en"));
-      adrFiles.forEach((adrFile) => {
-        const adrSlug = adrFile.replace(/\.mdx$/, "");
-        adrRefs.push(makeADRRef(projectSlug, adrSlug));
-      });
-    }
+    const pitch = loadPitchDeck(projectSlug);
+    const adrRefs = loadProjectAdrRefs(projectSlug);
     if (Array.isArray(data.inherits_adrs) && data.inherits_adrs.length > 0) {
       throw new Error(
-        `Project ${projectSlug} uses deprecated 'inherits_adrs'. Use inherited ADR stub files in ${projectSlug}/adrs/ with 'inherits_from' instead.`,
+        `Project ${projectSlug} uses deprecated 'inherits_adrs'. Register historical URLs in content/adr-aliases.ts and adopt platform layers explicitly instead.`,
       );
     }
 
     const technologies: TechnologySlug[] = (data.tech_stack || []).map(
       (tech: string) => normalizeSlug(tech),
     );
+    const projectAliases = parseProjectAliases(data.aliases, projectSlug);
 
     const project: Project = {
       slug: projectSlug,
@@ -516,41 +638,36 @@ export function loadProjects(): ProjectLoadResult {
       repoUrl: data.repo_url,
       demoUrl: data.demo_url,
       productUrl: data.product_url,
+      paperUrl: data.paper_url,
+      paperTitle: data.paper_title,
       pitch,
       content,
     };
 
-    const rawInitiatives = data.initiatives || [];
-    const normalizedInitiatives = Array.isArray(rawInitiatives)
-      ? rawInitiatives.map((initiative) =>
-          typeof initiative === "string"
-            ? normalizeSlug(initiative)
-            : initiative,
-        )
-      : rawInitiatives;
-    const initiativesValidation =
-      ProjectRelationsSchema.shape.initiatives.safeParse(normalizedInitiatives);
-    if (!initiativesValidation.success) {
-      console.error(
-        `Failed to validate project ${projectSlug}:`,
-        initiativesValidation.error,
-      );
-      throw new Error(`Project ${projectSlug} failed validation`);
-    }
+    const initiatives = parseProjectInitiatives(
+      data.initiatives || [],
+      projectSlug,
+    );
+    const platformLayers = parseProjectPlatformLayers(
+      data.platform_layers || [],
+      projectSlug,
+    );
 
     const projectRelations: ProjectRelations = {
       technologies,
       ideas: (data.ideas || []).map((idea: string) => normalizeSlug(idea)),
       adrs: adrRefs,
-      initiatives: initiativesValidation.data,
+      initiatives,
       role: data.role ? normalizeSlug(data.role) : undefined,
       tags: data.tags || [],
+      platformLayers,
     };
 
     const validation = validateProject(project);
     if (validation.success) {
       entities.set(projectSlug, validation.data);
       relations.set(projectSlug, projectRelations);
+      registerProjectAliases(aliases, projectAliases, projectSlug);
     } else {
       console.error(
         `Failed to validate project ${projectSlug}:`,
@@ -560,7 +677,13 @@ export function loadProjects(): ProjectLoadResult {
     }
   });
 
-  return { entities, relations };
+  for (const alias of aliases.keys()) {
+    if (entities.has(alias)) {
+      throw new Error(`Project alias '${alias}' conflicts with a project slug`);
+    }
+  }
+
+  return { entities, relations, aliases };
 }
 
 export function validateProject(
@@ -582,26 +705,150 @@ export function validateProject(
 interface ADRLoadResult {
   entities: Map<ADRRef, ADR>;
   relations: Map<ADRRef, ADRRelations>;
+  aliases: Map<ADRRef, ADRRef>;
 }
 
-export function loadADRs(): ADRLoadResult {
+interface ProductDecisionLoadResult {
+  entities: Map<ProductDecisionSlug, ProductDecision>;
+  relations: Map<ProductDecisionSlug, ProductDecisionRelations>;
+}
+
+function loadProductDecisionFile(
+  filename: string,
+  sequenceNumbers: Map<string, ProductDecisionSlug>,
+): { entity: ProductDecision; relations: ProductDecisionRelations } {
+  const slugResult = ProductDecisionSlugSchema.safeParse(
+    filename.replace(/\.mdx$/, ""),
+  );
+  if (!slugResult.success) {
+    throw new Error(`Product decision filename '${filename}' is invalid`);
+  }
+  const slug = slugResult.data;
+  const sequence = slug.slice(0, 3);
+  const existing = sequenceNumbers.get(sequence);
+  if (existing) {
+    throw new Error(
+      `Product decision sequence '${sequence}' is duplicated by '${existing}' and '${slug}'`,
+    );
+  }
+  sequenceNumbers.set(sequence, slug);
+
+  const fileContent = fs.readFileSync(
+    path.join(PRODUCT_DECISIONS_DIR, filename),
+    "utf-8",
+  );
+  const { data, content } = parseFrontmatter(fileContent);
+  const frontmatter = ProductDecisionFrontmatterSchema.safeParse(data);
+  if (!frontmatter.success) {
+    console.error(
+      `Failed to validate product decision ${slug}:`,
+      frontmatter.error,
+    );
+    throw new Error(`Product decision ${slug} failed validation`);
+  }
+  if (!content.trim()) {
+    throw new Error(`Product decision ${slug} has no content`);
+  }
+
+  const record = frontmatter.data;
+  if (record.title.slice(4, 7) !== sequence) {
+    throw new Error(
+      `Product decision '${slug}' title must use sequence '${sequence}'`,
+    );
+  }
+  return {
+    entity: ProductDecisionSchema.parse({
+      slug,
+      title: record.title,
+      date: record.date,
+      status: record.status,
+      authoredStatus: record.status,
+      decisionDate: record.decision_date,
+      deprecatedDate: record.deprecated_date,
+      supersedes: record.supersedes,
+      content,
+      readingTime: readingTime(content).text,
+    }),
+    relations: {
+      evidence: record.evidence,
+      ideas: record.ideas,
+      affectedProjects: record.affected_projects,
+      informedByADRs: record.informed_by_adrs,
+    },
+  };
+}
+
+function deriveProductDecisionStatuses(
+  entities: Map<ProductDecisionSlug, ProductDecision>,
+): void {
+  for (const decision of entities.values()) {
+    if (
+      decision.supersedes &&
+      (decision.authoredStatus === "Accepted" ||
+        decision.authoredStatus === "Deprecated")
+    ) {
+      const predecessor = entities.get(decision.supersedes);
+      if (predecessor) predecessor.status = "Superseded";
+    }
+  }
+}
+
+export function loadProductDecisions(): ProductDecisionLoadResult {
+  const entities = new Map<ProductDecisionSlug, ProductDecision>();
+  const relations = new Map<ProductDecisionSlug, ProductDecisionRelations>();
+  if (!fs.existsSync(PRODUCT_DECISIONS_DIR)) return { entities, relations };
+
+  const files = fs
+    .readdirSync(PRODUCT_DECISIONS_DIR)
+    .filter((file) => file.endsWith(".mdx"))
+    .sort((left, right) => left.localeCompare(right, "en"));
+  const sequenceNumbers = new Map<string, ProductDecisionSlug>();
+
+  for (const filename of files) {
+    const result = loadProductDecisionFile(filename, sequenceNumbers);
+    entities.set(result.entity.slug, result.entity);
+    relations.set(result.entity.slug, result.relations);
+  }
+
+  deriveProductDecisionStatuses(entities);
+
+  return { entities, relations };
+}
+
+function parseDefaultOverride(value: unknown): DefaultOverride | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const override = value as Record<string, unknown>;
+  if (
+    override.kind === "policy" ||
+    (override.kind === undefined && override.value !== undefined)
+  ) {
+    return DefaultOverrideSchema.parse({
+      slot: override.slot,
+      kind: "policy",
+      value: override.value,
+      adopted: override.adopted,
+      until: override.until,
+    });
+  }
+  return DefaultOverrideSchema.parse({
+    slot: override.slot,
+    kind: "technology",
+    technology: normalizeSlug(String(override.technology)),
+    adopted: override.adopted,
+    until: override.until,
+  });
+}
+
+export function loadADRs(
+  aliasRecords: readonly LegacyADRAlias[] = legacyADRAliases,
+): ADRLoadResult {
   const entities = new Map<ADRRef, ADR>();
   const relations = new Map<ADRRef, ADRRelations>();
-  const inheritedStubRecords: Array<{
-    adrRef: ADRRef;
-    slug: string;
-    projectSlug: ProjectSlug;
-    data: Record<string, unknown>;
-    content: string;
-  }> = [];
+  const aliases = new Map<ADRRef, ADRRef>();
 
-  if (!fs.existsSync(PROJECTS_DIR)) {
-    return { entities, relations };
-  }
-  const projectDirs = fs
-    .readdirSync(PROJECTS_DIR, { withFileTypes: true })
-    .filter((dirent) => dirent.isDirectory())
-    .map((dirent) => dirent.name);
+  const projectDirs = projectDirectories();
 
   projectDirs.forEach((projectSlug) => {
     const adrsDir = path.join(PROJECTS_DIR, projectSlug, "adrs");
@@ -616,15 +863,10 @@ export function loadADRs(): ADRLoadResult {
       const fileContent = fs.readFileSync(adrPath, "utf-8");
       const { data, content } = parseFrontmatter(fileContent);
 
-      if (typeof data.inherits_from === "string") {
-        inheritedStubRecords.push({
-          adrRef,
-          slug: adrSlug,
-          projectSlug,
-          data: data as Record<string, unknown>,
-          content,
-        });
-        return;
+      if (data.inherits_from !== undefined) {
+        throw new Error(
+          `ADR alias ${adrRef} must be declared in content/adr-aliases.ts instead of an inherited stub file`,
+        );
       }
 
       const technologies: TechnologySlug[] = (data.tech_stack || []).map(
@@ -640,6 +882,7 @@ export function loadADRs(): ADRLoadResult {
         status: data.status as ADR["status"],
         inheritsFrom: undefined,
         supersedes: data.supersedes as ADRRef | undefined,
+        overridesDefault: parseDefaultOverride(data.overrides_default),
         content,
         readingTime: readingTime(content).text,
       };
@@ -648,6 +891,7 @@ export function loadADRs(): ADRLoadResult {
         project: projectSlug,
         technologies,
         ideas: (data.ideas || []).map((idea: string) => normalizeSlug(idea)),
+        implementsProductDecisions: data.implements_product_decisions || [],
       };
 
       const validation = validateADR(adr);
@@ -663,81 +907,29 @@ export function loadADRs(): ADRLoadResult {
     });
   });
 
-  for (const record of inheritedStubRecords) {
-    const inheritsFromValue = record.data.inherits_from;
-    if (
-      typeof inheritsFromValue !== "string" ||
-      !/^[^:]+:[^:]+$/.test(inheritsFromValue)
-    ) {
+  for (const rawRecord of aliasRecords) {
+    const result = LegacyADRAliasSchema.safeParse(rawRecord);
+    if (!result.success) {
       throw new Error(
-        `Inherited ADR stub ${record.adrRef} has invalid inherits_from '${String(inheritsFromValue)}'. Expected format 'project:adr-slug'`,
+        `Legacy ADR alias '${String(rawRecord.alias)}' failed validation`,
       );
     }
-    const inheritsFrom = inheritsFromValue as ADRRef;
-    const sourceADR = entities.get(inheritsFrom);
-    if (!sourceADR) {
+    const { alias, target } = result.data;
+    if (entities.has(alias)) {
+      throw new Error(`Legacy ADR alias '${alias}' conflicts with a local ADR`);
+    }
+    if (aliases.has(alias)) {
+      throw new Error(`Legacy ADR alias '${alias}' is duplicated`);
+    }
+    if (!entities.has(target)) {
       throw new Error(
-        `Inherited ADR stub ${record.adrRef} references missing source ADR '${inheritsFrom}'`,
+        `Legacy ADR alias '${alias}' references missing source ADR '${target}'`,
       );
     }
-    if (sourceADR.inheritsFrom) {
-      throw new Error(
-        `Inherited ADR stub ${record.adrRef} cannot inherit from another inherited stub '${inheritsFrom}'`,
-      );
-    }
-    if (
-      Array.isArray(record.data.tech_stack) &&
-      record.data.tech_stack.length > 0
-    ) {
-      throw new Error(
-        `Inherited ADR stub ${record.adrRef} must not define tech_stack; technologies are derived from '${inheritsFrom}'`,
-      );
-    }
-    const titleOverride = record.data.title;
-    if (
-      titleOverride !== undefined &&
-      (typeof titleOverride !== "string" || titleOverride.trim().length === 0)
-    ) {
-      throw new Error(
-        `Inherited ADR stub ${record.adrRef} has invalid title override`,
-      );
-    }
-
-    const sourceRelations = relations.get(inheritsFrom);
-    const adr: ADR = {
-      adrRef: record.adrRef,
-      slug: record.slug,
-      projectSlug: record.projectSlug,
-      title:
-        typeof titleOverride === "string"
-          ? titleOverride.trim()
-          : sourceADR.title,
-      date: sourceADR.date,
-      status: sourceADR.status,
-      inheritsFrom,
-      supersedes: record.data.supersedes as ADRRef | undefined,
-      content: record.content,
-      readingTime: readingTime(record.content).text,
-    };
-    const adrRelations: ADRRelations = {
-      project: record.projectSlug,
-      technologies: sourceRelations?.technologies ?? [],
-      ideas: sourceRelations?.ideas ?? [],
-    };
-
-    const validation = validateADR(adr);
-    if (!validation.success) {
-      console.error(
-        `Failed to validate inherited ADR stub ${record.adrRef}:`,
-        validation.schemaErrors,
-      );
-      throw new Error(`ADR ${record.adrRef} failed validation`);
-    }
-    entities.set(record.adrRef, validation.data);
-    relations.set(record.adrRef, adrRelations);
+    aliases.set(alias, target);
   }
 
-  return { entities, relations };
+  return { entities, relations, aliases };
 }
 
 export function validateADR(adr: unknown): DomainValidationResult<ADR> {
@@ -828,6 +1020,74 @@ export function loadBuildingPhilosophy(): string {
   return content;
 }
 
+export function loadPlatformManifest(): PlatformManifest | undefined {
+  if (!fs.existsSync(PLATFORM_MANIFEST_PATH)) return undefined;
+  const fileContent = fs.readFileSync(PLATFORM_MANIFEST_PATH, "utf-8");
+  const parsed = parseYaml(fileContent);
+  const data =
+    parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  const records = (value: unknown): Record<string, unknown>[] =>
+    Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
+  const manifest = {
+    project: data.project,
+    layers: records(data.layers).map((layer) => ({
+      ...layer,
+      activatedBy: layer.activated_by
+        ? {
+            ...(layer.activated_by as Record<string, unknown>),
+            technology: normalizeSlug(
+              String(
+                (layer.activated_by as Record<string, unknown>).technology,
+              ),
+            ),
+          }
+        : undefined,
+    })),
+    slots: records(data.slots).map((slot) => ({
+      ...slot,
+      effectiveFrom: slot.effective_from,
+      effectiveUntil: slot.effective_until,
+      noDefaultFrom: slot.no_default_from,
+    })),
+    policies: records(data.policies).map((policy) => ({
+      ...policy,
+      effectiveFrom: policy.effective_from,
+      effectiveUntil: policy.effective_until,
+    })),
+    selections: records(data.selections).map(
+      (selection: Record<string, unknown>) =>
+        selection.kind === "policy" ||
+        (selection.kind === undefined && selection.value !== undefined)
+          ? {
+              ...selection,
+              kind: "policy",
+              value: selection.value,
+              originProjects: selection.origin_projects ?? [],
+              evidenceADRs: selection.evidence_adrs ?? [],
+              effectiveFrom: selection.effective_from,
+              effectiveUntil: selection.effective_until,
+            }
+          : {
+              ...selection,
+              kind: "technology",
+              technology: normalizeSlug(String(selection.technology)),
+              originProjects: selection.origin_projects ?? [],
+              evidenceADRs: selection.evidence_adrs ?? [],
+              effectiveFrom: selection.effective_from,
+              effectiveUntil: selection.effective_until,
+            },
+    ),
+  };
+  const result = PlatformManifestSchema.safeParse(manifest);
+  if (!result.success) {
+    console.error("Failed to validate platform manifest:", result.error);
+    throw new Error("Personal Engineering Platform manifest failed validation");
+  }
+  return result.data;
+}
+
 interface ValidationInput {
   technologies: Map<TechnologySlug, Technology>;
   ideas?: Map<IdeaSlug, Idea>;
@@ -839,6 +1099,590 @@ interface ValidationInput {
   projectRelations: Map<ProjectSlug, ProjectRelations>;
   adrRelations: Map<ADRRef, ADRRelations>;
   roleRelations: Map<RoleSlug, RoleRelations>;
+  adrAliases?: Map<ADRRef, ADRRef>;
+  platformManifest?: PlatformManifest;
+  productDecisions?: Map<ProductDecisionSlug, ProductDecision>;
+  productDecisionRelations?: Map<ProductDecisionSlug, ProductDecisionRelations>;
+}
+
+type TechnologyReferenceCheck = (
+  slug: TechnologySlug,
+  entity: string,
+  field: string,
+) => void;
+
+function policyContainsUse(
+  left: { adopted: string; until?: string },
+  right: { effectiveFrom: string; effectiveUntil?: string },
+): boolean {
+  return (
+    compareUtcInstants(right.effectiveFrom, left.adopted) <= 0 &&
+    (right.effectiveUntil === undefined ||
+      (left.until !== undefined &&
+        compareUtcInstants(left.until, right.effectiveUntil) <= 0))
+  );
+}
+
+function formatUseInterval(use: { adopted: string; until?: string }): string {
+  return `[${use.adopted}, ${use.until ?? "open"})`;
+}
+
+function periodContainsPeriod(
+  container: { adopted: string; until?: string },
+  contained: { adopted: string; until?: string },
+): boolean {
+  return (
+    compareUtcInstants(container.adopted, contained.adopted) <= 0 &&
+    (container.until === undefined ||
+      (contained.until !== undefined &&
+        compareUtcInstants(contained.until, container.until) <= 0))
+  );
+}
+
+function periodsOverlap(
+  left: { adopted: string; until?: string },
+  right: { adopted: string; until?: string },
+): boolean {
+  return (
+    (left.until === undefined ||
+      compareUtcInstants(right.adopted, left.until) < 0) &&
+    (right.until === undefined ||
+      compareUtcInstants(left.adopted, right.until) < 0)
+  );
+}
+
+function formatPolicyInterval(policy: {
+  id: string;
+  effectiveFrom: string;
+  effectiveUntil?: string;
+}): string {
+  return `'${policy.id}' [${policy.effectiveFrom}, ${policy.effectiveUntil ?? "open"})`;
+}
+
+function validatePlatformDecisions(
+  input: ValidationInput,
+  manifest: PlatformManifest,
+  errors: ReferentialIntegrityError[],
+): void {
+  for (const decision of [
+    ...manifest.policies.map((record) => record.decision),
+    ...manifest.selections.map((record) => record.decision),
+  ]) {
+    if (!input.adrs.has(decision)) {
+      errors.push({
+        type: "missing_reference",
+        entity: "PlatformManifest",
+        field: "decision",
+        value: decision,
+        message: `Platform record references missing ADR '${decision}'`,
+      });
+    }
+  }
+}
+
+function validatePlatformSelections(
+  input: ValidationInput,
+  manifest: PlatformManifest,
+  errors: ReferentialIntegrityError[],
+  checkTech: TechnologyReferenceCheck,
+): void {
+  for (const selection of manifest.selections) {
+    if (selection.kind === "technology") {
+      checkTech(
+        selection.technology,
+        `DefaultSelection[${selection.id}]`,
+        "technology",
+      );
+    }
+    validateSelectionOrigins(input, selection, errors);
+    validateSelectionEvidence(input, selection, errors);
+  }
+}
+
+function validateSelectionOrigins(
+  input: ValidationInput,
+  selection: DefaultSelection,
+  errors: ReferentialIntegrityError[],
+): void {
+  for (const projectSlug of selection.originProjects) {
+    if (!input.projects.has(projectSlug)) {
+      errors.push({
+        type: "missing_reference",
+        entity: `DefaultSelection[${selection.id}]`,
+        field: "originProjects",
+        value: projectSlug,
+        message: `Selection '${selection.id}' references missing origin project '${projectSlug}'`,
+      });
+    }
+  }
+}
+
+function validateSelectionEvidence(
+  input: ValidationInput,
+  selection: DefaultSelection,
+  errors: ReferentialIntegrityError[],
+): void {
+  const evidenceProjects = new Set<ProjectSlug>();
+  for (const adrRef of selection.evidenceADRs) {
+    const adr = input.adrs.get(adrRef);
+    if (!adr) {
+      errors.push({
+        type: "missing_reference",
+        entity: `DefaultSelection[${selection.id}]`,
+        field: "evidenceADRs",
+        value: adrRef,
+        message: `Selection '${selection.id}' references missing evidence ADR '${adrRef}'`,
+      });
+      continue;
+    }
+    evidenceProjects.add(adr.projectSlug);
+    if (!selection.originProjects.includes(adr.projectSlug)) {
+      errors.push({
+        type: "invalid_reference",
+        entity: `DefaultSelection[${selection.id}]`,
+        field: "evidenceADRs",
+        value: adrRef,
+        message: `Selection '${selection.id}' evidence ADR '${adrRef}' does not belong to an origin project`,
+      });
+    }
+  }
+  for (const projectSlug of selection.originProjects) {
+    if (!evidenceProjects.has(projectSlug)) {
+      errors.push({
+        type: "invalid_reference",
+        entity: `DefaultSelection[${selection.id}]`,
+        field: "originProjects",
+        value: projectSlug,
+        message: `Selection '${selection.id}' has no evidence ADR from origin project '${projectSlug}'`,
+      });
+    }
+  }
+}
+
+function validateAdoptionDecision(
+  input: ValidationInput,
+  projectSlug: ProjectSlug,
+  entity: string,
+  decision: ADRRef | undefined,
+  errors: ReferentialIntegrityError[],
+): void {
+  if (!decision) return;
+  const adr = input.adrs.get(decision);
+  if (!adr) {
+    errors.push({
+      type: "missing_reference",
+      entity,
+      field: "decision",
+      value: decision,
+      message: `${entity} references missing adoption ADR '${decision}'`,
+    });
+  } else if (adr.projectSlug !== projectSlug) {
+    errors.push({
+      type: "invalid_reference",
+      entity,
+      field: "decision",
+      value: decision,
+      message: `${entity} adoption ADR '${decision}' belongs to project '${adr.projectSlug}'`,
+    });
+  }
+}
+
+function validateProjectLayerUse(
+  input: ValidationInput,
+  manifest: PlatformManifest,
+  projectSlug: ProjectSlug,
+  use: ProjectLayerUse,
+  layerSlugs: ReadonlySet<string>,
+  slotSlugs: ReadonlySet<string>,
+  errors: ReferentialIntegrityError[],
+): void {
+  const entity = `Project[${projectSlug}].platformLayers[${use.layer}]`;
+  validateAdoptionDecision(input, projectSlug, entity, use.decision, errors);
+  if (!layerSlugs.has(use.layer)) {
+    errors.push({
+      type: "missing_reference",
+      entity: `Project[${projectSlug}]`,
+      field: "platformLayers",
+      value: use.layer,
+      message: `Project '${projectSlug}' references missing platform layer '${use.layer}'`,
+    });
+  }
+  if (input.projects.get(projectSlug)?.status === "completed" && use.tracking) {
+    errors.push({
+      type: "invalid_reference",
+      entity: `Project[${projectSlug}]`,
+      field: "platformLayers",
+      value: use.layer,
+      message: `Completed project '${projectSlug}' cannot track current platform defaults`,
+    });
+  }
+  for (const slotUse of use.slots) {
+    validateAdoptionDecision(
+      input,
+      projectSlug,
+      `${entity}.slots[${slotUse.slot}]`,
+      slotUse.decision,
+      errors,
+    );
+    if (!slotSlugs.has(slotUse.slot)) {
+      errors.push({
+        type: "missing_reference",
+        entity: `Project[${projectSlug}]`,
+        field: "platformLayers.slots",
+        value: slotUse.slot,
+        message: `Project '${projectSlug}' references missing default slot '${slotUse.slot}'`,
+      });
+    }
+    const matchingPolicies = manifest.policies.filter(
+      (policy) => policy.layer === use.layer && policy.slot === slotUse.slot,
+    );
+    const containingPolicy = matchingPolicies.some((policy) =>
+      policyContainsUse(slotUse, policy),
+    );
+    if (!containingPolicy) {
+      const policyDetails =
+        matchingPolicies.length === 0
+          ? "no matching policy exists"
+          : `available policies are ${matchingPolicies.map(formatPolicyInterval).join(", ")}`;
+      errors.push({
+        type: "invalid_reference",
+        entity: `Project[${projectSlug}]`,
+        field: "platformLayers.slots",
+        value: slotUse.slot,
+        message: `Project '${projectSlug}' slot use '${slotUse.slot}' ${formatUseInterval(slotUse)} is not fully contained by a policy for layer '${use.layer}'; ${policyDetails}`,
+      });
+    }
+  }
+}
+
+function validateProjectPlatformUses(
+  input: ValidationInput,
+  manifest: PlatformManifest,
+  layerSlugs: ReadonlySet<string>,
+  slotSlugs: ReadonlySet<string>,
+  errors: ReferentialIntegrityError[],
+): void {
+  input.projectRelations.forEach((relations, projectSlug) => {
+    if ((relations.platformLayers?.length ?? 0) > 0 && relations.role) {
+      errors.push({
+        type: "invalid_reference",
+        entity: `Project[${projectSlug}]`,
+        field: "platformLayers",
+        value: relations.role,
+        message: `Organisation-governed project '${projectSlug}' cannot adopt the personal platform`,
+      });
+    }
+    for (const use of relations.platformLayers ?? []) {
+      validateProjectLayerUse(
+        input,
+        manifest,
+        projectSlug,
+        use,
+        layerSlugs,
+        slotSlugs,
+        errors,
+      );
+    }
+  });
+}
+
+type OverrideRecord = {
+  adrRef: ADRRef;
+  project: ProjectSlug;
+  status: ADR["status"];
+  override: DefaultOverride;
+};
+
+function overrideHasAdoption(
+  input: ValidationInput,
+  manifest: PlatformManifest,
+  record: OverrideRecord,
+): boolean {
+  const policies = manifest.policies.filter(
+    (policy) =>
+      policy.slot === record.override.slot &&
+      policyContainsUse(record.override, policy),
+  );
+  const projectLayers = input.projectRelations.get(
+    record.project,
+  )?.platformLayers;
+  return policies.some((policy) =>
+    projectLayers?.some(
+      (layerUse) =>
+        layerUse.layer === policy.layer &&
+        periodContainsPeriod(layerUse, record.override) &&
+        (policy.mode === "required" ||
+          layerUse.slots.some(
+            (slotUse) =>
+              slotUse.slot === record.override.slot &&
+              periodContainsPeriod(slotUse, record.override),
+          )),
+    ),
+  );
+}
+
+function validateOverrideRecord(
+  record: OverrideRecord,
+  input: ValidationInput,
+  manifest: PlatformManifest,
+  slotSlugs: ReadonlySet<string>,
+  errors: ReferentialIntegrityError[],
+  checkTech: TechnologyReferenceCheck,
+): void {
+  const { adrRef, override } = record;
+  if (!slotSlugs.has(override.slot)) {
+    errors.push({
+      type: "missing_reference",
+      entity: `ADR[${adrRef}]`,
+      field: "overridesDefault",
+      value: override.slot,
+      message: `ADR '${adrRef}' overrides missing slot '${override.slot}'`,
+    });
+  }
+  if (override.kind === "technology") {
+    checkTech(override.technology, `ADR[${adrRef}]`, "overridesDefault");
+  }
+  const slot = manifest.slots.find(
+    (candidate) => candidate.slug === override.slot,
+  );
+  if (slot && slot.kind !== override.kind) {
+    errors.push({
+      type: "invalid_reference",
+      entity: `ADR[${adrRef}]`,
+      field: "overridesDefault",
+      value: override.slot,
+      message: `ADR '${adrRef}' override kind '${override.kind}' does not match slot '${override.slot}' kind '${slot.kind}'`,
+    });
+  }
+  if (!overrideHasAdoption(input, manifest, record)) {
+    errors.push({
+      type: "invalid_reference",
+      entity: `ADR[${adrRef}]`,
+      field: "overridesDefault",
+      value: override.slot,
+      message: `ADR '${adrRef}' override for '${override.slot}' ${formatUseInterval(override)} is not fully contained by an active layer, slot, and policy adoption`,
+    });
+  }
+}
+
+function overridesHaveSameValue(
+  left: DefaultOverride,
+  right: DefaultOverride,
+): boolean {
+  if (left.kind === "technology" && right.kind === "technology") {
+    return left.technology === right.technology;
+  }
+  if (left.kind === "policy" && right.kind === "policy") {
+    return left.value === right.value;
+  }
+  return false;
+}
+
+function conflictingOverridePairs(
+  records: OverrideRecord[],
+  allowDistinctValues: boolean,
+): Array<[OverrideRecord, OverrideRecord]> {
+  const conflicts: Array<[OverrideRecord, OverrideRecord]> = [];
+  for (let leftIndex = 0; leftIndex < records.length; leftIndex += 1) {
+    const left = records[leftIndex];
+    if (!left) continue;
+    for (
+      let rightIndex = leftIndex + 1;
+      rightIndex < records.length;
+      rightIndex += 1
+    ) {
+      const right = records[rightIndex];
+      if (!right || !periodsOverlap(left.override, right.override)) continue;
+      if (
+        allowDistinctValues &&
+        !overridesHaveSameValue(left.override, right.override)
+      )
+        continue;
+      conflicts.push([left, right]);
+    }
+  }
+  return conflicts;
+}
+
+function validateOverrideHistories(
+  records: OverrideRecord[],
+  manifest: PlatformManifest,
+  errors: ReferentialIntegrityError[],
+): void {
+  const accepted = records.filter((record) => record.status === "Accepted");
+  const histories = Map.groupBy(
+    accepted,
+    ({ project, override }) => `${project}:${override.slot}`,
+  );
+
+  for (const [projectSlot, records] of histories) {
+    const slotSlug = records[0]?.override.slot;
+    const slot = manifest.slots.find(
+      (candidate) => candidate.slug === slotSlug,
+    );
+    const conflicts = conflictingOverridePairs(
+      records,
+      slot?.cardinality === "many",
+    );
+    for (const [left, right] of conflicts) {
+      errors.push({
+        type: "invalid_reference",
+        entity: `ADR[${right.adrRef}]`,
+        field: "overridesDefault",
+        value: right.override.slot,
+        message: `Overlapping overrides for '${projectSlot}': ADR '${left.adrRef}' ${formatUseInterval(left.override)} conflicts with ADR '${right.adrRef}' ${formatUseInterval(right.override)}`,
+      });
+    }
+  }
+}
+
+function validatePlatformOverrides(
+  input: ValidationInput,
+  manifest: PlatformManifest,
+  slotSlugs: ReadonlySet<string>,
+  errors: ReferentialIntegrityError[],
+  checkTech: TechnologyReferenceCheck,
+): void {
+  const records = Array.from(input.adrs, ([adrRef, adr]) =>
+    adr.overridesDefault
+      ? {
+          adrRef,
+          project: adr.projectSlug,
+          status: adr.status,
+          override: adr.overridesDefault,
+        }
+      : undefined,
+  ).filter((record): record is OverrideRecord => record !== undefined);
+  for (const record of records) {
+    validateOverrideRecord(
+      record,
+      input,
+      manifest,
+      slotSlugs,
+      errors,
+      checkTech,
+    );
+  }
+  validateOverrideHistories(records, manifest, errors);
+}
+
+function validatePlatformReferences(
+  input: ValidationInput,
+  manifest: PlatformManifest,
+  errors: ReferentialIntegrityError[],
+  checkTech: TechnologyReferenceCheck,
+): void {
+  const layerSlugs = new Set(manifest.layers.map((layer) => layer.slug));
+  const slotSlugs = new Set(manifest.slots.map((slot) => slot.slug));
+  if (!input.projects.has(manifest.project)) {
+    errors.push({
+      type: "missing_reference",
+      entity: "PlatformManifest",
+      field: "project",
+      value: manifest.project,
+      message: `Platform project '${manifest.project}' does not exist`,
+    });
+  }
+  validatePlatformDecisions(input, manifest, errors);
+  validatePlatformSelections(input, manifest, errors, checkTech);
+  for (const layer of manifest.layers) {
+    if (layer.activatedBy) {
+      checkTech(
+        layer.activatedBy.technology,
+        `PlatformLayer[${layer.slug}]`,
+        "activatedBy.technology",
+      );
+    }
+  }
+  validateProjectPlatformUses(input, manifest, layerSlugs, slotSlugs, errors);
+  validatePlatformOverrides(input, manifest, slotSlugs, errors, checkTech);
+}
+
+function validateADRProductDecisionLinks(
+  input: ValidationInput,
+  relations: ADRRelations,
+  adrRef: ADRRef,
+  errors: ReferentialIntegrityError[],
+): void {
+  for (const decisionSlug of relations.implementsProductDecisions ?? []) {
+    if (!input.productDecisions?.has(decisionSlug)) {
+      errors.push({
+        type: "missing_reference",
+        entity: `ADR[${adrRef}]`,
+        field: "implementsProductDecisions",
+        value: decisionSlug,
+        message: `ADR '${adrRef}' references missing product decision '${decisionSlug}'`,
+      });
+    }
+  }
+}
+
+function validateProductDecisionSupersession(
+  decision: ProductDecision,
+  slug: ProductDecisionSlug,
+  productDecisions: Map<ProductDecisionSlug, ProductDecision>,
+  supersededBy: Map<ProductDecisionSlug, ProductDecisionSlug>,
+  errors: ReferentialIntegrityError[],
+): void {
+  if (decision.supersedes === slug) {
+    errors.push({
+      type: "circular_reference",
+      entity: `ProductDecision[${slug}]`,
+      field: "supersedes",
+      value: slug,
+      message: `Product decision '${slug}' cannot supersede itself`,
+    });
+  } else if (
+    decision.supersedes &&
+    !productDecisions.has(decision.supersedes)
+  ) {
+    errors.push({
+      type: "missing_reference",
+      entity: `ProductDecision[${slug}]`,
+      field: "supersedes",
+      value: decision.supersedes,
+      message: `Product decision '${slug}' supersedes missing product decision '${decision.supersedes}'`,
+    });
+  }
+  if (decision.authoredStatus === "Rejected" && decision.supersedes) {
+    errors.push({
+      type: "invalid_reference",
+      entity: `ProductDecision[${slug}]`,
+      field: "supersedes",
+      value: decision.supersedes,
+      message: `Rejected product decision '${slug}' cannot supersede another decision`,
+    });
+  }
+  if (decision.supersedes) {
+    const existingSuccessor = supersededBy.get(decision.supersedes);
+    if (existingSuccessor && existingSuccessor !== slug) {
+      errors.push({
+        type: "invalid_reference",
+        entity: `ProductDecision[${slug}]`,
+        field: "supersedes",
+        value: decision.supersedes,
+        message: `Product decision '${decision.supersedes}' is superseded by both '${existingSuccessor}' and '${slug}'`,
+      });
+    } else {
+      supersededBy.set(decision.supersedes, slug);
+    }
+  }
+  const seen = new Set<ProductDecisionSlug>([slug]);
+  let current = decision.supersedes;
+  while (current) {
+    if (seen.has(current)) {
+      errors.push({
+        type: "circular_reference",
+        entity: `ProductDecision[${slug}]`,
+        field: "supersedes",
+        value: current,
+        message: `Circular product decision supersession chain starts at '${slug}'`,
+      });
+      break;
+    }
+    seen.add(current);
+    current = productDecisions.get(current)?.supersedes;
+  }
 }
 
 export function validateReferentialIntegrity(
@@ -1009,6 +1853,7 @@ export function validateReferentialIntegrity(
     relations.ideas.forEach((ideaSlug) => {
       checkIdea(ideaSlug, `ADR[${adrRef}]`, "ideas");
     });
+    validateADRProductDecisionLinks(input, relations, adrRef, errors);
     const adr = input.adrs.get(adrRef);
     if (adr?.supersedes && !input.adrs.has(adr.supersedes)) {
       errors.push({
@@ -1069,6 +1914,85 @@ export function validateReferentialIntegrity(
     });
   });
 
+  input.blogRelations.forEach((relations, blogSlug) => {
+    for (const decisionSlug of relations.productDecisions ?? []) {
+      if (!input.productDecisions?.has(decisionSlug)) {
+        errors.push({
+          type: "missing_reference",
+          entity: `BlogPost[${blogSlug}]`,
+          field: "productDecisions",
+          value: decisionSlug,
+          message: `Blog post '${blogSlug}' references missing product decision '${decisionSlug}'`,
+        });
+      }
+    }
+  });
+
+  input.productDecisionRelations?.forEach((relations, slug) => {
+    for (const projectSlug of relations.affectedProjects) {
+      if (!input.projects.has(projectSlug)) {
+        errors.push({
+          type: "missing_reference",
+          entity: `ProductDecision[${slug}]`,
+          field: "affectedProjects",
+          value: projectSlug,
+          message: `Product decision '${slug}' references missing project '${projectSlug}'`,
+        });
+      }
+    }
+    for (const ideaSlug of relations.ideas) {
+      checkIdea(ideaSlug, `ProductDecision[${slug}]`, "ideas");
+    }
+    for (const adrRef of relations.informedByADRs) {
+      if (!input.adrs.has(adrRef)) {
+        errors.push({
+          type: "missing_reference",
+          entity: `ProductDecision[${slug}]`,
+          field: "informedByADRs",
+          value: adrRef,
+          message: `Product decision '${slug}' references missing informing ADR '${adrRef}'`,
+        });
+      }
+    }
+  });
+
+  const productDecisions = input.productDecisions;
+  const supersededBy = new Map<ProductDecisionSlug, ProductDecisionSlug>();
+  productDecisions?.forEach((decision, slug) => {
+    validateProductDecisionSupersession(
+      decision,
+      slug,
+      productDecisions,
+      supersededBy,
+      errors,
+    );
+  });
+
+  input.adrAliases?.forEach((target, alias) => {
+    const { projectSlug } = parseADRRef(alias);
+    if (!input.projects.has(projectSlug)) {
+      errors.push({
+        type: "missing_reference",
+        entity: `ADRAlias[${alias}]`,
+        field: "alias",
+        value: projectSlug,
+        message: `Legacy ADR alias '${alias}' references missing project '${projectSlug}'`,
+      });
+    }
+    if (!input.adrs.has(target)) {
+      errors.push({
+        type: "missing_reference",
+        entity: `ADRAlias[${alias}]`,
+        field: "target",
+        value: target,
+        message: `Legacy ADR alias '${alias}' references missing ADR '${target}'`,
+      });
+    }
+  });
+
+  const manifest = input.platformManifest;
+  if (manifest) validatePlatformReferences(input, manifest, errors, checkTech);
+
   return errors;
 }
 
@@ -1078,11 +2002,19 @@ export interface DomainRepository {
   initiatives: Map<InitiativeSlug, Initiative>;
   blogs: Map<BlogSlug, BlogPost>;
   projects: Map<ProjectSlug, Project>;
+  projectAliases: Map<ProjectSlug, ProjectSlug>;
   adrs: Map<ADRRef, ADR>;
+  productDecisions: Map<ProductDecisionSlug, ProductDecision>;
+  adrAliases: Map<ADRRef, ADRRef>;
   roles: Map<RoleSlug, JobRole>;
   graph: ContentGraph;
   buildingPhilosophy: string;
   referentialIntegrityErrors: ReferentialIntegrityError[];
+  platform: {
+    manifest?: PlatformManifest;
+    projectLayerUses: Map<ProjectSlug, ProjectLayerUse[]>;
+    adrOverrides: Map<ADRRef, DefaultOverride>;
+  };
 }
 
 interface LoaderResults {
@@ -1091,7 +2023,34 @@ interface LoaderResults {
   initiatives: InitiativeLoadResult;
   projects: ProjectLoadResult;
   adrs: ADRLoadResult;
+  productDecisions: ProductDecisionLoadResult;
   roles: RoleLoadResult;
+}
+
+function addProductDecisionRelationData(
+  relations: RelationData,
+  loaders: LoaderResults,
+): void {
+  for (const [slug, decisionRels] of loaders.productDecisions.relations) {
+    relations.productDecisionAffectedProjects.set(
+      slug,
+      decisionRels.affectedProjects,
+    );
+    relations.productDecisionIdeas.set(slug, decisionRels.ideas);
+    relations.productDecisionInformedByADRs.set(
+      slug,
+      decisionRels.informedByADRs,
+    );
+    relations.productDecisionEvidence.set(slug, decisionRels.evidence);
+  }
+  for (const [slug, decision] of loaders.productDecisions.entities) {
+    if (decision.supersedes) {
+      relations.productDecisionSupersedes.set(slug, decision.supersedes);
+    }
+  }
+  for (const [slug, blogRels] of loaders.blogs.relations) {
+    relations.blogProductDecisions.set(slug, blogRels.productDecisions ?? []);
+  }
 }
 
 function buildRelationDataFromLoaders(loaders: LoaderResults): RelationData {
@@ -1121,7 +2080,13 @@ function buildRelationDataFromLoaders(loaders: LoaderResults): RelationData {
     relations.adrTechnologies.set(adrRef, adrRels.technologies);
     relations.adrProject.set(adrRef, adrRels.project);
     relations.adrIdeas.set(adrRef, adrRels.ideas);
+    relations.adrImplementsProductDecisions.set(
+      adrRef,
+      adrRels.implementsProductDecisions ?? [],
+    );
   }
+
+  addProductDecisionRelationData(relations, loaders);
 
   for (const [adrRef, adr] of loaders.adrs.entities) {
     if (adr.supersedes) {
@@ -1151,7 +2116,9 @@ function buildDomainRepository(): DomainRepository {
   const initiativesResult = loadInitiatives();
   const projectsResult = loadProjects();
   const adrsResult = loadADRs();
+  const productDecisionsResult = loadProductDecisions();
   const rolesResult = loadJobRoles();
+  const platformManifest = loadPlatformManifest();
   const buildingPhilosophy = loadBuildingPhilosophy();
 
   const referentialIntegrityErrors = validateReferentialIntegrity({
@@ -1165,6 +2132,10 @@ function buildDomainRepository(): DomainRepository {
     projectRelations: projectsResult.relations,
     adrRelations: adrsResult.relations,
     roleRelations: rolesResult.relations,
+    adrAliases: adrsResult.aliases,
+    platformManifest,
+    productDecisions: productDecisionsResult.entities,
+    productDecisionRelations: productDecisionsResult.relations,
   });
 
   if (referentialIntegrityErrors.length > 0) {
@@ -1183,12 +2154,27 @@ function buildDomainRepository(): DomainRepository {
     initiatives: initiativesResult,
     projects: projectsResult,
     adrs: adrsResult,
+    productDecisions: productDecisionsResult,
     roles: rolesResult,
   };
 
   const relations = buildRelationDataFromLoaders(loaders);
   for (const [slug, technology] of technologies) {
     relations.technologyIdeas.set(slug, technology.ideas);
+  }
+  relations.platformManifest = platformManifest;
+  for (const [projectSlug, projectRelations] of projectsResult.relations) {
+    if ((projectRelations.platformLayers?.length ?? 0) > 0) {
+      relations.projectLayerUses.set(
+        projectSlug,
+        projectRelations.platformLayers ?? [],
+      );
+    }
+  }
+  for (const [adrRef, adr] of adrsResult.entities) {
+    if (adr.overridesDefault) {
+      relations.adrOverridesDefault.set(adrRef, adr.overridesDefault);
+    }
   }
   const graph = buildContentGraph({
     technologySlugs: technologies.keys(),
@@ -1204,11 +2190,19 @@ function buildDomainRepository(): DomainRepository {
     initiatives: initiativesResult.entities,
     blogs: blogsResult.entities,
     projects: projectsResult.entities,
+    projectAliases: projectsResult.aliases,
     adrs: adrsResult.entities,
+    productDecisions: productDecisionsResult.entities,
+    adrAliases: adrsResult.aliases,
     roles: rolesResult.entities,
     graph,
     buildingPhilosophy,
     referentialIntegrityErrors,
+    platform: {
+      manifest: platformManifest,
+      projectLayerUses: relations.projectLayerUses,
+      adrOverrides: relations.adrOverridesDefault,
+    },
   };
 }
 

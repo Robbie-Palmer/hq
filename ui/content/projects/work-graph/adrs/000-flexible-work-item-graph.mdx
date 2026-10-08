@@ -1,0 +1,60 @@
+---
+title: "ADR 000: Flexible work-item graph"
+date: "2026-09-13"
+status: "Accepted"
+ideas: ["directed-acyclic-graph"]
+---
+
+## Context
+
+Execution changes the shape of knowledge work. An apparently small ticket can
+turn into several dependent tasks, while an apparent epic can collapse into one
+action. Fixed initiative, project, epic, task, and subtask records make those
+discoveries expensive to represent and leave stale types behind after a plan
+changes.
+
+Initiatives and projects already have a durable source of truth in the public
+knowledge graph. Work Graph needs their priority without taking ownership of
+their prose.
+
+## Decision
+
+Keep initiative and project records as non-executable operational mirrors of
+knowledge-graph scopes. They own rank, priority weight, source revision, and
+links back to canonical prose.
+
+Represent planned work with one recursive `work_item` record and an optional
+single parent. Do not store epic, task, subtask, group, or action as permanent
+types. Derive executability from current graph state. An open item is claimable
+when it has no active lease, unresolved blocking attention, unsatisfied
+dependency, or non-terminal direct child.
+
+Model containment and blocking as separate relationships. Containment organises
+and ranks work. Dependencies decide whether it can proceed. Their combined
+waits-for projection must be acyclic: parents wait for unfinished children, and
+downstream work waits for blockers. This also rejects a child depending on its
+own parent even though neither stored relationship contains a cycle by itself.
+Released and cancelled blockers satisfy dependencies because neither remains
+required. Replacement work needs a new edge. A dependency on a parent
+constrains its descendants unless the plan moves that dependency to narrower
+work.
+
+When a worker decomposes claimed work, create the child items and dependency
+edges atomically, end the current lease, and let the children inherit the
+parent's scope and priority position. The parent becomes executable again after
+its direct children terminate.
+
+## Consequences
+
+Refactoring the plan preserves item identity and history. Discovery spikes use
+the same flow as implementation work and can finish directly or expand into a
+smaller work DAG.
+
+Queries must project ready, blocked, and waiting-on-children states instead of
+reading a fixed task type. A parent may need a final claim for synthesis even
+when its children did all expected implementation. Automatic parent completion
+can be considered after real use shows when that is safe.
+
+The hierarchy uses one parent to keep ordering and reparenting understandable.
+Typed work can still link to several knowledge scopes, ADRs, pull requests, and
+references through typed context records.

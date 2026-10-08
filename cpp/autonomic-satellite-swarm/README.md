@@ -12,48 +12,77 @@ explicit.
 
 > [!IMPORTANT]
 > This is research and demonstration software, not flight software. "Apoptosis" means entering a
-> latched safe-disabled software state. It does not physically destroy or deorbit a spacecraft. The
-> included orbital score is a historical heuristic, not validated astrodynamics.
+> safe-disabled software state that is latched until the controller resets. It does not physically
+> destroy or deorbit a spacecraft. The included orbital score is a historical heuristic, not
+> validated astrodynamics.
 
 ## What it demonstrates
 
 - A temporary leader broadcasts a mission objective.
 - Available nodes calculate a replaceable candidacy score.
 - The leader acknowledges responses and deterministically assigns the strongest candidate.
+- Equal top scores rotate across the stable responder set using the mission key, without allocation
+  history or another wire field.
+- A separate transmitter exports fixed telemetry frames at a bounded rate and retains a record when
+  its sink rejects the write.
 - A busy node does not accept more work.
-- Health policy can place a node into reversible quiescence or an irreversible safe-disabled state.
+- Health policy can place a node into reversible quiescence or a safe-disabled state latched for
+  the controller lifetime.
+- Entering safe-disabled can make one idempotent platform request. The controller records whether
+  the platform accepts it, polls accepted work until success or failure, and stays latched for every
+  outcome.
 - Repeated failure to receive acknowledgements can trigger the historical "death by default" rule.
 - Deterministic trace inputs can drop, delay, or duplicate deliveries, change directed links, and
   reset a node so protocol failures can be replayed exactly.
+- Missions use `{origin node, boot epoch, mission sequence}` keys, so messages from different nodes
+  cannot alias the same mission. Preventing aliases across leader resets also requires each node to
+  durably advance its boot epoch before restarting its mission sequence.
+- Each controller records typed mission, state, health, and send-failure evidence in a fixed
+  16-record queue. Priorities protect mission outcomes and safe-disable transitions from routine
+  records, while sequence gaps and drop counts expose lost evidence.
 
 ## Quick start
 
 [mise](https://mise.jdx.dev/) pins the developer tools and exposes the supported commands:
 
+- On Linux, install Git and a C++20 build toolchain. On Debian or Ubuntu, install the `git` and
+  `build-essential` packages.
+- On macOS, install Git and the Xcode Command Line Tools with `xcode-select --install`.
+
+Then run these commands from this directory:
+
 ```shell
 mise trust
 mise install
+mise run doctor
 mise run test
+mise run test:invariants
 mise run simulate
 mise run simulate:json
+mise run simulate:fairness
 ```
 
-The simulation should assign the southern-latitude mission to node 1:
+The simulation should assign the southern-latitude mission to one propagated node:
 
 ```text
-Mission 1 assigned to node 1
-node 0: idle
-node 1: active
+Mission 0:1:1 assigned to node 0
+node 0: active
+node 1: idle
 node 2: idle
 ```
 
 The [browser demonstration](https://robbiepalmer.me/satellite-swarm) runs the portable controller
 as WebAssembly in a module worker and draws the result on a self-hosted CesiumJS globe.
 
-`simulate:json` prints the versioned state, position, message, transition, and network-fault record
-consumed by the CesiumJS view. The paths come from scripted simulation inputs. Orbit propagation
-remains outside this demo. The browser can compare the connected mission with a run where node 1's
-winning assignment is dropped.
+`simulate:json` prints the versioned state, SGP4 position and velocity, message,
+controller-telemetry, transition, and network-fault record consumed by the CesiumJS view. Fixed
+checked-in TLEs and a fixed epoch make the full-orbit replay independent of the wall clock and
+network. The browser can compare the connected mission with a run where the winning assignment is
+dropped.
+
+`simulate:fairness` runs six missions where all three nodes score 100. It prints assignment evidence
+derived from the leader's bounded telemetry. The expected order is `0, 1, 2, 0, 1, 2`, with two
+missions per node and no dropped records.
 
 Build the browser module and compare its default output with the native fixture:
 
@@ -62,7 +91,8 @@ mise run browser:parity
 ```
 
 The task pins Emscripten, writes the untracked deployable `.mjs` and `.wasm` files under `ui/public`,
-checks a custom objective, and verifies invalid-input handling. The UI build runs the same task so
+checks a custom objective, compares the equal-score evidence byte for byte, and verifies
+invalid-input handling. The UI build runs the same task so
 deployments compile the browser module from source. The worker API is versioned separately from the
 simulation trace and display schema.
 
@@ -72,15 +102,17 @@ Run every host, firmware, formatting, lint, and spelling check with:
 mise run check
 ```
 
-`mise run coverage` also writes SonarQube's generic coverage report and rejects line coverage below
-80% or branch coverage below 70%. The monorepo's SonarQube workflow imports that report alongside
-its JavaScript and Python coverage.
+`mise run coverage` uses the pinned GNU toolchain on Linux and Apple Clang with `llvm-cov` on macOS.
+It writes SonarQube's generic coverage report and rejects line coverage below 80% or branch coverage
+below 70%. The monorepo's SonarQube workflow imports that report alongside its JavaScript and Python
+coverage.
 
 ## Architecture
 
 ```text
 src/satellite_swarm/       portable state machine, policies, types, and wire codec
 simulation/                 deterministic trace runner and observable simulation state
+third_party/sgp4/            pinned CelesTrak SGP4 reference source used by simulation only
 browser/                    C ABI, Emscripten entry point, and native/WASM parity test
 examples/simulation/       deterministic host-side three-node demonstration
 firmware/uno_ir/           legacy Arduino Uno + infrared reference adapter
@@ -89,11 +121,14 @@ tests/                     host-side behavior and characterization tests
 docs/                      architecture, protocol, and modernization notes
 ```
 
-The core depends on three interfaces:
+The core depends on five interfaces:
 
 - `Transport` moves semantic messages without exposing radio details.
 - `HealthMonitor` maps platform observations to nominal, quiescent, or fatal health.
 - `CandidacyScorer` ranks a satellite for a mission objective.
+- `SafeStateActuator` accepts or rejects one non-blocking, idempotent request when the controller
+  first enters safe-disabled and reports its eventual terminal status.
+- `TelemetrySink` accepts a diagnostic record when the platform grants output-channel access.
 
 See [Architecture](docs/architecture.md) and [Wire protocol](docs/wire-protocol.md) for the detailed
 contracts.
@@ -108,9 +143,18 @@ mise run firmware:uno
 mise run firmware:esp32
 ```
 
-The Uno adapter uses four NEC infrared frames for each validated protocol packet. The ESP32 adapter
+The Uno adapter uses six NEC infrared frames for each validated protocol packet. The ESP32 adapter
 uses ESP-NOW broadcast packets. Both are compile-tested; neither has been exercised on physical
-hardware during the revival because the original equipment is no longer available.
+hardware during the revival because the original equipment is no longer available. The Uno task
+also requires at least 768 bytes of its 2 KB SRAM to remain available for local variables and the
+runtime stack after global allocation. This compile-time guard measures static allocation only.
+
+Both sketches also send 34-byte telemetry frames over their serial diagnostic link at no more than
+one frame per second. Coordination remains on IR or ESP-NOW. The one-second interval applies only to
+the bench experiment.
+
+Worst-case stack safety under interrupt nesting and physical-target stack behavior remain
+unverified.
 
 The compile checks use reference node ID `0`. Set a distinct ID for each physical board at build
 time; the task rejects values outside the core's configured `0..15` range:
@@ -120,14 +164,21 @@ SATELLITE_SWARM_NODE_ID=2 mise run firmware:uno
 SATELLITE_SWARM_NODE_ID=2 mise run firmware:esp32
 ```
 
-Initial coordinates remain deliberately simple constants in each sketch. A real deployment needs
-durably provisioned identities, calibrated health inputs, authenticated transport with replay
-protection, mission persistence, and a genuine guidance/navigation/control implementation.
+The firmware build accepts `SATELLITE_SWARM_BOOT_EPOCH`, which defaults to `1` for compile and bench
+use. A real deployment must advance that value in durable storage before the controller starts after
+a reset. Initial coordinates remain deliberately simple constants in each sketch. A real deployment
+also needs calibrated health inputs, authenticated transport with replay protection, mission
+persistence, a hardware-specific safe-state actuator, and a genuine guidance/navigation/control
+implementation. The reference sketches do not supply a physical safe-state actuator. Without one,
+the controller records a rejected result and preserves its software latch.
 
 ## Documentation
 
 - [Architecture](docs/architecture.md)
 - [Wire protocol](docs/wire-protocol.md)
+- [Bounded telemetry](docs/telemetry.md)
+- [Deterministic orbit simulation](docs/orbit-simulation.md)
+- [Coordination semantics and invariant baseline](docs/invariant-baseline.md)
 - [Revival notes and corrected defects](docs/revival-notes.md)
 - [Next research cycle](docs/next-research-cycle.md)
 - [Distributed coordination over intermittent links](docs/distributed-coordination-research.md)

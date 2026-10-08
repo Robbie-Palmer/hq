@@ -12,10 +12,11 @@ import {
 const exported = vi.hoisted(() => ({
   spans: [] as Array<Record<string, unknown>>,
   logs: [] as Array<Record<string, unknown>>,
+  spanExportBatchSizes: [] as number[],
   traceExporterOptions: [] as Array<Record<string, unknown>>,
   logExporterOptions: [] as Array<Record<string, unknown>>,
   throwTraceExporterOnInit: false,
-  rejectTraceExporterFlush: false,
+  rejectTraceExporterExport: false,
 }));
 
 vi.mock("@opentelemetry/exporter-trace-otlp-proto", () => ({
@@ -29,16 +30,19 @@ vi.mock("@opentelemetry/exporter-trace-otlp-proto", () => ({
 
     export(
       spans: Array<Record<string, unknown>>,
-      callback: (result: { code: number }) => void,
+      callback: (result: { code: number; error?: Error }) => void,
     ) {
+      if (exported.rejectTraceExporterExport) {
+        callback({ code: 1, error: new Error("trace exporter failed") });
+        return;
+      }
+      exported.spanExportBatchSizes.push(spans.length);
       exported.spans.push(...spans);
       callback({ code: 0 });
     }
 
     forceFlush() {
-      return exported.rejectTraceExporterFlush
-        ? Promise.reject(new Error("trace exporter flush failed"))
-        : Promise.resolve();
+      return Promise.resolve();
     }
 
     shutdown() {
@@ -313,11 +317,42 @@ describe("enabled telemetry", () => {
     });
   });
 
-  it("keeps operations successful and reports exporter flush failures", async () => {
+  it("batches child spans until the explicit flush boundary", async () => {
+    const spanCount = exported.spans.length;
+    const logCount = exported.logs.length;
+
+    await withPostHogSpan(
+      {
+        env: enabledEnv,
+        serviceName: "test-service",
+        spanName: "request.child",
+        flush: false,
+      },
+      async () => undefined,
+    );
+
+    expect(exported.spans).toHaveLength(spanCount);
+    expect(exported.logs).toHaveLength(logCount + 1);
+
+    await withPostHogSpan(
+      {
+        env: enabledEnv,
+        serviceName: "test-service",
+        spanName: "request.boundary",
+      },
+      async () => undefined,
+    );
+
+    expect(exported.spans).toHaveLength(spanCount + 2);
+    expect(exported.logs).toHaveLength(logCount + 2);
+    expect(exported.spanExportBatchSizes.at(-1)).toBe(2);
+  });
+
+  it("keeps operations successful and reports exporter failures", async () => {
     const consoleError = vi
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
-    exported.rejectTraceExporterFlush = true;
+    exported.rejectTraceExporterExport = true;
 
     await expect(
       withPostHogSpan(
@@ -330,7 +365,7 @@ describe("enabled telemetry", () => {
       ),
     ).resolves.toBe("application result");
 
-    exported.rejectTraceExporterFlush = false;
+    exported.rejectTraceExporterExport = false;
     expect(consoleError).toHaveBeenCalledWith(
       expect.stringContaining('"stage":"flush traces"'),
     );
@@ -341,7 +376,7 @@ describe("enabled telemetry", () => {
     const consoleError = vi
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
-    exported.rejectTraceExporterFlush = true;
+    exported.rejectTraceExporterExport = true;
 
     await expect(
       withPostHogSpan(
@@ -355,7 +390,7 @@ describe("enabled telemetry", () => {
       ),
     ).resolves.toBe("application result");
 
-    exported.rejectTraceExporterFlush = false;
+    exported.rejectTraceExporterExport = false;
     expect(consoleError).not.toHaveBeenCalledWith(
       expect.stringContaining('"stage":"flush traces"'),
     );

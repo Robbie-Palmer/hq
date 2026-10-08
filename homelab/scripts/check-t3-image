@@ -1,11 +1,60 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-image=ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-6
+image=ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-16
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+mise_version="$(<"${script_dir}/../../.github/actions/setup-mise/mise-version")"
+package_json="${script_dir}/../images/t3-code/package.json"
+image_directory="${script_dir}/../images/t3-code"
+dockerfile="${image_directory}/Dockerfile"
+operator_patch="${script_dir}/../k3s/overlays/remote-development/workspaces/operator/deployment-patch.yaml"
+
+mise_tool_version() {
+  mise -C "$image_directory" current "$1"
+}
+
+package_version() {
+  node -e '
+    const manifest = require(process.argv[1]);
+    const version = manifest.dependencies?.[process.argv[2]];
+    if (typeof version !== "string") process.exit(1);
+    process.stdout.write(version);
+  ' "$package_json" "$1"
+}
+
+claude_version="$(package_version @anthropic-ai/claude-code)"
+agent_auth_version="$(package_version @auth/agent-cli)"
+codex_version="$(package_version @openai/codex)"
+doppler_version="$(mise_tool_version doppler)"
+grok_version="$(package_version @xai-official/grok)"
+image_mise_version="$(sed -n \
+  's/^FROM ghcr\.io\/jdx\/mise:\([^@]*\)@sha256:[a-f0-9]\{64\} AS [^[:space:]]\{1,\}$/\1/p' \
+  "$dockerfile")"
+image_manifest_mise_version="$(mise_tool_version github:jdx/mise)"
+opencode_version="$(package_version opencode-ai)"
+pnpm_version="$(package_version pnpm)"
+vale_version="$(mise_tool_version vale)"
+if [[ ! "$image_mise_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+  echo "Unable to read the pinned mise image version from $dockerfile" >&2
+  exit 1
+fi
+if [[ "$image_mise_version" != "$mise_version" ]]; then
+  echo "The t3-code mise image must match the repository mise version: $mise_version" >&2
+  exit 1
+fi
+if [[ "$image_manifest_mise_version" != "$mise_version" ]]; then
+  echo "The t3-code mise manifest must match the repository mise version: $mise_version" >&2
+  exit 1
+fi
+docker_image="$(sed -n 's/^[[:space:]]*image: \(docker:[^[:space:]]*\)$/\1/p' "$operator_patch" | head -n 1)"
+if [[ ! "$docker_image" =~ ^docker:([0-9]+\.[0-9]+\.[0-9]+)-dind-rootless@sha256:[a-f0-9]{64}$ ]]; then
+  echo "Unable to read the pinned Docker DinD image from $operator_patch" >&2
+  exit 1
+fi
+docker_version="${BASH_REMATCH[1]}"
 container="personal-site-t3-image-check-$$"
 docker_container="personal-site-rootless-docker-check-$$"
 docker_data_volume="personal-site-rootless-docker-data-check-$$"
-docker_image=docker:29.8.0-dind-rootless@sha256:e17fa54c2ffd511d8407c746eec77f7814e6f74fe20caf822dad1870599984c0
 
 cleanup() {
   docker rm --force "${container}" >/dev/null 2>&1 || true
@@ -16,30 +65,98 @@ trap cleanup EXIT
 
 docker run --rm \
   --tmpfs /data:rw,exec,uid=2000,gid=2000,mode=0750,size=1g \
+  --env "EXPECTED_CLAUDE_VERSION=${claude_version}" \
+  --env "EXPECTED_AGENT_AUTH_VERSION=${agent_auth_version}" \
+  --env "EXPECTED_CODEX_VERSION=${codex_version}" \
+  --env "EXPECTED_DOPPLER_VERSION=${doppler_version}" \
+  --env "EXPECTED_GROK_VERSION=${grok_version}" \
+  --env "EXPECTED_MISE_VERSION=${mise_version}" \
+  --env "EXPECTED_OPENCODE_VERSION=${opencode_version}" \
+  --env "EXPECTED_PNPM_VERSION=${pnpm_version}" \
+  --env "EXPECTED_VALE_VERSION=${vale_version}" \
+  --env "EXPECTED_DOCKER_VERSION=${docker_version}" \
+  --env 'AGENT_AUTH_ENCRYPTION_KEY=image-check-only' \
+  --env 'CONFIGURE_RECIPE_AGENT_MCP=true' \
   --entrypoint /bin/sh \
   "${image}" \
   -ec '
     test "$(id -u)" = 2000
     test "$(id -g)" = 2000
-    test "$(codex --version)" = "codex-cli 0.153.2"
-    test "$(claude --version)" = "2.1.260 (Claude Code)"
-    test "$(opencode --version)" = "1.18.27"
-    test "$(grok --version | cut -d" " -f1-2)" = "grok 1.0.13"
-    test "$(mise --version | cut -d" " -f1)" = "2026.9.1"
-    test "$(doppler --version)" = "v3.76.5"
-    test "$(vale --version)" = "vale version 3.19.0"
-    test "$(pnpm --version)" = "12.2.1"
-    test "$(docker --version)" = "Docker version 29.8.0, build 88096ef"
-    test "$(docker buildx version | cut -d" " -f1-3)" = "github.com/docker/buildx v0.37.0 ac30b249211430b85fb8f37b6e7154b5c47ba0b6"
+    test -x /usr/local/lib/agent-auth-mcp/src/cli.mjs
+    test -r /usr/local/lib/agent-auth-mcp/src/connections.mjs
+    test -r /usr/local/lib/agent-auth-mcp/src/options.mjs
+    test -r /usr/local/lib/agent-auth-mcp/src/server.mjs
+    test -r /usr/local/lib/agent-auth-mcp/src/storage.mjs
+    test "$(node -p "require(\"/usr/local/lib/t3-code/node_modules/@auth/agent-cli/package.json\").version")" = "$EXPECTED_AGENT_AUTH_VERSION"
+    test "$(codex --version)" = "codex-cli $EXPECTED_CODEX_VERSION"
+    test "$(claude --version)" = "$EXPECTED_CLAUDE_VERSION (Claude Code)"
+    test "$(opencode --version)" = "$EXPECTED_OPENCODE_VERSION"
+    test "$(grok --version | cut -d" " -f1-2)" = "grok $EXPECTED_GROK_VERSION"
+    test "$(mise --version | cut -d" " -f1)" = "$EXPECTED_MISE_VERSION"
+    test "$(doppler --version)" = "v$EXPECTED_DOPPLER_VERSION"
+    test "$(vale --version)" = "vale version $EXPECTED_VALE_VERSION"
+    test "$(pnpm --version)" = "$EXPECTED_PNPM_VERSION"
+    test "$MISE_TRUSTED_CONFIG_PATHS" = "/data/workspaces:/data/home/.t3/worktrees"
+    test "$(docker --version | cut -d, -f1)" = "Docker version $EXPECTED_DOCKER_VERSION"
+    test "$(docker buildx version | cut -d" " -f1-3)" = "github.com/docker/buildx v0.37.2 2d379c0c3f22da0d2759d132a0ec81ca949098f0"
     test "$(docker compose version)" = "Docker Compose version v5.5.1"
+    case ":$PATH:" in
+      *:/usr/local/lib/t3-code/node_modules/.bin:*) exit 1 ;;
+    esac
+    for cli in auth-agent claude codex grok opencode pnpm t3; do
+      test "$(command -v "$cli")" = "/usr/local/bin/$cli"
+    done
     command -v bwrap chromium git gh lsof t3 >/dev/null
     test "$PUPPETEER_EXECUTABLE_PATH" = /usr/bin/chromium
     test "$PLAYWRIGHT_BROWSERS_PATH" = /data/home/.cache/ms-playwright
+    mkdir -p /data/home/.t3/worktrees/mise-trust-check
+    printf "%s\n" "[tasks.ready]" "run = \"true\"" \
+      > /data/home/.t3/worktrees/mise-trust-check/.mise.toml
+    (cd /data/home/.t3/worktrees/mise-trust-check && mise run ready)
+    mkdir -p /data/home/.t3/userdata
+    printf "%s\n" \
+      "{\"providerInstances\":{\"codex-personal\":{\"accentColor\":\"#123456\",\"config\":{\"launchArgs\":\"--legacy\"}}}}" \
+      > /data/home/.t3/userdata/settings.json
+    mkdir -p /data/home/.codex
+    printf "%s\n" \
+      "{\"models\":[{\"slug\":\"gpt-6-astra\",\"default_reasoning_level\":\"medium\",\"priority\":0},{\"slug\":\"gpt-5.6-sol\",\"default_reasoning_level\":\"low\",\"priority\":4}]}" \
+      > /data/home/.codex/models_cache.json
+    printf "%s\n" "personality = \"pragmatic\"" \
+      > /data/home/.codex/config.toml
     node /usr/local/lib/t3-code/bootstrap-settings.mjs
     node -e '\''
+      const fs = require("node:fs");
       const settings = require("/data/home/.t3/userdata/settings.json");
       if (!settings.providers.grok.enabled) process.exit(1);
       if (!settings.providers.opencode.enabled) process.exit(1);
+      if (settings.defaultModelSelection.instanceId !== "codex") process.exit(1);
+      if (settings.defaultModelSelection.model !== "gpt-5.6-sol") process.exit(1);
+      if (settings.defaultModelSelection.options.find(({ id }) => id === "reasoningEffort")?.value !== "high") process.exit(1);
+      const codex2 = settings.providerInstances.codex2;
+      if ("codex-personal" in settings.providerInstances) process.exit(1);
+      if (codex2.driver !== "codex") process.exit(1);
+      if (codex2.displayName !== "codex2") process.exit(1);
+      if (!codex2.enabled) process.exit(1);
+      if (codex2.accentColor !== "#123456") process.exit(1);
+      if (codex2.config.homePath !== "/data/home/.codex") process.exit(1);
+      if (codex2.config.shadowHomePath !== "/data/home/.codex-personal") process.exit(1);
+      if (codex2.config.launchArgs !== "--legacy") process.exit(1);
+      const config = fs.readFileSync("/data/home/.codex/config.toml", "utf8");
+      if (!config.includes("model = \"gpt-5.6-sol\"")) process.exit(1);
+      if (!config.includes("model_reasoning_effort = \"high\"")) process.exit(1);
+      if (!config.includes("model_catalog_json = \"/data/home/.codex/model-catalog.json\"")) process.exit(1);
+      if (!config.includes("personality = \"pragmatic\"")) process.exit(1);
+      if (!config.includes("[mcp_servers.recipe-agent]")) process.exit(1);
+      if (!config.includes("command = \"/usr/local/bin/node\"")) process.exit(1);
+      if (!config.includes("/usr/local/lib/agent-auth-mcp/src/cli.mjs")) process.exit(1);
+      if (!config.includes("env_vars = [\"AGENT_AUTH_ENCRYPTION_KEY\"]")) process.exit(1);
+      if (!config.includes("https://robbiepalmer.me")) process.exit(1);
+      if (fs.statSync("/data/home/.codex/agent-auth/recipes").mode & 0o077) process.exit(1);
+      const catalog = require("/data/home/.codex/model-catalog.json");
+      const sol = catalog.models.find(({ slug }) => slug === "gpt-5.6-sol");
+      const astra = catalog.models.find(({ slug }) => slug === "gpt-6-astra");
+      if (sol.default_reasoning_level !== "high" || sol.priority !== 0) process.exit(1);
+      if (astra.priority !== 1) process.exit(1);
     '\''
     timeout 30 chromium \
       --headless \
@@ -50,7 +167,7 @@ docker run --rm \
       | grep -F browser-ready >/dev/null
   '
 
-docker run --detach --rm \
+docker run --detach \
   --name "${container}" \
   --tmpfs /data:rw,exec,uid=2000,gid=2000,mode=0750,size=1g \
   --publish 127.0.0.1::3773 \
@@ -58,7 +175,7 @@ docker run --detach --rm \
 
 port=$(docker port "${container}" 3773/tcp | sed 's/.*://')
 server_ready=false
-for _ in $(seq 1 30); do
+for _ in $(seq 1 90); do
   if curl --fail --max-time 2 --silent "http://127.0.0.1:${port}/" >/dev/null; then
     server_ready=true
     break
@@ -81,7 +198,7 @@ docker run --rm \
   "${docker_image}" \
   -eu -c 'chown 1000:2000 /data; chmod 2770 /data'
 
-docker run --detach --rm \
+docker run --detach \
   --name "${docker_container}" \
   --privileged \
   --user 1000:1000 \
@@ -94,7 +211,7 @@ docker run --detach --rm \
   --tls=false >/dev/null
 
 docker_ready=false
-for _ in $(seq 1 30); do
+for _ in $(seq 1 90); do
   if docker run --rm \
     --network "container:${docker_container}" \
     --user 2000:2000 \

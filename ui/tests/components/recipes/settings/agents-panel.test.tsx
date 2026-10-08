@@ -3,14 +3,26 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  createAgentHostEnrollment: vi.fn(),
   listAgents: vi.fn(),
+  listAgentMutations: vi.fn(),
   revokeAgent: vi.fn(),
+  undoAgentMutation: vi.fn(),
 }));
 
 vi.mock("@/lib/api/agents", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/agents")>()),
+  createAgentHostEnrollment: mocks.createAgentHostEnrollment,
   listAgents: mocks.listAgents,
   revokeAgent: mocks.revokeAgent,
+}));
+
+vi.mock("@/lib/api/recipe-agent-mutations", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@/lib/api/recipe-agent-mutations")
+  >()),
+  listAgentMutations: mocks.listAgentMutations,
+  undoAgentMutation: mocks.undoAgentMutation,
 }));
 
 import { AgentsPanel } from "@/components/recipes/settings/agents-panel";
@@ -39,7 +51,14 @@ describe("AgentsPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.listAgents.mockResolvedValue([activeAgent]);
+    mocks.createAgentHostEnrollment.mockResolvedValue({
+      hostId: "host-new",
+      token: "enroll-once",
+      expiresAt: "2026-10-02T13:00:00.000Z",
+    });
+    mocks.listAgentMutations.mockResolvedValue([]);
     mocks.revokeAgent.mockResolvedValue(undefined);
+    mocks.undoAgentMutation.mockResolvedValue(undefined);
     vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
@@ -62,12 +81,36 @@ describe("AgentsPanel", () => {
     render(<AgentsPanel />);
 
     expect(await screen.findByText("No agents connected.")).toBeInTheDocument();
-    expect(screen.getByText(/Access is read-only for now/)).toBeInTheDocument();
     expect(
-      screen.getByText(
-        /Start the connection from an Agent Auth-compatible app/,
-      ),
+      screen.getByText(/Any write access appears as a separate grant/),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Create a connection code above/),
+    ).toBeInTheDocument();
+  });
+
+  it("creates and copies a one-use host enrollment code", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    render(<AgentsPanel />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Create connection code" }),
+    );
+
+    expect(mocks.createAgentHostEnrollment).toHaveBeenCalledWith("Codex");
+    expect(screen.getByText(/enroll-once/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/does not grant pantry access yet/),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Copy code" }));
+    expect(writeText).toHaveBeenCalledWith("enroll-once");
+    expect(screen.getByRole("button", { name: "Copied" })).toBeInTheDocument();
   });
 
   it("revokes one agent and reloads the list", async () => {
@@ -108,6 +151,17 @@ describe("AgentsPanel", () => {
     expect(screen.getByText("Meal planner")).toBeInTheDocument();
   });
 
+  it("keeps agent controls available when mutation history fails", async () => {
+    mocks.listAgentMutations.mockRejectedValueOnce(
+      new Error("History unavailable"),
+    );
+    render(<AgentsPanel />);
+
+    expect(await screen.findByText("Meal planner")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Revoke access" })).toBeEnabled();
+    expect(screen.getByRole("alert")).toHaveTextContent("History unavailable");
+  });
+
   it("keeps a successful revocation visible when refresh fails", async () => {
     const user = userEvent.setup();
     mocks.listAgents
@@ -123,5 +177,89 @@ describe("AgentsPanel", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Agent list refresh failed",
     );
+  });
+
+  it("shows and undoes an agent pantry change", async () => {
+    const user = userEvent.setup();
+    const change = {
+      id: "0198f1f0-5555-7555-8555-555555555555",
+      actorType: "agent" as const,
+      agentId: "agent-1",
+      agentName: "Meal planner",
+      hostId: "host-1",
+      hostName: "Kitchen helper host",
+      capability: "pantry.reconcile",
+      targetType: "pantry",
+      targetId: "user-1",
+      reason: "Put away the grocery delivery",
+      compensatesChangeSetId: null,
+      createdAt: "2026-08-22T10:00:00.000Z",
+      items: [
+        {
+          stableItemId: "0198f1f0-6666-7666-8666-666666666666",
+          ingredientSlug: "onion",
+          beforeValue: null,
+          afterValue: { ingredientSlug: "onion", location: "fresh" as const },
+          beforeVersion: null,
+          afterVersion: "1",
+        },
+      ],
+    };
+    mocks.listAgentMutations
+      .mockResolvedValueOnce([change])
+      .mockResolvedValueOnce([]);
+    render(<AgentsPanel />);
+
+    expect(
+      await screen.findByText("Put away the grocery delivery"),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+
+    expect(mocks.undoAgentMutation).toHaveBeenCalledWith(change.id);
+    await waitFor(() =>
+      expect(mocks.listAgentMutations).toHaveBeenCalledTimes(2),
+    );
+  });
+
+  it("does not offer to undo a change that has a compensation", async () => {
+    const originalId = "0198f1f0-5555-7555-8555-555555555555";
+    mocks.listAgentMutations.mockResolvedValueOnce([
+      {
+        id: "0198f1f0-7777-7777-8777-777777777777",
+        actorType: "user",
+        agentId: null,
+        agentName: null,
+        hostId: null,
+        hostName: null,
+        capability: "agent_mutation.undo",
+        targetType: "pantry",
+        targetId: "user-1",
+        reason: "Undo: Put away groceries",
+        compensatesChangeSetId: originalId,
+        createdAt: "2026-08-22T11:00:00.000Z",
+        items: [],
+      },
+      {
+        id: originalId,
+        actorType: "agent",
+        agentId: "agent-1",
+        agentName: "Meal planner",
+        hostId: "host-1",
+        hostName: "Kitchen helper host",
+        capability: "pantry.reconcile",
+        targetType: "pantry",
+        targetId: "user-1",
+        reason: "Put away groceries",
+        compensatesChangeSetId: null,
+        createdAt: "2026-08-22T10:00:00.000Z",
+        items: [],
+      },
+    ]);
+    render(<AgentsPanel />);
+
+    expect(await screen.findByText("Change undone")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Undo" }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -1,0 +1,13 @@
+{
+  "name": "personal-site-t3-code-image",
+  "private": true,
+  "dependencies": {
+    "@anthropic-ai/claude-code": "2.1.287",
+    "@auth/agent-cli": "0.5.1",
+    "@openai/codex": "0.160.0",
+    "@xai-official/grok": "1.0.46",
+    "opencode-ai": "1.18.34",
+    "pnpm": "12.8.2",
+    "t3": "0.0.44"
+  }
+}

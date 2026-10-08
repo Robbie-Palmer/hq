@@ -1,0 +1,25 @@
+---
+title: "ADR 005: Capability-specific database defaults"
+date: "2026-09-12"
+status: "Accepted"
+tech_stack:
+  - "PostgreSQL"
+  - "Neon"
+  - "DuckDB"
+---
+
+## Context
+
+Transactional storage and analytical SQL have different requirements. One
+database slot would hide those differences.
+
+## Decision
+
+Use separate preferred slots. Select PostgreSQL for relational storage, Neon
+when PostgreSQL needs a managed host, and DuckDB for OLAP. Neon requires the
+PostgreSQL selection.
+
+## Consequences
+
+Database-backed projects activate only the capabilities they use. A project
+can replace one choice without overriding the others.

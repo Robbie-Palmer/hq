@@ -238,11 +238,19 @@ const agentPublicKey = await publicJWK(agentKeys.publicKey, agentKid);
 const requestedCapabilities = [
   "recipes.search",
   "recipes.read",
+  "recipes.dataset.inspect",
+  "recipe_import.create",
+  "recipe_import.status",
+  "pantry.read",
   "cook_log.read",
   "cooking_insights.read",
 ];
 
-const host = await expectJson<{ hostId: string; status: string }>(
+const pendingHost = await expectJson<{
+  enrollmentToken: string;
+  hostId: string;
+  status: string;
+}>(
   "/api/auth/host/create",
   {
     method: "POST",
@@ -253,12 +261,26 @@ const host = await expectJson<{ hostId: string; status: string }>(
     },
     body: JSON.stringify({
       name: "ADR 061 preview smoke host",
-      public_key: hostPublicKey,
       default_capabilities: [],
     }),
   },
 );
-if (host.status !== "active") {
+if (pendingHost.status !== "pending_enrollment") {
+  throw new Error(`Preview host has unexpected status: ${pendingHost.status}`);
+}
+const host = await expectJson<{ hostId: string; status: string }>(
+  "/api/auth/host/enroll",
+  {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      name: "ADR 061 preview smoke host",
+      public_key: hostPublicKey,
+      token: pendingHost.enrollmentToken,
+    }),
+  },
+);
+if (host.hostId !== pendingHost.hostId || host.status !== "active") {
   throw new Error(`Preview host has unexpected status: ${host.status}`);
 }
 
@@ -283,7 +305,8 @@ const registration = await expectJson<Registration>(
     body: JSON.stringify({
       name: "ADR 061 preview smoke agent",
       capabilities: requestedCapabilities,
-      reason: "Verify delegated recipe and cooking-history reads on PR preview",
+      reason:
+        "Verify delegated recipe, pantry, and cooking-history reads on PR preview",
       mode: "delegated",
       preferred_method: "device_authorization",
     }),
@@ -450,6 +473,111 @@ if (
   !read.data.recipe.body
 ) {
   throw new Error("Recipe read did not return the delegated user's private recipe");
+}
+
+const datasetToken = await agentJWT(
+  agentKeys.privateKey,
+  agentKid,
+  registration.agent_id,
+  registration.host_id,
+  discovery.issuer,
+  "recipes.dataset.inspect",
+);
+const datasetResponse = await execute(
+  discovery.endpoints.execute,
+  datasetToken,
+  "recipes.dataset.inspect",
+  { sampleSize: 100, top: 10 },
+);
+if (!datasetResponse.ok) {
+  throw new Error(
+    `Recipe dataset inspection failed: ${await datasetResponse.text()}`,
+  );
+}
+const dataset = (await datasetResponse.json()) as {
+  data: {
+    population: { visibleRecipes: number; sampledRecipes: number };
+    visibility: { public: number; private: number };
+    sample: {
+      parseQuality: { validPayloads: number };
+      ingredients: { distinct: number };
+    };
+  };
+};
+if (
+  dataset.data.population.visibleRecipes < 2 ||
+  dataset.data.population.sampledRecipes < 2 ||
+  dataset.data.visibility.public < 1 ||
+  dataset.data.visibility.private < 1 ||
+  dataset.data.sample.parseQuality.validPayloads < 2 ||
+  dataset.data.sample.ingredients.distinct < 1
+) {
+  throw new Error("Recipe dataset inspection omitted seeded visible recipes");
+}
+
+const importStatusToken = await agentJWT(
+  agentKeys.privateKey,
+  agentKid,
+  registration.agent_id,
+  registration.host_id,
+  discovery.issuer,
+  "recipe_import.status",
+);
+const importStatusResponse = await execute(
+  discovery.endpoints.execute,
+  importStatusToken,
+  "recipe_import.status",
+  { limit: 20 },
+);
+if (!importStatusResponse.ok) {
+  throw new Error(
+    `Recipe import status failed: ${await importStatusResponse.text()}`,
+  );
+}
+const importStatus = (await importStatusResponse.json()) as {
+  data: { imports: unknown[] };
+};
+if (
+  importStatus.data.imports.length > 20 ||
+  /r2Key|prompt|preview|source/.test(JSON.stringify(importStatus.data))
+) {
+  throw new Error("Recipe import status exposed unbounded or private data");
+}
+
+const pantryToken = await agentJWT(
+  agentKeys.privateKey,
+  agentKid,
+  registration.agent_id,
+  registration.host_id,
+  discovery.issuer,
+  "pantry.read",
+);
+const pantryResponse = await execute(
+  discovery.endpoints.execute,
+  pantryToken,
+  "pantry.read",
+  {},
+);
+if (!pantryResponse.ok) {
+  throw new Error(`Pantry read failed: ${await pantryResponse.text()}`);
+}
+const pantry = (await pantryResponse.json()) as {
+  data: {
+    resourceId: string;
+    scope: "personal" | "household";
+    revision: string;
+    stock: Record<string, string>;
+    itemVersions: Record<string, string>;
+  };
+};
+if (
+  pantry.data.scope !== "personal" ||
+  pantry.data.resourceId.length === 0 ||
+  pantry.data.stock["penne-pasta"] !== "cupboards" ||
+  !/^\d+$/.test(pantry.data.revision) ||
+  !/^\d+$/.test(pantry.data.itemVersions["penne-pasta"] ?? "")
+) {
+  throw new Error("Pantry read did not return the delegated user's current pantry");
 }
 
 const cookLogToken = await agentJWT(

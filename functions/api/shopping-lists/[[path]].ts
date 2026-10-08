@@ -1,16 +1,7 @@
-import {
-  proxyRecipeApiRequest,
-  type RecipeApiProxyContext,
-} from "../auth/routing";
+import { proxyLeaf } from "../auth/routing";
 
-export const onRequest = (context: RecipeApiProxyContext): Promise<Response> =>
-  proxyRecipeApiRequest(
-    context,
-    "Shopping-list APIs are available on the canonical PR preview URL only",
-    "Shopping lists",
-    (path) =>
-      path === "/api/shopping-lists" ||
-      path.startsWith("/api/shopping-lists/")
-        ? path.replace(/^\/api/, "")
-        : "",
-  );
+export const onRequest = proxyLeaf(
+  "shopping-lists",
+  "Shopping lists",
+  "Shopping-list APIs",
+);

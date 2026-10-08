@@ -2,17 +2,29 @@
 #define SATELLITE_SWARM_SIMULATION_HPP
 
 #include "satellite_swarm/controller.hpp"
+#include "satellite_swarm/orbit.hpp"
 
+#include <optional>
 #include <stdint.h>
 #include <vector>
 
 namespace satellite_swarm::simulation {
 
-constexpr uint8_t kSimulationTraceVersion = 2U;
+constexpr uint8_t kSimulationTraceVersion = 5U;
 
 struct NodeConfiguration {
+  NodeConfiguration() = default;
+  NodeConfiguration(NodeId configured_node_id, SatelliteSnapshot configured_satellite,
+                    BootEpoch configured_boot_epoch = 1U,
+                    SafeStateResult configured_safe_state_result = SafeStateResult::Rejected)
+      : node_id(configured_node_id), satellite(configured_satellite),
+        boot_epoch(configured_boot_epoch), safe_state_request_result(configured_safe_state_result) {
+  }
+
   NodeId node_id = 0U;
   SatelliteSnapshot satellite{};
+  BootEpoch boot_epoch = 1U;
+  SafeStateResult safe_state_request_result = SafeStateResult::Rejected;
 };
 
 struct SatelliteUpdate {
@@ -20,14 +32,32 @@ struct SatelliteUpdate {
   SatelliteSnapshot satellite{};
 };
 
+struct OrbitUpdate {
+  OrbitUpdate() = default;
+  OrbitUpdate(NodeId configured_node_id, const PropagationResult& configured_orbit)
+      : node_id(configured_node_id), orbit(configured_orbit) {}
+
+  NodeId node_id = 0U;
+  PropagationResult orbit{};
+};
+
 struct HealthUpdate {
   NodeId node_id = 0U;
   HealthStatus health = HealthStatus::Nominal;
 };
 
+struct SafeStateStatusUpdate {
+  NodeId node_id = 0U;
+  SafeStateExecutionStatus status = SafeStateExecutionStatus::Pending;
+};
+
 struct MissionCommand {
   NodeId leader = 0U;
   Coordinate objective{};
+};
+
+struct MissionCompletion {
+  NodeId node_id = 0U;
 };
 
 enum class DeliveryFaultType : uint8_t { Drop, Delay, Duplicate };
@@ -56,13 +86,18 @@ struct NodeReset {
 struct SimulationFrame {
   uint32_t now_ms = 0U;
   std::vector<SatelliteUpdate> satellite_updates;
+  std::vector<OrbitUpdate> orbit_updates;
   std::vector<HealthUpdate> health_updates;
+  // Status changes take effect before controller updates in the same frame.
+  std::vector<SafeStateStatusUpdate> safe_state_status_updates;
   // Link changes take effect before resets, delayed-message release, and controller updates.
   std::vector<LinkUpdate> link_updates;
   // Link availability takes precedence over a matching directive, which is still consumed.
   std::vector<DeliveryFault> delivery_faults;
   // Resets complete before due delayed messages are released to the replacement controller.
   std::vector<NodeReset> node_resets;
+  // Completions run before new mission commands, so a node can finish and lead within one frame.
+  std::vector<MissionCompletion> mission_completions;
   std::vector<MissionCommand> mission_commands;
 };
 
@@ -77,6 +112,7 @@ struct SimulationTrace {
 
 enum class SimulationEventType : uint8_t {
   MissionCommand,
+  MissionCompletion,
   MessageSent,
   MessageDropped,
   MessageDelayed,
@@ -84,7 +120,8 @@ enum class SimulationEventType : uint8_t {
   DelayedMessageDelivered,
   LinkChanged,
   NodeReset,
-  StateChanged
+  StateChanged,
+  ControllerTelemetry
 };
 
 struct SimulationEvent {
@@ -100,16 +137,20 @@ struct SimulationEvent {
   Message message{};
   ControllerState previous_state = ControllerState::Idle;
   ControllerState current_state = ControllerState::Idle;
+  TelemetryEvent telemetry{};
 };
 
 struct NodeObservation {
   NodeId node_id = 0U;
   ControllerState state = ControllerState::Idle;
   SatelliteSnapshot satellite{};
-  MissionId mission_id = 0U;
+  BootEpoch boot_epoch = 0U;
+  MissionKey mission_key{};
   NodeId assigned_node = kBroadcastNode;
   uint8_t candidacy_score = 0U;
   uint8_t communication_failures = 0U;
+  uint32_t telemetry_drops = 0U;
+  std::optional<PropagationResult> orbit;
 };
 
 struct FrameObservation {

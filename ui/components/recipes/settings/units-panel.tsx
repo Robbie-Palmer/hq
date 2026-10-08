@@ -225,6 +225,27 @@ function dividerBounds(
   return { min: previous, max };
 }
 
+function thresholdValueForKey(
+  key: string,
+  value: number,
+  min: number,
+  max: number,
+): number | null {
+  const step = thresholdStep(value);
+  const candidates: Record<string, number> = {
+    ArrowDown: value - step,
+    ArrowLeft: value - step,
+    ArrowRight: value + step,
+    ArrowUp: value + step,
+    End: max,
+    Home: min,
+  };
+  const candidate = candidates[key];
+  return candidate === undefined
+    ? null
+    : Math.min(max, Math.max(min, candidate));
+}
+
 function ThresholdRuler({
   dimension,
   tiers,
@@ -303,23 +324,15 @@ function ThresholdRuler({
                 }
               }}
               onKeyDown={(event) => {
-                const step = thresholdStep(tier.upTo);
-                let nextValue: number | null = null;
-                if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
-                  nextValue = tier.upTo - step;
-                } else if (
-                  event.key === "ArrowRight" ||
-                  event.key === "ArrowUp"
-                ) {
-                  nextValue = tier.upTo + step;
-                } else if (event.key === "Home") {
-                  nextValue = min;
-                } else if (event.key === "End") {
-                  nextValue = max;
-                }
+                const nextValue = thresholdValueForKey(
+                  event.key,
+                  tier.upTo,
+                  min,
+                  max,
+                );
                 if (nextValue == null) return;
                 event.preventDefault();
-                onChange(index, Math.min(max, Math.max(min, nextValue)));
+                onChange(index, nextValue);
               }}
               className="absolute inset-y-0 z-10 w-5 -translate-x-1/2 cursor-ew-resize touch-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--terracotta)] focus-visible:ring-offset-2"
               style={{ left: `${thresholdPosition(tier.upTo)}%` }}

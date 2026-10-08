@@ -1,0 +1,29 @@
+name: Work Graph database CI
+
+on:
+  pull_request:
+    paths:
+      - "packages/work-graph-db/**"
+      - "packages/work-graph-domain/**"
+      - ".github/actions/setup-mise/**"
+      - ".github/workflows/work-graph-db-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Check schema, migrations, and TypeScript
+        run: mise run //packages/work-graph-db:check
+
+      - name: Test atomic graph mutations against PostgreSQL
+        run: mise run //packages/work-graph-db:test:integration

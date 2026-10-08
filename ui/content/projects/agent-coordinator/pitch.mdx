@@ -1,0 +1,206 @@
+---
+title: "Agent Coordinator pitch"
+description: "Turn subsidized reasoning capacity into continuous progress on critical work"
+---
+
+# Put every spare reasoning token on the critical path
+
+Agent Coordinator turns subsidized model capacity into useful parallel work.
+
+<PitchNotes>
+  The aim is bigger than assigning tasks. Paid plans provide a shifting pool of reasoning capacity. The coordinator
+  should keep that capacity aimed at the most valuable work that can begin now.
+
+  \[Sources]
+
+  * [Agent Coordinator vision](/projects/agent-coordinator?tab=overview#vision)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## Reasoning capacity is perishable
+
+Subscription allowances reset. Rate limits recover. Agents become available.
+
+Meanwhile, ready work waits because nobody notices that a critical path has opened.
+
+<p className="pitch-slide__statement">Unused capacity and delayed work are the same missed opportunity.</p>
+
+<PitchNotes>
+  The opportunity comes from treating model subscriptions as a changing pool of prepaid capacity. A task can become
+  ready while the person or agent best suited to it is working elsewhere. The coordinator closes that gap.
+
+  \[Sources]
+
+  * [Why Agent Coordinator is separate](/projects/agent-coordinator?tab=overview#why-this-is-separate)
+  * [Agent Coordinator success criteria](/projects/agent-coordinator?tab=overview#success)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## When a blocker clears, useful work should fan out
+
+<Mermaid
+  chart={`flowchart TB
+Open[Critical-path blocker clears] --> Research[Research]
+Open --> Build[Build]
+Open --> Validate[Validate]
+Research --> Next[The next constraint moves]
+Build --> Next
+Validate --> Next
+`}
+/>
+
+<p className="pitch-slide__statement">Parallelism matters when every branch shortens the route to the outcome.</p>
+
+<PitchNotes>
+  The goal is not maximum activity. It is maximum useful concurrency. Work should fan out only when the branches are
+  genuinely ready and each one advances the current critical path.
+
+  \[Sources]
+
+  * [Agent Coordinator vision](/projects/agent-coordinator?tab=overview#vision)
+  * [Agent Coordinator success criteria](/projects/agent-coordinator?tab=overview#success)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## Planning decides what matters. Coordination spends the capacity.
+
+<PitchColumns>
+  <PitchColumn>
+    ### Work Graph
+
+    Priority, dependencies, readiness and the critical path.
+  </PitchColumn>
+
+  <PitchColumn>
+    ### Agent Coordinator
+
+    Actor, model tier, reasoning level and available plan allowance.
+  </PitchColumn>
+</PitchColumns>
+
+<p className="pitch-slide__statement">The plan stays durable. Allocation adapts whenever work or capacity changes.</p>
+
+<PitchNotes>
+  The Work Graph answers what should happen next. Agent Coordinator decides how to spend the capacity available now.
+  Separating them keeps provider plans and model names out of the durable project plan.
+
+  \[Sources]
+
+  * [Why Agent Coordinator is separate](/projects/agent-coordinator?tab=overview#why-this-is-separate)
+  * [Agent Coordinator architecture](/projects/agent-coordinator?tab=overview#architecture)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## Match the task to the right depth of thought
+
+* Reserve frontier models and high reasoning for ambiguous, consequential work.
+* Send bounded implementation to capable mid-tier models.
+* Pack routine work into fast, cheap or already-subscribed capacity.
+* Route around exhausted plans before buying overflow.
+
+<p className="pitch-slide__statement">Use the least expensive route likely to finish the task well.</p>
+
+<PitchNotes>
+  The coordinator should consider the task, not a permanent model ranking. Required capability, expected reasoning
+  depth, recent outcomes, current availability and remaining plan limits all affect the assignment.
+
+  \[Sources]
+
+  * [Why Agent Coordinator is separate](/projects/agent-coordinator?tab=overview#why-this-is-separate)
+  * [Actor model](/projects/agent-coordinator?tab=overview#actors)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## Start personal. Scale to teams. Open to contributors.
+
+1. **Personal:** keep one person's agents productive across several subscriptions.
+2. **Team:** share capacity under explicit budgets, access rules and concurrency limits.
+3. **Contributor:** match public work to people using their own agents and plans.
+
+<p className="pitch-slide__statement">Each stage adds capacity without giving away control of the plan.</p>
+
+<PitchNotes>
+  Personal use proves the allocation loop with the smallest trust boundary. Team mode adds shared policy. Contributor
+  mode lets outside participants bring their own subsidized capacity without handing credentials to the project.
+
+  \[Sources]
+
+  * [Personal mode](/projects/agent-coordinator?tab=overview#personal-mode)
+  * [Contributor mode](/projects/agent-coordinator?tab=overview#contributor-mode)
+  * [Agent Coordinator architecture](/projects/agent-coordinator?tab=overview#architecture)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## The first release is a recommendation engine
+
+It watches ready work, available agents and remaining plan capacity.
+
+When the critical path changes, it proposes the next assignment and explains why.
+
+<p className="pitch-slide__statement">A person approves the match. Automatic routing comes after the recommendations prove useful.</p>
+
+<PitchNotes>
+  The first release should recommend an actor, model tier and reasoning level before any lease is claimed. It should
+  also preserve enough context to resume when a plan limit interrupts a session. It should not route work unattended.
+
+  \[Sources]
+
+  * [First useful release](/projects/agent-coordinator?tab=overview#first-useful-release)
+  * [Agent Coordinator architecture](/projects/agent-coordinator?tab=overview#architecture)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## Win by moving valuable work sooner
+
+* Critical-path work spends less time waiting.
+* Ready branches start in parallel when suitable capacity exists.
+* Less paid-for model capacity expires unused.
+* Fewer assignments stall, exceed limits or need reassignment.
+
+<p className="pitch-slide__statement">The measure is faster progress on outcomes.</p>
+
+<PitchNotes>
+  These measures protect the product from optimizing utilization for its own sake. Cheap activity on low-value work is
+  a failure if the critical path remains idle.
+
+  \[Sources]
+
+  * [Agent Coordinator success criteria](/projects/agent-coordinator?tab=overview#success)
+  * [Agent Coordinator non-goals](/projects/agent-coordinator?tab=overview#non-goals)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## Keep the critical path supplied with reasoning
+
+As work opens, allocate the best available combination of agent, model, reasoning depth and plan capacity.
+
+Then do it again when the plan changes.
+
+[Read the full project account](/projects/agent-coordinator?tab=overview)
+
+<PitchNotes>
+  The long-term vision is continuous allocation. The coordinator notices newly ready work, exploits safe parallelism
+  and reallocates as plan limits, model availability and project priorities change.
+
+  \[Sources]
+
+  * [Agent Coordinator vision](/projects/agent-coordinator?tab=overview#vision)
+  * [Agent Coordinator responsibilities](/projects/agent-coordinator?tab=overview#responsibilities)
+    \[/Sources]
+</PitchNotes>

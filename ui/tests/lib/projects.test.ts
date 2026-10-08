@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   getAllADRs,
+  getAllProjectAliasADRPaths,
+  getAllProjectAliases,
   getAllProjectSlugs,
   getAllProjects,
   getProject,
@@ -32,6 +34,22 @@ describe("Projects functions", () => {
   });
 
   describe("getProject", () => {
+    it("resolves the previous Personal Site slug", () => {
+      expect(getAllProjectAliases()).toContainEqual({
+        alias: "personal-site",
+        target: "personal-knowledge-graph",
+      });
+      expect(getProject("personal-site")).toMatchObject({
+        slug: "personal-knowledge-graph",
+        title: "Personal Knowledge Graph",
+      });
+      expect(getAllProjectAliasADRPaths()).toContainEqual({
+        alias: "personal-site",
+        target: "personal-knowledge-graph",
+        adrSlug: "048-sonarqube",
+      });
+    });
+
     it("loads an optional project pitch deck", () => {
       const project = getProject("agentic-code-review");
 
@@ -41,6 +59,17 @@ describe("Projects functions", () => {
       expect(project.pitch?.content).toContain("<PitchNotes>");
       expect(project.pitch?.content).not.toContain("integration test");
       expect(project.pitch?.content).not.toContain("<ReviewDepthDemo />");
+    });
+
+    it("loads published research paper metadata", () => {
+      const project = getProject("autonomic-satellite-swarm");
+
+      expect(project.paperUrl).toBe(
+        "https://doi.org/10.1109/SMC-IT.2019.00015",
+      );
+      expect(project.paperTitle).toBe(
+        "Autonomic Providing Pre-Programmed Death of Cubesats for Avoiding Space JUNK",
+      );
     });
 
     it("should return project with all required fields", () => {
@@ -101,7 +130,7 @@ describe("Projects functions", () => {
     });
 
     it("should include technologies from accepted ADRs", () => {
-      const project = getProject("personal-site");
+      const project = getProject("personal-knowledge-graph");
       const acceptedADRs = project.adrs.filter(
         (adr) => adr.status === "Accepted",
       );
@@ -217,6 +246,38 @@ describe("Projects functions", () => {
         getProjectADR(slugs[0] ?? "", "non-existent-adr-12345"),
       ).toThrow("ADR not found");
     });
+
+    it("resolves a legacy ADR URL to its canonical record", () => {
+      expect(
+        getProjectADR("recipe-site", "000-github-public-repo"),
+      ).toMatchObject({
+        projectSlug: "personal-knowledge-graph",
+        slug: "000-github-public-repo",
+        adrRef: "personal-knowledge-graph:000-github-public-repo",
+      });
+    });
+
+    it.each([
+      [
+        "agentic-code-review",
+        "031-custom-agentic-code-review",
+        "000-custom-agentic-code-review",
+      ],
+      [
+        "recipe-site",
+        "067-versioned-ingredient-density-catalog-and-source-ingestion",
+        "025-versioned-ingredient-density-catalog-and-source-ingestion",
+      ],
+    ])(
+      "resolves the former canonical URL %s:%s after sequence compaction",
+      (projectSlug, legacySlug, canonicalSlug) => {
+        expect(getProjectADR(projectSlug, legacySlug)).toMatchObject({
+          projectSlug,
+          slug: canonicalSlug,
+          adrRef: `${projectSlug}:${canonicalSlug}`,
+        });
+      },
+    );
 
     it("should throw error if ADR is requested from a different project route", () => {
       const projects = getAllProjects();

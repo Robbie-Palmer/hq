@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { extractGraphData } from "@/lib/api/graph-data";
 import type { DomainRepository } from "@/lib/domain";
+import { loadDomainRepository } from "@/lib/repository";
+import {
+  getOverridesForDefaultSlot,
+  getPlatformLayersForProject,
+  getProjectsForPlatformLayer,
+} from "@/lib/repository/graph/queries";
 
 describe("extractGraphData", () => {
   it("skips ADR nodes when project mapping is missing", () => {
@@ -13,7 +19,16 @@ describe("extractGraphData", () => {
       initiatives: new Map([
         ["software-development", { title: "Software Development" }],
       ]),
-      projects: new Map([["site", { title: "Site" }]]),
+      projects: new Map([
+        [
+          "site",
+          {
+            title: "Site",
+            paperTitle: "A Site Paper",
+            paperUrl: "https://doi.org/10.1000/site",
+          },
+        ],
+      ]),
       blogs: new Map(),
       roles: new Map(),
       adrs: new Map([
@@ -83,6 +98,18 @@ describe("extractGraphData", () => {
       target: "initiative:software-development",
       type: "CONTRIBUTES_TO_INITIATIVE",
     });
+    expect(data.nodes).toContainEqual({
+      id: "paper:site",
+      name: "A Site Paper",
+      type: "paper",
+      href: "https://doi.org/10.1000/site",
+      connections: 1,
+    });
+    expect(data.edges).toContainEqual({
+      source: "project:site",
+      target: "paper:site",
+      type: "HAS_RESEARCH_PAPER",
+    });
     expect(data.nodes).toContainEqual(
       expect.objectContaining({
         id: "idea:conways-law",
@@ -110,6 +137,152 @@ describe("extractGraphData", () => {
     ).toHaveLength(1);
     expect(data.edges).not.toContainEqual(
       expect.objectContaining({ target: "idea:missing-idea" }),
+    );
+  });
+
+  it("presents platform policy as direct project-layer-technology edges", () => {
+    const repository = loadDomainRepository();
+    const data = extractGraphData(repository);
+    const implementationNodePrefixes = [
+      "default-slot:",
+      "layer-extension:",
+      "layer-slot-policy:",
+      "default-selection:",
+      "project-layer-use:",
+      "project-slot-use:",
+    ];
+
+    expect(
+      data.nodes.some((node) =>
+        implementationNodePrefixes.some((prefix) => node.id.startsWith(prefix)),
+      ),
+    ).toBe(false);
+    expect(data.edges).toContainEqual(
+      expect.objectContaining({
+        source: "project:agentic-code-review",
+        target: "platform-layer:observability",
+        type: "USES_PLATFORM_LAYER",
+      }),
+    );
+    expect(data.edges).toContainEqual(
+      expect.objectContaining({
+        source: "platform-layer:backend-api",
+        target: "technology:cloudflare-workers",
+        type: "PREFERS_TECHNOLOGY",
+      }),
+    );
+    expect(data.nodes).toContainEqual(
+      expect.objectContaining({
+        id: "platform-policy:governance-license-agpl-3-0-2026-09-15",
+        name: "AGPL-3.0",
+        type: "platform-policy",
+      }),
+    );
+    expect(data.edges).toContainEqual(
+      expect.objectContaining({
+        source: "platform-layer:governance",
+        target: "platform-policy:governance-license-agpl-3-0-2026-09-15",
+        type: "REQUIRES_POLICY",
+      }),
+    );
+    expect(data.edges).toContainEqual(
+      expect.objectContaining({
+        source: "platform-layer:base",
+        target: "technology:codex",
+        type: "REQUIRES_TECHNOLOGY",
+        provenance: expect.objectContaining({
+          slot: "development.coding-agents",
+        }),
+      }),
+    );
+    expect(
+      data.edges.filter(
+        (edge) =>
+          edge.source ===
+            "adr:personal-engineering-platform:001-language-defaults" &&
+          edge.target === "project:personal-knowledge-graph" &&
+          edge.type === "DRIVEN_BY",
+      ),
+    ).toHaveLength(1);
+    expect(
+      getPlatformLayersForProject(repository.graph, "recipe-site"),
+    ).toContain("backend-api");
+    expect(getProjectsForPlatformLayer(repository.graph, "base")).toContain(
+      "personal-knowledge-graph",
+    );
+    expect(
+      getOverridesForDefaultSlot(repository.graph, "project.primary-language"),
+    ).toContain("agent-first-writing:009-primary-language-python");
+    expect(data.edges).toContainEqual(
+      expect.objectContaining({
+        source: "adr:agent-first-writing:009-primary-language-python",
+        target: "technology:python",
+        type: "OVERRIDES_DEFAULT",
+        provenance: expect.objectContaining({
+          slot: "project.primary-language",
+          decision: "agent-first-writing:009-primary-language-python",
+        }),
+      }),
+    );
+  });
+
+  it("uses effective layer-use provenance after re-adoption", () => {
+    const repository = loadDomainRepository();
+    const projectLayerUses = new Map(repository.platform.projectLayerUses);
+    const existingUses = projectLayerUses.get("personal-knowledge-graph") ?? [];
+    projectLayerUses.set("personal-knowledge-graph", [
+      ...existingUses.filter((use) => use.layer !== "base"),
+      {
+        layer: "base",
+        adopted: "2026-09-12T00:00:00Z",
+        until: "2026-09-13T00:00:00Z",
+        tracking: false,
+        slots: [],
+      },
+      {
+        layer: "base",
+        adopted: "2026-09-13T00:00:00Z",
+        tracking: true,
+        slots: [],
+      },
+    ]);
+
+    const data = extractGraphData({
+      ...repository,
+      platform: { ...repository.platform, projectLayerUses },
+    });
+
+    expect(data.edges).toContainEqual(
+      expect.objectContaining({
+        source: "project:personal-knowledge-graph",
+        target: "platform-layer:base",
+        type: "USES_PLATFORM_LAYER",
+        provenance: expect.objectContaining({
+          adopted: "2026-09-13T00:00:00Z",
+          tracking: true,
+        }),
+      }),
+    );
+  });
+
+  it("can render a deterministic historical platform snapshot", () => {
+    const repository = loadDomainRepository();
+    const data = extractGraphData(repository, "2026-09-11T23:59:59Z");
+
+    expect(data.edges).not.toContainEqual(
+      expect.objectContaining({
+        source: "platform-layer:backend-api",
+        type: "PREFERS_TECHNOLOGY",
+      }),
+    );
+    expect(data.edges).not.toContainEqual(
+      expect.objectContaining({
+        source: "project:personal-knowledge-graph",
+        type: "USES_PLATFORM_LAYER",
+      }),
+    );
+    expect(data.nodes).not.toContainEqual(
+      expect.objectContaining({ type: "platform-policy" }),
     );
   });
 });

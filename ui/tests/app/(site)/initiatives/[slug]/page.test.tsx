@@ -59,6 +59,16 @@ describe("initiative page", () => {
     ).resolves.toEqual({
       title: "Personalized Medicine - Initiative",
       description: "Patient-specific treatment decisions",
+      alternates: {
+        types: {
+          "application/rss+xml": [
+            {
+              url: "/initiatives/personalized-medicine/feed.xml",
+              title: "Personalized Medicine RSS feed",
+            },
+          ],
+        },
+      },
     });
   });
 
@@ -88,6 +98,11 @@ describe("initiative page", () => {
     expect(
       screen.getAllByRole("link", { name: "Pathology Viewer" }),
     ).toHaveLength(2);
+    expect(
+      screen.getByRole("link", {
+        name: "Subscribe to Personalized Medicine",
+      }),
+    ).toHaveAttribute("href", "/initiatives/personalized-medicine/feed.xml");
   });
 
   it("renders related projects when contribution prose is not yet written", async () => {

@@ -26,7 +26,7 @@ export function getDisplayedScaledAmount(
     return undefined;
   }
 
-  return parseFloat(scaledAmount.toPrecision(2));
+  return Number.parseFloat(scaledAmount.toPrecision(2));
 }
 
 export function pluralizeIngredientName(item: IngredientNameFields): string {

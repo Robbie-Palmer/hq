@@ -1,0 +1,23 @@
+{
+  "name": "work-graph-domain",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Domain rules for the Work Graph",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "ts-base": "workspace:*"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^5.0.0",
+    "typescript": "^6.0.0",
+    "vitest": "^5.0.0"
+  }
+}

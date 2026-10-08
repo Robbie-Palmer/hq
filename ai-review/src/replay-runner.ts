@@ -1,7 +1,7 @@
 import {
   MERGER_MAX_TOKENS,
   OPENROUTER_SCOUT_MAX_PRICES,
-} from "ai-review-domain/reviewer";
+} from "./reviewer";
 import type { Env, ReviewWorkflowParams } from "./env";
 import {
   identifyReviewArtifacts,
@@ -30,6 +30,7 @@ import {
   ReplayInputSnapshotSchema,
   type ReplayInputSnapshot,
 } from "ai-review-domain/records";
+import { sha256Hex as sha256 } from "ts-base/crypto";
 
 type JsonObject = Record<string, unknown>;
 const REPLAY_CLAIM_GRACE_MS = 60_000;
@@ -228,13 +229,6 @@ function replayStatus(scouts: ScoutRun, costUsd: number, maxCostUsd: number): st
   if (Object.keys(scouts.candidates).length === 0) return "failed";
   if (costUsd > maxCostUsd) return "budget-exceeded";
   return "completed";
-}
-
-async function sha256(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
 }
 
 async function preparedReview(

@@ -86,6 +86,7 @@ describe("HomeInitiatives", () => {
     expect(screen.getByText("1 project")).toBeInTheDocument();
     expect(screen.getByText("2017 to 2021")).toBeInTheDocument();
     expect(screen.getByText("Project path")).toBeInTheDocument();
+    expect(screen.getByText("Completed")).toBeInTheDocument();
     expect(screen.getByText("2019").closest("time")).toHaveAttribute(
       "datetime",
       "2019-01-01",
@@ -157,7 +158,7 @@ describe("HomeInitiatives", () => {
     ).toHaveLength(1);
   });
 
-  it("samples the beginning, middle, and end of a longer project path", () => {
+  it("shows the first and most recent projects with a gap in a longer path", () => {
     const initiative = initiativeFixture();
     const project = initiative.projects[0];
     if (!project) throw new Error("Expected an initiative project fixture");
@@ -171,10 +172,43 @@ describe("HomeInitiatives", () => {
 
     render(<HomeInitiatives initiatives={[initiative]} />);
 
-    expect(screen.getByRole("link", { name: "First" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Middle" })).toBeInTheDocument();
+    const firstProject = screen.getByRole("link", { name: "First" });
+    const fourthProject = screen.getByRole("link", { name: "Fourth" });
+    const omittedProjects = screen.getByText("2 projects not shown");
+
+    expect(firstProject).toBeInTheDocument();
+    expect(fourthProject).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Last" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Second" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Fourth" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Middle" })).toBeNull();
+    expect(
+      firstProject.compareDocumentPosition(omittedProjects) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+    expect(
+      omittedProjects.compareDocumentPosition(fourthProject) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+    expect(screen.getByText("•••")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("truncates a four-project path at the boundary", () => {
+    const initiative = initiativeFixture();
+    const project = initiative.projects[0];
+    if (!project) throw new Error("Expected an initiative project fixture");
+    initiative.projects = [
+      { ...project, slug: "first", title: "First", date: "2018-01-01" },
+      { ...project, slug: "omitted", title: "Omitted", date: "2019-01-01" },
+      { ...project, slug: "recent", title: "Recent", date: "2020-01-01" },
+      { ...project, slug: "latest", title: "Latest", date: "2021-01-01" },
+    ];
+
+    render(<HomeInitiatives initiatives={[initiative]} />);
+
+    expect(screen.getByRole("link", { name: "First" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Recent" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Latest" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Omitted" })).toBeNull();
+    expect(screen.getByText("1 project not shown")).toBeInTheDocument();
   });
 });

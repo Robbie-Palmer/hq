@@ -1,17 +1,10 @@
 import type { Db } from "recipe-db";
 import { recipeImportArtifact } from "recipe-db/schema";
 import { artifactKey, type ImportStage } from "recipe-domain/import-storage";
+import { sha256Hex } from "ts-base/crypto";
 import type { Env } from "./env";
 
-export async function sha256Hex(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(text),
-  );
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
+export { sha256Hex } from "ts-base/crypto";
 
 /**
  * Write an immutable JSON snapshot to R2 and upsert its Postgres manifest row.

@@ -32,18 +32,23 @@ permissions:
 
 jobs:
   host:
-    name: Host checks
-    runs-on: ubuntu-latest
+    name: Host checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-        with:
-          version: "2026.9.1"
-          experimental: true
-          minimum_release_age: 24h
+      - uses: $/.github/actions/setup-mise
+
+      - name: Check developer environment
+        run: mise run //cpp/autonomic-satellite-swarm:doctor
 
       - name: Format, lint, test, sanitize, cover, and spell-check
         run: |
@@ -52,6 +57,7 @@ jobs:
           mise run //cpp/autonomic-satellite-swarm:test
           mise run //cpp/autonomic-satellite-swarm:sanitize
           mise run //cpp/autonomic-satellite-swarm:coverage
+          mise run //cpp/autonomic-satellite-swarm:scripts:check
           mise run //cpp/autonomic-satellite-swarm:lint:typos
 
   firmware:
@@ -68,11 +74,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-        with:
-          version: "2026.9.1"
-          experimental: true
-          minimum_release_age: 24h
+      - uses: $/.github/actions/setup-mise
 
       - name: Compile firmware
         run: mise run //cpp/autonomic-satellite-swarm:firmware:${{ matrix.target }}
@@ -85,11 +87,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-        with:
-          version: "2026.9.1"
-          experimental: true
-          minimum_release_age: 24h
+      - uses: $/.github/actions/setup-mise
 
       - name: Build WebAssembly and check native parity
         run: mise run //cpp/autonomic-satellite-swarm:browser:parity

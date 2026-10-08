@@ -11,13 +11,18 @@ include(FetchContent)
 
 option(SATELLITE_SWARM_BUILD_SIMULATION "Build the deterministic host simulation" ON)
 option(SATELLITE_SWARM_BUILD_BROWSER "Build the Emscripten browser adapter" OFF)
-option(SATELLITE_SWARM_ENABLE_COVERAGE "Enable GCC coverage instrumentation" OFF)
+option(SATELLITE_SWARM_ENABLE_COVERAGE "Enable gcov-compatible coverage instrumentation" OFF)
 option(SATELLITE_SWARM_ENABLE_SANITIZERS "Enable address and undefined-behavior sanitizers" OFF)
+set(SATELLITE_SWARM_SOURCE_REVISION "unknown" CACHE STRING
+    "Full Git revision used to build the browser module")
 
 add_library(
   satellite_swarm
   src/satellite_swarm/controller.cpp
   src/satellite_swarm/historical_orbital_scorer.cpp
+  src/satellite_swarm/telemetry.cpp
+  src/satellite_swarm/telemetry_codec.cpp
+  src/satellite_swarm/telemetry_transmitter.cpp
   src/satellite_swarm/types.cpp
   src/satellite_swarm/wire_codec.cpp)
 add_library(satellite_swarm::coordination ALIAS satellite_swarm)
@@ -41,8 +46,8 @@ if(SATELLITE_SWARM_ENABLE_SANITIZERS AND CMAKE_CXX_COMPILER_ID MATCHES "Clang|GN
 endif()
 
 if(SATELLITE_SWARM_ENABLE_COVERAGE)
-  if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    message(FATAL_ERROR "Coverage instrumentation requires GCC")
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    message(FATAL_ERROR "Coverage instrumentation requires GCC or Clang")
   endif()
 
   target_compile_options(satellite_swarm PRIVATE --coverage -O0 -g)
@@ -50,15 +55,25 @@ if(SATELLITE_SWARM_ENABLE_COVERAGE)
 endif()
 
 if(SATELLITE_SWARM_BUILD_SIMULATION)
+  add_library(sgp4_reference third_party/sgp4/SGP4.cpp)
+  target_include_directories(sgp4_reference PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sgp4)
+  target_compile_features(sgp4_reference PUBLIC cxx_std_20)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    target_compile_options(sgp4_reference PRIVATE -w)
+  endif()
+
   add_library(
     satellite_swarm_simulation
     simulation/src/browser_simulation.cpp
+    simulation/src/fair_allocation_simulation.cpp
+    simulation/src/orbit.cpp
     simulation/src/simulation.cpp)
   add_library(satellite_swarm::simulation ALIAS satellite_swarm_simulation)
   target_include_directories(
     satellite_swarm_simulation
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/simulation/include>)
-  target_link_libraries(satellite_swarm_simulation PUBLIC satellite_swarm::coordination)
+  target_link_libraries(satellite_swarm_simulation PUBLIC satellite_swarm::coordination
+                                                   PRIVATE sgp4_reference)
   target_compile_features(satellite_swarm_simulation PUBLIC cxx_std_20)
 
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
@@ -82,17 +97,33 @@ if(SATELLITE_SWARM_BUILD_SIMULATION)
       NAME satellite_swarm_browser_fixture
       COMMAND autonomic-satellite-swarm-simulation --json)
     add_test(
+      NAME satellite_swarm_fair_allocation
+      COMMAND autonomic-satellite-swarm-simulation --fairness-json)
+    add_test(
       NAME satellite_swarm_invalid_arguments
       COMMAND autonomic-satellite-swarm-simulation --unsupported)
     set_tests_properties(
       satellite_swarm_browser_fixture
       PROPERTIES PASS_REGULAR_EXPRESSION
                  "\"source\": \"portable C\\+\\+ SimulationTrace\".*\"events\"")
+    set_tests_properties(
+      satellite_swarm_fair_allocation
+      PROPERTIES PASS_REGULAR_EXPRESSION
+                 "\"policy\": \"mission-keyed-cyclic-equal-score\".*\"assignmentCounts\"")
     set_tests_properties(satellite_swarm_invalid_arguments PROPERTIES WILL_FAIL TRUE)
   endif()
 endif()
 
 if(SATELLITE_SWARM_BUILD_BROWSER)
+  string(LENGTH "${SATELLITE_SWARM_SOURCE_REVISION}"
+               SATELLITE_SWARM_SOURCE_REVISION_LENGTH)
+  if(NOT SATELLITE_SWARM_SOURCE_REVISION MATCHES "^[0-9a-f]+$"
+     OR NOT SATELLITE_SWARM_SOURCE_REVISION_LENGTH EQUAL 40)
+    message(
+      FATAL_ERROR
+        "SATELLITE_SWARM_SOURCE_REVISION must be a full lowercase Git revision"
+    )
+  endif()
   if(NOT EMSCRIPTEN)
     message(FATAL_ERROR "SATELLITE_SWARM_BUILD_BROWSER requires the Emscripten toolchain")
   endif()
@@ -112,6 +143,9 @@ if(SATELLITE_SWARM_BUILD_BROWSER)
     satellite_swarm_simulation PRIVATE -fexceptions)
   target_compile_options(
     satellite_swarm_browser PRIVATE -fexceptions)
+  target_compile_definitions(
+    satellite_swarm_browser
+    PRIVATE SATELLITE_SWARM_SOURCE_REVISION="${SATELLITE_SWARM_SOURCE_REVISION}")
   set_target_properties(
     satellite_swarm_browser
     PROPERTIES OUTPUT_NAME "satellite-swarm"
@@ -141,6 +175,11 @@ if(BUILD_TESTING)
     satellite_swarm_tests
     tests/controller_test.cpp
     tests/historical_orbital_scorer_test.cpp
+    tests/invariant_test.cpp
+    tests/orbit_test.cpp
+    tests/telemetry_codec_test.cpp
+    tests/telemetry_test.cpp
+    tests/telemetry_transmitter_test.cpp
     tests/wire_codec_test.cpp)
   if(SATELLITE_SWARM_BUILD_SIMULATION)
     target_sources(
@@ -170,5 +209,20 @@ if(BUILD_TESTING)
   endif()
 
   include(Catch)
-  catch_discover_tests(satellite_swarm_tests)
+  catch_discover_tests(satellite_swarm_tests TEST_SPEC "~[invariant]")
+  catch_discover_tests(
+    satellite_swarm_tests
+    TEST_SPEC "[invariant][safety]"
+    TEST_PREFIX "safety: "
+    PROPERTIES LABELS safety)
+  catch_discover_tests(
+    satellite_swarm_tests
+    TEST_SPEC "[invariant][liveness]"
+    TEST_PREFIX "liveness: "
+    PROPERTIES LABELS liveness)
+  catch_discover_tests(
+    satellite_swarm_tests
+    TEST_SPEC "[invariant][cost]"
+    TEST_PREFIX "cost: "
+    PROPERTIES LABELS cost)
 endif()

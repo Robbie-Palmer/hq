@@ -1,0 +1,22 @@
+[tasks.install]
+description = "Install housing index dependencies"
+depends = ["//:install"]
+
+[tasks.typecheck]
+description = "Typecheck UK HPI ingestion"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test UK HPI ingestion"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test UK HPI ingestion with coverage"
+depends = ["install"]
+run = "pnpm test:coverage"
+
+[tasks.check]
+description = "Validate UK HPI ingestion"
+depends = ["typecheck", "test"]

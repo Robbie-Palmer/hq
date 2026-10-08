@@ -19,7 +19,7 @@ import {
 } from "@opentelemetry/sdk-logs";
 import {
   BasicTracerProvider,
-  SimpleSpanProcessor,
+  BatchSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import {
   ATTR_DEPLOYMENT_ENVIRONMENT_NAME,
@@ -137,7 +137,7 @@ function getTelemetry(
   const traceProvider = new BasicTracerProvider({
     resource,
     spanProcessors: [
-      new SimpleSpanProcessor(
+      new BatchSpanProcessor(
         new OTLPTraceExporter({
           url: `${baseUrl}/i/v1/traces`,
           headers,
@@ -267,7 +267,7 @@ async function flushAfter(
 
 async function runWithoutTelemetry<T>(
   serviceName: string,
-  operation: (span: Span) => Promise<T>,
+  operation: (span: Span) => Promise<T> | T,
 ): Promise<T> {
   const span = trace.getTracer(serviceName).startSpan("noop");
   try {
@@ -353,7 +353,7 @@ export async function withPostHogRequest<T extends Response>(
     waitUntil?: WaitUntilContext;
     attributes?: Attributes;
   },
-  operation: (span: Span) => Promise<T>,
+  operation: (span: Span) => Promise<T> | T,
 ): Promise<T> {
   const state = safelyGetTelemetry(options.env, options.serviceName);
   if (!state) {
@@ -442,7 +442,7 @@ export async function withPostHogSpan<T>(
      */
     flush?: boolean;
   },
-  operation: (span: Span) => Promise<T>,
+  operation: (span: Span) => Promise<T> | T,
 ): Promise<T> {
   const state = safelyGetTelemetry(options.env, options.serviceName);
   if (!state) {

@@ -37,7 +37,7 @@ describe("Domain Model Schemas", () => {
         iconSlug: "react",
         relations: {
           blogs: ["my-blog"],
-          adrs: ["personal-site:001-react"],
+          adrs: ["personal-knowledge-graph:001-react"],
           projects: ["my-project"],
           roles: ["microsoft-0"],
           ideas: ["component-composition"],
@@ -188,17 +188,17 @@ describe("Domain Model Schemas", () => {
   describe("ADRSchema", () => {
     it("should validate a complete ADR", () => {
       const validADR = {
-        adrRef: "personal-site:001-next-js",
+        adrRef: "personal-knowledge-graph:001-next-js",
         slug: "001-next-js",
-        projectSlug: "personal-site",
+        projectSlug: "personal-knowledge-graph",
         title: "ADR 001: Next.js",
         date: "2025-10-18",
         status: "Accepted" as const,
-        supersedes: "personal-site:002-remix",
+        supersedes: "personal-knowledge-graph:002-remix",
         content: "We decided to use Next.js",
         readingTime: "3 min read",
         relations: {
-          project: "personal-site",
+          project: "personal-knowledge-graph",
           technologies: ["nextjs", "react"],
         },
       };
@@ -260,18 +260,23 @@ describe("Domain Model Schemas", () => {
   describe("ProjectSchema", () => {
     it("should validate a complete project", () => {
       const validProject = {
-        slug: "personal-site",
-        title: "Personal Site",
+        slug: "personal-knowledge-graph",
+        title: "Personal Knowledge Graph",
         description: "My portfolio",
         date: "2025-11-02",
         updated: "2025-12-15",
         status: "live" as const,
         repoUrl: "https://github.com/user/repo",
         demoUrl: "https://example.com",
+        paperUrl: "https://doi.org/10.1000/example",
+        paperTitle: "A Complete Project Paper",
         content: "# Overview",
         relations: {
           technologies: ["nextjs", "react", "typescript"],
-          adrs: ["personal-site:001-next-js", "personal-site:002-react"],
+          adrs: [
+            "personal-knowledge-graph:001-next-js",
+            "personal-knowledge-graph:002-react",
+          ],
         },
       };
 
@@ -313,8 +318,9 @@ describe("Domain Model Schemas", () => {
         description: "Desc",
         date: "2025-01-01",
         status: "live" as const,
-        repoUrl: "not-a-url",
-        demoUrl: "also-not-a-url",
+        repoUrl: "https://github.com/user/repo",
+        demoUrl: "https://example.com",
+        paperUrl: "not-a-paper-url",
         content: "Content",
         relations: {
           technologies: ["react"],
@@ -324,6 +330,30 @@ describe("Domain Model Schemas", () => {
 
       const result = ProjectSchema.safeParse(invalidProject);
       expect(result.success).toBe(false);
+    });
+
+    it("should require complete research paper metadata", () => {
+      const project = {
+        slug: "research-project",
+        title: "Research Project",
+        description: "Desc",
+        date: "2025-01-01",
+        status: "completed" as const,
+        content: "Content",
+      };
+
+      expect(
+        ProjectSchema.safeParse({
+          ...project,
+          paperUrl: "https://doi.org/10.1000/example",
+        }).success,
+      ).toBe(false);
+      expect(
+        ProjectSchema.safeParse({
+          ...project,
+          paperTitle: "A Research Paper",
+        }).success,
+      ).toBe(false);
     });
 
     it("should apply default empty arrays when relations is omitted", () => {

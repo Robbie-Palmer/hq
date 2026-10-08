@@ -28,6 +28,10 @@ export const snapshots: BalanceSnapshot[] = [
   { accountId: "trading-212-isa", date: "2023-12-01", balance: 7800 },
   { accountId: "trading-212-isa", date: "2024-06-01", balance: 9600 },
   { accountId: "trading-212-isa", date: "2024-12-01", balance: 11400 },
+  // US Brokerage, shown in its native currency
+  { accountId: "us-brokerage", date: "2024-06-01", balance: 8000 },
+  { accountId: "us-brokerage", date: "2024-09-15", balance: 9270 },
+  { accountId: "us-brokerage", date: "2024-12-01", balance: 11000 },
   // Coinbase BTC
   { accountId: "coinbase-btc", date: "2021-12-01", balance: 2500 },
   { accountId: "coinbase-btc", date: "2022-06-01", balance: 1200 },
@@ -46,11 +50,15 @@ export const snapshots: BalanceSnapshot[] = [
   { accountId: "nationwide-current", date: "2023-06-01", balance: 3800 },
   { accountId: "nationwide-current", date: "2023-12-01", balance: 3200 },
   { accountId: "nationwide-current", date: "2024-06-01", balance: 2900 },
+  { accountId: "nationwide-current", date: "2024-09-15", balance: 1896 },
   { accountId: "nationwide-current", date: "2024-12-01", balance: 3400 },
   // Home (property)
   { accountId: "home", date: "2023-03-01", balance: 285000 },
   { accountId: "home", date: "2024-03-01", balance: 292000 },
   { accountId: "home", date: "2024-12-01", balance: 298000 },
+  // Cardiff Rental (property)
+  { accountId: "cardiff-property", date: "2024-06-01", balance: 300000 },
+  { accountId: "cardiff-property", date: "2024-12-01", balance: 315000 },
   // Home Mortgage (linked to the property)
   { accountId: "home-mortgage", date: "2023-03-01", balance: -228000 },
   { accountId: "home-mortgage", date: "2023-12-01", balance: -221500 },
@@ -61,6 +69,8 @@ export const snapshots: BalanceSnapshot[] = [
   { accountId: "amex-credit-card", date: "2023-12-01", balance: -2100 },
   { accountId: "amex-credit-card", date: "2024-06-01", balance: -1200 },
   { accountId: "amex-credit-card", date: "2024-12-01", balance: -1800 },
+  // Workplace Pension
+  { accountId: "workplace-pension", date: "2024-12-01", balance: 0 },
   // Old Mutual Pension (closed)
   { accountId: "old-mutual-pension", date: "2020-06-01", balance: 12000 },
   { accountId: "old-mutual-pension", date: "2020-12-01", balance: 13500 },

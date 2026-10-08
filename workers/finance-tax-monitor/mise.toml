@@ -1,0 +1,37 @@
+[tasks.install]
+description = "Install finance tax monitor dependencies"
+run = "pnpm install --frozen-lockfile --filter finance-tax-monitor..."
+
+[tasks.typecheck]
+description = "Typecheck the finance tax monitor Workflow"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test the finance tax monitor Workflow"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test finance tax monitoring with coverage"
+depends = ["install"]
+run = "pnpm test:coverage"
+
+[tasks."test:integration"]
+description = "Test finance tax persistence against disposable PostgreSQL"
+depends = ["install"]
+run = "pnpm test:integration"
+
+[tasks."db:generate"]
+description = "Generate finance tax monitor PostgreSQL migrations"
+depends = ["install"]
+run = "pnpm db:generate"
+
+[tasks."deploy:check"]
+description = "Build the finance tax monitor without uploading it"
+depends = ["install"]
+run = "pnpm deploy:check"
+
+[tasks.check]
+description = "Check the finance tax monitor Workflow"
+depends = ["typecheck", "test", "test:integration", "deploy:check"]

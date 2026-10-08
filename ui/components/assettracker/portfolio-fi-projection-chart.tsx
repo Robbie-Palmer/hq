@@ -18,8 +18,12 @@ import {
 } from "@/components/ui/chart";
 import {
   formatAnnualRate,
-  formatAxisTick,
   formatCurrency,
+  formatCurrencyAxisTick,
+} from "@/lib/assettracker";
+import {
+  type Currency,
+  DEFAULT_BASE_CURRENCY,
   type PortfolioFiProjectionPoint,
 } from "@/lib/domain/assettracker";
 
@@ -36,11 +40,13 @@ export function PortfolioFiProjectionChart({
   target,
   annualSavings,
   expectedRealReturn,
+  currency = DEFAULT_BASE_CURRENCY,
 }: Readonly<{
   projection: PortfolioFiProjectionPoint[];
   target: number;
   annualSavings: number;
   expectedRealReturn: number;
+  currency?: Currency;
 }>) {
   if (projection.length < 2) return null;
   const chartData = projection.filter(
@@ -53,7 +59,7 @@ export function PortfolioFiProjectionChart({
         <h3 className="text-sm font-medium">Portfolio FI projection</h3>
         <p className="text-xs text-muted-foreground">
           In today&apos;s money, using{" "}
-          {formatCurrency(Math.round(annualSavings))}
+          {formatCurrency(Math.round(annualSavings), currency)}
           /yr expected saving and an expected real portfolio return of{" "}
           {formatAnnualRate(expectedRealReturn)}/yr.
         </p>
@@ -81,7 +87,9 @@ export function PortfolioFiProjectionChart({
             <YAxis
               className="text-xs"
               width={52}
-              tickFormatter={(value: number) => `£${formatAxisTick(value)}`}
+              tickFormatter={(value: number) =>
+                formatCurrencyAxisTick(value, currency)
+              }
             />
             <ReferenceLine
               y={target}
@@ -90,7 +98,7 @@ export function PortfolioFiProjectionChart({
             />
             <ChartTooltip
               content={<ChartTooltipContent />}
-              formatter={(value) => formatCurrency(value as number)}
+              formatter={(value) => formatCurrency(value as number, currency)}
             />
             <Line
               type="monotone"

@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Nightly restic snapshots of the K3s media stack's app configuration, so an
 # incident like the worktree wipe of 2026-09-12 cannot destroy app state
-# again (see ADR 023 and the k3s migration).
+# again (see ADR 020 and the K3s migration).
 #
 # What gets backed up:
 #   ~/.local/share/homelab/k3s/media/  (Jellyfin, Sonarr, Radarr, Prowlarr,
@@ -14,30 +14,26 @@ set -euo pipefail
 # .backup API into a staging directory; the live tree is backed up with the
 # database files excluded and the staging tree included.
 #
-# Fail-closed: refuses to run when the Expansion disk is not mounted, like
-# the Ente export check (ADR 022). A mkdir lockfile prevents overlap.
+# Fail-closed: refuses to run unless the expected Expansion volume UUID is
+# mounted. A mkdir lockfile prevents overlap.
 #
 # Restore: install restic (mise install), then
 #   export RESTIC_REPOSITORY=/Volumes/Expansion/Backups/media-k3s
 #   export RESTIC_PASSWORD_FILE=~/.local/share/homelab/k3s/media-backup.restic-pw
-#   restic restore latest --target /tmp/restore \
-#     --include '/media-config' --include '/media-db-snapshots'
-# Scale the media stack down, copy the app directories from
-# /tmp/restore/media-config into ~/.local/share/homelab/k3s/media/, copy the
-# staged databases from /tmp/restore/media-db-snapshots over the live *.db
-# files, then scale the stack back up (or restart the pods).
-#
-# Install the schedule (launchd, nightly 04:17):
-#   sed -e 's|__HOMELAB_ROOT__|'"$HOME"'/repos/personal-site/homelab|' \
-#       -e 's|__HOME__|'"$HOME"'|' \
-#       homelab/k3s/overlays/home-media/homelab.media-k3s-backup.plist \
-#       > ~/Library/LaunchAgents/homelab.media-k3s-backup.plist
-#   launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/homelab.media-k3s-backup.plist
+#   restic restore latest --tag media-config --target /tmp/restore
+# Restic recreates both absolute source paths below /tmp/restore. Scale the
+# media stack down, then restore the config and consistent database copies:
+#   RESTORED_ROOT="/tmp/restore$HOME/.local/share/homelab/k3s"
+#   rsync -a "$RESTORED_ROOT/media/" ~/.local/share/homelab/k3s/media/
+#   rsync -a "$RESTORED_ROOT/media-db-snapshots/" ~/.local/share/homelab/k3s/media/
+# Run the VPN gate to bring the stack back to its permitted replica count.
 
 export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 MEDIA_DATA_DIR="${MEDIA_DATA_DIR:-$HOME/.local/share/homelab/k3s/media}"
-RESTIC_REPOSITORY="${RESTIC_REPOSITORY:-/Volumes/Expansion/Backups/media-k3s}"
+MEDIA_BACKUP_MOUNT_PATH="${MEDIA_BACKUP_MOUNT_PATH:-/Volumes/Expansion}"
+MEDIA_BACKUP_VOLUME_UUID="${MEDIA_BACKUP_VOLUME_UUID:-808A2851-4126-3A7B-B23F-9E1C3ADD28E4}"
+RESTIC_REPOSITORY="${RESTIC_REPOSITORY:-$MEDIA_BACKUP_MOUNT_PATH/Backups/media-k3s}"
 RESTIC_PASSWORD_FILE="${RESTIC_PASSWORD_FILE:-$HOME/.local/share/homelab/k3s/media-backup.restic-pw}"
 LOCK_DIR="${TMPDIR:-/tmp}/homelab-media-backup.lock"
 # Stable path so restores are predictable; wiped and rebuilt every run.
@@ -55,8 +51,13 @@ if [[ -d "$LOCK_DIR" ]]; then
 fi
 mkdir "$LOCK_DIR"
 
-if [[ ! -d /Volumes/Expansion ]]; then
-  log "refusing to back up: the Expansion disk is not mounted"
+mounted_volume_uuid="$(
+  /usr/sbin/diskutil info -plist "$MEDIA_BACKUP_MOUNT_PATH" 2>/dev/null \
+    | /usr/bin/plutil -extract VolumeUUID raw - 2>/dev/null \
+    || true
+)"
+if [[ "$mounted_volume_uuid" != "$MEDIA_BACKUP_VOLUME_UUID" ]]; then
+  log "refusing to back up: the expected Expansion disk is not mounted"
   exit 1
 fi
 if [[ ! -d "$MEDIA_DATA_DIR" ]]; then
@@ -102,12 +103,11 @@ while IFS= read -r -d '' db; do
 done < <(find "$MEDIA_DATA_DIR" -name '*.db' -print0)
 
 log "running restic backup"
-"$RESTIC_BIN" backup "$MEDIA_DATA_DIR" \
-  --exclude '*.db' \
-  --exclude '*.db-wal' \
-  --exclude '*.db-shm' \
+"$RESTIC_BIN" backup "$MEDIA_DATA_DIR" "$STAGE_ROOT" \
+  --exclude "$MEDIA_DATA_DIR/**/*.db" \
+  --exclude "$MEDIA_DATA_DIR/**/*.db-wal" \
+  --exclude "$MEDIA_DATA_DIR/**/*.db-shm" \
   --tag media-config
-"$RESTIC_BIN" backup "$STAGE_ROOT" --tag media-config-db-snapshots
 log "applying retention (7 daily, 4 weekly, 6 monthly)"
 "$RESTIC_BIN" forget \
   --keep-daily 7 --keep-weekly 4 --keep-monthly 6 \

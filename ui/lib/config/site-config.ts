@@ -11,7 +11,7 @@ export const siteConfig = {
     name: "Robbie Palmer",
     linkedin: "https://www.linkedin.com/in/robertjohnpalmer/",
     github: "https://github.com/Robbie-Palmer",
-    sourceRepo: "https://github.com/Robbie-Palmer/personal-site",
+    sourceRepo: "https://github.com/Robbie-Palmer/hq",
     // Add Twitter handle when available
     // twitter: "@yourusername",
   },

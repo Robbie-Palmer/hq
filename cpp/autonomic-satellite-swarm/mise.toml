@@ -1,9 +1,23 @@
 [tools]
 arduino-cli = "1.5.1"
+"npm:@types/node" = "26.6.4"
+"npm:typescript" = "5.9.3"
 
 [tasks.configure]
 description = "Configure the host build"
-run = "cmake --preset dev"
+run = '''
+if [ "$(uname -s)" = Linux ]; then
+  compiler_root=$(mise where conda:gxx)
+  export PATH="$compiler_root/bin:$PATH"
+  cmake --preset dev -DCMAKE_AR="$compiler_root/bin/x86_64-conda-linux-gnu-ar"
+else
+  cmake --preset dev
+fi
+'''
+
+[tasks.doctor]
+description = "Check the Linux or macOS developer environment"
+run = "bash scripts/check-development-environment.sh"
 
 [tasks.clean]
 description = "Remove generated host build directories"
@@ -19,6 +33,11 @@ description = "Run host-side tests"
 depends = ["build"]
 run = "ctest --preset dev"
 
+[tasks."test:invariants"]
+description = "Run the categorized deterministic invariant baseline"
+depends = ["build"]
+run = 'ctest --preset dev --label-regex "safety|liveness|cost" --verbose'
+
 [tasks.simulate]
 description = "Run the deterministic three-node simulation"
 depends = ["build"]
@@ -29,6 +48,11 @@ description = "Print the browser visualization fixture from the native trace run
 depends = ["build"]
 run = "./build/dev/autonomic-satellite-swarm-simulation --json"
 
+[tasks."simulate:fairness"]
+description = "Print telemetry evidence from six equal-score missions"
+depends = ["build"]
+run = "./build/dev/autonomic-satellite-swarm-simulation --fairness-json"
+
 [tasks."browser:fixture:check"]
 description = "Check that the committed browser fixture matches the native trace runner"
 depends = ["build"]
@@ -36,40 +60,60 @@ run = '''
 browser_fixture_check_file=$(mktemp)
 trap 'cmake -E rm -f "$browser_fixture_check_file"' EXIT
 ./build/dev/autonomic-satellite-swarm-simulation --json > "$browser_fixture_check_file"
-diff -u ../../ui/public/simulations/autonomic-satellite-swarm/demonstration.v2.json \
+diff -u ../../ui/public/simulations/autonomic-satellite-swarm/demonstration.v7.json \
   "$browser_fixture_check_file"
 '''
 
 [tasks."browser:toolchain"]
 description = "Install the pinned Emscripten SDK with its Python bootstrap dependency"
-tools = { python = "3.14.6" }
-run = "mise exec python@3.14.6 -- mise install asdf:mise-plugins/mise-emsdk@6.0.9"
+tools = { python = "3.14.8" }
+run = '''
+mise install asdf:mise-plugins/mise-emsdk@6.0.9
+emsdk_root=$(mise where asdf:mise-plugins/mise-emsdk@6.0.9)
+if ! command -v xz >/dev/null 2>&1; then
+  export PATH="$PWD/scripts/tool-shims:$PATH"
+fi
+if [ ! -x "$emsdk_root/upstream/emscripten/emcmake" ]; then
+  mise exec python@3.14.7 -- "$emsdk_root/emsdk" install 6.0.9
+fi
+mise exec python@3.14.7 -- "$emsdk_root/emsdk" activate 6.0.9
+'''
 
 [tasks."browser:configure"]
 description = "Configure the Emscripten browser build"
 depends = ["browser:toolchain"]
-tools = { python = "3.14.6" }
-run = "mise exec python@3.14.6 asdf:mise-plugins/mise-emsdk@6.0.9 -- emcmake cmake -S . -B build/browser -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DSATELLITE_SWARM_BUILD_BROWSER=ON"
+tools = { python = "3.14.8" }
+run = '''
+emsdk_root=$(mise where asdf:mise-plugins/mise-emsdk@6.0.9)
+project_root=$PWD
+cd "$emsdk_root"
+. ./emsdk_env.sh >/dev/null
+cd "$project_root"
+source_revision=${SATELLITE_SWARM_SOURCE_REVISION:-${GITHUB_SHA:-$(git rev-parse HEAD)}}
+case "$source_revision" in
+  *[!0-9a-f]*|'') echo "SATELLITE_SWARM_SOURCE_REVISION must be a full lowercase Git revision" >&2; exit 2 ;;
+esac
+revision_length=$(printf %s "$source_revision" | wc -c)
+if [ "$revision_length" -ne 40 ]; then
+  echo "SATELLITE_SWARM_SOURCE_REVISION must be a full lowercase Git revision" >&2
+  exit 2
+fi
+emcmake cmake -S . -B build/browser -G Ninja -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_TESTING=OFF -DSATELLITE_SWARM_BUILD_BROWSER=ON \
+    -DSATELLITE_SWARM_SOURCE_REVISION="$source_revision"
+'''
 
 [tasks."browser:build"]
 description = "Build the WebAssembly adapter and copy its deployable artifacts"
 depends = ["browser:configure"]
-sources = [
-  "CMakeLists.txt",
-  "browser/include/**/*",
-  "browser/src/**/*",
-  "mise.toml",
-  "simulation/include/**/*",
-  "simulation/src/**/*",
-  "src/**/*",
-]
-outputs = [
-  "../../ui/public/simulations/autonomic-satellite-swarm/wasm/satellite-swarm.mjs",
-  "../../ui/public/simulations/autonomic-satellite-swarm/wasm/satellite-swarm.wasm",
-]
-tools = { python = "3.14.6" }
+tools = { python = "3.14.8" }
 run = '''
-mise exec python@3.14.6 asdf:mise-plugins/mise-emsdk@6.0.9 -- cmake --build build/browser --target satellite_swarm_browser
+emsdk_root=$(mise where asdf:mise-plugins/mise-emsdk@6.0.9)
+project_root=$PWD
+cd "$emsdk_root"
+. ./emsdk_env.sh >/dev/null
+cd "$project_root"
+cmake --build build/browser --target satellite_swarm_browser
 browser_public_dir=../../ui/public/simulations/autonomic-satellite-swarm/wasm
 cmake -E make_directory "$browser_public_dir"
 cmake -E copy_if_different build/browser/browser/satellite-swarm.mjs "$browser_public_dir/satellite-swarm.mjs"
@@ -78,85 +122,76 @@ cmake -E copy_if_different build/browser/browser/satellite-swarm.wasm "$browser_
 
 [tasks."browser:parity"]
 description = "Check native and WebAssembly browser results for byte-for-byte parity"
-depends = ["browser:build"]
+depends = ["browser:build", "browser:fixture:check"]
 run = "node browser/tests/browser_parity.mjs"
 
 [tasks.lint]
 description = "Run clang-tidy with warnings promoted to errors"
 depends = ["configure"]
-run = '''
-gcc_install_dir=$(dirname "$(c++ -print-libgcc-file-name)")
-compiler_root=$(dirname "$(dirname "$(readlink -f "$(command -v c++)")")")
-compiler_sysroot="$compiler_root/$(c++ -dumpmachine)/sysroot"
-find src simulation/src browser/src examples -type f -name '*.cpp' -print0 |
-  xargs -0 clang-tidy -p build/dev \
-    --extra-arg-before="--gcc-install-dir=$gcc_install_dir" \
-    --extra-arg-before="--sysroot=$compiler_sysroot"
-'''
+run = "bash scripts/run-clang-tidy.sh"
 
 [tasks.sanitize]
 description = "Run tests with AddressSanitizer and UndefinedBehaviorSanitizer"
-run = [
-  "cmake --preset sanitizers",
-  "cmake --build --preset sanitizers",
-  "ctest --preset sanitizers",
-]
+run = '''
+if [ "$(uname -s)" = Linux ]; then
+  compiler_root=$(mise where conda:gxx)
+  export PATH="$compiler_root/bin:$PATH"
+  cmake --preset sanitizers -DCMAKE_AR="$compiler_root/bin/x86_64-conda-linux-gnu-ar"
+else
+  cmake --preset sanitizers
+fi
+cmake --build --preset sanitizers
+ctest --preset sanitizers
+'''
 
 [tasks.coverage]
 description = "Generate SonarQube-compatible C++ coverage and enforce coverage floors"
-run = [
-  "cmake -E rm -rf build/coverage coverage",
-  "cmake --preset coverage",
-  "cmake --build --preset coverage",
-  "ctest --preset coverage",
-  "cmake -E make_directory coverage",
-  "gcovr --root ../.. --filter 'src/satellite_swarm/' --filter 'simulation/' --filter 'browser/src/' --filter 'examples/simulation/' --sonarqube coverage/sonarqube.xml --print-summary --fail-under-line 80 --fail-under-branch 70 build/coverage",
-]
+run = "bash scripts/run-coverage.sh"
 
 [tasks."firmware:uno"]
 description = "Compile the legacy Arduino Uno infrared firmware"
-run = '''
-node_id=${SATELLITE_SWARM_NODE_ID:-0}
-case "$node_id" in
-  ''|*[!0-9]*) echo "SATELLITE_SWARM_NODE_ID must be an integer from 0 to 15" >&2; exit 2 ;;
-esac
-if [ "$node_id" -gt 15 ]; then
-  echo "SATELLITE_SWARM_NODE_ID must be an integer from 0 to 15" >&2
-  exit 2
-fi
-arduino-cli compile --profile uno \
-  --build-property "build.extra_flags=-DSATELLITE_SWARM_NODE_ID=$node_id" firmware/uno_ir
-'''
+run = 'node scripts/compile-firmware.ts uno "$(mise where arduino-cli)/arduino-cli"'
 
 [tasks."firmware:esp32"]
 description = "Compile the modern ESP32 ESP-NOW firmware"
+run = 'node scripts/compile-firmware.ts esp32 "$(mise where arduino-cli)/arduino-cli"'
+
+[tasks."scripts:typecheck"]
+description = "Type-check firmware task scripts"
 run = '''
-node_id=${SATELLITE_SWARM_NODE_ID:-0}
-case "$node_id" in
-  ''|*[!0-9]*) echo "SATELLITE_SWARM_NODE_ID must be an integer from 0 to 15" >&2; exit 2 ;;
-esac
-if [ "$node_id" -gt 15 ]; then
-  echo "SATELLITE_SWARM_NODE_ID must be an integer from 0 to 15" >&2
-  exit 2
+types_install_root="$(mise where npm:@types/node)"
+types_root=$(find "$types_install_root" -maxdepth 4 -type d -path '*/node_modules/@types' -print -quit)
+if [ -z "$types_root" ]; then
+  echo "Node.js type definitions not found below $types_install_root" >&2
+  exit 1
 fi
-arduino-cli compile --profile esp32 \
-  --build-property "build.extra_flags=-DSATELLITE_SWARM_NODE_ID=$node_id" firmware/esp32_espnow
+tsc --typeRoots "$types_root" --project tsconfig.scripts.json
 '''
+
+[tasks."scripts:test"]
+description = "Test firmware task scripts"
+run = "node --test scripts/*.test.ts"
+
+[tasks."scripts:check"]
+description = "Type-check and test firmware task scripts"
+depends = ["scripts:typecheck", "scripts:test"]
 
 [tasks."lint:typos"]
 description = "Check spelling in the project"
-run = "typos ."
+run = "typos --exclude third_party ."
 
 [tasks.check]
 description = "Run all project quality gates"
 depends = [
   "//cpp:format:check",
+  "doctor",
   "test",
   "lint",
   "sanitize",
   "coverage",
   "firmware:uno",
   "firmware:esp32",
+  "scripts:check",
   "browser:fixture:check",
   "browser:parity",
   "lint:typos",

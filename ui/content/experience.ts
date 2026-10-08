@@ -5,7 +5,7 @@ export const experiences: JobRoleContent[] = [
     company: "Terminal Industries",
     companyUrl: "https://terminal-industries.com/",
     logoPath: "/company-logos/terminal-industries.png",
-    title: "Engineering Manager",
+    title: "Principal Software Engineer & Engineering Manager",
     previousTitles: [
       {
         title: "Principal Software Engineer",

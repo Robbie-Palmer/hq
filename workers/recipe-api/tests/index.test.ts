@@ -1,5 +1,11 @@
-import { beforeEach, describe, it, expect, vi } from "vitest";
 import postgres from "postgres";
+import {
+  emptyPantryFreshness,
+  type PantryFreshnessEstimate,
+  type PantryLocation,
+  type PantrySourceKind,
+} from "recipe-domain/pantry";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -7,6 +13,89 @@ function deferred<T>() {
     resolve = complete;
   });
   return { promise, resolve };
+}
+
+function insertedParameter(
+  columns: string[],
+  expressions: string[],
+  params: unknown[],
+  column: string,
+): unknown {
+  const expression = expressions[columns.indexOf(column)];
+  const parameter = expression?.match(/^\$(\d+)$/)?.[1];
+  return parameter ? params[Number(parameter) - 1] : undefined;
+}
+
+type PantryItemRow = {
+  id: string;
+  userId: string | null;
+  organizationId: string | null;
+  ingredientSlug: string;
+  location: PantryLocation;
+  quantity?: string | null;
+  quantityUnit?: string | null;
+  useBy?: string | null;
+  bestBefore?: string | null;
+  stockedAt?: string | null;
+  openedAt?: string | null;
+  frozenAt?: string | null;
+  freshnessEstimate?: PantryFreshnessEstimate | null;
+  sourceKind?: PantrySourceKind;
+  provenance?: string;
+  version?: bigint;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+function pantryItemFromInsert(
+  columns: string[],
+  expressions: string[],
+  params: unknown[],
+  date: Date,
+): PantryItemRow {
+  const value = (column: string) =>
+    insertedParameter(columns, expressions, params, column);
+  return {
+    id: crypto.randomUUID(),
+    userId: (value("user_id") as string | null) ?? null,
+    organizationId: (value("organization_id") as string | null) ?? null,
+    ingredientSlug: value("ingredient_slug") as string,
+    location: value("location") as PantryItemRow["location"],
+    quantity: (value("quantity") as string | null) ?? null,
+    quantityUnit: (value("quantity_unit") as string | null) ?? null,
+    useBy: (value("use_by") as string | null) ?? null,
+    bestBefore: (value("best_before") as string | null) ?? null,
+    stockedAt: (value("stocked_at") as string | null) ?? null,
+    openedAt: (value("opened_at") as string | null) ?? null,
+    frozenAt: (value("frozen_at") as string | null) ?? null,
+    freshnessEstimate:
+      (value("freshness_estimate") as PantryFreshnessEstimate | null) ?? null,
+    sourceKind:
+      (value("source_kind") as PantrySourceKind | undefined) ?? "user",
+    provenance:
+      (value("provenance") as string | undefined) ?? "Manual kitchen update",
+    version: 1n,
+    createdAt: date,
+    updatedAt: date,
+  };
+}
+
+function pantryItemDetailsRow(item: PantryItemRow): unknown[] {
+  return [
+    item.ingredientSlug,
+    item.location,
+    item.quantity ?? null,
+    item.quantityUnit ?? null,
+    item.useBy ?? null,
+    item.bestBefore ?? null,
+    item.stockedAt ?? null,
+    item.openedAt ?? null,
+    item.frozenAt ?? null,
+    item.freshnessEstimate ?? null,
+    item.sourceKind ?? "user",
+    item.provenance ?? "Manual kitchen update",
+    (item.version ?? 1n).toString(),
+  ];
 }
 
 const authzMock = vi.hoisted(() => ({
@@ -34,6 +123,7 @@ const dbMock = vi.hoisted(() => {
     slug: string;
     logo: string | null;
     metadata: string | null;
+    equipmentRecipeMatchMode?: "hide" | "warn" | "disabled";
     createdAt: Date;
     updatedAt: Date;
   };
@@ -60,6 +150,11 @@ const dbMock = vi.hoisted(() => {
     status: string;
     expiresAt: Date;
     inviterId: string;
+    createdAt: Date;
+  };
+  type HouseholdEquipmentRow = {
+    organizationId: string;
+    equipmentSlug: string;
     createdAt: Date;
   };
   type RecipeRow = {
@@ -116,14 +211,21 @@ const dbMock = vi.hoisted(() => {
     createdAt: Date;
     updatedAt: Date;
   };
-  type PantryItemRow = {
+  type AuthoredTermRow = {
     id: string;
     userId: string | null;
     organizationId: string | null;
-    ingredientSlug: string;
-    location: "fridge" | "cupboards" | "fresh";
-    version?: bigint;
+    kind: "ingredient" | "equipment";
+    rawText: string;
+    normalizedText: string;
+    locale: string;
+    sourceContext: Record<string, unknown>;
+    provenance: Record<string, unknown>;
+    candidateMatches: Array<{ slug: string; score: number }>;
+    frequency: number;
+    canonicalSlug: string | null;
     createdAt: Date;
+    lastSeenAt: Date;
     updatedAt: Date;
   };
   type PantryAggregateRow = {
@@ -163,6 +265,7 @@ const dbMock = vi.hoisted(() => {
     organizations: [] as OrganizationRow[],
     members: [] as MemberRow[],
     invitations: [] as InvitationRow[],
+    householdEquipment: [] as HouseholdEquipmentRow[],
     notificationEvents: [] as NotificationEventRow[],
     notificationDeliveries: [] as {
       id: string;
@@ -203,6 +306,7 @@ const dbMock = vi.hoisted(() => {
     dietPresets: [] as DietPresetRow[],
     ingredientGroups: [] as IngredientGroupRow[],
     ingredients: [] as IngredientRow[],
+    authoredTerms: [] as AuthoredTermRow[],
     pantryItems: [] as PantryItemRow[],
     pantryAggregates: [] as PantryAggregateRow[],
     pantryOperations: [] as PantryOperationRow[],
@@ -246,6 +350,7 @@ const dbMock = vi.hoisted(() => {
     organization.slug,
     organization.logo,
     organization.metadata,
+    organization.equipmentRecipeMatchMode ?? "warn",
     organization.createdAt,
     organization.updatedAt,
   ];
@@ -278,6 +383,7 @@ const dbMock = vi.hoisted(() => {
     recipe.visibility,
     recipe.createdAt,
     recipe.updatedAt,
+    null,
   ];
   // Emulates the paginated recipe list query: newest-first ordering, an
   // optional keyset cursor (three params), a limit param, and the trailing
@@ -326,6 +432,7 @@ const dbMock = vi.hoisted(() => {
     state.organizations = [];
     state.members = [];
     state.invitations = [];
+    state.householdEquipment = [];
     state.notificationEvents = [];
     state.notificationDeliveries = [];
     state.notificationAgentApprovalEvents = [];
@@ -338,6 +445,7 @@ const dbMock = vi.hoisted(() => {
     state.dietPresets = [];
     state.ingredientGroups = [];
     state.ingredients = [];
+    state.authoredTerms = [];
     state.pantryItems = [];
     state.pantryAggregates = [];
     state.pantryOperations = [];
@@ -358,11 +466,18 @@ const dbMock = vi.hoisted(() => {
     state.expireInvitationOnUpdate = false;
   }
 
-  function queryRows(query: string, params: unknown[] = []) {
+  type QueryRows = unknown[][];
+  type QueryRowsHandler = (
+    query: string,
+    params: unknown[],
+  ) => QueryRows | undefined;
+
+  function queryShoppingRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     const shoppingSnapshot = (value: unknown) =>
       (typeof value === "string" ? JSON.parse(value) : value) as ShoppingListRow["snapshot"];
-    const shoppingDate = (value: unknown) =>
-      value instanceof Date ? value : new Date(value as string);
     if (query.startsWith('insert into "shopping_list"')) {
       const list: ShoppingListRow = {
         id: `00000000-0000-4000-8000-${String(state.shoppingLists.length + 80).padStart(12, "0")}`,
@@ -391,6 +506,17 @@ const dbMock = vi.hoisted(() => {
       ];
     }
 
+    return undefined;
+  }
+
+  function updateShoppingRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
+    const shoppingSnapshot = (value: unknown) =>
+      (typeof value === "string" ? JSON.parse(value) : value) as ShoppingListRow["snapshot"];
+    const shoppingDate = (value: unknown) =>
+      value instanceof Date ? value : new Date(value as string);
     if (query.startsWith('update "shopping_list"')) {
       const archiving = query.includes('"status" =');
       const id = params.find((param) =>
@@ -433,6 +559,13 @@ const dbMock = vi.hoisted(() => {
           ];
     }
 
+    return undefined;
+  }
+
+  function selectShoppingRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.includes('from "shopping_list"')) {
       const ownerId = params[0] as string;
       return state.shoppingLists
@@ -454,6 +587,13 @@ const dbMock = vi.hoisted(() => {
         ]);
     }
 
+    return undefined;
+  }
+
+  function insertCoreRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "app_rate_limit"')) {
       const key = params[0] as string;
       const count = (state.rateLimitCounts.get(key) ?? 0) + 1;
@@ -469,6 +609,7 @@ const dbMock = vi.hoisted(() => {
         slug: params[2] as string,
         logo: null,
         metadata: null,
+        equipmentRecipeMatchMode: "warn",
         createdAt: date,
         updatedAt: date,
       };
@@ -502,6 +643,13 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function insertNotificationRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "notification_household_event"')) {
       state.notificationHouseholdEvents.push({
         eventId: params[0] as string,
@@ -550,6 +698,13 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function insertAccountRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "user_email"')) {
       const email = params[0] as string;
       if (state.userEmails.some((candidate) => candidate.email === email)) {
@@ -566,6 +721,13 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function insertFollowRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "user_follow"')) {
       const followerUserId = params[0] as string;
       const followedUserId = params[1] as string;
@@ -585,6 +747,13 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function insertMembershipRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "member"')) {
       const member: MemberRow = {
         id: params[0] as string,
@@ -616,6 +785,64 @@ const dbMock = vi.hoisted(() => {
       return [invitationRow(invitation)];
     }
 
+    return undefined;
+  }
+
+  function householdEquipmentRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
+    if (query.startsWith('insert into "household_equipment"')) {
+      const organizationId = params[0] as string;
+      const equipmentSlug = params[1] as string;
+      const existing = state.householdEquipment.find(
+        (item) =>
+          item.organizationId === organizationId &&
+          item.equipmentSlug === equipmentSlug,
+      );
+      if (existing) return [];
+      const item = { organizationId, equipmentSlug, createdAt: date };
+      state.householdEquipment.push(item);
+      return [[item.organizationId, item.equipmentSlug, item.createdAt]];
+    }
+
+    if (query.startsWith('delete from "household_equipment"')) {
+      const organizationId = params[0] as string;
+      const equipmentSlug = params[1] as string;
+      state.householdEquipment = state.householdEquipment.filter(
+        (item) =>
+          item.organizationId !== organizationId ||
+          item.equipmentSlug !== equipmentSlug,
+      );
+      return [];
+    }
+
+    if (query.includes('from "household_equipment"')) {
+      const organizationId = params[0] as string;
+      const equipmentSlug = params[1] as string | undefined;
+      return state.householdEquipment
+        .filter(
+          (item) =>
+            item.organizationId === organizationId &&
+            (!equipmentSlug || item.equipmentSlug === equipmentSlug),
+        )
+        .sort((left, right) =>
+          left.equipmentSlug.localeCompare(right.equipmentSlug),
+        )
+        .map((item) =>
+          query.startsWith('select "equipment_slug", "created_at"')
+            ? [item.equipmentSlug, item.createdAt]
+            : [item.organizationId, item.equipmentSlug, item.createdAt],
+        );
+    }
+
+    return undefined;
+  }
+
+  function insertPantryRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "pantry_aggregate"')) {
       const userId = (params[0] as string | null) ?? null;
       const organizationId = (params[1] as string | null) ?? null;
@@ -638,6 +865,13 @@ const dbMock = vi.hoisted(() => {
       return [[aggregate.id, aggregate.revision.toString()]];
     }
 
+    return undefined;
+  }
+
+  function insertPantryOperationRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "pantry_operation"')) {
       const result = params[3];
       state.pantryOperations.push({
@@ -653,51 +887,81 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function samePantryItemOwner(
+    candidate: PantryItemRow,
+    pantryItem: PantryItemRow,
+  ) {
+    return (
+      candidate.ingredientSlug === pantryItem.ingredientSlug &&
+      ((pantryItem.userId !== null && candidate.userId === pantryItem.userId) ||
+        (pantryItem.organizationId !== null &&
+          candidate.organizationId === pantryItem.organizationId))
+    );
+  }
+
+  function storePantryItem(query: string, pantryItem: PantryItemRow) {
+    const existing = state.pantryItems.find((candidate) =>
+      samePantryItemOwner(candidate, pantryItem),
+    );
+    if (query.includes("do update set") && existing) {
+      const updateClause = query.split("do update set")[1] ?? "";
+      existing.location = pantryItem.location;
+      if (updateClause.includes('"quantity" =')) {
+        existing.quantity = pantryItem.quantity;
+        existing.quantityUnit = pantryItem.quantityUnit;
+      }
+      if (updateClause.includes('"use_by" =')) {
+        existing.useBy = pantryItem.useBy;
+        existing.bestBefore = pantryItem.bestBefore;
+        existing.stockedAt = pantryItem.stockedAt;
+        existing.openedAt = pantryItem.openedAt;
+        existing.frozenAt = pantryItem.frozenAt;
+        existing.freshnessEstimate = pantryItem.freshnessEstimate;
+      }
+      existing.sourceKind = pantryItem.sourceKind;
+      existing.provenance = pantryItem.provenance;
+      existing.version = (existing.version ?? 1n) + 1n;
+      existing.updatedAt = date;
+      return;
+    }
+    if (!query.includes("on conflict do nothing") || !existing) {
+      state.pantryItems.push(pantryItem);
+    }
+  }
+
+  function insertPantryItemRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "pantry_item"')) {
-      const valuesClause = query.split(" values ")[1]?.split(" on conflict")[0] ?? "";
-      const valueParameterCount = Math.max(
-        0,
-        ...[...valuesClause.matchAll(/\$(\d+)/g)].map((match) => Number(match[1])),
-      );
-      for (let index = 0; index < valueParameterCount; index += 4) {
-        const pantryItem: PantryItemRow = {
-          id: crypto.randomUUID(),
-          userId: (params[index] as string | null) ?? null,
-          organizationId: (params[index + 1] as string | null) ?? null,
-          ingredientSlug: params[index + 2] as string,
-          location: params[index + 3] as PantryItemRow["location"],
-          version: 1n,
-          createdAt: date,
-          updatedAt: date,
-        };
-        const conflicts = state.pantryItems.some(
-          (candidate) =>
-            candidate.ingredientSlug === pantryItem.ingredientSlug &&
-            ((pantryItem.userId !== null && candidate.userId === pantryItem.userId) ||
-              (pantryItem.organizationId !== null &&
-                candidate.organizationId === pantryItem.organizationId)),
+      const columns =
+        query
+          .match(/^insert into "pantry_item" \(([^)]+)\)/)?.[1]
+          ?.split(", ")
+          .map((column) => column.replaceAll('"', "")) ?? [];
+      const valuesClause =
+        query.split(" values ")[1]?.split(" on conflict")[0] ?? "";
+      const rows = valuesClause.match(/\([^)]*\)/g) ?? [];
+      for (const row of rows) {
+        const expressions = row.slice(1, -1).split(", ");
+        storePantryItem(
+          query,
+          pantryItemFromInsert(columns, expressions, params, date),
         );
-        if (query.includes("do update set") && conflicts) {
-          const existing = state.pantryItems.find(
-            (candidate) =>
-              candidate.ingredientSlug === pantryItem.ingredientSlug &&
-              ((pantryItem.userId !== null &&
-                candidate.userId === pantryItem.userId) ||
-                (pantryItem.organizationId !== null &&
-                  candidate.organizationId === pantryItem.organizationId)),
-          );
-          if (existing) {
-            existing.location = pantryItem.location;
-            existing.version = (existing.version ?? 1n) + 1n;
-            existing.updatedAt = date;
-          }
-        } else if (!query.includes("on conflict do nothing") || !conflicts) {
-          state.pantryItems.push(pantryItem);
-        }
       }
       return [];
     }
 
+    return undefined;
+  }
+
+  function insertUserStateRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "user_diet_profile"')) {
       const existing = state.dietProfiles.find(
         (candidate) => candidate.userId === params[0],
@@ -717,6 +981,93 @@ const dbMock = vi.hoisted(() => {
       return [dietProfileRow(profile)];
     }
 
+    return undefined;
+  }
+
+  function authoredTermRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
+    const jsonValue = <T>(value: unknown): T =>
+      (typeof value === "string" ? JSON.parse(value) : value) as T;
+
+    if (query.startsWith('insert into "authored_term"')) {
+      const row: AuthoredTermRow = {
+        id: crypto.randomUUID(),
+        userId: (params[0] as string | null) ?? null,
+        organizationId: (params[1] as string | null) ?? null,
+        kind: params[2] as AuthoredTermRow["kind"],
+        rawText: params[3] as string,
+        normalizedText: params[4] as string,
+        locale: params[5] as string,
+        sourceContext: jsonValue(params[6]),
+        provenance: jsonValue(params[7]),
+        candidateMatches: jsonValue(params[8]),
+        canonicalSlug: (params[10] as string | null) ?? null,
+        frequency: 1,
+        createdAt: date,
+        lastSeenAt: params[11] as Date,
+        updatedAt: params[12] as Date,
+      };
+      const existing = state.authoredTerms.find(
+        (candidate) =>
+          candidate.userId === row.userId &&
+          candidate.organizationId === row.organizationId &&
+          candidate.kind === row.kind &&
+          candidate.normalizedText === row.normalizedText,
+      );
+      if (existing) return [];
+      state.authoredTerms.push(row);
+      return [[row.id]];
+    }
+
+    if (query.startsWith('update "authored_term"')) {
+      const normalizedText = params.at(-1) as string;
+      const kind = params.at(-2) as AuthoredTermRow["kind"];
+      const ownerId = params.at(-3) as string;
+      const row = state.authoredTerms.find(
+        (candidate) =>
+          (candidate.userId === ownerId || candidate.organizationId === ownerId) &&
+          candidate.kind === kind &&
+          candidate.normalizedText === normalizedText,
+      );
+      if (row) {
+        row.rawText = params[0] as string;
+        row.frequency += 1;
+      }
+      return [];
+    }
+
+    if (query.includes('from "authored_term"')) {
+      const ownerId = params[0] as string;
+      const kind = params[1] as AuthoredTermRow["kind"] | undefined;
+      return state.authoredTerms
+        .filter(
+          (row) =>
+            (row.userId === ownerId || row.organizationId === ownerId) &&
+            row.canonicalSlug === null &&
+            (kind === undefined || row.kind === kind),
+        )
+        .map((row) => [
+          row.id,
+          row.kind,
+          row.rawText,
+          row.normalizedText,
+          row.locale,
+          row.sourceContext,
+          row.provenance,
+          row.candidateMatches,
+          row.frequency,
+        ]);
+    }
+
+    return undefined;
+  }
+
+  function insertRecipeBoxStateRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "user_recipe_box"')) {
       const userId = params[0] as string;
       const existing = state.recipeBoxes.find((box) => box.userId === userId);
@@ -738,6 +1089,13 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function insertCookingSessionRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "cooking_session"')) {
       const session: CookingSessionRow = {
         id: params[0] as string,
@@ -757,6 +1115,13 @@ const dbMock = vi.hoisted(() => {
       return [[session.id]];
     }
 
+    return undefined;
+  }
+
+  function insertDietSelectionRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('insert into "user_diet_preset"')) {
       for (let index = 0; index < params.length; index += 2) {
         state.userDietPresets.push({
@@ -787,46 +1152,126 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function updateInvitationRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('update "invitation" set "status"')) {
-      if (state.expireInvitationOnUpdate) {
-        const invitationId = params[1] as string;
-        const expiring = state.invitations.find(
-          (candidate) => candidate.id === invitationId,
-        );
-        if (expiring) expiring.expiresAt = new Date(0);
-        state.expireInvitationOnUpdate = false;
-      }
+      expireInvitationBeforeUpdate(params[1] as string);
       const status = params[0] as string;
       const invitationId = params[1] as string;
-      const hasHouseholdFilter = query.includes(
-        '"invitation"."organization_id"',
-      );
-      const householdId = hasHouseholdFilter
-        ? (params[2] as string)
-        : undefined;
-      const pendingStatus = hasHouseholdFilter
-        ? (params[3] as string | undefined)
-        : (params[2] as string | undefined);
-      const expiresAfter = query.includes('"invitation"."expires_at" >')
-        ? new Date(params[3] as string)
-        : undefined;
-      const invitation = state.invitations.find(
-        (candidate) =>
-          candidate.id === invitationId &&
-          (!householdId || candidate.organizationId === householdId) &&
-          (!pendingStatus || candidate.status === pendingStatus) &&
-          (!expiresAfter || candidate.expiresAt > expiresAfter),
+      const { householdId, pendingStatus, expiresAfter } =
+        invitationUpdateFilters(query, params);
+      const invitation = state.invitations.find((candidate) =>
+        invitationMatchesUpdate(
+          candidate,
+          invitationId,
+          householdId,
+          pendingStatus,
+          expiresAfter,
+        ),
       );
       if (!invitation) return [];
       invitation.status = status;
       return query.includes("returning") ? [invitationRow(invitation)] : [];
     }
 
+    return undefined;
+  }
+
+  function expireInvitationBeforeUpdate(invitationId: string) {
+    if (!state.expireInvitationOnUpdate) return;
+    const expiring = state.invitations.find(
+      (candidate) => candidate.id === invitationId,
+    );
+    if (expiring) expiring.expiresAt = new Date(0);
+    state.expireInvitationOnUpdate = false;
+  }
+
+  function invitationUpdateFilters(query: string, params: unknown[]) {
+    const hasHouseholdFilter = query.includes(
+      '"invitation"."organization_id"',
+    );
+    return {
+      householdId: hasHouseholdFilter ? (params[2] as string) : undefined,
+      pendingStatus: hasHouseholdFilter
+        ? (params[3] as string | undefined)
+        : (params[2] as string | undefined),
+      expiresAfter: query.includes('"invitation"."expires_at" >')
+        ? new Date(params[3] as string)
+        : undefined,
+    };
+  }
+
+  function invitationMatchesUpdate(
+    candidate: InvitationRow,
+    invitationId: string,
+    householdId: string | undefined,
+    pendingStatus: string | undefined,
+    expiresAfter: Date | undefined,
+  ) {
+    return (
+      candidate.id === invitationId &&
+      (!householdId || candidate.organizationId === householdId) &&
+      (!pendingStatus || candidate.status === pendingStatus) &&
+      (!expiresAfter || candidate.expiresAt > expiresAfter)
+    );
+  }
+
+  function queryPlaceholderValue(
+    query: string,
+    params: unknown[],
+    pattern: RegExp,
+  ) {
+    const match = query.match(pattern);
+    return match ? params[Number(match[1]) - 1] : undefined;
+  }
+
+  type NotificationDeliveryFilter = {
+    deliveryId: string | undefined;
+    recipientUserId: string | undefined;
+    eventId: string | undefined;
+    eventIds: Set<string>;
+    unreadOnly: boolean;
+    undismissedOnly: boolean;
+  };
+
+  function notificationDeliveryMatches(
+    delivery: (typeof state.notificationDeliveries)[number],
+    filter: NotificationDeliveryFilter,
+  ) {
+    return (
+      (!filter.deliveryId || delivery.id === filter.deliveryId) &&
+      (!filter.recipientUserId ||
+        delivery.recipientUserId === filter.recipientUserId) &&
+      (!filter.eventId || delivery.eventId === filter.eventId) &&
+      (filter.eventIds.size === 0 || filter.eventIds.has(delivery.eventId)) &&
+      (!filter.unreadOnly || !delivery.readAt) &&
+      (!filter.undismissedOnly || !delivery.dismissedAt)
+    );
+  }
+
+  function applyNotificationDeliveryUpdate(
+    delivery: (typeof state.notificationDeliveries)[number],
+    readAt: unknown,
+    dismissedAt: unknown,
+  ) {
+    if (readAt !== undefined) delivery.readAt = readAt as Date | null;
+    if (dismissedAt !== undefined) {
+      delivery.dismissedAt = dismissedAt as Date | null;
+    }
+  }
+
+  function updateNotificationRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('update "notification_delivery"')) {
-      const placeholderValue = (pattern: RegExp) => {
-        const match = query.match(pattern);
-        return match ? params[Number(match[1]) - 1] : undefined;
-      };
+      const placeholderValue = (pattern: RegExp) =>
+        queryPlaceholderValue(query, params, pattern);
       const readAt = placeholderValue(/set[\s\S]*?"read_at" = \$(\d+)/);
       const dismissedAt = placeholderValue(
         /set[\s\S]*?"dismissed_at" = \$(\d+)/,
@@ -849,34 +1294,35 @@ const dbMock = vi.hoisted(() => {
       const eventId = placeholderValue(
         /where[\s\S]*?"notification_delivery"\."event_id" = \$(\d+)/,
       ) as string | undefined;
+      const filter: NotificationDeliveryFilter = {
+        deliveryId,
+        recipientUserId,
+        eventId,
+        eventIds,
+        unreadOnly: query.includes('"read_at" is null'),
+        undismissedOnly: query.includes('"dismissed_at" is null'),
+      };
       for (const delivery of state.notificationDeliveries) {
-        if (
-          (!deliveryId || delivery.id === deliveryId) &&
-          (!recipientUserId || delivery.recipientUserId === recipientUserId) &&
-          (!eventId || delivery.eventId === eventId) &&
-          (eventIds.size === 0 || eventIds.has(delivery.eventId)) &&
-          (!query.includes('"read_at" is null') || !delivery.readAt) &&
-          (!query.includes('"dismissed_at" is null') || !delivery.dismissedAt)
-        ) {
-          if (readAt !== undefined) delivery.readAt = readAt as Date | null;
-          if (dismissedAt !== undefined) {
-            delivery.dismissedAt = dismissedAt as Date | null;
-          }
+        if (notificationDeliveryMatches(delivery, filter)) {
+          applyNotificationDeliveryUpdate(delivery, readAt, dismissedAt);
         }
       }
       return [];
     }
 
+    return undefined;
+  }
+
+  function updateAccountRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('update "user_email"')) {
       const setsPrimaryOnly = query.includes('set "is_primary" =');
       if (setsPrimaryOnly) {
         const userId = params.at(-2) as string;
         const excludedEmail = params.at(-1) as string;
-        for (const candidate of state.userEmails) {
-          if (candidate.userId === userId && candidate.email !== excludedEmail) {
-            candidate.isPrimary = false;
-          }
-        }
+        clearOtherPrimaryEmails(userId, excludedEmail);
         return [];
       }
 
@@ -893,16 +1339,48 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
-    if (query.startsWith('update "organization"')) {
-      const householdId = params.at(-1) as string;
-      const organization = state.organizations.find(
-        (candidate) => candidate.id === householdId,
-      );
-      if (!organization) return [];
-      organization.name = params[0] as string;
-      organization.updatedAt = date;
-      return query.includes("returning") ? [organizationRow(organization)] : [];
+    return undefined;
+  }
+
+  function clearOtherPrimaryEmails(userId: string, excludedEmail: string) {
+    for (const candidate of state.userEmails) {
+      if (candidate.userId === userId && candidate.email !== excludedEmail) {
+        candidate.isPrimary = false;
+      }
     }
+  }
+
+  function updateOrganizationRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
+    if (!query.startsWith('update "organization"')) return undefined;
+    const householdId = params.at(-1) as string;
+    const organization = state.organizations.find(
+      (candidate) => candidate.id === householdId,
+    );
+    if (!organization) return [];
+    if (query.includes('set "equipment_recipe_match_mode"')) {
+      organization.equipmentRecipeMatchMode = params[0] as
+        | "hide"
+        | "warn"
+        | "disabled";
+    } else {
+      organization.name = params[0] as string;
+    }
+    organization.updatedAt = date;
+    if (!query.includes("returning")) return [];
+    return query.includes('returning "equipment_recipe_match_mode"')
+      ? [[organization.equipmentRecipeMatchMode]]
+      : [organizationRow(organization)];
+  }
+
+  function updateHouseholdRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
+    const organizationRows = updateOrganizationRows(query, params);
+    if (organizationRows) return organizationRows;
 
     if (query.startsWith('update "cooking_session"')) {
       const completedAt = params[0] as Date;
@@ -918,6 +1396,13 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function updatePantryRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('update "pantry_item"')) {
       const userId = (params[0] as string | null) ?? null;
       const organizationId = (params[1] as string | null) ?? null;
@@ -936,34 +1421,65 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function updatePantryAggregateRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('update "pantry_aggregate"')) {
       if (query.includes('"revision" = "pantry_aggregate"."revision" + 1')) {
-        const aggregateId = params.at(-1) as string;
-        const aggregate = state.pantryAggregates.find(
-          (candidate) => candidate.id === aggregateId,
-        );
-        if (!aggregate) return [];
-        aggregate.revision += 1n;
-        aggregate.updatedAt = date;
-        return [[aggregate.revision.toString()]];
+        return incrementPantryAggregateRevision(params.at(-1) as string);
       }
       const userId = (params[0] as string | null) ?? null;
       const organizationId = (params[1] as string | null) ?? null;
       const previousOwnerId = params.at(-1) as string;
       const personal = query.includes('"pantry_aggregate"."user_id" =');
-      for (const aggregate of state.pantryAggregates) {
-        const matchesPreviousOwner = personal
-          ? aggregate.userId === previousOwnerId
-          : aggregate.organizationId === previousOwnerId;
-        if (matchesPreviousOwner) {
-          aggregate.userId = userId;
-          aggregate.organizationId = organizationId;
-          aggregate.updatedAt = date;
-        }
-      }
+      reassignPantryAggregates(
+        userId,
+        organizationId,
+        previousOwnerId,
+        personal,
+      );
       return [];
     }
 
+    return undefined;
+  }
+
+  function incrementPantryAggregateRevision(aggregateId: string): QueryRows {
+    const aggregate = state.pantryAggregates.find(
+      (candidate) => candidate.id === aggregateId,
+    );
+    if (!aggregate) return [];
+    aggregate.revision += 1n;
+    aggregate.updatedAt = date;
+    return [[aggregate.revision.toString()]];
+  }
+
+  function reassignPantryAggregates(
+    userId: string | null,
+    organizationId: string | null,
+    previousOwnerId: string,
+    personal: boolean,
+  ) {
+    for (const aggregate of state.pantryAggregates) {
+      const matchesPreviousOwner = personal
+        ? aggregate.userId === previousOwnerId
+        : aggregate.organizationId === previousOwnerId;
+      if (matchesPreviousOwner) {
+        aggregate.userId = userId;
+        aggregate.organizationId = organizationId;
+        aggregate.updatedAt = date;
+      }
+    }
+  }
+
+  function deletePantryRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('delete from "app_rate_limit"')) {
       state.rateLimitSweeps += 1;
       return [];
@@ -1022,6 +1538,13 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function deleteAccountRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('delete from "member"')) {
       const memberId = params[0] as string;
       state.members = state.members.filter((member) => member.id !== memberId);
@@ -1038,6 +1561,9 @@ const dbMock = vi.hoisted(() => {
       );
       state.invitations = state.invitations.filter(
         (invitation) => invitation.organizationId !== householdId,
+      );
+      state.householdEquipment = state.householdEquipment.filter(
+        (item) => item.organizationId !== householdId,
       );
       return [];
     }
@@ -1059,6 +1585,13 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function deleteUserStateRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('delete from "user_diet_excluded_group"')) {
       const userId = params[0] as string;
       state.userDietExcludedGroups = state.userDietExcludedGroups.filter(
@@ -1086,6 +1619,13 @@ const dbMock = vi.hoisted(() => {
       return [];
     }
 
+    return undefined;
+  }
+
+  function updateRecipeRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.startsWith('update "recipe"')) {
       if (
         query.includes('"recipe"."user_id"') &&
@@ -1094,12 +1634,7 @@ const dbMock = vi.hoisted(() => {
       ) {
         const visibility = params[0] as RecipeRow["visibility"];
         const userId = params.at(-1) as string;
-        for (const recipe of state.recipes) {
-          if (recipe.visibility === "household" && recipe.userId === userId) {
-            recipe.visibility = visibility;
-            recipe.updatedAt = date;
-          }
-        }
+        updateUserHouseholdRecipeVisibility(userId, visibility);
         return [];
       }
 
@@ -1114,6 +1649,31 @@ const dbMock = vi.hoisted(() => {
       return [recipeRow(recipe)];
     }
 
+    return undefined;
+  }
+
+  function updateUserHouseholdRecipeVisibility(
+    userId: string,
+    visibility: RecipeRow["visibility"],
+  ) {
+    for (const recipe of state.recipes) {
+      if (recipe.visibility === "household" && recipe.userId === userId) {
+        recipe.visibility = visibility;
+        recipe.updatedAt = date;
+      }
+    }
+  }
+
+  function selectOrganizationRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
+    if (query.startsWith('select "equipment_recipe_match_mode" from "organization"')) {
+      const householdId = params[0] as string;
+      return state.organizations
+        .filter((organization) => organization.id === householdId)
+        .map((organization) => [organization.equipmentRecipeMatchMode ?? "warn"]);
+    }
     if (query.includes('from "organization"') && query.includes('"organization"."id"')) {
       const householdId = params[0] as string;
       return state.organizations
@@ -1121,6 +1681,13 @@ const dbMock = vi.hoisted(() => {
         .map(organizationRow);
     }
 
+    return undefined;
+  }
+
+  function countNotificationRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (
       query.includes('count(*)') &&
       query.includes('from "notification_delivery"')
@@ -1139,6 +1706,13 @@ const dbMock = vi.hoisted(() => {
       ];
     }
 
+    return undefined;
+  }
+
+  function selectNotificationRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (
       query.includes('from "notification_delivery"') &&
       query.includes('inner join "notification_event"')
@@ -1175,6 +1749,13 @@ const dbMock = vi.hoisted(() => {
         });
     }
 
+    return undefined;
+  }
+
+  function selectNotificationDetailRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (
       query.includes('from "notification_household_invitation_event"') &&
       !query.includes('join')
@@ -1254,6 +1835,13 @@ const dbMock = vi.hoisted(() => {
         ]);
     }
 
+    return undefined;
+  }
+
+  function selectUserRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (
       query.includes('from "user"') &&
       query.includes('"user"."email" =')
@@ -1323,6 +1911,13 @@ const dbMock = vi.hoisted(() => {
         .map((follow) => [follow.followedUserId]);
     }
 
+    return undefined;
+  }
+
+  function selectUserEmailRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (
       query.includes('from "user_email"') &&
       query.includes('"user_email"."email" =')
@@ -1349,6 +1944,13 @@ const dbMock = vi.hoisted(() => {
         .map((candidate) => [candidate.email]);
     }
 
+    return undefined;
+  }
+
+  function selectMembershipRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (
       query.includes('from "member"') &&
       query.includes('left join "organization"')
@@ -1391,6 +1993,13 @@ const dbMock = vi.hoisted(() => {
         });
     }
 
+    return undefined;
+  }
+
+  function selectHouseholdRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.includes('from "member" inner join "user"')) {
       const householdId = params[0] as string;
       return state.members
@@ -1426,6 +2035,13 @@ const dbMock = vi.hoisted(() => {
         .map(memberRow);
     }
 
+    return undefined;
+  }
+
+  function selectPantryRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.includes('from "pantry_item"')) {
       const ownerId = params[0] as string;
       const personal = isPersonalPantryQuery(query);
@@ -1434,20 +2050,16 @@ const dbMock = vi.hoisted(() => {
           ? item.userId === ownerId
           : item.organizationId === ownerId,
       );
-      return pantryItems.map((item) => {
-        if (query.includes('select "ingredient_slug", "location", "version"')) {
-          return [
-            item.ingredientSlug,
-            item.location,
-            (item.version ?? 1n).toString(),
-          ];
-        }
-        return query.includes('select "ingredient_slug"')
+      const selectsDetails = query.includes(
+        'select "ingredient_slug", "location", "quantity", "quantity_unit", "use_by", "best_before", "stocked_at", "opened_at", "frozen_at", "freshness_estimate", "source_kind", "provenance", "version"',
+      );
+      if (selectsDetails) return pantryItems.map(pantryItemDetailsRow);
+      return pantryItems.map((item) =>
+        query.includes('select "ingredient_slug"')
           ? [item.ingredientSlug]
-          : [item.id];
-      });
+          : [item.id],
+      );
     }
-
 
     if (query.includes('from "pantry_aggregate"')) {
       const ownerId = params[0] as string;
@@ -1472,6 +2084,13 @@ const dbMock = vi.hoisted(() => {
         .map((operation) => [operation.commandFingerprint, operation.result]);
     }
 
+    return undefined;
+  }
+
+  function selectMemberRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (
       query.includes('from "member"') &&
       query.includes('"member"."id"') &&
@@ -1524,6 +2143,13 @@ const dbMock = vi.hoisted(() => {
         .map(memberRow);
     }
 
+    return undefined;
+  }
+
+  function selectInvitationRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (
       query.includes('from "invitation"') &&
       query.includes('inner join "organization"')
@@ -1597,6 +2223,13 @@ const dbMock = vi.hoisted(() => {
         .map(invitationRow);
     }
 
+    return undefined;
+  }
+
+  function selectRecipeFeedRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (
       query.includes('from "recipe"') &&
       query.includes('inner join "user"') &&
@@ -1650,6 +2283,12 @@ const dbMock = vi.hoisted(() => {
       });
     }
 
+    return undefined;
+  }
+
+  function selectRecipeFeedSummaryRows(
+    query: string,
+  ): QueryRows | undefined {
     if (
       query.includes('from "recipe"') &&
       query.includes('inner join "user"') &&
@@ -1675,6 +2314,13 @@ const dbMock = vi.hoisted(() => {
       });
     }
 
+    return undefined;
+  }
+
+  function selectCookRecipeRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (
       query.includes('from "recipe"') &&
       query.includes('inner join "user"') &&
@@ -1702,6 +2348,13 @@ const dbMock = vi.hoisted(() => {
         ]);
     }
 
+    return undefined;
+  }
+
+  function selectScopedRecipeRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (
       query.includes('from "recipe"') &&
       query.includes('"recipe"."slug" =') &&
@@ -1738,6 +2391,13 @@ const dbMock = vi.hoisted(() => {
         .map(recipeRow);
     }
 
+    return undefined;
+  }
+
+  function selectVisibleRecipeRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.includes('from "recipe"')) {
       const trailingParams =
         (query.includes("::timestamptz") ? 3 : 0) +
@@ -1765,6 +2425,12 @@ const dbMock = vi.hoisted(() => {
       );
     }
 
+    return undefined;
+  }
+
+  function selectCatalogRows(
+    query: string,
+  ): QueryRows | undefined {
     if (query.includes('from "diet_preset_excluded_group"')) {
       return state.dietPresetExcludedGroups.map((row) => [
         row.presetKey,
@@ -1794,6 +2460,13 @@ const dbMock = vi.hoisted(() => {
       ]);
     }
 
+    return undefined;
+  }
+
+  function selectDietCatalogRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.includes('from "diet_preset"')) {
       if (params.length > 0) {
         const keys = new Set(params as string[]);
@@ -1808,6 +2481,13 @@ const dbMock = vi.hoisted(() => {
       ]);
     }
 
+    return undefined;
+  }
+
+  function selectIngredientGroupRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.includes('from "ingredient_group"')) {
       if (params.length > 0) {
         const keys = new Set(params as string[]);
@@ -1822,6 +2502,13 @@ const dbMock = vi.hoisted(() => {
       ]);
     }
 
+    return undefined;
+  }
+
+  function selectIngredientRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.includes('from "ingredient"')) {
       if (params.length > 0) {
         const slugs = new Set(params as string[]);
@@ -1836,6 +2523,13 @@ const dbMock = vi.hoisted(() => {
       ]);
     }
 
+    return undefined;
+  }
+
+  function selectDietRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.includes('from "user_diet_preset"')) {
       const userId = params[0] as string;
       return state.userDietPresets
@@ -1864,6 +2558,13 @@ const dbMock = vi.hoisted(() => {
         .map(dietProfileRow);
     }
 
+    return undefined;
+  }
+
+  function selectCookingSessionRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.includes('from "cooking_session"')) {
       const userId = query.includes('"cooking_session"."id" =')
         ? (params[1] as string)
@@ -1911,6 +2612,13 @@ const dbMock = vi.hoisted(() => {
       ]);
     }
 
+    return undefined;
+  }
+
+  function selectRecipeBoxRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
     if (query.includes('from "user_recipe_box_item"')) {
       const userId = params[0] as string;
       return state.recipeBoxItems
@@ -1929,6 +2637,67 @@ const dbMock = vi.hoisted(() => {
       return [params];
     }
 
+    return undefined;
+  }
+
+  const queryRowsHandlers: QueryRowsHandler[] = [
+    queryShoppingRows,
+    updateShoppingRows,
+    selectShoppingRows,
+    insertCoreRows,
+    insertNotificationRows,
+    insertAccountRows,
+    insertFollowRows,
+    insertMembershipRows,
+    householdEquipmentRows,
+    insertPantryRows,
+    insertPantryOperationRows,
+    insertPantryItemRows,
+    insertUserStateRows,
+    authoredTermRows,
+    insertRecipeBoxStateRows,
+    insertCookingSessionRows,
+    insertDietSelectionRows,
+    updateInvitationRows,
+    updateNotificationRows,
+    updateAccountRows,
+    updateHouseholdRows,
+    updatePantryRows,
+    updatePantryAggregateRows,
+    deletePantryRows,
+    deleteAccountRows,
+    deleteUserStateRows,
+    updateRecipeRows,
+    selectOrganizationRows,
+    countNotificationRows,
+    selectNotificationRows,
+    selectNotificationDetailRows,
+    selectUserRows,
+    selectUserEmailRows,
+    selectMembershipRows,
+    selectHouseholdRows,
+    selectPantryRows,
+    selectMemberRows,
+    selectInvitationRows,
+    selectRecipeFeedRows,
+    selectRecipeFeedSummaryRows,
+    selectCookRecipeRows,
+    selectScopedRecipeRows,
+    selectVisibleRecipeRows,
+    selectCatalogRows,
+    selectDietCatalogRows,
+    selectIngredientGroupRows,
+    selectIngredientRows,
+    selectDietRows,
+    selectCookingSessionRows,
+    selectRecipeBoxRows,
+  ];
+
+  function queryRows(query: string, params: unknown[] = []): QueryRows {
+    for (const handler of queryRowsHandlers) {
+      const rows = handler(query, params);
+      if (rows) return rows;
+    }
     return [];
   }
 
@@ -4091,7 +4860,7 @@ describe("profile diet preferences", () => {
     ]);
   });
 
-  it("rejects validly-shaped diet keys that are not in the catalog", async () => {
+  it("accepts authored ingredient terms but rejects unknown catalog keys", async () => {
     authzMock.session = sessionFor({
       id: "owner-user",
       email: "owner@example.test",
@@ -4121,7 +4890,6 @@ describe("profile diet preferences", () => {
       error: "Unknown diet reference",
       details: expect.arrayContaining([
         expect.objectContaining({ path: ["presetDietKeys"] }),
-        expect.objectContaining({ path: ["excludedIngredientSlugs"] }),
         expect.objectContaining({ path: ["excludedGroupKeys"] }),
       ]),
     });
@@ -4143,7 +4911,7 @@ describe("profile diet preferences", () => {
           origin: "http://localhost:3000",
         },
         body: JSON.stringify({
-          excludedIngredientSlugs: ["Not a slug"],
+          excludedIngredientSlugs: [""],
           recipeMatchMode: "block",
         }),
       },
@@ -4619,6 +5387,128 @@ describe("shopping list flows", () => {
       organizationId: HOUSEHOLD_ID,
     });
   });
+
+  it("shares a household list through the recipient's notifications", async () => {
+    seedHousehold();
+    authzMock.session = sessionFor({
+      id: "owner-user",
+      email: "owner@example.test",
+      name: "Owner",
+    });
+
+    const shareResponse = await app.request(
+      "/shopping-lists/current/shares",
+      {
+        method: "POST",
+        headers: mutationHeaders,
+        body: JSON.stringify({ recipientUserId: "member-user" }),
+      },
+      env,
+    );
+
+    expect(shareResponse.status).toBe(201);
+    expect(await shareResponse.json()).toEqual({ shared: true });
+
+    authzMock.session = sessionFor({
+      id: "member-user",
+      email: "member@example.test",
+      name: "Member",
+    });
+    const notificationsResponse = await app.request("/notifications", {}, env);
+    expect(notificationsResponse.status).toBe(200);
+    expect(await notificationsResponse.json()).toMatchObject({
+      items: [
+        {
+          kind: "shopping_list_shared",
+          actor: { id: "owner-user", name: "Owner" },
+          actions: [],
+          detail: {
+            type: "household",
+            household: { id: HOUSEHOLD_ID, name: "Owner household" },
+          },
+        },
+      ],
+      unreadCount: 1,
+    });
+  });
+
+  it("rate limits shopping-list notifications per sender", async () => {
+    seedHousehold();
+    authzMock.session = sessionFor({
+      id: "owner-user",
+      email: "owner@example.test",
+      name: "Owner",
+    });
+    dbMock.state.rateLimitCounts.set("shopping-list-share:owner-user", 30);
+    const response = await app.request(
+      "/shopping-lists/current/shares",
+      {
+        method: "POST",
+        headers: mutationHeaders,
+        body: JSON.stringify({ recipientUserId: "member-user" }),
+      },
+      env,
+    );
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBeTruthy();
+    expect(dbMock.state.notificationDeliveries).toHaveLength(0);
+  });
+
+  it("rejects invalid share bodies without notifying anyone", async () => {
+    seedHousehold();
+    authzMock.session = sessionFor({
+      id: "owner-user",
+      email: "owner@example.test",
+      name: "Owner",
+    });
+    for (const body of [
+      {},
+      { recipientUserId: " " },
+      { recipientUserId: "member-user", extra: true },
+    ]) {
+      const response = await app.request(
+        "/shopping-lists/current/shares",
+        {
+          method: "POST",
+          headers: mutationHeaders,
+          body: JSON.stringify(body),
+        },
+        env,
+      );
+      expect(response.status).toBe(400);
+    }
+    expect(dbMock.state.notificationDeliveries).toHaveLength(0);
+  });
+
+  it("only shares shopping lists with another member of the household", async () => {
+    seedHousehold();
+    const request = (recipientUserId: string) =>
+      app.request(
+        "/shopping-lists/current/shares",
+        {
+          method: "POST",
+          headers: mutationHeaders,
+          body: JSON.stringify({ recipientUserId }),
+        },
+        env,
+      );
+
+    authzMock.session = sessionFor({
+      id: "owner-user",
+      email: "owner@example.test",
+      name: "Owner",
+    });
+    expect((await request("owner-user")).status).toBe(400);
+    expect((await request("outsider-user")).status).toBe(403);
+
+    authzMock.session = sessionFor({
+      id: "outsider-user",
+      email: "outsider@example.test",
+      name: "Outsider",
+    });
+    expect((await request("member-user")).status).toBe(409);
+    expect(dbMock.state.notificationDeliveries).toHaveLength(0);
+  });
 });
 
 describe("pantry mutation flows", () => {
@@ -4651,7 +5541,7 @@ describe("pantry mutation flows", () => {
     );
   });
 
-  it("replaces a personal pantry and validates every ingredient", async () => {
+  it("replaces a personal pantry and retains authored ingredients", async () => {
     const response = await app.request(
       "/pantry",
       {
@@ -4671,6 +5561,26 @@ describe("pantry mutation flows", () => {
       operationId: expect.any(String),
       scope: { type: "personal" },
       stock: { onion: "fresh", milk: "fridge" },
+      items: {
+        milk: {
+          location: "fridge",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Manual kitchen update",
+          },
+        },
+        onion: {
+          location: "fresh",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Manual kitchen update",
+          },
+        },
+      },
       itemVersions: { onion: "1", milk: "1" },
     });
     expect(dbMock.state.pantryItems).toEqual([
@@ -4697,17 +5607,56 @@ describe("pantry mutation flows", () => {
       },
       env,
     );
-    expect(unknownIngredient.status).toBe(400);
-    expect(await unknownIngredient.json()).toEqual({
-      error: "Unknown ingredient: dragonfruit",
+    expect(unknownIngredient.status).toBe(200);
+    expect(await unknownIngredient.json()).toMatchObject({
+      stock: { dragonfruit: "fresh" },
+      unresolvedTerms: [
+        expect.objectContaining({
+          kind: "ingredient",
+          rawText: "dragonfruit",
+          normalizedText: "dragonfruit",
+          resolutionStatus: "unresolved",
+        }),
+      ],
     });
+
+    const repeatedIngredient = await app.request(
+      "/pantry/items/Dragonfruit",
+      {
+        method: "PUT",
+        headers: mutationHeaders,
+        body: JSON.stringify({ location: "fridge" }),
+      },
+      env,
+    );
+    expect(await repeatedIngredient.json()).toMatchObject({
+      stock: { dragonfruit: "fridge" },
+      unresolvedTerms: [
+        expect.objectContaining({ rawText: "Dragonfruit", frequency: 2 }),
+      ],
+    });
+
+    const removeIngredient = await app.request(
+      "/pantry/items/dragonfruit",
+      {
+        method: "DELETE",
+        headers: { origin: "http://localhost:3000" },
+      },
+      env,
+    );
+    expect(removeIngredient.status).toBe(200);
+    expect(
+      dbMock.state.authoredTerms.find(
+        (term) => term.normalizedText === "dragonfruit",
+      ),
+    ).toMatchObject({ rawText: "Dragonfruit", frequency: 2 });
 
     const invalidBody = await app.request(
       "/pantry",
       {
         method: "PUT",
         headers: mutationHeaders,
-        body: JSON.stringify({ stock: { onion: "freezer" } }),
+        body: JSON.stringify({ stock: { onion: "garage" } }),
       },
       env,
     );
@@ -4736,6 +5685,17 @@ describe("pantry mutation flows", () => {
         household: { id: HOUSEHOLD_ID, name: "Owner household" },
       },
       stock: { onion: "cupboards" },
+      items: {
+        onion: {
+          location: "cupboards",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Household member update",
+          },
+        },
+      },
       itemVersions: { onion: "1" },
     });
     expect(dbMock.state.pantryItems[0]).toEqual(
@@ -4766,6 +5726,17 @@ describe("pantry mutation flows", () => {
         household: { id: HOUSEHOLD_ID, name: "Owner household" },
       },
       stock: { onion: "fresh" },
+      items: {
+        onion: {
+          location: "fresh",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Household member update",
+          },
+        },
+      },
       itemVersions: { onion: "2" },
     });
     expect(dbMock.state.pantryItems).toHaveLength(1);
@@ -4788,9 +5759,155 @@ describe("pantry mutation flows", () => {
         household: { id: HOUSEHOLD_ID, name: "Owner household" },
       },
       stock: {},
+      items: {},
       itemVersions: {},
     });
     expect(dbMock.state.pantryItems).toEqual([]);
+  });
+
+  it("shares detailed kitchen corrections without exposing them to outsiders", async () => {
+    seedHousehold();
+    dbMock.state.pantryItems.push({
+      id: crypto.randomUUID(),
+      userId: null,
+      organizationId: HOUSEHOLD_ID,
+      ingredientSlug: "onion",
+      location: "cupboards",
+      quantity: "1.000",
+      quantityUnit: "bag",
+      useBy: "2026-10-12",
+      bestBefore: "2026-10-10",
+      stockedAt: "2026-10-07",
+      openedAt: null,
+      frozenAt: null,
+      freshnessEstimate: null,
+      sourceKind: "inferred",
+      provenance: "Receipt scan on 5 October",
+      version: 1n,
+      createdAt: dbMock.date,
+      updatedAt: dbMock.date,
+    });
+    authzMock.session = sessionFor({
+      id: "member-user",
+      email: "member@example.test",
+      name: "Member",
+    });
+
+    await expect((await app.request("/pantry", undefined, env)).json()).resolves.toMatchObject({
+      items: {
+        onion: {
+          source: {
+            kind: "inferred",
+            provenance: "Receipt scan on 5 October",
+          },
+        },
+      },
+    });
+
+    const correction = await app.request(
+      "/pantry/items/onion",
+      {
+        method: "PUT",
+        headers: mutationHeaders,
+        body: JSON.stringify({
+          location: "freezer",
+          quantity: { amount: 2.5, unit: "piece" },
+          freshness: {
+            ...emptyPantryFreshness(),
+            useBy: "2026-10-12",
+            bestBefore: "2026-10-10",
+            frozenAt: "2026-10-07",
+          },
+        }),
+      },
+      env,
+    );
+
+    expect(correction.status).toBe(200);
+    expect(await correction.json()).toMatchObject({
+      resourceId: HOUSEHOLD_ID,
+      revision: "1",
+      items: {
+        onion: {
+          location: "freezer",
+          quantity: { amount: 2.5, unit: "piece" },
+          freshness: {
+            ...emptyPantryFreshness(),
+            useBy: "2026-10-12",
+            bestBefore: "2026-10-10",
+            frozenAt: "2026-10-07",
+          },
+          source: {
+            kind: "user",
+            provenance: "Household member update",
+          },
+        },
+      },
+    });
+
+    authzMock.session = sessionFor({
+      id: "owner-user",
+      email: "owner@example.test",
+      name: "Owner",
+    });
+    await expect((await app.request("/pantry", undefined, env)).json()).resolves.toMatchObject({
+      resourceId: HOUSEHOLD_ID,
+      revision: "1",
+      items: {
+        onion: {
+          location: "freezer",
+          quantity: { amount: 2.5, unit: "piece" },
+          freshness: {
+            ...emptyPantryFreshness(),
+            useBy: "2026-10-12",
+            bestBefore: "2026-10-10",
+            frozenAt: "2026-10-07",
+          },
+        },
+      },
+    });
+
+    authzMock.session = sessionFor({
+      id: "outsider-user",
+      email: "outsider@example.test",
+      name: "Outsider",
+    });
+    await expect((await app.request("/pantry", undefined, env)).json()).resolves.toMatchObject({
+      resourceId: "outsider-user",
+      revision: "0",
+      stock: {},
+      items: {},
+    });
+  });
+
+  it("rejects a single-item write that would exceed pantry capacity", async () => {
+    dbMock.state.pantryItems.push(
+      ...Array.from({ length: 500 }, (_, index) => ({
+        id: crypto.randomUUID(),
+        userId: "owner-user",
+        organizationId: null,
+        ingredientSlug: `existing-${index}`,
+        location: "cupboards" as const,
+        version: 1n,
+        createdAt: dbMock.date,
+        updatedAt: dbMock.date,
+      })),
+    );
+
+    const response = await app.request(
+      "/pantry/items/onion",
+      {
+        method: "PUT",
+        headers: mutationHeaders,
+        body: JSON.stringify({ location: "fresh" }),
+      },
+      env,
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: "A pantry can contain at most 500 ingredients",
+    });
   });
 
   it("publishes the committed household revision through one derived room", async () => {
@@ -4837,6 +5954,17 @@ describe("pantry mutation flows", () => {
             household: { id: HOUSEHOLD_ID, name: "Owner household" },
           },
           stock: { onion: "fresh" },
+          items: {
+            onion: {
+              location: "fresh",
+              quantity: null,
+              freshness: emptyPantryFreshness(),
+              source: {
+                kind: "user",
+                provenance: "Household member update",
+              },
+            },
+          },
           itemVersions: { onion: "1" },
         },
       },
@@ -4928,6 +6056,21 @@ describe("pantry mutation flows", () => {
         headers: mutationHeaders,
         body: JSON.stringify({
           stock: { onion: "cupboards", milk: "fridge" },
+          items: {
+            onion: {
+              location: "cupboards",
+              quantity: { amount: 2, unit: "bag" },
+              freshness: {
+                ...emptyPantryFreshness(),
+                useBy: "2026-10-12",
+                bestBefore: "2026-10-10",
+              },
+              source: {
+                kind: "inferred",
+                provenance: "Receipt import",
+              },
+            },
+          },
         }),
       },
       env,
@@ -4942,8 +6085,35 @@ describe("pantry mutation flows", () => {
         household: { id: HOUSEHOLD_ID, name: "Owner household" },
       },
       stock: { milk: "fresh", onion: "cupboards" },
+      items: {
+        milk: {
+          location: "fresh",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Manual kitchen update",
+          },
+        },
+        onion: {
+          location: "cupboards",
+          quantity: { amount: 2, unit: "bag" },
+          freshness: {
+            ...emptyPantryFreshness(),
+            useBy: "2026-10-12",
+            bestBefore: "2026-10-10",
+          },
+          source: {
+            kind: "inferred",
+            provenance: "Receipt import",
+          },
+        },
+      },
       itemVersions: { milk: "1", onion: "1" },
     });
+    expect(dbMock.state.authoredTerms).toEqual([
+      expect.objectContaining({ rawText: "onion", normalizedText: "onion" }),
+    ]);
   });
 
   it("replays a duplicate pantry operation without incrementing its revision", async () => {
@@ -5050,14 +6220,14 @@ describe("pantry mutation flows", () => {
       {
         method: "PUT",
         headers: mutationHeaders,
-        body: JSON.stringify({ location: "freezer" }),
+        body: JSON.stringify({ location: "garage" }),
       },
       env,
     );
     expect(invalidLocation.status).toBe(400);
 
-    const unknownIngredient = await app.request(
-      "/pantry/items/dragonfruit",
+    const authoredIngredient = await app.request(
+      "/pantry/items/Dragonfruit%20Powder",
       {
         method: "PUT",
         headers: mutationHeaders,
@@ -5065,9 +6235,15 @@ describe("pantry mutation flows", () => {
       },
       env,
     );
-    expect(unknownIngredient.status).toBe(400);
-    expect(await unknownIngredient.json()).toEqual({
-      error: "Unknown ingredient: dragonfruit",
+    expect(authoredIngredient.status).toBe(200);
+    expect(await authoredIngredient.json()).toMatchObject({
+      stock: { "dragonfruit powder": "fresh" },
+      unresolvedTerms: [
+        expect.objectContaining({
+          rawText: "Dragonfruit Powder",
+          normalizedText: "dragonfruit powder",
+        }),
+      ],
     });
 
     const invalidDelete = await app.request(
@@ -5223,6 +6399,17 @@ describe("household membership flows", () => {
           },
         },
         stock: { onion: "fresh" },
+        items: {
+          onion: {
+            location: "fresh",
+            quantity: null,
+            freshness: emptyPantryFreshness(),
+            source: {
+              kind: "user",
+              provenance: "Manual kitchen update",
+            },
+          },
+        },
         itemVersions: { onion: "1" },
       });
     }
@@ -5548,6 +6735,241 @@ describe("household membership flows", () => {
 
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({ error: "Authorization required" });
+  });
+
+  it("shares an idempotent equipment inventory with every household member", async () => {
+    seedHousehold();
+    authzMock.session = sessionFor({
+      id: "member-user",
+      email: "member@example.test",
+      name: "Member",
+    });
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const addResponse = await app.request(
+        `/households/${HOUSEHOLD_ID}/equipment/frying-pan`,
+        {
+          method: "PUT",
+          headers: { origin: "http://localhost:3000" },
+        },
+        env,
+      );
+      expect(addResponse.status).toBe(200);
+      expect(await addResponse.json()).toMatchObject({
+        slug: "frying-pan",
+        name: "frying pan",
+        category: "cookware",
+        retired: false,
+      });
+    }
+    expect(dbMock.state.householdEquipment).toHaveLength(1);
+
+    authzMock.session = sessionFor({
+      id: "owner-user",
+      email: "owner@example.test",
+      name: "Owner",
+    });
+    const listResponse = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment`,
+      {},
+      env,
+    );
+
+    expect(listResponse.status).toBe(200);
+    expect(await listResponse.json()).toMatchObject({
+      recipeMatchMode: "warn",
+      catalog: expect.arrayContaining([
+        expect.objectContaining({ slug: "frying-pan" }),
+      ]),
+      owned: [
+        expect.objectContaining({
+          slug: "frying-pan",
+          name: "frying pan",
+          category: "cookware",
+        }),
+      ],
+    });
+  });
+
+  it("lets members choose or disable equipment matching", async () => {
+    seedHousehold();
+    authzMock.session = sessionFor({
+      id: "member-user",
+      email: "member@example.test",
+      name: "Member",
+    });
+
+    for (const recipeMatchMode of ["hide", "disabled"] as const) {
+      const updateResponse = await app.request(
+        `/households/${HOUSEHOLD_ID}/equipment`,
+        {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+            origin: "http://localhost:3000",
+          },
+          body: JSON.stringify({ recipeMatchMode }),
+        },
+        env,
+      );
+
+      expect(updateResponse.status).toBe(200);
+      expect(await updateResponse.json()).toEqual({ recipeMatchMode });
+    }
+
+    const listResponse = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment`,
+      {},
+      env,
+    );
+    expect(await listResponse.json()).toMatchObject({
+      recipeMatchMode: "disabled",
+    });
+  });
+
+  it("lets members remove equipment and retain authored equipment", async () => {
+    seedHousehold();
+    dbMock.state.householdEquipment.push(
+      {
+        organizationId: HOUSEHOLD_ID,
+        equipmentSlug: "frying-pan",
+        createdAt: dbMock.date,
+      },
+      {
+        organizationId: HOUSEHOLD_ID,
+        equipmentSlug: "rotary-dial-oven",
+        createdAt: dbMock.date,
+      },
+    );
+    authzMock.session = sessionFor({
+      id: "member-user",
+      email: "member@example.test",
+      name: "Member",
+    });
+
+    const listResponse = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment`,
+      {},
+      env,
+    );
+    expect(listResponse.status).toBe(200);
+    const listBody = (await listResponse.json()) as {
+      owned: Array<{ slug: string; [key: string]: unknown }>;
+    };
+    expect(listBody).toMatchObject({
+      owned: expect.arrayContaining([
+        {
+          slug: "rotary-dial-oven",
+          name: "rotary dial oven",
+          createdAt: dbMock.date.toISOString(),
+          retired: true,
+        },
+      ]),
+    });
+    expect(
+      listBody.owned.find((item) => item.slug === "rotary-dial-oven"),
+    ).not.toHaveProperty("category");
+
+    const retiredDeleteResponse = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment/rotary-dial-oven`,
+      {
+        method: "DELETE",
+        headers: { origin: "http://localhost:3000" },
+      },
+      env,
+    );
+    expect(retiredDeleteResponse.status).toBe(204);
+
+    const deleteResponse = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment/frying-pan`,
+      {
+        method: "DELETE",
+        headers: { origin: "http://localhost:3000" },
+      },
+      env,
+    );
+    expect(deleteResponse.status).toBe(204);
+    expect(dbMock.state.householdEquipment).toHaveLength(0);
+    expect(dbMock.state.authoredTerms).toHaveLength(0);
+
+    const unknownResponse = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment/laser-whisk`,
+      {
+        method: "PUT",
+        headers: { origin: "http://localhost:3000" },
+      },
+      env,
+    );
+    expect(unknownResponse.status).toBe(200);
+    expect(await unknownResponse.json()).toMatchObject({
+      slug: "laser-whisk",
+      name: "laser-whisk",
+      unresolved: true,
+    });
+    expect(dbMock.state.authoredTerms).toContainEqual(
+      expect.objectContaining({
+        organizationId: HOUSEHOLD_ID,
+        kind: "equipment",
+        rawText: "laser-whisk",
+        normalizedText: "laser-whisk",
+        canonicalSlug: null,
+      }),
+    );
+
+    const aliasResponse = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment/large%20skillet`,
+      {
+        method: "PUT",
+        headers: { origin: "http://localhost:3000" },
+      },
+      env,
+    );
+    expect(aliasResponse.status).toBe(200);
+    expect(await aliasResponse.json()).toMatchObject({
+      slug: "frying-pan",
+      name: "frying pan",
+      retired: false,
+    });
+    expect(dbMock.state.authoredTerms).toContainEqual(
+      expect.objectContaining({
+        organizationId: HOUSEHOLD_ID,
+        rawText: "large skillet",
+        canonicalSlug: "frying-pan",
+        candidateMatches: [{ slug: "frying-pan", score: 1 }],
+      }),
+    );
+  });
+
+  it("keeps household equipment private from non-members", async () => {
+    seedHousehold();
+    authzMock.session = sessionFor({
+      id: "outsider-user",
+      email: "outsider@example.test",
+      name: "Outsider",
+    });
+
+    const response = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment`,
+      {},
+      env,
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "Authorization required" });
+  });
+
+  it("rejects overlong authored equipment terms", async () => {
+    const response = await app.request(
+      `/households/${HOUSEHOLD_ID}/equipment/${"a".repeat(101)}`,
+      {
+        method: "PUT",
+        headers: { origin: "http://localhost:3000" },
+      },
+      env,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Invalid equipment term" });
   });
 
   it("allows owners to invite household members", async () => {
@@ -6758,6 +8180,30 @@ describe("PATCH /recipes/:slug", () => {
 });
 
 describe("POST /api/auth/sign-in/social", () => {
+  it("requires a current user before agent-approval reauthentication", async () => {
+    const res = await app.request(
+      "/api/auth/sign-in/social",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "http://localhost:3000",
+        },
+        body: JSON.stringify({
+          provider: "github",
+          callbackURL: "/recipes/settings/agents/approve",
+          additionalData: { flow: "agent-approval" },
+        }),
+      },
+      env,
+    );
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({
+      code: "agent_reauth_session_required",
+    });
+  });
+
   it.each(["google", "github"] as const)(
     "uses the public frontend callback for %s",
     async (provider) => {

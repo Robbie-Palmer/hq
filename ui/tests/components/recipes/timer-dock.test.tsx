@@ -2,11 +2,8 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TimerDock } from "@/components/recipes/timer-dock";
 import { CookModeProvider, useCookMode } from "@/contexts/cook-mode-context";
-import {
-  __resetTimerStoreForTests,
-  getTimersSnapshot,
-  startTimer,
-} from "@/lib/cooking/timerStore";
+import { getTimersSnapshot, startTimer } from "@/lib/cooking/timerStore";
+import { __resetTimerStoreForTests } from "@/tests/support/recipe-state";
 
 function OpenCookModeButton() {
   const { setCookModeOpen } = useCookMode();

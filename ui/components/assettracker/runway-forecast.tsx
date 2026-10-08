@@ -1,8 +1,7 @@
 "use client";
 
-import { addDays, addYears, format, parseISO } from "date-fns";
-import { Trash2Icon } from "lucide-react";
-import { type SubmitEvent, useMemo, useState } from "react";
+import { format, parseISO } from "date-fns";
+import { useMemo, useState } from "react";
 import {
   CartesianGrid,
   Line,
@@ -12,7 +11,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Button } from "@/components/ui/button";
 import {
   type ChartConfig,
   ChartContainer,
@@ -28,17 +26,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatCurrency, todayIsoDate } from "@/lib/assettracker";
 import {
-  accountLiquidity,
-  formatAssetTrackerError,
-  formatCurrency,
-  isLiability,
-  type PlannedExpenditure,
-  RUNWAY_FORECAST_MAX_YEARS,
+  type Currency,
+  type ForecastCashFlow,
+  futureCashFlowForecastItems,
+  type MonthlyForecastBreakdown,
   type RunwayForecastPoint,
-  todayIsoDate,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { DecisionScenarioSummary } from "./decision-scenario-summary";
 
 const HORIZON_OPTIONS = [1, 3, 5, 10, 20, 30] as const;
 
@@ -46,14 +43,14 @@ const CASH_COLOR = "hsl(199, 89%, 48%)";
 const LIQUID_COLOR = "hsl(160, 84%, 39%)";
 const TOTAL_COLOR = "hsl(263, 70%, 58%)";
 const BASELINE_COLOR = "hsl(263, 24%, 68%)";
-const PLANNED_SPENDING_COLOR = "hsl(38, 92%, 50%)";
+const FUTURE_CASH_FLOW_COLOR = "hsl(38, 92%, 50%)";
 
 const CHART_CONFIG = {
   cashMonths: { label: "Cash", color: CASH_COLOR },
   liquidMonths: { label: "Liquid assets", color: LIQUID_COLOR },
   totalMonths: { label: "Total net worth", color: TOTAL_COLOR },
   baselineTotalMonths: {
-    label: "Total without planned spending",
+    label: "Total without future commitments and selected decisions",
     color: BASELINE_COLOR,
   },
 } satisfies ChartConfig;
@@ -88,8 +85,8 @@ function formatAxisRunway(months: number): string {
 
 function impactDescription(projected: number, baseline: number): string {
   const reduction = baseline - projected;
-  if (reduction < 0.05) return "No planned-spending impact by this date";
-  return `${formatRunway(reduction)} less after planned spending`;
+  if (reduction < 0.05) return "No future cash-flow impact by this date";
+  return `${formatRunway(reduction)} less after future cash flows`;
 }
 
 function pointOnOrAfter(
@@ -99,13 +96,9 @@ function pointOnOrAfter(
   return points.find((point) => point.date >= date) ?? points.at(-1) ?? null;
 }
 
-function tomorrowIsoDate(): string {
-  return format(addDays(parseISO(todayIsoDate()), 1), "yyyy-MM-dd");
-}
-
 type ForecastChartPoint = RunwayForecastPoint & {
   timestamp: number;
-  plannedExpenditures: PlannedExpenditure[];
+  forecastCashFlows: ForecastCashFlow[];
 };
 
 type RunwayTooltipPayload = {
@@ -165,19 +158,18 @@ export function RunwayChartTooltip({
           );
         })}
       </div>
-      {point.plannedExpenditures.length > 0 && (
+      {point.forecastCashFlows.length > 0 && (
         <div className="grid gap-1 border-t pt-2">
           <p className="font-medium text-amber-600 dark:text-amber-400">
-            Planned spending applied
+            Future cash flows applied
           </p>
-          {point.plannedExpenditures.map((expenditure) => (
-            <div key={expenditure.id} className="flex justify-between gap-3">
+          {point.forecastCashFlows.map((cashFlow) => (
+            <div key={cashFlow.id} className="flex justify-between gap-3">
               <span>
-                {expenditure.name} ·{" "}
-                {format(parseISO(expenditure.date), "d MMM")}
+                {cashFlow.name} · {format(parseISO(cashFlow.date), "d MMM")}
               </span>
               <span className="font-mono tabular-nums">
-                {formatCurrency(expenditure.amount)}
+                {formatCurrency(cashFlow.amount, cashFlow.currency)}
               </span>
             </div>
           ))}
@@ -189,30 +181,124 @@ export function RunwayChartTooltip({
 
 function buildChartData(
   points: RunwayForecastPoint[],
-  expenditures: PlannedExpenditure[],
+  cashFlows: ForecastCashFlow[],
 ): ForecastChartPoint[] {
   return points.map((point, index) => {
     const previousDate = points[index - 1]?.date;
     return {
       ...point,
       timestamp: parseISO(point.date).getTime(),
-      plannedExpenditures: expenditures.filter(
-        (expenditure) =>
-          expenditure.date <= point.date &&
-          (previousDate == null || expenditure.date > previousDate),
+      forecastCashFlows: cashFlows.filter(
+        (cashFlow) =>
+          cashFlow.date <= point.date &&
+          (previousDate == null || cashFlow.date > previousDate),
       ),
     };
   });
 }
 
+function formatRange(
+  range: MonthlyForecastBreakdown["explicitIncomeChange"],
+  currency: Currency,
+): string {
+  const expected = formatCurrency(Math.round(range.expected), currency);
+  if (range.minimum === range.expected && range.maximum === range.expected) {
+    return expected;
+  }
+  return `${expected} (${formatCurrency(Math.round(range.minimum), currency)}–${formatCurrency(Math.round(range.maximum), currency)})`;
+}
+
+function BreakdownRows({
+  breakdown,
+  currency,
+}: Readonly<{
+  breakdown: MonthlyForecastBreakdown;
+  currency: Currency;
+}>) {
+  const amounts = [
+    ["Historical expenditure baseline", breakdown.baselineExpenditure],
+    ["External income", breakdown.externalIncome],
+    ["Account transfers", breakdown.accountTransfers],
+    ["Debt payments", breakdown.debtPayments],
+    ["Committed cash flows", breakdown.committedCashFlows],
+  ] as const;
+  const ranges = [
+    ["Explicit income change", breakdown.explicitIncomeChange],
+    ["Explicit expenditure change", breakdown.explicitExpenditureChange],
+    ["Possible decisions", breakdown.possibleDecisions],
+  ] as const;
+  return (
+    <dl className="grid gap-1 text-xs sm:grid-cols-2">
+      {amounts.map(([label, value]) => (
+        <div key={label} className="flex justify-between gap-3">
+          <dt className="text-muted-foreground">{label}</dt>
+          <dd className="font-mono tabular-nums">
+            {formatCurrency(Math.round(value), currency)}
+          </dd>
+        </div>
+      ))}
+      {ranges.map(([label, range]) => (
+        <div key={label} className="flex justify-between gap-3">
+          <dt className="text-muted-foreground">{label}</dt>
+          <dd className="font-mono tabular-nums">
+            {formatRange(range, currency)}
+          </dd>
+        </div>
+      ))}
+      <div className="flex justify-between gap-3">
+        <dt className="text-muted-foreground">Selected decisions</dt>
+        <dd className="font-mono tabular-nums">
+          {formatCurrency(
+            Math.round(breakdown.selectedDecisionCashFlows),
+            currency,
+          )}
+        </dd>
+      </div>
+    </dl>
+  );
+}
+
+function BaselineCoverageNote({
+  amount,
+  currency,
+}: Readonly<{ amount: number; currency: Currency }>) {
+  if (amount <= 0) return null;
+  return (
+    <p className="text-xs text-muted-foreground">
+      {formatCurrency(Math.round(amount), currency)} of ordinary recurring
+      outflows is already represented by the historical baseline and is not
+      counted again.
+    </p>
+  );
+}
+
+function MonthlyBreakdown({
+  breakdown,
+  currency,
+}: Readonly<{
+  breakdown: MonthlyForecastBreakdown;
+  currency: Currency;
+}>) {
+  return (
+    <div className="space-y-2 rounded-md bg-muted/40 p-3">
+      <div>
+        <p className="text-xs font-medium">Monthly projection breakdown</p>
+        <p className="text-xs text-muted-foreground">
+          Changes are forecast assumptions, not spending limits.
+        </p>
+      </div>
+      <BreakdownRows breakdown={breakdown} currency={currency} />
+      <BaselineCoverageNote
+        amount={breakdown.ordinaryRecurringOutflowsCoveredByBaseline}
+        currency={currency}
+      />
+    </div>
+  );
+}
+
 export function RunwayForecast() {
-  const {
-    accounts,
-    financialIndependence,
-    plannedExpenditures,
-    addPlannedExpenditure,
-    deletePlannedExpenditure,
-  } = useAssetTracker();
+  const { baseCurrency, financialIndependence, futureCashFlows } =
+    useAssetTracker();
   const { runwayForecast, representativeAnnualExpenditure } =
     financialIndependence;
   const [horizonYears, setHorizonYears] = useState(5);
@@ -221,37 +307,9 @@ export function RunwayForecast() {
       runwayForecast[Math.min(60, runwayForecast.length - 1)]?.date ??
       todayIsoDate(),
   );
-  const [name, setName] = useState("");
-  const [amount, setAmount] = useState("");
-  const [date, setDate] = useState(tomorrowIsoDate);
-  const [fromAccountId, setFromAccountId] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  const assetAccounts = useMemo(
-    () =>
-      accounts
-        .filter(
-          (account) =>
-            account.isOpen &&
-            !isLiability(account.assetType) &&
-            accountLiquidity(account) !== "illiquid",
-        )
-        .toSorted((a, b) => {
-          const rank = (account: (typeof accounts)[number]) => {
-            const liquidity = accountLiquidity(account);
-            if (liquidity === "cash") return 0;
-            return liquidity === "liquid" ? 1 : 2;
-          };
-          return (
-            rank(a) - rank(b) || (b.latestBalance ?? 0) - (a.latestBalance ?? 0)
-          );
-        }),
-    [accounts],
-  );
-  const selectedSourceId = plannedExpenditureSourceId(
-    assetAccounts,
-    fromAccountId,
+  const forecastCashFlows = useMemo(
+    () => futureCashFlowForecastItems(futureCashFlows),
+    [futureCashFlows],
   );
   const horizonIndex = Math.min(horizonYears * 12, runwayForecast.length - 1);
   const horizonEnd = runwayForecast[horizonIndex]?.date;
@@ -259,27 +317,21 @@ export function RunwayForecast() {
     () =>
       buildChartData(
         runwayForecast.slice(0, horizonIndex + 1),
-        plannedExpenditures,
+        forecastCashFlows,
       ),
-    [horizonIndex, plannedExpenditures, runwayForecast],
+    [forecastCashFlows, horizonIndex, runwayForecast],
   );
-  const visiblePlannedExpenditures = useMemo(
+  const visibleForecastCashFlows = useMemo(
     () =>
-      plannedExpenditures.filter(
-        (expenditure) =>
+      forecastCashFlows.filter(
+        (cashFlow) =>
           chartData[0] != null &&
-          expenditure.date > chartData[0].date &&
-          expenditure.date <= (horizonEnd ?? chartData[0].date),
+          cashFlow.date > chartData[0].date &&
+          cashFlow.date <= (horizonEnd ?? chartData[0].date),
       ),
-    [chartData, horizonEnd, plannedExpenditures],
+    [chartData, forecastCashFlows, horizonEnd],
   );
   const selectedPoint = pointOnOrAfter(chartData, selectedDate);
-  const maximumDate =
-    runwayForecast.at(-1)?.date ??
-    format(
-      addYears(parseISO(todayIsoDate()), RUNWAY_FORECAST_MAX_YEARS),
-      "yyyy-MM-dd",
-    );
 
   function handleHorizon(value: string) {
     const years = Number(value);
@@ -287,40 +339,6 @@ export function RunwayForecast() {
     const end =
       runwayForecast[Math.min(years * 12, runwayForecast.length - 1)]?.date;
     if (end != null && selectedDate > end) setSelectedDate(end);
-  }
-
-  async function handleAdd(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    try {
-      await addPlannedExpenditure({
-        name,
-        amount: Number(amount),
-        date,
-        fromAccountId: selectedSourceId,
-      });
-      setName("");
-      setAmount("");
-      setDate(tomorrowIsoDate());
-    } catch (err) {
-      setError(formatAssetTrackerError(err));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleDelete(id: string) {
-    try {
-      await deletePlannedExpenditure(id);
-      setError(null);
-    } catch (err) {
-      setError(formatAssetTrackerError(err));
-    }
-  }
-
-  function accountName(id: string): string {
-    return accounts.find((account) => account.id === id)?.name ?? id;
   }
 
   return (
@@ -338,8 +356,9 @@ export function RunwayForecast() {
             flows, and{" "}
             {representativeAnnualExpenditure == null
               ? "reconciled long-term spending"
-              : `${formatCurrency(Math.round(representativeAnnualExpenditure))}/yr long-term spending`}
-            . Planned spending is deducted on its date.
+              : `${formatCurrency(Math.round(representativeAnnualExpenditure), baseCurrency)}/yr long-term spending`}
+            . Active commitments and selected decisions are deducted on their
+            expected dates.
           </p>
         </div>
         <Select value={String(horizonYears)} onValueChange={handleHorizon}>
@@ -387,22 +406,22 @@ export function RunwayForecast() {
                 <YAxis width={48} tickFormatter={formatAxisRunway} />
                 <ChartTooltip content={<RunwayChartTooltip />} />
                 <ChartLegend content={<ChartLegendContent />} />
-                {visiblePlannedExpenditures.map((expenditure) => (
+                {visibleForecastCashFlows.map((cashFlow) => (
                   <ReferenceLine
-                    key={expenditure.id}
-                    x={parseISO(expenditure.date).getTime()}
-                    stroke={PLANNED_SPENDING_COLOR}
+                    key={cashFlow.id}
+                    x={parseISO(cashFlow.date).getTime()}
+                    stroke={FUTURE_CASH_FLOW_COLOR}
                     strokeDasharray="4 3"
                     strokeWidth={1.5}
                     label={{
-                      value: formatCurrency(expenditure.amount),
+                      value: formatCurrency(cashFlow.amount, cashFlow.currency),
                       position: "insideTopRight",
-                      fill: PLANNED_SPENDING_COLOR,
+                      fill: FUTURE_CASH_FLOW_COLOR,
                       fontSize: 10,
                     }}
                   />
                 ))}
-                {plannedExpenditures.length > 0 && (
+                {forecastCashFlows.length > 0 && (
                   <Line
                     type="monotone"
                     dataKey="baselineTotalMonths"
@@ -436,14 +455,14 @@ export function RunwayForecast() {
               </LineChart>
             </ResponsiveContainer>
           </ChartContainer>
-          {visiblePlannedExpenditures.length > 0 && (
+          {visibleForecastCashFlows.length > 0 && (
             <p className="flex items-center gap-2 text-xs text-muted-foreground">
               <span
                 aria-hidden="true"
                 className="h-3 border-l-2 border-dashed border-amber-500"
               />{" "}
-              Planned spending is marked on its purchase date. Hover the next
-              forecast point for its details.
+              Included future cash flows are marked on their expected dates.
+              Hover the next forecast point for details.
             </p>
           )}
 
@@ -463,43 +482,52 @@ export function RunwayForecast() {
               />
             </div>
             {selectedPoint && (
-              <div className="grid gap-3 sm:grid-cols-3">
-                {[
-                  {
-                    label: "Cash",
-                    balance: selectedPoint.cashBalance,
-                    months: selectedPoint.cashMonths,
-                    baseline: selectedPoint.baselineCashMonths,
-                  },
-                  {
-                    label: "Liquid assets",
-                    balance: selectedPoint.liquidBalance,
-                    months: selectedPoint.liquidMonths,
-                    baseline: selectedPoint.baselineLiquidMonths,
-                  },
-                  {
-                    label: "Total net worth",
-                    balance: selectedPoint.totalBalance,
-                    months: selectedPoint.totalMonths,
-                    baseline: selectedPoint.baselineTotalMonths,
-                  },
-                ].map((item) => (
-                  <div key={item.label} className="rounded-md bg-muted/40 p-3">
-                    <p className="text-xs text-muted-foreground">
-                      {item.label}
-                    </p>
-                    <p className="mt-1 font-semibold">
-                      {formatRunway(item.months)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatCurrency(Math.round(item.balance))}
-                    </p>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {impactDescription(item.months, item.baseline)}
-                    </p>
-                  </div>
-                ))}
-              </div>
+              <>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {[
+                    {
+                      label: "Cash",
+                      balance: selectedPoint.cashBalance,
+                      months: selectedPoint.cashMonths,
+                      baseline: selectedPoint.baselineCashMonths,
+                    },
+                    {
+                      label: "Liquid assets",
+                      balance: selectedPoint.liquidBalance,
+                      months: selectedPoint.liquidMonths,
+                      baseline: selectedPoint.baselineLiquidMonths,
+                    },
+                    {
+                      label: "Total net worth",
+                      balance: selectedPoint.totalBalance,
+                      months: selectedPoint.totalMonths,
+                      baseline: selectedPoint.baselineTotalMonths,
+                    },
+                  ].map((item) => (
+                    <div
+                      key={item.label}
+                      className="rounded-md bg-muted/40 p-3"
+                    >
+                      <p className="text-xs text-muted-foreground">
+                        {item.label}
+                      </p>
+                      <p className="mt-1 font-semibold">
+                        {formatRunway(item.months)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatCurrency(Math.round(item.balance), baseCurrency)}
+                      </p>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {impactDescription(item.months, item.baseline)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <MonthlyBreakdown
+                  breakdown={selectedPoint.monthlyBreakdown}
+                  currency={baseCurrency}
+                />
+              </>
             )}
           </div>
         </>
@@ -509,134 +537,7 @@ export function RunwayForecast() {
         </p>
       )}
 
-      <div className="space-y-3 rounded-md border p-3">
-        <div>
-          <h4 className="text-sm font-medium">Planned spending</h4>
-          <p className="text-xs text-muted-foreground">
-            Add a dated purchase such as a holiday, car, repair, or wedding.
-            Enter the expected cost in today&apos;s money.
-          </p>
-        </div>
-        {plannedExpenditures.length > 0 && (
-          <ul className="divide-y rounded-md border">
-            {plannedExpenditures.map((expenditure) => (
-              <li
-                key={expenditure.id}
-                className="flex items-center gap-3 px-3 py-2 text-sm"
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{expenditure.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {expenditure.date} from{" "}
-                    {accountName(expenditure.fromAccountId)}
-                  </p>
-                </div>
-                <span className="ml-auto shrink-0 font-mono">
-                  {formatCurrency(expenditure.amount)}
-                </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Delete planned expenditure ${expenditure.name}`}
-                  onClick={() => handleDelete(expenditure.id)}
-                >
-                  <Trash2Icon />
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-        {assetAccounts.length > 0 ? (
-          <form
-            onSubmit={handleAdd}
-            className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_8rem_10rem_1fr_auto] lg:items-end"
-          >
-            <div className="space-y-1.5">
-              <label
-                htmlFor="planned-expenditure-name"
-                className="text-xs font-medium"
-              >
-                Name
-              </label>
-              <Input
-                id="planned-expenditure-name"
-                required
-                placeholder="e.g. New car"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label
-                htmlFor="planned-expenditure-amount"
-                className="text-xs font-medium"
-              >
-                Amount
-              </label>
-              <Input
-                id="planned-expenditure-amount"
-                type="number"
-                inputMode="decimal"
-                min="0.01"
-                step="0.01"
-                required
-                placeholder="10000"
-                value={amount}
-                onChange={(event) => setAmount(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label
-                htmlFor="planned-expenditure-date"
-                className="text-xs font-medium"
-              >
-                Date
-              </label>
-              <Input
-                id="planned-expenditure-date"
-                type="date"
-                min={tomorrowIsoDate()}
-                max={maximumDate}
-                required
-                value={date}
-                onChange={(event) => setDate(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label
-                htmlFor="planned-expenditure-account"
-                className="text-xs font-medium"
-              >
-                Pay from
-              </label>
-              <Select value={selectedSourceId} onValueChange={setFromAccountId}>
-                <SelectTrigger
-                  id="planned-expenditure-account"
-                  className="w-full"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {assetAccounts.map((account) => (
-                    <SelectItem key={account.id} value={account.id}>
-                      {account.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button type="submit" disabled={submitting}>
-              Add
-            </Button>
-          </form>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Add an open asset account before planning spending.
-          </p>
-        )}
-        {error && <p className="text-sm text-destructive">{error}</p>}
-      </div>
+      <DecisionScenarioSummary />
     </section>
   );
 }

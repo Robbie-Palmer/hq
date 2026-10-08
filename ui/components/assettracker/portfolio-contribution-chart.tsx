@@ -1,15 +1,6 @@
 "use client";
 
-import { format, parseISO } from "date-fns";
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ReferenceLine,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Line, LineChart, ReferenceLine, ResponsiveContainer } from "recharts";
 import {
   Card,
   CardContent,
@@ -17,17 +8,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { type ChartConfig, ChartContainer } from "@/components/ui/chart";
+import { formatCurrency } from "@/lib/assettracker";
 import {
-  type ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
-import {
-  formatAxisTick,
-  formatCurrency,
+  type Currency,
+  DEFAULT_BASE_CURRENCY,
   type PortfolioContributionDataPoint,
 } from "@/lib/domain/assettracker";
+import { CurrencyHistoryChartAxes } from "./currency-history-chart-axes";
 
 const CONTRIBUTION_COLOR = "hsl(160, 60%, 40%)";
 const CHART_CONFIG = {
@@ -39,7 +27,11 @@ const CHART_CONFIG = {
 
 export function PortfolioContributionChart({
   data,
-}: Readonly<{ data: readonly PortfolioContributionDataPoint[] }>) {
+  currency = DEFAULT_BASE_CURRENCY,
+}: Readonly<{
+  data: readonly PortfolioContributionDataPoint[];
+  currency?: Currency;
+}>) {
   return (
     <Card className="min-w-0">
       <CardHeader>
@@ -69,30 +61,8 @@ export function PortfolioContributionChart({
                   data={data}
                   margin={{ top: 10, right: 18, left: 0, bottom: 5 }}
                 >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    className="stroke-muted"
-                  />
-                  <XAxis
-                    dataKey="date"
-                    className="text-xs"
-                    minTickGap={24}
-                    tickFormatter={(date: string) =>
-                      format(parseISO(date), "MMM yy")
-                    }
-                  />
-                  <YAxis
-                    className="text-xs"
-                    width={48}
-                    tickFormatter={(value: number) =>
-                      `£${formatAxisTick(value)}`
-                    }
-                  />
+                  <CurrencyHistoryChartAxes currency={currency} />
                   <ReferenceLine y={0} className="stroke-muted-foreground" />
-                  <ChartTooltip
-                    content={<ChartTooltipContent />}
-                    formatter={(value) => formatCurrency(value as number)}
-                  />
                   <Line
                     type="monotone"
                     dataKey="contributedCapital"
@@ -116,7 +86,9 @@ export function PortfolioContributionChart({
                 {data.map((point) => (
                   <tr key={point.date}>
                     <td>{point.date}</td>
-                    <td>{formatCurrency(point.contributedCapital)}</td>
+                    <td>
+                      {formatCurrency(point.contributedCapital, currency)}
+                    </td>
                   </tr>
                 ))}
               </tbody>

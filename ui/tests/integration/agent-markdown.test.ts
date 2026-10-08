@@ -16,6 +16,7 @@ const RECIPE_APP_PAGES = new Set([
   "cooks",
   "discover",
   "edit",
+  "import",
   "kitchen",
   "log",
   "notifications",
@@ -38,9 +39,11 @@ describe("agent markdown generation", () => {
       "experience.md",
       "projects.md",
       "ideas.md",
+      "product-decisions.md",
       "blog.md",
       "recipes.md",
       "satellite-swarm.md",
+      "posthog.md",
       "llms.txt",
       "llms-full.txt",
       "_headers",
@@ -48,6 +51,33 @@ describe("agent markdown generation", () => {
     ]) {
       expect(fs.existsSync(path.join(OUT_DIR, file)), file).toBe(true);
     }
+  });
+
+  it("indexes product decisions before the first record is published", () => {
+    const index = read("product-decisions.md");
+    expect(index).toContain("# Product decisions");
+    expect(index).toContain("No product decisions have been published yet");
+    expect(read("llms.txt")).toContain("## Product Decision Records");
+    expect(read("llms.txt")).toContain(
+      "https://robbiepalmer.me/product-decisions.md",
+    );
+  });
+
+  it("publishes the PostHog application with direct evidence", () => {
+    const application = read("posthog.md");
+
+    expect(application).toContain("# I want to help products drive themselves");
+    expect(application).toContain("## Direct evidence");
+    expect(application).toContain("## What the weirdness looks like");
+    expect(application).toContain(
+      "## The subjects vary. The passion for building is consistent.",
+    );
+    expect(application).toContain("/images/posthog/knowledge-graph.png");
+    expect(application).toContain(
+      "I used it to coordinate the work on this page",
+    );
+    expect(application).toContain("/projects/agentic-code-review");
+    expect(read("llms.txt")).toContain("https://robbiepalmer.me/posthog.md");
   });
 
   it("generates a markdown twin for every idea page", () => {
@@ -59,7 +89,12 @@ describe("agent markdown generation", () => {
     expect(htmlPages).toContain("context-engineering.html");
     expect(htmlPages).toContain("commit-log.html");
     expect(htmlPages).toContain("stream-table-duality.html");
-    expect(htmlPages).toHaveLength(26);
+    expect(htmlPages).toContain("theory-ladenness.html");
+    expect(htmlPages).toContain("falsifiability.html");
+    expect(htmlPages).toContain("paradigm-shift.html");
+    expect(htmlPages).toContain("incommensurability.html");
+    expect(htmlPages).toContain("postpositivism.html");
+    expect(htmlPages).toHaveLength(37);
     for (const htmlPage of htmlPages) {
       const mdPage = htmlPage.replace(/\.html$/, ".md");
       expect(fs.existsSync(path.join(OUT_DIR, "ideas", mdPage))).toBe(true);
@@ -94,6 +129,122 @@ describe("agent markdown generation", () => {
     const projects = read("projects.md");
     expect(projects).toContain("# Building Philosophy");
     expect(projects).toContain("## Short Feedback Loops");
+  });
+
+  it("includes the research paper in the satellite swarm project twin", () => {
+    const project = read("projects/autonomic-satellite-swarm.md");
+    expect(project).toContain(
+      "- Research paper: https://doi.org/10.1109/SMC-IT.2019.00015",
+    );
+  });
+
+  it("includes the platform manifest and selection history in its project twin", () => {
+    const platform = read("projects/personal-engineering-platform.md");
+    expect(platform).toContain("## Current layer manifest");
+    expect(platform).toContain("### Backend API");
+    expect(platform).toContain("backend-api.runtime: preferred");
+    expect(platform).toContain("delivery.preview-environment: preferred");
+    expect(platform).toContain("security.preview-access: preferred");
+    expect(platform).toContain("security.service-auth: preferred");
+    expect(platform).toContain("web-app.server-state-client: preferred");
+    expect(platform).toContain("network.public-ingress: preferred");
+    expect(platform).toContain("network.private-overlay: preferred");
+    expect(platform).toContain("observability.telemetry-protocol: preferred");
+    expect(platform).toContain("observability.alert-evaluation: preferred");
+    expect(platform).toContain("observability.alert-delivery: preferred");
+    expect(platform).toContain("### Data");
+    expect(platform).toContain("data.artifact-versioning: preferred");
+    expect(platform).toContain(
+      "prerequisites: instrumented-runtime, telemetry-redaction, bounded-exporter-failure",
+    );
+    expect(platform).toContain("project-owned-slack-credentials");
+    expect(platform).toContain(
+      "prerequisites: git-repository, external-blob-remote",
+    );
+    expect(platform).toContain("### Identity");
+    expect(platform).toContain("identity.authentication-library: preferred");
+    expect(platform).toContain("identity.login-provider: preferred");
+    expect(platform).toContain("### Storage");
+    expect(platform).toContain("storage.object-store: preferred");
+    expect(platform).toContain("## Default history");
+    expect(platform).toContain("### Primary language");
+    expect(platform).toContain("### Source licence");
+    expect(platform).toContain("AGPL-3.0: Accepted");
+    expect(platform).toContain(
+      "/projects/personal-engineering-platform/adrs/001-language-defaults.md",
+    );
+    expect(platform).toContain(
+      "driven by [personal-knowledge-graph](https://robbiepalmer.me/projects/personal-knowledge-graph.md)",
+    );
+    expect(platform).toContain(
+      "[cloudflare-r2](https://robbiepalmer.me/technologies/cloudflare-r2.md): Accepted",
+    );
+  });
+
+  it("includes inherited governance policy in adopter project twins", () => {
+    const recipe = read("projects/recipe-site.md");
+    expect(recipe).toContain(
+      "- Platform policies: Public source, AGPL-3.0, Shared personal-project monorepo",
+    );
+    expect(recipe.match(/Codex/g)).toHaveLength(1);
+  });
+
+  it("includes effective override provenance in adopter project twins", () => {
+    const writing = read("projects/agent-first-writing.md");
+    expect(writing).toContain(
+      "- Platform overrides: Python for project.primary-language ([agent-first-writing:009-primary-language-python](https://robbiepalmer.me/projects/agent-first-writing/adrs/009-primary-language-python.md))",
+    );
+    expect(writing).toContain("## Editorial data flow");
+    expect(writing).toContain("```mermaid");
+    expect(writing).toContain("Deterministic findings");
+    expect(writing).toContain("Local suggestions");
+    expect(writing).toContain("Passage rewrites");
+    expect(writing).toContain("Human review");
+    expect(writing).toContain("Decision-backed evidence");
+    for (const relationship of [
+      'Source -->|"exact source bytes"| Rules',
+      'Rules -->|"detection-only records"| Findings',
+      'Findings -->|"finding IDs and published diffs"| Evidence',
+      'Source -.->|"bounded source spans"| Local',
+      'Source -.->|"wider document context"| Rewrite',
+      'Local -.->|"one-suggestion proposals"| Review',
+      'Rewrite -.->|"multi-edit proposals"| Review',
+      'Review -.->|"recorded editorial decisions"| Outcomes',
+      'Evidence -.->|"baseline comparisons"| Outcomes',
+    ]) {
+      expect(writing).toContain(relationship);
+    }
+  });
+
+  it("keeps Markdown routes for the previous project slug", () => {
+    expect(read("projects/personal-site.md")).toContain(
+      "[Personal Knowledge Graph](https://robbiepalmer.me/projects/personal-knowledge-graph.md)",
+    );
+    expect(read("projects/personal-site/adrs/038-content-graph.md")).toContain(
+      "https://robbiepalmer.me/projects/personal-knowledge-graph/adrs/038-content-graph.md",
+    );
+  });
+
+  it("keeps Markdown routes for legacy ADR aliases", () => {
+    const legacyAdr = read(
+      "projects/recipe-site/adrs/000-github-public-repo.md",
+    );
+    expect(legacyAdr).toContain(
+      "https://robbiepalmer.me/projects/personal-knowledge-graph/adrs/000-github-public-repo.md",
+    );
+    expect(read("llms.txt")).not.toContain(
+      "/projects/recipe-site/adrs/000-github-public-repo.md",
+    );
+
+    const compactedAdr = read(
+      "projects/agentic-code-review/adrs/031-custom-agentic-code-review.md",
+    );
+    expect(compactedAdr).toContain(
+      "https://robbiepalmer.me/projects/agentic-code-review/adrs/000-custom-agentic-code-review.md",
+    );
+    expect(read("llms.txt")).not.toContain(
+      "/projects/agentic-code-review/adrs/031-custom-agentic-code-review.md",
+    );
   });
 
   it("generates a markdown twin for every project HTML page", () => {
@@ -221,15 +372,13 @@ describe("agent markdown generation", () => {
     }
   });
 
-  it("renders inherited ADR notes once", () => {
-    const inheritedAdr = read(
+  it("renders migrated project ADRs as local records", () => {
+    const localAdr = read(
       "projects/agent-friendly-remote-development/adrs/001-nixos-host.md",
     );
-    expect(inheritedAdr).toContain("## Source summary");
-    expect(inheritedAdr).toContain(
-      "## Notes for Agent-friendly Remote Development",
-    );
-    expect(inheritedAdr.match(/# Project-specific context/g)).toHaveLength(1);
+    expect(localAdr).not.toContain("## Source summary");
+    expect(localAdr).not.toContain("Inherited from project");
+    expect(localAdr.match(/# Project-specific context/g)).toHaveLength(1);
   });
 
   it("advertises markdown alternates for entry pages in _headers", () => {
@@ -252,5 +401,21 @@ describe("agent markdown generation", () => {
     expect(headers).toContain("Strict-Transport-Security: max-age=31536000");
     expect(headers).toContain("X-Content-Type-Options: nosniff");
     expect(headers).toContain("X-Frame-Options: DENY");
+  });
+
+  it("merges the PostHog alternate link into its security exception", () => {
+    const headers = read("_headers");
+    const posthogRules = headers.match(/^\/posthog$/gm) ?? [];
+    const posthogRule = headers.split("/posthog\n")[1]?.split("\n\n")[0];
+
+    expect(posthogRules).toHaveLength(1);
+    expect(posthogRule).toContain("! X-Frame-Options");
+    expect(posthogRule).toContain("frame-ancestors 'self'");
+    expect(posthogRule).toContain("https://a.storyblok.com");
+    expect(posthogRule).toContain("https://res.cloudinary.com");
+    expect(posthogRule).toContain("https://ugc.production.linktr.ee");
+    expect(posthogRule).toContain(
+      'Link: <https://robbiepalmer.me/posthog.md>; rel="alternate"; type="text/markdown"',
+    );
   });
 });

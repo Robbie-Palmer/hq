@@ -11,8 +11,8 @@ function GraphPlaceholder({ failed }: Readonly<{ failed: boolean }>) {
       <div className="space-y-1 p-4 pb-3">
         <h3 className="text-lg font-semibold">Knowledge graph</h3>
         <p className="text-sm text-muted-foreground">
-          Explore projects, decisions, writing, roles, and the technology
-          connecting them.
+          Explore projects, research papers, decisions, writing, roles, and the
+          technology connecting them.
         </p>
       </div>
       <div className="flex h-[22rem] items-center justify-center border-y bg-muted/10 p-6 text-center sm:h-[min(68vh,680px)] sm:min-h-[520px]">

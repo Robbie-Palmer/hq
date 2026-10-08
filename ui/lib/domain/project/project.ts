@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ProjectLayerUsesSchema } from "../platform/platform";
 import type { ProjectSlug } from "../slugs";
 import {
   ADRRefSchema,
@@ -56,22 +57,41 @@ export const PROJECT_STATUS_CONFIG: Record<
   },
 };
 
-export const ProjectSchema = z.object({
-  slug: ProjectSlugSchema,
-  title: z.string().min(1),
-  description: z.string().min(1),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  updated: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional(),
-  status: ProjectStatusSchema,
-  repoUrl: z.string().url().optional(),
-  demoUrl: z.string().url().optional(),
-  productUrl: z.string().url().optional(),
-  pitch: PitchDeckSchema.optional(),
-  content: z.string(),
-});
+export const ProjectSchema = z
+  .object({
+    slug: ProjectSlugSchema,
+    title: z.string().min(1),
+    description: z.string().min(1),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    updated: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+    status: ProjectStatusSchema,
+    repoUrl: z.string().url().optional(),
+    demoUrl: z.string().url().optional(),
+    productUrl: z.string().url().optional(),
+    paperUrl: z.url().optional(),
+    paperTitle: z.string().min(1).optional(),
+    pitch: PitchDeckSchema.optional(),
+    content: z.string(),
+  })
+  .superRefine((project, context) => {
+    if (project.paperUrl && !project.paperTitle) {
+      context.addIssue({
+        code: "custom",
+        path: ["paperTitle"],
+        message: "Paper title is required when paper URL is set",
+      });
+    }
+    if (project.paperTitle && !project.paperUrl) {
+      context.addIssue({
+        code: "custom",
+        path: ["paperUrl"],
+        message: "Paper URL is required when paper title is set",
+      });
+    }
+  });
 
 export type Project = z.infer<typeof ProjectSchema>;
 
@@ -82,6 +102,13 @@ export const ProjectRelationsSchema = z.object({
   initiatives: z.array(InitiativeSlugSchema).default([]),
   role: RoleSlugSchema.optional(),
   tags: z.array(z.string()).default([]),
+  platformLayers: ProjectLayerUsesSchema.default([]),
 });
 
-export type ProjectRelations = z.infer<typeof ProjectRelationsSchema>;
+type ParsedProjectRelations = z.infer<typeof ProjectRelationsSchema>;
+export type ProjectRelations = Omit<
+  ParsedProjectRelations,
+  "platformLayers"
+> & {
+  platformLayers?: ParsedProjectRelations["platformLayers"];
+};

@@ -1,0 +1,54 @@
+---
+title: "ADR 012: Trace platform defaults to evidence and adoption decisions"
+date: "2026-09-23"
+status: "Accepted"
+---
+
+## Context
+
+[ADR 000](/projects/personal-engineering-platform/adrs/000-temporal-platform-layers)
+separated platform policy, default selection, and project adoption. The first
+manifest still recorded only `origin_projects` beside each selection. That list
+mixed two facts: where a default came from and which projects later used it. It
+also named projects without pointing to the decisions that justified promotion.
+
+Project layer and preferred-slot records had dates but no explanation of why a
+project adopted them. A current stack could link to the platform decision while
+skipping the project decision that made the platform applicable.
+
+## Decision
+
+Keep three relations separate.
+
+* `origin_projects` names only projects that produced the source decision. It
+  does not list adopters.
+* `evidence_adrs` names the exact ADRs behind a default selection. Every origin
+  project must contribute at least one evidence ADR, and every evidence ADR must
+  belong to a named origin project. A default first chosen by the platform names
+  the platform as its origin and cites its platform ADR.
+* Project layer and preferred-slot adoption records contain either a local ADR
+  reference or a short rationale. ADR references must exist and belong to the
+  adopting project.
+
+Derive adopters from effective project layer and slot records. Do not maintain
+another adopter list in the platform manifest.
+
+Project views expose the adoption reason, layer policy ADR, default-selection
+ADR, and source evidence ADRs. The platform view exposes the selection's origin
+projects and source evidence separately.
+
+## Consequences
+
+A reader can follow a current project technology back through the local
+adoption, the platform policy, the selected default, and the earlier evidence.
+Promoting a default now requires specific source records instead of a list of
+project names.
+
+Some early defaults had no project-local ADR. Their platform ADR is the first
+recorded decision, so the platform is their origin. Short adoption rationales
+remain valid for projects that consumed a layer without making a separate
+architecture decision.
+
+The manifest and project frontmatter become more verbose. Validation rejects
+missing evidence, evidence attributed to the wrong origin, and adoption ADRs
+owned by another project.

@@ -49,6 +49,13 @@ reviews:
     # styles (e.g. .vale/styles/Unslop) stay in review scope.
     - "!.vale/styles/proselint/**"
     - "!.vale/styles/write-good/**"
+    # Drizzle Kit snapshots, generated OpenAPI documents, and the generated
+    # Work Graph client are checked for drift by CI. Review their source instead.
+    - "!packages/work-graph-db/drizzle/meta/**"
+    - "!workers/recipe-api/drizzle/meta/**"
+    - "!packages/work-graph-cli/src/generated/**"
+    - "!workers/work-graph-api/openapi.json"
+    - "!workers/recipe-api/openapi.json"
   path_instructions: []
   abort_on_close: true
   disable_cache: false

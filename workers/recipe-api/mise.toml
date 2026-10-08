@@ -37,6 +37,11 @@ description = "Run recipe API integration tests against disposable PostgreSQL"
 depends = ["install"]
 run = "pnpm test:integration"
 
+[tasks."test:integration:coverage"]
+description = "Cover recipe API database boundaries with disposable PostgreSQL"
+depends = ["install"]
+run = "bash scripts/test-integration.sh --coverage"
+
 [tasks.check]
 description = "Run all recipe API checks"
 depends = ["typecheck", "test", "db:check", "lint:api"]

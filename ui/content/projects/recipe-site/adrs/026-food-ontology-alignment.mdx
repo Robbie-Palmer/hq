@@ -1,0 +1,232 @@
+---
+title: "ADR 026: Food Ontology Alignment"
+date: "2026-08-23"
+status: "Proposed"
+tech_stack: ["FoodOn", "SSSOM"]
+ideas: ["ontology-engineering"]
+---
+
+## Context
+
+The recipe domain has ingredients, ingredient groups, group membership, and a
+directed hierarchy between groups. The hierarchy supports several broader
+groups for one narrower group and any number of levels. A database trigger
+rejects cycles.
+
+The local model is useful, but its meaning is not settled. Current groups mix
+different kinds of concept:
+
+* food product types such as poultry and stock;
+* food constituents such as gluten;
+* dietary categories such as dairy; and
+* application groupings used for filtering and exclusion rules.
+
+Calling every relationship `broader` or `narrower` does not make those concepts
+equivalent. `chicken` being narrower than `poultry` looks taxonomic. An
+ingredient belonging to a diet filter is membership. A recipe containing an
+ingredient is composition. Treating all three as one relation would make
+transitive queries produce plausible but incorrect results.
+
+[FoodOn](https://foodon.org/) is the main OBO Foundry ontology for food
+materials, food products, their sources, and food processes. Its food product
+branch is a polyhierarchy with more than 9,600 product categories. FoodOn also
+reuses terms from related ontologies instead of defining every biological,
+chemical, or nutritional concept itself.
+
+FoodOn adopted the
+[Core Ontology for Biology and Biomedicine](https://obofoundry.org/ontology/cob.html)
+in 2023 and remains compatible with the Basic Formal Ontology. COB and BFO give
+FoodOn a shared upper-level structure for material entities, processes,
+qualities, and information. They do not provide the food vocabulary needed by
+this application. Referencing a FoodOn class inherits that formal alignment;
+the application does not need to reproduce the upper ontology in its database.
+
+FoodOn is also much larger than this application needs. Its own
+[reuse guidance](https://foodon.org/reuse-project/reuse-technical/) recommends
+selecting terms and axioms for smaller imports. FoodOn notes that dietary terms
+remain under development, so a forced FoodOn match would be worse than an
+explicit local concept when the meanings differ.
+
+## Decision
+
+I propose aligning the recipe domain with FoodOn and related OBO Foundry
+ontologies without adopting their complete OWL model.
+
+The alignment has the following rules.
+
+### Keep local operational identifiers
+
+Existing ingredient slugs and group keys remain the identifiers used by the
+database and API. External ontology releases can deprecate, replace, split, or
+merge terms. Those changes must not silently rename URLs, invalidate saved diet
+profiles, or rewrite recipe data.
+
+Each local concept may have zero or more external mappings. The mapping records
+the local identifier, external IRI, external label, mapping predicate, ontology
+release, justification, curator, and review date.
+
+Mappings will follow
+[SSSOM 1.0](https://mapping-commons.github.io/sssom/1.0/). Its mapping
+predicates distinguish exact, broad, narrow, close, and related matches. Its
+provenance fields record how a mapping was produced and reviewed. This avoids a
+two-column cross-reference table that quietly treats every match as equality.
+
+### Reuse the original ontology identifiers
+
+Mappings retain the original OBO PURL or IRI. The application will not copy a
+FoodOn definition into a new local identifier and present it as the same
+concept. This follows the
+[OBO Foundry reuse policy](https://obofoundry.org/principles/fp-001-open.html),
+which requires reused terms to keep their original identifiers and
+attribution.
+
+The preferred sources are:
+
+* FoodOn for food materials, generic food products, and food processes;
+* the
+  [Compositional Dietary Nutrition Ontology](https://obofoundry.org/ontology/cdno.html)
+  and ChEBI for chemical or nutritional components;
+* the
+  [Ontology for Nutritional Studies](https://obofoundry.org/ontology/ons.html)
+  only if the product later models nutritional studies or interventions; and
+* a documented local namespace for application policy, navigation, or diet
+  concepts that have no honest external match.
+
+The source list follows concept type. Local identifiers remain valid when no
+external source matches honestly.
+
+### Keep application relations distinct from ontology axioms
+
+`ingredient_group_hierarchy` continues to store direct local broader and
+narrower links. It is an acyclic application classification. An edge in that
+table is not automatically an `rdfs:subClassOf` axiom, a FoodOn `has member`
+relation, or a recipe composition claim.
+
+Before the application uses a hierarchy edge for inherited diet exclusions or
+other transitive behaviour, the edge must have a defined relation type. The
+model must distinguish at least:
+
+* taxonomic or subclass relationships;
+* collection membership and application grouping; and
+* ingredient composition.
+
+External mappings are a fourth relation. A `skos:exactMatch` to a FoodOn class
+does not turn every local parent edge into an OWL subclass axiom.
+
+### Import a pinned subset
+
+The application will not fetch FoodOn or another ontology at runtime. A future
+import task will select the terms and annotations used by this repository from
+a named ontology release. The generated subset and its source metadata will be
+versioned or reproducibly generated from versioned configuration.
+
+Ontology updates arrive through reviewed Pull Requests. Validation must report
+missing, deprecated, and relabelled terms before an update reaches production.
+The application may display a current external label, but local product copy
+remains under local editorial control.
+
+### Do not add an OWL reasoner yet
+
+The current requirements are identifier reuse, explicit mappings, and safe
+hierarchy traversal. PostgreSQL can enforce the local graph and answer those
+queries. An OWL reasoner becomes justified only when the application needs
+inference over imported axioms that cannot be represented clearly in the
+relational model.
+
+## Validation before acceptance
+
+This ADR remains Proposed until a mapping study produces all of the following:
+
+1. An inventory of every current ingredient and ingredient group, with each
+   concept classified as a food product, constituent, dietary concept, or local
+   application grouping.
+2. A reviewed SSSOM mapping set. Every concept must have an external mapping or
+   an explicit `local-only` decision. No concept should receive a weak match to
+   improve a coverage percentage.
+3. Written decisions for ambiguous concepts including dairy, gluten, stock,
+   meat, and poultry.
+4. An audit of every existing hierarchy edge that states whether it is
+   taxonomic, membership-based, or local policy.
+5. A proposed relational schema for mappings and relation types, including
+   uniqueness, provenance, ontology versioning, and deprecation behaviour.
+6. A deterministic import prototype that works without runtime network access
+   and fails on an unknown external identifier.
+7. Tests showing that local identifiers and existing diet profiles survive an
+   ontology release update.
+
+Acceptance authorises the mapping schema and pinned subset import. It does not
+authorise replacing local identifiers, importing all of FoodOn, or applying
+transitive exclusions across relations with different meanings.
+
+## Alternatives
+
+### Keep a local vocabulary only
+
+This is the smallest implementation and preserves complete editorial control.
+It also leaves concepts disconnected from public food and nutrition data,
+encourages local definitions to drift, and makes future imports depend on
+one-off string matching.
+
+Rejected as the long-term direction. Local-only concepts remain valid where no
+external ontology expresses the application meaning.
+
+### Adopt FoodOn, COB, and BFO wholesale
+
+This would give the application the complete formal hierarchy and its imported
+dependencies. It would also bring thousands of unused classes, OWL tooling,
+reasoner behaviour, and upper-level distinctions into a product that currently
+needs a small food vocabulary.
+
+Rejected. Selective reuse gets stable identifiers and interoperability without
+turning the recipe API into an ontology service.
+
+### Use FoodOn identifiers as database primary keys
+
+This removes a mapping layer for concepts with exact FoodOn equivalents. It
+couples application identity to an external release process and does not work
+for local policy concepts or mappings that are broader or narrower rather than
+exact.
+
+Rejected. External identifiers belong in versioned mappings.
+
+### Use SKOS terminology without a domain ontology
+
+SKOS gives precise mapping predicates and broader or narrower vocabulary. It
+does not provide shared identifiers or definitions for chicken, gluten, stock,
+or other food concepts.
+
+Rejected as a complete solution. SSSOM and SKOS predicates remain useful for
+recording mappings to FoodOn and other ontologies.
+
+## Consequences
+
+### Positive
+
+* Local concepts can connect to research, government, and food composition
+  datasets without surrendering application identity.
+* Mapping precision becomes reviewable. A broad match cannot be mistaken for
+  exact equivalence.
+* The model can separate product taxonomy from diet policy and ingredient
+  composition before adding inheritance behaviour.
+* Pinned subsets make ontology updates reproducible and keep production free of
+  a remote ontology dependency.
+
+### Negative
+
+* Mapping and release review become ongoing curation work.
+* Some familiar labels will remain local because the external concept has a
+  different scope.
+* Supporting several OBO ontologies adds provenance and licensing records.
+* The existing hierarchy cannot safely drive every transitive feature until
+  its edges have relation types.
+
+## Open questions
+
+* Should product taxonomy and diet-policy groupings become separate tables, or
+  should one concept table carry an explicit concept kind?
+* Should the public API expose external mappings, or should they remain an
+  internal import and interoperability concern?
+* Which ontology annotations should be vendored beyond identifiers, labels,
+  definitions, synonyms, and deprecation metadata?
+* When a needed concept is missing, should the project keep a local term or
+  propose it upstream to FoodOn or another OBO ontology?

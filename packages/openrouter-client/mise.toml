@@ -1,0 +1,17 @@
+[tasks.install]
+description = "Install OpenRouter client dependencies"
+depends = ["//:install"]
+
+[tasks.typecheck]
+description = "Typecheck the shared OpenRouter client"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test the shared OpenRouter client"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks.check]
+description = "Check the shared OpenRouter client"
+depends = ["typecheck", "test"]

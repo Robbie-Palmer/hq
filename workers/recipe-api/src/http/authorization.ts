@@ -1,3 +1,4 @@
+import { APIError } from "better-auth";
 import type { Context, MiddlewareHandler } from "hono";
 import type { Db } from "recipe-db";
 import type { RecipeVisibility } from "recipe-domain/visibility";
@@ -88,6 +89,16 @@ export function authorizationResponse(
   return c.json({ error: decision.error }, decision.status);
 }
 
+/**
+ * Better Auth answers `getSession` with a 401 `APIError` when a session token
+ * is present but no longer usable — for example when concurrent requests race
+ * to refresh one session and a request finds it already rotated or removed.
+ * That is an unauthenticated result, not a server fault.
+ */
+function isUnusableSessionError(error: unknown): boolean {
+  return error instanceof APIError && error.statusCode === 401;
+}
+
 export async function loadBetterAuthSession(
   c: Context<{
     Bindings: AuthorizationEnv;
@@ -97,10 +108,18 @@ export async function loadBetterAuthSession(
 ): Promise<AuthenticatedSession | null> {
   if (!hasSessionSignal(c)) return null;
   const auth = createAuth(db, c.env);
-  return auth.api.getSession({
-    headers: c.req.raw.headers,
-    query: { disableCookieCache: true },
-  });
+  try {
+    return await auth.api.getSession({
+      headers: c.req.raw.headers,
+      query: { disableCookieCache: true },
+    });
+  } catch (error) {
+    // Report an unusable session as "no session" so it resolves to a 401
+    // instead of surfacing as a traced error and a 503. A genuine internal
+    // failure keeps its status and stays visible in tracing and logs.
+    if (isUnusableSessionError(error)) return null;
+    throw error;
+  }
 }
 
 export function requireAuthenticatedUser(

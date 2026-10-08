@@ -38,6 +38,13 @@ require_command docker
 require_command jq
 require_command sha256sum
 
+DATABASE_BACKUP_LABEL="${DATABASE_BACKUP_LABEL:-recipes}"
+
+if [[ ! "$DATABASE_BACKUP_LABEL" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]]; then
+  echo "DATABASE_BACKUP_LABEL must contain lowercase letters, digits, and hyphens." >&2
+  exit 1
+fi
+
 if [[ "$NEON_DATABASE_URL_UNPOOLED" == *"-pooler."* ]]; then
   echo "NEON_DATABASE_URL_UNPOOLED points at a pooled Neon endpoint." >&2
   echo "Use the direct connection string for pg_dump." >&2
@@ -62,7 +69,7 @@ export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
 export AWS_DEFAULT_REGION="auto"
 export AWS_EC2_METADATA_DISABLED="true"
-export PGAPPNAME="github-actions-database-backup"
+export PGAPPNAME="github-actions-${DATABASE_BACKUP_LABEL}-database-backup"
 export PGDATABASE="$NEON_DATABASE_URL_UNPOOLED"
 
 endpoint="https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"
@@ -70,7 +77,7 @@ postgres_image="postgres@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e1744
 timestamp=$(date -u +"%Y-%m-%dT%H-%M-%SZ")
 year="${timestamp:0:4}"
 month="${timestamp:5:2}"
-basename="recipes-${timestamp}.dump.age"
+basename="${DATABASE_BACKUP_LABEL}-${timestamp}.dump.age"
 weekly_key="weekly/${year}/${month}/${basename}"
 
 temp_dir=$(mktemp -d)

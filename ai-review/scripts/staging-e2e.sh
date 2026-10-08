@@ -24,7 +24,7 @@ for command in gh jq node pnpm; do
   fi
 done
 
-repository="${AI_REVIEW_E2E_REPOSITORY:-Robbie-Palmer/personal-site}"
+repository="${AI_REVIEW_E2E_REPOSITORY:-Robbie-Palmer/hq}"
 pull_request="${AI_REVIEW_E2E_PULL_REQUEST:-}"
 event_mode="${AI_REVIEW_E2E_EVENT_MODE:-full}"
 if [[ -z "$pull_request" ]]; then

@@ -1,11 +1,12 @@
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsView } from "@/components/recipes/settings/settings-view";
+import { recipeQueryKeys } from "@/lib/query/recipe-query-keys";
 import {
   parseUnitPreference,
   resetUnitPreferenceServerSnapshot,
   UNIT_PREFERENCE_STORAGE_KEY,
-} from "@/hooks/use-unit-preference";
+} from "@/tests/support/recipe-state";
 import { fireEvent, render, screen, waitFor } from "@/tests/test-utils";
 
 const mocks = vi.hoisted(() => ({
@@ -21,8 +22,14 @@ const mocks = vi.hoisted(() => ({
   getHouseholdMembers: vi.fn(),
   getHouseholdInvitations: vi.fn(),
   getIncomingHouseholdInvitations: vi.fn(),
+  getHouseholdEquipment: vi.fn(),
+  addHouseholdEquipment: vi.fn(),
+  removeHouseholdEquipment: vi.fn(),
+  saveHouseholdEquipmentMatchMode: vi.fn(),
   listAgents: vi.fn(),
+  listAgentMutations: vi.fn(),
   revokeAgent: vi.fn(),
+  undoAgentMutation: vi.fn(),
 }));
 
 vi.mock("@/lib/auth-client", () => ({
@@ -44,12 +51,24 @@ vi.mock("@/lib/api/households", async (importOriginal) => ({
   getHouseholdMembers: mocks.getHouseholdMembers,
   getHouseholdInvitations: mocks.getHouseholdInvitations,
   getIncomingHouseholdInvitations: mocks.getIncomingHouseholdInvitations,
+  getHouseholdEquipment: mocks.getHouseholdEquipment,
+  addHouseholdEquipment: mocks.addHouseholdEquipment,
+  removeHouseholdEquipment: mocks.removeHouseholdEquipment,
+  saveHouseholdEquipmentMatchMode: mocks.saveHouseholdEquipmentMatchMode,
 }));
 
 vi.mock("@/lib/api/agents", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/agents")>()),
   listAgents: mocks.listAgents,
   revokeAgent: mocks.revokeAgent,
+}));
+
+vi.mock("@/lib/api/recipe-agent-mutations", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@/lib/api/recipe-agent-mutations")
+  >()),
+  listAgentMutations: mocks.listAgentMutations,
+  undoAgentMutation: mocks.undoAgentMutation,
 }));
 
 function renderSettingsView() {
@@ -72,6 +91,33 @@ const signedIn = {
   },
   isPending: false,
 };
+
+function mockMemberHousehold() {
+  mocks.getHouseholds.mockResolvedValue([
+    {
+      id: "00000000-0000-4000-8000-000000000001",
+      name: "Park Road",
+      slug: "park-road",
+      logo: null,
+      createdAt: "2026-10-01T00:00:00.000Z",
+      updatedAt: "2026-10-01T00:00:00.000Z",
+      membership: { id: "membership-1", role: "member" },
+    },
+  ]);
+  mocks.getHouseholdMembers.mockResolvedValue([
+    {
+      id: "membership-1",
+      role: "member",
+      createdAt: "2026-10-01T00:00:00.000Z",
+      user: {
+        id: "robbie-user",
+        name: "Robbie",
+        email: "robbie@example.com",
+        image: null,
+      },
+    },
+  ]);
+}
 
 describe("SettingsView", () => {
   beforeEach(() => {
@@ -99,8 +145,23 @@ describe("SettingsView", () => {
     mocks.getHouseholdMembers.mockResolvedValue([]);
     mocks.getHouseholdInvitations.mockResolvedValue([]);
     mocks.getIncomingHouseholdInvitations.mockResolvedValue([]);
+    mocks.getHouseholdEquipment.mockResolvedValue({
+      catalog: [],
+      owned: [],
+      recipeMatchMode: "warn",
+    });
+    mocks.addHouseholdEquipment.mockResolvedValue({});
+    mocks.removeHouseholdEquipment.mockResolvedValue(undefined);
+    mocks.saveHouseholdEquipmentMatchMode.mockImplementation(
+      async (
+        _householdId: string,
+        recipeMatchMode: "hide" | "warn" | "disabled",
+      ) => ({ recipeMatchMode }),
+    );
     mocks.listAgents.mockResolvedValue([]);
+    mocks.listAgentMutations.mockResolvedValue([]);
     mocks.revokeAgent.mockResolvedValue(undefined);
+    mocks.undoAgentMutation.mockResolvedValue(undefined);
     mocks.createHousehold.mockResolvedValue({});
   });
 
@@ -382,7 +443,8 @@ describe("SettingsView", () => {
         resolveCreate = resolve;
       }),
     );
-    renderSettingsView();
+    const { queryClient } = renderSettingsView();
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
 
     await user.click(screen.getByRole("button", { name: "Household" }));
     await user.type(
@@ -406,6 +468,224 @@ describe("SettingsView", () => {
         screen.getByRole("button", { name: /create household/i }),
       ).not.toBeDisabled(),
     );
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: recipeQueryKeys.equipmentReadiness("robbie-user"),
+      exact: true,
+    });
+  });
+
+  it("lets household members add and remove shared equipment", async () => {
+    const user = userEvent.setup();
+    mockMemberHousehold();
+    mocks.getHouseholdEquipment.mockResolvedValue({
+      catalog: [
+        { slug: "blender", name: "blender", category: "appliance" },
+        { slug: "frying-pan", name: "frying pan", category: "cookware" },
+      ],
+      owned: [
+        {
+          slug: "frying-pan",
+          name: "frying pan",
+          category: "cookware",
+          createdAt: "2026-10-01T00:00:00.000Z",
+          retired: false,
+        },
+      ],
+      recipeMatchMode: "warn",
+    });
+    mocks.addHouseholdEquipment.mockResolvedValue({
+      slug: "blender",
+      name: "blender",
+      category: "appliance",
+      createdAt: "2026-10-03T00:00:00.000Z",
+      retired: false,
+    });
+    renderSettingsView();
+
+    await user.click(screen.getByRole("button", { name: "Household" }));
+    await user.selectOptions(
+      await screen.findByLabelText("Equipment to add"),
+      "blender",
+    );
+    await user.click(screen.getByRole("button", { name: "Add equipment" }));
+
+    await waitFor(() =>
+      expect(mocks.addHouseholdEquipment).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000001",
+        "blender",
+      ),
+    );
+    expect(screen.getByText("blender")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Remove frying pan" }));
+    await waitFor(() =>
+      expect(mocks.removeHouseholdEquipment).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000001",
+        "frying-pan",
+      ),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Remove frying pan" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lets household members save custom equipment", async () => {
+    const user = userEvent.setup();
+    mockMemberHousehold();
+    mocks.getHouseholdEquipment.mockResolvedValue({
+      catalog: [{ slug: "blender", name: "blender", category: "appliance" }],
+      owned: [],
+      recipeMatchMode: "warn",
+    });
+    mocks.addHouseholdEquipment.mockResolvedValue({
+      slug: "blender jar",
+      name: "blender jar",
+      createdAt: "2026-10-03T00:00:00.000Z",
+      retired: false,
+      unresolved: true,
+    });
+    renderSettingsView();
+
+    await user.click(screen.getByRole("button", { name: "Household" }));
+    await user.type(
+      await screen.findByLabelText("Custom equipment"),
+      "blender jar",
+    );
+    await user.click(screen.getByRole("button", { name: "Add equipment" }));
+
+    await waitFor(() =>
+      expect(mocks.addHouseholdEquipment).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000001",
+        "blender jar",
+      ),
+    );
+    expect(screen.getByLabelText("Custom equipment")).toHaveValue("");
+    expect(
+      screen.getByText("saved as written, automatic matching unavailable"),
+    ).toBeInTheDocument();
+  });
+
+  it("lets a household member hide recipes that need missing equipment", async () => {
+    const user = userEvent.setup();
+    mockMemberHousehold();
+    mocks.getHouseholdEquipment.mockResolvedValue({
+      catalog: [],
+      owned: [],
+      recipeMatchMode: "warn",
+    });
+    renderSettingsView();
+
+    await user.click(screen.getByRole("button", { name: "Household" }));
+    const hideButton = await screen.findByRole("button", { name: "Hide it" });
+    expect(hideButton).toHaveAttribute("aria-pressed", "false");
+    await user.click(hideButton);
+
+    await waitFor(() =>
+      expect(mocks.saveHouseholdEquipmentMatchMode).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000001",
+        "hide",
+      ),
+    );
+    expect(hideButton).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("lets a household disable equipment checks without deleting saved equipment", async () => {
+    const user = userEvent.setup();
+    mockMemberHousehold();
+    mocks.getHouseholdEquipment.mockResolvedValue({
+      catalog: [
+        { slug: "frying-pan", name: "frying pan", category: "cookware" },
+      ],
+      owned: [
+        {
+          slug: "frying-pan",
+          name: "frying pan",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          retired: false,
+        },
+      ],
+      recipeMatchMode: "warn",
+    });
+    renderSettingsView();
+
+    await user.click(screen.getByRole("button", { name: "Household" }));
+    await user.click(await screen.findByRole("button", { name: "Disable it" }));
+
+    await waitFor(() =>
+      expect(mocks.saveHouseholdEquipmentMatchMode).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000001",
+        "disabled",
+      ),
+    );
+    expect(screen.getByText(/Equipment checks are off/)).toBeVisible();
+    expect(screen.queryByLabelText("Equipment to add")).not.toBeInTheDocument();
+    expect(mocks.removeHouseholdEquipment).not.toHaveBeenCalled();
+  });
+
+  it("shows an empty household equipment state", async () => {
+    const user = userEvent.setup();
+    mockMemberHousehold();
+    mocks.getHouseholdEquipment.mockResolvedValue({
+      catalog: [{ slug: "blender", name: "blender", category: "appliance" }],
+      owned: [],
+    });
+    renderSettingsView();
+
+    await user.click(screen.getByRole("button", { name: "Household" }));
+
+    expect(
+      await screen.findByText("No equipment added yet."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Equipment to add")).toBeEnabled();
+  });
+
+  it("keeps retired household equipment visible and removable", async () => {
+    const user = userEvent.setup();
+    mockMemberHousehold();
+    mocks.getHouseholdEquipment.mockResolvedValue({
+      catalog: [],
+      owned: [
+        {
+          slug: "rotary-dial-oven",
+          name: "rotary dial oven",
+          createdAt: "2026-10-01T00:00:00.000Z",
+          retired: true,
+        },
+      ],
+    });
+    renderSettingsView();
+
+    await user.click(screen.getByRole("button", { name: "Household" }));
+
+    expect(await screen.findByText("retired equipment")).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Remove rotary dial oven" }),
+    );
+    await waitFor(() =>
+      expect(mocks.removeHouseholdEquipment).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000001",
+        "rotary-dial-oven",
+      ),
+    );
+  });
+
+  it("keeps household equipment read-only when it fails to load", async () => {
+    const user = userEvent.setup();
+    mockMemberHousehold();
+    mocks.getHouseholdEquipment.mockRejectedValue(
+      new Error("Equipment unavailable"),
+    );
+    renderSettingsView();
+
+    await user.click(screen.getByRole("button", { name: "Household" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Equipment unavailable",
+    );
+    expect(
+      screen.getByText("No equipment changes are available right now."),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Equipment to add")).not.toBeInTheDocument();
   });
 
   it("opens on the security panel and surfaces a link error from the URL", async () => {

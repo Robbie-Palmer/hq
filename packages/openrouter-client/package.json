@@ -1,0 +1,23 @@
+{
+  "name": "openrouter-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared OpenRouter client configuration",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "openai": "^7.0.0"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^5.0.0",
+    "typescript": "^6.0.0",
+    "vitest": "^5.0.0"
+  }
+}

@@ -1,0 +1,72 @@
+---
+title: "ADR 019: Cloudflare Access for preview and service authentication"
+date: "2026-09-29"
+status: "Accepted"
+tech_stack: ["Cloudflare Access"]
+---
+
+## Context
+
+[ADR 018](/projects/personal-engineering-platform/adrs/018-pull-request-preview-environments)
+defines isolated pull-request deployments, but isolation does not decide who
+may reach their public hostnames. Recipe Site previews run unmerged code with
+preview credentials and managed integrations. Its ADR 013 protects those
+hostnames with an allowlisted human identity policy.
+
+The Work Graph has a different boundary. Its API accepts planning data and
+mutations from headless clients. Work Graph ADR 004 uses Cloudflare Access
+service tokens because an interactive identity flow cannot authenticate those
+clients. Sharing one policy or credential between previews and services would
+blur who or what the application authenticated.
+
+Access fits both cases only when Cloudflare manages the hostname and the project
+owns an Access application for it. It does not replace application
+authorization, least-privilege runtime credentials, or private networking for
+hosts that are not exposed through Cloudflare.
+
+## Decision
+
+Prefer Cloudflare Access for preview access when a project uses a
+Cloudflare-managed preview hostname. Create an Access application for the
+preview host and attach a bounded human identity policy. The policy must name
+the allowed accounts or groups rather than admit the public internet. Automated
+preview checks may use a separate service identity scoped to that application.
+
+Prefer Cloudflare Access for service authentication when a non-public service
+uses a Cloudflare-managed hostname. Create a separate Access application and a
+Service Auth policy. Give each client or client class a scoped service token,
+store both token fields in the approved secret flow, restrict clients to the
+intended hostname, and rotate credentials with an overlap. Do not reuse a
+preview token for production service access.
+
+These slots remain separate. A human preview login must not authorize a service
+client, and a service token proves the calling workload rather than an end
+user's application permissions.
+
+## Alternatives
+
+Application-owned sessions and API keys work on any host and can express
+domain-specific permissions. They also make each project responsible for
+credential issuance, login protection, rotation, and edge rejection before the
+application runs.
+
+Tailscale provides device and workload identity without a public service
+hostname. It remains a better fit for private machines and networks, but a
+Cloudflare Worker cannot join that network directly. Moving a Worker service
+behind Tailscale would also add an operated host to its availability path.
+
+Leaving previews public avoids reviewer login friction. It also lets anyone
+exercise unfinished code and its preview integrations as soon as a public pull
+request reveals the URL and implementation.
+
+## Consequences
+
+Preview reviewers and headless service clients use the same managed access
+product without sharing policies or credentials. Cloudflare rejects
+unauthorized requests before they reach Pages, Workers, or the application.
+
+Each adopter must maintain Access applications, policy membership, service
+tokens, rotation, and hostname coverage. Human review gains a login step, and
+automation must protect two secret headers. Projects must revisit the choice if
+their hostname leaves Cloudflare or Access becomes part of an unacceptable
+availability dependency.

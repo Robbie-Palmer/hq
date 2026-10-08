@@ -60,6 +60,42 @@ export const technologies: TechnologyContent[] = [
     type: "language",
   },
   {
+    name: "uv",
+    added: "2026-09-15",
+    description:
+      "Python package and environment manager with a locked workflow",
+    website: "https://docs.astral.sh/uv/",
+    type: "tool",
+  },
+  {
+    name: "Ruff",
+    added: "2026-09-15",
+    description: "Python linter and formatter",
+    website: "https://docs.astral.sh/ruff/",
+    type: "tool",
+  },
+  {
+    name: "pytest",
+    added: "2026-09-15",
+    description: "Python test framework based on fixtures and plain assertions",
+    website: "https://docs.pytest.org/",
+    type: "library",
+  },
+  {
+    name: "Pydantic",
+    added: "2026-09-12",
+    description: "Typed data validation and settings management for Python",
+    website: "https://docs.pydantic.dev",
+    type: "library",
+  },
+  {
+    name: "pytest-cases",
+    added: "2026-09-12",
+    description: "Reusable test cases and fixtures for pytest",
+    website: "https://smarie.github.io/python-pytest-cases/",
+    type: "library",
+  },
+  {
     name: "pnpm",
     added: "2026-01-04",
     description: "Fast, disk space efficient package manager",
@@ -72,6 +108,29 @@ export const technologies: TechnologyContent[] = [
     description: "Modern unit testing for JS/TS with a familiar Jest-style API",
     website: "https://vitest.dev",
     type: "library",
+  },
+  {
+    name: "Biome",
+    added: "2026-09-15",
+    description: "Formatter and linter for JavaScript and TypeScript projects",
+    website: "https://biomejs.dev/",
+    type: "tool",
+  },
+  {
+    name: "tsmetrics",
+    added: "2026-10-04",
+    description:
+      "Tree-sitter-based TypeScript and TSX metrics for component responsibility, rendering complexity, and structural hotspots",
+    website: "https://gabrielrf97.github.io/tsmetrics/",
+    type: "tool",
+  },
+  {
+    name: "React Doctor",
+    added: "2026-10-04",
+    description:
+      "React-specific static analysis, including project-wide detection of repeated JSX subtrees",
+    website: "https://www.react.doctor/",
+    type: "tool",
   },
   {
     name: "Vale",
@@ -284,6 +343,14 @@ Diff operations can set an edit-distance or time limit. The function returns no 
     type: "tool",
   },
   {
+    name: "Agentic Code Review",
+    added: "2026-09-15",
+    description:
+      "Stateful, model-agnostic Pull Request review with retained findings and evaluation data",
+    website: "https://robbiepalmer.me/projects/agentic-code-review",
+    type: "tool",
+  },
+  {
     name: "Greptile",
     added: "2026-06-20",
     description: "AI code reviewer with whole-codebase context",
@@ -376,6 +443,14 @@ Diff operations can set an edit-distance or time limit. The function returns no 
     description:
       "Zero Trust access control for internal and preview applications",
     website: "https://www.cloudflare.com/zero-trust/products/access/",
+    iconSlug: "cloudflare",
+    type: "platform",
+  },
+  {
+    name: "Cloudflare Queues",
+    added: "2026-09-22",
+    description: "Managed message queues for asynchronous Worker processing",
+    website: "https://developers.cloudflare.com/queues/",
     iconSlug: "cloudflare",
     type: "platform",
   },
@@ -553,6 +628,14 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     type: "library",
   },
   {
+    name: "SGP4",
+    added: "2026-09-20",
+    description:
+      "Analytical orbit propagation model with reference C++ source and test vectors",
+    website: "https://celestrak.org/publications/AIAA/2006-6753/",
+    type: "library",
+  },
+  {
     name: "Bitbucket Pipelines",
     added: "2026-01-04",
     description: "CI/CD service built into Bitbucket",
@@ -630,6 +713,13 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     website: "https://dvc.org",
     type: "tool",
     ideas: ["directed-acyclic-graph"],
+  },
+  {
+    name: "ModelPack",
+    added: "2026-09-14",
+    description: "OCI-based format specification for AI and ML model packages",
+    website: "https://modelpack.org",
+    type: "tool",
   },
   {
     name: "DuckDB",
@@ -1240,6 +1330,14 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     type: "tool",
   },
   {
+    name: "Nix",
+    added: "2026-09-28",
+    description:
+      "Package manager and build system for reproducible environments and artifacts",
+    website: "https://nix.dev",
+    type: "tool",
+  },
+  {
     name: "NixOS",
     added: "2026-08-02",
     description:
@@ -1353,6 +1451,14 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     type: "platform",
   },
   {
+    name: "Kube-Hetzner",
+    added: "2026-09-14",
+    description:
+      "Terraform module for building private, scalable K3s and RKE2 clusters on Hetzner Cloud",
+    website: "https://github.com/mysticaltech/terraform-hcloud-kube-hetzner",
+    type: "tool",
+  },
+  {
     name: "Flux Schema",
     added: "2026-09-09",
     description:
@@ -1375,5 +1481,13 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
       "Social tracker for movies and shows whose watchlist feeds Sonarr and Radarr import lists",
     website: "https://trakt.tv",
     type: "tool",
+  },
+  {
+    name: "Frankfurter",
+    added: "2026-10-02",
+    description:
+      "Open source API for current and historical reference exchange rates from official sources",
+    website: "https://frankfurter.dev",
+    type: "platform",
   },
 ];

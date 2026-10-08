@@ -94,6 +94,7 @@ export function RecipeCollection({
       ) : null}
       <RecipeList
         recipes={combined}
+        shoppingListUserId={sessionUserId}
         onDietVisibleCountChange={onDietVisibleCountChange}
       />
     </>

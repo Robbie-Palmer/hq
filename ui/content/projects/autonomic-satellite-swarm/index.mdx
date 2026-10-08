@@ -2,7 +2,7 @@
 title: "Autonomic Satellite Swarm"
 description: "A revived C++ research prototype for fail-safe coordination across hardware-independent satellite-swarm agents"
 date: "2019-07-30"
-updated: "2026-09-11"
+updated: "2026-10-02"
 ideas:
   - "two-generals-problem"
   - "flp-impossibility"
@@ -15,9 +15,12 @@ tech_stack:
   - "CesiumJS"
   - "Emscripten"
   - "WebAssembly"
+  - "SGP4"
   - "GitHub Actions"
-repo_url: "https://github.com/Robbie-Palmer/personal-site/tree/main/cpp/autonomic-satellite-swarm"
+repo_url: "https://github.com/Robbie-Palmer/hq/tree/main/cpp/autonomic-satellite-swarm"
 demo_url: "https://robbiepalmer.me/satellite-swarm"
+paper_url: "https://doi.org/10.1109/SMC-IT.2019.00015"
+paper_title: "Autonomic Providing Pre-Programmed Death of Cubesats for Avoiding Space JUNK"
 status: "in_progress"
 role: "ulster-university"
 tags:
@@ -78,7 +81,7 @@ explicit seams while retaining firmware-size checks so the abstraction cost rema
 1. An idle node can initiate a mission for a geographic objective.
 2. Available nodes produce a candidacy score through a replaceable policy.
 3. A temporary leader collects bounded responses, acknowledges them, and assigns one node.
-4. Equal scores produce a deterministic result.
+4. Equal top scores rotate deterministically across a stable set of eligible nodes.
 5. Busy nodes do not accept another mission.
 6. Health policy supports reversible quiescence and safe-disablement that lasts until reset.
 7. Communication failures use bounded retries and explicit evidence before safe-disablement.
@@ -88,6 +91,10 @@ explicit seams while retaining firmware-size checks so the abstraction cost rema
    access.
 10. Reference adapters compile for the original Arduino Uno/infrared setup and a modern ESP32/
     ESP-NOW setup.
+11. A mission key combines its origin node, the origin's boot epoch, and a sequence that never wraps
+    within that epoch.
+12. Telemetry export has a fixed frame, a configurable rate limit, explicit channel availability,
+    and retry without removing a rejected record.
 
 ## Quality requirements
 
@@ -100,24 +107,29 @@ explicit seams while retaining firmware-size checks so the abstraction cost rema
 
 # Architecture
 
-The core owns a deterministic state machine and domain messages. Three narrow ports surround it:
+The core owns a deterministic state machine and domain messages. Four narrow ports surround it:
 
 * `Transport` moves messages through an in-memory bus, infrared, ESP-NOW, or a future radio.
 * `HealthMonitor` converts platform observations into nominal, quiescent, or fatal health.
 * `CandidacyScorer` ranks a node for an objective.
+* `TelemetrySink` accepts diagnostic records after the platform grants output-channel access.
 
 The original orbital-energy calculation survives as `HistoricalOrbitalScorer`. Tests preserve the
-paper examples, but the type and documentation label it as a heuristic rather than validated orbital
-mechanics. Better guidance and maneuver planning can replace it without changing the negotiation
-protocol.
+paper examples, but the type and documentation label it as a heuristic rather than validated
+mission-cost mechanics. A simulation-only SGP4 adapter now propagates checked-in TLEs into the same
+snapshot consumed by that scorer and into the Earth-fixed Cartesian position rendered by Cesium.
+The portable core and firmware do not link SGP4. Better guidance and maneuver planning can replace
+the heuristic without changing the negotiation protocol.
 
-The legacy adapter fragments each validated packet across four NEC infrared frames. The modern
+The legacy adapter fragments each validated packet across six NEC infrared frames. The modern
 reference adapter sends the same packet over ESP-NOW. ESP-NOW is useful for a benchtop demonstration;
 it is not presented as a spacecraft communication choice.
 
-The next research cycle would add bounded telemetry for mission-control observation, a governed and
-adversarially reviewed improvement loop, fair resource-aware allocation, and a platform safe-state
-action hook. These research directions remain outside the current implementation.
+The controller records bounded telemetry and uses mission keys to rotate equal-score assignments. A
+portable transmitter exports telemetry through a fixed frame at a configured rate. The reference
+firmware uses its serial diagnostic link, separate from IR or ESP-NOW coordination. The next research
+cycle still needs measured resource inputs, shared-radio budgets, a governed improvement loop, and a
+platform safe-state action hook.
 
 # Coordination under unreliable links
 
@@ -144,7 +156,7 @@ order do not. The swarm should begin with a bounded journal per node and admit t
 partial histories.
 
 Software rollout is another distributed protocol. The current codec rejects every layout except its
-single 12-byte version, so a future swarm must define how mixed software versions advertise
+single 18-byte version, so a future swarm must define how mixed software versions advertise
 capabilities, interpret old messages, migrate durable state, stage activation, and roll back. NASA's
 Starling experience shows why this matters: one spacecraft could not receive the autonomy software
 update, leaving the experiment to run with three nodes.
@@ -163,12 +175,17 @@ anomaly kept one craft out of the autonomy experiment, so its distributed planne
 three-node network and tolerated periods in which they did not hold the same plan. That is a better
 model for the next simulation than an always-connected cluster.
 
-The [full research note](https://github.com/Robbie-Palmer/personal-site/blob/main/cpp/autonomic-satellite-swarm/docs/distributed-coordination-research.md)
+The [full research note](https://github.com/Robbie-Palmer/hq/blob/main/cpp/autonomic-satellite-swarm/docs/distributed-coordination-research.md)
 turns these results into a sequence of experiments. The deterministic simulator can now drop,
 delay, or duplicate a selected delivery, change one-way links, and reset a node. The browser exposes
 the first experiment: it drops the winning assignment to show that the leader records an assignee
-which never learns that it owns the mission. Stable mission identities and the full invariant suite
-come next. A consensus algorithm comes later, if an operation's evidence requirements justify one.
+which never learns that it owns the mission. Missions now use an origin node, boot epoch, and mission
+sequence as their stable key. Deterministic invariant checks cover loss, duplication, one-way links,
+and resets. They also preserve two baseline failures: reset clears `safe-disabled`, and delayed
+mission requests have no expiry. Bounded telemetry now records the reasons and stable mission keys
+behind those outcomes. A six-mission equal-score replay uses that evidence to show two assignments
+per eligible node, with identical native and WebAssembly results. A consensus algorithm comes later,
+if an operation's evidence requirements justify one.
 The note also compares TLA+, OMNeT++, DTNSim, Basilisk, and NASA NOS3, then defines how the CesiumJS
 prototype can become a deterministic test-bed console with headless batch runs and comparable
 mission-success measures.
@@ -177,19 +194,28 @@ mission-success measures.
 
 * Flight qualification, radiation tolerance, or safety certification
 * A physically valid deorbit or self-destruction mechanism
-* Validated orbit propagation, collision avoidance, or guidance/navigation/control
+* Flight-grade orbit determination, collision avoidance, or guidance/navigation/control
 * Secure command and control; the prototype lacks authentication and replay protection
 * Implemented multi-hop topology, consensus, Byzantine fault tolerance, or unbounded swarms
 * Claims that compile-tested adapters have been verified on absent hardware
 
 # Verification
 
-Host tests cover the published score examples, invalid inputs, exact-arrival behavior, message
-corruption, mission negotiation, retries, deterministic ties, busy nodes, health transitions,
-32-bit clock rollover, explicit delivery faults, asymmetric links, and volatile state after a node
-reset. A three-node in-memory simulation reconstructs the central demonstration without hardware.
+Host tests cover CelesTrak SGP4 reference vectors to a one-metre bound, TLE validation, polar and
+longitude-wrap cases, a bounded 60-second interpolation interval, the published score examples,
+invalid inputs, exact-arrival behavior, message and
+telemetry corruption, mission negotiation, stable keys, retries, telemetry rate limits, cyclic
+equal-score allocation, busy nodes, health transitions, 32-bit clock rollover, explicit delivery
+faults, asymmetric links, and volatile state after a node reset. The invariant suite checks local
+assignment evidence and duplicate transitions, then records reset persistence and command expiry as
+known failures. A three-node in-memory simulation reconstructs the central demonstration without
+hardware.
 The same runner builds with Emscripten, executes in a browser worker, and has a byte-for-byte parity
-check against the native fixture. CI also compiles both firmware targets from pinned profiles.
+check against the native full-orbit fixture. A second parity run compares six equal-score
+assignments and their telemetry byte for byte. A production browser audit checks both desktop and
+CPU-throttled mobile profiles for page errors, failed resources, and external requests. CI also
+compiles both firmware targets from pinned profiles, confirming that orbit propagation remains out
+of the embedded dependency graph.
 
 Physical timing, sensor calibration, radio behavior under load, real propulsion, and orbital
 validity remain outside the current evidence boundary.
@@ -197,18 +223,19 @@ validity remain outside the current evidence boundary.
 # Roadmap
 
 1. Complete the software revival and retain the original paper examples as characterization tests.
-2. Define bounded, prioritized telemetry so an autonomous mission-control observer can reconstruct
-   decisions and detect swarm-level failures without becoming a dependency of local autonomy.
-3. Replace the lowest-ID tie-break with measured resource- and lifetime-aware allocation, using a
-   reproducible rotation or mission-keyed tie-break where candidates are otherwise equal.
+2. Measure shared-radio capacity and duty cycle before moving the implemented serial telemetry export
+   onto a coordination link. Add measured resource evidence through platform interfaces.
+3. Feed validated resource and lifetime costs into candidacy scoring. Keep the implemented
+   mission-keyed rotation as the final tie-break where candidates remain equal.
 4. Add a narrow, idempotent platform hook for physical safe-state actions and verify it with fault
    injection before connecting an irreversible actuator.
 5. Run packet-loss, network-partition (communication failure that splits the swarm into disconnected
    groups), event-storm, and biased-telemetry experiments in a richer simulator.
 6. Evaluate policy changes through replay, independent adversarial review, shadow operation,
    limited canaries, authenticated rollout, and explicit rollback instead of live self-modification.
-7. Test the proposed qrpTracker PLAN-13 propagator on the Uno and compare it with GMAT or Orekit.
-   Separately define what a defensible mission-cost model would need to prove.
+7. Define what a defensible mission-cost model would need to prove, using the deterministic SGP4
+   replay as an environment input rather than evidence that the historical score is physically
+   valid.
 8. Select physical boards and radios only when there is a concrete experiment to run.
 9. Add hardware-in-the-loop tests, authenticated messages, persistent identity, and reset recovery
    before treating the system as more than a bench prototype.

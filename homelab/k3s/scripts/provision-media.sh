@@ -25,15 +25,35 @@ MEDIA_DATA_DIR="${MEDIA_DATA_DIR:-$HOME/.local/share/homelab/k3s/media}"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ENV_FILE="${MEDIA_DATA_DIR}/.env"
 
-[[ -f "$ENV_FILE" ]] || { echo "Missing $ENV_FILE; generate credentials first (see k3s/overlays/home-media)" >&2; exit 1; }
 command -v kubectl >/dev/null || { echo "Missing kubectl" >&2; exit 1; }
+command -v openssl >/dev/null || { echo "Missing openssl" >&2; exit 1; }
+
+if [[ ! -f "$ENV_FILE" ]]; then
+  mkdir -p "$MEDIA_DATA_DIR"
+  umask 077
+  qbit_password="$(openssl rand -hex 24)"
+  jellyfin_password="$(openssl rand -base64 32)"
+  {
+    printf 'PROWLARR_PORT=9696\n'
+    printf 'SONARR_PORT=8989\n'
+    printf 'RADARR_PORT=7878\n'
+    printf 'QBITTORRENT_PORT=8080\n'
+    printf 'JELLYFIN_PORT=8096\n'
+    printf 'QBITTORRENT_PASSWORD=%s\n' "$qbit_password"
+    printf 'JELLYFIN_ADMIN_USER=admin\n'
+    printf 'JELLYFIN_ADMIN_PASSWORD=%s\n' "$jellyfin_password"
+  } > "$ENV_FILE"
+  echo "Generated media application credentials in $ENV_FILE"
+  echo "Back up this file before provisioning another machine."
+fi
 
 KUBECTL="kubectl --context $CONTEXT --namespace $NAMESPACE"
 
 env_value() {
   local key="$1"
   grep -F "${key}=" "$ENV_FILE" | tail -1 | cut -d= -f2- \
-    | sed -e 's/^"//' -e "s/^'//" -e "s/'$//"
+    | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//" \
+    || true
 }
 
 export PROWLARR_PORT="$(env_value PROWLARR_PORT)"; export PROWLARR_PORT="${PROWLARR_PORT:-9696}"
@@ -44,7 +64,10 @@ export JELLYFIN_PORT="$(env_value JELLYFIN_PORT)"; export JELLYFIN_PORT="${JELLY
 export QBITTORRENT_PASSWORD="$(env_value QBITTORRENT_PASSWORD)"
 [[ -n "$QBITTORRENT_PASSWORD" ]] || { echo "QBITTORRENT_PASSWORD missing in $ENV_FILE" >&2; exit 1; }
 
-export TRAKT_USERNAME="$(env_value TRAKT_USERNAME)"
+TRAKT_USERNAME="$(env_value TRAKT_USERNAME)"
+if [[ -n "$TRAKT_USERNAME" ]]; then
+  export TRAKT_USERNAME
+fi
 
 # provision.py reads container logs and drives recyclarr through the
 # container runtime; point it at the K3s equivalents.

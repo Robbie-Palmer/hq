@@ -26,6 +26,10 @@ deployable, has a GitHub App identity and inference budget unrelated to the
 sites, and may eventually move to its own repository. Its secrets live in
 Doppler project `ai-review`, not in `personal-site`.
 
+The Work Graph is another deliberate exception. Its runtime, infrastructure,
+and database-backup credentials live in Doppler project `work-graph`, keeping
+its database and recovery access outside the personal-site credential boundary.
+
 ## Config Layout
 
 Configs are split by environment and runtime/control boundary:
@@ -33,14 +37,14 @@ Configs are split by environment and runtime/control boundary:
 | Config | Purpose | GitHub target |
 | --- | --- | --- |
 | `dev_pages_env` | Shared local Cloudflare Pages env vars | None |
-| `dev_agent` | Preview-only credentials consumed by coding agents | None |
+| `dev_agent` | Preview-only credentials consumed by local agents and the remote operator workspace | None |
 | `dev_recipe_api` | Local recipe Worker/API/DB/OAuth config | None |
 | `dev_infra` | Local Terraform/provider credentials | None |
 | `dev_bootstrap_infra` | Local bootstrap Terraform credentials | None |
 | `stg_pages_env` | Shared PR preview runtime env vars | `preview-site-ui`, `preview-recipe-api` |
 | `stg_site_ui` | PR preview UI deploy credentials | `preview-site-ui` |
 | `stg_recipe_api` | PR preview Worker/API automation config | `preview-recipe-api` |
-| `ops_preview_agent_access` | Quarterly Access credential rotation | `preview-agent-access` |
+| `ops_preview_agent_access` | Access credential rotation and preview Playwright QA | `preview-agent-access` |
 | `prd_pages_env` | Shared production runtime env vars | `production-site-ui`, `production-recipe-api`, `production-recipe-ingest` |
 | `prd_site_ui` | Production UI deploy credentials | `production-site-ui`, `production-recipe-api`, `production-recipe-ingest` |
 | `prd_recipe_api` | Production Worker/API/DB/OAuth config | `production-recipe-api` |
@@ -49,7 +53,11 @@ Configs are split by environment and runtime/control boundary:
 | `prd_bootstrap_infra` | Production bootstrap Terraform credentials | `production-infra-bootstrap` |
 | `prd_bootstrap_plan` | Read-only bootstrap Terraform plan credentials | `production-infra-bootstrap-plan` |
 | `prd_database_backup` | Encrypted Neon-to-R2 backup credentials and public encryption recipient | `production-database-backup` |
+| `homelab/prd_remote_development_backup` | R2 credentials and restic password for the remote operator workspace | None |
 | `prd_ci_repo` | Repo-wide sensitive CI like AI review and DVC | `production-ci` |
+| `work-graph/prd_work_graph` | Work Graph runtime and deployment config | `production-work-graph` |
+| `work-graph/prd_work_graph_infra` | Work Graph Terraform/provider credentials | `production-work-graph-infra` |
+| `work-graph/prd_work_graph_backup` | Work Graph encrypted Neon-to-R2 backup credentials | `production-work-graph-backup` |
 | `ai-review/stg` | Isolated live-QA deployment of the stateful AI reviewer | None |
 | `ai-review/prd` | Standalone stateful AI reviewer deploy and runtime config | `production-ai-review` |
 
@@ -180,7 +188,6 @@ Pages:
 `dev_infra` owns normal provider credentials. Terraform should not receive UI
 deploy credentials or privileged GCP credentials:
 
-- `CF_PAGES_PREVIEW_ACCESS_APPLICATION_ID` (unmasked)
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_SLACK_WEBHOOK_URL`
 - `GITHUB_TOKEN` or `MISE_GITHUB_TOKEN`
@@ -205,7 +212,7 @@ Name GitHub environments after runtime or job boundaries:
 | --- | --- | --- |
 | `preview-recipe-api` | `stg_recipe_api`, `stg_pages_env` | PR preview Worker/database jobs and preview cleanup |
 | `preview-site-ui` | `stg_site_ui`, `stg_pages_env` | PR preview Pages build/deploy and preview comment |
-| `preview-agent-access` | `ops_preview_agent_access` | Quarterly and on-demand coding-agent Access secret rotation |
+| `preview-agent-access` | `ops_preview_agent_access` | Coding-agent credential rotation and one-run preview Playwright credentials |
 | `production-recipe-api` | `prd_recipe_api`, `prd_site_ui`, `prd_pages_env` | Production recipe API deploy |
 | `production-recipe-ingest` | `prd_recipe_ingest`, `prd_site_ui`, `prd_pages_env` | Production recipe ingest Worker deploy |
 | `production-site-ui` | `prd_site_ui`, `prd_pages_env` | Production UI CI/CD and Cloudflare Images health check |
@@ -215,6 +222,9 @@ Name GitHub environments after runtime or job boundaries:
 | `production-remote-development-infra` | `homelab/prd_remote_development_infra` | Manual remote-development Terraform apply |
 | `production-remote-development-infra-plan` | `homelab/prd_remote_development_infra` | Remote-development Terraform PR plans |
 | `production-database-backup` | `prd_database_backup` | Scheduled encrypted Neon backup |
+| `production-work-graph` | `work-graph/prd_work_graph` | Work Graph API deployment and migration |
+| `production-work-graph-infra` | `work-graph/prd_work_graph_infra` | Work Graph Terraform CI/CD |
+| `production-work-graph-backup` | `work-graph/prd_work_graph_backup` | Scheduled encrypted Work Graph Neon backup |
 | `production-ci` | `prd_ci_repo` | AI review and ML pipeline CI |
 | `production-ai-review` | `ai-review/prd` | Stateful AI reviewer Worker deployment |
 
@@ -245,8 +255,11 @@ config, `ops_preview_agent_access`, should contain:
 - `DOPPLER_SERVICE_TOKEN` with read/write access only to `dev_agent`
 
 `dev_agent` contains only `CF_ACCESS_CLIENT_ID`,
-`CF_ACCESS_CLIENT_SECRET`, and `CLOUDFLARE_PAGES_HOST`. Agent launchers read
-this config; they must not receive `dev_infra` or deployment credentials.
+`CF_ACCESS_CLIENT_SECRET`, and `CLOUDFLARE_PAGES_HOST`. Local T3 Code agents load
+this config only for the documented preview command. The remote operator
+workspace injects it through its own read-only Doppler token and managed
+Kubernetes Secret; the pilot workspace does not receive it. Agents must not
+receive `dev_infra` or deployment credentials.
 
 ## Preview Values
 
@@ -321,7 +334,6 @@ into each service-specific Doppler config.
 
 `prd_infra` should own:
 
-- `CF_PAGES_PREVIEW_ACCESS_APPLICATION_ID` (unmasked; syncs to a GitHub Actions variable)
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_SLACK_WEBHOOK_URL`
@@ -371,6 +383,15 @@ token to only the database backup bucket. The private age identity must not be
 stored in Doppler or GitHub; keep it in a password manager plus a separate
 recovery copy.
 
+`work-graph/prd_work_graph_backup` should own the same six names as
+`prd_database_backup`, but with a direct URL for the dedicated
+`work_graph_backup` role and `R2_DATABASE_BACKUPS_BUCKET_NAME` set to
+`work-graph-database-backups`. Its R2 Object Read & Write token must be scoped
+only to that bucket. Do not reuse the recipe database token, Work Graph runtime
+credentials, or the Work Graph Terraform token. The age recipient may be the
+same only if the corresponding recovery-key custody is intentionally shared;
+the private identity still stays outside Doppler and GitHub.
+
 `prd_ci_repo` should own:
 
 - `OPENROUTER_API_KEY`
@@ -393,7 +414,7 @@ The standalone Doppler project `ai-review`, config `prd`, should own:
 - `OPENROUTER_API_KEY`
 - `OPENCODE_API_KEY` (optional while anonymous free-model access is available)
 
-The GitHub App is installed only on `Robbie-Palmer/personal-site`. Its App ID
+The GitHub App is installed only on `Robbie-Palmer/hq`. Its App ID
 and installation ID are identifiers, while its private key and webhook secret
 must remain masked. The OpenRouter key is a separate, spend-limited runtime
 credential used by the current scouts and merger. OpenRouter is the default
@@ -413,12 +434,14 @@ doppler secrets --project personal-site --config dev_infra --only-names
 doppler secrets --project personal-site --config dev_bootstrap_infra --only-names
 doppler secrets --project personal-site --config prd_bootstrap_plan --only-names
 doppler secrets --project personal-site --config prd_database_backup --only-names
+doppler secrets --project work-graph --config prd_work_graph_backup --only-names
 doppler secrets --project ai-review --config prd --only-names
 doppler secrets --project homelab --config prd_remote_development_infra --only-names
 scripts/sync-doppler-github-envs.sh production-infra-bootstrap-plan
 scripts/sync-doppler-github-envs.sh production-remote-development-infra-plan
 scripts/sync-doppler-github-envs.sh production-remote-development-infra
 scripts/sync-doppler-github-envs.sh production-database-backup
+scripts/sync-doppler-github-envs.sh production-work-graph-backup
 scripts/sync-doppler-github-envs.sh production-ai-review
 
 mise run //:dev

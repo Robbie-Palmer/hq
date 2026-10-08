@@ -3,12 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ShoppingList } from "@/components/recipes/shopping/shopping-list";
 import type { ShoppingRecipe } from "@/lib/api/shopping";
+import type { KitchenStock } from "@/lib/domain/recipe/kitchen";
 import {
-  __resetShoppingListForTests,
   addExtra,
   addRecipe,
   toggleChecked,
 } from "@/lib/shopping/shoppingListStore";
+import { __resetShoppingListForTests } from "@/tests/support/recipe-state";
 
 const mocks = vi.hoisted(() => ({
   captureRecipeProductActivity: vi.fn(),
@@ -20,7 +21,7 @@ const pantryState = vi.hoisted(() => ({
   error: null as Error | null,
   hasData: true,
   isPending: false,
-  stock: {} as Record<string, "fridge" | "cupboards" | "fresh">,
+  stock: {} as KitchenStock,
 }));
 
 vi.mock("@/lib/analytics/recipe-product", () => ({
@@ -70,6 +71,12 @@ const recipes: ShoppingRecipe[] = [
       },
     ],
   },
+];
+
+const ingredientCatalog = [
+  { slug: "milk", name: "milk", category: "dairy" },
+  { slug: "almond-milk", name: "almond milk", category: "dairy" },
+  { slug: "garlic", name: "garlic", category: "vegetable" },
 ];
 
 const butterRecipes: ShoppingRecipe[] = [
@@ -232,6 +239,7 @@ describe("ShoppingList aisle view section completion", () => {
   it("sinks a fully-checked aisle below aisles still to buy and strikes its header", async () => {
     const user = userEvent.setup();
     render(<ShoppingList recipes={twoAisleRecipes} />);
+    await user.click(screen.getByText("by aisle"));
 
     const [first, second] = aisleHeadings();
     expect(first).toHaveTextContent("Fruit & veg");
@@ -373,7 +381,7 @@ describe("ShoppingList extras", () => {
     const user = userEvent.setup();
     render(<ShoppingList recipes={recipes} />);
 
-    const input = screen.getByRole("textbox", {
+    const input = screen.getByRole("combobox", {
       name: "Add a shopping-list item",
     });
     await user.type(input, "milk");
@@ -386,8 +394,7 @@ describe("ShoppingList extras", () => {
     const user = userEvent.setup();
     render(<ShoppingList recipes={recipes} />);
 
-    await user.click(screen.getByText("just ingredients"));
-
+    expect(screen.getByText("Just ingredients · A–Z")).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: /extras/i }),
     ).not.toBeInTheDocument();
@@ -411,13 +418,11 @@ describe("ShoppingList extras", () => {
     ).toEqual([expect.stringMatching(/bread/i)]);
   });
 
-  it("keeps kitchen-stocked ingredients out of the flat list", async () => {
+  it("keeps kitchen-stocked ingredients out of the default flat list", () => {
     pantryState.stock = { garlic: "fridge" };
-    const user = userEvent.setup();
     render(<ShoppingList recipes={recipes} />);
 
-    await user.click(screen.getByText("just ingredients"));
-
+    expect(screen.getByText("Just ingredients · A–Z")).toBeInTheDocument();
     expect(
       screen
         .getAllByRole("button", { pressed: false })
@@ -433,7 +438,7 @@ describe("ShoppingList extras", () => {
     const user = userEvent.setup();
     render(<ShoppingList recipes={recipes} />);
 
-    const input = screen.getByRole("textbox", {
+    const input = screen.getByRole("combobox", {
       name: "Add a shopping-list item",
     });
     await user.clear(input);
@@ -443,5 +448,65 @@ describe("ShoppingList extras", () => {
     expect(input).toHaveFocus();
     expect(input).toHaveValue("");
     expect(screen.getByText("milk")).toBeInTheDocument();
+  });
+
+  it("suggests matching ingredients from the catalog", async () => {
+    const user = userEvent.setup();
+    render(
+      <ShoppingList ingredientCatalog={ingredientCatalog} recipes={recipes} />,
+    );
+
+    const input = screen.getByRole("combobox", {
+      name: "Add a shopping-list item",
+    });
+    await user.type(input, "mil");
+
+    expect(
+      screen.getByRole("listbox", { name: "Matching ingredients" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: /^milk, dairy$/i }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen.getByRole("option", { name: /^almond milk, dairy$/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: /garlic/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("adds a catalog suggestion and keeps the input ready for another item", async () => {
+    const user = userEvent.setup();
+    render(
+      <ShoppingList ingredientCatalog={ingredientCatalog} recipes={recipes} />,
+    );
+
+    const input = screen.getByRole("combobox", {
+      name: "Add a shopping-list item",
+    });
+    await user.type(input, "mil");
+    await user.click(screen.getByRole("option", { name: /^milk, dairy$/i }));
+
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(input).toHaveValue("");
+    expect(input).toHaveFocus();
+    expect(screen.getByRole("button", { name: "milk" })).toBeInTheDocument();
+  });
+
+  it("supports choosing a catalog suggestion with the keyboard", async () => {
+    const user = userEvent.setup();
+    render(
+      <ShoppingList ingredientCatalog={ingredientCatalog} recipes={recipes} />,
+    );
+
+    const input = screen.getByRole("combobox", {
+      name: "Add a shopping-list item",
+    });
+    await user.type(input, "milk");
+    await user.keyboard("{ArrowDown}{Enter}");
+
+    expect(
+      screen.getByRole("button", { name: "almond milk" }),
+    ).toBeInTheDocument();
   });
 });

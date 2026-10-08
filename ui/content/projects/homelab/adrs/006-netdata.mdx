@@ -1,0 +1,107 @@
+---
+title: "ADR 006: Netdata for monitoring"
+date: "2026-08-02"
+status: "Accepted"
+tech_stack: ["Netdata"]
+---
+
+# Context
+
+The lab's two core workloads, photo backup and agent hosting, both depend
+on the Mac mini being up and healthy, and DNS (AdGuard Home) depends on both
+the Mac mini and the Raspberry Pi. I want to know about problems *before*
+they matter: a dead hub, a full backup drive, or a Pi overheating. Waiting to
+notice manually is how failures slip through, and a backup that fails
+quietly just means the library quietly isn't being backed up.
+
+I already use Slack for ops notifications (the recipe site's
+[PostHog alerting](/projects/recipe-site/adrs/021-posthog-alerting-and-slack)
+was the first link), so alerts should land in my personal Slack workspace.
+
+Requirements:
+
+* **Low-friction install** on both the Mac mini and the Pi.
+* **Hub-and-spoke collection**: the Pi exports its metrics to the Mac mini
+  as the central point, so there's one place to look.
+* **Slack delivery**: alert on anything going wrong, host down, disk full,
+  temperature too high, via a Slack app.
+* **Real-time**, not batch polling.
+
+# Decision
+
+Install **Netdata** on the Mac mini and the Raspberry Pi, with the Pi
+exporting to the Mac mini as the main hub. A Slack app in my personal
+workspace receives the alerts.
+
+What it watches, and why each earns its place:
+
+* **Host health on both boxes.** A dead Mac mini takes the agent stack and
+  the photo backup down with it; a dead Pi takes the fallback resolver and
+  the print server.
+* **The photo backup sync.** The
+  [Ente pipeline](/projects/homelab/adrs/005-ente-photo-backup) is the job
+  that most needs watching, because a sync failing quietly looks exactly
+  like one that works. Alert on the job failing or the 10TB drive filling
+  up, so it's caught instead of discovered months later.
+* **Pi temperature.** The Pi is fanless and does real work; heat is its
+  most likely way to fail.
+* **The DNS pair.** [AdGuard Home](/projects/homelab/adrs/001-adguard-home)
+  runs on both boxes, so host-level alerting covers resolver availability
+  and catches any single-box outage.
+
+One gap is worth stating plainly, because it's structural rather than
+fixable by tuning: this monitoring shares fate with the network it watches.
+Netdata runs on the same two boxes as the resolvers and needs DNS to reach
+Slack, so a *total* DNS outage is precisely the case where nothing alerts. It
+gets noticed when the network stops working. Single-box failure, which is what
+the redundant pair exists for, does alert normally.
+
+The proposed [phone device lab](/projects/homelab/adrs/012-phone-device-lab)
+can close this gap. Its View 20 watchdog would check the lab through Tailscale
+over mobile data and deliver an alert without using the home LAN or its DNS.
+Until that pilot succeeds, the gap remains.
+
+# Alternatives
+
+## Prometheus + Grafana
+
+* **Pros**: The industry-standard stack; extremely flexible.
+* **Cons**: Heavier to operate (scrapers, TSDB, dashboards, alert rules)
+  than a two-node home lab needs. I'd rather spend effort on the lab itself
+  than on maintaining an observability platform.
+* **Decision**: Rejected. Netdata gives real-time metrics and alerts with a
+  fraction of the operations burden.
+
+## Uptime checks / pinging only
+
+* **Pros**: Simple.
+* **Cons**: Tells me a host is down but nothing about *why*. Disk full,
+  overheating, or memory pressure happen before a host dies.
+* **Decision**: Rejected. I need the metrics, not just the outage.
+
+## Vendor monitoring (e.g. a cloud SaaS agent)
+
+* **Pros**: Zero maintenance.
+* **Cons**: Sends my home infrastructure telemetry to a third party and
+  costs money at the scale of a whole home network.
+* **Decision**: Rejected. Monitoring the privacy box should itself stay
+  private.
+
+# Consequences
+
+### Pros
+
+* **Early warning on the critical path**: DNS, backup, and agent-hosting
+  health all monitored.
+* **One place to look**: the Pi's metrics flow to the hub.
+* **Slack as the single alert surface**, consistent with how I already
+  operate.
+* **Self-hosted and private** telemetry.
+
+### Cons
+
+* **Another always-on service** to keep updated on both boxes.
+* **Alert noise**: thresholds need tuning (temperature alerts especially) to
+  avoid paging Slack for nothing.
+* **Hub dependency**: if the Mac mini is down, the Pi's central export
+  destination is down too. The Pi must still alarm independently.

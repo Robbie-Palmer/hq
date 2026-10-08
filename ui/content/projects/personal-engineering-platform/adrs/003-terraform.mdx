@@ -1,0 +1,26 @@
+---
+title: "ADR 003: Terraform for infrastructure provisioning"
+date: "2026-09-12"
+status: "Accepted"
+tech_stack:
+  - "Terraform"
+---
+
+## Context
+
+Projects that create managed resources need reviewable provisioning state.
+
+## Decision
+
+Prefer Terraform when a project activates the infrastructure provisioner
+slot.
+
+## Consequences
+
+Terraform makes
+[state](https://developer.hashicorp.com/terraform/language/state) part of the
+project's operational data. Projects must keep shared state in a protected
+remote backend, use state locking where the backend supports it, and recover
+state if a write fails. Plans need review for destructive changes. Existing
+resources must be imported before Terraform can manage them, and changes made
+outside Terraform create drift that later plans must reconcile.

@@ -21,7 +21,7 @@ run = "pnpm dev:qr"
 description = "Build Next.js application for production"
 depends = ["//ui:install", "//cpp/autonomic-satellite-swarm:browser:build"]
 run = "pnpm build"
-sources = ["app/**/*", "components/**/*", "content/**/*", "lib/**/*", "public/**/*", "scripts/**/*", "*.ts", "*.tsx", "*.json"]
+sources = ["app/**/*", "components/**/*", "content/**/*", "lib/**/*", "public/**/*", "scripts/**/*", "../packages/wedding-planner-domain/src/**/*", "*.ts", "*.tsx", "*.json"]
 outputs = ["out/**/*"]
 
 [tasks.test]
@@ -40,14 +40,71 @@ run = "pnpm test:integration"
 depends = ["//ui:build"]
 
 [tasks."test:e2e:preview"]
-description = "Run Playwright realtime QA against an authenticated PR preview"
-depends = ["//ui:test:e2e:install"]
+description = "Run Playwright QA against an authenticated PR preview"
+depends = ["//ui:test:e2e:install", "//ui:test:e2e:typecheck"]
 run = "pnpm test:e2e:preview"
 
+[tasks."test:e2e:mermaid"]
+description = "Render Mermaid diagrams in light and dark themes with Playwright"
+depends = ["//ui:test:e2e:install", "//ui:test:e2e:typecheck"]
+run = "pnpm test:e2e:mermaid"
+
 [tasks."test:e2e:install"]
-description = "Install Chromium for Playwright preview tests"
+description = "Install Chromium for Playwright tests"
 depends = ["//ui:install"]
 run = "pnpm exec playwright install chromium"
+
+[tasks."test:e2e:typecheck"]
+description = "Typecheck the Playwright tests"
+depends = ["//ui:install"]
+run = "pnpm exec tsc --project tsconfig.e2e.json"
+
+[tasks."audit:satellite-swarm"]
+description = "Audit satellite-swarm payloads, rendering, provenance, and offline requests"
+depends = ["//ui:test:e2e:install"]
+run = "pnpm audit:satellite-swarm"
+
+[tasks."audit:satellite-swarm:serve"]
+description = "Build, serve, and audit the satellite-swarm production export"
+depends = ["//ui:build", "//ui:test:e2e:install"]
+run = '''
+audit_port=${SATELLITE_SWARM_AUDIT_PORT:-0}
+case "$audit_port" in
+  *[!0-9]*|'') echo "SATELLITE_SWARM_AUDIT_PORT must be an integer" >&2; exit 2 ;;
+esac
+audit_server_log=$(mktemp "${TMPDIR:-/tmp}/satellite-swarm-audit.XXXXXX")
+./node_modules/.bin/serve out -l "tcp://127.0.0.1:$audit_port" >"$audit_server_log" 2>&1 &
+audit_server_pid=$!
+trap 'kill "$audit_server_pid" 2>/dev/null || true; rm -f -- "$audit_server_log"' EXIT
+audit_url=
+for _ in $(seq 1 40); do
+  if ! kill -0 "$audit_server_pid" 2>/dev/null; then
+    cat "$audit_server_log" >&2
+    exit 1
+  fi
+  audit_url=$(sed -n 's|.*\(http://127\.0\.0\.1:[0-9][0-9]*\).*|\1|p' "$audit_server_log" | tail -n 1)
+  if [ -n "$audit_url" ]; then break; fi
+  sleep 0.25
+done
+if [ -z "$audit_url" ]; then
+  cat "$audit_server_log" >&2
+  echo "Static-site server did not report its listening address" >&2
+  exit 1
+fi
+source_revision=${SATELLITE_SWARM_SOURCE_REVISION:-${GITHUB_SHA:-$(git rev-parse HEAD)}}
+case "$source_revision" in
+  *[!0-9a-f]*|'') echo "SATELLITE_SWARM_SOURCE_REVISION must be a full lowercase Git revision" >&2; exit 2 ;;
+esac
+revision_length=$(printf %s "$source_revision" | wc -c)
+if [ "$revision_length" -ne 40 ]; then
+  echo "SATELLITE_SWARM_SOURCE_REVISION must be a full lowercase Git revision" >&2
+  exit 2
+fi
+SATELLITE_SWARM_AUDIT_SERVER_PID="$audit_server_pid" \
+  SATELLITE_SWARM_AUDIT_URL="$audit_url" \
+  SATELLITE_SWARM_SOURCE_REVISION="$source_revision" \
+  pnpm audit:satellite-swarm
+'''
 
 [tasks."test:watch"]
 description = "Run tests in watch mode"
@@ -55,9 +112,24 @@ depends = ["//ui:install"]
 run = "pnpm test:watch"
 
 [tasks.lint]
-description = "Lint and format check with Biome"
+description = "Lint with Biome and the frontend design-system rules"
 depends = ["//ui:install"]
 run = "pnpm lint"
+
+[tasks."audit:react-components"]
+description = "Reject new or worsened React component hotspots with tsmetrics"
+depends = ["//ui:install"]
+run = "pnpm exec tsx scripts/audit-react-components.ts"
+
+[tasks."lint:duplicate-jsx"]
+description = "Reject repeated JSX subtrees with React Doctor"
+depends = ["//ui:install"]
+run = "CI=1 pnpm exec react-doctor . --yes --no-cache"
+
+[tasks."lint:design"]
+description = "Lint frontend design-system rules with @shadcn/lint (optionally pass files as args)"
+depends = ["//ui:install"]
+run = "pnpm lint:design"
 
 [tasks.format]
 description = "Format and fix issues with Biome"
@@ -95,11 +167,11 @@ rm -rf out
 
 [tasks.check]
 description = "Run all checks (lint, format, typecheck, test)"
-depends = ["//ui:lint", "//ui:format:check", "//ui:typecheck", "//ui:test"]
+depends = ["//ui:lint", "//ui:lint:duplicate-jsx", "//ui:audit:react-components", "//ui:format:check", "//ui:typecheck", "//ui:test"]
 
 [tasks."check:static"]
-description = "Static checks the production build relies on (type-check + Biome lint), without the slower test suite — gates deploy/preview workflows that skip the in-build type-check"
-depends = ["//ui:typecheck", "//ui:lint"]
+description = "Static checks the production build relies on (type-check + lint + component audits), without the slower test suite — gates deploy/preview workflows that skip the in-build type-check"
+depends = ["//ui:typecheck", "//ui:lint", "//ui:lint:duplicate-jsx", "//ui:audit:react-components"]
 
 # Image management tasks
 [tasks."images:sync"]

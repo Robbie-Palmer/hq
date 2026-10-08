@@ -22,14 +22,17 @@ import {
 } from "@/components/ui/select";
 import {
   ASSET_TYPE_LABELS,
+  LIQUIDITY_TIER_LABELS,
+  todayIsoDate,
+} from "@/lib/assettracker";
+import {
   type AssetType,
-  type Currency,
+  CurrencySchema,
   defaultLiquidityForAssetType,
   formatAssetTrackerError,
   isLiability,
-  LIQUIDITY_TIER_LABELS,
   type LiquidityTier,
-  todayIsoDate,
+  SUPPORTED_CURRENCIES,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
 
@@ -38,7 +41,6 @@ const ASSET_TYPE_OPTIONS = Object.entries(ASSET_TYPE_LABELS) as [
   string,
 ][];
 
-const CURRENCY_OPTIONS: Currency[] = ["GBP", "USD"];
 const LIQUIDITY_OPTIONS = Object.entries(LIQUIDITY_TIER_LABELS) as [
   LiquidityTier,
   string,
@@ -47,7 +49,7 @@ const LIQUIDITY_OPTIONS = Object.entries(LIQUIDITY_TIER_LABELS) as [
 const NO_LINK = "none";
 
 export function AddAccountDrawer() {
-  const { accounts, createAccount } = useAssetTracker();
+  const { accounts, baseCurrency, createAccount } = useAssetTracker();
   const propertyAccounts = accounts.filter(
     (account) => account.assetType === "property" && account.isOpen,
   );
@@ -57,11 +59,13 @@ export function AddAccountDrawer() {
   const [provider, setProvider] = useState("");
   const [assetType, setAssetType] = useState<AssetType>("cash");
   const [liquidity, setLiquidity] = useState<LiquidityTier>("cash");
-  const [currency, setCurrency] = useState<Currency>("GBP");
+  const [currency, setCurrency] = useState(baseCurrency);
   const [expectedReturnPercent, setExpectedReturnPercent] = useState("");
   const [linkedId, setLinkedId] = useState(NO_LINK);
   const [openingBalance, setOpeningBalance] = useState("");
   const [openingDate, setOpeningDate] = useState(todayIsoDate());
+  const [firstPaymentDate, setFirstPaymentDate] = useState(todayIsoDate());
+  const [remainingTermYears, setRemainingTermYears] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -70,11 +74,13 @@ export function AddAccountDrawer() {
     setProvider("");
     setAssetType("cash");
     setLiquidity("cash");
-    setCurrency("GBP");
+    setCurrency(baseCurrency);
     setExpectedReturnPercent("");
     setLinkedId(NO_LINK);
     setOpeningBalance("");
     setOpeningDate(todayIsoDate());
+    setFirstPaymentDate(todayIsoDate());
+    setRemainingTermYears("");
     setError(null);
   }
 
@@ -93,6 +99,18 @@ export function AddAccountDrawer() {
         linkedAccountId:
           assetType === "mortgage" && linkedId !== NO_LINK
             ? linkedId
+            : undefined,
+        mortgageTerms:
+          assetType === "mortgage"
+            ? {
+                firstPaymentDate,
+                remainingTermMonths: Math.round(
+                  Number(remainingTermYears) * 12,
+                ),
+                fees: [],
+                overpayments: [],
+                termChanges: [],
+              }
             : undefined,
         openingBalance:
           openingBalance === "" ? undefined : Number(openingBalance),
@@ -188,13 +206,15 @@ export function AddAccountDrawer() {
               </label>
               <Select
                 value={currency}
-                onValueChange={(value) => setCurrency(value as Currency)}
+                onValueChange={(value) =>
+                  setCurrency(CurrencySchema.parse(value))
+                }
               >
                 <SelectTrigger id="add-account-currency" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {CURRENCY_OPTIONS.map((option) => (
+                  {SUPPORTED_CURRENCIES.map((option) => (
                     <SelectItem key={option} value={option}>
                       {option}
                     </SelectItem>
@@ -268,6 +288,46 @@ export function AddAccountDrawer() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+          {assetType === "mortgage" && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="add-account-first-payment"
+                  className="text-sm font-medium"
+                >
+                  Next payment
+                </label>
+                <Input
+                  id="add-account-first-payment"
+                  type="date"
+                  required
+                  value={firstPaymentDate}
+                  onChange={(event) => setFirstPaymentDate(event.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="add-account-term"
+                  className="text-sm font-medium"
+                >
+                  Remaining term (years)
+                </label>
+                <Input
+                  id="add-account-term"
+                  type="number"
+                  inputMode="decimal"
+                  min="0.1"
+                  step="0.1"
+                  required
+                  placeholder="e.g. 25"
+                  value={remainingTermYears}
+                  onChange={(event) =>
+                    setRemainingTermYears(event.target.value)
+                  }
+                />
+              </div>
             </div>
           )}
           <div className="grid grid-cols-2 gap-4">

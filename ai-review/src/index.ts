@@ -5,6 +5,7 @@ import {
   type WorkflowStep,
   type WorkflowStepConfig,
 } from "cloudflare:workers";
+import { sha256Hex } from "ts-base/crypto";
 import { isRecord } from "ts-base/records";
 import type {
   Env,
@@ -20,9 +21,9 @@ import {
   type FindingOutcomeBasis,
   type FindingOutcomeManualOverride,
   summarizeFindingInteractions,
-} from "./finding-outcomes";
-import { guardrailPolicy } from "./guardrails";
-import { createInstallationToken } from "./github-app";
+} from "ai-review-domain/finding-outcomes";
+import { guardrailPolicy } from "ai-review-domain/guardrails";
+import { githubApiClient } from "./github-app";
 import type { FindingPublication } from "./finding-lifecycle";
 import {
   claimReview,
@@ -47,6 +48,12 @@ import {
   type ScoutRun,
 } from "./review-engine";
 import {
+  findingEvidenceKey,
+  findingOutcomeKey,
+  isCanonicalRepository,
+} from "./r2-keys";
+import { stableJson } from "./replay-input";
+import {
   parseFindingInteraction,
   parsePullRequestFinalization,
   parseReviewEvent,
@@ -66,6 +73,7 @@ const PENDING_OUTCOME_EVALUATION_KEY = "pending-outcome-evaluation";
 const DEFAULT_OUTCOME_WINDOW_MS = 7 * 24 * 60 * 60 * 1_000;
 const MINIMUM_OUTCOME_WINDOW_MS = 1_000;
 const MAXIMUM_OUTCOME_WINDOW_MS = 90 * 24 * 60 * 60 * 1_000;
+const MAX_REVIEW_COMPLETION_ITEMS = 10_000;
 type FindingOutcomeFlushRetry = {
   kind: "finding-outcomes";
   repository: string;
@@ -96,6 +104,59 @@ interface ModelAvailabilityMetric {
   provider: "openrouter" | "opencode";
   ok: boolean;
   error?: string;
+}
+
+interface ModelDescriptor {
+  model: string;
+  provider: "openrouter" | "opencode";
+}
+
+interface ModelAvailabilityPlan {
+  models: ModelDescriptor[];
+}
+
+interface ModelAvailabilityObservation {
+  observationId: string;
+  policy: {
+    version: string;
+    consecutiveFailureThreshold: number;
+    cooldownSeconds: number;
+  };
+  metrics: ModelAvailabilityMetric[];
+}
+
+interface ReviewClaim {
+  runId: string;
+  headSha: string;
+  diffFingerprint: string;
+  configFingerprint: string;
+  force: boolean;
+  maxRuns: number;
+  maxCostUsd: number;
+}
+
+interface ReviewBaselineRequest {
+  headSha: string;
+}
+
+interface ReviewCompletion {
+  repository: string;
+  pullRequestNumber: number;
+  runId: string;
+  headSha: string;
+  costUsd: number;
+  commentId?: number;
+  hunks: ReviewHunk[];
+  currentHunks?: ReviewHunk[];
+  findings: IdentifiedMergedFinding[];
+  findingPublications?: FindingPublication[];
+  findingResolutions?: FindingResolution[];
+}
+
+interface ReviewFailure {
+  runId: string;
+  error: string;
+  costUsd: number;
 }
 
 type StoredModelHealth = {
@@ -157,15 +218,21 @@ const MODEL_STEP_CONFIG = {
 } satisfies WorkflowStepConfig;
 const textEncoder = new TextEncoder();
 
-async function sha256(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", textEncoder.encode(value));
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
 function json(data: unknown, status = 200): Response {
   return Response.json(data, { status, headers: JSON_HEADERS });
+}
+
+function errorResponse(message: string, status = 400): Response {
+  return json({ error: message }, status);
+}
+
+async function readValidatedJson<T>(
+  request: Request,
+  guard: (value: unknown) => value is T,
+  invalidMessage: string,
+): Promise<T | Response> {
+  const value = await request.json().catch(() => null);
+  return guard(value) ? value : errorResponse(invalidMessage);
 }
 
 function errorType(error: unknown): string {
@@ -217,6 +284,160 @@ function isReviewWorkflowParams(value: unknown): value is ReviewWorkflowParams {
     typeof event.force === "boolean" &&
     (event.headSha === undefined ||
       (typeof event.headSha === "string" && event.headSha.length > 0))
+  );
+}
+
+function isModelDescriptor(value: unknown): value is ModelDescriptor {
+  return (
+    isRecord(value) &&
+    typeof value.model === "string" &&
+    value.model.length > 0 &&
+    value.model.length <= 200 &&
+    (value.provider === "openrouter" || value.provider === "opencode")
+  );
+}
+
+function isModelAvailabilityPlan(
+  value: unknown,
+): value is ModelAvailabilityPlan {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.models) &&
+    value.models.length <= 50 &&
+    value.models.every(isModelDescriptor)
+  );
+}
+
+function isModelAvailabilityMetric(
+  value: unknown,
+): value is ModelAvailabilityMetric {
+  return (
+    isRecord(value) &&
+    typeof value.model === "string" &&
+    value.model.length > 0 &&
+    value.model.length <= 200 &&
+    (value.provider === "openrouter" || value.provider === "opencode") &&
+    typeof value.ok === "boolean" &&
+    (value.error === undefined ||
+      (typeof value.error === "string" && value.error.length <= 500))
+  );
+}
+
+function isModelAvailabilityObservation(
+  value: unknown,
+): value is ModelAvailabilityObservation {
+  if (!isRecord(value) || !isRecord(value.policy)) return false;
+  const policy = value.policy;
+  return (
+    typeof value.observationId === "string" &&
+    value.observationId.length > 0 &&
+    value.observationId.length <= 255 &&
+    typeof policy.version === "string" &&
+    policy.version.trim().length > 0 &&
+    policy.version.trim() === policy.version &&
+    typeof policy.consecutiveFailureThreshold === "number" &&
+    Number.isSafeInteger(policy.consecutiveFailureThreshold) &&
+    policy.consecutiveFailureThreshold >= 1 &&
+    policy.consecutiveFailureThreshold <= 20 &&
+    typeof policy.cooldownSeconds === "number" &&
+    Number.isSafeInteger(policy.cooldownSeconds) &&
+    policy.cooldownSeconds >= 1 &&
+    policy.cooldownSeconds <= 7 * 24 * 60 * 60 &&
+    Array.isArray(value.metrics) &&
+    value.metrics.length <= 50 &&
+    value.metrics.every(isModelAvailabilityMetric)
+  );
+}
+
+function isReviewClaim(value: unknown): value is ReviewClaim {
+  return (
+    isRecord(value) &&
+    typeof value.runId === "string" &&
+    value.runId.length > 0 &&
+    value.runId.length <= 255 &&
+    typeof value.headSha === "string" &&
+    value.headSha.length > 0 &&
+    value.headSha.length <= 64 &&
+    typeof value.diffFingerprint === "string" &&
+    value.diffFingerprint.length > 0 &&
+    value.diffFingerprint.length <= 64 &&
+    typeof value.configFingerprint === "string" &&
+    value.configFingerprint.length > 0 &&
+    value.configFingerprint.length <= 64 &&
+    typeof value.force === "boolean" &&
+    typeof value.maxRuns === "number" &&
+    Number.isSafeInteger(value.maxRuns) &&
+    value.maxRuns >= 0 &&
+    typeof value.maxCostUsd === "number" &&
+    Number.isFinite(value.maxCostUsd) &&
+    value.maxCostUsd >= 0
+  );
+}
+
+function isReviewBaselineRequest(
+  value: unknown,
+): value is ReviewBaselineRequest {
+  return (
+    isRecord(value) &&
+    typeof value.headSha === "string" &&
+    value.headSha.length > 0 &&
+    value.headSha.length <= 64
+  );
+}
+
+function isReviewCompletion(value: unknown): value is ReviewCompletion {
+  return (
+    isRecord(value) &&
+    isCanonicalRepository(value.repository) &&
+    typeof value.pullRequestNumber === "number" &&
+    Number.isSafeInteger(value.pullRequestNumber) &&
+    value.pullRequestNumber > 0 &&
+    typeof value.runId === "string" &&
+    value.runId.length > 0 &&
+    value.runId.length <= 255 &&
+    typeof value.headSha === "string" &&
+    value.headSha.length > 0 &&
+    value.headSha.length <= 64 &&
+    typeof value.costUsd === "number" &&
+    Number.isFinite(value.costUsd) &&
+    value.costUsd >= 0 &&
+    (value.commentId === undefined ||
+      (typeof value.commentId === "number" &&
+        Number.isSafeInteger(value.commentId) &&
+        value.commentId > 0)) &&
+    Array.isArray(value.hunks) &&
+    value.hunks.length <= MAX_REVIEW_COMPLETION_ITEMS &&
+    value.hunks.every(isReviewHunk) &&
+    (value.currentHunks === undefined ||
+      (Array.isArray(value.currentHunks) &&
+        value.currentHunks.length <= MAX_REVIEW_COMPLETION_ITEMS &&
+        value.currentHunks.every(isReviewHunk))) &&
+    Array.isArray(value.findings) &&
+    value.findings.length <= MAX_REVIEW_COMPLETION_ITEMS &&
+    value.findings.every(isIdentifiedFinding) &&
+    (value.findingResolutions === undefined ||
+      (Array.isArray(value.findingResolutions) &&
+        value.findingResolutions.length <= MAX_REVIEW_COMPLETION_ITEMS &&
+        value.findingResolutions.every(isFindingResolution))) &&
+    (value.findingPublications === undefined ||
+      (Array.isArray(value.findingPublications) &&
+        value.findingPublications.length <= MAX_REVIEW_COMPLETION_ITEMS &&
+        value.findingPublications.every(isFindingPublication)))
+  );
+}
+
+function isReviewFailure(value: unknown): value is ReviewFailure {
+  return (
+    isRecord(value) &&
+    typeof value.runId === "string" &&
+    value.runId.length > 0 &&
+    value.runId.length <= 255 &&
+    typeof value.error === "string" &&
+    value.error.length > 0 &&
+    value.error.length <= 4_000 &&
+    typeof value.costUsd === "number" &&
+    Number.isFinite(value.costUsd) &&
+    value.costUsd >= 0
   );
 }
 
@@ -437,6 +658,7 @@ function storedFindingResolution(
   }
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 function isFindingInteractionEvent(
   value: unknown,
 ): value is FindingInteractionEvent {
@@ -488,27 +710,11 @@ async function currentPullRequestHead(
 ): Promise<string | undefined> {
   const [owner, repository, ...extra] = event.repository.split("/");
   if (!owner || !repository || extra.length > 0) return undefined;
-  const token = await createInstallationToken({
-    appId: env.AI_REVIEW_APP_ID,
-    installationId: env.AI_REVIEW_APP_INSTALLATION_ID,
-    privateKey: env.AI_REVIEW_APP_PRIVATE_KEY,
-  });
-  const response = await fetch(
-    `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/pulls/${event.pullRequestNumber}`,
-    {
-      headers: {
-        accept: "application/vnd.github+json",
-        authorization: `Bearer ${token}`,
-        "user-agent": "personal-site-ai-review",
-        "x-github-api-version": "2022-11-28",
-      },
-      signal: AbortSignal.timeout(COORDINATOR_TIMEOUT_MS),
-    },
+  const client = await githubApiClient(env, { retries: 1 });
+  const pullRequest = await client.request<{ head?: { sha?: unknown } }>(
+    "GET",
+    `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/pulls/${event.pullRequestNumber}`,
   );
-  if (!response.ok) return undefined;
-  const pullRequest = (await response.json().catch(() => null)) as
-    | { head?: { sha?: unknown } }
-    | null;
   return typeof pullRequest?.head?.sha === "string" &&
       pullRequest.head.sha.length > 0
     ? pullRequest.head.sha
@@ -523,32 +729,12 @@ async function acknowledgeDispositionReply(
   const [owner, repository, ...extra] = event.repository.split("/");
   if (!owner || !repository || extra.length > 0) return false;
   try {
-    const token = await createInstallationToken({
-      appId: env.AI_REVIEW_APP_ID,
-      installationId: env.AI_REVIEW_APP_INSTALLATION_ID,
-      privateKey: env.AI_REVIEW_APP_PRIVATE_KEY,
-    });
-    const response = await fetch(
-      `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/pulls/comments/${event.commentId}/reactions`,
-      {
-        method: "POST",
-        headers: {
-          accept: "application/vnd.github+json",
-          authorization: `Bearer ${token}`,
-          "content-type": "application/json",
-          "user-agent": "personal-site-ai-review",
-          "x-github-api-version": "2022-11-28",
-        },
-        body: JSON.stringify({ content: "+1" }),
-        signal: AbortSignal.timeout(COORDINATOR_TIMEOUT_MS),
-      },
+    const client = await githubApiClient(env, { retries: 1 });
+    await client.request(
+      "POST",
+      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/pulls/comments/${event.commentId}/reactions`,
+      { body: { content: "+1" } },
     );
-    if (!response.ok) {
-      console.error("Could not acknowledge AI review disposition reply", {
-        status: response.status,
-      });
-      return false;
-    }
     return true;
   } catch (error) {
     console.error("Could not acknowledge AI review disposition reply", {
@@ -607,12 +793,12 @@ async function readWebhookBody(
     Number.isFinite(declaredBodyBytes) &&
     declaredBodyBytes > MAXIMUM_WEBHOOK_BODY_BYTES
   ) {
-    return { response: json({ error: "Webhook payload is too large" }, 413) };
+    return { response: errorResponse("Webhook payload is too large", 413) };
   }
 
   const body = await request.text();
   if (textEncoder.encode(body).byteLength > MAXIMUM_WEBHOOK_BODY_BYTES) {
-    return { response: json({ error: "Webhook payload is too large" }, 413) };
+    return { response: errorResponse("Webhook payload is too large", 413) };
   }
   return { body };
 }
@@ -642,9 +828,9 @@ async function forwardToCoordinator(
         status: response.status,
       });
       if (response.status >= 400 && response.status < 500) {
-        return json({ error: "Invalid coordinator request" }, 400);
+        return errorResponse("Invalid coordinator request");
       }
-      return json({ error: "Coordinator unavailable" }, 503);
+      return errorResponse("Coordinator unavailable", 503);
     }
     return response;
   } catch (error) {
@@ -652,7 +838,7 @@ async function forwardToCoordinator(
       "Coordinator request failed",
       error instanceof Error ? { name: error.name } : { type: typeof error },
     );
-    return json({ error: "Coordinator unavailable" }, 503);
+    return errorResponse("Coordinator unavailable", 503);
   }
 }
 
@@ -680,31 +866,14 @@ export class PullRequestCoordinator extends DurableObject<Env> {
   }
 
   private async planModelAvailability(request: Request): Promise<Response> {
-    const body = (await request.json().catch(() => null)) as {
-      models?: unknown;
-    } | null;
-    if (
-      !body ||
-      !Array.isArray(body.models) ||
-      body.models.length > 50 ||
-      !body.models.every(
-        (candidate) =>
-          isRecord(candidate) &&
-          typeof candidate.model === "string" &&
-          candidate.model.length > 0 &&
-          candidate.model.length <= 200 &&
-          (candidate.provider === "openrouter" ||
-            candidate.provider === "opencode"),
-      )
-    ) {
-      return json({ error: "Invalid model availability plan" }, 400);
-    }
+    const body = await readValidatedJson(
+      request,
+      isModelAvailabilityPlan,
+      "Invalid model availability plan",
+    );
+    if (body instanceof Response) return body;
     const now = Date.now();
-    const skipped = body.models.flatMap((candidate) => {
-      const model = candidate as {
-        model: string;
-        provider: "openrouter" | "opencode";
-      };
+    const skipped = body.models.flatMap((model) => {
       const health = this.ctx.storage.sql
         .exec<{
           consecutive_failures: number;
@@ -729,57 +898,26 @@ export class PullRequestCoordinator extends DurableObject<Env> {
   }
 
   private async recordModelAvailability(request: Request): Promise<Response> {
-    const body = (await request.json().catch(() => null)) as {
-      observationId?: unknown;
-      policy?: unknown;
-      metrics?: unknown;
-    } | null;
-    const policy = isRecord(body?.policy) ? body.policy : undefined;
-    if (
-      !body ||
-      typeof body.observationId !== "string" ||
-      body.observationId.length === 0 ||
-      body.observationId.length > 255 ||
-      !policy ||
-      typeof policy.version !== "string" ||
-      policy.version.length === 0 ||
-      typeof policy.consecutiveFailureThreshold !== "number" ||
-      !Number.isSafeInteger(policy.consecutiveFailureThreshold) ||
-      policy.consecutiveFailureThreshold < 1 ||
-      policy.consecutiveFailureThreshold > 20 ||
-      typeof policy.cooldownSeconds !== "number" ||
-      !Number.isSafeInteger(policy.cooldownSeconds) ||
-      policy.cooldownSeconds < 1 ||
-      policy.cooldownSeconds > 7 * 24 * 60 * 60 ||
-      !Array.isArray(body.metrics) ||
-      body.metrics.length > 50 ||
-      !body.metrics.every(
-        (metric) =>
-          isRecord(metric) &&
-          typeof metric.model === "string" &&
-          metric.model.length > 0 &&
-          metric.model.length <= 200 &&
-          (metric.provider === "openrouter" || metric.provider === "opencode") &&
-          typeof metric.ok === "boolean" &&
-          (metric.error === undefined ||
-            (typeof metric.error === "string" && metric.error.length <= 500)),
-      )
-    ) {
-      return json({ error: "Invalid model availability observation" }, 400);
-    }
+    const body = await readValidatedJson(
+      request,
+      isModelAvailabilityObservation,
+      "Invalid model availability observation",
+    );
+    if (body instanceof Response) return body;
+    const policy = body.policy;
 
     const observedAt = new Date();
     const observedAtIso = observedAt.toISOString();
-    const failureThreshold = policy.consecutiveFailureThreshold as number;
-    const cooldownMs = (policy.cooldownSeconds as number) * 1_000;
+    const failureThreshold = policy.consecutiveFailureThreshold;
+    const cooldownMs = policy.cooldownSeconds * 1_000;
     let recorded = 0;
     this.ctx.storage.transactionSync(() => {
-      for (const candidate of body.metrics as ModelAvailabilityMetric[]) {
+      for (const candidate of body.metrics) {
         const existing = this.ctx.storage.sql
           .exec<{ observation_id: string }>(
             `SELECT observation_id FROM review_model_health_observations
              WHERE observation_id = ? AND provider = ? AND model = ?`,
-            body.observationId as string,
+            body.observationId,
             candidate.provider,
             candidate.model,
           )
@@ -929,15 +1067,12 @@ export class PullRequestCoordinator extends DurableObject<Env> {
       const batch = pending.slice(index, index + OUTCOME_FLUSH_CONCURRENCY);
       const results = await Promise.all(
         batch.map(async (outcome) => {
-          const key = [
-            "v2",
+          const key = findingOutcomeKey({
             repository,
-            `pr-${pullRequestNumber}`,
-            "findings",
-            outcome.finding_id,
-            "outcomes",
-            `v${outcome.outcome_version}.json`,
-          ].join("/");
+            pullRequestNumber,
+            findingId: outcome.finding_id,
+            outcomeVersion: outcome.outcome_version,
+          });
           try {
             await this.env.REVIEW_DATA.put(key, outcome.payload_json, {
               httpMetadata: { contentType: "application/json" },
@@ -986,6 +1121,7 @@ export class PullRequestCoordinator extends DurableObject<Env> {
     }
   }
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
   private evaluateFinalizedFindings(options: {
     event: PullRequestFinalizationEvent;
     evaluatedAt: string;
@@ -1219,15 +1355,12 @@ export class PullRequestCoordinator extends DurableObject<Env> {
   }
 
   private async receiveEvent(request: Request): Promise<Response> {
-    let event: unknown;
-    try {
-      event = await request.json();
-    } catch {
-      return json({ error: "Invalid coordinator event" }, 400);
-    }
-    if (!isReviewWorkflowParams(event)) {
-      return json({ error: "Invalid coordinator event" }, 400);
-    }
+    const event = await readValidatedJson(
+      request,
+      isReviewWorkflowParams,
+      "Invalid coordinator event",
+    );
+    if (event instanceof Response) return event;
     const pending =
       await this.ctx.storage.get<ReviewWorkflowParams>(PENDING_EVENT_KEY);
     const coalesced = pending?.force ? { ...event, force: true } : event;
@@ -1372,10 +1505,12 @@ export class PullRequestCoordinator extends DurableObject<Env> {
   }
 
   private async receiveInteraction(request: Request): Promise<Response> {
-    const event = await request.json().catch(() => null);
-    if (!isFindingInteractionEvent(event)) {
-      return json({ error: "Invalid finding interaction" }, 400);
-    }
+    const event = await readValidatedJson(
+      request,
+      isFindingInteractionEvent,
+      "Invalid finding interaction",
+    );
+    if (event instanceof Response) return event;
 
     const recordedAt = new Date().toISOString();
     const result = this.ctx.storage.transactionSync(() => {
@@ -1530,15 +1665,12 @@ export class PullRequestCoordinator extends DurableObject<Env> {
       return json({ accepted: false, reason: result.reason }, 202);
     }
     if (!result.r2Recorded) {
-      const key = [
-        "v2",
-        event.repository,
-        `pr-${event.pullRequestNumber}`,
-        "findings",
-        result.findingId,
-        "evidence",
-        `${event.deliveryId}.json`,
-      ].join("/");
+      const key = findingEvidenceKey({
+        repository: event.repository,
+        pullRequestNumber: event.pullRequestNumber,
+        findingId: result.findingId,
+        deliveryId: event.deliveryId,
+      });
       await this.env.REVIEW_DATA.put(key, JSON.stringify(result.evidence), {
         httpMetadata: { contentType: "application/json" },
       });
@@ -1560,10 +1692,12 @@ export class PullRequestCoordinator extends DurableObject<Env> {
   }
 
   private async receiveFinalization(request: Request): Promise<Response> {
-    const event = await request.json().catch(() => null);
-    if (!isPullRequestFinalizationEvent(event)) {
-      return json({ error: "Invalid pull request finalization" }, 400);
-    }
+    const event = await readValidatedJson(
+      request,
+      isPullRequestFinalizationEvent,
+      "Invalid pull request finalization",
+    );
+    if (event instanceof Response) return event;
 
     const recordedAt = new Date().toISOString();
     const occurredAtMs = Date.parse(event.occurredAt ?? recordedAt);
@@ -1651,29 +1785,12 @@ export class PullRequestCoordinator extends DurableObject<Env> {
   }
 
   private async claimReview(request: Request): Promise<Response> {
-    const body = (await request.json().catch(() => null)) as {
-      runId?: unknown;
-      headSha?: unknown;
-      diffFingerprint?: unknown;
-      configFingerprint?: unknown;
-      force?: unknown;
-      maxRuns?: unknown;
-      maxCostUsd?: unknown;
-    } | null;
-    if (
-      !body ||
-      typeof body.runId !== "string" ||
-      typeof body.headSha !== "string" ||
-      typeof body.diffFingerprint !== "string" ||
-      typeof body.configFingerprint !== "string" ||
-      typeof body.force !== "boolean" ||
-      typeof body.maxRuns !== "number" ||
-      !Number.isFinite(body.maxRuns) ||
-      typeof body.maxCostUsd !== "number" ||
-      !Number.isFinite(body.maxCostUsd)
-    ) {
-      return json({ error: "Invalid review claim" }, 400);
-    }
+    const body = await readValidatedJson(
+      request,
+      isReviewClaim,
+      "Invalid review claim",
+    );
+    if (body instanceof Response) return body;
     const maxRuns = body.maxRuns;
     const maxCostUsd = body.maxCostUsd;
 
@@ -1689,9 +1806,10 @@ export class PullRequestCoordinator extends DurableObject<Env> {
         "Could not terminate an expired review Workflow",
         error instanceof Error ? { name: error.name } : { type: typeof error },
       );
-      return json({ error: "Expired review Workflow is still active" }, 503);
+      return errorResponse("Expired review Workflow is still active", 503);
     }
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     const result = this.ctx.storage.transactionSync(() => {
       const aggregate = this.ctx.storage.sql
         .exec<{ attempts: number; runs: number; total_cost: number }>(
@@ -1791,17 +1909,12 @@ export class PullRequestCoordinator extends DurableObject<Env> {
   }
 
   private async reviewBaseline(request: Request): Promise<Response> {
-    const body = (await request.json().catch(() => null)) as {
-      headSha?: unknown;
-    } | null;
-    if (
-      !body ||
-      typeof body.headSha !== "string" ||
-      body.headSha.length === 0 ||
-      body.headSha.length > 64
-    ) {
-      return json({ error: "Invalid review baseline" }, 400);
-    }
+    const body = await readValidatedJson(
+      request,
+      isReviewBaselineRequest,
+      "Invalid review baseline",
+    );
+    if (body instanceof Response) return body;
     const completed = this.ctx.storage.sql
       .exec<{ run_id: string; head_sha: string }>(
         `SELECT run_id, head_sha FROM review_runs
@@ -1864,50 +1977,14 @@ export class PullRequestCoordinator extends DurableObject<Env> {
   }
 
   private async completeReview(request: Request): Promise<Response> {
-    const body = (await request.json().catch(() => null)) as {
-      repository?: unknown;
-      pullRequestNumber?: unknown;
-      runId?: unknown;
-      headSha?: unknown;
-      costUsd?: unknown;
-      commentId?: unknown;
-      hunks?: unknown;
-      currentHunks?: unknown;
-      findings?: unknown;
-      findingPublications?: unknown;
-      findingResolutions?: unknown;
-    } | null;
-    if (
-      !body ||
-      typeof body.repository !== "string" ||
-      body.repository.length === 0 ||
-      typeof body.pullRequestNumber !== "number" ||
-      !Number.isSafeInteger(body.pullRequestNumber) ||
-      body.pullRequestNumber <= 0 ||
-      typeof body.runId !== "string" ||
-      typeof body.headSha !== "string" ||
-      typeof body.costUsd !== "number" ||
-      !Number.isFinite(body.costUsd) ||
-      body.costUsd < 0 ||
-      (body.commentId !== undefined && typeof body.commentId !== "number") ||
-      !Array.isArray(body.hunks) ||
-      !body.hunks.every(isReviewHunk) ||
-      (body.currentHunks !== undefined &&
-        (!Array.isArray(body.currentHunks) ||
-          !body.currentHunks.every(isReviewHunk))) ||
-      !Array.isArray(body.findings) ||
-      !body.findings.every(isIdentifiedFinding) ||
-      (body.findingResolutions !== undefined &&
-        (!Array.isArray(body.findingResolutions) ||
-          !body.findingResolutions.every(isFindingResolution))) ||
-      (body.findingPublications !== undefined &&
-        (!Array.isArray(body.findingPublications) ||
-          !body.findingPublications.every(isFindingPublication)))
-    ) {
-      return json({ error: "Invalid review completion" }, 400);
-    }
-    const reviewedHunks = body.hunks as ReviewHunk[];
-    const currentHunks = (body.currentHunks ?? body.hunks) as ReviewHunk[];
+    const body = await readValidatedJson(
+      request,
+      isReviewCompletion,
+      "Invalid review completion",
+    );
+    if (body instanceof Response) return body;
+    const reviewedHunks = body.hunks;
+    const currentHunks = body.currentHunks ?? body.hunks;
     const completionRepository = body.repository;
     const completionPullRequestNumber = body.pullRequestNumber;
     const completionHeadSha = body.headSha;
@@ -1917,20 +1994,26 @@ export class PullRequestCoordinator extends DurableObject<Env> {
     const currentHunksById = new Map(
       currentHunks.map((hunk) => [hunk.hunkId, hunk]),
     );
-    const completionFindings = body.findings as IdentifiedMergedFinding[];
+    const completionFindings = body.findings;
     const completionFindingsById = new Map(
       completionFindings.map((finding) => [finding.findingId, finding]),
     );
-    const findingPublications = (body.findingPublications ??
-      []) as FindingPublication[];
-    const findingResolutions = (body.findingResolutions ??
-      []) as FindingResolution[];
+    const findingPublications = body.findingPublications ?? [];
+    const findingPublicationsById = new Map(
+      findingPublications.map((publication) => [
+        publication.findingId,
+        publication,
+      ]),
+    );
+    const findingResolutions = body.findingResolutions ?? [];
     const findingResolutionsById = new Map(
       findingResolutions.map((resolution) => [resolution.findingId, resolution]),
     );
     if (
       completionHunkIds.size !== reviewedHunks.length ||
       currentHunksById.size !== currentHunks.length ||
+      completionFindingsById.size !== completionFindings.length ||
+      findingPublicationsById.size !== findingPublications.length ||
       findingResolutionsById.size !== findingResolutions.length ||
       reviewedHunks.some((hunk) => {
         const current = currentHunksById.get(hunk.hunkId);
@@ -1948,10 +2031,10 @@ export class PullRequestCoordinator extends DurableObject<Env> {
         );
       })
     ) {
-      return json({ error: "Invalid review completion" }, 400);
+      return errorResponse("Invalid review completion");
     }
-    const completionHash = await sha256(
-      JSON.stringify({
+    const completionHash = await sha256Hex(
+      stableJson({
         headSha: body.headSha,
         costUsd: body.costUsd,
         commentId: body.commentId ?? null,
@@ -1963,6 +2046,7 @@ export class PullRequestCoordinator extends DurableObject<Env> {
       }),
     );
     const completedAt = new Date().toISOString();
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     const completion = this.ctx.storage.transactionSync(() => {
       const update = this.ctx.storage.sql.exec(
         `UPDATE review_runs
@@ -2078,10 +2162,10 @@ export class PullRequestCoordinator extends DurableObject<Env> {
       return "completed";
     });
     if (completion === "missing") {
-      return json({ error: "No matching review run to complete" }, 409);
+      return errorResponse("No matching review run to complete", 409);
     }
     if (completion === "conflict") {
-      return json({ error: "Review completion payload does not match" }, 409);
+      return errorResponse("Review completion payload does not match", 409);
     }
     await this.flushFindingOutcomes(
       completionRepository,
@@ -2095,21 +2179,12 @@ export class PullRequestCoordinator extends DurableObject<Env> {
   }
 
   private async failReview(request: Request): Promise<Response> {
-    const body = (await request.json().catch(() => null)) as {
-      runId?: unknown;
-      error?: unknown;
-      costUsd?: unknown;
-    } | null;
-    if (
-      !body ||
-      typeof body.runId !== "string" ||
-      typeof body.error !== "string" ||
-      typeof body.costUsd !== "number" ||
-      !Number.isFinite(body.costUsd) ||
-      body.costUsd < 0
-    ) {
-      return json({ error: "Invalid review failure" }, 400);
-    }
+    const body = await readValidatedJson(
+      request,
+      isReviewFailure,
+      "Invalid review failure",
+    );
+    if (body instanceof Response) return body;
     this.ctx.storage.sql.exec(
       `UPDATE review_runs
        SET status = 'failed', completed_at = ?, error = ?, cost_usd = ?
@@ -2196,14 +2271,7 @@ export class ReviewWorkflow extends WorkflowEntrypoint<
     event: WorkflowEvent<ReviewWorkflowParams>,
     step: WorkflowStep,
   ): Promise<void> {
-    const workflowStep = step as unknown as {
-      do<T>(name: string, operation: () => Promise<T>): Promise<T>;
-      do<T>(
-        name: string,
-        config: WorkflowStepConfig,
-        operation: () => Promise<T>,
-      ): Promise<T>;
-    };
+    const workflowStep = step;
     let incurredCostUsd = 0;
     let failedPhase = "prepare-review";
     let prepared: PreparedReview | undefined;
@@ -2487,6 +2555,7 @@ function coordinatorPathForEvent(
   return "/events";
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 async function handleGitHubWebhook(request: Request, env: Env): Promise<Response> {
   const bodyResult = await readWebhookBody(request);
   if ("response" in bodyResult) return bodyResult.response;
@@ -2498,16 +2567,16 @@ async function handleGitHubWebhook(request: Request, env: Env): Promise<Response
     request.headers.get("x-hub-signature-256"),
     env.AI_REVIEW_WEBHOOK_SECRET,
   );
-  if (!verified) return json({ error: "Invalid webhook signature" }, 401);
+  if (!verified) return errorResponse("Invalid webhook signature", 401);
   if (!eventName || !deliveryId) {
-    return json({ error: "Missing GitHub webhook headers" }, 400);
+    return errorResponse("Missing GitHub webhook headers");
   }
 
   let payload: unknown;
   try {
     payload = JSON.parse(body) as unknown;
   } catch {
-    return json({ error: "Malformed JSON payload" }, 400);
+    return errorResponse("Malformed JSON payload");
   }
 
   const parsedReview = parseReviewEvent(eventName, deliveryId, payload);
@@ -2524,7 +2593,7 @@ async function handleGitHubWebhook(request: Request, env: Env): Promise<Response
     parsedInteraction?.kind === "invalid" ||
     parsedFinalization?.kind === "invalid"
   ) {
-    return json({ error: "Malformed webhook payload" }, 400);
+    return errorResponse("Malformed webhook payload");
   }
   const event = acceptedWebhookEvent(
     parsedReview,
@@ -2535,7 +2604,7 @@ async function handleGitHubWebhook(request: Request, env: Env): Promise<Response
 
   const allowedRepository = env.AI_REVIEW_REPOSITORY?.trim().toLowerCase();
   if (!allowedRepository || event.repository.trim().toLowerCase() !== allowedRepository) {
-    return json({ error: "Repository is not allowed" }, 403);
+    return errorResponse("Repository is not allowed", 403);
   }
   let forwardedEvent = event;
   if (
@@ -2551,7 +2620,7 @@ async function handleGitHubWebhook(request: Request, env: Env): Promise<Response
       });
     }
     if (!headSha) {
-      return json({ error: "Could not verify current pull request head" }, 503);
+      return errorResponse("Could not verify current pull request head", 503);
     }
     forwardedEvent = { ...event, headSha };
   }
@@ -2572,7 +2641,7 @@ async function handleGitHubWebhook(request: Request, env: Env): Promise<Response
       | null;
     if (result?.accepted === true) {
       if (!(await acknowledgeDispositionReply(env, forwardedEvent))) {
-        return json({ error: "Could not acknowledge disposition reply" }, 503);
+        return errorResponse("Could not acknowledge disposition reply", 503);
       }
     }
   }

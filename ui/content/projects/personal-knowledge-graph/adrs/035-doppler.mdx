@@ -1,0 +1,118 @@
+---
+title: "ADR 035: Doppler"
+date: "2025-12-31"
+status: "Accepted"
+tech_stack: ["Doppler"]
+---
+
+# Context
+
+As the number of external service integrations grows beyond the current minimal set ([Cloudflare Pages](/projects/personal-knowledge-graph/adrs/011-cloudflare-pages)/[Images](/projects/personal-knowledge-graph/adrs/029-cloudflare-images), [Terraform Cloud](/projects/personal-knowledge-graph/adrs/017-terraform-cloud)), secret management complexity increases proportionally.
+Each integration requires API keys, and following the principle of least privilege means each subsystem should have appropriately scoped credentials rather than a single god-mode token.
+
+Currently, [GitHub Secrets (ADR 018)](/projects/personal-knowledge-graph/adrs/018-github-secrets) handles secret management well for CI/CD pipelines.
+However, as integrations expand, several challenges emerge:
+
+1. **Secret Sprawl**: Managing dozens of scoped API keys across multiple environments becomes cumbersome in GitHub's UI
+2. **Local Development**: Developers need access to secrets locally without copying them into `.env` files (which risk accidental commits)
+3. **Secret Rotation**: Updating a rotated credential requires manual updates across multiple GitHub repositories/environments
+4. **Audit Trail**: Limited visibility into what secrets were changed and when
+5. **Cross-Platform Sync**: Secrets may need to be shared across CI/CD systems, local development, and cloud functions
+
+[Doppler](https://www.doppler.com/) is a specialized secret management platform designed for developers, offering centralized secret storage with excellent DX.
+
+# Decision
+
+I use **Doppler** as the source of truth for centralized secret management,
+while publishing the values required by GitHub Actions to GitHub environments.
+
+## Implementation Strategy
+
+1. **Doppler as Source of Truth**: Application secrets and deploy-time configuration are stored in Doppler with separate configs for development, staging, production, and deployment boundaries.
+2. **Scripted GitHub Sync**: `scripts/sync-doppler-github-envs.sh` maps Doppler configs to GitHub environments. Masked values become GitHub secrets and unmasked values become GitHub variables; stale values are removed.
+3. **GitHub as Deployment Boundary**: GitHub environment values are a generated mirror used by workflows. Make changes in Doppler, then synchronize them to GitHub.
+4. **Scoped Access**: Separate Doppler configs and service tokens are used for different subsections of the system, following the principle of least privilege.
+5. **Local Development**: Use the Doppler CLI, including nested `doppler run` calls where shared values are needed, without storing secrets in `.env` files.
+
+This approach aligns with:
+
+* **[Less Is More](/projects?tab=philosophy#less-is-more)**: While adding a platform, it consolidates secret management that would otherwise sprawl across multiple dashboards
+* **[Short Feedback Loops](/projects?tab=philosophy#short-feedback-loops)**: Standardizes how sensitive configuration is handled across all environments, preventing credential management from becoming a friction point that slows down development or integration testing
+
+## The "Secret Zero" Problem
+
+The **Secret Zero Problem** (also called the "Bootstrap Secret Problem") is the fundamental challenge that you need a secret to access your secrets vault.
+Doppler doesn't eliminate this problem. It shifts it:
+
+* GitHub Actions needs a `DOPPLER_TOKEN` to authenticate to Doppler
+* This bootstrap token must be stored somewhere (GitHub Secrets)
+* If GitHub is compromised, the attacker gains access to Doppler
+
+This is why Doppler **complements** GitHub Secrets rather than eliminating
+GitHub from the workflow. GitHub holds the deployment-facing mirror, while
+Doppler handles source-of-truth management and local secret injection.
+
+# Alternatives Considered
+
+## GitHub Secrets (Current Approach)
+
+* **Pros**: Native platform integration, solves Secret Zero by being the identity provider itself, supports OIDC for keyless authentication
+* **Cons**: Limited visibility once saved, poor UX for managing many secrets, no local development story, manual rotation process
+* **Decision**: **Keep as the deployment mirror and for bootstrap secrets**, use alongside Doppler
+
+## Doppler Paid Sync and Inheritance Features
+
+* **Pros**: Managed GitHub sync integrations, config inheritance, and shared credentials
+* **Cons**: These capabilities require a paid Doppler plan and add recurring cost for this solo project
+* **Decision**: **Rejected**. The repository's custom sync script and layered `doppler run` commands provide the required synchronization, inheritance, and shared-credential behavior on the current plan.
+
+## [HashiCorp Vault](https://www.vaultproject.io/)
+
+* **Pros**: Enterprise-grade, extremely powerful policy engine, supports dynamic secrets
+* **Cons**: Requires dedicated infrastructure, suffers from the same Secret Zero problem, massive operational overhead for a solo developer
+* **Decision**: **Rejected** due to operational complexity
+
+## [AWS Secrets Manager](https://aws.amazon.com/secrets-manager/) / [GCP Secret Manager](https://cloud.google.com/secret-manager)
+
+* **Pros**: Native cloud integration, good security model
+* **Cons**: Requires committing to a Cloud Service Provider, introduces massive overhead (IAM, billing, org structure) just to store strings, conflicts with Minimize Platforms
+* **Decision**: **Rejected** to avoid cloud lock-in for a cross-cutting concern
+
+## [Infisical](https://infisical.com/)
+
+* **Pros**: Open-source Doppler alternative, can self-host
+* **Cons**: Self-hosting adds operational burden, smaller community/ecosystem than Doppler
+* **Decision**: **Rejected** in favor of managed solution (Doppler's free tier eliminates cost concern)
+
+## [1Password Secrets Automation](https://developer.1password.com/docs/service-accounts/)
+
+* **Pros**: Integrates with existing 1Password subscription, good developer experience
+* **Cons**: Primarily designed for human-to-app secrets rather than app-to-app, less specialized for CI/CD workflows than Doppler
+* **Decision**: **Rejected** in favor of purpose-built developer tool
+
+# Consequences
+
+## Positive
+
+* **Scalability**: Easily manage hundreds of secrets across multiple environments without GitHub UI limitations
+* **Developer Experience**: Doppler CLI provides seamless local development without `.env` file risks
+* **Secret Rotation**: Update a secret in one place, then run the sync script to publish it to the relevant CI/CD environments
+* **Audit Trail**: Comprehensive logging of secret access and modifications
+* **Principle of Least Privilege**: Easy to create scoped service tokens for different subsections (e.g., different Cloudflare API keys for Workers vs. Pages vs. Images)
+* **Free for Solo Dev**: Doppler's free tier is sufficient when paid sync and inheritance features are replaced with repository-owned scripts and CLI composition
+* **Reduced Risk**: Secrets are never written to disk in plain text during local development
+
+## Negative
+
+* **Platform Dependency**: Adds another platform to manage. [Less Is More](/projects?tab=philosophy#less-is-more)
+* **Secret Zero Persists**: Still requires `DOPPLER_TOKEN` in GitHub Secrets, so we haven't eliminated the bootstrap problem
+* **Vendor Lock-in**: Migrating away from Doppler requires rewriting secret injection across all pipelines
+* **Internet Dependency**: Local development requires network access to Doppler (though CLI supports caching)
+* **Operational Responsibility**: The sync script must be run after relevant Doppler changes, and its mappings must be maintained as environments evolve
+
+## Adoption Note
+
+This decision is adopted. The repository uses Doppler configs as its source of
+truth, the custom sync script as the GitHub integration, and nested CLI commands
+to compose shared local configuration without duplicating credentials or paying
+for Doppler's managed sync and inheritance features.

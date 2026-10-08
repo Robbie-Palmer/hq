@@ -19,3 +19,8 @@
   ! Content-Security-Policy
   Content-Security-Policy: default-src 'self'; base-uri 'self'; connect-src 'self' wss://robbiepalmer.me wss://*.pages.dev; font-src 'self' https://fonts.gstatic.com; form-action 'self'; frame-ancestors 'self'; frame-src 'self'; img-src 'self' data: blob: https://avatars.githubusercontent.com https://*.googleusercontent.com https://imagedelivery.net https://tiles.robbiepalmer.me https://*.tile.openstreetmap.org https://*.tile.opentopomap.org https://*.basemaps.cartocdn.com https://unpkg.com; object-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; upgrade-insecure-requests
   ! X-Frame-Options
+
+/posthog
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; connect-src 'self' wss://robbiepalmer.me wss://*.pages.dev; font-src 'self' https://fonts.gstatic.com; form-action 'self'; frame-ancestors 'self'; frame-src 'self'; img-src 'self' data: blob: https://a.storyblok.com https://avatars.githubusercontent.com https://res.cloudinary.com https://ugc.production.linktr.ee https://*.googleusercontent.com https://imagedelivery.net https://tiles.robbiepalmer.me https://*.tile.openstreetmap.org https://*.tile.opentopomap.org https://*.basemaps.cartocdn.com https://unpkg.com; object-src 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; upgrade-insecure-requests; worker-src 'self' blob:
+  ! X-Frame-Options

@@ -1,0 +1,147 @@
+---
+title: "ADR 004: Use versioned official housing-price releases"
+date: "2026-10-02"
+status: "Proposed"
+tech_stack: ["Cloudflare R2"]
+---
+
+## Context
+
+Asset Tracker records a home beside its linked mortgage, but a manually entered value and one
+assumed growth rate cannot explain how the home's estimated worth changed. Historical net worth and
+housing decisions need price evidence with dates, geographic scope, revision history, and known
+limits.
+
+There is no live price for a home. Completed sales arrive after conveyancing and registration.
+Asking prices describe sellers' expectations, while lender and portal valuations depend on private
+data. The project will not pay for a property-data subscription or scrape listing portals.
+
+[ADR 000](/projects/personal-finance-app/adrs/000-financial-fact-and-calculation-provenance)
+requires calculations to retain the exact source releases they used. Housing data must follow that
+rule because official estimates and transaction records are revised after first publication.
+The target architecture already assigns files to R2 and queryable records to Neon PostgreSQL. This
+use follows the storage boundary in [Platform ADR 016](/projects/personal-engineering-platform/adrs/016-cloudflare-r2-object-storage)
+and the database conventions in [Platform ADR 017](/projects/personal-engineering-platform/adrs/017-relational-data-stack).
+
+## Decision
+
+Use versioned bulk releases from official UK sources. The first implementation will use the UK House
+Price Index for indexed property history across the UK and HM Land Registry Price Paid Data for
+completed-sale comparables in England and Wales.
+
+Do not make a public query service part of the calculation path. Store the exact bytes of each
+selected bulk release as an immutable object in a private Cloudflare R2 bucket. Record its checksum,
+source metadata, and object key in PostgreSQL. Public linked-data endpoints may help exploration and
+diagnostics, but they are not an availability dependency for saved financial views.
+
+Run an idempotent import pipeline from R2 into PostgreSQL. The importer lands a new source file in R2
+before transformation, streams it in bounded batches, validates its schema, checksum, and row counts,
+then writes normalized observations to staging tables. It promotes a complete release in one
+transaction. A failed or partial import leaves the previous release active. Runtime features query
+only promoted PostgreSQL rows. They do not parse R2 objects or call the upstream source.
+
+Keep the upstream files out of Git. Git contains schemas, migrations, small test fixtures, and import
+code. R2 retains the complete release, while PostgreSQL stores only the columns and indexes needed
+for price history, geographic selection, comparable matching, and provenance. Each normalized row
+keeps the imported release ID, so a calculation can resolve the exact R2 snapshot that produced it.
+
+Do not infer equivalent regional coverage where the open data differs. Scotland and Northern Ireland
+will receive index-derived history from the UK HPI. Completed-sale comparables remain unsupported
+until an official, free, reusable transaction-level source meets the same contract. The interface
+must state that limit.
+
+Keep four kinds of value separate:
+
+* A recorded value is a purchase price, formal valuation, or manual observation supplied by the
+  household.
+* An index estimate rebases a recorded value with an official index series.
+* Comparable evidence consists of completed sales. A valuation may use it as support, while the
+  home's value remains a separate estimate or observation.
+* A scenario applies an explicit future assumption and is never presented as a current valuation.
+
+An imported release records the source identifier and URL, licence and attribution, observed period,
+publication and retrieval times, geography, property dimensions, SHA-256 checksum, release version,
+and any superseded release. Each observation refers to its exact release and records its valid period,
+geography and level, property type, metric, value, and provisional or revision status.
+
+## Source contract
+
+| Coverage          | Source                                                                                                                                        | Role                                                                        | Access and cadence                                                                                                                                                                                                            | Licence and attribution                                                                                                                                                                                                                             | Decision                                                                                                                                                                                                                        |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| United Kingdom    | [UK House Price Index reports and data](https://www.gov.uk/government/collections/uk-house-price-index-reports)                               | Mix-adjusted index levels and average prices by geography and property type | Monthly CSV release. Northern Ireland observations are quarterly. The release includes revision files and a derived regional back series to 1968.                                                                             | Open Government Licence v3.0. Retain the HM Land Registry Crown copyright and database-right attribution stated in the [UK HPI guidance](https://www.gov.uk/government/publications/about-the-uk-house-price-index/about-the-uk-house-price-index). | Primary source for indexed history in all four UK nations. Discover the latest download from the stable collection, snapshot the full bulk CSV in R2, import its normalized observations into PostgreSQL, and pin each release. |
+| England and Wales | [HM Land Registry Price Paid Data](https://www.gov.uk/government/statistical-data-sets/price-paid-data-downloads)                             | Individual completed sales for comparable evidence                          | Monthly update with yearly and complete CSV files. Records cover sales lodged for registration since 1995. The two most recent months are incomplete, and registration commonly trails completion by two weeks to two months. | Open Government Licence v3.0 with the stated HM Land Registry attribution. Address fields include third-party Royal Mail and Ordnance Survey rights and may be used for residential property price information services.                            | Primary comparable-sales source. Bootstrap from yearly files and apply monthly changes. Do not treat the latest month as complete.                                                                                              |
+| Scotland          | [Registers of Scotland house price statistics](https://www.ros.gov.uk/data-and-statistics/property-market-statistics/house-price-statistics)  | Aggregate median, mean, volume, and market-value checks                     | Monthly XLSX, revised on the first working day of each month, with monthly data since April 2003.                                                                                                                             | Free statistical reports under the [Open Government Licence](https://www.ros.gov.uk/data-and-statistics/property-market-statistics). Attribute Registers of Scotland and Crown copyright.                                                           | Supporting validation source. UK HPI remains the common index source. The free aggregate release cannot provide individual comparables.                                                                                         |
+| Northern Ireland  | [NI House Price Index](https://www.finance-ni.gov.uk/publications/ni-house-price-index-statistical-reports)                                   | Official quarterly index and property-type series                           | Quarterly XLSX and NISRA data portal release, with a full series from Q1 2005.                                                                                                                                                | NISRA permits reuse under the Open Government Licence with source attribution. Land and Property Services mapping data is excluded from that permission.                                                                                            | UK HPI supplies the common imported series. Use the NI release for validation. Transaction-level comparables remain unsupported.                                                                                                |
+| England and Wales | [ONS median house prices](https://www.ons.gov.uk/peoplepopulationandcommunity/housing/datasets/medianhousepricesforadministrativegeographies) | Rolling annual medians by administrative geography and property type        | XLSX releases, currently published twice a year.                                                                                                                                                                              | Crown copyright under the Open Government Licence. Attribute the Office for National Statistics.                                                                                                                                                    | Optional validation and regional fallback. Keep it out of the first slice because it derives from Price Paid Data and has lower cadence.                                                                                        |
+| England and Wales | [Energy Performance of Buildings data](https://get-energy-performance-data.communities.gov.uk/)                                               | Later property matching and floor-area enrichment                           | Bulk CSV and developer API. Data covers certificates registered since 2012 and requires a free GOV.UK One Login. Certificates may be expired or superseded.                                                                   | Open Government Licence, subject to the service's licensing restrictions and attribution.                                                                                                                                                           | Deferred. Its role is property enrichment, and valuation history can proceed without it. Review it when comparable matching needs floor area.                                                                                   |
+
+The HM Land Registry transaction-to-UPRN lookup is also deferred. It has separate licence conditions
+from Price Paid Data. A later comparable-sales implementation may adopt it after recording those
+conditions and proving that stable identifiers improve matching enough to justify another source.
+
+## Retrieval choices
+
+The UK HPI and Price Paid Data linked-data services are convenient for narrow manual queries. They
+are a poor base for reproducible imports because a saved result would depend on a remote query service
+and its current view of revised data. Bulk files are easier to checksum, retain, test, and replay.
+
+The Price Paid Data complete file is several gigabytes, so routine updates should not download it.
+Bootstrap from bounded yearly files in R2, then process monthly change files through the same staged
+PostgreSQL import. The importer reads large files as streams or bounded chunks rather than buffering
+an object in memory. If a monthly update changes or deletes an earlier transaction, record the new
+source release and the correction instead of rewriting the prior imported release.
+
+The R2 prefix contains only official source releases and remains private. The import worker receives
+bucket-scoped read and write credentials; the application runtime does not. Object keys include the
+source and checksum and are never replaced. Retain every successfully imported snapshot so historical
+calculations remain reproducible. Delete failed acquisition artifacts after 30 days and abort
+incomplete multipart uploads after seven days. PostgreSQL remains authoritative for import status,
+promotion, queryable observations, and references from saved calculations.
+
+## Consequences
+
+Historical estimates can be reproduced without a paid data service or live upstream call. The same
+UK HPI shape supports every UK nation, while Price Paid Data gives England and Wales stronger
+comparable evidence.
+
+The app will lag the market. UK HPI observations are revised, recent Price Paid Data is incomplete,
+and neither source knows a home's condition or improvements. The interface and domain model must
+show those limits and must not display an index-derived estimate as a formal valuation.
+
+Regional capability will be uneven. Scotland and Northern Ireland will initially lack automated
+individual comparables. This is preferable to hiding paid data or scraping behind a uniform API.
+
+Bulk ingestion adds R2 storage, PostgreSQL capacity, schema monitoring, and update work. It also gives
+the project a stable boundary. Upstream format changes affect the importer, while saved calculations
+continue to refer to retained releases. An import failure delays new data without taking the previous
+promoted release away from the application.
+
+## Alternatives considered
+
+### Commercial property-data API
+
+A commercial API could combine asking prices, portal history, property attributes, automated
+valuations, and completed sales. It was rejected because the product would inherit a recurring cost,
+licence restrictions, and a provider dependency before housing-price evidence has proved useful.
+
+### Scrape property portals
+
+Portal listings are timely, but asking prices are not completed values. Scraping would also make the
+feature depend on changing pages and terms. It was rejected.
+
+### Use only manual valuations
+
+Manual values remain the fallback and the best way to record a formal valuation. They do not produce
+a low-effort historical series or comparable evidence, so they cannot meet the whole need.
+
+### Commit source datasets to Git
+
+Git works for reviewed schemas and small fixtures. Multi-gigabyte transaction releases would bloat
+clones and repository history, while partial or rewritten upstream releases would still need import
+tracking. Store their immutable bytes in R2 instead.
+
+### Query official linked data on demand
+
+This avoids storing public datasets. It was rejected for durable calculations because remote query
+availability, current revisions, and query performance would affect whether an old financial view
+can be reproduced.

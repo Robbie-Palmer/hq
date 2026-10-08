@@ -1,6 +1,7 @@
 import {
   Blocks,
   ExternalLink,
+  FileCheck2,
   FileText,
   FolderKanban,
   GitBranch,
@@ -60,32 +61,64 @@ function RelatedCard({
   );
 }
 
+type ProductDecisionReference = NonNullable<
+  ReturnType<typeof getIdea>
+>["relatedContent"]["productDecisions"][number];
+
+function ProductDecisionReferences({
+  decisions,
+}: Readonly<{ decisions: ProductDecisionReference[] }>) {
+  if (decisions.length === 0) return null;
+  return (
+    <div className="space-y-3">
+      <h3 className="flex items-center gap-2 text-lg font-medium">
+        <FileCheck2 className="size-5" /> Product decisions
+      </h3>
+      <div className="grid gap-3 md:grid-cols-2">
+        {decisions.map((decision) => (
+          <RelatedCard
+            key={decision.slug}
+            href={`/product-decisions/${decision.slug}`}
+            title={decision.title}
+            description={decision.status}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function IdeaBreadcrumb({ title }: Readonly<{ title: string }>) {
+  return (
+    <nav
+      aria-label="Breadcrumb"
+      className="mb-8 flex items-center gap-2 text-sm text-muted-foreground"
+    >
+      <Link href="/ideas" className="hover:underline hover:underline-offset-4">
+        Ideas
+      </Link>
+      <span>/</span>
+      <span>{title}</span>
+    </nav>
+  );
+}
+
 export default async function IdeaPage({ params }: Readonly<PageProps>) {
   const { slug } = await params;
   const idea = getIdea(slug);
   if (!idea) notFound();
+  const productDecisions = idea.relatedContent.productDecisions ?? [];
 
   const hasReferences =
     idea.relatedContent.technologies.length > 0 ||
     idea.relatedContent.projects.length > 0 ||
     idea.relatedContent.blogs.length > 0 ||
-    idea.relatedContent.adrs.length > 0;
+    idea.relatedContent.adrs.length > 0 ||
+    productDecisions.length > 0;
 
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8">
-      <nav
-        aria-label="Breadcrumb"
-        className="mb-8 flex items-center gap-2 text-sm text-muted-foreground"
-      >
-        <Link
-          href="/ideas"
-          className="hover:underline hover:underline-offset-4"
-        >
-          Ideas
-        </Link>
-        <span>/</span>
-        <span>{idea.title}</span>
-      </nav>
+      <IdeaBreadcrumb title={idea.title} />
 
       <div className="space-y-10">
         <header className="space-y-4">
@@ -184,6 +217,7 @@ export default async function IdeaPage({ params }: Readonly<PageProps>) {
                 </div>
               </div>
             )}
+            <ProductDecisionReferences decisions={productDecisions} />
           </section>
         ) : (
           <p className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">

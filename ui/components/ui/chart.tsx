@@ -63,6 +63,7 @@ const ChartTooltip = RechartsPrimitive.Tooltip;
 const ChartTooltipContent = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<typeof RechartsPrimitive.Tooltip> & {
+    heading?: React.ReactNode;
     hideLabel?: boolean;
     hideIndicator?: boolean;
     active?: boolean;
@@ -72,7 +73,7 @@ const ChartTooltipContent = React.forwardRef<
       color: string;
     }>;
   }
->(({ active, payload, hideIndicator }, ref) => {
+>(({ active, payload, hideIndicator, heading }, ref) => {
   const { config } = useChart();
 
   if (!active || !payload?.length) {
@@ -84,6 +85,9 @@ const ChartTooltipContent = React.forwardRef<
       ref={ref}
       className="grid min-w-[8rem] gap-1.5 rounded-lg border bg-background px-2.5 py-1.5 text-xs shadow-xl"
     >
+      {heading != null && (
+        <p className="font-medium text-muted-foreground">{heading}</p>
+      )}
       {payload.map((item) => {
         const key = item.dataKey as string;
         const itemConfig = config[key];

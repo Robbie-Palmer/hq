@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildContentGraph,
   createEmptyRelationData,
+  getADRsImplementingProductDecision,
+  getBlogsForProductDecision,
   getContentReferencingIdea,
   getContentReferencingIdeaByType,
   getContentUsingTechnology,
@@ -15,6 +17,7 @@ import {
   getNodeType,
   getProjectForADR,
   getProjectsForInitiative,
+  getProjectsForProductDecision,
   getRelatedIdeas,
   getSupersededADR,
   getSupersedingADR,
@@ -30,8 +33,8 @@ import {
 
 describe("NodeId utilities", () => {
   it("makeNodeId creates correct format", () => {
-    expect(makeNodeId("project", "personal-site")).toBe(
-      "project:personal-site",
+    expect(makeNodeId("project", "personal-knowledge-graph")).toBe(
+      "project:personal-knowledge-graph",
     );
     expect(makeNodeId("technology", "typescript")).toBe(
       "technology:typescript",
@@ -39,9 +42,9 @@ describe("NodeId utilities", () => {
   });
 
   it("parseNodeId extracts type and slug", () => {
-    const parsed = parseNodeId("project:personal-site");
+    const parsed = parseNodeId("project:personal-knowledge-graph");
     expect(parsed.type).toBe("project");
-    expect(parsed.slug).toBe("personal-site");
+    expect(parsed.slug).toBe("personal-knowledge-graph");
   });
 
   it("parseNodeId handles slugs with colons", () => {
@@ -56,7 +59,9 @@ describe("NodeId utilities", () => {
   });
 
   it("getNodeSlug returns correct slug", () => {
-    expect(getNodeSlug("project:personal-site")).toBe("personal-site");
+    expect(getNodeSlug("project:personal-knowledge-graph")).toBe(
+      "personal-knowledge-graph",
+    );
   });
 
   it("isNodeType correctly identifies types", () => {
@@ -155,6 +160,51 @@ describe("buildContentGraph", () => {
 
     expect(graph.edges.supersedes.get("002")).toBe("001");
     expect(graph.reverse.supersededBy.get("001")).toBe("002");
+  });
+
+  it("builds forward and reverse product-decision edges", () => {
+    const relations = createEmptyRelationData();
+    relations.productDecisionAffectedProjects.set("001-publication", ["site"]);
+    relations.productDecisionIdeas.set("001-publication", [
+      "context-engineering",
+    ]);
+    relations.productDecisionInformedByADRs.set("001-publication", [
+      "site:001-static-generation",
+    ]);
+    relations.productDecisionEvidence.set("001-publication", [
+      { title: "Reader study", url: "https://example.com/study" },
+    ]);
+    relations.adrImplementsProductDecisions.set("site:002-markdown", [
+      "001-publication",
+    ]);
+    relations.blogProductDecisions.set("shipping-markdown", [
+      "001-publication",
+    ]);
+
+    const graph = buildContentGraph({
+      technologySlugs: [],
+      projectSlugs: ["site"],
+      ideaSlugs: ["context-engineering"],
+      relations,
+    });
+
+    expect(getProjectsForProductDecision(graph, "001-publication")).toEqual(
+      new Set(["site"]),
+    );
+    expect(
+      getADRsImplementingProductDecision(graph, "001-publication"),
+    ).toEqual(new Set(["site:002-markdown"]));
+    expect(getBlogsForProductDecision(graph, "001-publication")).toEqual(
+      new Set(["shipping-markdown"]),
+    );
+    expect(
+      graph.reverse.adrInformedProductDecisions.get(
+        "site:001-static-generation",
+      ),
+    ).toEqual(new Set(["001-publication"]));
+    expect(graph.edges.productDecisionEvidence.get("001-publication")).toEqual([
+      { title: "Reader study", url: "https://example.com/study" },
+    ]);
   });
 
   it("builds inherits-from edges", () => {
@@ -320,6 +370,7 @@ describe("graph queries", () => {
       projects: ["site"],
       adrs: ["001"],
       blogs: [],
+      productDecisions: [],
     });
     expect(getContentReferencingIdea(graph, "missing")).toEqual(new Set());
   });

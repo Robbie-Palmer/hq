@@ -1,0 +1,23 @@
+---
+title: "ADR 004: Separate application telemetry from node monitoring"
+date: "2026-09-12"
+status: "Accepted"
+tech_stack:
+  - "PostHog"
+  - "Netdata"
+---
+
+## Context
+
+Application events and host health answer different operational questions.
+Many projects need one without the other.
+
+## Decision
+
+Use separate preferred slots. Select PostHog for application telemetry and
+Netdata for node monitoring.
+
+## Consequences
+
+A project activates only the kind of telemetry it operates. Adopting the
+observability layer alone does not claim both technologies.

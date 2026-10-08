@@ -1,0 +1,79 @@
+---
+title: "ADR 009: CUPS for the unsupported printer"
+date: "2026-08-02"
+status: "Accepted"
+tech_stack: ["CUPS"]
+---
+
+# Context
+
+I own a 2011 Canon MX3100 printer. Canon no longer supports it, the vendor
+would have me buy a new printer, but the hardware still works, so the plan
+is to avoid ewaste by keeping it in service with free software.
+
+My own experience with the open-source route: it printed fine from an old
+Ubuntu 18 setup, but not from Ubuntu 22+ or from macOS, and I couldn't test
+Windows because I don't have a Windows machine. I wasn't willing to keep a
+box running Ubuntu 18 just to hold drivers. It's end-of-life.
+
+That points at the Raspberry Pi as the host. Linux is where these open-source
+drivers are actively maintained: Gutenprint formally deprecated macOS support
+in 2024 and no longer produces binaries for modern macOS, while on Linux it's
+the standard driver set. The Pi is always on, already part of the lab, and
+can run a print server that every device on the network reaches. I also want
+to print remotely from my phone, the classic case where a print server
+shines.
+
+# Decision
+
+Install **CUPS** on the Raspberry Pi and connect it to the Canon MX3100 via
+its (USB) connection, using **Gutenprint**, the open-source driver suite for
+Canon, Epson, and others, to bridge the gap left by Canon's dropped
+support.
+
+CUPS exposes the printer over IPP to the whole network, so the Mac, phones,
+and other devices print to it as a network printer. Remote printing works over
+the tailnet, and the Pi keeps the printer alive independently of any one
+device.
+
+# Alternatives
+
+## Buy a new printer
+
+* **Pros**: Modern drivers, no tinkering.
+* **Cons**: Unnecessary spend; discards working hardware. Exactly the ewaste
+  this lab exists to avoid.
+* **Decision**: Rejected. The MX3100 still prints.
+
+## Run the printer off the Mac mini instead of the Pi
+
+* **Pros**: The hub is already always-on.
+* **Cons**: Puts the printer (a hardware peripheral) on the same box as the
+  photo backup and agent stack; a hub reboot takes printing with it.
+* **Decision**: Rejected. The Pi keeps the lab's responsibilities separated
+  and redundant.
+
+## Keep the printer on an old machine with vendor drivers
+
+* **Pros**: Vendor-native drivers.
+* **Cons**: Keeps a dedicated old machine alive just to hold drivers; CUPS
+  with a generic driver does the job on hardware already in the lab.
+* **Decision**: Rejected. More ewaste, more power draw, more maintenance.
+
+# Consequences
+
+### Pros
+
+* **Working hardware stays working**: the MX3100 prints again, no new
+  hardware purchased.
+* **Network + remote printing**: any device prints via IPP; remote printing
+  works over the tailnet from the phone.
+* **Redundancy preserved**: printing is decoupled from the Mac mini hub.
+
+### Cons
+
+* **Generic-driver tradeoffs**: some printer-specific features (scanning
+  niceties, vendor utilities) may not work through the generic path.
+* **A service to maintain on the Pi** alongside AdGuard Home and Netdata.
+* **Physical dependency**: the printer still needs USB to the Pi, so it must
+  live near the Pi.

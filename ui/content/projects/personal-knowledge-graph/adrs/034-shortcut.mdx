@@ -1,0 +1,193 @@
+---
+title: "ADR 034: Shortcut"
+date: "2025-12-28"
+status: "Accepted"
+supersedes: "personal-knowledge-graph:027-ccpm"
+tech_stack: ["Shortcut"]
+---
+
+# Context
+
+As a solo founder/engineer working across multiple devices (laptop, mobile),
+I need a project management system that supports my workflow without adding unnecessary complexity or cost.
+
+Key requirements:
+
+1. **Mobile Access**: Works well on mobile (preferably native app, responsive website acceptable) for capturing ideas and reviewing tasks on the go
+2. **Hierarchy Support**: Supports epics and task hierarchy for organizing complex features
+3. **Backlog Management**: Stack-ranking capability to maintain a prioritized single source of truth
+4. **GitHub Integration**: GitHub-centric or at least strong GitHub integration to keep work close to code
+5. **Solo-Friendly**: Usable by a single developer without team-oriented overhead
+6. **Cost**: Free or inexpensive for single-user use
+7. **No Conflicts**: Must avoid account conflicts with work Jira instance
+8. **Flexible Workflow**: Doesn't force sprint-based workflows (support for continuous flow)
+9. **Quick Capture**: Easy to capture ideas and tasks rapidly when inspiration strikes
+
+## Previous Situation
+
+Tasks were scattered across multiple locations:
+
+* Local markdown files spread across git worktrees
+  * easily lost during git stashing etc.
+  * No access when away from development computer
+  * Couldn't use mobile coding agents (e.g., [Claude Code](./012-claude-code) usage on mobile) efficiently as they didn't have access to task lists
+* Additional tasks captured in mobile notes app, [Trello](https://trello.com/), and [Roam Research](https://roamresearch.com/)
+* No stack-ranked single source of truth - No central visibility into what needed to be done
+
+This fragmentation created constant context switching, lost tasks, and made it impossible to work effectively from mobile devices.
+
+**CCPM Limitations**:
+The primary limitation of [ADR 027 (CCPM)](./027-ccpm) was that the "Agentic" aspect (syncing files) added complexity without solving the core problem: I couldn't re-prioritize tasks while away from my desk. CCPM relied on GitHub Projects for ranking, but the lack of a mobile interface for Projects meant my backlog became static and unmanageable whenever I wasn't at my computer.
+
+# Decision
+
+I will use **[Shortcut](https://shortcut.com/)** (formerly Clubhouse) as my primary project management platform.
+
+Shortcut provides:
+
+* **Good Enough Mobile Support**: While not a native app, the responsive web interface is "good enough" to enable full task creation, description editing, and state changes on mobile. Note: It cannot readily rank tasks within a column on mobile, but it enables the core capture and update loops.
+* **Epic/Story Hierarchy**: Native support for Epics → Stories → Tasks with proper nesting
+* **Agentic Potential**: Has a robust CLI and REST API that could enable future agentic interaction deeper than just reading markdown files
+* **Stack Ranking**: Built-in priority management and backlog ordering (on desktop). Power user support with effective keyboard shortcuts.
+* **GitHub Integration**: Automatic linking between stories and GitHub PRs/commits via branch naming patterns
+* **Continuous Flow**: No forced sprint methodology - supports Kanban-style continuous delivery
+* **Solo-Friendly**: Works well for individual developers without team ceremony overhead
+* **Cost-Effective**: Free tier for up to 10 users (more than sufficient for solo use)
+* **Quick Capture**: Fast story creation from any device, including mobile
+* **Lightweight**: Focused feature set without the bloat of enterprise tools
+
+## Alignment with Building Philosophy
+
+This decision aligns with several [building philosophy](/projects?tab=philosophy) principles:
+
+* **[Stack Rank, Don't Sprint](/projects?tab=philosophy#stack-rank-dont-sprint)**: Shortcut's continuous flow model (no forced sprints) enables rapid iteration and deployment without artificial sprint boundaries
+* **[Less Is More](/projects?tab=philosophy#less-is-more)**: Lightweight, focused feature set avoids bloat and speculative features - builds only what's needed for solo developer workflow
+* **[The Goldilocks Zone](/projects?tab=philosophy#the-goldilocks-zone)**: [Shortcut](https://shortcut.com/) is a mature, well-established platform with proven track record and extensive documentation
+
+However, it **diverges** from one key principle:
+
+* **[Less Is More](/projects?tab=philosophy#less-is-more)**: Adding Shortcut introduces another platform beyond GitHub, increasing context-switching overhead
+
+This divergence is **intentional and justified**: The velocity gains from a usable mobile experience and proper hierarchy outweigh the platform consolidation cost. GitHub Projects' lack of mobile support would create more friction (unable to capture or rank tasks while away from desk) than the overhead of managing one additional platform. Shortcut's defaults for tactical and strategic planning align perfectly with the methodology I want to follow.
+
+# Alternatives Considered
+
+## [GitHub Issues](https://github.com/features/issues) + GitHub Projects
+
+* **Pros**:
+  * Native GitHub integration (single platform)
+  * Free for all repositories
+  * GitHub CLI for programmatic access
+  * Sub-issues for hierarchy
+* **Cons**:
+  * **Critical**: GitHub mobile app and mobile website don't properly support GitHub Projects (viewing or editing boards)
+  * **Cannot edit issue descriptions from mobile** easily in a board context
+  * **Cannot create new issues with Projects metadata from mobile**
+  * Projects UI can be clunky even on desktop
+  * Creating hierarchy requires hacking together labels, issues, and sub-issues
+  * Query language less powerful than dedicated tools
+* **Decision**: Rejected - mobile experience is inadequate for on-the-go workflow. The stacking ranking *is* possible but inaccessible where I need it.
+
+## [Zenhub](https://www.zenhub.com/)
+
+* **Pros**:
+  * Built directly on GitHub Issues
+  * Adds powerful sprint/epic features
+  * Good estimation and reporting
+  * Strong GitHub integration (native)
+* **Cons**:
+  * Pushes sprint-based workflows (estimates, burndown charts) more than I'd like
+  * Epics/Projects assignment feels clunkier than Shortcut
+  * Mix of Zenhub-specific meta-data and GitHub issues can get messy
+  * Free tier exists (up to 50 users or 250 issues) but likely quickly paid for without workarounds such as archiving tasks
+* **Decision**: Rejected - End up in paid tier, mobile limitations and "clunkier" feel
+
+## [Jira](https://www.atlassian.com/software/jira)
+
+* **Pros**: Industry standard, comprehensive feature set, excellent hierarchy support
+* **Cons**:
+  * Massive platform bloat for solo developer
+  * Slow, complex UI
+  * **Would create account conflicts with work Jira instance** (switching accounts on mobile is painful/impossible)
+  * Free for personal use ("Free forever for 10 users" with 2GB storage)
+  * Overly process-heavy for solo work
+* **Decision**: Rejected - primarily due to account switching friction on mobile
+
+## [Linear](https://linear.app/)
+
+* **Pros**:
+  * Beautiful, fast modern UI
+  * Excellent keyboard shortcuts
+  * Good mobile app
+  * Strong GitHub integration
+* **Cons**:
+  * Opinionated hierarchy (Projects → Issues) limits flexibility (at least as of Feb 2024)
+  * Expensive ($8-10/user/month even for solo use)
+  * Forces certain workflows
+* **Decision**: Rejected - too opinionated and costly for solo developer
+
+## [Asana](https://asana.com/)
+
+* **Pros**:
+  * Comprehensive task management
+  * Free tier for individuals
+  * Mobile apps available
+* **Cons**:
+  * Not developer-focused
+  * Weak GitHub integration
+  * Another platform to manage
+  * UI feels corporate/process-heavy
+* **Decision**: Rejected - not GitHub-centric enough
+
+## [ClickUp](https://clickup.com/)
+
+* **Pros**:
+  * Extremely feature-rich
+  * Customizable views
+  * Free tier available
+* **Cons**:
+  * Slow, bloated interface
+  * Not developer-centric
+  * Weak GitHub integration
+* **Decision**: Rejected - too bloated
+
+## [Trello](https://trello.com/)
+
+* **Pros**:
+  * Simple, visual Kanban boards
+  * Free tier
+  * Mobile app
+  * Easy quick capture
+* **Cons**:
+  * Limited hierarchy (no true epic support)
+  * Weak GitHub integration
+  * Feature development has stagnated
+  * No programmatic API access in free tier
+* **Decision**: Rejected - insufficient hierarchy and GitHub integration
+
+# Consequences
+
+## Positive
+
+* **Good Mobile Experience**: Web interface enables task creation, editing, and metadata updates from any device (even if ranking is limited)
+* **Quick Capture**: Can rapidly create and organize tasks when inspiration strikes, from anywhere
+* **Stack-Ranked Backlog**: Single source of truth for prioritized work
+* **GitHub Integration**: Automatic linking between Shortcut stories and GitHub PRs/commits keeps work connected to code
+* **Flexible Workflow**: No forced sprint methodology - supports continuous flow and Kanban-style delivery
+* **Hierarchy Support**: Epic → Story → Task structure organizes complex features clearly
+* **Cost-Effective**: Free tier supports solo developer workflow indefinitely
+* **Lightweight**: Focused feature set without enterprise bloat
+* **No Account Conflicts**: Separate from work Jira, dedicated personal account
+
+## Negative
+
+* **Another Platform**: Not GitHub-native - adds another service to the workflow (violates "single platform" principle)
+* **Vendor Dependency**: Reliant on Shortcut's continued free tier and service availability
+* **Less AI-Friendly**: No local markdown files for AI agents to read/edit directly (unlike CCPM approach)
+* **Migration Risk**: If Shortcut changes pricing or shuts down, would need to migrate to another platform
+
+## Notes
+
+* This decision **supersedes \[ADR 027] (CCPM)**, which relied on GitHub Projects as the UI layer
+* The mobile limitations of GitHub Projects made the CCPM approach unworkable for a mobile-first workflow
+* The trade-off of adding another platform (Shortcut) is worthwhile for the superior mobile experience

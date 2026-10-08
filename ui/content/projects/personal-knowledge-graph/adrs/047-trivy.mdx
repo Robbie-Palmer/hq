@@ -1,0 +1,117 @@
+---
+title: "ADR 047: Trivy Security Scanner"
+date: "2026-06-21"
+status: "Accepted"
+tech_stack: ["Trivy"]
+---
+
+# Context
+
+As the site evolves from a static site to include backend services and API integrations (e.g., OpenRouter), the security surface area is expanding. API integrations introduce financial risk. Vulnerabilities could lead to unauthorized usage and unexpected costs. The recent increase in industry security incidents reinforces the need for proactive security hardening.
+
+Current security coverage includes:
+
+* **CodeQL**: SAST for source code vulnerabilities (SQL injection, XSS, etc.) ([ADR 032](/projects/personal-knowledge-graph/adrs/032-codeql))
+* **Renovate**: Automated dependency updates with CVE visibility and security issue prioritization ([ADR 024](/projects/personal-knowledge-graph/adrs/024-renovate))
+* **GitHub Secret Scanning**: Detects accidentally committed secrets (API keys, tokens)
+
+The remaining gaps are:
+
+1. **Infrastructure as Code (IaC) security scanning**: Terraform configurations are not currently analyzed for misconfigurations that could expose resources, grant excessive permissions, or create vulnerabilities in the Cloudflare infrastructure.
+2. **Dependency vulnerability gating on PRs**: Renovate provides visibility into CVEs for existing dependencies, but when a PR introduces a *new* dependency with known vulnerabilities, nothing blocks it from merging. CodeQL scans source code, not dependency trees. Renovate updates existing dependencies but doesn't gate new additions.
+
+Additionally, while containers are not in use today, they are expected medium-to-long term for Python ML workloads. Choosing a security scanner now that can extend to container scanning avoids future migration overhead.
+
+# Decision
+
+Use **Trivy** for security scanning, covering IaC (Terraform) and dependency vulnerability gating, with future extension to container images.
+
+Trivy runs two scan jobs in CI via GitHub Actions:
+
+1. **IaC scan** (`config` mode): Scans the whole workspace for misconfigurations in formats Trivy understands. Do not pin `scan-ref` to a single directory. New Terraform roots and other supported config must be covered automatically. PR path filters should include the kinds of paths that introduce those configs (plus the workflow file itself); the weekly schedule remains a full-tree backstop.
+2. **Dependency scan** (`fs` mode): Scans the workspace filesystem for known CVEs in dependencies (lockfiles and package manifests). Triggered on changes to dependency files.
+
+Both jobs run on:
+
+* **Pull requests**: Block new CRITICAL or HIGH severity issues introduced by changes
+* **Weekly schedule**: Detect newly disclosed CVEs in existing configurations and dependencies
+
+Results are uploaded to GitHub Security tab in SARIF format for unified visibility alongside CodeQL findings. PR gating uses GitHub's Code Scanning alert checks (the same mechanism as CodeQL ([ADR 032](/projects/personal-knowledge-graph/adrs/032-codeql))), which distinguish new alerts from pre-existing ones. Only vulnerabilities introduced by a PR block it.
+
+## Why Trivy
+
+### Multi-Purpose Platform
+
+Trivy is not a single-purpose tool. It scans IaC, container images, filesystems, Kubernetes manifests, and more. This aligns with [Less Is More](/projects?tab=philosophy#less-is-more): one tool covers current needs (IaC) and future requirements (containers) without adding another platform later.
+
+### Future-Proofing
+
+Containers are expected for Python ML workloads in 6-12 months. Learning Trivy once compounds: the same CI configuration and familiarity gained from IaC scanning transfers directly to container scanning when needed. This avoids the learning curve and migration work of adopting a second tool.
+
+### Goldilocks Zone
+
+Trivy is a mature CNCF project with strong adoption, excellent documentation, and active development. It sits in the sweet spot between bleeding-edge experimentation and legacy maintenance mode, reliable, well-supported, and improving ([Goldilocks Zone](/projects?tab=philosophy#the-goldilocks-zone)).
+
+### LLM-Optimized
+
+Trivy has extensive documentation and is widely used across the industry. LLMs have seen Trivy configurations thousands of times, making it easier to get help, troubleshoot, and generate configurations ([LLM-Optimized](/projects?tab=philosophy#llm-optimized)).
+
+### Migration Path from tfsec
+
+The maintainers of tfsec (a Terraform-specific scanner) are moving to Trivy. Adopting tfsec now would mean migrating to Trivy later anyway. Starting with Trivy avoids that churn.
+
+### Zero Cost
+
+Trivy is open source and free. CI runs on GitHub Actions within the free tier for public repositories.
+
+# Alternatives Considered
+
+### tfsec
+
+* **Pros**: Fast, Terraform-specific, simple configuration. Well-documented rules for Terraform misconfigurations.
+* **Cons**: Maintainers are migrating to Trivy. Adopting tfsec now means a future migration. Does not extend to container scanning. Would require adding a second tool when containers are introduced.
+* **Decision**: Rejected. Choosing a deprecated tool violates [Build Flywheels](/projects?tab=philosophy#build-flywheels) (learning should compound, not expire).
+
+### Checkov
+
+* **Pros**: Comprehensive IaC coverage (Terraform, CloudFormation, Kubernetes). Policy-as-code approach. Strong multi-cloud support.
+* **Cons**: Slower than tfsec or Trivy on large codebases. Does not extend to container scanning. Would still need Trivy or Grype for containers later. Heavier configuration surface for policy customization.
+* **Decision**: Rejected. More comprehensive than needed for current Terraform-only IaC, and still requires adding a second tool for containers.
+
+### Snyk
+
+* **Pros**: Excellent UX, comprehensive coverage (code, dependencies, containers, IaC). Strong vulnerability database. Free tier available.
+* **Cons**: Requires an external platform/account. Free tier has limits (200 container scans/month). Introduces vendor lock-in compared to open-source alternatives. Violates [Less Is More](/projects?tab=philosophy#less-is-more) by adding another external dashboard.
+* **Decision**: Rejected. GitHub-native tools (CodeQL, Dependabot, Trivy SARIF upload) provide sufficient coverage without platform sprawl.
+
+### Grype (Anchore)
+
+* **Pros**: Fast container image scanning. Open source. Good vulnerability database coverage.
+* **Cons**: Focused on containers. Does not scan IaC. Would still need tfsec/Checkov for Terraform, creating the same "two tools" problem. No SARIF output by default (requires conversion).
+* **Decision**: Rejected. Single-purpose tool that doesn't solve the current IaC gap.
+
+### Status Quo (No IaC Scanning)
+
+* **Pros**: Zero setup cost. Rely on Renovate, CodeQL, and manual review.
+* **Cons**: Terraform misconfigurations (overly permissive IAM, exposed endpoints, insecure defaults) go undetected until production. As backend services and API integrations expand, this risk compounds. Manual review does not scale and is error-prone.
+* **Decision**: Rejected. The risk of Terraform misconfigurations causing security incidents or cost overruns is real and growing. Automated IaC scanning closes this gap with minimal overhead.
+
+# Consequences
+
+## Positive
+
+* **Closes IaC Security Gap**: Terraform configurations are now scanned for misconfigurations, overly permissive access, and insecure defaults.
+* **Gates New Dependencies**: PRs that introduce dependencies with known CRITICAL or HIGH CVEs are blocked before merge. Complements Renovate ([ADR 024](/projects/personal-knowledge-graph/adrs/024-renovate)) which handles updates to existing dependencies.
+* **Future-Proofed for Containers**: When Docker images are introduced for Python ML workloads, Trivy extends to container scanning without adding a new tool or learning curve.
+* **GitHub-Native Integration**: Results appear in the Security tab alongside CodeQL findings. No external dashboards or logins required.
+* **New vs Existing Distinction**: SARIF upload to GitHub Code Scanning blocks a PR only for issues it introduces. Pre-existing vulnerabilities remain visible without turning the scanner into a blanket blocker.
+* **Weekly CVE Monitoring**: Scheduled scans detect newly disclosed vulnerabilities in existing configurations and dependencies, enabling proactive remediation.
+* **Compound Learning**: Time spent understanding Trivy for IaC scanning transfers directly to container scanning later ([Build Flywheels](/projects?tab=philosophy#build-flywheels)).
+* **Zero Cost**: Open source, runs on GitHub Actions free tier.
+
+## Negative
+
+* **CI Overhead**: Adds another step to CI workflows, increasing build time. Trivy scans are fast (seconds for IaC), but this compounds with other checks. Mitigated by running scans in parallel with other jobs.
+* **False Positives**: IaC scanners occasionally flag low-risk issues or configurations that are intentional. Requires triaging findings and potentially creating ignore files for false positives. This is a one-time cost that decreases over time.
+* **New Tool to Learn**: Adds Trivy to the stack. Configuration, triage, and maintenance require familiarity. Mitigated by excellent documentation and LLM readability.
+* **Dependency on Aqua Security**: Trivy is maintained by Aqua Security. If the project is abandoned or changes direction, migration to another tool would be required. Low risk given CNCF adoption and strong community.

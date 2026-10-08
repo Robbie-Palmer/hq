@@ -1,0 +1,30 @@
+---
+title: "ADR 001: TypeScript and Python language defaults"
+date: "2026-09-12"
+status: "Accepted"
+tech_stack:
+  - "TypeScript"
+  - "Python"
+  - "Zod"
+  - "Pydantic"
+  - "pytest-cases"
+---
+
+## Context
+
+Most personal applications use TypeScript. Machine-learning projects need the
+Python library ecosystem, and both languages need runtime validation and test
+conventions.
+
+## Decision
+
+Use TypeScript as the base layer's default primary language and activate the
+TypeScript layer from that selection. Use Zod for runtime schema validation.
+
+Projects may override the primary-language slot with Python. The Python layer
+then requires Pydantic and pytest-cases.
+
+## Consequences
+
+Language tooling follows one resolved primary-language choice. Supplemental
+languages remain direct project technologies.

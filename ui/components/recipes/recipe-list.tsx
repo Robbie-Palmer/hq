@@ -1,11 +1,14 @@
 "use client";
 
 import {
+  Check,
   ChefHat,
   Clock,
   Globe,
   House,
   Leaf,
+  Loader2,
+  Plus,
   Timer,
   UserRound,
   UtensilsCrossed,
@@ -22,8 +25,14 @@ import {
 } from "react";
 import { DietListNotice, DietWarning } from "@/components/recipes/diet-notice";
 import { useDiet } from "@/components/recipes/diet-provider";
+import {
+  EquipmentListNotice,
+  EquipmentWarning,
+} from "@/components/recipes/equipment-readiness-notice";
+import { useEquipmentReadiness } from "@/components/recipes/equipment-readiness-provider";
 import { RecipePageLink } from "@/components/recipes/recipe-page-link";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -37,12 +46,22 @@ import {
   type SearchConfig,
 } from "@/components/ui/filterable-card-grid";
 import { useFilterParams } from "@/hooks/use-filter-params";
+import {
+  type RecipeListShoppingRecipe,
+  useRecipeListShopping,
+} from "@/hooks/use-recipe-list-shopping";
 import type { RecipeCardView } from "@/lib/api/recipes";
 import {
   applyDietRecipeVisibility,
   buildDietRecipeMatches,
   type DietMatch,
 } from "@/lib/domain/diet";
+import {
+  applyEquipmentRecipeVisibility,
+  buildEquipmentRecipeMatches,
+  type EquipmentMatch,
+  MATCHING_EQUIPMENT,
+} from "@/lib/domain/equipment-readiness";
 import {
   type RecipeGridItem,
   recipePageHref,
@@ -224,6 +243,57 @@ function TimeBadge({
   );
 }
 
+type RecipeCardShopping = {
+  inList: boolean;
+  isLoading: boolean;
+  isError: boolean;
+  isDisabled: boolean;
+  isPending: boolean;
+  onToggleList: () => void;
+};
+
+function RecipeCardShoppingActions({
+  recipeTitle,
+  shopping,
+}: Readonly<{
+  recipeTitle: string;
+  shopping: RecipeCardShopping;
+}>) {
+  let actionLabel = `Add ${recipeTitle} to the shopping list`;
+  let visibleLabel = "Add to shopping list";
+  let icon = <Plus className="size-4" />;
+  if (shopping.isError) {
+    actionLabel = `Shopping list unavailable for ${recipeTitle}`;
+    visibleLabel = "Shopping list unavailable";
+  } else if (shopping.inList) {
+    actionLabel = `Remove ${recipeTitle} from the shopping list`;
+    visibleLabel = "On shopping list";
+    icon = <Check className="size-4" />;
+  }
+  if (shopping.isLoading || shopping.isPending) {
+    icon = <Loader2 className="size-4 animate-spin" />;
+  }
+
+  return (
+    <div className="mt-4 space-y-2 border-t border-[var(--line)] pt-3">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={shopping.isLoading || shopping.isError || shopping.isDisabled}
+        aria-busy={shopping.isPending}
+        aria-pressed={shopping.inList}
+        aria-label={actionLabel}
+        onClick={shopping.onToggleList}
+        className="w-full"
+      >
+        {icon}
+        {visibleLabel}
+      </Button>
+    </div>
+  );
+}
+
 interface RecipeCardProps {
   recipe: RecipeGridItem;
   index: number;
@@ -234,6 +304,8 @@ interface RecipeCardProps {
   onTogglePrepTime: (rangeLabel: string) => void;
   onToggleTotalTime: (rangeLabel: string) => void;
   dietMatch: DietMatch;
+  equipmentMatch: EquipmentMatch;
+  shopping?: RecipeCardShopping;
 }
 
 // Memoized so that toggling high-cardinality filters that don't affect a card's
@@ -250,6 +322,8 @@ const RecipeCard = memo(function RecipeCard({
   onTogglePrepTime,
   onToggleTotalTime,
   dietMatch,
+  equipmentMatch,
+  shopping,
 }: RecipeCardProps) {
   const href = recipe.href ?? recipePageHref(recipe);
   const visibility = recipe.visibility ?? "public";
@@ -290,6 +364,7 @@ const RecipeCard = memo(function RecipeCard({
           {recipe.description}
         </CardDescription>
         <DietWarning match={dietMatch} compact className="mt-2" />
+        <EquipmentWarning match={equipmentMatch} compact className="mt-2" />
       </CardHeader>
       <CardContent className="flex-1 flex flex-col justify-end pb-4">
         <div className="flex flex-wrap gap-2 mb-3">
@@ -327,6 +402,12 @@ const RecipeCard = memo(function RecipeCard({
         <div className="text-sm text-muted-foreground">
           <time dateTime={recipe.date}>{formatDate(recipe.date)}</time>
         </div>
+        {shopping && (
+          <RecipeCardShoppingActions
+            recipeTitle={recipe.title}
+            shopping={shopping}
+          />
+        )}
       </CardContent>
     </Card>
   );
@@ -334,17 +415,65 @@ const RecipeCard = memo(function RecipeCard({
 
 type RecipeListProps = Readonly<{
   recipes: RecipeGridItem[];
+  shoppingListUserId?: string;
   onDietVisibleCountChange?: (count: number) => void;
 }>;
 
+type RecipeListShopping = ReturnType<typeof useRecipeListShopping>;
+
+function AuthenticatedRecipeList({
+  recipes,
+  userId,
+  onDietVisibleCountChange,
+}: Readonly<{
+  recipes: RecipeGridItem[];
+  userId: string;
+  onDietVisibleCountChange?: (count: number) => void;
+}>) {
+  const shopping = useRecipeListShopping(userId);
+  return (
+    <RecipeListContent
+      recipes={recipes}
+      shopping={shopping}
+      onDietVisibleCountChange={onDietVisibleCountChange}
+    />
+  );
+}
+
 export function RecipeList({
   recipes,
+  shoppingListUserId,
   onDietVisibleCountChange,
 }: RecipeListProps) {
+  return shoppingListUserId ? (
+    <AuthenticatedRecipeList
+      recipes={recipes}
+      userId={shoppingListUserId}
+      onDietVisibleCountChange={onDietVisibleCountChange}
+    />
+  ) : (
+    <RecipeListContent
+      recipes={recipes}
+      onDietVisibleCountChange={onDietVisibleCountChange}
+    />
+  );
+}
+
+function RecipeListContent({
+  recipes,
+  shopping,
+  onDietVisibleCountChange,
+}: Readonly<{
+  recipes: RecipeGridItem[];
+  shopping?: RecipeListShopping;
+  onDietVisibleCountChange?: (count: number) => void;
+}>) {
   const { diet, matchRecipe } = useDiet();
+  const { equipment } = useEquipmentReadiness();
   const filterParams = useFilterParams({ filters: RECIPE_FILTER_PARAMS });
   const router = useRouter();
   const [showHidden, setShowHidden] = useState(false);
+  const [showEquipmentHidden, setShowEquipmentHidden] = useState(false);
   const dietMatches = useMemo(
     () =>
       buildDietRecipeMatches(recipes, matchRecipe, (recipe) => ({
@@ -362,9 +491,29 @@ export function RecipeList({
       ),
     [diet.active, diet.mode, dietMatches, recipes, showHidden],
   );
+  const equipmentMatches = useMemo(
+    () =>
+      buildEquipmentRecipeMatches(recipes, equipment, (recipe) => ({
+        cookware: recipe.cookware,
+      })),
+    [equipment, recipes],
+  );
+  const {
+    visibleRecipes: equipmentVisibleRecipes,
+    hiddenCount: equipmentHiddenCount,
+  } = useMemo(
+    () =>
+      applyEquipmentRecipeVisibility(
+        visibleRecipes,
+        equipmentMatches,
+        equipment,
+        showEquipmentHidden,
+      ),
+    [equipment, equipmentMatches, showEquipmentHidden, visibleRecipes],
+  );
   useEffect(() => {
-    onDietVisibleCountChange?.(visibleRecipes.length);
-  }, [onDietVisibleCountChange, visibleRecipes.length]);
+    onDietVisibleCountChange?.(equipmentVisibleRecipes.length);
+  }, [equipmentVisibleRecipes.length, onDietVisibleCountChange]);
 
   // Derive the selected values from the raw query strings so their array
   // identities stay stable while a given filter is unchanged — this lets the
@@ -379,9 +528,9 @@ export function RecipeList({
   const searchConfig = useMemo(
     () => ({
       ...RECIPE_SEARCH_CONFIG,
-      placeholder: `Search ${visibleRecipes.length} recipes…`,
+      placeholder: `Search ${equipmentVisibleRecipes.length} recipes…`,
     }),
-    [visibleRecipes.length],
+    [equipmentVisibleRecipes.length],
   );
   const selectedCuisines = useMemo(
     () => (cuisineKey ? cuisineKey.split(",").filter(Boolean) : []),
@@ -395,7 +544,21 @@ export function RecipeList({
     () => (totalKey ? totalKey.split(",").filter(Boolean) : []),
     [totalKey],
   );
-
+  const shoppingRecipes = useMemo(
+    () =>
+      recipes.map(
+        (recipe): RecipeListShoppingRecipe => ({
+          slug: recipe.slug,
+          title: recipe.title,
+          servings: recipe.servings,
+        }),
+      ),
+    [recipes],
+  );
+  const shoppingRecipeBySlug = useMemo(
+    () => new Map(shoppingRecipes.map((recipe) => [recipe.slug, recipe])),
+    [shoppingRecipes],
+  );
   // Stable toggle callbacks: useFilterParams returns fresh functions each render
   // (they close over searchParams), so route them through a ref to keep the
   // identities passed to the memoized cards constant. The ref is updated in a
@@ -477,8 +640,16 @@ export function RecipeList({
           onToggleHidden={() => setShowHidden((current) => !current)}
         />
       )}
+      {equipment.active && (
+        <EquipmentListNotice
+          hiddenCount={equipmentHiddenCount}
+          mode={equipment.mode}
+          showingHidden={showEquipmentHidden}
+          onToggleHidden={() => setShowEquipmentHidden((current) => !current)}
+        />
+      )}
       <FilterableCardGrid
-        items={visibleRecipes}
+        items={equipmentVisibleRecipes}
         getItemKey={(recipe) => recipe.slug}
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
@@ -499,6 +670,32 @@ export function RecipeList({
             onTogglePrepTime={onTogglePrepTime}
             onToggleTotalTime={onToggleTotalTime}
             dietMatch={dietMatches.get(recipe.slug) ?? MATCHING_DIET_MATCH}
+            equipmentMatch={
+              equipmentMatches.get(recipe.slug) ?? MATCHING_EQUIPMENT
+            }
+            shopping={
+              shopping
+                ? {
+                    inList: shopping.recipesOnList.has(recipe.slug),
+                    isLoading: shopping.isLoading,
+                    isError: shopping.isError,
+                    isDisabled: shopping.mutation.isPending,
+                    isPending: shopping.pendingRecipeSlug === recipe.slug,
+                    onToggleList: () =>
+                      shopping.mutation.mutate({
+                        recipes: [
+                          shoppingRecipeBySlug.get(recipe.slug) ?? {
+                            slug: recipe.slug,
+                            title: recipe.title,
+                            servings: recipe.servings,
+                          },
+                        ],
+                        add: !shopping.recipesOnList.has(recipe.slug),
+                        source: "recipe-list-card",
+                      }),
+                  }
+                : undefined
+            }
           />
         )}
       />

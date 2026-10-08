@@ -1,4 +1,4 @@
-import { ExternalLink, Github, Globe } from "lucide-react";
+import { ExternalLink, FileText, Github, Globe, Rss } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -9,6 +9,8 @@ import { ADRList } from "@/components/projects/adr-list";
 import { DesignEmbed } from "@/components/projects/design-embed";
 import { EmbeddedPitchDeckContent } from "@/components/projects/pitch-deck/embedded-pitch-deck-content";
 import { LazyProjectPitchDeck } from "@/components/projects/pitch-deck/lazy-project-pitch-deck";
+import { PlatformManifest } from "@/components/projects/platform-manifest";
+import { PlatformSummary } from "@/components/projects/platform-summary";
 import {
   InitiativeProjectNavigation,
   ProjectInitiativeContext,
@@ -23,6 +25,7 @@ import { Separator } from "@/components/ui/separator";
 import { getIdeasForProject } from "@/lib/api/ideas";
 import { getInitiativesForProject } from "@/lib/api/initiatives";
 import {
+  getAllProjectAliases,
   getAllProjectSlugs,
   getProject,
   type ProjectWithADRs,
@@ -34,9 +37,12 @@ interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-export async function generateStaticParams() {
+export function generateStaticParams() {
   const slugs = getAllProjectSlugs();
-  return slugs.map((slug) => ({ slug }));
+  return [
+    ...slugs.map((slug) => ({ slug })),
+    ...getAllProjectAliases().map(({ alias }) => ({ slug: alias })),
+  ];
 }
 
 export async function generateMetadata({ params }: PageProps) {
@@ -46,6 +52,21 @@ export async function generateMetadata({ params }: PageProps) {
     return {
       title: `${project.title} - Projects`,
       description: project.description,
+      alternates:
+        project.slug === slug
+          ? {
+              types: {
+                "application/rss+xml": [
+                  {
+                    url: `/projects/${project.slug}/feed.xml`,
+                    title: `${project.title} RSS feed`,
+                  },
+                ],
+              },
+            }
+          : {
+              canonical: `/projects/${project.slug}`,
+            },
     };
   } catch (_e) {
     return {
@@ -62,6 +83,24 @@ export default async function ProjectPage({ params }: Readonly<PageProps>) {
     project = getProject(slug);
   } catch (_e) {
     notFound();
+  }
+
+  if (project.slug !== slug) {
+    const canonicalPath = `/projects/${project.slug}`;
+    return (
+      <>
+        <meta httpEquiv="refresh" content={`0;url=${canonicalPath}`} />
+        <div className="container mx-auto max-w-5xl px-4 py-12">
+          <p className="text-muted-foreground">
+            This project is now called {project.title}. Opening the{" "}
+            <Link className="underline underline-offset-4" href={canonicalPath}>
+              renamed project
+            </Link>
+            ...
+          </p>
+        </div>
+      </>
+    );
   }
 
   const initiatives = getInitiativesForProject(project.slug);
@@ -107,7 +146,7 @@ export default async function ProjectPage({ params }: Readonly<PageProps>) {
               initiatives={initiatives}
               projectSlug={project.slug}
             />
-            <div className="flex flex-wrap gap-2 pt-2">
+            <div className="flex flex-wrap items-start gap-2 pt-2">
               <IdeaBadges ideas={ideas} />
               <ProjectTechStack
                 techStack={project.technologies.map((t) => ({
@@ -117,9 +156,29 @@ export default async function ProjectPage({ params }: Readonly<PageProps>) {
                 }))}
               />
             </div>
+            <PlatformSummary
+              builtOn={project.builtOn ?? []}
+              platformPolicies={project.platformPolicies ?? []}
+              platformTechnologies={project.platformTechnologies ?? []}
+            />
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+            <Button
+              asChild
+              variant="outline"
+              className="gap-2 w-full sm:w-auto"
+            >
+              <a
+                href={`/projects/${project.slug}/feed.xml`}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Subscribe to ${project.title}`}
+              >
+                <Rss className="w-4 h-4" />
+                Subscribe
+              </a>
+            </Button>
             {project.repoUrl && (
               <Button
                 asChild
@@ -160,10 +219,26 @@ export default async function ProjectPage({ params }: Readonly<PageProps>) {
                 </a>
               </Button>
             )}
+            {project.paperUrl && (
+              <Button asChild className="gap-2 w-full sm:w-auto">
+                <a
+                  href={project.paperUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <FileText className="w-4 h-4" />
+                  Read Paper
+                </a>
+              </Button>
+            )}
           </div>
         </div>
 
         <Separator className="my-8" />
+
+        {project.platformManifest && (
+          <PlatformManifest manifest={project.platformManifest} />
+        )}
 
         {/* Content Tabs */}
         {project.pitch || project.adrs.length > 0 ? (

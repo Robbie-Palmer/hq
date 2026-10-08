@@ -1,0 +1,68 @@
+---
+title: "ADR 003: Next.js"
+date: "2025-10-18"
+status: "Accepted"
+tech_stack: ["Next.js"]
+---
+
+# Context
+
+With **React** selected as the UI library (see [ADR 002](/projects/personal-knowledge-graph/adrs/002-react)), I need a meta-framework to handle routing, building, and rendering.
+While I could use vanilla React (SPA) or a bundler like Vite directly, a meta-framework provides better performance (SSG/SSR), SEO, and developer experience.
+
+My options for a React-based framework include:
+
+* **Next.js**: The industry standard. Massive ecosystem, Vercel backing, and deep integration with React Server Components (RSC).
+* **Remix**: Focuses on web standards and progressive enhancement. Excellent data loading patterns, but slightly smaller ecosystem than Next.js.
+* **Astro**: Excellent for content-heavy sites (like this portfolio). Uses "Island Architecture" to ship zero JS by default. However, complex interactive state management between islands can be trickier than a unified React tree.
+* **TanStack Start**: A specific framework wrapper around TanStack Router. Promising, but currently too "bleeding edge" for a foundational infrastructure project.
+
+My previous site was built using **[fastpages](https://fastpages.fast.ai/)** (which is built on top of Jekyll/Ruby) to deploy to GitHub Pages. While it served its purpose initially, it has significant drawbacks:
+
+* **Archived Project**: `fastpages` is now archived and no longer maintained.
+* **Rigid Structure**: It was designed for a specific blogging use case, offering little flexibility for custom features or deeper integration.
+* **Language Alignment**: Customizing the underlying Jekyll functionality requires Ruby. I maintain a strategic focus on a core set of languages, **TypeScript, Python, Terraform**, to maximize mastery and context switching efficiency. Adopting a Ruby-based stack diverts from this goal.
+
+I want a modern framework that:
+
+* Is ubiquitous and "boring" (well-understood, stable).
+* Has a massive ecosystem of libraries and components.
+* Is deeply understood by AI coding agents to facilitate high-velocity development.
+* Provides an "escape hatch" to add dynamic, server-side functionality later without a rewrite.
+* Uses **TypeScript**, which is the default, "boring" choice for modern web development and essential for robust client-side applications.
+
+# Decision
+
+I decided to use **Next.js** with **TypeScript**.
+
+This aligns with [The Goldilocks Zone](/projects?tab=philosophy#the-goldilocks-zone).
+
+* **vs Astro**: While Astro is faster for static content, Next.js offers a more seamless path to adding complex application logic (e.g., interactive tools, auth) later. I value the "unified app" model over the "islands" model for this specific project's long-term vision (SaaS incubator).
+* **vs Remix**: Next.js (via App Router) is now the default recommendation from the React team.
+* **vs TanStack Start**: Next.js is mature; TanStack Start is new.
+
+React is the de facto standard for component-based UIs, Next.js is the standard framework for React, and TypeScript is the standard language for modern web development.
+
+## App Router vs Pages Router
+
+I have chosen to use the modern **App Router** (introduced in Next.js 13) rather than the legacy Pages Router.
+
+* **Server Components (RSC)**: App Router uses React Server Components by default. This creates an architecture similar to "Islands" (like Astro) where components run on the server (or at build time) and only ship zero-bundle-size HTML to the client, unless explicitly marked with `'use client'`.
+* **Performance**: Improved granularity for code splitting and streaming.
+* **Future Proof**: All new Next.js features and ecosystem library updates focus on App Router. Sticking to Pages Router would be adopting legacy tech from day one.
+* **Easy Migration to SSR**: Unlike `getServerSideProps` which forces an entire page to be SSR, App Router allows granular opt-in to dynamic rendering. I can switch a route from Static to Dynamic simply by using a dynamic function (like `cookies()` or `headers()`) without rewriting the component structure.
+
+# Consequences
+
+### Pros
+
+* **AI-Native Development**: LLMs are incredibly proficient at generating React/Next.js code due to the sheer volume of training data available. This enables [LLM-Optimized](/projects?tab=philosophy#llm-optimized) development.
+* **Ubiquity**: The ecosystem is massive. If I need a carousel, a chart, or an animation, there is a production-ready library available.
+* **Scalability**: While currently serving static content via SSG (Static Site Generation), Next.js handles SSR (Server Side Rendering) and API routes out of the box. If I want to add auth or database connectivity later, the infrastructure is already there. No rewrite needed.
+* **Modern DX**: TypeScript support, hot reloading, and component isolation are superior to the Jekyll experience.
+
+### Cons
+
+* **Vendor Lock-in**: Next.js is heavily optimized for Vercel. While it *can* be hosted elsewhere (e.g., Docker, open-next), doing so often loses some "magic" or requires extra configuration.
+* **Complexity**: For a purely static blog, Next.js ships more JavaScript and has a more complex build process than a simple HTML generator like Hugo or Jekyll.
+* **Overkill**: SSR features are currently unused, adding theoretical weight to the framework choice, but accepted as the cost of future flexibility.

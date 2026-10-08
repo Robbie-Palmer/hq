@@ -7,33 +7,27 @@
 # route/spec parity.
 
 extends:
-  - "spectral:oas" # OpenAPI correctness + path-keys-no-trailing-slash, operation-operationId, etc.
-  - "@stoplight/spectral-owasp-ruleset" # OWASP API Security: payload limits, 429s, security schemes.
+  - "../../api-governance/spectral.yaml"
 
-functionsDir: "./spectral-functions"
+functionsDir: "../../api-governance/spectral-functions"
 functions:
   - noVerbPaths
-  - operationSuccessResponse
   - pluralCollections
 
 rules:
-  # --- REST conventions (custom) -----------------------------------------
-  path-segments-kebab-case:
-    description: Path segments use kebab-case.
-    message: "{{path}}: segments must be kebab-case"
-    severity: error
-    given: "$.paths[*]~"
-    then:
-      function: pattern
-      functionOptions:
-        match: "^(/(\\.well-known|[a-z0-9]+(-[a-z0-9]+)*|\\{[a-zA-Z0-9._-]+\\}))+$"
-
   paths-no-verbs:
-    description: Resource paths are nouns; only allowlisted actions may be verbs.
+    description: Resource paths are nouns; only explicitly allowed actions may be verbs.
     severity: error
     given: "$.paths[*]~"
     then:
       function: noVerbPaths
+      functionOptions:
+        allowedSegments:
+          - accept
+          - decline
+          - leave
+          - read-all
+          - clear-all
 
   collections-are-plural:
     description: Collection segments (those with item routes) should be plural.
@@ -41,52 +35,13 @@ rules:
     given: "$.paths[*]~"
     then:
       function: pluralCollections
-
-  # --- Response / error consistency (custom) -----------------------------
-  errors-use-shared-schema:
-    description: 4xx/5xx responses reference the shared Error schema.
-    message: "{{path}}: error responses must $ref components.schemas.Error"
-    severity: error
-    # Status-code keys are strings; Spectral's JSONPath coerces them for the
-    # numeric comparison, which avoids brittle regex-on-property syntax. `[*]`
-    # covers every media type, not just application/json.
-    given: "$.paths[*][*].responses[?( @property >= 400 && @property < 600 )].content[*].schema"
-    then:
-      field: "$ref"
-      function: pattern
       functionOptions:
-        match: "^#/components/schemas/Error$"
-
-  operation-defines-server-error:
-    description: Every operation documents a 500 response.
-    severity: warn
-    given: "$.paths[*][*].responses"
-    then:
-      field: "500"
-      function: truthy
-
-  # The built-in rule accepts only 2xx/3xx. WebSocket handshakes succeed with
-  # 101 Switching Protocols, so preserve the invariant with that one addition.
-  operation-success-response:
-    description: Operations define an HTTP or WebSocket success response.
-    severity: warn
-    given: "$.paths[*][*].responses"
-    then:
-      function: operationSuccessResponse
-
-  # The upstream OWASP rule requires rate-limit headers on every 2xx/4xx
-  # response, including endpoints that are not rate-limited. Keep the useful
-  # contract invariant scoped to operations that actually call
-  # enforceRateLimit, and require both the 429 body and Retry-After header.
-  owasp:api4:2023-rate-limit: off
-  owasp:api4:2023-rate-limit-responses-429: off
-  # Free-form titles and human-readable error messages cannot honestly declare
-  # a semantic format/pattern. maxLength remains blocking through string-limit.
-  owasp:api4:2023-string-restricted: off
-  # This API is same-origin behind Pages Functions, so it intentionally emits
-  # no Access-Control-Allow-Origin header. The upstream rule otherwise fires
-  # merely because a response documents any header (Retry-After here).
-  owasp:api8:2023-define-cors-origin: off
+        singletons:
+          - pantry
+          - profile
+          - diet
+          - recipe-box
+          - health
 
   rate-limited-operations-document-429:
     description: Rate-limited operations document a shared 429 response.
@@ -108,6 +63,3 @@ rules:
           match: "^#/components/schemas/Error$"
       - field: "429.headers.Retry-After"
         function: truthy
-
-# --- OWASP severity tuning ------------------------------------------------
-# Bounded-length checks are blocking while free-form human text stays valid.

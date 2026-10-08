@@ -8,6 +8,8 @@ const DecisionBaseSchema = z.object({
   recordType: z.literal("writing-decision"),
   proposalId: ProposalIdSchema,
   proposal: ProposalSchema,
+  reviewStartedAt: z.iso.datetime({ offset: true }),
+  decidedAt: z.iso.datetime({ offset: true }),
 });
 
 export const AcceptedDecisionSchema = DecisionBaseSchema.extend({
@@ -37,6 +39,13 @@ export const DecisionSchema = z
         path: ["proposalId"],
       });
     }
+    if (Date.parse(decision.decidedAt) < Date.parse(decision.reviewStartedAt)) {
+      context.addIssue({
+        code: "custom",
+        message: "decidedAt must not precede reviewStartedAt",
+        path: ["decidedAt"],
+      });
+    }
   });
 
 export type Decision = z.infer<typeof DecisionSchema>;
@@ -45,19 +54,31 @@ export type DecisionOutcome = Decision["outcome"];
 export function createDecision(
   proposal: z.input<typeof ProposalSchema>,
   outcome: "accepted" | "rejected",
+  timing: DecisionTiming,
 ): Decision;
 export function createDecision(
   proposal: z.input<typeof ProposalSchema>,
   outcome: "changed",
   replacement: string,
+  timing: DecisionTiming,
 ): Decision;
 export function createDecision(
   proposal: z.input<typeof ProposalSchema>,
   outcome: DecisionOutcome,
-  replacement?: string,
+  replacementOrTiming: string | DecisionTiming,
+  changedTiming?: DecisionTiming,
 ): Decision {
+  const replacement = typeof replacementOrTiming === "string"
+    ? replacementOrTiming
+    : undefined;
+  const timing = typeof replacementOrTiming === "string"
+    ? changedTiming
+    : replacementOrTiming;
   if (outcome !== "changed" && replacement !== undefined) {
     throw new Error(`${outcome} decisions cannot include a replacement`);
+  }
+  if (!timing) {
+    throw new Error("a decision requires review timing");
   }
   const parsedProposal = ProposalSchema.parse(proposal);
   const candidate = {
@@ -66,7 +87,13 @@ export function createDecision(
     proposalId: parsedProposal.proposalId,
     proposal: parsedProposal,
     outcome,
+    ...timing,
     ...(outcome === "changed" ? { replacement } : {}),
   };
   return DecisionSchema.parse(candidate);
 }
+
+export type DecisionTiming = {
+  reviewStartedAt: string;
+  decidedAt: string;
+};

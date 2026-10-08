@@ -4,34 +4,48 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
   CircleX,
+  CookingPot,
   Home,
   LoaderCircle,
   LogOut,
   MailPlus,
+  Plus,
   Trash2,
   UserMinus,
   Users,
   X,
 } from "lucide-react";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import {
+  type SubmitEvent,
+  type SubmitEventHandler,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { errorMessage } from "ts-base/errors";
 import { RecipeAvatar } from "@/components/recipes/recipe-avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   acceptHouseholdInvitation,
+  addHouseholdEquipment,
   createHousehold,
   declineHouseholdInvitation,
   deleteHousehold,
+  type EquipmentRecipeMatchMode,
   type Household,
+  type HouseholdEquipment,
+  type HouseholdEquipmentItem,
   type HouseholdInvitation,
   type HouseholdMember,
   type IncomingHouseholdInvitation,
   inviteHouseholdMember,
   leaveHousehold,
+  removeHouseholdEquipment,
   removeHouseholdMember,
   renameHousehold,
   revokeHouseholdInvitation,
+  saveHouseholdEquipmentMatchMode,
 } from "@/lib/api/households";
 import {
   type HouseholdSettingsData,
@@ -50,6 +64,9 @@ type Mutation =
   | "delete"
   | "accept"
   | "decline"
+  | "add-equipment"
+  | "remove-equipment"
+  | "save-equipment-mode"
   | null;
 
 type ActiveMutation = Exclude<Mutation, null>;
@@ -64,6 +81,14 @@ function friendlyDate(value: string) {
 
 function excludeById<T extends { id: string }>(items: T[], id: string): T[] {
   return items.filter((item) => item.id !== id);
+}
+
+function equipmentStatus(item: HouseholdEquipmentItem): string | undefined {
+  if (item.unresolved) {
+    return "saved as written, automatic matching unavailable";
+  }
+  if (item.retired) return "retired equipment";
+  return item.category;
 }
 
 function Section({
@@ -331,7 +356,7 @@ function EmptyHouseholdView({
   error: string | null;
   notice: string | null;
   onNameChange: (name: string) => void;
-  onCreate: (event: FormEvent<HTMLFormElement>) => void;
+  onCreate: (event: SubmitEvent<HTMLFormElement>) => void;
   onAccept: (invitation: IncomingHouseholdInvitation) => void;
   onDecline: (invitation: IncomingHouseholdInvitation) => void;
 }>) {
@@ -415,7 +440,7 @@ function HouseholdNameSection({
   busy: boolean;
   saving: boolean;
   onNameChange: (name: string) => void;
-  onRename: (event: FormEvent<HTMLFormElement>) => void;
+  onRename: (event: SubmitEvent<HTMLFormElement>) => void;
 }>) {
   return (
     <Section
@@ -495,7 +520,7 @@ function HouseholdInvitationsSection({
   busy: boolean;
   inviting: boolean;
   onInviteEmailChange: (email: string) => void;
-  onInvite: (event: FormEvent<HTMLFormElement>) => void;
+  onInvite: (event: SubmitEvent<HTMLFormElement>) => void;
   onRevoke: (invitation: HouseholdInvitation) => void;
 }>) {
   return (
@@ -538,6 +563,233 @@ function HouseholdInvitationsSection({
             />
           ))}
         </div>
+      )}
+    </Section>
+  );
+}
+
+type EquipmentCatalog = HouseholdEquipment["catalog"];
+
+function EquipmentCatalogSelect({
+  available,
+  busy,
+  onChange,
+  value,
+}: Readonly<{
+  available: EquipmentCatalog;
+  busy: boolean;
+  onChange: (slug: string) => void;
+  value: string;
+}>) {
+  return (
+    <>
+      <label className="sr-only" htmlFor="household-equipment">
+        Equipment to add
+      </label>
+      <select
+        id="household-equipment"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={busy || available.length === 0}
+        className="rt-body h-9 min-w-0 rounded-md border border-[var(--line-strong)] bg-[var(--card)] px-3 text-sm text-[var(--ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--terracotta)]/40 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <option value="">
+          {available.length === 0
+            ? "All catalog equipment added"
+            : "Choose catalog equipment"}
+        </option>
+        {available.map((item) => (
+          <option key={item.slug} value={item.slug}>
+            {item.name} · {item.category}
+          </option>
+        ))}
+      </select>
+    </>
+  );
+}
+
+type EquipmentAddFormProps = Readonly<{
+  adding: boolean;
+  available: EquipmentCatalog;
+  busy: boolean;
+  onAdd: SubmitEventHandler<HTMLFormElement>;
+  onSelectedSlugChange: (slug: string) => void;
+  selectedSlug: string;
+}>;
+
+function EquipmentAddForm({
+  adding,
+  available,
+  busy,
+  onAdd,
+  onSelectedSlugChange,
+  selectedSlug,
+}: EquipmentAddFormProps) {
+  const [customText, setCustomText] = useState("");
+  useEffect(() => {
+    if (!selectedSlug) setCustomText("");
+  }, [selectedSlug]);
+  const selectedCatalogSlug =
+    !customText && available.some((item) => item.slug === selectedSlug)
+      ? selectedSlug
+      : "";
+  return (
+    <form
+      onSubmit={onAdd}
+      className="grid max-w-2xl gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+    >
+      <EquipmentCatalogSelect
+        available={available}
+        busy={busy}
+        onChange={(slug) => {
+          setCustomText("");
+          onSelectedSlugChange(slug);
+        }}
+        value={selectedCatalogSlug}
+      />
+      <label className="sr-only" htmlFor="household-custom-equipment">
+        Custom equipment
+      </label>
+      <Input
+        id="household-custom-equipment"
+        value={customText}
+        onChange={(event) => {
+          setCustomText(event.target.value);
+          onSelectedSlugChange(event.target.value);
+        }}
+        disabled={busy}
+        placeholder="Or enter custom equipment"
+        className="min-w-0 bg-[var(--card)]"
+      />
+      <Button type="submit" variant="outline" disabled={busy || !selectedSlug}>
+        {adding ? <LoaderCircle className="animate-spin" /> : <Plus />}
+        Add equipment
+      </Button>
+    </form>
+  );
+}
+
+function HouseholdEquipmentSection({
+  equipment,
+  selectedSlug,
+  busy,
+  adding,
+  onSelectedSlugChange,
+  onAdd,
+  onRemove,
+  onMatchModeChange,
+}: Readonly<{
+  equipment: HouseholdEquipment | null;
+  selectedSlug: string;
+  busy: boolean;
+  adding: boolean;
+  onSelectedSlugChange: (slug: string) => void;
+  onAdd: SubmitEventHandler<HTMLFormElement>;
+  onRemove: (item: HouseholdEquipmentItem) => void;
+  onMatchModeChange: (mode: EquipmentRecipeMatchMode) => void;
+}>) {
+  if (!equipment) {
+    return (
+      <Section
+        title="KITCHEN EQUIPMENT"
+        sub="Household equipment couldn't be loaded. Try refreshing this panel."
+      >
+        <p className="rt-body text-sm text-[var(--ink-3)]">
+          No equipment changes are available right now.
+        </p>
+      </Section>
+    );
+  }
+
+  const ownedSlugs = new Set(equipment.owned.map((item) => item.slug));
+  const available = equipment.catalog.filter(
+    (item) => !ownedSlugs.has(item.slug),
+  );
+
+  return (
+    <Section
+      title="KITCHEN EQUIPMENT"
+      sub="Choose whether recipes use a shared household equipment list."
+    >
+      <div className="mb-5">
+        <p className="rt-mono mb-2 text-[var(--ink-3)]">
+          WHEN A RECIPE NEEDS OTHER EQUIPMENT
+        </p>
+        <div className="inline-flex rounded-full border border-[var(--line)] bg-[var(--paper-warm)] p-1">
+          {(
+            [
+              ["hide", "Hide it"],
+              ["warn", "Show warning"],
+              ["disabled", "Disable it"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={(equipment.recipeMatchMode ?? "warn") === value}
+              disabled={busy}
+              onClick={() => onMatchModeChange(value)}
+              className={`rt-body rounded-full px-4 py-1.5 text-sm transition-colors disabled:opacity-50 ${
+                (equipment.recipeMatchMode ?? "warn") === value
+                  ? "bg-[var(--ink)] font-semibold text-[var(--paper)]"
+                  : "text-[var(--ink-2)] hover:bg-[var(--card)]"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {equipment.recipeMatchMode === "disabled" ? (
+        <p className="rt-body text-sm text-[var(--ink-3)]">
+          Equipment checks are off. Any saved equipment will still be here if
+          you turn them back on.
+        </p>
+      ) : (
+        <>
+          <EquipmentAddForm
+            adding={adding}
+            available={available}
+            busy={busy}
+            onAdd={onAdd}
+            onSelectedSlugChange={onSelectedSlugChange}
+            selectedSlug={selectedSlug}
+          />
+
+          {equipment.owned.length === 0 ? (
+            <div className="mt-5 flex max-w-lg items-center gap-3 rounded-xl border border-dashed border-[var(--line-strong)] bg-[var(--paper-warm)] p-4 text-[var(--ink-3)]">
+              <CookingPot className="size-5 shrink-0" />
+              <p className="rt-body text-sm">No equipment added yet.</p>
+            </div>
+          ) : (
+            <div className="mt-5 max-w-lg divide-y divide-dashed divide-[var(--line)] rounded-xl border border-[var(--line)] bg-[var(--card)] px-4">
+              {equipment.owned.map((item) => (
+                <div key={item.slug} className="flex items-center gap-3 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="rt-body capitalize text-sm text-[var(--ink)]">
+                      {item.name}
+                    </p>
+                    <p className="rt-mono text-[var(--ink-3)]">
+                      {equipmentStatus(item)}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Remove ${item.name}`}
+                    disabled={busy}
+                    onClick={() => onRemove(item)}
+                    className="text-[var(--ink-3)]"
+                  >
+                    <X />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </Section>
   );
@@ -586,39 +838,51 @@ function HouseholdDangerZone({
 function ManagedHouseholdView({
   household,
   members,
+  equipment,
   invitations,
   currentUserId,
   busy,
   mutation,
   name,
   inviteEmail,
+  equipmentSlug,
   error,
   notice,
   onNameChange,
   onInviteEmailChange,
+  onEquipmentSlugChange,
   onRename,
   onInvite,
   onRemove,
   onRevoke,
+  onAddEquipment,
+  onRemoveEquipment,
+  onEquipmentMatchModeChange,
   onDelete,
   onLeave,
 }: Readonly<{
   household: Household;
   members: HouseholdMember[];
+  equipment: HouseholdEquipment | null;
   invitations: HouseholdInvitation[];
   currentUserId: string;
   busy: boolean;
   mutation: Mutation;
   name: string;
   inviteEmail: string;
+  equipmentSlug: string;
   error: string | null;
   notice: string | null;
   onNameChange: (name: string) => void;
   onInviteEmailChange: (email: string) => void;
-  onRename: (event: FormEvent<HTMLFormElement>) => void;
-  onInvite: (event: FormEvent<HTMLFormElement>) => void;
+  onEquipmentSlugChange: (slug: string) => void;
+  onRename: (event: SubmitEvent<HTMLFormElement>) => void;
+  onInvite: (event: SubmitEvent<HTMLFormElement>) => void;
   onRemove: (member: HouseholdMember) => void;
   onRevoke: (invitation: HouseholdInvitation) => void;
+  onAddEquipment: SubmitEventHandler<HTMLFormElement>;
+  onRemoveEquipment: (item: HouseholdEquipmentItem) => void;
+  onEquipmentMatchModeChange: (mode: EquipmentRecipeMatchMode) => void;
   onDelete: () => void;
   onLeave: () => void;
 }>) {
@@ -651,6 +915,17 @@ function ManagedHouseholdView({
         isOwner={isOwner}
         busy={busy}
         onRemove={onRemove}
+      />
+
+      <HouseholdEquipmentSection
+        equipment={equipment}
+        selectedSlug={equipmentSlug}
+        busy={busy}
+        adding={mutation === "add-equipment"}
+        onSelectedSlugChange={onEquipmentSlugChange}
+        onAdd={onAddEquipment}
+        onRemove={onRemoveEquipment}
+        onMatchModeChange={onEquipmentMatchModeChange}
       />
 
       {isOwner && (
@@ -690,8 +965,10 @@ export function HouseholdPanel({
   const [notice, setNotice] = useState<string | null>(null);
   const [name, setName] = useState(householdResult.data?.household?.name ?? "");
   const [inviteEmail, setInviteEmail] = useState("");
+  const [equipmentSlug, setEquipmentSlug] = useState("");
   const household = householdResult.data?.household ?? null;
   const members = householdResult.data?.members ?? [];
+  const equipment = householdResult.data?.equipment ?? null;
   const invitations = householdResult.data?.invitations ?? [];
   const incoming = householdResult.data?.incoming ?? [];
   const error =
@@ -723,6 +1000,10 @@ export function HouseholdPanel({
         queryKey: recipeQueryKeys.pantry(currentUser.id),
         exact: true,
       }),
+      queryClient.invalidateQueries({
+        queryKey: recipeQueryKeys.equipmentReadiness(currentUser.id),
+        exact: true,
+      }),
     ]);
   }
 
@@ -746,7 +1027,7 @@ export function HouseholdPanel({
 
   const busy = mutation !== null;
 
-  function onCreate(event: FormEvent<HTMLFormElement>) {
+  function onCreate(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextName = name.trim();
     if (!nextName) {
@@ -760,7 +1041,7 @@ export function HouseholdPanel({
     });
   }
 
-  function onRename(event: FormEvent<HTMLFormElement>) {
+  function onRename(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!household) return;
     const nextName = name.trim();
@@ -782,7 +1063,7 @@ export function HouseholdPanel({
     });
   }
 
-  function onInvite(event: FormEvent<HTMLFormElement>) {
+  function onInvite(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!household) return;
     const email = inviteEmail.trim().toLowerCase();
@@ -848,6 +1129,75 @@ export function HouseholdPanel({
     });
   }
 
+  const onAddEquipment: SubmitEventHandler<HTMLFormElement> = (event) => {
+    event.preventDefault();
+    if (!household || !equipmentSlug) return;
+    run("add-equipment", async () => {
+      const added = await addHouseholdEquipment(household.id, equipmentSlug);
+      updateHouseholdData((current) => ({
+        ...current,
+        equipment: current.equipment
+          ? {
+              ...current.equipment,
+              owned: [
+                ...current.equipment.owned.filter(
+                  (item) => item.slug !== added.slug,
+                ),
+                added,
+              ].sort((left, right) => left.name.localeCompare(right.name)),
+            }
+          : current.equipment,
+      }));
+      setEquipmentSlug("");
+      await queryClient.invalidateQueries({
+        queryKey: recipeQueryKeys.equipmentReadiness(currentUser.id),
+        exact: true,
+      });
+      setNotice(`${added.name} added to the household.`);
+    });
+  };
+
+  function onRemoveEquipment(item: HouseholdEquipmentItem) {
+    if (!household) return;
+    run("remove-equipment", async () => {
+      await removeHouseholdEquipment(household.id, item.slug);
+      updateHouseholdData((current) => ({
+        ...current,
+        equipment: current.equipment
+          ? {
+              ...current.equipment,
+              owned: current.equipment.owned.filter(
+                (ownedItem) => ownedItem.slug !== item.slug,
+              ),
+            }
+          : current.equipment,
+      }));
+      await queryClient.invalidateQueries({
+        queryKey: recipeQueryKeys.equipmentReadiness(currentUser.id),
+        exact: true,
+      });
+      setNotice(`${item.name} removed from the household.`);
+    });
+  }
+
+  function onEquipmentMatchModeChange(mode: EquipmentRecipeMatchMode) {
+    if (!household || !equipment || equipment.recipeMatchMode === mode) return;
+    run("save-equipment-mode", async () => {
+      const updated = await saveHouseholdEquipmentMatchMode(household.id, mode);
+      updateHouseholdData((current) => ({
+        ...current,
+        equipment: current.equipment
+          ? { ...current.equipment, recipeMatchMode: updated.recipeMatchMode }
+          : current.equipment,
+      }));
+      await queryClient.invalidateQueries({
+        queryKey: recipeQueryKeys.equipmentReadiness(currentUser.id),
+        exact: true,
+      });
+      setNotice("Equipment matching preference saved.");
+    });
+  }
+
   function deleteCurrentHousehold() {
     if (!household) return;
     if (!window.confirm(`Delete ${household.name}? This can't be undone.`)) {
@@ -858,6 +1208,7 @@ export function HouseholdPanel({
       updateHouseholdData((current) => ({
         ...current,
         household: null,
+        equipment: null,
         members: [],
         invitations: [],
       }));
@@ -875,6 +1226,7 @@ export function HouseholdPanel({
       updateHouseholdData((current) => ({
         ...current,
         household: null,
+        equipment: null,
         members: [],
         invitations: [],
       }));
@@ -922,20 +1274,26 @@ export function HouseholdPanel({
     <ManagedHouseholdView
       household={household}
       members={members}
+      equipment={equipment}
       invitations={invitations}
       currentUserId={currentUser.id}
       busy={busy}
       mutation={mutation}
       name={name}
       inviteEmail={inviteEmail}
+      equipmentSlug={equipmentSlug}
       error={error}
       notice={notice}
       onNameChange={setName}
       onInviteEmailChange={setInviteEmail}
+      onEquipmentSlugChange={setEquipmentSlug}
       onRename={onRename}
       onInvite={onInvite}
       onRemove={removeMember}
       onRevoke={revokeInvitation}
+      onAddEquipment={onAddEquipment}
+      onRemoveEquipment={onRemoveEquipment}
+      onEquipmentMatchModeChange={onEquipmentMatchModeChange}
       onDelete={deleteCurrentHousehold}
       onLeave={leaveCurrentHousehold}
     />

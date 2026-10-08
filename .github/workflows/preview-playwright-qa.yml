@@ -1,0 +1,270 @@
+name: Preview Playwright QA
+
+# This privileged follow-up uses the default-branch workflow and test harness.
+# PR code runs only as browser content at the preview origin; it never executes
+# on the runner that can resolve the preview Access credentials.
+on: # zizmor: ignore[dangerous-triggers] only trusted default-branch code runs on the runner
+  workflow_run:
+    workflows: [Preview Environment]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  # One shared identity is rotated per run, so preview QA jobs must not overlap.
+  group: preview-playwright-qa
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    if: >
+      github.event.workflow_run.event == 'pull_request'
+      && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      statuses: write
+    outputs:
+      harness_sha: ${{ steps.preview.outputs.harness_sha }}
+      head_sha: ${{ steps.preview.outputs.head_sha }}
+      pr_number: ${{ steps.preview.outputs.pr_number }}
+      should_run: ${{ steps.preview.outputs.should_run }}
+    steps:
+      - name: Select a successful same-repository backend preview
+        id: preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          echo "should_run=false" >> "$GITHUB_OUTPUT"
+
+          head_repository=$(jq -er '.workflow_run.head_repository.full_name' "$GITHUB_EVENT_PATH")
+          if [[ "$head_repository" != "$REPOSITORY" ]]; then
+            echo "Skipping a preview from $head_repository."
+            exit 0
+          fi
+
+          jobs=$(gh api "repos/$REPOSITORY/actions/runs/$SOURCE_RUN_ID/jobs?filter=latest&per_page=100")
+          backend=$(jq '[.jobs[] | select(.name == "backend" and .conclusion == "success")] | length' <<< "$jobs")
+          frontend=$(jq '[.jobs[] | select(.name == "frontend" and .conclusion == "success")] | length' <<< "$jobs")
+          if [[ "$backend" != "1" || "$frontend" != "1" ]]; then
+            echo "Skipping a preview without successful backend and frontend jobs."
+            exit 0
+          fi
+
+          head_sha=$(jq -er '.workflow_run.head_sha' "$GITHUB_EVENT_PATH")
+          pr_number=$(jq -er \
+            '.workflow_run.pull_requests | if length == 1 then .[0].number else error("expected one pull request") end' \
+            "$GITHUB_EVENT_PATH")
+          [[ "$head_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$pr_number" =~ ^[1-9][0-9]*$ ]]
+
+          pr=$(gh api "repos/$REPOSITORY/pulls/$pr_number")
+          current_head_sha=$(jq -er '.head.sha' <<< "$pr")
+          if [[ "$current_head_sha" != "$head_sha" ]]; then
+            echo "Skipping stale preview $head_sha; PR #$pr_number is now at $current_head_sha."
+            exit 0
+          fi
+
+          default_branch=$(gh api "repos/$REPOSITORY" --jq '.default_branch')
+          comparison=$(gh api "repos/$REPOSITORY/compare/$default_branch...$head_sha")
+          harness_sha=$(jq -er '.merge_base_commit.sha' <<< "$comparison")
+          [[ "$harness_sha" =~ ^[0-9a-f]{40}$ ]]
+
+          {
+            echo "harness_sha=$harness_sha"
+            echo "head_sha=$head_sha"
+            echo "pr_number=$pr_number"
+            echo "should_run=true"
+          } >> "$GITHUB_OUTPUT"
+
+          gh api \
+            --method POST \
+            "repos/$REPOSITORY/statuses/$head_sha" \
+            -f state=pending \
+            -f context='Preview Playwright QA' \
+            -f description='Running Playwright against the protected PR preview' \
+            -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
+  qa:
+    needs: preflight
+    if: needs.preflight.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: preview-agent-access
+    permissions:
+      contents: read
+    steps:
+      - name: Issue a one-run preview Access credential
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          DOPPLER_AGENT_CONFIG: ${{ vars.DOPPLER_AGENT_CONFIG }}
+          DOPPLER_PROJECT: ${{ vars.DOPPLER_PROJECT }}
+          DOPPLER_SERVICE_TOKEN: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+          PR_NUMBER: ${{ needs.preflight.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          : "${CLOUDFLARE_ACCOUNT_ID:?CLOUDFLARE_ACCOUNT_ID is required}"
+          : "${CLOUDFLARE_API_TOKEN:?CLOUDFLARE_API_TOKEN is required}"
+          : "${DOPPLER_AGENT_CONFIG:?DOPPLER_AGENT_CONFIG is required}"
+          : "${DOPPLER_PROJECT:?DOPPLER_PROJECT is required}"
+          : "${DOPPLER_SERVICE_TOKEN:?DOPPLER_SERVICE_TOKEN is required}"
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]
+
+          config=$(curl \
+            --disable \
+            --connect-timeout 10 \
+            --fail \
+            --max-time 30 \
+            --proto '=https' \
+            --silent \
+            --show-error \
+            --get \
+            --url "https://api.doppler.com/v3/configs/config/secrets/download" \
+            --header "Authorization: Bearer $DOPPLER_SERVICE_TOKEN" \
+            --data-urlencode "project=$DOPPLER_PROJECT" \
+            --data-urlencode "config=$DOPPLER_AGENT_CONFIG" \
+            --data-urlencode "format=json" \
+            --data-urlencode "secrets=CLOUDFLARE_PAGES_HOST")
+          pages_host=$(jq -er '.CLOUDFLARE_PAGES_HOST' <<< "$config")
+          [[ "$pages_host" =~ ^[a-z0-9][a-z0-9.-]*[a-z0-9]$ ]]
+
+          service_tokens=$(curl \
+            --disable \
+            --connect-timeout 10 \
+            --fail \
+            --max-time 30 \
+            --proto '=https' \
+            --silent \
+            --show-error \
+            --url "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/access/service_tokens" \
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+          token_name=personal-site-preview-qa-workflow
+          match_count=$(jq --arg name "$token_name" '[.result[] | select(.name == $name)] | length' <<< "$service_tokens")
+          if [[ "$match_count" -ne 1 ]]; then
+            echo "Expected exactly one Cloudflare service token named '$token_name'; found $match_count." >&2
+            exit 1
+          fi
+
+          token_id=$(jq -er --arg name "$token_name" '.result[] | select(.name == $name) | .id' <<< "$service_tokens")
+          rotation=$(curl \
+            --disable \
+            --connect-timeout 10 \
+            --fail \
+            --max-time 30 \
+            --proto '=https' \
+            --silent \
+            --show-error \
+            --request POST \
+            --url "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/access/service_tokens/$token_id/rotate" \
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data-binary '{}')
+          client_id=$(jq -er '.result.client_id' <<< "$rotation")
+          client_secret=$(jq -er '.result.client_secret' <<< "$rotation")
+
+          echo "::add-mask::$client_id"
+          echo "::add-mask::$client_secret"
+          {
+            echo "CF_ACCESS_CLIENT_ID=$client_id"
+            echo "CF_ACCESS_CLIENT_SECRET=$client_secret"
+            echo "CF_ACCESS_SERVICE_TOKEN_ID=$token_id"
+            echo "CLOUDFLARE_PAGES_HOST=$pages_host"
+            echo "PREVIEW_SITE_URL=https://pr-$PR_NUMBER.$pages_host"
+          } >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Select the trusted preview test harness
+        env:
+          HARNESS_SHA: ${{ needs.preflight.outputs.harness_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$HARNESS_SHA" =~ ^[0-9a-f]{40}$ ]]
+          git fetch --no-tags --depth=1 origin "$HARNESS_SHA"
+          [[ "$(git rev-parse FETCH_HEAD)" == "$HARNESS_SHA" ]]
+          git checkout --detach "$HARNESS_SHA"
+
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          version: "2026.10.0"
+          experimental: true
+          minimum_release_age: 24h
+
+      - name: Run Playwright against the protected preview
+        run: mise run //ui:test:e2e:preview
+
+      - name: Upload Playwright failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: preview-playwright-${{ needs.preflight.outputs.pr_number }}-${{ github.run_attempt }}
+          path: |
+            ui/test-results/preview/**/error-context.md
+            ui/test-results/preview/**/test-failed-*.png
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Revoke the one-run preview Access credential
+        if: always()
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${CF_ACCESS_SERVICE_TOKEN_ID:-}" ]]; then
+            echo "No preview Access credential was issued."
+            exit 0
+          fi
+          curl \
+            --disable \
+            --connect-timeout 10 \
+            --fail \
+            --max-time 30 \
+            --proto '=https' \
+            --silent \
+            --show-error \
+            --output /dev/null \
+            --request POST \
+            --url "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/access/service_tokens/$CF_ACCESS_SERVICE_TOKEN_ID/rotate" \
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data-binary '{}'
+
+  report:
+    needs: [preflight, qa]
+    if: always() && needs.preflight.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: write
+    steps:
+      - name: Publish the PR commit status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ needs.preflight.outputs.head_sha }}
+          QA_RESULT: ${{ needs.qa.result }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [[ "$QA_RESULT" == "success" ]]; then
+            state=success
+            description='Playwright passed against the protected PR preview'
+          else
+            state=failure
+            description="Playwright preview QA finished with $QA_RESULT"
+          fi
+
+          gh api \
+            --method POST \
+            "repos/$REPOSITORY/statuses/$HEAD_SHA" \
+            -f state="$state" \
+            -f context='Preview Playwright QA' \
+            -f description="$description" \
+            -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"

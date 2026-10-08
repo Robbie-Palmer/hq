@@ -13,18 +13,19 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@cooklang/cooklang": "^0.18.0",
+    "@cooklang/cooklang": "catalog:",
     "cheerio": "^1.2.0",
     "numeric-quantity": "^3.2.1",
-    "openai": "^7.0.0",
-    "recipe-scrapers": "^1.9.0",
+    "openrouter-client": "workspace:*",
+    "recipe-scrapers": "^3.0.0",
     "recipe-domain": "workspace:*",
     "ts-base": "workspace:*",
-    "zod": "^4.2.1"
+    "zod": "^4.2.1",
+    "ipaddr.js": "^2.2.0"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^5.0.0",
     "typescript": "^6.0.0",
-    "vitest": "^4.0.0"
+    "vitest": "^5.0.0"
   }
 }

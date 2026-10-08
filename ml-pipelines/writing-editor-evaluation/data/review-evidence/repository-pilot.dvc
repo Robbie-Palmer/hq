@@ -1,0 +1,6 @@
+outs:
+- md5: 57e0eeecd33f3246115f8fecbb4be9e9.dir
+  size: 5237
+  nfiles: 4
+  hash: md5
+  path: repository-pilot

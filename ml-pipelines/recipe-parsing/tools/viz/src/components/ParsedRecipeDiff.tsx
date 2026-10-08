@@ -82,6 +82,7 @@ function normalizeUnit(unit: string | undefined): string | undefined {
   return unit === "piece" ? undefined : unit;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 function diffIngredients(
   expected: RecipeIngredient[],
   predicted: RecipeIngredient[],
@@ -174,6 +175,7 @@ function highlightText(
   });
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function ParsedRecipeDiff({
   expected,
   predicted,

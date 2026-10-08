@@ -1,0 +1,83 @@
+---
+title: "ADR 001: PostgreSQL coordination boundary"
+date: "2026-09-13"
+status: "Accepted"
+tech_stack: ["Drizzle", "Hyperdrive"]
+---
+
+## Context
+
+Work Graph must atomically select and claim one ready item across several
+workers. It must also reject combined hierarchy and dependency cycles when
+concurrent requests attempt individually valid graph edits that form a cycle
+together. State must survive workers moving between machines and Cloudflare
+evicting an isolate.
+
+The Personal Engineering Platform already prefers PostgreSQL with Neon for
+relational storage and Cloudflare Workers for backend APIs. The local choice is
+how those defaults enforce graph and queue invariants.
+
+## Decision
+
+Use a dedicated Neon PostgreSQL project as the authoritative store. Connect the
+Worker through Hyperdrive and use Drizzle for the schema, queries, and committed
+migrations. Run migrations directly against Neon rather than through
+Hyperdrive.
+
+Keep claim selection and lease creation in one PostgreSQL transaction. Select
+the first eligible row with `FOR UPDATE SKIP LOCKED`, then create its lease and
+event before committing. PostgreSQL documents `SKIP LOCKED` as suitable for
+[multiple consumers of a queue-like table](https://www.postgresql.org/docs/current/sql-select.html).
+
+Serialize hierarchy and dependency edits by selecting one well-known
+graph-mutation row `FOR UPDATE`. In the same transaction, project both
+relationships as waits-for edges, check reachability with a recursive query,
+and apply the change only when the combined graph remains acyclic. This catches
+deadlocks that neither relationship reveals alone and prevents concurrent write
+skew without blocking unrelated work-item updates. PostgreSQL documents row
+locks and their transaction lifetime in its
+[explicit-locking guide](https://www.postgresql.org/docs/current/explicit-locking.html).
+Do not use advisory locks because
+[Hyperdrive does not support them](https://developers.cloudflare.com/hyperdrive/reference/supported-databases-and-features/).
+
+[Hyperdrive supports Neon and Drizzle](https://developers.cloudflare.com/hyperdrive/examples/connect-to-postgres/)
+and keeps one database connection for the duration of a transaction. Application
+tests must cover every PostgreSQL feature on which these invariants depend.
+
+## Alternatives
+
+### D1
+
+D1 would remove the external database and Hyperdrive resources. Its SQLite
+model needs a different concurrent-claim and cycle-write design, and adopting
+it would turn the Node and PostgreSQL deployment escape route into a storage
+migration. That trade is poor for coordination state whose hardest requirements
+are transactional concurrency and recursive graph checks.
+
+### One Durable Object
+
+A single Durable Object could serialize every graph edit and claim. It would
+also make one Cloudflare-specific actor the database boundary and concentrate
+all work scopes into one object. Partitioning later would require deciding how
+cross-partition dependencies and global priority work.
+
+### Tailnet-hosted PostgreSQL service
+
+Running Hono and PostgreSQL access on an existing machine would fit Tailscale
+directly. It also makes one personally operated host responsible for a service
+whose purpose is to coordinate work across machines. Keep this as the escape
+route if Workers or Access creates more friction than it removes.
+
+## Consequences
+
+The MVP gets database-enforced single claims and cycle-safe graph edits without
+adding a separate coordination service. The domain and schema remain portable
+to a Node runtime.
+
+Structural graph writes serialize across the graph. That is acceptable for one
+user's planning workload and easy to observe. Revisit the lock scope if
+mutation wait time becomes material.
+
+Hyperdrive adds a Cloudflare-specific connection layer and does not expose every
+PostgreSQL feature. The project must check its supported-feature list before
+adopting new session or locking behavior.

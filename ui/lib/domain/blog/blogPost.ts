@@ -3,6 +3,7 @@ import type { BlogSlug } from "../slugs";
 import {
   BlogSlugSchema,
   IdeaSlugSchema,
+  ProductDecisionSlugSchema,
   RoleSlugSchema,
   TechnologySlugSchema,
 } from "../slugs";
@@ -32,6 +33,10 @@ export const BlogRelationsSchema = z.object({
   ideas: z.array(IdeaSlugSchema).default([]),
   tags: z.array(z.string()).default([]),
   role: RoleSlugSchema.optional(),
+  productDecisions: z.array(ProductDecisionSlugSchema).default([]),
 });
 
-export type BlogRelations = z.infer<typeof BlogRelationsSchema>;
+type ParsedBlogRelations = z.infer<typeof BlogRelationsSchema>;
+export type BlogRelations = Omit<ParsedBlogRelations, "productDecisions"> & {
+  productDecisions?: ParsedBlogRelations["productDecisions"];
+};

@@ -1,0 +1,64 @@
+---
+title: "ADR 031: Embla Carousel"
+date: "2025-12-14"
+status: "Accepted"
+tech_stack: ["Embla Carousel"]
+---
+
+# Context
+
+I need a carousel component to display blog posts on the landing page with auto-scrolling and responsive behavior (1-3 posts per view across mobile to desktop).
+
+Traditional carousel solutions present several tradeoffs:
+
+* **Swiper.js**: Feature-rich and popular, but heavy (30KB+ gzipped) with many unused features for this simple use case
+* **React Slick**: Widespread in the React ecosystem, but built on jQuery dependencies and lacks TypeScript support
+* **Keen Slider**: Lightweight and TypeScript-first, but less mature ecosystem and fewer plugins
+* **Pure CSS + Scroll Snap**: Minimal overhead, but lacks programmatic control for auto-scroll and complex navigation patterns
+* **Building Custom**: Maximum control, but introduces maintenance burden for solving an already-solved problem
+
+I want a solution that prioritizes:
+
+* **Headless Architecture**: Pure logic with no UI opinions, allowing me to standardize the design language across the site using my own components and Tailwind classes
+* **Performance**: Lightweight bundle size and smooth 60fps animations
+* **TypeScript Support**: First-class types that align with the **LLM-Optimized** principle
+* **Plugin Architecture**: Extensibility without bloat, load only what's needed
+* **Framework Flexibility**: React integration today, but not locked into React if requirements change
+* **AI Familiarity**: Well-documented APIs that LLMs can work with effectively
+
+# Decision
+
+I decided to use **[Embla Carousel](https://www.embla-carousel.com/)** with the following packages:
+
+* `embla-carousel`: Framework-agnostic core (\~6KB gzipped)
+* `embla-carousel-react`: React wrapper with hooks
+* `embla-carousel-auto-scroll`: Plugin for auto-scrolling behavior
+
+This aligns with [The Goldilocks Zone](/projects?tab=philosophy#the-goldilocks-zone) and [LLM-Optimized](/projects?tab=philosophy#llm-optimized). Embla is TypeScript-first, has clear documentation, and uses a composable hook-based API that AI agents understand well.
+
+Notably, Embla provides a [**builder/playground**](https://www.embla-carousel.com/examples/generator/) on their website where you can generate and copy navigation code (buttons, dots, auto-scroll) directly into your codebase, similar to the **shadcn/ui** philosophy ([ADR 019](/projects/personal-knowledge-graph/adrs/019-shadcn)). This gives us ownership of the implementation rather than hiding it behind opaque library abstractions.
+
+## Interactive Demo
+
+Here's the carousel in action, using the same `ContentCarousel` component that powers the blog and ADR carousels across this site:
+
+<EmblaDemoCarousel />
+
+# Consequences
+
+### Pros
+
+* **Truly Headless**: Embla provides only carousel logic, no pre-styled UI components or CSS to override. This allows complete control over the design language, ensuring carousel navigation matches the rest of the site's Tailwind-based aesthetic without fighting vendor styles.
+* **Lightweight**: The core is \~6KB gzipped, significantly smaller than Swiper (\~31-45KB). We only load the auto-scroll plugin (\~2KB) when needed.
+* **Design System Consistency**: Because we build navigation components from scratch, they naturally align with our existing UI patterns (shadcn/ui components, Tailwind design tokens). No visual inconsistencies from library-imposed styles.
+* **TypeScript-First**: Excellent type inference with `EmblaCarouselType` and `EmblaOptionsType`. The API is fully typed, reducing runtime errors and improving the agentic workflow.
+* **Performance**: Hardware-accelerated transforms, smooth 60fps animations, and no jQuery overhead.
+* **Composability**: Plugin architecture means we pay only for features we use. The `AutoScroll` plugin handles the auto-scrolling behavior without polluting the core API.
+* **Code Ownership**: The builder provides copy-paste navigation hooks (`usePrevNextButtons`, `useDotButton`) that live in our codebase (`ui/components/ui/carousel.tsx`). This is transparent, modifiable, and easier for AI agents to reason about than importing opaque components from `node_modules`.
+* **React Hooks Integration**: The `useEmblaCarousel` hook fits naturally into React patterns. Custom hooks encapsulate carousel state logic cleanly.
+* **Framework-Agnostic Core**: If we migrate away from React in the future, the core carousel logic remains reusable.
+
+### Cons
+
+* **Initial Setup Overhead**: Requires copying navigation code from the builder rather than importing pre-built components. However, this is a one-time cost and aligns with our shadcn philosophy of code ownership.
+* **Smaller Ecosystem**: Fewer third-party plugins compared to Swiper, though the core plugin set (auto-scroll, auto-play, class names) covers most use cases.

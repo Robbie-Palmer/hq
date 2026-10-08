@@ -1,0 +1,73 @@
+---
+title: "ADR 025: React component maintainability analysis"
+date: "2026-10-04"
+status: "Accepted"
+tech_stack:
+  - "tsmetrics"
+  - "React Doctor"
+---
+
+## Context
+
+Biome, oxlint, and SonarQube catch local complexity and broad code-quality
+problems, but large TSX components can remain easy for those checks to
+underweight. A long render tree may have little branch complexity while still
+combining too many UI responsibilities. Repeated JSX can also be separated
+across files, beyond the scope of a conventional per-file lint rule.
+
+A repository trial of [tsmetrics](https://gabrielrf97.github.io/tsmetrics/)
+ranked known monoliths at the top of its component-responsibility report,
+including `AccommodationEditor`, `PostHogApplicationPage`, `AddRecipeView`,
+and `RecipeContent`. A full
+[React Doctor](https://www.react.doctor/docs) scan mostly repeated checks
+already owned by the existing lint stack. Its
+[`duplicate-jsx-subtree`](https://www.react.doctor/docs/rules/react-doctor/duplicate-jsx-subtree)
+rule found no current matches, providing a clean baseline for that distinct
+whole-project check.
+
+## Decision
+
+Adopt both tools in the web-application layer under a multi-valued component
+maintainability-analysis slot.
+
+Use tsmetrics to rank React component hotspots. Treat 60 lines, nesting depth
+4, component-responsibility score 30, and render-complexity score 10 as review
+limits. The report is advisory while existing hotspots are decomposed; it
+shows the highest-ranked findings instead of burying the useful signal in the
+full historical backlog.
+
+Use React Doctor only for `react-doctor/duplicate-jsx-subtree`. Disable its
+other categories because they overlap Biome, oxlint, and SonarQube. Run the
+duplicate check as a blocking static check. A match still requires judgment:
+extract a component only when the repeated trees represent the same UI
+concept and can share a coherent interface.
+
+Pin both tools in the UI workspace and expose them through mise tasks. Disable
+React Doctor scoring, sharing, and supply-chain calls so the check remains
+local and deterministic.
+
+## Alternatives
+
+ReactSniffer was not adopted. Its principal signals, large files, large
+components, and large prop surfaces, overlap the existing linters and the
+richer tsmetrics report, without adding an equivalent repository-wide JSX
+comparison.
+
+Using only the current lint and SonarQube rules was rejected because the trial
+confirmed that low-branching TSX monoliths need component-specific metrics and
+cross-file structural comparison.
+
+## Consequences
+
+The platform now reports oversized or overburdened components without treating
+one complexity formula as proof that a refactor is correct. New repeated JSX
+families fail the static check from a zero-finding baseline.
+
+tsmetrics is young, so its scores and output contract may change. Keep the
+dependency pinned and review the thresholds before making its historical
+backlog blocking.
+
+React Doctor is source available under a modified MIT licence rather than a
+standard open-source licence. Internal analysis is permitted, but its licence
+must be reviewed before using it for model training or offering it as part of
+a paid hosted service.

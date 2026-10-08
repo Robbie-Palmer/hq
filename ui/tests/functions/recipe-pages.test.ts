@@ -4,6 +4,69 @@ import { onRequest } from "../../../functions/recipes/[[path]]";
 type Context = Parameters<typeof onRequest>[0];
 const originalFetch = globalThis.fetch;
 
+class TestHtmlRewriterElement {
+  constructor(private readonly element: Element) {}
+
+  append(content: string, options: { html: true }): void {
+    if (options.html) this.element.insertAdjacentHTML("beforeend", content);
+  }
+
+  remove(): void {
+    this.element.remove();
+  }
+
+  setAttribute(name: string, value: string): void {
+    this.element.setAttribute(name, value);
+  }
+
+  setInnerContent(content: string): void {
+    this.element.textContent = content;
+  }
+}
+
+class TestHtmlRewriter {
+  private readonly handlers: Array<{
+    selector: string;
+    element: (element: TestHtmlRewriterElement) => void;
+  }> = [];
+
+  on(
+    selector: string,
+    handlers: { element(element: TestHtmlRewriterElement): void },
+  ): TestHtmlRewriter {
+    this.handlers.push({ selector, element: handlers.element });
+    return this;
+  }
+
+  transform(response: Response): Response {
+    const handlers = this.handlers;
+    const body = new ReadableStream({
+      async start(controller) {
+        const document = new DOMParser().parseFromString(
+          await response.text(),
+          "text/html",
+        );
+        for (const handler of handlers) {
+          for (const element of document.querySelectorAll(handler.selector)) {
+            handler.element(new TestHtmlRewriterElement(element));
+          }
+        }
+        controller.enqueue(
+          new TextEncoder().encode(document.documentElement.outerHTML),
+        );
+        controller.close();
+      },
+    });
+    return new Response(body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+  }
+}
+
+vi.stubGlobal("HTMLRewriter", TestHtmlRewriter);
+
 const payload = {
   version: 1,
   source: "Simmer @lentils{200%g} for ~{20%minutes}.",
@@ -182,7 +245,7 @@ describe("dynamic recipe pages", () => {
     const assetFetch = vi.fn(
       async () =>
         new Response(
-          '<html><head><title>Saved Recipe</title><meta name="description" content="Saved"><meta name="robots" content="noindex, nofollow"></head><body></body></html>',
+          "<html><head><title>Saved Recipe</title><META content='Saved' name='description'><META content='noindex, nofollow' name='robots'><LINK href='https://robbiepalmer.me' rel='canonical'></head><body></body></html>",
         ),
     ) as typeof fetch;
 
@@ -196,8 +259,11 @@ describe("dynamic recipe pages", () => {
     const html = await response.text();
 
     expect(html).toContain("<title>Lentil Soup</title>");
-    expect(html).toContain(
-      '<link rel="canonical" href="https://robbiepalmer.me/recipes/lentil-soup">',
+    const document = new DOMParser().parseFromString(html, "text/html");
+    const canonicalLinks = document.querySelectorAll('link[rel="canonical"]');
+    expect(canonicalLinks).toHaveLength(1);
+    expect(canonicalLinks[0]?.getAttribute("href")).toBe(
+      "https://robbiepalmer.me/recipes/lentil-soup",
     );
     expect(html).toContain('type="application/ld+json"');
     expect(html).not.toContain("noindex");
@@ -270,7 +336,8 @@ describe("dynamic recipe pages", () => {
 
   it("escapes HTML metadata and preserves the static asset response", async () => {
     const escapedPayload = structuredClone(payload);
-    escapedPayload.recipe.title = '<Soup & "Stuff">';
+    escapedPayload.recipe.title =
+      '</title><script>alert("metadata injection")</script>';
     escapedPayload.recipe.description = "";
     globalThis.fetch = vi.fn(async () =>
       Response.json({
@@ -321,11 +388,26 @@ describe("dynamic recipe pages", () => {
     const shellRequest = assetFetchMock.mock.calls[0]?.[0] as Request;
     expect(shellRequest.headers.has("if-none-match")).toBe(false);
     expect(shellRequest.headers.has("if-modified-since")).toBe(false);
-    expect(html).toContain('<title>&lt;Soup &amp; "Stuff"&gt;</title>');
-    expect(html).toContain(
-      'content="Stored &quot;description&quot; &amp; &lt;detail&gt;"',
+    const rewrittenDocument = new DOMParser().parseFromString(
+      html,
+      "text/html",
     );
-    expect(html).toContain(String.raw`\u003cSoup & \"Stuff\">`);
+    expect(rewrittenDocument.querySelector("title")?.textContent).toBe(
+      '</title><script>alert("metadata injection")</script>',
+    );
+    expect(
+      rewrittenDocument.querySelector(
+        'script:not([type="application/ld+json"])',
+      ),
+    ).toBeNull();
+    expect(
+      rewrittenDocument
+        .querySelector('meta[name="description"]')
+        ?.getAttribute("content"),
+    ).toBe('Stored "description" & <detail>');
+    expect(html).toContain(
+      String.raw`\u003c/title>\u003cscript>alert(\"metadata injection\")\u003c/script>`,
+    );
   });
 
   it("rewrites HEAD headers and returns asset failures unchanged", async () => {

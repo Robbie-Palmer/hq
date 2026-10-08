@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 // mirroring the pattern the behavioural suites use.
 vi.mock("postgres", () => ({ default: () => ({}) }));
 
-import { app } from "../src/index";
+import { app, routeMetadata } from "../src/index";
 
 const HTTP_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 
@@ -140,6 +140,15 @@ describe("recipe-api route conventions", () => {
     );
 
     expect([...documented].sort()).toEqual([...registered].sort());
+  });
+
+  it("registers every route from the shared metadata table", () => {
+    const registered = routes
+      .filter(({ path }) => path !== "/api/auth/*")
+      .map(({ method, path }) => `${method} ${path}`)
+      .sort();
+
+    expect(registered).toEqual(Object.keys(routeMetadata).sort());
   });
 
   it("documents constrained route parameters", () => {

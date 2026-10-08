@@ -1,0 +1,3 @@
+ALTER TABLE "work_item_hierarchy" ADD COLUMN "rank" integer;--> statement-breakpoint
+CREATE UNIQUE INDEX "work_item_hierarchy_parent_rank_uidx" ON "work_item_hierarchy" USING btree ("parent_work_item_id","rank") WHERE "work_item_hierarchy"."rank" is not null;--> statement-breakpoint
+ALTER TABLE "work_item_hierarchy" ADD CONSTRAINT "work_item_hierarchy_rank_positive_check" CHECK ("work_item_hierarchy"."rank" is null or "work_item_hierarchy"."rank" > 0);

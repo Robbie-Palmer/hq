@@ -112,10 +112,35 @@ describe("DietPanel", () => {
     );
   });
 
+  it("saves an ingredient outside the canonical catalog as written", async () => {
+    render(<DietPanel />);
+    const input = await screen.findByLabelText(
+      "Search or enter ingredients to exclude",
+    );
+
+    fireEvent.change(input, { target: { value: "Nightshade powder" } });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: 'Save "Nightshade powder" as written',
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save diet profile" }));
+
+    expect(await screen.findByText("saved")).toBeInTheDocument();
+    expect(apiMocks.saveDietProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        excludedIngredientSlugs: ["Nightshade powder"],
+      }),
+    );
+    expect(
+      screen.getByText("saved as written, automatic matching unavailable"),
+    ).toBeInTheDocument();
+  });
+
   it("clears the delayed picker close when unmounted", async () => {
     const { unmount } = render(<DietPanel />);
     const input = await screen.findByLabelText(
-      "Search canonical ingredients to exclude",
+      "Search or enter ingredients to exclude",
     );
     vi.useFakeTimers();
     const clearTimeoutSpy = vi.spyOn(window, "clearTimeout");

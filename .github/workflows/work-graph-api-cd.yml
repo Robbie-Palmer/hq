@@ -1,0 +1,57 @@
+name: Work Graph API CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "packages/work-graph-db/**"
+      - "packages/work-graph-domain/**"
+      - "workers/work-graph-api/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".github/workflows/work-graph-api-cd.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: work-graph-api-production
+  # Finish the active migration and deploy; keep only the newest pending run.
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production-work-graph
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Install dependencies
+        run: mise run //workers/work-graph-api:install
+
+      - name: Apply Work Graph migrations
+        run: mise run //packages/work-graph-db:db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Deploy Worker
+        run: mise run //workers/work-graph-api:deploy
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WORK_GRAPH_HYPERDRIVE_ID: ${{ secrets.WORK_GRAPH_HYPERDRIVE_ID }}
+
+      - name: Smoke-test Access and queue
+        run: mise run //workers/work-graph-api:smoke:production
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          WORK_GRAPH_API_URL: ${{ secrets.WORK_GRAPH_API_URL }}

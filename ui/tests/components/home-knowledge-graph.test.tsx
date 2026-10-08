@@ -8,7 +8,7 @@ const graphData = vi.hoisted<GraphData>(() => ({
   nodes: [
     {
       id: "project:site",
-      name: "Personal site",
+      name: "Personal Knowledge Graph",
       type: "project",
       href: "/projects/site",
       connections: 2,

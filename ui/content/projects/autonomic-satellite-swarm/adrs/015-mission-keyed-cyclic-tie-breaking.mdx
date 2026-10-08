@@ -1,0 +1,97 @@
+---
+title: "ADR 015: Mission-Keyed Cyclic Tie-Breaking"
+status: "Accepted"
+date: "2026-09-13"
+---
+
+# Context
+
+[ADR 003](/projects/autonomic-satellite-swarm/adrs/003-temporary-leader-mission-assignment)
+selects the highest candidacy score at the end of a fixed response window. The revived controller
+resolved equal scores by choosing the lowest node ID. That rule made replays deterministic, but it
+assigned every mission in a stable equal-score workload to the same node.
+
+The bounded telemetry queue can now record which node won each mission. [ADR
+014](/projects/autonomic-satellite-swarm/adrs/014-stable-mission-keys) also gives each decision an
+origin node, boot epoch, and sequence. Those fields provide enough stable input for a reproducible
+rotation without adding protocol bytes or mutable allocation history.
+
+This change cannot claim resource-aware scheduling yet. The current score has no measured thermal
+margin, recent duty cycle, actuator wear, or remaining lifetime input. The immediate problem is the
+fixed bias among candidates that the existing scorer already considers equal.
+
+# Decision
+
+Keep candidacy scoring and the 18-byte wire format unchanged. The leader first finds the highest
+received score, then considers only responders with that score. It orders those tied candidates by
+node ID.
+
+Choose an index in that ordered set as follows:
+
+```text
+lineage phase = FNV-1a-32(origin node || boot epoch in big-endian order) mod tied count
+chosen index  = (lineage phase + mission sequence - 1) mod tied count
+```
+
+Hashing the mission lineage changes the initial phase between leaders and boot epochs. Adding the
+sequence outside the hash advances exactly one place per consecutive mission. For a stable set of
+`N` equal top-scoring responders, every block of `N` consecutive sequence values assigns one
+mission to each responder.
+
+Implement selection with two bounded passes over the controller's existing fixed candidate array.
+The first pass finds the top score and tie count. The second selects the calculated index. Do not
+allocate memory, retain assignment history, add controller state, or transmit another field.
+
+The leader's existing `MissionAssigned` telemetry record stores the selected node in `related_node`
+and the winning score in `value`. A deterministic simulation runs six equal-score missions, completes
+each mission, and derives the observed distribution from those records. Native and WebAssembly
+builds must serialize that evidence byte for byte.
+
+# Alternatives
+
+## Keep the lowest node ID
+
+This costs no additional computation and remains reproducible. It also preserves a permanent bias
+that telemetry can now expose, so it no longer fits the experiment.
+
+## Hash the complete mission key independently
+
+Choosing `hash(mission key) mod tied count` is stateless and deterministic. A hash does not promise
+an even short run, so six missions can still cluster on one node. The chosen rule keeps a hashed
+starting phase but makes consecutive sequences rotate exactly.
+
+## Draw from a pseudorandom generator
+
+A seeded generator can reproduce a run, but it adds state and seed-management rules without
+improving the stable-set guarantee. An unseeded generator would also break exact replay.
+
+## Keep a persistent round-robin cursor
+
+A durable cursor could rotate independently of mission-sequence gaps. It would add write endurance,
+reset recovery, and synchronization questions before the project has a durable state store. The
+mission key already supplies a sufficient stateless cursor for this experiment.
+
+# Acceptance evidence
+
+Controller tests run six equal-score missions and require two assignments per node from the leader's
+telemetry. They also verify that a strictly higher score still wins. The deterministic trace runner
+can now complete missions so the same three controllers execute the repeated workload.
+
+The browser parity check invokes the evidence run in native code and WebAssembly. It requires equal
+serialized JSON, the assignment order `0, 1, 2, 0, 1, 2`, a score of 100 for every decision, no
+telemetry drops, and two missions per node. Firmware builds retain the unchanged wire codec and the
+Arduino Uno static SRAM floor.
+
+# Consequences
+
+Stable equal-score workloads no longer favor the lowest node ID. The result stays deterministic
+across host and WebAssembly builds and adds no persistent state, dynamic allocation, or wire bytes.
+
+The guarantee is deliberately narrow. A higher score always wins, even if that repeatedly selects
+one node. Changing response sets or top scores changes the tied set. Skipped mission sequences still
+advance the rotation, and different leaders or boot epochs have independent phases. The rule does
+not coordinate simultaneous leaders or measure energy, thermal margin, actuator wear, or completed
+duty. Those inputs belong in a later candidacy policy once the project can obtain and validate them.
+
+FNV-1a only spreads the starting phase. It provides no secrecy, unpredictability, authentication, or
+protection against a node choosing its identity or epoch to influence an outcome.

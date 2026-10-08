@@ -1,26 +1,52 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { addDays, format, parseISO } from "date-fns";
 import type { ReactNode } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import { AccountFlows } from "@/components/assettracker/account-flows";
 import { AccountsTable } from "@/components/assettracker/accounts-table";
 import { AssetAllocationHistoryChart } from "@/components/assettracker/asset-allocation-history-chart";
+import { AssetTrackerDashboard } from "@/components/assettracker/asset-tracker-dashboard";
 import { useAssetTracker } from "@/components/assettracker/asset-tracker-provider";
+import { DecisionScenarioComparison } from "@/components/assettracker/decision-scenario-comparison";
 import { FlowSankeyChart } from "@/components/assettracker/flow-sankey-chart";
+import { ForecastAssumptionManager } from "@/components/assettracker/forecast-assumption-manager";
+import { FutureCashFlowManager } from "@/components/assettracker/future-cash-flow-manager";
+import { HousingStrategyPlanner } from "@/components/assettracker/housing-strategy-planner";
 import { PortfolioContributionChart } from "@/components/assettracker/portfolio-contribution-chart";
 import { PortfolioGoal } from "@/components/assettracker/portfolio-goal";
 import {
   formatRunwayDuration,
   plannedExpenditureSourceId,
   RunwayChartTooltip,
-  RunwayForecast,
 } from "@/components/assettracker/runway-forecast";
 import { UpcomingFlows } from "@/components/assettracker/upcoming-flows";
 import {
-  buildFlowSankeyData,
-  type PortfolioFinancialIndependence,
+  buildFlowSankeyData as buildFlowSankeyDataAdapter,
   todayIsoDate,
+} from "@/lib/assettracker";
+import { getDemoAssetTrackerData } from "@/lib/assettracker/demoData";
+import type {
+  AccountDetailView,
+  PortfolioFinancialIndependence,
 } from "@/lib/domain/assettracker";
+import { getHouseholdTaxEstimate } from "@/lib/domain/assettracker";
+
+const buildFlowSankeyData = (
+  accounts: Parameters<typeof buildFlowSankeyDataAdapter>[0],
+  flows: Parameters<typeof buildFlowSankeyDataAdapter>[1],
+  liabilityBalances: Parameters<typeof buildFlowSankeyDataAdapter>[2],
+  asOfDate = "2026-01-01",
+) => buildFlowSankeyDataAdapter(accounts, flows, liabilityBalances, asOfDate);
 
 vi.mock("recharts", () => ({
   ResponsiveContainer: ({ children }: { children: ReactNode }) => (
@@ -30,6 +56,20 @@ vi.mock("recharts", () => ({
     <div data-chart-data={JSON.stringify(data)} data-testid="line-chart">
       {children}
     </div>
+  ),
+  ComposedChart: ({
+    children,
+    data,
+  }: {
+    children: ReactNode;
+    data: unknown[];
+  }) => (
+    <div data-chart-data={JSON.stringify(data)} data-testid="composed-chart">
+      {children}
+    </div>
+  ),
+  Area: ({ dataKey }: { dataKey: string }) => (
+    <div data-range-series={dataKey} />
   ),
   Line: ({ dataKey, dot }: { dataKey: string; dot?: boolean }) => (
     <div
@@ -49,8 +89,76 @@ vi.mock("recharts", () => ({
   XAxis: () => null,
   YAxis: () => null,
   Legend: () => null,
-  Sankey: ({ align }: { align?: string }) => (
-    <div data-align={align} data-testid="flow-sankey" />
+  Sankey: ({
+    align,
+    data,
+    link,
+    node,
+    onMouseEnter,
+    onMouseLeave,
+    sort,
+  }: {
+    align?: string;
+    data: {
+      links: Array<Record<string, unknown>>;
+      nodes: Array<Record<string, unknown>>;
+    };
+    link?: (props: Record<string, unknown>) => ReactNode;
+    node?: (props: Record<string, unknown>) => ReactNode;
+    onMouseEnter?: (
+      item: { index: number; payload: Record<string, unknown> },
+      type: "link" | "node",
+    ) => void;
+    onMouseLeave?: () => void;
+    sort?: boolean;
+  }) => (
+    <div data-align={align} data-sort={sort} data-testid="flow-sankey">
+      {data.nodes.map((payload, index) => (
+        <button
+          aria-label={`Hover ${String(payload.id)}`}
+          data-testid={`sankey-node-${String(payload.id)}`}
+          key={String(payload.id)}
+          onMouseEnter={() => onMouseEnter?.({ index, payload }, "node")}
+          onMouseLeave={onMouseLeave}
+          type="button"
+        >
+          <svg aria-hidden="true">
+            {node?.({
+              height: 20,
+              index,
+              payload: { ...payload, depth: index === 0 ? 0 : 1 },
+              width: 12,
+              x: 120,
+              y: index * 24,
+            })}
+          </svg>
+        </button>
+      ))}
+      {data.links.map((payload, index) => (
+        <button
+          aria-label={`Hover link ${index}`}
+          data-testid={`sankey-link-${index}`}
+          key={`${String(payload.flowKey)}:${index}`}
+          onMouseEnter={() => onMouseEnter?.({ index, payload }, "link")}
+          onMouseLeave={onMouseLeave}
+          type="button"
+        >
+          <svg aria-hidden="true">
+            {link?.({
+              index,
+              linkWidth: 10,
+              payload,
+              sourceControlX: 160,
+              sourceX: 132,
+              sourceY: index * 12 + 5,
+              targetControlX: 200,
+              targetX: 228,
+              targetY: index * 12 + 5,
+            })}
+          </svg>
+        </button>
+      ))}
+    </div>
   ),
   Tooltip: () => null,
 }));
@@ -59,12 +167,37 @@ vi.mock("@/components/assettracker/asset-tracker-provider", () => ({
   useAssetTracker: vi.fn(),
 }));
 
+vi.mock("@/components/assettracker/asset-allocation-chart", () => ({
+  AssetAllocationChart: () => <p>Net worth composition</p>,
+}));
+
+vi.mock("@/components/assettracker/account-balance-chart", () => ({
+  AccountBalanceChart: () => <p>Account balances</p>,
+}));
+
 const mockUseAssetTracker = vi.mocked(useAssetTracker);
 const FIXED_NOW = new Date("2026-07-03T12:00:00+01:00");
+const originalScrollIntoView = Element.prototype.scrollIntoView;
+const EMPTY_MONTHLY_BREAKDOWN = {
+  baselineExpenditure: 0,
+  explicitIncomeChange: { minimum: 0, expected: 0, maximum: 0 },
+  explicitExpenditureChange: { minimum: 0, expected: 0, maximum: 0 },
+  externalIncome: 0,
+  accountTransfers: 0,
+  debtPayments: 0,
+  ordinaryRecurringOutflowsCoveredByBaseline: 0,
+  committedCashFlows: 0,
+  selectedDecisionCashFlows: 0,
+  possibleDecisions: { minimum: 0, expected: 0, maximum: 0 },
+  spendingDrawdown: { cash: 0, liquid: 0, illiquid: 0, unfunded: 0 },
+};
 const EMPTY_FI: PortfolioFinancialIndependence = {
   periods: [],
   representativeAnnualExpenditure: null,
   representativeAnnualCurrentExpenditure: null,
+  mortgageCashFlow: null,
+  annualCashFlowWhileMortgage: null,
+  annualExpenditureAfterMortgage: null,
   representativeAnnualSavings: null,
   savingsRate: null,
   takeHomeSavingsRate: null,
@@ -85,23 +218,82 @@ const EMPTY_FI: PortfolioFinancialIndependence = {
   yearsToFi: null,
 };
 
+beforeAll(() => {
+  for (const method of [
+    "setPointerCapture",
+    "releasePointerCapture",
+    "hasPointerCapture",
+  ]) {
+    Object.defineProperty(HTMLElement.prototype, method, {
+      configurable: true,
+      value: vi.fn(),
+    });
+  }
+  Element.prototype.scrollIntoView = vi.fn();
+});
+
+afterAll(() => {
+  for (const method of [
+    "setPointerCapture",
+    "releasePointerCapture",
+    "hasPointerCapture",
+  ]) {
+    Reflect.deleteProperty(HTMLElement.prototype, method);
+  }
+  Element.prototype.scrollIntoView = originalScrollIntoView;
+});
+
 function mockAssetTracker(
   overrides: Partial<ReturnType<typeof useAssetTracker>> = {},
 ) {
-  mockUseAssetTracker.mockReturnValue({
+  const value = {
     accounts: [],
     accountDetails: [],
     netWorthData: [],
+    netWorthDataByCurrency: { GBP: [], USD: [], EUR: [] },
     contributionData: [],
     assetAllocation: [],
     assetAllocationHistory: [],
     transfers: [],
     recurringFlows: [],
     plannedExpenditures: [],
+    planningCases: [],
+    futureCashFlows: [],
+    forecastAssumptionSets: [],
+    emergencyFundPlans: [],
+    emergencyFundFacts: {
+      essentialMonthlyExpenditure: null,
+      monthlyDebtPayments: 0,
+      employmentMonthlyIncome: null,
+      monthlySideIncome: 0,
+      annualInflationRate: 0.025,
+    },
+    compareDecisionScenario: vi.fn(() => ({
+      requestedDecisionIds: [],
+      includedDecisionIds: [],
+      includedDependencyIds: [],
+      warnings: [],
+      materialDates: [],
+      timeline: [],
+      goalDates: {
+        baseline: null,
+        lowCost: null,
+        expected: null,
+        highCost: null,
+      },
+      actions: [],
+      fundingMechanics: [],
+      judgments: [],
+    })),
     incomeHistory: [],
     financialIndependence: EMPTY_FI,
+    housingPlanningPosition: null,
     portfolioReturn: null,
+    positionSummary: null,
     inflation: 0.025,
+    baseCurrency: "GBP" as const,
+    valuationDate: null,
+    valuationIssues: [],
     netWorthTarget: null,
     netWorthTargetIsReal: false,
     withdrawalRate: 0.04,
@@ -112,6 +304,17 @@ function mockAssetTracker(
     closeAccount: vi.fn(),
     deleteSnapshot: vi.fn(),
     addRecurringFlow: vi.fn(),
+    createPlanningCase: vi.fn(),
+    addCommitment: vi.fn(),
+    addCashFlowDecision: vi.fn(),
+    setCashFlowDecisionStatus: vi.fn(),
+    setCommitmentStatus: vi.fn(),
+    recordActualCashFlow: vi.fn(),
+    deleteFutureCashFlow: vi.fn(),
+    createForecastAssumptionSet: vi.fn(),
+    addForecastAssumption: vi.fn(),
+    versionForecastAssumptionSet: vi.fn(),
+    deleteForecastAssumption: vi.fn(),
     addPlannedExpenditure: vi.fn(),
     deleteRecurringFlow: vi.fn(),
     deletePlannedExpenditure: vi.fn(),
@@ -123,15 +326,142 @@ function mockAssetTracker(
     importIncomeHistory: vi.fn(),
     clearIncomeHistory: vi.fn(),
     resetData: vi.fn(),
-    exportData: vi.fn(),
+    downloadBackup: vi.fn(),
     exportCsv: vi.fn(),
-    importData: vi.fn(),
+    previewBackup: vi.fn(),
+    restoreBackup: vi.fn(),
     ...overrides,
-  } as ReturnType<typeof useAssetTracker>);
+  } as ReturnType<typeof useAssetTracker>;
+  mockUseAssetTracker.mockReturnValue(value);
+  return value;
 }
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+describe("HousingStrategyPlanner", () => {
+  it("compares four strategies while keeping net worth and withdrawal capital distinct", async () => {
+    mockAssetTracker({
+      housingPlanningPosition: {
+        asOfDate: "2026-01-01",
+        totalNetWorth: 500_000,
+        withdrawalCapital: 300_000,
+        homeValue: 400_000,
+        mortgageBalance: 200_000,
+        homeEquity: 200_000,
+        annualNonHousingExpenditure: 24_000,
+        annualInvestableIncome: 48_000,
+        annualMortgageExpenditureRemoved: 0,
+        expectedRealReturn: 0.04,
+        withdrawalRate: 0.04,
+        mortgagePayoffDate: "2046-01-01",
+      },
+    });
+
+    render(<HousingStrategyPlanner />);
+
+    const table = screen.getByRole("table", {
+      name: "Housing strategy comparison",
+    });
+    expect(
+      within(table).getByRole("rowheader", { name: "Stay" }),
+    ).toBeVisible();
+    expect(
+      within(table).getByRole("rowheader", { name: "Sell and rent" }),
+    ).toBeVisible();
+    expect(
+      within(table).getByRole("rowheader", { name: "Downsize" }),
+    ).toBeVisible();
+    expect(
+      within(table).getByRole("rowheader", { name: "Equity release" }),
+    ).toBeVisible();
+    expect(screen.getByText("Available capital")).toBeVisible();
+    expect(screen.getByLabelText("Housing move date")).not.toBeVisible();
+
+    await userEvent.click(screen.getByText("Adjust assumptions"));
+    await userEvent.click(
+      screen.getByText("Sell and rent", { selector: "summary" }),
+    );
+    await userEvent.clear(
+      screen.getByRole("spinbutton", { name: "Sell and rent Annual rent" }),
+    );
+    await userEvent.type(
+      screen.getByRole("spinbutton", { name: "Sell and rent Annual rent" }),
+      "18000",
+    );
+
+    const sellRow = within(table)
+      .getByRole("rowheader", { name: "Sell and rent" })
+      .closest("tr");
+    expect(sellRow).not.toBeNull();
+    expect(sellRow).toHaveTextContent("£42,000");
+
+    await userEvent.clear(
+      screen.getByLabelText("Housing move date", { selector: "input" }),
+    );
+    expect(screen.getByLabelText("Housing move date")).toHaveValue(
+      "2026-01-01",
+    );
+  });
+});
+
+describe("AssetTrackerDashboard", () => {
+  it("shows the household position instead of account and type counts", () => {
+    mockAssetTracker({
+      accountDetails: [{ id: "account" } as AccountDetailView],
+      positionSummary: {
+        date: "2026-01-31",
+        grossAssets: 361_750,
+        liabilities: 199_000,
+        liquidAssets: 10_000,
+        netWorth: 162_750,
+      },
+    });
+
+    render(<AssetTrackerDashboard />);
+
+    expect(screen.getByText("Total assets")).toBeVisible();
+    expect(screen.getByText("£361,750.00")).toBeVisible();
+    expect(screen.getByText("Liabilities")).toBeVisible();
+    expect(screen.getByText("£199,000.00")).toBeVisible();
+    expect(screen.getByText("Net worth")).toBeVisible();
+    expect(screen.getByText("£162,750.00")).toBeVisible();
+    expect(screen.getByText("Liquid assets")).toBeVisible();
+    expect(screen.getByText("£10,000.00")).toBeVisible();
+    expect(screen.queryByText("Open Accounts")).not.toBeInTheDocument();
+    expect(screen.queryByText("Asset Types")).not.toBeInTheDocument();
+  });
+
+  it("marks position values unavailable when the portfolio cannot be valued", () => {
+    mockAssetTracker({
+      accountDetails: [{ id: "account" } as AccountDetailView],
+    });
+
+    render(<AssetTrackerDashboard />);
+
+    expect(screen.getByText("Total assets")).toBeVisible();
+    expect(screen.getByText("Liabilities")).toBeVisible();
+    expect(screen.getByText("Net worth")).toBeVisible();
+    expect(screen.getByText("Liquid assets")).toBeVisible();
+    expect(screen.getAllByText("Unavailable")).toHaveLength(6);
+  });
+
+  it("offers clear next steps for an empty portfolio", () => {
+    mockAssetTracker();
+
+    render(<AssetTrackerDashboard />);
+
+    expect(
+      screen.getByRole("heading", { name: "Start with an account" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Add an account" }),
+    ).toHaveAttribute("href", "/assettracker/accounts");
+    expect(
+      screen.getByRole("link", { name: "Import history" }),
+    ).toHaveAttribute("href", "/assettracker/imports");
+  });
 });
 
 describe("PortfolioGoal", () => {
@@ -225,7 +555,7 @@ describe("PortfolioGoal", () => {
           id: "open-isa",
           name: "Open ISA",
           provider: "Broker",
-          currency: "GBP",
+          currency: "GBP" as const,
           assetType: "stocks",
           expectedAnnualReturn: 0.07,
           isOpen: true,
@@ -237,7 +567,7 @@ describe("PortfolioGoal", () => {
           id: "closed-isa",
           name: "Closed ISA",
           provider: "Broker",
-          currency: "GBP",
+          currency: "GBP" as const,
           assetType: "stocks",
           expectedAnnualReturn: 0.07,
           isOpen: false,
@@ -265,8 +595,8 @@ describe("PortfolioGoal", () => {
   it("plots current and long-term spending and switches to retained income", async () => {
     mockAssetTracker({
       incomeHistory: [
-        { date: "2026-01-31", amount: 4_000 },
-        { date: "2026-02-28", amount: 4_200 },
+        { date: "2026-01-31", amount: 4_000, currency: "GBP" },
+        { date: "2026-02-28", amount: 4_200, currency: "GBP" },
       ],
       financialIndependence: {
         ...EMPTY_FI,
@@ -344,6 +674,36 @@ describe("PortfolioGoal", () => {
     ).toHaveAttribute("data-dots", "visible");
   });
 
+  it("separates mortgage cash flow, principal, and post-payoff spending", () => {
+    mockAssetTracker({
+      financialIndependence: {
+        ...EMPTY_FI,
+        representativeAnnualExpenditure: 24_000,
+        representativeAnnualCurrentExpenditure: 30_000,
+        mortgageCashFlow: {
+          annualRequiredCashFlow: 14_400,
+          annualEconomicCost: 7_200,
+          annualPrincipal: 7_200,
+          payoffDate: "2045-12-01",
+        },
+        annualCashFlowWhileMortgage: 31_200,
+        annualExpenditureAfterMortgage: 16_800,
+        target: 420_000,
+      },
+    });
+
+    render(<PortfolioGoal />);
+
+    expect(screen.getByText("Mortgage cash flow")).toBeVisible();
+    expect(screen.getByText(/after payoff in Dec 2045/)).toBeVisible();
+    expect(screen.getByText("Cash needed while mortgaged")).toBeVisible();
+    expect(screen.getByText("£31,200/yr")).toBeVisible();
+    expect(screen.getByText("Of which principal")).toBeVisible();
+    expect(screen.getByText("£7,200/yr")).toBeVisible();
+    expect(screen.getByText("Spending after payoff")).toBeVisible();
+    expect(screen.getByText("£16,800/yr")).toBeVisible();
+  });
+
   it("shows emergency runway, savings rate, and a portfolio years-to-FI projection", () => {
     vi.useFakeTimers();
     vi.setSystemTime(FIXED_NOW);
@@ -355,6 +715,27 @@ describe("PortfolioGoal", () => {
           amount: 7_200,
           date: "2027-01-15",
           fromAccountId: "current",
+        },
+      ],
+      futureCashFlows: [
+        {
+          id: "holiday",
+          name: "Holiday",
+          kind: "commitment",
+          status: "active",
+          changeability: "variable",
+          refundable: false,
+          labels: [],
+          currency: "EUR",
+          stages: [
+            {
+              id: "payment-1",
+              fromAccountId: "current",
+              amount: 7_200,
+              dueDate: "2027-01-15",
+              actuals: [],
+            },
+          ],
         },
       ],
       financialIndependence: {
@@ -388,6 +769,7 @@ describe("PortfolioGoal", () => {
             baselineCashMonths: 4.5,
             baselineLiquidMonths: 42,
             baselineTotalMonths: 75,
+            monthlyBreakdown: EMPTY_MONTHLY_BREAKDOWN,
           },
           {
             date: "2027-07-03",
@@ -400,6 +782,7 @@ describe("PortfolioGoal", () => {
             baselineCashMonths: 7,
             baselineLiquidMonths: 50,
             baselineTotalMonths: 90,
+            monthlyBreakdown: EMPTY_MONTHLY_BREAKDOWN,
           },
         ],
         target: 600_000,
@@ -421,7 +804,6 @@ describe("PortfolioGoal", () => {
     expect(screen.getByText(/25.0% from take-home pay/)).toBeVisible();
     expect(screen.getByText(/£3,000 employee pension/)).toBeVisible();
     expect(screen.getAllByText("£9,000")[0]).toBeVisible();
-    expect(screen.getByText("4.5 months without income")).toBeVisible();
     expect(
       screen.getByRole("img", {
         name: "Financial runway from cash, liquid assets, and total net worth",
@@ -438,11 +820,11 @@ describe("PortfolioGoal", () => {
       }),
     ).toBeVisible();
     expect(screen.getByTestId("planned-spending-marker")).toHaveTextContent(
-      "£7,200",
+      "€7,200",
     );
-    expect(screen.getByText(/marked on its purchase date/)).toBeVisible();
+    expect(screen.getByText(/marked on their expected dates/)).toBeVisible();
     expect(
-      screen.getByText("3.6 months less after planned spending"),
+      screen.getByText("3.6 months less after future cash flows"),
     ).toBeVisible();
     expect(screen.getByText("12.0 years")).toBeVisible();
     expect(screen.getByText("Around Jul 2038")).toBeVisible();
@@ -480,7 +862,16 @@ describe("RunwayForecast", () => {
       baselineCashMonths: 5,
       baselineLiquidMonths: 45,
       baselineTotalMonths: 192,
-      plannedExpenditures: [holiday],
+      monthlyBreakdown: EMPTY_MONTHLY_BREAKDOWN,
+      forecastCashFlows: [
+        {
+          ...holiday,
+          futureCashFlowId: holiday.id,
+          stageId: "payment-1",
+          currency: "EUR" as const,
+          kind: "commitment" as const,
+        },
+      ],
     };
 
     render(
@@ -500,13 +891,13 @@ describe("RunwayForecast", () => {
     expect(screen.getByText("3 Feb 2027")).toBeVisible();
     expect(screen.getByText("Total net worth")).toBeVisible();
     expect(screen.getByText("15 years, 8 months, 0 days")).toBeVisible();
-    expect(screen.getByText("Planned spending applied")).toBeVisible();
+    expect(screen.getByText("Future cash flows applied")).toBeVisible();
     expect(screen.getByText("Japan holiday · 15 Jan")).toBeVisible();
-    expect(screen.getByText("£7,200")).toBeVisible();
+    expect(screen.getByText("€7,200")).toBeVisible();
   });
 
-  it("adds a dated planned expenditure from the selected account", async () => {
-    const addPlannedExpenditure = vi.fn().mockResolvedValue(undefined);
+  it("adds a dated commitment from the selected account", async () => {
+    const addCommitment = vi.fn().mockResolvedValue(undefined);
     mockAssetTracker({
       accounts: [
         {
@@ -523,20 +914,31 @@ describe("RunwayForecast", () => {
           cagr: null,
         },
       ],
-      addPlannedExpenditure,
+      addCommitment,
     });
 
-    render(<RunwayForecast />);
+    render(<FutureCashFlowManager />);
 
     await userEvent.type(screen.getByLabelText("Name"), "New car");
     await userEvent.type(screen.getByLabelText("Amount"), "12000");
-    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Add commitment" }),
+    );
 
-    expect(addPlannedExpenditure).toHaveBeenCalledWith({
+    expect(addCommitment).toHaveBeenCalledWith({
       name: "New car",
-      amount: 12_000,
-      date: format(addDays(parseISO(todayIsoDate()), 1), "yyyy-MM-dd"),
-      fromAccountId: "current",
+      planningCaseId: undefined,
+      labels: [],
+      currency: "GBP",
+      changeability: "fixed",
+      refundable: false,
+      stages: [
+        {
+          amount: 12_000,
+          dueDate: format(addDays(parseISO(todayIsoDate()), 1), "yyyy-MM-dd"),
+          fromAccountId: "current",
+        },
+      ],
     });
   });
 
@@ -567,6 +969,876 @@ describe("RunwayForecast", () => {
     expect(plannedExpenditureSourceId([currentAccount], "stocks-isa")).toBe(
       "current",
     );
+  });
+});
+
+describe("DecisionScenarioComparison", () => {
+  it("compares selected choices without collapsing judgment inputs into a score", async () => {
+    const decision = {
+      id: "extension",
+      name: "Extension",
+      planningCaseId: "home",
+      kind: "decision" as const,
+      status: "selected" as const,
+      importance: "More living space",
+      confidence: 0.6,
+      reversibility: "irreversible" as const,
+      dependencyIds: [],
+      alternativeToIds: [],
+      labels: [],
+      currency: "GBP" as const,
+      stages: [
+        {
+          id: "build",
+          fromAccountId: "current",
+          expectedDate: "2027-07-01",
+          minimumAmount: 35_000,
+          expectedAmount: 45_000,
+          maximumAmount: 55_000,
+          actuals: [],
+        },
+      ],
+    };
+    const metrics = {
+      cashBalance: 20_000,
+      liquidBalance: 60_000,
+      totalBalance: 150_000,
+      cashMonths: 8,
+      liquidMonths: 24,
+      totalMonths: 60,
+      reserveCoverageMonths: 5,
+      accountShortfalls: [],
+    };
+    const compareDecisionScenario = vi.fn(() => ({
+      requestedDecisionIds: ["extension"],
+      includedDecisionIds: ["extension"],
+      includedDependencyIds: [],
+      warnings: [],
+      materialDates: ["2027-07-01"],
+      timeline: [
+        {
+          date: "2027-07-01",
+          isMaterialDate: true,
+          baseline: { ...metrics, cashBalance: 65_000, totalBalance: 195_000 },
+          lowCost: { ...metrics, cashBalance: 30_000, totalBalance: 160_000 },
+          expected: metrics,
+          highCost: { ...metrics, cashBalance: 10_000, totalBalance: 140_000 },
+          cumulativeEffect: {
+            cash: -45_000,
+            liquid: -45_000,
+            total: -45_000,
+            cashMonths: -18,
+            liquidMonths: -18,
+            totalMonths: -18,
+          },
+          marginalEffect: {
+            cash: -45_000,
+            liquid: -45_000,
+            total: -45_000,
+            cashMonths: -18,
+            liquidMonths: -18,
+            totalMonths: -18,
+          },
+          accountEffects: [
+            {
+              accountId: "current",
+              accountName: "Current account",
+              baselineBalance: 65_000,
+              expectedBalance: 20_000,
+              lowCostBalance: 30_000,
+              highCostBalance: 10_000,
+              cumulativeEffect: -45_000,
+              marginalEffect: -45_000,
+            },
+          ],
+        },
+      ],
+      goalDates: {
+        baseline: "2035-01-01",
+        lowCost: "2037-01-01",
+        expected: "2038-01-01",
+        highCost: "2040-01-01",
+      },
+      actions: [
+        {
+          id: "extension:build",
+          date: "2027-07-01",
+          cadence: "once" as const,
+          kind: "payment" as const,
+          name: "Extension",
+          accountName: "Current account",
+          amount: 45_000,
+          currency: "GBP" as const,
+          countsAsExpenditure: true,
+        },
+      ],
+      fundingMechanics: [
+        {
+          id: "extension:build",
+          decisionName: "Extension",
+          stageName: "Payment",
+          accountName: "Current account",
+          fundingMethod: "cash" as const,
+          liquidity: "cash" as const,
+          annualReturn: 0.02,
+          accessDelayDays: 0,
+          currency: "GBP" as const,
+          convertsToBaseCurrency: false,
+          taxAndFees: "Fees are included in the entered amount.",
+        },
+      ],
+      judgments: [
+        {
+          id: "extension",
+          name: "Extension",
+          planningCaseId: "home",
+          importance: "More living space",
+          confidence: 0.6,
+          reversibility: "irreversible" as const,
+        },
+      ],
+    }));
+    mockAssetTracker({
+      futureCashFlows: [decision],
+      planningCases: [{ id: "home", name: "Home work", labels: [] }],
+      emergencyFundPlans: [
+        {
+          id: "reserve-v1",
+          seriesId: "reserve",
+          name: "Reserve",
+          version: 1,
+          status: "active",
+          createdAt: "2026-01-01T12:00:00Z",
+          essentialMonthlyExpenditure: 2_000,
+          annualIrregularEssentialCosts: 0,
+          monthlyDebtPayments: 0,
+          employmentMonthlyIncome: 4_000,
+          monthlySideIncome: 0,
+          accessNeedDays: 7,
+          missingData: [],
+          coverageMonths: [6, 12],
+          accountPolicies: [],
+          stressScenarios: [
+            {
+              id: "loss",
+              name: "Income loss",
+              durationMonths: 6,
+              employmentIncomeLossRate: 1,
+              sideIncomeDelayMonths: 0,
+              unexpectedCost: 0,
+              annualInflationRate: 0,
+            },
+          ],
+        },
+      ],
+      compareDecisionScenario,
+    });
+
+    render(<DecisionScenarioComparison />);
+
+    expect(compareDecisionScenario).toHaveBeenCalledWith({
+      decisionIds: ["extension"],
+      horizonMonths: 60,
+      reserveMonths: 6,
+    });
+    expect(
+      screen.getByRole("img", {
+        name: "Portfolio effect versus committed-only",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("img", {
+        name: "Runway effect versus committed-only",
+      }),
+    ).toBeVisible();
+    await userEvent.click(screen.getByText("View exact figures"));
+    expect(
+      screen.getByRole("table", {
+        name: "Decision effects on material cash-flow dates and at the selected horizon",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getAllByText("5.0 months, below the 6-month preference"),
+    ).toHaveLength(2);
+    await userEvent.click(
+      screen.getByText("Review assumptions and implied actions"),
+    );
+    expect(
+      screen.getByText(
+        "These inputs remain separate. The comparison does not rank the choices.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByText("Jan 2038")).toBeVisible();
+    expect(
+      screen.getByText("Extension · Current account", { exact: false }),
+    ).toBeVisible();
+  });
+
+  it("plots mutually exclusive choices as separate paths", () => {
+    const decisions = [
+      {
+        id: "extension",
+        name: "Extension",
+        kind: "decision" as const,
+        status: "selected" as const,
+        reversibility: "irreversible" as const,
+        dependencyIds: [],
+        alternativeToIds: ["loft"],
+        labels: [],
+        currency: "GBP" as const,
+        stages: [],
+      },
+      {
+        id: "loft",
+        name: "Loft conversion",
+        kind: "decision" as const,
+        status: "considering" as const,
+        reversibility: "irreversible" as const,
+        dependencyIds: [],
+        alternativeToIds: ["extension"],
+        labels: [],
+        currency: "GBP" as const,
+        stages: [],
+      },
+    ];
+    const compareDecisionScenario = vi.fn(
+      ({ decisionIds }: { decisionIds: readonly string[] }) => ({
+        requestedDecisionIds: [...decisionIds],
+        includedDecisionIds: [...decisionIds],
+        includedDependencyIds: [],
+        warnings: [],
+        materialDates: [],
+        timeline: [],
+        goalDates: {
+          baseline: null,
+          lowCost: null,
+          expected: null,
+          highCost: null,
+        },
+        actions: [],
+        fundingMechanics: [],
+        judgments: [],
+      }),
+    );
+    mockAssetTracker({
+      futureCashFlows: decisions,
+      compareDecisionScenario,
+    });
+
+    render(<DecisionScenarioComparison />);
+
+    expect(
+      screen.getByText(
+        "Mutually exclusive choices are shown as separate paths, not added together.",
+      ),
+    ).toBeVisible();
+    expect(compareDecisionScenario).toHaveBeenCalledWith({
+      decisionIds: ["extension"],
+      horizonMonths: 60,
+      reserveMonths: null,
+    });
+    expect(compareDecisionScenario).toHaveBeenCalledWith({
+      decisionIds: ["loft"],
+      horizonMonths: 60,
+      reserveMonths: null,
+    });
+    expect(compareDecisionScenario).not.toHaveBeenCalledWith(
+      expect.objectContaining({ decisionIds: ["extension", "loft"] }),
+    );
+  });
+});
+
+describe("ForecastAssumptionManager", () => {
+  const currentAccount = {
+    id: "current",
+    name: "Current account",
+    provider: "Bank",
+    currency: "GBP" as const,
+    assetType: "cash" as const,
+    liquidity: "cash" as const,
+    expectedAnnualReturn: 0,
+    isOpen: true,
+    latestBalance: 10_000,
+    latestSnapshotDate: "2026-07-01",
+    cagr: null,
+  };
+  const household = {
+    members: [
+      { id: "alex", displayName: "Alex" },
+      { id: "sam", displayName: "Sam" },
+    ],
+    activeScope: { kind: "household" as const },
+  };
+  const taxEstimate = getHouseholdTaxEstimate(getDemoAssetTrackerData());
+
+  it("shows source lineage and manages reusable assumption-set versions", async () => {
+    const createForecastAssumptionSet = vi.fn();
+    const versionForecastAssumptionSet = vi.fn();
+    const deleteForecastAssumption = vi.fn();
+    mockAssetTracker({
+      accounts: [currentAccount],
+      household,
+      taxEstimate,
+      createForecastAssumptionSet,
+      versionForecastAssumptionSet,
+      deleteForecastAssumption,
+      forecastAssumptionSets: [
+        {
+          id: "baseline-v1",
+          seriesId: "baseline",
+          name: "Previous outlook",
+          version: 1,
+          status: "superseded",
+          createdAt: "2026-01-01T12:00:00Z",
+          assumptions: [],
+        },
+        {
+          id: "baseline-v2",
+          seriesId: "baseline",
+          name: "Current outlook",
+          version: 2,
+          status: "active",
+          createdAt: "2026-02-01T12:00:00Z",
+          supersedesId: "baseline-v1",
+          assumptions: [
+            {
+              id: "take-home",
+              name: "Take-home change",
+              kind: "income",
+              startDate: "2027-01-01",
+              monthlyChange: {
+                minimum: -700,
+                expected: -500,
+                maximum: -300,
+              },
+              currency: "GBP",
+              ownership: { kind: "personal", memberId: "alex" },
+              accountId: "current",
+              source: { kind: "manual-take-home" },
+            },
+            {
+              id: "tax-derived",
+              name: "Tax-derived change",
+              kind: "income",
+              startDate: "2027-02-01",
+              endDate: "2027-12-31",
+              monthlyChange: {
+                minimum: 200,
+                expected: 250,
+                maximum: 300,
+              },
+              currency: "GBP",
+              ownership: { kind: "personal", memberId: "sam" },
+              accountId: "current",
+              source: {
+                kind: "tax-derived",
+                taxYear: "2026-27",
+                calculationVersion: "1",
+                ruleDatasetVersion: "rules-1",
+              },
+              sourceNotes: "Latest tax calculation",
+            },
+            {
+              id: "manual-cost",
+              name: "Temporary cost",
+              kind: "expenditure",
+              startDate: "2027-03-01",
+              monthlyChange: {
+                minimum: 100,
+                expected: 100,
+                maximum: 100,
+              },
+              currency: "GBP",
+              ownership: { kind: "personal", memberId: "alex" },
+              source: { kind: "manual" },
+            },
+          ],
+        },
+      ],
+    });
+
+    render(<ForecastAssumptionManager />);
+
+    expect(screen.getAllByText("Manual take-home income")[0]).toBeVisible();
+    expect(
+      screen.getByText(/2026-27 tax rules · dataset rules-1/),
+    ).toBeVisible();
+    expect(screen.getAllByText("Manual assumption")[0]).toBeVisible();
+    expect(screen.getByText("No changes in this set.")).toBeVisible();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Create next version" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Delete assumption Temporary cost" }),
+    );
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "New reusable assumption set" }),
+      "Alternative outlook",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Add set" }));
+
+    expect(versionForecastAssumptionSet).toHaveBeenCalledWith("baseline-v2");
+    expect(deleteForecastAssumption).toHaveBeenCalledWith(
+      "baseline-v2",
+      "manual-cost",
+    );
+    expect(createForecastAssumptionSet).toHaveBeenCalledWith({
+      name: "Alternative outlook",
+    });
+  });
+
+  it("adds a tax-derived income range for one household member", async () => {
+    const addForecastAssumption = vi.fn();
+    mockAssetTracker({
+      accounts: [currentAccount],
+      household,
+      taxEstimate,
+      addForecastAssumption,
+      forecastAssumptionSets: [
+        {
+          id: "baseline-v1",
+          seriesId: "baseline",
+          name: "Household baseline",
+          version: 1,
+          status: "active",
+          createdAt: "2026-01-01T12:00:00Z",
+          assumptions: [],
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<ForecastAssumptionManager />);
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Name" }),
+      "Reduced working hours",
+    );
+    await user.type(
+      screen.getByRole("spinbutton", { name: "Expected monthly change" }),
+      "-500",
+    );
+    await user.type(
+      screen.getByRole("spinbutton", { name: "Minimum" }),
+      "-700",
+    );
+    await user.type(
+      screen.getByRole("spinbutton", { name: "Maximum" }),
+      "-300",
+    );
+    await user.type(
+      screen.getByRole("spinbutton", { name: "Confidence % (optional)" }),
+      "80",
+    );
+    await user.type(screen.getByLabelText("Ends (optional)"), "2027-12-31");
+    await user.type(
+      screen.getByRole("textbox", { name: "Source notes (optional)" }),
+      "Current tax calculation",
+    );
+    await user.click(screen.getByRole("combobox", { name: "Applies to" }));
+    await user.click(screen.getByRole("option", { name: "Sam" }));
+    await user.click(screen.getByRole("combobox", { name: "Source" }));
+    await user.click(
+      screen.getByRole("option", {
+        name: `${taxEstimate.taxYear} tax estimate`,
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Add forecast change" }),
+    );
+
+    expect(addForecastAssumption).toHaveBeenCalledWith({
+      setId: "baseline-v1",
+      name: "Reduced working hours",
+      kind: "income",
+      startDate: todayIsoDate(),
+      endDate: "2027-12-31",
+      monthlyChange: { minimum: -700, expected: -500, maximum: -300 },
+      currency: "GBP",
+      confidence: 0.8,
+      ownership: { kind: "personal", memberId: "sam" },
+      accountId: "current",
+      source: {
+        kind: "tax-derived",
+        taxYear: taxEstimate.taxYear,
+        calculationVersion: taxEstimate.calculationVersion,
+        ruleDatasetVersion: taxEstimate.lineage.ruleDatasetVersion,
+      },
+      sourceNotes: "Current tax calculation",
+    });
+  });
+
+  it("keeps expenditure changes household-owned and reports write errors", async () => {
+    const addForecastAssumption = vi
+      .fn()
+      .mockRejectedValue(new Error("Assumption could not be saved"));
+    mockAssetTracker({
+      accounts: [currentAccount],
+      household,
+      taxEstimate,
+      addForecastAssumption,
+      forecastAssumptionSets: [
+        {
+          id: "baseline-v1",
+          seriesId: "baseline",
+          name: "Household baseline",
+          version: 1,
+          status: "active",
+          createdAt: "2026-01-01T12:00:00Z",
+          assumptions: [],
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<ForecastAssumptionManager />);
+
+    await user.click(screen.getByRole("combobox", { name: "Change to" }));
+    await user.click(screen.getByRole("option", { name: "Expenditure" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Name" }),
+      "Temporary travel",
+    );
+    await user.type(
+      screen.getByRole("spinbutton", { name: "Expected monthly change" }),
+      "250",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Add forecast change" }),
+    );
+
+    expect(addForecastAssumption).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "expenditure",
+        monthlyChange: { minimum: 250, expected: 250, maximum: 250 },
+        accountId: undefined,
+        source: { kind: "manual" },
+        ownership: {
+          kind: "shared",
+          shares: [
+            { memberId: "alex", share: 0.5 },
+            { memberId: "sam", share: 0.5 },
+          ],
+        },
+      }),
+    );
+    expect(screen.getByText("Something went wrong")).toBeVisible();
+  });
+});
+
+describe("FutureCashFlowManager", () => {
+  const currentAccount = {
+    id: "current",
+    name: "Current account",
+    provider: "Bank",
+    currency: "GBP" as const,
+    assetType: "cash" as const,
+    liquidity: "cash" as const,
+    expectedAnnualReturn: 0,
+    isOpen: true,
+    latestBalance: 10_000,
+    latestSnapshotDate: "2026-07-01",
+    cagr: null,
+  };
+
+  it("creates a dated planning case and reports command errors", async () => {
+    const createPlanningCase = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("Planning case could not be saved"));
+    mockAssetTracker({ accounts: [currentAccount], createPlanningCase });
+    const user = userEvent.setup();
+    render(<FutureCashFlowManager />);
+
+    const name = screen.getByRole("textbox", { name: "New planning case" });
+    await user.type(name, "Summer plans");
+    await user.type(
+      screen.getByLabelText("Target date (optional)"),
+      "2027-08-01",
+    );
+    await user.click(screen.getByRole("button", { name: "Add case" }));
+    expect(createPlanningCase).toHaveBeenCalledWith({
+      name: "Summer plans",
+      labels: [],
+      targetDate: "2027-08-01",
+    });
+
+    await user.type(name, "Second plans");
+    await user.click(screen.getByRole("button", { name: "Add case" }));
+    expect(screen.getByText("Something went wrong")).toBeVisible();
+  });
+
+  it("adds a fully described weighted decision", async () => {
+    const addCashFlowDecision = vi.fn();
+    mockAssetTracker({
+      accounts: [currentAccount],
+      planningCases: [{ id: "summer-plans", name: "Summer plans", labels: [] }],
+      futureCashFlows: [
+        {
+          id: "booking",
+          name: "Firm booking",
+          kind: "commitment",
+          status: "active",
+          changeability: "fixed",
+          refundable: false,
+          labels: [],
+          currency: "GBP",
+          stages: [
+            {
+              id: "payment-1",
+              fromAccountId: "current",
+              dueDate: "2027-01-01",
+              amount: 1_000,
+              actuals: [],
+            },
+          ],
+        },
+        {
+          id: "other-option",
+          name: "Other option",
+          kind: "decision",
+          status: "declined",
+          reversibility: "reversible",
+          dependencyIds: [],
+          alternativeToIds: [],
+          labels: [],
+          currency: "GBP",
+          stages: [
+            {
+              id: "cash-flow-1",
+              fromAccountId: "current",
+              expectedDate: "2027-02-01",
+              minimumAmount: 100,
+              expectedAmount: 200,
+              maximumAmount: 300,
+              actuals: [],
+            },
+          ],
+        },
+      ],
+      addCashFlowDecision,
+    });
+    const user = userEvent.setup();
+    render(<FutureCashFlowManager />);
+
+    await user.click(screen.getByRole("combobox", { name: "Type" }));
+    await user.click(screen.getByRole("option", { name: "Weighted decision" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+      target: { value: "Upgrade" },
+    });
+    fireEvent.change(
+      screen.getByRole("spinbutton", { name: "Expected amount" }),
+      { target: { value: "750" } },
+    );
+    fireEvent.change(
+      screen.getByRole("spinbutton", { name: "Minimum amount" }),
+      { target: { value: "500" } },
+    );
+    fireEvent.change(
+      screen.getByRole("spinbutton", { name: "Maximum amount" }),
+      { target: { value: "1200" } },
+    );
+    fireEvent.change(screen.getByLabelText("Expected date"), {
+      target: { value: "2027-05-01" },
+    });
+    fireEvent.change(screen.getByLabelText("Earliest date"), {
+      target: { value: "2027-04-01" },
+    });
+    fireEvent.change(screen.getByLabelText("Latest date"), {
+      target: { value: "2027-06-01" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Importance" }), {
+      target: { value: "Nice to have" },
+    });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Confidence %" }), {
+      target: { value: "65" },
+    });
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Labels (comma separated)" }),
+      { target: { value: "priority, flexible" } },
+    );
+    await user.click(screen.getByRole("combobox", { name: "Planning case" }));
+    await user.click(screen.getByRole("option", { name: "Summer plans" }));
+    await user.click(screen.getByRole("combobox", { name: "Reversibility" }));
+    await user.click(screen.getByRole("option", { name: "Irreversible" }));
+    await user.click(screen.getByRole("combobox", { name: "Depends on" }));
+    await user.click(screen.getByRole("option", { name: "Firm booking" }));
+    await user.click(screen.getByRole("combobox", { name: "Alternative to" }));
+    await user.click(screen.getByRole("option", { name: "Other option" }));
+    await user.click(screen.getByRole("button", { name: "Add decision" }));
+
+    expect(addCashFlowDecision).toHaveBeenCalledWith({
+      name: "Upgrade",
+      planningCaseId: "summer-plans",
+      labels: ["priority", "flexible"],
+      currency: "GBP",
+      importance: "Nice to have",
+      confidence: 0.65,
+      reversibility: "irreversible",
+      dependencyIds: ["booking"],
+      alternativeToIds: ["other-option"],
+      stages: [
+        {
+          fromAccountId: "current",
+          earliestDate: "2027-04-01",
+          expectedDate: "2027-05-01",
+          latestDate: "2027-06-01",
+          minimumAmount: 500,
+          expectedAmount: 750,
+          maximumAmount: 1_200,
+        },
+      ],
+    });
+  }, 15_000);
+
+  it("updates statuses, deletes records, and records refunds", async () => {
+    const setCommitmentStatus = vi.fn();
+    const setCashFlowDecisionStatus = vi.fn();
+    const deleteFutureCashFlow = vi.fn();
+    const recordActualCashFlow = vi.fn();
+    mockAssetTracker({
+      accounts: [currentAccount],
+      planningCases: [{ id: "summer-plans", name: "Summer plans", labels: [] }],
+      futureCashFlows: [
+        {
+          id: "booking",
+          name: "Firm booking",
+          planningCaseId: "summer-plans",
+          kind: "commitment",
+          status: "active",
+          changeability: "fixed",
+          refundable: true,
+          labels: [],
+          currency: "GBP",
+          stages: [
+            {
+              id: "payment-1",
+              name: "Deposit",
+              fromAccountId: "current",
+              dueDate: "2027-01-01",
+              amount: 1_000,
+              actuals: [
+                {
+                  id: "actual-1",
+                  date: "2026-06-01",
+                  amount: 200,
+                  direction: "payment",
+                },
+              ],
+            },
+          ],
+        },
+        {
+          id: "upgrade",
+          name: "Optional upgrade",
+          kind: "decision",
+          status: "considering",
+          importance: "Nice to have",
+          reversibility: "partly-reversible",
+          dependencyIds: ["booking"],
+          alternativeToIds: ["unknown-option"],
+          labels: [],
+          currency: "GBP",
+          stages: [
+            {
+              id: "cash-flow-1",
+              fromAccountId: "current",
+              expectedDate: "2027-02-01",
+              minimumAmount: 500,
+              expectedAmount: 750,
+              maximumAmount: 1_000,
+              actuals: [],
+            },
+          ],
+        },
+      ],
+      setCommitmentStatus,
+      setCashFlowDecisionStatus,
+      deleteFutureCashFlow,
+      recordActualCashFlow,
+    });
+    const user = userEvent.setup();
+    render(<FutureCashFlowManager />);
+
+    expect(screen.getByText(/actual £200/)).toBeVisible();
+    expect(
+      screen.getByText(
+        "Depends on Firm booking. Alternative to unknown-option.",
+      ),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(setCommitmentStatus).toHaveBeenCalledWith("booking", "cancelled");
+
+    await user.click(
+      screen.getByRole("combobox", {
+        name: "Forecast status for Optional upgrade",
+      }),
+    );
+    await user.click(screen.getByRole("option", { name: "Include" }));
+    expect(setCashFlowDecisionStatus).toHaveBeenCalledWith(
+      "upgrade",
+      "selected",
+    );
+
+    const booking = screen.getByText("Firm booking").closest("li");
+    expect(booking).not.toBeNull();
+    await user.click(
+      within(booking as HTMLElement).getByRole("button", {
+        name: "Record actual",
+      }),
+    );
+    await user.type(
+      within(booking as HTMLElement).getByRole("spinbutton", {
+        name: "Amount",
+      }),
+      "75",
+    );
+    await user.click(
+      within(booking as HTMLElement).getByRole("combobox", {
+        name: "Direction",
+      }),
+    );
+    await user.click(screen.getByRole("option", { name: "Refund" }));
+    await user.click(
+      within(booking as HTMLElement).getByRole("button", { name: "Save" }),
+    );
+    expect(recordActualCashFlow).toHaveBeenCalledWith({
+      futureCashFlowId: "booking",
+      stageId: "payment-1",
+      date: todayIsoDate(),
+      amount: 75,
+      direction: "refund",
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Delete Optional upgrade" }),
+    );
+    expect(deleteFutureCashFlow).toHaveBeenCalledWith("upgrade");
+  });
+
+  it("explains why future cash flows cannot be added without an eligible account", () => {
+    mockAssetTracker({
+      accounts: [
+        {
+          ...currentAccount,
+          id: "closed",
+          isOpen: false,
+        },
+        {
+          ...currentAccount,
+          id: "property",
+          assetType: "property",
+          liquidity: "illiquid",
+        },
+      ],
+    });
+
+    render(<FutureCashFlowManager />);
+
+    expect(
+      screen.getByText(
+        "Add an open cash or liquid investment account before recording future cash flows.",
+      ),
+    ).toBeVisible();
   });
 });
 
@@ -681,6 +1953,7 @@ describe("UpcomingFlows", () => {
           name: "Salary",
           toAccountId: "cash",
           amount: 2500,
+          currency: "GBP",
           frequency: "monthly",
           startDate: today,
         },
@@ -696,6 +1969,206 @@ describe("UpcomingFlows", () => {
     expect(row).toHaveClass("grid", "min-w-0", "sm:flex");
     expect(row?.querySelector("span")).toHaveClass("shrink-0", "sm:w-24");
   });
+
+  it("shows both native amounts and the conversion fee", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(FIXED_NOW);
+    const today = todayIsoDate();
+    mockAssetTracker({
+      accounts: [
+        {
+          id: "gbp-cash",
+          name: "GBP cash",
+          provider: "Bank",
+          currency: "GBP",
+          assetType: "cash",
+          expectedAnnualReturn: 0,
+          isOpen: true,
+          latestBalance: 2_000,
+          latestSnapshotDate: today,
+          cagr: null,
+        },
+        {
+          id: "usd-cash",
+          name: "USD cash",
+          provider: "Bank",
+          currency: "USD",
+          assetType: "cash",
+          expectedAnnualReturn: 0,
+          isOpen: true,
+          latestBalance: 0,
+          latestSnapshotDate: today,
+          cagr: null,
+        },
+      ],
+      recurringFlows: [
+        {
+          id: "convert",
+          name: "Convert savings",
+          fromAccountId: "gbp-cash",
+          toAccountId: "usd-cash",
+          amount: 800,
+          currency: "GBP",
+          conversion: {
+            received: { amount: 1_000, currency: "USD" },
+            fee: { amount: 10, currency: "GBP" },
+            provider: "Broker",
+          },
+          frequency: "monthly",
+          startDate: today,
+        },
+        {
+          id: "free-convert",
+          name: "Fee-free conversion",
+          fromAccountId: "gbp-cash",
+          toAccountId: "usd-cash",
+          amount: 80,
+          currency: "GBP",
+          conversion: {
+            received: { amount: 100, currency: "USD" },
+            provider: "Bank",
+          },
+          frequency: "monthly",
+          startDate: today,
+        },
+      ],
+    });
+
+    render(<UpcomingFlows />);
+
+    expect(
+      screen.getByText(/£800\.00.*US\$1,000\.00.*£10\.00 fee/),
+    ).toBeVisible();
+    expect(screen.getByText(/£80\.00.*US\$100\.00$/)).toBeVisible();
+  });
+});
+
+describe("AccountFlows", () => {
+  it("shows converted amounts and delegates recording and deletion", async () => {
+    const addRecurringFlow = vi.fn().mockResolvedValue(undefined);
+    const materializeFlow = vi.fn().mockResolvedValue(undefined);
+    const deleteRecurringFlow = vi.fn().mockResolvedValue(undefined);
+    const account: AccountDetailView = {
+      id: "current",
+      name: "Current account",
+      provider: "Bank",
+      currency: "GBP",
+      assetType: "cash",
+      expectedAnnualReturn: 0,
+      isOpen: true,
+      latestBalance: 1_000,
+      latestSnapshotDate: "2026-07-03",
+      cagr: null,
+      createdAt: "2026-01-01",
+      snapshots: [],
+      capitalFlows: [],
+      netContributed: 0,
+      gainLoss: 0,
+    };
+    mockAssetTracker({
+      accounts: [
+        account,
+        {
+          id: "usd-account",
+          name: "USD account",
+          provider: "Bank",
+          currency: "USD",
+          assetType: "cash",
+          expectedAnnualReturn: 0,
+          isOpen: true,
+          latestBalance: 500,
+          latestSnapshotDate: "2026-07-03",
+          cagr: null,
+        },
+      ],
+      addRecurringFlow,
+      recurringFlows: [
+        {
+          id: "usd-salary",
+          name: "USD salary",
+          amount: 110,
+          currency: "USD",
+          conversion: {
+            received: { amount: 85, currency: "GBP" },
+            fee: { amount: 2, currency: "USD" },
+            provider: "Wise",
+          },
+          frequency: "monthly",
+          fromAccountId: "usd-account",
+          toAccountId: "current",
+          startDate: "2026-07-01",
+        },
+        {
+          id: "usd-rent",
+          name: "USD rent",
+          amount: 40,
+          currency: "GBP",
+          conversion: {
+            received: { amount: 50, currency: "USD" },
+            fee: { amount: 1, currency: "GBP" },
+            provider: "Bank FX",
+          },
+          frequency: "monthly",
+          fromAccountId: "current",
+          toAccountId: "usd-account",
+          startDate: "2026-07-01",
+        },
+      ],
+      materializeFlow,
+      deleteRecurringFlow,
+    });
+    const user = userEvent.setup();
+
+    render(<AccountFlows account={account} />);
+
+    const salary = screen.getByText("USD salary").closest("li");
+    const rent = screen.getByText("USD rent").closest("li");
+    expect(salary).not.toBeNull();
+    expect(rent).not.toBeNull();
+    expect(within(salary as HTMLElement).getByText("+£85.00/mo")).toBeVisible();
+    expect(within(salary as HTMLElement).getByText(/via Wise/)).toBeVisible();
+    expect(within(rent as HTMLElement).getByText("-£41.00/mo")).toBeVisible();
+
+    await user.click(
+      within(salary as HTMLElement).getByRole("button", { name: "Record" }),
+    );
+    expect(materializeFlow).toHaveBeenCalledWith("usd-salary");
+
+    await user.click(
+      within(rent as HTMLElement).getByRole("button", {
+        name: "Delete flow USD rent",
+      }),
+    );
+    expect(deleteRecurringFlow).toHaveBeenCalledWith("usd-rent");
+
+    await user.type(screen.getByLabelText("Flow name"), "Converted income");
+    await user.type(screen.getByLabelText("Flow amount"), "110");
+    await user.click(screen.getByRole("combobox", { name: "Flow source" }));
+    await user.click(screen.getByRole("option", { name: "From USD account" }));
+    await user.type(screen.getByLabelText("Amount received in GBP"), "85");
+    await user.type(screen.getByLabelText("Conversion fee in USD"), "2");
+    await user.type(screen.getByLabelText("Conversion provider"), "Wise");
+    await user.click(
+      screen.getByRole("button", {
+        name: "Add expected flow into this account",
+      }),
+    );
+
+    expect(addRecurringFlow).toHaveBeenCalledWith({
+      name: "Converted income",
+      amount: 110,
+      currency: "USD",
+      conversion: {
+        received: { amount: 85, currency: "GBP" },
+        fee: { amount: 2, currency: "USD" },
+        provider: "Wise",
+      },
+      formula: undefined,
+      frequency: "monthly",
+      fromAccountId: "usd-account",
+      toAccountId: "current",
+    });
+  });
 });
 
 describe("AccountsTable", () => {
@@ -703,6 +2176,10 @@ describe("AccountsTable", () => {
     const user = userEvent.setup();
     render(
       <AccountsTable
+        ownerLabels={{
+          current: "Alex",
+          "old-fund": "Alex 60%, Sam 40%",
+        }}
         accounts={[
           {
             id: "current",
@@ -744,6 +2221,9 @@ describe("AccountsTable", () => {
     );
 
     expect(screen.getByText("Current account")).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Current account" }),
+    ).toHaveAttribute("href", "/assettracker/accounts?account=current");
     expect(screen.queryByText("Old fund")).toBeNull();
 
     await user.click(
@@ -756,6 +2236,40 @@ describe("AccountsTable", () => {
     ).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Open-account net worth")).toBeVisible();
   });
+
+  it("shows a selected closed account on first render", () => {
+    render(
+      <AccountsTable
+        initialShowClosed
+        ownerLabels={{ "old-fund": "Alex" }}
+        accounts={[
+          {
+            id: "old-fund",
+            name: "Old fund",
+            provider: "Broker",
+            currency: "GBP",
+            assetType: "stocks",
+            expectedAnnualReturn: 0.05,
+            isOpen: false,
+            latestBalance: 0,
+            latestSnapshotDate: "2025-01-01",
+            cagr: null,
+            createdAt: "2023-01-01",
+            closedAt: "2025-01-01",
+            snapshots: [{ date: "2025-01-01", balance: 0 }],
+            capitalFlows: [],
+            netContributed: null,
+            gainLoss: null,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Old fund" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Hide closed accounts" }),
+    ).toHaveAttribute("aria-expanded", "true");
+  });
 });
 
 describe("FlowSankeyChart", () => {
@@ -763,9 +2277,9 @@ describe("FlowSankeyChart", () => {
     vi.clearAllMocks();
   });
 
-  it("passes left alignment to the Sankey layout", async () => {
+  it("preserves the calculated node order in the Sankey layout", async () => {
     const today = todayIsoDate();
-    mockAssetTracker({
+    const tracker = mockAssetTracker({
       accountDetails: [
         {
           id: "current",
@@ -809,18 +2323,153 @@ describe("FlowSankeyChart", () => {
           fromAccountId: "current",
           toAccountId: "isa",
           amount: 500,
+          currency: "GBP",
           frequency: "monthly",
           startDate: today,
         },
       ],
     });
 
-    render(<FlowSankeyChart />);
+    render(
+      <FlowSankeyChart
+        data={buildFlowSankeyData(
+          tracker.accountDetails,
+          tracker.recurringFlows,
+          Object.fromEntries(
+            tracker.accountDetails.map((account) => [
+              account.id,
+              account.latestBalance ?? 0,
+            ]),
+          ),
+          today,
+        )}
+        currency="GBP"
+      />,
+    );
 
     expect(await screen.findByTestId("flow-sankey")).toHaveAttribute(
       "data-align",
       "left",
     );
+    expect(screen.getByTestId("flow-sankey")).toHaveAttribute(
+      "data-sort",
+      "false",
+    );
+  });
+
+  it("highlights every flow connected to a hovered account", async () => {
+    const user = userEvent.setup();
+    const today = todayIsoDate();
+    const tracker = mockAssetTracker({
+      accountDetails: [
+        {
+          id: "current",
+          name: "Current",
+          provider: "Bank",
+          currency: "GBP",
+          assetType: "cash",
+          expectedAnnualReturn: 0,
+          isOpen: true,
+          latestBalance: 1000,
+          latestSnapshotDate: today,
+          cagr: null,
+          createdAt: today,
+          snapshots: [{ date: today, balance: 1000 }],
+          capitalFlows: [],
+          netContributed: null,
+          gainLoss: null,
+        },
+        {
+          id: "isa",
+          name: "ISA",
+          provider: "Broker",
+          currency: "GBP",
+          assetType: "stocks",
+          expectedAnnualReturn: 0.05,
+          isOpen: true,
+          latestBalance: 5000,
+          latestSnapshotDate: today,
+          cagr: null,
+          createdAt: today,
+          snapshots: [{ date: today, balance: 5000 }],
+          capitalFlows: [],
+          netContributed: null,
+          gainLoss: null,
+        },
+      ],
+      recurringFlows: [
+        {
+          id: "salary",
+          name: "Salary",
+          toAccountId: "current",
+          amount: 2000,
+          currency: "GBP",
+          frequency: "monthly",
+          startDate: today,
+        },
+        {
+          id: "isa",
+          name: "ISA contribution",
+          fromAccountId: "current",
+          toAccountId: "isa",
+          amount: 500,
+          currency: "GBP",
+          frequency: "monthly",
+          startDate: today,
+        },
+      ],
+    });
+
+    render(
+      <FlowSankeyChart
+        data={buildFlowSankeyData(
+          tracker.accountDetails,
+          tracker.recurringFlows,
+          Object.fromEntries(
+            tracker.accountDetails.map((account) => [
+              account.id,
+              account.latestBalance ?? 0,
+            ]),
+          ),
+          today,
+        )}
+        currency="GBP"
+      />,
+    );
+
+    const current = await screen.findByTestId("sankey-node-current");
+    const incoming = screen.getByLabelText("External income to Current");
+    const outgoing = screen.getByLabelText("Current to ISA");
+    const unrelated = screen.getAllByLabelText("Expected returns to ISA")[0];
+    if (!unrelated) throw new Error("Expected the return flow to be rendered");
+    await user.hover(current);
+
+    expect(current.querySelector("rect")).toHaveAttribute("fill-opacity", "1");
+    expect(incoming).toHaveAttribute("stroke-opacity", "0.65");
+    expect(outgoing).toHaveAttribute("stroke-opacity", "0.65");
+    expect(unrelated).toHaveAttribute("stroke-opacity", "0.25");
+
+    await user.unhover(current);
+    expect(incoming).toHaveAttribute("stroke-opacity", "0.25");
+
+    await user.hover(unrelated);
+    const flowKey = unrelated.getAttribute("data-flow-key");
+    expect(flowKey).not.toBeNull();
+    for (const segment of document.querySelectorAll(
+      `[data-flow-key="${flowKey}"]`,
+    )) {
+      const opacityAttribute =
+        segment.tagName === "path" ? "stroke-opacity" : "fill-opacity";
+      expect(segment).toHaveAttribute(opacityAttribute, "0.65");
+    }
+    expect(
+      screen
+        .getByTestId("sankey-node-__expected_returns")
+        .querySelector("rect"),
+    ).toHaveAttribute("fill-opacity", "1");
+    expect(
+      screen.getByTestId("sankey-node-isa").querySelector("rect"),
+    ).toHaveAttribute("fill-opacity", "1");
   });
 });
 
@@ -847,6 +2496,7 @@ describe("buildFlowSankeyData", () => {
           name: "Closed contribution",
           toAccountId: "closed-isa",
           amount: 500,
+          currency: "GBP",
           frequency: "monthly",
           startDate: "2026-07-01",
         },
@@ -892,6 +2542,7 @@ describe("buildFlowSankeyData", () => {
           toAccountId: "current",
           amount: 4_100,
           grossAmount: 6_400,
+          currency: "GBP",
           compensationKind: "takeHomeIncome",
           frequency: "monthly",
           startDate: "2026-07-01",
@@ -901,6 +2552,7 @@ describe("buildFlowSankeyData", () => {
           name: "Employee pension",
           toAccountId: "pension",
           amount: 900,
+          currency: "GBP",
           compensationKind: "employeePension",
           frequency: "monthly",
           startDate: "2026-07-01",
@@ -910,6 +2562,7 @@ describe("buildFlowSankeyData", () => {
           name: "Employer pension",
           toAccountId: "pension",
           amount: 350,
+          currency: "GBP",
           compensationKind: "employerPension",
           frequency: "monthly",
           startDate: "2026-07-01",
@@ -1004,6 +2657,7 @@ describe("buildFlowSankeyData", () => {
           toAccountId: "current",
           amount: 90,
           grossAmount: 100,
+          currency: "GBP",
           compensationKind: "takeHomeIncome",
           frequency: "monthly",
           startDate: "2026-07-01",
@@ -1013,6 +2667,7 @@ describe("buildFlowSankeyData", () => {
           name: "Employee pension",
           toAccountId: "pension",
           amount: 20,
+          currency: "GBP",
           compensationKind: "employeePension",
           frequency: "monthly",
           startDate: "2026-07-01",
@@ -1074,6 +2729,7 @@ describe("buildFlowSankeyData", () => {
           toAccountId: "current",
           amount: 0.1,
           grossAmount: 0.3,
+          currency: "GBP",
           compensationKind: "takeHomeIncome",
           frequency: "monthly",
           startDate: "2026-07-01",
@@ -1083,6 +2739,7 @@ describe("buildFlowSankeyData", () => {
           name: "Employee pension",
           toAccountId: "pension",
           amount: 0.2,
+          currency: "GBP",
           compensationKind: "employeePension",
           frequency: "monthly",
           startDate: "2026-07-01",
@@ -1150,6 +2807,7 @@ describe("buildFlowSankeyData", () => {
           name: "Salary",
           toAccountId: "current",
           amount: 3200,
+          currency: "GBP",
           frequency: "monthly",
           startDate: "2026-07-01",
         },
@@ -1159,6 +2817,7 @@ describe("buildFlowSankeyData", () => {
           fromAccountId: "current",
           toAccountId: "isa",
           amount: 6000,
+          currency: "GBP",
           frequency: "yearly",
           startDate: "2026-07-01",
         },
@@ -1172,6 +2831,7 @@ describe("buildFlowSankeyData", () => {
             percentOfBalance: 0.025,
             floor: 25,
           },
+          currency: "GBP",
           frequency: "monthly",
           startDate: "2026-07-01",
         },
@@ -1279,6 +2939,7 @@ describe("buildFlowSankeyData", () => {
           fromAccountId: "current",
           toAccountId: "mortgage",
           amount: 1150,
+          currency: "GBP",
           frequency: "monthly",
           startDate: "2026-07-01",
         },
@@ -1423,6 +3084,7 @@ describe("buildFlowSankeyData", () => {
           fromAccountId: "current",
           toAccountId: "savings",
           amount: 0.004,
+          currency: "GBP",
           frequency: "monthly",
           startDate: "2026-07-01",
         },
@@ -1468,6 +3130,7 @@ describe("buildFlowSankeyData", () => {
           fromAccountId: "current",
           toAccountId: "savings",
           amount: 10,
+          currency: "GBP",
           frequency: "monthly",
           startDate: "2026-07-01",
         },
@@ -1477,6 +3140,7 @@ describe("buildFlowSankeyData", () => {
           fromAccountId: "current",
           toAccountId: "savings",
           amount: 5,
+          currency: "GBP",
           frequency: "monthly",
           startDate: "2026-07-01",
         },

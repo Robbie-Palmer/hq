@@ -13,6 +13,11 @@ describe("shopping lists proxy", () => {
   it.each([
     ["GET", "/api/shopping-lists/current", "/shopping-lists/current"],
     ["PUT", "/api/shopping-lists/current", "/shopping-lists/current"],
+    [
+      "POST",
+      "/api/shopping-lists/current/shares",
+      "/shopping-lists/current/shares",
+    ],
     ["POST", "/api/shopping-lists", "/shopping-lists"],
   ])("maps %s %s to %s", async (method, sourcePath, workerPath) => {
     const fetchMock = vi.fn(async (_request: Request) => new Response("ok"));

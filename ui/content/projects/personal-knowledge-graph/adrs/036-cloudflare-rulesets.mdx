@@ -1,0 +1,101 @@
+---
+title: "ADR 036: Cloudflare Rulesets for Subdomain Routing"
+date: "2026-01-11"
+status: "Rejected"
+tech_stack: ["Cloudflare Rulesets"]
+---
+
+# Context
+
+I want to host incubating projects (like Asset Tracker) under subdomains
+(e.g., `assettracker.robbiepalmer.me`) while keeping them within the same
+Next.js application and Cloudflare Pages deployment.
+
+Incubating projects within the same Next.js app provides advantages:
+
+* **Shared Components**: New projects can import existing UI components, layouts, and utilities directly.
+* **Shared Configuration**: Tailwind theme, TypeScript config, ESLint rules, and build setup are inherited automatically.
+* **Automatic Improvements**: Dependency upgrades and infrastructure changes benefit all projects without keeping separate packages in sync.
+* **Single Deployment**: One Cloudflare Pages project with unified preview deployments for all changes.
+
+# Decision
+
+**Rejected**. After investigation, subdomain routing within a single Cloudflare Pages project
+is not feasible with static site generation.
+
+## What We Tried
+
+Cloudflare Transform Rules can rewrite URI paths at the edge:
+
+```hcl
+resource "cloudflare_ruleset" "assettracker_rewrite" {
+  zone_id = data.cloudflare_zone.domain.id
+  name    = "Assettracker subdomain rewrite"
+  kind    = "zone"
+  phase   = "http_request_transform"
+
+  rules {
+    action     = "rewrite"
+    expression = "(http.host eq \"assettracker.robbiepalmer.me\") and not starts_with(http.request.uri.path, \"/_next\")"
+
+    action_parameters {
+      uri {
+        path {
+          expression = "concat(\"/assettracker\", http.request.uri.path)"
+        }
+      }
+    }
+  }
+}
+```
+
+## Why It Didn't Work
+
+**Pages custom domains bypass zone-level transform rules.**
+When a custom domain is registered with a Pages project, Pages intercepts requests before the transform rule applies.
+Pages then returns a 308 redirect because it can't find content at the root path.
+
+Without the Pages custom domain, requests fail with 522 (connection timeout)
+because Pages doesn't accept requests for unregistered hostnames.
+
+## Future Approach
+
+When Asset Tracker "graduates" to its own Cloudflare Pages project:
+
+1. Create a separate Pages project for assettracker
+2. Register `assettracker.robbiepalmer.me` as its custom domain
+3. Deploy assettracker as a standalone Next.js app at root path `/`
+4. No transform rules needed - subdomain maps directly to the project
+
+This preserves SSG benefits and avoids the complexity of runtime routing.
+
+# Alternatives Considered
+
+## Middleware / Runtime Routing
+
+* **Pros**: Next.js middleware can route by hostname natively.
+* **Cons**: Requires a runtime, breaking [Static Site Generation](/projects/personal-knowledge-graph/adrs/015-ssg). Would need either Vercel or Cloudflare Workers (via [`@opennextjs/cloudflare`](https://opennext.js.org/cloudflare)).
+* **Decision**: Rejected - SSG constraint takes priority.
+
+## Path-Based Routing
+
+* **Pros**: Works with single Pages project and SSG. No infrastructure complexity.
+* **Cons**: Less clean URLs (`robbiepalmer.me/assettracker` vs `assettracker.robbiepalmer.me`).
+* **Decision**: Accepted for now. Subdomains can be added when projects graduate to separate deployments.
+
+# Consequences
+
+### Current State
+
+Asset Tracker lives at `robbiepalmer.me/assettracker`.
+This is acceptable for an incubating project.
+The path-based approach keeps infrastructure simple while allowing rapid iteration.
+
+### Future Graduation Path
+
+When a project needs its own subdomain:
+
+1. Extract to separate repository
+2. Create dedicated Cloudflare Pages project
+3. Subdomain "just works" without transform rules
+4. Static site benefits preserved throughout

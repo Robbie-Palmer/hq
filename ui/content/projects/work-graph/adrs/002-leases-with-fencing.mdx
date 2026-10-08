@@ -1,0 +1,51 @@
+---
+title: "ADR 002: Execution leases with fencing"
+date: "2026-09-13"
+status: "Accepted"
+---
+
+## Context
+
+Workers need to claim work in one action and continue it even when queued
+priorities change. Agents can disappear through failure, exhausted usage,
+closed sessions, or unavailable machines. A later worker must recover stale
+work without allowing delayed requests from the former worker to corrupt it.
+
+Attention requests add another pause. The worker with prior context should be
+easy to identify when work resumes, but waiting for that worker must not make
+the item unavailable indefinitely.
+
+## Decision
+
+Represent execution ownership with a renewable lease containing a stable worker
+ID, expiry time, and monotonically increasing epoch. Claim selection and lease
+creation are atomic as defined by
+[ADR 001](/projects/work-graph/adrs/001-postgresql-coordination-boundary).
+
+Every mutation made on behalf of a worker must present the current lease ID and
+epoch. Reclaiming an expired lease increments the epoch, which fences delayed
+requests carrying the previous value. Immutable lease history records the
+worker, timestamps, and one terminal outcome such as released, cancelled,
+decomposed, attention requested, or expired.
+
+Do not pre-empt an active lease when higher-priority work becomes ready. The
+worker continues until it releases, cancels, decomposes, requests attention, or
+lets the lease expire.
+
+Opening a blocking attention request ends the active lease. After every
+blocking request is resolved, recompute the normal readiness predicates. The
+item becomes ready for any worker only when its dependencies are satisfied and
+it has no non-terminal direct children. Preserve the previous worker in lease
+history so a later queue policy can give continuity a soft preference without
+reserving the item.
+
+## Consequences
+
+Abandoned work returns to circulation and old workers cannot write after
+takeover. Lease renewal becomes part of every worker client's normal operation.
+Expiry duration must balance recovery speed against false takeovers during long
+tool calls.
+
+The MVP does not decide how strongly to prefer the previous worker after an
+attention request is resolved. The stored history supports that policy later
+without a schema change.

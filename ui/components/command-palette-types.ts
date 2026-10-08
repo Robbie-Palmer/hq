@@ -19,3 +19,18 @@ export interface PaletteIdea {
   slug: string;
   title: string;
 }
+
+export interface PaletteBlogPost {
+  slug: string;
+  title: string;
+}
+
+export interface PaletteProject {
+  slug: string;
+  title: string;
+}
+
+export interface PaletteInitiative {
+  slug: string;
+  title: string;
+}

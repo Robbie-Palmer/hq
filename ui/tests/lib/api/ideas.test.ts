@@ -10,7 +10,7 @@ import {
 
 describe("ideas API", () => {
   it("lists every idea with canonical reference counts", () => {
-    expect(getAllIdeaSlugs()).toHaveLength(26);
+    expect(getAllIdeaSlugs()).toHaveLength(37);
 
     const ideas = getAllIdeas();
     expect(ideas.map((idea) => idea.title)).toEqual(
@@ -19,7 +19,7 @@ describe("ideas API", () => {
     expect(ideas).toContainEqual(
       expect.objectContaining({
         slug: "goodharts-law",
-        referenceCount: 11,
+        referenceCount: 12,
       }),
     );
   });
@@ -29,6 +29,7 @@ describe("ideas API", () => {
     if (!idea) throw new Error("Expected Goodhart's Law to exist");
 
     expect(idea.relatedIdeas.map((related) => related.slug)).toEqual([
+      "adaptive-planning",
       "dora-metrics",
       "jevons-paradox",
     ]);
@@ -41,8 +42,8 @@ describe("ideas API", () => {
     expect(idea.relatedContent.adrs).toHaveLength(7);
     expect(idea.relatedContent.adrs).toContainEqual(
       expect.objectContaining({
-        slug: "049-zizmor",
-        projectSlug: "personal-site",
+        slug: "048-zizmor",
+        projectSlug: "personal-knowledge-graph",
       }),
     );
   });
@@ -109,7 +110,21 @@ describe("ideas API", () => {
       getIdeasForBlog("2022-03-02-the-philosophy-of-data-science").map(
         (idea) => idea.slug,
       ),
-    ).toEqual(["bounded-context", "data-mesh", "domain-driven-design"]);
+    ).toEqual([
+      "bounded-context",
+      "computationalism",
+      "critical-rationalism",
+      "data-mesh",
+      "domain-driven-design",
+      "empiricism",
+      "epistemology",
+      "falsifiability",
+      "incommensurability",
+      "logical-empiricism",
+      "paradigm-shift",
+      "postpositivism",
+      "theory-ladenness",
+    ]);
     expect(
       getIdeasForBlog(
         "2023-03-28-uniting-machine-learning-data-streaming-1",
@@ -121,15 +136,15 @@ describe("ideas API", () => {
       ).map((idea) => idea.slug),
     ).toEqual(["ner", "nlp"]);
     expect(
-      getIdeasForADR("recipe-site:031-openrouter").map((idea) => idea.slug),
+      getIdeasForADR("recipe-site:002-openrouter").map((idea) => idea.slug),
     ).toEqual(["intelligent-document-processing", "nlp", "ocr"]);
     expect(
-      getIdeasForADR("personal-site:057-food-ontology-alignment").map(
+      getIdeasForADR("recipe-site:026-food-ontology-alignment").map(
         (idea) => idea.slug,
       ),
     ).toEqual(["ontology-engineering"]);
     expect(
-      getIdeasForADR("recipe-site:045-sonarqube").map((idea) => idea.slug),
+      getIdeasForADR("recipe-site:009-sonarqube").map((idea) => idea.slug),
     ).toEqual(["goodharts-law"]);
   });
 

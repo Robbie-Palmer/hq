@@ -1,18 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export HOME={{ ansible_facts.env.HOME | quote }}
-export PATH={{ ([
-  colima_k3s_colima_binary.stdout | dirname,
-  colima_k3s_lima_binary.stdout | dirname,
-  colima_k3s_kubectl_binary.stdout | dirname,
-  colima_k3s_docker_binary.stdout | dirname,
-  '/opt/homebrew/bin',
-  '/usr/local/bin',
-  '/usr/bin',
-  '/bin',
-  '/usr/sbin',
-  '/sbin'
-] | unique | join(':')) | quote }}
+HOME={{ ansible_facts.env.HOME | quote }}
+PATH={{ colima_k3s_wrapper_path | quote }}
+export HOME PATH
+
+# Do not start the cluster while media workloads could inherit the residential
+# default route. The in-cluster gate handles later route changes.
+while true; do
+  vpn_iface="$(
+    /sbin/route -n get 1.1.1.1 2>/dev/null \
+      | /usr/bin/awk '/^ *interface:/{print $2}'
+  )"
+  if [[ "$vpn_iface" == utun* ]]; then
+    break
+  fi
+  echo "$(/bin/date '+%F %T') waiting for a VPN default route before starting K3s"
+  /bin/sleep 10
+done
 
 exec {{ colima_k3s_colima_binary.stdout | quote }} start {{ colima_k3s_profile | quote }} --foreground

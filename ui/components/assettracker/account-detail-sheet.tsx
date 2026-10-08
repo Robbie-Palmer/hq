@@ -12,6 +12,12 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import {
+  formatAccountCurrency,
+  formatAnnualRate,
+  LIQUIDITY_TIER_LABELS,
+  todayIsoDate,
+} from "@/lib/assettracker";
+import {
   type AccountDetailView,
   accountLiquidity,
   type CapitalFlowKind,
@@ -19,13 +25,13 @@ import {
   computeEquitySummary,
   type EquitySummary,
   effectiveExpectedReturn,
-  formatAccountCurrency,
-  formatAnnualRate,
   formatAssetTrackerError,
   isLiability,
-  LIQUIDITY_TIER_LABELS,
+  type PropertyComparableView,
+  type PropertyValueHistoryView,
   realRate,
-  todayIsoDate,
+  transferAmountFrom,
+  transferAmountTo,
 } from "@/lib/domain/assettracker";
 import { AccountFlows } from "./account-flows";
 import { AccountHistoryImportDrawer } from "./account-history-import-drawer";
@@ -38,6 +44,9 @@ import { CloseAccountControls } from "./close-account-controls";
 import { EquityProjection } from "./equity-projection";
 import { ExpectedReturnEditor } from "./expected-return-editor";
 import { LogBalanceDrawer } from "./log-balance-drawer";
+import { MortgageSchedule } from "./mortgage-schedule";
+import { PropertyComparables } from "./property-comparables";
+import { PropertyValueHistory } from "./property-value-history";
 import { RecordTransferDrawer } from "./record-transfer-drawer";
 
 interface AccountDetailSheetProps {
@@ -51,88 +60,128 @@ const CAPITAL_FLOW_LABELS: Record<CapitalFlowKind, string> = {
   external: "Outside entered income",
 };
 
+function PropertyEvidence({
+  accountId,
+  comparableViews,
+  valueHistories,
+}: Readonly<{
+  accountId: string;
+  comparableViews: PropertyComparableView[];
+  valueHistories: PropertyValueHistoryView[];
+}>) {
+  const valueHistory = valueHistories.find(
+    (history) => history.accountId === accountId,
+  );
+  const comparables = comparableViews.find(
+    (view) => view.accountId === accountId,
+  );
+  return (
+    <>
+      {valueHistory && <PropertyValueHistory view={valueHistory} />}
+      {comparables && <PropertyComparables view={comparables} />}
+    </>
+  );
+}
+
 export function AccountDetailSheet({
   accountId,
   onClose,
 }: Readonly<AccountDetailSheetProps>) {
-  const { accounts, accountDetails, recurringFlows, inflation } =
-    useAssetTracker();
+  const {
+    accounts,
+    accountDetails,
+    recurringFlows,
+    inflation,
+    transfers,
+    netWorthData,
+    propertyComparableViews = [],
+    propertyValueHistories = [],
+  } = useAssetTracker();
 
   const account =
     accountDetails.find((detail) => detail.id === accountId) ?? null;
-  const linkedMortgages = account
-    ? accountDetails.filter((d) => d.linkedAccountId === account.id && d.isOpen)
-    : [];
-  const equity = account ? computeEquitySummary(account, accountDetails) : null;
+  if (!account) return null;
+
+  const linkedMortgages = accountDetails.filter(
+    (detail) => detail.linkedAccountId === account.id && detail.isOpen,
+  );
+  const equity = computeEquitySummary(account, accountDetails);
   const liabilityBalances = Object.fromEntries(
     accountDetails.map((d) => [d.id, d.latestBalance ?? 0]),
   );
-  const hasOtherOpenAccounts = account
-    ? accounts.some((a) => a.isOpen && a.id !== account.id)
-    : false;
-
+  const hasOtherOpenAccounts = accounts.some(
+    (candidate) => candidate.isOpen && candidate.id !== account.id,
+  );
   function handleOpenChange(open: boolean) {
     if (!open) onClose();
   }
 
   return (
-    <Sheet open={account !== null} onOpenChange={handleOpenChange}>
+    <Sheet open onOpenChange={handleOpenChange}>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg">
-        {account && (
-          <>
-            <AccountSheetHeader account={account} />
-            <div className="flex flex-col gap-6 px-4 pb-8">
-              <StatsCards account={account} inflation={inflation} />
-              {account.netContributed != null && (
-                <CapitalPerformanceCard account={account} />
-              )}
-              <AccountTrajectoryChart account={account} />
-              {equity && <EquityCard account={account} equity={equity} />}
-              {account.isOpen && (
-                <AccountProjection
-                  account={account}
-                  flows={recurringFlows}
-                  liabilityBalances={liabilityBalances}
-                  inflation={inflation}
-                />
-              )}
-              {account.assetType === "property" &&
-                linkedMortgages.length > 0 && (
-                  <EquityProjection
-                    property={account}
-                    mortgages={linkedMortgages}
-                    flows={recurringFlows}
-                    liabilityBalances={liabilityBalances}
-                    inflation={inflation}
-                  />
+        <AccountSheetHeader account={account} />
+        <div className="flex flex-col gap-6 px-4 pb-8">
+          <StatsCards account={account} inflation={inflation} />
+          {account.netContributed != null && (
+            <CapitalPerformanceCard account={account} />
+          )}
+          <AccountTrajectoryChart
+            account={account}
+            transfers={transfers}
+            netWorthData={netWorthData}
+          />
+          <PropertyEvidence
+            accountId={account.id}
+            comparableViews={propertyComparableViews}
+            valueHistories={propertyValueHistories}
+          />
+          {equity && <EquityCard account={account} equity={equity} />}
+          {account.isOpen && (
+            <AccountProjection
+              account={account}
+              flows={recurringFlows}
+              liabilityBalances={liabilityBalances}
+              inflation={inflation}
+            />
+          )}
+          {account.assetType === "mortgage" &&
+            account.mortgageTerms != null && (
+              <MortgageSchedule account={account} />
+            )}
+          {account.assetType === "property" && linkedMortgages.length > 0 && (
+            <EquityProjection
+              property={account}
+              mortgages={linkedMortgages}
+              flows={recurringFlows}
+              liabilityBalances={liabilityBalances}
+              inflation={inflation}
+            />
+          )}
+          <AccountFlows account={account} />
+          {!isLiability(account.assetType) && (
+            <AccountLiquidityEditor account={account} />
+          )}
+          <ExpectedReturnEditor account={account} />
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-medium">Recorded history</h3>
+            <AccountHistoryImportDrawer account={account} />
+          </div>
+          <BalanceHistory account={account} />
+          <CapitalFlowHistory account={account} />
+          <TransfersList account={account} />
+          {account.isOpen && (
+            <div className="flex flex-col gap-3 border-t pt-4">
+              <div className="flex flex-wrap gap-2">
+                <LogBalanceDrawer accountId={account.id} />
+                {hasOtherOpenAccounts && (
+                  <RecordTransferDrawer fromAccountId={account.id} />
                 )}
-              <AccountFlows account={account} />
-              {!isLiability(account.assetType) && (
-                <AccountLiquidityEditor account={account} />
-              )}
-              <ExpectedReturnEditor account={account} />
-              <div className="flex items-center justify-between gap-2">
-                <h3 className="text-sm font-medium">Recorded history</h3>
-                <AccountHistoryImportDrawer account={account} />
               </div>
-              <BalanceHistory account={account} />
-              <CapitalFlowHistory account={account} />
-              <TransfersList account={account} />
-              {account.isOpen && (
-                <div className="flex flex-col gap-3 border-t pt-4">
-                  <div className="flex flex-wrap gap-2">
-                    <LogBalanceDrawer accountId={account.id} />
-                    {hasOtherOpenAccounts && (
-                      <RecordTransferDrawer fromAccountId={account.id} />
-                    )}
-                  </div>
-                  {/* key resets the pending confirmation when the account changes */}
-                  <CloseAccountControls key={account.id} account={account} />
-                </div>
-              )}
+              {/* key resets the pending confirmation when the account changes */}
+              <CloseAccountControls key={account.id} account={account} />
             </div>
-          </>
-        )}
+          )}
+        </div>
       </SheetContent>
     </Sheet>
   );
@@ -421,7 +470,12 @@ function TransfersList({ account }: Readonly<{ account: AccountDetailView }>) {
               </span>
               <span className="font-mono">
                 {into ? "+" : "−"}
-                {formatAccountCurrency(transfer.amount, account.currency)}
+                {formatAccountCurrency(
+                  into
+                    ? transferAmountTo(transfer)
+                    : transferAmountFrom(transfer),
+                  account.currency,
+                )}
               </span>
             </li>
           );

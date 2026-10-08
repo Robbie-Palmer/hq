@@ -34,10 +34,10 @@ export function HomeKnowledgeGraph() {
             Follow the connections
           </h2>
           <p className="mt-4 text-base leading-7 text-muted-foreground sm:text-lg">
-            The site is stored as connected data. Projects link to their
-            architecture decisions, the tools used to build them, and the ideas,
-            writing, and roles that shaped them. Pick a node to follow those
-            links.
+            The site is stored as connected data. Projects link to research
+            papers, architecture decisions, the tools used to build them, and
+            the ideas, writing, and roles that shaped them. Pick a node to
+            follow those links.
           </p>
         </div>
 

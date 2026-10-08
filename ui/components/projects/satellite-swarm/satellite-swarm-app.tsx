@@ -25,8 +25,8 @@ export function SatelliteSwarmApp() {
           </h1>
           <p className="max-w-2xl text-lg leading-8 text-muted-foreground sm:text-xl">
             Run a deterministic three-node mission on a self-hosted CesiumJS
-            globe, then drop the winning assignment to inspect a real protocol
-            failure. The existing C++ coordination code executes as WebAssembly
+            globe, then inspect a lost assignment or a completed safe-state
+            action. The existing C++ coordination code executes as WebAssembly
             in a browser worker, with no JavaScript copy of its decisions.
           </p>
           <div className="flex flex-wrap gap-3">
@@ -38,7 +38,7 @@ export function SatelliteSwarmApp() {
             </Button>
             <Button asChild variant="outline">
               <a
-                href="https://github.com/Robbie-Palmer/personal-site/tree/main/cpp/autonomic-satellite-swarm"
+                href="https://github.com/Robbie-Palmer/hq/tree/main/cpp/autonomic-satellite-swarm"
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -64,10 +64,11 @@ export function SatelliteSwarmApp() {
               C++ mission simulation
             </h2>
             <p className="leading-7 text-muted-foreground">
-              Choose a geographic objective and network scenario, run the
+              Choose a geographic objective and simulation scenario, run the
               portable C++ controller, and step through its request, candidate
-              scores, messages, and final assignment. Positions remain scripted
-              inputs, not propagated orbits.
+              scores, messages, and final assignment. The C++ simulation
+              propagates each node&apos;s fixed TLE with SGP4 and supplies the
+              resulting orbit to both the controller and Cesium.
             </p>
           </div>
           <DeferredSatelliteSwarmSimulation />
@@ -92,9 +93,10 @@ export function SatelliteSwarmApp() {
           </p>
           <h2 className="mb-3 text-xl font-semibold">Self-hosted CesiumJS</h2>
           <p className="leading-7 text-muted-foreground">
-            Cesium draws the Earth, scripted node positions, message links, and
-            selected objective. Its imagery, runtime assets, and WebAssembly
-            module are served by this site without a Cesium ion token.
+            Cesium draws the Earth, SGP4-propagated node positions, the selected
+            node&apos;s orbit, and the objective. Its imagery, runtime assets,
+            and WebAssembly module are served by this site without a Cesium ion
+            token.
           </p>
         </div>
       </section>

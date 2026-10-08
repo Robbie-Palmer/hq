@@ -1,0 +1,32 @@
+{
+  "name": "finance-tax-monitor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "deploy:check": "bash scripts/deploy.sh --dry-run",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage --config vitest.coverage.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "drizzle-postgres": "workspace:*",
+    "drizzle-orm": "^0.45.0",
+    "fflate": "^0.8.3",
+    "finance-tax-rules": "workspace:*",
+    "ts-base": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.0.0",
+    "@electric-sql/pglite": "^0.5.0",
+    "@types/node": "^24",
+    "@vitest/coverage-v8": "^5.0.0",
+    "drizzle-kit": "^0.31.0",
+    "typescript": "^5",
+    "vitest": "^5.0.0",
+    "wrangler": "^4"
+  }
+}

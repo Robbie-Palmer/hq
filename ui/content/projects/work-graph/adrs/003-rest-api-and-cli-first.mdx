@@ -1,0 +1,52 @@
+---
+title: "ADR 003: REST API and TypeScript CLI before MCP"
+date: "2026-09-13"
+status: "Accepted"
+tech_stack: ["Hono", "OpenAPI", "Spectral", "oasdiff"]
+---
+
+## Context
+
+Workers on several machines need one headless interface for queue inspection,
+atomic claims, graph edits, notes, and work transitions. MCP could expose those
+operations to compatible agents, but it would not remove the need for a stable
+application API or a tool that works in ordinary terminals and scripts.
+
+Only one owner and coordinated clients use the MVP. Choosing a permanent public
+versioning scheme now would answer a compatibility problem that does not yet
+exist.
+
+## Decision
+
+Make an HTTP REST API implemented with Hono the canonical application boundary.
+Expose noun-based resources under an unversioned `/api` prefix. Build an
+installable TypeScript CLI against that contract before adding MCP.
+
+Define routes and bounded request and response schemas with Zod-backed OpenAPI
+declarations. Commit the generated OpenAPI 3.1 document, verify runtime route
+parity, and lint it with the shared Spectral, OpenAPI, and OWASP rules in
+`api-governance/`. Use `oasdiff` when the contract needs a breaking-change gate.
+
+Defer API versioning until an independent client cannot update with the server.
+The absence of a URL version marks the current contract as pre-stable. A later
+decision can choose URL, media-type, or another versioning mechanism from the
+constraints that exist then.
+
+After the CLI proves the operation semantics, add MCP as a thin adapter over the
+same application layer. Use MCP's current
+[Streamable HTTP transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
+and reuse the existing domain operations.
+
+## Consequences
+
+The CLI gives people and agents the same behavior in local terminals, remote
+development machines, and automation. OpenAPI supplies a machine-readable
+contract and can generate client types.
+
+The service must keep HTTP handlers thin so REST and a later MCP adapter cannot
+drift into separate implementations. Coordinated client and server releases
+may make breaking changes during the MVP, and each such change must update the
+CLI and contract together.
+
+MCP compatibility arrives after the basic workflow instead of delaying it.
+Clients that only speak MCP need the later adapter.

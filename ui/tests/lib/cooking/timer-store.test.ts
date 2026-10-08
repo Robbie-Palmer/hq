@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  __resetTimerStoreForTests,
   dismissTimer,
   extendTimer,
   formatCountdown,
@@ -11,6 +10,7 @@ import {
   startTimer,
   subscribeTimers,
 } from "@/lib/cooking/timerStore";
+import { __resetTimerStoreForTests } from "@/tests/support/recipe-state";
 
 function firstTimer() {
   const timer = getTimersSnapshot()[0];

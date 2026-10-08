@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import {
   afterAll,
   afterEach,
@@ -20,10 +21,17 @@ const globeState = vi.hoisted(() => ({
 const workerClient = vi.hoisted(() => ({
   run: vi.fn(),
 }));
-
 let intersectionCallback: IntersectionObserverCallback;
-const disconnect = vi.fn();
-const observe = vi.fn();
+
+function enterSimulationViewport() {
+  act(() => {
+    intersectionCallback(
+      [{ isIntersecting: true } as IntersectionObserverEntry],
+      {} as IntersectionObserver,
+    );
+  });
+}
+
 const originalScrollIntoView = Element.prototype.scrollIntoView;
 
 beforeAll(() => {
@@ -51,23 +59,6 @@ afterAll(() => {
   Element.prototype.scrollIntoView = originalScrollIntoView;
 });
 
-function stubIntersectionObserver() {
-  class MockIntersectionObserver {
-    constructor(callback: IntersectionObserverCallback) {
-      intersectionCallback = callback;
-    }
-
-    disconnect() {
-      disconnect();
-    }
-
-    observe(target: Element) {
-      observe(target);
-    }
-  }
-  vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
-}
-
 vi.mock(
   "@/components/projects/satellite-swarm/lazy-satellite-swarm-globe",
   () => ({
@@ -87,55 +78,93 @@ vi.mock("@/lib/browser/satellite-swarm-worker-client", () => ({
 }));
 
 const data = parseSatelliteSwarmSimulation({
-  schemaVersion: 2,
-  traceVersion: 2,
+  schemaVersion: 7,
+  traceVersion: 5,
   scenario: "test",
   source: "portable C++ SimulationTrace",
+  sourceRevision: "0123456789abcdef0123456789abcdef01234567",
   positionModel: "scripted simulation data; not orbit propagation",
+  propagationFrame: "TEME",
+  renderingFrame: "test Earth-fixed frame",
+  scenarioEpochUnixMilliseconds: 962650219734,
   objective: { longitudeDegrees: 0, latitudeDegrees: -90 },
   frames: [
     {
+      playbackMultiplier: 0.1,
       timeMs: 0,
       nodes: [
         {
           id: 0,
+          bootEpoch: 1,
           state: "leading",
           position: { longitudeDegrees: 0, latitudeDegrees: 10 },
           orbitalRadiusMetres: 6_750_000,
           candidacyScore: 60,
-          missionId: 1,
+          earthFixedPositionMetres: { x: 6_750_000, y: 0, z: 0 },
+          earthFixedVelocityMillimetresPerSecond: { x: 0, y: 7_500_000, z: 0 },
+          epochUnixMilliseconds: 962650219734,
+          telemetryDrops: 0,
+          missionKey: { bootEpoch: 1, originNode: 0, sequence: 1 },
           assignedNode: null,
         },
         {
           id: 1,
+          bootEpoch: 1,
           state: "awaiting assignment",
           position: { longitudeDegrees: 1, latitudeDegrees: 0 },
           orbitalRadiusMetres: 6_750_000,
           candidacyScore: 81,
-          missionId: 1,
+          earthFixedPositionMetres: { x: 6_700_000, y: 500_000, z: 0 },
+          earthFixedVelocityMillimetresPerSecond: {
+            x: -500_000,
+            y: 7_400_000,
+            z: 0,
+          },
+          epochUnixMilliseconds: 962650219734,
+          telemetryDrops: 0,
+          missionKey: { bootEpoch: 1, originNode: 0, sequence: 1 },
           assignedNode: null,
         },
       ],
     },
     {
+      playbackMultiplier: 100,
       timeMs: 100,
       nodes: [
         {
           id: 0,
+          bootEpoch: 1,
           state: "idle",
           position: { longitudeDegrees: 0, latitudeDegrees: 9 },
           orbitalRadiusMetres: 6_750_000,
           candidacyScore: 60,
-          missionId: 1,
+          earthFixedPositionMetres: { x: 6_749_000, y: 100_000, z: 0 },
+          earthFixedVelocityMillimetresPerSecond: {
+            x: -100_000,
+            y: 7_500_000,
+            z: 0,
+          },
+          epochUnixMilliseconds: 962650219834,
+          telemetryDrops: 0,
+          missionKey: { bootEpoch: 1, originNode: 0, sequence: 1 },
           assignedNode: 1,
         },
         {
           id: 1,
+          bootEpoch: 1,
           state: "active",
           position: { longitudeDegrees: 1, latitudeDegrees: -1 },
           orbitalRadiusMetres: 6_750_000,
           candidacyScore: 81,
-          missionId: 1,
+          earthFixedPositionMetres: { x: 6_690_000, y: 600_000, z: -100_000 },
+          earthFixedVelocityMillimetresPerSecond: {
+            x: -600_000,
+            y: 7_390_000,
+            z: -100_000,
+          },
+          epochUnixMilliseconds: 962650219834,
+          telemetryDrops: 0,
+          missionKey: { bootEpoch: 1, originNode: 0, sequence: 1 },
           assignedNode: 1,
         },
       ],
@@ -148,9 +177,9 @@ const data = parseSatelliteSwarmSimulation({
       nodeId: 1,
       message: {
         type: "candidacy",
-        origin: 1,
+        sender: 1,
         target: 0,
-        missionId: 1,
+        missionKey: { bootEpoch: 1, originNode: 0, sequence: 1 },
         score: 81,
       },
     },
@@ -160,9 +189,9 @@ const data = parseSatelliteSwarmSimulation({
       nodeId: 0,
       message: {
         type: "mission-assignment",
-        origin: 0,
+        sender: 0,
         target: 1,
-        missionId: 1,
+        missionKey: { bootEpoch: 1, originNode: 0, sequence: 1 },
         score: 0,
       },
     },
@@ -171,10 +200,18 @@ const data = parseSatelliteSwarmSimulation({
 
 describe("SatelliteSwarmSimulation", () => {
   beforeEach(() => {
-    disconnect.mockClear();
-    observe.mockClear();
     workerClient.run.mockReset();
     workerClient.run.mockResolvedValue(data);
+    class MockIntersectionObserver {
+      constructor(callback: IntersectionObserverCallback) {
+        intersectionCallback = callback;
+      }
+
+      disconnect() {}
+
+      observe() {}
+    }
+    vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
   });
 
   afterEach(() => {
@@ -184,79 +221,75 @@ describe("SatelliteSwarmSimulation", () => {
   });
 
   it("runs the South Pole mission through the worker at the project boundary", async () => {
-    vi.stubGlobal("IntersectionObserver", undefined);
-
     render(<DeferredSatelliteSwarmSimulation />);
 
-    expect(await screen.findByText("trace v2 · 0 ms")).toBeVisible();
+    enterSimulationViewport();
+    expect(await screen.findByText(/trace v5 · 0 ms/)).toBeVisible();
     expect(workerClient.run).toHaveBeenCalledWith(
       { latitudeDegrees: -90, longitudeDegrees: 0 },
       { scenario: "nominal", signal: expect.any(AbortSignal) },
     );
     expect(screen.getByText(/ran as WebAssembly/i)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Pause replay" })).toBeEnabled();
+    expect(screen.getByRole("link", { name: "0123456789ab" })).toHaveAttribute(
+      "href",
+      "https://github.com/Robbie-Palmer/hq/commit/0123456789abcdef0123456789abcdef01234567",
+    );
   });
 
-  it("aborts the worker request when unmounted", () => {
+  it("aborts the worker request when unmounted", async () => {
     let requestSignal: AbortSignal | undefined;
     workerClient.run.mockImplementation((_objective, options) => {
       requestSignal = options?.signal;
       return new Promise(() => undefined);
     });
-    vi.stubGlobal("IntersectionObserver", undefined);
-
     const { unmount } = render(<DeferredSatelliteSwarmSimulation />);
-    expect(requestSignal?.aborted).toBe(false);
+    enterSimulationViewport();
+    await waitFor(() => expect(requestSignal?.aborted).toBe(false));
 
     unmount();
 
     expect(requestSignal?.aborted).toBe(true);
   });
 
-  it("keeps the replay mounted after its first intersection", async () => {
-    stubIntersectionObserver();
+  it("starts the simulation when it enters the viewport", () => {
+    workerClient.run.mockImplementation(() => new Promise(() => undefined));
+
     render(<DeferredSatelliteSwarmSimulation />);
 
-    act(() => {
-      intersectionCallback(
-        [{ isIntersecting: true } as IntersectionObserverEntry],
-        {} as IntersectionObserver,
-      );
-    });
+    expect(workerClient.run).not.toHaveBeenCalled();
+    expect(screen.getByText("Waiting to load the simulation...")).toBeVisible();
 
-    expect(await screen.findByText("trace v2 · 0 ms")).toBeVisible();
-    expect(disconnect).toHaveBeenCalledOnce();
+    enterSimulationViewport();
 
-    act(() => {
-      intersectionCallback(
-        [{ isIntersecting: false } as IntersectionObserverEntry],
-        {} as IntersectionObserver,
-      );
-    });
-
-    expect(screen.getByText("trace v2 · 0 ms")).toBeVisible();
+    expect(workerClient.run).toHaveBeenCalledWith(
+      { latitudeDegrees: -90, longitudeDegrees: 0 },
+      { scenario: "nominal", signal: expect.any(AbortSignal) },
+    );
+    expect(
+      screen.getByText("Preparing the deterministic mission replay..."),
+    ).toBeVisible();
+    expect(screen.queryByText("Cesium globe")).not.toBeInTheDocument();
   });
 
-  it("ignores an intersection notification queued before unmount", () => {
-    stubIntersectionObserver();
-    const { unmount } = render(<DeferredSatelliteSwarmSimulation />);
+  it("starts once without IntersectionObserver under Strict Mode", async () => {
+    vi.stubGlobal("IntersectionObserver", undefined);
 
-    unmount();
-    act(() => {
-      intersectionCallback(
-        [{ isIntersecting: true } as IntersectionObserverEntry],
-        {} as IntersectionObserver,
-      );
-    });
+    render(
+      <StrictMode>
+        <DeferredSatelliteSwarmSimulation />
+      </StrictMode>,
+    );
 
-    expect(disconnect).toHaveBeenCalledOnce();
-    expect(workerClient.run).not.toHaveBeenCalled();
+    expect(await screen.findByText(/trace v5 · 0 ms/)).toBeVisible();
+    expect(workerClient.run).toHaveBeenCalledOnce();
   });
 
   it("runs a caller-provided mission objective", async () => {
     const user = userEvent.setup();
-    vi.stubGlobal("IntersectionObserver", undefined);
     render(<DeferredSatelliteSwarmSimulation />);
-    expect(await screen.findByText("trace v2 · 0 ms")).toBeVisible();
+    enterSimulationViewport();
+    expect(await screen.findByText(/trace v5 · 0 ms/)).toBeVisible();
 
     const longitude = screen.getByRole("spinbutton", { name: "Longitude" });
     const latitude = screen.getByRole("spinbutton", { name: "Latitude" });
@@ -277,12 +310,12 @@ describe("SatelliteSwarmSimulation", () => {
 
   it("runs the deterministic assignment-loss scenario", async () => {
     const user = userEvent.setup();
-    vi.stubGlobal("IntersectionObserver", undefined);
     render(<DeferredSatelliteSwarmSimulation />);
-    expect(await screen.findByText("trace v2 · 0 ms")).toBeVisible();
+    enterSimulationViewport();
+    expect(await screen.findByText(/trace v5 · 0 ms/)).toBeVisible();
 
     const scenario = screen.getByRole("combobox", {
-      name: "Network scenario",
+      name: "Simulation scenario",
     });
     await user.click(scenario);
     await user.keyboard("{ArrowDown}");
@@ -302,26 +335,52 @@ describe("SatelliteSwarmSimulation", () => {
     );
   });
 
+  it("runs the deterministic safe-state completion scenario", async () => {
+    const user = userEvent.setup();
+    render(<DeferredSatelliteSwarmSimulation />);
+    enterSimulationViewport();
+    expect(await screen.findByText(/trace v5 · 0 ms/)).toBeVisible();
+
+    const scenario = screen.getByRole("combobox", {
+      name: "Simulation scenario",
+    });
+    await user.click(scenario);
+    await user.click(
+      screen.getByRole("option", { name: "Complete safe-state action" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Run mission" }));
+
+    await waitFor(() =>
+      expect(workerClient.run).toHaveBeenLastCalledWith(
+        { latitudeDegrees: -90, longitudeDegrees: 0 },
+        {
+          scenario: "safe-state-success",
+          signal: expect.any(AbortSignal),
+        },
+      ),
+    );
+  });
+
   it("restarts playback when rerunning the same objective", async () => {
     const user = userEvent.setup();
-    vi.stubGlobal("IntersectionObserver", undefined);
     render(<DeferredSatelliteSwarmSimulation />);
-    expect(await screen.findByText("trace v2 · 0 ms")).toBeVisible();
+    enterSimulationViewport();
+    expect(await screen.findByText(/trace v5 · 0 ms/)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Next frame" }));
-    expect(screen.getByText("trace v2 · 100 ms")).toBeVisible();
+    expect(screen.getByText(/trace v5 · 100 ms/)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Run mission" }));
 
-    expect(await screen.findByText("trace v2 · 0 ms")).toBeVisible();
+    expect(await screen.findByText(/trace v5 · 0 ms/)).toBeVisible();
     expect(screen.getByRole("button", { name: "Pause replay" })).toBeEnabled();
   });
 
   it("keeps the latest mission running when an earlier request settles", async () => {
     const user = userEvent.setup();
-    vi.stubGlobal("IntersectionObserver", undefined);
     render(<DeferredSatelliteSwarmSimulation />);
-    expect(await screen.findByText("trace v2 · 0 ms")).toBeVisible();
+    enterSimulationViewport();
+    expect(await screen.findByText(/trace v5 · 0 ms/)).toBeVisible();
 
     let rejectEarlier: ((error: unknown) => void) | undefined;
     let resolveLatest: ((value: typeof data) => void) | undefined;
@@ -361,6 +420,13 @@ describe("SatelliteSwarmSimulation", () => {
     expect(screen.getByText(/deliberate coordinate edge case/i)).toBeVisible();
     expect(screen.getByText("Cesium globe")).toBeVisible();
     expect(
+      screen.getByText(/current SGP4 orbit · selected Node 0/i),
+    ).toBeVisible();
+    expect(
+      screen.getByText(/waiting for an accepted assignment/i),
+    ).toBeVisible();
+    expect(screen.getByText(/coordination in slow motion/i)).toBeVisible();
+    expect(
       document.querySelector(
         'link[href="/cesium/Widgets/widgets.css"][rel="stylesheet"]',
       ),
@@ -371,11 +437,66 @@ describe("SatelliteSwarmSimulation", () => {
     await user.click(screen.getByRole("button", { name: "Next frame" }));
 
     expect(screen.getByText("active")).toBeVisible();
-    expect(screen.getByText(/assigned mission 1 to node 1/i)).toBeVisible();
-    expect(screen.getByText("trace v2 · 100 ms")).toBeVisible();
+    expect(
+      screen.getByText(/Node 1 accepted the assignment.*orbit is unchanged/i),
+    ).toBeVisible();
+    expect(
+      screen.getAllByText(/assigned mission 0:1:1 to node 1/i),
+    ).toHaveLength(2);
+    expect(screen.getByText(/trace v5 · 100 ms/)).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Replay mission" }),
     ).toBeEnabled();
+  });
+
+  it("describes assignment loss using the winning node", () => {
+    render(
+      <SatelliteSwarmSimulation
+        data={{ ...data, scenario: "three-node-assignment-loss" }}
+      />,
+    );
+
+    expect(
+      screen.getByText(/before the winning node receives it/i),
+    ).toBeVisible();
+  });
+
+  it("formats minute- and hour-scale orbit replay timestamps", async () => {
+    const user = userEvent.setup();
+    const firstFrame = data.frames[0];
+    const secondFrame = data.frames[1];
+    if (!firstFrame || !secondFrame) {
+      throw new Error("satellite replay fixture requires at least two frames");
+    }
+    const timedData = {
+      ...data,
+      frames: [
+        firstFrame,
+        { ...secondFrame, timeMs: 60_000 },
+        { ...secondFrame, timeMs: 3_661_000 },
+      ],
+    };
+    render(<SatelliteSwarmSimulation data={timedData} />);
+
+    await user.click(screen.getByRole("button", { name: "Next frame" }));
+    expect(screen.getByText(/trace v5 · 1m 00s · 100×/)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Next frame" }));
+    expect(screen.getByText(/trace v5 · 1h 01m 01s · 100×/)).toBeVisible();
+  });
+
+  it("advances and stops autoplay at the final orbit frame", () => {
+    vi.useFakeTimers();
+    render(<SatelliteSwarmSimulation data={data} />);
+
+    act(() => screen.getByRole("button", { name: "Play replay" }).click());
+    act(() => vi.advanceTimersByTime(1_000));
+
+    expect(screen.getByText(/trace v5 · 100 ms · 100×/)).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Replay mission" }),
+    ).toBeEnabled();
+    vi.useRealTimers();
   });
 
   it("labels a paused trace as resumable", async () => {

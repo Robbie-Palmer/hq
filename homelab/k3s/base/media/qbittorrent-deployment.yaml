@@ -4,7 +4,9 @@ metadata:
   name: qbittorrent
   namespace: media
 spec:
-  replicas: 1
+  # The host VPN gate raises this to one only while the default route uses a
+  # tunnel. A fresh apply therefore cannot start torrent traffic first.
+  replicas: 0
   strategy:
     type: Recreate
   selector:

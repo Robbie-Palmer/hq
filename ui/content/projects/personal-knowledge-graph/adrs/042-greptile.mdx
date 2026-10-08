@@ -1,0 +1,56 @@
+---
+title: "ADR 042: Greptile"
+date: "2026-06-20"
+status: "Accepted"
+tech_stack: ["Greptile"]
+---
+
+# Context
+
+[ADR 009: CodeRabbit](/projects/personal-knowledge-graph/adrs/009-code-rabbit) records the decision to use automated AI review on Pull Requests. [ADR 041: Gemini Code Assist](/projects/personal-knowledge-graph/adrs/041-gemini-code-assist) records why a second, independent reviewer adds value without repeating that general rationale.
+
+This ADR records an existing decision retrospectively. Greptile was added while both CodeRabbit and Gemini Code Assist were already reviewing the project. The goal was to add a third, materially different review approach rather than depend on two reviewers that could share similar blind spots.
+
+The additional reviewer also reduces dependence on either existing provider. This matters if pricing, product direction, or availability changes, but was a general resilience concern rather than a response to a known deprecation.
+
+# Decision
+
+I will use **[Greptile](https://www.greptile.com/)** alongside CodeRabbit and Gemini Code Assist for automated code review on Pull Requests.
+
+Greptile builds a graph of the whole codebase, including relationships between functions, files, and dependencies. It uses that graph to reason about the effect of a diff beyond the changed lines. This gives it a useful emphasis on cross-file behaviour, coupling, and architectural consistency that complements CodeRabbit's broader PR summaries, walkthroughs, and first-pass workflow coverage.
+
+Greptile also learns from reactions to its comments and supports related pattern repositories as additional review context. These mechanisms provide another source of contextual feedback without depending on CodeRabbit's accumulated learnings.
+
+Greptile's **[Open Source Program](https://www.greptile.com/open-source)** provides eligible non-commercial open-source projects with a 100% discount. This allowed the project to add a third reviewer without a financial commitment.
+
+# Alternatives
+
+## CodeRabbit and Gemini Code Assist Only
+
+* **Pros**: Fewer comments and one less external review service to configure.
+* **Cons**: Misses Greptile's graph-based whole-codebase analysis and leaves review coverage dependent on two providers.
+* **Decision**: Rejected. Greptile adds a distinct review approach at no cost to qualifying open-source projects.
+
+## Replace CodeRabbit with Greptile
+
+* **Pros**: Greptile's graph-based context is designed to find cross-file and dependency-related issues while reducing the number of review providers.
+* **Cons**: Removes CodeRabbit's PR summaries, workflow coverage, and accumulated project learnings. It also gives up the diversity of feedback that motivates this decision.
+* **Decision**: Rejected. Greptile may complement CodeRabbit as a second reviewer.
+
+# Consequences
+
+## Positive
+
+* **Whole-Codebase Context**: A code graph helps Greptile identify effects outside the immediate diff, including affected callers, dependencies, and similar patterns.
+* **Different Review Emphasis**: Greptile focuses on structural and cross-file issues, providing feedback that can diverge from CodeRabbit's broader first-pass review.
+* **Greater Reviewer Diversity**: A third provider increases the chance that one reviewer catches an issue or alternative missed by the others.
+* **Provider Resilience**: The later Gemini consumer sunset demonstrates the value of adopting Greptile before a provider change was announced. Greptile preserves a second external opinion when Gemini reviews cease.
+* **Feedback Learning**: Reactions to comments allow reviews to adapt to which findings are useful.
+* **No Additional Cost**: The Open Source Program provides qualifying non-commercial projects with a 100% discount.
+
+## Negative
+
+* **Additional Noise**: Greptile and CodeRabbit can produce duplicate or conflicting findings that require human judgement.
+* **Repository Indexing**: Whole-codebase context requires Greptile to index and maintain a representation of the repository.
+* **Programme Dependency**: The zero-cost decision depends on continued eligibility for Greptile's Open Source Program. A change to its terms or approval would require reassessment.
+* **Vendor Claims Require Validation**: Claims about review depth and signal-to-noise come from Greptile. Its practical value must be assessed from reviews on this repository.

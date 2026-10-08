@@ -9,6 +9,11 @@ packages:
   - 'ml-pipelines/writing-editor-evaluation'
   - 'ml-pipelines/recipe-parsing/tools/viz'
 
+# Keep every Cooklang consumer on the same parser and bindings. Renovate updates
+# this entry; package manifests reference it through the pnpm catalog protocol.
+catalog:
+  '@cooklang/cooklang': '0.18.7'
+
 # pnpm 10 already skipped these dependency lifecycle scripts. pnpm 11 requires
 # the policy to be explicit; keep installs reproducible without expanding the
 # set of third-party code allowed to execute during dependency installation.
@@ -20,6 +25,9 @@ allowBuilds:
   esbuild: false
   puppeteer: false
   sharp: false
+  # tsmetrics installs its platform-specific analyzer binary; the pinned tool
+  # cannot run without this package-scoped lifecycle script.
+  tsmetrics: true
   workerd: false
 
 # better-auth-cloudflare 0.3.0 is compatible with workers-types v5, but its
@@ -65,6 +73,7 @@ peerDependencyRules:
 # ml-pipelines/recipe-parsing and is API-compatible (image serving uses
 # Cloudflare Images, so Next's sharp path is not exercised at runtime).
 overrides:
+  '@electric-sql/pglite': '^0.5.0'
   '@esbuild-kit/core-utils>esbuild': '^0.28.0'
   'lighthouse>@sentry/node': '^10.66.0'
   js-yaml: '^5.0.0'
@@ -72,9 +81,11 @@ overrides:
   sharp: '^0.35.0'
 
 patchedDependencies:
-  '@cooklang/cooklang@0.18.7': patches/@cooklang__cooklang@0.18.7.patch
+  '@cooklang/cooklang': patches/@cooklang__cooklang.patch
   gray-matter@4.0.3: patches/gray-matter@4.0.3.patch
 
 minimumReleaseAgeExclude:
   # Exact ADR 065 bridge pin; reviewed as part of the adopting change.
   - '@hono/zod-openapi@1.5.2'
+  # Exact frontend lint pin; reviewed as part of the adopting change.
+  - '@shadcn/lint@0.2.0'

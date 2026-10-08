@@ -1,19 +1,6 @@
 import {
-  DEFAULT_IGNORED_AUTHORS,
-  DEFAULT_MERGER,
-  DEFAULT_OPENROUTER_SCOUTS,
-  MAX_OPENCODE_SCOUTS,
-  MAX_OPENROUTER_SCOUTS,
-  MERGER_MAX_TOKENS,
-  OPENROUTER_MERGER_MAX_PRICES,
-  OPENROUTER_SCOUT_MAX_PRICES,
-  Reviewer,
-  SCOUT_CONCURRENCY,
-  csv,
   dataPrompt,
-  duplicateScoutModels,
   ignored,
-  isEligibleFreeScoutModelId,
   mergerSchema,
   mergerSystem,
   renderComment,
@@ -25,8 +12,23 @@ import {
   type ModelResult,
   type ReviewState,
   type Scout,
-  type Settings,
 } from "ai-review-domain/reviewer";
+import {
+  DEFAULT_IGNORED_AUTHORS,
+  DEFAULT_MERGER,
+  DEFAULT_OPENROUTER_SCOUTS,
+  MAX_OPENCODE_SCOUTS,
+  MAX_OPENROUTER_SCOUTS,
+  MERGER_MAX_TOKENS,
+  OPENROUTER_MERGER_MAX_PRICES,
+  OPENROUTER_SCOUT_MAX_PRICES,
+  Reviewer,
+  SCOUT_CONCURRENCY,
+  duplicateScoutModels,
+  isEligibleFreeScoutModelId,
+  type Settings,
+} from "./reviewer";
+import { uniqueCsv as csv } from "ts-base/strings";
 import {
   TRUSTED_AUTHOR_ASSOCIATIONS,
   type Env,
@@ -38,7 +40,7 @@ import {
   selectPublishedFindings,
   type HiddenFinding,
   type PublicationPolicy,
-} from "./guardrails";
+} from "ai-review-domain/guardrails";
 import type {
   ChangeProfile,
   ModelMetric,
@@ -52,6 +54,7 @@ import {
   inferOriginatingAgent,
   inferPullRequestTaskType,
 } from "ai-review-domain/pull-request-metadata";
+import { sha256Hex as sha256 } from "ts-base/crypto";
 import { createInstallationToken } from "./github-app";
 import {
   publishFindingComments,
@@ -59,6 +62,10 @@ import {
   type FindingPublication,
 } from "./finding-lifecycle";
 import { persistReplayInput } from "./replay-input";
+import {
+  reviewRunTerminalKey,
+  type ReviewRunTerminalStatus,
+} from "./r2-keys";
 
 export type {
   ChangeProfile,
@@ -219,7 +226,7 @@ export interface ReviewPublication {
   findings: FindingPublication[];
 }
 
-export type ReviewRecordStatus = "denied" | "failed" | "published" | "skipped";
+export type ReviewRecordStatus = ReviewRunTerminalStatus;
 
 function coverageStatement(coverage: ReviewCoverage): string {
   let label = "Skipped coverage";
@@ -321,16 +328,6 @@ async function installationToken(env: Env): Promise<string> {
     installationId: env.AI_REVIEW_APP_INSTALLATION_ID,
     privateKey: env.AI_REVIEW_APP_PRIVATE_KEY,
   });
-}
-
-async function sha256(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(value),
-  );
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
 }
 
 const EXTENSION_LANGUAGE: Record<string, string> = {
@@ -1150,6 +1147,7 @@ async function prepareScoutRoster(
   };
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export async function runScouts(
   env: Env,
   params: ReviewWorkflowParams,
@@ -1439,6 +1437,7 @@ export function estimateMergeCostCeilingUsd(
   ) / 1_000_000;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export async function mergeFindings(
   env: Env,
   params: ReviewWorkflowParams,
@@ -1752,6 +1751,7 @@ export async function recordReview(options: {
   await recordReviewTerminal({ ...options, status: "published" });
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export async function recordReviewTerminal(options: {
   env: Env;
   params: ReviewWorkflowParams;
@@ -1781,14 +1781,13 @@ export async function recordReviewTerminal(options: {
     publication,
   } = options;
   const headSha = prepared?.headSha ?? params.headSha ?? "unknown-head";
-  const key = [
-    "v2",
-    params.repository,
-    `pr-${params.pullRequestNumber}`,
+  const key = reviewRunTerminalKey({
+    repository: params.repository,
+    pullRequestNumber: params.pullRequestNumber,
     headSha,
     instanceId,
-    `${status}.json`,
-  ].join("/");
+    status,
+  });
   const summary =
     merged && typeof merged.result.summary === "string"
       ? merged.result.summary

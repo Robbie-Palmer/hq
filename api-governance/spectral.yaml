@@ -1,0 +1,80 @@
+# Shared Spectral ruleset for generated OpenAPI documents.
+#
+# APIs extend this file and keep only application-specific exceptions and
+# endpoint lists in their local rulesets.
+
+extends:
+  - "spectral:oas"
+  - "@stoplight/spectral-owasp-ruleset"
+
+functionsDir: "./spectral-functions"
+functions:
+  - noVerbPaths
+  - operationSuccessResponse
+  - pluralCollections
+
+rules:
+  path-segments-kebab-case:
+    description: Path segments use kebab-case.
+    message: "{{path}}: segments must be kebab-case"
+    severity: error
+    given: "$.paths[*]~"
+    then:
+      function: pattern
+      functionOptions:
+        match: "^(/(\\.well-known|[a-z0-9]+(-[a-z0-9]+)*|\\{[a-zA-Z0-9._-]+\\}))+$"
+
+  paths-no-verbs:
+    description: Resource paths are nouns; only explicitly allowed actions may be verbs.
+    severity: error
+    given: "$.paths[*]~"
+    then:
+      function: noVerbPaths
+
+  collections-are-plural:
+    description: Collection segments (those with item routes) should be plural.
+    severity: warn
+    given: "$.paths[*]~"
+    then:
+      function: pluralCollections
+
+  errors-use-shared-schema:
+    description: 4xx/5xx responses reference the shared Error schema.
+    message: "{{path}}: error responses must $ref components.schemas.Error"
+    severity: error
+    given: "$.paths[*][*].responses[?( @property >= 400 && @property < 600 )].content[*].schema"
+    then:
+      field: "$ref"
+      function: pattern
+      functionOptions:
+        match: "^#/components/schemas/Error$"
+
+  operation-defines-server-error:
+    description: Every operation documents a 500 response.
+    severity: warn
+    given: "$.paths[*][*].responses"
+    then:
+      field: "500"
+      function: truthy
+
+  # Spectral's built-in rule accepts only 2xx/3xx. A successful WebSocket
+  # handshake uses 101 Switching Protocols.
+  operation-success-response:
+    description: Operations define an HTTP or WebSocket success response.
+    severity: warn
+    given: "$.paths[*][*].responses"
+    then:
+      function: operationSuccessResponse
+
+  # APIs identify the operations that are actually rate-limited in their
+  # local overlay and require both a 429 body and Retry-After there.
+  owasp:api4:2023-rate-limit: off
+  owasp:api4:2023-rate-limit-responses-429: off
+
+  # Free-form titles and human-readable errors cannot honestly declare a
+  # semantic format or pattern. maxLength remains blocking via string-limit.
+  owasp:api4:2023-string-restricted: off
+
+  # These APIs sit behind same-origin frontends or non-browser clients, so
+  # they intentionally do not promise Access-Control-Allow-Origin.
+  owasp:api8:2023-define-cors-origin: off

@@ -1,0 +1,22 @@
+{
+  "name": "Work Graph Observer",
+  "url": "https://robbiepalmer.me/projects/work-graph",
+  "description": "Read-only delivery evidence for Work Graph",
+  "hook_attributes": {
+    "url": "https://work-graph-observer.robbiepalmer.me/webhooks/github",
+    "active": true
+  },
+  "public": false,
+  "default_permissions": {
+    "actions": "read",
+    "deployments": "read",
+    "metadata": "read",
+    "pull_requests": "read"
+  },
+  "default_events": [
+    "deployment_status",
+    "pull_request",
+    "workflow_run"
+  ],
+  "request_oauth_on_install": false
+}

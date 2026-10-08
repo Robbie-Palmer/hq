@@ -18,15 +18,17 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import {
-  type AccountDetailView,
-  buildProjection,
-  effectiveExpectedReturn,
   formatAccountCurrency,
   formatAnnualRate,
   formatAxisTick,
+  todayIsoDate,
+} from "@/lib/assettracker";
+import {
+  type AccountDetailView,
+  buildProjection,
+  effectiveExpectedReturn,
   type RecurringFlow,
   realRate,
-  todayIsoDate,
 } from "@/lib/domain/assettracker";
 
 const EQUITY_MONTHS = 120;

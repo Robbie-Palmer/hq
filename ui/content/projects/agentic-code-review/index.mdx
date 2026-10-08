@@ -2,7 +2,7 @@
 title: "Agentic Code Review"
 description: "A stateful, model-agnostic GitHub App for high-signal code review at agentic development velocity"
 date: "2026-08-08"
-updated: "2026-09-06"
+updated: "2026-10-08"
 initiatives:
   - "semi-autonomous-software-development"
 ideas:
@@ -14,8 +14,68 @@ tech_stack:
   - "Cloudflare Workflows"
   - "Cloudflare R2"
   - "OpenRouter"
-repo_url: "https://github.com/Robbie-Palmer/personal-site/tree/main/ai-review"
+repo_url: "https://github.com/Robbie-Palmer/hq/tree/main/ai-review"
 status: "live"
+platform_layers:
+  - layer: "governance"
+    adopted: "2026-09-15T00:00:00Z"
+    tracking: true
+    rationale: "The public service uses the shared repository's publication and licensing rules."
+  - layer: "base"
+    adopted: "2026-09-12T00:00:00Z"
+    tracking: true
+    rationale: "The service uses the repository-wide development and delivery controls."
+    slots:
+      - slot: "secrets.runtime-store"
+        adopted: "2026-09-15T00:00:00Z"
+        rationale: "The deployed service needs model-provider and infrastructure credentials."
+      - slot: "secrets.ci-store"
+        adopted: "2026-09-15T00:00:00Z"
+        rationale: "Delivery workflows need a bounded route to deployment credentials."
+  - layer: "backend-api"
+    adopted: "2026-09-12T00:00:00Z"
+    tracking: true
+    decision: "agentic-code-review:001-stateful-ai-code-review"
+    slots:
+      - slot: "backend-api.runtime"
+        adopted: "2026-09-12T00:00:00Z"
+        decision: "agentic-code-review:001-stateful-ai-code-review"
+  - layer: "database"
+    adopted: "2026-09-12T00:00:00Z"
+    tracking: true
+    decision: "agentic-code-review:002-duckdb-ai-review-scorecard"
+    slots:
+      - slot: "database.olap-engine"
+        adopted: "2026-09-12T00:00:00Z"
+        decision: "agentic-code-review:002-duckdb-ai-review-scorecard"
+  - layer: "infrastructure"
+    adopted: "2026-09-12T00:00:00Z"
+    tracking: true
+    rationale: "The service owns managed Cloudflare resources that need reviewable provisioning."
+    slots:
+      - slot: "infrastructure.provisioner"
+        adopted: "2026-09-12T00:00:00Z"
+        rationale: "Managed service resources are provisioned from checked-in configuration."
+      - slot: "infrastructure.state-backend"
+        adopted: "2026-09-15T00:00:00Z"
+        rationale: "CI deployments require protected shared infrastructure state."
+  - layer: "observability"
+    adopted: "2026-09-12T00:00:00Z"
+    tracking: true
+    rationale: "The live review service needs application-level operational signals."
+    slots:
+      - slot: "observability.application-telemetry"
+        adopted: "2026-09-12T00:00:00Z"
+        until: "2026-09-29T00:00:00Z"
+        rationale: "Review requests and failures need application telemetry."
+  - layer: "storage"
+    adopted: "2026-09-29T00:00:00Z"
+    tracking: true
+    decision: "agentic-code-review:001-stateful-ai-code-review"
+    slots:
+      - slot: "storage.object-store"
+        adopted: "2026-09-29T00:00:00Z"
+        rationale: "The private R2 bucket stores versioned review records derived from public repository activity. Only the review Worker and operators with bucket credentials may access it; records expire after 365 days, and incomplete multipart uploads abort after seven days."
 ---
 
 # Vision
@@ -83,7 +143,7 @@ allowances too volatile for core infrastructure.
 Coding agents enable more parallel work, larger changes, and shorter delivery
 cycles. Review quality and latency grow in importance alongside that additional
 throughput. A strong reviewer is a force multiplier on every coding agent and
-enables several projects beyond the Personal Site.
+enables several projects beyond the Personal Knowledge Graph.
 
 ## Velocity and Quality Reinforce Each Other
 
@@ -141,9 +201,10 @@ should change upstream.
    schema.
 3. **Use the Pull Request as the unit of work.** Durable PR state should prevent
    each push from purchasing a full review of repeated context.
-4. **Optimise for accepted findings and low noise.** Product outcomes come from
-   useful findings and safer changes. Finding count, model calls, and reviewer
-   count provide diagnostic evidence.
+4. **Minimise human attention through agent triage.** Divergent reviewers
+   should uncover issues the authoring model missed. Coding agents absorb the
+   first pass of investigation, even at higher token, latency, and edit cost,
+   when that trade reduces owner review or future repair work.
 5. **Make learning portable.** Review policy, dispositions, evaluation data,
    and scorecards belong to the product. Vendor-private "learnings" remain
    optional inputs.
@@ -221,7 +282,7 @@ evidence of value before entering scope.
 
 The current output is a **GitHub App** implementing the stateful AI review
 described by
-[ADR 032](/projects/agentic-code-review/adrs/032-stateful-ai-code-review):
+[ADR 001](/projects/agentic-code-review/adrs/001-stateful-ai-code-review):
 
 * receive and verify GitHub webhook events;
 * apply deterministic eligibility, risk, debounce, and budget policies;
@@ -236,6 +297,83 @@ described by
   attributing later-head fixes, explicit dispositions, superseded code, and
   no-response closures for evaluation.
 
+# Review and evidence flow
+
+This view follows the implemented service and its offline evaluation path.
+GitHub and the inference providers are external systems. The project owns the
+review logic and data on Cloudflare's managed infrastructure.
+
+<Mermaid
+  chart={`flowchart TB
+GitHub["GitHub<br/>External"]
+Service["Owned review service<br/>Worker, PR state,<br/>Workflow"]
+Models["Inference · external<br/>OpenRouter / OpenCode"]
+Evidence["Owned private R2<br/>Review evidence"]
+Dataset["Owned offline dataset<br/>DVC-versioned corpus"]
+Learning["Owned offline evaluation<br/>Replay and DuckDB<br/>scorecards"]
+
+GitHub -->|"signed PR events and feedback"| Service
+Service -->|"head-checked findings and run summary"| GitHub
+Service -->|"context and prompts"| Models
+Models -->|"findings and usage"| Service
+Service -->|"run records, snapshots and feedback outcomes"| Evidence
+Evidence -->|"export and extract"| Dataset
+Dataset -->|"frozen cohorts and historical outcomes"| Learning
+
+classDef external stroke-dasharray:5 5
+class GitHub,Models external
+`}
+  className="w-full justify-start overflow-x-auto sm:justify-center [&>svg]:min-w-[34rem]"
+/>
+
+On narrow screens, scroll the diagram horizontally or follow the reading guide
+below.
+
+## Reading the flow
+
+1. GitHub sends PR events, explicit review commands, and finding feedback. The
+   Worker verifies the signature and repository allowlist; command parsing also
+   checks actor permissions. Each PR's SQLite Durable Object deduplicates events,
+   retains review and finding state, and applies debounce, run, and cost limits.
+2. An eligible review starts a Workflow. It fetches GitHub context through the
+   App, selects full or incremental coverage, runs independent scouts through
+   OpenRouter and OpenCode, then reconciles candidates with an OpenRouter merger.
+   Selected code context and prompts cross the external inference boundary.
+3. Publication checks the current PR head and applies finding policy before
+   posting native review findings and a rolling cost and coverage comment to
+   GitHub. A successful run then writes its versioned terminal record to private
+   R2 and completes the durable PR state. Skipped, denied, and failed runs also
+   have terminal records. R2 retains raw candidates, findings, applied
+   configuration, coverage, usage, and replay snapshots as evaluation evidence.
+4. Ordinary comments, thread activity, and trusted dispositions take a
+   storage-only path through the coordinator to private evidence and versioned
+   finding outcomes. They do not schedule inference. A `confirm-fixed`
+   disposition requires current-head replay evidence.
+5. Offline extraction joins exported, redacted replay snapshots with terminal
+   records and historical finding outcomes. DVC versions the extracted dataset;
+   its manifest records source object keys and hashes for provenance. The source
+   export stays outside the DVC project.
+6. The evaluation pipeline freezes cohorts from that dataset, compares isolated
+   model replays, and builds DuckDB scorecards. Its recommendations inform
+   owner-reviewed model, prompt, policy, test, or guidance changes. The evaluation
+   runner has no GitHub publication adapter and never updates production configuration
+   automatically. Automatic adoption remains outside this implemented flow.
+
+## Ownership and disclosure
+
+[`ai-review/wrangler.toml`](https://github.com/Robbie-Palmer/hq/blob/main/ai-review/wrangler.toml)
+owns the Worker, Durable Object, Workflow, and bindings.
+[`infra/public-platform`](https://github.com/Robbie-Palmer/hq/tree/main/infra/public-platform)
+owns the private R2 bucket. Published GitHub findings are public for the current
+public-repository deployment. Raw review evidence stays private to the service
+and authorised operators; this view contains no credentials or private records.
+
+The [service implementation](https://github.com/Robbie-Palmer/hq/blob/main/ai-review/src/index.ts),
+[publication and record logic](https://github.com/Robbie-Palmer/hq/blob/main/ai-review/src/review-engine.ts),
+and [evaluation pipeline](https://github.com/Robbie-Palmer/hq/tree/main/ml-pipelines/ai-review-evaluation)
+provide the source evidence. The diagram and this reading guide also appear in
+the [Markdown version](/projects/agentic-code-review.md#review-and-evidence-flow).
+
 # Architecture Lineage
 
 The initial ADR set preserves three parts of the product's lineage. ADRs 000–014
@@ -249,7 +387,7 @@ secret detection, and spelling checks. ADRs 026–032 then record the succession
 of managed and custom AI reviewers that led to the current stateful product.
 
 Cloudflare Workers and the per-PR Durable Object are already selected by
-[ADR 032](/projects/agentic-code-review/adrs/032-stateful-ai-code-review).
+[ADR 001](/projects/agentic-code-review/adrs/001-stateful-ai-code-review).
 [ADR 014](/projects/agentic-code-review/adrs/014-cloudflare-workflows) inherits
 the Cloudflare Workflows platform decision and adds the orchestration, lease,
 and retry boundaries used by code review.
@@ -257,7 +395,7 @@ and retry boundaries used by code review.
 The extraction test sets the boundary: inherit a decision when a standalone
 Agentic Code Review repository would need to keep or replace it on day one.
 Authoring assistants, project-management tools, user-interface choices, and
-unrelated Personal Site runtime decisions remain outside the lineage.
+unrelated Personal Knowledge Graph runtime decisions remain outside the lineage.
 
 The assurance ADRs govern how this service is developed. Their findings remain
 outside the GitHub App's review output. Adopting SonarQube, CodeQL, Trivy, or
@@ -279,27 +417,29 @@ The following capabilities remain outside the first release:
 * a bundle of static-analysis tools.
 
 Static analysis may later enrich and validate the review output. It will be
-added only where it improves the product, and the relevant Personal Site ADRs
+added only where it improves the product, and the relevant Personal Knowledge Graph ADRs
 will be inherited only when those decisions are actually adopted.
 
 # Success Measures
 
-The scorecard keeps quality, cost, coverage, latency, and noise visible together
-so improvement in one dimension cannot conceal damage elsewhere.
+The scorecard treats owner attention as the objective. It keeps useful
+discovery, cost, coverage, latency, agent work, and final-patch quality visible
+as explanations and constraints.
 
 <div className="overflow-x-auto">
-  | Outcome                 | Measure                                                                                                                  |
-  | ----------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-  | Useful findings         | Adjudicated acceptance rate and fix-through rate, with no-response outcomes reported separately                          |
-  | Low noise               | Rejected and duplicate findings as a share of published findings                                                         |
-  | Efficient spend         | Total inference, evaluation, runtime, and storage cost per accepted finding                                              |
-  | Efficient review        | Model calls and uncached input tokens per PR versus the stateless baseline                                               |
-  | Fast feedback           | Time from PR readiness or material change to the first published finding or terminal no-finding result                   |
-  | Adjudication latency    | Time from a published finding to acceptance, with rejected and no-response outcomes reported separately                  |
-  | Preserved coverage      | Downstream defects in review scope that no reviewer raised, used as an imperfect missed-defect proxy                     |
-  | Compounding improvement | Recurrence of a failure class before and after adding a test, rule, skill, or agent change                               |
-  | Operational fitness     | Monthly spend, failed runs, manual interventions, and maintenance time                                                   |
-  | Delivery system         | Change lead time, deployment frequency, failed deployment recovery time, change failure rate, and deployment rework rate |
+  | Outcome                 | Measure                                                                                                                                  |
+  | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+  | Human attention         | Owner review and triage time, interventions, review-driven rework, and later work attributable to escaped defects                        |
+  | Useful discovery        | Direct accepted findings and independently useful improvements prompted by review, reported separately                                   |
+  | Incremental recall      | Marginal useful contribution from each scout after reconciliation, external positive-reference recall, and the local missed-defect proxy |
+  | Agent-mediated noise    | Rejected findings, investigations with no material change, harmful churn, and findings escalated to the owner                            |
+  | Agent-resource cost     | Inference spend, tokens, elapsed time, and discarded edits accepted in exchange for lower owner attention                                |
+  | Efficient review        | Model calls and uncached input tokens per PR versus the stateless baseline                                                               |
+  | Fast feedback           | Time from PR readiness or material change to the first published finding or terminal no-finding result                                   |
+  | Adjudication latency    | Time from a published finding to a classified disposition and downstream effect                                                          |
+  | Compounding improvement | Recurrence of a failure class before and after adding a test, rule, skill, or agent change                                               |
+  | Operational fitness     | Monthly spend, failed runs, manual interventions, and maintenance time                                                                   |
+  | Delivery system         | Change lead time, deployment frequency, failed deployment recovery time, change failure rate, and deployment rework rate                 |
 </div>
 
 Comparisons must be stratified by change size, risk, language, task type,
@@ -404,9 +544,9 @@ generalisation.
   customization.
 * **Open-weight progress may stall or inference may consolidate.** The
   provider-neutral boundary supports closed models and direct APIs as well.
-* **An ensemble can create correlated noise.** Retention and outcome data must
-  be able to remove scouts as readily as add them; model count alone has no
-  value.
+* **An ensemble can create correlated noise.** Remove a scout when it fails to
+  reduce expected owner attention within the money, latency, and safety limits.
+  Model count alone has no value.
 * **Evaluation data can mislead.** Sparse dispositions, changing task mix, and
   subjective outcomes make controlled replays and stratification necessary.
 * **Owned infrastructure can become a hobby.** Dashboard work, general platform

@@ -1,0 +1,96 @@
+---
+title: "ADR 006: Contextual stack ranking and explicit expedites"
+date: "2026-09-18"
+status: "Accepted"
+---
+
+## Context
+
+A single numeric priority weight asks an owner or agent to invent a value whose
+meaning depends on every other value in the graph. Every new item makes that
+scale harder to maintain. It also obscures the decision people actually make:
+this outcome belongs above one nearby item and below another.
+
+A strict parent-first order has a different failure mode. Ranking one initiative
+above another would place every ticket from the first initiative ahead of every
+ticket from the second. Owners would have to keep moving whole subtrees or stop
+recording lower-priority ideas to preserve a useful queue.
+
+Priority still needs to flow through planning scopes, decomposition, and
+dependencies. That derived order must remain explainable without exposing the
+numeric machinery as an authoring interface.
+
+## Decision
+
+Maintain separate ordinal stacks for initiatives, projects, and tickets.
+Initiatives rank against initiatives, projects rank against projects, and a
+ticket ranks only against tickets in the same scheduling project. New entries
+start at the median. Clients move an entry with relative anchors such as
+`above X` and `below Y`; the service owns and may renormalise stored
+rank numbers.
+
+Each priority-owning ticket records one scheduling project and, when relevant,
+one scheduling initiative. Infer the initiative when its project has exactly
+one initiative parent. Require an explicit scheduling initiative when the
+project has several. Decomposed work inherits its owning ticket's scheduling
+position, so graph depth never creates extra priority.
+
+Fuse the three ordinal positions with reciprocal-rank fusion. The initial
+policy gives initiative, project, and ticket rank equal influence and uses an
+offset of 10:
+
+```text
+score = 1 / (10 + initiative rank)
+      + 1 / (10 + project rank)
+      + 1 / (10 + ticket rank)
+```
+
+Higher scores run first. Fixture-driven tests define the policy, including the
+case where a leading ticket in a lower-ranked initiative outranks later tickets
+from a higher-ranked initiative. Missing dimensions use the median position in
+that stack. Structural child rank and stable IDs break ties.
+
+Add an explicit expedite state with a required reason. Expedited tickets sort
+ahead of the fused normal queue. Their effective urgency propagates to
+unresolved blockers, but the blockers do not become permanently expedited.
+Removing the expedite also removes the donated urgency.
+
+## Consequences
+
+Owners and agents can express priority through local comparisons instead of
+calibrating arbitrary numbers. Speculative work joins the appropriate stack
+without forcing a global rerank. Moving an initiative does not move all its
+tickets as one block.
+
+The displayed queue can shift when a surrounding stack changes because the
+service projects its order rather than storing a global list. Read models
+include the initiative, project, and ticket positions plus expedite-donation
+provenance so clients can explain that shift.
+
+The fusion offset and layer influence remain internal policy. Representative
+fixtures and an intentional decision govern changes. The public API and
+migration history do not expose them.
+
+The service accepts relative moves only inside one contextual stack. It rejects
+ticket comparisons across projects and comparisons between initiatives and
+projects. This constraint keeps the interface legible and prevents
+contradictory cross-level comparisons.
+
+## Alternatives considered
+
+### User-authored numeric weights
+
+Weights make arithmetic easy but force users to calibrate an unstable global
+scale. Small edits can have surprising effects after the scheduler adds
+ancestor values.
+
+### Strict lexicographic parent ordering
+
+Ordering initiative, then project, then ticket is simple to explain, but it
+groups whole subtrees and prevents useful interleaving across initiatives.
+
+### Permanent pairwise constraints
+
+Storing every `above` and `below` statement would preserve the original input,
+but ongoing edits can create cycles and leave a dense constraint graph. Relative
+moves are commands that update one maintained stack instead.

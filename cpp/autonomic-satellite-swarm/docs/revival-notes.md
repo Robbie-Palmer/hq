@@ -58,14 +58,19 @@ small embedded target and the tooling available at the time:
   domain.
 - A follower enters safe-disabled only after the configured number of consecutive missions fail to
   acknowledge its candidacy. A valid acknowledgement resets that evidence.
-- Equal scores currently select the lowest node ID to keep tests and replays deterministic. This
-  creates a known fairness and wear bias; it is not the desired long-term allocation policy.
-- Safe-disabled currently inhibits participation in software only. A physical safe-state action
-  requires an explicit, platform-specific actuator port and evidence from real hardware.
+- Equal top scores use a mission-keyed cyclic order. A stable tied set receives one assignment per
+  node in each complete rotation, while tests and replays remain deterministic. This removes the
+  fixed node-ID bias but does not yet account for resources or wear.
+- Safe-disabled still inhibits participation in software when no physical adapter exists. The core
+  now makes one request through an explicit actuator port. The reference firmware omits that port
+  because no safe-state hardware has been validated, so the controller records a rejected result.
+  When an adapter accepts a request, the controller polls until it records one terminal success or
+  failure result.
 
-Telemetry, fair resource-aware allocation, controlled mission-control intervention, and a physical
-safe-state hook are scoped in [Next research cycle](next-research-cycle.md). They are deliberately
-not implied by this revival's current behavior.
+Telemetry, deterministic equal-score rotation, and the portable safe-state lifecycle are now
+implemented. Resource-aware scoring, controlled mission-control intervention, and physical
+safe-state implementations remain scoped in [Next research cycle](next-research-cycle.md). They are
+not implied by the current behavior.
 
 ## Verification boundary
 

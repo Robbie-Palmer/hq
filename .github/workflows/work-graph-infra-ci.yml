@@ -1,0 +1,35 @@
+name: Work Graph Infrastructure CI
+
+on:
+  pull_request:
+    paths:
+      - "infra/work-graph/**"
+      - ".github/workflows/work-graph-infra-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/work-graph
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Create empty .env for mise
+        run: touch .env
+
+      - name: Check Terraform formatting
+        run: mise run //infra/work-graph:format:check
+
+      - name: Validate Terraform and credential boundary
+        run: mise run //infra/work-graph:precommit-lint
+
+      - name: Lint Terraform
+        run: mise run //infra/work-graph:lint:tflint

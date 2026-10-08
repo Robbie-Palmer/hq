@@ -8,6 +8,41 @@ metadata:
 spec:
   template:
     spec:
+      initContainers:
+        - name: prepare-data-directories
+          env:
+            - name: CONFIGURE_RECIPE_AGENT_MCP
+              value: "true"
+        - name: prepare-docker-data
+          image: docker:29.8.2-dind-rootless@sha256:c652fa9cebdaa3d655c33c6389c3c409f9a0fea6449c7d7c56c486fe71af0591
+          command:
+            - /bin/sh
+            - -eu
+            - -c
+            - chown 1000:1000 /home/rootless/.local/share/docker
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN
+            readOnlyRootFilesystem: true
+            runAsGroup: 0
+            runAsNonRoot: false
+            runAsUser: 0
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: docker-data
+              mountPath: /home/rootless/.local/share/docker
       nodeSelector:
         homelab.dev/capability: agent-workspace
         homelab.dev/location: cloud
@@ -39,12 +74,66 @@ spec:
                     }
                   }
                 }
+            - name: CF_ACCESS_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-preview-access
+                  key: CF_ACCESS_CLIENT_ID
+                  optional: false
+            - name: CF_ACCESS_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-preview-access
+                  key: CF_ACCESS_CLIENT_SECRET
+                  optional: false
+            - name: CLOUDFLARE_PAGES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-preview-access
+                  key: CLOUDFLARE_PAGES_HOST
+                  optional: false
+            - name: WORK_GRAPH_API_URL
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-work-graph
+                  key: WORK_GRAPH_API_URL
+                  optional: false
+            - name: WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-work-graph
+                  key: WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS
+                  optional: false
+            - name: WORK_GRAPH_CF_ACCESS_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-work-graph
+                  key: WORK_GRAPH_CF_ACCESS_CLIENT_ID
+                  optional: false
+            - name: WORK_GRAPH_CF_ACCESS_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-work-graph
+                  key: WORK_GRAPH_CF_ACCESS_CLIENT_SECRET
+                  optional: false
+            - name: AGENT_AUTH_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-runtime
+                  key: AGENT_AUTH_ENCRYPTION_KEY
+                  optional: false
+          envFrom:
+            - secretRef:
+                name: t3-code-runtime
+                optional: true
           resources:
             requests:
               cpu: 500m
+              ephemeral-storage: 1Gi
               memory: 1Gi
             limits:
               cpu: "3"
+              ephemeral-storage: 12Gi
               memory: 6Gi
           securityContext:
             allowPrivilegeEscalation: false
@@ -52,8 +141,21 @@ spec:
               drop:
                 - ALL
             readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: cache
+              mountPath: /data/home/.cache
+              subPath: home-cache
+            - name: cache
+              mountPath: /data/home/.local/share/mise
+              subPath: mise
+            - name: cache
+              mountPath: /data/home/.local/share/pnpm
+              subPath: pnpm
+            - name: cache
+              mountPath: /data/home/.arduino15
+              subPath: arduino15
         - name: docker
-          image: docker:29.8.0-dind-rootless@sha256:e17fa54c2ffd511d8407c746eec77f7814e6f74fe20caf822dad1870599984c0
+          image: docker:29.8.2-dind-rootless@sha256:c652fa9cebdaa3d655c33c6389c3c409f9a0fea6449c7d7c56c486fe71af0591
           env:
             - name: DOCKERD_ROOTLESS_ROOTLESSKIT_FLAGS
               value: -p 127.0.0.1:2375:2375/tcp
@@ -91,9 +193,11 @@ spec:
           resources:
             requests:
               cpu: 100m
+              ephemeral-storage: 2Gi
               memory: 256Mi
             limits:
               cpu: "1"
+              ephemeral-storage: 16Gi
               memory: 1Gi
           securityContext:
             privileged: true # NOSONAR -- Rootless DinD requires a privileged outer container.
@@ -107,6 +211,12 @@ spec:
             - name: docker-data
               mountPath: /home/rootless/.local/share/docker
       volumes:
+        - name: cache
+          persistentVolumeClaim:
+            claimName: t3-code-cache
         - name: docker-data
           emptyDir:
             sizeLimit: 10Gi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 8Gi

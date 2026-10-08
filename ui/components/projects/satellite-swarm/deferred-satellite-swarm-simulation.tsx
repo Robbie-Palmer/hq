@@ -37,10 +37,54 @@ function messageFrom(error: unknown): string {
     : "The WebAssembly simulation failed.";
 }
 
-function Placeholder({
+interface PlaceholderProps {
+  error: string | null;
+  onRetry: () => void;
+  started: boolean;
+}
+
+function placeholderDescription(error: string | null, started: boolean) {
+  if (error) {
+    return "The simulation worker could not start.";
+  }
+
+  return started
+    ? "Loading the C++ WebAssembly module..."
+    : "The simulation will load when this section enters the viewport.";
+}
+
+function PlaceholderContent({
   error,
   onRetry,
-}: Readonly<{ error: string | null; onRetry: () => void }>) {
+  started,
+}: Readonly<PlaceholderProps>) {
+  if (error) {
+    return (
+      <>
+        <p className="max-w-xl font-mono text-xs">{error}</p>
+        <Button type="button" variant="outline" onClick={onRetry}>
+          <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
+          Retry simulation
+        </Button>
+      </>
+    );
+  }
+
+  return (
+    <>
+      {started && (
+        <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" />
+      )}
+      <span>
+        {started
+          ? "Preparing the deterministic mission replay..."
+          : "Waiting to load the simulation..."}
+      </span>
+    </>
+  );
+}
+
+function Placeholder({ error, onRetry, started }: Readonly<PlaceholderProps>) {
   return (
     <Card
       className="not-prose my-8 gap-0 overflow-hidden p-0"
@@ -49,28 +93,11 @@ function Placeholder({
       <div className="space-y-1 border-b p-4">
         <h3 className="text-lg font-semibold">C++ mission simulation</h3>
         <p className="text-sm text-muted-foreground">
-          {error
-            ? "The simulation worker could not start."
-            : "Loading the C++ WebAssembly module..."}
+          {placeholderDescription(error, started)}
         </p>
       </div>
       <div className="flex h-72 flex-col items-center justify-center gap-4 bg-muted/20 p-8 text-center text-sm text-muted-foreground">
-        {error ? (
-          <>
-            <p className="max-w-xl font-mono text-xs">{error}</p>
-            <Button type="button" variant="outline" onClick={onRetry}>
-              <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
-              Retry simulation
-            </Button>
-          </>
-        ) : (
-          <>
-            <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" />
-            <span>
-              The worker loads when this section approaches the viewport.
-            </span>
-          </>
-        )}
+        <PlaceholderContent error={error} onRetry={onRetry} started={started} />
       </div>
     </Card>
   );
@@ -144,11 +171,15 @@ function MissionControls({
         className="space-y-1 text-xs font-medium"
         htmlFor="satellite-swarm-scenario"
       >
-        <span>Network scenario</span>
+        <span>Simulation scenario</span>
         <Select
           value={scenario}
           onValueChange={(value) => {
-            if (value === "nominal" || value === "lost-assignment") {
+            if (
+              value === "nominal" ||
+              value === "lost-assignment" ||
+              value === "safe-state-success"
+            ) {
               onScenarioChange(value);
             }
           }}
@@ -157,9 +188,12 @@ function MissionControls({
             <SelectValue />
           </SelectTrigger>
           <SelectContent position="popper">
-            <SelectItem value="nominal">All deliveries</SelectItem>
+            <SelectItem value="nominal">Nominal mission</SelectItem>
             <SelectItem value="lost-assignment">
               Lose winning assignment
+            </SelectItem>
+            <SelectItem value="safe-state-success">
+              Complete safe-state action
             </SelectItem>
           </SelectContent>
         </Select>
@@ -196,6 +230,7 @@ function MissionControls({
 export function DeferredSatelliteSwarmSimulation() {
   const containerRef = useRef<HTMLDivElement>(null);
   const activeRequestRef = useRef<AbortController | null>(null);
+  const hasStartedRef = useRef(false);
   const [simulation, setSimulation] = useState<{
     data: SimulationData;
     runId: number;
@@ -210,7 +245,7 @@ export function DeferredSatelliteSwarmSimulation() {
   );
   const [scenario, setScenario] = useState<SatelliteSwarmScenario>("nominal");
   const [running, setRunning] = useState(false);
-  const [visible, setVisible] = useState(false);
+  const [started, setStarted] = useState(false);
 
   const run = useCallback(
     async (
@@ -256,42 +291,38 @@ export function DeferredSatelliteSwarmSimulation() {
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    let disposed = false;
-    let requested = false;
-    const load = () => {
-      if (disposed || requested) return;
-      requested = true;
-      setVisible(true);
-      void run(SOUTH_POLE_OBJECTIVE);
+
+    const start = () => {
+      if (hasStartedRef.current) return;
+      hasStartedRef.current = true;
+      setStarted(true);
+      void run(SOUTH_POLE_OBJECTIVE, true);
     };
 
     if (typeof IntersectionObserver === "undefined") {
-      load();
-      return () => {
-        disposed = true;
-        const controller = activeRequestRef.current;
-        activeRequestRef.current = null;
-        controller?.abort();
-      };
+      const timer = window.setTimeout(start, 0);
+      return () => window.clearTimeout(timer);
     }
 
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (disposed || !entry?.isIntersecting) return;
-        load();
-        observer.disconnect();
-      },
-      { rootMargin: "500px 0px" },
-    );
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry?.isIntersecting) return;
+      observer.disconnect();
+      start();
+    });
     observer.observe(container);
+
     return () => {
-      disposed = true;
-      const controller = activeRequestRef.current;
-      activeRequestRef.current = null;
-      controller?.abort();
       observer.disconnect();
     };
   }, [run]);
+
+  useEffect(() => {
+    return () => {
+      const controller = activeRequestRef.current;
+      activeRequestRef.current = null;
+      controller?.abort();
+    };
+  }, []);
 
   const resetObjective = () => {
     setLongitude(String(SOUTH_POLE_OBJECTIVE.longitudeDegrees));
@@ -313,7 +344,7 @@ export function DeferredSatelliteSwarmSimulation() {
 
   return (
     <div ref={containerRef} aria-busy={running}>
-      {simulation && visible ? (
+      {simulation ? (
         <SatelliteSwarmSimulation
           key={simulation.runId}
           data={simulation.data}
@@ -337,7 +368,8 @@ export function DeferredSatelliteSwarmSimulation() {
       ) : (
         <Placeholder
           error={error}
-          onRetry={() => void run(SOUTH_POLE_OBJECTIVE)}
+          onRetry={() => void run(SOUTH_POLE_OBJECTIVE, true)}
+          started={started}
         />
       )}
     </div>

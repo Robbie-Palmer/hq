@@ -1,9 +1,11 @@
 import { z } from "zod";
+import { DefaultOverrideSchema } from "../platform/platform";
 import type { ADRRef, ADRSlug, ProjectSlug } from "../slugs";
 import {
   ADRRefSchema,
   ADRSlugSchema,
   IdeaSlugSchema,
+  ProductDecisionSlugSchema,
   ProjectSlugSchema,
   TechnologySlugSchema,
 } from "../slugs";
@@ -55,19 +57,36 @@ export const ADRSchema = z.object({
   status: ADRStatusSchema,
   inheritsFrom: ADRRefSchema.optional(),
   supersedes: ADRRefSchema.optional(),
+  overridesDefault: DefaultOverrideSchema.optional(),
   content: z.string(),
   readingTime: z.string(),
 });
 
 export type ADR = z.infer<typeof ADRSchema>;
 
+export const LegacyADRAliasSchema = z.object({
+  alias: ADRRefSchema,
+  target: ADRRefSchema,
+  title: z.string().trim().min(1).optional(),
+  notes: z.string().min(1).optional(),
+});
+
+export type LegacyADRAlias = z.infer<typeof LegacyADRAliasSchema>;
+
 export const ADRRelationsSchema = z.object({
   project: ProjectSlugSchema,
   technologies: z.array(TechnologySlugSchema).default([]),
   ideas: z.array(IdeaSlugSchema).default([]),
+  implementsProductDecisions: z.array(ProductDecisionSlugSchema).default([]),
 });
 
-export type ADRRelations = z.infer<typeof ADRRelationsSchema>;
+type ParsedADRRelations = z.infer<typeof ADRRelationsSchema>;
+export type ADRRelations = Omit<
+  ParsedADRRelations,
+  "implementsProductDecisions"
+> & {
+  implementsProductDecisions?: ParsedADRRelations["implementsProductDecisions"];
+};
 
 export function makeADRRef(projectSlug: ProjectSlug, adrSlug: ADRSlug): ADRRef {
   return `${projectSlug}:${adrSlug}`;
@@ -75,6 +94,17 @@ export function makeADRRef(projectSlug: ProjectSlug, adrSlug: ADRSlug): ADRRef {
 
 export function formatADRIndex(index: number): string {
   return String(Math.max(0, index)).padStart(3, "0");
+}
+
+export function formatADRSlugIndex(slug: string): string {
+  const prefix = /^\d+/.exec(slug)?.[0];
+  if (!prefix) return "---";
+
+  const index = Number(prefix);
+  const normalizedPrefix = prefix.replace(/^0+/, "") || "0";
+  return Number.isSafeInteger(index) && String(index) === normalizedPrefix
+    ? formatADRIndex(index)
+    : "---";
 }
 
 export function normalizeADRTitle(title: string): string {

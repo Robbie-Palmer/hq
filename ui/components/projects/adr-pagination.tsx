@@ -2,15 +2,13 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import type { ADR } from "@/lib/api/projects";
-import { formatADRIndex, normalizeADRTitle } from "@/lib/domain/adr/adr";
+import { formatADRSlugIndex, normalizeADRTitle } from "@/lib/domain/adr/adr";
 import { cn } from "@/lib/generic/styles";
 
 interface ADRPaginationProps {
   projectSlug: string;
   prevAdr?: ADR;
-  prevIndex?: number;
   nextAdr?: ADR;
-  nextIndex?: number;
   variant?: "full" | "minimal";
   compact?: boolean;
   className?: string;
@@ -19,9 +17,7 @@ interface ADRPaginationProps {
 export function ADRPagination({
   projectSlug,
   prevAdr,
-  prevIndex,
   nextAdr,
-  nextIndex,
   variant = "full",
   compact = false,
   className,
@@ -59,11 +55,9 @@ export function ADRPagination({
               </div>
               {variant === "full" && (
                 <div className="text-xs sm:text-sm font-medium truncate">
-                  {prevIndex !== undefined && (
-                    <span className="font-mono mr-1">
-                      ADR {formatADRIndex(prevIndex)}:
-                    </span>
-                  )}
+                  <span className="font-mono mr-1">
+                    ADR {formatADRSlugIndex(prevAdr.slug)}:
+                  </span>
                   {normalizeADRTitle(prevAdr.title)}
                 </div>
               )}
@@ -96,11 +90,9 @@ export function ADRPagination({
               </div>
               {variant === "full" && (
                 <div className="text-xs sm:text-sm font-medium truncate">
-                  {nextIndex !== undefined && (
-                    <span className="font-mono mr-1">
-                      ADR {formatADRIndex(nextIndex)}:
-                    </span>
-                  )}
+                  <span className="font-mono mr-1">
+                    ADR {formatADRSlugIndex(nextAdr.slug)}:
+                  </span>
                   {normalizeADRTitle(nextAdr.title)}
                 </div>
               )}

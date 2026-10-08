@@ -1,0 +1,42 @@
+---
+title: "ADR 008: Vitest"
+date: "2025-10-18"
+status: "Accepted"
+tech_stack: ["Vitest"]
+---
+
+# Context
+
+I need a unit testing framework to verify logic and prevent regressions.
+The standard in the React ecosystem for years has been **Jest**. However, frameworks have evolved:
+
+* **Performance**: Jest can be slow, especially in TypeScript projects where it relies on `ts-jest` or Babel transforms, leading to long feedback loops.
+* **Configuration Overhead**: Setting up Jest to understand ESM modules, TypeScript, and modern browser APIs often requires complex configuration and duplicate setup (separate `jest.config.js` distinct from the build config).
+* **Alternatives**:
+* **Mocha/Chai**: Flexible but fragmented ecosystem; requires stitching together runner, assertion library, and mocking tools.
+* **Node.js Test Runner**: Integrated but relatively new and lacks the rich ecosystem of matchers and plugins found in Jest/Vitest.
+
+I want a testing tool that brings the same **velocity** benefits as the rest of my stack.
+
+# Decision
+
+I decided to use **[Vitest](https://vitest.dev/)**.
+
+Vitest is a Vite-native unit test framework. It might seem intuitive to align the test runner with the bundler (e.g., Jest with Webpack), but modern tooling increasingly decouples these concerns to maximize velocity.
+
+Even within the Vite ecosystem, development uses `esbuild` for unbundled serving while production uses `rollup` for bundling. Similarly here, we use **Turbopack** for the application dev server to handle Next.js specifics, and **Vitest** for the test runner to leverage its instant feedback loop. They are different tools optimized for different "hot" environments (dev server vs. test watch mode), but both avoid the cost of full bundling during development.
+
+*Note*: We **cannot** use Vite for the main application build or development server because Next.js ([ADR 003](/projects/personal-knowledge-graph/adrs/003-next-js)) is tightly coupled to its own compiler (Webpack/Turbopack) for features like React Server Components and the App Router. However, we *can* leverage the Vite engine exclusively for running unit tests via Vitest.
+
+# Consequences
+
+### Pros
+
+* **Speed**: Powered by Vite and utilizing native ESM, it provides instant startup and hot module replacement (HMR) for tests. This tightens the "edit-test-debug" loop, [Short Feedback Loops](/projects?tab=philosophy#short-feedback-loops) in action.
+* **Simplicity**: While it requires a `vitest.config.ts` (since we use Turbopack for development), the configuration is significantly lighter and more standard than a comparable Jest setup.
+* **Jest Compatibility**: The API is nearly identical to Jest (`describe`, `it`, `expect`), meaning zero learning curve and easy portability if needed.
+
+### Cons
+
+* **Ecosystem Maturity**: While rapidly growing, it has fewer dedicated plugins than Jest (though heavily compatible with existing ones).
+* **Configuration Split**: Since we use **Turbopack** for the Next.js dev server, we do not share a single `vite.config.ts` for both app and tests. Vitest runs in its own Vite instance, requiring its own (albeit minimal) config file.

@@ -2,9 +2,144 @@
 title: "Recipe Site"
 description: "A social cooking network that helps friends and families cook better using trusted, real-world kitchen signals"
 date: "2026-02-14"
-repo_url: "https://github.com/Robbie-Palmer/personal-site"
+repo_url: "https://github.com/Robbie-Palmer/hq"
 demo_url: "https://robbiepalmer.me/recipes"
 status: "in_progress"
+updated: "2026-09-30"
+platform_layers:
+  - layer: "governance"
+    adopted: "2026-09-15T00:00:00Z"
+    tracking: true
+    rationale: "The public application uses the shared repository's publication and licensing rules."
+  - layer: "base"
+    adopted: "2026-09-12T00:00:00Z"
+    tracking: true
+    rationale: "The application uses the repository-wide development and delivery controls."
+    slots:
+      - slot: "secrets.runtime-store"
+        adopted: "2026-09-15T00:00:00Z"
+        rationale: "Authentication, database, and integration credentials need a runtime store."
+      - slot: "secrets.ci-store"
+        adopted: "2026-09-15T00:00:00Z"
+        rationale: "Preview and production workflows need deployment credentials."
+      - slot: "delivery.preview-environment"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:017-fresh-migration-baseline-and-isolated-preview-database-project"
+      - slot: "security.preview-access"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:013-cloudflare-access-preview-gates"
+  - layer: "web-app"
+    adopted: "2026-09-12T00:00:00Z"
+    tracking: true
+    rationale: "The product is delivered as a browser application."
+    slots:
+      - slot: "web-app.host"
+        adopted: "2026-09-15T00:00:00Z"
+        rationale: "The public application and Pull Request previews need managed hosting."
+      - slot: "web-app.server-state-client"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:018-tanstack-query-for-client-server-state"
+  - layer: "backend-api"
+    adopted: "2026-09-12T00:00:00Z"
+    tracking: true
+    decision: "recipe-site:004-backend-platform-for-authenticated-features"
+    slots:
+      - slot: "backend-api.runtime"
+        adopted: "2026-09-12T00:00:00Z"
+        decision: "recipe-site:004-backend-platform-for-authenticated-features"
+      - slot: "backend-api.http-framework"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:004-backend-platform-for-authenticated-features"
+      - slot: "backend-api.contract-format"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:023-spectral"
+      - slot: "backend-api.relational-connection"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:004-backend-platform-for-authenticated-features"
+  - layer: "identity"
+    adopted: "2026-09-29T00:00:00Z"
+    tracking: true
+    decision: "recipe-site:003-better-auth"
+    slots:
+      - slot: "identity.authentication-library"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:003-better-auth"
+      - slot: "identity.login-provider"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:007-google-oidc-login"
+  - layer: "api-governance"
+    adopted: "2026-09-29T00:00:00Z"
+    tracking: true
+    decision: "recipe-site:023-spectral"
+    slots:
+      - slot: "api-governance.compatibility-check"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:023-spectral"
+  - layer: "database"
+    adopted: "2026-09-12T00:00:00Z"
+    tracking: true
+    decision: "recipe-site:004-backend-platform-for-authenticated-features"
+    slots:
+      - slot: "database.relational-engine"
+        adopted: "2026-09-12T00:00:00Z"
+        decision: "recipe-site:004-backend-platform-for-authenticated-features"
+      - slot: "database.relational-host"
+        adopted: "2026-09-12T00:00:00Z"
+        decision: "recipe-site:004-backend-platform-for-authenticated-features"
+      - slot: "database.relational-access"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:016-committed-postgres-migrations"
+      - slot: "database.backup-restore"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:014-neon-database-snapshots-and-backups"
+  - layer: "infrastructure"
+    adopted: "2026-09-12T00:00:00Z"
+    tracking: true
+    rationale: "The application owns managed Cloudflare and Neon resources."
+    slots:
+      - slot: "infrastructure.provisioner"
+        adopted: "2026-09-12T00:00:00Z"
+        rationale: "Managed service resources are provisioned from checked-in configuration."
+      - slot: "infrastructure.state-backend"
+        adopted: "2026-09-15T00:00:00Z"
+        rationale: "Preview and production provisioning require protected shared state."
+  - layer: "observability"
+    adopted: "2026-09-12T00:00:00Z"
+    tracking: true
+    decision: "recipe-site:010-posthog-logs"
+    slots:
+      - slot: "observability.telemetry-protocol"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:020-direct-otlp-export-to-posthog"
+      - slot: "observability.application-telemetry"
+        adopted: "2026-09-12T00:00:00Z"
+        until: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:010-posthog-logs"
+      - slot: "observability.application-telemetry"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:010-posthog-logs"
+      - slot: "observability.alert-evaluation"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:021-posthog-alerting-and-slack"
+      - slot: "observability.alert-delivery"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "recipe-site:021-posthog-alerting-and-slack"
+  - layer: "storage"
+    adopted: "2026-09-29T00:00:00Z"
+    tracking: true
+    rationale: "Private buckets separate user uploads and immutable ingestion artifacts from encrypted database backups; ADRs 012 and 014 define their access, retention, and lifecycle rules."
+    slots:
+      - slot: "storage.object-store"
+        adopted: "2026-09-29T00:00:00Z"
+        rationale: "R2 stores private user uploads, immutable stage artifacts, and encrypted backups under use-case-specific access, retention, deletion, and lifecycle policies."
+  - layer: "data"
+    adopted: "2026-09-30T00:00:00Z"
+    tracking: true
+    decision: "recipe-site:000-dvc"
+    slots:
+      - slot: "data.artifact-versioning"
+        adopted: "2026-09-30T00:00:00Z"
+        decision: "recipe-site:000-dvc"
 initiatives:
   - "digital-twins-for-everyday-life"
 ideas:
@@ -509,7 +644,7 @@ around an otherwise conventional recipe manager.
 
 The prototype above is a self-contained build; the editable design source
 (tokens, shared components, and one file per screen) is vendored alongside this
-document under [`designs/`](https://github.com/Robbie-Palmer/personal-site/tree/main/ui/content/projects/recipe-site/designs).
+document under [`designs/`](https://github.com/Robbie-Palmer/hq/tree/main/ui/content/projects/recipe-site/designs).
 
 # Competitor Analysis
 

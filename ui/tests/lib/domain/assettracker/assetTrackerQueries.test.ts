@@ -1,16 +1,24 @@
 import { describe, expect, it } from "vitest";
 import type { AssetTrackerData } from "@/lib/domain/assettracker/assetTrackerData";
 import {
+  buildAccountReadModels,
   getAccountDetail,
+  getAllAccountDetails,
+  getAllAccountSummaries,
   getAssetAllocationTimeSeries,
+  getLatestPortfolioValuation,
   getNetWorthTimeSeries,
+  getPortfolioAnnualReturn,
   getPortfolioContributionTimeSeries,
+  getPortfolioPositionSummary,
   getTotalByAssetType,
 } from "@/lib/domain/assettracker/assetTrackerQueries";
 import { buildRepository } from "@/lib/domain/assettracker/assetTrackerRepository";
+import { defaultHouseholdFields } from "@/lib/domain/assettracker/household";
 
 function homeData(): AssetTrackerData {
   return {
+    ...defaultHouseholdFields(),
     accounts: [
       {
         id: "home",
@@ -48,12 +56,237 @@ function homeData(): AssetTrackerData {
     ],
     capitalFlows: [],
     incomeHistory: [],
+    salaryHistory: [],
     transfers: [],
     recurringFlows: [],
     plannedExpenditures: [],
-    settings: { expectedAnnualInflation: 0.025, withdrawalRate: 0.04 },
+    planningCases: [],
+    futureCashFlows: [],
+    forecastAssumptionSets: [],
+    settings: {
+      expectedAnnualInflation: 0.025,
+      withdrawalRate: 0.04,
+      baseCurrency: "GBP",
+      valuationMaxAgeDays: 7,
+    },
   };
 }
+
+function mixedCurrencyData(): AssetTrackerData {
+  const source = { kind: "manual" as const, id: "test" };
+  return {
+    ...defaultHouseholdFields(),
+    accounts: [
+      {
+        id: "cash-gbp",
+        name: "GBP cash",
+        provider: "Bank",
+        currency: "GBP",
+        assetType: "cash",
+        expectedAnnualReturn: 0,
+        createdAt: "2025-01-01",
+      },
+      {
+        id: "broker-usd",
+        name: "US brokerage",
+        provider: "Broker",
+        currency: "USD",
+        assetType: "stocks",
+        expectedAnnualReturn: 0.05,
+        createdAt: "2025-01-01",
+      },
+    ],
+    snapshots: [
+      { accountId: "cash-gbp", date: "2025-01-01", balance: 1_000 },
+      { accountId: "cash-gbp", date: "2025-01-31", balance: 1_100 },
+    ],
+    capitalFlows: [
+      { accountId: "broker-usd", date: "2025-01-10", amount: 100 },
+    ],
+    incomeHistory: [],
+    salaryHistory: [],
+    transfers: [
+      {
+        id: "usd-income",
+        date: "2025-01-15",
+        toAccountId: "broker-usd",
+        amount: 50,
+        toAmount: 50,
+      },
+      {
+        id: "gbp-spending",
+        date: "2025-01-20",
+        fromAccountId: "cash-gbp",
+        amount: 20,
+      },
+      {
+        id: "internal",
+        date: "2025-01-25",
+        fromAccountId: "cash-gbp",
+        toAccountId: "broker-usd",
+        amount: 80,
+        fromAmount: 80,
+        toAmount: 100,
+      },
+    ],
+    recurringFlows: [],
+    plannedExpenditures: [],
+    planningCases: [],
+    futureCashFlows: [],
+    forecastAssumptionSets: [],
+    instruments: [
+      {
+        id: "fund-usd",
+        symbol: "FUND",
+        name: "US fund",
+        currency: "USD",
+      },
+    ],
+    holdingObservations: [
+      {
+        id: "holding-start",
+        accountId: "broker-usd",
+        instrumentId: "fund-usd",
+        quantity: 10,
+        validAt: "2025-01-01",
+        acceptedAt: "2025-01-01T12:00:00Z",
+        source,
+      },
+    ],
+    priceObservations: [
+      {
+        id: "price-start",
+        instrumentId: "fund-usd",
+        currency: "USD",
+        price: 90,
+        validAt: "2025-01-01",
+        acceptedAt: "2025-01-01T12:00:00Z",
+        source,
+      },
+      {
+        id: "price-end",
+        instrumentId: "fund-usd",
+        currency: "USD",
+        price: 100,
+        validAt: "2025-01-31",
+        acceptedAt: "2025-01-31T12:00:00Z",
+        source,
+      },
+    ],
+    exchangeRateObservations: [
+      {
+        id: "usd-gbp",
+        fromCurrency: "USD",
+        toCurrency: "GBP",
+        rate: 0.8,
+        validAt: "2025-01-01",
+        acceptedAt: "2025-01-01T12:00:00Z",
+        source,
+      },
+    ],
+    settings: {
+      expectedAnnualInflation: 0.025,
+      withdrawalRate: 0.04,
+      baseCurrency: "GBP",
+      valuationMaxAgeDays: 60,
+    },
+  };
+}
+
+describe("multi-currency portfolio queries", () => {
+  it("builds valued account summaries and details from one read model", () => {
+    const models = buildAccountReadModels(buildRepository(mixedCurrencyData()));
+    const summary = models.summaries.find(
+      (account) => account.id === "broker-usd",
+    );
+    const detail = models.detailsById.get("broker-usd");
+
+    expect(summary?.latestBalance).toBe(1_000);
+    expect(detail?.latestBalance).toBe(summary?.latestBalance);
+    expect(detail?.latestSnapshotDate).toBe(summary?.latestSnapshotDate);
+    expect(detail).toBe(
+      models.details.find((account) => account.id === "broker-usd"),
+    );
+  });
+
+  it("uses valued holdings and converted flows across every household query", () => {
+    const repository = buildRepository(mixedCurrencyData());
+
+    expect(getAllAccountSummaries(repository)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "broker-usd",
+          latestBalance: 1_000,
+          latestSnapshotDate: "2025-01-31",
+        }),
+      ]),
+    );
+    expect(getAccountDetail(repository, "broker-usd")).toMatchObject({
+      latestBalance: 1_000,
+      latestSnapshotDate: "2025-01-31",
+    });
+    expect(getAllAccountDetails(repository)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "broker-usd", latestBalance: 1_000 }),
+      ]),
+    );
+    expect(getLatestPortfolioValuation(repository)?.total).toBe(1_900);
+    expect(getPortfolioPositionSummary(repository)).toEqual({
+      date: "2025-01-31",
+      grossAssets: 1_900,
+      liabilities: 0,
+      liquidAssets: 1_900,
+      netWorth: 1_900,
+    });
+    expect(getNetWorthTimeSeries(repository).at(-1)).toMatchObject({
+      "GBP cash": 1_100,
+      "US brokerage": 800,
+      total: 1_900,
+    });
+    expect(getPortfolioContributionTimeSeries(repository)).toEqual([
+      { date: "2025-01-10", contributedCapital: 80 },
+      { date: "2025-01-15", contributedCapital: 120 },
+      { date: "2025-01-20", contributedCapital: 100 },
+    ]);
+    expect(getAssetAllocationTimeSeries(repository).at(-1)).toMatchObject({
+      cash: 1_100 / 1_900,
+      stocks: 800 / 1_900,
+      totalAssets: 1_900,
+    });
+    expect(getTotalByAssetType(repository)).toEqual(
+      expect.arrayContaining([
+        { assetType: "cash", total: 1_100 },
+        { assetType: "stocks", total: 800 },
+      ]),
+    );
+    expect(getPortfolioAnnualReturn(repository)).not.toBeNull();
+  });
+
+  it("withholds derived totals when a required exchange rate is missing", () => {
+    const data = mixedCurrencyData();
+    data.exchangeRateObservations = [];
+    const repository = buildRepository(data);
+
+    expect(getLatestPortfolioValuation(repository)?.total).toBeNull();
+    expect(getPortfolioPositionSummary(repository)).toBeNull();
+    expect(getPortfolioContributionTimeSeries(repository)).toEqual([]);
+    expect(getAssetAllocationTimeSeries(repository)).toEqual([]);
+    expect(getTotalByAssetType(repository)).toEqual([]);
+    expect(getPortfolioAnnualReturn(repository)).toBeNull();
+  });
+});
+
+describe("getPortfolioPositionSummary", () => {
+  it("keeps gross property value and linked debt separate", () => {
+    expect(getPortfolioPositionSummary(buildRepository(homeData()))).toEqual({
+      date: "2024-01-01",
+      grossAssets: 300_000,
+      liabilities: 212_000,
+      liquidAssets: 0,
+      netWorth: 88_000,
+    });
+  });
+});
 
 describe("getTotalByAssetType", () => {
   it("nets a linked mortgage into its property as equity", () => {
@@ -160,9 +393,224 @@ describe("getAssetAllocationTimeSeries", () => {
     expect(series[1]).toMatchObject({ cash: 1, totalAssets: 20_000 });
     expect(series[1]?.stocks).toBeUndefined();
   });
+
+  it("keeps valued allocation points after a linked mortgage closes", () => {
+    const data = homeData();
+    const mortgage = data.accounts.find((account) => account.id === "mortgage");
+    if (mortgage == null) throw new Error("Expected mortgage fixture");
+    mortgage.closedAt = "2025-01-01";
+    data.accounts.push({
+      id: "usd-cash",
+      name: "USD cash",
+      provider: "Bank",
+      currency: "USD",
+      assetType: "cash",
+      expectedAnnualReturn: 0,
+      createdAt: "2024-01-01",
+    });
+    data.snapshots.push(
+      { accountId: "home", date: "2025-01-01", balance: 310_000 },
+      { accountId: "mortgage", date: "2025-01-01", balance: -190_000 },
+      { accountId: "usd-cash", date: "2025-01-01", balance: 1_000 },
+    );
+    data.exchangeRateObservations = [
+      {
+        id: "usd-gbp-2025-01-01",
+        fromCurrency: "USD",
+        toCurrency: "GBP",
+        rate: 0.8,
+        validAt: "2025-01-01",
+        acceptedAt: "2025-01-01T12:00:00Z",
+        source: { kind: "manual", id: "test" },
+      },
+    ];
+
+    const point = getAssetAllocationTimeSeries(buildRepository(data)).at(-1);
+
+    expect(point).toMatchObject({
+      date: "2025-01-01",
+      property: 310_000 / 310_800,
+      cash: 800 / 310_800,
+      totalAssets: 310_800,
+    });
+  });
 });
 
 describe("getNetWorthTimeSeries", () => {
+  it("restates mixed-currency history with as-of evidence", () => {
+    const data = homeData();
+    data.accounts = [
+      {
+        id: "gbp-cash",
+        name: "GBP cash",
+        provider: "Bank",
+        currency: "GBP",
+        assetType: "cash",
+        expectedAnnualReturn: 0,
+        createdAt: "2025-01-01",
+      },
+      {
+        id: "usd-cash",
+        name: "USD cash",
+        provider: "Bank",
+        currency: "USD",
+        assetType: "cash",
+        expectedAnnualReturn: 0,
+        createdAt: "2025-01-04",
+        closedAt: "2025-01-12",
+      },
+      {
+        id: "eur-cash",
+        name: "EUR cash",
+        provider: "Bank",
+        currency: "EUR",
+        assetType: "cash",
+        expectedAnnualReturn: 0,
+        createdAt: "2025-01-05",
+      },
+    ];
+    data.snapshots = [
+      { accountId: "gbp-cash", date: "2025-01-01", balance: 200 },
+      { accountId: "usd-cash", date: "2025-01-05", balance: 100 },
+      { accountId: "eur-cash", date: "2025-01-05", balance: 100 },
+      { accountId: "gbp-cash", date: "2025-01-12", balance: 220 },
+    ];
+    data.exchangeRateObservations = [
+      {
+        id: "usd-gbp-original",
+        fromCurrency: "USD",
+        toCurrency: "GBP",
+        rate: 0.8,
+        validAt: "2025-01-03",
+        acceptedAt: "2025-01-03T17:00:00Z",
+        source: { kind: "provider", id: "frankfurter", label: "Frankfurter" },
+      },
+      {
+        id: "usd-gbp-correction",
+        fromCurrency: "USD",
+        toCurrency: "GBP",
+        rate: 0.75,
+        validAt: "2025-01-03",
+        acceptedAt: "2025-01-06T09:00:00Z",
+        correctsId: "usd-gbp-original",
+        source: { kind: "provider", id: "frankfurter", label: "Frankfurter" },
+        providerObservations: [
+          {
+            provider: "ECB",
+            observedDate: "2025-01-03",
+            rate: 0.75,
+            carried: true,
+            excluded: false,
+          },
+        ],
+      },
+      {
+        id: "eur-gbp-derived",
+        fromCurrency: "EUR",
+        toCurrency: "GBP",
+        rate: 0.85,
+        validAt: "2025-01-03",
+        acceptedAt: "2025-01-03T17:00:00Z",
+        source: { kind: "reference", id: "derived", label: "ECB via EUR" },
+        derivation: {
+          method: "triangulated",
+          legs: ["eur-usd", "usd-gbp-correction"],
+        },
+      },
+    ];
+
+    const sunday = getNetWorthTimeSeries(buildRepository(data)).find(
+      (point) => point.date === "2025-01-05",
+    );
+
+    expect(sunday).toMatchObject({
+      "GBP cash": 200,
+      "USD cash": 75,
+      "EUR cash": 85,
+      total: 360,
+      conversion: {
+        targetCurrency: "GBP",
+        status: "complete",
+      },
+    });
+    expect(sunday?.conversion?.accounts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          accountId: "usd-cash",
+          nativeValue: 100,
+          nativeCurrency: "USD",
+          convertedValue: 75,
+          rates: [
+            expect.objectContaining({
+              observationId: "usd-gbp-correction",
+              source: "Frankfurter",
+              effectiveDate: "2025-01-03",
+              carriedForward: true,
+              method: "direct",
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          accountId: "eur-cash",
+          convertedValue: 85,
+          rates: [expect.objectContaining({ method: "triangulated" })],
+        }),
+      ]),
+    );
+    expect(
+      sunday?.conversion?.accounts.some(
+        (account) => account.accountId === "usd-cash",
+      ),
+    ).toBe(true);
+
+    const beforeCreation = getNetWorthTimeSeries(buildRepository(data)).find(
+      (point) => point.date === "2025-01-03",
+    );
+    expect(
+      beforeCreation?.conversion?.accounts.some(
+        (account) => account.accountId === "usd-cash",
+      ),
+    ).toBe(false);
+    const afterClosure = getNetWorthTimeSeries(buildRepository(data)).find(
+      (point) => point.date === "2025-01-12",
+    );
+    expect(
+      afterClosure?.conversion?.accounts.some(
+        (account) => account.accountId === "usd-cash",
+      ),
+    ).toBe(false);
+
+    data.settings.baseCurrency = "USD";
+    const inUsd = getNetWorthTimeSeries(buildRepository(data)).find(
+      (point) => point.date === "2025-01-05",
+    );
+    expect(inUsd?.["GBP cash"]).toBeCloseTo(200 / 0.75);
+    expect(
+      inUsd?.conversion?.accounts
+        .find((account) => account.accountId === "gbp-cash")
+        ?.rates.at(0),
+    ).toMatchObject({ method: "inverse", effectiveDate: "2025-01-03" });
+  });
+
+  it("marks a historical point incomplete without discarding native values", () => {
+    const data = mixedCurrencyData();
+    data.exchangeRateObservations = [];
+
+    const point = getNetWorthTimeSeries(buildRepository(data)).at(-1);
+    const usdAccount = point?.conversion?.accounts.find(
+      (account) => account.accountId === "broker-usd",
+    );
+
+    expect(point?.total).toBeNull();
+    expect(point?.conversion?.status).toBe("incomplete");
+    expect(usdAccount).toMatchObject({
+      nativeValue: 1_000,
+      nativeCurrency: "USD",
+      convertedValue: null,
+      issues: [expect.objectContaining({ kind: "missing_exchange_rate" })],
+    });
+  });
+
   it("folds the mortgage into the property series and totals net worth", () => {
     const series = getNetWorthTimeSeries(buildRepository(homeData()));
     const point = series.at(-1);

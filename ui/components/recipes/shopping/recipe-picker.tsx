@@ -2,6 +2,7 @@
 
 import { Minus, Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useEquipmentReadiness } from "@/components/recipes/equipment-readiness-provider";
 import { RecipeMatchCard } from "@/components/recipes/recipe-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,6 +67,7 @@ export function RecipePicker({
 }>) {
   const { recipes: selectedEntries } = useShoppingList();
   const stock = useKitchenStock();
+  const { equipment } = useEquipmentReadiness();
   const [query, setQuery] = useState("");
 
   const servingsBySlug = useMemo(() => {
@@ -93,14 +95,16 @@ export function RecipePicker({
             ]),
           ).values(),
         ],
+        cookware: recipe.cookware ?? [],
       }),
     );
     const matches = getKitchenRecipeMatches(
       views,
       Object.keys(stock) as IngredientSlug[],
+      equipment.active ? equipment.ownedSlugs : null,
     );
     return new Map(matches.map((match) => [match.slug, match]));
-  }, [recipes, stock]);
+  }, [equipment.active, equipment.ownedSlugs, recipes, stock]);
 
   // Pre-compute each recipe's lowercase search string once (not per keystroke).
   const searchIndex = useMemo(

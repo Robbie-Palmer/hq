@@ -5,6 +5,9 @@
 #ifndef SATELLITE_SWARM_NODE_ID
 #error "Define SATELLITE_SWARM_NODE_ID through the firmware build task"
 #endif
+#ifndef SATELLITE_SWARM_BOOT_EPOCH
+#error "Define SATELLITE_SWARM_BOOT_EPOCH through the firmware build task"
+#endif
 
 namespace {
 
@@ -12,14 +15,32 @@ static_assert(SATELLITE_SWARM_NODE_ID >= 0 &&
                   SATELLITE_SWARM_NODE_ID < satellite_swarm::kMaximumNodes,
               "SATELLITE_SWARM_NODE_ID must identify a configured swarm node");
 constexpr uint8_t kNodeId = SATELLITE_SWARM_NODE_ID;
+constexpr satellite_swarm::BootEpoch kBootEpoch = SATELLITE_SWARM_BOOT_EPOCH;
+static_assert(kBootEpoch != 0U, "SATELLITE_SWARM_BOOT_EPOCH must be nonzero");
 const uint8_t kReceivePin = A4;
 const uint8_t kSendPin = 3;
 const uint8_t kMissionButtonPin = 2;
 const uint32_t kButtonDebounceMs = 250U;
+const uint32_t kTelemetryIntervalMs = 1000U;
 
 class NominalHealthMonitor : public satellite_swarm::HealthMonitor {
 public:
   satellite_swarm::HealthStatus poll() override { return satellite_swarm::HealthStatus::Nominal; }
+};
+
+class SerialTelemetrySink : public satellite_swarm::TelemetrySink {
+public:
+  bool publish(const satellite_swarm::TelemetryEvent& event) override {
+    if (Serial.availableForWrite() <
+        static_cast<int>(satellite_swarm::TelemetryCodec::kFrameSize)) {
+      return false;
+    }
+    uint8_t frame[satellite_swarm::TelemetryCodec::kFrameSize]{};
+    if (!satellite_swarm::TelemetryCodec::encode(event, frame, sizeof(frame))) {
+      return false;
+    }
+    return Serial.write(frame, sizeof(frame)) == sizeof(frame);
+  }
 };
 
 UnoInfraredTransport transport(kReceivePin, kSendPin);
@@ -35,11 +56,19 @@ satellite_swarm::ControllerConfig makeConfig() {
   value.node_capacity = 3U;
   return value;
 }
+satellite_swarm::TelemetryTransmitterConfig makeTelemetryConfig() {
+  satellite_swarm::TelemetryTransmitterConfig value;
+  value.minimum_interval_ms = kTelemetryIntervalMs;
+  return value;
+}
 satellite_swarm::SatelliteSnapshot satellite = makeSatellite();
 satellite_swarm::ControllerConfig config = makeConfig();
-satellite_swarm::SwarmController controller(kNodeId, satellite, transport, health_monitor, scorer,
-                                            config);
-satellite_swarm::ControllerState previous_state = satellite_swarm::ControllerState::Idle;
+satellite_swarm::SwarmController controller(kNodeId, kBootEpoch, satellite, transport,
+                                            health_monitor, scorer, config);
+SerialTelemetrySink telemetry_sink;
+satellite_swarm::TelemetryTransmitterConfig telemetry_config = makeTelemetryConfig();
+satellite_swarm::TelemetryTransmitter telemetry_transmitter(controller, telemetry_sink,
+                                                            telemetry_config);
 uint32_t last_button_press_ms = 0;
 
 void updateStatusLed() {
@@ -68,9 +97,5 @@ void loop() {
 
   controller.update(now_ms);
   updateStatusLed();
-  if (controller.state() != previous_state) {
-    Serial.print(F("State: "));
-    Serial.println(static_cast<uint8_t>(controller.state()));
-    previous_state = controller.state();
-  }
+  telemetry_transmitter.update(now_ms, true);
 }

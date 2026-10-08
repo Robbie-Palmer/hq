@@ -1,0 +1,30 @@
+---
+title: "ADR 002: Cloudflare Workers for backend APIs"
+date: "2026-09-12"
+status: "Accepted"
+tech_stack:
+  - "Cloudflare Workers"
+---
+
+## Context
+
+Small web applications need an HTTP runtime without a separately operated
+server, but not every application has a backend API.
+
+## Decision
+
+Prefer Cloudflare Workers for the backend runtime slot. Projects activate the
+slot only when they need an API.
+
+## Consequences
+
+Backend code must fit the
+[Workers runtime](https://developers.cloudflare.com/workers/runtime-apis/).
+It runs in V8 isolates, exposes Web Platform APIs, and supports a subset of
+Node.js APIs. Dependencies need compatibility tests against the project's
+Workers compatibility date.
+
+Requests may run in different isolates, and Cloudflare may evict an isolate.
+Backends cannot use mutable global state as durable application state. They
+must put durable state in an external store or a Durable Object. CPU, memory,
+subrequest, and connection limits also constrain workloads and library choices.

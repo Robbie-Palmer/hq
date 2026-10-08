@@ -479,14 +479,22 @@ test("execute mode blocks underpowered decisions unless an explicit pilot is all
     "src/env.ts",
     "src/finding-lifecycle.ts",
     "src/github-app.ts",
-    "src/guardrails.ts",
     "src/replay-input.ts",
     "src/replay-runner.ts",
     "src/review-engine.ts",
+    "src/reviewer.ts",
+    "../packages/ai-review-domain/src/finding-outcomes.ts",
+    "../packages/ai-review-domain/src/guardrails.ts",
     "../packages/ai-review-domain/src/reviewer.ts",
     "../packages/ai-review-domain/src/records.ts",
     "../packages/ai-review-domain/src/pull-request-metadata.ts",
     "../packages/ai-review-domain/src/replay.ts",
+    "../packages/github-client/src/index.ts",
+    "../packages/openrouter-client/src/index.ts",
+    "../packages/ts-base/src/http.ts",
+    "../packages/ts-base/src/numbers.ts",
+    "../packages/ts-base/src/records.ts",
+    "../packages/ts-base/src/strings.ts",
   ]) {
     const file = path.resolve(fakeAiReviewRoot, relative);
     fs.mkdirSync(path.dirname(file), { recursive: true });

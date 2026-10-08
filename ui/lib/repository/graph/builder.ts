@@ -2,8 +2,15 @@ import type { ADRRef } from "@/lib/domain/adr/adr";
 import type { BlogSlug } from "@/lib/domain/blog/blogPost";
 import type { IdeaSlug } from "@/lib/domain/idea/idea";
 import type { InitiativeSlug } from "@/lib/domain/initiative/initiative";
+import type {
+  DefaultOverride,
+  PlatformManifest,
+  ProjectLayerUse,
+} from "@/lib/domain/platform/platform";
+import type { ProductDecisionEvidenceLink } from "@/lib/domain/product-decision/productDecision";
 import type { ProjectSlug } from "@/lib/domain/project/project";
 import type { RoleSlug } from "@/lib/domain/role/jobRole";
+import type { ProductDecisionSlug } from "@/lib/domain/slugs";
 import type { TechnologySlug } from "@/lib/domain/technology/technology";
 import { type ContentGraph, makeNodeId, type NodeId } from "./types";
 
@@ -26,6 +33,19 @@ export interface RelationData {
   projectIdeas: Map<ProjectSlug, IdeaSlug[]>;
   technologyIdeas: Map<TechnologySlug, IdeaSlug[]>;
   ideaRelatedIdeas: Map<IdeaSlug, IdeaSlug[]>;
+  platformManifest?: PlatformManifest;
+  projectLayerUses: Map<ProjectSlug, ProjectLayerUse[]>;
+  adrOverridesDefault: Map<ADRRef, DefaultOverride>;
+  productDecisionAffectedProjects: Map<ProductDecisionSlug, ProjectSlug[]>;
+  productDecisionIdeas: Map<ProductDecisionSlug, IdeaSlug[]>;
+  productDecisionInformedByADRs: Map<ProductDecisionSlug, ADRRef[]>;
+  productDecisionEvidence: Map<
+    ProductDecisionSlug,
+    ProductDecisionEvidenceLink[]
+  >;
+  productDecisionSupersedes: Map<ProductDecisionSlug, ProductDecisionSlug>;
+  adrImplementsProductDecisions: Map<ADRRef, ProductDecisionSlug[]>;
+  blogProductDecisions: Map<BlogSlug, ProductDecisionSlug[]>;
 }
 
 export function createEmptyRelationData(): RelationData {
@@ -48,6 +68,16 @@ export function createEmptyRelationData(): RelationData {
     projectIdeas: new Map(),
     technologyIdeas: new Map(),
     ideaRelatedIdeas: new Map(),
+    platformManifest: undefined,
+    projectLayerUses: new Map(),
+    adrOverridesDefault: new Map(),
+    productDecisionAffectedProjects: new Map(),
+    productDecisionIdeas: new Map(),
+    productDecisionInformedByADRs: new Map(),
+    productDecisionEvidence: new Map(),
+    productDecisionSupersedes: new Map(),
+    adrImplementsProductDecisions: new Map(),
+    blogProductDecisions: new Map(),
   };
 }
 
@@ -59,15 +89,63 @@ interface BuildGraphInput {
   relations: RelationData;
 }
 
-export function buildContentGraph(input: BuildGraphInput): ContentGraph {
-  const {
-    technologySlugs,
-    projectSlugs,
-    initiativeSlugs = [],
-    ideaSlugs = [],
-    relations,
-  } = input;
+/** Applies each relation group in the graph's fixed construction order. */
+class ContentGraphBuilder {
+  private readonly graph: ContentGraph;
+  private readonly relations: RelationData;
 
+  constructor(input: BuildGraphInput) {
+    this.graph = initializeGraph(input);
+    this.relations = input.relations;
+  }
+
+  addTechnologyIdeas(): this {
+    addTechnologyIdeaRelations(this.graph, this.relations);
+    return this;
+  }
+
+  addProjects(): this {
+    addProjectRelations(this.graph, this.relations);
+    return this;
+  }
+
+  addAdrs(): this {
+    addAdrRelations(this.graph, this.relations);
+    return this;
+  }
+
+  addBlogsAndRoles(): this {
+    addBlogAndRoleRelations(this.graph, this.relations);
+    return this;
+  }
+
+  addProductDecisions(): this {
+    addProductDecisionRelations(this.graph, this.relations);
+    return this;
+  }
+
+  addPlatform(): this {
+    addPlatformRelations(this.graph, this.relations);
+    return this;
+  }
+
+  build(): ContentGraph {
+    return this.graph;
+  }
+}
+
+export function buildContentGraph(input: BuildGraphInput): ContentGraph {
+  return new ContentGraphBuilder(input)
+    .addTechnologyIdeas()
+    .addProjects()
+    .addAdrs()
+    .addBlogsAndRoles()
+    .addProductDecisions()
+    .addPlatform()
+    .build();
+}
+
+function initializeGraph(input: BuildGraphInput): ContentGraph {
   const graph: ContentGraph = {
     edges: {
       usesTechnology: new Map(),
@@ -81,6 +159,18 @@ export function buildContentGraph(input: BuildGraphInput): ContentGraph {
       referencesIdea: new Map(),
       technologyIdeas: new Map(),
       relatedIdea: new Map(),
+      platformOwnsLayer: new Map(),
+      layerSlotPolicies: new Map(),
+      defaultSelections: new Map(),
+      projectLayerUses: new Map(),
+      projectSlotUses: new Map(),
+      adrOverridesDefault: new Map(),
+      productDecisionAffectedProjects: new Map(),
+      productDecisionInformedByADRs: new Map(),
+      productDecisionEvidence: new Map(),
+      productDecisionSupersedes: new Map(),
+      adrImplementsProductDecisions: new Map(),
+      blogProductDecisions: new Map(),
     },
     reverse: {
       technologyUsedBy: new Map(),
@@ -93,23 +183,110 @@ export function buildContentGraph(input: BuildGraphInput): ContentGraph {
       roleBlogs: new Map(),
       ideaReferencedBy: new Map(),
       ideaTechnologies: new Map(),
+      layerOwnedBy: new Map(),
+      layerUsers: new Map(),
+      slotOverrides: new Map(),
+      projectProductDecisions: new Map(),
+      adrInformedProductDecisions: new Map(),
+      productDecisionSupersededBy: new Map(),
+      productDecisionImplementedByADRs: new Map(),
+      productDecisionBlogs: new Map(),
     },
   };
-
-  for (const techSlug of technologySlugs) {
+  for (const techSlug of input.technologySlugs) {
     graph.reverse.technologyUsedBy.set(techSlug, new Set());
   }
-  for (const projectSlug of projectSlugs) {
+  for (const projectSlug of input.projectSlugs) {
     graph.reverse.projectADRs.set(projectSlug, new Set());
   }
-  for (const initiativeSlug of initiativeSlugs) {
+  for (const initiativeSlug of input.initiativeSlugs ?? []) {
     graph.reverse.initiativeProjects.set(initiativeSlug, new Set());
   }
-  for (const ideaSlug of ideaSlugs) {
+  for (const ideaSlug of input.ideaSlugs ?? []) {
     graph.reverse.ideaReferencedBy.set(ideaSlug, new Set());
     graph.reverse.ideaTechnologies.set(ideaSlug, new Set());
   }
+  return graph;
+}
 
+function addProductDecisionRelations(
+  graph: ContentGraph,
+  relations: RelationData,
+): void {
+  addProductDecisionProjectAndIdeaRelations(graph, relations);
+  addProductDecisionAdrRelations(graph, relations);
+  addProductDecisionBlogAndEvidenceRelations(graph, relations);
+}
+
+function addProductDecisionProjectAndIdeaRelations(
+  graph: ContentGraph,
+  relations: RelationData,
+): void {
+  for (const [slug, projects] of relations.productDecisionAffectedProjects) {
+    graph.edges.productDecisionAffectedProjects.set(slug, new Set(projects));
+    for (const project of projects) {
+      const decisions =
+        graph.reverse.projectProductDecisions.get(project) ?? new Set();
+      decisions.add(slug);
+      graph.reverse.projectProductDecisions.set(project, decisions);
+    }
+  }
+  for (const [slug, ideas] of relations.productDecisionIdeas) {
+    addIdeaEdges(graph, makeNodeId("product-decision", slug), ideas);
+  }
+}
+
+function addProductDecisionAdrRelations(
+  graph: ContentGraph,
+  relations: RelationData,
+): void {
+  for (const [slug, adrs] of relations.productDecisionInformedByADRs) {
+    graph.edges.productDecisionInformedByADRs.set(slug, new Set(adrs));
+    for (const adr of adrs) {
+      const decisions =
+        graph.reverse.adrInformedProductDecisions.get(adr) ?? new Set();
+      decisions.add(slug);
+      graph.reverse.adrInformedProductDecisions.set(adr, decisions);
+    }
+  }
+  for (const [successor, predecessor] of relations.productDecisionSupersedes) {
+    graph.edges.productDecisionSupersedes.set(successor, predecessor);
+    graph.reverse.productDecisionSupersededBy.set(predecessor, successor);
+  }
+  for (const [adr, decisions] of relations.adrImplementsProductDecisions) {
+    graph.edges.adrImplementsProductDecisions.set(adr, new Set(decisions));
+    for (const decision of decisions) {
+      const adrs =
+        graph.reverse.productDecisionImplementedByADRs.get(decision) ??
+        new Set();
+      adrs.add(adr);
+      graph.reverse.productDecisionImplementedByADRs.set(decision, adrs);
+    }
+  }
+}
+
+function addProductDecisionBlogAndEvidenceRelations(
+  graph: ContentGraph,
+  relations: RelationData,
+): void {
+  for (const [slug, evidence] of relations.productDecisionEvidence) {
+    graph.edges.productDecisionEvidence.set(slug, evidence);
+  }
+  for (const [blog, decisions] of relations.blogProductDecisions) {
+    graph.edges.blogProductDecisions.set(blog, new Set(decisions));
+    for (const decision of decisions) {
+      const blogs =
+        graph.reverse.productDecisionBlogs.get(decision) ?? new Set();
+      blogs.add(blog);
+      graph.reverse.productDecisionBlogs.set(decision, blogs);
+    }
+  }
+}
+
+function addTechnologyIdeaRelations(
+  graph: ContentGraph,
+  relations: RelationData,
+): void {
   for (const [techSlug, ideas] of relations.technologyIdeas) {
     if (ideas.length === 0) continue;
     graph.edges.technologyIdeas.set(techSlug, new Set(ideas));
@@ -117,7 +294,12 @@ export function buildContentGraph(input: BuildGraphInput): ContentGraph {
       graph.reverse.ideaTechnologies.get(ideaSlug)?.add(techSlug);
     }
   }
+}
 
+function addProjectRelations(
+  graph: ContentGraph,
+  relations: RelationData,
+): void {
   for (const [slug, technologies] of relations.projectTechnologies) {
     addTechnologyEdges(graph, makeNodeId("project", slug), technologies);
   }
@@ -139,7 +321,9 @@ export function buildContentGraph(input: BuildGraphInput): ContentGraph {
       graph.reverse.projectADRs.get(projectSlug)?.add(adrRef);
     }
   }
+}
 
+function addAdrRelations(graph: ContentGraph, relations: RelationData): void {
   for (const [slug, technologies] of relations.adrTechnologies) {
     addTechnologyEdges(graph, makeNodeId("adr", slug), technologies);
   }
@@ -161,7 +345,12 @@ export function buildContentGraph(input: BuildGraphInput): ContentGraph {
     }
     graph.reverse.inheritedBy.get(parentAdrRef)?.add(childAdrRef);
   }
+}
 
+function addBlogAndRoleRelations(
+  graph: ContentGraph,
+  relations: RelationData,
+): void {
   for (const [slug, technologies] of relations.blogTechnologies) {
     addTechnologyEdges(graph, makeNodeId("blog", slug), technologies);
   }
@@ -197,8 +386,52 @@ export function buildContentGraph(input: BuildGraphInput): ContentGraph {
     }
     graph.reverse.roleBlogs.get(roleSlug)?.add(blogSlug);
   }
+}
 
-  return graph;
+function addPlatformRelations(
+  graph: ContentGraph,
+  relations: RelationData,
+): void {
+  const manifest = relations.platformManifest;
+  if (manifest) {
+    graph.edges.platformOwnsLayer.set(
+      manifest.project,
+      new Set(manifest.layers.map((layer) => layer.slug)),
+    );
+    for (const layer of manifest.layers) {
+      graph.reverse.layerOwnedBy.set(layer.slug, manifest.project);
+      graph.reverse.layerUsers.set(layer.slug, new Set());
+    }
+    for (const policy of manifest.policies) {
+      graph.edges.layerSlotPolicies.set(policy.id, policy);
+    }
+    for (const selection of manifest.selections) {
+      graph.edges.defaultSelections.set(selection.id, selection);
+    }
+  }
+
+  for (const [project, uses] of relations.projectLayerUses) {
+    for (const [useIndex, use] of uses.entries()) {
+      const useId = `${project}:${use.layer}:${useIndex}`;
+      graph.edges.projectLayerUses.set(useId, { project, use });
+      graph.reverse.layerUsers.get(use.layer)?.add(project);
+      for (const [slotIndex, slotUse] of use.slots.entries()) {
+        graph.edges.projectSlotUses.set(`${useId}:${slotIndex}`, {
+          project,
+          layer: use.layer,
+          use: slotUse,
+        });
+      }
+    }
+  }
+
+  for (const [adrRef, override] of relations.adrOverridesDefault) {
+    graph.edges.adrOverridesDefault.set(adrRef, override);
+    const overrides =
+      graph.reverse.slotOverrides.get(override.slot) ?? new Set();
+    overrides.add(adrRef);
+    graph.reverse.slotOverrides.set(override.slot, overrides);
+  }
 }
 
 function addIdeaEdges(

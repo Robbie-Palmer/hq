@@ -5,7 +5,8 @@ MOUNT_PATH="{{ ente_export_mount_path }}"
 EXPECTED_VOLUME_UUID="{{ ente_export_mount_uuid }}"
 SUCCESS_MARKER="{{ ente_export_success_marker }}"
 FAILURE_MARKER="{{ ente_export_state_dir }}/last-failure"
-MAX_AGE_SECONDS="$(({{ ente_export_max_age_hours }} * 3600))"
+MAX_AGE_HOURS="{{ ente_export_max_age_hours }}"
+MAX_AGE_SECONDS="$((MAX_AGE_HOURS * 3600))"
 
 gauge() {
   printf 'ente_%s:%s|g\n' "$1" "$2" | /usr/bin/nc -u -w 1 127.0.0.1 8125

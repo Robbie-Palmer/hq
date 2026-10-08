@@ -1,0 +1,69 @@
+---
+title: "ADR 017: the media stack waits for the VPN tunnel"
+date: "2026-08-23"
+status: "Accepted"
+tech_stack: ["Docker", "Colima"]
+---
+
+# Context
+
+The acquisition stack talks to public trackers from the hub, and that traffic
+should never ride the residential line, not during normal operation, and
+especially not during the boot window. The hub runs a system-wide VPN app,
+but it boots asynchronously alongside everything else: launchd agents bring
+up Colima and the media containers immediately at login, while the VPN
+client reconnects on its own schedule. After a power cut, the compose stack
+could plausibly come up seconds before the tunnel does, and the torrent
+client would spend that gap on the physical interface. Nothing would log it.
+
+# Decision
+
+Both entry points to the stack now **refuse to run unless the hub's default
+route resolves through a tunnel interface** (`utun*` on macOS):
+
+* `keep-running.sh` checks every cycle and holds the containers back until
+  the tunnel appears (the VM itself still starts; it leaks nothing).
+* `provision.sh` fails fast with an explanatory error, since provisioning
+  validates indexers and runs live searches against public trackers.
+
+The check is deliberately provider-agnostic: any WireGuard or OpenVPN client
+that takes the default route satisfies it, so swapping the current consumer
+VPN app for something more container-friendly later requires no script
+changes.
+
+# Alternatives
+
+## Gluetun sidecar
+
+* **Pros**: The thorough fix. qBittorrent's only network path becomes the
+  tunnel namespace; a mid-session VPN drop leaves the container with no
+  connectivity instead of silently falling back.
+* **Cons**: Requires a provider that publishes WireGuard/OpenVPN configs;
+  the current consumer VPN app does not. Adds one more container and one
+  more failure mode for Jellyfin playback if tuned badly.
+* **Decision**: Deferred. Revisit when the current VPN subscription is
+  replaced with a config-friendly provider. The gate here is designed to
+  make that swap trivial.
+
+## Do nothing
+
+* **Decision**: Rejected. The leak window is silent and lands exactly when
+  nobody is watching: unattended reboots.
+
+# Consequences
+
+### Pros
+
+* The boot race is closed: no tunnel, no stack, logged each cycle it waits.
+* Zero new containers; works with any default-route-taking VPN client.
+* Swapping VPN providers later is purely an app-level change.
+
+### Cons
+
+* The gate only covers *startup*. A VPN drop mid-session does not stop
+  already-running containers. Closing that needs the gluetun approach.
+* A Tailscale exit node also satisfies the gate. Egress still leaves the
+  LAN, but through another tailnet device; worth remembering when reading
+  logs.
+* Debugging "why is nothing running" after a reboot now starts at the VPN.
+  The hold message names this ADR so future-you finds it fast.

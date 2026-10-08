@@ -1,0 +1,1104 @@
+{
+  "corpusVersion": "2026.10.0",
+  "libraryVersion": "finance-tax-rules@0.1.0",
+  "ruleDatasetVersion": "2026.10.0",
+  "calculationContractVersion": "salary-validation-v1",
+  "releasedAt": "2026-10-02",
+  "syntheticDataOnly": true,
+  "sources": [
+    {
+      "id": "hmrc-employer-rates",
+      "title": "Rates and thresholds for employers 2025 to 2026",
+      "publisher": "HM Revenue & Customs",
+      "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2025-to-2026",
+      "retrievedAt": "2026-10-02",
+      "snapshotPath": "source-snapshots/employer-2025-26.md"
+    },
+    {
+      "id": "hmrc-employer-rates-2023",
+      "title": "Rates and thresholds for employers 2023 to 2024",
+      "publisher": "HM Revenue & Customs",
+      "url": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2023-to-2024",
+      "retrievedAt": "2026-10-02",
+      "snapshotPath": "source-snapshots/employer-2023-24.md"
+    },
+    {
+      "id": "hmrc-paye-routine-v24",
+      "title": "Specification for PAYE tax table routines version 24.0",
+      "publisher": "HM Revenue & Customs",
+      "url": "https://www.gov.uk/government/publications/payroll-technical-specifications-income-tax",
+      "retrievedAt": "2026-10-02",
+      "snapshotPath": "source-snapshots/paye-tax-table-routine-v24.md"
+    },
+    {
+      "id": "hmrc-ca38-2026",
+      "title": "National Insurance contributions tables 6 April 2026 to 5 April 2027",
+      "publisher": "HM Revenue & Customs",
+      "url": "https://www.gov.uk/government/publications/ca38-national-insurance-contributions-tables-a-and-j",
+      "retrievedAt": "2026-10-02",
+      "snapshotPath": "source-snapshots/ca38-2026-27.md"
+    },
+    {
+      "id": "hmrc-workplace-pension-methods",
+      "title": "Workplace pensions: managing your pension",
+      "publisher": "GOV.UK",
+      "url": "https://www.gov.uk/workplace-pensions/managing-your-pension",
+      "retrievedAt": "2026-10-02",
+      "snapshotPath": "source-snapshots/workplace-pension-methods.md"
+    },
+    {
+      "id": "hmrc-salary-sacrifice",
+      "title": "Salary sacrifice for employers",
+      "publisher": "HM Revenue & Customs",
+      "url": "https://www.gov.uk/guidance/salary-sacrifice-and-the-effects-on-paye",
+      "retrievedAt": "2026-10-02",
+      "snapshotPath": "source-snapshots/salary-sacrifice.md"
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "annual-england-basic-band-ceiling",
+      "description": "Annual England salary at the basic-rate band ceiling.",
+      "taxYear": "2025-26",
+      "jurisdiction": "england-and-northern-ireland",
+      "effectiveDate": "2025-06-30",
+      "coverage": [
+        "tax-band-boundary"
+      ],
+      "sources": [
+        {
+          "sourceId": "hmrc-employer-rates",
+          "locator": "2025/26 Income Tax and category A NI rates"
+        }
+      ],
+      "input": {
+        "contractualGrossPayPence": 5027000,
+        "cashPayPence": 5027000,
+        "taxablePayPence": 3770000,
+        "nationalInsuranceEarningsPence": 5027000,
+        "payroll": {
+          "frequency": "annual",
+          "periodNumber": null,
+          "taxCode": null,
+          "taxBasis": null,
+          "priorGrossPayPence": null,
+          "priorIncomeTaxPence": null,
+          "nationalInsuranceCategory": "A",
+          "employmentStartDate": "2025-04-06",
+          "employmentEndDate": "2026-04-05",
+          "jobChangedDuringTaxYear": false
+        },
+        "pension": null
+      },
+      "expected": {
+        "supported": true,
+        "precision": "annual-liability-estimate",
+        "components": {
+          "grossCashPayPence": 5027000,
+          "taxablePayPence": 3770000,
+          "incomeTaxPence": 754000,
+          "employeeNationalInsurancePence": 301540,
+          "memberPensionDeductionPence": 0,
+          "employerPensionContributionPence": 0,
+          "providerTaxReliefPence": 0,
+          "takeHomePayPence": 3971460
+        },
+        "rounding": [
+          {
+            "component": "incomeTaxPence",
+            "rule": "Annual liability is rounded to whole pence after each tax band is applied."
+          },
+          {
+            "component": "employeeNationalInsurancePence",
+            "rule": "Annual NI is an estimate using twelve monthly threshold periods, not payslip reconciliation."
+          }
+        ]
+      }
+    },
+    {
+      "id": "annual-personal-allowance-taper",
+      "description": "Annual England salary inside the Personal Allowance taper.",
+      "taxYear": "2025-26",
+      "jurisdiction": "england-and-northern-ireland",
+      "effectiveDate": "2025-06-30",
+      "coverage": [
+        "allowance-taper"
+      ],
+      "sources": [
+        {
+          "sourceId": "hmrc-employer-rates",
+          "locator": "2025/26 Income Tax and category A NI rates"
+        }
+      ],
+      "input": {
+        "contractualGrossPayPence": 11000000,
+        "cashPayPence": 11000000,
+        "taxablePayPence": 10243000,
+        "nationalInsuranceEarningsPence": 11000000,
+        "payroll": {
+          "frequency": "annual",
+          "periodNumber": null,
+          "taxCode": null,
+          "taxBasis": null,
+          "priorGrossPayPence": null,
+          "priorIncomeTaxPence": null,
+          "nationalInsuranceCategory": "A",
+          "employmentStartDate": "2025-04-06",
+          "employmentEndDate": "2026-04-05",
+          "jobChangedDuringTaxYear": false
+        },
+        "pension": null
+      },
+      "expected": {
+        "supported": true,
+        "precision": "annual-liability-estimate",
+        "components": {
+          "grossCashPayPence": 11000000,
+          "taxablePayPence": 10243000,
+          "incomeTaxPence": 3343200,
+          "employeeNationalInsurancePence": 421000,
+          "memberPensionDeductionPence": 0,
+          "employerPensionContributionPence": 0,
+          "providerTaxReliefPence": 0,
+          "takeHomePayPence": 7235800
+        },
+        "rounding": [
+          {
+            "component": "incomeTaxPence",
+            "rule": "Annual liability is rounded to whole pence after each tax band is applied."
+          },
+          {
+            "component": "employeeNationalInsurancePence",
+            "rule": "Annual NI is an estimate using twelve monthly threshold periods, not payslip reconciliation."
+          }
+        ]
+      }
+    },
+    {
+      "id": "annual-scotland-bands",
+      "description": "Annual Scottish salary spanning starter through higher rates.",
+      "taxYear": "2025-26",
+      "jurisdiction": "scotland",
+      "effectiveDate": "2025-06-30",
+      "coverage": [
+        "scottish-rates"
+      ],
+      "sources": [
+        {
+          "sourceId": "hmrc-employer-rates",
+          "locator": "2025/26 Income Tax and category A NI rates"
+        }
+      ],
+      "input": {
+        "contractualGrossPayPence": 5000000,
+        "cashPayPence": 5000000,
+        "taxablePayPence": 3743000,
+        "nationalInsuranceEarningsPence": 5000000,
+        "payroll": {
+          "frequency": "annual",
+          "periodNumber": null,
+          "taxCode": null,
+          "taxBasis": null,
+          "priorGrossPayPence": null,
+          "priorIncomeTaxPence": null,
+          "nationalInsuranceCategory": "A",
+          "employmentStartDate": "2025-04-06",
+          "employmentEndDate": "2026-04-05",
+          "jobChangedDuringTaxYear": false
+        },
+        "pension": null
+      },
+      "expected": {
+        "supported": true,
+        "precision": "annual-liability-estimate",
+        "components": {
+          "grossCashPayPence": 5000000,
+          "taxablePayPence": 3743000,
+          "incomeTaxPence": 901380,
+          "employeeNationalInsurancePence": 299392,
+          "memberPensionDeductionPence": 0,
+          "employerPensionContributionPence": 0,
+          "providerTaxReliefPence": 0,
+          "takeHomePayPence": 3799228
+        },
+        "rounding": [
+          {
+            "component": "incomeTaxPence",
+            "rule": "Annual liability is rounded to whole pence after each tax band is applied."
+          },
+          {
+            "component": "employeeNationalInsurancePence",
+            "rule": "Annual NI is an estimate using twelve monthly threshold periods, not payslip reconciliation."
+          }
+        ]
+      }
+    },
+    {
+      "id": "annual-pension-salary-sacrifice",
+      "description": "A £6,000 salary exchange becomes an employer pension contribution.",
+      "taxYear": "2025-26",
+      "jurisdiction": "england-and-northern-ireland",
+      "effectiveDate": "2025-06-30",
+      "coverage": [
+        "salary-sacrifice",
+        "employer-and-employee-pension-contributions"
+      ],
+      "sources": [
+        {
+          "sourceId": "hmrc-employer-rates",
+          "locator": "2025/26 Income Tax and category A NI rates"
+        },
+        {
+          "sourceId": "hmrc-workplace-pension-methods",
+          "locator": "Net pay and relief at source"
+        },
+        {
+          "sourceId": "hmrc-salary-sacrifice",
+          "locator": "Pension salary-sacrifice example"
+        }
+      ],
+      "input": {
+        "contractualGrossPayPence": 6000000,
+        "cashPayPence": 5400000,
+        "taxablePayPence": 4143000,
+        "nationalInsuranceEarningsPence": 5400000,
+        "payroll": {
+          "frequency": "annual",
+          "periodNumber": null,
+          "taxCode": null,
+          "taxBasis": null,
+          "priorGrossPayPence": null,
+          "priorIncomeTaxPence": null,
+          "nationalInsuranceCategory": "A",
+          "employmentStartDate": "2025-04-06",
+          "employmentEndDate": "2026-04-05",
+          "jobChangedDuringTaxYear": false
+        },
+        "pension": {
+          "method": "salary-sacrifice",
+          "grossContributionPence": 600000,
+          "memberDeductionPence": 0,
+          "employerContributionPence": 600000,
+          "providerTaxReliefPence": 0
+        }
+      },
+      "expected": {
+        "supported": true,
+        "precision": "annual-liability-estimate",
+        "components": {
+          "grossCashPayPence": 5400000,
+          "taxablePayPence": 4143000,
+          "incomeTaxPence": 903200,
+          "employeeNationalInsurancePence": 309000,
+          "memberPensionDeductionPence": 0,
+          "employerPensionContributionPence": 600000,
+          "providerTaxReliefPence": 0,
+          "takeHomePayPence": 4187800
+        },
+        "rounding": [
+          {
+            "component": "incomeTaxPence",
+            "rule": "Annual liability is rounded to whole pence after each tax band is applied."
+          },
+          {
+            "component": "employeeNationalInsurancePence",
+            "rule": "Annual NI is an estimate using twelve monthly threshold periods, not payslip reconciliation."
+          }
+        ]
+      }
+    },
+    {
+      "id": "annual-pension-net-pay",
+      "description": "A £6,000 member contribution reduces taxable pay but not NI earnings.",
+      "taxYear": "2025-26",
+      "jurisdiction": "england-and-northern-ireland",
+      "effectiveDate": "2025-06-30",
+      "coverage": [
+        "net-pay",
+        "employer-and-employee-pension-contributions"
+      ],
+      "sources": [
+        {
+          "sourceId": "hmrc-employer-rates",
+          "locator": "2025/26 Income Tax and category A NI rates"
+        },
+        {
+          "sourceId": "hmrc-workplace-pension-methods",
+          "locator": "Net pay and relief at source"
+        },
+        {
+          "sourceId": "hmrc-salary-sacrifice",
+          "locator": "Pension salary-sacrifice example"
+        }
+      ],
+      "input": {
+        "contractualGrossPayPence": 6000000,
+        "cashPayPence": 6000000,
+        "taxablePayPence": 4143000,
+        "nationalInsuranceEarningsPence": 6000000,
+        "payroll": {
+          "frequency": "annual",
+          "periodNumber": null,
+          "taxCode": null,
+          "taxBasis": null,
+          "priorGrossPayPence": null,
+          "priorIncomeTaxPence": null,
+          "nationalInsuranceCategory": "A",
+          "employmentStartDate": "2025-04-06",
+          "employmentEndDate": "2026-04-05",
+          "jobChangedDuringTaxYear": false
+        },
+        "pension": {
+          "method": "net-pay",
+          "grossContributionPence": 600000,
+          "memberDeductionPence": 600000,
+          "employerContributionPence": 0,
+          "providerTaxReliefPence": 0
+        }
+      },
+      "expected": {
+        "supported": true,
+        "precision": "annual-liability-estimate",
+        "components": {
+          "grossCashPayPence": 6000000,
+          "taxablePayPence": 4143000,
+          "incomeTaxPence": 903200,
+          "employeeNationalInsurancePence": 321000,
+          "memberPensionDeductionPence": 600000,
+          "employerPensionContributionPence": 0,
+          "providerTaxReliefPence": 0,
+          "takeHomePayPence": 4175800
+        },
+        "rounding": [
+          {
+            "component": "incomeTaxPence",
+            "rule": "Annual liability is rounded to whole pence after each tax band is applied."
+          },
+          {
+            "component": "employeeNationalInsurancePence",
+            "rule": "Annual NI is an estimate using twelve monthly threshold periods, not payslip reconciliation."
+          }
+        ]
+      }
+    },
+    {
+      "id": "annual-pension-relief-at-source",
+      "description": "A £4,800 member payment receives £1,200 provider relief.",
+      "taxYear": "2025-26",
+      "jurisdiction": "england-and-northern-ireland",
+      "effectiveDate": "2025-06-30",
+      "coverage": [
+        "relief-at-source",
+        "employer-and-employee-pension-contributions"
+      ],
+      "sources": [
+        {
+          "sourceId": "hmrc-employer-rates",
+          "locator": "2025/26 Income Tax and category A NI rates"
+        },
+        {
+          "sourceId": "hmrc-workplace-pension-methods",
+          "locator": "Net pay and relief at source"
+        },
+        {
+          "sourceId": "hmrc-salary-sacrifice",
+          "locator": "Pension salary-sacrifice example"
+        }
+      ],
+      "input": {
+        "contractualGrossPayPence": 6000000,
+        "cashPayPence": 6000000,
+        "taxablePayPence": 4743000,
+        "nationalInsuranceEarningsPence": 6000000,
+        "payroll": {
+          "frequency": "annual",
+          "periodNumber": null,
+          "taxCode": null,
+          "taxBasis": null,
+          "priorGrossPayPence": null,
+          "priorIncomeTaxPence": null,
+          "nationalInsuranceCategory": "A",
+          "employmentStartDate": "2025-04-06",
+          "employmentEndDate": "2026-04-05",
+          "jobChangedDuringTaxYear": false
+        },
+        "pension": {
+          "method": "relief-at-source",
+          "grossContributionPence": 600000,
+          "memberDeductionPence": 480000,
+          "employerContributionPence": 0,
+          "providerTaxReliefPence": 120000
+        }
+      },
+      "expected": {
+        "supported": true,
+        "precision": "annual-liability-estimate",
+        "components": {
+          "grossCashPayPence": 6000000,
+          "taxablePayPence": 4743000,
+          "incomeTaxPence": 1143200,
+          "employeeNationalInsurancePence": 321000,
+          "memberPensionDeductionPence": 480000,
+          "employerPensionContributionPence": 0,
+          "providerTaxReliefPence": 120000,
+          "takeHomePayPence": 4055800
+        },
+        "rounding": [
+          {
+            "component": "incomeTaxPence",
+            "rule": "Annual liability is rounded to whole pence after each tax band is applied."
+          },
+          {
+            "component": "employeeNationalInsurancePence",
+            "rule": "Annual NI is an estimate using twelve monthly threshold periods, not payslip reconciliation."
+          }
+        ]
+      }
+    },
+    {
+      "id": "payroll-monthly-br",
+      "description": "Month 1 BR payroll with category A NI.",
+      "taxYear": "2026-27",
+      "jurisdiction": "england-and-northern-ireland",
+      "effectiveDate": "2026-04-30",
+      "coverage": [
+        "pay-frequency",
+        "non-cumulative-paye",
+        "tax-code",
+        "hmrc-rounding"
+      ],
+      "sources": [
+        {
+          "sourceId": "hmrc-paye-routine-v24",
+          "locator": "Sections 4, 5, 8 and 9"
+        },
+        {
+          "sourceId": "hmrc-ca38-2026",
+          "locator": "Category A weekly and monthly exact-percentage rates"
+        }
+      ],
+      "input": {
+        "contractualGrossPayPence": 300000,
+        "cashPayPence": 300000,
+        "taxablePayPence": 300000,
+        "nationalInsuranceEarningsPence": 300000,
+        "payroll": {
+          "frequency": "monthly",
+          "periodNumber": 1,
+          "taxCode": "BR",
+          "taxBasis": "non-cumulative",
+          "priorGrossPayPence": 0,
+          "priorIncomeTaxPence": 0,
+          "nationalInsuranceCategory": "A",
+          "employmentStartDate": "2026-04-06",
+          "employmentEndDate": null,
+          "jobChangedDuringTaxYear": false
+        },
+        "pension": null
+      },
+      "expected": {
+        "supported": true,
+        "precision": "exact-payroll-deduction",
+        "components": {
+          "grossCashPayPence": 300000,
+          "taxablePayPence": 300000,
+          "incomeTaxPence": 60000,
+          "employeeNationalInsurancePence": 15616,
+          "memberPensionDeductionPence": 0,
+          "employerPensionContributionPence": 0,
+          "providerTaxReliefPence": 0,
+          "takeHomePayPence": 224384
+        },
+        "rounding": [
+          {
+            "component": "taxablePayPence",
+            "rule": "HMRC PAYE routine v24.0 rounds taxable pay down to the whole pound before applying tax rates."
+          },
+          {
+            "component": "incomeTaxPence",
+            "rule": "HMRC PAYE routine v24.0 calculates to four decimal places of a pound, then rounds down to the penny."
+          },
+          {
+            "component": "employeeNationalInsurancePence",
+            "rule": "The exact-percentage NI result is rounded to the nearest penny for this fixture; inputs avoid half-penny ties."
+          }
+        ]
+      }
+    },
+    {
+      "id": "payroll-weekly-br",
+      "description": "Week 1 BR payroll with category A NI.",
+      "taxYear": "2026-27",
+      "jurisdiction": "england-and-northern-ireland",
+      "effectiveDate": "2026-04-10",
+      "coverage": [
+        "pay-frequency",
+        "non-cumulative-paye",
+        "tax-code",
+        "hmrc-rounding"
+      ],
+      "sources": [
+        {
+          "sourceId": "hmrc-paye-routine-v24",
+          "locator": "Sections 4, 5, 8 and 9"
+        },
+        {
+          "sourceId": "hmrc-ca38-2026",
+          "locator": "Category A weekly and monthly exact-percentage rates"
+        }
+      ],
+      "input": {
+        "contractualGrossPayPence": 50000,
+        "cashPayPence": 50000,
+        "taxablePayPence": 50000,
+        "nationalInsuranceEarningsPence": 50000,
+        "payroll": {
+          "frequency": "weekly",
+          "periodNumber": 1,
+          "taxCode": "BR",
+          "taxBasis": "non-cumulative",
+          "priorGrossPayPence": 0,
+          "priorIncomeTaxPence": 0,
+          "nationalInsuranceCategory": "A",
+          "employmentStartDate": "2026-04-06",
+          "employmentEndDate": null,
+          "jobChangedDuringTaxYear": false
+        },
+        "pension": null
+      },
+      "expected": {
+        "supported": true,
+        "precision": "exact-payroll-deduction",
+        "components": {
+          "grossCashPayPence": 50000,
+          "taxablePayPence": 50000,
+          "incomeTaxPence": 10000,
+          "employeeNationalInsurancePence": 2064,
+          "memberPensionDeductionPence": 0,
+          "employerPensionContributionPence": 0,
+          "providerTaxReliefPence": 0,
+          "takeHomePayPence": 37936
+        },
+        "rounding": [
+          {
+            "component": "taxablePayPence",
+            "rule": "HMRC PAYE routine v24.0 rounds taxable pay down to the whole pound before applying tax rates."
+          },
+          {
+            "component": "incomeTaxPence",
+            "rule": "HMRC PAYE routine v24.0 calculates to four decimal places of a pound, then rounds down to the penny."
+          },
+          {
+            "component": "employeeNationalInsurancePence",
+            "rule": "The exact-percentage NI result is rounded to the nearest penny for this fixture; inputs avoid half-penny ties."
+          }
+        ]
+      }
+    },
+    {
+      "id": "payroll-cumulative-1257l-month-one",
+      "description": "Month 1 cumulative 1257L establishes prior pay and tax state.",
+      "taxYear": "2026-27",
+      "jurisdiction": "england-and-northern-ireland",
+      "effectiveDate": "2026-04-30",
+      "coverage": [
+        "cumulative-paye",
+        "tax-code",
+        "hmrc-rounding"
+      ],
+      "sources": [
+        {
+          "sourceId": "hmrc-paye-routine-v24",
+          "locator": "Sections 4, 5, 8 and 9"
+        },
+        {
+          "sourceId": "hmrc-ca38-2026",
+          "locator": "Category A weekly and monthly exact-percentage rates"
+        }
+      ],
+      "input": {
+        "contractualGrossPayPence": 200000,
+        "cashPayPence": 200000,
+        "taxablePayPence": 95100,
+        "nationalInsuranceEarningsPence": 200000,
+        "payroll": {
+          "frequency": "monthly",
+          "periodNumber": 1,
+          "taxCode": "1257L",
+          "taxBasis": "cumulative",
+          "priorGrossPayPence": 0,
+          "priorIncomeTaxPence": 0,
+          "nationalInsuranceCategory": "A",
+          "employmentStartDate": "2026-04-06",
+          "employmentEndDate": null,
+          "jobChangedDuringTaxYear": false
+        },
+        "pension": null
+      },
+      "expected": {
+        "supported": true,
+        "precision": "exact-payroll-deduction",
+        "components": {
+          "grossCashPayPence": 200000,
+          "taxablePayPence": 95100,
+          "incomeTaxPence": 19020,
+          "employeeNationalInsurancePence": 7616,
+          "memberPensionDeductionPence": 0,
+          "employerPensionContributionPence": 0,
+          "providerTaxReliefPence": 0,
+          "takeHomePayPence": 173364
+        },
+        "rounding": [
+          {
+            "component": "taxablePayPence",
+            "rule": "HMRC PAYE routine v24.0 rounds taxable pay down to the whole pound before applying tax rates."
+          },
+          {
+            "component": "incomeTaxPence",
+            "rule": "HMRC PAYE routine v24.0 calculates to four decimal places of a pound, then rounds down to the penny."
+          },
+          {
+            "component": "employeeNationalInsurancePence",
+            "rule": "The exact-percentage NI result is rounded to the nearest penny for this fixture; inputs avoid half-penny ties."
+          }
+        ]
+      }
+    },
+    {
+      "id": "payroll-cumulative-1257l-bonus",
+      "description": "Month 2 cumulative 1257L includes a £5,000 bonus after a £2,000 first month.",
+      "taxYear": "2026-27",
+      "jurisdiction": "england-and-northern-ireland",
+      "effectiveDate": "2026-05-31",
+      "coverage": [
+        "bonus",
+        "cumulative-paye",
+        "tax-code",
+        "hmrc-rounding"
+      ],
+      "sources": [
+        {
+          "sourceId": "hmrc-paye-routine-v24",
+          "locator": "Sections 4, 5, 8 and 9"
+        },
+        {
+          "sourceId": "hmrc-ca38-2026",
+          "locator": "Category A weekly and monthly exact-percentage rates"
+        }
+      ],
+      "input": {
+        "contractualGrossPayPence": 500000,
+        "cashPayPence": 500000,
+        "taxablePayPence": 395200,
+        "nationalInsuranceEarningsPence": 500000,
+        "payroll": {
+          "frequency": "monthly",
+          "periodNumber": 2,
+          "taxCode": "1257L",
+          "taxBasis": "cumulative",
+          "priorGrossPayPence": 200000,
+          "priorIncomeTaxPence": 19020,
+          "nationalInsuranceCategory": "A",
+          "employmentStartDate": "2026-04-06",
+          "employmentEndDate": null,
+          "jobChangedDuringTaxYear": false
+        },
+        "pension": null
+      },
+      "expected": {
+        "supported": true,
+        "precision": "exact-payroll-deduction",
+        "components": {
+          "grossCashPayPence": 500000,
+          "taxablePayPence": 395200,
+          "incomeTaxPence": 79040,
+          "employeeNationalInsurancePence": 26750,
+          "memberPensionDeductionPence": 0,
+          "employerPensionContributionPence": 0,
+          "providerTaxReliefPence": 0,
+          "takeHomePayPence": 394210
+        },
+        "rounding": [
+          {
+            "component": "taxablePayPence",
+            "rule": "HMRC PAYE routine v24.0 rounds taxable pay down to the whole pound before applying tax rates."
+          },
+          {
+            "component": "incomeTaxPence",
+            "rule": "HMRC PAYE routine v24.0 calculates to four decimal places of a pound, then rounds down to the penny."
+          },
+          {
+            "component": "employeeNationalInsurancePence",
+            "rule": "The exact-percentage NI result is rounded to the nearest penny for this fixture; inputs avoid half-penny ties."
+          }
+        ]
+      }
+    },
+    {
+      "id": "payroll-non-cumulative-1257l-bonus",
+      "description": "Month 2 1257L on a Month 1 basis treats the £5,000 payment alone.",
+      "taxYear": "2026-27",
+      "jurisdiction": "england-and-northern-ireland",
+      "effectiveDate": "2026-05-31",
+      "coverage": [
+        "bonus",
+        "non-cumulative-paye",
+        "tax-code",
+        "hmrc-rounding"
+      ],
+      "sources": [
+        {
+          "sourceId": "hmrc-paye-routine-v24",
+          "locator": "Sections 4, 5, 8 and 9"
+        },
+        {
+          "sourceId": "hmrc-ca38-2026",
+          "locator": "Category A weekly and monthly exact-percentage rates"
+        }
+      ],
+      "input": {
+        "contractualGrossPayPence": 500000,
+        "cashPayPence": 500000,
+        "taxablePayPence": 395100,
+        "nationalInsuranceEarningsPence": 500000,
+        "payroll": {
+          "frequency": "monthly",
+          "periodNumber": 2,
+          "taxCode": "1257L",
+          "taxBasis": "non-cumulative",
+          "priorGrossPayPence": 0,
+          "priorIncomeTaxPence": 0,
+          "nationalInsuranceCategory": "A",
+          "employmentStartDate": "2026-04-06",
+          "employmentEndDate": null,
+          "jobChangedDuringTaxYear": false
+        },
+        "pension": null
+      },
+      "expected": {
+        "supported": true,
+        "precision": "exact-payroll-deduction",
+        "components": {
+          "grossCashPayPence": 500000,
+          "taxablePayPence": 395100,
+          "incomeTaxPence": 79020,
+          "employeeNationalInsurancePence": 26750,
+          "memberPensionDeductionPence": 0,
+          "employerPensionContributionPence": 0,
+          "providerTaxReliefPence": 0,
+          "takeHomePayPence": 394230
+        },
+        "rounding": [
+          {
+            "component": "taxablePayPence",
+            "rule": "HMRC PAYE routine v24.0 rounds taxable pay down to the whole pound before applying tax rates."
+          },
+          {
+            "component": "incomeTaxPence",
+            "rule": "HMRC PAYE routine v24.0 calculates to four decimal places of a pound, then rounds down to the penny."
+          },
+          {
+            "component": "employeeNationalInsurancePence",
+            "rule": "The exact-percentage NI result is rounded to the nearest penny for this fixture; inputs avoid half-penny ties."
+          }
+        ]
+      }
+    },
+    {
+      "id": "payroll-job-change-with-prior-state",
+      "description": "A cumulative BR calculation preserves prior pay and tax after a job change.",
+      "taxYear": "2026-27",
+      "jurisdiction": "england-and-northern-ireland",
+      "effectiveDate": "2026-10-31",
+      "coverage": [
+        "job-change",
+        "partial-year",
+        "cumulative-paye",
+        "tax-code"
+      ],
+      "sources": [
+        {
+          "sourceId": "hmrc-paye-routine-v24",
+          "locator": "Sections 4, 5, 8 and 9"
+        },
+        {
+          "sourceId": "hmrc-ca38-2026",
+          "locator": "Category A weekly and monthly exact-percentage rates"
+        }
+      ],
+      "input": {
+        "contractualGrossPayPence": 300000,
+        "cashPayPence": 300000,
+        "taxablePayPence": 300000,
+        "nationalInsuranceEarningsPence": 300000,
+        "payroll": {
+          "frequency": "monthly",
+          "periodNumber": 7,
+          "taxCode": "BR",
+          "taxBasis": "cumulative",
+          "priorGrossPayPence": 1800500,
+          "priorIncomeTaxPence": 360100,
+          "nationalInsuranceCategory": "A",
+          "employmentStartDate": "2026-10-01",
+          "employmentEndDate": null,
+          "jobChangedDuringTaxYear": true
+        },
+        "pension": null
+      },
+      "expected": {
+        "supported": true,
+        "precision": "exact-payroll-deduction",
+        "components": {
+          "grossCashPayPence": 300000,
+          "taxablePayPence": 300000,
+          "incomeTaxPence": 60000,
+          "employeeNationalInsurancePence": 15616,
+          "memberPensionDeductionPence": 0,
+          "employerPensionContributionPence": 0,
+          "providerTaxReliefPence": 0,
+          "takeHomePayPence": 224384
+        },
+        "rounding": [
+          {
+            "component": "taxablePayPence",
+            "rule": "HMRC PAYE routine v24.0 rounds taxable pay down to the whole pound before applying tax rates."
+          },
+          {
+            "component": "incomeTaxPence",
+            "rule": "HMRC PAYE routine v24.0 calculates to four decimal places of a pound, then rounds down to the penny."
+          },
+          {
+            "component": "employeeNationalInsurancePence",
+            "rule": "The exact-percentage NI result is rounded to the nearest penny for this fixture; inputs avoid half-penny ties."
+          }
+        ]
+      }
+    },
+    {
+      "id": "payroll-ni-rate-before-january-2024-cut",
+      "description": "December 2023 category A NI uses the 12% main rate.",
+      "taxYear": "2023-24",
+      "jurisdiction": "england-and-northern-ireland",
+      "effectiveDate": "2023-12-31",
+      "coverage": [
+        "national-insurance-within-year-change"
+      ],
+      "sources": [
+        {
+          "sourceId": "hmrc-employer-rates-2023",
+          "locator": "Employee NI rates through 5 January 2024"
+        }
+      ],
+      "input": {
+        "contractualGrossPayPence": 300000,
+        "cashPayPence": 300000,
+        "taxablePayPence": 300000,
+        "nationalInsuranceEarningsPence": 300000,
+        "payroll": {
+          "frequency": "monthly",
+          "periodNumber": 1,
+          "taxCode": "BR",
+          "taxBasis": "non-cumulative",
+          "priorGrossPayPence": 0,
+          "priorIncomeTaxPence": 0,
+          "nationalInsuranceCategory": "A",
+          "employmentStartDate": "2023-04-06",
+          "employmentEndDate": null,
+          "jobChangedDuringTaxYear": false
+        },
+        "pension": null
+      },
+      "expected": {
+        "supported": true,
+        "precision": "exact-payroll-deduction",
+        "components": {
+          "grossCashPayPence": 300000,
+          "taxablePayPence": 300000,
+          "incomeTaxPence": 60000,
+          "employeeNationalInsurancePence": 23424,
+          "memberPensionDeductionPence": 0,
+          "employerPensionContributionPence": 0,
+          "providerTaxReliefPence": 0,
+          "takeHomePayPence": 216576
+        },
+        "rounding": [
+          {
+            "component": "taxablePayPence",
+            "rule": "HMRC PAYE routine v24.0 rounds taxable pay down to the whole pound before applying tax rates."
+          },
+          {
+            "component": "incomeTaxPence",
+            "rule": "HMRC PAYE routine v24.0 calculates to four decimal places of a pound, then rounds down to the penny."
+          },
+          {
+            "component": "employeeNationalInsurancePence",
+            "rule": "The exact-percentage NI result is rounded to the nearest penny for this fixture; inputs avoid half-penny ties."
+          }
+        ]
+      }
+    },
+    {
+      "id": "payroll-ni-rate-after-january-2024-cut",
+      "description": "January 2024 category A NI uses the 10% main rate.",
+      "taxYear": "2023-24",
+      "jurisdiction": "england-and-northern-ireland",
+      "effectiveDate": "2024-01-31",
+      "coverage": [
+        "national-insurance-within-year-change"
+      ],
+      "sources": [
+        {
+          "sourceId": "hmrc-employer-rates-2023",
+          "locator": "Employee NI rates from 6 January 2024"
+        }
+      ],
+      "input": {
+        "contractualGrossPayPence": 300000,
+        "cashPayPence": 300000,
+        "taxablePayPence": 300000,
+        "nationalInsuranceEarningsPence": 300000,
+        "payroll": {
+          "frequency": "monthly",
+          "periodNumber": 1,
+          "taxCode": "BR",
+          "taxBasis": "non-cumulative",
+          "priorGrossPayPence": 0,
+          "priorIncomeTaxPence": 0,
+          "nationalInsuranceCategory": "A",
+          "employmentStartDate": "2023-04-06",
+          "employmentEndDate": null,
+          "jobChangedDuringTaxYear": false
+        },
+        "pension": null
+      },
+      "expected": {
+        "supported": true,
+        "precision": "exact-payroll-deduction",
+        "components": {
+          "grossCashPayPence": 300000,
+          "taxablePayPence": 300000,
+          "incomeTaxPence": 60000,
+          "employeeNationalInsurancePence": 19520,
+          "memberPensionDeductionPence": 0,
+          "employerPensionContributionPence": 0,
+          "providerTaxReliefPence": 0,
+          "takeHomePayPence": 220480
+        },
+        "rounding": [
+          {
+            "component": "taxablePayPence",
+            "rule": "HMRC PAYE routine v24.0 rounds taxable pay down to the whole pound before applying tax rates."
+          },
+          {
+            "component": "incomeTaxPence",
+            "rule": "HMRC PAYE routine v24.0 calculates to four decimal places of a pound, then rounds down to the penny."
+          },
+          {
+            "component": "employeeNationalInsurancePence",
+            "rule": "The exact-percentage NI result is rounded to the nearest penny for this fixture; inputs avoid half-penny ties."
+          }
+        ]
+      }
+    },
+    {
+      "id": "unsupported-ni-category-b",
+      "description": "Category B must fail because the pinned rules support only category A.",
+      "taxYear": "2026-27",
+      "jurisdiction": "england-and-northern-ireland",
+      "effectiveDate": "2026-04-30",
+      "coverage": [
+        "national-insurance-category",
+        "unsupported-input"
+      ],
+      "sources": [
+        {
+          "sourceId": "hmrc-paye-routine-v24",
+          "locator": "Sections 4, 5, 8 and 9"
+        },
+        {
+          "sourceId": "hmrc-ca38-2026",
+          "locator": "Category A weekly and monthly exact-percentage rates"
+        }
+      ],
+      "input": {
+        "contractualGrossPayPence": 300000,
+        "cashPayPence": 300000,
+        "taxablePayPence": 300000,
+        "nationalInsuranceEarningsPence": 300000,
+        "payroll": {
+          "frequency": "monthly",
+          "periodNumber": 1,
+          "taxCode": "BR",
+          "taxBasis": "non-cumulative",
+          "priorGrossPayPence": 0,
+          "priorIncomeTaxPence": 0,
+          "nationalInsuranceCategory": "B",
+          "employmentStartDate": "2026-04-06",
+          "employmentEndDate": null,
+          "jobChangedDuringTaxYear": false
+        },
+        "pension": null
+      },
+      "expected": {
+        "supported": false,
+        "reasons": [
+          {
+            "code": "unsupported-national-insurance-category",
+            "detail": "Do not substitute category A rates for a reduced-rate category."
+          }
+        ]
+      }
+    },
+    {
+      "id": "unsupported-job-change-without-prior-state",
+      "description": "A cumulative job-change payslip cannot be reconstructed without prior pay and tax.",
+      "taxYear": "2026-27",
+      "jurisdiction": "england-and-northern-ireland",
+      "effectiveDate": "2026-10-31",
+      "coverage": [
+        "job-change",
+        "partial-year",
+        "cumulative-paye",
+        "unsupported-input"
+      ],
+      "sources": [
+        {
+          "sourceId": "hmrc-paye-routine-v24",
+          "locator": "Sections 4, 5, 8 and 9"
+        },
+        {
+          "sourceId": "hmrc-ca38-2026",
+          "locator": "Category A weekly and monthly exact-percentage rates"
+        }
+      ],
+      "input": {
+        "contractualGrossPayPence": 300000,
+        "cashPayPence": 300000,
+        "taxablePayPence": 300000,
+        "nationalInsuranceEarningsPence": 300000,
+        "payroll": {
+          "frequency": "monthly",
+          "periodNumber": 7,
+          "taxCode": "BR",
+          "taxBasis": "cumulative",
+          "priorGrossPayPence": null,
+          "priorIncomeTaxPence": null,
+          "nationalInsuranceCategory": "A",
+          "employmentStartDate": "2026-10-01",
+          "employmentEndDate": null,
+          "jobChangedDuringTaxYear": true
+        },
+        "pension": null
+      },
+      "expected": {
+        "supported": false,
+        "reasons": [
+          {
+            "code": "missing-prior-payroll-state",
+            "detail": "Exact cumulative PAYE needs prior taxable pay and tax paid to date."
+          }
+        ]
+      }
+    }
+  ]
+}

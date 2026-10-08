@@ -1,7 +1,7 @@
 ---
 title: "ADR 013: Browser Simulation with CesiumJS and C++ WebAssembly"
-status: "Proposed"
-date: "2026-09-08"
+status: "Accepted"
+date: "2026-09-12"
 tech_stack: ["CesiumJS", "Emscripten", "WebAssembly"]
 ---
 
@@ -16,9 +16,9 @@ its decisions into TypeScript. [ADR 007](/projects/autonomic-satellite-swarm/adr
 already keeps that code independent of Arduino and operating-system APIs. The Uno, ESP32, and host
 builds differ at their adapter boundaries, so a browser adapter fits the existing design.
 
-A globe alone would not make the simulation physically credible. The controller currently scores a
-fixed `SatelliteSnapshot`, and `HistoricalOrbitalScorer` remains a documented heuristic. The
-proposed [orbit-propagation experiment](/projects/autonomic-satellite-swarm/adrs/012-qrptracker-embedded-orbit-propagation)
+A globe alone does not make the simulation physically credible. The controller scores an
+adapter-supplied `SatelliteSnapshot`, and `HistoricalOrbitalScorer` remains a documented heuristic.
+The proposed [orbit-propagation experiment](/projects/autonomic-satellite-swarm/adrs/012-qrptracker-embedded-orbit-propagation)
 may later provide changing positions, but it has not passed its acceptance criteria.
 
 [CesiumJS](https://cesium.com/platform/cesiumjs/) is an Apache-2.0 browser library with a WGS84
@@ -28,35 +28,36 @@ documents bundled Natural Earth II imagery, so the first version does not need a
 or runtime token. [Emscripten](https://emscripten.org/docs/compiling/Building-Projects.html) can use
 the existing CMake project to compile C++ into WebAssembly.
 
-# Decision, proposed
+# Decision
 
 Build the browser simulation as one C++ WebAssembly module rendered by CesiumJS.
 
-Link the existing `satellite_swarm` coordination library into an Emscripten target. The target will
-add a browser simulation adapter for deterministic time, in-memory message delivery, health inputs,
-and simulated environmental state. It will not compile the infrared or ESP-NOW adapters because a
+Link the existing `satellite_swarm` coordination library into an Emscripten target. The target adds
+a browser simulation adapter for deterministic time, in-memory message delivery, health inputs,
+and simulated environmental state. It does not compile the infrared or ESP-NOW adapters because a
 browser has neither device. The same coordination, score, message, and codec sources used by the
 firmware remain authoritative.
 
-Run the module in a Web Worker. Advance it with fixed simulation steps and a caller-supplied seed,
-not animation-frame timing. Expose a small command and snapshot boundary for reset, step, mission
-initiation, fault settings, node state, position, scores, messages, and events. TypeScript may
-schedule work and display returned snapshots. It must not reimplement candidate selection, health
-transitions, retry behavior, or message handling.
+Run the module in a short-lived Web Worker. Each request supplies a mission objective and named
+deterministic network scenario. C++ advances the simulation in fixed steps and returns one complete,
+ordered replay before the worker terminates. React may replay the returned snapshots at display
+speed. It must not reimplement candidate selection, health transitions, retry behavior, or message
+handling.
 
-Define a versioned `SimulationTrace` as the replay contract. Each ordered input frame will contain
+Define a versioned `SimulationTrace` as the replay contract. Each ordered input frame contains
 the exact `uint32_t now_ms` passed to `SwarmController`, followed by its health updates,
 environmental snapshot updates, fault transitions, and inbound messages in delivery order. The
-trace will also fix initial node configuration and mission commands. The seed may control only
-named stochastic adapter policies, such as simulated packet loss or delivery delay. Materialize
-those choices into the trace before comparison; neither the controller nor renderer may draw
-additional randomness. Native and WebAssembly runs will consume the same serialized trace and
-compare their ordered outputs.
+trace also fixes initial node configuration and mission commands. Future stochastic adapter
+policies, such as simulated packet loss or delivery delay, must take an explicit seed and materialize
+their choices into the trace. Neither the controller nor renderer may draw additional randomness.
+Native and WebAssembly builds construct the trace from the same versioned scenario inputs and
+compare their serialized outputs byte for byte.
 
-Use CesiumJS only for presentation and interaction. It will draw the Earth, satellite positions,
-orbit or scenario tracks, mission objectives, communication events, and selected agent. React will
-own the surrounding controls and event log. Load both CesiumJS and the WebAssembly worker only when
-the simulation enters the viewport, and stop rendering when it leaves.
+Use CesiumJS only for presentation and interaction. It draws the Earth, satellite positions,
+orbit or scenario tracks, mission objectives, communication events, and selected agent. React owns
+the surrounding controls and event log. Keep both CesiumJS and the WebAssembly worker out of the
+initial route. Load them only after explicit user activation, use CesiumJS request-render mode, and
+terminate each worker after its run completes.
 
 Self-host CesiumJS's workers, widgets, and other required static files with the site's static export.
 Configure the viewer with a `TileMapServiceImageryProvider` pointed at the locally bundled Natural
@@ -65,11 +66,10 @@ the base-layer picker and geocoder, or replace them with exact local equivalents
 CesiumJS provider defaults, an ion token, Google imagery, or another hosted service. A later ADR may
 adopt hosted imagery under its usage and attribution terms.
 
-Before displaying moving orbital positions, add a core boundary for refreshing each node's
-`SatelliteSnapshot`. One source of simulated position must feed both candidacy scoring and Cesium.
-The first scenario may use deterministic recorded or scripted inputs if it labels them as simulation
-data. Do not describe a trajectory as propagated or physically validated until the orbit-propagation
-experiment supplies that evidence.
+The browser adapter refreshes each node's `SatelliteSnapshot` before displaying movement. One source
+of simulated position feeds both candidacy scoring and Cesium. The first scenario uses deterministic
+scripted inputs and labels them as simulation data. Do not describe a trajectory as propagated or
+physically validated until the orbit-propagation experiment supplies that evidence.
 
 # Alternatives
 
@@ -99,25 +99,41 @@ Google 3D Maps and Cesium ion can provide richer terrain and imagery. They requi
 quotas, or billing, and detailed ground geometry adds little while viewing low-Earth orbit. The
 self-hosted globe keeps the first version free and available with the rest of the static site.
 
-# Acceptance criteria
+# Acceptance evidence
 
-Keep this ADR Proposed until a vertical slice satisfies all of the following:
+The browser target links the portable `satellite_swarm` library used by the host and firmware
+builds. Its C++ adapter generates the state changes, scores, messages, and ordered replay. The worker
+only validates requests and responses. The parity task first regenerates the native fixture, then
+requires the Wasm result to match it byte for byte. The project check also builds the Uno and ESP32
+firmware, runs native tests, sanitizers, static analysis, and coverage.
 
-* Build the existing coordination library for native tests, both firmware targets, and WebAssembly
-  without copying its algorithms into TypeScript.
-* Run one deterministic mission trace with the same inputs through the native and WebAssembly
-  simulations and compare their ordered messages, state transitions, scores, and assignment.
-* Place a mission objective on the globe and show the request, candidacy, acknowledgement, and
-  assignment events alongside each node's state.
-* Feed each displayed node position and the corresponding candidacy calculation from the same
-  simulation snapshot.
-* Complete the site's static production build with no Cesium ion token and verify that the demo does
-  not request ion, Google, or public OpenStreetMap tile services.
-* Record transferred JavaScript, WebAssembly, and imagery sizes plus desktop and mobile rendering
-  measurements before deciding whether the initial scene is small enough to load automatically.
-* Provide a state table and event log when WebGL is unavailable or reduced motion is requested.
-* Display the source revision used to build the WebAssembly module and retain the research-prototype,
-  historical-score, and safe-disabled-state caveats next to the simulation.
+The shipped nominal trace contains changing scripted positions at 0, 10, 100, and 120 ms. The same
+`SatelliteSnapshot` supplied to the C++ scorer is serialized for Cesium, so the globe and decision
+logic cannot use different coordinates. The interface calls these scenario paths and states that
+they are not orbit propagation. ADR 012 is therefore not a dependency for this decision.
+
+Cesium renders three moving satellites, their tracks, the mission target, and communication pulses.
+The React interface also exposes replay controls, a state table, and an event log. Reduced-motion
+users retain manual stepping, and a WebGL failure replaces only the globe with an accessible
+fallback. Natural Earth II imagery, widgets, and workers are self-hosted; terrain uses the local
+ellipsoid provider.
+
+The reference audit used headless Chromium 153.0.8010.12, disabled cache, a local static export, and
+software WebGL. Times start when the reader selects **Load simulation**. The mobile profile used a
+390 by 844 viewport, device pixel ratio 3, and 4x CPU throttling. The figures describe this repeatable
+test environment, not every device.
+
+| Profile              |  JavaScript |      Wasm |   Imagery | First globe | Replay p95 | Longest frame / frames over 50 ms |
+| -------------------- | ----------: | --------: | --------: | ----------: | ---------: | --------------------------------: |
+| Desktop, 1440 by 900 | 6,645,086 B | 202,394 B | 110,064 B |      2.11 s |    33.4 ms |                      183.3 ms / 1 |
+| Throttled mobile     | 6,645,086 B | 202,394 B |  26,122 B |      3.44 s |    33.4 ms |                      100.0 ms / 3 |
+
+The JavaScript payload is large enough that the page now requires explicit activation. The audit
+also verifies that no Wasm or imagery loads before activation, every measured resource succeeds,
+the activated interactive makes no cross-origin HTTP request, the replay reaches its final frame,
+and the exact 40-character build revision appears in the interface. UI CI runs this audit against
+the production static export. The page keeps the heuristic-scoring, scripted-position, and
+flight-readiness caveats visible.
 
 # Consequences
 
@@ -126,8 +142,8 @@ JavaScript reconstruction. The simulation remains deterministic and can grow int
 partition, health, and replay experiments without placing those concerns in the firmware core.
 
 The site gains a large client-only renderer, a second C++ build target, a worker protocol, and static
-Cesium assets. Lazy loading, lifecycle cleanup, and a non-WebGL fallback become required rather than
-optional polish.
+Cesium assets. Explicit activation, lifecycle cleanup, and a non-WebGL fallback are required parts of
+the feature.
 
 WebAssembly proves that the browser and firmware compile common source. It does not prove identical
 machine code, hardware timing, radio behavior, orbital validity, or flight readiness. CesiumJS also

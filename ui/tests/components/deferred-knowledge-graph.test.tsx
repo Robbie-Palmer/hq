@@ -7,7 +7,7 @@ const graphData: GraphData = {
   nodes: [
     {
       id: "project:site",
-      name: "Personal site",
+      name: "Personal Knowledge Graph",
       type: "project",
       href: "/projects/site",
       connections: 0,
@@ -72,7 +72,7 @@ describe("DeferredKnowledgeGraph", () => {
 
     expect(fetchMock).toHaveBeenCalledWith("/knowledge-graph.json");
     expect(await screen.findByTestId("loaded-graph")).toHaveTextContent(
-      "Personal site",
+      "Personal Knowledge Graph",
     );
     unmount();
     expect(disconnect).toHaveBeenCalled();

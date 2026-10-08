@@ -58,8 +58,8 @@ const idea = {
     ],
     adrs: [
       {
-        slug: "049-zizmor",
-        projectSlug: "personal-site",
+        slug: "048-zizmor",
+        projectSlug: "personal-knowledge-graph",
         title: "ADR 049: Zizmor",
         status: "accepted",
       },
@@ -151,7 +151,10 @@ describe("ideas pages", () => {
     ).toHaveAttribute("href", "/blog/platform-teams");
     expect(
       screen.getByRole("link", { name: /^ADR 049: Zizmor/ }),
-    ).toHaveAttribute("href", "/projects/personal-site/adrs/049-zizmor");
+    ).toHaveAttribute(
+      "href",
+      "/projects/personal-knowledge-graph/adrs/048-zizmor",
+    );
     const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
     expect(
       within(breadcrumb).getByRole("link", { name: "Ideas" }),

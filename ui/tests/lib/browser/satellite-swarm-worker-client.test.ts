@@ -4,6 +4,8 @@ import {
   SATELLITE_SWARM_WORKER_PROTOCOL_VERSION,
 } from "@/lib/browser/satellite-swarm-worker-client";
 
+const sourceRevision = "0123456789abcdef0123456789abcdef01234567";
+
 const validResult = {
   events: [],
   frames: [
@@ -11,23 +13,32 @@ const validResult = {
       nodes: [
         {
           assignedNode: null,
+          bootEpoch: 1,
           candidacyScore: 0,
+          earthFixedPositionMetres: { x: 6_750_000, y: 0, z: 0 },
+          earthFixedVelocityMillimetresPerSecond: { x: 0, y: 7_500_000, z: 0 },
+          epochUnixMilliseconds: 962650219734,
+          telemetryDrops: 0,
           id: 0,
-          missionId: 1,
+          missionKey: { bootEpoch: 1, originNode: 0, sequence: 1 },
           orbitalRadiusMetres: 6_750_000,
           position: { latitudeDegrees: 0, longitudeDegrees: 0 },
           state: "leading",
         },
       ],
+      playbackMultiplier: 1,
       timeMs: 0,
     },
   ],
   objective: { latitudeDegrees: -90, longitudeDegrees: 0 },
   positionModel: "scripted simulation data; not orbit propagation",
+  propagationFrame: "TEME",
+  renderingFrame: "test Earth-fixed frame",
   scenario: "three-node-objective-pass",
-  schemaVersion: 2,
+  scenarioEpochUnixMilliseconds: 962650219734,
+  schemaVersion: 7,
   source: "portable C++ SimulationTrace",
-  traceVersion: 2,
+  traceVersion: 5,
 };
 
 type WorkerListener = (event: MessageEvent<unknown> | ErrorEvent) => void;
@@ -120,11 +131,13 @@ describe("satellite swarm worker client", () => {
       protocolVersion: SATELLITE_SWARM_WORKER_PROTOCOL_VERSION,
       requestId: request.requestId,
       result: validResult,
+      sourceRevision,
       type: "result",
     });
 
     await expect(resultPromise).resolves.toMatchObject({
       objective: { latitudeDegrees: -90, longitudeDegrees: 0 },
+      sourceRevision,
     });
     expect(worker.terminated).toBe(true);
     expect(worker.listeners.get("message")).toEqual([]);
@@ -147,6 +160,29 @@ describe("satellite swarm worker client", () => {
       protocolVersion: SATELLITE_SWARM_WORKER_PROTOCOL_VERSION,
       requestId: request.requestId,
       result: validResult,
+      sourceRevision,
+      type: "result",
+    });
+    await resultPromise;
+  });
+
+  it("sends the safe-state completion scenario to the worker", async () => {
+    const resultPromise = runSatelliteSwarmSimulation(
+      { latitudeDegrees: -90, longitudeDegrees: 0 },
+      { scenario: "safe-state-success" },
+    );
+    const worker = MockWorker.latest;
+    if (!worker) throw new Error("Expected a worker instance");
+    const request = worker.posted as { requestId: string };
+
+    expect(worker.posted).toMatchObject({
+      scenario: "safe-state-success",
+    });
+    worker.emitMessage({
+      protocolVersion: SATELLITE_SWARM_WORKER_PROTOCOL_VERSION,
+      requestId: request.requestId,
+      result: validResult,
+      sourceRevision,
       type: "result",
     });
     await resultPromise;

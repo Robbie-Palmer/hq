@@ -1,0 +1,109 @@
+---
+title: "ADR 040: PostHog Analytics"
+date: "2026-02-14"
+status: "Accepted"
+tech_stack: ["PostHog"]
+---
+
+# Context
+
+The site needs web analytics to understand how visitors interact with content and features. Without analytics, decisions about what to build, write about, or improve are based on guesswork rather than data.
+
+Cloudflare provides basic analytics in its dashboard (page views, unique visitors, top paths), but the data is extremely limited and the UX for exploring it is poor. It offers no way to track user flows, define success metrics, run experiments, or build a meaningful feedback loop from Cloudflare's built-in analytics alone.
+
+The requirements break down into several tiers:
+
+1. **Basic web analytics** (immediate): Page views, unique visitors, traffic sources, top content, the baseline that Cloudflare fails to deliver usably.
+2. **Success metrics and feedback loops** (immediate): Define what "good" looks like for content and features, measure it, and use the data to decide where to invest effort.
+3. **User flow analysis** (near-term): Understand how visitors navigate through the site, where they land, what paths they take, where they drop off.
+4. **A/B testing** (near-term): Experiment with content presentation, CTAs, and feature variations to optimise based on evidence rather than intuition.
+5. **Deeper product analytics** (future): Funnels, cohort analysis, session replay, feature flags, as sub-projects grow in complexity.
+
+The platform choice matters because analytics tends to expand in scope. Starting with a minimal tool that only covers tier 1 means introducing a second (or third) platform later when needs grow. Consolidating on a platform that can serve all tiers from the start avoids that churn.
+
+# Decision
+
+Use **PostHog** as the analytics and product telemetry platform for the site and its sub-projects.
+
+PostHog is integrated client-side via the `posthog-js` SDK, initialised in `instrumentation-client.ts`. To avoid ad blockers stripping analytics requests, all PostHog traffic is proxied through the site's own domain via a Cloudflare Pages Function at `/ingest/*`, which forwards requests to PostHog's EU API (`eu.i.posthog.com`).
+
+## Why PostHog
+
+### Breadth of Platform
+
+PostHog is not just an analytics tool. It is a product platform covering analytics, session replay, feature flags, A/B testing (Experiments), surveys, data pipelines, and a data warehouse. Choosing PostHog for basic analytics doesn't mean adopting a narrow tool that will need replacing; it means adopting a platform that grows with the project. When the need for A/B testing or feature flags arises, it's a configuration change within the same platform, not a new vendor integration.
+
+### Generous Free Tier
+
+PostHog's free tier includes 1 million events/month for analytics, 5,000 session recordings/month, 1 million feature flag requests/month, and unlimited experimentation. For a personal site, this is effectively unlimited. No realistic scenario hits these limits. This removes cost as a factor entirely and means analytics can be comprehensive without being selective about what to track.
+
+### Success Metrics and Feedback Loops
+
+PostHog's analytics, funnels, and dashboards make it straightforward to define and track success metrics: which blog posts drive engagement, which projects get explored, which pages have high bounce rates. This creates the feedback loop needed to make evidence-based decisions about what content and features to prioritise.
+
+### A/B Testing and Experimentation
+
+PostHog Experiments provides built-in A/B testing backed by feature flags with statistical significance calculations. This enables testing variations of content presentation, page layouts, or CTAs without bolting on a separate experimentation platform.
+
+### Open Core and Self-Hostable
+
+PostHog uses an open-core model: the core platform is MIT licensed, while enterprise features (in the `ee/` directory) are under a proprietary license. A fully open-source build (`posthog-foss`) is also available. While the cloud-hosted version is used here, the option to self-host exists as an exit path. This reduces vendor lock-in compared to fully proprietary analytics platforms.
+
+### EU Data Residency
+
+PostHog offers an EU-hosted cloud instance (`eu.i.posthog.com`), which simplifies GDPR compliance by keeping data within the EU. The site is configured to use this endpoint.
+
+### Developer Experience
+
+PostHog is built for engineers. The SDK is straightforward, the documentation is good, and the platform doesn't require a separate "analytics team" to configure or interpret. Custom events are a single function call (`posthog.capture()`), and the dashboard is usable without training.
+
+# Alternatives Considered
+
+### Cloudflare Web Analytics (Status Quo)
+
+* **Pros**: Already available. No additional integration. Privacy-friendly (no cookies, no PII). Free.
+* **Cons**: Extremely limited data granularity. No custom events, no user flows, no funnels, no A/B testing. The dashboard UX makes it difficult to extract actionable insights even from the basic data it does collect. No path to the deeper analytics tiers without adding another platform.
+* **Decision**: Rejected as the primary analytics solution. Useful as a secondary signal but insufficient on its own.
+
+### Google Analytics (GA4)
+
+* **Pros**: Industry standard. Extensive documentation and ecosystem. Free tier covers most use cases.
+* **Cons**: Privacy concerns. Google uses analytics data for its own advertising purposes. Requires cookie consent banners for GDPR compliance. Complex configuration for custom events and funnels. The GA4 migration fragmented the ecosystem and degraded UX significantly. Does not offer feature flags, A/B testing, or session replay, would still need additional platforms for those capabilities.
+* **Decision**: Rejected. The privacy trade-offs and platform limitations don't justify the ecosystem advantage for a personal site.
+
+### Plausible Analytics
+
+* **Pros**: Privacy-first. Simple, clean dashboard. No cookies required. Open source. EU-hosted.
+* **Cons**: Intentionally minimal, covers only tier 1 (basic analytics). While it supports custom events and funnels, its user analysis capabilities are limited. No built-in A/B testing, session replay, or feature flags. Would require adding a second platform as soon as needs go beyond page views. Paid only (no free tier for cloud-hosted).
+* **Decision**: Rejected. Too narrow. Solves the immediate problem but creates the same platform proliferation issue it was meant to avoid.
+
+### Mixpanel
+
+* **Pros**: Strong product analytics. Good funnel and cohort analysis. Generous free tier (20M events/month).
+* **Cons**: Focused on product analytics rather than web analytics, less suited for content-heavy sites. A/B testing is only available on the Enterprise plan (starting at \~$1,667/month). No built-in session replay and limited feature flags compared to PostHog. Would still require additional platforms for a complete toolset. More complex setup for what starts as a simple analytics need.
+* **Decision**: Rejected. Better suited for SaaS products than a personal site with growing sub-projects.
+
+### Amplitude
+
+* **Pros**: Powerful behavioural analytics. Good visualisation tools. Free tier available.
+* **Cons**: Similar to Mixpanel in scope, strong on product analytics, but weaker on broader platform features compared to PostHog (e.g., feature flags are less integrated). While it offers A/B testing and session replay, its enterprise-oriented UX is heavyweight for a personal project.
+* **Decision**: Rejected. Overkill for analytics alone, yet still incomplete as a platform.
+
+# Consequences
+
+### Positive
+
+* **Comprehensive Analytics from Day One**: Basic web analytics, custom event tracking, and user flow analysis are all available immediately without waiting for "the next platform."
+* **Evidence-Based Decisions**: Success metrics and dashboards create a feedback loop for prioritising content and features based on data rather than intuition.
+* **Experimentation Capability**: A/B testing is available within the same platform when needed, without a separate integration.
+* **Platform Consolidation**: One platform covers analytics, experimentation, session replay, and feature flags, [Less Is More](/projects?tab=philosophy#less-is-more). No need to evaluate, integrate, and maintain multiple specialist tools.
+* **Zero Cost at Current Scale**: The free tier is generous enough that cost is not a consideration for a personal site.
+* **Ad-Blocker Resilience**: Proxying through the site's own domain via `/ingest/*` ensures analytics data is collected even when visitors use ad blockers.
+* **Privacy-Conscious Setup**: EU data residency, first-party domain proxying, and no reliance on third-party cookies.
+
+### Negative
+
+* **Additional JavaScript**: The `posthog-js` SDK adds client-side JavaScript, increasing bundle size and potentially impacting page load performance. Mitigated by PostHog's lightweight SDK and the site's static generation strategy [ADR 015](/projects/personal-knowledge-graph/adrs/015-ssg).
+* **Third-Party Dependency**: Analytics data lives in PostHog's cloud. If PostHog changes pricing, terms, or shuts down, migration is required. Mitigated by PostHog being open source and self-hostable.
+* **Proxy Maintenance**: The Cloudflare Pages Function at `/ingest/*` is custom infrastructure that needs to be maintained and tested. If PostHog changes its API endpoints, the proxy needs updating.
+* **Data Accuracy**: No client-side analytics solution captures 100% of traffic. Users with JavaScript disabled, aggressive privacy tools, or certain browser configurations will not be tracked. Cloudflare's server-side analytics remains a useful secondary signal for total traffic volume.

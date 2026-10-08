@@ -1,7 +1,7 @@
 # Ansible migration bridge
 
 This directory implements the host-side bridge from
-[ADR 022](../../ui/content/projects/homelab/adrs/022-ansible-k3s-migration-bridge.mdx).
+[ADR 019](../../ui/content/projects/homelab/adrs/019-ansible-k3s-migration-bridge.mdx).
 It inventories the three live hosts, gathers facts, configures native Mac
 services, prepares an isolated K3s server, deploys the Asus NixOS flake, and
 checks fleet health. It does not configure workloads.
@@ -50,8 +50,9 @@ container image. A second run skips `nixos-rebuild` when the host already runs
 that revision.
 
 `ansible-check-mac` previews the permanent Mac host changes. The apply command
-installs the pinned Ente CLI, wrapper, launchd jobs, and Netdata alarms. It
-does not start an export. The daily job retains its 03:00 schedule.
+installs the pinned Ente CLI, wrappers, launchd jobs, and Netdata alarms. It
+does not start an export or a worktree cleanup. The Ente job retains its 03:00
+schedule.
 
 The role uses the live system inspected on 2026-09-03. The CLI credentials stay
 in `~/.ente/ente-cli.db`, mode `0600`, and never enter Ansible output. The
@@ -64,6 +65,55 @@ The `ente_export` role is temporary. Delete it after the export schedule,
 mount guard, runtime watchdog, and monitoring are owned by a K3s CronJob or
 another checked-in host configuration and the launchd jobs have been retired.
 
+## T3 worktree cleanup
+
+The `t3_worktree_cleanup` role installs a daily 04:30 LaunchAgent. It reads
+T3's local SQLite projection and considers only worktrees for threads that
+were deleted for at least two days, archived for at least seven days, or
+settled for at least seven days. It skips pinned threads, active provider
+sessions, pending approvals, pending user input, Git index locks, and
+worktrees referenced by a running process. An unknown database schema stops
+the entire run. The Bash script handles orchestration only. Ansible installs
+its SQLite queries as separate `.sql` files under
+`~/.local/share/homelab/t3-worktree-cleanup/sql`.
+
+Clean worktrees are removed with `git worktree remove`. Before removing a
+dirty worktree, the script stashes tracked and untracked files and copies the
+stash commit to `refs/t3-worktree-archive/<thread>/stash-<timestamp>`. A
+detached HEAD is saved as
+`refs/t3-worktree-archive/<thread>/head-<timestamp>`. Existing branches are
+never deleted. Ignored dependency and build output is intentionally omitted
+from recovery refs.
+
+Inspect the exact candidates before a manual cleanup:
+
+```bash
+mise run //homelab:t3-worktree-cleanup-dry-run
+mise run //homelab:t3-worktree-cleanup
+```
+
+The LaunchAgent writes to
+`~/Library/Logs/homelab/t3-worktree-cleanup.log`. Ansible installs and reloads
+the job but never invokes a cleanup during configuration.
+
+For a worktree that had a branch, recover archived changes by recreating the
+checkout from that retained branch and applying its archive ref:
+
+```bash
+git for-each-ref --format='%(refname)' refs/t3-worktree-archive/<thread-id>/
+git worktree add ~/.t3/worktrees/recovered/<thread-id> <retained-branch>
+git -C ~/.t3/worktrees/recovered/<thread-id> stash apply \
+  refs/t3-worktree-archive/<thread-id>/stash-<timestamp>
+```
+
+For a detached worktree, recreate it directly from the archived HEAD ref. If
+it also had dirty changes, apply the corresponding stash ref afterward:
+
+```bash
+git worktree add --detach ~/.t3/worktrees/recovered/<thread-id> \
+  refs/t3-worktree-archive/<thread-id>/head-<timestamp>
+```
+
 The verification playbook reads marker metadata only. Normal and verbose
 Ansible output does not print the launchd job, mount table, or marker path.
 
@@ -75,17 +125,24 @@ that default VM.
 
 The pilot profile pins Colima 0.10.3, Lima 2.2.0, and K3s
 `v1.36.4+k3s1`. It has 2 CPUs, 4 GiB of memory, and a 60 GiB VM disk. It
-mounts `~/.local/share/homelab/k3s/t3-code` at `/srv/t3-code`. The mount is
-writable. Add narrower host-volume mounts with the workload that needs them;
-the pilot does not expose `/Volumes` to every pod. K3s encrypts Secret data at
-rest and registers the node with the `home` location and `agent-workspace`
-capability labels.
+mounts `~/.local/share/homelab/k3s/t3-code` at `/srv/t3-code`, the durable
+media configuration at `/srv/homelab-media`, and the Expansion disk at
+`/srv/expansion`. All three mounts are writable. Only pods with a matching
+persistent-volume claim receive the media paths. K3s encrypts Secret data at
+rest and registers the node with the `home`, `agent-workspace`, and
+`storage-media` labels.
+
+Before creating media directories, the role requires the Expansion disk's
+configured volume UUID. It also installs the media VPN gate and backup script
+under `~/.local/bin` with their launchd definitions. Neither job executes code
+from a repository checkout.
 
 The profile does not activate its Docker or Kubernetes context globally.
 Repository commands address the `colima-homelab-k3s` context explicitly. A
 LaunchAgent runs Colima in foreground mode and restarts it if it exits. The
-agent starts when the Mac user session starts. A Mac reboot test remains part
-of ADR 023 because a LaunchAgent cannot run before login.
+agent starts when the Mac user session starts, but its wrapper waits until the
+default route uses a VPN tunnel before it starts K3s. A Mac reboot test remains
+part of ADR 020 because a LaunchAgent cannot run before login.
 
 Changing the profile config, wrapper, or plist restarts only the isolated
 pilot. The role is temporary. Delete it after nix-darwin or another checked-in
@@ -97,7 +154,7 @@ K3s documents that server nodes accept
 [`--node-label`](https://docs.k3s.io/cli/agent#node-labels-and-taints-for-agents)
 at registration.
 
-## ADR 022 acceptance run
+## ADR 019 acceptance run
 
 Run these commands from a clean checkout on the Mac mini:
 
@@ -115,7 +172,7 @@ volume guard and the runtime limit. Its timeout fixture ignores inherited
 `SIGALRM`, proving that the parent watchdog terminates the export. The test
 neither unmounts the photo disk nor starts a real export.
 
-Before changing ADR 022 to Accepted, run the two verification playbooks in
+Before changing ADR 019 to Accepted, run the two verification playbooks in
 verbose mode and inspect the output for account identifiers, tokens, and
 credentials:
 

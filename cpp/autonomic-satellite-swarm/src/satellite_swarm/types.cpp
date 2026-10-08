@@ -4,6 +4,11 @@
 
 namespace satellite_swarm {
 
+bool isValid(const MissionKey& mission_key) {
+  return mission_key.origin_node < kMaximumNodes && mission_key.boot_epoch != 0U &&
+         mission_key.sequence != 0U;
+}
+
 bool isValid(const Coordinate& coordinate) {
   return isfinite(coordinate.longitude_degrees) && isfinite(coordinate.latitude_degrees) &&
          coordinate.longitude_degrees >= -180.0F && coordinate.longitude_degrees <= 180.0F &&
@@ -20,41 +25,41 @@ bool isValid(const SatelliteSnapshot& satellite) {
          satellite.available_propulsion_energy_joules > 0.0F && valid_direction;
 }
 
-Message Message::missionRequest(NodeId origin, MissionId mission_id, Coordinate objective) {
+Message Message::missionRequest(NodeId sender, MissionKey mission_key, Coordinate objective) {
   Message message;
   message.type = MessageType::MissionRequest;
-  message.origin = origin;
+  message.sender = sender;
   message.target = kBroadcastNode;
-  message.mission_id = mission_id;
+  message.mission_key = mission_key;
   message.objective = objective;
   return message;
 }
 
-Message Message::candidacy(NodeId origin, NodeId leader, MissionId mission_id, uint8_t score) {
+Message Message::candidacy(NodeId sender, NodeId leader, MissionKey mission_key, uint8_t score) {
   Message message;
   message.type = MessageType::Candidacy;
-  message.origin = origin;
+  message.sender = sender;
   message.target = leader;
-  message.mission_id = mission_id;
+  message.mission_key = mission_key;
   message.score = score;
   return message;
 }
 
-Message Message::acknowledgement(NodeId leader, NodeId candidate, MissionId mission_id) {
+Message Message::acknowledgement(NodeId sender, NodeId candidate, MissionKey mission_key) {
   Message message;
   message.type = MessageType::Acknowledgement;
-  message.origin = leader;
+  message.sender = sender;
   message.target = candidate;
-  message.mission_id = mission_id;
+  message.mission_key = mission_key;
   return message;
 }
 
-Message Message::assignment(NodeId leader, NodeId assignee, MissionId mission_id) {
+Message Message::assignment(NodeId sender, NodeId assignee, MissionKey mission_key) {
   Message message;
   message.type = MessageType::MissionAssignment;
-  message.origin = leader;
+  message.sender = sender;
   message.target = assignee;
-  message.mission_id = mission_id;
+  message.mission_key = mission_key;
   return message;
 }
 

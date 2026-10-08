@@ -1,6 +1,7 @@
 import { ArrowRight, Network } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
 import type { InitiativeWithProjects } from "@/lib/api/initiatives";
 import type { ProjectWithADRsView } from "@/lib/domain";
 import type { RoleListItemView } from "@/lib/domain/role/roleViews";
@@ -35,10 +36,8 @@ function getProjectPath(
   if (projects.length <= PROJECT_PATH_LIMIT) return projects;
 
   const first = projects[0];
-  const middle = projects[Math.floor((projects.length - 1) / 2)];
-  const last = projects.at(-1);
 
-  return [first, middle, last].filter(
+  return [first, ...projects.slice(-(PROJECT_PATH_LIMIT - 1))].filter(
     (project): project is ProjectWithADRsView => project !== undefined,
   );
 }
@@ -101,6 +100,7 @@ export function HomeInitiatives({
           const companies = getInitiativeCompanies(initiative);
           const projectPath = getProjectPath(initiative);
           const projectCount = initiative.projects.length;
+          const omittedProjectCount = projectCount - projectPath.length;
 
           return (
             <article
@@ -181,10 +181,20 @@ export function HomeInitiatives({
                         className="relative grid grid-cols-[12px_minmax(0,1fr)] gap-3 sm:block"
                       >
                         {index < projectPath.length - 1 && (
-                          <span
-                            aria-hidden="true"
-                            className="absolute bottom-[-1.25rem] left-[5px] top-3 w-px bg-border sm:bottom-auto sm:left-3 sm:right-[-1.25rem] sm:top-[5px] sm:h-px sm:w-auto"
-                          />
+                          <>
+                            <span
+                              aria-hidden="true"
+                              className="absolute bottom-[-1.25rem] left-[5px] top-3 w-px bg-border sm:bottom-auto sm:left-3 sm:right-[-1.25rem] sm:top-[5px] sm:h-px sm:w-auto"
+                            />
+                            {index === 0 && omittedProjectCount > 0 && (
+                              <span
+                                aria-hidden="true"
+                                className="absolute bottom-[-1.125rem] left-[5px] z-20 -translate-x-1/2 bg-background px-1 font-mono text-[0.625rem] tracking-widest text-muted-foreground sm:bottom-auto sm:left-[calc(50%+0.375rem)] sm:top-[5px] sm:-translate-y-1/2"
+                              >
+                                •••
+                              </span>
+                            )}
+                          </>
                         )}
                         <span
                           aria-hidden="true"
@@ -203,6 +213,19 @@ export function HomeInitiatives({
                           >
                             {project.title}
                           </Link>
+                          <ProjectStatusBadge
+                            status={project.status}
+                            className="mt-2 px-1.5 py-0 text-[0.625rem]"
+                          />
+                          {index === 0 && omittedProjectCount > 0 && (
+                            <span className="sr-only">
+                              {omittedProjectCount}{" "}
+                              {omittedProjectCount === 1
+                                ? "project"
+                                : "projects"}{" "}
+                              not shown
+                            </span>
+                          )}
                         </div>
                       </li>
                     ))}

@@ -1,0 +1,254 @@
+.page {
+  --hog-ink: #1d1f1f;
+  --hog-paper: #f7f2e8;
+  --hog-paper-deep: #efe5d3;
+  --hog-yellow: #f5c842;
+  --hog-red: #f05b52;
+  --hog-blue: #1490e8;
+  --hog-green: #4e9b75;
+  background-color: var(--hog-paper);
+  background-image:
+    linear-gradient(rgb(29 31 31 / 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(29 31 31 / 0.045) 1px, transparent 1px);
+  background-size: 32px 32px;
+  color: var(--hog-ink);
+  font-family: var(--font-roundhog), ui-sans-serif, system-ui, sans-serif;
+  overflow: hidden;
+}
+
+.paperPanel {
+  background: rgb(255 253 248 / 0.94);
+  border: 2px solid var(--hog-ink);
+  box-shadow: 7px 7px 0 var(--hog-ink);
+}
+
+.terminalPanel {
+  background: var(--hog-ink);
+  border: 2px solid var(--hog-ink);
+  box-shadow: 8px 8px 0 var(--hog-yellow);
+  color: #fffdf8;
+}
+
+.evidenceCard {
+  background: #fffdf8;
+  border: 2px solid var(--hog-ink);
+  box-shadow: 5px 5px 0 var(--hog-ink);
+  transition:
+    translate 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.evidenceCard:hover {
+  box-shadow: 8px 8px 0 var(--hog-ink);
+  translate: -3px -3px;
+}
+
+.scribble {
+  position: relative;
+  white-space: nowrap;
+}
+
+.scribble::after {
+  background: var(--hog-red);
+  bottom: -0.12em;
+  content: "";
+  height: 0.12em;
+  left: -0.03em;
+  position: absolute;
+  rotate: -1deg;
+  width: 102%;
+}
+
+.hoggie {
+  filter: drop-shadow(8px 10px 0 rgb(29 31 31 / 0.16));
+}
+
+.heroTeaser {
+  background: #fffdf8;
+  border: 2px solid var(--hog-ink);
+  box-shadow: 5px 5px 0 var(--hog-blue);
+  color: var(--hog-ink);
+  rotate: -0.35deg;
+  transition:
+    box-shadow 160ms ease,
+    translate 160ms ease;
+}
+
+.heroTeaser:hover {
+  box-shadow: 8px 8px 0 var(--hog-blue);
+  translate: -3px -3px;
+}
+
+.heroTeaserItem {
+  background: #101212;
+}
+
+.heroTeaserItem:not(:last-child) {
+  border-right: 2px solid var(--hog-ink);
+}
+
+.heroTeaserItem img {
+  transition: scale 240ms ease;
+}
+
+.weirdQuote {
+  background: var(--hog-yellow);
+  border: 2px solid #fffdf8;
+  box-shadow: 8px 8px 0 var(--hog-red);
+  color: var(--hog-ink);
+  rotate: -1deg;
+}
+
+.thread {
+  border: 2px solid rgb(255 253 248 / 0.5);
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.thread:hover {
+  background: #fffdf8;
+  color: var(--hog-ink);
+}
+
+.artefactCard {
+  background: #fffdf8;
+  border: 2px solid #fffdf8;
+  box-shadow: 7px 7px 0 var(--artefact-accent);
+  color: var(--hog-ink);
+  transition:
+    translate 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.artefactCard:hover {
+  box-shadow: 11px 11px 0 var(--artefact-accent);
+  translate: -4px -4px;
+}
+
+.artefactImage {
+  background: #101212;
+  border-top: 2px solid var(--hog-ink);
+  overflow: hidden;
+}
+
+.artefactDiagram {
+  background: var(--hog-paper-deep);
+  border-top: 2px solid var(--hog-ink);
+  width: 100%;
+}
+
+.artefactDiagramTabs {
+  border-bottom: 2px solid var(--hog-ink);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.artefactDiagramTab {
+  cursor: pointer;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  line-height: 1.35;
+  min-height: 3.5rem;
+  padding: 0.75rem;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.artefactDiagramTab + .artefactDiagramTab {
+  border-left: 2px solid var(--hog-ink);
+}
+
+.artefactDiagramTab[aria-selected="true"] {
+  background: var(--hog-ink);
+  color: #fffdf8;
+}
+
+.artefactDiagramTab:focus-visible {
+  outline: 3px solid var(--hog-blue);
+  outline-offset: -5px;
+}
+
+.artefactDiagramBlock {
+  min-width: 0;
+  padding: 1.5rem;
+}
+
+.artefactDiagramViewport {
+  height: 22rem;
+  overflow: auto;
+  width: 100%;
+}
+
+.artefactDiagramViewport svg {
+  min-width: 52rem;
+}
+
+.artefactDiagramViewportDense svg {
+  min-width: 72rem;
+}
+
+.artefactDiagramViewport > div {
+  justify-content: flex-start;
+}
+
+.artefactImage img {
+  transition: scale 240ms ease;
+}
+
+.artefactCard:hover .artefactImage img {
+  scale: 1.025;
+}
+
+.heroTeaser:hover .heroTeaserItem img {
+  scale: 1.04;
+}
+
+.personalityCard {
+  background: #fffdf8;
+  border: 2px solid #fffdf8;
+  box-shadow: 6px 6px 0 var(--personality-accent);
+  color: var(--hog-ink);
+  transition:
+    box-shadow 160ms ease,
+    translate 160ms ease;
+}
+
+a.personalityCard:hover {
+  box-shadow: 9px 9px 0 var(--personality-accent);
+  translate: -3px -3px;
+}
+
+@media (max-width: 639px) {
+  .scribble {
+    text-decoration-color: var(--hog-red);
+    text-decoration-line: underline;
+    text-decoration-thickness: 0.12em;
+    text-underline-offset: 0.04em;
+    white-space: normal;
+  }
+
+  .scribble::after {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heroTeaser,
+  .heroTeaserItem img,
+  .personalityCard,
+  .evidenceCard {
+    transition: none;
+  }
+
+  .thread {
+    transition: none;
+  }
+
+  .artefactCard,
+  .artefactImage img {
+    transition: none;
+  }
+}

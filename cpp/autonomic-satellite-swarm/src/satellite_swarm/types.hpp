@@ -6,11 +6,33 @@
 namespace satellite_swarm {
 
 using NodeId = uint8_t;
-using MissionId = uint16_t;
+using BootEpoch = uint32_t;
+using MissionSequence = uint16_t;
 
 constexpr NodeId kBroadcastNode = UINT8_MAX;
 constexpr uint8_t kMaximumNodes = 16U;
 constexpr uint8_t kMaximumCandidacyScore = 100U;
+
+struct MissionKey {
+  NodeId origin_node = kBroadcastNode;
+  BootEpoch boot_epoch = 0U;
+  MissionSequence sequence = 0U;
+
+  MissionKey() = default;
+  MissionKey(NodeId origin, BootEpoch epoch, MissionSequence mission_sequence)
+      : origin_node(origin), boot_epoch(epoch), sequence(mission_sequence) {}
+
+  friend bool operator==(const MissionKey& left, const MissionKey& right) {
+    return left.origin_node == right.origin_node && left.boot_epoch == right.boot_epoch &&
+           left.sequence == right.sequence;
+  }
+
+  friend bool operator!=(const MissionKey& left, const MissionKey& right) {
+    return !(left == right);
+  }
+};
+
+bool isValid(const MissionKey& mission_key);
 
 struct Coordinate {
   float longitude_degrees = 0.0F;
@@ -46,21 +68,54 @@ enum class MessageType : uint8_t {
 
 struct Message {
   MessageType type = MessageType::MissionRequest;
-  NodeId origin = 0U;
+  NodeId sender = 0U;
   NodeId target = kBroadcastNode;
-  MissionId mission_id = 0U;
+  MissionKey mission_key{};
   Coordinate objective{};
   uint8_t score = 0U;
 
   Message() = default;
 
-  static Message missionRequest(NodeId origin, MissionId mission_id, Coordinate objective);
-  static Message candidacy(NodeId origin, NodeId leader, MissionId mission_id, uint8_t score);
-  static Message acknowledgement(NodeId leader, NodeId candidate, MissionId mission_id);
-  static Message assignment(NodeId leader, NodeId assignee, MissionId mission_id);
+  static Message missionRequest(NodeId sender, MissionKey mission_key, Coordinate objective);
+  static Message candidacy(NodeId sender, NodeId leader, MissionKey mission_key, uint8_t score);
+  static Message acknowledgement(NodeId sender, NodeId candidate, MissionKey mission_key);
+  static Message assignment(NodeId sender, NodeId assignee, MissionKey mission_key);
 };
 
 enum class HealthStatus : uint8_t { Nominal, Quiescent, Fatal };
+
+enum class SafeStateReason : uint8_t {
+  InvalidConfiguration,
+  FatalHealth,
+  CommunicationFailureLimit
+};
+
+struct SafeStateRequestId {
+  NodeId node_id = kBroadcastNode;
+  BootEpoch boot_epoch = 0U;
+
+  SafeStateRequestId() = default;
+  SafeStateRequestId(NodeId node, BootEpoch epoch) : node_id(node), boot_epoch(epoch) {}
+
+  friend bool operator==(const SafeStateRequestId& left, const SafeStateRequestId& right) {
+    return left.node_id == right.node_id && left.boot_epoch == right.boot_epoch;
+  }
+};
+
+struct SafeStateRequest {
+  SafeStateRequestId id{};
+  SafeStateReason reason = SafeStateReason::InvalidConfiguration;
+  MissionKey mission_key{};
+
+  SafeStateRequest() = default;
+  SafeStateRequest(SafeStateRequestId request_id, SafeStateReason request_reason,
+                   MissionKey current_mission)
+      : id(request_id), reason(request_reason), mission_key(current_mission) {}
+};
+
+enum class SafeStateResult : uint8_t { Rejected, Accepted };
+
+enum class SafeStateExecutionStatus : uint8_t { Pending, Succeeded, Failed };
 
 enum class ControllerState : uint8_t {
   Idle,

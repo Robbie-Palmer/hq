@@ -1,10 +1,17 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { legacyADRAliases } from "@/content/adr-aliases";
 
 const OUT_DIR = path.resolve(__dirname, "../../out");
 const SITEMAP_PATH = path.join(OUT_DIR, "sitemap.xml");
 const SITE_URL = "https://robbiepalmer.me";
+const LEGACY_ADR_ALIAS_PATHS = new Set(
+  legacyADRAliases.map(({ alias }) => {
+    const [projectSlug, adrSlug] = alias.split(":");
+    return `projects/${projectSlug}/adrs/${adrSlug}`;
+  }),
+);
 
 // Subdomain projects that have their own routing and should not be in main sitemap
 const SUBDOMAIN_PROJECTS = new Set(["assettracker"]);
@@ -22,6 +29,7 @@ const NOINDEX_PAGES = new Set([
   "recipes/cooks",
   "recipes/discover",
   "recipes/edit",
+  "recipes/import",
   "recipes/kitchen",
   "recipes/log",
   "recipes/notifications",
@@ -32,7 +40,36 @@ const NOINDEX_PAGES = new Set([
   "recipes/settings",
   "recipes/settings/agents/approve",
   "recipes/shopping",
+  "wedding-planner",
 ]);
+
+function expectedUrlForFile(
+  file: string,
+  projectAliasPaths: string[],
+): string | null {
+  let relativePath = path.relative(OUT_DIR, file).replace(/\\/g, "/");
+  const topLevelSegment = relativePath.split("/")[0];
+  const fileNameWithoutExt = relativePath.replace(/\.html$/, "");
+  const excluded =
+    (topLevelSegment && SUBDOMAIN_PROJECTS.has(topLevelSegment)) ||
+    SUBDOMAIN_PROJECTS.has(fileNameWithoutExt) ||
+    (topLevelSegment && STATIC_ASSET_SEGMENTS.has(topLevelSegment)) ||
+    NOINDEX_PAGES.has(fileNameWithoutExt) ||
+    LEGACY_ADR_ALIAS_PATHS.has(fileNameWithoutExt) ||
+    projectAliasPaths.some(
+      (aliasPath) =>
+        fileNameWithoutExt === aliasPath ||
+        fileNameWithoutExt.startsWith(`${aliasPath}/`),
+    ) ||
+    fileNameWithoutExt.endsWith("/deck/presenter");
+  if (excluded) return null;
+
+  relativePath = relativePath
+    .replace(/index\.html$/, "")
+    .replace(/\.html$/, "")
+    .replace(/\/$/, "");
+  return relativePath ? `${SITE_URL}/${relativePath}` : SITE_URL;
+}
 
 describe("Sitemap Integration Test", () => {
   it("should have a sitemap.xml that includes all generated pages", () => {
@@ -51,46 +88,11 @@ describe("Sitemap Integration Test", () => {
       match = urlRegex.exec(sitemapContent);
     }
     const htmlFiles = findAllHtmlFiles(OUT_DIR);
+    const projectAliasPaths = findProjectAliasPaths(OUT_DIR);
     const missingUrls: string[] = [];
     htmlFiles.forEach((file) => {
-      let relativePath = path.relative(OUT_DIR, file);
-      // Normalize path separators to forward slashes
-      const normalizedPath = relativePath.replace(/\\/g, "/");
-
-      // Skip subdomain project paths
-      const topLevelSegment = normalizedPath.split("/")[0];
-      const fileNameWithoutExt = normalizedPath.replace(/\.html$/, "");
-      const isSubdomainProject =
-        (topLevelSegment && SUBDOMAIN_PROJECTS.has(topLevelSegment)) ||
-        SUBDOMAIN_PROJECTS.has(fileNameWithoutExt);
-      if (isSubdomainProject) {
-        return;
-      }
-      if (topLevelSegment && STATIC_ASSET_SEGMENTS.has(topLevelSegment)) {
-        return;
-      }
-      if (NOINDEX_PAGES.has(fileNameWithoutExt)) {
-        return;
-      }
-      if (fileNameWithoutExt.endsWith("/deck/presenter")) {
-        return;
-      }
-
-      relativePath = normalizedPath;
-
-      if (relativePath.endsWith("index.html")) {
-        relativePath = relativePath.replace("index.html", "");
-      }
-      if (relativePath.endsWith(".html")) {
-        relativePath = relativePath.replace(".html", "");
-      }
-      if (relativePath.endsWith("/")) {
-        relativePath = relativePath.slice(0, -1);
-      }
-      // Construct expected URL
-      const expectedUrl = relativePath
-        ? `${SITE_URL}/${relativePath}`
-        : SITE_URL;
+      const expectedUrl = expectedUrlForFile(file, projectAliasPaths);
+      if (!expectedUrl) return;
       if (!urls.has(expectedUrl)) {
         missingUrls.push(`${file} -> ${expectedUrl}`);
       }
@@ -119,4 +121,24 @@ function findAllHtmlFiles(dir: string): string[] {
     }
   }
   return results;
+}
+
+function findProjectAliasPaths(outDir: string): string[] {
+  const projectsDir = path.join(outDir, "projects");
+  return fs
+    .readdirSync(projectsDir)
+    .filter((file) => file.endsWith(".html"))
+    .map((file) => `projects/${file.replace(/\.html$/, "")}`)
+    .filter((routePath) => isProjectAliasPage(projectsDir, routePath));
+}
+
+function isProjectAliasPage(projectsDir: string, routePath: string): boolean {
+  const slug = routePath.replace(/^projects\//, "");
+  const file = path.join(projectsDir, `${slug}.html`);
+  const canonicalUrl = new RegExp(
+    `<link rel="canonical" href="(${SITE_URL}/projects/[^/"]+)"`,
+  ).exec(fs.readFileSync(file, "utf8"))?.[1];
+  return (
+    canonicalUrl !== undefined && canonicalUrl !== `${SITE_URL}/${routePath}`
+  );
 }

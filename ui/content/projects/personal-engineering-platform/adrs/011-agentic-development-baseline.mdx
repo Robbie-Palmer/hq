@@ -1,0 +1,44 @@
+---
+title: "ADR 011: Coding agents and AI review in the base layer"
+date: "2026-09-15"
+status: "Accepted"
+tech_stack:
+  - "Claude Code"
+  - "Codex"
+  - "CodeRabbit"
+  - "Greptile"
+  - "Agentic Code Review"
+---
+
+## Context
+
+Coding agents and automated review now participate in work across every project
+that adopts the base layer. Keeping their decisions in the Personal Knowledge
+Graph makes platform-wide changes look local and encourages projects to drift
+between different agent and review setups.
+
+Both roles use more than one tool at a time. Codex and Claude Code provide
+independent capacity and different working styles. Pull Requests receive
+separate opinions from managed reviewers and the stateful in-house reviewer.
+A single-selection slot cannot describe either set honestly.
+
+## Decision
+
+Add coding agents and AI reviewers as required base-layer slots. Allow these
+slots to hold several accepted selections concurrently.
+
+Select Claude Code and Codex as coding agents. Select CodeRabbit, Greptile,
+Codex code review, and Agentic Code Review for Pull Request review. Projects
+that track the base layer receive additions, removals, and replacements as one
+shared policy change.
+
+## Consequences
+
+Agent instructions and review policy can change once for every tracking
+project. Multiple providers reduce the chance that one outage, allowance, or
+blind spot stops delivery.
+
+The baseline consumes more review capacity and produces overlapping comments.
+The review loop still has to dismiss weak findings and prevent several tools
+from turning one issue into repeated work. Removing one tool closes only its
+selection period; it does not replace the remaining set.

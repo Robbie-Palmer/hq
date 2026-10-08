@@ -1,6 +1,8 @@
 #include "satellite_swarm/browser_simulation.hpp"
+#include "satellite_swarm/fair_allocation_simulation.hpp"
 #include "satellite_swarm/simulation.hpp"
 
+#include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
 #include <limits>
@@ -38,6 +40,12 @@ SimulationTrace demonstrationTrace() {
   return trace;
 }
 
+OrbitUpdate validOrbitUpdate(NodeId node_id) {
+  const BrowserSimulation simulation =
+      makeBrowserDemonstration(Coordinate(0.0F, -90.0F), BrowserScenario::Nominal);
+  return {node_id, simulation.trace.frames.front().orbit_updates.front().orbit};
+}
+
 } // namespace
 
 TEST_CASE("a versioned trace reproduces the three-node mission in an ordered event log") {
@@ -64,6 +72,151 @@ TEST_CASE("a versioned trace reproduces the three-node mission in an ordered eve
   CHECK(sent_messages[3] == MessageType::Acknowledgement);
   CHECK(sent_messages[4] == MessageType::Acknowledgement);
   CHECK(sent_messages[5] == MessageType::MissionAssignment);
+
+  std::array<uint32_t, 3U> previous_sequences{};
+  std::size_t telemetry_events = 0U;
+  for (const SimulationEvent& event : result.events) {
+    if (event.type != SimulationEventType::ControllerTelemetry) {
+      continue;
+    }
+    const std::size_t node = static_cast<std::size_t>(event.node_id);
+    CHECK(event.telemetry.sequence == previous_sequences[node] + 1U);
+    CHECK(event.telemetry.node_id == event.node_id);
+    CHECK(event.telemetry.boot_epoch == 1U);
+    CHECK(event.telemetry.dropped_before == 0U);
+    previous_sequences[node] = event.telemetry.sequence;
+    ++telemetry_events;
+  }
+  CHECK(telemetry_events > 0U);
+  CHECK(final_frame.nodes[0].telemetry_drops == 0U);
+  CHECK(final_frame.nodes[1].telemetry_drops == 0U);
+  CHECK(final_frame.nodes[2].telemetry_drops == 0U);
+}
+
+TEST_CASE("a trace replays accepted safe-state work through one terminal result") {
+  SimulationTrace trace;
+  trace.nodes = {{0U, SatelliteSnapshot(), 9U, SafeStateResult::Accepted}};
+  SimulationFrame request_frame;
+  request_frame.now_ms = 0U;
+  request_frame.health_updates.push_back({0U, HealthStatus::Fatal});
+  trace.frames.push_back(request_frame);
+  SimulationFrame pending_frame;
+  pending_frame.now_ms = 10U;
+  trace.frames.push_back(pending_frame);
+  SimulationFrame success_frame;
+  success_frame.now_ms = 20U;
+  success_frame.safe_state_status_updates.push_back({0U, SafeStateExecutionStatus::Succeeded});
+  trace.frames.push_back(success_frame);
+  SimulationFrame later_frame;
+  later_frame.now_ms = 30U;
+  trace.frames.push_back(later_frame);
+
+  const SimulationResult result = runSimulationTrace(trace);
+  std::size_t terminal_results = 0U;
+  for (const SimulationEvent& event : result.events) {
+    if (event.type == SimulationEventType::ControllerTelemetry &&
+        event.telemetry.type == TelemetryEventType::SafeStateExecutionResult) {
+      CHECK(event.now_ms == 20U);
+      CHECK(event.telemetry.value == static_cast<uint8_t>(SafeStateExecutionStatus::Succeeded));
+      ++terminal_results;
+    }
+  }
+
+  CHECK(terminal_results == 1U);
+  CHECK(result.frames.back().nodes[0].state == ControllerState::SafeDisabled);
+}
+
+TEST_CASE("browser serialization names every telemetry event, reason, priority, and state") {
+  const BrowserSimulation simulation =
+      makeBrowserDemonstration(Coordinate(0.0F, -90.0F), BrowserScenario::Nominal);
+  SimulationResult result = runSimulationTrace(simulation.trace);
+  result.events.clear();
+
+  constexpr std::array<TelemetryEventType, 12> kEventTypes = {
+      TelemetryEventType::StateTransition,  TelemetryEventType::MissionProposed,
+      TelemetryEventType::CandidacySent,    TelemetryEventType::CandidacyAccepted,
+      TelemetryEventType::MissionAssigned,  TelemetryEventType::MissionCompleted,
+      TelemetryEventType::MissionFailed,    TelemetryEventType::HealthChanged,
+      TelemetryEventType::TransportFailure, TelemetryEventType::SafeStateRequested,
+      TelemetryEventType::SafeStateResult,  TelemetryEventType::SafeStateExecutionResult};
+  constexpr std::array<const char*, 12> kEventNames = {
+      "state-transition",     "mission-proposed",  "candidacy-sent",
+      "candidacy-accepted",   "mission-assigned",  "mission-completed",
+      "mission-failed",       "health-changed",    "transport-failure",
+      "safe-state-requested", "safe-state-result", "safe-state-execution-result"};
+  constexpr std::array<TelemetryReason, 14> kReasons = {TelemetryReason::None,
+                                                        TelemetryReason::MissionInitiated,
+                                                        TelemetryReason::MissionRequestAccepted,
+                                                        TelemetryReason::AcknowledgementReceived,
+                                                        TelemetryReason::AssignmentReceived,
+                                                        TelemetryReason::AssignmentBroadcast,
+                                                        TelemetryReason::AssignmentWindowExpired,
+                                                        TelemetryReason::RetryLimitReached,
+                                                        TelemetryReason::MissionCompleted,
+                                                        TelemetryReason::HealthQuiescent,
+                                                        TelemetryReason::HealthRecovered,
+                                                        TelemetryReason::HealthFatal,
+                                                        TelemetryReason::SendFailed,
+                                                        TelemetryReason::InvalidConfiguration};
+  constexpr std::array<const char*, 14> kReasonNames = {"none",
+                                                        "mission-initiated",
+                                                        "mission-request-accepted",
+                                                        "acknowledgement-received",
+                                                        "assignment-received",
+                                                        "assignment-broadcast",
+                                                        "assignment-window-expired",
+                                                        "retry-limit-reached",
+                                                        "mission-completed",
+                                                        "health-quiescent",
+                                                        "health-recovered",
+                                                        "health-fatal",
+                                                        "send-failed",
+                                                        "invalid-configuration"};
+  constexpr std::array<TelemetryPriority, 3> kPriorities = {
+      TelemetryPriority::Routine, TelemetryPriority::Operational, TelemetryPriority::Critical};
+  constexpr std::array<const char*, 3> kPriorityNames = {"routine", "operational", "critical"};
+  constexpr std::array<ControllerState, 7> kStates = {ControllerState::Idle,
+                                                      ControllerState::Leading,
+                                                      ControllerState::AwaitingAcknowledgement,
+                                                      ControllerState::AwaitingAssignment,
+                                                      ControllerState::Active,
+                                                      ControllerState::Quiescent,
+                                                      ControllerState::SafeDisabled};
+
+  for (std::size_t index = 0U; index < kReasons.size(); ++index) {
+    SimulationEvent event;
+    event.type = SimulationEventType::ControllerTelemetry;
+    event.now_ms = static_cast<uint32_t>(index);
+    event.node_id = 1U;
+    event.telemetry.sequence = static_cast<uint32_t>(index + 1U);
+    event.telemetry.boot_epoch = 2U;
+    event.telemetry.node_id = 1U;
+    event.telemetry.related_node = index == 0U ? kBroadcastNode : 2U;
+    event.telemetry.type = kEventTypes[index % kEventTypes.size()];
+    event.telemetry.reason = kReasons[index];
+    event.telemetry.priority = kPriorities[index % kPriorities.size()];
+    event.telemetry.previous_state = kStates[index % kStates.size()];
+    event.telemetry.current_state = kStates[(index + 1U) % kStates.size()];
+    if (index != 0U) {
+      event.telemetry.mission_key = MissionKey(0U, 1U, 1U);
+    }
+    result.events.push_back(event);
+  }
+
+  const std::string json = serializeBrowserSimulation(simulation, result);
+  for (const char* name : kEventNames) {
+    CHECK(json.find(std::string(R"("event":")") + name + '"') != std::string::npos);
+  }
+  for (const char* name : kReasonNames) {
+    CHECK(json.find(std::string(R"("reason":")") + name + '"') != std::string::npos);
+  }
+  for (const char* name : kPriorityNames) {
+    CHECK(json.find(std::string(R"("priority":")") + name + '"') != std::string::npos);
+  }
+  CHECK(json.find(R"("relatedNode":null)") != std::string::npos);
+  CHECK(json.find(R"("missionKey":null)") != std::string::npos);
+  CHECK(json.find(R"("previousState":"quiescent")") != std::string::npos);
+  CHECK(json.find(R"("currentState":"safe-disabled")") != std::string::npos);
 }
 
 TEST_CASE("a frame snapshot feeds both candidacy scoring and node observation") {
@@ -136,6 +289,25 @@ TEST_CASE("malformed simulation traces fail before a controller runs") {
     CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
   }
 
+  SECTION("zero boot epoch") {
+    SimulationTrace trace = demonstrationTrace();
+    trace.nodes[1].boot_epoch = 0U;
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+
+  SECTION("invalid safe-state request result") {
+    SimulationTrace trace = demonstrationTrace();
+    trace.nodes[1].safe_state_request_result = static_cast<SafeStateResult>(2U);
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+
+  SECTION("boot epoch exhausted by reset") {
+    SimulationTrace trace = demonstrationTrace();
+    trace.nodes[1].boot_epoch = std::numeric_limits<BootEpoch>::max();
+    trace.frames[0].node_resets.push_back({1U});
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+
   SECTION("invalid satellite update") {
     SimulationTrace trace = demonstrationTrace();
     SatelliteSnapshot invalid = satelliteAt(0.0F, 0.0F);
@@ -144,9 +316,68 @@ TEST_CASE("malformed simulation traces fail before a controller runs") {
     CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
   }
 
+  SECTION("unknown orbit update node") {
+    SimulationTrace trace = demonstrationTrace();
+    trace.frames[0].orbit_updates.push_back(validOrbitUpdate(9U));
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+
+  SECTION("invalid TEME orbit state") {
+    SimulationTrace trace = demonstrationTrace();
+    OrbitUpdate update = validOrbitUpdate(1U);
+    update.orbit.teme.position_metres.x = std::numeric_limits<double>::quiet_NaN();
+    trace.frames[0].orbit_updates.push_back(update);
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+
+  SECTION("invalid Earth-fixed orbit state") {
+    SimulationTrace trace = demonstrationTrace();
+    OrbitUpdate update = validOrbitUpdate(1U);
+    update.orbit.earth_fixed.velocity_metres_per_second.y = std::numeric_limits<double>::infinity();
+    trace.frames[0].orbit_updates.push_back(update);
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+
+  SECTION("wrong TEME orbit frame") {
+    SimulationTrace trace = demonstrationTrace();
+    OrbitUpdate update = validOrbitUpdate(1U);
+    update.orbit.teme.frame = OrbitalCoordinateFrame::EarthFixed;
+    trace.frames[0].orbit_updates.push_back(update);
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+
+  SECTION("wrong Earth-fixed orbit frame") {
+    SimulationTrace trace = demonstrationTrace();
+    OrbitUpdate update = validOrbitUpdate(1U);
+    update.orbit.earth_fixed.frame = OrbitalCoordinateFrame::Teme;
+    trace.frames[0].orbit_updates.push_back(update);
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+
+  SECTION("mismatched orbit epochs") {
+    SimulationTrace trace = demonstrationTrace();
+    OrbitUpdate update = validOrbitUpdate(1U);
+    ++update.orbit.earth_fixed.epoch_unix_milliseconds;
+    trace.frames[0].orbit_updates.push_back(update);
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+
   SECTION("invalid health state") {
     SimulationTrace trace = demonstrationTrace();
     trace.frames[0].health_updates.push_back({1U, static_cast<HealthStatus>(3U)});
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+
+  SECTION("invalid safe-state status") {
+    SimulationTrace trace = demonstrationTrace();
+    trace.frames[0].safe_state_status_updates.push_back(
+        {1U, static_cast<SafeStateExecutionStatus>(3U)});
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+
+  SECTION("unknown safe-state status node") {
+    SimulationTrace trace = demonstrationTrace();
+    trace.frames[0].safe_state_status_updates.push_back({9U, SafeStateExecutionStatus::Succeeded});
     CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
   }
 
@@ -159,6 +390,12 @@ TEST_CASE("malformed simulation traces fail before a controller runs") {
   SECTION("invalid mission objective") {
     SimulationTrace trace = demonstrationTrace();
     trace.frames[0].mission_commands.push_back({1U, Coordinate(181.0F, 0.0F)});
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+
+  SECTION("unknown mission completion node") {
+    SimulationTrace trace = demonstrationTrace();
+    trace.frames[0].mission_completions.push_back({9U});
     CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
   }
 }
@@ -183,6 +420,59 @@ TEST_CASE("trace frames record health changes and rejected mission commands") {
   }
   CHECK(accepted_commands == 1U);
   CHECK(rejected_commands == 1U);
+}
+
+TEST_CASE("trace frames complete active missions before accepting new commands") {
+  SimulationTrace trace = demonstrationTrace();
+  trace.frames.resize(12U);
+  SimulationFrame& final_frame = trace.frames.back();
+  final_frame.now_ms = 110U;
+  final_frame.mission_completions.push_back({1U});
+  final_frame.mission_commands.push_back({1U, Coordinate(10.0F, 20.0F)});
+
+  const SimulationResult result = runSimulationTrace(trace);
+
+  CHECK(result.frames.back().nodes[1].state == ControllerState::Leading);
+  std::size_t completion_index = result.events.size();
+  std::size_t command_index = result.events.size();
+  for (std::size_t index = 0U; index < result.events.size(); ++index) {
+    const SimulationEvent& event = result.events[index];
+    if (event.type == SimulationEventType::MissionCompletion && event.node_id == 1U) {
+      CHECK(event.accepted);
+      completion_index = index;
+    }
+    if (event.type == SimulationEventType::MissionCommand && event.node_id == 1U &&
+        event.now_ms == 110U) {
+      CHECK(event.accepted);
+      command_index = index;
+    }
+  }
+  CHECK(completion_index < command_index);
+}
+
+TEST_CASE("fair-allocation evidence is derived from six equal-score mission telemetry records") {
+  const SimulationTrace trace = makeFairAllocationTrace();
+  const SimulationResult result = runSimulationTrace(trace);
+  std::array<uint8_t, 3U> assignment_counts{};
+  std::vector<NodeId> assignments;
+
+  for (const SimulationEvent& event : result.events) {
+    if (event.type == SimulationEventType::ControllerTelemetry && event.node_id == 0U &&
+        event.telemetry.type == TelemetryEventType::MissionAssigned &&
+        event.telemetry.reason == TelemetryReason::AssignmentBroadcast) {
+      REQUIRE(event.telemetry.related_node < assignment_counts.size());
+      CHECK(event.telemetry.value == 100U);
+      CHECK(event.telemetry.dropped_before == 0U);
+      ++assignment_counts[event.telemetry.related_node];
+      assignments.push_back(event.telemetry.related_node);
+    }
+  }
+
+  CHECK(assignments == std::vector<NodeId>{0U, 1U, 2U, 0U, 1U, 2U});
+  CHECK(assignment_counts == std::array<uint8_t, 3U>{2U, 2U, 2U});
+  const std::string json = serializeFairAllocationEvidence(result);
+  CHECK(json.find(R"("schemaVersion": 1)") != std::string::npos);
+  CHECK(json.find(R"("traceVersion": 5)") != std::string::npos);
 }
 
 TEST_CASE("trace time supports one unsigned clock rollover") {
@@ -229,6 +519,20 @@ TEST_CASE("browser serialization rejects incomplete traces and results") {
   SECTION("missing sampled frame") {
     SimulationResult incomplete_result = complete_result;
     incomplete_result.frames.resize(12U);
+    CHECK_THROWS_AS(serializeBrowserSimulation(simulation, incomplete_result),
+                    std::invalid_argument);
+  }
+
+  SECTION("short replay duration") {
+    SimulationResult incomplete_result = complete_result;
+    incomplete_result.frames.back().now_ms = 1'000U;
+    CHECK_THROWS_AS(serializeBrowserSimulation(simulation, incomplete_result),
+                    std::invalid_argument);
+  }
+
+  SECTION("node without propagated orbit") {
+    SimulationResult incomplete_result = complete_result;
+    incomplete_result.frames.front().nodes.front().orbit.reset();
     CHECK_THROWS_AS(serializeBrowserSimulation(simulation, incomplete_result),
                     std::invalid_argument);
   }
@@ -392,7 +696,7 @@ TEST_CASE("directed link changes model an asymmetric partition") {
   const SimulationResult result = runSimulationTrace(trace);
 
   CHECK(result.frames.back().nodes[0].assigned_node == 2U);
-  CHECK(result.frames.back().nodes[1].mission_id == 0U);
+  CHECK_FALSE(isValid(result.frames.back().nodes[1].mission_key));
   CHECK(result.frames.back().nodes[2].state == ControllerState::Active);
 
   bool found_link_drop = false;
@@ -517,6 +821,34 @@ TEST_CASE("the browser assignment-loss scenario records the dropped delivery") {
   CHECK(simulation.scenario == BrowserScenario::LostAssignment);
   CHECK(json.find(R"("scenario": "three-node-assignment-loss")") != std::string::npos);
   CHECK(json.find(R"("type":"message-dropped")") != std::string::npos);
-  CHECK(json.find(R"("recipientNode":1,"reason":"scripted-drop")") != std::string::npos);
-  CHECK(result.frames.back().nodes[1].state == ControllerState::Idle);
+  REQUIRE(simulation.trace.frames[10].delivery_faults.size() == 1U);
+  const DeliveryFault& fault = simulation.trace.frames[10].delivery_faults.front();
+  CHECK(fault.sender != fault.recipient);
+  CHECK(result.frames[10].nodes[fault.sender].assigned_node == fault.recipient);
+  CHECK(result.frames.back().nodes[fault.recipient].state == ControllerState::Idle);
+
+  bool found_winner_drop = false;
+  for (const SimulationEvent& event : result.events) {
+    if (event.type == SimulationEventType::MessageDropped && event.node_id == fault.sender &&
+        event.recipient_node == fault.recipient && event.message.target == fault.recipient &&
+        event.message.type == MessageType::MissionAssignment) {
+      found_winner_drop = true;
+    }
+  }
+  CHECK(found_winner_drop);
+}
+
+TEST_CASE("the browser safe-state scenario records successful execution") {
+  const BrowserSimulation simulation =
+      makeBrowserDemonstration(Coordinate(0.0F, -90.0F), BrowserScenario::SafeStateSuccess);
+  const SimulationResult result = runSimulationTrace(simulation.trace);
+  const std::string json = serializeBrowserSimulation(simulation, result);
+
+  CHECK(simulation.scenario == BrowserScenario::SafeStateSuccess);
+  CHECK(json.find(R"("scenario": "three-node-safe-state-success")") != std::string::npos);
+  CHECK(json.find(R"("event":"safe-state-execution-result")") != std::string::npos);
+  CHECK(json.find(R"("event":"safe-state-execution-result","reason":"health-fatal",)"
+                  R"("priority":"critical","missionKey":{"originNode":0,"bootEpoch":1,)"
+                  R"("sequence":1},"relatedNode":1,"value":1)") != std::string::npos);
+  CHECK(result.frames.back().nodes[1].state == ControllerState::SafeDisabled);
 }

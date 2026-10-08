@@ -4,7 +4,7 @@ This directory contains the content for the "Projects" section of the site.
 
 ## Directory Structure
 
-Each project is a subdirectory named after its slug (e.g., `personal-site`). Inside each directory:
+Each project is a subdirectory named after its slug (e.g., `personal-knowledge-graph`). Inside each directory:
 
 1. `index.mdx`: The main project content and metadata (in frontmatter).
 2. `adrs/`: A directory containing Architecture Decision Records (ADRs) as `.mdx` files.
@@ -14,7 +14,7 @@ Example:
 
 ```text
 content/projects/
-└── personal-site/
+└── personal-knowledge-graph/
     ├── index.mdx
     ├── pitch.mdx
     └── adrs/
@@ -38,6 +38,9 @@ tech_stack:
   - "Tailwind CSS"
 repo_url: "https://github.com/..." # Optional
 demo_url: "https://demo..." # Optional
+product_url: "https://product..." # Optional
+paper_title: "Published paper title" # Required with paper_url; labels the graph node
+paper_url: "https://doi.org/..." # Optional, published research paper
 role: "terminal-industries" # Optional - link to job role slug
 initiatives: # Optional - projects may contribute to more than one initiative
   - "personalized-medicine"
@@ -109,7 +112,7 @@ Example inherited stub:
 
 ```yaml
 ---
-inherits_from: "personal-site:002-react"
+inherits_from: "personal-knowledge-graph:002-react"
 ---
 ```
 
@@ -139,6 +142,6 @@ ADRs are standard MDX files in the `adrs/` subdirectory. The filename should be 
 title: "ADR Title"
 status: "Accepted" # "Proposed" | "Accepted" | "Rejected" | "Deprecated"
 date: "YYYY-MM-DD"
-supersedes: "project-slug:adr-slug" # Optional, e.g. "personal-site:013-dependabot"
+supersedes: "project-slug:adr-slug" # Optional, e.g. "personal-knowledge-graph:013-dependabot"
 ---
 ```

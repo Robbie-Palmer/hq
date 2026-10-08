@@ -1,24 +1,54 @@
 name: t3-code image
 
 on:
+  pull_request:
+    paths:
+      - ".config/mise/**"
+      - ".github/actions/setup-mise/**"
+      - "homelab/images/t3-code/**"
+      - "packages/agent-auth-mcp/**"
+      - "homelab/scripts/build-and-check-t3-image"
+      - "homelab/scripts/check-t3-image"
+      - "homelab/mise.toml"
+      - ".github/workflows/t3-code-image.yml"
   push:
     branches:
       - main
     paths:
+      - ".config/mise/**"
+      - ".github/actions/setup-mise/**"
       - "homelab/images/t3-code/**"
+      - "packages/agent-auth-mcp/**"
+      - "homelab/scripts/build-and-check-t3-image"
       - "homelab/scripts/check-t3-image"
       - "homelab/mise.toml"
       - ".github/workflows/t3-code-image.yml"
   workflow_dispatch:
 
 concurrency:
-  group: t3-code-image
-  cancel-in-progress: false
+  group: t3-code-image-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions: {}
 
 jobs:
+  verify:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Build and test image
+        run: mise run //homelab:t3-image-build-check
+
   publish:
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -28,15 +58,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-        with:
-          version: "2026.9.1"
-          experimental: true
+      - uses: $/.github/actions/setup-mise
 
       - name: Build and test image
-        run: |
-          mise run //homelab:t3-image-build
-          mise run //homelab:t3-image-check
+        run: mise run //homelab:t3-image-build-check
 
       - name: Log in to GHCR
         env:

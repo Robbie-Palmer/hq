@@ -5,11 +5,13 @@ import type { Env, ReviewWorkflowParams } from "../src/env";
 import worker, { PullRequestCoordinator, ReviewWorkflow } from "../src/index";
 import { SCHEMA_MIGRATION_HISTORY } from "../src/schema";
 
+const MAX_REVIEW_COMPLETION_ITEMS_FOR_TEST = 10_000;
+
 const event: ReviewWorkflowParams = {
   deliveryId: "delivery-123",
   eventName: "pull_request",
   action: "synchronize",
-  repository: "Robbie-Palmer/personal-site",
+  repository: "Robbie-Palmer/hq",
   pullRequestNumber: 821,
   headSha: "abcdef123456",
   force: false,
@@ -81,6 +83,7 @@ function coordinatorFixture(
       ..._params: unknown[]
     ): { rowsWritten: number; toArray: () => unknown[] } => ({
       rowsWritten: 1,
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
       toArray: () => {
         if (query.includes("FROM _migrations")) {
           return [...SCHEMA_MIGRATION_HISTORY];
@@ -413,6 +416,9 @@ describe("PullRequestCoordinator", () => {
       { ...validObservation, policy: null },
       { ...validObservation, policy: { ...policy, version: 1 } },
       { ...validObservation, policy: { ...policy, version: "" } },
+      { ...validObservation, policy: { ...policy, version: "   " } },
+      { ...validObservation, policy: { ...policy, version: " version" } },
+      { ...validObservation, policy: { ...policy, version: "version " } },
       {
         ...validObservation,
         policy: { ...policy, consecutiveFailureThreshold: "2" },
@@ -478,6 +484,7 @@ describe("PullRequestCoordinator", () => {
       }
     >();
     const observations = new Set<string>();
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     sqlExec.mockImplementation((query: string, ...values: unknown[]) => {
       if (query.includes("FROM review_model_health_observations")) {
         const key = `${values[0]}:${values[1]}:${values[2]}`;
@@ -695,6 +702,46 @@ describe("PullRequestCoordinator", () => {
         String(query).includes("INSERT INTO review_finding_comments"),
       ),
     ).toBe(true);
+  });
+
+  it.each([
+    ["a negative run limit", { maxRuns: -1 }],
+    ["a fractional run limit", { maxRuns: 1.5 }],
+    ["an unsafe run limit", { maxRuns: Number.MAX_SAFE_INTEGER + 1 }],
+    ["a negative cost limit", { maxCostUsd: -0.01 }],
+    ["an empty run ID", { runId: "" }],
+    ["an oversized run ID", { runId: "x".repeat(256) }],
+    ["an empty head SHA", { headSha: "" }],
+    ["an oversized head SHA", { headSha: "x".repeat(65) }],
+    ["an empty diff fingerprint", { diffFingerprint: "" }],
+    ["an oversized diff fingerprint", { diffFingerprint: "x".repeat(65) }],
+    ["an empty config fingerprint", { configFingerprint: "" }],
+    [
+      "an oversized config fingerprint",
+      { configFingerprint: "x".repeat(65) },
+    ],
+  ])("rejects review claims with %s", async (_label, override) => {
+    const { coordinator } = coordinatorFixture();
+    const response = await coordinator.fetch(
+      new Request("https://coordinator.test/reviews/claim", {
+        method: "POST",
+        body: JSON.stringify({
+          runId: "review-invalid-limits",
+          headSha: event.headSha,
+          diffFingerprint: "diff-hash",
+          configFingerprint: "config-hash",
+          force: false,
+          maxRuns: 20,
+          maxCostUsd: 5,
+          ...override,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid review claim",
+    });
   });
 
   it("does not mint a confirmed fix from model replay alone", async () => {
@@ -1018,6 +1065,7 @@ describe("PullRequestCoordinator", () => {
     }));
     sqlExec.mockImplementation((query: string, ...params: unknown[]) => ({
       rowsWritten: 1,
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
       toArray: () => {
         if (query.includes("FROM review_runs")) {
           return [{ run_id: "latest-run", head_sha: event.headSha }];
@@ -1476,6 +1524,97 @@ describe("PullRequestCoordinator", () => {
     }
   });
 
+  it.each([
+    ["an empty run ID", { runId: "" }],
+    ["an oversized run ID", { runId: "x".repeat(256) }],
+    ["an empty error", { error: "" }],
+    ["an oversized error", { error: "x".repeat(4_001) }],
+    ["a negative cost", { costUsd: -0.01 }],
+    ["a nonnumeric cost", { costUsd: "0.1" }],
+  ])("rejects review failures with %s", async (_label, override) => {
+    const { coordinator } = coordinatorFixture();
+    const response = await coordinator.fetch(
+      new Request("https://coordinator.test/reviews/fail", {
+        method: "POST",
+        body: JSON.stringify({
+          runId: "review-delivery-123",
+          error: "Model request failed",
+          costUsd: 0.1,
+          ...override,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid review failure",
+    });
+  });
+
+  it("caps review completion collections", async () => {
+    const { coordinator } = coordinatorFixture();
+    const oversized = Array.from(
+      { length: MAX_REVIEW_COMPLETION_ITEMS_FOR_TEST + 1 },
+      () => null,
+    );
+    for (const field of [
+      "hunks",
+      "currentHunks",
+      "findings",
+      "findingResolutions",
+      "findingPublications",
+    ]) {
+      const response = await coordinator.fetch(
+        new Request("https://coordinator.test/reviews/complete", {
+          method: "POST",
+          body: JSON.stringify({
+            repository: event.repository,
+            pullRequestNumber: event.pullRequestNumber,
+            runId: "review-delivery-123",
+            headSha: event.headSha,
+            costUsd: 0.42,
+            hunks: [],
+            findings: [],
+            [field]: oversized,
+          }),
+        }),
+      );
+      expect(response.status).toBe(400);
+    }
+  });
+
+  it.each([
+    ["an empty run ID", { runId: "" }],
+    ["an oversized run ID", { runId: "x".repeat(256) }],
+    ["an empty head SHA", { headSha: "" }],
+    ["an oversized head SHA", { headSha: "x".repeat(65) }],
+    ["a zero comment ID", { commentId: 0 }],
+    ["a fractional comment ID", { commentId: 1.5 }],
+    ["an unsafe comment ID", { commentId: Number.MAX_SAFE_INTEGER + 1 }],
+  ])("rejects review completions with %s", async (_label, override) => {
+    const { coordinator } = coordinatorFixture();
+    const response = await coordinator.fetch(
+      new Request("https://coordinator.test/reviews/complete", {
+        method: "POST",
+        body: JSON.stringify({
+          repository: event.repository,
+          pullRequestNumber: event.pullRequestNumber,
+          runId: "review-delivery-123",
+          headSha: event.headSha,
+          costUsd: 0.42,
+          hunks: [],
+          findings: [],
+          ...override,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid review completion",
+    });
+  });
+
   it("rejects an incomplete identified finding at the completion boundary", async () => {
     const { coordinator } = coordinatorFixture();
     const { evidence: _evidence, ...incompleteFinding } = identifiedFinding;
@@ -1570,6 +1709,90 @@ describe("PullRequestCoordinator", () => {
     await expect(response.json()).resolves.toEqual({
       error: "Invalid review completion",
     });
+  });
+
+  it("rejects duplicate finding identifiers in completion collections", async () => {
+    const validPublication = {
+      findingId: identifiedFinding.findingId,
+      delivery: "line",
+      commentId: 654,
+      reconciled: false,
+      path: identifiedFinding.file,
+      line: identifiedFinding.line,
+    };
+    const validResolution = {
+      findingId: identifiedFinding.findingId,
+      verdict: "fixed",
+      evidence: "The later diff fixes the finding.",
+    };
+    const duplicateCollections = [
+      { findings: [identifiedFinding, identifiedFinding] },
+      {
+        findings: [identifiedFinding],
+        findingPublications: [validPublication, validPublication],
+      },
+      {
+        findings: [identifiedFinding],
+        findingResolutions: [validResolution, validResolution],
+      },
+    ];
+
+    for (const duplicateCollection of duplicateCollections) {
+      const { coordinator } = coordinatorFixture();
+      const response = await coordinator.fetch(
+        new Request("https://coordinator.test/reviews/complete", {
+          method: "POST",
+          body: JSON.stringify({
+            repository: event.repository,
+            pullRequestNumber: event.pullRequestNumber,
+            runId: "review-delivery-123",
+            headSha: event.headSha,
+            costUsd: 0.42,
+            hunks: [identifiedHunk],
+            ...duplicateCollection,
+          }),
+        }),
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({
+        error: "Invalid review completion",
+      });
+    }
+  });
+
+  it("hashes equivalent completion objects independently of key order", async () => {
+    const reorderedFinding = Object.fromEntries(
+      Object.entries(identifiedFinding).reverse(),
+    );
+    const completionHashes: unknown[] = [];
+
+    for (const finding of [identifiedFinding, reorderedFinding]) {
+      const { coordinator, sqlExec } = coordinatorFixture();
+      const response = await coordinator.fetch(
+        new Request("https://coordinator.test/reviews/complete", {
+          method: "POST",
+          body: JSON.stringify({
+            repository: event.repository,
+            pullRequestNumber: event.pullRequestNumber,
+            runId: "review-delivery-123",
+            headSha: event.headSha,
+            costUsd: 0.42,
+            hunks: [identifiedHunk],
+            findings: [finding],
+          }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      const completionUpdate = sqlExec.mock.calls.find(([query]) =>
+        String(query).includes("SET status = 'completed'"),
+      );
+      completionHashes.push(completionUpdate?.[6]);
+    }
+
+    expect(completionHashes[0]).toMatch(/^[a-f0-9]{64}$/);
+    expect(completionHashes[1]).toBe(completionHashes[0]);
   });
 
   it("rejects inconsistent finding publication mappings", async () => {
@@ -1880,7 +2103,7 @@ describe("HTTP Worker", () => {
   const validBody = JSON.stringify({
     action: "opened",
     number: 821,
-    repository: { full_name: "Robbie-Palmer/personal-site" },
+    repository: { full_name: "Robbie-Palmer/hq" },
     pull_request: { head: { sha: "abcdef123456" } },
   });
 
@@ -1889,7 +2112,7 @@ describe("HTTP Worker", () => {
     return {
       env: {
         AI_REVIEW_ENABLED: "false",
-        AI_REVIEW_REPOSITORY: "Robbie-Palmer/personal-site",
+        AI_REVIEW_REPOSITORY: "Robbie-Palmer/hq",
         AI_REVIEW_WEBHOOK_SECRET: secret,
         PR_STATE: {
           idFromName: vi.fn(() => "coordinator-id"),
@@ -1955,7 +2178,7 @@ describe("HTTP Worker", () => {
     expect(invalid.status).toBe(401);
 
     const disallowedBody = validBody.replace(
-      "Robbie-Palmer/personal-site",
+      "Robbie-Palmer/hq",
       "Robbie-Palmer/other",
     );
     const disallowed = await worker.fetch(
@@ -1984,7 +2207,7 @@ describe("HTTP Worker", () => {
 
     const invalidPayload = JSON.stringify({
       action: "opened",
-      repository: { full_name: "Robbie-Palmer/personal-site" },
+      repository: { full_name: "Robbie-Palmer/hq" },
     });
     const invalid = await worker.fetch(
       signedWebhookRequest(invalidPayload, secret),
@@ -2062,7 +2285,7 @@ describe("HTTP Worker", () => {
     const { env, fetch } = workerEnv();
     const feedbackBody = JSON.stringify({
       action: "created",
-      repository: { full_name: "Robbie-Palmer/personal-site" },
+      repository: { full_name: "Robbie-Palmer/hq" },
       issue: { number: 821, pull_request: {} },
       sender: { login: "Robbie-Palmer" },
       comment: {
@@ -2106,7 +2329,7 @@ describe("HTTP Worker", () => {
     vi.stubGlobal("fetch", githubFetch);
     const feedbackBody = JSON.stringify({
       action: "created",
-      repository: { full_name: "Robbie-Palmer/personal-site" },
+      repository: { full_name: "Robbie-Palmer/hq" },
       pull_request: { number: 821 },
       sender: { login: "Robbie-Palmer" },
       comment: {
@@ -2135,7 +2358,9 @@ describe("HTTP Worker", () => {
     );
     expect(githubFetch).toHaveBeenCalledTimes(2);
     expect(githubFetch).toHaveBeenLastCalledWith(
-      "https://api.github.com/repos/Robbie-Palmer/personal-site/pulls/comments/902/reactions",
+      new URL(
+        "https://api.github.com/repos/Robbie-Palmer/hq/pulls/comments/902/reactions",
+      ),
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ content: "+1" }),
@@ -2164,7 +2389,7 @@ describe("HTTP Worker", () => {
     );
     const feedbackBody = JSON.stringify({
       action: "created",
-      repository: { full_name: "Robbie-Palmer/personal-site" },
+      repository: { full_name: "Robbie-Palmer/hq" },
       pull_request: { number: 821 },
       sender: { login: "Robbie-Palmer" },
       comment: {
@@ -2208,7 +2433,7 @@ describe("HTTP Worker", () => {
     vi.stubGlobal("fetch", githubFetch);
     const feedbackBody = JSON.stringify({
       action: "created",
-      repository: { full_name: "Robbie-Palmer/personal-site" },
+      repository: { full_name: "Robbie-Palmer/hq" },
       issue: { number: 821, pull_request: {} },
       sender: { login: "Robbie-Palmer" },
       comment: {
@@ -2258,7 +2483,7 @@ describe("HTTP Worker", () => {
     );
     const feedbackBody = JSON.stringify({
       action: "created",
-      repository: { full_name: "Robbie-Palmer/personal-site" },
+      repository: { full_name: "Robbie-Palmer/hq" },
       issue: { number: 821, pull_request: {} },
       sender: { login: "Robbie-Palmer" },
       comment: {
@@ -2288,7 +2513,7 @@ describe("HTTP Worker", () => {
     const closedBody = JSON.stringify({
       action: "closed",
       number: 821,
-      repository: { full_name: "Robbie-Palmer/personal-site" },
+      repository: { full_name: "Robbie-Palmer/hq" },
       pull_request: {
         merged: true,
         closed_at: "2026-08-15T12:00:00Z",

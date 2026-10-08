@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 
 import { afterEach, describe, expect, it } from "vitest";
 import { sha256 } from "writing-editor-domain/suggestions";
@@ -10,6 +11,10 @@ import { ValeProducerRunSchema } from "../src/schemas";
 
 const temporaryDirectories = new Set<string>();
 const repositoryRoot = path.resolve(import.meta.dirname, "../../..");
+const valeBinaryVersion = execFileSync("vale", ["--version"], { encoding: "utf8" })
+  .trim()
+  .replace(/^vale version /, "");
+const fixtureProducerVersion = `vale@${valeBinaryVersion}+rules.fixture`;
 
 afterEach(() => {
   for (const directory of temporaryDirectories) {
@@ -89,7 +94,18 @@ function fixture(temporary: string): {
       split: { train: 0.6, validation: 0.2, holdout: 0.2 },
       requiredArtifactTypes: ["adr"],
     },
-    producers: { vale: { binaryVersion: "3.20.0", timeoutMs: 1_000 } },
+    producers: {
+      gector: {
+        batchSize: 8,
+        iterations: 5,
+        maxTokens: 50,
+        minTokens: 3,
+        minErrorProbability: 0.65,
+        minTokenProbability: 0,
+        additionalConfidence: 0.1,
+      },
+      vale: { timeoutMs: 1_000 },
+    },
     matching: { characterDiff: { maxEditLength: 1_000 } },
   });
   return { cohortFile, corpusRoot, paramsFile, outputFile };
@@ -102,7 +118,7 @@ describe("Vale producer", () => {
       source,
       "docs/example.md",
       "a".repeat(40),
-      "vale@3.20.0+rules.fixture",
+      fixtureProducerVersion,
       {
         Span: [6, 21],
         Check: "Unslop.ContrastFormula",
@@ -127,7 +143,7 @@ describe("Vale producer", () => {
       "Direct prose.\n",
       "docs/example.md",
       "a".repeat(40),
-      "vale@3.20.0+rules.fixture",
+      fixtureProducerVersion,
       {
         Span: [1, 30],
         Check: "Unslop.Example",
@@ -145,7 +161,7 @@ describe("Vale producer", () => {
       source,
       "docs/example.md",
       "a".repeat(40),
-      "vale@3.20.0+rules.fixture",
+      fixtureProducerVersion,
       {
         Span: [10, 39],
         Check: "Unslop.ContrastFormula",
@@ -165,7 +181,7 @@ describe("Vale producer", () => {
       "Direct text.\n",
       "docs/example.md",
       "a".repeat(40),
-      "vale@3.20.0+rules.fixture",
+      fixtureProducerVersion,
       {
         Span: [1, 6],
         Check: "NASAReadability.URLRule2",
@@ -192,7 +208,7 @@ describe("Vale producer", () => {
       "Direct text.\n",
       "docs/example.md",
       "a".repeat(40),
-      "vale@3.20.0+rules.fixture",
+      fixtureProducerVersion,
       { ...alert, ...overrides },
     );
 
@@ -253,22 +269,6 @@ describe("Vale producer", () => {
     }
   });
 
-  it("stops when the installed Vale version differs from the pinned version", () => {
-    const temporary = temporaryDirectory("writing-vale-version-");
-    const options = fixture(temporary);
-    const params = JSON.parse(fs.readFileSync(options.paramsFile, "utf8"));
-    params.producers.vale.binaryVersion = "9.9.9";
-    writeJson(options.paramsFile, params);
-
-    expect(() => runValeProducer({
-      ...options,
-      configFile: path.join(repositoryRoot, ".vale.ini"),
-      stylesDirectory: path.join(repositoryRoot, ".vale/styles/Unslop"),
-      valeBinary: "vale",
-    })).toThrow("Vale version mismatch: expected 9.9.9, got 3.20.0");
-    expect(fs.existsSync(options.outputFile)).toBe(false);
-  });
-
   it("rejects malformed version output and unexpected Vale result paths", () => {
     const invalidVersion = temporaryDirectory("writing-vale-invalid-version-");
     const invalidOptions = fixture(invalidVersion);
@@ -283,7 +283,7 @@ describe("Vale producer", () => {
     const unexpectedOptions = fixture(unexpected);
     const unexpectedBinary = fakeVale(unexpected, [
       "if [[ \"$1\" == \"--version\" ]]; then",
-      "  echo 'vale version 3.20.0'",
+      `  echo 'vale version ${valeBinaryVersion}'`,
       "else",
       "  echo '{\"unexpected.md\":[]}'",
       "fi",
@@ -301,7 +301,7 @@ describe("Vale producer", () => {
     const options = fixture(temporary);
     const binary = fakeVale(temporary, [
       "if [[ \"$1\" == \"--version\" ]]; then",
-      "  echo 'vale version 3.20.0'",
+      `  echo 'vale version ${valeBinaryVersion}'`,
       "else",
       "  echo '{}'",
       "  echo 'fixture failure' >&2",
@@ -325,7 +325,7 @@ describe("Vale producer", () => {
     writeJson(options.paramsFile, params);
     const binary = fakeVale(temporary, [
       "if [[ \"$1\" == \"--version\" ]]; then",
-      "  echo 'vale version 3.20.0'",
+      `  echo 'vale version ${valeBinaryVersion}'`,
       "else",
       "  sleep 2",
       "  echo '{}'",

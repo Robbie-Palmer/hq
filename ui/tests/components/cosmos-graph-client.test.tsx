@@ -101,9 +101,9 @@ const data: GraphData = {
   nodes: [
     {
       id: "project:site",
-      name: "Personal site",
+      name: "Personal Knowledge Graph",
       type: "project",
-      href: "/projects/personal-site",
+      href: "/projects/personal-knowledge-graph",
       connections: 2,
     },
     {
@@ -197,6 +197,37 @@ describe("CosmosGraphClient", () => {
     expect(screen.getByText("1")).toBeVisible();
   });
 
+  it("offers research papers as a visible graph type", () => {
+    render(
+      <CosmosGraphClient
+        data={{
+          nodes: [
+            ...data.nodes,
+            {
+              id: "paper:site",
+              name: "A Site Paper",
+              type: "paper",
+              href: "https://doi.org/10.1000/site",
+              connections: 1,
+            },
+          ],
+          edges: [
+            ...data.edges,
+            {
+              source: "project:site",
+              target: "paper:site",
+              type: "HAS_RESEARCH_PAPER",
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Research papers" }),
+    ).toBeVisible();
+  });
+
   it("supports selection, search, direct dragging, reset, and full screen", async () => {
     const user = userEvent.setup();
     render(<CosmosGraphClient data={data} />);
@@ -205,12 +236,12 @@ describe("CosmosGraphClient", () => {
     act(() => inlineGraph.config.onPointClick(0));
     expect(capture).toHaveBeenCalledWith("graph_node_clicked", {
       node_id: "project:site",
-      node_label: "Personal site",
+      node_label: "Personal Knowledge Graph",
       node_type: "project",
     });
     expect(screen.getByRole("link", { name: /open page/i })).toHaveAttribute(
       "href",
-      "/projects/personal-site",
+      "/projects/personal-knowledge-graph",
     );
 
     await user.click(

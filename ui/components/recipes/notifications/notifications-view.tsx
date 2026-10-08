@@ -167,7 +167,7 @@ export function NotificationsView() {
     }
     setLoading(true);
     const controller = new AbortController();
-    load(sessionUserId, controller.signal);
+    void load(sessionUserId, controller.signal);
     return () => controller.abort();
   }, [load, sessionUserId]);
 
@@ -207,6 +207,10 @@ export function NotificationsView() {
           }),
           queryClient.invalidateQueries({
             queryKey: recipeQueryKeys.householdSettings(sessionUserId),
+            exact: true,
+          }),
+          queryClient.invalidateQueries({
+            queryKey: recipeQueryKeys.equipmentReadiness(sessionUserId),
             exact: true,
           }),
         ]);

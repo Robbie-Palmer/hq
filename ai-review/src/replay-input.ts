@@ -1,6 +1,12 @@
 import type { Env, ReviewWorkflowParams } from "./env";
-import type { PreparedReview, ReviewRecordStatus } from "./review-engine";
+import type { PreparedReview } from "./review-engine";
 import { ReplayInputSnapshotSchema } from "ai-review-domain/records";
+import { sha256Hex as sha256 } from "ts-base/crypto";
+import {
+  findingRecordsPrefix,
+  reviewRunTerminalKey,
+  type ReviewRunTerminalStatus,
+} from "./r2-keys";
 
 export const REPLAY_INPUT_SCHEMA_VERSION = 1;
 export const REPLAY_MANIFEST_SCHEMA_VERSION = 1;
@@ -72,6 +78,7 @@ function yamlLine(value: string): { body: string; indent: number; prefix: string
   };
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 function redactYamlBlockAssignments(value: string, counts: Record<string, number>): string {
   const parts = value.split(/(\r\n|\n|\r)/);
   for (let index = 0; index < parts.length; index += 2) {
@@ -130,13 +137,6 @@ export function stableJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
-async function sha256(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
 function finite(value: string, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -146,7 +146,7 @@ export async function persistReplayInput(options: {
   env: Env;
   params: ReviewWorkflowParams;
   instanceId: string;
-  status: ReviewRecordStatus;
+  status: ReviewRunTerminalStatus;
   prepared: PreparedReview;
   timestamp: Date;
   prompt: {
@@ -175,7 +175,13 @@ export async function persistReplayInput(options: {
   const root = ["v2", params.repository, `pr-${params.pullRequestNumber}`, prepared.headSha, options.instanceId, "replay"].join("/");
   const snapshotKey = `${root}/input-v${REPLAY_INPUT_SCHEMA_VERSION}.json`;
   const manifestKey = `${root}/manifest-v${REPLAY_MANIFEST_SCHEMA_VERSION}.json`;
-  const productionRecordKey = ["v2", params.repository, `pr-${params.pullRequestNumber}`, prepared.headSha, options.instanceId, `${options.status}.json`].join("/");
+  const productionRecordKey = reviewRunTerminalKey({
+    repository: params.repository,
+    pullRequestNumber: params.pullRequestNumber,
+    headSha: prepared.headSha,
+    instanceId: options.instanceId,
+    status: options.status,
+  });
   const rawSnapshot = {
     schemaVersion: REPLAY_INPUT_SCHEMA_VERSION,
     recordType: "ai-review-replay-input",
@@ -230,7 +236,10 @@ export async function persistReplayInput(options: {
     productionRunId: options.instanceId,
     productionRecordKey,
     snapshot: { key: snapshotKey, sha256: snapshotSha256, schemaVersion: REPLAY_INPUT_SCHEMA_VERSION },
-    findingOutcomesPrefix: ["v2", params.repository, `pr-${params.pullRequestNumber}`, "findings"].join("/"),
+    findingOutcomesPrefix: findingRecordsPrefix({
+      repository: params.repository,
+      pullRequestNumber: params.pullRequestNumber,
+    }),
     retention: { days: retentionDays, expiresAt },
   };
   await env.REVIEW_DATA.put(snapshotKey, snapshotJson, {

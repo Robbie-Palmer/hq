@@ -1,6 +1,9 @@
 # Next research cycle
 
-**Status:** Proposed research; not implemented.
+**Status:** In progress. Bounded controller telemetry, rate-limited serial export, deterministic
+equal-score rotation, and the portable safe-state actuator lifecycle are implemented. Shared-radio
+budgets, resource evidence, durable journals, and validated hardware safe-state actions remain
+proposed.
 
 This document records research directions, not flight-software claims. The next cycle should make
 autonomy observable and governable without making local coordination depend on a continuously
@@ -22,11 +25,18 @@ Each node should emit bounded, typed telemetry for:
 - relevant energy, thermal, computation, storage, and actuator budgets; and
 - safe-state requests, acceptance, execution, and results.
 
-The telemetry path should be non-blocking, allocation-free in the embedded core, rate-limited, and
-lower priority than coordination and safety traffic. Sequence numbers, timestamps, and drop
-counters should make missing evidence visible. A fixed-size event buffer can tolerate intermittent
-links, but losing mission control must not stop safe local behavior. Hardware adapters should own
-the transmission mechanism so the coordination core remains network-independent.
+The controller now writes typed records to an allocation-free, non-blocking 16-record queue.
+Records have per-boot sequence numbers, timestamps, priorities, stable mission keys, and cumulative
+drop counts. Critical records can displace older lower-priority evidence. The deterministic
+simulation drains the same queue used by firmware builds and includes the records in browser
+replay. See [Bounded telemetry](telemetry.md) for the exact admission policy.
+
+The portable transmitter now limits attempts, waits for platform-granted channel access, and retains
+a record when its sink rejects publication. The reference adapters send one fixed telemetry frame
+per second over a dedicated serial link after controller work. They do not send telemetry over IR or
+ESP-NOW. A shared-radio policy still needs measured capacity and duty-cycle limits. Resource
+evidence still awaits a platform interface. Losing mission control does not stop local behavior
+because the controller only enqueues records and never performs telemetry I/O.
 
 ## Mission-control observation and intervention
 
@@ -59,28 +69,36 @@ score alone invites reward hacking and can move risk between nodes without impro
 
 ## Fair and resource-aware allocation
 
-The current lowest-ID tie-break is reproducible but repeatedly burdens the same node. Uniform
-random selection removes that fixed bias, yet it introduces entropy and replay concerns and still
-ignores each node's remaining resources.
+The controller now retains the highest-score rule and uses a mission-keyed cyclic order only among
+equal top-scoring responders. It hashes the origin and boot epoch into a starting phase, while each
+consecutive mission sequence advances one place. Six equal-score missions over three stable
+responders produce two assignments per node in both native and WebAssembly runs. The simulator
+derives that result from the leader's bounded assignment telemetry.
 
-A stronger policy should rank candidates by mission suitability and lifetime cost, then use a
-deterministic rotation or a mission-keyed hash only as the final tie-break. Useful evidence may
-include recent duty cycle, completed missions, energy reserves, thermal margin, actuator budget,
-and cumulative wear. Each additional field has bandwidth, privacy, trust, and spoofing costs that
-must be measured rather than assumed away.
+This is fair only within a stable tie. A higher score always wins, changing eligibility or scores
+changes the rotation, and different leaders keep independent phases. The next policy experiment
+should rank candidates by measured mission suitability and lifetime cost before applying the cyclic
+tie-break. Useful evidence may include recent duty cycle, completed missions, energy reserves,
+thermal margin, actuator budget, and cumulative wear. Each additional field has bandwidth, privacy,
+trust, and spoofing costs that must be measured rather than assumed away.
 
 ## Physical safe-state action
 
-The portable core should eventually expose a narrow platform hook for entering a physical safe
-state. On the first transition to safe-disabled, it would make one idempotent request containing a
-reason and correlation identifier. A hardware adapter could then inhibit an actuator, isolate a
-payload, reduce power, change radio behavior, or take another platform-specific action.
+The portable core now exposes a narrow platform hook for entering a physical safe state. On the
+first transition to safe-disabled, it makes one idempotent request containing the node-and-boot
+request ID, triggering reason, and current mission key. A hardware adapter could inhibit an
+actuator, isolate a payload, reduce power, change radio behavior, or take another platform-specific
+action.
 
-The core should latch safe-disabled even if the adapter cannot complete the action. Mission control
-should receive intent before execution when possible and a result afterward if a link survives.
-Irreversible actuator behavior needs hardware-specific interlocks, fault injection, and physical
-testing. This hook must never be described as deorbiting unless a separately validated subsystem
-actually provides that capability.
+The core records intent, latches safe-disabled, invokes the adapter once, and records whether the
+adapter accepted or rejected the request. A rejection does not clear the latch. For accepted work,
+the controller polls once per update until the adapter reports success or failure, records that
+terminal result, and stops polling. The request and result records can reach mission control later
+through the bounded telemetry path. A success record contains adapter-reported evidence and does not
+independently prove a physical action. Irreversible behavior still needs hardware-specific
+interlocks, fault injection, independent sensing, and physical testing. The reference firmware
+omits the adapter because it has no validated safe-state hardware. This hook must never be described
+as deorbiting unless a separately validated subsystem actually provides that capability.
 
 ## Adversarial questions
 

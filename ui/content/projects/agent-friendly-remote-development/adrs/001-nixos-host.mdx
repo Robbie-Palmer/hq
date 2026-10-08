@@ -1,6 +1,8 @@
 ---
-inherits_from: "homelab:010-nixos-gpu-worker"
 title: "ADR 001: NixOS workspace hosts"
+date: "2026-09-06"
+status: "Accepted"
+tech_stack: ["NixOS", "Docker"]
 ---
 
 # Project-specific context
@@ -12,9 +14,9 @@ needs the same property. Its recovery promise depends on rebuilding a host
 entirely from the repository. A remembered sequence of shell commands cannot
 meet that promise.
 
-The inheritance covers NixOS, flakes, locked inputs, declarative services, and
-reviewable rollback. NVIDIA, CUDA, and old-hardware constraints remain specific
-to the Home Lab GPU worker.
+This decision carries over NixOS, flakes, locked inputs, declarative services,
+and reviewable rollback. NVIDIA, CUDA, and old-hardware constraints remain
+specific to the Home Lab GPU worker.
 
 # Application to this project
 

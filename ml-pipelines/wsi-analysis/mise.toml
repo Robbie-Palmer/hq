@@ -55,20 +55,20 @@ run = "uv run --locked wsi-analysis"
 
 [tasks.dvc]
 description = "Run a DVC command against the R2-backed WSI dataset"
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc"
 
 [tasks.pull]
 description = "Pull WSI source and tile data from R2"
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc pull"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc pull"
 
 [tasks.push]
 description = "Push the WSI DVC cache to its private R2 prefix"
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc push -j 16"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc push -j 16"
 
 [tasks.repro]
 description = "Reproduce derived tiles from the DVC-tracked WSI data"
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc repro"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro"
 
 [tasks."status:remote"]
 description = "Check whether the local WSI DVC cache matches R2"
-run = "bash ../scripts/doppler-pipeline-env uv tool run --from 'dvc[s3]==3.67.1' dvc status --cloud"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc status --cloud"

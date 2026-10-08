@@ -7,7 +7,7 @@ import { authClient } from "@/lib/auth-client";
 const INITIAL_RETRY_DELAY_MS = 5_000;
 const MAX_RETRY_DELAY_MS = 60_000;
 
-export function CookingCompletionOutbox() {
+function useCookingCompletionOutbox() {
   const { data: session, isPending } = authClient.useSession();
 
   useEffect(() => {
@@ -20,6 +20,7 @@ export function CookingCompletionOutbox() {
     let retryDelay = INITIAL_RETRY_DELAY_MS;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     const flush = async () => {
       if (flushInProgress) {
         flushRequested = true;
@@ -64,6 +65,9 @@ export function CookingCompletionOutbox() {
       globalThis.removeEventListener("online", handleOnline);
     };
   }, [isPending, session?.user.id]);
+}
 
+export function CookingCompletionOutbox() {
+  useCookingCompletionOutbox();
   return null;
 }

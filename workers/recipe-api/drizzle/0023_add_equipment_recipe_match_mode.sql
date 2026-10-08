@@ -1,0 +1,1 @@
+ALTER TABLE "organization" ADD COLUMN "equipment_recipe_match_mode" "diet_recipe_match_mode" DEFAULT 'warn' NOT NULL;

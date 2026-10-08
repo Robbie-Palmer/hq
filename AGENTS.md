@@ -14,26 +14,54 @@ to be set; any non-empty value works for verification builds:
 NEXT_PUBLIC_CF_IMAGES_ACCOUNT_HASH=placeholder pnpm build
 ```
 
+T3 Code reads the checked-in `t3.json`. Its synchronous new-worktree setup script trusts this
+repository's `.mise.toml` before the agent starts, so mise tasks work in each generated worktree.
+
+After changing frontend code, run `mise //ui:lint`. The `@shadcn/lint` policy lives in
+`ui/.oxlintrc.json`; keep recipe-specific color and class guidance scoped to the recipe overrides.
+
 ## Agent-Friendly Markdown
 
 Every major page has a plain-Markdown twin at the same URL with a `.md` suffix (e.g.
 `/projects.md`), indexed at `/llms.txt`. Prefer these when fetching page content.
 
+Idea pages explain concepts independently of the projects or initiatives that use them.
+Keep them domain-agnostic unless the concept itself belongs to a specific domain. Do not
+add project or initiative links to idea-page prose; link from projects and initiatives to ideas.
+
+## Work Graph
+
+When asked to take or update Work Graph tickets, read
+`.agents/skills/work-graph/SKILL.md`. Run `work-graph prime` for the current short workflow. The
+CLI can infer lease fencing fields for ticket commands, so do not carry lease UUIDs through the
+conversation unless a recovery or audit needs them.
+
 ## Protected Preview QA
 
-PR previews remain behind Cloudflare Access. Agent runtimes receive the preview-only
-`CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` credentials from their secret store. For HTTP
+PR previews remain behind Cloudflare Access. The remote operator runtime receives the preview-only
+`CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` credentials from its secret store. For HTTP
 inspection, use the allowlisted wrapper so the credentials can only be sent to a canonical
-`pr-<number>` Pages hostname:
+`pr-<number>` Pages hostname. If the variables are already present, run:
 
 ```bash
 mise run //:preview:fetch -- https://pr-123.personal-site-bu5.pages.dev/projects.md
 ```
 
-For browser automation, configure those same values as the
-`CF-Access-Client-Id` and `CF-Access-Client-Secret` extra HTTP headers before navigating to the
-preview. Scope the headers to the canonical preview hostname; never type, log, or commit either
-credential.
+Local T3 Code worktrees do not inherit Doppler values. Inject only the dedicated preview-agent
+config for this command:
+
+```bash
+doppler run --project personal-site --config dev_agent -- \
+  mise run //:preview:fetch -- https://pr-123.personal-site-bu5.pages.dev/projects.md
+```
+
+This exact `doppler run` command is the documented local access path. Do not list, read, print, or
+search for the credential values, and do not use a broader Doppler config. If the scoped command is
+unavailable, report the limitation and stop HTTP preview QA.
+
+For browser QA in T3 Code, use the shared browser and its existing Cloudflare account session. If
+Cloudflare redirects to sign-in, ask the user to complete that interactive login before continuing.
+Do not copy the service-token values into browser controls, page fields, logs, or repository files.
 
 ## Sandboxed GitHub Commands
 

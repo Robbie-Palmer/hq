@@ -1,0 +1,268 @@
+---
+title: "ADR 022: Terraform-managed tailnet policy and scheduled drift detection"
+date: "2026-10-08"
+status: "Proposed"
+---
+
+# Context
+
+[ADR 000](/projects/homelab/adrs/000-tailscale) chose Tailscale as the lab's
+private network. Its policy and DNS settings now control access to home and
+remote-development services, but those settings still live in the Tailscale
+admin console. A bad edit can expose a service or remove the private path
+needed to repair it.
+
+The repository already manages the lab's hosts, services, and external
+infrastructure as code:
+
+* [the monorepo decision](/projects/personal-knowledge-graph/adrs/001-monorepo)
+  keeps application, infrastructure, documentation, and shared tooling in one
+  place so changes retain their full context;
+* [Terraform](/projects/personal-knowledge-graph/adrs/010-terraform) owns
+  external infrastructure with provider-backed state and drift detection;
+* [Doppler](/projects/personal-knowledge-graph/adrs/035-doppler) is the source
+  of truth for sensitive configuration and publishes deployment values into
+  protected GitHub environments; and
+* [the infrastructure operations decision](/projects/personal-engineering-platform/adrs/009-infrastructure-operations)
+  assigns each independently stateful Terraform root its own remote workspace.
+
+Keeping the tailnet policy beside those declarations lets one change update a
+host's requested tag, its corresponding grant, and its tests. The repository
+is public, so committed policy cannot contain user logins, private addresses,
+or provider credentials. Git must hold the reviewable policy structure while
+Doppler supplies the private values used to render it.
+
+Terraform compares the declaration with the live tailnet only when a plan
+runs. Tailscale administrators can still make emergency or accidental console
+changes without a repository event, so change-triggered CI alone cannot detect
+drift. The lab needs a scheduled check. That check must not depend on the
+private network it is monitoring, because the tailnet also carries the paths
+used to reach and repair both Kubernetes planes.
+
+# Decision
+
+Create `infra/tailnet` as an independent Terraform root in this monorepo. Back
+it with a dedicated Terraform Cloud workspace named `hq-tailnet`.
+Use the official
+[Tailscale Terraform provider](https://tailscale.com/docs/integrations/terraform-provider)
+to manage the complete tailnet policy plus global DNS preferences and
+nameservers.
+
+Express the policy as typed HCL data and pass it to `tailscale_acl` with
+`jsonencode`. Commit the policy structure, grants, tags, SSH rules,
+auto-approvers, and positive and negative tests. Inject user logins, private
+addresses, and any other non-public identifiers through sensitive Terraform
+variables. This keeps the authorization logic visible without publishing the
+identities substituted into it.
+
+Prefer tags and policy roles over per-device IDs. NixOS and Ansible own the
+installation and local configuration of Tailscale clients, including device
+enrollment, requested tags, and `tailscale serve`. Terraform owns the
+tailnet-level policy and global DNS configuration that authorizes and connects
+those clients. Do not manage auth keys with Terraform. One-use enrollment keys
+remain in Doppler and outside Terraform state. Do not use the broad device data
+source merely to discover an address because it also returns machine and node
+metadata. Put an address in Doppler when a global DNS setting genuinely needs
+one.
+
+Use two Doppler configs under the existing `homelab` project:
+
+* `prd_tailnet` owns sensitive policy inputs, the Terraform Cloud credential,
+  and the read-only Tailscale credential used by plan and drift checks; and
+* `prd_tailnet_apply` inherits the shared inputs and replaces the read-only
+  Tailscale credential with the policy and DNS write credential used to apply.
+
+The repository's Doppler-to-GitHub sync publishes the appropriate config into
+`production-tailnet-infra-plan`, `production-tailnet-infra-drift`, and
+`production-tailnet-infra`. Plan and drift use `prd_tailnet`; apply uses
+`prd_tailnet_apply`. Local mise tasks select the same config. Provider
+credentials use the standard `TAILSCALE_OAUTH_CLIENT_ID`,
+`TAILSCALE_OAUTH_CLIENT_SECRET`, and `TAILSCALE_TAILNET` environment variables;
+the policy inputs map to `TF_VAR_*` variables in a root-specific wrapper.
+
+Store each login or address as its own masked Doppler value. The wrapper
+assembles those values into typed maps and lists without printing them. This
+also lets GitHub mask an individual value if Tailscale includes it in a
+validation error; one JSON secret would only mask the complete serialized
+string.
+
+The read credential needs `policy_file:read`, `dns:read`, and Tailscale's
+required device and posture read scopes. The write credential needs
+`policy_file`, `dns`, `devices:core:read`, and the posture scope Tailscale
+requires with policy writes. It gets no auth-key, user-administration,
+device-core write, route, or unrelated API scope. The Terraform root does not
+use the prerequisite posture write permission directly.
+
+Mark every private input variable `sensitive = true`. Terraform propagates
+sensitivity through expressions, so the rendered policy is redacted from
+normal plan and apply output. The rendered value still exists in saved plans
+and state. Terraform Cloud therefore becomes part of the privacy boundary. It
+must encrypt the dedicated workspace state, restrict state access, and retain
+its audit history. Do not expose rendered policy through outputs, PR comments,
+test fixtures, debug logging, or `terraform show -json` artifacts.
+
+Run formatting, `terraform validate`, and TFLint on every pull request without
+credentials. Run the real refresh and plan only for a same-repository pull
+request after approval on the plan environment. This approval matters because
+Terraform configuration from the branch can execute provider and data-source
+operations once credentials are present. Use a read-only Tailscale credential
+for that plan.
+
+Apply only from `main` through a manually dispatched workflow protected by the
+write environment. The workflow creates a fresh plan and immediately applies
+it under a non-cancelling concurrency group. It does not apply a plan produced
+from pull-request code. It deletes the local saved plan in an `always()` cleanup
+step and never uploads it as an artifact.
+
+If an operator cancels an apply or its runner times out, verify that no
+Terraform operation is still active and inspect the `hq-tailnet` workspace for
+an orphaned state lock. Unlock it only after confirming the operation has
+stopped, then refresh state and create a new plan before attempting another
+apply.
+
+Run a read-only drift workflow from the default branch every six hours and on
+manual dispatch. It uses the drift environment, runs a fresh Terraform plan
+with detailed exit codes, and has no path to a write credential. The
+environment accepts only the default branch and needs no reviewer, allowing the
+observation loop to run unattended without exposing secrets to pull-request
+code. A non-empty plan opens or updates one GitHub issue containing only a link
+to the protected workflow run. A clean plan closes that issue. Failed checks
+remain visible as failures and never trigger an apply.
+
+This is deliberate detection rather than automatic correction. Tailnet policy
+is a recovery and access-control boundary, and the provider replaces the whole
+policy document when updating it. A human reviews whether drift is an
+emergency console change to preserve or an unauthorized change to overwrite,
+then reconciles it through the ordinary HCL, Doppler, and protected apply
+path.
+
+Import the existing policy into `tailscale_acl` state before the first plan.
+Do not set `overwrite_existing_content`. The provider controls the complete
+policy document, validates its syntax and tests against the Tailscale API
+during planning, and otherwise refuses to replace a non-default policy that it
+does not yet own.
+
+Keep routine admin-console edits disabled or clearly marked as break-glass.
+The provider currently replaces the whole policy on update, so one Terraform
+workspace and one serialized apply path own it. During an emergency, a
+Tailscale administrator may edit the console. Before the next apply, refresh
+state, copy any change that should survive into HCL or Doppler, and review a
+new plan.
+
+# Alternatives
+
+## Put the policy in a separate private repository
+
+Tailscale recommends a private repository when a complete policy file contains
+personal information. That advice assumes the repository stores the rendered
+file. This project already keeps public declarations and private deployment
+values separate. Another repository would contradict the accepted monorepo
+decision, split cross-cutting changes, and duplicate workflows and standards.
+
+## Use the native Tailscale GitOps action with a rendered template
+
+The action can test pull requests and apply on merge. In this public monorepo,
+it would still need Doppler-backed rendering before it receives the policy.
+That creates a custom rendering path for one control-plane file while the
+repository already uses Terraform roots, remote state, plan review, and
+protected apply environments. Terraform also covers the DNS settings that sit
+beside the policy. The action reacts to repository changes but does not provide
+an independent loop that notices live drift.
+
+## Run a Terraform or OpenTofu controller in Kubernetes
+
+[Tofu Controller](https://flux-iac.github.io/tofu-controller/) can reconcile on
+an interval, detect drift, and either apply automatically or wait for a
+Git-recorded plan approval. That model is appropriate when an independent,
+highly available cluster already owns the infrastructure control plane.
+
+The repository's only Flux component is standalone Flux Schema validation.
+Both Kubernetes planes consume the tailnet they would be asked to control.
+Hosting the reconciler, its credentials, and its state access in either plane
+would create a circular recovery dependency. It would also let one malformed
+declaration repeatedly overwrite the complete policy. Reconsider a controller
+only when there is an independent management plane outside the tailnet's
+failure domain.
+
+## Use Terraform Cloud health assessments
+
+[Terraform Cloud health assessments](https://developer.hashicorp.com/terraform/cloud-docs/workspaces/health)
+run periodic, read-only drift detection and continuous validation. They require
+remote or agent execution and a paid Terraform Cloud edition. The accepted
+[Terraform Cloud decision](/projects/personal-knowledge-graph/adrs/017-terraform-cloud)
+uses the free tier, local execution, and GitHub Actions, so adopting them would
+change a broader platform decision. The scheduled GitHub workflow provides the
+needed observation loop within the current operating model.
+
+## Commit the complete policy
+
+This is the simplest technical setup, but it publishes user identities and
+private network details. Redacting those values in prose while committing them
+in HCL would not solve the problem.
+
+## Continue with admin-console edits
+
+The console remains useful for emergency repair. Keeping it as the normal
+editor would leave policy and DNS changes without repository review, shared
+checks, or scheduled Terraform drift detection.
+
+# Consequences
+
+Tailnet control-plane changes stay beside the hosts and services they govern.
+A pull request can change a NixOS tag request, its matching policy grant, tests,
+and the operational documentation without coordinating another repository.
+The root still has an independent state and credential boundary, so the
+monorepo does not become one Terraform deployment.
+
+Doppler holds the private substitutions while Git holds the policy logic.
+Reviewers can inspect who a role may reach and on which ports, but normal plans
+redact the complete rendered policy once it incorporates a sensitive value.
+Review therefore depends on the HCL diff and policy tests rather than a
+rendered-policy diff.
+
+Terraform Cloud state contains the rendered policy and DNS addresses in plain
+state data even though the UI and CLI redact them. Compromise of that workspace
+reveals those values. The dedicated workspace, remote encryption, restricted
+access, and absence of enrollment keys limit the impact but do not remove it.
+
+The plan workflow needs private values to validate the real policy. Requiring
+same-repository branches and environment approval slows feedback, but it stops
+an unreviewed pull request from receiving tailnet and Terraform credentials.
+Static checks remain automatic.
+
+Drift is detected within the workflow interval rather than repaired
+immediately. That is a useful safety property for a network access boundary:
+the observer is automatic, but remediation remains an explicit reviewed act.
+The drift environment adds another GitHub secret boundary, although its
+credential cannot change policy, DNS, devices, routes, keys, or users.
+
+This decision does not make device lifecycle declarative. Enrollment,
+authorization, key expiry, tag assignment, and removal can move under
+Terraform later if their drift becomes a real problem. That change needs a
+separate decision because it would put long-lived device identity and recovery
+behavior into state.
+
+# Acceptance criteria
+
+* `infra/tailnet` has its own Terraform Cloud workspace, mise tasks, TFLint
+  checks, README, and Doppler wrapper.
+* No committed file contains a real user login, private tailnet address,
+  OAuth secret, or rendered policy.
+* Sensitive inputs come from the two scoped homelab Doppler configs and sync
+  only to the matching protected GitHub environments.
+* Automatic pull-request checks need no secrets. The real plan rejects forks,
+  requires environment approval, and uses a read-only Tailscale credential.
+* A default-branch-only scheduled workflow performs read-only drift detection
+  at least every six hours, maintains one content-free alert issue, and cannot
+  apply changes.
+* Apply requires `main`, manual dispatch, environment approval, a fresh plan,
+  and the write credential.
+* The existing policy is imported before Terraform proposes changes. Policy
+  and SSH tests preserve operator, DNS, remote-development, and lab-service
+  access while asserting intended denials.
+* A no-change import, deliberately failing test, safe canary change, Git
+  revert, scheduled drift alert and recovery, and emergency-console
+  reconciliation are exercised.
+* An audit of state, plans, logs, and workflow artifacts confirms that no auth
+  key is stored and no sensitive value appears outside Doppler, protected
+  GitHub environments, or the dedicated Terraform Cloud workspace.

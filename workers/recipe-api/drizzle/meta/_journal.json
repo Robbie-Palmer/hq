@@ -34,7 +34,7 @@
       "idx": 4,
       "version": "7",
       "when": 1785443695336,
-      "tag": "0004_special_thunderbolt_ross",
+      "tag": "0004_cooking_sessions",
       "breakpoints": true
     },
     {
@@ -98,6 +98,97 @@
       "version": "7",
       "when": 1788028705375,
       "tag": "0013_add_account_issuer",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790421865867,
+      "tag": "0014_agent_execution_rate_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1790431034646,
+      "tag": "0015_agent_mutation_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790578850537,
+      "tag": "0016_reversible_cook_log_writes",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790802284772,
+      "tag": "0017_durable_recipe_batches",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790839306581,
+      "tag": "0018_collection_archive_import",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790893214000,
+      "tag": "0019_reconcile_recipe_ingredients",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791021493497,
+      "tag": "0020_household_equipment",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1791037196555,
+      "tag": "0021_add_pantry_spices_and_herbs",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791046841526,
+      "tag": "0022_add_more_pantry_seasonings",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791054534739,
+      "tag": "0023_add_equipment_recipe_match_mode",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791096791115,
+      "tag": "0024_use_equipment_recipe_match_mode_enum",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791100822874,
+      "tag": "0025_store_flexible_authored_terms",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791307742060,
+      "tag": "0026_kitchen_state_details",
       "breakpoints": true
     }
   ]

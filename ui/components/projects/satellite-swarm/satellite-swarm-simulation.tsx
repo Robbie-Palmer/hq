@@ -22,6 +22,8 @@ import {
 } from "@/lib/api/satellite-swarm-simulation";
 import { LazySatelliteSwarmGlobe } from "./lazy-satellite-swarm-globe";
 
+const SOURCE_REPOSITORY_URL = "https://github.com/Robbie-Palmer/hq/commit";
+
 function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
@@ -52,6 +54,17 @@ function getReplayAction(playing: boolean, frameIndex: number, stopAt: number) {
   return { accessibleName: "Play replay", label: "Play" };
 }
 
+function formatSimulationTime(timeMs: number): string {
+  if (timeMs < 1_000) return `${timeMs} ms`;
+  const totalSeconds = Math.floor(timeMs / 1_000);
+  const hours = Math.floor(totalSeconds / 3_600);
+  const minutes = Math.floor((totalSeconds % 3_600) / 60);
+  const seconds = totalSeconds % 60;
+  return hours > 0
+    ? `${hours}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s`
+    : `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+}
+
 export function SatelliteSwarmSimulation({
   data,
   executionMode = "recorded",
@@ -76,6 +89,11 @@ export function SatelliteSwarmSimulation({
   const isSouthPoleMission = data.objective.latitudeDegrees === -90;
   const hasLostAssignment = data.scenario === "three-node-assignment-loss";
   const replayAction = getReplayAction(playing, frameIndex, stopAt);
+  const primaryEvent = currentEvents[0];
+  const additionalEventCount = Math.max(0, currentEvents.length - 1);
+  const activeNode = frame?.nodes.find(
+    (node) => node.state === "active" && node.assignedNode === node.id,
+  );
 
   useEffect(() => {
     if (reducedMotion) {
@@ -83,17 +101,25 @@ export function SatelliteSwarmSimulation({
       return;
     }
     if (!playing) return;
-    const timer = window.setInterval(() => {
-      setFrameIndex((current) => {
-        if (current >= stopAt) {
-          setPlaying(false);
-          return current;
-        }
-        return current + 1;
-      });
-    }, 900);
-    return () => window.clearInterval(timer);
-  }, [playing, reducedMotion, stopAt]);
+    if (!frame || frameIndex >= stopAt) {
+      setPlaying(false);
+      return;
+    }
+    const nextFrame = data.frames[frameIndex + 1];
+    if (!nextFrame) return;
+    const presentationDelay = Math.max(
+      50,
+      Math.min(
+        2_000,
+        (nextFrame.timeMs - frame.timeMs) / frame.playbackMultiplier,
+      ),
+    );
+    const timer = window.setTimeout(
+      () => setFrameIndex((current) => current + 1),
+      presentationDelay,
+    );
+    return () => window.clearTimeout(timer);
+  }, [data.frames, frame, frameIndex, playing, reducedMotion, stopAt]);
 
   const reportStartupFailure = useCallback((error: unknown) => {
     setStartupFailure(
@@ -103,6 +129,7 @@ export function SatelliteSwarmSimulation({
     );
   }, []);
   if (!frame) return null;
+  const coordinationPhase = frame.playbackMultiplier < 1;
 
   return (
     <Card className="not-prose my-8 gap-0 overflow-hidden p-0">
@@ -115,16 +142,24 @@ export function SatelliteSwarmSimulation({
               : "Three-node mission replay"}
           </h3>
           <span className="rounded-full border bg-muted px-2.5 py-1 font-mono text-xs text-muted-foreground">
-            trace v{data.traceVersion} · {frame.timeMs} ms
+            trace v{data.traceVersion} · {formatSimulationTime(frame.timeMs)} ·{" "}
+            {frame.playbackMultiplier}×
           </span>
         </div>
         <p className="text-sm text-muted-foreground">
           The portable C++ trace runner produced these states, scores, messages,
-          and positions. Cesium draws the result but does not calculate it.
+          bounded telemetry, and positions. Cesium draws the result but does not
+          calculate it.
           {isSouthPoleMission &&
             " The exact pole is a deliberate coordinate edge case."}
           {hasLostAssignment &&
-            " The fault schedule drops the winning assignment before node 1 receives it."}
+            " The fault schedule drops the winning assignment before the winning node receives it."}
+        </p>
+        <p className="font-mono text-xs text-muted-foreground">
+          Simulation UTC{" "}
+          {new Date(
+            data.scenarioEpochUnixMilliseconds + frame.timeMs,
+          ).toISOString()}
         </p>
         {missionControls}
       </div>
@@ -154,10 +189,38 @@ export function SatelliteSwarmSimulation({
               <LazySatelliteSwarmGlobe
                 currentFrameIndex={frameIndex}
                 data={data}
-                events={currentEvents}
                 onFailure={reportStartupFailure}
+                playing={playing}
                 selectedNodeId={selectedNodeId}
               />
+            )}
+          </div>
+
+          <div className="space-y-2 border-t bg-zinc-950 px-4 py-2.5 text-xs text-zinc-300">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+              <span className="inline-flex items-center gap-2">
+                <span className="h-0.5 w-7 bg-sky-400" aria-hidden="true" />
+                Current SGP4 orbit · selected Node {selectedNodeId}
+              </span>
+              <span className="font-mono text-zinc-400">
+                {coordinationPhase
+                  ? "Coordination in slow motion · orbit coast follows"
+                  : `Orbit coast · ${frame.playbackMultiplier}×`}
+              </span>
+            </div>
+            <p>
+              <span className="font-medium text-zinc-100">Mission orbit:</span>{" "}
+              {activeNode
+                ? `Node ${activeNode.id} accepted the assignment. Its orbit is unchanged because this simulation does not model maneuvers.`
+                : "Waiting for an accepted assignment. This simulation does not model maneuvers or a target orbit."}
+            </p>
+            {primaryEvent && (
+              <p aria-live="polite">
+                <span className="font-medium text-zinc-100">Now:</span>{" "}
+                {describeSatelliteSwarmEvent(primaryEvent)}
+                {additionalEventCount > 0 &&
+                  ` · ${additionalEventCount} more ${additionalEventCount === 1 ? "event" : "events"}`}
+              </p>
             )}
           </div>
 
@@ -258,6 +321,7 @@ export function SatelliteSwarmSimulation({
                     <th className="pb-2 font-medium">State</th>
                     <th className="pb-2 text-right font-medium">Score</th>
                     <th className="pb-2 text-right font-medium">Assigned</th>
+                    <th className="pb-2 text-right font-medium">Drops</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -281,6 +345,9 @@ export function SatelliteSwarmSimulation({
                         {node.assignedNode === null
                           ? "None"
                           : `Node ${node.assignedNode}`}
+                      </td>
+                      <td className="py-2 text-right tabular-nums">
+                        {node.telemetryDrops}
                       </td>
                     </tr>
                   ))}
@@ -322,7 +389,16 @@ export function SatelliteSwarmSimulation({
       <div className="border-t bg-amber-500/5 px-4 py-3 text-xs text-muted-foreground">
         {data.positionModel}. The score is the preserved historical heuristic,
         not validated astrodynamics. "Safe-disabled" is software state, not a
-        physical deorbit action.{" "}
+        physical deorbit action. Wasm source:{" "}
+        <a
+          className="font-mono underline underline-offset-4"
+          href={`${SOURCE_REPOSITORY_URL}/${data.sourceRevision}`}
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          {data.sourceRevision.slice(0, 12)}
+        </a>
+        .{" "}
         {executionMode === "webassembly"
           ? "The coordination code ran as WebAssembly in a module worker."
           : "This view displays a recorded output from the native runner."}

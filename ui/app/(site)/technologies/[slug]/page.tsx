@@ -88,7 +88,7 @@ interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-export async function generateStaticParams() {
+export function generateStaticParams() {
   const repository = loadDomainRepository();
   const slugs = getAllTechnologySlugs(repository);
   return slugs.map((slug) => ({ slug }));

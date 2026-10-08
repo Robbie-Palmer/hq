@@ -1,0 +1,61 @@
+---
+title: "ADR 006: Repository and delivery baseline"
+date: "2026-09-15"
+status: "Accepted"
+tech_stack:
+  - "GitHub"
+  - "Mise"
+  - "GitHub Actions"
+  - "Renovate"
+  - "actionlint"
+  - "zizmor"
+  - "Trivy"
+  - "SonarQube"
+  - "OpenSSF Scorecard"
+  - "Gitleaks"
+  - "typos"
+  - "Doppler"
+  - "GitHub Secrets"
+---
+
+## Context
+
+Personal projects in this repository repeated the same inherited decisions for
+source hosting, task execution, CI, dependency updates, and repository checks.
+The root mise tasks and GitHub workflows now apply those choices across project
+boundaries, so leaving them attached to the Personal Knowledge Graph hides who
+owns the policy.
+
+Some controls apply to every repository. Runtime and deployment secrets are
+conditional because a static or local project may have no sensitive
+configuration.
+
+## Decision
+
+Make GitHub the source host, mise the task and tool-version interface, GitHub
+Actions the CI system, and Renovate the dependency-update service for the base
+layer.
+
+Use actionlint for GitHub Actions workflow correctness and zizmor for workflow
+security. Use Trivy for dependency and infrastructure scans,
+SonarQube for code-quality analysis, OpenSSF Scorecard for repository posture,
+Gitleaks for secret detection, and typos for low-noise spelling checks.
+
+Keep secret storage as two preferred capabilities. Doppler is the source of
+truth for runtime configuration. GitHub Secrets supplies the subset needed by
+CI and deployment workflows.
+
+## Consequences
+
+Every project using the base layer gets the same task entry point, delivery
+system, dependency maintenance, and deterministic repository checks. CI calls
+mise tasks instead of becoming a second implementation of the build.
+
+The baseline asks more than an empty repository. Shared
+configuration and monorepo-level workflows absorb most of that cost. A project
+outside this repository must decide whether the checks still repay their setup
+and can override individual slots when they do not.
+
+Gitleaks reduces accidental disclosure but cannot prove that a repository has
+no secrets. SonarQube, Trivy, and Scorecard findings also require judgement;
+their scores do not replace review.

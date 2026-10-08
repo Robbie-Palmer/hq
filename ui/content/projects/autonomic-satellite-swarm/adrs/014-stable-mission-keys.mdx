@@ -1,0 +1,108 @@
+---
+title: "ADR 014: Stable Mission Keys Across Nodes and Boot Epochs"
+status: "Accepted"
+date: "2026-09-12"
+supersedes: "autonomic-satellite-swarm:009-versioned-wire-protocol"
+---
+
+# Context
+
+[ADR 009](/projects/autonomic-satellite-swarm/adrs/009-versioned-wire-protocol) gave each message a
+16-bit mission ID. Every leader starts that counter at one after construction. Two leaders can
+therefore create the same ID, and one leader can reuse an ID after reset. The message's `origin`
+field cannot resolve both cases because it means the immediate sender on a candidacy and the mission
+leader on an acknowledgement or assignment.
+
+The deterministic fault tests from
+[ADR 011](/projects/autonomic-satellite-swarm/adrs/011-host-first-verification) now expose the
+practical problem. A leader that loses an assignment still records its chosen node, while the chosen
+node times out without learning that it owns the mission. A lost acknowledgement creates a different
+partial history. The candidate may still receive a direct assignment and become active. Neither run
+lets the leader claim that the target received its assignment or started work.
+
+Reset adds another boundary. The simulator reconstructs a controller with its mission sequence back
+at one. It also records that reset clears `safe-disabled`, and that a delayed request can start work
+because the current protocol has no command expiry. Stable identity will not repair those safety
+failures, but later persistence and telemetry need to distinguish their events without guessing
+which mission an ID meant.
+
+# Decision
+
+Name every mission with this key:
+
+```text
+{origin node: uint8, boot epoch: uint32, mission sequence: uint16}
+```
+
+The origin node is a provisioned identity within the swarm. Its boot epoch must be nonzero and must
+never repeat for that node. The mission sequence starts at one for each boot epoch. Sequence zero is
+invalid, and the controller refuses to create another mission after sequence 65,535. It does not
+wrap. A node must advance to a new durable boot epoch before it can create more missions.
+
+Treat the immediate sender as a separate message field. Every request, candidacy, acknowledgement,
+and assignment carries the complete mission key. State transitions compare the complete key. A
+mission request is valid only when its sender is also the mission origin, and an acknowledgement or
+assignment is valid only when its sender is that origin.
+
+The simulator takes each node's initial boot epoch as trace input and increments it on reset before
+constructing the replacement controller. Production firmware must eventually advance this value in
+durable storage before controller startup. The reference sketches accept a build-time epoch so they
+can compile and run on a bench, but they cannot claim reset-safe identity yet.
+
+Replace the version-one wire packet with an 18-byte version-two packet identified by `0xA2`. The new
+packet adds the mission origin and four-byte boot epoch, retains a two-byte sequence, separates the
+sender, and reserves one zero byte. Version-one packets are rejected because a receiver cannot
+recover a stable key from their node-local ID. The Uno adapter sends the larger packet as six
+three-byte NEC chunks and uses three header bits for the chunk index.
+
+# Alternatives
+
+## Keep the node-local 16-bit ID
+
+This keeps the 12-byte packet and four-chunk infrared framing. It cannot distinguish two origin
+nodes or a leader before and after reset, so delayed messages can attach to the wrong negotiation.
+
+## Use one swarm-wide counter
+
+A durable global counter would provide compact identifiers, but allocating the next value requires
+the very cross-partition agreement this prototype is preparing to study. An isolated node could not
+create a mission without risking reuse.
+
+## Use random or 128-bit identifiers
+
+A large random identifier avoids a durable counter only if every target has a trustworthy random
+source and an accepted collision bound. The Arduino Uno reference target offers neither today. A
+128-bit value would also increase every control packet for a guarantee the prototype does not need.
+
+## Use 32 bits for both epoch and sequence
+
+This permits more than 65,535 missions in one boot, but costs two more bytes in every message. The
+current experiments can stop at explicit sequence exhaustion. Revisit the width if measured mission
+rates make that bound plausible between planned epoch changes.
+
+# Acceptance evidence
+
+Deterministic tests show that identical sequence values from different origin nodes produce distinct
+keys and that reset changes the origin's epoch before sequence one is reused. Controller tests reject
+acknowledgements and assignments from an earlier leader epoch. Wire tests round-trip every key field
+in big-endian order and reject zero-valued identities.
+
+The invariant tests replay lost acknowledgements, lost assignments, duplicate assignment delivery,
+one-way assignment loss, node reset, and complete link loss during fatal-health handling. They keep
+the known reset and expiry failures visible rather than treating stable identity as a safety proof.
+
+# Consequences
+
+Logs, simulation observations, and future telemetry can correlate one mission across nodes and can
+separate missions created before and after a leader reset. A stale message with the same sequence no
+longer matches a current negotiation when its origin or boot epoch differs.
+
+The key proves identity, not delivery or authority. It does not acknowledge assignments, prevent two
+leaders from assigning conflicting physical work, make actuator effects idempotent, authenticate a
+sender, reject every replay, add command deadlines, or persist `safe-disabled`. Those remain separate
+protocol and storage decisions.
+
+Packets grow from 12 to 18 bytes. The infrared adapter sends six frames instead of four, which costs
+radio time and lowers complete-packet delivery probability on a lossy link. Firmware also gains a
+hard provisioning requirement: a repeated boot epoch destroys the uniqueness guarantee. Until a
+durable epoch store exists, the reference builds remain bench demonstrations.

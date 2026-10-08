@@ -6,6 +6,7 @@ config_roots = [
     "infra/bootstrap",
     "infra/public-platform",
     "infra/remote-development",
+    "infra/work-graph",
     "backups",
     "ml-pipelines",
     "ml-pipelines/ai-review-evaluation",
@@ -13,17 +14,34 @@ config_roots = [
     "ml-pipelines/recipe-parsing",
     "ml-pipelines/writing-editor-evaluation",
     "ml-pipelines/wsi-analysis",
+    "packages/agent-coordinator-domain",
+    "packages/agent-auth",
+    "packages/agent-auth-mcp",
     "packages/ai-review-domain",
     "packages/browser-base",
+    "packages/drizzle-postgres",
+    "packages/finance-inflation-indices",
+    "packages/finance-housing-indices",
+    "packages/finance-tax-rules",
+    "packages/github-client",
     "packages/node-base",
     "packages/recipe-db",
     "packages/observability",
+    "packages/openrouter-client",
+    "packages/recipe-domain",
     "packages/recipe-parsing",
     "packages/ts-base",
+    "packages/work-graph-cli",
+    "packages/work-graph-db",
+    "packages/work-graph-domain",
     "packages/writing-editor-domain",
+    "packages/wedding-planner-domain",
     "ai-review",
     "workers/recipe-api",
     "workers/recipe-ingest",
+    "workers/finance-tax-monitor",
+    "workers/work-graph-api",
+    "workers/work-graph-observer",
     "homelab",
     "cpp",
     "cpp/autonomic-satellite-swarm",
@@ -35,28 +53,81 @@ verbose = false
 
 [tools]
 node = "lts"
-"github:pnpm/pnpm" = "12.4.0"
-vale = "3.20.0"
-terraform = "1.16.1"
+"github:pnpm/pnpm" = "12.8.2"
+terraform = "1.16.4"
 tflint = "0.64.0"
 actionlint = "1.7.12"
 zizmor = "1.30.1"
 gitleaks = "8.30.1"
-typos = "1.50.1"
-"github:oasdiff/oasdiff" = "1.31.0"
-duckdb = "1.5.5"
+typos = "1.50.3"
+"github:oasdiff/oasdiff" = "v1.33.0"
+duckdb = "1.5.6"
+"npm:t3" = "0.0.45"
 
 [env]
 MISE_EXPERIMENTAL = "1"
 
 # Root-level tasks for repo-wide tooling
+[tasks."work-graph:launch-agent"]
+description = "Create a T3 Code thread that claims and executes the next Work Graph ticket"
+depends = ["//:install"]
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+
+git_common_dir="$(git rev-parse --path-format=absolute --git-common-dir)"
+export T3_WORK_GRAPH_PROJECT_ROOT="$(dirname "$git_common_dir")"
+base_branch="${T3_WORK_GRAPH_BASE_BRANCH:-}"
+if [[ -z "$base_branch" ]]; then
+  remote_head="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+  base_branch="${remote_head#origin/}"
+fi
+if [[ -z "$base_branch" ]]; then
+  base_branch="$(git config --get init.defaultBranch || true)"
+fi
+export T3_WORK_GRAPH_BASE_BRANCH="${base_branch:-main}"
+t3_home="${T3CODE_HOME:-$HOME/.t3}"
+export T3_WORK_GRAPH_ORIGIN="$(jq -er '.origin' "$t3_home/userdata/server-runtime.json")"
+ready="$(work-graph ready --limit 1)"
+ticket_id="$(jq -er '.items[0].id' <<<"$ready")"
+ticket="$(jq -cer '.items[0]' <<<"$ready")"
+context="$(work-graph context show "$ticket_id")"
+export T3_WORK_GRAPH_SELECTION="$(jq -cn \
+  --argjson ticket "$ticket" \
+  --argjson context "$context" \
+  '{ticket: $ticket, context: $context.items}')"
+export T3_ACCESS_TOKEN="$(t3 auth session issue \
+  --base-dir "$t3_home" \
+  --ttl 15m \
+  --label work-graph-agent-launcher \
+  --token-only)"
+
+exec pnpm exec tsx scripts/launch-work-graph-agent.ts
+"""
+
+[tasks."work-graph:launch-agent:test"]
+description = "Test Work Graph ticket routing and T3 profile selection"
+depends = ["//:install"]
+run = "pnpm exec vitest run scripts/launch-work-graph-agent.test.ts"
+
 [tasks.lint]
 description = "Lint all files across the entire repo"
-depends = ["//:lint:markdown", "//:lint:mdx", "//:lint:yaml", "//:lint:typos", "//:lint:knip", "//:lint:actions", "//:lint:api", "//:lint:prose", "//packages/ai-review-domain:check", "//packages/browser-base:check", "//packages/node-base:check", "//packages/ts-base:check", "//packages/writing-editor-domain:check", "//ai-review:check", "//ml-pipelines/ai-review-evaluation:check", "//ml-pipelines/writing-editor-evaluation:check", "//ui:lint", "//infra/public-platform:lint", "//infra/public-platform:lint:tflint", "//infra/bootstrap:lint", "//infra/bootstrap:lint:tflint", "//infra/remote-development:lint", "//infra/remote-development:lint:tflint"]
+depends = ["//:lint:markdown", "//:lint:mdx", "//:lint:yaml", "//:lint:typos", "//:lint:knip", "//:lint:actions", "//:lint:api", "//:lint:prose", "//:lint:typescript", "//packages/agent-auth:check", "//packages/agent-auth-mcp:check", "//packages/agent-coordinator-domain:check", "//packages/ai-review-domain:check", "//packages/browser-base:check", "//packages/drizzle-postgres:check", "//packages/finance-housing-indices:check", "//packages/finance-inflation-indices:check", "//packages/finance-tax-rules:check", "//packages/github-client:check", "//packages/node-base:check", "//packages/openrouter-client:check", "//packages/recipe-domain:check", "//packages/ts-base:check", "//packages/work-graph-cli:check", "//packages/work-graph-db:check", "//packages/work-graph-domain:check", "//packages/writing-editor-domain:check", "//packages/wedding-planner-domain:check", "//ai-review:check", "//ml-pipelines/ai-review-evaluation:check", "//ml-pipelines/writing-editor-evaluation:check", "//workers/finance-tax-monitor:check", "//workers/work-graph-observer:check", "//ui:lint", "//infra/public-platform:lint", "//infra/public-platform:lint:tflint", "//infra/bootstrap:lint", "//infra/bootstrap:lint:tflint", "//infra/remote-development:lint", "//infra/remote-development:lint:tflint", "//infra/work-graph:lint", "//infra/work-graph:lint:tflint"]
+
+[tasks."lint:typescript"]
+description = "Lint TypeScript and JavaScript outside the UI (optionally pass files as args)"
+depends = ["//:install"]
+run = """
+#!/usr/bin/env bash
+if [ $# -eq 0 ]; then
+  set -- .
+fi
+pnpm exec biome lint --config-path biome.json --no-errors-on-unmatched "$@"
+"""
 
 [tasks."lint:api"]
-description = "Generate-check and lint the recipe API OpenAPI contract"
-depends = ["//workers/recipe-api:lint:api"]
+description = "Generate-check and lint committed OpenAPI contracts"
+depends = ["//workers/recipe-api:lint:api", "//workers/work-graph-api:lint:api"]
 
 [tasks."lint:markdown"]
 description = "Lint and fix Markdown files (optionally pass files as args)"
@@ -341,17 +412,33 @@ depends = [
     "//ai-review:test:coverage",
     "//cpp/autonomic-satellite-swarm:coverage",
     "//ui:test:coverage",
+    "//packages/agent-auth:test:coverage",
+    "//packages/agent-auth-mcp:test:coverage",
+    "//packages/agent-coordinator-domain:test:coverage",
     "//packages/ai-review-domain:test:coverage",
     "//packages/browser-base:test:coverage",
+    "//packages/drizzle-postgres:test:coverage",
+    "//packages/finance-housing-indices:test:coverage",
+    "//packages/finance-inflation-indices:test:coverage",
+    "//packages/finance-tax-rules:test:coverage",
     "//packages/node-base:test:coverage",
     "//packages/observability:test:coverage",
+    "//packages/recipe-domain:test:coverage",
     "//packages/recipe-parsing:test:coverage",
     "//packages/ts-base:test:coverage",
+    "//packages/work-graph-cli:test:coverage",
+    "//packages/work-graph-db:test:coverage",
+    "//packages/work-graph-domain:test:coverage",
     "//packages/writing-editor-domain:test:coverage",
+    "//packages/wedding-planner-domain:test:coverage",
     "//ml-pipelines/recipe-parsing:test:coverage",
     "//ml-pipelines/ai-review-evaluation:test:coverage",
     "//ml-pipelines/wsi-analysis:test:coverage",
     "//ml-pipelines/writing-editor-evaluation:test:coverage",
     "//workers/recipe-api:test:coverage",
+    "//workers/recipe-api:test:integration:coverage",
     "//workers/recipe-ingest:test:coverage",
+    "//workers/finance-tax-monitor:test:coverage",
+    "//workers/work-graph-api:test:coverage",
+    "//workers/work-graph-observer:test:coverage",
 ]

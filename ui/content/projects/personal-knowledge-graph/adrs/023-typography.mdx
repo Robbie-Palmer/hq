@@ -1,0 +1,51 @@
+---
+title: "ADR 023: Tailwind CSS Typography"
+date: "2025-10-26"
+status: "Accepted"
+tech_stack: ["Tailwind CSS Typography"]
+---
+
+# Context
+
+I have chosen [MDX](/projects/personal-knowledge-graph/adrs/020-mdx) for my content, which allows me to mix markdown with React components. However, this introduces a styling challenge. Unlike standard react components where I control the class names directly, MDX (and markdown in general) produces raw HTML elements (`<p>`, `<h1>`, `<blockquote>`, etc.) that are unstyled by default, especially when using Tailwind CSS's preflight which resets all browser default styles.
+
+I need a way to style this "third-party" HTML, content effectively generated outside of my direct class-name control, consistently and beautifully without manually targeting every single tag in a global stylesheet or creating a custom wrapper component for every HTML element that MDX spits out.
+
+# Decision
+
+I will use the official **Tailwind CSS Typography plugin** (`@tailwindcss/typography`) to style all MDX content.
+
+This plugin provides a set of `prose` classes that you can add to any element to add sensible typographic defaults to any vanilla HTML you've got inside that element, like HTML rendered from Markdown.
+
+# Alternatives Considered
+
+**Roll Your Own Styles (Global CSS)**:
+
+* **Pros**: Infinite customizability, zero dependencies.
+* **Cons**: Extremely tedious. I would have to write custom CSS for every single HTML element (`h1` through `h6`, `p`, `ul`, `ol`, `li`, `blockquote`, `pre`, `code`, `table`, etc.) and handle all the spacing/margins between them. This is "undifferentiated heavy lifting."
+
+**Custom MDX Provider Components**:
+
+* **Pros**: Allows replacing every standard HTML tag with a custom React component (e.g., replace `<p>` with `<MyParagraph>`).
+* **Cons**: While powerful for specific interactivity, doing this *just* for styling is overkill. It adds significant runtime overhead and bloats the component tree.
+* **Why not**: Good for functional enhancements (like adding copy buttons to code blocks), but bad for basic typographic styling.
+
+**Styling Libraries (e.g., Styled Components)**:
+
+* **Pros**: Scoped styles.
+* **Cons**: Adds a runtime JS library for CSS, which I'm avoiding in favor of Tailwind.
+* **Why not**: Inconsistent with the rest of the project's styling approach ([ADR 005: Tailwind CSS](/projects/personal-knowledge-graph/adrs/005-tailwindcss)).
+
+# Consequences
+
+**Positive:**
+
+* **Velocity**: I can style an entire article with a single class: `prose`. Instant professional typography.
+* **Consistency**: Returns to the "[The Goldilocks Zone](/projects?tab=philosophy#the-goldilocks-zone)" principle, using the tool designed by the framework authors for exactly this use case.
+* **Dark Mode Support**: The plugin has first-class support for dark mode (`dark:prose-invert`), saving me from handling color inversion manually for every element.
+* **Customizability**: I can still customize the theme via `tailwind.config.js` if I need specific brand overrides (like link colors or font families), but the defaults are excellent.
+
+**Negative:**
+
+* **Override Complexity**: Occasionally, overriding a specific nested behavior in the prose plugin can be tricky and requires understanding its complex selector specificity.
+* **Plugin Weight**: Adds a small amount of CSS to the bundle, but far less than writing it all manually.

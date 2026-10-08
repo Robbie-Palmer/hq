@@ -11,7 +11,7 @@ const event: ReviewWorkflowParams = {
   deliveryId: "workerd-delivery-1",
   eventName: "pull_request",
   action: "synchronize",
-  repository: "Robbie-Palmer/personal-site",
+  repository: "Robbie-Palmer/hq",
   pullRequestNumber: 42,
   headSha: "a".repeat(40),
   force: false,

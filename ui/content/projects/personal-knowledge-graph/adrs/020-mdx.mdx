@@ -1,0 +1,76 @@
+---
+title: "ADR 020: MDX"
+date: "2025-10-19"
+status: "Accepted"
+tech_stack: ["MDX"]
+---
+
+# Context
+
+With [Static Site Generation](/projects/personal-knowledge-graph/adrs/015-ssg) as the rendering strategy, I need a content format that balances **simplicity for prose** with **power for interactive content**:
+
+* Rich formatting (code blocks, tables, diagrams)
+* Structured metadata (frontmatter)
+* Embeddable React components for interactive demos
+* Content as code (git-tracked, PR-reviewed)
+* [Claude Code](/projects/personal-knowledge-graph/adrs/012-claude-code) readable and editable
+
+# Decision
+
+I will use **MDX (Markdown + JSX)** for all content, blog posts, project documentation, and ADRs are `.mdx` files with YAML frontmatter.
+
+# Alternatives Considered
+
+**Plain Markdown (.md)**:
+
+* **Pros**: Simpler, more portable, universal tooling support
+* **Cons**: Can't embed interactive components without clunky HTML/iframe workarounds
+* **Why not**: Need React components for interactive demos, visualizations, and diagrams inline with prose
+
+**Raw HTML**:
+
+* **Pros**: Maximum control, works everywhere
+* **Cons**: Verbose, terrible writing experience, mixes content and markup
+* **Why not**: Markdown's readability for long-form writing is non-negotiable
+
+**Headless CMS (Contentful, Sanity, Strapi, Ghost)**:
+
+* **Pros**: GUI editing, rich media management, preview modes
+* **Cons**: Content in external database (not git), no PR reviews, can't link to article history on GitHub, vendor lock-in (content locked in proprietary formats/APIs), paid services (tried Ghost, costs money)
+* **Why not**: Violates "content as code" from [ADR 015](/projects/personal-knowledge-graph/adrs/015-ssg). Git versioning is superior, free, and avoids vendor lock-in.
+
+**Notion/Google Docs Export**:
+
+* **Pros**: Familiar writing experience, collaborative editing
+* **Cons**: Fragile export pipeline, formatting breaks, content drift between source and published
+* **Why not**: Saw this fail at a previous employer. Links broke, formatting mangled. Better to write in the published format.
+
+**AsciiDoc**:
+
+* **Pros**: More powerful than Markdown (cross-references, includes, conditional content, semantic markup), widely used for technical documentation
+* **Cons**: Steeper learning curve, less ecosystem support in JavaScript/React world, no native JSX embedding, smaller community and LLM training data
+* **Why not**: Markdown + MDX provides the right balance of simplicity and power. AsciiDoc's advanced features aren't needed, and the JavaScript/React ecosystem around MDX is far richer.
+
+**Org-mode**:
+
+* **Pros**: Incredibly powerful, great for technical writing, inline code execution
+* **Cons**: Emacs-centric ecosystem, poor JavaScript tooling support, tiny community in web development space, almost no LLM training data
+* **Why not**: Violates "boring technology" principle. MDX has massive adoption and LLM support. Org-mode has minimal ecosystem support in the JavaScript/React world.
+
+# Consequences
+
+**Positive:**
+
+* **Markdown Simplicity + React Power**: Write prose in Markdown, embed interactive components (demos, visualizations, diagrams) inline without breaking flow
+* **Content as Code**: MDX files in git, reviewed via PRs, versioned alongside code. Can link to full article history on GitHub.
+* **AI-Native Workflow**: [Claude Code](/projects/personal-knowledge-graph/adrs/012-claude-code) reads/edits MDX as easily as TypeScript. [CodeRabbit](/projects/personal-knowledge-graph/adrs/009-coderabbit) reviews for grammar, SEO, broken links, content quality.
+* **Reusable Components**: Write once, use everywhere. Consistent design across blog posts, docs, and ADRs.
+* **No External Dependencies**: Local files, fast builds, works offline. Free vs paid CMS services.
+* **[The Goldilocks Zone](/projects?tab=philosophy#the-goldilocks-zone)**: Standard for technical content in React/Next.js ecosystem. Massive community and LLM knowledge.
+
+**Negative:**
+
+* **Build Complexity**: Requires compilation (AST transformations, bundler config) vs serving static Markdown
+* **Risk of Over-Engineering**: Easy to over-complicate content with custom components. Requires discipline to stay simple.
+* **Fragmentation Risk**: Component bugs break every post using them. Must keep components stable and well-tested.
+* **Tooling Gaps**: Editor support less polished than Markdown. Linting is tricky. Complex setup combining remark-lint (Markdown) and ESLint (JSX). No single tool handles the hybrid format cleanly.

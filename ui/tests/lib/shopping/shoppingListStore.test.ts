@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  __resetShoppingListForTests,
   addExtra,
   addRecipe,
   clearChecked,
@@ -18,6 +17,7 @@ import {
   toggleExtra,
   toggleRecipe,
 } from "@/lib/shopping/shoppingListStore";
+import { __resetShoppingListForTests } from "@/tests/support/recipe-state";
 
 // Mirrors the module's private persistence key.
 const STORAGE_KEY = "recipe-shopping-list:v1";

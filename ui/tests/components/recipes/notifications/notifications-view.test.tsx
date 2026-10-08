@@ -92,7 +92,8 @@ describe("NotificationsView", () => {
 
   it("keeps an accepted invitation as a read, resolved notification", async () => {
     const user = userEvent.setup();
-    renderNotifications();
+    const { queryClient } = renderNotifications();
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
 
     await user.click(await screen.findByRole("button", { name: "Accept" }));
 
@@ -109,6 +110,10 @@ describe("NotificationsView", () => {
       "accept",
     );
     expect(mocks.updateNotification).not.toHaveBeenCalled();
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: recipeQueryKeys.equipmentReadiness("user-1"),
+      exact: true,
+    });
   });
 
   it("shows the initial notification load error", async () => {
@@ -178,6 +183,39 @@ describe("NotificationsView", () => {
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: recipeQueryKeys.bootstrap("user-1"),
     });
+  });
+
+  it("links a shared shopping-list notification to the household list", async () => {
+    const sharedList = {
+      id: "notification-shopping-1",
+      eventId: "event-shopping-1",
+      kind: "shopping_list_shared",
+      actor: { id: "user-alex", name: "Alex" },
+      actions: [],
+      detail: {
+        type: "household",
+        household: { id: "household-1", name: "Park Road" },
+        invitationStatus: null,
+      },
+      readAt: null,
+      occurredAt: "2026-09-07T12:00:00.000Z",
+    } satisfies HouseholdNotification;
+    mocks.getNotificationPage.mockResolvedValue({
+      items: [sharedList],
+      nextOffset: null,
+      unreadCount: 1,
+    });
+
+    renderNotifications();
+
+    expect(
+      await screen.findByText(
+        "Alex shared Park Road's shopping list with you.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "View shopping list" }),
+    ).toHaveAttribute("href", "/recipes/shopping");
   });
 
   it("links a pending agent request to the approval page", async () => {

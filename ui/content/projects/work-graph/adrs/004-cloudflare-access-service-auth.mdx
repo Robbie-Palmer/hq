@@ -1,0 +1,80 @@
+---
+title: "ADR 004: Cloudflare Access service authentication"
+date: "2026-09-13"
+status: "Accepted"
+tech_stack: ["Cloudflare Access"]
+---
+
+## Context
+
+The Work Graph API contains planning context and mutation operations intended
+for personal workers rather than the public internet. Those workers run
+headlessly on several machines. Interactive email codes add unacceptable
+friction, while a Tailscale-only endpoint cannot run directly as a Cloudflare
+Worker.
+
+The service may later expose a public read projection, but that does not require
+public access to its mutation API.
+
+## Decision
+
+Protect the API hostname with a Cloudflare Access self-hosted application. Give
+headless clients dedicated Access service tokens accepted by a Service Auth
+policy. Store their credentials in Doppler and send them through the documented
+`CF-Access-Client-Id` and `CF-Access-Client-Secret` headers. Rotate credentials
+with an overlap rather than sharing the preview-environment token.
+
+Access authenticates the client installation or service. The lease's stable
+worker ID remains application data and is not an authorization boundary.
+
+For a later human interface, use the existing GitHub identity provider and a
+long Access session. Cloudflare separates global, application, and policy
+session durations and permits each relevant human session to last up to one
+month. Do not require email one-time passwords as the normal path.
+
+Keep Tailscale on development and bare-metal machines. Do not add the Cloudflare
+One device client merely to reach this public-hostname Access application,
+because two network clients controlling routes or DNS would add avoidable
+conflict. If Access or Workers becomes a persistent source of friction, deploy
+the portable Hono application on Node behind Tailscale Serve and keep the same
+PostgreSQL data model.
+
+## Alternatives
+
+### Tailscale-only service
+
+This gives familiar device identity and no browser login. It requires moving
+the service onto an operated machine before the MVP can run and makes that
+machine part of the availability path.
+
+### Email one-time passwords
+
+Cloudflare supports them, but repeated mailbox and code entry already causes
+friction in preview environments. GitHub sessions are a better human path and
+service tokens remove interactive login from agents.
+
+### Application-owned authentication
+
+Custom API keys or an OAuth server would keep identity inside the application.
+That adds credential issuance, rotation, storage, and authorization code before
+the one-user workflow is useful.
+
+## Consequences
+
+Workers can authenticate without a browser, and each token can be revoked or
+rotated independently. The CLI must protect two secret headers and must never
+send them to an untrusted hostname.
+
+Service-token expiry and rotation become operational responsibilities.
+Cloudflare displays a new client secret once, so provisioning must place it in
+the secret-management flow without logging or committing it.
+
+Human access avoids routine email codes while the configured session remains
+valid. Revocation may require invalidating both Access sessions and the
+underlying identity-provider session.
+
+Cloudflare documents
+[service-token authentication](https://developers.cloudflare.com/cloudflare-one/access-controls/service-credentials/service-tokens/)
+and the separate
+[session-duration controls](https://developers.cloudflare.com/cloudflare-one/access-controls/access-settings/session-management/)
+used by this decision.

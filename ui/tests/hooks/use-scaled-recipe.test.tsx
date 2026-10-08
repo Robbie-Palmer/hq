@@ -52,6 +52,7 @@ describe("useScaledRecipe", () => {
 
     let scaledPhase: "initial" | "retry-loading" | "retry-ready" = "initial";
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     vi.mocked(useCooklangRecipe).mockImplementation((cookBody, scale) => {
       if (!cookBody) {
         return { recipe: null, source: null, loading: false, error: null };

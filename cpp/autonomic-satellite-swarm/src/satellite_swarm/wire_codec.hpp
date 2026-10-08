@@ -10,7 +10,7 @@ namespace satellite_swarm {
 
 class WireCodec {
 public:
-  static const size_t kPacketSize = 12;
+  static const size_t kPacketSize = 18;
 
   static bool encode(const Message& message, uint8_t* output, size_t output_size);
   static bool decode(const uint8_t* packet, size_t packet_size, Message& message);

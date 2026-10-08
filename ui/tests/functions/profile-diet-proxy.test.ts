@@ -220,6 +220,7 @@ describe("pantry proxy", () => {
         "https://robbiepalmer.me/api/pantry/items/onion?source=kitchen",
         {
           method: "PUT",
+          headers: { "idempotency-key": "test-operation-id" },
         },
       ),
       env: { RECIPE_API_URL: "https://recipe-api.example.test" },
@@ -235,5 +236,6 @@ describe("pantry proxy", () => {
       "https://recipe-api.example.test/pantry/items/onion?source=kitchen",
     );
     expect(forwarded.method).toBe("PUT");
+    expect(forwarded.headers.get("idempotency-key")).toBe("test-operation-id");
   });
 });

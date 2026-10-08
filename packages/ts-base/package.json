@@ -5,8 +5,17 @@
   "description": "Dependency-free TypeScript extensions to JavaScript and web-standard APIs",
   "type": "module",
   "exports": {
+    "./csv": "./src/csv.ts",
+    "./crypto": "./src/crypto.ts",
+    "./dates": "./src/dates.ts",
     "./errors": "./src/errors.ts",
+    "./http": "./src/http.ts",
+    "./json": "./src/json.ts",
+    "./layered-graph": "./src/layered-graph.ts",
+    "./numbers": "./src/numbers.ts",
+    "./promises": "./src/promises.ts",
     "./records": "./src/records.ts",
+    "./strings": "./src/strings.ts",
     "./urls": "./src/urls.ts"
   },
   "scripts": {
@@ -15,8 +24,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^5.0.0",
     "typescript": "^6.0.0",
-    "vitest": "^4.0.0"
+    "vitest": "^5.0.0"
   }
 }

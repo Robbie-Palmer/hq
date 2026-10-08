@@ -1,0 +1,14 @@
+misconfigurations:
+  # Rootless Docker-in-Docker still needs a privileged outer container and a
+  # writable root filesystem. Keep the exception limited to the two rendered
+  # remote-workspace manifests and review it before it expires.
+  - id: KSV-0014
+    paths:
+      - trivy-rendered-kubernetes/remote.yaml
+      - trivy-rendered-kubernetes/remote-pilot.yaml
+    expired_at: 2027-03-18
+  - id: KSV-0017
+    paths:
+      - trivy-rendered-kubernetes/remote.yaml
+      - trivy-rendered-kubernetes/remote-pilot.yaml
+    expired_at: 2027-03-18

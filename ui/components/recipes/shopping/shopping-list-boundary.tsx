@@ -7,10 +7,19 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { isApiError } from "@/lib/api/http";
 import {
   type ShoppingListContents,
+  type ShoppingListScope,
   type StoredShoppingList,
   saveCurrentShoppingList,
   startNewShoppingList,
@@ -117,6 +126,18 @@ function restoreSavedShoppingList(
 const PLAN_RESOURCE_KEY = "recipe-shopping-plan-resource";
 const pendingShoppingListSaves = new Map<string, Promise<void>>();
 
+const ShoppingListScopeContext = createContext<ShoppingListScope | null>(null);
+
+export function useShoppingListScope(): ShoppingListScope {
+  const scope = useContext(ShoppingListScopeContext);
+  if (!scope) {
+    throw new Error(
+      "useShoppingListScope must be used inside ShoppingListBoundary",
+    );
+  }
+  return scope;
+}
+
 function readPlanResource(): string | null {
   try {
     return localStorage.getItem(PLAN_RESOURCE_KEY);
@@ -151,6 +172,7 @@ export function ShoppingListBoundary({
   const supersededRevisions = useRef<Set<string>>(new Set());
   const [saveFailed, setSaveFailed] = useState(false);
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
   useEffect(() => {
     if (!current.data) return;
     const serialized = JSON.stringify(current.data.snapshot);
@@ -225,11 +247,12 @@ export function ShoppingListBoundary({
   }, [current.data, installedId, queryClient, userId]);
 
   const hasInstalledList = Boolean(installedId);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!hasInstalledList) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let syncTimer: ReturnType<typeof setTimeout> | undefined;
     let saving = Promise.resolve();
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     const unsubscribe = subscribeShoppingList((source) => {
       if (source !== "local") {
         if (source === "install" && timer) {
@@ -315,7 +338,7 @@ export function ShoppingListBoundary({
     );
   }
   return (
-    <>
+    <ShoppingListScopeContext.Provider value={current.data.scope}>
       {saveFailed ? (
         <p className="rt-body bg-[var(--cream-dark)] px-4 py-2 text-center">
           Your latest shopping-list changes have not been saved. They remain on
@@ -323,7 +346,7 @@ export function ShoppingListBoundary({
         </p>
       ) : null}
       {children}
-    </>
+    </ShoppingListScopeContext.Provider>
   );
 }
 

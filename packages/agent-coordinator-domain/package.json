@@ -1,0 +1,43 @@
+{
+  "name": "agent-coordinator-domain",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agent Coordinator domain types and rules",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./adapter": "./src/adapter.ts",
+    "./actor": "./src/actor.ts",
+    "./authentication": "./src/authentication.ts",
+    "./compatibility": "./src/compatibility.ts",
+    "./complexity": "./src/complexity.ts",
+    "./matching": "./src/matching.ts",
+    "./policy": "./src/policy.ts",
+    "./native-client": "./src/native-client.ts",
+    "./openrouter": "./src/openrouter.ts",
+    "./orchestration": "./src/orchestration.ts",
+    "./session": "./src/session.ts",
+    "./task": "./src/task.ts",
+    "./telemetry": "./src/telemetry.ts",
+    "./vocabulary": "./src/vocabulary.ts",
+    "./work-graph": "./src/work-graph.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/api-logs": "^0.222.0",
+    "@opentelemetry/semantic-conventions": "^1.43.0",
+    "ts-base": "workspace:*",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@opentelemetry/sdk-logs": "^0.222.0",
+    "@vitest/coverage-v8": "^5.0.0",
+    "typescript": "^6.0.0",
+    "vitest": "^5.0.0"
+  }
+}

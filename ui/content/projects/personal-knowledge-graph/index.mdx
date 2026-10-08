@@ -1,0 +1,203 @@
+---
+title: "Personal Knowledge Graph"
+description: "The connected source of truth for my work and an incubator for ideas, projects, and products"
+date: "2025-11-02"
+updated: "2026-09-29"
+aliases:
+  - "personal-site"
+initiatives:
+  - "semi-autonomous-software-development"
+tech_stack:
+  - "TypeScript"
+  - "Zod"
+  - "Lucide React"
+  - "Vale"
+repo_url: "https://github.com/Robbie-Palmer/hq"
+demo_url: "https://robbiepalmer.me"
+status: "live"
+platform_layers:
+  - layer: "governance"
+    adopted: "2026-09-15T00:00:00Z"
+    tracking: true
+    decision: "personal-knowledge-graph:058-temporal-platform-layers"
+  - layer: "base"
+    adopted: "2026-09-12T00:00:00Z"
+    tracking: true
+    decision: "personal-knowledge-graph:058-temporal-platform-layers"
+    slots:
+      - slot: "secrets.runtime-store"
+        adopted: "2026-09-15T00:00:00Z"
+        decision: "personal-knowledge-graph:058-temporal-platform-layers"
+      - slot: "secrets.ci-store"
+        adopted: "2026-09-15T00:00:00Z"
+        decision: "personal-knowledge-graph:058-temporal-platform-layers"
+      - slot: "delivery.preview-environment"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "personal-knowledge-graph:011-cloudflare-pages"
+  - layer: "web-app"
+    adopted: "2026-09-12T00:00:00Z"
+    tracking: true
+    decision: "personal-knowledge-graph:058-temporal-platform-layers"
+    slots:
+      - slot: "web-app.host"
+        adopted: "2026-09-15T00:00:00Z"
+        decision: "personal-knowledge-graph:058-temporal-platform-layers"
+  - layer: "infrastructure"
+    adopted: "2026-09-12T00:00:00Z"
+    tracking: true
+    decision: "personal-knowledge-graph:058-temporal-platform-layers"
+    slots:
+      - slot: "infrastructure.provisioner"
+        adopted: "2026-09-12T00:00:00Z"
+        decision: "personal-knowledge-graph:058-temporal-platform-layers"
+      - slot: "infrastructure.state-backend"
+        adopted: "2026-09-15T00:00:00Z"
+        decision: "personal-knowledge-graph:058-temporal-platform-layers"
+  - layer: "observability"
+    adopted: "2026-09-12T00:00:00Z"
+    tracking: true
+    decision: "personal-knowledge-graph:058-temporal-platform-layers"
+    slots:
+      - slot: "observability.application-telemetry"
+        adopted: "2026-09-12T00:00:00Z"
+        until: "2026-09-29T00:00:00Z"
+        decision: "personal-knowledge-graph:058-temporal-platform-layers"
+  - layer: "storage"
+    adopted: "2026-09-29T00:00:00Z"
+    tracking: true
+    decision: "personal-knowledge-graph:039-cloudflare-r2"
+    slots:
+      - slot: "storage.object-store"
+        adopted: "2026-09-29T00:00:00Z"
+        decision: "personal-knowledge-graph:039-cloudflare-r2"
+---
+
+# Vision
+
+The Personal Knowledge Graph is the connected source of truth for my work. The
+site is its public interface. Writing, experience, ideas, decisions, research,
+demos, and projects remain connected as they change and grow.
+
+The graph is inspired by tools like Roam Research and Obsidian, but gives me
+full control over the interface, richer relations between content, and no
+vendor lock-in. Those tools promised compounding returns from connected
+thinking but fell short for me. I found them too inflexible and siloed, and
+they did not lead to meaningful engagement.
+
+The deeper aim is to turn documentation into an active system. Content begins
+as prose, but structured frontmatter and explicit relationships also make it a
+database of what exists, why it exists, how it changed, and what it affects.
+That database can become a control plane: first surfacing gaps and stale
+decisions, then recommending bounded work, and eventually coordinating
+authorised changes through agents and review workflows.
+
+It creates a second path from thought to delivery. An observation can become
+an idea, research, a decision, a demo, and eventually an independent project
+or product without losing the history that explains it. The products move
+into their own bounded contexts while their provenance and lessons remain
+connected here.
+
+# Problem Statement
+
+I want:
+
+* **A Unified presence**: One place for blog, resume, and projects instead of fragmented profiles across LinkedIn, Substack and GitHub
+* **Low context-switching cost**: Self-documenting architecture so I can drop in and out of this codebase without losing momentum
+* **Rich content**: A platform that supports long-form writing, diagrams, and interactive content
+
+# User Stories
+
+**For the audience:**
+
+* As a friend, I want the highlights from research on topics like personal finance, so I can benefit from his research obsessions
+* As a colleague, I want to understand Robbie's mental models on common engineering challenges, so we can align faster and avoid repeated debates
+* As a developer evaluating this stack, I want to see architectural decisions documented, so I can learn from the tradeoffs
+* As a hiring manager, I want to see evidence of systematic thinking beyond resume bullets, so I can assess seniority and culture fit
+
+**For the author:**
+
+* I want self-documenting projects, so I can context-switch efficiently when returning to the codebase
+* I want ideas to retain their provenance as they become demos, projects, and products
+* I want the knowledge graph to identify useful work and eventually coordinate authorised changes
+* I want the Personal Engineering Platform to provide production-ready defaults when an idea becomes a project
+* I want a forcing function to ship end-to-end
+
+# Platform Capabilities
+
+## Knowledge Sharing & Collaboration
+
+The blog serves multiple audiences with different needs:
+
+* **Colleagues**: Engineering patterns, addressing recurring anti-patterns, reducing repeated debates. I can link to a thoroughly researched post instead of trying to re-establish the case from the ground up
+* **Friends & family**: Personal finance insights, investing principles, life lessons
+* **Public**: Thought leadership on topics I care about. Writing publicly forces an extra level of rigor.
+
+## Content Publishing
+
+* Long-form writing with MDX supporting diagrams, code blocks, and interactive components
+* Multi-audience blog serving both technical and non-technical readers
+* SEO-optimized for discoverability
+
+## Professional Presence
+
+* Interactive resume with structured experience data and technology breadth
+* Project highlights with linked PRDs and [ADRs](/projects/personal-knowledge-graph?tab=adrs) demonstrating technical leadership
+* Visual communication and data visualization demos
+
+## Meta-Benefits
+
+* LLM-readable codebase optimized for AI-assisted development workflows
+* Self-documenting architecture reducing context-switching cost
+* Structured content that serves as both public documentation and a queryable database
+* Explicit provenance and authority boundaries for explainable recommendations
+* Incubation path from connected ideas to independent projects and products
+
+# Building Philosophy
+
+This project follows my [building philosophy](/projects?tab=philosophy).
+Each ADR references specific principles to explain why certain trade-offs were accepted and others rejected.
+
+# What This Is Not
+
+* **Not a CMS with a GUI**: Content is code, managed via git. This is intentional. It keeps everything in one workflow and makes the site itself a demonstration of development practices
+* **Not a finished product**: It's a living platform that evolves with my needs. The backlog is always longer than the changelog
+* **Not a template for others to fork**: Though you're welcome to learn from it. The decisions here reflect my specific needs and preferences
+* **Not a walled garden**: Content is meant to be shared, referenced, and built upon
+
+# Future Direction
+
+This graph is infrastructure for future work:
+
+* **Idea incubator**: Research and writing can become decisions, demos, and independent products while preserving their lineage in the graph
+* **Knowledge control plane**: Use structured decisions, lifecycle state, provenance, and project authority to recommend upgrades and other bounded work; later decisions may allow agents to execute approved migrations
+* **Personal Engineering Platform integration**: Link incubated projects to reusable engineering defaults without making generic platform decisions part of the Personal Knowledge Graph's own history
+* **Expanded project documentation**: More PRDs and ADRs as case studies in technical decision-making
+* **Enhanced data visualization**: Richer interactive content and visual communication
+* **Self-maintaining knowledge**: Find missing, weak, and stale content; gather supporting evidence; propose changes; and publish accepted updates through the same review path as code
+
+# Knowledge maintenance plan
+
+The current graph makes gaps visible but does not yet close them. Only four of
+the eight roles have linked project pages. Many technology nodes have a name and
+relations but little useful detail. Ideas and workflows often remain inside the
+agent session that developed them instead of becoming durable public writing.
+
+The self-maintenance loop should:
+
+1. Inventory missing and stale project, role, technology, ADR, and blog content.
+2. Extract candidate entities, claims, and relationships from repository files,
+   agent sessions, commits, pull requests, and cited external sources.
+3. Preserve provenance so a reader or reviewer can inspect where each claim
+   came from.
+4. Propose bounded updates through pull requests rather than silently rewriting
+   the public graph.
+5. Check links, dates, relations, prose rules, and claims with the cheapest
+   reliable layer available.
+6. Ask for human judgment when publication depends on taste, uncertain evidence,
+   or a statement made in my voice.
+7. Publish accepted changes and use the review outcome to improve the next
+   proposal.
+
+Private knowledge follows the same general shape under different access rules.
+Notes that cannot be public can live in the Home Lab. Personal application data
+belongs in its owning database behind narrow user and agent authorization.

@@ -11,7 +11,7 @@ enabled = true
 
 [vars]
 AI_REVIEW_ENABLED = "true"
-AI_REVIEW_REPOSITORY = "Robbie-Palmer/personal-site"
+AI_REVIEW_REPOSITORY = "Robbie-Palmer/hq"
 AI_REVIEW_DEBOUNCE_SECONDS = "120"
 AI_REVIEW_OUTCOME_WINDOW_SECONDS = "604800"
 AI_REVIEW_OUTCOME_EVALUATOR_VERSION = "deterministic-outcomes-v1"

@@ -1,0 +1,396 @@
+---
+title: "ADR 033: In-Memory Content Graph"
+date: "2025-12-30"
+status: "Accepted"
+tech_stack: ["TypeScript"]
+---
+
+# Context
+
+The site's content is interconnected: **Technologies** appear in **Projects**, **ADRs**, **Blog Posts**,
+and **Job Roles**.
+ADRs belong to Projects.
+Blog posts and projects can be done as part of job roles.
+These relationships need to be readily accessible, and queryable efficiently, to unlock new features built on top of
+these relations.
+
+Currently, the `DomainRepository` loads all content into `Map<Slug, Entity>` collections:
+
+```typescript
+interface DomainRepository {
+  technologies: Map<TechnologySlug, Technology>;
+  blogs: Map<BlogSlug, BlogPost>;
+  projects: Map<ProjectSlug, Project>;
+  adrs: Map<ADRSlug, ADR>;
+  roles: Map<RoleSlug, JobRole>;
+}
+```
+
+Relationships are stored as slug arrays on each entity (e.g., `project.relations.technologies: TechnologySlug[]`).
+To answer "What projects use TypeScript?", the current code does an O(n) scan:
+
+```typescript
+Array.from(repository.projects.values())
+  .filter(p => p.relations.technologies.includes("typescript"))
+```
+
+As content grows and queries become more complex (e.g., "all content mentioning React across all entity types"),
+this approach becomes:
+
+1. **Inefficient**: O(n) scans for every query
+2. **Scattered**: Query logic duplicated across files
+3. **Inflexible**: Adding new cross-domain queries requires touching multiple files
+
+I need a structured way to **index relationships** for efficient querying while maintaining the
+[SSG constraint](/projects/personal-knowledge-graph/adrs/015-ssg) of building everything at compile time.
+
+## What is a "Graph" in This Context?
+
+A **graph** is a data structure where:
+
+* **Nodes** = entities (a Project, a Technology, a Blog Post)
+* **Edges** = relationships between entities ("Project X uses Technology Y")
+
+Unlike a flat list or table, a graph makes relationships first-class citizens.
+You can traverse connections: "Start at TypeScript → find all Projects using it → find all ADRs in those Projects."
+
+## What is an "Index"?
+
+An **index** is a pre-computed lookup table optimized for specific queries.
+Instead of searching through all data every time, you build the answer once and look it up in O(1).
+
+Think of it like the index at the back of a book: instead of scanning every page for "React",
+you look up "React" in the index and get page numbers directly.
+
+In database terms: `SELECT * FROM projects WHERE tech = 'typescript'` would be slow without an index.
+With an index on `tech`, it's instant.
+
+# Decision
+
+I will add a **typed content graph** to the `DomainRepository` that:
+
+* Makes relationships bidirectional by default (reverse edges auto-maintained)
+* Uses composite `NodeId` strings for unified edge storage
+* Provides typed query helpers for common access patterns
+
+```typescript
+type NodeId =
+  | `project:${string}`
+  | `adr:${string}`
+  | `blog:${string}`
+  | `role:${string}`
+  | `technology:${string}`;
+
+interface ContentGraph {
+  edges: {
+    usesTechnology: Map<NodeId, Set<TechnologySlug>>;
+    partOfProject: Map<ADRSlug, ProjectSlug>;
+    supersedes: Map<ADRSlug, ADRSlug>;
+  };
+
+  reverse: {
+    technologyUsedBy: Map<TechnologySlug, Set<NodeId>>;
+    projectADRs: Map<ProjectSlug, Set<ADRSlug>>;
+    supersededBy: Map<ADRSlug, ADRSlug>;
+  };
+}
+
+interface DomainRepository {
+  // ... existing entity maps ...
+  graph: ContentGraph;
+}
+```
+
+## Why This Approach?
+
+**Composite NodeIds** (`"project:personal-knowledge-graph"`) provide:
+
+* Unified edge storage without cartesian explosion of typed maps
+* Template literal types for compile-time validation of the prefix
+* Simple string keys that work naturally with Map
+
+**Separate forward/reverse edges** with automatic maintenance means:
+
+* Bidirectionality is inherent. Add an edge once, traverse both directions
+* No risk of forward/reverse getting out of sync
+
+**Typed query helpers** preserve type safety at the API level:
+
+```typescript
+getTechnologiesForProject(graph, projectSlug): Set<TechnologySlug>
+getContentUsingTechnology(graph, techSlug): Set<NodeId>
+getADRsForProject(graph, projectSlug): Set<ADRSlug>
+```
+
+## Query Strategy: Graph + Ad-Hoc Functions
+
+For **simple queries** (single-hop lookups), use typed query helpers:
+
+```typescript
+const techs = getTechnologiesForProject(repo.graph, projectSlug);
+const usedBy = getContentUsingTechnology(repo.graph, "typescript");
+```
+
+For **complex queries** (multi-hop, filtering, aggregation), write purpose-built functions:
+
+```typescript
+function getPersonalProjectsWithWorkTech(repo: DomainRepository): Project[] {
+  const results: Project[] = [];
+  for (const [projectSlug, project] of repo.projects) {
+    const projectTechs = getTechnologiesForProject(repo.graph, projectSlug);
+    for (const techSlug of projectTechs) {
+      const usedBy = getContentUsingTechnologyByType(repo.graph, techSlug);
+      for (const roleSlug of usedBy.roles) {
+        const role = repo.roles.get(roleSlug)!;
+        if (!dateRangesOverlap(project.date, role.startDate, role.endDate)) {
+          results.push(project);
+          break;
+        }
+      }
+    }
+  }
+  return results;
+}
+```
+
+This is similar to what you'd write with an ORM.
+The graph provides O(1) lookups at each hop; the function composes them for the specific query.
+
+If repeated patterns emerge (many similar nested-loop queries), we can extract a traversal API later.
+The graph is the foundation either way.
+
+## How the Graph Is Built
+
+At load time, after all entities are loaded and validated:
+
+```typescript
+function buildContentGraph(entities: DomainEntities): ContentGraph {
+  const graph = initializeEmptyGraph();
+
+  for (const [slug, project] of entities.projects) {
+    const nodeId = makeNodeId("project", slug);
+    graph.edges.usesTechnology.set(nodeId, new Set(project.relations.technologies));
+    for (const tech of project.relations.technologies) {
+      graph.reverse.technologyUsedBy.get(tech)?.add(nodeId);
+    }
+  }
+  // Similar for ADRs, blogs, roles...
+  return graph;
+}
+```
+
+This runs once during `loadDomainRepository()`. All subsequent queries are O(1) lookups.
+
+# Alternatives Considered
+
+## Alternative 1: SQLite/DuckDB at Build Time
+
+Store content in a SQL database during the build, run queries, output static JSON.
+
+```typescript
+// Build script
+db.exec(`INSERT INTO projects (slug, title) VALUES (?, ?)`, project.slug, project.title);
+db.exec(`INSERT INTO project_tech (project_id, tech_id) VALUES (?, ?)`, ...);
+
+// Query
+const results = db.all(`
+  SELECT p.* FROM projects p
+  JOIN project_tech pt ON p.slug = pt.project_id
+  WHERE pt.tech_id = 'typescript'
+`);
+```
+
+**Pros:**
+
+* Familiar SQL query language
+* Real relational model with JOIN support
+* Battle-tested query optimizer
+* Schema migrations are well-understood
+* Scales/translates well to new initiatives
+
+**Cons:**
+
+* **Runtime dependency**: Need SQLite bindings (native module), complicates builds
+* **Type safety gap**: SQL queries are strings. No compile-time checking that column names exist or types match
+* **Impedance mismatch**: Still need to hydrate results back into TypeScript objects
+* **Overkill**: For \~50 entities and simple relationship queries, SQL overhead isn't justified
+* **Build complexity**: Database must be created, populated, and queried during build
+
+**Why not now**: The content volume is small (\~30 ADRs, \~12 projects, \~12 blog posts).
+In-memory TypeScript Maps are simpler, faster, and fully type-safe.
+SQL's power (complex JOINs, aggregations, subqueries) isn't needed yet.
+
+**Escape hatch**: The typed index design mirrors SQL tables.
+`technologyUsage.projects` maps to `SELECT project_id FROM project_tech WHERE tech_id = ?`.
+Migration path is clear if needed.
+
+## Alternative 2: Headless CMS (Contentful, Sanity, Strapi)
+
+Move content out of git into a managed CMS with built-in relational modeling and GraphQL/REST APIs.
+
+**What CMS relationship handling actually provides:**
+
+* **Declarative schema**: Define `Project.technologies: Reference[] -> Technology` once in a UI, and the CMS enforces it everywhere
+* **Automatic bidirectional queries**: Query `technology.usedBy.projects` without building indexes. It just works
+* **UI-enforced referential integrity**: Content editors pick from dropdowns of valid references, can't create dangling pointers
+* **Cascading awareness**: Warns before deleting a Technology that would break Project references
+* **GraphQL with nested resolution**: `{ project { technologies { name } } }` resolves automatically
+
+This is genuinely valuable. CMSes solve the relationship problem elegantly for their use case.
+
+**What we're replicating manually:**
+
+| CMS Feature               | Our Equivalent                                 |
+| ------------------------- | ---------------------------------------------- |
+| Declarative schema        | Zod schemas in code                            |
+| UI-enforced references    | `validateReferentialIntegrity()` at build time |
+| Bidirectional queries     | Typed indexes                                  |
+| GraphQL nested resolution | Query functions with view projections          |
+| Cascading delete warnings | Not implemented (we deprecate, don't delete)   |
+
+**Pros:**
+
+* Rich content modeling UI
+* Built-in relationship handling (see above)
+* Non-developer content editing
+* Real-time preview
+* Media management included
+
+**Cons:**
+
+* **Vendor lock-in**: Content trapped in proprietary format, export is painful
+* **Cost**: Free tiers are limited; scales to $99+/month for serious usage
+* **Build-time fetch**: Still need to fetch at build time for SSG, adding network latency and failure modes
+* **Loss of "content as code"**: Can't grep content, can't use Claude Code to edit blog posts, content diverges from codebase
+* **Type safety gap**: CMS schemas don't generate TypeScript types automatically (some do with plugins, but it's friction)
+
+**Why not now**: We can replicate the useful relationship handling
+(bidirectional queries, referential integrity) in TypeScript with full type safety.
+The "content as code" principle from [ADR 015](/projects/personal-knowledge-graph/adrs/015-ssg) is more valuable for this project.
+I want content version-controlled alongside code, editable by Claude Code, reviewable in PRs.
+A CMS would give us better relationship UX but take away the more productive developer workflow.
+
+## Alternative 3: Full Graph Database (Neo4j, EdgeDB)
+
+Use a purpose-built graph database with native traversal queries.
+
+```cypher
+// Neo4j Cypher
+MATCH (t:Technology {slug: 'typescript'})<-[:USES]-(p:Project)-[:HAS_ADR]->(a:ADR)
+RETURN p, collect(a) as adrs
+```
+
+**Pros:**
+
+* Native graph traversals (multi-hop queries are elegant)
+* Purpose-built for relationship-heavy data
+* Pattern matching queries
+
+**Cons:**
+
+* **Massive overkill**: Graph databases shine with millions of nodes and complex traversals. This site has \~100 nodes and simple 1-hop lookups.
+* **Operational complexity**: Need to run/host a database server
+* **Learning curve**: Cypher/GraphQL query languages to learn
+* **Cost**: Neo4j Aura free tier is limited; self-hosting requires infrastructure
+
+**Why not now**: We're not doing "find me all technologies that are 3 degrees of separation from TypeScript."
+Simple forward/reverse lookups don't need a graph database.
+
+## Alternative 4: Typed Indexes (Separate Maps per Relationship)
+
+Build separate typed maps for each (entity type, relationship) combination:
+
+```typescript
+interface DomainIndexes {
+  projectTechnologies: Map<ProjectSlug, Set<TechnologySlug>>;
+  adrTechnologies: Map<ADRSlug, Set<TechnologySlug>>;
+  blogTechnologies: Map<BlogSlug, Set<TechnologySlug>>;
+  roleTechnologies: Map<RoleSlug, Set<TechnologySlug>>;
+  // Plus reverse indexes...
+  technologyProjects: Map<TechnologySlug, Set<ProjectSlug>>;
+  technologyADRs: Map<TechnologySlug, Set<ADRSlug>>;
+  // etc.
+}
+```
+
+**Pros:**
+
+* Maximum type safety. Each map has fully typed keys and values
+* No NodeId parsing needed
+* Direct mapping to SQL tables
+
+**Cons:**
+
+* **Cartesian explosion**: N entity types × M relationship types = many maps to maintain
+* **Manual bidirectionality**: Must remember to update both forward and reverse maps
+* **Repetitive**: Similar logic repeated for each entity type
+
+**Why not now**: The composite NodeId approach gives us unified storage without sacrificing
+type safety at the query layer. We avoid the proliferation of maps while still getting
+typed query helpers.
+
+## Alternative 5: Graph Traversal Query API
+
+Build a fluent API for multi-hop queries on top of the content graph:
+
+```typescript
+repo.graph.query()
+  .from("project")
+  .traverse("technologies")
+  .traverse("roles")
+  .filter((project, role) => !dateRangesOverlap(project, role))
+  .collect()  // Returns Role[]
+```
+
+This would provide SQL-like expressiveness for complex queries like
+"projects using technologies that are also used at job roles, but where the project wasn't done during that job."
+
+**Pros:**
+
+* Expressive multi-hop queries
+* Composable and chainable
+* Could be fully type-safe (TypeScript tracks node type through chain)
+* \~100-200 lines to implement
+
+**Cons:**
+
+* Abstraction overhead for queries we may not need
+* Custom DSL to learn and maintain
+* Simple queries don't benefit (direct index access is cleaner)
+
+**Decision**: Keep this in the back pocket. Start with the content graph and write ad-hoc query functions as needed.
+If we find ourselves writing the same nested-loop pattern repeatedly, the traversal API becomes worth building.
+The graph is the foundation either way. The traversal API would just be a fluent wrapper on top.
+
+# Consequences
+
+## Positive
+
+* **O(1) Query Performance**: All relationship lookups are constant-time Map/Set operations. No scanning.
+* **Inherent Bidirectionality**: Add an edge once, traverse in both directions. Reverse edges are auto-maintained.
+* **Type Safety at API Layer**: Query helpers return typed results. NodeId parsing is encapsulated.
+* **No Cartesian Explosion**: Unified edge storage via NodeIds avoids proliferating typed maps.
+* **Clear SQL Migration Path**: Edge maps become join tables. Query helpers become SQL queries.
+* **Single Source of Truth**: Graph is derived from entity relations. No separate data to sync.
+* **Zero Runtime Dependencies**: No native modules, no database drivers, no external services. Pure TypeScript.
+* **Matches Domain Language**: `getTechnologiesForProject()`, `getContentUsingTechnology()` - API reads like the domain.
+
+## Negative
+
+* **Memory Usage**: Graph lives in memory during build. With \~100 entities, this is negligible. At 10,000+ entities, may need to reconsider.
+* **Build Time**: Graph building adds O(n) time to repository loading. Currently imperceptible. May matter at scale.
+* **NodeId Parsing**: Query helpers need to parse NodeIds to return typed slugs. Adds a small abstraction layer.
+* **Not a Query Language**: Complex ad-hoc queries still require custom code. No `SELECT * WHERE x AND y ORDER BY z` equivalent.
+* **Duplication with `Technology.relations`**: The existing `buildTechnologyRelations()` populates reverse references on Technology entities. The graph partially duplicates this. Could clean up later.
+
+## Future Migration Triggers
+
+Consider migrating to SQLite/DuckDB when:
+
+* Content exceeds \~1,000 entities
+* Build times exceed 30 seconds for graph building
+* Need complex queries (multi-table JOINs, aggregations, full-text search)
+* Need to query content outside the Next.js build (e.g., API routes, edge functions)
+
+The graph design makes this migration straightforward:
+each edge map becomes a SQL join table with appropriate indexes.

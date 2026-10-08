@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatADRIndex,
+  formatADRSlugIndex,
   normalizeADRTitle,
   parseADRRef,
 } from "@/lib/domain/adr/adr";
@@ -13,6 +14,17 @@ describe("ADR utilities", () => {
     expect(formatADRIndex(123)).toBe("123");
   });
 
+  it("formats the stable numeric prefix from an ADR slug", () => {
+    expect(formatADRSlugIndex("067-versioned-density-catalog")).toBe("067");
+    expect(formatADRSlugIndex("7-short-slug")).toBe("007");
+    expect(formatADRSlugIndex("000-all-zero-prefix")).toBe("000");
+    expect(formatADRSlugIndex("adr-without-number")).toBe("---");
+  });
+
+  it("rejects numeric prefixes that cannot be represented exactly", () => {
+    expect(formatADRSlugIndex("999999999999999999999999-my-adr")).toBe("---");
+  });
+
   it("normalizes ADR title by removing prefixed ADR number", () => {
     expect(normalizeADRTitle("ADR 014: SSG")).toBe("SSG");
     expect(normalizeADRTitle("ADR 025: Content Graph Indexes")).toBe(
@@ -22,9 +34,9 @@ describe("ADR utilities", () => {
   });
 
   it("parses ADRRef with a single separator", () => {
-    const parsed = parseADRRef("personal-site:014-ssg");
+    const parsed = parseADRRef("personal-knowledge-graph:014-ssg");
     expect(parsed).toEqual({
-      projectSlug: "personal-site",
+      projectSlug: "personal-knowledge-graph",
       adrSlug: "014-ssg",
     });
   });

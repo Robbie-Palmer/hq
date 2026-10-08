@@ -1,6 +1,6 @@
 # Bound by the home overlay to hostPath persistent volumes on the single
 # storage-media node, so app state survives VM rebuilds and the media library
-# cannot bind to a pod on the wrong node (ADR 023).
+# cannot bind to a pod on the wrong node (ADR 020).
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

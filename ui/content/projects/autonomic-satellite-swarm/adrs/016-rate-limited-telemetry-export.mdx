@@ -1,0 +1,98 @@
+---
+title: "ADR 016: Rate-Limited Telemetry Export"
+status: "Accepted"
+date: "2026-09-13"
+---
+
+# Context
+
+[ADR 013](/projects/autonomic-satellite-swarm/adrs/013-bounded-controller-telemetry) added a
+fixed-capacity queue so coordination and health handling never wait for an observer. The queue
+deliberately stopped before I/O. An adapter calling `readTelemetry()` on every loop could still
+consume unbounded link time, and a failed write would lose the record it had already removed.
+
+The coordination protocol uses small messages with retry and state-transition semantics. Telemetry
+has different routing, retention, and delivery needs. Treating a telemetry record as another
+coordination message would make diagnostic congestion compete directly with mission negotiation.
+The project also lacks measured radio capacity, so it cannot justify one flight transmission rate.
+
+# Decision
+
+Keep telemetry export outside `SwarmController`. Add a portable `TelemetryTransmitter` between the
+controller queue and a platform-owned `TelemetrySink`. The platform calls the controller first and
+then grants or withholds telemetry access to its output channel. A shared-radio adapter must withhold
+that grant while coordination or safety traffic needs the channel. A dedicated diagnostic link can
+grant it on every loop.
+
+The transmitter attempts at most one record per call and at most one record per configured interval.
+It rate-limits attempts rather than successful sends, so a rejecting sink cannot create a tight retry
+loop. It peeks at the oldest queued record and removes it only after the sink accepts it. A rejection
+leaves the record queued for the next interval. Attempt, success, and rejection counters saturate
+instead of wrapping. The transmitter does not emit telemetry about its own failures because doing so
+could sustain an event storm.
+
+Encode each exported record in a fixed 34-byte version-one frame:
+
+```text
+magic/version, event type, reason, priority, node, related node,
+previous state, current state, value,
+emitter boot epoch, record sequence, timestamp, cumulative drops,
+mission origin, mission boot epoch, mission sequence, reserved byte, CRC-8
+```
+
+Multi-byte values use big-endian order. The frame carries every field in `TelemetryEvent`, rejects
+unknown enum values and malformed mission keys, and uses the same CRC-8 polynomial as the
+coordination codec. It uses a separate frame type and never enters the coordination protocol.
+
+The Uno and ESP32 reference adapters send at most one frame per second over their dedicated serial
+diagnostic link. They check serial capacity before encoding and writing. Their IR and ESP-NOW
+coordination transports remain unchanged. The deterministic simulation continues to drain the queue
+directly because it records complete internal evidence rather than modelling a limited downlink.
+
+# Alternatives
+
+## Drain the queue directly in every loop
+
+This needs no new type, but it gives the adapter no common retry or rate rule. A busy loop can spend
+most of its time on telemetry, and removing a record before a failed write loses evidence silently.
+
+## Send telemetry through the coordination message codec
+
+One transport path looks simpler. It would enlarge or fragment the 18-byte control packet and mix
+best-effort observation with messages that change controller state. The two protocols can share a
+physical radio later without sharing framing or scheduling rules.
+
+## Remove a record even when the sink rejects it
+
+This keeps the transmitter stateless, but it turns temporary backpressure into invisible loss. The
+bounded queue already has explicit admission and drop accounting, so a rejected output should leave
+the record there until normal queue pressure decides its fate.
+
+## Use a token bucket
+
+A byte-based token bucket can model burst and long-term link budgets. No measured downlink budget
+exists yet, and every version-one frame has the same size. A fixed interval is smaller, deterministic,
+and sufficient for the current serial experiment. Revisit this when a shared radio supplies real
+capacity and duty-cycle measurements.
+
+# Acceptance evidence
+
+Codec tests round-trip every field, check byte order and checksum, and reject corrupt frames, unknown
+types, invalid node identities, and malformed mission keys. Transmitter tests prove channel deferral,
+one-record interval enforcement, retry without dequeue, zero-interval normalization, and unsigned
+clock rollover.
+
+Native, sanitizer, and WebAssembly builds compile the same portable implementation. Both firmware
+targets instantiate the transmitter and codec. The Uno build must retain at least 768 bytes of free
+static SRAM.
+
+# Consequences
+
+The reference devices now expose controller evidence outside the process at a bounded rate. Sink
+backpressure cannot spin or silently consume the head record. Platforms can keep telemetry below
+coordination traffic without putting output policy inside the state machine.
+
+Queue growth and drops are expected when records arrive faster than one per second. The one-second
+interval applies only to the bench experiment. The frame has corruption detection but no delivery
+acknowledgement, authentication, encryption, replay protection, routing, or fragmentation. A shared
+radio integration must define those properties and measure its effect on mission traffic before use.

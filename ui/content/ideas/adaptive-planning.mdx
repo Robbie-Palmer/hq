@@ -1,0 +1,184 @@
+---
+title: "Adaptive Planning"
+description: "Hold the goal steady, treat the plan as a hypothesis, and revise the route as work produces evidence."
+source_url: "https://www.gov.uk/government/publications/uk-defence-doctrine-jdp-0-01"
+related_ideas:
+  - "epistemology"
+  - "directed-acyclic-graph"
+  - "goodharts-law"
+---
+
+Adaptive planning holds a goal steady while repeatedly changing the route used
+to reach it. The plan is the best current hypothesis about what to do. It will
+be wrong because it rests on incomplete knowledge and because doing the work
+changes what is known.
+
+This makes a plan valuable without making it sacred. Its job is to coordinate
+the next action, expose dependencies, and create evidence. When the evidence
+contradicts the plan, revise the plan. Defending it would confuse consistency
+with progress.
+
+Changing the goal is a different act. Within one planning loop, the goal defines
+success and remains fixed. If the goal changes, begin a new loop and judge the
+existing plan against the new goal.
+
+## Fixed ends, revisable means
+
+Military doctrine makes this distinction explicit. The UK's
+[Defence Doctrine](https://www.gov.uk/government/publications/uk-defence-doctrine-jdp-0-01)
+describes strategy in terms of ends, ways, and means. It says that execution will
+unavoidably require adaptation: the ends should generally remain constant while
+the ways and means are adjusted.
+
+The same distinction appears in project research. Turner and Cochrane's
+[goals-and-methods matrix](https://doi.org/10.1016/0263-7863%2893%2990017-H)
+separates how well the goal is understood from how well the method is understood.
+A project can have a clear goal while the method for achieving it remains
+uncertain. In that case, discovering the method is part of the work.
+
+Military mission command deals with this condition by giving people the purpose
+and desired end state, then allowing initiative when events depart from the
+order. The US Army's
+[description of commander's intent](https://www.army.mil/article/215297/mission_command_requires_sharp_commanders_intent)
+emphasises the end state and gives subordinates room to choose the ways and
+means. A detailed order cannot anticipate every event, but a shared intent can
+still coordinate action.
+
+## A plan is a set of assumptions
+
+The fallibilist strand of [epistemology](/ideas/epistemology) explains why action
+does not require certainty. A belief may be justified while remaining open to
+correction. Planning applies the same stance to action: proceed on the strongest
+account available and state what would cause it to be revised.
+
+RAND's
+[assumption-based planning](https://www.rand.org/pubs/monograph_reports/MR114.html)
+makes the logic operational. It identifies critical assumptions whose failure
+would force a major change, signposts that warn an assumption is failing,
+and actions that shape or hedge against the consequences. McGrath and MacMillan's
+[discovery-driven planning](https://hbr.org/1995/07/discovery-driven-planning)
+similarly treats milestones as tests of assumptions. Under high uncertainty,
+the point of early work is to buy useful knowledge before committing more
+resources.
+
+This changes what belongs in a plan. Record the goal, constraints, dependencies,
+current assumptions, and tests that could disprove them. Describe distant work
+only as far as the evidence warrants. PMI's account of
+[rolling-wave planning](https://www.pmi.org/learning/library/manage-innovation-programs-rolling-wave-3515)
+uses detailed plans for the current horizon and fills in later work as uncertainty
+is removed. Premature detail gives weak assumptions the appearance of fact and
+creates a plan that costs money to maintain.
+
+## The graph is provisional
+
+A [directed acyclic graph](/ideas/directed-acyclic-graph) can represent the
+current route to the goal. Its dependency edges expose the current critical path
+and show which work can proceed in parallel. They do not turn the route into a
+prediction.
+
+Downstream nodes inherit unresolved questions from their ancestors. They should
+therefore become less detailed and easier to replace as those questions
+accumulate. Graph depth is only a warning. A routine task may sit deep in the
+graph, while an immediate experiment may have a highly uncertain result. The
+actual sources of uncertainty are the assumptions attached to the nodes and
+edges.
+
+The critical path is provisional too. Herroelen and Leus found that most project
+scheduling research assumed complete information and a static environment,
+although real activity durations are uncertain and become known during
+execution. Their
+[survey of scheduling under uncertainty](https://doi.org/10.1016/j.ejor.2004.04.002)
+covers reactive, stochastic, and robust approaches. An adaptive planner should
+recompute the critical path when evidence changes durations, dependencies, or
+the work itself.
+
+## Keep the queue fluid and work in flight stable
+
+Unstarted work is an option. Replenish and reprioritise the queue whenever new
+evidence changes the best route. When capacity appears, pull the
+highest-priority eligible item. Commitment begins when work starts.
+
+This follows the flow logic in the
+[Kanban Guide](https://kanbanguides.org/the-kanban-guide/). Controlling work in
+progress creates a pull system in which new work starts when capacity is
+available. Kanban measures cycle time from an item's start to its finish and
+bases its service-level expectation on historical cycle time. That is the useful
+forecasting boundary: estimate the delivery of work in flight rather than assign
+dates to an uncertain chain of future tasks.
+
+Work in flight deserves stability because interruption discards context and may
+leave partial work behind. Stability still has a limit. Stop or redirect active
+work when evidence shows that completing it will no longer advance the goal, or
+when the cost of continuing exceeds the cost of interruption.
+
+Herroelen and Leus call the disruption caused by frequent rescheduling
+**nervousness**. Adaptive planning therefore has two different change costs:
+reordering an unstarted queue should be cheap; changing active work should clear
+a much higher threshold. This asymmetry permits continual adaptation without
+continual thrashing.
+
+## Test the plan before committing to it
+
+Wargaming creates evidence about a plan without paying the full cost of executing
+it. The UK Ministry of Defence
+[Wargaming Handbook](https://www.gov.uk/government/publications/defence-wargaming-handbook)
+places wargaming in planning and executive decision-making. Its guidance on
+[wargaming and red teaming](https://moderncivilservice.blog.gov.uk/2023/11/06/skills-wargaming-and-red-teaming-how-the-mod-is-challenging-defence-thinking/)
+uses structured simulation to expose flawed logic, hidden assumptions, and
+consequences.
+
+Experiments, prototypes, rehearsals, and simulations perform the same planning
+function. Each should target a decision. If no plausible result would change
+the plan, the exercise produces information without adaptation.
+
+Adaptive planning can therefore be stated as a short loop:
+
+1. Fix the goal and the constraints that define acceptable action.
+2. Build the smallest plan that exposes ready work, dependencies, and the
+   current critical path.
+3. Attach critical assumptions to the parts of the plan that depend on them.
+4. Pull eligible work when capacity becomes available and protect it from weak
+   priority changes.
+5. Treat results as evidence. Update assumptions, replace affected branches,
+   recompute the critical path, and reprioritise the queue.
+6. Repeat until the goal is reached or explicitly replaced.
+
+The discipline lies in doing both halves. Act despite uncertainty. Abandon a
+route when the evidence turns against it.
+
+## Sources
+
+* Ministry of Defence. [*Joint Doctrine Publication 0-01, UK Defence
+  Doctrine*](https://www.gov.uk/government/publications/uk-defence-doctrine-jdp-0-01).
+  Sixth edition, 2022.
+* Perna, Gustave.
+  ["Mission command requires sharp commander's
+  intent"](https://www.army.mil/article/215297/mission_command_requires_sharp_commanders_intent).
+  US Army, 2019.
+* Turner, J. R., and R. A. Cochrane.
+  ["Goals-and-methods matrix: coping with projects with ill defined goals and/or
+  methods of achieving them"](https://doi.org/10.1016/0263-7863%2893%2990017-H).
+  *International Journal of Project Management* 11, no. 2, 1993.
+* Dewar, James A., Carl H. Builder, William M. Hix, and Morlie Hammer Levin.
+  [*A Planning Tool for Very Uncertain
+  Times*](https://www.rand.org/pubs/monograph_reports/MR114.html). RAND, 1993.
+* McGrath, Rita Gunther, and Ian C. MacMillan.
+  ["Discovery-Driven Planning"](https://hbr.org/1995/07/discovery-driven-planning).
+  *Harvard Business Review*, July-August 1995.
+* Githens, Gregory D.
+  ["Manage Innovation Programs With a Rolling
+  Wave"](https://www.pmi.org/learning/library/manage-innovation-programs-rolling-wave-3515).
+  *PM Network* 15, no. 5, 2001.
+* Herroelen, Willy, and Roel Leus.
+  ["Project scheduling under uncertainty: Survey and research
+  potentials"](https://doi.org/10.1016/j.ejor.2004.04.002).
+  *European Journal of Operational Research* 165, no. 2, 2005.
+* Coleman, John, and Daniel Vacanti.
+  [*The Kanban Guide*](https://kanbanguides.org/the-kanban-guide/). May 2025.
+* Ministry of Defence.
+  [*Wargaming Handbook*](https://www.gov.uk/government/publications/defence-wargaming-handbook).
+  2017\.
+* Savage, David, and Rupert Mott.
+  ["Wargaming and Red Teaming: How the MoD is challenging defence
+  thinking"](https://moderncivilservice.blog.gov.uk/2023/11/06/skills-wargaming-and-red-teaming-how-the-mod-is-challenging-defence-thinking/).
+  Ministry of Defence, 2023.

@@ -32,11 +32,11 @@ Entry points for the external services this repo depends on.
 - [PostHog](https://app.posthog.com/), analytics plus OTLP traces and logs
   exported by [`packages/observability`](../packages/observability/README.md).
 - [SonarCloud project](https://sonarcloud.io/project/overview?id=Robbie-Palmer_personal-site).
-- [OpenSSF Scorecard](https://scorecard.dev/viewer/?uri=github.com/Robbie-Palmer/personal-site).
+- [OpenSSF Scorecard](https://scorecard.dev/viewer/?uri=github.com/Robbie-Palmer/hq).
 
 ## Automation
 
-- [GitHub repository](https://github.com/Robbie-Palmer/personal-site).
-- [Renovate dashboard](https://developer.mend.io/github/Robbie-Palmer/personal-site),
+- [GitHub repository](https://github.com/Robbie-Palmer/hq).
+- [Renovate dashboard](https://developer.mend.io/github/Robbie-Palmer/hq),
   dependency update PRs.
 - [CLA Assistant](https://cla-assistant.io/).

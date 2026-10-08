@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { decideAgentApproval, listAgents, revokeAgent } from "@/lib/api/agents";
+import {
+  createAgentHostEnrollment,
+  decideAgentApproval,
+  FreshSessionRequiredError,
+  listAgents,
+  revokeAgent,
+} from "@/lib/api/agents";
 
 const fetchMock = vi.fn<typeof fetch>();
 
@@ -135,10 +141,119 @@ describe("agent access API", () => {
     );
   });
 
+  it("creates a host enrollment without default capabilities", async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        hostId: "host-1",
+        status: "pending_enrollment",
+        default_capabilities: [],
+        enrollmentToken: "enroll-once",
+        enrollmentTokenExpiresAt: "2026-10-02T13:00:00.000Z",
+      }),
+    );
+
+    await expect(createAgentHostEnrollment("Codex")).resolves.toEqual({
+      hostId: "host-1",
+      token: "enroll-once",
+      expiresAt: "2026-10-02T13:00:00.000Z",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/host/create",
+      expect.objectContaining({
+        method: "POST",
+        credentials: "same-origin",
+        body: JSON.stringify({
+          default_capabilities: [],
+          name: "Codex",
+        }),
+      }),
+    );
+  });
+
+  it("rejects a malformed host enrollment", async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ hostId: "host-1", status: "active" }),
+    );
+
+    await expect(createAgentHostEnrollment("Codex")).rejects.toThrow(
+      "The agent connection response was invalid.",
+    );
+  });
+
   it("rejects a mismatched approval response", async () => {
     fetchMock.mockResolvedValueOnce(
       Response.json({ status: "approved", agentId: "agent-2" }),
     );
+
+    await expect(
+      decideAgentApproval({
+        agentId: "agent-1",
+        code: "ABCD-1234",
+        action: "approve",
+      }),
+    ).rejects.toThrow("The approval decision response was invalid.");
+  });
+
+  it("accepts a matching approval response", async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ status: "approved", agentId: "agent-1" }),
+    );
+
+    await expect(
+      decideAgentApproval({
+        agentId: "agent-1",
+        code: "ABCD-1234",
+        action: "approve",
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("surfaces an approval error returned with a successful HTTP status", async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        error: "fresh_session_required",
+        message:
+          "A fresh authentication session is required for this operation. Please re-authenticate and try again.",
+      }),
+    );
+
+    await expect(
+      decideAgentApproval({
+        agentId: "agent-1",
+        code: "ABCD-1234",
+        action: "approve",
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining({
+        name: "FreshSessionRequiredError",
+        message:
+          "A fresh authentication session is required for this operation. Please re-authenticate and try again.",
+      }),
+    );
+  });
+
+  it("normalises a forbidden fresh-session response", async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json(
+        {
+          error: "fresh_session_required",
+          message: "Confirm your identity.",
+        },
+        { status: 403 },
+      ),
+    );
+
+    await expect(
+      decideAgentApproval({
+        agentId: "agent-1",
+        code: "ABCD-1234",
+        action: "approve",
+      }),
+    ).rejects.toBeInstanceOf(FreshSessionRequiredError);
+  });
+
+  it("rejects a malformed approval response", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ status: "pending" }));
 
     await expect(
       decideAgentApproval({
