@@ -17,6 +17,7 @@ import { AccountsTable } from "@/components/assettracker/accounts-table";
 import { AssetAllocationHistoryChart } from "@/components/assettracker/asset-allocation-history-chart";
 import { AssetTrackerDashboard } from "@/components/assettracker/asset-tracker-dashboard";
 import { useAssetTracker } from "@/components/assettracker/asset-tracker-provider";
+import { DecisionScenarioComparison } from "@/components/assettracker/decision-scenario-comparison";
 import { FlowSankeyChart } from "@/components/assettracker/flow-sankey-chart";
 import { ForecastAssumptionManager } from "@/components/assettracker/forecast-assumption-manager";
 import { FutureCashFlowManager } from "@/components/assettracker/future-cash-flow-manager";
@@ -27,7 +28,6 @@ import {
   formatRunwayDuration,
   plannedExpenditureSourceId,
   RunwayChartTooltip,
-  RunwayForecast,
 } from "@/components/assettracker/runway-forecast";
 import { UpcomingFlows } from "@/components/assettracker/upcoming-flows";
 import {
@@ -56,6 +56,20 @@ vi.mock("recharts", () => ({
     <div data-chart-data={JSON.stringify(data)} data-testid="line-chart">
       {children}
     </div>
+  ),
+  ComposedChart: ({
+    children,
+    data,
+  }: {
+    children: ReactNode;
+    data: unknown[];
+  }) => (
+    <div data-chart-data={JSON.stringify(data)} data-testid="composed-chart">
+      {children}
+    </div>
+  ),
+  Area: ({ dataKey }: { dataKey: string }) => (
+    <div data-range-series={dataKey} />
   ),
   Line: ({ dataKey, dot }: { dataKey: string; dot?: boolean }) => (
     <div
@@ -253,6 +267,23 @@ function mockAssetTracker(
       monthlySideIncome: 0,
       annualInflationRate: 0.025,
     },
+    compareDecisionScenario: vi.fn(() => ({
+      requestedDecisionIds: [],
+      includedDecisionIds: [],
+      includedDependencyIds: [],
+      warnings: [],
+      materialDates: [],
+      timeline: [],
+      goalDates: {
+        baseline: null,
+        lowCost: null,
+        expected: null,
+        highCost: null,
+      },
+      actions: [],
+      fundingMechanics: [],
+      judgments: [],
+    })),
     incomeHistory: [],
     financialIndependence: EMPTY_FI,
     housingPlanningPosition: null,
@@ -522,7 +553,7 @@ describe("PortfolioGoal", () => {
           id: "open-isa",
           name: "Open ISA",
           provider: "Broker",
-          currency: "GBP",
+          currency: "GBP" as const,
           assetType: "stocks",
           expectedAnnualReturn: 0.07,
           isOpen: true,
@@ -534,7 +565,7 @@ describe("PortfolioGoal", () => {
           id: "closed-isa",
           name: "Closed ISA",
           provider: "Broker",
-          currency: "GBP",
+          currency: "GBP" as const,
           assetType: "stocks",
           expectedAnnualReturn: 0.07,
           isOpen: false,
@@ -884,7 +915,7 @@ describe("RunwayForecast", () => {
       addCommitment,
     });
 
-    render(<RunwayForecast />);
+    render(<FutureCashFlowManager />);
 
     await userEvent.type(screen.getByLabelText("Name"), "New car");
     await userEvent.type(screen.getByLabelText("Amount"), "12000");
@@ -935,6 +966,282 @@ describe("RunwayForecast", () => {
     ).toBe("stocks-isa");
     expect(plannedExpenditureSourceId([currentAccount], "stocks-isa")).toBe(
       "current",
+    );
+  });
+});
+
+describe("DecisionScenarioComparison", () => {
+  it("compares selected choices without collapsing judgment inputs into a score", async () => {
+    const decision = {
+      id: "extension",
+      name: "Extension",
+      planningCaseId: "home",
+      kind: "decision" as const,
+      status: "selected" as const,
+      importance: "More living space",
+      confidence: 0.6,
+      reversibility: "irreversible" as const,
+      dependencyIds: [],
+      alternativeToIds: [],
+      labels: [],
+      currency: "GBP" as const,
+      stages: [
+        {
+          id: "build",
+          fromAccountId: "current",
+          expectedDate: "2027-07-01",
+          minimumAmount: 35_000,
+          expectedAmount: 45_000,
+          maximumAmount: 55_000,
+          actuals: [],
+        },
+      ],
+    };
+    const metrics = {
+      cashBalance: 20_000,
+      liquidBalance: 60_000,
+      totalBalance: 150_000,
+      cashMonths: 8,
+      liquidMonths: 24,
+      totalMonths: 60,
+      reserveCoverageMonths: 5,
+      accountShortfalls: [],
+    };
+    const compareDecisionScenario = vi.fn(() => ({
+      requestedDecisionIds: ["extension"],
+      includedDecisionIds: ["extension"],
+      includedDependencyIds: [],
+      warnings: [],
+      materialDates: ["2027-07-01"],
+      timeline: [
+        {
+          date: "2027-07-01",
+          isMaterialDate: true,
+          baseline: { ...metrics, cashBalance: 65_000, totalBalance: 195_000 },
+          lowCost: { ...metrics, cashBalance: 30_000, totalBalance: 160_000 },
+          expected: metrics,
+          highCost: { ...metrics, cashBalance: 10_000, totalBalance: 140_000 },
+          cumulativeEffect: {
+            cash: -45_000,
+            liquid: -45_000,
+            total: -45_000,
+            cashMonths: -18,
+            liquidMonths: -18,
+            totalMonths: -18,
+          },
+          marginalEffect: {
+            cash: -45_000,
+            liquid: -45_000,
+            total: -45_000,
+            cashMonths: -18,
+            liquidMonths: -18,
+            totalMonths: -18,
+          },
+          accountEffects: [
+            {
+              accountId: "current",
+              accountName: "Current account",
+              baselineBalance: 65_000,
+              expectedBalance: 20_000,
+              lowCostBalance: 30_000,
+              highCostBalance: 10_000,
+              cumulativeEffect: -45_000,
+              marginalEffect: -45_000,
+            },
+          ],
+        },
+      ],
+      goalDates: {
+        baseline: "2035-01-01",
+        lowCost: "2037-01-01",
+        expected: "2038-01-01",
+        highCost: "2040-01-01",
+      },
+      actions: [
+        {
+          id: "extension:build",
+          date: "2027-07-01",
+          cadence: "once" as const,
+          kind: "payment" as const,
+          name: "Extension",
+          accountName: "Current account",
+          amount: 45_000,
+          currency: "GBP" as const,
+          countsAsExpenditure: true,
+        },
+      ],
+      fundingMechanics: [
+        {
+          id: "extension:build",
+          decisionName: "Extension",
+          stageName: "Payment",
+          accountName: "Current account",
+          fundingMethod: "cash" as const,
+          liquidity: "cash" as const,
+          annualReturn: 0.02,
+          accessDelayDays: 0,
+          currency: "GBP" as const,
+          convertsToBaseCurrency: false,
+          taxAndFees: "Fees are included in the entered amount.",
+        },
+      ],
+      judgments: [
+        {
+          id: "extension",
+          name: "Extension",
+          planningCaseId: "home",
+          importance: "More living space",
+          confidence: 0.6,
+          reversibility: "irreversible" as const,
+        },
+      ],
+    }));
+    mockAssetTracker({
+      futureCashFlows: [decision],
+      planningCases: [{ id: "home", name: "Home work", labels: [] }],
+      emergencyFundPlans: [
+        {
+          id: "reserve-v1",
+          seriesId: "reserve",
+          name: "Reserve",
+          version: 1,
+          status: "active",
+          createdAt: "2026-01-01T12:00:00Z",
+          essentialMonthlyExpenditure: 2_000,
+          annualIrregularEssentialCosts: 0,
+          monthlyDebtPayments: 0,
+          employmentMonthlyIncome: 4_000,
+          monthlySideIncome: 0,
+          accessNeedDays: 7,
+          missingData: [],
+          coverageMonths: [6, 12],
+          accountPolicies: [],
+          stressScenarios: [
+            {
+              id: "loss",
+              name: "Income loss",
+              durationMonths: 6,
+              employmentIncomeLossRate: 1,
+              sideIncomeDelayMonths: 0,
+              unexpectedCost: 0,
+              annualInflationRate: 0,
+            },
+          ],
+        },
+      ],
+      compareDecisionScenario,
+    });
+
+    render(<DecisionScenarioComparison />);
+
+    expect(compareDecisionScenario).toHaveBeenCalledWith({
+      decisionIds: ["extension"],
+      horizonMonths: 60,
+      reserveMonths: 6,
+    });
+    expect(
+      screen.getByRole("img", {
+        name: "Portfolio effect versus committed-only",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("img", {
+        name: "Runway effect versus committed-only",
+      }),
+    ).toBeVisible();
+    await userEvent.click(screen.getByText("View exact figures"));
+    expect(
+      screen.getByRole("table", {
+        name: "Decision effects on material cash-flow dates and at the selected horizon",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getAllByText("5.0 months, below the 6-month preference"),
+    ).toHaveLength(2);
+    await userEvent.click(
+      screen.getByText("Review assumptions and implied actions"),
+    );
+    expect(
+      screen.getByText(
+        "These inputs remain separate. The comparison does not rank the choices.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByText("Jan 2038")).toBeVisible();
+    expect(
+      screen.getByText("Extension · Current account", { exact: false }),
+    ).toBeVisible();
+  });
+
+  it("plots mutually exclusive choices as separate paths", () => {
+    const decisions = [
+      {
+        id: "extension",
+        name: "Extension",
+        kind: "decision" as const,
+        status: "selected" as const,
+        reversibility: "irreversible" as const,
+        dependencyIds: [],
+        alternativeToIds: ["loft"],
+        labels: [],
+        currency: "GBP" as const,
+        stages: [],
+      },
+      {
+        id: "loft",
+        name: "Loft conversion",
+        kind: "decision" as const,
+        status: "considering" as const,
+        reversibility: "irreversible" as const,
+        dependencyIds: [],
+        alternativeToIds: ["extension"],
+        labels: [],
+        currency: "GBP" as const,
+        stages: [],
+      },
+    ];
+    const compareDecisionScenario = vi.fn(
+      ({ decisionIds }: { decisionIds: readonly string[] }) => ({
+        requestedDecisionIds: [...decisionIds],
+        includedDecisionIds: [...decisionIds],
+        includedDependencyIds: [],
+        warnings: [],
+        materialDates: [],
+        timeline: [],
+        goalDates: {
+          baseline: null,
+          lowCost: null,
+          expected: null,
+          highCost: null,
+        },
+        actions: [],
+        fundingMechanics: [],
+        judgments: [],
+      }),
+    );
+    mockAssetTracker({
+      futureCashFlows: decisions,
+      compareDecisionScenario,
+    });
+
+    render(<DecisionScenarioComparison />);
+
+    expect(
+      screen.getByText(
+        "Mutually exclusive choices are shown as separate paths, not added together.",
+      ),
+    ).toBeVisible();
+    expect(compareDecisionScenario).toHaveBeenCalledWith({
+      decisionIds: ["extension"],
+      horizonMonths: 60,
+      reserveMonths: null,
+    });
+    expect(compareDecisionScenario).toHaveBeenCalledWith({
+      decisionIds: ["loft"],
+      horizonMonths: 60,
+      reserveMonths: null,
+    });
+    expect(compareDecisionScenario).not.toHaveBeenCalledWith(
+      expect.objectContaining({ decisionIds: ["extension", "loft"] }),
     );
   });
 });

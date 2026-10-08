@@ -1,7 +1,11 @@
 "use client";
 
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatCurrency } from "@/lib/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { DecisionScenarioComparison } from "./decision-scenario-comparison";
+import { ForecastAssumptionManager } from "./forecast-assumption-manager";
+import { FutureCashFlowManager } from "./future-cash-flow-manager";
 
 function sourceDescription(sourceAccounts: string, snapshotDate?: string) {
   if (sourceAccounts === "") return "Based on explicitly entered assumptions.";
@@ -9,7 +13,60 @@ function sourceDescription(sourceAccounts: string, snapshotDate?: string) {
   return `Based on ${sourceAccounts}${dateDescription}.`;
 }
 
-export function DecisionsRoute() {
+function DecisionRecordCard({
+  decision,
+  scenario,
+  accountNames,
+  baseCurrency,
+}: Readonly<{
+  decision: ReturnType<typeof useAssetTracker>["decisionRecords"][number];
+  scenario: ReturnType<typeof useAssetTracker>["mortgageScenarios"][number];
+  accountNames: Map<string, string>;
+  baseCurrency: ReturnType<typeof useAssetTracker>["baseCurrency"];
+}>) {
+  const sourceAccounts = [
+    scenario.source.mortgageAccountId,
+    scenario.source.propertyAccountId,
+  ]
+    .filter((id): id is string => id != null)
+    .map((id) => accountNames.get(id) ?? id)
+    .join(" and ");
+  const { assumptions } = scenario;
+  const facts = [
+    ["Property", formatCurrency(assumptions.purchasePrice, baseCurrency)],
+    ["Deposit", formatCurrency(assumptions.depositAmount, baseCurrency)],
+    ["Initial rate", `${(assumptions.initialAnnualRate * 100).toFixed(2)}%`],
+    ["Term", `${assumptions.termMonths} months`],
+  ];
+  return (
+    <article className="rounded-lg border p-5">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 className="font-semibold">{decision.title}</h2>
+          <p className="text-xs text-muted-foreground">
+            Recorded {decision.recordedAt}
+          </p>
+        </div>
+        <span className="rounded-full bg-muted px-2 py-1 text-xs">
+          Mortgage
+        </span>
+      </div>
+      <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+        {facts.map(([label, value]) => (
+          <div key={label}>
+            <dt className="text-xs text-muted-foreground">{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-4 text-xs text-muted-foreground">
+        {sourceDescription(sourceAccounts, scenario.source.snapshotDate)}
+      </p>
+    </article>
+  );
+}
+
+function RecordedDecisions() {
   const { accountDetails, baseCurrency, decisionRecords, mortgageScenarios } =
     useAssetTracker();
   const scenarios = new Map(
@@ -36,55 +93,38 @@ export function DecisionsRoute() {
       {decisionRecords.map((decision) => {
         const scenario = scenarios.get(decision.scenarioId);
         if (scenario == null) return null;
-        const sourceAccounts = [
-          scenario.source.mortgageAccountId,
-          scenario.source.propertyAccountId,
-        ]
-          .filter((id): id is string => id != null)
-          .map((id) => accountNames.get(id) ?? id)
-          .join(" and ");
-        const { assumptions } = scenario;
         return (
-          <article key={decision.id} className="rounded-lg border p-5">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <h2 className="font-semibold">{decision.title}</h2>
-                <p className="text-xs text-muted-foreground">
-                  Recorded {decision.recordedAt}
-                </p>
-              </div>
-              <span className="rounded-full bg-muted px-2 py-1 text-xs">
-                Mortgage
-              </span>
-            </div>
-            <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-              <div>
-                <dt className="text-xs text-muted-foreground">Property</dt>
-                <dd>
-                  {formatCurrency(assumptions.purchasePrice, baseCurrency)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-muted-foreground">Deposit</dt>
-                <dd>
-                  {formatCurrency(assumptions.depositAmount, baseCurrency)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-muted-foreground">Initial rate</dt>
-                <dd>{(assumptions.initialAnnualRate * 100).toFixed(2)}%</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-muted-foreground">Term</dt>
-                <dd>{assumptions.termMonths} months</dd>
-              </div>
-            </dl>
-            <p className="mt-4 text-xs text-muted-foreground">
-              {sourceDescription(sourceAccounts, scenario.source.snapshotDate)}
-            </p>
-          </article>
+          <DecisionRecordCard
+            key={decision.id}
+            decision={decision}
+            scenario={scenario}
+            accountNames={accountNames}
+            baseCurrency={baseCurrency}
+          />
         );
       })}
     </div>
+  );
+}
+
+export function DecisionsRoute() {
+  return (
+    <Tabs defaultValue="compare" className="space-y-5">
+      <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
+        <TabsTrigger value="compare">Compare</TabsTrigger>
+        <TabsTrigger value="inputs">Forecast inputs</TabsTrigger>
+        <TabsTrigger value="recorded">Recorded</TabsTrigger>
+      </TabsList>
+      <TabsContent value="compare" className="mt-0">
+        <DecisionScenarioComparison />
+      </TabsContent>
+      <TabsContent value="inputs" className="mt-0 space-y-6">
+        <ForecastAssumptionManager />
+        <FutureCashFlowManager />
+      </TabsContent>
+      <TabsContent value="recorded" className="mt-0">
+        <RecordedDecisions />
+      </TabsContent>
+    </Tabs>
   );
 }
