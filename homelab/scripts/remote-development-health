@@ -95,8 +95,20 @@ test -z "$(
 )"
 systemctl is-active --quiet tailscaled.service
 systemctl is-active --quiet k3s.service
+systemctl is-active --quiet netdata.service
+systemctl is-active --quiet remote-development-kubernetes-api-proxy.service
 systemctl is-enabled --quiet remote-development-workspace-backup.timer
 systemctl is-active --quiet remote-development-workspace-backup.timer
+systemctl is-enabled --quiet remote-development-observability-metrics.timer
+systemctl is-active --quiet remote-development-observability-metrics.timer
+systemctl is-enabled --quiet remote-development-healthcheck-heartbeat.timer
+systemctl is-active --quiet remote-development-healthcheck-heartbeat.timer
+test "$(stat --format=%a /var/lib/remote-development-observability/netdata.env)" = 600
+test "$(stat --format=%a /var/lib/remote-development-observability/healthchecks.env)" = 600
+grep -q '^NETDATA_SLACK_WEBHOOK_URL=https://hooks\.slack\.com/services/' \
+  /var/lib/remote-development-observability/netdata.env
+grep -q '^HEALTHCHECKS_PING_URL=https://hc-ping\.com/' \
+  /var/lib/remote-development-observability/healthchecks.env
 if [ -r /var/lib/remote-development-backup/status.json ]; then
   remote-development-workspace-backup-status \
     | jq --exit-status \
@@ -151,6 +163,43 @@ k3s kubectl get node remote-development \
 k3s kubectl get node remote-development \
   --output=jsonpath='{.metadata.labels.homelab\.dev/capability}{"\n"}' \
   | grep -Fx agent-workspace >/dev/null
+curl --fail --silent --show-error http://127.0.0.1:19999/api/v1/info \
+  | jq --exit-status '.os_name == "NixOS" and .version != null' \
+  >/dev/null
+k3s kubectl --namespace observability rollout status deployment/kube-state-metrics --timeout=120s
+test "$(k3s kubectl --namespace observability get deployment kube-state-metrics --output=jsonpath='{.spec.template.spec.containers[0].resources.limits.memory}')" = 128Mi
+kube_state_metrics=$(curl --fail --silent --show-error \
+  http://127.0.0.1:18080/api/v1/namespaces/observability/services/http:kube-state-metrics:8080/proxy/metrics)
+for metric in \
+  kube_namespace_labels \
+  kube_pod_container_status_last_terminated_reason \
+  kube_pod_container_status_last_terminated_exitcode \
+  kube_pod_container_status_restarts_total \
+  kube_pod_container_status_waiting_reason \
+  kube_pod_status_reason; do
+  grep -q "^# HELP ${metric} " <<<"${kube_state_metrics}"
+done
+systemctl start remote-development-observability-metrics.service
+for _ in $(seq 1 10); do
+  if curl --fail --silent --show-error http://127.0.0.1:19999/api/v1/charts \
+    | jq --exit-status '.charts["remote_development.operator_services"] != null' \
+    >/dev/null; then
+    break
+  fi
+  sleep 1
+done
+curl --fail --silent --show-error http://127.0.0.1:19999/api/v1/charts \
+  | jq --exit-status '
+      .charts["remote_development.operator_quota_bytes"] != null
+      and .charts["remote_development.operator_quota_inodes"] != null
+      and .charts["remote_development.operator_filesystems"] != null
+      and .charts["remote_development.operator_backup"] != null
+      and .charts["remote_development.operator_services"] != null
+      and .charts["remote_development.operator_kubernetes_state"] != null
+      and .charts["remote_development.operator_pressure"] != null
+    ' >/dev/null
+systemctl start remote-development-healthcheck-heartbeat.service
+echo "private Netdata, kube-state-metrics, workspace metrics, and external heartbeat are healthy"
 echo "host, zram, disk headroom, project quotas, Tailscale, and independent K3s server are healthy"
 
 check_workspace() {

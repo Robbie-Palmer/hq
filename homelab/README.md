@@ -340,6 +340,9 @@ and field value. Missing schemas fail the test. The server-side dry run remains
 the final check against the CRD and admission behavior installed on the live
 cluster.
 
+External alert setup and host-replacement steps are in the
+[remote development observability runbook](docs/remote-development-observability.md).
+
 ### Updates, rollback, and backups
 
 Build every NixOS change first, then switch it over the tailnet:

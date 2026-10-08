@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { type SpawnSyncReturns, spawnSync } from "node:child_process";
 import {
+  chmodSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -266,6 +267,228 @@ test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", ()
   }
 });
 
+test("the observability collector attributes quota, backup, and Kubernetes state to operator", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "remote-observability-"));
+  const binaryDirectory = join(temporaryDirectory, "bin");
+  const configPath = join(temporaryDirectory, "metrics.env");
+  const statusPath = join(temporaryDirectory, "status.json");
+  const outputPath = join(temporaryDirectory, "statsd.txt");
+
+  try {
+    mkdirSync(binaryDirectory);
+    const commands: Record<string, string> = {
+      curl: `#!/usr/bin/env bash
+cat <<'METRICS'
+kube_pod_container_status_last_terminated_reason{namespace="t3-code",reason="OOMKilled"} 1
+kube_pod_status_reason{namespace="t3-code",reason="Evicted"} 0
+kube_pod_container_status_waiting_reason{namespace="t3-code",reason="CrashLoopBackOff"} 2
+METRICS
+`,
+      df: `#!/usr/bin/env bash
+if [ "$1" = --output=pcent ]; then
+  printf 'Use%%\\n40%%\\n'
+else
+  printf 'IUse%%\\n10%%\\n'
+fi
+`,
+      repquota: `#!/usr/bin/env bash
+printf '%s\\n' \\
+  'Project,BlockStatus,FileStatus,BlockUsed,BlockSoftLimit,BlockHardLimit,BlockGrace,FileUsed,FileSoftLimit,FileHardLimit,FileGrace' \\
+  '#2000,--,--,1024,0,57671680,,20,0,3000000,' \\
+  '#2002,--,--,2048,0,31457280,,40,0,2000000,'
+`,
+      systemctl: "#!/usr/bin/env bash\nexit 0\n",
+    };
+    for (const [name, content] of Object.entries(commands)) {
+      const path = join(binaryDirectory, name);
+      writeFileSync(path, content);
+      chmodSync(path, 0o755);
+    }
+    writeFileSync(
+      configPath,
+      [
+        "WORKSPACE_ID=operator",
+        `DATA_MOUNT=${temporaryDirectory}`,
+        "OPERATOR_PROJECT_ID=2000",
+        "CACHE_PROJECT_ID=2002",
+        `BACKUP_STATUS_FILE=${statusPath}`,
+        "BACKUP_MAXIMUM_AGE_SECONDS=129600",
+        "KUBE_STATE_METRICS_URL=http://127.0.0.1:18080/api/v1/namespaces/observability/services/http:kube-state-metrics:8080/proxy/metrics",
+        "",
+      ].join("\n"),
+    );
+    writeFileSync(
+      statusPath,
+      `${JSON.stringify({ lastSuccessUnix: Math.floor(Date.now() / 1000) - 60 })}\n`,
+    );
+
+    run(
+      "bash",
+      [
+        fileURLToPath(
+          new URL(
+            "../scripts/remote-development-observability-metrics",
+            import.meta.url,
+          ),
+        ),
+      ],
+      undefined,
+      {
+        ...process.env,
+        PATH: `${binaryDirectory}:${process.env.PATH}`,
+        REMOTE_DEVELOPMENT_OBSERVABILITY_CONFIG: configPath,
+        STATSD_OUTPUT_FILE: outputPath,
+      },
+    );
+
+    const metrics = readFileSync(outputPath, "utf8");
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.durable_bytes_used:1048576\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.cache_bytes_used:2097152\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.durable_inodes_used:20\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.backup_fresh:1\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.k3s_up:1\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.kube_state_metrics_up:1\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.oom_killed:1\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.crash_loop:2\|g$/m,
+    );
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
+});
+
+test("the Healthchecks reconciler upserts the declared check and stores its ping URL", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "healthchecks-reconcile-"));
+  const binaryDirectory = join(temporaryDirectory, "bin");
+  const captureDirectory = join(temporaryDirectory, "capture");
+
+  try {
+    mkdirSync(binaryDirectory);
+    mkdirSync(captureDirectory);
+    const dopplerPath = join(binaryDirectory, "doppler");
+    writeFileSync(
+      dopplerPath,
+      `#!/usr/bin/env bash
+set -euo pipefail
+if [ "$1" = secrets ] && [ "$2" = get ] && [ "$3" = HEALTHCHECKS_API_KEY ]; then
+  printf 'test-api-key'
+elif [ "$1" = secrets ] && [ "$2" = set ] && [ "$3" = HEALTHCHECKS_PING_URL ]; then
+  cat >"$CAPTURE_DIRECTORY/stored-ping-url"
+else
+  exit 2
+fi
+`,
+    );
+    chmodSync(dopplerPath, 0o755);
+
+    const curlPath = join(binaryDirectory, "curl");
+    writeFileSync(
+      curlPath,
+      `#!/usr/bin/env bash
+set -euo pipefail
+output=
+payload=
+url=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --output)
+      output=$2
+      shift 2
+      ;;
+    --data-binary)
+      payload=$2
+      shift 2
+      ;;
+    --connect-timeout|--max-time|--header|--request)
+      shift 2
+      ;;
+    --fail|--silent|--show-error)
+      shift
+      ;;
+    http*)
+      url=$1
+      shift
+      ;;
+    *)
+      exit 2
+      ;;
+  esac
+done
+if [[ "$url" == */channels/ ]]; then
+  printf '%s' '{"channels":[{"id":"slack-id","name":"remote-development-alerts","kind":"slack"}]}' >"$output"
+elif [[ "$url" == */checks/ ]]; then
+  cp -- "\${payload#@}" "$CAPTURE_DIRECTORY/check-payload.json"
+  printf '%s' '{"slug":"remote-development-host","timeout":60,"grace":120,"methods":"POST","channels":"slack-id","ping_url":"https://hc-ping.com/test-check"}' >"$output"
+else
+  exit 2
+fi
+`,
+    );
+    chmodSync(curlPath, 0o755);
+
+    run(
+      "bash",
+      [
+        fileURLToPath(
+          new URL(
+            "../scripts/reconcile-remote-development-healthchecks",
+            import.meta.url,
+          ),
+        ),
+      ],
+      undefined,
+      {
+        ...process.env,
+        CAPTURE_DIRECTORY: captureDirectory,
+        PATH: `${binaryDirectory}:${process.env.PATH}`,
+      },
+    );
+
+    const payload = JSON.parse(
+      readFileSync(join(captureDirectory, "check-payload.json"), "utf8"),
+    ) as Record<string, unknown>;
+    assert.deepEqual(payload, {
+      name: "remote-development host",
+      slug: "remote-development-host",
+      tags: "remote-development host-loss",
+      desc: "External reachability check for the remote-development host",
+      timeout: 60,
+      grace: 120,
+      methods: "POST",
+      channels: "slack-id",
+      unique: ["slug"],
+    });
+    assert.equal(
+      readFileSync(join(captureDirectory, "stored-ping-url"), "utf8"),
+      "https://hc-ping.com/test-check",
+    );
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
+});
+
 function renderOverlay(overlay: string): string {
   const cached = renderedOverlays.get(overlay);
   if (cached !== undefined) {
@@ -443,13 +666,16 @@ test("the remote overlay isolates durable data from rebuildable caches", () => {
   const resources = parseResources(overlays.remote);
 
   assert.deepEqual(kindCounts(resources), {
-    Deployment: 1,
+    ClusterRole: 1,
+    ClusterRoleBinding: 1,
+    Deployment: 2,
     DopplerSecret: 3,
-    Namespace: 1,
+    Namespace: 2,
+    NetworkPolicy: 1,
     PersistentVolume: 2,
     PersistentVolumeClaim: 2,
-    Service: 1,
-    ServiceAccount: 1,
+    Service: 2,
+    ServiceAccount: 2,
   });
 
   const identities = resources.map(
@@ -580,6 +806,14 @@ test("the remote overlay isolates durable data from rebuildable caches", () => {
       "pod-security.kubernetes.io/audit",
     ]),
     "restricted",
+  );
+  assert.equal(
+    valueAt(operatorNamespace, [
+      "metadata",
+      "labels",
+      "observability.remote-development/workspace-id",
+    ]),
+    "operator",
   );
   assert.equal(
     valueAt(operatorNamespace, [
@@ -966,13 +1200,16 @@ test("the default remote overlay contains only the operator workspace", () => {
   const resources = parseResources(overlays.remote);
 
   assert.deepEqual(kindCounts(resources), {
-    Deployment: 1,
+    ClusterRole: 1,
+    ClusterRoleBinding: 1,
+    Deployment: 2,
     DopplerSecret: 3,
-    Namespace: 1,
+    Namespace: 2,
+    NetworkPolicy: 1,
     PersistentVolume: 2,
     PersistentVolumeClaim: 2,
-    Service: 1,
-    ServiceAccount: 1,
+    Service: 2,
+    ServiceAccount: 2,
   });
   assert.ok(
     resources.every(({ metadata }) => metadata.namespace !== "t3-code-pilot"),
@@ -980,6 +1217,65 @@ test("the default remote overlay contains only the operator workspace", () => {
   assert.ok(
     resources.every(({ metadata }) => !metadata.name.includes("pilot")),
   );
+});
+
+test("the remote overlay runs a pinned and bounded kube-state-metrics exporter", () => {
+  const resources = parseResources(overlays.remote);
+  const deployment = resource(
+    resources,
+    "Deployment",
+    "kube-state-metrics",
+    "observability",
+  );
+  const containerValue = valueAt(deployment, [
+    "spec",
+    "template",
+    "spec",
+    "containers",
+    0,
+  ]);
+  assert.ok(typeof containerValue === "object" && containerValue !== null);
+  const container = containerValue as Record<string, unknown>;
+  assert.match(
+    String(container.image),
+    /^registry\.k8s\.io\/kube-state-metrics\/kube-state-metrics:v2\.18\.0@sha256:[a-f0-9]{64}$/,
+  );
+  assert.deepEqual(container.resources, {
+    limits: { cpu: "100m", memory: "128Mi" },
+    requests: { cpu: "10m", memory: "32Mi" },
+  });
+  const args = container.args;
+  assert.ok(Array.isArray(args));
+  assert.ok(args.includes("--resources=namespaces,nodes,pods"));
+  assert.ok(
+    args.includes(
+      "--metric-labels-allowlist=namespaces=[observability.remote-development/workspace-id]",
+    ),
+  );
+  const metricsPort = (container.ports as Array<Record<string, unknown>>).find(
+    ({ name }) => name === "metrics",
+  );
+  assert.deepEqual(metricsPort, {
+    containerPort: 8080,
+    name: "metrics",
+    protocol: "TCP",
+  });
+
+  const clusterRole = resource(resources, "ClusterRole", "kube-state-metrics");
+  assert.deepEqual(valueAt(clusterRole, ["rules"]), [
+    {
+      apiGroups: [""],
+      resources: ["namespaces", "nodes", "pods"],
+      verbs: ["list", "watch"],
+    },
+  ]);
+  const policy = resource(
+    resources,
+    "NetworkPolicy",
+    "kube-state-metrics",
+    "observability",
+  );
+  assert.deepEqual(valueAt(policy, ["spec", "ingress"]), []);
 });
 
 test("the NixOS host publishes, prepares, and limits workspace storage", () => {
@@ -1022,6 +1318,17 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   assert.ok(hostDefinition.includes('cacheInodeHardLimit = "2000000"'));
   assert.ok(hostDefinition.includes('containerLogMaxFiles = 3'));
   assert.ok(hostDefinition.includes('containerLogMaxSize = "20Mi"'));
+  assert.ok(hostDefinition.includes("--request POST"));
+  assert.ok(hostDefinition.includes('--data ""'));
+  const netdataNotificationConfig = readFileSync(
+    new URL(
+      "../hosts/remote-development/netdata/health_alarm_notify.conf",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.ok(netdataNotificationConfig.includes("#homelab-alerts"));
+  assert.ok(!netdataNotificationConfig.includes("robbie"));
   assert.ok(hostDefinition.includes("zramSwap = {"));
   assert.ok(hostDefinition.includes("memoryPercent = 25"));
   assert.ok(hostDefinition.includes('memorySwap.swapBehavior = "NoSwap"'));
@@ -1034,6 +1341,11 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   assert.ok(
     hostDefinition.includes(
       "systemd.services.remote-development-k3s-state-migration",
+    ),
+  );
+  assert.ok(
+    hostDefinition.includes(
+      "systemd.services.remote-development-kubernetes-api-proxy",
     ),
   );
   assert.ok(hostDefinition.includes('legacy=${dataMount}/k3s'));
@@ -1060,7 +1372,7 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   assert.ok(healthCheck.includes("test ! -e /srv/remote-development/t3-code-pilot"));
   assert.ok(healthCheck.includes('any(.type == "DiskPressure"'));
   assert.ok(healthCheck.includes("check_disk_headroom /srv/remote-development"));
-  assert.ok(healthCheck.includes('keys | sort == ["3000", "3001"'));
+  assert.ok(healthCheck.includes('if .TCP | has("19999") then'));
   assert.ok(healthCheck.includes('$1 == "/dev/zram0"'));
   assert.ok(healthCheck.includes("for _ in $(seq 1 60)"));
   assert.ok(healthCheck.includes(".lastState.terminated.reason"));
@@ -1088,6 +1400,11 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   assert.ok(healthCheck.includes('"WORK_GRAPH_CF_ACCESS_CLIENT_ID"'));
   assert.ok(healthCheck.includes('"WORK_GRAPH_CF_ACCESS_CLIENT_SECRET"'));
   assert.ok(healthCheck.includes("@base64d"));
+  assert.ok(healthCheck.includes("deployment/kube-state-metrics"));
+  assert.ok(healthCheck.includes("remote_development.operator_quota_bytes"));
+  assert.ok(
+    healthCheck.includes("remote-development-healthcheck-heartbeat.service"),
+  );
 
   const dopplerInstaller = readFileSync(
     new URL("../scripts/install-doppler-operator", import.meta.url),

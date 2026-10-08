@@ -20,6 +20,7 @@ let
   cacheBlockHardLimitKiB = "31457280";
   cacheInodeHardLimit = "2000000";
   projectQuotaLayoutVersion = "2";
+  observabilitySecretsDirectory = "/var/lib/remote-development-observability";
   operatorKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIj4+tNshoonWcOZFnSV0YcXgKuGqfcmn5HyIvLCfdQe robbiepalmer@live.co.uk";
   workspaceBackupInventory = builtins.fromJSON (
     builtins.readFile ../../remote-development-backup/inventory.json
@@ -50,6 +51,68 @@ let
   workspaceExport = pkgs.writeShellScriptBin "remote-development-workspace-export" (
     builtins.readFile ../../scripts/remote-development-workspace-export
   );
+  observabilityMetricsConfig = pkgs.writeText "remote-development-observability-metrics.env" ''
+    WORKSPACE_ID=${workspaceBackupInventory.workspace.id}
+    DATA_MOUNT=${dataMount}
+    OPERATOR_PROJECT_ID=${operatorProjectId}
+    CACHE_PROJECT_ID=${cacheProjectId}
+    BACKUP_STATUS_FILE=/var/lib/remote-development-backup/status.json
+    BACKUP_MAXIMUM_AGE_SECONDS=${toString workspaceBackupInventory.schedule.maximumAgeSeconds}
+    KUBE_STATE_METRICS_URL=http://127.0.0.1:18080/api/v1/namespaces/observability/services/http:kube-state-metrics:8080/proxy/metrics
+  '';
+  observabilityMetrics = pkgs.writeShellScriptBin "remote-development-observability-metrics" (
+    builtins.readFile ../../scripts/remote-development-observability-metrics
+  );
+  netdataLibbpf = pkgs.fetchFromGitHub {
+    owner = "netdata";
+    repo = "libbpf";
+    rev = "5acba1722d66a25ad5a545f9296e59d0cb73d548";
+    hash = "sha256-fv+aTXbAixDmIGtNgJ2OT/HdbRXamixs7kMHA4oVlXU=";
+  };
+  netdataKernelCollector = pkgs.fetchurl {
+    url = "https://github.com/netdata/kernel-collector/releases/download/v1.6.2.2/netdata-kernel-collector-static-v1.6.2.2.tar.xz";
+    hash = "sha256-PWTOAHesXAdBQf7WwEur8A9nadzH7lRrGJPJMCUON+s=";
+  };
+  netdataEbpfCore = pkgs.fetchurl {
+    url = "https://github.com/netdata/ebpf-co-re/releases/download/v1.6.2.1/netdata-ebpf-co-re-glibc-v1.6.2.1.tar.xz";
+    hash = "sha256-PIv5WZ00iuX4uX2kiJM3i/Yvl/aIQkAzdYyqPmmUFIw=";
+  };
+  netdataPackage = (pkgs.netdata.override {
+    libelf = pkgs.elfutils;
+    withCloudUi = true;
+    withEbpf = true;
+  }).overrideAttrs (previous: {
+    postPatch = (previous.postPatch or "") + ''
+      substituteInPlace packaging/cmake/Modules/NetdataLibBPF.cmake \
+        --replace-fail \
+          'GIT_REPOSITORY https://github.com/netdata/libbpf.git' \
+          'DOWNLOAD_COMMAND ${pkgs.cmake}/bin/cmake -E copy_directory ${netdataLibbpf} "''${libbpf_SOURCE_DIR}"' \
+        --replace-fail \
+          'GIT_TAG ''${_libbpf_tag}' \
+          '# GIT_TAG replaced by the pinned Nix source'
+      substituteInPlace packaging/cmake/Modules/NetdataEBPFLegacy.cmake \
+        --replace-fail \
+          'URL https://github.com/netdata/kernel-collector/releases/download/v1.6.2.2/netdata-kernel-collector-''${_libc}-v1.6.2.2.tar.xz' \
+          'URL file://${netdataKernelCollector}'
+      substituteInPlace packaging/cmake/Modules/NetdataEBPFCORE.cmake \
+        --replace-fail \
+          'URL https://github.com/netdata/ebpf-co-re/releases/download/v1.6.2.1/netdata-ebpf-co-re-glibc-v1.6.2.1.tar.xz' \
+          'URL file://${netdataEbpfCore}'
+    '';
+    postInstall = (previous.postInstall or "") + ''
+      mv $out/libexec/netdata/plugins.d/ebpf.plugin \
+        $out/libexec/netdata/plugins.d/ebpf.plugin.org
+    '';
+    meta = previous.meta // {
+      # Nixpkgs does not build-test this optional plugin. The host build below
+      # is the deployment gate for the pinned package and its eBPF binary.
+      broken = false;
+    };
+  });
+  netdataPrivilegedPlugins = pkgs.runCommand "remote-development-netdata-privileged-plugins" { } ''
+    mkdir -p $out/libexec/netdata/plugins.d
+    ln -s /run/wrappers/bin/netdata-ebpf $out/libexec/netdata/plugins.d/ebpf.plugin
+  '';
 in
 {
   imports = [
@@ -71,6 +134,9 @@ in
       message = "The workspace backup inventory must name the separate rebuildable cache path.";
     }
   ];
+
+  nixpkgs.config.allowUnfreePredicate = package:
+    builtins.elem (pkgs.lib.getName package) [ "netdata" ];
 
   networking = {
     hostName = "remote-development";
@@ -114,6 +180,7 @@ in
       ../../remote-development-backup/backup-excludes.txt;
     "remote-development-workspace-backup/export-excludes.txt".source =
       ../../remote-development-backup/export-excludes.txt;
+    "remote-development-observability/metrics.env".source = observabilityMetricsConfig;
   };
 
   fileSystems.${dataMount} = {
@@ -130,6 +197,7 @@ in
   systemd.tmpfiles.rules = [
     "d /var/lib/remote-development-secrets 0700 root root -"
     "d /var/lib/remote-development-backup 0700 root root -"
+    "d ${observabilitySecretsDirectory} 0700 root root -"
   ];
 
   users = {
@@ -199,6 +267,46 @@ in
         containerLogMaxSize = "20Mi";
         failSwapOn = false;
         memorySwap.swapBehavior = "NoSwap";
+      };
+    };
+
+    netdata = {
+      enable = true;
+      package = netdataPackage;
+      enableAnalyticsReporting = false;
+      extraPluginPaths = [ "${netdataPrivilegedPlugins}/libexec/netdata/plugins.d" ];
+      config = {
+        global = {
+          "hostname" = "remote-development";
+        };
+        db = {
+          "mode" = "dbengine";
+          "retention" = "7d";
+        };
+        web = {
+          "bind to" = "tcp:127.0.0.1:19999";
+          "allow connections from" = "localhost";
+          "allow dashboard from" = "localhost";
+        };
+        cloud."enabled" = "no";
+        statsd = {
+          "enabled" = "yes";
+          "bind to" = "udp:127.0.0.1:8125";
+          "create private charts for metrics matching" = "!remote_development.* *";
+        };
+        plugins = {
+          "cgroups" = "yes";
+          "ebpf" = "yes";
+          "go.d" = "yes";
+          "proc" = "yes";
+        };
+      };
+      configDir = {
+        "ebpf.d/oomkill.conf" = ./netdata/ebpf.d/oomkill.conf;
+        "go.d/prometheus.conf" = ./netdata/go.d/prometheus.conf;
+        "health.d/remote-development.conf" = ./netdata/health.d/remote-development.conf;
+        "health_alarm_notify.conf" = ./netdata/health_alarm_notify.conf;
+        "statsd.d/remote-development.conf" = ./netdata/statsd.d/remote-development.conf;
       };
     };
 
@@ -344,6 +452,132 @@ in
     };
   };
 
+  security.wrappers.netdata-ebpf = {
+    source = "${netdataPackage}/libexec/netdata/plugins.d/ebpf.plugin.org";
+    setuid = true;
+    owner = "root";
+    group = "netdata";
+    permissions = "u+rx,g+x,o-rwx";
+  };
+
+  systemd.services.netdata = {
+    serviceConfig = {
+      EnvironmentFile = "-${observabilitySecretsDirectory}/netdata.env";
+      MemoryHigh = "320M";
+      MemoryMax = "384M";
+    };
+  };
+
+  systemd.services.remote-development-kubernetes-api-proxy = {
+    description = "Expose kube-state-metrics to host collectors through the K3s API";
+    after = [ "k3s.service" ];
+    requires = [ "k3s.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      ExecStart = ''
+        ${pkgs.k3s}/bin/k3s kubectl \
+          --kubeconfig=/etc/rancher/k3s/k3s.yaml \
+          proxy \
+          --address=127.0.0.1 \
+          --port=18080 \
+          --accept-paths=^/api/v1/namespaces/observability/services/http:kube-state-metrics:8080/proxy/metrics$
+      '';
+      Restart = "on-failure";
+      RestartSec = "5s";
+      PrivateTmp = true;
+      ProtectHome = true;
+      ProtectSystem = "strict";
+    };
+  };
+
+  systemd.services.remote-development-observability-metrics = {
+    description = "Publish remote-development workspace metrics to Netdata";
+    after = [
+      "k3s.service"
+      "netdata.service"
+      "remote-development-kubernetes-api-proxy.service"
+      "remote-development-project-quotas.service"
+    ];
+    wants = [
+      "k3s.service"
+      "netdata.service"
+      "remote-development-kubernetes-api-proxy.service"
+    ];
+    serviceConfig = {
+      Type = "oneshot";
+      RuntimeDirectory = "remote-development-observability";
+      PrivateTmp = true;
+      ProtectHome = true;
+      ProtectSystem = "strict";
+      ReadOnlyPaths = [
+        dataMount
+        "/var/lib/remote-development-backup"
+      ];
+    };
+    path = [
+      pkgs.coreutils
+      pkgs.curl
+      pkgs.gawk
+      pkgs.jq
+      pkgs.quota
+      pkgs.systemd
+    ];
+    environment.REMOTE_DEVELOPMENT_OBSERVABILITY_CONFIG =
+      "/etc/remote-development-observability/metrics.env";
+    script = "${observabilityMetrics}/bin/remote-development-observability-metrics";
+  };
+
+  systemd.timers.remote-development-observability-metrics = {
+    description = "Refresh remote-development workspace metrics every minute";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "2m";
+      OnUnitActiveSec = "1m";
+      AccuracySec = "10s";
+      Unit = "remote-development-observability-metrics.service";
+    };
+  };
+
+  systemd.services.remote-development-healthcheck-heartbeat = {
+    description = "Send the external remote-development host heartbeat";
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
+    unitConfig.ConditionPathExists =
+      "${observabilitySecretsDirectory}/healthchecks.env";
+    path = [ pkgs.curl ];
+    serviceConfig = {
+      Type = "oneshot";
+      EnvironmentFile = "${observabilitySecretsDirectory}/healthchecks.env";
+      PrivateTmp = true;
+      ProtectHome = true;
+      ProtectSystem = "strict";
+    };
+    script = ''
+      test -n "''${HEALTHCHECKS_PING_URL:-}"
+      curl \
+        --fail \
+        --silent \
+        --show-error \
+        --max-time 10 \
+        --retry 2 \
+        --retry-delay 2 \
+        --request POST \
+        --data "" \
+        "''${HEALTHCHECKS_PING_URL}"
+    '';
+  };
+
+  systemd.timers.remote-development-healthcheck-heartbeat = {
+    description = "Send the remote-development host heartbeat every minute";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "1m";
+      OnUnitActiveSec = "1m";
+      AccuracySec = "10s";
+      Unit = "remote-development-healthcheck-heartbeat.service";
+    };
+  };
+
   systemd.services.remote-development-k3s-state-migration = {
     description = "Migrate legacy K3s state to the root disk";
     after = [ "srv-remote\\x2ddevelopment.mount" ];
@@ -472,6 +706,7 @@ in
         tailscale serve --bg --https=3002 http://127.0.0.1:31002
         tailscale serve --bg --https=3003 http://127.0.0.1:31003
         tailscale serve --bg --https=3004 http://127.0.0.1:31004
+        tailscale serve --bg --https=19999 http://127.0.0.1:19999
       else
         echo "Tailscale is not enrolled; Serve will be configured after enrollment"
       fi
@@ -511,6 +746,7 @@ in
     workspaceBackupStatus
     workspaceExport
     workspaceRestore
+    observabilityMetrics
   ];
 
   nix = {
