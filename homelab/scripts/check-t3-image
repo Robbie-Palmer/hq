@@ -98,7 +98,7 @@ docker run --rm \
     test "$(pnpm --version)" = "$EXPECTED_PNPM_VERSION"
     test "$MISE_TRUSTED_CONFIG_PATHS" = "/data/workspaces:/data/home/.t3/worktrees"
     test "$(docker --version | cut -d, -f1)" = "Docker version $EXPECTED_DOCKER_VERSION"
-    test "$(docker buildx version | cut -d" " -f1-3)" = "github.com/docker/buildx v0.37.0 ac30b249211430b85fb8f37b6e7154b5c47ba0b6"
+    test "$(docker buildx version | cut -d" " -f1-3)" = "github.com/docker/buildx v0.37.2 2d379c0c3f22da0d2759d132a0ec81ca949098f0"
     test "$(docker compose version)" = "Docker Compose version v5.5.1"
     case ":$PATH:" in
       *:/usr/local/lib/t3-code/node_modules/.bin:*) exit 1 ;;
