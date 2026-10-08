@@ -16,6 +16,7 @@ import {
   type AssetTrackerData,
   AssetTrackerDataSchema,
 } from "@/lib/domain/assettracker/assetTrackerData";
+import { defaultEmergencyFundAccountPolicy } from "@/lib/domain/assettracker/emergencyFund";
 import {
   type Ownership,
   personalOwnership,
@@ -38,6 +39,22 @@ const homeOwnership: Ownership = {
   ],
 };
 
+const DEPOSIT_PROTECTION_SOURCE =
+  "https://www.bankofengland.co.uk/prudential-regulation/authorisations/financial-services-compensation-scheme";
+
+function demoEmergencyFundAccountPolicies() {
+  return accounts.map((account) => {
+    const policy = defaultEmergencyFundAccountPolicy(account);
+    if (account.assetType !== "cash") return policy;
+    return {
+      ...policy,
+      protectionLimit: 120_000,
+      protectionGroup: account.provider,
+      protectionSourceUrl: DEPOSIT_PROTECTION_SOURCE,
+    };
+  });
+}
+
 /** Builds the bundled demo dataset used by the static UI and local adapter. */
 export function getDemoAssetTrackerData(): AssetTrackerData {
   return AssetTrackerDataSchema.parse({
@@ -47,6 +64,248 @@ export function getDemoAssetTrackerData(): AssetTrackerData {
     salaryHistory,
     transfers,
     recurringFlows,
+    planningCases: [
+      {
+        id: "2027-home-upgrade",
+        name: "2027 home upgrade",
+        description:
+          "Compare committed preparation work with two possible ways to add space.",
+        labels: ["home", "2027"],
+        targetDate: "2027-09-01",
+      },
+    ],
+    futureCashFlows: [
+      {
+        id: "architect-and-survey",
+        name: "Architect and survey work",
+        description: "Professional work already commissioned for the project.",
+        planningCaseId: "2027-home-upgrade",
+        labels: ["professional-fees", "committed"],
+        currency: "GBP",
+        kind: "commitment",
+        counterparty: "Demo Design Studio",
+        status: "active",
+        changeability: "variable",
+        refundable: false,
+        stages: [
+          {
+            id: "design-deposit",
+            name: "Design deposit",
+            fromAccountId: "nationwide-current",
+            dueDate: "2026-06-15",
+            amount: 1_500,
+            actuals: [
+              {
+                id: "design-deposit-payment",
+                date: "2026-06-10",
+                amount: 1_500,
+                direction: "payment",
+              },
+            ],
+          },
+          {
+            id: "planning-application",
+            name: "Planning application",
+            fromAccountId: "nationwide-current",
+            dueDate: "2026-12-01",
+            amount: 1_000,
+            actuals: [],
+          },
+        ],
+      },
+      {
+        id: "single-storey-extension",
+        name: "Single-storey extension",
+        description: "The currently selected way to add flexible living space.",
+        planningCaseId: "2027-home-upgrade",
+        labels: ["construction", "selected-option"],
+        currency: "GBP",
+        kind: "decision",
+        status: "selected",
+        importance: "Adds flexible living space without moving home",
+        confidence: 0.6,
+        reversibility: "irreversible",
+        dependencyIds: ["architect-and-survey"],
+        alternativeToIds: ["loft-conversion"],
+        stages: [
+          {
+            id: "extension-build",
+            name: "Build and fit-out",
+            fromAccountId: "nationwide-current",
+            earliestDate: "2027-05-01",
+            expectedDate: "2027-07-01",
+            latestDate: "2027-09-01",
+            minimumAmount: 35_000,
+            expectedAmount: 45_000,
+            maximumAmount: 55_000,
+            actuals: [],
+          },
+        ],
+      },
+      {
+        id: "loft-conversion",
+        name: "Loft conversion",
+        description:
+          "A lower-cost alternative that remains under consideration.",
+        planningCaseId: "2027-home-upgrade",
+        labels: ["construction", "alternative"],
+        currency: "GBP",
+        kind: "decision",
+        status: "considering",
+        importance: "Adds a separate room while preserving the garden",
+        confidence: 0.55,
+        reversibility: "irreversible",
+        dependencyIds: ["architect-and-survey"],
+        alternativeToIds: ["single-storey-extension"],
+        stages: [
+          {
+            id: "loft-build",
+            name: "Build and fit-out",
+            fromAccountId: "nationwide-current",
+            earliestDate: "2027-04-01",
+            expectedDate: "2027-06-01",
+            latestDate: "2027-08-01",
+            minimumAmount: 25_000,
+            expectedAmount: 30_000,
+            maximumAmount: 40_000,
+            actuals: [],
+          },
+        ],
+      },
+    ],
+    forecastAssumptionSets: [
+      {
+        id: "household-outlook-v1",
+        seriesId: "household-outlook",
+        name: "Household outlook",
+        version: 1,
+        status: "superseded",
+        createdAt: "2026-08-01T12:00:00Z",
+        assumptions: [
+          {
+            id: "alex-pay-rise-v1",
+            name: "Alex pay rise",
+            kind: "income",
+            startDate: "2027-04-01",
+            monthlyChange: {
+              minimum: 200,
+              expected: 300,
+              maximum: 500,
+            },
+            currency: "GBP",
+            confidence: 0.5,
+            ownership: alexOwnership,
+            accountId: "nationwide-current",
+            source: {
+              kind: "tax-derived",
+              taxYear: "2027-28",
+              calculationVersion: "uk-income-tax-v1",
+              ruleDatasetVersion: "2026-08-01",
+            },
+            sourceNotes: "Initial take-home estimate",
+          },
+        ],
+      },
+      {
+        id: "household-outlook-v2",
+        seriesId: "household-outlook",
+        name: "Household outlook",
+        version: 2,
+        status: "active",
+        createdAt: "2026-10-01T12:00:00Z",
+        supersedesId: "household-outlook-v1",
+        assumptions: [
+          {
+            id: "alex-pay-rise-v2",
+            name: "Alex pay rise",
+            kind: "income",
+            startDate: "2027-04-01",
+            monthlyChange: {
+              minimum: 250,
+              expected: 400,
+              maximum: 600,
+            },
+            currency: "GBP",
+            confidence: 0.65,
+            ownership: alexOwnership,
+            accountId: "nationwide-current",
+            source: {
+              kind: "tax-derived",
+              taxYear: "2027-28",
+              calculationVersion: "uk-income-tax-v2",
+              ruleDatasetVersion: "2026-10-01",
+            },
+            sourceNotes: "Revised take-home estimate after tax-rule update",
+          },
+          {
+            id: "temporary-storage",
+            name: "Temporary storage",
+            kind: "expenditure",
+            startDate: "2027-04-01",
+            endDate: "2027-09-30",
+            monthlyChange: {
+              minimum: 150,
+              expected: 250,
+              maximum: 400,
+            },
+            currency: "GBP",
+            confidence: 0.8,
+            ownership: equalHouseholdOwnership,
+            source: { kind: "manual" },
+            sourceNotes: "Needed only while building work is under way",
+          },
+          {
+            id: "lower-energy-bills",
+            name: "Lower energy bills",
+            kind: "expenditure",
+            startDate: "2027-10-01",
+            monthlyChange: {
+              minimum: -150,
+              expected: -100,
+              maximum: -50,
+            },
+            currency: "GBP",
+            confidence: 0.55,
+            ownership: equalHouseholdOwnership,
+            source: { kind: "manual" },
+            sourceNotes: "Expected reduction after the completed work",
+          },
+        ],
+      },
+    ],
+    emergencyFundPlans: [
+      {
+        id: "household-emergency-reserves-v1",
+        seriesId: "household-emergency-reserves",
+        name: "Household emergency reserves",
+        version: 1,
+        status: "active",
+        createdAt: "2026-10-05T12:00:00Z",
+        essentialMonthlyExpenditure: 1_250,
+        annualIrregularEssentialCosts: 1_200,
+        monthlyDebtPayments: 150,
+        employmentMonthlyIncome: 6_500,
+        monthlySideIncome: 650,
+        accessNeedDays: 7,
+        missingData: [
+          "Childcare renewal cost after 2027",
+          "Outcome of the next contract renewal",
+        ],
+        coverageMonths: [6, 12, 18],
+        accountPolicies: demoEmergencyFundAccountPolicies(),
+        stressScenarios: [
+          {
+            id: "income-loss-delayed-invoices-and-repairs",
+            name: "Income loss, delayed invoices and home repairs",
+            durationMonths: 36,
+            employmentIncomeLossRate: 1,
+            sideIncomeDelayMonths: 3,
+            unexpectedCost: 2_500,
+            annualInflationRate: 0.04,
+          },
+        ],
+      },
+    ],
     instruments,
     holdingObservations,
     priceObservations,
@@ -120,6 +379,11 @@ export function getDemoAssetTrackerData(): AssetTrackerData {
       incomeHistory: Object.fromEntries(
         incomeHistory.map(({ date }) => [date, equalHouseholdOwnership]),
       ),
+      futureCashFlows: {
+        "architect-and-survey": equalHouseholdOwnership,
+        "single-storey-extension": equalHouseholdOwnership,
+        "loft-conversion": equalHouseholdOwnership,
+      },
     },
     taxPosition: {
       taxYear: "2026-27",

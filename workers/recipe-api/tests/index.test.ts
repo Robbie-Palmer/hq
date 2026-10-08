@@ -1,5 +1,10 @@
 import postgres from "postgres";
-import type { PantryLocation } from "recipe-domain/pantry";
+import {
+  emptyPantryFreshness,
+  type PantryFreshnessEstimate,
+  type PantryLocation,
+  type PantrySourceKind,
+} from "recipe-domain/pantry";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 function deferred<T>() {
@@ -8,6 +13,89 @@ function deferred<T>() {
     resolve = complete;
   });
   return { promise, resolve };
+}
+
+function insertedParameter(
+  columns: string[],
+  expressions: string[],
+  params: unknown[],
+  column: string,
+): unknown {
+  const expression = expressions[columns.indexOf(column)];
+  const parameter = expression?.match(/^\$(\d+)$/)?.[1];
+  return parameter ? params[Number(parameter) - 1] : undefined;
+}
+
+type PantryItemRow = {
+  id: string;
+  userId: string | null;
+  organizationId: string | null;
+  ingredientSlug: string;
+  location: PantryLocation;
+  quantity?: string | null;
+  quantityUnit?: string | null;
+  useBy?: string | null;
+  bestBefore?: string | null;
+  stockedAt?: string | null;
+  openedAt?: string | null;
+  frozenAt?: string | null;
+  freshnessEstimate?: PantryFreshnessEstimate | null;
+  sourceKind?: PantrySourceKind;
+  provenance?: string;
+  version?: bigint;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+function pantryItemFromInsert(
+  columns: string[],
+  expressions: string[],
+  params: unknown[],
+  date: Date,
+): PantryItemRow {
+  const value = (column: string) =>
+    insertedParameter(columns, expressions, params, column);
+  return {
+    id: crypto.randomUUID(),
+    userId: (value("user_id") as string | null) ?? null,
+    organizationId: (value("organization_id") as string | null) ?? null,
+    ingredientSlug: value("ingredient_slug") as string,
+    location: value("location") as PantryItemRow["location"],
+    quantity: (value("quantity") as string | null) ?? null,
+    quantityUnit: (value("quantity_unit") as string | null) ?? null,
+    useBy: (value("use_by") as string | null) ?? null,
+    bestBefore: (value("best_before") as string | null) ?? null,
+    stockedAt: (value("stocked_at") as string | null) ?? null,
+    openedAt: (value("opened_at") as string | null) ?? null,
+    frozenAt: (value("frozen_at") as string | null) ?? null,
+    freshnessEstimate:
+      (value("freshness_estimate") as PantryFreshnessEstimate | null) ?? null,
+    sourceKind:
+      (value("source_kind") as PantrySourceKind | undefined) ?? "user",
+    provenance:
+      (value("provenance") as string | undefined) ?? "Manual kitchen update",
+    version: 1n,
+    createdAt: date,
+    updatedAt: date,
+  };
+}
+
+function pantryItemDetailsRow(item: PantryItemRow): unknown[] {
+  return [
+    item.ingredientSlug,
+    item.location,
+    item.quantity ?? null,
+    item.quantityUnit ?? null,
+    item.useBy ?? null,
+    item.bestBefore ?? null,
+    item.stockedAt ?? null,
+    item.openedAt ?? null,
+    item.frozenAt ?? null,
+    item.freshnessEstimate ?? null,
+    item.sourceKind ?? "user",
+    item.provenance ?? "Manual kitchen update",
+    (item.version ?? 1n).toString(),
+  ];
 }
 
 const authzMock = vi.hoisted(() => ({
@@ -138,16 +226,6 @@ const dbMock = vi.hoisted(() => {
     canonicalSlug: string | null;
     createdAt: Date;
     lastSeenAt: Date;
-    updatedAt: Date;
-  };
-  type PantryItemRow = {
-    id: string;
-    userId: string | null;
-    organizationId: string | null;
-    ingredientSlug: string;
-    location: PantryLocation;
-    version?: bigint;
-    createdAt: Date;
     updatedAt: Date;
   };
   type PantryAggregateRow = {
@@ -829,7 +907,22 @@ const dbMock = vi.hoisted(() => {
       samePantryItemOwner(candidate, pantryItem),
     );
     if (query.includes("do update set") && existing) {
+      const updateClause = query.split("do update set")[1] ?? "";
       existing.location = pantryItem.location;
+      if (updateClause.includes('"quantity" =')) {
+        existing.quantity = pantryItem.quantity;
+        existing.quantityUnit = pantryItem.quantityUnit;
+      }
+      if (updateClause.includes('"use_by" =')) {
+        existing.useBy = pantryItem.useBy;
+        existing.bestBefore = pantryItem.bestBefore;
+        existing.stockedAt = pantryItem.stockedAt;
+        existing.openedAt = pantryItem.openedAt;
+        existing.frozenAt = pantryItem.frozenAt;
+        existing.freshnessEstimate = pantryItem.freshnessEstimate;
+      }
+      existing.sourceKind = pantryItem.sourceKind;
+      existing.provenance = pantryItem.provenance;
       existing.version = (existing.version ?? 1n) + 1n;
       existing.updatedAt = date;
       return;
@@ -844,23 +937,20 @@ const dbMock = vi.hoisted(() => {
     params: unknown[],
   ): QueryRows | undefined {
     if (query.startsWith('insert into "pantry_item"')) {
-      const valuesClause = query.split(" values ")[1]?.split(" on conflict")[0] ?? "";
-      const valueParameterCount = Math.max(
-        0,
-        ...[...valuesClause.matchAll(/\$(\d+)/g)].map((match) => Number(match[1])),
-      );
-      for (let index = 0; index < valueParameterCount; index += 4) {
-        const pantryItem: PantryItemRow = {
-          id: crypto.randomUUID(),
-          userId: (params[index] as string | null) ?? null,
-          organizationId: (params[index + 1] as string | null) ?? null,
-          ingredientSlug: params[index + 2] as string,
-          location: params[index + 3] as PantryItemRow["location"],
-          version: 1n,
-          createdAt: date,
-          updatedAt: date,
-        };
-        storePantryItem(query, pantryItem);
+      const columns =
+        query
+          .match(/^insert into "pantry_item" \(([^)]+)\)/)?.[1]
+          ?.split(", ")
+          .map((column) => column.replaceAll('"', "")) ?? [];
+      const valuesClause =
+        query.split(" values ")[1]?.split(" on conflict")[0] ?? "";
+      const rows = valuesClause.match(/\([^)]*\)/g) ?? [];
+      for (const row of rows) {
+        const expressions = row.slice(1, -1).split(", ");
+        storePantryItem(
+          query,
+          pantryItemFromInsert(columns, expressions, params, date),
+        );
       }
       return [];
     }
@@ -1960,20 +2050,16 @@ const dbMock = vi.hoisted(() => {
           ? item.userId === ownerId
           : item.organizationId === ownerId,
       );
-      return pantryItems.map((item) => {
-        if (query.includes('select "ingredient_slug", "location", "version"')) {
-          return [
-            item.ingredientSlug,
-            item.location,
-            (item.version ?? 1n).toString(),
-          ];
-        }
-        return query.includes('select "ingredient_slug"')
+      const selectsDetails = query.includes(
+        'select "ingredient_slug", "location", "quantity", "quantity_unit", "use_by", "best_before", "stocked_at", "opened_at", "frozen_at", "freshness_estimate", "source_kind", "provenance", "version"',
+      );
+      if (selectsDetails) return pantryItems.map(pantryItemDetailsRow);
+      return pantryItems.map((item) =>
+        query.includes('select "ingredient_slug"')
           ? [item.ingredientSlug]
-          : [item.id];
-      });
+          : [item.id],
+      );
     }
-
 
     if (query.includes('from "pantry_aggregate"')) {
       const ownerId = params[0] as string;
@@ -5475,6 +5561,26 @@ describe("pantry mutation flows", () => {
       operationId: expect.any(String),
       scope: { type: "personal" },
       stock: { onion: "fresh", milk: "fridge" },
+      items: {
+        milk: {
+          location: "fridge",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Manual kitchen update",
+          },
+        },
+        onion: {
+          location: "fresh",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Manual kitchen update",
+          },
+        },
+      },
       itemVersions: { onion: "1", milk: "1" },
     });
     expect(dbMock.state.pantryItems).toEqual([
@@ -5550,7 +5656,7 @@ describe("pantry mutation flows", () => {
       {
         method: "PUT",
         headers: mutationHeaders,
-        body: JSON.stringify({ stock: { onion: "freezer" } }),
+        body: JSON.stringify({ stock: { onion: "garage" } }),
       },
       env,
     );
@@ -5579,6 +5685,17 @@ describe("pantry mutation flows", () => {
         household: { id: HOUSEHOLD_ID, name: "Owner household" },
       },
       stock: { onion: "cupboards" },
+      items: {
+        onion: {
+          location: "cupboards",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Household member update",
+          },
+        },
+      },
       itemVersions: { onion: "1" },
     });
     expect(dbMock.state.pantryItems[0]).toEqual(
@@ -5609,6 +5726,17 @@ describe("pantry mutation flows", () => {
         household: { id: HOUSEHOLD_ID, name: "Owner household" },
       },
       stock: { onion: "fresh" },
+      items: {
+        onion: {
+          location: "fresh",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Household member update",
+          },
+        },
+      },
       itemVersions: { onion: "2" },
     });
     expect(dbMock.state.pantryItems).toHaveLength(1);
@@ -5631,9 +5759,125 @@ describe("pantry mutation flows", () => {
         household: { id: HOUSEHOLD_ID, name: "Owner household" },
       },
       stock: {},
+      items: {},
       itemVersions: {},
     });
     expect(dbMock.state.pantryItems).toEqual([]);
+  });
+
+  it("shares detailed kitchen corrections without exposing them to outsiders", async () => {
+    seedHousehold();
+    dbMock.state.pantryItems.push({
+      id: crypto.randomUUID(),
+      userId: null,
+      organizationId: HOUSEHOLD_ID,
+      ingredientSlug: "onion",
+      location: "cupboards",
+      quantity: "1.000",
+      quantityUnit: "bag",
+      useBy: "2026-10-12",
+      bestBefore: "2026-10-10",
+      stockedAt: "2026-10-07",
+      openedAt: null,
+      frozenAt: null,
+      freshnessEstimate: null,
+      sourceKind: "inferred",
+      provenance: "Receipt scan on 5 October",
+      version: 1n,
+      createdAt: dbMock.date,
+      updatedAt: dbMock.date,
+    });
+    authzMock.session = sessionFor({
+      id: "member-user",
+      email: "member@example.test",
+      name: "Member",
+    });
+
+    await expect((await app.request("/pantry", undefined, env)).json()).resolves.toMatchObject({
+      items: {
+        onion: {
+          source: {
+            kind: "inferred",
+            provenance: "Receipt scan on 5 October",
+          },
+        },
+      },
+    });
+
+    const correction = await app.request(
+      "/pantry/items/onion",
+      {
+        method: "PUT",
+        headers: mutationHeaders,
+        body: JSON.stringify({
+          location: "freezer",
+          quantity: { amount: 2.5, unit: "piece" },
+          freshness: {
+            ...emptyPantryFreshness(),
+            useBy: "2026-10-12",
+            bestBefore: "2026-10-10",
+            frozenAt: "2026-10-07",
+          },
+        }),
+      },
+      env,
+    );
+
+    expect(correction.status).toBe(200);
+    expect(await correction.json()).toMatchObject({
+      resourceId: HOUSEHOLD_ID,
+      revision: "1",
+      items: {
+        onion: {
+          location: "freezer",
+          quantity: { amount: 2.5, unit: "piece" },
+          freshness: {
+            ...emptyPantryFreshness(),
+            useBy: "2026-10-12",
+            bestBefore: "2026-10-10",
+            frozenAt: "2026-10-07",
+          },
+          source: {
+            kind: "user",
+            provenance: "Household member update",
+          },
+        },
+      },
+    });
+
+    authzMock.session = sessionFor({
+      id: "owner-user",
+      email: "owner@example.test",
+      name: "Owner",
+    });
+    await expect((await app.request("/pantry", undefined, env)).json()).resolves.toMatchObject({
+      resourceId: HOUSEHOLD_ID,
+      revision: "1",
+      items: {
+        onion: {
+          location: "freezer",
+          quantity: { amount: 2.5, unit: "piece" },
+          freshness: {
+            ...emptyPantryFreshness(),
+            useBy: "2026-10-12",
+            bestBefore: "2026-10-10",
+            frozenAt: "2026-10-07",
+          },
+        },
+      },
+    });
+
+    authzMock.session = sessionFor({
+      id: "outsider-user",
+      email: "outsider@example.test",
+      name: "Outsider",
+    });
+    await expect((await app.request("/pantry", undefined, env)).json()).resolves.toMatchObject({
+      resourceId: "outsider-user",
+      revision: "0",
+      stock: {},
+      items: {},
+    });
   });
 
   it("rejects a single-item write that would exceed pantry capacity", async () => {
@@ -5710,6 +5954,17 @@ describe("pantry mutation flows", () => {
             household: { id: HOUSEHOLD_ID, name: "Owner household" },
           },
           stock: { onion: "fresh" },
+          items: {
+            onion: {
+              location: "fresh",
+              quantity: null,
+              freshness: emptyPantryFreshness(),
+              source: {
+                kind: "user",
+                provenance: "Household member update",
+              },
+            },
+          },
           itemVersions: { onion: "1" },
         },
       },
@@ -5801,6 +6056,21 @@ describe("pantry mutation flows", () => {
         headers: mutationHeaders,
         body: JSON.stringify({
           stock: { onion: "cupboards", milk: "fridge" },
+          items: {
+            onion: {
+              location: "cupboards",
+              quantity: { amount: 2, unit: "bag" },
+              freshness: {
+                ...emptyPantryFreshness(),
+                useBy: "2026-10-12",
+                bestBefore: "2026-10-10",
+              },
+              source: {
+                kind: "inferred",
+                provenance: "Receipt import",
+              },
+            },
+          },
         }),
       },
       env,
@@ -5815,6 +6085,30 @@ describe("pantry mutation flows", () => {
         household: { id: HOUSEHOLD_ID, name: "Owner household" },
       },
       stock: { milk: "fresh", onion: "cupboards" },
+      items: {
+        milk: {
+          location: "fresh",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Manual kitchen update",
+          },
+        },
+        onion: {
+          location: "cupboards",
+          quantity: { amount: 2, unit: "bag" },
+          freshness: {
+            ...emptyPantryFreshness(),
+            useBy: "2026-10-12",
+            bestBefore: "2026-10-10",
+          },
+          source: {
+            kind: "inferred",
+            provenance: "Receipt import",
+          },
+        },
+      },
       itemVersions: { milk: "1", onion: "1" },
     });
     expect(dbMock.state.authoredTerms).toEqual([
@@ -5926,7 +6220,7 @@ describe("pantry mutation flows", () => {
       {
         method: "PUT",
         headers: mutationHeaders,
-        body: JSON.stringify({ location: "freezer" }),
+        body: JSON.stringify({ location: "garage" }),
       },
       env,
     );
@@ -6105,6 +6399,17 @@ describe("household membership flows", () => {
           },
         },
         stock: { onion: "fresh" },
+        items: {
+          onion: {
+            location: "fresh",
+            quantity: null,
+            freshness: emptyPantryFreshness(),
+            source: {
+              kind: "user",
+              provenance: "Manual kitchen update",
+            },
+          },
+        },
         itemVersions: { onion: "1" },
       });
     }

@@ -487,6 +487,7 @@ function currentCompensation(
     if (annualAmount == null) return null;
     switch (flow.compensationKind) {
       case "takeHomeIncome":
+      case "sideIncome":
         annualTakeHomeIncome += annualAmount;
         break;
       case "employeePension":

@@ -1,3 +1,4 @@
+import { emptyPantryFreshness } from "recipe-domain/pantry";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getPantry,
@@ -50,9 +51,37 @@ describe("pantry API client", () => {
         Response.json({ scope: { type: "personal" }, stock: {} }),
       );
 
-    await setPantryItem("red-onion", "fridge", operationId);
+    await setPantryItem(
+      "red-onion",
+      {
+        location: "fridge",
+        quantity: null,
+        freshness: emptyPantryFreshness(),
+      },
+      operationId,
+    );
     await removePantryItem("red-onion", operationId);
-    await restorePantry({ red: "fresh" }, operationId);
+    await restorePantry(
+      {
+        stock: { red: "fresh" },
+        items: {
+          red: {
+            location: "fresh",
+            quantity: { amount: 3, unit: "piece" },
+            freshness: {
+              ...emptyPantryFreshness(),
+              useBy: "2026-10-12",
+              bestBefore: "2026-10-10",
+            },
+            source: {
+              kind: "inferred",
+              provenance: "Receipt import",
+            },
+          },
+        },
+      },
+      operationId,
+    );
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -60,7 +89,11 @@ describe("pantry API client", () => {
       expect.objectContaining({
         method: "PUT",
         credentials: "same-origin",
-        body: JSON.stringify({ location: "fridge" }),
+        body: JSON.stringify({
+          location: "fridge",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+        }),
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -77,7 +110,24 @@ describe("pantry API client", () => {
       expect.objectContaining({
         method: "PATCH",
         credentials: "same-origin",
-        body: JSON.stringify({ stock: { red: "fresh" } }),
+        body: JSON.stringify({
+          stock: { red: "fresh" },
+          items: {
+            red: {
+              location: "fresh",
+              quantity: { amount: 3, unit: "piece" },
+              freshness: {
+                ...emptyPantryFreshness(),
+                useBy: "2026-10-12",
+                bestBefore: "2026-10-10",
+              },
+              source: {
+                kind: "inferred",
+                provenance: "Receipt import",
+              },
+            },
+          },
+        }),
       }),
     );
     for (const [, request] of fetchMock.mock.calls) {

@@ -4,6 +4,7 @@ import { strToU8, zipSync } from "fflate";
 import { createDb, schema } from "recipe-db";
 import { insertGeneratedDraft, readBatchDrafts } from "recipe-db/batch-drafts";
 import { artifactKey, sourceImageKey } from "recipe-domain/import-storage";
+import { emptyPantryFreshness } from "recipe-domain/pantry";
 import {
   afterAll,
   beforeAll,
@@ -217,7 +218,7 @@ beforeAll(async () => {
     )
     order by slug
   `;
-  expect(migrationCount?.count).toBe(26);
+  expect(migrationCount?.count).toBe(27);
   expect(tableCount?.count).toBe(55);
   expect(catalogRows).toEqual([
     { category: "dairy", name: "almond milk", slug: "almond-milk" },
@@ -393,6 +394,17 @@ describe("recipe API PostgreSQL integration", () => {
       scope: { type: "personal" },
       stock: { onion: "fresh" },
       itemVersions: { onion: "2" },
+      items: {
+        onion: {
+          location: "fresh",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Manual kitchen update",
+          },
+        },
+      },
     });
   });
 
@@ -767,6 +779,17 @@ describe("recipe API PostgreSQL integration", () => {
       revision: "1",
       stock: { onion: "fresh" },
       itemVersions: { onion: "1" },
+      items: {
+        onion: {
+          location: "fresh",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Manual kitchen update",
+          },
+        },
+      },
     });
 
     const householdResponse = await authenticatedRequest(cook, "/households", {
@@ -784,6 +807,17 @@ describe("recipe API PostgreSQL integration", () => {
       revision: "1",
       stock: { onion: "fresh" },
       itemVersions: { onion: "1" },
+      items: {
+        onion: {
+          location: "fresh",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Manual kitchen update",
+          },
+        },
+      },
     });
   });
 
@@ -1503,6 +1537,26 @@ describe("recipe API PostgreSQL integration", () => {
       },
       stock: { onion: "fresh", salt: "cupboards" },
       itemVersions: { onion: "1", salt: "1" },
+      items: {
+        onion: {
+          location: "fresh",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Manual kitchen update",
+          },
+        },
+        salt: {
+          location: "cupboards",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Household member update",
+          },
+        },
+      },
     });
 
     const clearSharedPantry = await authenticatedRequest(invitee, "/pantry", {
@@ -1555,6 +1609,35 @@ describe("recipe API PostgreSQL integration", () => {
         onion: "1",
         salt: "1",
       },
+      items: {
+        "almond-milk": {
+          location: "fridge",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Household member update",
+          },
+        },
+        onion: {
+          location: "fresh",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Manual kitchen update",
+          },
+        },
+        salt: {
+          location: "cupboards",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Manual kitchen update",
+          },
+        },
+      },
     });
 
     const recipeResponse = await authenticatedRequest(invitee, "/recipes", {
@@ -1597,6 +1680,35 @@ describe("recipe API PostgreSQL integration", () => {
         "almond-milk": "1",
         onion: "1",
         salt: "1",
+      },
+      items: {
+        "almond-milk": {
+          location: "fridge",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Household member update",
+          },
+        },
+        onion: {
+          location: "fresh",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Manual kitchen update",
+          },
+        },
+        salt: {
+          location: "cupboards",
+          quantity: null,
+          freshness: emptyPantryFreshness(),
+          source: {
+            kind: "user",
+            provenance: "Manual kitchen update",
+          },
+        },
       },
     });
 
