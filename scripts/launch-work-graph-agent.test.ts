@@ -4,6 +4,7 @@ import {
   buildWorkerPrompt,
   deriveTicketRoute,
   selectCodexProvider,
+  selectModel,
 } from "./launch-work-graph-agent.js";
 
 function ticket(
@@ -166,5 +167,28 @@ describe("Work Graph ticket routing", () => {
         "codex_2",
       ),
     ).toThrow("not ready, authenticated, and compatible");
+  });
+
+  it("keeps an offered policy model eligible when the catalog marks it legacy", () => {
+    const legacy = provider("codex");
+    const route = deriveTicketRoute(ticket());
+
+    expect(
+      selectModel(
+        [{ ...legacy, models: legacy.models.map((model) => ({ ...model, isLegacy: true })) }],
+        route,
+      ),
+    ).toBe("gpt-5.6-sol");
+  });
+
+  it("rejects a withdrawn policy model without substituting an unapproved model", () => {
+    const current = provider("codex");
+
+    expect(() =>
+      selectModel(
+        [{ ...current, models: current.models.map((model) => ({ ...model, slug: "gpt-6.1-sol" })) }],
+        deriveTicketRoute(ticket()),
+      ),
+    ).toThrow("No ready authenticated Codex provider offers the selected policy model");
   });
 });
