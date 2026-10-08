@@ -1,27 +1,297 @@
 import { randomUUID } from "node:crypto";
+import { pathToFileURL } from "node:url";
 
-import { schemas, T3Client, threadId } from "@wyrd-company/t3code-client";
+import {
+  schemas,
+  T3Client,
+  threadId,
+} from "@wyrd-company/t3code-client";
+import { z } from "zod";
 
-const prompt =
-  "Using the Work Graph CLI, pick up and execute the next task. Continue through the full repository SDLC when it is safe and authorized. If the work requires a human decision, approval, credential, or materially broader authority, request attention on the ticket and ask me in this T3 Code thread.";
-const runtimeModes = [
+const RoutingProviderSchema = z.looseObject({
+  instanceId: z.string().min(1),
+  driver: z.string().min(1),
+  enabled: z.boolean(),
+  installed: z.boolean(),
+  status: z.string().min(1),
+  availability: z.string().optional(),
+  auth: z.looseObject({ status: z.string().min(1) }),
+  models: z.array(
+    z.looseObject({
+      slug: z.string().min(1),
+      isLegacy: z.boolean().optional(),
+      capabilities: z
+        .looseObject({
+          optionDescriptors: z
+            .array(
+              z.looseObject({
+                type: z.string().optional(),
+                id: z.string().optional(),
+                options: z
+                  .array(z.looseObject({ id: z.string().min(1) }))
+                  .optional(),
+              }),
+            )
+            .optional(),
+        })
+        .nullable(),
+    }),
+  ),
+});
+type RoutingProvider = z.infer<typeof RoutingProviderSchema>;
+
+const RuntimeModeSchema = z.enum([
   "approval-required",
   "auto-accept-edits",
   "auto",
   "full-access",
-] as const;
-type RuntimeMode = (typeof runtimeModes)[number];
+]);
+const WorkGraphSelectionSchema = z.object({
+  ticket: z.looseObject({
+    id: z.string().min(1),
+    title: z.string().min(1),
+    expedited: z.boolean(),
+    expediteReason: z.string().nullable().optional(),
+  }),
+  context: z.array(
+    z.looseObject({
+      kind: z.string().min(1),
+      content: z.string().optional(),
+      title: z.string().optional(),
+      role: z.string().optional(),
+    }),
+  ),
+});
 
-function requiredEnvironment(name: string): string {
-  const value = process.env[name];
-  if (value === undefined || value.length === 0) {
-    throw new Error(`${name} is required`);
-  }
-  return value;
+type WorkGraphSelection = z.infer<typeof WorkGraphSelectionSchema>;
+type RuntimeMode = z.infer<typeof RuntimeModeSchema>;
+type Complexity = "routine" | "standard" | "complex" | "critical";
+
+export interface TicketRoute {
+  complexity: Complexity;
+  preferredModels: readonly string[];
+  reasoningEffort: string;
+  runtimeMode: RuntimeMode;
+  serviceTier: string;
+  reasons: readonly string[];
 }
 
-function isRuntimeMode(value: string): value is RuntimeMode {
-  return runtimeModes.some((candidate) => candidate === value);
+const architectureSignal =
+  /\b(?:architecture|architectural|adr|cross[- ]cutting|system design|protocol|schema design)\b/iu;
+const securitySignal =
+  /\b(?:authentication|authorization|credential|secret|security|privacy|threat model|access control)\b/iu;
+const broadChangeSignal =
+  /\b(?:migration|infrastructure|terraform|kubernetes|platform|distributed|concurrency|orchestration|database schema)\b/iu;
+const protectedMutationSignal =
+  /\b(?:deploy(?:ment)? to production|production deploy(?:ment)?|provision(?:ing)?|rotate (?:a |the )?(?:credential|key|secret)|database migration|schema migration|delete production|destructive operation|terraform apply|kubectl apply|payment|billing)\b/iu;
+const routineSignal =
+  /\b(?:typo|copy edit|broken link|link fix|rename|small prose|single page)\b/iu;
+
+function selectionText(selection: WorkGraphSelection): string {
+  return [
+    selection.ticket.title,
+    selection.ticket.expediteReason,
+    ...selection.context.flatMap(({ content, title }) => [title, content]),
+  ]
+    .filter((value): value is string => value !== undefined && value !== null)
+    .join("\n");
+}
+
+function complexityForScore(score: number): Complexity {
+  if (score >= 6) return "critical";
+  if (score >= 4) return "complex";
+  if (score >= 2) return "standard";
+  return "routine";
+}
+
+function modelPolicy(complexity: Complexity): {
+  models: readonly string[];
+  effort: string;
+} {
+  switch (complexity) {
+    case "critical":
+      return {
+        models: ["gpt-6-astra", "gpt-6.1-sol"],
+        effort: "xhigh",
+      };
+    case "complex":
+      return {
+        models: ["gpt-6-astra", "gpt-6.1-sol"],
+        effort: "high",
+      };
+    case "standard":
+      return {
+        models: ["gpt-6.1-sol", "gpt-6-astra", "gpt-6-luna"],
+        effort: "high",
+      };
+    case "routine":
+      return {
+        models: ["gpt-6-luna", "gpt-6.1-sol"],
+        effort: "medium",
+      };
+  }
+}
+
+export function deriveTicketRoute(selection: WorkGraphSelection): TicketRoute {
+  const text = selectionText(selection);
+  const reasons: string[] = [];
+  let score = 0;
+
+  if (selection.context.some(({ kind }) => kind === "acceptance_criteria")) {
+    score += 1;
+    reasons.push("acceptance criteria");
+  }
+  if (selection.context.some(({ kind }) => kind === "architecture_decision")) {
+    score += 1;
+    reasons.push("linked architecture decision");
+  }
+  if (architectureSignal.test(text)) {
+    score += 2;
+    reasons.push("architectural scope");
+  }
+  if (securitySignal.test(text)) {
+    score += 2;
+    reasons.push("security or access scope");
+  }
+  if (broadChangeSignal.test(text)) {
+    score += 2;
+    reasons.push("broad system change");
+  }
+  if (text.length > 2_500) {
+    score += 1;
+    reasons.push("large resolved context");
+  }
+  if (selection.ticket.expedited) {
+    score += 1;
+    reasons.push("expedited ticket");
+  }
+  if (routineSignal.test(text) && score <= 1) {
+    score = 0;
+    reasons.push("bounded routine change");
+  }
+
+  const complexity = complexityForScore(score);
+  const policy = modelPolicy(complexity);
+  const protectedMutation = protectedMutationSignal.test(text);
+  if (protectedMutation) reasons.push("protected external mutation");
+
+  return {
+    complexity,
+    preferredModels: policy.models,
+    reasoningEffort: policy.effort,
+    runtimeMode: protectedMutation ? "approval-required" : "full-access",
+    serviceTier: selection.ticket.expedited ? "priority" : "default",
+    reasons: reasons.length === 0 ? ["bounded ticket context"] : reasons,
+  };
+}
+
+export function buildWorkerPrompt(ticketId: string): string {
+  return `Using the Work Graph CLI, claim and execute ticket ${ticketId}. Follow its context and the repository instructions through the SDLC. If it is no longer claimable, stop and report that here.`;
+}
+
+function requiredEnvironment(name: string): string {
+  return z.string().min(1).parse(process.env[name]);
+}
+
+function environmentOverride(name: string): string | undefined {
+  return z.string().min(1).optional().parse(process.env[name]);
+}
+
+function eligibleCodexProviders(providers: readonly RoutingProvider[]) {
+  return providers
+    .filter(
+      (provider) =>
+        provider.driver === "codex" &&
+        provider.enabled &&
+        provider.installed &&
+        provider.status === "ready" &&
+        provider.auth.status === "authenticated" &&
+        provider.availability !== "unavailable",
+    )
+    .toSorted((left, right) => left.instanceId.localeCompare(right.instanceId));
+}
+
+function stableIndex(value: string, length: number): number {
+  let hash = 2_166_136_261;
+  for (const character of value) {
+    hash ^= character.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return (hash >>> 0) % length;
+}
+
+export function selectCodexProvider(
+  providers: readonly RoutingProvider[],
+  ticketId: string,
+  model: string,
+  override?: string,
+): RoutingProvider {
+  const eligible = eligibleCodexProviders(providers).filter((provider) =>
+    provider.models.some(({ slug }) => slug === model),
+  );
+  if (override !== undefined) {
+    const selected = eligible.find(({ instanceId }) => instanceId === override);
+    if (selected === undefined) {
+      throw new Error(
+        `Codex provider ${override} is not ready, authenticated, and compatible with ${model}`,
+      );
+    }
+    return selected;
+  }
+  if (eligible.length === 0) {
+    throw new Error(`No ready authenticated Codex provider offers ${model}`);
+  }
+  const selected = eligible.at(stableIndex(ticketId, eligible.length));
+  if (selected === undefined) {
+    throw new Error("Codex provider selection produced no result");
+  }
+  return selected;
+}
+
+function selectModel(
+  providers: readonly RoutingProvider[],
+  route: TicketRoute,
+  override?: string,
+): string {
+  const offered = new Set(
+    eligibleCodexProviders(providers).flatMap(({ models }) =>
+      models.filter(({ isLegacy }) => isLegacy !== true).map(({ slug }) => slug),
+    ),
+  );
+  const selected = override ?? route.preferredModels.find((model) => offered.has(model));
+  if (selected === undefined || !offered.has(selected)) {
+    throw new Error(
+      `No ready authenticated Codex provider offers the selected non-legacy model${override === undefined ? "" : ` ${override}`}`,
+    );
+  }
+  return selected;
+}
+
+function optionValues(
+  provider: RoutingProvider,
+  model: string,
+  optionId: string,
+) {
+  const descriptor = provider.models
+    .find(({ slug }) => slug === model)
+    ?.capabilities?.optionDescriptors?.find(
+      (option) => option.type === "select" && option.id === optionId,
+    );
+  return descriptor?.type === "select" && descriptor.options !== undefined
+    ? new Set(descriptor.options.map(({ id }) => id))
+    : new Set<string>();
+}
+
+function validatedOption(
+  provider: RoutingProvider,
+  model: string,
+  optionId: string,
+  value: string,
+): string {
+  if (!optionValues(provider, model, optionId).has(value)) {
+    throw new Error(`${provider.instanceId}/${model} does not support ${optionId}=${value}`);
+  }
+  return value;
 }
 
 async function main(): Promise<void> {
@@ -29,25 +299,10 @@ async function main(): Promise<void> {
   const baseBranch = requiredEnvironment("T3_WORK_GRAPH_BASE_BRANCH");
   const origin = requiredEnvironment("T3_WORK_GRAPH_ORIGIN");
   const projectRoot = requiredEnvironment("T3_WORK_GRAPH_PROJECT_ROOT");
-  const provider = requiredEnvironment("T3_WORK_GRAPH_PROVIDER");
-  const model = requiredEnvironment("T3_WORK_GRAPH_MODEL");
-  const effort = requiredEnvironment("T3_WORK_GRAPH_EFFORT");
-  const serviceTier = requiredEnvironment("T3_WORK_GRAPH_SERVICE_TIER");
-  const parsedRuntimeMode = schemas.orchestrationModel.RuntimeMode.parse(
-    process.env.T3_WORK_GRAPH_RUNTIME_MODE ?? "full-access",
+  const selection = WorkGraphSelectionSchema.parse(
+    JSON.parse(requiredEnvironment("T3_WORK_GRAPH_SELECTION")),
   );
-  if (!isRuntimeMode(parsedRuntimeMode)) {
-    throw new Error(`Unsupported T3 runtime mode: ${parsedRuntimeMode}`);
-  }
-  const runtimeMode = parsedRuntimeMode;
-  const modelSelection = schemas.orchestrationModel.ModelSelection.parse({
-    instanceId: provider,
-    model,
-    options: [
-      { id: "reasoningEffort", value: effort },
-      { id: "serviceTier", value: serviceTier },
-    ],
-  });
+  const route = deriveTicketRoute(selection);
 
   const client = T3Client.create({
     accessToken,
@@ -60,9 +315,45 @@ async function main(): Promise<void> {
     if (project === undefined) {
       throw new Error(`T3 Code has no project for ${projectRoot}`);
     }
-    if ((await client.server.findModel(provider, model)) === undefined) {
-      throw new Error(`T3 Code provider ${provider} does not offer model ${model}`);
-    }
+
+    const providers = z
+      .array(RoutingProviderSchema)
+      .parse(await client.server.providers());
+    const model = selectModel(
+      providers,
+      route,
+      environmentOverride("T3_WORK_GRAPH_MODEL"),
+    );
+    const provider = selectCodexProvider(
+      providers,
+      selection.ticket.id,
+      model,
+      environmentOverride("T3_WORK_GRAPH_PROVIDER"),
+    );
+    const effort = validatedOption(
+      provider,
+      model,
+      "reasoningEffort",
+      environmentOverride("T3_WORK_GRAPH_EFFORT") ?? route.reasoningEffort,
+    );
+    const serviceTier = validatedOption(
+      provider,
+      model,
+      "serviceTier",
+      environmentOverride("T3_WORK_GRAPH_SERVICE_TIER") ?? route.serviceTier,
+    );
+    const runtimeMode = RuntimeModeSchema.parse(
+      environmentOverride("T3_WORK_GRAPH_RUNTIME_MODE") ?? route.runtimeMode,
+    );
+    const modelSelection = schemas.orchestrationModel.ModelSelection.parse({
+      instanceId: provider.instanceId,
+      model,
+      options: [
+        { id: "reasoningEffort", value: effort },
+        { id: "serviceTier", value: serviceTier },
+      ],
+    });
+    const prompt = buildWorkerPrompt(selection.ticket.id);
 
     const id = threadId(randomUUID());
     const createdAt = new Date().toISOString();
@@ -75,7 +366,7 @@ async function main(): Promise<void> {
       bootstrap: {
         createThread: {
           projectId: project.id,
-          title: "Work Graph: next ticket",
+          title: `Work Graph: ${selection.ticket.title}`,
           modelSelection,
           runtimeMode,
           interactionMode: "default",
@@ -98,6 +389,19 @@ async function main(): Promise<void> {
     process.stdout.write(
       `${JSON.stringify(
         {
+          ticket: {
+            id: selection.ticket.id,
+            title: selection.ticket.title,
+          },
+          route: {
+            provider: provider.instanceId,
+            model,
+            reasoningEffort: effort,
+            serviceTier,
+            runtimeMode,
+            complexity: route.complexity,
+            reasons: route.reasons,
+          },
           threadId: id,
           turn: {
             commandId: turn.commandId,
@@ -105,10 +409,6 @@ async function main(): Promise<void> {
             sequence: turn.sequence,
           },
           url: url.toString(),
-          provider,
-          model,
-          reasoningEffort: effort,
-          runtimeMode,
         },
         null,
         2,
@@ -119,4 +419,9 @@ async function main(): Promise<void> {
   }
 }
 
-await main();
+if (
+  process.argv[1] !== undefined &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  await main();
+}

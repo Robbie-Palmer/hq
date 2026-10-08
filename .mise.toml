@@ -79,12 +79,15 @@ git_common_dir="$(git rev-parse --path-format=absolute --git-common-dir)"
 export T3_WORK_GRAPH_PROJECT_ROOT="$(dirname "$git_common_dir")"
 export T3_WORK_GRAPH_BASE_BRANCH="$(git symbolic-ref --short refs/remotes/origin/HEAD | sed 's#^origin/##')"
 t3_home="${T3CODE_HOME:-$HOME/.t3}"
-settings="$t3_home/userdata/settings.json"
 export T3_WORK_GRAPH_ORIGIN="$(jq -er '.origin' "$t3_home/userdata/server-runtime.json")"
-export T3_WORK_GRAPH_PROVIDER="${T3_WORK_GRAPH_PROVIDER:-$(jq -er '.defaultModelSelection.instanceId' "$settings")}"
-export T3_WORK_GRAPH_MODEL="${T3_WORK_GRAPH_MODEL:-$(jq -er '.defaultModelSelection.model' "$settings")}"
-export T3_WORK_GRAPH_EFFORT="${T3_WORK_GRAPH_EFFORT:-$(jq -er '.defaultModelSelection.options[] | select(.id == "reasoningEffort") | .value' "$settings")}"
-export T3_WORK_GRAPH_SERVICE_TIER="${T3_WORK_GRAPH_SERVICE_TIER:-$(jq -er '.defaultModelSelection.options[] | select(.id == "serviceTier") | .value' "$settings")}"
+ready="$(work-graph ready --limit 1)"
+ticket_id="$(jq -er '.items[0].id' <<<"$ready")"
+ticket="$(jq -cer '.items[0]' <<<"$ready")"
+context="$(work-graph context show "$ticket_id")"
+export T3_WORK_GRAPH_SELECTION="$(jq -cn \
+  --argjson ticket "$ticket" \
+  --argjson context "$context" \
+  '{ticket: $ticket, context: $context.items}')"
 export T3_ACCESS_TOKEN="$(t3 auth session issue \
   --base-dir "$t3_home" \
   --ttl 15m \
@@ -93,6 +96,11 @@ export T3_ACCESS_TOKEN="$(t3 auth session issue \
 
 exec pnpm exec tsx scripts/launch-work-graph-agent.ts
 """
+
+[tasks."work-graph:launch-agent:test"]
+description = "Test Work Graph ticket routing and T3 profile selection"
+depends = ["//:install"]
+run = "pnpm exec vitest run scripts/launch-work-graph-agent.test.ts"
 
 [tasks.lint]
 description = "Lint all files across the entire repo"
