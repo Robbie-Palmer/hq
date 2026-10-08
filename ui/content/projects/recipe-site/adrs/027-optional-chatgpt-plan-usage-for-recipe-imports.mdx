@@ -1,0 +1,222 @@
+---
+title: "ADR 027: Optional ChatGPT Plan Usage for Recipe Imports"
+date: "2026-10-08"
+status: "Proposed"
+tech_stack: ["OpenAI"]
+---
+
+# Summary
+
+Let an eligible recipe-site user choose their own ChatGPT plan as the inference payment route for a
+recipe import. OpenRouter remains the application-funded route and continues to serve users who do
+not connect ChatGPT or who explicitly choose it.
+
+The first rollout is owner-only on this open-source, self-hosted Worker deployment, subject to
+OpenAI confirming that this serverless runtime is eligible. A failed or exhausted ChatGPT-plan
+request will not silently spend application OpenRouter credit. The import will instead expose a
+retry choice with a different payment route.
+
+# Context
+
+[ADR 002](/projects/recipe-site/adrs/002-openrouter) chose OpenRouter as the broad model access and
+billing layer. [ADR 012](/projects/recipe-site/adrs/012-cloudflare-workflows-recipe-ingestion) then
+made it the inference provider for the durable photo-to-recipe pipeline. That route works for every
+authenticated user because the application owns the API key and pays for each extraction,
+normalization, and disambiguation request.
+
+The site owner also has a ChatGPT plan with inference allowance. OpenAI now documents
+[ChatGPT plan usage in open-source apps](https://developers.openai.com/siwc/token-sharing-open-source).
+An eligible user can grant an application permission to call the public Responses API against their
+plan without revealing an API key or ChatGPT conversations. The route supports text, image, and file
+inputs when the account's selected model accepts them, which covers the current recipe source types.
+
+This adds a second payment and provider route while retaining OpenRouter. Some recipe-site users will
+not have an eligible ChatGPT account, may decline consent, or may prefer not to spend their plan
+allowance. A connected account can also reach a plan or application-specific usage limit during an
+import.
+
+The application is not local software. It is an owner-operated open-source deployment on Cloudflare
+Workers. OpenAI documents a flow where OAuth completes locally and the resulting registration moves
+to a [self-hosted VM](https://developers.openai.com/siwc/token-sharing-open-source/self-hosted-vms),
+which then owns refreshes and inference. That establishes that inference does not have to remain on
+the computer that ran OAuth.
+
+The project proposes treating the Worker as the recipe site's self-hosted runtime, but OpenAI does
+not explicitly name serverless Workers or define whether this deployment falls under its separate
+guidance for remotely hosted applications. Owner-only use narrows the trust and product boundary; it
+does not settle eligibility. The integration cannot move to Accepted or production until current
+OpenAI guidance or direct approval confirms that use. Enabling other users requires another review
+of hosted-application eligibility and the approval process in force at that time.
+
+The current parsing helpers use OpenRouter's Chat Completions-compatible contract. Sign in with
+ChatGPT uses the Responses API and currently requires `store: false` and `stream: true`. Its preview
+also rejects fields such as `temperature` and `max_output_tokens`. A separate adapter is required;
+changing only the existing client's base URL would produce an invalid request.
+
+# Decision
+
+## Make the payment route explicit
+
+Add a payment route to each recipe import:
+
+* `application_openrouter` uses the existing application API key, models, price caps, quotas, and
+  usage accounting;
+* `user_chatgpt_plan` uses the importing user's authorized ChatGPT registration and a compatible
+  model available to that account.
+
+OpenRouter remains the default for users without a usable ChatGPT connection. A connected user may
+choose a default in account settings and override it when starting an import. The chosen route is
+copied onto the immutable job input so a resumed Workflow cannot change payer because account
+settings changed later.
+
+Application quotas and active-job caps still apply to both routes. They protect Worker, Workflow,
+R2, Postgres, and operational capacity even when the user pays for model inference. Usage records
+separate application-funded USD cost from user-plan token usage.
+
+## Keep registrations separate and user-owned
+
+Each ChatGPT registration belongs to one recipe-site user and this application. The service must
+never use one user's plan for another user's import, including another member of the same household.
+The code-review service has its own application registration and cannot reuse recipe-site tokens.
+
+The initial owner connection is authorized through a trusted local bootstrap and transferred to the
+self-hosted runtime. A later user-facing connection flow must bind the validated OpenAI identity and
+issued client ID to the authenticated recipe-site user before it becomes active. Disconnecting stops
+new plan-funded jobs, attempts revocation, and removes the stored token set. Existing recipes and
+immutable import artifacts remain intact.
+
+One SQLite-backed Durable Object per ChatGPT registration owns the issued client ID, stable host ID,
+granted scopes, expiry, and rotating tokens. Only that object refreshes or revokes the session.
+[Durable Object storage is private, transactional, and strongly consistent](https://developers.cloudflare.com/durable-objects/best-practices/access-durable-objects-storage/),
+so refreshes for one registration have a single serialized owner. Cloudflare
+[encrypts the stored data at rest and in transit](https://developers.cloudflare.com/durable-objects/reference/data-security/).
+
+Tokens must not appear in Postgres recipe rows, R2 artifacts, model envelopes, logs, traces, browser
+storage, support output, or source control. Job artifacts identify only an opaque connection ID,
+provider, model, payment route, and non-secret usage metadata.
+
+## Add a Responses API parsing adapter
+
+The ChatGPT-plan adapter calls `POST https://api.openai.com/v1/responses` with a model returned by
+the connected account's catalogue. It uses `store: false`, `stream: true`, and only request fields
+allowed by the current subscription-sharing route. Only `response.completed` produces a successful
+stage result.
+
+Image extraction sends the existing bounded source images as image inputs. URL, Cooklang, JSON-LD,
+and other structured imports send their extracted text or file content through the same provider
+boundary when model analysis is required. The adapter returns the existing typed stage artifacts,
+so downstream Cooklang derivation, schema validation, canonicalization, R2 snapshots, corrections,
+and evaluation stay provider-independent.
+
+Model choice remains an evaluated configuration. The pipeline must discover what the connected
+account can use, select a model with the required input capability, and benchmark it against the
+curated recipe dataset before production use. Availability in the account catalogue is not evidence
+of acceptable extraction quality.
+
+## Never change payer silently
+
+If the user selected `user_chatgpt_plan` and the connection is missing, revoked, ineligible,
+rate-limited, or exhausted, the affected stage stops with a recoverable provider status. The UI may
+offer these explicit actions:
+
+* retry with the same ChatGPT plan after the user manages usage or reconnects;
+* retry using application-funded OpenRouter, subject to application quota; or
+* cancel the import.
+
+The Workflow must not automatically fall back to OpenRouter because that changes who pays. If a
+provider fails after completing an earlier stage, a retry preserves completed immutable artifacts
+and records the provider and payment route used for every attempt.
+
+# Alternatives
+
+## Run parsing in a local browser or desktop client
+
+This is the clearest fit for OpenAI's locally hosted client guidance and would keep inference tokens
+on the owner's device. It conflicts with the current ingestion architecture. Cloudflare Workflows
+run extraction, normalization, disambiguation, correction, and retry after the browser closes. A
+local client would have to stay online for those stages, receive every source image or text payload,
+and upload completed artifacts back to the site. A browser implementation also cannot keep OAuth
+tokens in browser storage under OpenAI's credential guidance.
+
+Rejected for the current recipe pipeline. The local bootstrap handles authorization and secure
+credential transfer; the Worker remains the execution host. A native client would be worth
+reconsidering if the product later moves the complete import pipeline onto the user's device and
+sends only validated recipe drafts to the site.
+
+## Replace OpenRouter for all imports
+
+This would remove one integration and could reduce application inference spend. It would exclude
+users without an eligible ChatGPT plan, make recipe ingestion depend on subscription allowance, and
+discard the evaluated Gemini route currently used by production. Rejected.
+
+## Share the owner's ChatGPT plan with every site user
+
+This would make the feature available without per-user connections. It would consume the owner's
+allowance for other people's jobs, erase user control, and turn a personal authorization into an
+application credential. Rejected.
+
+## Fall back to OpenRouter automatically
+
+This would improve completion rates during plan limits or revocation. It would also convert a
+user-funded job into an application-funded job without an explicit choice. Rejected. The user can
+select the fallback after seeing the reason and quota effect.
+
+## Use an OpenAI API key
+
+An API key would support direct OpenAI billing but would not use the user's ChatGPT plan. It can be
+added later as another application-funded provider if its models outperform the current route.
+
+## Keep OpenRouter only
+
+This preserves the simplest operational model and remains valid if the OpenAI preview proves
+unstable or the evaluated recipe quality is worse. It leaves users unable to apply their existing
+ChatGPT allowance to imports.
+
+# Consequences
+
+Users with eligible accounts can fund their own image and text analysis without removing the route
+for everyone else. The immutable job-level payment choice keeps retries auditable, and explicit
+fallback prevents surprise application spend.
+
+The recipe system gains OAuth consent, protected rotating credentials, revocation, model discovery,
+streaming Responses parsing, account-specific capability checks, and more complex usage reporting.
+The UI must explain which route will pay before a job starts and what changing route on retry means.
+
+The evaluation pipeline gains another provider candidate. Comparing it with OpenRouter requires
+quality, latency, failure, and token measures. Subscription requests have no per-request USD value
+known to the application, so reports must not present them as free or combine them with
+application-funded cost totals.
+
+The owner's code-review and recipe usage draw from the same ChatGPT plan allowance even though each
+application has its own registration and limits. A burst of imports can therefore reduce review or
+interactive Codex capacity, and the site cannot promise a reset time when OpenAI reports a usage
+limit.
+
+# Adoption criteria
+
+Move this ADR to Accepted only when all of the following hold:
+
+1. Current OpenAI guidance or direct approval confirms that this owner-operated Cloudflare Worker
+   may use ChatGPT plan access as a self-hosted runtime.
+2. The owner can authorize, transfer, refresh, revoke, and reconnect the recipe-site registration
+   without exposing tokens in browser storage, Postgres, R2, logs, traces, or command output.
+3. Concurrent Workflows cannot race a rotating refresh token or replace a newer token set with an
+   older one.
+4. An eligible multimodal model completes the current image extraction contract through the direct
+   Responses API and passes the existing schema validation.
+5. The DVC evaluation compares the selected model with the production OpenRouter baseline on the
+   same pinned examples and finds acceptable extraction and normalization quality.
+6. Jobs without a ChatGPT connection continue through OpenRouter unchanged, while ChatGPT-plan
+   failures offer an explicit retry route without silently changing payer.
+7. Attempt and artifact provenance records provider, model, payment route, usage, and terminal
+   status without storing OAuth credentials or claiming subscription usage has zero cost.
+8. Production rollout remains owner-only until use by other accounts has a separately reviewed
+   eligibility, consent, authorization, deletion, and support design.
+
+# References
+
+* [ChatGPT plan usage overview](https://developers.openai.com/siwc/token-sharing-open-source)
+* [Models and inference](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference)
+* [Accounts and sessions](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions)
+* [Self-hosted VMs](https://developers.openai.com/siwc/token-sharing-open-source/self-hosted-vms)
+* [Preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations)

@@ -1,0 +1,186 @@
+---
+title: "ADR 006: ChatGPT Plan Models as Complementary Review Scouts"
+date: "2026-10-08"
+status: "Proposed"
+tech_stack: ["OpenAI"]
+---
+
+# Summary
+
+Add an optional OpenAI scout that uses the repository owner's ChatGPT plan through Sign in with
+ChatGPT and the Responses API. It will supplement the existing OpenRouter and OpenCode scouts, not
+replace them, and a failure or exhausted allowance will reduce reported coverage without preventing
+the other scouts from completing.
+
+The first deployment is limited to the owner's account and repositories on this owner-operated
+Cloudflare Worker, subject to OpenAI confirming that this serverless runtime is eligible. It will
+not expose a general-purpose ChatGPT connection flow to other GitHub App installations under this
+decision.
+
+# Context
+
+[ADR 001](/projects/agentic-code-review/adrs/001-stateful-ai-code-review) keeps model selection
+replaceable behind a stateful review service. The deployed ensemble uses paid OpenRouter scouts,
+eligible free OpenCode scouts, and an OpenRouter merger. That diversity is deliberate. Independent
+model families find different defects, and the scorecard can remove a weak scout without replacing
+the review system.
+
+OpenAI now documents
+[ChatGPT plan usage in open-source apps](https://developers.openai.com/siwc/token-sharing-open-source).
+An eligible user authorizes a client with Sign in with ChatGPT, after which the client can call the
+public Responses API with the user's OAuth access token. The model catalogue belongs to the selected
+account and must be queried with that token. Requests on this route must use `store: false` and
+`stream: true`; the current preview also excludes request fields used by the OpenRouter adapter,
+including `temperature` and `max_output_tokens`. The integration therefore needs a first-party
+Responses adapter rather than another OpenAI-compatible base URL.
+
+The service is not a local application. It is an open-source, owner-operated Worker used to review
+the owner's repositories. OpenAI documents laptops and
+[self-hosted VMs](https://developers.openai.com/siwc/token-sharing-open-source/self-hosted-vms) as
+agent hosts, but does not name Cloudflare Workers or define whether this deployment falls under its
+separate guidance for remotely hosted applications. Treating the Worker as a self-hosted runtime is
+therefore a proposal, not a settled eligibility claim. The integration cannot move to Accepted or
+production until current guidance or direct approval confirms that use. Expanding the feature to
+accounts other than the owner requires another eligibility review and any approval OpenAI then
+requires for hosted applications.
+
+Codex app-server is not a fit for this runtime. Its documented integration uses a child process over
+standard input and output, while the Worker can call the Responses API directly. The review prompt
+already contains the bounded diff and repository context needed for a stateless model request, so
+the local tools offered by app-server are unnecessary here.
+
+# Decision
+
+## Keep the multi-provider ensemble
+
+Add `openai-chatgpt-plan` as a distinct scout provider. The default review plan will continue to run
+the configured OpenRouter and OpenCode scouts. At least one non-OpenAI scout must remain enabled
+whenever the ChatGPT-plan scout is enabled.
+
+This ADR does not move reconciliation to OpenAI and does not make an OpenAI model the sole reviewer.
+The existing OpenRouter merger remains the default. A later scorecard experiment may compare merger
+models, but that is a separate decision from adding an independent scout.
+
+The selected OpenAI model must come from the connected account's model catalogue. Configuration may
+pin a catalogue slug after availability has been verified, but code must not assume that every
+ChatGPT account exposes the same models or capabilities.
+
+## Bind one connection to the owner and application
+
+The owner will complete the OAuth authorization from a trusted local bootstrap command, using the
+code-review service's stable application name and host identifier. The resulting registration is
+transferred to the deployed Worker as protected runtime state. It is not a shared API key and must
+not authorize work for a repository or installation outside the existing owner allowlist.
+
+The code-review service owns its registration. The recipe site or another application must obtain
+its own consent and token set so ChatGPT exposes separate application access and usage controls.
+
+One dedicated SQLite-backed Durable Object will own each ChatGPT registration. It stores the issued
+client ID, stable host ID, granted scopes, expiry, and rotating token set. Only that object may
+refresh or revoke the registration. Durable Object storage is
+[private, transactional, and strongly consistent](https://developers.cloudflare.com/durable-objects/best-practices/access-durable-objects-storage/),
+which gives rotating refresh tokens one serial writer. Cloudflare also
+[encrypts Durable Object data at rest and in transit](https://developers.cloudflare.com/durable-objects/reference/data-security/).
+
+Tokens must never enter R2 review records, logs, traces, error messages, GitHub comments, source
+control, or browser storage. The bootstrap path must redact authorization URLs and token responses.
+Disconnecting the account revokes the renewable session where possible and deletes the stored token
+set.
+
+## Use the direct Responses contract
+
+The provider adapter will call `POST https://api.openai.com/v1/responses` with a model returned for
+the connected account. Every call uses `store: false`, `stream: true`, and the preview-compatible
+message and structured-output shape. It treats only `response.completed` as success and records
+terminal failures without retrying unsupported requests.
+
+The OpenAI scout receives the same review policy, bounded repository context, and changed hunks as
+the other scouts. Its output must pass the existing finding schema and deterministic validation
+before reconciliation. OpenAI-specific response events and transport details do not enter the
+domain finding model.
+
+Usage records identify the provider, model, account connection, token counts when returned, latency,
+and terminal status. Subscription usage has no per-request USD price from this application, so its
+cost is recorded as unavailable rather than zero. Scorecards must keep plan usage distinct from
+OpenRouter spend.
+
+## Degrade coverage instead of changing payer
+
+An absent connection, revoked grant, unavailable model, usage limit, or OpenAI outage skips only the
+ChatGPT-plan scout. The review continues with the retained OpenRouter and OpenCode scouts. The rolling
+comment and R2 record identify the missing scout and incomplete coverage through the existing model
+health mechanism.
+
+The service will not respond to a ChatGPT-plan error by adding another paid OpenRouter request that
+was not already in the review plan. Existing configured OpenRouter scouts still run because they are
+independent ensemble members, not a hidden billing fallback.
+
+# Alternatives
+
+## Replace the ensemble with one subscription-backed model
+
+This would reduce direct inference spend and simplify orchestration. It would also remove the model
+diversity that motivates the product and make review capacity depend on one account's allowance.
+Rejected.
+
+## Run Codex app-server outside the Worker
+
+A VM-hosted app-server could add local tools and agent behavior. The current reviewer does not need
+to execute repository code or expose a shell to the model. Adding another runtime and trust boundary
+for a text-in, structured-findings-out scout is unjustified. Rejected for this integration.
+
+## Use an OpenAI API key
+
+An API key would work from the Worker and avoid the OAuth token lifecycle. It would charge API usage
+instead of using the owner's ChatGPT plan, so it does not meet the purpose of this proposal. It
+remains a possible future provider route with its own budget policy.
+
+## Keep only OpenRouter and OpenCode
+
+This is the lowest-maintenance option and remains the fallback if the preview contract or model
+quality proves unsuitable. It forgoes an independent OpenAI model and leaves the owner's existing
+plan allowance unused for review.
+
+# Consequences
+
+The ensemble gains another independently developed model without losing the scouts already measured
+in production. The owner's ChatGPT plan can fund that extra analysis, while OpenRouter remains the
+paid routing and reconciliation layer.
+
+The service also gains an OAuth credential lifecycle, protected mutable storage, revocation, dynamic
+model discovery, streaming Responses parsing, and another provider-specific prompt adapter. Plan
+limits are shared with the owner's other ChatGPT activity, so code reviews can reduce capacity
+available elsewhere. Preview restrictions and eligible models may change independently of this
+service.
+
+The scorecard can measure retained findings, failures, latency, tokens, and downstream outcomes for
+the OpenAI scout. It cannot honestly compare a subscription request with OpenRouter on per-request
+USD cost, so economic reporting must show the two payment routes separately.
+
+# Adoption criteria
+
+Move this ADR to Accepted only when all of the following hold:
+
+1. Current OpenAI guidance or direct approval confirms that this owner-operated Cloudflare Worker
+   may use ChatGPT plan access as a self-hosted runtime.
+2. A local bootstrap can authorize, transfer, refresh, revoke, and reconnect the owner's account
+   without exposing tokens in command output, logs, traces, R2, or GitHub.
+3. Concurrent refresh attempts cannot reuse a rotating refresh token or overwrite a newer token set.
+4. The provider adapter passes the current Sign in with ChatGPT preview contract and validates scout
+   output through the existing finding schema.
+5. The production review plan retains its configured OpenRouter and OpenCode scouts, and an OpenAI
+   failure demonstrably degrades only that scout's coverage.
+6. Replay evaluation shows complementary useful findings at acceptable noise and latency before the
+   scout is enabled for automatic reviews.
+7. Provider records distinguish ChatGPT-plan usage from paid OpenRouter cost and remain usable by the
+   existing scorecard.
+8. The rollout remains restricted to the owner's account and repository allowlist until use by other
+   installations has a separately reviewed authorization and eligibility design.
+
+# References
+
+* [ChatGPT plan usage overview](https://developers.openai.com/siwc/token-sharing-open-source)
+* [Models and inference](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference)
+* [Accounts and sessions](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions)
+* [Self-hosted VMs](https://developers.openai.com/siwc/token-sharing-open-source/self-hosted-vms)
+* [Preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations)
