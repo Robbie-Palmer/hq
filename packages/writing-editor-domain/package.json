@@ -10,20 +10,27 @@
     "./decisions": "./src/decisions.ts",
     "./findings": "./src/findings.ts",
     "./proposals": "./src/proposals.ts",
-    "./suggestions": "./src/suggestions.ts"
+    "./review": "./src/review.ts",
+    "./review-receipt": "./src/review-receipt.ts",
+    "./review-session": "./src/review-session.ts",
+    "./suggestions": "./src/suggestions.ts",
+    "./vale-producer": "./src/vale-producer.ts"
   },
   "scripts": {
+    "review": "tsx src/review-cli.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "diff": "^9.0.0",
     "ts-base": "workspace:*",
     "zod": "^4.2.1"
   },
   "devDependencies": {
     "@types/node": "^24",
     "@vitest/coverage-v8": "^5.0.0",
+    "tsx": "^4.23.12",
     "typescript": "^6.0.0",
     "vitest": "^5.0.0"
   }

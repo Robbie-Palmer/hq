@@ -397,3 +397,84 @@ stages:
       md5: 3b7a87328743ed3684e95689af98e192.dir
       size: 711440
       nfiles: 10
+  evaluate_reviews:
+    cmd: bash scripts/evaluate-reviews-dvc.sh
+    deps:
+    - path: ../../packages/writing-editor-domain/package.json
+      hash: md5
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
+    - path: ../../packages/writing-editor-domain/src/canonical-json.ts
+      hash: md5
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
+    - path: ../../packages/writing-editor-domain/src/decisions.ts
+      hash: md5
+      md5: 75c67d7125104a7b42df2a37cc4d42e0
+      size: 2997
+    - path: ../../packages/writing-editor-domain/src/findings.ts
+      hash: md5
+      md5: 5bb634381e00b3c01794f50b67e21095
+      size: 4629
+    - path: ../../packages/writing-editor-domain/src/proposals.ts
+      hash: md5
+      md5: c4b20db48f31d2324134763913160fac
+      size: 4668
+    - path: ../../packages/writing-editor-domain/src/review-receipt.ts
+      hash: md5
+      md5: 851ef5ec8d4ad27296613a4c2bf38ae4
+      size: 2318
+    - path: ../../packages/writing-editor-domain/src/review.ts
+      hash: md5
+      md5: 79f007f6de0209d2cf47263ce61ae544
+      size: 7966
+    - path: ../../packages/writing-editor-domain/src/suggestions.ts
+      hash: md5
+      md5: d0d064a3be87e2ce1256b3c17b004405
+      size: 6579
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: c62f798a274ca43f49b0d7dc885cd811
+      size: 663909
+    - path: data/review-evidence/repository-pilot/decisions.jsonl
+      hash: md5
+      md5: fa8151bcdbb6e612cc5189c5dca5f55c
+      size: 1219
+    - path: data/review-evidence/repository-pilot/manifest.json
+      hash: md5
+      md5: e069b481472ce90289dfe972d2f6a9ff
+      size: 886
+    - path: data/review-evidence/repository-pilot/receipt.json
+      hash: md5
+      md5: ac87a46d2ccc367a3663277fee0a27ce
+      size: 730
+    - path: data/review-evidence/repository-pilot/records.json
+      hash: md5
+      md5: 264495a61030c6a69a32f91c4237df81
+      size: 2402
+    - path: evaluation-params.json
+      hash: md5
+      md5: 26ed31f4343e1382730c572a859d7e23
+      size: 172
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: scripts/evaluate-reviews-dvc.sh
+      hash: md5
+      md5: 12a355894e3a828f15c632d493a0c18d
+      size: 287
+      isexec: true
+    - path: src/evaluate-reviews.ts
+      hash: md5
+      md5: c922e38c8a4d195dcec54ab4e10455a4
+      size: 13816
+    - path: src/files.ts
+      hash: md5
+      md5: fce85952c262353a104b1705fc30ddc6
+      size: 2954
+    outs:
+    - path: outputs/evaluation/repository-pilot.json
+      hash: md5
+      md5: 04d1c96de0b46ab8dfb352989577a9a0
+      size: 1894

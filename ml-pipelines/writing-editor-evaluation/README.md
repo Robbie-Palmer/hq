@@ -81,11 +81,12 @@ provenance, then groups edits from the same source line into proposals. Before
 writing output, it verifies each proposal against the frozen source and checks
 that applying all suggestions recreates the generated Markdown byte for byte.
 
-Vale records are findings because the active rules identify passages but
-cannot rewrite them safely. They contain no replacement text. A later rewrite
-producer may turn selected findings into suggestions and proposals. GECToR is
-already a rewrite producer, so its actionable edits use suggestions and
-proposals directly.
+Vale remains the detection layer. Every Unslop rule is classified as either
+finding-only or safely rewritable. The repository review command turns only
+the allowlisted exact replacements into ADR 003 suggestions and proposals;
+ambiguous alerts stay findings without replacement text. GECToR is also a
+rewrite producer, so its actionable edits use suggestions and proposals
+directly.
 
 `match_edits` compares each source and published revision as Unicode code
 points, then records the resulting edits as exact UTF-8 byte ranges. It labels a
@@ -101,6 +102,19 @@ The matcher verifies both revision hashes, the producer run and cohort, every
 finding span, and its own runtime schema before writing
 `outputs/matched/vale.json`.
 
+`evaluate_reviews` validates the producer records, decision log, and completed
+review receipt before calculating outcomes. Detection coverage stays separate
+from proposal yield. The scorecard reports factual, terminology, voice,
+regression, review-time, and useful-yield measures for each artifact, with
+source hashes, revisions, producer IDs, and evidence hashes. Thresholds live
+in `evaluation-params.json`; every gate must pass before the recommendation can
+change from `keep-opt-in` to `adopt-default`.
+
+The repository pilot and future private cohorts live in the project's DVC data
+area. Git tracks only their DVC pointers. Each evidence manifest records its
+classification, consent, retention, and deletion status. A deletion request
+blocks adoption even when the numerical thresholds pass.
+
 On the initial cohort, 15 of 43 findings map to self-contained published
 changes. The remaining 28 cross or touch finding boundaries and stay in the
 manual-adjudication queue. The cohort intentionally contains no unchanged
@@ -115,6 +129,7 @@ mise run //ml-pipelines/writing-editor-evaluation:run:vale
 mise run //ml-pipelines/writing-editor-evaluation:run:gector:smoke
 mise run //ml-pipelines/writing-editor-evaluation:run:gector
 mise run //ml-pipelines/writing-editor-evaluation:match:edits
+mise run //ml-pipelines/writing-editor-evaluation:evaluate:reviews
 ```
 
 Run `runtime:smoke` first on a newly provisioned GPU laptop. It loads the real

@@ -59,6 +59,7 @@ jobs:
         pipeline:
           - recipe-parsing
           - recipe-dataset
+          - writing-editor-evaluation
     defaults:
       run:
         working-directory: ml-pipelines/${{ matrix.pipeline }}
@@ -71,7 +72,12 @@ jobs:
       - uses: $/.github/actions/setup-mise
 
       - name: Validate DVC remote
+        if: matrix.pipeline != 'writing-editor-evaluation'
         run: mise run //ml-pipelines:dvc -- pull
+
+      - name: Pull writing review evidence
+        if: matrix.pipeline == 'writing-editor-evaluation'
+        run: mise run //ml-pipelines/writing-editor-evaluation:review-evidence:pull
 
       - name: Get pnpm store directory
         if: matrix.pipeline == 'recipe-parsing'
@@ -101,9 +107,17 @@ jobs:
         if: matrix.pipeline == 'recipe-dataset'
         run: mise run //ml-pipelines/recipe-dataset:check
 
+      - name: Check writing editor evaluation pipeline
+        if: matrix.pipeline == 'writing-editor-evaluation'
+        run: mise run //ml-pipelines/writing-editor-evaluation:check
+
       - name: Reproduce recipe dataset pipeline
         if: matrix.pipeline == 'recipe-dataset'
         run: mise run //ml-pipelines/recipe-dataset:repro
+
+      - name: Reproduce writing review scorecard
+        if: matrix.pipeline == 'writing-editor-evaluation'
+        run: mise run //ml-pipelines/writing-editor-evaluation:evaluate:reviews
 
       - name: Comment metrics on PR
         run: |

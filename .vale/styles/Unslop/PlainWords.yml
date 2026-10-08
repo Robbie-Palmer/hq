@@ -1,5 +1,5 @@
-message: "Prefer the plain word — e.g. 'use' instead of 'utilize'"
+message: "Consider a plainer alternative to '%s' that fits the context"
 extends: existence
 level: warning
 ignorecase: true
-raw: '(?:utilize|utilise|leverage|facilitate|numerous|commence|endeavor|endeavour|expedite|optimize(?!.*benchmark))'
+raw: '(?:leverage|facilitate|optimize(?!.*benchmark))'

@@ -16,6 +16,10 @@ import {
 
 const source = "Café is very unique. It works.";
 const sourceRef = sourceReference("projects/editor.md", "git:abc123", source);
+const timing = {
+  reviewStartedAt: "2026-09-26T08:00:00.000Z",
+  decidedAt: "2026-09-26T08:00:05.000Z",
+};
 
 function suggestionInput(
   startByte = 9,
@@ -223,16 +227,16 @@ describe("decisions", () => {
   it("keeps the full proposal for accepted, rejected, and changed outcomes", () => {
     const proposal = createProposal([suggestion()]);
 
-    expect(createDecision(proposal, "accepted")).toMatchObject({
+    expect(createDecision(proposal, "accepted", timing)).toMatchObject({
       outcome: "accepted",
       proposalId: proposal.proposalId,
       proposal,
     });
-    expect(createDecision(proposal, "rejected")).toMatchObject({
+    expect(createDecision(proposal, "rejected", timing)).toMatchObject({
       outcome: "rejected",
       proposal,
     });
-    expect(createDecision(proposal, "changed", "distinctive")).toMatchObject({
+    expect(createDecision(proposal, "changed", "distinctive", timing)).toMatchObject({
       outcome: "changed",
       replacement: "distinctive",
       proposal,
@@ -246,6 +250,7 @@ describe("decisions", () => {
       recordType: "writing-decision",
       proposalId: proposal.proposalId,
       proposal,
+      ...timing,
     };
 
     expect(DecisionSchema.safeParse({ ...base, outcome: "changed" }).success).toBe(false);
@@ -264,5 +269,13 @@ describe("decisions", () => {
       undefined,
       [proposal, "accepted", "other"],
     )).toThrow(/cannot include a replacement/);
+  });
+
+  it("records valid review timing", () => {
+    const proposal = createProposal([suggestion()]);
+    expect(() => createDecision(proposal, "accepted", {
+      reviewStartedAt: timing.decidedAt,
+      decidedAt: timing.reviewStartedAt,
+    })).toThrow(/must not precede/);
   });
 });
