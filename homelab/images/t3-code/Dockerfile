@@ -1,4 +1,12 @@
-FROM ghcr.io/jdx/mise:2026.9.1@sha256:df5adf538c92d86f9807e738c7c7a9b32a1ae06edf441ede141333e3fe6a2cd9 AS mise-tools
+FROM ghcr.io/jdx/mise:2026.10.0@sha256:5253aad873240675097e6229786dff87d54a9ac9d52917e42903de37511f74b3 AS mise-bootstrap
+
+FROM node:24.21.0-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS mise-tools
+
+COPY --from=mise-bootstrap /usr/local/bin/mise /usr/local/bin/mise
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=shared-tool-config config.toml /tmp/t3-code-mise/mise.toml
 COPY --from=shared-tool-config mise.lock /tmp/t3-code-mise/mise.lock
