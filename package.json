@@ -6,6 +6,7 @@
   "type": "module",
   "description": "Root package for projects, writing, infrastructure, and homelab",
   "dependencies": {
+    "@wyrd-company/t3code-client": "0.5.0",
     "observability": "workspace:*",
     "recipe-domain": "workspace:*",
     "ts-base": "workspace:*"
