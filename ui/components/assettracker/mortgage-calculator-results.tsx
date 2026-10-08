@@ -13,9 +13,13 @@ function rateAdjustmentLabel(rateAdjustment: number): string {
 }
 
 export function MortgageCalculatorHighlights({
+  existingMortgage,
+  rateAvailable,
   result,
   money,
 }: Readonly<{
+  existingMortgage: boolean;
+  rateAvailable: boolean;
   result: MortgageCalculatorResult;
   money: FormatMoney;
 }>) {
@@ -25,8 +29,14 @@ export function MortgageCalculatorHighlights({
       {[
         ["Mortgage", money(selected.openingLoan)],
         ["Loan to value", percentage(selected.loanToValue)],
-        ["First payment", money(selected.initialMonthlyPayment)],
-        ["Cash retained", money(selected.retainedLiquidity)],
+        [
+          "Modelled monthly payment",
+          rateAvailable ? money(selected.initialMonthlyPayment) : "Rate needed",
+        ],
+        [
+          existingMortgage ? "Investments retained" : "Cash retained",
+          money(selected.retainedLiquidity),
+        ],
       ].map(([label, value]) => (
         <div key={label} className="rounded-md border p-3">
           <p className="text-xs text-muted-foreground">{label}</p>
@@ -38,9 +48,13 @@ export function MortgageCalculatorHighlights({
 }
 
 export function MortgageDepositComparison({
+  existingMortgage,
+  rateAvailable,
   result,
   money,
 }: Readonly<{
+  existingMortgage: boolean;
+  rateAvailable: boolean;
   result: MortgageCalculatorResult;
   money: FormatMoney;
 }>) {
@@ -52,10 +66,16 @@ export function MortgageDepositComparison({
       >
         <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
           <tr>
-            <th className="px-3 py-2 font-medium">Deposit</th>
+            <th className="px-3 py-2 font-medium">
+              {existingMortgage ? "Home equity" : "Deposit"}
+            </th>
             <th className="px-3 py-2 text-right font-medium">LTV</th>
-            <th className="px-3 py-2 text-right font-medium">Cash retained</th>
-            <th className="px-3 py-2 text-right font-medium">First payment</th>
+            <th className="px-3 py-2 text-right font-medium">
+              {existingMortgage ? "Investments retained" : "Cash retained"}
+            </th>
+            <th className="px-3 py-2 text-right font-medium">
+              Modelled payment
+            </th>
             <th className="px-3 py-2 text-right font-medium">Total interest</th>
             <th className="px-3 py-2 text-right font-medium">Payoff</th>
           </tr>
@@ -81,10 +101,12 @@ export function MortgageDepositComparison({
                 {money(option.retainedLiquidity)}
               </td>
               <td className="whitespace-nowrap px-3 py-2 text-right">
-                {money(option.initialMonthlyPayment)}
+                {rateAvailable
+                  ? money(option.initialMonthlyPayment)
+                  : "Rate needed"}
               </td>
               <td className="whitespace-nowrap px-3 py-2 text-right">
-                {money(option.totalInterest)}
+                {rateAvailable ? money(option.totalInterest) : "Rate needed"}
               </td>
               <td className="whitespace-nowrap px-3 py-2 text-right">
                 {option.payoffDate}

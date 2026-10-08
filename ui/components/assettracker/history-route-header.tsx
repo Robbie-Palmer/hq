@@ -5,17 +5,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  type Currency,
-  CurrencySchema,
-  SUPPORTED_CURRENCIES,
-} from "@/lib/domain/assettracker";
+import { type Currency, CurrencySchema } from "@/lib/domain/assettracker";
 import { AccountHistoryImportDrawer } from "./account-history-import-drawer";
 
 export function HistoryRouteHeader({
+  availableCurrencies,
   currency,
   onCurrencyChange,
 }: Readonly<{
+  availableCurrencies: Currency[];
   currency: Currency;
   onCurrencyChange: (currency: Currency) => void;
 }>) {
@@ -42,7 +40,7 @@ export function HistoryRouteHeader({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {SUPPORTED_CURRENCIES.map((item) => (
+            {availableCurrencies.map((item) => (
               <SelectItem key={item} value={item}>
                 {item}
               </SelectItem>

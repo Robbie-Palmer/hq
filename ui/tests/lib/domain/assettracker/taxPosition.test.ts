@@ -52,17 +52,241 @@ describe("household tax position", () => {
     expect(sam?.allowances.isaContributionsPence).toBe(600_000);
   });
 
-  it("migrates older browser data and blocks a total until profiles exist", () => {
+  it("uses a standard profile for older browser data", () => {
     const data = AssetTrackerDataSchema.parse({ accounts: [], snapshots: [] });
     const result = getHouseholdTaxEstimate(data);
 
     expect(data.taxPosition).toBeUndefined();
-    expect(result.available).toBe(false);
-    expect(result.totalTaxPence).toBeNull();
-    expect(result.unsupported).toEqual(
+    expect(result.available).toBe(true);
+    expect(result.totalTaxPence).toBe(0);
+    expect(result.lineage.assumptionRecordIds).toContain(
+      "default-tax-profile-primary-2026-27",
+    );
+  });
+
+  it("infers projected employment income from recurring gross pay", () => {
+    const data = AssetTrackerDataSchema.parse({
+      accounts: [
+        {
+          id: "current",
+          name: "Current account",
+          provider: "Bank",
+          currency: "GBP",
+          assetType: "cash",
+          expectedAnnualReturn: 0,
+          createdAt: "2020-01-01",
+        },
+      ],
+      snapshots: [],
+      recurringFlows: [
+        {
+          id: "salary",
+          name: "Salary",
+          toAccountId: "current",
+          amount: 5_500,
+          grossAmount: 10_000,
+          compensationKind: "takeHomeIncome",
+          currency: "GBP",
+          frequency: "monthly",
+          startDate: "2026-01-01",
+        },
+      ],
+    });
+
+    const request = buildHouseholdTaxRequest(data, "2026-10-08");
+
+    expect(
+      request.incomes.reduce((total, income) => total + income.amountPence, 0),
+    ).toBe(12_000_000);
+    expect(request.incomes).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ code: "missing-tax-profile" }),
+        expect.objectContaining({
+          memberId: "primary",
+          kind: "employment",
+          evidence: expect.objectContaining({ timing: "to-date" }),
+        }),
+        expect.objectContaining({
+          memberId: "primary",
+          kind: "employment",
+          evidence: expect.objectContaining({ timing: "year-end" }),
+        }),
       ]),
+    );
+    expect(request.people[0]).toMatchObject({
+      memberId: "primary",
+      nationalInsuranceCategory: "A",
+    });
+    expect(getHouseholdTaxEstimate(data, "2026-10-08").available).toBe(true);
+  });
+
+  it("models salary sacrifice and pension allowance usage from recurring flows", () => {
+    const data = AssetTrackerDataSchema.parse({
+      accounts: [
+        {
+          id: "current",
+          name: "Current account",
+          provider: "Bank",
+          currency: "GBP",
+          assetType: "cash",
+          expectedAnnualReturn: 0,
+          createdAt: "2020-01-01",
+        },
+        {
+          id: "pension",
+          name: "Pension",
+          provider: "Pension provider",
+          currency: "GBP",
+          assetType: "stocks",
+          expectedAnnualReturn: 0.05,
+          createdAt: "2020-01-01",
+        },
+      ],
+      snapshots: [],
+      recurringFlows: [
+        {
+          id: "salary",
+          name: "Salary",
+          toAccountId: "current",
+          amount: 5_495,
+          grossAmount: 10_000,
+          compensationKind: "takeHomeIncome",
+          currency: "GBP",
+          frequency: "monthly",
+          startDate: "2026-03-27",
+        },
+        {
+          id: "employee-pension",
+          name: "Employee pension",
+          toAccountId: "pension",
+          amount: 2_000,
+          compensationKind: "employeePension",
+          currency: "GBP",
+          frequency: "monthly",
+          startDate: "2026-03-27",
+        },
+        {
+          id: "employer-pension",
+          name: "Employer pension",
+          toAccountId: "pension",
+          amount: 500,
+          compensationKind: "employerPension",
+          currency: "GBP",
+          frequency: "monthly",
+          startDate: "2026-03-27",
+        },
+      ],
+    });
+
+    const request = buildHouseholdTaxRequest(data, "2026-10-08");
+    const result = getHouseholdTaxEstimate(data, "2026-10-08");
+    const person = result.people[0];
+
+    expect(request.accounts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "pension", wrapper: "pension" }),
+      ]),
+    );
+    expect(
+      request.incomes.reduce((total, income) => total + income.amountPence, 0),
+    ).toBe(9_600_000);
+    expect(
+      request.incomes.find(({ evidence }) => evidence.timing === "to-date")
+        ?.amountPence,
+    ).toBe(4_800_000);
+    expect(
+      request.contributions.reduce(
+        (total, contribution) => total + contribution.amountPence,
+        0,
+      ),
+    ).toBe(3_000_000);
+    expect(
+      request.contributions
+        .filter(({ evidence }) => evidence.timing === "to-date")
+        .reduce((total, contribution) => total + contribution.amountPence, 0),
+    ).toBe(1_500_000);
+    expect(result.available).toBe(true);
+    expect(
+      (person?.bandConsumption.observed.personalAllowanceByIncome
+        .employmentPence ?? 0) +
+        (person?.bandConsumption.observed.bands.reduce(
+          (total, band) => total + band.employmentPence,
+          0,
+        ) ?? 0),
+    ).toBe(4_800_000);
+    expect(person?.allowances.pensionObservedContributionsPence).toBe(
+      1_500_000,
+    );
+    expect(person?.allowances.pensionContributionsPence).toBe(3_000_000);
+  });
+
+  it("counts transfers into an ISA as subscriptions", () => {
+    const data = AssetTrackerDataSchema.parse({
+      accounts: [
+        {
+          id: "current",
+          name: "Current account",
+          provider: "Bank",
+          currency: "GBP",
+          assetType: "cash",
+          expectedAnnualReturn: 0,
+          createdAt: "2020-01-01",
+        },
+        {
+          id: "isa",
+          name: "Stocks ISA",
+          provider: "Broker",
+          currency: "GBP",
+          assetType: "stocks",
+          taxWrapper: "isa",
+          expectedAnnualReturn: 0.05,
+          createdAt: "2020-01-01",
+        },
+        {
+          id: "old-isa",
+          name: "Old ISA",
+          provider: "Old broker",
+          currency: "GBP",
+          assetType: "stocks",
+          taxWrapper: "isa",
+          expectedAnnualReturn: 0.05,
+          createdAt: "2020-01-01",
+        },
+      ],
+      snapshots: [],
+      transfers: [
+        {
+          id: "cash-to-isa",
+          date: "2026-05-01",
+          fromAccountId: "current",
+          toAccountId: "isa",
+          amount: 5_000,
+        },
+        {
+          id: "external-to-isa",
+          date: "2026-06-01",
+          toAccountId: "isa",
+          amount: 1_000,
+        },
+        {
+          id: "isa-provider-transfer",
+          date: "2026-07-01",
+          fromAccountId: "old-isa",
+          toAccountId: "isa",
+          amount: 2_000,
+        },
+      ],
+    });
+
+    const result = getHouseholdTaxEstimate(data, "2026-10-08");
+    const person = result.people[0];
+
+    expect(person?.allowances.isaObservedContributionsPence).toBe(600_000);
+    expect(person?.allowances.isaContributionsPence).toBe(600_000);
+    expect(result.lineage.observedRecordIds).toEqual(
+      expect.arrayContaining(["cash-to-isa", "external-to-isa"]),
+    );
+    expect(result.lineage.observedRecordIds).not.toContain(
+      "isa-provider-transfer",
     );
   });
 

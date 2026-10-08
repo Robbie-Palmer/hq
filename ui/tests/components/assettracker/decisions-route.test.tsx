@@ -19,11 +19,14 @@ vi.mock("@/components/assettracker/future-cash-flow-manager", () => ({
 vi.mock("@/components/assettracker/job-move-scenario-planner", () => ({
   JobMoveScenarioPlanner: () => <div>Job move workspace</div>,
 }));
+vi.mock("@/components/assettracker/itemised-scenario-planner", () => ({
+  ItemisedScenarioPlanner: () => <div>Scenario workspace</div>,
+}));
 
 const mockUseAssetTracker = vi.mocked(useAssetTracker);
 
 describe("DecisionsRoute", () => {
-  it("opens with the comparison workspace", () => {
+  it("opens with the job-move workspace", () => {
     mockUseAssetTracker.mockReturnValue({
       accountDetails: [],
       baseCurrency: "GBP",
@@ -33,7 +36,7 @@ describe("DecisionsRoute", () => {
 
     render(<DecisionsRoute />);
 
-    expect(screen.getByText("Decision comparison workspace")).toBeVisible();
+    expect(screen.getByText("Job move workspace")).toBeVisible();
   });
 
   it("explains how to create the first decision record", async () => {
@@ -62,6 +65,20 @@ describe("DecisionsRoute", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Job moves" }));
 
     expect(screen.getByText("Job move workspace")).toBeVisible();
+  });
+
+  it("opens the itemised-scenario workspace", async () => {
+    mockUseAssetTracker.mockReturnValue({
+      accountDetails: [],
+      baseCurrency: "GBP",
+      decisionRecords: [],
+      mortgageScenarios: [],
+    } as unknown as ReturnType<typeof useAssetTracker>);
+
+    render(<DecisionsRoute />);
+    await userEvent.click(screen.getByRole("tab", { name: "Scenarios" }));
+
+    expect(screen.getByText("Scenario workspace")).toBeVisible();
   });
 
   it("shows a mortgage decision with its linked source facts", async () => {

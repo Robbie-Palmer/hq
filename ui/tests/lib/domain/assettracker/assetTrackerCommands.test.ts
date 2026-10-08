@@ -28,6 +28,7 @@ import {
   applySetExpectedReturn,
   applySetNetWorthTarget,
   applySetWithdrawalRate,
+  applyUpdateCashFlowDecision,
   applyVersionForecastAssumptionSet,
   formatAssetTrackerError,
 } from "@/lib/domain/assettracker/assetTrackerCommands";
@@ -1476,6 +1477,93 @@ describe("future cash-flow planning", () => {
         amount: 750,
       }),
     ]);
+  });
+
+  it("updates an itemised decision and preserves recorded payments", () => {
+    const added = applyAddCashFlowDecision(
+      baseData(),
+      {
+        name: "Wedding",
+        labels: ["wedding"],
+        currency: "GBP",
+        stages: [
+          {
+            name: "Venue",
+            fromAccountId: "savings",
+            expectedDate: "2099-05-01",
+            minimumAmount: 10_000,
+            expectedAmount: 10_000,
+            maximumAmount: 10_000,
+          },
+        ],
+      },
+      TEST_AS_OF_DATE,
+    );
+    const paid = applyRecordActualCashFlow(
+      added,
+      {
+        futureCashFlowId: "wedding",
+        stageId: "cash-flow-1",
+        date: TEST_AS_OF_DATE,
+        amount: 500,
+        direction: "payment",
+      },
+      TEST_AS_OF_DATE,
+    );
+    const selected = applySetCashFlowDecisionStatus(paid, {
+      id: "wedding",
+      status: "selected",
+    });
+
+    const updated = applyUpdateCashFlowDecision(
+      selected,
+      {
+        id: "wedding",
+        name: "Our wedding",
+        labels: ["wedding"],
+        currency: "GBP",
+        stages: [
+          {
+            id: "cash-flow-1",
+            name: "Venue",
+            fromAccountId: "savings",
+            expectedDate: "2099-06-01",
+            minimumAmount: 12_000,
+            expectedAmount: 12_000,
+            maximumAmount: 12_000,
+          },
+          {
+            name: "Suit",
+            fromAccountId: "savings",
+            expectedDate: "2099-06-01",
+            minimumAmount: 1_000,
+            expectedAmount: 1_000,
+            maximumAmount: 1_000,
+          },
+        ],
+      },
+      TEST_AS_OF_DATE,
+    );
+
+    expect(updated.futureCashFlows[0]).toMatchObject({
+      id: "wedding",
+      name: "Our wedding",
+      status: "selected",
+      stages: [
+        {
+          id: "cash-flow-1",
+          name: "Venue",
+          expectedAmount: 12_000,
+          actuals: [expect.objectContaining({ amount: 500 })],
+        },
+        {
+          id: "cash-flow-2",
+          name: "Suit",
+          expectedAmount: 1_000,
+          actuals: [],
+        },
+      ],
+    });
   });
 
   it("reduces remaining commitment value by payments and restores it with refunds", () => {

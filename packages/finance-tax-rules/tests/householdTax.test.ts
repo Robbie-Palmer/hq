@@ -293,6 +293,123 @@ describe("household UK tax position", () => {
     expect(result.lineage.assumptionRecordIds).toContain("salary-forecast");
   });
 
+  it("includes to-date estimates without relabelling them as observed", () => {
+    const result = calculateHouseholdTaxPosition(
+      request({
+        incomes: [
+          {
+            id: "estimated-salary-to-date",
+            memberId: "alex",
+            employmentId: "job",
+            kind: "employment",
+            amountPence: 4_800_000,
+            evidence: {
+              ...forecast("estimated-payroll-to-date"),
+              timing: "to-date",
+            },
+          },
+          {
+            id: "salary-forecast",
+            memberId: "alex",
+            employmentId: "job",
+            kind: "employment",
+            amountPence: 4_800_000,
+            evidence: {
+              ...forecast("salary-forecast"),
+              timing: "year-end",
+            },
+          },
+        ],
+        contributions: [
+          {
+            id: "estimated-pension-to-date",
+            memberId: "alex",
+            accountId: "pension",
+            kind: "pension",
+            amountPence: 1_500_000,
+            pensionMethod: "salary-sacrifice",
+            employerContribution: true,
+            evidence: {
+              ...forecast("estimated-pension-to-date"),
+              timing: "to-date",
+            },
+          },
+          {
+            id: "pension-forecast",
+            memberId: "alex",
+            accountId: "pension",
+            kind: "pension",
+            amountPence: 1_500_000,
+            pensionMethod: "salary-sacrifice",
+            employerContribution: true,
+            evidence: {
+              ...forecast("pension-forecast"),
+              timing: "year-end",
+            },
+          },
+        ],
+      }),
+    );
+    const person = result.people[0];
+
+    expect(
+      (person?.bandConsumption.observed.personalAllowanceByIncome
+        .employmentPence ?? 0) +
+        (person?.bandConsumption.observed.bands.reduce(
+          (total, band) => total + band.employmentPence,
+          0,
+        ) ?? 0),
+    ).toBe(4_800_000);
+    expect(
+      (person?.bandConsumption.projected.personalAllowanceByIncome
+        .employmentPence ?? 0) +
+        (person?.bandConsumption.projected.bands.reduce(
+          (total, band) => total + band.employmentPence,
+          0,
+        ) ?? 0),
+    ).toBe(9_600_000);
+    expect(person?.allowances.pensionObservedContributionsPence).toBe(
+      1_500_000,
+    );
+    expect(person?.allowances.pensionContributionsPence).toBe(3_000_000);
+    expect(result.lineage.observedRecordIds).not.toContain(
+      "estimated-payroll-to-date",
+    );
+    expect(result.lineage.assumptionRecordIds).toContain(
+      "estimated-payroll-to-date",
+    );
+  });
+
+  it("exposes the Personal Allowance taper as an effective tax band", () => {
+    const result = calculateHouseholdTaxPosition(
+      request({
+        incomes: [
+          {
+            id: "salary",
+            memberId: "alex",
+            employmentId: "job",
+            kind: "employment",
+            amountPence: 11_000_000,
+            evidence: forecast("salary"),
+          },
+        ],
+      }),
+    );
+    const taper = result.people[0]?.bandConsumption.projected.allowanceTaper;
+
+    expect(taper).toEqual({
+      adjustedNetIncomePence: 11_000_000,
+      standardPersonalAllowancePence: 1_257_000,
+      startsAtPence: 10_000_000,
+      endsAtPence: 12_514_000,
+      usedPence: 1_000_000,
+      effectiveMarginalRateBasisPoints: 6_000,
+    });
+    expect(
+      result.people[0]?.bandConsumption.projected.personalAllowancePence,
+    ).toBe(757_000);
+  });
+
   it("shows how much of the Personal Allowance income consumes", () => {
     const salary = request().incomes[0];
     if (salary == null) throw new Error("Expected salary record");

@@ -351,7 +351,7 @@ describe("JobMoveScenarioPlanner", () => {
     expect(screen.queryByLabelText("Scenario name")).toBeNull();
   });
 
-  it("shows the empty state when no scenarios have been saved", () => {
+  it("shows a job-loss default when no scenarios have been saved", () => {
     mockUseAssetTracker.mockReturnValue({
       ...trackerValue(),
       jobMoveScenarios: [],
@@ -359,7 +359,8 @@ describe("JobMoveScenarioPlanner", () => {
 
     render(<JobMoveScenarioPlanner />);
 
-    expect(screen.getByText("No hypothetical job moves yet.")).toBeVisible();
-    expect(screen.queryByText("Baseline comparison")).toBeNull();
+    expect(screen.getByText("Lose my job")).toBeVisible();
+    expect(screen.getByText("Default scenario")).toBeVisible();
+    expect(screen.getByText("Baseline comparison")).toBeVisible();
   });
 });

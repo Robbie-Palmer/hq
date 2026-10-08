@@ -751,66 +751,74 @@ function NetWorthDataTable({
 }>) {
   if (showingFxImpact) {
     return (
-      <div className="sr-only">
-        <table>
-          <caption>Currency impact on net worth over time</caption>
+      <details className="group text-xs text-muted-foreground">
+        <summary className="cursor-pointer">View currency impact data</summary>
+        <div className="mt-2 hidden max-h-80 overflow-auto rounded-md border group-open:block">
+          <table className="w-full text-left">
+            <caption>Currency impact on net worth over time</caption>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Actual net worth</th>
+                <th>Net worth at fixed start rates</th>
+                <th>Currency impact</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fxImpactData.map((point) => (
+                <tr key={String(point.date)}>
+                  <td>{point.date}</td>
+                  <td>
+                    {formatTableValue(point.actualTotal, householdBaseCurrency)}
+                  </td>
+                  <td>
+                    {formatTableValue(
+                      point.fixedRateTotal,
+                      householdBaseCurrency,
+                    )}
+                  </td>
+                  <td>
+                    {formatTableValue(point.impact, householdBaseCurrency)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    );
+  }
+
+  return (
+    <details className="group text-xs text-muted-foreground">
+      <summary className="cursor-pointer">View net worth data</summary>
+      <div className="mt-2 hidden max-h-80 overflow-auto rounded-md border group-open:block">
+        <table className="w-full text-left">
+          <caption>Market net worth by account over time</caption>
           <thead>
             <tr>
               <th>Date</th>
-              <th>Actual net worth</th>
-              <th>Net worth at fixed start rates</th>
-              <th>Currency impact</th>
+              <th>{isFiltered ? "Selected total" : "Net worth"}</th>
+              <th>Estimated net worth</th>
+              {seriesNames.map((name) => (
+                <th key={name}>{name}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {fxImpactData.map((point) => (
-              <tr key={String(point.date)}>
+            {chartData.map((point) => (
+              <tr key={point.date}>
                 <td>{point.date}</td>
-                <td>
-                  {formatTableValue(point.actualTotal, householdBaseCurrency)}
-                </td>
-                <td>
-                  {formatTableValue(
-                    point.fixedRateTotal,
-                    householdBaseCurrency,
-                  )}
-                </td>
-                <td>{formatTableValue(point.impact, householdBaseCurrency)}</td>
+                <td>{formatTableValue(point.total, currency)}</td>
+                <td>{formatTableValue(point.estimatedTotal, currency)}</td>
+                {seriesNames.map((name) => (
+                  <td key={name}>{formatTableValue(point[name], currency)}</td>
+                ))}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-    );
-  }
-
-  return (
-    <div className="sr-only">
-      <table>
-        <caption>Market net worth by account over time</caption>
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>{isFiltered ? "Selected total" : "Net worth"}</th>
-            <th>Estimated net worth</th>
-            {seriesNames.map((name) => (
-              <th key={name}>{name}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {chartData.map((point) => (
-            <tr key={point.date}>
-              <td>{point.date}</td>
-              <td>{formatTableValue(point.total, currency)}</td>
-              <td>{formatTableValue(point.estimatedTotal, currency)}</td>
-              {seriesNames.map((name) => (
-                <td key={name}>{formatTableValue(point[name], currency)}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    </details>
   );
 }

@@ -211,10 +211,8 @@ describe("EmergencyFundPlanner", () => {
       ["Policies to compare, in months", "6, 18"],
       ["Missing or uncertain facts", "Childcare, contract renewal"],
       ["Access delay for Current account", "2"],
-      ["Capital risk for Current account", "5"],
+      ["Potential loss percentage for Current account", "5"],
       ["Withdrawal fee for Current account", "10"],
-      ["Protection limit for Current account", "120000"],
-      ["Protection source for Current account", "https://example.com/fscs"],
       ["Duration", "18"],
       ["Employment income lost", "80"],
       ["Side-income delay", "4"],
@@ -250,8 +248,6 @@ describe("EmergencyFundPlanner", () => {
             accessDelayDays: 2,
             capitalRiskRate: 0.05,
             withdrawalFee: 10,
-            protectionLimit: 120_000,
-            protectionSourceUrl: "https://example.com/fscs",
           }),
         ],
         stressScenarios: [
@@ -267,16 +263,14 @@ describe("EmergencyFundPlanner", () => {
     );
   });
 
-  it("keeps optional protection fields clear and reports persistence errors", async () => {
+  it("reports persistence errors without asking for regulatory sources", async () => {
     saveEmergencyFundPlan.mockRejectedValueOnce(
       new Error("Storage unavailable"),
     );
     render(<EmergencyFundPlanner />);
-    const protectionLimit = screen.getByLabelText(
-      "Protection limit for Current account",
-    );
-    fireEvent.change(protectionLimit, { target: { value: "1000" } });
-    fireEvent.change(protectionLimit, { target: { value: "" } });
+
+    expect(screen.queryByText("Protection limit")).not.toBeInTheDocument();
+    expect(screen.queryByText("Source URL")).not.toBeInTheDocument();
 
     await userEvent.click(
       screen.getByRole("button", { name: "Save reserve plan" }),

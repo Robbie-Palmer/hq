@@ -123,7 +123,7 @@ function roundMoney(value: number): number {
 }
 
 function inflationAdjustment(
-  record: SalaryHistoryRecord,
+  record: SalaryHistoryRecord & { grossPay: number },
   release: InflationDatasetRelease | null,
   referenceDate: string,
 ): Pick<GrossSalaryTrajectoryPoint, "realGross" | "inflation"> {
@@ -196,7 +196,10 @@ export function buildGrossSalaryTrajectory(
   amountKind: SalaryAmountKind,
 ): GrossSalaryTrajectoryPoint[] {
   const selected = currentSalaryHistory(records).filter(
-    (record) => record.person === person && record.amountKind === amountKind,
+    (record): record is SalaryHistoryRecord & { grossPay: number } =>
+      record.person === person &&
+      record.amountKind === amountKind &&
+      record.grossPay != null,
   );
   const previousComparable = new Map<string, GrossSalaryTrajectoryPoint>();
   const comparisonBaseline = new Map<string, GrossSalaryTrajectoryPoint>();

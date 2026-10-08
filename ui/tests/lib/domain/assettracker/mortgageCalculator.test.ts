@@ -33,7 +33,7 @@ describe("calculateMortgageOptions", () => {
   it("compares deposit amount, percentage, liquidity, repayment, and interest", () => {
     const result = calculateMortgageOptions(assumptions());
 
-    expect(result.depositOptions).toHaveLength(3);
+    expect(result.depositOptions).toHaveLength(4);
     expect(result.selected).toMatchObject({
       depositAmount: 60_000,
       depositPercentage: 0.2,
@@ -48,6 +48,9 @@ describe("calculateMortgageOptions", () => {
     expect(result.depositOptions[2]?.totalInterest).toBeLessThan(
       result.selected.totalInterest,
     );
+    expect(
+      result.depositOptions.some(({ loanToValue }) => loanToValue === 0.6),
+    ).toBe(true);
   });
 
   it("models fix expiry, refinancing, and rate stress", () => {

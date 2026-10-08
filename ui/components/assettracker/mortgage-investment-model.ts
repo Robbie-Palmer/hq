@@ -3,6 +3,7 @@ import {
   advanceMortgageTerms,
   buildMortgageInvestmentSensitivity,
   compareMortgageOverpaymentWithInvestment,
+  effectiveExpectedReturn,
   type HousingPlanningPosition,
   type MortgageInvestmentComparison,
   type MortgageInvestmentComparisonInput,
@@ -83,11 +84,17 @@ export function buildMortgageInvestmentModel({
   const defaults = defaultAssumptions(mortgage, position, terms);
   if (defaults == null) return null;
   const assumptions = editedAssumptions ?? defaults;
+  const currentMortgageRate = effectiveExpectedReturn(
+    mortgage,
+    terms.firstPaymentDate,
+  );
   const input: MortgageInvestmentComparisonInput = {
     asOfDate: position.asOfDate,
     openingMortgageBalance: mortgage.latestBalance,
-    initialMortgageRate: mortgage.expectedAnnualReturn,
-    rateChanges: mortgage.expectedReturnChanges ?? [],
+    initialMortgageRate: currentMortgageRate,
+    rateChanges: (mortgage.expectedReturnChanges ?? []).filter(
+      ({ date }) => date > terms.firstPaymentDate,
+    ),
     mortgageTerms: terms,
     propertyValue: Math.max(property.latestBalance, 0),
     propertyAnnualReturn: property.expectedAnnualReturn,

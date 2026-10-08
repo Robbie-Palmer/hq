@@ -21,6 +21,7 @@ import {
   type Ownership,
   personalOwnership,
 } from "@/lib/domain/assettracker/household";
+import { defaultTaxProfile } from "@/lib/domain/assettracker/taxPosition";
 
 const alexOwnership = personalOwnership("alex");
 const samOwnership = personalOwnership("sam");
@@ -39,20 +40,8 @@ const homeOwnership: Ownership = {
   ],
 };
 
-const DEPOSIT_PROTECTION_SOURCE =
-  "https://www.bankofengland.co.uk/prudential-regulation/authorisations/financial-services-compensation-scheme";
-
 function demoEmergencyFundAccountPolicies() {
-  return accounts.map((account) => {
-    const policy = defaultEmergencyFundAccountPolicy(account);
-    if (account.assetType !== "cash") return policy;
-    return {
-      ...policy,
-      protectionLimit: 120_000,
-      protectionGroup: account.provider,
-      protectionSourceUrl: DEPOSIT_PROTECTION_SOURCE,
-    };
-  });
+  return accounts.map(defaultEmergencyFundAccountPolicy);
 }
 
 /** Builds the bundled demo dataset used by the static UI and local adapter. */
@@ -439,13 +428,7 @@ export function getDemoAssetTrackerData(): AssetTrackerData {
       taxYear: "2026-27",
       profiles: [
         {
-          memberId: "alex",
-          jurisdiction: "england-and-northern-ireland",
-          residence: "full-year-uk",
-          hasTaxableBenefits: false,
-          nationalInsuranceCategory: "A",
-          isCompanyDirector: false,
-          flexiblyAccessedPension: false,
+          ...defaultTaxProfile("alex"),
           evidence: {
             kind: "assumption",
             sourceRecordId: "tax-profile-alex-2026-27",
@@ -453,13 +436,7 @@ export function getDemoAssetTrackerData(): AssetTrackerData {
           },
         },
         {
-          memberId: "sam",
-          jurisdiction: "england-and-northern-ireland",
-          residence: "full-year-uk",
-          hasTaxableBenefits: false,
-          nationalInsuranceCategory: "A",
-          isCompanyDirector: false,
-          flexiblyAccessedPension: false,
+          ...defaultTaxProfile("sam"),
           evidence: {
             kind: "assumption",
             sourceRecordId: "tax-profile-sam-2026-27",

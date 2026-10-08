@@ -53,9 +53,6 @@ function EmploymentCell({ record }: Readonly<{ record: SalaryHistoryRecord }>) {
     <td className="px-3 py-3">
       <span className="block font-medium">{record.person}</span>
       <span className="block text-muted-foreground">{record.employer}</span>
-      <span className="font-mono text-xs text-muted-foreground">
-        {record.employmentId}
-      </span>
     </td>
   );
 }
@@ -65,12 +62,18 @@ function GrossPayCell({ record }: Readonly<{ record: SalaryHistoryRecord }>) {
   return (
     <td className="px-3 py-3 tabular-nums">
       <span className="block font-medium">
-        {formatMoney(record, record.grossPay)}
+        {record.grossPay == null
+          ? moneyOrUnknown(record, record.takeHomePay)
+          : formatMoney(record, record.grossPay)}
       </span>
       <span className="block text-xs text-muted-foreground">
-        {record.amountKind === "annualSalary"
-          ? "Annual salary rate"
-          : `Actual ${record.payFrequency} pay`}
+        {record.grossPay == null
+          ? "Take-home after tax and pension"
+          : record.amountKind === "annualSalary"
+            ? "Annual gross salary rate"
+            : record.payFrequency === "irregular"
+              ? "One-off gross bonus"
+              : `Actual ${record.payFrequency} gross pay`}
       </span>
       {record.workFraction != null && (
         <span className="block text-xs text-muted-foreground">
@@ -170,9 +173,6 @@ function SalaryTable({
                 <div>
                   <p className="font-medium">{record.person}</p>
                   <p className="text-muted-foreground">{record.employer}</p>
-                  <p className="font-mono text-xs text-muted-foreground">
-                    {record.employmentId}
-                  </p>
                 </div>
                 {allowCorrection && <SalaryRecordDrawer record={record} />}
               </div>
@@ -185,9 +185,13 @@ function SalaryTable({
                   </p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Gross before pension</p>
+                  <p className="text-muted-foreground">
+                    {record.grossPay == null ? "Take-home pay" : "Gross pay"}
+                  </p>
                   <p className="font-medium">
-                    {formatMoney(record, record.grossPay)}
+                    {record.grossPay == null
+                      ? moneyOrUnknown(record, record.takeHomePay)
+                      : formatMoney(record, record.grossPay)}
                   </p>
                   <p>
                     {record.amountKind === "annualSalary"
@@ -236,7 +240,7 @@ function SalaryTable({
             <tr>
               <th className="px-3 py-2 font-medium">Person and employment</th>
               <th className="px-3 py-2 font-medium">Effective dates</th>
-              <th className="px-3 py-2 font-medium">Gross before pension</th>
+              <th className="px-3 py-2 font-medium">Pay</th>
               <th className="px-3 py-2 font-medium">Pay detail</th>
               <th className="px-3 py-2 font-medium">Pension</th>
               <th className="px-3 py-2 font-medium">Source</th>
@@ -274,9 +278,8 @@ export function SalaryHistoryManager() {
           <div className="space-y-1.5">
             <CardTitle>Salary history</CardTitle>
             <CardDescription>
-              Preserve annual salary rates and actual period pay across jobs,
-              raises, part-time periods, bonuses, and pension changes. Gaps are
-              allowed and stay visible.
+              Add the gross or take-home figures you remember. More detailed tax
+              and pension facts are optional.
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">

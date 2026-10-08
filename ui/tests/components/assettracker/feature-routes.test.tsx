@@ -9,7 +9,10 @@ import { PlanningRoute } from "@/components/assettracker/planning-route";
 import { SettingsRoute } from "@/components/assettracker/settings-route";
 import { TaxPositionRoute } from "@/components/assettracker/tax-position-route";
 import { getDemoAssetTrackerData } from "@/lib/assettracker/demoData";
-import { getHouseholdTaxEstimate } from "@/lib/domain/assettracker";
+import {
+  AssetTrackerDataSchema,
+  getHouseholdTaxEstimate,
+} from "@/lib/domain/assettracker";
 
 vi.mock("@/components/assettracker/asset-tracker-provider", () => ({
   useAssetTracker: vi.fn(),
@@ -103,7 +106,11 @@ describe("Asset Tracker feature routes", () => {
   beforeEach(() => {
     mockUseAssetTracker.mockReturnValue({
       netWorthData: [],
-      netWorthDataByCurrency: { GBP: [], USD: [], EUR: [] },
+      netWorthDataByCurrency: {
+        GBP: [{ date: "2026-01-01", total: 1 }],
+        USD: [{ date: "2026-01-01", total: null }],
+        EUR: [],
+      },
       contributionData: [],
       assetAllocationHistory: [],
       baseCurrency: "GBP",
@@ -133,9 +140,11 @@ describe("Asset Tracker feature routes", () => {
     expect(screen.getByText("Real income history")).toBeVisible();
     expect(screen.getByText("Real gross salary history")).toBeVisible();
     expect(screen.getByText("Allocation history")).toBeVisible();
-    expect(
-      screen.getByRole("combobox", { name: "Historical target currency" }),
-    ).toBeVisible();
+    const currencySelect = screen.getByRole("combobox", {
+      name: "Historical target currency",
+    });
+    expect(currencySelect).toBeVisible();
+    expect(currencySelect).toHaveTextContent("GBP");
   });
 
   it("composes the cash-flow route", () => {
@@ -196,11 +205,16 @@ describe("Asset Tracker feature routes", () => {
     expect(screen.getAllByText("Savings interest tax")).toHaveLength(2);
     expect(screen.getAllByText("Personal Savings Allowance")).toHaveLength(2);
     expect(screen.getAllByText("Tax bands consumed")).toHaveLength(2);
-    expect(screen.getAllByText("Recorded to date")).toHaveLength(2);
-    expect(screen.getAllByText("Year-end projection")).toHaveLength(2);
+    expect(screen.getAllByRole("heading", { name: "To date" })).toHaveLength(2);
+    expect(screen.getAllByText("Year-end projection to 5 April")).toHaveLength(
+      2,
+    );
     expect(screen.getAllByText("Annual allowance usage")).toHaveLength(2);
     expect(screen.getAllByText("Pension annual allowance")).toHaveLength(2);
     expect(screen.getAllByText("ISA annual allowance")).toHaveLength(2);
+    expect(
+      screen.getAllByText(/effective 60% Income Tax/).length,
+    ).toBeGreaterThan(0);
     expect(
       screen.queryByText(/Applied the Personal Allowance/),
     ).not.toBeInTheDocument();
@@ -228,6 +242,49 @@ describe("Asset Tracker feature routes", () => {
     expect(
       screen.getByRole("button", { name: "Export calculation" }),
     ).toBeVisible();
+    expect(screen.queryByText("No total shown")).not.toBeInTheDocument();
+  });
+
+  it("offers demo-backed defaults when tax setup is missing", () => {
+    const current = mockUseAssetTracker();
+    const data = AssetTrackerDataSchema.parse({ accounts: [], snapshots: [] });
+    const saveTaxSetup = vi.fn().mockResolvedValue(undefined);
+    mockUseAssetTracker.mockReturnValue({
+      ...current,
+      household: data.household,
+      taxEstimate: getHouseholdTaxEstimate(data),
+      taxPosition: undefined,
+      currentSalaryHistory: [
+        {
+          id: "historical-salary",
+          person: "Me",
+          employer: "Old employer",
+          employmentId: "old-employer",
+          currency: "GBP",
+          jurisdiction: "England",
+          effectiveStart: "2015-07-01",
+          effectiveEnd: "2016-06-30",
+          payFrequency: "annual",
+          amountKind: "annualSalary",
+          grossPay: 19_000,
+          source: { kind: "manual" },
+          acceptedAt: "2026-10-08T12:00:00.000Z",
+        },
+      ],
+      taxSetupIncomeSuggestions: { primary: 9_600_000 },
+      saveTaxSetup,
+    } as ReturnType<typeof useAssetTracker>);
+
+    render(<TaxPositionRoute />);
+
+    expect(screen.getByText("Review tax assumptions")).toBeVisible();
+    expect(screen.getByDisplayValue("A")).toBeVisible();
+    expect(
+      screen.getByDisplayValue("England or Northern Ireland"),
+    ).toBeVisible();
+    expect(
+      screen.getByLabelText("Projected taxable employment income (£)"),
+    ).toHaveValue(96_000);
     expect(screen.queryByText("No total shown")).not.toBeInTheDocument();
   });
 });

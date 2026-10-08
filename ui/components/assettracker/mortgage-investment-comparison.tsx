@@ -53,7 +53,7 @@ export function MortgageInvestmentComparison() {
     [editedAssumptions, mortgage, position, property],
   );
 
-  if (model == null) return null;
+  if (model == null || model.input.initialMortgageRate <= 0) return null;
   const currentModel = model;
 
   function update(field: MortgageInvestmentAssumptionField, value: number) {

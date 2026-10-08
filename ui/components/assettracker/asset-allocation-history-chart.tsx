@@ -122,29 +122,34 @@ export function AssetAllocationHistoryChart({
             </LineChart>
           </ResponsiveContainer>
         </ChartContainer>
-        <table className="sr-only">
-          <caption>Percentage of assets by asset type over time</caption>
-          <thead>
-            <tr>
-              <th>Date</th>
-              {assetTypes.map((assetType) => (
-                <th key={assetType}>{ASSET_TYPE_LABELS[assetType]}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((point) => (
-              <tr key={point.date}>
-                <td>{point.date}</td>
-                {assetTypes.map((assetType) => (
-                  <td key={assetType}>
-                    {formatPercent(point[assetType] ?? 0)}
-                  </td>
+        <details className="group text-xs text-muted-foreground">
+          <summary className="cursor-pointer">View chart data</summary>
+          <div className="mt-2 hidden max-h-80 overflow-auto rounded-md border group-open:block">
+            <table className="w-full text-left">
+              <caption>Percentage of assets by asset type over time</caption>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  {assetTypes.map((assetType) => (
+                    <th key={assetType}>{ASSET_TYPE_LABELS[assetType]}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.map((point) => (
+                  <tr key={point.date}>
+                    <td>{point.date}</td>
+                    {assetTypes.map((assetType) => (
+                      <td key={assetType}>
+                        {formatPercent(point[assetType] ?? 0)}
+                      </td>
+                    ))}
+                  </tr>
                 ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+              </tbody>
+            </table>
+          </div>
+        </details>
       </CardContent>
     </Card>
   );

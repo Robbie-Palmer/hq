@@ -74,25 +74,32 @@ export function PortfolioContributionChart({
                 </LineChart>
               </ResponsiveContainer>
             </ChartContainer>
-            <table className="sr-only">
-              <caption>Cumulative contributed capital over time</caption>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Net contributed capital</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.map((point) => (
-                  <tr key={point.date}>
-                    <td>{point.date}</td>
-                    <td>
-                      {formatCurrency(point.contributedCapital, currency)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <details className="group text-xs text-muted-foreground">
+              <summary className="cursor-pointer">
+                View contribution data
+              </summary>
+              <div className="mt-2 hidden max-h-80 overflow-auto rounded-md border group-open:block">
+                <table className="w-full text-left">
+                  <caption>Cumulative contributed capital over time</caption>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Net contributed capital</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.map((point) => (
+                      <tr key={point.date}>
+                        <td>{point.date}</td>
+                        <td>
+                          {formatCurrency(point.contributedCapital, currency)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
           </>
         )}
       </CardContent>

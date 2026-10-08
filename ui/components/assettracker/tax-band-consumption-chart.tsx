@@ -3,6 +3,7 @@ import type {
   TaxBandConsumption,
   TaxBandScenario,
 } from "finance-tax-rules/household-tax";
+import { Fragment } from "react";
 import { formatMinorCurrency } from "@/lib/generic/money";
 
 const categories = [
@@ -30,6 +31,85 @@ const categories = [
 
 function rateLabel(rateBasisPoints: number): string {
   return `${rateBasisPoints / 100}% employment rate`;
+}
+
+function AllowanceTaper({
+  taper,
+}: Readonly<{ taper: TaxBandScenario["allowanceTaper"] }>) {
+  if (taper == null) return null;
+  const width = taper.endsAtPence - taper.startsAtPence;
+  const beforeStart = Math.max(
+    taper.startsAtPence - taper.adjustedNetIncomePence,
+    0,
+  );
+  const pastEnd = taper.adjustedNetIncomePence >= taper.endsAtPence;
+  const status =
+    beforeStart > 0
+      ? `${formatMinorCurrency(beforeStart)} below the start`
+      : pastEnd
+        ? "Personal Allowance fully withdrawn"
+        : `${formatMinorCurrency(taper.usedPence)} into the range`;
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <div>
+          <span className="text-sm font-medium">Personal Allowance taper</span>{" "}
+          <span className="text-xs text-muted-foreground">
+            effective {taper.effectiveMarginalRateBasisPoints / 100}% Income Tax
+          </span>
+        </div>
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {status}
+        </span>
+      </div>
+      <div
+        className="h-4 overflow-hidden rounded-full bg-muted"
+        role="img"
+        aria-label={`Personal Allowance taper from ${formatMinorCurrency(taper.startsAtPence)} to ${formatMinorCurrency(taper.endsAtPence)}: ${formatMinorCurrency(taper.usedPence)} of ${formatMinorCurrency(width)} used`}
+      >
+        <div
+          className="h-full bg-amber-500"
+          style={{
+            width: `${Math.min(100, (taper.usedPence / width) * 100)}%`,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function capBandAtTaper(
+  band: TaxBandConsumption,
+  scenario: TaxBandScenario,
+  bandIndex: number,
+): TaxBandConsumption {
+  const taper = scenario.allowanceTaper;
+  if (taper == null) return band;
+  const priorWidth = scenario.bands
+    .slice(0, bandIndex)
+    .reduce((total, item) => total + (item.widthPence ?? 0), 0);
+  const widthPence = Math.max(
+    0,
+    taper.startsAtPence - taper.standardPersonalAllowancePence - priorWidth,
+  );
+  let remaining = widthPence;
+  const cappedAmounts = Object.fromEntries(
+    categories.map(({ key }) => {
+      const amount = Math.min(band[key], remaining);
+      remaining -= amount;
+      return [key, amount];
+    }),
+  ) as Pick<
+    TaxBandConsumption,
+    "employmentPence" | "savingsPence" | "dividendsPence" | "capitalGainsPence"
+  >;
+  return {
+    ...band,
+    ...cappedAmounts,
+    label: `${band.label} before taper`,
+    widthPence,
+    usedPence: Math.min(band.usedPence, widthPence),
+  };
 }
 
 function BandBar({
@@ -96,7 +176,16 @@ function ScenarioPlot({
       {showExplanations && (
         <p className="mt-1 text-xs text-muted-foreground">{description}</p>
       )}
-      <dl className="mt-3 grid grid-cols-2 gap-3 text-xs">
+      <dl className="mt-3 grid grid-cols-2 gap-3 text-xs sm:grid-cols-3">
+        <div>
+          <dt className="text-muted-foreground">Adjusted net income</dt>
+          <dd className="mt-0.5 font-medium tabular-nums">
+            {formatMinorCurrency(
+              scenario.allowanceTaper?.adjustedNetIncomePence ??
+                scenario.taxableIncomePence,
+            )}
+          </dd>
+        </div>
         <div>
           <dt className="text-muted-foreground">Personal Allowance</dt>
           <dd className="mt-0.5 font-medium tabular-nums">
@@ -104,7 +193,7 @@ function ScenarioPlot({
           </dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Taxable income</dt>
+          <dt className="text-muted-foreground">After Personal Allowance</dt>
           <dd className="mt-0.5 font-medium tabular-nums">
             {formatMinorCurrency(scenario.taxableIncomePence)}
           </dd>
@@ -123,9 +212,18 @@ function ScenarioPlot({
             capitalGainsPence: 0,
           }}
         />
-        {scenario.bands.map((band) => (
-          <BandBar key={band.id} band={band} />
-        ))}
+        {scenario.bands.map((band, index) => {
+          const taperBandIndex = scenario.bands.length - 2;
+          if (index !== taperBandIndex || scenario.allowanceTaper == null) {
+            return <BandBar key={band.id} band={band} />;
+          }
+          return (
+            <Fragment key={band.id}>
+              <BandBar band={capBandAtTaper(band, scenario, taperBandIndex)} />
+              <AllowanceTaper taper={scenario.allowanceTaper} />
+            </Fragment>
+          );
+        })}
       </div>
     </section>
   );
@@ -156,11 +254,11 @@ function AnnualAllowanceBar({
       <div
         className="flex h-4 overflow-hidden rounded-full bg-muted"
         role="img"
-        aria-label={`${label}: ${formatMinorCurrency(observedPence)} recorded and ${formatMinorCurrency(forecastPence)} forecast of ${formatMinorCurrency(allowancePence)}`}
+        aria-label={`${label}: ${formatMinorCurrency(observedPence)} to date and ${formatMinorCurrency(forecastPence)} forecast of ${formatMinorCurrency(allowancePence)}`}
       >
         {observedPence > 0 && (
           <span
-            title={`Recorded: ${formatMinorCurrency(observedPence)}`}
+            title={`To date: ${formatMinorCurrency(observedPence)}`}
             className="h-full min-w-px"
             style={{
               backgroundColor: "var(--chart-1)",
@@ -190,7 +288,7 @@ function AnnualAllowanceLegend() {
   return (
     <div className="flex gap-4 text-xs text-muted-foreground">
       {[
-        ["Recorded", "var(--chart-1)"],
+        ["To date", "var(--chart-1)"],
         ["Forecast", "var(--chart-4)"],
       ].map(([label, color]) => (
         <span key={label} className="inline-flex items-center gap-1.5">
@@ -220,7 +318,7 @@ export function AnnualAllowanceUsageChart({
           <h3 className="font-semibold">Annual allowance usage</h3>
           {showExplanations && (
             <p className="mt-1 text-sm text-muted-foreground">
-              Recorded contributions and forecast additions share each bar.
+              To-date contributions and forecast additions share each bar.
             </p>
           )}
         </div>
@@ -318,13 +416,13 @@ export function TaxBandConsumptionChart({
       <TaxBandHeader />
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
         <ScenarioPlot
-          title="Recorded to date"
-          description="Uses observed income and disposal records only."
+          title="To date"
+          description="Uses imported records and estimates from recurring flows."
           scenario={observed}
           showExplanations={showExplanations}
         />
         <ScenarioPlot
-          title="Year-end projection"
+          title="Year-end projection to 5 April"
           description="Adds income and disposals saved as forecast assumptions."
           scenario={projected}
           showExplanations={showExplanations}

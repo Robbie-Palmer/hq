@@ -301,7 +301,8 @@ export function SalaryHistoryImportDrawer() {
                                 </td>
                                 <td className="px-3 py-2 tabular-nums">
                                   {record.currency}{" "}
-                                  {record.grossPay.toLocaleString("en-GB")}
+                                  {record.grossPay?.toLocaleString("en-GB") ??
+                                    "Not provided"}
                                 </td>
                                 <td className="px-3 py-2 tabular-nums">
                                   {annualised == null
