@@ -122,6 +122,11 @@ function ScenarioTooltip({
       {scenarios.map((scenario, index) => {
         const value = point[seriesKey(scenario.id, metric, "expected")];
         if (typeof value !== "number") return null;
+        const sign = value > 0 ? "+" : "";
+        const formattedValue =
+          metric === "portfolio"
+            ? formatCurrency(Math.round(value), currency)
+            : `${sign}${value.toFixed(1)} mo`;
         return (
           <div key={scenario.id} className="flex items-center gap-2">
             <span
@@ -131,9 +136,7 @@ function ScenarioTooltip({
             />
             <span>{scenario.name}</span>
             <span className="ml-auto font-mono tabular-nums">
-              {metric === "portfolio"
-                ? formatCurrency(Math.round(value), currency)
-                : `${value > 0 ? "+" : ""}${value.toFixed(1)} mo`}
+              {formattedValue}
             </span>
           </div>
         );
