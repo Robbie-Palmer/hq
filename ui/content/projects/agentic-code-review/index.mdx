@@ -309,16 +309,16 @@ GitHub["GitHub<br/>External"]
 Service["Owned review service<br/>Worker, PR state,<br/>Workflow"]
 Models["Inference · external<br/>OpenRouter / OpenCode"]
 Evidence["Owned private R2<br/>Review evidence"]
-Learning["Offline evaluation<br/>Owned replay tooling<br/>and DuckDB"]
-Owner["Project owner<br/>Reviews changes"]
+Dataset["Owned offline dataset<br/>DVC-versioned corpus"]
+Learning["Owned offline evaluation<br/>Replay and DuckDB<br/>scorecards"]
 
 GitHub -->|"signed PR events and feedback"| Service
 Service -->|"head-checked findings and run summary"| GitHub
 Service -->|"context and prompts"| Models
 Models -->|"findings and usage"| Service
 Service -->|"run records, snapshots and feedback outcomes"| Evidence
-Evidence -->|"export with redacted replay snapshots"| Learning
-Learning -->|"scorecards and recommendations"| Owner
+Evidence -->|"export and extract"| Dataset
+Dataset -->|"frozen cohorts and historical outcomes"| Learning
 
 classDef external stroke-dasharray:5 5
 class GitHub,Models external
@@ -349,11 +349,14 @@ below.
    storage-only path through the coordinator to private evidence and versioned
    finding outcomes. They do not schedule inference. A `confirm-fixed`
    disposition requires current-head replay evidence.
-5. Offline tooling uses exported, redacted replay snapshots and historical
-   outcomes to freeze cohorts, compare isolated replays, and build DuckDB
-   scorecards. Its recommendations inform owner-reviewed
-   model, prompt, policy, test, or guidance changes. The evaluation runner has no
-   GitHub publication adapter and never updates production configuration
+5. Offline extraction joins exported, redacted replay snapshots with terminal
+   records and historical finding outcomes. DVC versions the extracted dataset;
+   its manifest records source object keys and hashes for provenance. The source
+   export stays outside the DVC project.
+6. The evaluation pipeline freezes cohorts from that dataset, compares isolated
+   model replays, and builds DuckDB scorecards. Its recommendations inform
+   owner-reviewed model, prompt, policy, test, or guidance changes. The evaluation
+   runner has no GitHub publication adapter and never updates production configuration
    automatically. Automatic adoption remains outside this implemented flow.
 
 ## Ownership and disclosure
