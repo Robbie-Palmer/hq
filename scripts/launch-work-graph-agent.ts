@@ -83,7 +83,7 @@ const securitySignal =
 const broadChangeSignal =
   /\b(?:migration|infrastructure|terraform|kubernetes|platform|distributed|concurrency|orchestration|database schema)\b/iu;
 const protectedMutationSignals = [
-  /\b(?:deploy(?:ment)? to production|production deploy(?:ment)?)\b/iu,
+  /\b(?:(?:deploy|deployment) to production|production (?:deploy|deployment))\b/iu,
   /\bprovision(?:ing)?\b/iu,
   /\brotate (?:a |the )?(?:credential|key|secret)\b/iu,
   /\b(?:database|schema) migration\b/iu,
