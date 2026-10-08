@@ -6,6 +6,10 @@ import type {
   DecisionScenarioMetrics,
   DecisionScenarioPoint,
 } from "@/lib/domain/assettracker";
+import {
+  DecisionScenarioCharts,
+  type DecisionScenarioResult,
+} from "./decision-scenario-charts";
 
 function signedCurrency(value: number, currency: Currency): string {
   const rounded = Math.round(value);
@@ -295,10 +299,8 @@ function FundingMechanics({
   baseCurrency: Currency;
 }>) {
   return (
-    <details className="rounded-md border p-3">
-      <summary className="cursor-pointer text-sm font-medium">
-        Funding mechanics and assumptions
-      </summary>
+    <div className="rounded-md border p-3">
+      <h4 className="text-sm font-medium">Funding mechanics and assumptions</h4>
       <div className="mt-3 space-y-3 text-xs">
         {comparison.fundingMechanics.map((mechanic) => (
           <div key={mechanic.id} className="rounded-md bg-muted/40 p-3">
@@ -327,7 +329,7 @@ function FundingMechanics({
           and fees as explicit household forecast inputs before comparing it.
         </p>
       </div>
-    </details>
+    </div>
   );
 }
 
@@ -362,17 +364,118 @@ function ImpliedActions({
   );
 }
 
-export function DecisionScenarioResults({
-  comparison,
+function HorizonSummaries({
+  scenarios,
   currency,
   reserveMonths,
 }: Readonly<{
-  comparison: DecisionScenarioComparison;
+  scenarios: DecisionScenarioResult[];
   currency: Currency;
   reserveMonths: number | null;
 }>) {
-  const horizon = comparison.timeline.at(-1);
-  if (horizon == null) {
+  return (
+    <div className="space-y-4">
+      {scenarios.map(({ id, name, comparison }) => {
+        const horizon = comparison.timeline.at(-1);
+        if (horizon == null) return null;
+        return (
+          <section
+            key={id}
+            className="space-y-3"
+            aria-label={`${name} summary`}
+          >
+            <h4 className="text-sm font-semibold">{name} at the horizon</h4>
+            <ComparisonSummary
+              currency={currency}
+              horizon={horizon}
+              reserveMonths={reserveMonths}
+            />
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function ExactFigures({
+  scenarios,
+  currency,
+  reserveMonths,
+}: Readonly<{
+  scenarios: DecisionScenarioResult[];
+  currency: Currency;
+  reserveMonths: number | null;
+}>) {
+  return (
+    <details className="rounded-md border p-4">
+      <summary className="cursor-pointer text-sm font-medium">
+        View exact figures
+      </summary>
+      <div className="mt-4 space-y-5">
+        {scenarios.map(({ id, name, comparison }) => (
+          <section
+            key={id}
+            className="space-y-2"
+            aria-label={`${name} exact figures`}
+          >
+            <h4 className="text-sm font-medium">{name}</h4>
+            <MaterialEffectsTable
+              points={comparison.timeline.filter(
+                ({ isMaterialDate }) => isMaterialDate,
+              )}
+              currency={currency}
+              reserveMonths={reserveMonths}
+            />
+          </section>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function ScenarioAssumptions({
+  scenarios,
+  currency,
+}: Readonly<{ scenarios: DecisionScenarioResult[]; currency: Currency }>) {
+  return (
+    <details className="rounded-md border p-4">
+      <summary className="cursor-pointer text-sm font-medium">
+        Review assumptions and implied actions
+      </summary>
+      <div className="mt-4 space-y-5">
+        {scenarios.map(({ id, name, comparison }) => (
+          <section
+            key={id}
+            className="space-y-3"
+            aria-label={`${name} assumptions`}
+          >
+            <h4 className="text-sm font-semibold">{name}</h4>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <GoalDates comparison={comparison} />
+              <JudgmentInputs comparison={comparison} />
+            </div>
+            <FundingMechanics comparison={comparison} baseCurrency={currency} />
+            <ImpliedActions comparison={comparison} />
+          </section>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+export function DecisionScenarioResults({
+  scenarios,
+  currency,
+  reserveMonths,
+}: Readonly<{
+  scenarios: DecisionScenarioResult[];
+  currency: Currency;
+  reserveMonths: number | null;
+}>) {
+  const availableScenarios = scenarios.filter(
+    ({ comparison }) => comparison.timeline.length > 0,
+  );
+  if (availableScenarios.length === 0) {
     return (
       <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
         Add reconciled spending and current account values to compare these
@@ -380,27 +483,23 @@ export function DecisionScenarioResults({
       </p>
     );
   }
-  const materialPoints = comparison.timeline.filter(
-    ({ isMaterialDate }) => isMaterialDate,
-  );
   return (
-    <>
-      <ComparisonSummary
+    <div className="space-y-4">
+      <DecisionScenarioCharts
+        scenarios={availableScenarios}
         currency={currency}
-        horizon={horizon}
+      />
+      <HorizonSummaries
+        scenarios={availableScenarios}
+        currency={currency}
         reserveMonths={reserveMonths}
       />
-      <MaterialEffectsTable
-        points={materialPoints}
+      <ExactFigures
+        scenarios={availableScenarios}
         currency={currency}
         reserveMonths={reserveMonths}
       />
-      <div className="grid gap-3 lg:grid-cols-2">
-        <GoalDates comparison={comparison} />
-        <JudgmentInputs comparison={comparison} />
-      </div>
-      <FundingMechanics comparison={comparison} baseCurrency={currency} />
-      <ImpliedActions comparison={comparison} />
-    </>
+      <ScenarioAssumptions scenarios={availableScenarios} currency={currency} />
+    </div>
   );
 }

@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { useAssetTracker } from "@/components/assettracker/asset-tracker-provider";
 import { DecisionsRoute } from "@/components/assettracker/decisions-route";
@@ -6,11 +7,20 @@ import { DecisionsRoute } from "@/components/assettracker/decisions-route";
 vi.mock("@/components/assettracker/asset-tracker-provider", () => ({
   useAssetTracker: vi.fn(),
 }));
+vi.mock("@/components/assettracker/decision-scenario-comparison", () => ({
+  DecisionScenarioComparison: () => <div>Decision comparison workspace</div>,
+}));
+vi.mock("@/components/assettracker/forecast-assumption-manager", () => ({
+  ForecastAssumptionManager: () => <div>Forecast assumptions workspace</div>,
+}));
+vi.mock("@/components/assettracker/future-cash-flow-manager", () => ({
+  FutureCashFlowManager: () => <div>Future cash flow workspace</div>,
+}));
 
 const mockUseAssetTracker = vi.mocked(useAssetTracker);
 
 describe("DecisionsRoute", () => {
-  it("explains how to create the first decision record", () => {
+  it("opens with the comparison workspace", () => {
     mockUseAssetTracker.mockReturnValue({
       accountDetails: [],
       baseCurrency: "GBP",
@@ -20,10 +30,24 @@ describe("DecisionsRoute", () => {
 
     render(<DecisionsRoute />);
 
+    expect(screen.getByText("Decision comparison workspace")).toBeVisible();
+  });
+
+  it("explains how to create the first decision record", async () => {
+    mockUseAssetTracker.mockReturnValue({
+      accountDetails: [],
+      baseCurrency: "GBP",
+      decisionRecords: [],
+      mortgageScenarios: [],
+    } as unknown as ReturnType<typeof useAssetTracker>);
+
+    render(<DecisionsRoute />);
+    await userEvent.click(screen.getByRole("tab", { name: "Recorded" }));
+
     expect(screen.getByText("No decision records yet")).toBeVisible();
   });
 
-  it("shows a mortgage decision with its linked source facts", () => {
+  it("shows a mortgage decision with its linked source facts", async () => {
     mockUseAssetTracker.mockReturnValue({
       accountDetails: [
         { id: "mortgage", name: "Home loan" },
@@ -73,6 +97,7 @@ describe("DecisionsRoute", () => {
     } as unknown as ReturnType<typeof useAssetTracker>);
 
     render(<DecisionsRoute />);
+    await userEvent.click(screen.getByRole("tab", { name: "Recorded" }));
 
     expect(screen.getByText("Five-year fix")).toBeVisible();
     expect(screen.getByText("£300,000")).toBeVisible();

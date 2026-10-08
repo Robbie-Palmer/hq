@@ -28,7 +28,6 @@ import {
   formatRunwayDuration,
   plannedExpenditureSourceId,
   RunwayChartTooltip,
-  RunwayForecast,
 } from "@/components/assettracker/runway-forecast";
 import { UpcomingFlows } from "@/components/assettracker/upcoming-flows";
 import {
@@ -57,6 +56,20 @@ vi.mock("recharts", () => ({
     <div data-chart-data={JSON.stringify(data)} data-testid="line-chart">
       {children}
     </div>
+  ),
+  ComposedChart: ({
+    children,
+    data,
+  }: {
+    children: ReactNode;
+    data: unknown[];
+  }) => (
+    <div data-chart-data={JSON.stringify(data)} data-testid="composed-chart">
+      {children}
+    </div>
+  ),
+  Area: ({ dataKey }: { dataKey: string }) => (
+    <div data-range-series={dataKey} />
   ),
   Line: ({ dataKey, dot }: { dataKey: string; dot?: boolean }) => (
     <div
@@ -902,7 +915,7 @@ describe("RunwayForecast", () => {
       addCommitment,
     });
 
-    render(<RunwayForecast />);
+    render(<FutureCashFlowManager />);
 
     await userEvent.type(screen.getByLabelText("Name"), "New car");
     await userEvent.type(screen.getByLabelText("Amount"), "12000");
@@ -1127,6 +1140,17 @@ describe("DecisionScenarioComparison", () => {
       reserveMonths: 6,
     });
     expect(
+      screen.getByRole("img", {
+        name: "Portfolio effect versus committed-only",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("img", {
+        name: "Runway effect versus committed-only",
+      }),
+    ).toBeVisible();
+    await userEvent.click(screen.getByText("View exact figures"));
+    expect(
       screen.getByRole("table", {
         name: "Decision effects on material cash-flow dates and at the selected horizon",
       }),
@@ -1134,6 +1158,9 @@ describe("DecisionScenarioComparison", () => {
     expect(
       screen.getAllByText("5.0 months, below the 6-month preference"),
     ).toHaveLength(2);
+    await userEvent.click(
+      screen.getByText("Review assumptions and implied actions"),
+    );
     expect(
       screen.getByText(
         "These inputs remain separate. The comparison does not rank the choices.",
@@ -1143,6 +1170,79 @@ describe("DecisionScenarioComparison", () => {
     expect(
       screen.getByText("Extension · Current account", { exact: false }),
     ).toBeVisible();
+  });
+
+  it("plots mutually exclusive choices as separate paths", () => {
+    const decisions = [
+      {
+        id: "extension",
+        name: "Extension",
+        kind: "decision" as const,
+        status: "selected" as const,
+        reversibility: "irreversible" as const,
+        dependencyIds: [],
+        alternativeToIds: ["loft"],
+        labels: [],
+        currency: "GBP" as const,
+        stages: [],
+      },
+      {
+        id: "loft",
+        name: "Loft conversion",
+        kind: "decision" as const,
+        status: "considering" as const,
+        reversibility: "irreversible" as const,
+        dependencyIds: [],
+        alternativeToIds: ["extension"],
+        labels: [],
+        currency: "GBP" as const,
+        stages: [],
+      },
+    ];
+    const compareDecisionScenario = vi.fn(
+      ({ decisionIds }: { decisionIds: readonly string[] }) => ({
+        requestedDecisionIds: [...decisionIds],
+        includedDecisionIds: [...decisionIds],
+        includedDependencyIds: [],
+        warnings: [],
+        materialDates: [],
+        timeline: [],
+        goalDates: {
+          baseline: null,
+          lowCost: null,
+          expected: null,
+          highCost: null,
+        },
+        actions: [],
+        fundingMechanics: [],
+        judgments: [],
+      }),
+    );
+    mockAssetTracker({
+      futureCashFlows: decisions,
+      compareDecisionScenario,
+    });
+
+    render(<DecisionScenarioComparison />);
+
+    expect(
+      screen.getByText(
+        "Mutually exclusive choices are shown as separate paths, not added together.",
+      ),
+    ).toBeVisible();
+    expect(compareDecisionScenario).toHaveBeenCalledWith({
+      decisionIds: ["extension"],
+      horizonMonths: 60,
+      reserveMonths: null,
+    });
+    expect(compareDecisionScenario).toHaveBeenCalledWith({
+      decisionIds: ["loft"],
+      horizonMonths: 60,
+      reserveMonths: null,
+    });
+    expect(compareDecisionScenario).not.toHaveBeenCalledWith(
+      expect.objectContaining({ decisionIds: ["extension", "loft"] }),
+    );
   });
 });
 

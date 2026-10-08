@@ -11,10 +11,10 @@ import {
 } from "@/components/ui/select";
 import type {
   CashFlowDecision,
-  DecisionScenarioComparison as Comparison,
   EmergencyFundPlan,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
+import type { DecisionScenarioResult } from "./decision-scenario-charts";
 import { DecisionScenarioResults } from "./decision-scenario-results";
 
 const HORIZON_OPTIONS = [1, 3, 5, 10] as const;
@@ -158,9 +158,16 @@ function useDecisionComparisonModel() {
     const selected = decisions
       .filter(({ status }) => status === "selected")
       .map(({ id }) => id);
-    return selected.length > 0
-      ? selected
-      : decisions.slice(0, 1).map(({ id }) => id);
+    if (selected.length === 0) return decisions.slice(0, 1).map(({ id }) => id);
+    const selectedSet = new Set(selected);
+    const alternatives = decisions
+      .filter(({ alternativeToIds }) =>
+        alternativeToIds.some((alternativeId) =>
+          selectedSet.has(alternativeId),
+        ),
+      )
+      .map(({ id }) => id);
+    return Array.from(new Set([...selected, ...alternatives]));
   });
   const [horizonYears, setHorizonYears] = useState(5);
   const activeReservePlan = tracker.emergencyFundPlans.find(
@@ -169,15 +176,48 @@ function useDecisionComparisonModel() {
   const [reserveMonths, setReserveMonths] = useState<number | null>(
     activeReservePlan?.coverageMonths[0] ?? null,
   );
-  const comparison = useMemo<Comparison>(
-    () =>
-      tracker.compareDecisionScenario({
-        decisionIds: selectedIds,
+  const selectedDecisions = decisions.filter(({ id }) =>
+    selectedIds.includes(id),
+  );
+  const selectedIdSet = new Set(selectedIds);
+  const comparesAlternatives = selectedDecisions.some((decision) =>
+    decision.alternativeToIds.some((id) => selectedIdSet.has(id)),
+  );
+  const scenarios = useMemo<DecisionScenarioResult[]>(() => {
+    if (selectedDecisions.length === 0) return [];
+    const selections = comparesAlternatives
+      ? selectedDecisions.map((decision) => ({
+          id: decision.id,
+          name: decision.name,
+          decisionIds: [decision.id],
+        }))
+      : [
+          {
+            id: selectedIds.join("+") || "selection",
+            name:
+              selectedDecisions.length === 1
+                ? (selectedDecisions[0]?.name ?? "Selected decision")
+                : "Combined selection",
+            decisionIds: selectedIds,
+          },
+        ];
+    return selections.map(({ id, name, decisionIds }) => ({
+      id,
+      name,
+      comparison: tracker.compareDecisionScenario({
+        decisionIds,
         horizonMonths: horizonYears * 12,
         reserveMonths,
       }),
-    [horizonYears, reserveMonths, selectedIds, tracker.compareDecisionScenario],
-  );
+    }));
+  }, [
+    comparesAlternatives,
+    horizonYears,
+    reserveMonths,
+    selectedDecisions,
+    selectedIds,
+    tracker.compareDecisionScenario,
+  ]);
   const caseNames = new Map(
     tracker.planningCases.map(({ id, name }) => [id, name]),
   );
@@ -191,10 +231,11 @@ function useDecisionComparisonModel() {
     ...tracker,
     activeReservePlan,
     caseNames,
-    comparison,
+    comparesAlternatives,
     decisions,
     horizonYears,
     reserveMonths,
+    scenarios,
     selectedIds,
     setDecision,
     setHorizonYears,
@@ -203,11 +244,19 @@ function useDecisionComparisonModel() {
 }
 
 function ComparisonMessages({
-  comparison,
+  scenarios,
   decisions,
-}: Readonly<{ comparison: Comparison; decisions: CashFlowDecision[] }>) {
-  const dependencies = comparison.includedDependencyIds.map(
-    (id) => decisions.find((decision) => decision.id === id)?.name ?? id,
+}: Readonly<{
+  scenarios: DecisionScenarioResult[];
+  decisions: CashFlowDecision[];
+}>) {
+  const dependencies = Array.from(
+    new Set(
+      scenarios.flatMap(({ comparison }) => comparison.includedDependencyIds),
+    ),
+  ).map((id) => decisions.find((decision) => decision.id === id)?.name ?? id);
+  const warnings = Array.from(
+    new Set(scenarios.flatMap(({ comparison }) => comparison.warnings)),
   );
   return (
     <>
@@ -216,7 +265,7 @@ function ComparisonMessages({
           Included dependencies: {dependencies.join(", ")}.
         </p>
       )}
-      {comparison.warnings.map((warning) => (
+      {warnings.map((warning) => (
         <p
           key={warning}
           className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs"
@@ -228,13 +277,38 @@ function ComparisonMessages({
   );
 }
 
+function DecisionSelection({
+  model,
+}: Readonly<{ model: ReturnType<typeof useDecisionComparisonModel> }>) {
+  return (
+    <fieldset className="grid gap-2 sm:grid-cols-2">
+      <legend className="mb-2 text-xs font-medium">Decision overlays</legend>
+      {model.decisions.map((decision) => (
+        <DecisionChoice
+          key={decision.id}
+          decision={decision}
+          checked={model.selectedIds.includes(decision.id)}
+          caseName={
+            decision.planningCaseId == null
+              ? "No planning case"
+              : (model.caseNames.get(decision.planningCaseId) ??
+                decision.planningCaseId)
+          }
+          onChange={(checked) => model.setDecision(decision.id, checked)}
+        />
+      ))}
+    </fieldset>
+  );
+}
+
 export function DecisionScenarioComparison() {
   const model = useDecisionComparisonModel();
   if (model.decisions.length === 0) return null;
   return (
     <section
-      className="space-y-4 border-t pt-5"
+      className="space-y-4"
       aria-labelledby="decision-comparison-heading"
+      id="scenario-comparison"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -248,25 +322,15 @@ export function DecisionScenarioComparison() {
         </div>
         <ComparisonControls {...model} />
       </div>
-      <fieldset className="grid gap-2 sm:grid-cols-2">
-        <legend className="mb-2 text-xs font-medium">Decision overlays</legend>
-        {model.decisions.map((decision) => (
-          <DecisionChoice
-            key={decision.id}
-            decision={decision}
-            checked={model.selectedIds.includes(decision.id)}
-            caseName={
-              decision.planningCaseId == null
-                ? "No planning case"
-                : (model.caseNames.get(decision.planningCaseId) ??
-                  decision.planningCaseId)
-            }
-            onChange={(checked) => model.setDecision(decision.id, checked)}
-          />
-        ))}
-      </fieldset>
+      <DecisionSelection model={model} />
+      {model.comparesAlternatives && (
+        <p className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
+          Mutually exclusive choices are shown as separate paths, not added
+          together.
+        </p>
+      )}
       <ComparisonMessages
-        comparison={model.comparison}
+        scenarios={model.scenarios}
         decisions={model.decisions}
       />
       {model.selectedIds.length === 0 ? (
@@ -275,7 +339,7 @@ export function DecisionScenarioComparison() {
         </p>
       ) : (
         <DecisionScenarioResults
-          comparison={model.comparison}
+          scenarios={model.scenarios}
           currency={model.baseCurrency}
           reserveMonths={model.reserveMonths}
         />

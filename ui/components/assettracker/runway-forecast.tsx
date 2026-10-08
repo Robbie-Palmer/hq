@@ -35,9 +35,7 @@ import {
   type RunwayForecastPoint,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
-import { DecisionScenarioComparison } from "./decision-scenario-comparison";
-import { ForecastAssumptionManager } from "./forecast-assumption-manager";
-import { FutureCashFlowManager } from "./future-cash-flow-manager";
+import { DecisionScenarioSummary } from "./decision-scenario-summary";
 
 const HORIZON_OPTIONS = [1, 3, 5, 10, 20, 30] as const;
 
@@ -539,9 +537,7 @@ export function RunwayForecast() {
         </p>
       )}
 
-      <DecisionScenarioComparison />
-      <ForecastAssumptionManager />
-      <FutureCashFlowManager />
+      <DecisionScenarioSummary />
     </section>
   );
 }
