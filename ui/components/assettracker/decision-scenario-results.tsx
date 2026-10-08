@@ -269,7 +269,7 @@ function JudgmentInputs({
           <li key={judgment.id}>
             <span className="font-medium">{judgment.name}</span>
             {` · ${judgment.importance ?? "No importance note"}`}
-            {` · ${judgment.confidence == null ? "No confidence entered" : `${(judgment.confidence * 100).toFixed(0)}% confidence`}`}
+            {` · ${confidenceDescription(judgment.confidence)}`}
             {` · ${judgment.reversibility.replace("-", " ")}`}
           </li>
         ))}
@@ -279,6 +279,12 @@ function JudgmentInputs({
       </p>
     </div>
   );
+}
+
+function confidenceDescription(confidence: number | undefined): string {
+  return confidence == null
+    ? "No confidence entered"
+    : `${(confidence * 100).toFixed(0)}% confidence`;
 }
 
 function FundingMechanics({

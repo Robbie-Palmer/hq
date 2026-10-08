@@ -302,7 +302,9 @@ function materialDates(
   });
   const horizonDate = points.at(-1)?.date;
   if (horizonDate != null) dates.push(horizonDate);
-  return Array.from(new Set(dates)).toSorted();
+  return Array.from(new Set(dates)).toSorted((left, right) =>
+    left.localeCompare(right),
+  );
 }
 
 function actions(

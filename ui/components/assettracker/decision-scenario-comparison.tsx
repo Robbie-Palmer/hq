@@ -32,7 +32,10 @@ function DecisionChoice({
   onChange(checked: boolean): void;
 }>) {
   return (
-    <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3">
+    <label
+      aria-label={`Compare ${decision.name}`}
+      className="flex cursor-pointer items-start gap-3 rounded-md border p-3"
+    >
       <input
         type="checkbox"
         className="mt-1 size-4"
