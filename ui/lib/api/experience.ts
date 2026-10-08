@@ -57,20 +57,23 @@ export function getExperienceDuration(
   return formatDuration(start, end);
 }
 
-/**
- * @deprecated Use formatExperienceDateRange and getExperienceDuration separately
- */
-export function formatDateRange(startDate: string, endDate?: string): string {
+export function formatExperienceDateLabel(
+  startDate: string,
+  endDate?: string,
+): string {
   const range = formatExperienceDateRange(startDate, endDate);
   const duration = getExperienceDuration(startDate, endDate);
   return `${range} (${duration})`;
 }
 
 function formatDuration(start: Date, end: Date): string {
-  // Add 1 to make the calculation inclusive of both start and end months
+  // Add 1 to make the calculation inclusive of both start and end months.
+  // Read UTC parts: parseDateString returns UTC midnight on the 1st, which is
+  // the previous month in timezones west of UTC, so local parts would make
+  // open-ended durations differ from the server-rendered HTML.
   const months =
-    (end.getFullYear() - start.getFullYear()) * 12 +
-    (end.getMonth() - start.getMonth()) +
+    (end.getUTCFullYear() - start.getUTCFullYear()) * 12 +
+    (end.getUTCMonth() - start.getUTCMonth()) +
     1;
   const years = Math.floor(months / 12);
   const remainingMonths = months % 12;

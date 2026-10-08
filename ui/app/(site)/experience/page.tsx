@@ -3,7 +3,12 @@ import type { Metadata } from "next";
 import { ExperienceCard } from "@/components/experience/experience-card";
 import { SearchableTechnologyGrid } from "@/components/experience/searchable-technology-grid";
 import { Button } from "@/components/ui/button";
-import { getAllExperience, getExperienceSlug } from "@/lib/api/experience";
+import {
+  type Experience,
+  formatExperienceDateLabel,
+  getAllExperience,
+  getExperienceSlug,
+} from "@/lib/api/experience";
 import { siteConfig } from "@/lib/config/site-config";
 import { loadDomainRepository } from "@/lib/domain";
 import { getRoleBlogs } from "@/lib/domain/blog/blogQueries";
@@ -15,6 +20,10 @@ import {
 
 const pageDescription =
   "Professional experience and career history of Robbie Palmer, a Principal Software Engineer and Engineering Manager specializing in machine learning, computer vision, and data engineering.";
+
+function getExperienceDateLabel(experience: Experience): string {
+  return formatExperienceDateLabel(experience.startDate, experience.endDate);
+}
 
 export const metadata: Metadata = {
   title: "Experience",
@@ -51,7 +60,6 @@ export default function ExperiencePage() {
   const repository = loadDomainRepository();
   const technologyBadges = getAllTechnologyBadges(repository);
 
-  // Rank technologies by knowledge graph connections
   const rankedTechnologies = rankTechnologiesByConnections(
     repository,
     technologyBadges,
@@ -99,6 +107,7 @@ export default function ExperiencePage() {
                 <ExperienceCard
                   key={`${experience.company}-${experience.startDate}`}
                   experience={experience}
+                  dateLabel={getExperienceDateLabel(experience)}
                   id={roleSlug}
                   projects={projects}
                   blogs={blogs}
