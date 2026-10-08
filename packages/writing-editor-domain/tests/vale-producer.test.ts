@@ -9,6 +9,7 @@ import { DecisionSchema } from "../src/decisions";
 import { main as reviewCommand } from "../src/review-cli";
 import { ReviewReceiptSchema } from "../src/review-receipt";
 import {
+  runValeDeterministicProducer,
   UNSLOP_RULE_CLASSIFICATION,
   valeAlertsToReviewRecords,
 } from "../src/vale-producer";
@@ -110,20 +111,18 @@ describe("deterministic Vale producer", () => {
       const receiptPath = join(directory, "evidence", "receipt.json");
       const valePath = join(directory, "fake-vale");
       await writeFile(sourcePath, "# Draft\n\nUtilize direct words.\n", "utf8");
-      const output = {
-        [sourcePath]: [{
-          Span: [1, 7],
-          Check: "Unslop.PlainWordsSafe",
-          Message: "Use the plain replacement",
-          Severity: "warning",
-          Match: "Utilize",
-          Line: 3,
-        }],
-      };
+      const alerts = [{
+        Span: [1, 7],
+        Check: "Unslop.PlainWordsSafe",
+        Message: "Use the plain replacement",
+        Severity: "warning",
+        Match: "Utilize",
+        Line: 3,
+      }];
       await writeFile(valePath, [
         "#!/usr/bin/env node",
         "if (process.argv.includes('--version')) { console.log('vale version 3.13.0'); }",
-        `else { process.stdout.write(${JSON.stringify(JSON.stringify(output))}); }`,
+        `else { process.stdout.write(JSON.stringify({ [process.argv.at(-1)]: ${JSON.stringify(alerts)} })); }`,
         "",
       ].join("\n"), "utf8");
       await chmod(valePath, 0o755);
@@ -156,11 +155,10 @@ describe("deterministic Vale producer", () => {
       expect(displayed).toContain("+Use direct words.");
 
       const committedRecords = await readFile(recordsPath, "utf8");
-      const noAlerts = { [sourcePath]: [] };
       await writeFile(valePath, [
         "#!/usr/bin/env node",
         "if (process.argv.includes('--version')) { console.log('vale version 3.13.0'); }",
-        `else { process.stdout.write(${JSON.stringify(JSON.stringify(noAlerts))}); }`,
+        "else { process.stdout.write(JSON.stringify({ [process.argv.at(-1)]: [] })); }",
         "",
       ].join("\n"), "utf8");
       await expect(reviewCommand([
@@ -174,6 +172,53 @@ describe("deterministic Vale producer", () => {
         /does not match a current proposal/,
       );
       expect(await readFile(recordsPath, "utf8")).toBe(committedRecords);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("runs Vale against the exact source snapshot instead of the live file", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "writing-editor-vale-snapshot-"));
+    try {
+      const sourcePath = join(directory, "draft.md");
+      const scannedPathFile = join(directory, "scanned-path.txt");
+      const valePath = join(directory, "fake-vale");
+      const source = "Utilize direct words.\n";
+      await writeFile(sourcePath, source, "utf8");
+      await writeFile(valePath, [
+        "#!/usr/bin/env node",
+        "const fs = require('node:fs');",
+        "if (process.argv.includes('--version')) { console.log('vale version 3.13.0'); }",
+        "else {",
+        "  const scannedPath = process.argv.at(-1);",
+        `  fs.writeFileSync(${JSON.stringify(scannedPathFile)}, scannedPath);`,
+        `  fs.writeFileSync(${JSON.stringify(sourcePath)}, 'Changed during Vale.\\n');`,
+        "  const scanned = fs.readFileSync(scannedPath, 'utf8');",
+        "  if (scanned !== 'Utilize direct words.\\n') process.exit(2);",
+        "  process.stdout.write(JSON.stringify({ [scannedPath]: [{",
+        "    Span: [1, 7], Check: 'Unslop.PlainWordsSafe',",
+        "    Message: 'Use the plain replacement', Severity: 'warning',",
+        "    Match: 'Utilize', Line: 1",
+        "  }] }));",
+        "}",
+        "",
+      ].join("\n"), "utf8");
+      await chmod(valePath, 0o755);
+
+      const result = runValeDeterministicProducer({
+        source,
+        sourcePath,
+        documentId: "draft.md",
+        revision: "worktree:test",
+        configPath: resolve(import.meta.dirname, "../../../.vale.ini"),
+        valeBinary: valePath,
+      });
+
+      expect(result.proposals[0]?.suggestions[0]?.span.sourceText).toBe("Utilize");
+      expect(await readFile(sourcePath, "utf8")).toBe("Changed during Vale.\n");
+      const scannedPath = await readFile(scannedPathFile, "utf8");
+      expect(scannedPath).not.toBe(sourcePath);
+      await expect(readFile(scannedPath, "utf8")).rejects.toThrow();
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

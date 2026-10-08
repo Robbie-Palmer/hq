@@ -1,4 +1,7 @@
 import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, join } from "node:path";
 
 import { z } from "zod";
 
@@ -61,32 +64,39 @@ export function runValeDeterministicProducer(options: {
 }): DeterministicProducerResult {
   const valeBinary = options.valeBinary ?? "vale";
   const version = valeVersion(valeBinary);
-  const output = execFileSync(valeBinary, [
-    "--no-exit",
-    "--no-global",
-    "--config",
-    options.configPath,
-    "--minAlertLevel",
-    "suggestion",
-    "--output",
-    "JSON",
-    options.sourcePath,
-  ], { encoding: "utf8", maxBuffer: 20 * 1024 * 1024 });
-  const parsed = ValeJsonSchema.parse(JSON.parse(output || "{}"));
-  const resolvedSourcePath = normalizePath(options.sourcePath);
-  const alerts = Object.entries(parsed).flatMap(([reportedPath, records]) => {
-    if (normalizePath(reportedPath) !== resolvedSourcePath) {
-      throw new Error(`Vale returned an unexpected source path: ${reportedPath}`);
-    }
-    return records;
-  });
-  return valeAlertsToReviewRecords({
-    source: options.source,
-    documentId: options.documentId,
-    revision: options.revision,
-    producerVersion: `vale@${version}`,
-    alerts,
-  });
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "writing-editor-vale-"));
+  const temporarySourcePath = join(temporaryDirectory, basename(options.sourcePath));
+  try {
+    writeFileSync(temporarySourcePath, options.source, "utf8");
+    const output = execFileSync(valeBinary, [
+      "--no-exit",
+      "--no-global",
+      "--config",
+      options.configPath,
+      "--minAlertLevel",
+      "suggestion",
+      "--output",
+      "JSON",
+      temporarySourcePath,
+    ], { encoding: "utf8", maxBuffer: 20 * 1024 * 1024 });
+    const parsed = ValeJsonSchema.parse(JSON.parse(output || "{}"));
+    const resolvedSourcePath = normalizePath(temporarySourcePath);
+    const alerts = Object.entries(parsed).flatMap(([reportedPath, records]) => {
+      if (normalizePath(reportedPath) !== resolvedSourcePath) {
+        throw new Error(`Vale returned an unexpected source path: ${reportedPath}`);
+      }
+      return records;
+    });
+    return valeAlertsToReviewRecords({
+      source: options.source,
+      documentId: options.documentId,
+      revision: options.revision,
+      producerVersion: `vale@${version}`,
+      alerts,
+    });
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
 }
 
 export function valeAlertsToReviewRecords(options: {
