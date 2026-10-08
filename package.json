@@ -8,7 +8,8 @@
   "dependencies": {
     "observability": "workspace:*",
     "recipe-domain": "workspace:*",
-    "ts-base": "workspace:*"
+    "ts-base": "workspace:*",
+    "zod": "^4.2.1"
   },
   "scripts": {
     "prepare": "husky"
