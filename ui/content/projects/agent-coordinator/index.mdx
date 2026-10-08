@@ -2,7 +2,7 @@
 title: "Agent Coordinator"
 description: "A matching and handoff system that offers ready work to suitable people and agents without owning the work plan"
 date: "2026-09-04"
-updated: "2026-09-28"
+updated: "2026-09-27"
 status: "idea"
 initiatives:
   - "semi-autonomous-software-development"
@@ -153,74 +153,6 @@ explains why it matters and which evidence will prove completion.
 6. Add automatic matching within narrow owner-defined limits.
 7. Test contributor-directed matching only after the personal and team modes
    work.
-
-# Personal advisory pilot
-
-On 28 September 2026, I ran the first personal pilot against the real Work
-Graph ticket that governed the pilot. Two native Codex subscription sessions
-handled the reasoning and checkpoint-resume work. The directly supervised
-Codex session made the repository change. An OpenRouter-funded worker handled
-the mechanical classification of measurements.
-
-The router kept the API worker away from repository implementation. That worker
-declared API access and metered-cost evidence, but not Git, repository write
-access, or test evidence. This was the deliberate ineligible pairing in the
-trial. A separate Claude Code route also failed its availability check because
-its subscription OAuth session had expired. The attempt made no model call and
-cost nothing. An installed executable is not proof that a worker is available.
-
-I simulated a native-client usage limit after the reasoning worker returned its
-first result. The coordinator wrote a Work Graph checkpoint, forked a new
-native session, and resumed in 42.6 seconds without changing the ticket lease.
-The successor retained the ticket, baseline counts, policy boundary, completed
-analysis, and remaining work.
-
-The API session then changed model and provider while keeping its session ID,
-ticket context, and lease. Route-level records attribute all four billed
-responses. One response was usable; three were empty or malformed. A fifth
-request failed before inference because the provider credit left on the key
-could not cover the requested output ceiling. The four billed requests cost
-$0.002095945 in total.
-
-## Comparison with manual routing
-
-The baseline is the five coordinator tickets immediately before the pilot. All
-five reached release through manually selected Codex subscription sessions.
-Their lease histories contain eight gaps between a stopped or expired lease and
-the next claim. Those gaps total 51.8 hours, with a median of 5.89 hours. Six
-leases stopped for attention and three expired. The records do not say why each
-attention stop occurred, so the pilot cannot honestly label them useful or
-avoidable from the counts alone.
-
-| Measure                     |                      Manual baseline |                       Advisory pilot |
-| --------------------------- | -----------------------------------: | -----------------------------------: |
-| Completion                  |                       5 of 5 tickets |        1 of 1 ticket report prepared |
-| Recovery wait               |             51.8 hours across 8 gaps | 42.6 seconds for the simulated limit |
-| Human attention stops       |                                    6 |                                    0 |
-| Expired leases              |                                    3 |                                    0 |
-| Checkpoint handoff recovery | Not recorded as a planned checkpoint |                               1 of 1 |
-| Attributed metered cost     | $0, actual subscription cost unknown | $0.002095945 plus prepaid native use |
-
-This is too small a sample to claim a general improvement. It did prove that a
-durable checkpoint can cut the recovery gap without giving the coordinator
-claim authority. It also showed that a provider accepting a request is not
-enough. The coordinator must validate the response before it counts work as
-complete.
-
-## Policy changes from the pilot
-
-* Check authentication and usable quota before showing a worker as available.
-  Executable discovery alone is insufficient.
-* Keep advisory mode as the default. The owner still confirms the proposed
-  worker before claim.
-* Write checkpoints before a known limit, with conclusions, evidence,
-  assumptions, and the next exact action.
-* Record the reason and outcome for every attention stop. Aggregate counts do
-  not distinguish owner decisions from routing friction.
-* Validate response content before recording completion. Empty or malformed
-  output remains a failed request even when the provider billed it.
-* Reserve the full request ceiling against both the session budget and the
-  provider key's available credit before inference.
 
 # Success
 
