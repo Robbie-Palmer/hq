@@ -26,16 +26,19 @@ emulation. Do not point this suite at production.
 
 ## Run
 
-Run the suite with the canonical preview URL and inject the preview-only
-Cloudflare Access service-token credentials from Doppler:
+The trusted follow-up workflow is the supported runner for this suite. Do not
+run PR-controlled Playwright tests with `dev_agent` credentials in a local or
+remote agent worktree. Those tests can read inherited environment variables.
+
+For local HTTP QA, use the hostname-allowlisted fetch task instead:
 
 ```sh
-PREVIEW_SITE_URL=https://pr-123.example.pages.dev \
 doppler run --project personal-site --config dev_agent -- \
-  mise //ui:test:e2e:preview
+  mise run //:preview:fetch -- https://pr-123.personal-site-bu5.pages.dev/llms.txt
 ```
 
-The mise task installs the required Chromium build when needed.
+For subjective browser QA, use T3 Code's shared browser and its existing
+Cloudflare account session.
 
 PRs with a backend preview run this suite from a trusted follow-up workflow
 after both the isolated backend and canonical Pages frontend finish deploying.
@@ -46,10 +49,6 @@ preview Access credentials from the scoped `preview-agent-access` GitHub
 environment. A failed run uploads screenshots and DOM snapshots for seven days.
 Traces stay on the ephemeral runner because they can contain authentication
 cookies.
-
-Remote agent runtimes that already inject `dev_agent` can run the mise task
-directly with only `PREVIEW_SITE_URL` set. Local T3 Code agents use the explicit
-`doppler run` form above.
 
 The suite validates that the URL is the canonical PR alias for the configured
 Pages host. It sends the Access credentials only on an exact-origin priming
