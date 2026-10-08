@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "recordType": "writing-review-evidence-manifest",
+  "cohortId": "repository-pilot:pr-1482",
+  "governance": {
+    "dataClassification": "public",
+    "consentBasis": "Repository owner requested the review loop and accepted the displayed edit.",
+    "consentRecordedAt": "2026-10-08T15:24:23.881Z",
+    "retentionPolicy": "Retain with the public pull-request evidence; remove on repository-owner request.",
+    "deletionStatus": "active"
+  },
+  "entries": [
+    {
+      "artifactId": "ccpm-adr-027",
+      "artifactType": "adr",
+      "split": "validation",
+      "recordsFile": "records.json",
+      "decisionsFile": "decisions.jsonl",
+      "receiptFile": "receipt.json",
+      "quality": {
+        "factualPreservation": "pass",
+        "terminologyPreservation": "pass",
+        "voicePreservation": "pass",
+        "regression": "none"
+      }
+    }
+  ]
+}

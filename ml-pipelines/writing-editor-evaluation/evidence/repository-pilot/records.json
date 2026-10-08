@@ -1,0 +1,70 @@
+{
+  "documentId": "ui/content/projects/personal-knowledge-graph/adrs/027-ccpm.mdx",
+  "revision": "worktree:pr-1482",
+  "findings": [
+    {
+      "schemaVersion": 1,
+      "recordType": "writing-finding",
+      "findingId": "finding:v1:d1ef39767af6ab384379d2ea8942fda40044889dff72b6863b6fcf45cc1c9992",
+      "producer": {
+        "id": "vale-deterministic",
+        "version": "vale@3.24.0",
+        "provenance": {
+          "kind": "rule",
+          "ruleId": "Unslop.PlainWords"
+        }
+      },
+      "source": {
+        "documentId": "ui/content/projects/personal-knowledge-graph/adrs/027-ccpm.mdx",
+        "revision": "worktree:pr-1482",
+        "contentHash": "sha256:89d8b7e81fdded4e330f6a5e57743ddc21b7ab2dc5c7fd45429d2febe563dec9"
+      },
+      "span": {
+        "startByte": 2927,
+        "endByte": 2935,
+        "sourceText": "Optimize"
+      },
+      "category": "style/unslop/plain-words",
+      "reason": "Prefer the plain word — e.g. 'use' instead of 'utilize'"
+    }
+  ],
+  "proposals": [
+    {
+      "schemaVersion": 1,
+      "recordType": "writing-proposal",
+      "proposalId": "proposal:v1:7150d4fdc3f2afcdbf5f59d9543402927ad54b3cf7c4c2ed867b13b5919e22cd",
+      "suggestionIds": [
+        "suggestion:v1:aa9c1c8710b93963092d483b7ed620ff54e6412cc395119258f9a6a55456d598"
+      ],
+      "suggestions": [
+        {
+          "schemaVersion": 1,
+          "recordType": "writing-suggestion",
+          "suggestionId": "suggestion:v1:aa9c1c8710b93963092d483b7ed620ff54e6412cc395119258f9a6a55456d598",
+          "producer": {
+            "id": "vale-deterministic",
+            "version": "vale@3.24.0",
+            "provenance": {
+              "kind": "rule",
+              "ruleId": "Unslop.PlainWordsSafe"
+            }
+          },
+          "source": {
+            "documentId": "ui/content/projects/personal-knowledge-graph/adrs/027-ccpm.mdx",
+            "revision": "worktree:pr-1482",
+            "contentHash": "sha256:89d8b7e81fdded4e330f6a5e57743ddc21b7ab2dc5c7fd45429d2febe563dec9"
+          },
+          "span": {
+            "startByte": 1305,
+            "endByte": 1312,
+            "sourceText": "Utilize"
+          },
+          "replacement": "Use",
+          "category": "style/unslop/plain-words-safe",
+          "reason": "Use the plain replacement shown by the repository writing editor",
+          "confidence": 1
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "recordType": "writing-review-receipt",
+  "documentId": "ui/content/projects/personal-knowledge-graph/adrs/027-ccpm.mdx",
+  "revision": "worktree:pr-1482",
+  "recordsHash": "sha256:36834c5898011861c7880e60e220d24ccb5c463d2b2e52ae922c14740dc8365e",
+  "decisionsHash": "sha256:cdf870c3402bbce9f73316eecaaa03ed08898a6fc4f6bf4a17eabcc2af523fbe",
+  "sourceBeforeHash": "sha256:89d8b7e81fdded4e330f6a5e57743ddc21b7ab2dc5c7fd45429d2febe563dec9",
+  "sourceAfterHash": "sha256:c4fd47eea8d4b5ccbed4ddcd71cbda266305af060015512cd3424a9c67ec2bc8",
+  "sourceChanged": true,
+  "summary": {
+    "findings": 1,
+    "proposals": 1,
+    "accepted": 1,
+    "rejected": 0,
+    "changed": 0,
+    "reviewMilliseconds": 2
+  }
+}

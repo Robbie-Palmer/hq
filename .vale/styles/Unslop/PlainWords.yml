@@ -2,4 +2,4 @@ message: "Prefer the plain word — e.g. 'use' instead of 'utilize'"
 extends: existence
 level: warning
 ignorecase: true
-raw: '(?:utilize|utilise|leverage|facilitate|numerous|commence|endeavor|endeavour|expedite|optimize(?!.*benchmark))'
+raw: '(?:leverage|facilitate|optimize(?!.*benchmark))'

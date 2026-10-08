@@ -1,0 +1,5 @@
+message: "Use the plain replacement shown by the repository writing editor"
+extends: existence
+level: warning
+ignorecase: true
+raw: '(?:utilize|utilise|numerous|commence|endeavor|endeavour|expedite)'

@@ -67,3 +67,24 @@ log. Quitting leaves the source untouched, and the next run skips proposals
 already present in the log. After every proposal has a recorded outcome, the
 command checks accepted edits for overlap and atomically writes the source.
 It does not commit or publish the result.
+
+### Source-first deterministic review
+
+The repository command can run the deterministic producer itself, persist its
+output, and then review the proposals against the addressed source:
+
+```sh
+mise //packages/writing-editor-domain:review -- \
+  --source ../../path/to/document.mdx \
+  --revision worktree:my-change \
+  --records ../../path/to/evidence/records.json \
+  --decisions ../../path/to/evidence/decisions.jsonl \
+  --receipt ../../path/to/evidence/receipt.json \
+  --config ../../.vale.ini
+```
+
+Every Unslop rule has an explicit safety classification. Ambiguous rules emit
+findings only; only allowlisted exact replacements become proposals. The
+command writes the decision before atomically replacing the source, then emits
+a receipt that binds the records and decisions to the before and after content
+hashes. It still never commits or publishes changes.

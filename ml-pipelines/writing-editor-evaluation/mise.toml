@@ -66,6 +66,11 @@ description = "Align Vale findings with observed published edits"
 depends = ["install"]
 run = "bash scripts/match-edits.sh"
 
+[tasks."evaluate:reviews"]
+description = "Validate review outcomes and produce the evidence-gated scorecard"
+depends = ["install"]
+run = "bash scripts/evaluate-reviews.sh"
+
 [tasks.repro]
 description = "Reproduce the local writing evaluation stages through DVC"
 depends = ["install"]

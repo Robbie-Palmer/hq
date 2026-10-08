@@ -1,0 +1,7 @@
+{
+  "minimumActionableProposals": 20,
+  "minimumUsefulYield": 0.6,
+  "maximumRegressionRate": 0.05,
+  "maximumMedianReviewSeconds": 120,
+  "requireAssessedQuality": true
+}
