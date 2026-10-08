@@ -1,3 +1,6 @@
+import { canonicalJson } from "ts-base/json";
+import { compareStrings } from "ts-base/strings";
+
 export interface OperationalEvent {
   readonly sequence: number;
   readonly type: string;
@@ -53,17 +56,6 @@ interface MetricGroup {
   itemCounts: Map<string, number>;
 }
 
-function stableStringify(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
-  if (value !== null && typeof value === "object") {
-    return `{${Object.entries(value)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, field]) => `${JSON.stringify(key)}:${stableStringify(field)}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value) ?? "undefined";
-}
-
 function orderedEvents(events: readonly OperationalEvent[]) {
   const identities = new Map<number, OperationalEvent>();
   for (const event of events) {
@@ -75,7 +67,7 @@ function orderedEvents(events: readonly OperationalEvent[]) {
       throw new Error("Invalid operational event identity or timestamp.");
     }
     const previous = identities.get(event.sequence);
-    if (previous && stableStringify(previous) !== stableStringify(event)) {
+    if (previous && canonicalJson(previous) !== canonicalJson(event)) {
       throw new Error("Conflicting immutable event identity.");
     }
     identities.set(event.sequence, event);
@@ -237,7 +229,7 @@ class ReportProjection {
         this.wait(lease.item, "stale_lease", lease.expires, null);
     }
     return [...this.groups.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
+      .sort(([left], [right]) => compareStrings(left, right))
       .map(([, { row, itemCounts }]) => ({
         ...row,
         recurringWorkItems: [...itemCounts.values()].filter(
