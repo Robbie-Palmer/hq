@@ -47,7 +47,6 @@ export function ExperienceCard({
 }: Readonly<ExperienceCardProps>) {
   const [isExpanded, setIsExpanded] = useState(false);
   const titleTimeline = getTitleTimeline(experience);
-
   useEffect(() => {
     if (!id || typeof window === "undefined") return;
 
