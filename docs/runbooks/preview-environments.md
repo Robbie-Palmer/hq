@@ -115,12 +115,12 @@ mise x -- bash scripts/doppler-terraform-env terraform output -raw preview_acces
 ```
 
 Store the values as `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` in the
-dedicated `dev_agent` Doppler config that injects environment variables into
-coding-agent runtimes. The remote operator workspace reads this config through
-a config-scoped, read-only Doppler token. Do not give that token or the managed
-secret to pilot workspaces. Do not put the Access values in repository files,
-PR comments, shell profiles committed to a dotfiles repository, or the preview
-deployment itself.
+dedicated `dev_agent` Doppler config. The remote operator workspace injects this
+config through a config-scoped, read-only Doppler token. Local T3 Code agents
+load it only for the documented preview command. Do not give that token or the
+managed secret to pilot workspaces. Do not put the Access values in repository
+files, PR comments, shell profiles committed to a dotfiles repository, or the
+preview deployment itself.
 
 The preview Worker verifies the `Cf-Access-Jwt-Assertion` itself. Calling its
 public `workers.dev` URL therefore cannot bypass Pages Access for test login.
@@ -144,12 +144,17 @@ Do not store that service token in this repository.
 Agents should use the hostname-allowlisted helper for HTTP QA:
 
 ```bash
-mise run //:preview:fetch -- https://pr-123.personal-site-bu5.pages.dev/llms.txt
+doppler run --project personal-site --config dev_agent -- \
+  mise run //:preview:fetch -- https://pr-123.personal-site-bu5.pages.dev/llms.txt
 ```
 
-Browser automation can set the same pair as extra HTTP headers before the first
-navigation. Scope them to the canonical preview hostname so a redirect or page
-instruction cannot disclose the credential to another origin.
+Remote runtimes that already inject `dev_agent` can omit the `doppler run`
+prefix. Local agents must not inspect or print the values returned by Doppler.
+
+For browser QA in T3 Code, use the shared browser's existing Cloudflare account
+session. If Cloudflare redirects to sign-in, the user must complete that
+interactive login before the agent continues. Do not copy the service-token
+values into the browser.
 
 The narrowly scoped service-token identity does not expire: extending an expiry
 does not rotate its secret and creates an avoidable outage deadline. The

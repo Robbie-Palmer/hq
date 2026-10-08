@@ -255,11 +255,11 @@ config, `ops_preview_agent_access`, should contain:
 - `DOPPLER_SERVICE_TOKEN` with read/write access only to `dev_agent`
 
 `dev_agent` contains only `CF_ACCESS_CLIENT_ID`,
-`CF_ACCESS_CLIENT_SECRET`, and `CLOUDFLARE_PAGES_HOST`. Local agent launchers
-and the remote operator workspace read this config. The remote workspace uses
-its own read-only Doppler token and managed Kubernetes Secret; the pilot
-workspace does not receive it. Agents must not receive `dev_infra` or
-deployment credentials.
+`CF_ACCESS_CLIENT_SECRET`, and `CLOUDFLARE_PAGES_HOST`. Local T3 Code agents load
+this config only for the documented preview command. The remote operator
+workspace injects it through its own read-only Doppler token and managed
+Kubernetes Secret; the pilot workspace does not receive it. Agents must not
+receive `dev_infra` or deployment credentials.
 
 ## Preview Values
 
