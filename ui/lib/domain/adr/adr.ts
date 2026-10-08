@@ -5,6 +5,7 @@ import {
   ADRRefSchema,
   ADRSlugSchema,
   IdeaSlugSchema,
+  ProductDecisionSlugSchema,
   ProjectSlugSchema,
   TechnologySlugSchema,
 } from "../slugs";
@@ -76,9 +77,16 @@ export const ADRRelationsSchema = z.object({
   project: ProjectSlugSchema,
   technologies: z.array(TechnologySlugSchema).default([]),
   ideas: z.array(IdeaSlugSchema).default([]),
+  implementsProductDecisions: z.array(ProductDecisionSlugSchema).default([]),
 });
 
-export type ADRRelations = z.infer<typeof ADRRelationsSchema>;
+type ParsedADRRelations = z.infer<typeof ADRRelationsSchema>;
+export type ADRRelations = Omit<
+  ParsedADRRelations,
+  "implementsProductDecisions"
+> & {
+  implementsProductDecisions?: ParsedADRRelations["implementsProductDecisions"];
+};
 
 export function makeADRRef(projectSlug: ProjectSlug, adrSlug: ADRSlug): ADRRef {
   return `${projectSlug}:${adrSlug}`;

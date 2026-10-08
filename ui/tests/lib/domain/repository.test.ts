@@ -51,6 +51,10 @@ vi.mock("@/content/experience", () => experienceContentMock);
 // Import after mocks are hoisted
 import * as fs from "node:fs";
 import { PlatformManifestSchema } from "@/lib/domain/platform";
+import {
+  ProductDecisionRelationsSchema,
+  ProductDecisionSchema,
+} from "@/lib/domain/product-decision/productDecision";
 import { ProjectRelationsSchema } from "@/lib/domain/project/project";
 import {
   loadADRs,
@@ -58,6 +62,7 @@ import {
   loadInitiatives,
   loadJobRoles,
   loadPlatformManifest,
+  loadProductDecisions,
   loadProjects,
   loadTechnologies,
   validateBlogPost,
@@ -678,6 +683,93 @@ Canonical source content.`;
     });
   });
 
+  describe("loadProductDecisions", () => {
+    const acceptedPdr = `---
+title: "PDR 001: Publish agent-readable pages"
+date: "2026-09-20"
+status: "Accepted"
+decision_date: "2026-09-21"
+evidence:
+  - title: "Reader study"
+    url: "https://example.com/study"
+ideas: ["context-engineering"]
+affected_projects: ["personal-knowledge-graph"]
+informed_by_adrs: ["personal-knowledge-graph:033-content-graph-indexes"]
+---
+
+Publish one plain-Markdown twin for every major page.`;
+
+    it("loads valid PDR MDX as a domain entity with typed relations", () => {
+      vi.mocked(fs.readdirSync).mockReturnValue([
+        "001-agent-readable-pages.mdx",
+      ] as unknown as ReaddirResult);
+      vi.mocked(fs.readFileSync).mockReturnValue(acceptedPdr);
+
+      const result = loadProductDecisions();
+
+      expect(result.entities.get("001-agent-readable-pages")).toMatchObject({
+        status: "Accepted",
+        decisionDate: "2026-09-21",
+        content: expect.stringContaining("plain-Markdown twin"),
+      });
+      expect(result.relations.get("001-agent-readable-pages")).toEqual({
+        evidence: [{ title: "Reader study", url: "https://example.com/study" }],
+        ideas: ["context-engineering"],
+        affectedProjects: ["personal-knowledge-graph"],
+        informedByADRs: ["personal-knowledge-graph:033-content-graph-indexes"],
+      });
+    });
+
+    it("rejects duplicate repository-wide PDR sequence numbers", () => {
+      vi.mocked(fs.readdirSync).mockReturnValue([
+        "001-first-choice.mdx",
+        "001-second-choice.mdx",
+      ] as unknown as ReaddirResult);
+      vi.mocked(fs.readFileSync).mockReturnValue(acceptedPdr);
+
+      expect(() => loadProductDecisions()).toThrow(
+        "Product decision sequence '001' is duplicated",
+      );
+    });
+
+    it("rejects a title whose PDR number differs from its filename", () => {
+      vi.mocked(fs.readdirSync).mockReturnValue([
+        "002-agent-readable-pages.mdx",
+      ] as unknown as ReaddirResult);
+      vi.mocked(fs.readFileSync).mockReturnValue(acceptedPdr);
+
+      expect(() => loadProductDecisions()).toThrow(
+        "title must use sequence '002'",
+      );
+    });
+
+    it("derives Superseded without rewriting the earlier record", () => {
+      vi.mocked(fs.readdirSync).mockReturnValue([
+        "001-original-choice.mdx",
+        "002-replacement-choice.mdx",
+      ] as unknown as ReaddirResult);
+      vi.mocked(fs.readFileSync).mockImplementation((filePath) => {
+        const replacement = filePath.toString().includes("002-");
+        return acceptedPdr
+          .replace("PDR 001", replacement ? "PDR 002" : "PDR 001")
+          .replace(
+            'informed_by_adrs: ["personal-knowledge-graph:033-content-graph-indexes"]',
+            replacement
+              ? 'supersedes: "001-original-choice"\ninformed_by_adrs: []'
+              : "informed_by_adrs: []",
+          );
+      });
+
+      const result = loadProductDecisions();
+      expect(result.entities.get("001-original-choice")?.status).toBe(
+        "Superseded",
+      );
+      expect(result.entities.get("001-original-choice")?.authoredStatus).toBe(
+        "Accepted",
+      );
+    });
+  });
+
   describe("loadJobRoles", () => {
     it("should load roles from content experiences", () => {
       experienceContentMock.experiences = [
@@ -886,6 +978,115 @@ Content`;
         });
 
         expect(errors).toEqual([]);
+      });
+
+      it("rejects invalid product-decision references", () => {
+        const decision = ProductDecisionSchema.parse({
+          slug: "001-reader-contract",
+          title: "PDR 001: Reader contract",
+          date: "2026-01-01",
+          status: "Accepted",
+          authoredStatus: "Accepted",
+          decisionDate: "2026-01-02",
+          content: "Choose a stable reader contract.",
+          readingTime: "1 min read",
+        });
+        const relations = ProductDecisionRelationsSchema.parse({
+          affectedProjects: ["missing-project"],
+          ideas: ["missing-idea"],
+          informedByADRs: ["site:999-missing"],
+        });
+
+        const errors = validateReferentialIntegrity({
+          technologies: new Map(),
+          ideas: new Map(),
+          initiatives: new Map(),
+          adrs: new Map(),
+          projects: new Map(),
+          blogRelations: new Map(),
+          projectRelations: new Map(),
+          adrRelations: new Map(),
+          roleRelations: new Map(),
+          productDecisions: new Map([[decision.slug, decision]]),
+          productDecisionRelations: new Map([[decision.slug, relations]]),
+        });
+
+        expect(errors).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: "missing_reference",
+              field: "affectedProjects",
+              value: "missing-project",
+            }),
+            expect.objectContaining({
+              type: "missing_reference",
+              field: "ideas",
+              value: "missing-idea",
+            }),
+            expect.objectContaining({
+              type: "missing_reference",
+              field: "informedByADRs",
+              value: "site:999-missing",
+            }),
+          ]),
+        );
+      });
+
+      it("rejects missing and ambiguous product-decision supersession links", () => {
+        const decision = (
+          slug:
+            | "001-original"
+            | "002-replacement"
+            | "003-alternative"
+            | "004-missing",
+          supersedes?: "001-original" | "999-unknown",
+        ) =>
+          ProductDecisionSchema.parse({
+            slug,
+            title: `PDR ${slug.slice(0, 3)}: ${slug.slice(4)}`,
+            date: "2026-01-01",
+            status: "Accepted",
+            authoredStatus: "Accepted",
+            decisionDate: "2026-01-02",
+            supersedes,
+            content: "Decision body.",
+            readingTime: "1 min read",
+          });
+        const records = [
+          decision("001-original"),
+          decision("002-replacement", "001-original"),
+          decision("003-alternative", "001-original"),
+          decision("004-missing", "999-unknown"),
+        ];
+
+        const errors = validateReferentialIntegrity({
+          technologies: new Map(),
+          initiatives: new Map(),
+          adrs: new Map(),
+          projects: new Map(),
+          blogRelations: new Map(),
+          projectRelations: new Map(),
+          adrRelations: new Map(),
+          roleRelations: new Map(),
+          productDecisions: new Map(
+            records.map((record) => [record.slug, record]),
+          ),
+        });
+
+        expect(errors).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: "invalid_reference",
+              field: "supersedes",
+              value: "001-original",
+            }),
+            expect.objectContaining({
+              type: "missing_reference",
+              field: "supersedes",
+              value: "999-unknown",
+            }),
+          ]),
+        );
       });
 
       it("should detect missing technology reference", () => {

@@ -30,7 +30,8 @@ export function getAllIdeas() {
         relatedContent.technologies.length +
         relatedContent.projects.length +
         relatedContent.blogs.length +
-        relatedContent.adrs.length,
+        relatedContent.adrs.length +
+        relatedContent.productDecisions.length,
     };
   });
 }

@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { getAllPosts } from "@/lib/api/blog";
 import { getAllIdeas } from "@/lib/api/ideas";
 import { getAllInitiatives } from "@/lib/api/initiatives";
+import { getAllProductDecisions } from "@/lib/api/product-decisions";
 import { getAllProjects } from "@/lib/api/projects";
 import { siteConfig } from "@/lib/config/site-config";
 import { getAllTechnologySlugs, loadDomainRepository } from "@/lib/domain";
@@ -13,6 +14,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const initiatives = getAllInitiatives();
   const ideas = getAllIdeas();
   const projects = getAllProjects();
+  const productDecisions = getAllProductDecisions();
   const repository = loadDomainRepository();
   const technologySlugs = getAllTechnologySlugs(repository);
 
@@ -64,6 +66,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     lastModified: new Date().toISOString(),
     priority: 0.7,
   }));
+  const productDecisionPages = productDecisions.map((decision) => ({
+    url: `${siteConfig.url}/product-decisions/${decision.slug}`,
+    lastModified:
+      decision.deprecatedDate ?? decision.decisionDate ?? decision.date,
+    priority: 0.8,
+  }));
 
   const latestPostDate = posts.reduce((latest, post) => {
     const postDate = new Date(post.updated || post.date);
@@ -102,6 +110,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.7,
     },
     {
+      url: `${siteConfig.url}/product-decisions`,
+      lastModified: new Date().toISOString(),
+      priority: 0.7,
+    },
+    {
       url: `${siteConfig.url}/recipes`,
       lastModified: new Date().toISOString(),
       priority: 0.4,
@@ -122,6 +135,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...pitchDeckPages,
     ...adrPages,
     ...ideaPages,
+    ...productDecisionPages,
     ...technologyPages,
     {
       url: `${siteConfig.url}/technologies/revealdotjs/deck`,

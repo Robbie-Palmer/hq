@@ -44,6 +44,12 @@ import {
   PlatformManifestSchema,
   type ProjectLayerUse,
 } from "../domain/platform/platform";
+import {
+  type ProductDecision,
+  ProductDecisionFrontmatterSchema,
+  type ProductDecisionRelations,
+  ProductDecisionSchema,
+} from "../domain/product-decision/productDecision";
 import { type PitchDeck, PitchDeckSchema } from "../domain/project/pitchDeck";
 import {
   type Project,
@@ -58,7 +64,11 @@ import {
   type RoleRelations,
   type RoleSlug,
 } from "../domain/role/jobRole";
-import { ProjectSlugSchema } from "../domain/slugs";
+import {
+  type ProductDecisionSlug,
+  ProductDecisionSlugSchema,
+  ProjectSlugSchema,
+} from "../domain/slugs";
 import {
   type Technology,
   TechnologySchema,
@@ -97,6 +107,7 @@ const BLOG_DIR = path.join(CONTENT_DIR, "blog");
 const INITIATIVES_DIR = path.join(CONTENT_DIR, "initiatives");
 const IDEAS_DIR = path.join(CONTENT_DIR, "ideas");
 const PROJECTS_DIR = path.join(CONTENT_DIR, "projects");
+const PRODUCT_DECISIONS_DIR = path.join(CONTENT_DIR, "product-decisions");
 const BUILDING_PHILOSOPHY_PATH = path.join(
   PROJECTS_DIR,
   "building-philosophy.mdx",
@@ -336,6 +347,7 @@ export function loadBlogPosts(): BlogLoadResult {
       ideas: (data.ideas || []).map((idea: string) => normalizeSlug(idea)),
       tags: data.tags || [],
       role: data.role ? normalizeSlug(data.role) : undefined,
+      productDecisions: data.product_decisions || [],
     };
 
     const validation = validateBlogPost(post);
@@ -696,6 +708,113 @@ interface ADRLoadResult {
   aliases: Map<ADRRef, ADRRef>;
 }
 
+interface ProductDecisionLoadResult {
+  entities: Map<ProductDecisionSlug, ProductDecision>;
+  relations: Map<ProductDecisionSlug, ProductDecisionRelations>;
+}
+
+function loadProductDecisionFile(
+  filename: string,
+  sequenceNumbers: Map<string, ProductDecisionSlug>,
+): { entity: ProductDecision; relations: ProductDecisionRelations } {
+  const slugResult = ProductDecisionSlugSchema.safeParse(
+    filename.replace(/\.mdx$/, ""),
+  );
+  if (!slugResult.success) {
+    throw new Error(`Product decision filename '${filename}' is invalid`);
+  }
+  const slug = slugResult.data;
+  const sequence = slug.slice(0, 3);
+  const existing = sequenceNumbers.get(sequence);
+  if (existing) {
+    throw new Error(
+      `Product decision sequence '${sequence}' is duplicated by '${existing}' and '${slug}'`,
+    );
+  }
+  sequenceNumbers.set(sequence, slug);
+
+  const fileContent = fs.readFileSync(
+    path.join(PRODUCT_DECISIONS_DIR, filename),
+    "utf-8",
+  );
+  const { data, content } = parseFrontmatter(fileContent);
+  const frontmatter = ProductDecisionFrontmatterSchema.safeParse(data);
+  if (!frontmatter.success) {
+    console.error(
+      `Failed to validate product decision ${slug}:`,
+      frontmatter.error,
+    );
+    throw new Error(`Product decision ${slug} failed validation`);
+  }
+  if (!content.trim()) {
+    throw new Error(`Product decision ${slug} has no content`);
+  }
+
+  const record = frontmatter.data;
+  if (record.title.slice(4, 7) !== sequence) {
+    throw new Error(
+      `Product decision '${slug}' title must use sequence '${sequence}'`,
+    );
+  }
+  return {
+    entity: ProductDecisionSchema.parse({
+      slug,
+      title: record.title,
+      date: record.date,
+      status: record.status,
+      authoredStatus: record.status,
+      decisionDate: record.decision_date,
+      deprecatedDate: record.deprecated_date,
+      supersedes: record.supersedes,
+      content,
+      readingTime: readingTime(content).text,
+    }),
+    relations: {
+      evidence: record.evidence,
+      ideas: record.ideas,
+      affectedProjects: record.affected_projects,
+      informedByADRs: record.informed_by_adrs,
+    },
+  };
+}
+
+function deriveProductDecisionStatuses(
+  entities: Map<ProductDecisionSlug, ProductDecision>,
+): void {
+  for (const decision of entities.values()) {
+    if (
+      decision.supersedes &&
+      (decision.authoredStatus === "Accepted" ||
+        decision.authoredStatus === "Deprecated")
+    ) {
+      const predecessor = entities.get(decision.supersedes);
+      if (predecessor) predecessor.status = "Superseded";
+    }
+  }
+}
+
+export function loadProductDecisions(): ProductDecisionLoadResult {
+  const entities = new Map<ProductDecisionSlug, ProductDecision>();
+  const relations = new Map<ProductDecisionSlug, ProductDecisionRelations>();
+  if (!fs.existsSync(PRODUCT_DECISIONS_DIR)) return { entities, relations };
+
+  const files = fs
+    .readdirSync(PRODUCT_DECISIONS_DIR)
+    .filter((file) => file.endsWith(".mdx"))
+    .sort((left, right) => left.localeCompare(right, "en"));
+  const sequenceNumbers = new Map<string, ProductDecisionSlug>();
+
+  for (const filename of files) {
+    const result = loadProductDecisionFile(filename, sequenceNumbers);
+    entities.set(result.entity.slug, result.entity);
+    relations.set(result.entity.slug, result.relations);
+  }
+
+  deriveProductDecisionStatuses(entities);
+
+  return { entities, relations };
+}
+
 function parseDefaultOverride(value: unknown): DefaultOverride | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return undefined;
@@ -772,6 +891,7 @@ export function loadADRs(
         project: projectSlug,
         technologies,
         ideas: (data.ideas || []).map((idea: string) => normalizeSlug(idea)),
+        implementsProductDecisions: data.implements_product_decisions || [],
       };
 
       const validation = validateADR(adr);
@@ -981,6 +1101,8 @@ interface ValidationInput {
   roleRelations: Map<RoleSlug, RoleRelations>;
   adrAliases?: Map<ADRRef, ADRRef>;
   platformManifest?: PlatformManifest;
+  productDecisions?: Map<ProductDecisionSlug, ProductDecision>;
+  productDecisionRelations?: Map<ProductDecisionSlug, ProductDecisionRelations>;
 }
 
 type TechnologyReferenceCheck = (
@@ -1476,6 +1598,93 @@ function validatePlatformReferences(
   validatePlatformOverrides(input, manifest, slotSlugs, errors, checkTech);
 }
 
+function validateADRProductDecisionLinks(
+  input: ValidationInput,
+  relations: ADRRelations,
+  adrRef: ADRRef,
+  errors: ReferentialIntegrityError[],
+): void {
+  for (const decisionSlug of relations.implementsProductDecisions ?? []) {
+    if (!input.productDecisions?.has(decisionSlug)) {
+      errors.push({
+        type: "missing_reference",
+        entity: `ADR[${adrRef}]`,
+        field: "implementsProductDecisions",
+        value: decisionSlug,
+        message: `ADR '${adrRef}' references missing product decision '${decisionSlug}'`,
+      });
+    }
+  }
+}
+
+function validateProductDecisionSupersession(
+  decision: ProductDecision,
+  slug: ProductDecisionSlug,
+  productDecisions: Map<ProductDecisionSlug, ProductDecision>,
+  supersededBy: Map<ProductDecisionSlug, ProductDecisionSlug>,
+  errors: ReferentialIntegrityError[],
+): void {
+  if (decision.supersedes === slug) {
+    errors.push({
+      type: "circular_reference",
+      entity: `ProductDecision[${slug}]`,
+      field: "supersedes",
+      value: slug,
+      message: `Product decision '${slug}' cannot supersede itself`,
+    });
+  } else if (
+    decision.supersedes &&
+    !productDecisions.has(decision.supersedes)
+  ) {
+    errors.push({
+      type: "missing_reference",
+      entity: `ProductDecision[${slug}]`,
+      field: "supersedes",
+      value: decision.supersedes,
+      message: `Product decision '${slug}' supersedes missing product decision '${decision.supersedes}'`,
+    });
+  }
+  if (decision.authoredStatus === "Rejected" && decision.supersedes) {
+    errors.push({
+      type: "invalid_reference",
+      entity: `ProductDecision[${slug}]`,
+      field: "supersedes",
+      value: decision.supersedes,
+      message: `Rejected product decision '${slug}' cannot supersede another decision`,
+    });
+  }
+  if (decision.supersedes) {
+    const existingSuccessor = supersededBy.get(decision.supersedes);
+    if (existingSuccessor && existingSuccessor !== slug) {
+      errors.push({
+        type: "invalid_reference",
+        entity: `ProductDecision[${slug}]`,
+        field: "supersedes",
+        value: decision.supersedes,
+        message: `Product decision '${decision.supersedes}' is superseded by both '${existingSuccessor}' and '${slug}'`,
+      });
+    } else {
+      supersededBy.set(decision.supersedes, slug);
+    }
+  }
+  const seen = new Set<ProductDecisionSlug>([slug]);
+  let current = decision.supersedes;
+  while (current) {
+    if (seen.has(current)) {
+      errors.push({
+        type: "circular_reference",
+        entity: `ProductDecision[${slug}]`,
+        field: "supersedes",
+        value: current,
+        message: `Circular product decision supersession chain starts at '${slug}'`,
+      });
+      break;
+    }
+    seen.add(current);
+    current = productDecisions.get(current)?.supersedes;
+  }
+}
+
 export function validateReferentialIntegrity(
   input: ValidationInput,
 ): ReferentialIntegrityError[] {
@@ -1644,6 +1853,7 @@ export function validateReferentialIntegrity(
     relations.ideas.forEach((ideaSlug) => {
       checkIdea(ideaSlug, `ADR[${adrRef}]`, "ideas");
     });
+    validateADRProductDecisionLinks(input, relations, adrRef, errors);
     const adr = input.adrs.get(adrRef);
     if (adr?.supersedes && !input.adrs.has(adr.supersedes)) {
       errors.push({
@@ -1704,6 +1914,60 @@ export function validateReferentialIntegrity(
     });
   });
 
+  input.blogRelations.forEach((relations, blogSlug) => {
+    for (const decisionSlug of relations.productDecisions ?? []) {
+      if (!input.productDecisions?.has(decisionSlug)) {
+        errors.push({
+          type: "missing_reference",
+          entity: `BlogPost[${blogSlug}]`,
+          field: "productDecisions",
+          value: decisionSlug,
+          message: `Blog post '${blogSlug}' references missing product decision '${decisionSlug}'`,
+        });
+      }
+    }
+  });
+
+  input.productDecisionRelations?.forEach((relations, slug) => {
+    for (const projectSlug of relations.affectedProjects) {
+      if (!input.projects.has(projectSlug)) {
+        errors.push({
+          type: "missing_reference",
+          entity: `ProductDecision[${slug}]`,
+          field: "affectedProjects",
+          value: projectSlug,
+          message: `Product decision '${slug}' references missing project '${projectSlug}'`,
+        });
+      }
+    }
+    for (const ideaSlug of relations.ideas) {
+      checkIdea(ideaSlug, `ProductDecision[${slug}]`, "ideas");
+    }
+    for (const adrRef of relations.informedByADRs) {
+      if (!input.adrs.has(adrRef)) {
+        errors.push({
+          type: "missing_reference",
+          entity: `ProductDecision[${slug}]`,
+          field: "informedByADRs",
+          value: adrRef,
+          message: `Product decision '${slug}' references missing informing ADR '${adrRef}'`,
+        });
+      }
+    }
+  });
+
+  const productDecisions = input.productDecisions;
+  const supersededBy = new Map<ProductDecisionSlug, ProductDecisionSlug>();
+  productDecisions?.forEach((decision, slug) => {
+    validateProductDecisionSupersession(
+      decision,
+      slug,
+      productDecisions,
+      supersededBy,
+      errors,
+    );
+  });
+
   input.adrAliases?.forEach((target, alias) => {
     const { projectSlug } = parseADRRef(alias);
     if (!input.projects.has(projectSlug)) {
@@ -1740,6 +2004,7 @@ export interface DomainRepository {
   projects: Map<ProjectSlug, Project>;
   projectAliases: Map<ProjectSlug, ProjectSlug>;
   adrs: Map<ADRRef, ADR>;
+  productDecisions: Map<ProductDecisionSlug, ProductDecision>;
   adrAliases: Map<ADRRef, ADRRef>;
   roles: Map<RoleSlug, JobRole>;
   graph: ContentGraph;
@@ -1758,7 +2023,34 @@ interface LoaderResults {
   initiatives: InitiativeLoadResult;
   projects: ProjectLoadResult;
   adrs: ADRLoadResult;
+  productDecisions: ProductDecisionLoadResult;
   roles: RoleLoadResult;
+}
+
+function addProductDecisionRelationData(
+  relations: RelationData,
+  loaders: LoaderResults,
+): void {
+  for (const [slug, decisionRels] of loaders.productDecisions.relations) {
+    relations.productDecisionAffectedProjects.set(
+      slug,
+      decisionRels.affectedProjects,
+    );
+    relations.productDecisionIdeas.set(slug, decisionRels.ideas);
+    relations.productDecisionInformedByADRs.set(
+      slug,
+      decisionRels.informedByADRs,
+    );
+    relations.productDecisionEvidence.set(slug, decisionRels.evidence);
+  }
+  for (const [slug, decision] of loaders.productDecisions.entities) {
+    if (decision.supersedes) {
+      relations.productDecisionSupersedes.set(slug, decision.supersedes);
+    }
+  }
+  for (const [slug, blogRels] of loaders.blogs.relations) {
+    relations.blogProductDecisions.set(slug, blogRels.productDecisions ?? []);
+  }
 }
 
 function buildRelationDataFromLoaders(loaders: LoaderResults): RelationData {
@@ -1788,7 +2080,13 @@ function buildRelationDataFromLoaders(loaders: LoaderResults): RelationData {
     relations.adrTechnologies.set(adrRef, adrRels.technologies);
     relations.adrProject.set(adrRef, adrRels.project);
     relations.adrIdeas.set(adrRef, adrRels.ideas);
+    relations.adrImplementsProductDecisions.set(
+      adrRef,
+      adrRels.implementsProductDecisions ?? [],
+    );
   }
+
+  addProductDecisionRelationData(relations, loaders);
 
   for (const [adrRef, adr] of loaders.adrs.entities) {
     if (adr.supersedes) {
@@ -1818,6 +2116,7 @@ function buildDomainRepository(): DomainRepository {
   const initiativesResult = loadInitiatives();
   const projectsResult = loadProjects();
   const adrsResult = loadADRs();
+  const productDecisionsResult = loadProductDecisions();
   const rolesResult = loadJobRoles();
   const platformManifest = loadPlatformManifest();
   const buildingPhilosophy = loadBuildingPhilosophy();
@@ -1835,6 +2134,8 @@ function buildDomainRepository(): DomainRepository {
     roleRelations: rolesResult.relations,
     adrAliases: adrsResult.aliases,
     platformManifest,
+    productDecisions: productDecisionsResult.entities,
+    productDecisionRelations: productDecisionsResult.relations,
   });
 
   if (referentialIntegrityErrors.length > 0) {
@@ -1853,6 +2154,7 @@ function buildDomainRepository(): DomainRepository {
     initiatives: initiativesResult,
     projects: projectsResult,
     adrs: adrsResult,
+    productDecisions: productDecisionsResult,
     roles: rolesResult,
   };
 
@@ -1890,6 +2192,7 @@ function buildDomainRepository(): DomainRepository {
     projects: projectsResult.entities,
     projectAliases: projectsResult.aliases,
     adrs: adrsResult.entities,
+    productDecisions: productDecisionsResult.entities,
     adrAliases: adrsResult.aliases,
     roles: rolesResult.entities,
     graph,

@@ -8,6 +8,7 @@ import type {
 } from "@/lib/domain/platform/platform";
 import type { ProjectSlug } from "@/lib/domain/project/project";
 import type { RoleSlug } from "@/lib/domain/role/jobRole";
+import type { ProductDecisionSlug } from "@/lib/domain/slugs";
 import type { TechnologySlug } from "@/lib/domain/technology/technology";
 import {
   type ContentGraph,
@@ -255,6 +256,41 @@ export function getIdeasForADR(
   return getIdeasFor(graph, "adr", adrRef);
 }
 
+export function getIdeasForProductDecision(
+  graph: ContentGraph,
+  slug: ProductDecisionSlug,
+): Set<IdeaSlug> {
+  return getIdeasFor(graph, "product-decision", slug);
+}
+
+export function getProjectsForProductDecision(
+  graph: ContentGraph,
+  slug: ProductDecisionSlug,
+): Set<ProjectSlug> {
+  return graph.edges.productDecisionAffectedProjects.get(slug) ?? new Set();
+}
+
+export function getProductDecisionsForProject(
+  graph: ContentGraph,
+  slug: ProjectSlug,
+): Set<ProductDecisionSlug> {
+  return graph.reverse.projectProductDecisions.get(slug) ?? new Set();
+}
+
+export function getADRsImplementingProductDecision(
+  graph: ContentGraph,
+  slug: ProductDecisionSlug,
+): Set<ADRRef> {
+  return graph.reverse.productDecisionImplementedByADRs.get(slug) ?? new Set();
+}
+
+export function getBlogsForProductDecision(
+  graph: ContentGraph,
+  slug: ProductDecisionSlug,
+): Set<BlogSlug> {
+  return graph.reverse.productDecisionBlogs.get(slug) ?? new Set();
+}
+
 export function getContentReferencingIdea(
   graph: ContentGraph,
   slug: IdeaSlug,
@@ -265,12 +301,18 @@ export function getContentReferencingIdea(
 export function getContentReferencingIdeaByType(
   graph: ContentGraph,
   slug: IdeaSlug,
-): { projects: ProjectSlug[]; adrs: ADRRef[]; blogs: BlogSlug[] } {
+): {
+  projects: ProjectSlug[];
+  adrs: ADRRef[];
+  blogs: BlogSlug[];
+  productDecisions: ProductDecisionSlug[];
+} {
   const nodeIds = getContentReferencingIdea(graph, slug);
   return {
     projects: filterNodesByType(nodeIds, "project"),
     adrs: filterNodesByType(nodeIds, "adr"),
     blogs: filterNodesByType(nodeIds, "blog"),
+    productDecisions: filterNodesByType(nodeIds, "product-decision"),
   };
 }
 
