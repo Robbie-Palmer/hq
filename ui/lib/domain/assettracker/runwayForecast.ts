@@ -12,6 +12,7 @@ import type {
   ForecastAssumption,
 } from "./forecastAssumption";
 import {
+  type DecisionForecastSelection,
   type DecisionStage,
   type ForecastCashFlow,
   futureCashFlowForecastItems,
@@ -43,6 +44,10 @@ export type RunwayForecastPoint = {
   baselineLiquidMonths: number;
   baselineTotalMonths: number;
   monthlyBreakdown: MonthlyForecastBreakdown;
+};
+
+export type RunwayScenarioPoint = RunwayForecastPoint & {
+  accountBalances: Record<string, number>;
 };
 
 export type MonthlyForecastBreakdown = {
@@ -318,10 +323,12 @@ function convertProjectionFlow(
 function convertProjectionCashFlows(
   repository: AssetTrackerRepository,
   valuationDate: string,
+  decisionSelection?: DecisionForecastSelection,
 ): ForecastCashFlow[] | null {
   const converted: ForecastCashFlow[] = [];
   for (const cashFlow of futureCashFlowForecastItems(
     repository.futureCashFlows,
+    decisionSelection,
   )) {
     const amount = convertAccountAmountAtDate(
       repository,
@@ -517,9 +524,11 @@ function projectBalances(input: {
   months: number;
   includePlannedExpenditures: boolean;
   startDate: string;
+  decisionSelection?: DecisionForecastSelection;
 }): Array<{
   date: string;
   balances: ForecastBalances;
+  accountBalances: Record<string, number>;
   monthlyBreakdown: MonthlyForecastBreakdown;
 }> {
   const latest = latestValuedBalances(input.repository);
@@ -530,7 +539,11 @@ function projectBalances(input: {
     convertProjectionFlow(input.repository, flow, valuationDate),
   );
   if (flows.some((flow) => flow == null)) return [];
-  const cashFlows = convertProjectionCashFlows(input.repository, valuationDate);
+  const cashFlows = convertProjectionCashFlows(
+    input.repository,
+    valuationDate,
+    input.decisionSelection,
+  );
   if (cashFlows == null) return [];
   const assumptions = convertForecastAssumptions(
     input.repository,
@@ -547,6 +560,9 @@ function projectBalances(input: {
     {
       date: input.startDate,
       balances: balancesByAccess(accounts),
+      accountBalances: Object.fromEntries(
+        accounts.map(({ account, balance }) => [account.id, balance]),
+      ),
       monthlyBreakdown: {
         baselineExpenditure: 0,
         explicitIncomeChange: ZERO_RANGE,
@@ -604,6 +620,9 @@ function projectBalances(input: {
     points.push({
       date,
       balances: balancesByAccess(accounts),
+      accountBalances: Object.fromEntries(
+        accounts.map(({ account, balance }) => [account.id, balance]),
+      ),
       monthlyBreakdown: {
         baselineExpenditure,
         ...changes,
@@ -691,4 +710,49 @@ export function buildRunwayForecast(input: {
       monthlyBreakdown: point.monthlyBreakdown,
     };
   });
+}
+
+export function buildRunwayScenarioProjection(input: {
+  repository: AssetTrackerRepository;
+  annualExpenditure: number | null;
+  annualCurrentExpenditure: number | null;
+  startDate: string;
+  months: number;
+  decisionSelection: DecisionForecastSelection;
+}): RunwayScenarioPoint[] {
+  if (
+    input.annualExpenditure == null ||
+    input.annualCurrentExpenditure == null ||
+    input.annualCurrentExpenditure <= 0
+  ) {
+    return [];
+  }
+  return projectBalances({
+    repository: input.repository,
+    annualExpenditure: input.annualExpenditure,
+    months: input.months,
+    startDate: input.startDate,
+    includePlannedExpenditures: true,
+    decisionSelection: input.decisionSelection,
+  }).map((point) => ({
+    date: point.date,
+    ...point.balances,
+    accountBalances: point.accountBalances,
+    cashMonths: monthsOfSpending(
+      point.balances.cashBalance,
+      input.annualCurrentExpenditure as number,
+    ),
+    liquidMonths: monthsOfSpending(
+      point.balances.liquidBalance,
+      input.annualCurrentExpenditure as number,
+    ),
+    totalMonths: monthsOfSpending(
+      point.balances.totalBalance,
+      input.annualCurrentExpenditure as number,
+    ),
+    baselineCashMonths: 0,
+    baselineLiquidMonths: 0,
+    baselineTotalMonths: 0,
+    monthlyBreakdown: point.monthlyBreakdown,
+  }));
 }

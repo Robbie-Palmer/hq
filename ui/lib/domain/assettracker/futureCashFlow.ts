@@ -125,6 +125,12 @@ export type ForecastCashFlow = {
   planningCaseId?: string;
 };
 
+export type DecisionForecastSelection = {
+  decisionIds: readonly string[];
+  amount: "minimum" | "expected" | "maximum";
+  timing: "earliest" | "expected" | "latest";
+};
+
 function netPaid(actuals: readonly ActualCashFlow[]): number {
   return actuals.reduce(
     (total, actual) =>
@@ -133,9 +139,56 @@ function netPaid(actuals: readonly ActualCashFlow[]): number {
   );
 }
 
+function selectedDecisionAmount(
+  stage: DecisionStage,
+  selection: DecisionForecastSelection | undefined,
+): number {
+  if (selection?.amount === "minimum") return stage.minimumAmount;
+  if (selection?.amount === "maximum") return stage.maximumAmount;
+  return stage.expectedAmount;
+}
+
+function selectedDecisionDate(
+  stage: DecisionStage,
+  selection: DecisionForecastSelection | undefined,
+): string {
+  if (selection?.timing === "earliest") {
+    return stage.earliestDate ?? stage.expectedDate;
+  }
+  if (selection?.timing === "latest") {
+    return stage.latestDate ?? stage.expectedDate;
+  }
+  return stage.expectedDate;
+}
+
+function decisionForecastItems(
+  record: CashFlowDecision,
+  selection: DecisionForecastSelection | undefined,
+): ForecastCashFlow[] {
+  return record.stages.flatMap((stage) => {
+    const remaining = Math.max(
+      selectedDecisionAmount(stage, selection) - netPaid(stage.actuals),
+      0,
+    );
+    return remaining === 0
+      ? []
+      : [
+          forecastItem(
+            record,
+            stage,
+            selectedDecisionDate(stage, selection),
+            remaining,
+          ),
+        ];
+  });
+}
+
 export function futureCashFlowForecastItems(
   records: readonly FutureCashFlow[],
+  selection?: DecisionForecastSelection,
 ): ForecastCashFlow[] {
+  const selectedDecisionIds =
+    selection == null ? null : new Set(selection.decisionIds);
   return records
     .flatMap((record): ForecastCashFlow[] => {
       if (record.kind === "commitment") {
@@ -147,16 +200,12 @@ export function futureCashFlowForecastItems(
             : [forecastItem(record, stage, stage.dueDate, remaining)];
         });
       }
-      if (record.status !== "selected") return [];
-      return record.stages.flatMap((stage) => {
-        const remaining = Math.max(
-          stage.expectedAmount - netPaid(stage.actuals),
-          0,
-        );
-        return remaining === 0
-          ? []
-          : [forecastItem(record, stage, stage.expectedDate, remaining)];
-      });
+      const included =
+        selectedDecisionIds == null
+          ? record.status === "selected"
+          : selectedDecisionIds.has(record.id);
+      if (!included) return [];
+      return decisionForecastItems(record, selection);
     })
     .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
 }

@@ -47,7 +47,10 @@ import {
   type CreateForecastAssumptionSetInput,
   type CreatePlanningCaseInput,
   type Currency,
+  compareDecisionScenarios,
   currentSalaryHistory,
+  type DecisionScenarioComparison,
+  type DecisionScenarioComparisonInput,
   type DeleteCapitalFlowInput,
   type DeleteSnapshotInput,
   deriveEmergencyFundFacts,
@@ -120,6 +123,12 @@ interface AssetTrackerContextValue {
   emergencyFundPlans: EmergencyFundPlan[];
   emergencyFundFacts: EmergencyFundDerivedFacts;
   emergencyFundAnalysis: EmergencyFundAnalysis | null;
+  compareDecisionScenario(
+    input: Pick<
+      DecisionScenarioComparisonInput,
+      "decisionIds" | "horizonMonths" | "reserveMonths"
+    >,
+  ): DecisionScenarioComparison;
   analyseEmergencyFundDraft(
     input: EmergencyFundPlanInput,
   ): EmergencyFundAnalysis;
@@ -367,24 +376,31 @@ function resolveEmergencyFundViews(
   };
 }
 
-export function AssetTrackerProvider({
-  children,
-}: Readonly<{ children: ReactNode }>) {
-  const {
-    data,
-    setData,
-    hasLocalChanges,
-    setHasLocalChanges,
-    localDataStatus,
-    setLocalDataStatus,
-    localDataError,
-    setLocalDataError,
-    getApi,
-    loadLocalData,
-    mutate,
-  } = useLocalAssetTrackerData();
+function decisionComparison(
+  repository: ReturnType<typeof buildRepository>,
+  financialIndependence: PortfolioFinancialIndependence,
+  emergencyFundAnalysis: EmergencyFundAnalysis | null,
+  valuationDate: string,
+) {
+  return (
+    input: Pick<
+      DecisionScenarioComparisonInput,
+      "decisionIds" | "horizonMonths" | "reserveMonths"
+    >,
+  ) =>
+    compareDecisionScenarios(repository, {
+      ...input,
+      startDate: valuationDate,
+      annualExpenditure: financialIndependence.representativeAnnualExpenditure,
+      annualCurrentExpenditure:
+        financialIndependence.representativeAnnualCurrentExpenditure,
+      financialIndependenceTarget: financialIndependence.target,
+      emergencyFundAnalysis,
+    });
+}
 
-  const views = useMemo(() => {
+function useAssetTrackerViews(data: AssetTrackerData) {
+  return useMemo(() => {
     const repository = buildRepository(scopeAssetTrackerData(data));
     const taxEstimate = getHouseholdTaxEstimate(data);
     const { summaries: accounts, details: accountDetails } =
@@ -411,6 +427,14 @@ export function AssetTrackerProvider({
       financialIndependence.representativeAnnualCurrentExpenditure,
       valuationDate,
     );
+    const emergencyFundAnalysis =
+      emergencyFund.activePlan == null
+        ? null
+        : analyseEmergencyFund(
+            repository,
+            emergencyFund.activePlan,
+            valuationDate,
+          );
     return {
       accounts,
       accountDetails,
@@ -427,14 +451,13 @@ export function AssetTrackerProvider({
       forecastAssumptionSets: repository.forecastAssumptionSets,
       emergencyFundPlans: emergencyFund.plans,
       emergencyFundFacts: emergencyFund.facts,
-      emergencyFundAnalysis:
-        emergencyFund.activePlan == null
-          ? null
-          : analyseEmergencyFund(
-              repository,
-              emergencyFund.activePlan,
-              valuationDate,
-            ),
+      emergencyFundAnalysis,
+      compareDecisionScenario: decisionComparison(
+        repository,
+        financialIndependence,
+        emergencyFundAnalysis,
+        valuationDate,
+      ),
       analyseEmergencyFundDraft: (input: EmergencyFundPlanInput) =>
         analyseEmergencyFund(
           repository,
@@ -480,6 +503,26 @@ export function AssetTrackerProvider({
       })),
     };
   }, [data]);
+}
+
+export function AssetTrackerProvider({
+  children,
+}: Readonly<{ children: ReactNode }>) {
+  const {
+    data,
+    setData,
+    hasLocalChanges,
+    setHasLocalChanges,
+    localDataStatus,
+    setLocalDataStatus,
+    localDataError,
+    setLocalDataError,
+    getApi,
+    loadLocalData,
+    mutate,
+  } = useLocalAssetTrackerData();
+
+  const views = useAssetTrackerViews(data);
 
   const value = useMemo<AssetTrackerContextValue>(
     () => ({

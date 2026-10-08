@@ -35,6 +35,7 @@ import {
   type RunwayForecastPoint,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { DecisionScenarioComparison } from "./decision-scenario-comparison";
 import { ForecastAssumptionManager } from "./forecast-assumption-manager";
 import { FutureCashFlowManager } from "./future-cash-flow-manager";
 
@@ -538,6 +539,7 @@ export function RunwayForecast() {
         </p>
       )}
 
+      <DecisionScenarioComparison />
       <ForecastAssumptionManager />
       <FutureCashFlowManager />
     </section>
