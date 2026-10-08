@@ -65,7 +65,6 @@ export interface WorkerResumeRequest extends WorkerLaunchRequest {
 
 export interface AdapterSession {
   readonly identity: ExecutionSessionIdentity;
-  completion?(): Promise<{ exitCode: number; stdout: string; stderr: string }>;
   checkpoint(reason: string): Promise<CheckpointSignal>;
   quota(): Promise<QuotaSignal>;
   cost(): Promise<CostReport>;

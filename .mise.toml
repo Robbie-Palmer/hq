@@ -82,11 +82,6 @@ fi
 pnpm exec biome lint --config-path biome.json --no-errors-on-unmatched "$@"
 """
 
-[tasks.agent-coordinator]
-description = "Run the Codex-first personal Work Graph coordinator"
-depends = ["//:install"]
-run = "pnpm exec tsx scripts/agent-coordinator.ts"
-
 [tasks."lint:api"]
 description = "Generate-check and lint committed OpenAPI contracts"
 depends = ["//workers/recipe-api:lint:api", "//workers/work-graph-api:lint:api"]

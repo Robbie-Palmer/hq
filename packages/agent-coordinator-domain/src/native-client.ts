@@ -17,7 +17,6 @@ import type {
 
 const SAFE_ENVIRONMENT_NAMES = new Set([
   "COLORTERM",
-  "CODEX_HOME",
   "HOME",
   "LANG",
   "LC_ALL",
@@ -28,7 +27,6 @@ const SAFE_ENVIRONMENT_NAMES = new Set([
   "TERM",
   "TMPDIR",
   "USER",
-  "WORK_GRAPH_WORKER_ID",
   "XDG_CACHE_HOME",
   "XDG_CONFIG_HOME",
   "XDG_DATA_HOME",
@@ -239,10 +237,6 @@ class NativeAdapterSession implements AdapterSession {
 
   observeCompletion(): void {
     void this.#observeCompletion();
-  }
-
-  completion(): Promise<NativeProcessResult> {
-    return this.#handle.completion;
   }
 
   async checkpoint(reason: string): Promise<CheckpointSignal> {
