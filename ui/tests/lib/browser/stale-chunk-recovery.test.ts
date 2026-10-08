@@ -61,6 +61,17 @@ describe("recoverFromStaleChunk", () => {
     expect(reload).not.toHaveBeenCalled();
   });
 
+  it("does not reload without a session storage loop guard", async () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new DOMException("Storage is unavailable", "SecurityError");
+    });
+    const { recoverFromStaleChunk } = await loadRecovery();
+
+    expect(recoverFromStaleChunk(chunkLoadError())).toBe(false);
+    expect(captureException).not.toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
+  });
+
   it("does not reload again when the reload did not fix the chunk", async () => {
     vi.useFakeTimers({ now: 1_000_000, toFake: ["Date"] });
     (await loadRecovery()).recoverFromStaleChunk(chunkLoadError());
