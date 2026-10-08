@@ -68,8 +68,12 @@ run = "bash scripts/match-edits.sh"
 
 [tasks."evaluate:reviews"]
 description = "Validate review outcomes and produce the evidence-gated scorecard"
-depends = ["install"]
-run = "bash scripts/evaluate-reviews.sh"
+depends = ["install", "review-evidence:pull"]
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro evaluate_reviews"
+
+[tasks."review-evidence:pull"]
+description = "Pull the governed writing-review evidence from DVC"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc pull data/review-evidence/repository-pilot.dvc"
 
 [tasks.repro]
 description = "Reproduce the local writing evaluation stages through DVC"

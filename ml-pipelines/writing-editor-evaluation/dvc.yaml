@@ -134,10 +134,10 @@ stages:
       - ../../packages/writing-editor-domain/src/suggestions.ts
       - ../../pnpm-lock.yaml
       - evaluation-params.json
-      - evidence/repository-pilot/decisions.jsonl
-      - evidence/repository-pilot/manifest.json
-      - evidence/repository-pilot/receipt.json
-      - evidence/repository-pilot/records.json
+      - data/review-evidence/repository-pilot/decisions.jsonl
+      - data/review-evidence/repository-pilot/manifest.json
+      - data/review-evidence/repository-pilot/receipt.json
+      - data/review-evidence/repository-pilot/records.json
       - package.json
       - scripts/evaluate-reviews-dvc.sh
       - src/evaluate-reviews.ts

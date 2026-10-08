@@ -2,14 +2,26 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
-import { type ReviewReceipt, ReviewReceiptSchema } from "writing-editor-domain/review-receipt";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createDecision } from "writing-editor-domain/decisions";
+import { createFinding } from "writing-editor-domain/findings";
+import { createProposal } from "writing-editor-domain/proposals";
+import {
+  createReviewReceipt,
+  type ReviewReceipt,
+  ReviewReceiptSchema,
+} from "writing-editor-domain/review-receipt";
+import { createSuggestion, sourceReference } from "writing-editor-domain/suggestions";
 
 import { evaluateReviews, ReviewScorecardSchema } from "../src/evaluate-reviews";
 
 const projectRoot = path.resolve(import.meta.dirname, "..");
-const evidenceRoot = path.join(projectRoot, "evidence/repository-pilot");
 const temporaryDirectories = new Set<string>();
+let evidenceRoot: string;
+
+beforeEach(() => {
+  evidenceRoot = writeReviewEvidenceFixture();
+});
 
 afterEach(() => {
   for (const directory of temporaryDirectories) {
@@ -24,6 +36,78 @@ function temporaryDirectory(): string {
   return directory;
 }
 
+function writeReviewEvidenceFixture(): string {
+  const directory = temporaryDirectory();
+  const documentId = "fixture.md";
+  const revision = "fixture:v1";
+  const sourceBefore = "Utilize this. Optimize that.";
+  const sourceAfter = "Use this. Optimize that.";
+  const source = sourceReference(documentId, revision, sourceBefore);
+  const producer = {
+    id: "vale-deterministic",
+    version: "vale@test",
+    provenance: { kind: "rule" as const, ruleId: "Unslop.PlainWordsSafe" },
+  };
+  const suggestion = createSuggestion({
+    producer,
+    source,
+    span: { startByte: 0, endByte: 7, sourceText: "Utilize" },
+    replacement: "Use",
+    category: "style/unslop/plain-words-safe",
+    reason: "Use the plain replacement",
+    confidence: 1,
+  });
+  const proposal = createProposal([suggestion]);
+  const finding = createFinding({
+    producer: {
+      ...producer,
+      provenance: { kind: "rule", ruleId: "Unslop.PlainWords" },
+    },
+    source,
+    span: { startByte: 14, endByte: 22, sourceText: "Optimize" },
+    category: "style/unslop/plain-words",
+    reason: "Choose a context-sensitive alternative",
+  });
+  const records = { documentId, revision, findings: [finding], proposals: [proposal] };
+  const decision = createDecision(proposal, "accepted", {
+    reviewStartedAt: "2026-01-01T00:00:00.000Z",
+    decidedAt: "2026-01-01T00:00:00.002Z",
+  });
+  const receipt = createReviewReceipt(records, [decision], sourceBefore, sourceAfter);
+  const manifest = {
+    schemaVersion: 1,
+    recordType: "writing-review-evidence-manifest",
+    cohortId: "fixture:review-evidence",
+    governance: {
+      dataClassification: "public",
+      consentBasis: "Synthetic test fixture",
+      consentRecordedAt: "2026-01-01T00:00:00.000Z",
+      retentionPolicy: "Retain with the test suite",
+      deletionStatus: "active",
+    },
+    entries: [{
+      artifactId: "fixture-adr",
+      artifactType: "adr",
+      split: "validation",
+      recordsFile: "records.json",
+      decisionsFile: "decisions.jsonl",
+      receiptFile: "receipt.json",
+      quality: {
+        factualPreservation: "pass",
+        terminologyPreservation: "pass",
+        voicePreservation: "pass",
+        regression: "none",
+      },
+    }],
+  };
+
+  fs.writeFileSync(path.join(directory, "manifest.json"), JSON.stringify(manifest));
+  fs.writeFileSync(path.join(directory, "records.json"), JSON.stringify(records));
+  fs.writeFileSync(path.join(directory, "decisions.jsonl"), `${JSON.stringify(decision)}\n`);
+  fs.writeFileSync(path.join(directory, "receipt.json"), JSON.stringify(receipt));
+  return directory;
+}
+
 function tamperReceipt(
   temporary: string,
   mutate: (receipt: ReviewReceipt) => void,
@@ -35,7 +119,7 @@ function tamperReceipt(
 }
 
 describe("review evidence scorecard", () => {
-  it("keeps the repository pilot opt-in until the volume gate is met", () => {
+  it("keeps a one-proposal cohort opt-in until the volume gate is met", () => {
     const scorecard = evaluateReviews({
       manifestFile: path.join(evidenceRoot, "manifest.json"),
       evidenceRoot,

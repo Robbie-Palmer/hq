@@ -110,11 +110,10 @@ source hashes, revisions, producer IDs, and evidence hashes. Thresholds live
 in `evaluation-params.json`; every gate must pass before the recommendation can
 change from `keep-opt-in` to `adopt-default`.
 
-The checked-in repository pilot is public and records its consent, retention,
-and deletion status in the evidence manifest. Private review text, proposals,
-and decisions belong in the project's private DVC data area and must not be
-committed to Git. A deletion request blocks adoption even when the numerical
-thresholds pass.
+The repository pilot and future private cohorts live in the project's DVC data
+area. Git tracks only their DVC pointers. Each evidence manifest records its
+classification, consent, retention, and deletion status. A deletion request
+blocks adoption even when the numerical thresholds pass.
 
 On the initial cohort, 15 of 43 findings map to self-contained published
 changes. The remaining 28 cross or touch finding boundaries and stay in the

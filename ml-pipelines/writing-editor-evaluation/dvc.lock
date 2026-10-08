@@ -436,34 +436,34 @@ stages:
       hash: md5
       md5: c62f798a274ca43f49b0d7dc885cd811
       size: 663909
+    - path: data/review-evidence/repository-pilot/decisions.jsonl
+      hash: md5
+      md5: fa8151bcdbb6e612cc5189c5dca5f55c
+      size: 1219
+    - path: data/review-evidence/repository-pilot/manifest.json
+      hash: md5
+      md5: e069b481472ce90289dfe972d2f6a9ff
+      size: 886
+    - path: data/review-evidence/repository-pilot/receipt.json
+      hash: md5
+      md5: ac87a46d2ccc367a3663277fee0a27ce
+      size: 730
+    - path: data/review-evidence/repository-pilot/records.json
+      hash: md5
+      md5: 264495a61030c6a69a32f91c4237df81
+      size: 2402
     - path: evaluation-params.json
       hash: md5
       md5: 26ed31f4343e1382730c572a859d7e23
       size: 172
-    - path: evidence/repository-pilot/decisions.jsonl
-      hash: md5
-      md5: fa8151bcdbb6e612cc5189c5dca5f55c
-      size: 1219
-    - path: evidence/repository-pilot/manifest.json
-      hash: md5
-      md5: e069b481472ce90289dfe972d2f6a9ff
-      size: 886
-    - path: evidence/repository-pilot/receipt.json
-      hash: md5
-      md5: ac87a46d2ccc367a3663277fee0a27ce
-      size: 730
-    - path: evidence/repository-pilot/records.json
-      hash: md5
-      md5: 264495a61030c6a69a32f91c4237df81
-      size: 2402
     - path: package.json
       hash: md5
       md5: 0fe057aad8ffadcf5845a4ea16495eb9
       size: 512
     - path: scripts/evaluate-reviews-dvc.sh
       hash: md5
-      md5: 31a2096acc03963ed3fdaa8be675b639
-      size: 263
+      md5: 12a355894e3a828f15c632d493a0c18d
+      size: 287
       isexec: true
     - path: src/evaluate-reviews.ts
       hash: md5
