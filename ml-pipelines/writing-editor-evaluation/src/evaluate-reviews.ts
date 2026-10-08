@@ -184,7 +184,7 @@ export function evaluateReviews(options: {
         ...records.proposals.flatMap(({ suggestions }) =>
           suggestions.map(({ producer }) => producer.id)
         ),
-      ])].sort(),
+      ])].sort((left, right) => left.localeCompare(right)),
       findings: records.findings.length,
       proposals: records.proposals.length,
       accepted: count("accepted"),

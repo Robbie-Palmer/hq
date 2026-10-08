@@ -49,7 +49,7 @@ export async function runReviewSession(options: {
       ? createDecision(proposal, "changed", answer.replacement, timing)
       : createDecision(proposal, answer.outcome, timing);
     applyDecisions(options.source, [...decisions, decision]);
-    await options.recordDecision(decision);
+    await options.recordDecision(decision); // NOSONAR -- each decision must be durable before the next prompt
     decisions.push(decision);
   }
 
