@@ -6,6 +6,11 @@ const mocks = vi.hoisted(() => ({
   initialize: vi.fn(),
   render: vi.fn(),
   resolvedTheme: "light",
+  recoverFromStaleChunk: vi.fn(),
+}));
+
+vi.mock("@/lib/browser/stale-chunk-recovery", () => ({
+  recoverFromStaleChunk: mocks.recoverFromStaleChunk,
 }));
 
 vi.mock("next-themes", () => ({
@@ -25,6 +30,8 @@ describe("Mermaid", () => {
     mocks.render.mockReset();
     mocks.render.mockResolvedValue({ svg: '<svg aria-label="diagram" />' });
     mocks.resolvedTheme = "light";
+    mocks.recoverFromStaleChunk.mockReset();
+    mocks.recoverFromStaleChunk.mockReturnValue(false);
     vi.spyOn(crypto, "randomUUID").mockReturnValue(
       "00000000-0000-4000-8000-000000000000",
     );
@@ -84,5 +91,20 @@ describe("Mermaid", () => {
       "Error rendering mermaid diagram:",
       expect.any(Error),
     );
+  });
+
+  it("hands a stale chunk failure to the reload recovery", async () => {
+    const error = new Error("Loading chunk 4684 failed.");
+    error.name = "ChunkLoadError";
+    mocks.render.mockRejectedValue(error);
+    mocks.recoverFromStaleChunk.mockReturnValue(true);
+
+    render(<Mermaid chart="graph TD; A --&gt; B" />);
+
+    await waitFor(() =>
+      expect(mocks.recoverFromStaleChunk).toHaveBeenCalledWith(error),
+    );
+    expect(screen.queryByText(/Error rendering diagram/)).toBeNull();
+    expect(console.error).not.toHaveBeenCalled();
   });
 });
