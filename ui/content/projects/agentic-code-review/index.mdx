@@ -2,7 +2,7 @@
 title: "Agentic Code Review"
 description: "A stateful, model-agnostic GitHub App for high-signal code review at agentic development velocity"
 date: "2026-08-08"
-updated: "2026-09-30"
+updated: "2026-10-08"
 initiatives:
   - "semi-autonomous-software-development"
 ideas:
@@ -296,6 +296,85 @@ described by
 * record versioned run, finding, model, outcome, latency, token, and cost data,
   attributing later-head fixes, explicit dispositions, superseded code, and
   no-response closures for evaluation.
+
+# Review and evidence flow
+
+This view follows the implemented service and its offline evaluation path.
+GitHub and the inference providers are external systems. The project owns the
+review logic and data on Cloudflare's managed infrastructure.
+
+<Mermaid
+  chart={`flowchart TB
+GitHub["GitHub · external<br/>PR events and finding feedback"]
+subgraph Service["Review service · owned logic on Cloudflare"]
+Webhook["Worker<br/>Verify signature and repository"]
+State["Per-PR SQLite Durable Object<br/>Deduplicate, debounce, enforce budgets"]
+Workflow["Workflow<br/>Prepare context, run scouts, merge findings"]
+end
+Models["Inference providers · external<br/>OpenRouter and OpenCode scouts<br/>OpenRouter merger"]
+Publication["GitHub · external<br/>Native findings and rolling run summary"]
+Evidence["Private R2 · owned evidence<br/>Versioned runs, snapshots and outcomes"]
+Learning["Offline evaluation · owned tooling<br/>Frozen cohorts, isolated replays, DuckDB"]
+Owner["Project owner<br/>Review recommendations and proposed changes"]
+
+GitHub -->|"signed webhook"| Webhook
+Webhook -->|"accepted event"| State
+State -->|"eligible review after debounce"| Workflow
+Workflow -->|"bounded context and prompts"| Models
+Models -->|"candidates, merged findings and usage"| Workflow
+Workflow -->|"check current head, apply publication policy"| Publication
+Workflow -->|"terminal run records and replay snapshots"| Evidence
+State -->|"feedback evidence and outcome revisions"| Evidence
+Evidence -->|"export with redacted replay snapshots"| Learning
+Learning -->|"scorecards and adopt / reject / gather evidence"| Owner
+
+classDef external stroke-dasharray:5 5
+class GitHub,Models,Publication external
+`}
+  className="w-full justify-start overflow-x-auto [&>svg]:min-w-[42rem]"
+/>
+
+## Reading the flow
+
+1. GitHub sends PR events, explicit review commands, and finding feedback. The
+   Worker verifies the signature and repository allowlist; command parsing also
+   checks actor permissions. Each PR's SQLite Durable Object deduplicates events,
+   retains review and finding state, and applies debounce, run, and cost limits.
+2. An eligible review starts a Workflow. It fetches GitHub context through the
+   App, selects full or incremental coverage, runs independent scouts through
+   OpenRouter and OpenCode, then reconciles candidates with an OpenRouter merger.
+   Selected code context and prompts cross the external inference boundary.
+3. Publication checks the current PR head and applies finding policy before
+   posting native review findings and a rolling cost and coverage comment to
+   GitHub. A successful run then writes its versioned terminal record to private
+   R2 and completes the durable PR state. Skipped, denied, and failed runs also
+   have terminal records. R2 retains raw candidates, findings, applied
+   configuration, coverage, usage, and replay snapshots as evaluation evidence.
+4. Ordinary comments, thread activity, and trusted dispositions take a
+   storage-only path through the coordinator to private evidence and versioned
+   finding outcomes. They do not schedule inference. A `confirm-fixed`
+   disposition requires current-head replay evidence.
+5. Offline tooling uses exported, redacted replay snapshots and historical
+   outcomes to freeze cohorts, compare isolated replays, and build DuckDB
+   scorecards. Its recommendations inform owner-reviewed
+   model, prompt, policy, test, or guidance changes. The evaluation runner has no
+   GitHub publication adapter and never updates production configuration
+   automatically. Automatic adoption remains outside this implemented flow.
+
+## Ownership and disclosure
+
+[`ai-review/wrangler.toml`](https://github.com/Robbie-Palmer/hq/blob/main/ai-review/wrangler.toml)
+owns the Worker, Durable Object, Workflow, and bindings.
+[`infra/public-platform`](https://github.com/Robbie-Palmer/hq/tree/main/infra/public-platform)
+owns the private R2 bucket. Published GitHub findings are public for the current
+public-repository deployment. Raw review evidence stays private to the service
+and authorised operators; this view contains no credentials or private records.
+
+The [service implementation](https://github.com/Robbie-Palmer/hq/blob/main/ai-review/src/index.ts),
+[publication and record logic](https://github.com/Robbie-Palmer/hq/blob/main/ai-review/src/review-engine.ts),
+and [evaluation pipeline](https://github.com/Robbie-Palmer/hq/tree/main/ml-pipelines/ai-review-evaluation)
+provide the source evidence. The diagram and this reading guide also appear in
+the [Markdown version](/projects/agentic-code-review.md#review-and-evidence-flow).
 
 # Architecture Lineage
 
