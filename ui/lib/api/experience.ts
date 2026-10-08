@@ -57,10 +57,10 @@ export function getExperienceDuration(
   return formatDuration(start, end);
 }
 
-/**
- * @deprecated Use formatExperienceDateRange and getExperienceDuration separately
- */
-export function formatDateRange(startDate: string, endDate?: string): string {
+export function formatExperienceDateLabel(
+  startDate: string,
+  endDate?: string,
+): string {
   const range = formatExperienceDateRange(startDate, endDate);
   const duration = getExperienceDuration(startDate, endDate);
   return `${range} (${duration})`;

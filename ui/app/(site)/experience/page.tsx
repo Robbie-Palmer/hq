@@ -3,7 +3,11 @@ import type { Metadata } from "next";
 import { ExperienceCard } from "@/components/experience/experience-card";
 import { SearchableTechnologyGrid } from "@/components/experience/searchable-technology-grid";
 import { Button } from "@/components/ui/button";
-import { getAllExperience, getExperienceSlug } from "@/lib/api/experience";
+import {
+  formatExperienceDateLabel,
+  getAllExperience,
+  getExperienceSlug,
+} from "@/lib/api/experience";
 import { siteConfig } from "@/lib/config/site-config";
 import { loadDomainRepository } from "@/lib/domain";
 import { getRoleBlogs } from "@/lib/domain/blog/blogQueries";
@@ -99,6 +103,10 @@ export default function ExperiencePage() {
                 <ExperienceCard
                   key={`${experience.company}-${experience.startDate}`}
                   experience={experience}
+                  dateLabel={formatExperienceDateLabel(
+                    experience.startDate,
+                    experience.endDate,
+                  )}
                   id={roleSlug}
                   projects={projects}
                   blogs={blogs}

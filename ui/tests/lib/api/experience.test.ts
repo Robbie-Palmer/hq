@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  formatExperienceDateLabel,
   formatExperienceDateRange,
   getAllExperience,
   getExperienceDuration,
@@ -92,5 +93,13 @@ describe("getExperienceDuration", () => {
 
       expect(getExperienceDuration("2024-05")).toBe("2 years, 6 months");
     });
+  });
+});
+
+describe("formatExperienceDateLabel", () => {
+  it("combines the range and duration", () => {
+    expect(formatExperienceDateLabel("2020-01", "2021-03")).toBe(
+      "Jan 2020 - Mar 2021 (1 year, 3 months)",
+    );
   });
 });

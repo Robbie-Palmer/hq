@@ -21,7 +21,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { Experience } from "@/lib/api/experience";
-import { formatDateRange, getTitleTimeline } from "@/lib/api/experience";
+import { getTitleTimeline } from "@/lib/api/experience";
 import { hasTechIcon, TechIcon } from "@/lib/api/tech-icons";
 import type { BlogListItemView } from "@/lib/domain/blog/blogViews";
 import type { ProjectListItemView } from "@/lib/domain/project/projectViews";
@@ -32,6 +32,7 @@ import { ProjectBadge } from "./project-badge";
 
 interface ExperienceCardProps {
   experience: Experience;
+  dateLabel: string;
   id?: string;
   projects?: ProjectListItemView[];
   blogs?: BlogListItemView[];
@@ -39,6 +40,7 @@ interface ExperienceCardProps {
 
 export function ExperienceCard({
   experience,
+  dateLabel,
   id,
   projects = [],
   blogs = [],
@@ -153,7 +155,7 @@ export function ExperienceCard({
                   </span>
                   <span className="flex items-center gap-1.5 font-medium text-foreground/80">
                     <Calendar className="w-4 h-4" />
-                    {formatDateRange(experience.startDate, experience.endDate)}
+                    {dateLabel}
                   </span>
                 </CardDescription>
               </div>
