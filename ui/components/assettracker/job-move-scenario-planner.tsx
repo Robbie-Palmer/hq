@@ -935,7 +935,7 @@ function Comparison({ scenario }: Readonly<{ scenario: JobMoveScenario }>) {
   );
 }
 
-function useJobMoveManager() {
+function useJobMoveScenarioControls() {
   const tracker = useAssetTracker();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState(
@@ -970,7 +970,7 @@ function useJobMoveManager() {
   };
 }
 
-function ManagerHeader({
+function ScenarioPlannerHeader({
   adding,
   onAdd,
 }: Readonly<{ adding: boolean; onAdd(): void }>) {
@@ -1079,10 +1079,10 @@ function ScenarioCard({
 }
 
 function ScenarioCards({
-  model,
-}: Readonly<{ model: ReturnType<typeof useJobMoveManager> }>) {
-  if (model.tracker.jobMoveScenarios.length === 0) {
-    return model.editingId == null ? (
+  controls,
+}: Readonly<{ controls: ReturnType<typeof useJobMoveScenarioControls> }>) {
+  if (controls.tracker.jobMoveScenarios.length === 0) {
+    return controls.editingId == null ? (
       <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
         No hypothetical job moves yet.
       </p>
@@ -1090,22 +1090,24 @@ function ScenarioCards({
   }
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      {model.tracker.jobMoveScenarios.map((scenario) => (
+      {controls.tracker.jobMoveScenarios.map((scenario) => (
         <ScenarioCard
           key={scenario.id}
           scenario={scenario}
-          selected={model.selected?.id === scenario.id}
-          onSelect={() => model.setSelectedId(scenario.id)}
-          onEdit={() => model.setEditingId(scenario.id)}
+          selected={controls.selected?.id === scenario.id}
+          onSelect={() => controls.setSelectedId(scenario.id)}
+          onEdit={() => controls.setEditingId(scenario.id)}
           onDuplicate={() =>
-            void model.run(() =>
-              model.tracker.duplicateJobMoveScenario(scenario.id),
+            void controls.run(() =>
+              controls.tracker.duplicateJobMoveScenario(scenario.id),
             )
           }
           onDelete={() =>
-            void model.run(async () => {
-              await model.tracker.deleteJobMoveScenario(scenario.id);
-              if (model.selectedId === scenario.id) model.setSelectedId("");
+            void controls.run(async () => {
+              await controls.tracker.deleteJobMoveScenario(scenario.id);
+              if (controls.selectedId === scenario.id) {
+                controls.setSelectedId("");
+              }
             })
           }
         />
@@ -1114,35 +1116,35 @@ function ScenarioCards({
   );
 }
 
-export function JobMoveScenarioManager() {
-  const model = useJobMoveManager();
+export function JobMoveScenarioPlanner() {
+  const controls = useJobMoveScenarioControls();
   return (
     <section className="space-y-4" aria-labelledby="job-move-heading">
-      <ManagerHeader
-        adding={model.editingId != null}
-        onAdd={() => model.setEditingId("new")}
+      <ScenarioPlannerHeader
+        adding={controls.editingId != null}
+        onAdd={() => controls.setEditingId("new")}
       />
-      {model.editingId != null && (
+      {controls.editingId != null && (
         <ScenarioForm
-          key={`form:${model.editingId}`}
-          editing={model.editing}
-          onCancel={() => model.setEditingId(null)}
+          key={`form:${controls.editingId}`}
+          editing={controls.editing}
+          onCancel={() => controls.setEditingId(null)}
           onSaved={(id) => {
-            if (id != null) model.setSelectedId(id);
-            model.setEditingId(null);
+            if (id != null) controls.setSelectedId(id);
+            controls.setEditingId(null);
           }}
         />
       )}
-      <ScenarioCards model={model} />
-      {model.actionError != null && (
+      <ScenarioCards controls={controls} />
+      {controls.actionError != null && (
         <p role="alert" className="text-sm text-destructive">
-          {model.actionError}
+          {controls.actionError}
         </p>
       )}
-      {model.selected != null && (
+      {controls.selected != null && (
         <Comparison
-          key={`comparison:${model.selected.id}`}
-          scenario={model.selected}
+          key={`comparison:${controls.selected.id}`}
+          scenario={controls.selected}
         />
       )}
     </section>

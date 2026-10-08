@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAssetTracker } from "@/components/assettracker/asset-tracker-provider";
-import { JobMoveScenarioManager } from "@/components/assettracker/job-move-scenario-manager";
+import { JobMoveScenarioPlanner } from "@/components/assettracker/job-move-scenario-planner";
 
 vi.mock("@/components/assettracker/asset-tracker-provider", () => ({
   useAssetTracker: vi.fn(),
@@ -175,14 +175,14 @@ function trackerValue() {
   } as unknown as ReturnType<typeof useAssetTracker>;
 }
 
-describe("JobMoveScenarioManager", () => {
+describe("JobMoveScenarioPlanner", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseAssetTracker.mockReturnValue(trackerValue());
   });
 
   it("labels assumptions and compares compensation, net worth, runway, and FI", () => {
-    render(<JobMoveScenarioManager />);
+    render(<JobMoveScenarioPlanner />);
 
     expect(screen.getByText("Hypothetical")).toBeVisible();
     expect(screen.getByText("Monthly take-home")).toBeVisible();
@@ -207,7 +207,7 @@ describe("JobMoveScenarioManager", () => {
 
   it("saves unemployment as an indefinite income stop", async () => {
     const user = userEvent.setup();
-    render(<JobMoveScenarioManager />);
+    render(<JobMoveScenarioPlanner />);
 
     await user.click(screen.getByRole("button", { name: "Add scenario" }));
     await user.type(screen.getByLabelText("Scenario name"), "Career break");
@@ -237,7 +237,7 @@ describe("JobMoveScenarioManager", () => {
 
   it("edits every prospective-role input and saves the revised assumption", async () => {
     const user = userEvent.setup();
-    render(<JobMoveScenarioManager />);
+    render(<JobMoveScenarioPlanner />);
 
     await user.click(
       screen.getByRole("button", { name: "Edit Product lead offer" }),
@@ -330,7 +330,7 @@ describe("JobMoveScenarioManager", () => {
     duplicateJobMoveScenario.mockRejectedValueOnce(
       new Error("Duplicate failed"),
     );
-    render(<JobMoveScenarioManager />);
+    render(<JobMoveScenarioPlanner />);
 
     await user.click(
       screen.getByRole("button", { name: "Duplicate Product lead offer" }),
@@ -357,7 +357,7 @@ describe("JobMoveScenarioManager", () => {
       jobMoveScenarios: [],
     });
 
-    render(<JobMoveScenarioManager />);
+    render(<JobMoveScenarioPlanner />);
 
     expect(screen.getByText("No hypothetical job moves yet.")).toBeVisible();
     expect(screen.queryByText("Baseline comparison")).toBeNull();

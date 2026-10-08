@@ -16,8 +16,8 @@ vi.mock("@/components/assettracker/forecast-assumption-manager", () => ({
 vi.mock("@/components/assettracker/future-cash-flow-manager", () => ({
   FutureCashFlowManager: () => <div>Future cash flow workspace</div>,
 }));
-vi.mock("@/components/assettracker/job-move-scenario-manager", () => ({
-  JobMoveScenarioManager: () => <div>Job move workspace</div>,
+vi.mock("@/components/assettracker/job-move-scenario-planner", () => ({
+  JobMoveScenarioPlanner: () => <div>Job move workspace</div>,
 }));
 
 const mockUseAssetTracker = vi.mocked(useAssetTracker);
