@@ -20,8 +20,8 @@ export function DecisionScenarioSummary() {
   const decisions = tracker.futureCashFlows.filter(
     (record): record is CashFlowDecision => record.kind === "decision",
   );
-  const selected = decisions.filter(({ status }) => status === "selected");
-  const featured = selected[0] ?? decisions[0];
+  const featured =
+    decisions.find(({ status }) => status === "selected") ?? decisions[0];
   const comparison = useMemo(
     () =>
       featured == null
@@ -54,7 +54,7 @@ export function DecisionScenarioSummary() {
               horizon.expected.totalMonths - horizon.baseline.totalMonths,
             )}
           </span>
-          .
+          {"."}
         </p>
       </div>
       <Link

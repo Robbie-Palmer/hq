@@ -57,7 +57,7 @@ function chartData(
         comparison.timeline.map(({ date }) => date),
       ),
     ),
-  ).sort();
+  ).sort((left, right) => left.localeCompare(right));
   const pointsByScenario = scenarios.map(
     ({ comparison }) =>
       new Map(comparison.timeline.map((point) => [point.date, point])),
@@ -146,6 +146,17 @@ function EffectChartAxes({
   metric,
   currency,
 }: Readonly<{ metric: "portfolio" | "runway"; currency: Currency }>) {
+  const formatTick =
+    metric === "portfolio"
+      ? (value: number) =>
+          new Intl.NumberFormat("en-GB", {
+            notation: "compact",
+            style: "currency",
+            currency,
+            maximumFractionDigits: 0,
+          }).format(value)
+      : (value: number) => `${Math.round(value)}mo`;
+
   return (
     <>
       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -154,19 +165,7 @@ function EffectChartAxes({
         minTickGap={32}
         tickFormatter={(value: string) => format(parseISO(value), "MMM yy")}
       />
-      <YAxis
-        width={64}
-        tickFormatter={(value: number) =>
-          metric === "portfolio"
-            ? new Intl.NumberFormat("en-GB", {
-                notation: "compact",
-                style: "currency",
-                currency,
-                maximumFractionDigits: 0,
-              }).format(value)
-            : `${Math.round(value)}mo`
-        }
-      />
+      <YAxis width={64} tickFormatter={formatTick} />
       <ReferenceLine y={0} className="stroke-muted-foreground" />
     </>
   );
