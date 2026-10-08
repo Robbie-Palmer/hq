@@ -271,6 +271,43 @@ describe("repository review", () => {
     }
   });
 
+  it("keeps concurrent source edits and leaves the recorded decision durable", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "writing-editor-review-"));
+    try {
+      const sourcePath = join(directory, "draft.md");
+      const manifestPath = join(directory, "review.json");
+      const decisionPath = `${sourcePath}.decisions.jsonl`;
+      const externallyEdited = `${source}\nExternal edit.\n`;
+      const { first } = records();
+      await writeFile(sourcePath, source, "utf8");
+      await writeFile(manifestPath, JSON.stringify({
+        sourcePath: "draft.md",
+        documentId: "draft.md",
+        revision: "git:abc123",
+        findings: [],
+        proposals: [first],
+      }), "utf8");
+      const input = new PassThrough();
+      const review = reviewCommand([manifestPath], {
+        input,
+        output: new PassThrough(),
+      });
+      setTimeout(async () => {
+        await writeFile(sourcePath, externallyEdited, "utf8");
+        input.end("a\n");
+      }, 10);
+
+      await expect(review).rejects.toThrow(/changed during review/);
+      expect(await readFile(sourcePath, "utf8")).toBe(externallyEdited);
+      expect(JSON.parse(await readFile(decisionPath, "utf8"))).toMatchObject({
+        outcome: "accepted",
+        proposalId: first.proposalId,
+      });
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("pauses, then resumes with rejected and changed outcomes", async () => {
     const directory = await mkdtemp(join(tmpdir(), "writing-editor-review-"));
     try {

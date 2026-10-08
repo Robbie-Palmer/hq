@@ -25,7 +25,7 @@
         "sourceText": "Optimize"
       },
       "category": "style/unslop/plain-words",
-      "reason": "Prefer the plain word — e.g. 'use' instead of 'utilize'"
+      "reason": "Consider a plainer alternative to 'Optimize' that fits the context"
     }
   ],
   "proposals": [

@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
+import { type ReviewReceipt, ReviewReceiptSchema } from "writing-editor-domain/review-receipt";
 
 import { evaluateReviews, ReviewScorecardSchema } from "../src/evaluate-reviews";
 
@@ -21,6 +22,16 @@ function temporaryDirectory(): string {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "writing-review-evaluation-"));
   temporaryDirectories.add(directory);
   return directory;
+}
+
+function tamperReceipt(
+  temporary: string,
+  mutate: (receipt: ReviewReceipt) => void,
+): void {
+  const receiptPath = path.join(temporary, "receipt.json");
+  const receipt = ReviewReceiptSchema.parse(JSON.parse(fs.readFileSync(receiptPath, "utf8")));
+  mutate(receipt);
+  fs.writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`);
 }
 
 describe("review evidence scorecard", () => {
@@ -85,5 +96,30 @@ describe("review evidence scorecard", () => {
       evidenceRoot: temporary,
       paramsFile: path.join(projectRoot, "evaluation-params.json"),
     })).toThrow(/receipt does not match its decisions/);
+  });
+
+  it.each([
+    ["source identity", (receipt: ReviewReceipt) => {
+      receipt.documentId = "other.md";
+    }, /receipt does not match its source/],
+    ["source hash", (receipt: ReviewReceipt) => {
+      receipt.sourceBeforeHash = `sha256:${"0".repeat(64)}`;
+    }, /receipt does not match its source/],
+    ["review time", (receipt: ReviewReceipt) => {
+      receipt.summary.reviewMilliseconds += 1;
+    }, /receipt review time does not match/],
+    ["source-change flag", (receipt: ReviewReceipt) => {
+      receipt.sourceChanged = false;
+    }, /source-change flag does not match/],
+  ] as const)("rejects a receipt with tampered %s", (_label, mutate, expected) => {
+    const temporary = temporaryDirectory();
+    fs.cpSync(evidenceRoot, temporary, { recursive: true });
+    tamperReceipt(temporary, mutate);
+
+    expect(() => evaluateReviews({
+      manifestFile: path.join(temporary, "manifest.json"),
+      evidenceRoot: temporary,
+      paramsFile: path.join(projectRoot, "evaluation-params.json"),
+    })).toThrow(expected);
   });
 });

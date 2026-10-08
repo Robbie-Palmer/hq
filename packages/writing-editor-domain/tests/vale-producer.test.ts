@@ -84,6 +84,23 @@ describe("deterministic Vale producer", () => {
     }).proposals).toEqual([]);
   });
 
+  it("fails closed when a safe-rule span is embedded in a larger word", () => {
+    expect(() => valeAlertsToReviewRecords({
+      source: "commenced\n",
+      documentId: "draft.md",
+      revision: "worktree:test",
+      producerVersion: "vale@3.13.0",
+      alerts: [{
+        Span: [1, 8],
+        Check: "Unslop.PlainWordsSafe",
+        Message: "Use the plain replacement",
+        Severity: "warning",
+        Match: "commence",
+        Line: 1,
+      }],
+    })).toThrow(/inside a larger word/);
+  });
+
   it("writes producer output and a decision before changing the addressed source", async () => {
     const directory = await mkdtemp(join(tmpdir(), "writing-editor-source-review-"));
     try {
@@ -137,6 +154,26 @@ describe("deterministic Vale producer", () => {
       expect(await readFile(sourcePath, "utf8")).toBe("# Draft\n\nUse direct words.\n");
       expect(displayed).toContain("-Utilize direct words.");
       expect(displayed).toContain("+Use direct words.");
+
+      const committedRecords = await readFile(recordsPath, "utf8");
+      const noAlerts = { [sourcePath]: [] };
+      await writeFile(valePath, [
+        "#!/usr/bin/env node",
+        "if (process.argv.includes('--version')) { console.log('vale version 3.13.0'); }",
+        `else { process.stdout.write(${JSON.stringify(JSON.stringify(noAlerts))}); }`,
+        "",
+      ].join("\n"), "utf8");
+      await expect(reviewCommand([
+        "--source", sourcePath,
+        "--revision", "worktree:test",
+        "--records", recordsPath,
+        "--decisions", decisionsPath,
+        "--receipt", receiptPath,
+        "--vale", valePath,
+      ], { input: scriptedInput("q"), output: new PassThrough() })).rejects.toThrow(
+        /does not match a current proposal/,
+      );
+      expect(await readFile(recordsPath, "utf8")).toBe(committedRecords);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

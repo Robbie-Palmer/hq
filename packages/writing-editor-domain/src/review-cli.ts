@@ -14,6 +14,7 @@ import {
   renderFinding,
   renderProposalDiff,
   ReviewRecordsSchema,
+  validateRecordedDecisions,
 } from "./review";
 import { createReviewReceipt } from "./review-receipt";
 import { runReviewSession, type ReviewAnswer } from "./review-session";
@@ -43,12 +44,13 @@ export async function main(
       ...(input.valeBinary ? { valeBinary: input.valeBinary } : {}),
     });
   const records = prepareReviewRecords(unpreparedRecords, source);
+  const existingDecisions = await readDecisionLog(decisionsPath);
+  validateRecordedDecisions(existingDecisions, records.proposals);
   if (input.mode === "source") {
     await mkdir(dirname(input.recordsPath), { recursive: true });
     await writeFile(input.recordsPath, `${JSON.stringify(records, null, 2)}\n`, "utf8");
     io.output.write(`Producer records: ${input.recordsPath}\n`);
   }
-  const existingDecisions = await readDecisionLog(decisionsPath);
   await mkdir(dirname(decisionsPath), { recursive: true });
 
   io.output.write(`Detection-only findings (${records.findings.length})\n\n`);
@@ -82,6 +84,12 @@ export async function main(
     }
 
     if (result.source !== source) {
+      const currentSource = await readFile(sourcePath, "utf8");
+      if (currentSource !== source) {
+        throw new Error(
+          `${input.displayPath} changed during review; decisions are recorded but the source was not written`,
+        );
+      }
       await atomicWrite(sourcePath, result.source);
     }
     if (input.mode === "source" && input.receiptPath) {

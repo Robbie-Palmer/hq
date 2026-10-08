@@ -167,8 +167,45 @@ export function evaluateReviews(options: {
     if (receipt.decisionsHash !== sha256(canonicalJson(decisions))) {
       throw new Error(`${entry.artifactId} receipt does not match its decisions`);
     }
+    const recordSources = [
+      ...records.findings.map(({ source }) => source),
+      ...records.proposals.flatMap(({ suggestions }) =>
+        suggestions.map(({ source }) => source)
+      ),
+    ];
+    if (receipt.documentId !== records.documentId ||
+      receipt.revision !== records.revision ||
+      recordSources.some((source) =>
+        source.documentId !== records.documentId ||
+        source.revision !== records.revision ||
+        source.contentHash !== receipt.sourceBeforeHash
+      )) {
+      throw new Error(`${entry.artifactId} receipt does not match its source`);
+    }
+    const reviewMilliseconds = decisions.reduce((total, decision) => total + Math.max(
+      0,
+      Date.parse(decision.decidedAt) - Date.parse(decision.reviewStartedAt),
+    ), 0);
+    if (receipt.summary.reviewMilliseconds !== reviewMilliseconds) {
+      throw new Error(`${entry.artifactId} receipt review time does not match its decisions`);
+    }
+    const sourceChanged = receipt.sourceBeforeHash !== receipt.sourceAfterHash;
+    if (receipt.sourceChanged !== sourceChanged) {
+      throw new Error(`${entry.artifactId} receipt source-change flag does not match its hashes`);
+    }
     const count = (outcome: "accepted" | "changed" | "rejected") =>
       decisions.filter((decision) => decision.outcome === outcome).length;
+    const expectedSummary = {
+      findings: records.findings.length,
+      proposals: records.proposals.length,
+      accepted: count("accepted"),
+      rejected: count("rejected"),
+      changed: count("changed"),
+      reviewMilliseconds,
+    };
+    if (canonicalJson(receipt.summary) !== canonicalJson(expectedSummary)) {
+      throw new Error(`${entry.artifactId} receipt summary does not match its evidence`);
+    }
     return {
       artifactId: entry.artifactId,
       artifactType: entry.artifactType,

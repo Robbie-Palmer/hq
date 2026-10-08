@@ -110,6 +110,12 @@ export function valeAlertsToReviewRecords(options: {
       provenance: { kind: "rule" as const, ruleId: alert.Check },
     };
     if (classification === "safely-rewritable") {
+      if (alert.Check === "Unslop.PlainWordsSafe" &&
+        hasAdjacentLetter(options.source, span)) {
+        throw new Error(
+          `${alert.Check} matched ${JSON.stringify(span.sourceText)} inside a larger word`,
+        );
+      }
       const replacement = safeReplacement(alert.Check, span.sourceText);
       if (replacement === undefined) {
         throw new Error(
@@ -174,6 +180,17 @@ function safeReplacement(check: string, match: string): string | undefined {
   return /^[A-Z]/.test(match)
     ? replacement[0]?.toUpperCase() + replacement.slice(1)
     : replacement;
+}
+
+function hasAdjacentLetter(
+  source: string,
+  span: { startByte: number; endByte: number },
+): boolean {
+  const bytes = Buffer.from(source, "utf8");
+  const before = Array.from(bytes.subarray(0, span.startByte).toString("utf8")).at(-1);
+  const after = Array.from(bytes.subarray(span.endByte).toString("utf8"))[0];
+  return (before !== undefined && /\p{L}/u.test(before)) ||
+    (after !== undefined && /\p{L}/u.test(after));
 }
 
 function sourcePosition(source: string, alert: ValeAlert) {
