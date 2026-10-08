@@ -1,6 +1,7 @@
 import {
   Blocks,
   ExternalLink,
+  FileCheck2,
   FileText,
   FolderKanban,
   GitBranch,
@@ -64,12 +65,14 @@ export default async function IdeaPage({ params }: Readonly<PageProps>) {
   const { slug } = await params;
   const idea = getIdea(slug);
   if (!idea) notFound();
+  const productDecisions = idea.relatedContent.productDecisions ?? [];
 
   const hasReferences =
     idea.relatedContent.technologies.length > 0 ||
     idea.relatedContent.projects.length > 0 ||
     idea.relatedContent.blogs.length > 0 ||
-    idea.relatedContent.adrs.length > 0;
+    idea.relatedContent.adrs.length > 0 ||
+    productDecisions.length > 0;
 
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8">
@@ -179,6 +182,23 @@ export default async function IdeaPage({ params }: Readonly<PageProps>) {
                       href={`/projects/${adr.projectSlug}/adrs/${adr.slug}`}
                       title={adr.title}
                       description={adr.status}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            {productDecisions.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="flex items-center gap-2 text-lg font-medium">
+                  <FileCheck2 className="size-5" /> Product decisions
+                </h3>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {productDecisions.map((decision) => (
+                    <RelatedCard
+                      key={decision.slug}
+                      href={`/product-decisions/${decision.slug}`}
+                      title={decision.title}
+                      description={decision.status}
                     />
                   ))}
                 </div>

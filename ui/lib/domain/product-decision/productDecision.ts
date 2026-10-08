@@ -6,6 +6,8 @@ import {
   ProjectSlugSchema,
 } from "../slugs";
 
+export type { ProductDecisionSlug } from "../slugs";
+
 const DateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 export const ProductDecisionAuthoredStatusSchema = z.enum([
@@ -24,6 +26,10 @@ export const ProductDecisionEvidenceLinkSchema = z.object({
   title: z.string().min(1),
   url: z.url(),
 });
+
+export type ProductDecisionEvidenceLink = z.infer<
+  typeof ProductDecisionEvidenceLinkSchema
+>;
 
 export const ProductDecisionFrontmatterSchema = z
   .object({
@@ -97,4 +103,30 @@ export type ProductDecisionAuthoredStatus = z.infer<
 export type ProductDecisionStatus = z.infer<typeof ProductDecisionStatusSchema>;
 export type ProductDecisionFrontmatter = z.infer<
   typeof ProductDecisionFrontmatterSchema
+>;
+
+export const ProductDecisionSchema = z.object({
+  slug: ProductDecisionSlugSchema,
+  title: z.string().regex(/^PDR \d{3}: .+/),
+  date: DateSchema,
+  status: ProductDecisionStatusSchema,
+  authoredStatus: ProductDecisionAuthoredStatusSchema,
+  decisionDate: DateSchema.optional(),
+  deprecatedDate: DateSchema.optional(),
+  supersedes: ProductDecisionSlugSchema.optional(),
+  content: z.string().min(1),
+  readingTime: z.string().min(1),
+});
+
+export type ProductDecision = z.infer<typeof ProductDecisionSchema>;
+
+export const ProductDecisionRelationsSchema = z.object({
+  evidence: z.array(ProductDecisionEvidenceLinkSchema).default([]),
+  ideas: z.array(IdeaSlugSchema).default([]),
+  affectedProjects: z.array(ProjectSlugSchema).min(1),
+  informedByADRs: z.array(ADRRefSchema).default([]),
+});
+
+export type ProductDecisionRelations = z.infer<
+  typeof ProductDecisionRelationsSchema
 >;

@@ -101,5 +101,8 @@ export function getRelatedContentForIdea(
       if (!adr || !projectSlug || adr.inheritsFrom) return [];
       return [{ ...toADRListItemView(adr), projectSlug }];
     }),
+    productDecisions: references.productDecisions
+      .map((decisionSlug) => repository.productDecisions.get(decisionSlug))
+      .filter((decision) => decision !== undefined),
   };
 }

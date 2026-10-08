@@ -39,6 +39,7 @@ describe("agent markdown generation", () => {
       "experience.md",
       "projects.md",
       "ideas.md",
+      "product-decisions.md",
       "blog.md",
       "recipes.md",
       "satellite-swarm.md",
@@ -50,6 +51,16 @@ describe("agent markdown generation", () => {
     ]) {
       expect(fs.existsSync(path.join(OUT_DIR, file)), file).toBe(true);
     }
+  });
+
+  it("indexes product decisions before the first record is published", () => {
+    const index = read("product-decisions.md");
+    expect(index).toContain("# Product decisions");
+    expect(index).toContain("No product decisions have been published yet");
+    expect(read("llms.txt")).toContain("## Product Decision Records");
+    expect(read("llms.txt")).toContain(
+      "https://robbiepalmer.me/product-decisions.md",
+    );
   });
 
   it("publishes the PostHog application with direct evidence", () => {

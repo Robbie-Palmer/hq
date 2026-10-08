@@ -11,8 +11,10 @@ import type {
   ProjectLayerUse,
   ProjectSlotUse,
 } from "@/lib/domain/platform/platform";
+import type { ProductDecisionEvidenceLink } from "@/lib/domain/product-decision/productDecision";
 import type { ProjectSlug } from "@/lib/domain/project/project";
 import type { RoleSlug } from "@/lib/domain/role/jobRole";
+import type { ProductDecisionSlug } from "@/lib/domain/slugs";
 import type { TechnologySlug } from "@/lib/domain/technology/technology";
 
 // Recipe types live in the separate RecipeRepository - see @/lib/domain/recipe/recipeGraph
@@ -25,6 +27,7 @@ export type NodeType =
   | "blog"
   | "role"
   | "paper"
+  | "product-decision"
   | "platform-layer"
   | "platform-policy"
   | "technology";
@@ -37,6 +40,7 @@ export type NodeId =
   | `blog:${string}`
   | `role:${string}`
   | `paper:${string}`
+  | `product-decision:${string}`
   | `platform-layer:${string}`
   | `platform-policy:${string}`
   | `technology:${string}`;
@@ -80,6 +84,15 @@ export interface ContentGraph {
       { project: ProjectSlug; layer: LayerSlug; use: ProjectSlotUse }
     >;
     adrOverridesDefault: Map<ADRRef, DefaultOverride>;
+    productDecisionAffectedProjects: Map<ProductDecisionSlug, Set<ProjectSlug>>;
+    productDecisionInformedByADRs: Map<ProductDecisionSlug, Set<ADRRef>>;
+    productDecisionEvidence: Map<
+      ProductDecisionSlug,
+      ProductDecisionEvidenceLink[]
+    >;
+    productDecisionSupersedes: Map<ProductDecisionSlug, ProductDecisionSlug>;
+    adrImplementsProductDecisions: Map<ADRRef, Set<ProductDecisionSlug>>;
+    blogProductDecisions: Map<BlogSlug, Set<ProductDecisionSlug>>;
   };
 
   reverse: {
@@ -96,6 +109,11 @@ export interface ContentGraph {
     layerOwnedBy: Map<LayerSlug, ProjectSlug>;
     layerUsers: Map<LayerSlug, Set<ProjectSlug>>;
     slotOverrides: Map<DefaultSlotSlug, Set<ADRRef>>;
+    projectProductDecisions: Map<ProjectSlug, Set<ProductDecisionSlug>>;
+    adrInformedProductDecisions: Map<ADRRef, Set<ProductDecisionSlug>>;
+    productDecisionSupersededBy: Map<ProductDecisionSlug, ProductDecisionSlug>;
+    productDecisionImplementedByADRs: Map<ProductDecisionSlug, Set<ADRRef>>;
+    productDecisionBlogs: Map<ProductDecisionSlug, Set<BlogSlug>>;
   };
 }
 

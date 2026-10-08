@@ -39,6 +39,10 @@ import {
   getProjectADR,
   type ProjectWithADRs,
 } from "@/lib/api/projects";
+import {
+  getAllProductDecisions,
+  getProductDecision,
+} from "@/lib/api/product-decisions";
 import type { RecipeCardView } from "@/lib/api/recipes";
 import { siteConfig } from "@/lib/config/site-config";
 import {
@@ -612,6 +616,81 @@ function buildBlogIndexPage(
   };
 }
 
+function buildProductDecisionPages(): GeneratedPage[] {
+  return getAllProductDecisions().map((record) => {
+    const decision = getProductDecision(record.slug);
+    if (!decision) throw new Error(`Product decision not found: ${record.slug}`);
+    const facts: [string, string][] = [
+      ["Status", decision.status],
+      ["Opened", decision.date],
+    ];
+    if (decision.decisionDate) facts.push(["Decided", decision.decisionDate]);
+    if (decision.deprecatedDate) facts.push(["Deprecated", decision.deprecatedDate]);
+    if (decision.supersedes) {
+      facts.push([
+        "Supersedes",
+        markdownUrl(routePath("product-decisions", decision.supersedes)),
+      ]);
+    }
+    const links = [
+      ...decision.backlinks.projects.map(
+        (project) =>
+          `- Project: [${project.title}](${markdownUrl(routePath("projects", project.slug))})`,
+      ),
+      ...decision.backlinks.ideas.map(
+        (idea) =>
+          `- Idea: [${idea.title}](${markdownUrl(routePath("ideas", idea.slug))})`,
+      ),
+      ...decision.backlinks.informedByADRs.map(
+        (adr) =>
+          `- Informed by ADR: [${adr.title}](${markdownUrl(routePath("projects", adr.projectSlug, "adrs", adr.slug))})`,
+      ),
+      ...decision.backlinks.implementingADRs.map(
+        (adr) =>
+          `- Implemented by ADR: [${adr.title}](${markdownUrl(routePath("projects", adr.projectSlug, "adrs", adr.slug))})`,
+      ),
+      ...decision.backlinks.blogs.map(
+        (post) =>
+          `- Blog post: [${post.title}](${markdownUrl(routePath("blog", post.slug))})`,
+      ),
+      ...decision.backlinks.evidence.map(
+        (evidence) => `- Evidence: [${evidence.title}](${evidence.url})`,
+      ),
+    ];
+    return {
+      htmlPath: `/product-decisions/${decision.slug}`,
+      filePath: `product-decisions/${decision.slug}.md`,
+      title: decision.title,
+      description: "",
+      facts,
+      content: [
+        convert(decision.content).trim(),
+        ...(links.length > 0 ? ["", "## Related records", "", ...links] : []),
+      ].join("\n"),
+    };
+  });
+}
+
+function buildProductDecisionIndexPage(
+  decisions: ReturnType<typeof getAllProductDecisions>,
+): GeneratedPage {
+  return {
+    htmlPath: "/product-decisions",
+    filePath: "product-decisions.md",
+    title: "Product decisions",
+    description: "Durable choices about product behaviour, scope, and policy.",
+    content:
+      decisions.length === 0
+        ? "_No product decisions have been published yet._"
+        : decisions
+            .map(
+              (decision) =>
+                `- [${decision.title}](${markdownUrl(routePath("product-decisions", decision.slug))}) · ${decision.status}`,
+            )
+            .join("\n"),
+  };
+}
+
 function buildBlogPostPages(
   posts: ReturnType<typeof getAllPosts>,
 ): GeneratedPage[] {
@@ -905,7 +984,8 @@ function buildIdeaPages(
       references.technologies.length > 0 ||
       references.projects.length > 0 ||
       references.blogs.length > 0 ||
-      references.adrs.length > 0
+      references.adrs.length > 0 ||
+      references.productDecisions.length > 0
     ) {
       sections.push(
         "",
@@ -926,6 +1006,10 @@ function buildIdeaPages(
         ...references.adrs.map(
           (adr) =>
             `- ADR: [${adr.title}](${markdownUrl(routePath("projects", adr.projectSlug, "adrs", adr.slug))})`,
+        ),
+        ...references.productDecisions.map(
+          (decision) =>
+            `- Product decision: [${decision.title}](${markdownUrl(routePath("product-decisions", decision.slug))})`,
         ),
       );
     }
@@ -975,6 +1059,7 @@ function buildLlmsTxt(
   recipes: RecipeCardView[],
   technologyPages: GeneratedPage[],
   ideaPages: GeneratedPage[],
+  productDecisionPages: GeneratedPage[],
 ): string {
   const lines = [
     `# ${siteConfig.name}`,
@@ -1014,6 +1099,13 @@ function buildLlmsTxt(
     ),
     "",
     "## Architecture Decision Records",
+    "",
+    "## Product Decision Records",
+    "",
+    `- [Product decision index](${markdownUrl("/product-decisions")}): durable product choices and their evidence`,
+    ...productDecisionPages.map(
+      (page) => `- [${page.title}](${markdownUrl(page.htmlPath)})`,
+    ),
     "",
     ...projects.flatMap((project) =>
       project.adrs
@@ -1105,6 +1197,8 @@ function buildRoutesJson(): string {
         "/technologies/*",
         "/ideas",
         "/ideas/*",
+        "/product-decisions",
+        "/product-decisions/*",
       ],
       exclude: ["/_next/*", "/company-logos/*", "/tech-icons/*"],
     },
@@ -1168,11 +1262,13 @@ function main(): void {
   const ideas = getAllIdeas();
   const initiatives = getAllInitiatives();
   const posts = getAllPosts();
+  const productDecisions = getAllProductDecisions();
   const philosophy = getBuildingPhilosophy();
   // Recipes are database-backed and served dynamically by the Pages Function.
   const recipes: RecipeCardView[] = [];
   const technologyPages = buildTechnologyPages(projects);
   const ideaPages = buildIdeaPages(ideas);
+  const productDecisionPages = buildProductDecisionPages();
   const pitchDeckPages = projects
     .map(buildPitchDeckPage)
     .filter((page): page is GeneratedPage => page !== null);
@@ -1184,6 +1280,8 @@ function main(): void {
     buildExperiencePage(),
     buildProjectsIndexPage(projects, initiatives, philosophy),
     buildIdeasIndexPage(ideas),
+    buildProductDecisionIndexPage(productDecisions),
+    ...productDecisionPages,
     ...ideaPages,
     ...buildInitiativePages(initiatives),
     ...projects.map((project) => buildProjectPage(project, initiatives)),
@@ -1236,6 +1334,7 @@ function main(): void {
       recipes,
       technologyPages,
       ideaPages,
+      productDecisionPages,
     ),
   );
 
