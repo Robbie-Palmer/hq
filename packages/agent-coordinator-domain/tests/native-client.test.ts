@@ -54,10 +54,12 @@ describe("native client adapters", () => {
           definition,
           launcher: fixture.launcher,
           environment: {
+            CODEX_HOME: "/Users/owner/.codex-primary",
             HOME: "/Users/owner",
             PATH: "/usr/bin",
             OPENAI_API_KEY: "sk-do-not-export",
             PROVIDER_SESSION_TOKEN: "token-do-not-export",
+            WORK_GRAPH_WORKER_ID: "codex:primary",
           },
           createCheckpointId: () => "checkpoint:one",
         }),
@@ -74,8 +76,15 @@ describe("native client adapters", () => {
     expect(fixture.requests).toHaveLength(1);
     expect(fixture.requests[0]?.executable).toBe(definition.executable);
     expect(fixture.requests[0]?.environment).toEqual({
+      CODEX_HOME: "/Users/owner/.codex-primary",
       HOME: "/Users/owner",
       PATH: "/usr/bin",
+      WORK_GRAPH_WORKER_ID: "codex:primary",
+    });
+    await expect(session.completion?.()).resolves.toEqual({
+      exitCode: 0,
+      stdout: "ok",
+      stderr: "",
     });
     expect(await session.quota()).toMatchObject({
       kind: "quota",
