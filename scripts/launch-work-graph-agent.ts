@@ -104,30 +104,30 @@ function complexityForScore(score: number): Complexity {
   return "routine";
 }
 
-function modelPolicy(complexity: Complexity): {
+function codexModelPolicy(complexity: Complexity): {
   models: readonly string[];
   effort: string;
 } {
   switch (complexity) {
     case "critical":
       return {
-        models: ["gpt-6-astra", "gpt-6.1-sol"],
+        models: ["gpt-6-astra", "gpt-5.6-sol"],
         effort: "xhigh",
       };
     case "complex":
       return {
-        models: ["gpt-6-astra", "gpt-6.1-sol"],
+        models: ["gpt-6-astra", "gpt-5.6-sol"],
         effort: "high",
       };
     case "standard":
       return {
-        models: ["gpt-6.1-sol", "gpt-6-astra", "gpt-6-luna"],
+        models: ["gpt-5.6-sol"],
         effort: "high",
       };
     case "routine":
       return {
-        models: ["gpt-6-luna", "gpt-6.1-sol"],
-        effort: "medium",
+        models: ["gpt-5.6-sol"],
+        effort: "high",
       };
   }
 }
@@ -171,7 +171,7 @@ export function deriveTicketRoute(selection: WorkGraphSelection): TicketRoute {
   }
 
   const complexity = complexityForScore(score);
-  const policy = modelPolicy(complexity);
+  const policy = codexModelPolicy(complexity);
   const protectedMutation = protectedMutationSignal.test(text);
   if (protectedMutation) reasons.push("protected external mutation");
 

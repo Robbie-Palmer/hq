@@ -44,8 +44,8 @@ function provider(instanceId: string, status: "ready" | "error" = "ready") {
     version: "1",
     models: [
       {
-        slug: "gpt-6.1-sol",
-        name: "GPT-6.1-Sol",
+        slug: "gpt-5.6-sol",
+        name: "GPT-5.6 Sol",
         isCustom: false,
         capabilities: null,
       },
@@ -67,10 +67,27 @@ describe("Work Graph ticket routing", () => {
   it("uses a routine route and human-on-the-loop runtime for a bounded edit", () => {
     expect(deriveTicketRoute(ticket())).toMatchObject({
       complexity: "routine",
-      preferredModels: ["gpt-6-luna", "gpt-6.1-sol"],
-      reasoningEffort: "medium",
+      preferredModels: ["gpt-5.6-sol"],
+      reasoningEffort: "high",
       runtimeMode: "full-access",
       serviceTier: "default",
+    });
+  });
+
+  it("uses Sol high and never Astra for standard Codex work", () => {
+    expect(
+      deriveTicketRoute(
+        ticket({
+          context: [
+            { kind: "acceptance_criteria", content: "Ship the tested change." },
+            { kind: "architecture_decision", title: "Follow Decision 010." },
+          ],
+        }),
+      ),
+    ).toMatchObject({
+      complexity: "standard",
+      preferredModels: ["gpt-5.6-sol"],
+      reasoningEffort: "high",
     });
   });
 
@@ -91,7 +108,7 @@ describe("Work Graph ticket routing", () => {
       ),
     ).toMatchObject({
       complexity: "critical",
-      preferredModels: ["gpt-6-astra", "gpt-6.1-sol"],
+      preferredModels: ["gpt-6-astra", "gpt-5.6-sol"],
       reasoningEffort: "xhigh",
       runtimeMode: "full-access",
     });
@@ -123,17 +140,17 @@ describe("Work Graph ticket routing", () => {
     const first = selectCodexProvider(
       providers,
       "ticket-a",
-      "gpt-6.1-sol",
+      "gpt-5.6-sol",
     );
     const repeated = selectCodexProvider(
       providers,
       "ticket-a",
-      "gpt-6.1-sol",
+      "gpt-5.6-sol",
     );
     const other = selectCodexProvider(
       providers,
       "ticket-b",
-      "gpt-6.1-sol",
+      "gpt-5.6-sol",
     );
 
     expect(repeated.instanceId).toBe(first.instanceId);
@@ -145,7 +162,7 @@ describe("Work Graph ticket routing", () => {
       selectCodexProvider(
         [provider("codex"), provider("codex_2", "error")],
         "ticket-a",
-        "gpt-6.1-sol",
+        "gpt-5.6-sol",
         "codex_2",
       ),
     ).toThrow("not ready, authenticated, and compatible");
