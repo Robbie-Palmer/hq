@@ -1,0 +1,159 @@
+---
+title: "ADR 027: Manage provider account foundations as code"
+date: "2026-10-08"
+status: "Proposed"
+---
+
+## Context
+
+[ADR 003](/projects/personal-engineering-platform/adrs/003-terraform)
+makes declarative infrastructure the platform default, and
+[ADR 009](/projects/personal-engineering-platform/adrs/009-infrastructure-operations)
+assigns each independently stateful root its own remote workspace. The
+repository follows that model for public infrastructure, privileged Google
+Cloud identity, remote development, and the Work Graph.
+
+Creating the administrative containers around those roots still requires
+repeated dashboard work. A new root may need an HCP Terraform workspace,
+Doppler project or config, protected GitHub environments, and scoped provider
+credentials before its first plan can run. Cloudflare Access applications and
+R2 buckets have also accumulated inside the public-platform root because it
+was the first root with a Cloudflare provider, even when the resources now
+serve several projects.
+
+That manual work blocks coding agents at exactly the point where a reviewed
+infrastructure change should be routine. Treating every account-level resource
+as bootstrap infrastructure does not solve the recursion. It makes the manual
+exception grow whenever the platform adopts another provider or project.
+
+Some manual seed remains unavoidable. A person must own provider accounts,
+billing agreements, multifactor recovery, and at least one credential and
+state location from which automation can begin. The useful boundary is the
+smallest recoverable seed, not every resource with administrative scope.
+
+## Decision
+
+Create `infra/account-foundation` as an independently stateful infrastructure
+root in this monorepo. It will manage the administrative containers and trust
+relationships needed by the other roots. Its first responsibilities are:
+
+* HCP Terraform projects, workspaces, local-execution settings, and explicit
+  remote-state access;
+* Doppler projects, environments, and config structure, without committing or
+  copying secret values into configuration;
+* GitHub deployment environments, branch restrictions, and reviewer policy;
+* scoped machine identities that the provider APIs can create without making
+  their own administrator credential self-dependent.
+
+The root will use a dedicated HCP Terraform workspace in local execution mode.
+That workspace, the provider owner accounts, billing, human recovery methods,
+the repository, and the initial administrative credentials form the manual
+seed. Keep those credentials in dedicated Doppler configs and expose them only
+to the protected account-foundation plan and apply paths. The root must not
+delete or rename its own state workspace, revoke its current execution
+credential, or make recovery depend on a service it is responsible for
+creating.
+
+Maintain a declared registry of independently stateful roots. Adding an entry
+will create the root's HCP workspace and non-secret delivery boundaries before
+the new root is initialized. Use the
+[official HCP Terraform provider](https://registry.terraform.io/providers/hashicorp/tfe/latest/docs/resources/workspace.html)
+for workspaces and workspace settings, the
+[Doppler provider](https://registry.terraform.io/providers/DopplerHQ/doppler/latest/docs/resources/config)
+for project structure, and the
+[GitHub provider](https://registry.terraform.io/providers/integrations/github/latest/docs/resources/repository_environment)
+for deployment environments.
+
+Do not turn this root into one account-wide plan. Each resource must have one
+clear owner:
+
+* the account-foundation root owns shared administrative containers and trust;
+* a provider-wide root may own shared policy, such as Cloudflare Zero Trust
+  organization settings and reusable Access policy;
+* a workload root owns its application, data, network, and workload-specific
+  access resources.
+
+Extract cross-project Cloudflare Access resources from the public-platform
+root into `infra/cloudflare-access`. Import existing applications, policies,
+groups, and service identities before applying changes. Keep an
+application-specific policy with its workload only when it has no shared
+identity or lifecycle. Cloudflare documents Terraform management for
+[Access applications and policies](https://developers.cloudflare.com/learning-paths/clientless-access/terraform/publish-apps-with-terraform/)
+and an account setting that makes the Zero Trust dashboard
+[read-only](https://developers.cloudflare.com/api/terraform/resources/zero_trust/).
+Enable that setting only after every intended resource is imported and the
+break-glass repair path has been exercised.
+
+Follow the existing infrastructure workflows for static checks and plan
+comments, but separate credentials more strictly than those workflows do
+today. Pull requests run static checks and plans in a plan-only environment
+whose provider credentials are read-only. Applies run from the default branch
+in a separate protected write environment. Coding agents may change
+declarations and produce plans, but they do not receive the owner credentials
+in the manual seed.
+
+Keep continuous reconciliation separate from this decision. GitHub Actions
+can make account administration code-driven without a Kubernetes management
+plane. A later controller may execute these roots, but it must use the same
+state, ownership, credential, and recovery boundaries.
+
+## Alternatives
+
+Continuing to create workspaces, Access policy, and secret structure in each
+provider dashboard keeps bootstrap simple for the next resource. It repeats
+unreviewed work, leaves no complete declaration to inspect, and prevents an
+agent from carrying a new root through its ordinary delivery setup.
+
+A single infrastructure root for all providers would avoid dependency ordering
+between roots. It would also combine unrelated credentials and state, make
+small changes plan the whole account, and increase the impact of a mistaken
+apply.
+
+Running Flux and Tofu Controller on a dedicated management cluster would add
+continuous observation and reconciliation. It would still need accounts,
+state, credentials, and a cluster bootstrap path. The current problem is
+missing declarations, so a controller is not required to solve it.
+
+Moving every state file to an account-owned object bucket would reduce the HCP
+Terraform dependency. It would make the bucket, locking behavior, credentials,
+and state recovery part of the seed. Keep the accepted HCP Terraform backend
+while account-foundation automation is introduced. State migration remains a
+separate decision.
+
+## Consequences
+
+After the initial seed, a reviewed change can create the administrative
+boundaries for another infrastructure root. Agents can propose Cloudflare
+Access and provider-account changes through the same code-review path as
+workload infrastructure. Every remaining manual operation must be documented
+as a provider limitation or a recovery action instead of becoming an informal
+habit.
+
+The account-foundation root has broad administrative access and can affect
+every downstream root. Its state and workflows need stricter review, narrowly
+scoped credentials, destructive-change protection, and a tested recovery
+runbook. Generated credentials may appear in state even when output is marked
+sensitive, so create or rotate them through a flow that deliberately transfers
+the value to Doppler and audits the resulting state boundary.
+
+Root creation becomes ordered. The manual seed creates account-foundation,
+account-foundation creates the workspace and delivery boundaries for a
+specialized root, and that root creates its resources. Emergency dashboard
+changes remain possible, but the next plan must either import and preserve the
+change or restore the declared configuration.
+
+## Acceptance criteria
+
+* The manual seed runbook names every account, credential, state location, and
+  recovery method that cannot be recreated by the repository.
+* `infra/account-foundation` creates a canary HCP workspace, Doppler config,
+  and protected GitHub environment from one declared root entry.
+* Existing HCP workspaces and delivery environments are imported and reach a
+  no-change plan before the root may alter them.
+* Account-wide Cloudflare Access resources have one documented state owner and
+  no longer require routine dashboard edits.
+* Plan credentials cannot write provider configuration, and coding-agent pull
+  requests cannot receive account-owner credentials.
+* Recovery is exercised from a clean checkout using only the documented seed.
+* Cloudflare dashboard write restrictions remain disabled until import,
+  canary change, rollback, and break-glass recovery have all passed.
