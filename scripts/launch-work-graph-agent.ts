@@ -253,22 +253,23 @@ export function selectCodexProvider(
   return selected;
 }
 
-function selectModel(
+export function selectModel(
   providers: readonly RoutingProvider[],
   route: TicketRoute,
   override?: string,
 ): string {
   const offered = new Set(
     eligibleCodexProviders(providers).flatMap(({ models }) =>
-      models.filter(({ isLegacy }) => isLegacy !== true).map(({ slug }) => slug),
+      // A legacy label does not withdraw a model explicitly selected by policy.
+      models.map(({ slug }) => slug),
     ),
   );
   const selected = override ?? route.preferredModels.find((model) => offered.has(model));
   if (selected === undefined || !offered.has(selected)) {
     const modelDescription =
       override === undefined
-        ? "the selected non-legacy model"
-        : `non-legacy model ${override}`;
+        ? "the selected policy model"
+        : `model ${override}`;
     throw new Error(
       `No ready authenticated Codex provider offers ${modelDescription}`,
     );
@@ -386,6 +387,7 @@ async function main(): Promise<void> {
         prepareWorktree: {
           projectCwd: project.workspaceRoot,
           baseBranch,
+          branch: `work-graph/${id}`,
           startFromOrigin: true,
           requireWorktree: true,
         },
