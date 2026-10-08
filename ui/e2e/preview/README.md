@@ -47,8 +47,9 @@ environment. A failed run uploads screenshots and DOM snapshots for seven days.
 Traces stay on the ephemeral runner because they can contain authentication
 cookies.
 
-Agent launchers that already inject `dev_agent` can run the mise task directly
-with only `PREVIEW_SITE_URL` set.
+Remote agent runtimes that already inject `dev_agent` can run the mise task
+directly with only `PREVIEW_SITE_URL` set. Local T3 Code agents use the explicit
+`doppler run` form above.
 
 The suite validates that the URL is the canonical PR alias for the configured
 Pages host. It sends the Access credentials only on an exact-origin priming

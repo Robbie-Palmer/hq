@@ -68,10 +68,12 @@ subjective design question, such as ambiguous layout, visual balance,
 animation, or responsive nuance. Check the smallest relevant path. Take
 screenshots only when they help judge or report that question.
 
-Use only the preview access method documented in `AGENTS.md`. Do not search
-Doppler, the repository, or unrelated configuration for credentials. If the
-documented credentials or browser session are unavailable, report the limit and
-stop preview QA. Never expose credentials.
+Use only the preview access methods documented in `AGENTS.md`. Its exact,
+config-scoped `doppler run` command is an allowed local access path, not a reason
+to inspect Doppler. Do not list or read credential values, search the repository
+for them, or use another config. In T3 Code, use the shared browser's existing
+Cloudflare session for manual QA. If the documented command or browser session
+is unavailable, report the limit and stop preview QA. Never expose credentials.
 
 If justified preview QA needs sign-in, seeded data, the API Worker, or
 ingestion, add `preview:backend` and comment exactly `/preview-backend`.
