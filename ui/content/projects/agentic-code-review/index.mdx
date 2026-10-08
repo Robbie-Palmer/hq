@@ -305,34 +305,29 @@ review logic and data on Cloudflare's managed infrastructure.
 
 <Mermaid
   chart={`flowchart TB
-GitHub["GitHub · external<br/>PR events and finding feedback"]
-subgraph Service["Review service · owned logic on Cloudflare"]
-Webhook["Worker<br/>Verify signature and repository"]
-State["Per-PR SQLite Durable Object<br/>Deduplicate, debounce, enforce budgets"]
-Workflow["Workflow<br/>Prepare context, run scouts, merge findings"]
-end
-Models["Inference providers · external<br/>OpenRouter and OpenCode scouts<br/>OpenRouter merger"]
-Publication["GitHub · external<br/>Native findings and rolling run summary"]
-Evidence["Private R2 · owned evidence<br/>Versioned runs, snapshots and outcomes"]
-Learning["Offline evaluation · owned tooling<br/>Frozen cohorts, isolated replays, DuckDB"]
-Owner["Project owner<br/>Review recommendations and proposed changes"]
+GitHub["GitHub<br/>External"]
+Service["Owned review service<br/>Worker, PR state,<br/>Workflow"]
+Models["Inference · external<br/>OpenRouter / OpenCode"]
+Evidence["Owned private R2<br/>Review evidence"]
+Learning["Offline evaluation<br/>Owned replay tooling<br/>and DuckDB"]
+Owner["Project owner<br/>Reviews changes"]
 
-GitHub -->|"signed webhook"| Webhook
-Webhook -->|"accepted event"| State
-State -->|"eligible review after debounce"| Workflow
-Workflow -->|"bounded context and prompts"| Models
-Models -->|"candidates, merged findings and usage"| Workflow
-Workflow -->|"check current head, apply publication policy"| Publication
-Workflow -->|"terminal run records and replay snapshots"| Evidence
-State -->|"feedback evidence and outcome revisions"| Evidence
+GitHub -->|"signed PR events and feedback"| Service
+Service -->|"head-checked findings and run summary"| GitHub
+Service -->|"context and prompts"| Models
+Models -->|"findings and usage"| Service
+Service -->|"run records, snapshots and feedback outcomes"| Evidence
 Evidence -->|"export with redacted replay snapshots"| Learning
-Learning -->|"scorecards and adopt / reject / gather evidence"| Owner
+Learning -->|"scorecards and recommendations"| Owner
 
 classDef external stroke-dasharray:5 5
-class GitHub,Models,Publication external
+class GitHub,Models external
 `}
-  className="w-full justify-start overflow-x-auto [&>svg]:min-w-[42rem]"
+  className="w-full justify-start overflow-x-auto [&>svg]:min-w-[54rem]"
 />
+
+On narrow screens, scroll the diagram horizontally or follow the reading guide
+below.
 
 ## Reading the flow
 
