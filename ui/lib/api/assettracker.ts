@@ -25,9 +25,11 @@ import {
   applyDeleteCapitalFlow,
   applyDeleteForecastAssumption,
   applyDeleteFutureCashFlow,
+  applyDeleteJobMoveScenario,
   applyDeletePlannedExpenditure,
   applyDeleteRecurringFlow,
   applyDeleteSnapshot,
+  applyDuplicateJobMoveScenario,
   applyImportAccountHistory,
   applyImportIncomeHistory,
   applyImportSalaryHistory,
@@ -37,6 +39,7 @@ import {
   applyRecordTransfer,
   applyRenameHouseholdMember,
   applySaveEmergencyFundPlan,
+  applySaveJobMoveScenario,
   applySaveMortgageScenario,
   applySaveSalaryRecord,
   applySetAccountLiquidity,
@@ -67,12 +70,14 @@ import {
   type ImportAccountHistoryInput,
   type ImportIncomeHistoryInput,
   type ImportSalaryHistoryInput,
+  type JobMoveScenarioIdInput,
   type MaterializeFlowInput,
   type RecordActualCashFlowInput,
   type RecordBalanceInput,
   type RecordTransferInput,
   type RenameHouseholdMemberInput,
   type SaveEmergencyFundPlanInput,
+  type SaveJobMoveScenarioInput,
   type SaveMortgageScenarioInput,
   type SaveSalaryRecordInput,
   type SetAccountLiquidityInput,
@@ -170,6 +175,15 @@ export interface AssetTrackerApi {
   ): Promise<AssetTrackerData>;
   saveEmergencyFundPlan(
     input: SaveEmergencyFundPlanInput,
+  ): Promise<AssetTrackerData>;
+  saveJobMoveScenario(
+    input: SaveJobMoveScenarioInput,
+  ): Promise<AssetTrackerData>;
+  duplicateJobMoveScenario(
+    input: JobMoveScenarioIdInput,
+  ): Promise<AssetTrackerData>;
+  deleteJobMoveScenario(
+    input: JobMoveScenarioIdInput,
   ): Promise<AssetTrackerData>;
   addHouseholdMember(input: AddHouseholdMemberInput): Promise<AssetTrackerData>;
   renameHouseholdMember(
@@ -507,6 +521,29 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
             new Date().toISOString(),
           ),
         ),
+      );
+    },
+    saveJobMoveScenario(input) {
+      return promiseFromSync(() =>
+        write(
+          applySaveJobMoveScenario(current(), input, new Date().toISOString()),
+        ),
+      );
+    },
+    duplicateJobMoveScenario(input) {
+      return promiseFromSync(() =>
+        write(
+          applyDuplicateJobMoveScenario(
+            current(),
+            input,
+            new Date().toISOString(),
+          ),
+        ),
+      );
+    },
+    deleteJobMoveScenario(input) {
+      return promiseFromSync(() =>
+        write(applyDeleteJobMoveScenario(current(), input)),
       );
     },
     addHouseholdMember(input) {

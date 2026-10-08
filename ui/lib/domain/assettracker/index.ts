@@ -20,6 +20,7 @@ export * from "./grossSalaryTrajectory";
 export * from "./household";
 export * from "./housingStrategy";
 export * from "./incomeRecord";
+export * from "./jobMoveScenario";
 export * from "./money";
 export * from "./mortgage";
 export * from "./mortgageCalculator";

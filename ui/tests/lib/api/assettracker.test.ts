@@ -119,6 +119,46 @@ describe("createLocalAssetTrackerApi", () => {
     });
   });
 
+  it("persists editable job-move scenarios through portable data", async () => {
+    const api = createApi();
+    const saved = await api.saveJobMoveScenario({
+      scenario: {
+        name: "Leave work",
+        employmentStatus: "unemployed",
+        transitionDate: "2027-04-01",
+        baseGrossPay: 0,
+        variableGrossPay: 0,
+        payFrequency: "monthly",
+        currency: "GBP",
+        jurisdiction: "England",
+        employeePensionRate: 0,
+        employeePensionMethod: "salarySacrifice",
+        employerPensionRate: 0,
+        replacedRecurringFlowIds: ["salary"],
+      },
+    });
+    const scenario = saved.jobMoveScenarios?.find(
+      ({ name }) => name === "Leave work",
+    );
+    if (scenario == null) throw new Error("Expected saved scenario");
+
+    await api.duplicateJobMoveScenario({ id: scenario.id });
+    const duplicated = (await createApi().load()).data;
+    expect(duplicated.jobMoveScenarios).toContainEqual(
+      expect.objectContaining({ name: "Leave work copy" }),
+    );
+
+    const restored = await createApi().importData(
+      JSON.parse(JSON.stringify(duplicated)),
+    );
+    expect(restored.jobMoveScenarios).toEqual(duplicated.jobMoveScenarios);
+
+    await api.deleteJobMoveScenario({ id: scenario.id });
+    expect((await createApi().load()).data.jobMoveScenarios).not.toContainEqual(
+      expect.objectContaining({ id: scenario.id }),
+    );
+  });
+
   it("persists an atomic account-history import", async () => {
     const seed = getDemoAssetTrackerData();
     const accountId = seed.accounts.find((account) => !account.closedAt)?.id;

@@ -18,6 +18,7 @@ import {
   migrateHouseholdOwnership,
 } from "./household";
 import { IncomeRecordSchema } from "./incomeRecord";
+import { JobMoveScenarioSchema } from "./jobMoveScenario";
 import { PositiveMoneySchema } from "./money";
 import {
   FinancialDecisionRecordSchema,
@@ -95,6 +96,7 @@ export const AssetTrackerDataSchema = z
     capitalFlows: z.array(CapitalFlowSchema).default([]),
     incomeHistory: z.array(IncomeRecordSchema).default([]),
     salaryHistory: z.array(SalaryHistoryRecordSchema).default([]),
+    jobMoveScenarios: z.array(JobMoveScenarioSchema).optional(),
     transfers: z.array(TransferSchema).default([]),
     recurringFlows: z.array(RecurringFlowSchema).default([]),
     plannedExpenditures: z.array(PlannedExpenditureSchema).default([]),

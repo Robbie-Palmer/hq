@@ -27,6 +27,7 @@ import {
   scopeAssetTrackerData,
   snapshotOwnershipKey,
 } from "@/lib/domain/assettracker/household";
+import { compareJobMoveScenario } from "@/lib/domain/assettracker/jobMoveScenario";
 import { getPortfolioFinancialIndependence } from "@/lib/domain/assettracker/portfolioReconciliation";
 import { valueAccountAtDate } from "@/lib/domain/assettracker/portfolioValuation";
 import { buildPropertyComparableViews } from "@/lib/domain/assettracker/propertyComparables";
@@ -35,6 +36,84 @@ import { currentSalaryHistory } from "@/lib/domain/assettracker/salaryHistory";
 import { getHouseholdTaxEstimate } from "@/lib/domain/assettracker/taxPosition";
 
 describe("Asset Tracker demo-data adapter", () => {
+  it("includes a prospective role that changes the forecast", () => {
+    const repository = buildRepository(getDemoAssetTrackerData());
+    const scenario = repository.jobMoveScenarios.find(
+      ({ id }) => id === "northstar-product-lead-offer",
+    );
+    if (scenario == null) throw new Error("Expected a demo job-move scenario");
+    const financialIndependence = getPortfolioFinancialIndependence(
+      repository,
+      "2026-10-01",
+    );
+    const comparison = compareJobMoveScenario({
+      repository,
+      scenario,
+      horizonMonths: 60,
+      startDate: "2026-10-01",
+      annualExpenditure: financialIndependence.representativeAnnualExpenditure,
+      annualCurrentExpenditure:
+        financialIndependence.representativeAnnualCurrentExpenditure,
+      financialIndependenceTarget: financialIndependence.target,
+      baselineCompensation: financialIndependence.currentCompensation,
+      emergencyFundAnalysis: null,
+    });
+    const horizon = comparison.timeline.at(-1);
+
+    expect(scenario.name).toBe("Northstar product lead offer");
+    expect(comparison.compensation.scenarioAnnualTakeHomePay).toBeGreaterThan(
+      comparison.compensation.baselineAnnualTakeHomePay ??
+        Number.POSITIVE_INFINITY,
+    );
+    expect(
+      comparison.timeline.some(
+        ({ scenario: point }) =>
+          point.spendingDrawdown.cash > 0 ||
+          point.spendingDrawdown.liquid > 0 ||
+          point.spendingDrawdown.illiquid > 0 ||
+          point.spendingDrawdown.unfunded > 0,
+      ),
+    ).toBe(false);
+    expect(horizon?.scenario.totalBalance).not.toBe(
+      horizon?.baseline.totalBalance,
+    );
+  });
+
+  it("demonstrates reserve depletion milestones during open-ended unemployment", () => {
+    const repository = buildRepository(getDemoAssetTrackerData());
+    const scenario = repository.jobMoveScenarios.find(
+      ({ id }) => id === "open-ended-career-break",
+    );
+    if (scenario == null) throw new Error("Expected the career-break scenario");
+    const financialIndependence = getPortfolioFinancialIndependence(
+      repository,
+      "2024-12-01",
+    );
+    const comparison = compareJobMoveScenario({
+      repository,
+      scenario,
+      horizonMonths: 120,
+      startDate: "2024-12-01",
+      annualExpenditure: financialIndependence.representativeAnnualExpenditure,
+      annualCurrentExpenditure:
+        financialIndependence.representativeAnnualCurrentExpenditure,
+      financialIndependenceTarget: financialIndependence.target,
+      baselineCompensation: financialIndependence.currentCompensation,
+      emergencyFundAnalysis: null,
+    });
+
+    expect(comparison.milestones.map(({ kind }) => kind)).toEqual(
+      expect.arrayContaining([
+        "income-stops",
+        "cash-exhausted",
+        "liquid-assets-exhausted",
+        "unfunded-gap",
+      ]),
+    );
+    expect(comparison.financialIndependenceDates.baseline).not.toBeNull();
+    expect(comparison.financialIndependenceDates.scenario).toBeNull();
+  });
+
   it("isolates the portfolio value caused by exchange-rate changes", () => {
     const series: NetWorthDataPoint[] = [
       {
@@ -123,6 +202,7 @@ describe("Asset Tracker demo-data adapter", () => {
       amount: 500_000,
       currency: "GBP",
     });
+    expect(repository.settings.withdrawalRate).toBe(0.018);
     expect(repository.incomeHistory).toHaveLength(10);
     expect(repository.incomeHistory.at(0)).toEqual({
       date: "2020-06-01",
