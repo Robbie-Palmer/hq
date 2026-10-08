@@ -677,10 +677,8 @@ async function main(): Promise<void> {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  try {
-    await main();
-  } catch (error: unknown) {
+  main().catch((error: unknown) => {
     console.error(redactAdapterText(error instanceof Error ? error.message : String(error)));
     process.exitCode = 1;
-  }
+  });
 }
