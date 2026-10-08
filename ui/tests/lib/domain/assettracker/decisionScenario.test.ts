@@ -240,6 +240,15 @@ describe("decision scenario comparison", () => {
       },
     ]);
     expect(afterExtension?.expected.reserveCoverageMonths).toBe(0);
+    expect(result.actions).toContainEqual(
+      expect.objectContaining({
+        kind: "saving",
+        name: "Save toward Extension",
+        amount: 800,
+        cadence: "monthly",
+        countsAsExpenditure: false,
+      }),
+    );
   });
 
   it("keeps alternative and uncertainty paths visible without ranking them", () => {

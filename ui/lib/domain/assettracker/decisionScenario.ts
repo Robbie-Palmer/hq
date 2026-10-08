@@ -312,59 +312,70 @@ function actions(
   baseline: readonly RunwayScenarioPoint[],
 ): DecisionScenarioAction[] {
   const decisionSet = new Set(decisionIds);
-  return futureCashFlowForecastItems(repository.futureCashFlows, {
-    decisionIds,
-    amount: "expected",
-    timing: "expected",
-  })
-    .filter(({ kind, futureCashFlowId }) =>
-      kind === "decision" ? decisionSet.has(futureCashFlowId) : false,
-    )
-    .flatMap((item) => {
-      const account = repository.accounts.get(item.fromAccountId);
-      if (account == null) return [];
-      const method = account.assetType === "cash" ? "payment" : "asset-sale";
-      const result: DecisionScenarioAction[] = [
-        {
-          id: item.id,
-          date: item.date,
-          cadence: "once",
-          kind: method,
-          name: item.name,
-          accountName: account.name,
-          amount: item.amount,
-          currency: item.currency,
-          countsAsExpenditure: method === "payment",
-        },
-      ];
-      const baselinePoint = pointOnOrAfter(baseline, item.date);
-      const available = Math.max(
-        baselinePoint?.accountBalances[item.fromAccountId] ?? 0,
-        0,
+  const forecastItems = futureCashFlowForecastItems(
+    repository.futureCashFlows,
+    {
+      decisionIds,
+      amount: "expected",
+      timing: "expected",
+    },
+  ).filter(({ kind, futureCashFlowId }) =>
+    kind === "decision" ? decisionSet.has(futureCashFlowId) : false,
+  );
+  const scheduledByAccount = new Map<string, number>();
+  const savingGapByAccount = new Map<string, number>();
+  const result: DecisionScenarioAction[] = [];
+  for (const item of forecastItems) {
+    const account = repository.accounts.get(item.fromAccountId);
+    if (account == null) continue;
+    const method = account.assetType === "cash" ? "payment" : "asset-sale";
+    const scheduled = (scheduledByAccount.get(account.id) ?? 0) + item.amount;
+    scheduledByAccount.set(account.id, scheduled);
+    const baselinePoint = pointOnOrAfter(baseline, item.date);
+    const available = Math.max(
+      baselinePoint?.accountBalances[item.fromAccountId] ?? 0,
+      0,
+    );
+    const savingGap = Math.max(scheduled - available, 0);
+    const previousSavingGap = savingGapByAccount.get(account.id) ?? 0;
+    const additionalSaving = Math.max(savingGap - previousSavingGap, 0);
+    savingGapByAccount.set(account.id, Math.max(previousSavingGap, savingGap));
+    if (additionalSaving > 0) {
+      const months = Math.max(
+        differenceInCalendarMonths(
+          parseISO(item.date),
+          parseISO(input.startDate),
+        ),
+        1,
       );
-      const gap = Math.max(item.amount - available, 0);
-      if (gap > 0) {
-        const months = Math.max(
-          differenceInCalendarMonths(
-            parseISO(item.date),
-            parseISO(input.startDate),
-          ),
-          1,
-        );
-        result.unshift({
-          id: `${item.id}:saving`,
-          date: input.startDate,
-          cadence: "monthly",
-          kind: "saving",
-          name: `Save toward ${item.name}`,
-          accountName: account.name,
-          amount: gap / months,
-          currency: item.currency,
-          countsAsExpenditure: false,
-        });
-      }
-      return result;
+      result.push({
+        id: `${item.id}:saving`,
+        date: input.startDate,
+        cadence: "monthly",
+        kind: "saving",
+        name: `Save toward ${item.name}`,
+        accountName: account.name,
+        amount: additionalSaving / months,
+        currency: item.currency,
+        countsAsExpenditure: false,
+      });
+    }
+    result.push({
+      id: item.id,
+      date: item.date,
+      cadence: "once",
+      kind: method,
+      name: item.name,
+      accountName: account.name,
+      amount: item.amount,
+      currency: item.currency,
+      countsAsExpenditure: method === "payment",
     });
+  }
+  return result.toSorted(
+    (left, right) =>
+      left.date.localeCompare(right.date) || left.id.localeCompare(right.id),
+  );
 }
 
 function fundingMechanics(
