@@ -2,6 +2,7 @@
 
 import { useTheme } from "next-themes";
 import { useEffect, useRef, useState } from "react";
+import { recoverFromStaleChunk } from "@/lib/browser/stale-chunk-recovery";
 
 interface MermaidProps {
   chart: string;
@@ -89,6 +90,7 @@ function handleRenderError(
   container: HTMLDivElement | null,
   error: unknown,
 ): void {
+  if (!isCancelled && recoverFromStaleChunk(error)) return;
   console.error("Error rendering mermaid diagram:", error);
   const active = activeContainer(isCancelled, container);
   if (active) showRenderError(active, error);
