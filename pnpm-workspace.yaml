@@ -73,6 +73,7 @@ peerDependencyRules:
 # ml-pipelines/recipe-parsing and is API-compatible (image serving uses
 # Cloudflare Images, so Next's sharp path is not exercised at runtime).
 overrides:
+  '@electric-sql/pglite': '^0.5.0'
   '@esbuild-kit/core-utils>esbuild': '^0.28.0'
   'lighthouse>@sentry/node': '^10.66.0'
   js-yaml: '^5.0.0'
