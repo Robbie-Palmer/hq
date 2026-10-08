@@ -82,8 +82,15 @@ const securitySignal =
   /\b(?:authentication|authorization|credential|secret|security|privacy|threat model|access control)\b/iu;
 const broadChangeSignal =
   /\b(?:migration|infrastructure|terraform|kubernetes|platform|distributed|concurrency|orchestration|database schema)\b/iu;
-const protectedMutationSignal =
-  /\b(?:deploy to production|deployment to production|production deploy|production deployment|provision(?:ing)?|rotate (?:a |the )?(?:credential|key|secret)|database migration|schema migration|delete production|destructive operation|terraform apply|kubectl apply|payment|billing)\b/iu;
+const protectedMutationSignals = [
+  /\b(?:deploy(?:ment)? to production|production deploy(?:ment)?)\b/iu,
+  /\bprovision(?:ing)?\b/iu,
+  /\brotate (?:a |the )?(?:credential|key|secret)\b/iu,
+  /\b(?:database|schema) migration\b/iu,
+  /\b(?:delete production|destructive operation)\b/iu,
+  /\b(?:terraform|kubectl) apply\b/iu,
+  /\b(?:payment|billing)\b/iu,
+];
 const routineSignal =
   /\b(?:typo|copy edit|broken link|link fix|rename|small prose|single page)\b/iu;
 
@@ -120,10 +127,6 @@ function codexModelPolicy(complexity: Complexity): {
         effort: "high",
       };
     case "standard":
-      return {
-        models: ["gpt-5.6-sol"],
-        effort: "high",
-      };
     case "routine":
       return {
         models: ["gpt-5.6-sol"],
@@ -172,7 +175,9 @@ export function deriveTicketRoute(selection: WorkGraphSelection): TicketRoute {
 
   const complexity = complexityForScore(score);
   const policy = codexModelPolicy(complexity);
-  const protectedMutation = protectedMutationSignal.test(text);
+  const protectedMutation = protectedMutationSignals.some((signal) =>
+    signal.test(text),
+  );
   if (protectedMutation) reasons.push("protected external mutation");
 
   return {
@@ -260,8 +265,12 @@ function selectModel(
   );
   const selected = override ?? route.preferredModels.find((model) => offered.has(model));
   if (selected === undefined || !offered.has(selected)) {
+    const modelDescription =
+      override === undefined
+        ? "the selected non-legacy model"
+        : `non-legacy model ${override}`;
     throw new Error(
-      `No ready authenticated Codex provider offers the selected non-legacy model${override === undefined ? "" : ` ${override}`}`,
+      `No ready authenticated Codex provider offers ${modelDescription}`,
     );
   }
   return selected;
