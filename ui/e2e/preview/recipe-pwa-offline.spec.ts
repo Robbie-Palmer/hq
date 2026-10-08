@@ -9,7 +9,10 @@ import {
 type OfflineReadiness = {
   controlled: boolean;
   sessionCached: boolean;
+  snapshotDatabaseExists: boolean;
+  snapshotStoreExists: boolean;
   snapshotCount: number;
+  snapshotReadError: string | null;
 };
 
 async function waitForServiceWorkerControl(page: Page): Promise<void> {
@@ -63,40 +66,73 @@ async function readOfflineReadiness(page: Page): Promise<OfflineReadiness> {
     const snapshotDatabaseExists = databases.some(
       ({ name }) => name === "robbies-recipes",
     );
+    let snapshotStoreExists = false;
+    let snapshotCount = 0;
+    let snapshotReadError: string | null = null;
 
-    const snapshotCount = snapshotDatabaseExists
-      ? await new Promise<number>((resolve) => {
-          const request = indexedDB.open("robbies-recipes");
-          request.onerror = () => resolve(0);
-          request.onsuccess = () => {
-            const database = request.result;
-            if (!database.objectStoreNames.contains("recipe-snapshots")) {
-              database.close();
-              resolve(0);
-              return;
-            }
-            const count = database
-              .transaction("recipe-snapshots")
-              .objectStore("recipe-snapshots")
-              .count();
-            count.onerror = () => {
-              database.close();
-              resolve(0);
-            };
-            count.onsuccess = () => {
-              database.close();
-              resolve(count.result);
-            };
+    if (snapshotDatabaseExists) {
+      await new Promise<void>((resolve) => {
+        const request = indexedDB.open("robbies-recipes");
+        request.onerror = () => {
+          snapshotReadError =
+            request.error?.message ?? "could not open the snapshot database";
+          resolve();
+        };
+        request.onsuccess = () => {
+          const database = request.result;
+          if (!database.objectStoreNames.contains("recipe-snapshots")) {
+            database.close();
+            resolve();
+            return;
+          }
+          snapshotStoreExists = true;
+          const count = database
+            .transaction("recipe-snapshots")
+            .objectStore("recipe-snapshots")
+            .count();
+          count.onerror = () => {
+            snapshotReadError =
+              count.error?.message ?? "could not count recipe snapshots";
+            database.close();
+            resolve();
           };
-        })
-      : 0;
+          count.onsuccess = () => {
+            snapshotCount = count.result;
+            database.close();
+            resolve();
+          };
+        };
+      });
+    }
 
     return {
       controlled: navigator.serviceWorker.controller !== null,
       sessionCached: session !== undefined,
+      snapshotDatabaseExists,
+      snapshotStoreExists,
       snapshotCount,
+      snapshotReadError,
     };
   });
+}
+
+function missingOfflinePrerequisites(readiness: OfflineReadiness): string[] {
+  const missing: string[] = [];
+  if (!readiness.controlled) missing.push("service-worker control");
+  if (!readiness.sessionCached) missing.push("cached authenticated session");
+  if (!readiness.snapshotDatabaseExists) {
+    missing.push("recipe snapshot database");
+  } else if (!readiness.snapshotStoreExists) {
+    missing.push("recipe snapshot store");
+  } else if (readiness.snapshotCount !== 1) {
+    missing.push(
+      `one recipe snapshot (found ${readiness.snapshotCount.toString()})`,
+    );
+  }
+  if (readiness.snapshotReadError) {
+    missing.push(`readable recipe snapshots (${readiness.snapshotReadError})`);
+  }
+  return missing;
 }
 
 async function prepareOfflineRecipeSession(page: Page): Promise<void> {
@@ -109,16 +145,27 @@ async function prepareOfflineRecipeSession(page: Page): Promise<void> {
   await expect(
     page.getByText("Your recipe box", { exact: true }),
   ).toBeVisible();
-  await expect
-    .poll(() => readOfflineReadiness(page), {
-      message: "recipe session and bootstrap were not saved for offline use",
-      timeout: previewReadinessTimeoutMs,
-    })
-    .toMatchObject({
-      controlled: true,
-      sessionCached: true,
-      snapshotCount: 1,
-    });
+  let readiness = await readOfflineReadiness(page);
+  try {
+    await expect
+      .poll(
+        async () => {
+          readiness = await readOfflineReadiness(page);
+          return missingOfflinePrerequisites(readiness);
+        },
+        {
+          message:
+            "recipe session and bootstrap were not saved for offline use",
+          timeout: previewReadinessTimeoutMs,
+        },
+      )
+      .toEqual([]);
+  } catch (error) {
+    throw new Error(
+      `Offline recipe readiness timed out. Missing: ${missingOfflinePrerequisites(readiness).join(", ")}. Last state: ${JSON.stringify(readiness)}`,
+      { cause: error },
+    );
+  }
 }
 
 async function clearOfflineRecipeSnapshots(page: Page): Promise<void> {
@@ -154,7 +201,7 @@ async function expectOfflineDestination(page: Page, path: string) {
   ).toHaveCount(0);
 }
 
-test.describe.configure({ timeout: 90_000 });
+test.describe.configure({ retries: 0, timeout: 90_000 });
 
 test.describe("deployed recipe PWA offline navigation", () => {
   test("routes unavailable app navigation through the offline page", async ({
