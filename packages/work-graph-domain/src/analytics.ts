@@ -1,4 +1,3 @@
-/** Only work-state fields cross the analytics boundary. Never spread event data. */
 export interface OperationalEvent {
   readonly sequence: number;
   readonly type: string;
@@ -13,7 +12,7 @@ export interface AnalyticsScope {
   readonly initiativeId: string | null;
 }
 
-const categories = new Set([
+const attentionCategories = new Set([
   "decision",
   "ambiguity",
   "authority",
@@ -54,12 +53,12 @@ interface MetricGroup {
   itemCounts: Map<string, number>;
 }
 
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
   if (value !== null && typeof value === "object") {
     return `{${Object.entries(value)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, field]) => `${JSON.stringify(key)}:${canonicalJson(field)}`)
+      .map(([key, field]) => `${JSON.stringify(key)}:${stableStringify(field)}`)
       .join(",")}}`;
   }
   return JSON.stringify(value) ?? "undefined";
@@ -76,7 +75,7 @@ function orderedEvents(events: readonly OperationalEvent[]) {
       throw new Error("Invalid operational event identity or timestamp.");
     }
     const previous = identities.get(event.sequence);
-    if (previous && canonicalJson(previous) !== canonicalJson(event)) {
+    if (previous && stableStringify(previous) !== stableStringify(event)) {
       throw new Error("Conflicting immutable event identity.");
     }
     identities.set(event.sequence, event);
@@ -158,7 +157,7 @@ class ReportProjection {
   private request(event: OperationalEvent, item: string, at: number) {
     if (typeof event.data.attentionRequestId !== "string") return;
     const kind = event.data.kind;
-    const cause = `attention:${typeof kind === "string" && categories.has(kind) ? kind : "other"}`;
+    const cause = `attention:${typeof kind === "string" && attentionCategories.has(kind) ? kind : "other"}`;
     this.requests.set(event.data.attentionRequestId, {
       item,
       cause,
@@ -248,11 +247,6 @@ class ReportProjection {
   }
 }
 
-/**
- * Storage-independent reference semantics for exported work-state events.
- * Callers supply complete history and an explicit current-scope snapshot.
- * This module performs no I/O and does not implement extraction or a report job.
- */
 export function operationalReport(
   events: readonly OperationalEvent[],
   scopes: readonly AnalyticsScope[],
