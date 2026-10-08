@@ -62,11 +62,54 @@ gitleaks = "8.30.1"
 typos = "1.50.3"
 "github:oasdiff/oasdiff" = "v1.33.0"
 duckdb = "1.5.6"
+"npm:t3" = "0.0.45"
 
 [env]
 MISE_EXPERIMENTAL = "1"
 
 # Root-level tasks for repo-wide tooling
+[tasks."work-graph:launch-agent"]
+description = "Create a T3 Code thread that claims and executes the next Work Graph ticket"
+depends = ["//:install"]
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+
+git_common_dir="$(git rev-parse --path-format=absolute --git-common-dir)"
+export T3_WORK_GRAPH_PROJECT_ROOT="$(dirname "$git_common_dir")"
+base_branch="${T3_WORK_GRAPH_BASE_BRANCH:-}"
+if [[ -z "$base_branch" ]]; then
+  remote_head="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+  base_branch="${remote_head#origin/}"
+fi
+if [[ -z "$base_branch" ]]; then
+  base_branch="$(git config --get init.defaultBranch || true)"
+fi
+export T3_WORK_GRAPH_BASE_BRANCH="${base_branch:-main}"
+t3_home="${T3CODE_HOME:-$HOME/.t3}"
+export T3_WORK_GRAPH_ORIGIN="$(jq -er '.origin' "$t3_home/userdata/server-runtime.json")"
+ready="$(work-graph ready --limit 1)"
+ticket_id="$(jq -er '.items[0].id' <<<"$ready")"
+ticket="$(jq -cer '.items[0]' <<<"$ready")"
+context="$(work-graph context show "$ticket_id")"
+export T3_WORK_GRAPH_SELECTION="$(jq -cn \
+  --argjson ticket "$ticket" \
+  --argjson context "$context" \
+  '{ticket: $ticket, context: $context.items}')"
+export T3_ACCESS_TOKEN="$(t3 auth session issue \
+  --base-dir "$t3_home" \
+  --ttl 15m \
+  --label work-graph-agent-launcher \
+  --token-only)"
+
+exec pnpm exec tsx scripts/launch-work-graph-agent.ts
+"""
+
+[tasks."work-graph:launch-agent:test"]
+description = "Test Work Graph ticket routing and T3 profile selection"
+depends = ["//:install"]
+run = "pnpm exec vitest run scripts/launch-work-graph-agent.test.ts"
+
 [tasks.lint]
 description = "Lint all files across the entire repo"
 depends = ["//:lint:markdown", "//:lint:mdx", "//:lint:yaml", "//:lint:typos", "//:lint:knip", "//:lint:actions", "//:lint:api", "//:lint:prose", "//:lint:typescript", "//packages/agent-auth:check", "//packages/agent-auth-mcp:check", "//packages/agent-coordinator-domain:check", "//packages/ai-review-domain:check", "//packages/browser-base:check", "//packages/drizzle-postgres:check", "//packages/finance-housing-indices:check", "//packages/finance-inflation-indices:check", "//packages/finance-tax-rules:check", "//packages/github-client:check", "//packages/node-base:check", "//packages/openrouter-client:check", "//packages/recipe-domain:check", "//packages/ts-base:check", "//packages/work-graph-cli:check", "//packages/work-graph-db:check", "//packages/work-graph-domain:check", "//packages/writing-editor-domain:check", "//packages/wedding-planner-domain:check", "//ai-review:check", "//ml-pipelines/ai-review-evaluation:check", "//ml-pipelines/writing-editor-evaluation:check", "//workers/finance-tax-monitor:check", "//workers/work-graph-observer:check", "//ui:lint", "//infra/public-platform:lint", "//infra/public-platform:lint:tflint", "//infra/bootstrap:lint", "//infra/bootstrap:lint:tflint", "//infra/remote-development:lint", "//infra/remote-development:lint:tflint", "//infra/work-graph:lint", "//infra/work-graph:lint:tflint"]

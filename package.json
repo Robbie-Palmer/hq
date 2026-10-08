@@ -6,9 +6,11 @@
   "type": "module",
   "description": "Root package for projects, writing, infrastructure, and homelab",
   "dependencies": {
+    "@wyrd-company/t3code-client": "0.5.0",
     "observability": "workspace:*",
     "recipe-domain": "workspace:*",
-    "ts-base": "workspace:*"
+    "ts-base": "workspace:*",
+    "zod": "^4.2.1"
   },
   "scripts": {
     "prepare": "husky"
@@ -29,6 +31,7 @@
     "remark-preset-lint-recommended": "^7.0.0",
     "tsx": "^4.23.12",
     "typescript": "^5",
+    "vitest": "^5.0.0",
     "yaml": "2.9.1",
     "yaml-lint": "^1.7.0"
   },
