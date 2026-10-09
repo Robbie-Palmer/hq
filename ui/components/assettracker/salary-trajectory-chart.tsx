@@ -254,6 +254,15 @@ function chartConfig(labels: Readonly<Record<SalarySeries, string>>) {
   } satisfies ChartConfig;
 }
 
+function timestampSalaryChartData(
+  chartData: readonly SalaryTrajectoryChartDatum[],
+) {
+  return chartData.map((point) => ({
+    ...point,
+    timestamp: Date.parse(point.date),
+  }));
+}
+
 function SalaryChartCanvas({
   chartData,
   dateDomain,
@@ -264,10 +273,7 @@ function SalaryChartCanvas({
   labels,
   showRecordedPeaks,
 }: SalaryChartCanvasProps) {
-  const timestampedChartData = chartData.map((point) => ({
-    ...point,
-    timestamp: Date.parse(point.date),
-  }));
+  const timestampedChartData = timestampSalaryChartData(chartData);
 
   return (
     <ChartContainer
