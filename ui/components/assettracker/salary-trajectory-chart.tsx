@@ -9,6 +9,10 @@ import {
 } from "@/components/ui/chart";
 import { cn } from "@/lib/generic/styles";
 import {
+  ChartPeakReferenceLine,
+  highestFiniteValue,
+} from "./chart-peak-reference-line";
+import {
   CurrencyHistoryChartAxes,
   formatHistoryDateLabel,
 } from "./currency-history-chart-axes";
@@ -63,6 +67,7 @@ type SalaryTrajectoryChartProps = Readonly<{
   label: string;
   nominalLabel: string;
   realLabel: string;
+  showRecordedPeaks?: boolean;
 }>;
 
 type SalaryChartCanvasProps = Readonly<{
@@ -73,6 +78,7 @@ type SalaryChartCanvasProps = Readonly<{
   hidden: ReadonlySet<SalarySeries>;
   label: string;
   labels: Readonly<Record<SalarySeries, string>>;
+  showRecordedPeaks: boolean;
 }>;
 
 const RECORDED_TOOLTIP_KEY = {
@@ -195,6 +201,44 @@ function SalaryLines({
   );
 }
 
+function PeakSalaryLines({
+  chartData,
+  hasRealValues,
+  hidden,
+}: Readonly<{
+  chartData: readonly SalaryTrajectoryChartDatum[];
+  hasRealValues: boolean;
+  hidden: ReadonlySet<SalarySeries>;
+}>) {
+  const nominalPeak = highestFiniteValue(
+    chartData.map((point) => point.nominal),
+  );
+  const realPeak = highestFiniteValue(chartData.map((point) => point.real));
+
+  return (
+    <>
+      {!hidden.has("nominal") && nominalPeak != null && (
+        <ChartPeakReferenceLine
+          color={NOMINAL_COLOR}
+          currency="GBP"
+          label="Peak nominal"
+          position="insideTopRight"
+          value={nominalPeak}
+        />
+      )}
+      {hasRealValues && !hidden.has("real") && realPeak != null && (
+        <ChartPeakReferenceLine
+          color={REAL_COLOR}
+          currency="GBP"
+          label="Peak inflation-adjusted"
+          position="insideBottomRight"
+          value={realPeak}
+        />
+      )}
+    </>
+  );
+}
+
 function chartConfig(labels: Readonly<Record<SalarySeries, string>>) {
   return {
     nominal: { label: labels.nominal, color: NOMINAL_COLOR },
@@ -218,6 +262,7 @@ function SalaryChartCanvas({
   hidden,
   label,
   labels,
+  showRecordedPeaks,
 }: SalaryChartCanvasProps) {
   const timestampedChartData = chartData.map((point) => ({
     ...point,
@@ -243,6 +288,13 @@ function SalaryChartCanvas({
             dateTicks={salaryTrajectoryDateTicks(dateDomain)}
             tooltipContent={<SalaryTooltipContent />}
           />
+          {showRecordedPeaks && (
+            <PeakSalaryLines
+              chartData={chartData}
+              hasRealValues={hasRealValues}
+              hidden={hidden}
+            />
+          )}
           <SalaryLines
             assumed={false}
             hasRealValues={hasRealValues}
@@ -270,6 +322,7 @@ export function SalaryTrajectoryChart({
   label,
   nominalLabel,
   realLabel,
+  showRecordedPeaks = false,
 }: SalaryTrajectoryChartProps) {
   const [hidden, setHidden] = useState<ReadonlySet<SalarySeries>>(new Set());
   const hasRealValues = chartData.some(
@@ -297,6 +350,7 @@ export function SalaryTrajectoryChart({
         hidden={hidden}
         label={label}
         labels={labels}
+        showRecordedPeaks={showRecordedPeaks}
       />
       <Legend
         hasRealValues={hasRealValues}
