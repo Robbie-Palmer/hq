@@ -268,7 +268,7 @@ export default {
       const consumer = new GitHubDeliveryConsumer(db);
       for (const message of batch.messages) {
         try {
-          const disposition = await consumer.consume(message.body);
+          const disposition = await consumer.consume(message.body); // NOSONAR: Serialize messages on the single database connection.
           console.log(JSON.stringify({ deliveryId: message.body.deliveryId, disposition }));
           message.ack();
         } catch {

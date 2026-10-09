@@ -48,6 +48,25 @@ function sha(value: unknown): string {
   return result;
 }
 
+function mergeability(value: unknown): PullRequestSnapshot["mergeability"] {
+  if (value === true) return "mergeable";
+  if (value === false) return "conflicting";
+  return "unknown";
+}
+
+function workflowState(value: unknown): DeliveryEvidenceObservation["state"] {
+  if (value === "success") return "success";
+  if (value === "cancelled") return "cancelled";
+  return "failure";
+}
+
+function deploymentState(value: unknown): DeliveryEvidenceObservation["state"] {
+  if (value === "success") return "success";
+  if (value === "inactive") return "cancelled";
+  if (value === "failure" || value === "error") return "failure";
+  return "pending";
+}
+
 function pullRequestObservation(delivery: GitHubDelivery): GitHubObservation {
   const pr = record(delivery.payload.pull_request);
   const headSha = sha(record(pr.head).sha);
@@ -77,12 +96,7 @@ function pullRequestObservation(delivery: GitHubDelivery): GitHubObservation {
     mergeCommitSha,
     state,
     draft: pr.draft,
-    mergeability:
-      pr.mergeable === true
-        ? "mergeable"
-        : pr.mergeable === false
-          ? "conflicting"
-          : "unknown",
+    mergeability: mergeability(pr.mergeable),
     reviewDecision: null,
     checkSummary: "unknown",
     observedAt: text(pr.updated_at),
@@ -159,12 +173,7 @@ function workflowObservation(
       externalId: `${delivery.repository.toLowerCase()}/actions/runs/${id(run.id)}`,
       commitSha: sha(run.head_sha),
       kind: "ci",
-      state:
-        run.conclusion === "success"
-          ? "success"
-          : run.conclusion === "cancelled"
-            ? "cancelled"
-            : "failure",
+      state: workflowState(run.conclusion),
       name: text(run.name),
       sourceUrl: text(run.html_url),
       providerObservedAt: text(run.updated_at),
@@ -193,14 +202,7 @@ function deploymentObservation(delivery: GitHubDelivery): GitHubObservation {
       externalId: `${delivery.repository.toLowerCase()}/deployments/${id(deployment.id)}`,
       commitSha: sha(deployment.sha),
       kind: "deployment",
-      state:
-        status.state === "success"
-          ? "success"
-          : status.state === "inactive"
-            ? "cancelled"
-            : status.state === "failure" || status.state === "error"
-              ? "failure"
-              : "pending",
+      state: deploymentState(status.state),
       environment: text(status.environment ?? deployment.environment),
       // The status API URL identifies the observation even without a log URL.
       sourceUrl: text(status.url),
