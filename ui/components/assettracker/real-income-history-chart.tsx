@@ -21,6 +21,10 @@ import {
   InflationDataError,
   type InflationDatasetRelease,
 } from "@/lib/domain/assettracker";
+import {
+  ChartPeakReferenceLine,
+  highestFiniteValue,
+} from "./chart-peak-reference-line";
 import { CurrencyHistoryChartAxes } from "./currency-history-chart-axes";
 import { InflationDatasetDisclosure } from "./inflation-dataset-disclosure";
 
@@ -173,6 +177,12 @@ export function RealIncomeHistoryChart({
     (point) => point.adjustedIncome == null,
   ).length;
   const adjustedCount = data.length - unavailableCount;
+  const nominalPeak = highestFiniteValue(
+    data.map((point) => point.nominalIncome),
+  );
+  const adjustedPeak = highestFiniteValue(
+    data.map((point) => point.adjustedIncome),
+  );
   const excludedCurrencyCount = incomeHistory.length - data.length;
   const hasOtherCurrencyHistory = excludedCurrencyCount > 0;
 
@@ -205,6 +215,20 @@ export function RealIncomeHistoryChart({
                   margin={{ top: 10, right: 18, left: 0, bottom: 5 }}
                 >
                   <CurrencyHistoryChartAxes currency={currency} />
+                  <ChartPeakReferenceLine
+                    color={NOMINAL_COLOR}
+                    currency={currency}
+                    label="Peak nominal income"
+                    position="insideTopRight"
+                    value={nominalPeak}
+                  />
+                  <ChartPeakReferenceLine
+                    color={REAL_COLOR}
+                    currency={currency}
+                    label="Peak inflation-adjusted income"
+                    position="insideBottomRight"
+                    value={adjustedPeak}
+                  />
                   <Line
                     type="monotone"
                     dataKey="nominalIncome"

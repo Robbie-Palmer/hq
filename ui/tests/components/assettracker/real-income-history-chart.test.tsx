@@ -22,6 +22,22 @@ vi.mock("recharts", () => ({
       data-series={dataKey}
     />
   ),
+  ReferenceLine: ({
+    label,
+    strokeDasharray,
+    y,
+  }: {
+    label?: { value?: string };
+    strokeDasharray?: string;
+    y: number;
+  }) => (
+    <div
+      data-peak-label={label?.value}
+      data-peak-value={y}
+      data-stroke-dasharray={strokeDasharray}
+      data-testid="income-peak-line"
+    />
+  ),
   CartesianGrid: () => null,
   Legend: () => null,
   Tooltip: ({ formatter }: { formatter?: (value: number) => string }) => (
@@ -163,6 +179,21 @@ describe("RealIncomeHistoryChart", () => {
     expect(screen.getAllByText("CPIH-adjusted income").length).toBeGreaterThan(
       0,
     );
+    const peakLines = screen.getAllByTestId("income-peak-line");
+    expect(peakLines).toHaveLength(2);
+    expect(peakLines[0]).toHaveAttribute(
+      "data-peak-label",
+      "Peak nominal income: £3,000",
+    );
+    expect(peakLines[0]).toHaveAttribute("data-peak-value", "3000");
+    expect(peakLines[1]).toHaveAttribute(
+      "data-peak-label",
+      "Peak inflation-adjusted income: £3,300",
+    );
+    expect(peakLines[1]).toHaveAttribute("data-peak-value", "3300");
+    for (const peakLine of peakLines) {
+      expect(peakLine).toHaveAttribute("data-stroke-dasharray", "4 4");
+    }
     expect(screen.getByText(/ONS 2025-03-19/)).toHaveTextContent(
       "dataset 2025-03-19:aaaaaaaaaaaa",
     );

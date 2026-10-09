@@ -39,6 +39,22 @@ vi.mock("recharts", () => ({
       data-stroke-dasharray={strokeDasharray}
     />
   ),
+  ReferenceLine: ({
+    label,
+    strokeDasharray,
+    y,
+  }: {
+    label?: { value?: string };
+    strokeDasharray?: string;
+    y: number;
+  }) => (
+    <div
+      data-peak-label={label?.value}
+      data-peak-value={y}
+      data-stroke-dasharray={strokeDasharray}
+      data-testid="salary-peak-line"
+    />
+  ),
   CartesianGrid: () => null,
   Legend: () => null,
   Tooltip: ({
@@ -296,6 +312,43 @@ describe("RealGrossSalaryHistory", () => {
       "data-line-type",
       "linear",
     );
+    const chart = grossChart.querySelector('[data-testid="salary-chart"]');
+    if (!(chart instanceof HTMLElement)) {
+      throw new Error("Expected the gross salary chart");
+    }
+    const chartData = JSON.parse(chart.dataset.chartData ?? "[]") as Array<{
+      nominal?: number;
+      real?: number;
+    }>;
+    const expectedNominalPeak = Math.max(
+      ...chartData.flatMap((point) =>
+        point.nominal == null ? [] : [point.nominal],
+      ),
+    );
+    const expectedRealPeak = Math.max(
+      ...chartData.flatMap((point) => (point.real == null ? [] : [point.real])),
+    );
+    const peakLines = grossChart.querySelectorAll(
+      '[data-testid="salary-peak-line"]',
+    );
+    expect(peakLines).toHaveLength(2);
+    expect(peakLines[0]).toHaveAttribute(
+      "data-peak-value",
+      String(expectedNominalPeak),
+    );
+    expect(peakLines[0]).toHaveAttribute(
+      "data-peak-label",
+      "Peak nominal: £65,000",
+    );
+    expect(peakLines[0]).toHaveAttribute("data-stroke-dasharray", "4 4");
+    expect(peakLines[1]).toHaveAttribute(
+      "data-peak-value",
+      String(expectedRealPeak),
+    );
+    expect(peakLines[1]?.getAttribute("data-peak-label")).toMatch(
+      /^Peak inflation-adjusted: £[\d,]+$/,
+    );
+    expect(peakLines[1]).toHaveAttribute("data-stroke-dasharray", "4 4");
 
     const nominal = screen.getByRole("button", { name: "Nominal gross pay" });
     const real = screen.getByRole("button", {
@@ -307,12 +360,18 @@ describe("RealGrossSalaryHistory", () => {
     fireEvent.click(nominal);
     expect(nominal).toHaveAttribute("aria-pressed", "false");
     expect(grossChart.querySelector('[data-series="nominal"]')).toBeNull();
+    expect(
+      grossChart.querySelector('[data-peak-label^="Peak nominal"]'),
+    ).toBeNull();
     expect(grossChart.querySelector('[data-series="real"]')).toBeVisible();
 
     fireEvent.click(nominal);
     fireEvent.click(real);
     expect(grossChart.querySelector('[data-series="nominal"]')).toBeVisible();
     expect(grossChart.querySelector('[data-series="real"]')).toBeNull();
+    expect(
+      grossChart.querySelector('[data-peak-label^="Peak inflation-adjusted"]'),
+    ).toBeNull();
   });
 
   it("marks an open-ended salary carried to the reference month as assumed", () => {

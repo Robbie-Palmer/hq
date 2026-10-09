@@ -30,6 +30,7 @@ export function RealGrossSalaryChart({
       label={label}
       nominalLabel="Nominal gross pay"
       realLabel="Inflation-adjusted gross pay"
+      showRecordedPeaks
       assumptionCopy="Dashed segments assume the latest open-ended salary remained unchanged to the reference month."
     />
   );
