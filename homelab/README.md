@@ -460,7 +460,7 @@ daily T3 worktree cleanup, and a separate `homelab-k3s` Colima profile. The
 cleanup retains branches and archives dirty tracked and untracked files in
 durable `refs/t3-worktree-archive/...` refs before removing a checkout. See
 [`ansible/README.md`](ansible/README.md) for first-connection setup and the
-reviewed apply command, cleanup policy, profile boundaries, and ADR 022
+reviewed apply command, cleanup policy, profile boundaries, and ADR 019
 acceptance run.
 
 [ADR 024](/projects/homelab/adrs/024-doppler-secrets) assigns homelab secrets
@@ -506,60 +506,48 @@ The GTX 1050 has 2GB of VRAM, so batch sizes and model sizes are capped.
 
 ## Jellyfin on the Mac mini
 
-Jellyfin (ADR 011) runs on the hub. A launchd agent keeps it running across
-reboots and crashes.
+Jellyfin (ADR 011) runs with the media automation applications in the home
+K3s cluster. Its configuration lives under
+`~/.local/share/homelab/k3s/media/jellyfin`, outside the repository and Colima
+VM. The library remains on the Expansion disk.
 
 ### Jellyfin one-time bootstrap
 
-Run on the hub with mise installed and Homebrew available:
+Use the media-stack bootstrap below. The shared provisioner completes the
+Jellyfin wizard, creates the TV and movie libraries, and installs the pinned
+Trakt plugin.
 
-```bash
-mise run //homelab:bootstrap
-```
-
-The bootstrap will prompt you to create a `.env` file from the example
-template and set `MEDIA_DIR` to your media library, then re-run.
-
-Once complete it prints access URLs:
+The service remains available at:
 
 - **Local**: `http://localhost:8096`
 - **LAN** (Fire TV Stick): `http://<hub-lan-ip>:8096`
 - **Tailnet** (phone / laptop): `http://<hub-tailscale-ip>:8096`
 
-Then add your media folders in the Jellyfin web UI: TV shows under
-`/media/TV` and movies under `/media/Movies`.
-
 ### Jellyfin day-to-day
 
 ```bash
-mise run //homelab:status
-mise run //homelab:logs
-mise run //homelab:restart
-mise run //homelab:verify
+mise run //homelab:media-k3s-status
+kubectl --context colima-homelab-k3s --namespace media logs deployment/jellyfin
+kubectl --context colima-homelab-k3s --namespace media rollout restart deployment/jellyfin
 ```
 
 ### Jellyfin upgrading
 
-1. Bump `JELLYFIN_VERSION` in `.env` (or pin an exact release).
-2. `mise run //homelab:pull`
+1. Change the image tag in `k3s/base/media/jellyfin-deployment.yaml`.
+2. Run `mise run //homelab:k3s-deploy-home-media`.
 
 ### Jellyfin caveats
 
-- **Brief unauthenticated window on first bootstrap.** Between the stack
-  starting and provisioning completing, Jellyfin's startup wizard is
-  accessible on the port. The router forwards no ports and the tailnet is
-  the lab's trust boundary, so this is only a risk if an untrusted peer is
-  on the LAN during the few seconds bootstrap runs.
-- **The drive must be mounted before bootstrap.** If the volume isn't
-  connected or auto-mounted at login, the mount point won't exist.
-- The [Netdata](/projects/homelab/adrs/006-netdata) alerting on the hub now
-  covers the Jellyfin container (see the media automation section below);
-  the media drive itself is the remaining gap, so a dead disk is only
-  noticed when playback fails.
+- The router forwards no Jellyfin ports. LAN and tailnet clients can reach the
+  LoadBalancer service.
+- The Ansible role checks the Expansion volume UUID before it creates media
+  paths or starts the K3s profile.
+- The VPN gate scales Jellyfin with the acquisition applications. This gives
+  the household one visible stack state during a VPN outage.
 
 ## Media automation on the Mac mini
 
-The *arr stack (ADRs 016–019) feeds the Jellyfin library automatically:
+The *arr stack (ADRs 014-018) feeds the Jellyfin library automatically:
 [Prowlarr](/projects/homelab/adrs/014-prowlarr-indexer-management) manages
 the torrent indexers and syncs them to Sonarr (TV) and Radarr (movies), which
 send grabs to the containerized
@@ -567,42 +555,52 @@ send grabs to the containerized
 and import finished downloads into `/media/TV` and `/media/Movies` with
 Jellyfin-friendly names.
 [Recyclarr](/projects/homelab/adrs/016-recyclarr-trash-guides) keeps both
-apps' quality profiles on the TRaSH Guides with a nightly sync. A launchd
-agent (`homelab.media`) keeps all of it running across reboots, same as
-Jellyfin's.
+apps' quality profiles on the TRaSH Guides with a nightly sync.
+
+K3s owns the six deployments. Ansible owns the host boundary: the Colima
+profile, durable mounts, exact disk check, VPN gate, and nightly backup. It
+installs the two operational scripts under `~/.local/bin`, so deleting a
+repository checkout cannot stop either launchd job.
 
 Web UIs (LAN/tailnet only): Prowlarr **9696**, Sonarr **8989**, Radarr
 **7878**, qBittorrent **8080**. Login is `admin`; qBittorrent's password is
-generated into the gitignored `.env`.
+stored in `~/.local/share/homelab/k3s/media/.env`.
 
 ### Media automation one-time bootstrap
 
-Run on the hub with mise installed and colima already set up by the Jellyfin
-bootstrap. The media volume must be mounted first:
+Mount the Expansion disk and connect the host VPN first. Then run:
 
 ```bash
-mise run //homelab:media-bootstrap
+mise run //homelab:ansible-check-mac
+mise run //homelab:ansible-configure-mac
+mise run //homelab:k3s-dry-run-home-media
+mise run //homelab:k3s-deploy-home-media
+mise run //homelab:media-k3s-provision
 ```
 
-This creates `.env` from the example template, generates the qBittorrent
-password, installs the launchd agent, starts the four containers, and runs
-idempotent provisioning that wires download clients, root folders, indexers,
-and the indexer sync between them.
+The Ansible apply creates every host directory required by the persistent
+volumes and installs the gate and backup jobs. The deploy task applies the
+overlay and immediately reconciles the gate. qBittorrent has zero replicas in
+the manifest, so an apply cannot start torrent traffic before that check.
+
+The provisioner creates the credential file on a fresh host, waits for the
+applications, completes Jellyfin setup, and wires the download clients, root
+folders, indexers, recycle bins, quality profiles, and Trakt lists. Sonarr and
+Radarr still need one interactive Trakt OAuth grant each.
 
 ### Media automation day-to-day
 
 ```bash
-mise run //homelab:media-status
-mise run //homelab:media-logs
-mise run //homelab:media-restart
-mise run //homelab:media-verify
-mise run //homelab:media-provision   # re-run wiring; safe to repeat
+mise run //homelab:media-k3s-status
+mise run //homelab:media-k3s-provision
+mise run //homelab:media-k3s-backup
 ```
 
 ### Media automation upgrading
 
-1. Bump the `*_VERSION` pins in `.env` (or leave as `latest`).
-2. `mise run //homelab:media-pull`
+1. Change the pinned image tag in `k3s/base/media`.
+2. Render and review with `mise run //homelab:k3s-render-home-media`.
+3. Apply with `mise run //homelab:k3s-deploy-home-media`.
 
 ### Media automation caveats
 
@@ -623,35 +621,29 @@ mise run //homelab:media-provision   # re-run wiring; safe to repeat
   retry while debugging.
 - **qBittorrent bans IPs after five failed logins** for an hour. Scripts
   should try each credential once; if you lock yourself out,
-  `docker restart qbittorrent` clears the ban list.
+  delete the qBittorrent pod to clear the ban list.
 - **First provisioning has no preset password**: qBittorrent's temporary
   first-boot password comes from its logs, so wiping
-  `data/qbittorrent/` and re-running bootstrap is the reset path.
-- **New shared host directories require colima to know `/Volumes` is
-  writable.** If a bind mount shows up read-only inside containers, check
-  `writable: true` for `/Volumes` in `~/.colima/default/colima.yaml`, then
-  `colima stop && colima start`.
+  `~/.local/share/homelab/k3s/media/qbittorrent/` and re-running provisioning
+  is the reset path.
 - **New series and films need the right profile.** Recyclarr creates the
   TRaSH quality profiles; pick them (WEB 1080p for TV, HD Bluray + WEB for
   movies) when adding media. Items added before the profiles existed keep
   their old profile until switched manually.
 - **Recyclarr sync runs nightly** (`@daily` in-container cron). Manual run:
-  `docker exec recyclarr recyclarr sync`. Logs live in
-  `data/recyclarr/logs/`.
-- **The stack waits for the VPN.** Both provisioning and the keep-running
-  agent refuse to start the containers until the hub's default route runs
-  through a VPN tunnel interface, so torrent traffic never touches the
-  residential line during the boot race ([ADR 017](/projects/homelab/adrs/017-vpn-gated-stack)).
-- **Health gauges and alerts.** The keep-running agent probes every service
-  endpoint each cycle (plus the VPN tunnel itself) and pushes 0/1 gauges into
-  Netdata's local StatsD listener; it also restarts any container Docker marks
-  unhealthy for three consecutive cycles, since a hung process never exits and
-  Docker's own restart policy never fires for one.
-  [`netdata/health.d/media_automation.conf`](hosts/mac-mini/netdata/health.d/media_automation.conf)
-  turns those gauges into Slack alerts through the existing Netdata
-  notification pipeline. Install it with:
-  `cp hosts/mac-mini/netdata/health.d/media_automation.conf /opt/homebrew/etc/netdata/health.d/`
-  and restart netdata.
+  `kubectl --context colima-homelab-k3s --namespace media exec
+  deployment/recyclarr -- recyclarr sync`.
+- **The stack waits for the VPN.** The launchd gate checks the host default
+  route every 10 seconds. It scales the five user-facing deployments to zero
+  when the route does not use a tunnel and to one when it does
+  ([ADR 017](/projects/homelab/adrs/017-vpn-gated-stack)).
+- **Backups fail closed.** The nightly job verifies the Expansion volume UUID,
+  takes online SQLite copies, and sends the live config and staged databases
+  to one encrypted restic snapshot. It keeps 7 daily, 4 weekly, and 6 monthly
+  snapshots. The restore commands are in
+  `k3s/overlays/home-media/backup-media-config.sh`.
+- The Compose definitions and old `media-*` tasks remain only as the rollback
+  path until the ADR 020 reboot and storage-recovery checks pass.
 
 ## SilverBullet on the Mac mini
 

@@ -16,9 +16,19 @@ colima_k3s_version: v1.36.4+k3s1
 colima_k3s_context: colima-homelab-k3s
 colima_k3s_data_path: "{{ ansible_facts.env.HOME }}/.local/share/homelab/k3s/t3-code"
 colima_k3s_mount_path: /srv/t3-code
+colima_k3s_media_data_path: "{{ ansible_facts.env.HOME }}/.local/share/homelab/k3s/media"
+colima_k3s_media_mount_path: /srv/homelab-media
+colima_k3s_media_disk_location: /Volumes/Expansion
+colima_k3s_media_disk_mount_path: /srv/expansion
+colima_k3s_media_disk_uuid: 808A2851-4126-3A7B-B23F-9E1C3ADD28E4
+media_k3s_gate_launchd_label: homelab.media-k3s
+media_k3s_gate_script_path: "{{ ansible_facts.env.HOME }}/.local/bin/homelab-media-k3s-gate"
+media_k3s_backup_launchd_label: homelab.media-k3s-backup
+media_k3s_backup_script_path: "{{ ansible_facts.env.HOME }}/.local/bin/homelab-media-k3s-backup"
 colima_k3s_node_labels:
   homelab.dev/capability: agent-workspace
   homelab.dev/location: home
+  homelab.dev/storage-media: "true"
 
 mac_http_checks:
   - name: Jellyfin
@@ -53,7 +63,7 @@ ente_cli_config_path: "{{ ansible_facts.env.HOME }}/.ente/ente-cli.db"
 ente_export_launchd_label: com.robbie.ente-export
 ente_export_health_launchd_label: homelab.ente-export-health
 ente_export_mount_path: /Volumes/Expansion
-ente_export_mount_uuid: 808A2851-4126-3A7B-B23F-9E1C3ADD28E4
+ente_export_mount_uuid: "{{ colima_k3s_media_disk_uuid }}"
 ente_export_path: /Volumes/Expansion/Pictures/Ente Photos/Jade
 ente_export_log_path: "{{ ansible_facts.env.HOME }}/Library/Logs/ente-export.log"
 ente_export_state_dir: >-

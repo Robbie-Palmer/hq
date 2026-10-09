@@ -1,0 +1,171 @@
+# Host-path persistent volumes on the single storage-media node. The config
+# paths live under the macOS host through the VM's /srv/homelab-media mount so
+# app state survives VM rebuilds; the media and downloads paths come from the
+# 10 TB disk exposed at /srv/expansion (ADR 020).
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: media-jellyfin-config
+spec:
+  storageClassName: ""
+  capacity:
+    storage: 10Gi
+  accessModes: ["ReadWriteOnce"]
+  persistentVolumeReclaimPolicy: Retain
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [homelab-k3s]
+  hostPath:
+    path: /srv/homelab-media/jellyfin
+    type: Directory
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: media-prowlarr-config
+spec:
+  storageClassName: ""
+  capacity:
+    storage: 10Gi
+  accessModes: ["ReadWriteOnce"]
+  persistentVolumeReclaimPolicy: Retain
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [homelab-k3s]
+  hostPath:
+    path: /srv/homelab-media/prowlarr
+    type: Directory
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: media-sonarr-config
+spec:
+  storageClassName: ""
+  capacity:
+    storage: 10Gi
+  accessModes: ["ReadWriteOnce"]
+  persistentVolumeReclaimPolicy: Retain
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [homelab-k3s]
+  hostPath:
+    path: /srv/homelab-media/sonarr
+    type: Directory
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: media-radarr-config
+spec:
+  storageClassName: ""
+  capacity:
+    storage: 10Gi
+  accessModes: ["ReadWriteOnce"]
+  persistentVolumeReclaimPolicy: Retain
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [homelab-k3s]
+  hostPath:
+    path: /srv/homelab-media/radarr
+    type: Directory
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: media-qbittorrent-config
+spec:
+  storageClassName: ""
+  capacity:
+    storage: 10Gi
+  accessModes: ["ReadWriteOnce"]
+  persistentVolumeReclaimPolicy: Retain
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [homelab-k3s]
+  hostPath:
+    path: /srv/homelab-media/qbittorrent
+    type: Directory
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: media-recyclarr-config
+spec:
+  storageClassName: ""
+  capacity:
+    storage: 10Gi
+  accessModes: ["ReadWriteOnce"]
+  persistentVolumeReclaimPolicy: Retain
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [homelab-k3s]
+  hostPath:
+    path: /srv/homelab-media/data/recyclarr
+    type: Directory
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: media-downloads
+spec:
+  storageClassName: ""
+  capacity:
+    storage: 1Ti
+  accessModes: ["ReadWriteMany"]
+  persistentVolumeReclaimPolicy: Retain
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [homelab-k3s]
+  hostPath:
+    path: /srv/expansion/Downloads
+    type: Directory
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: media-library
+spec:
+  storageClassName: ""
+  capacity:
+    storage: 8Ti
+  accessModes: ["ReadWriteMany"]
+  persistentVolumeReclaimPolicy: Retain
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [homelab-k3s]
+  hostPath:
+    path: /srv/expansion/Media
+    type: Directory

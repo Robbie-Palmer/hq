@@ -10,6 +10,7 @@ python = "3.12.14"
 "aqua:kubernetes/kubernetes/kubectl" = "1.37.1"
 "aqua:kubernetes-sigs/kustomize" = "5.8.1"
 "github:fluxcd/flux-schema" = "0.15.0"
+"aqua:restic/restic" = "0.18.0"
 
 # ---------------------------------------------------------------------------
 # Ansible migration bridge
@@ -291,6 +292,10 @@ run = "bash scripts/load-remote-development-image"
 description = "Render the home t3-code overlay"
 run = "kubectl kustomize k3s/overlays/home"
 
+[tasks.k3s-render-home-media]
+description = "Render the home media overlay"
+run = "kubectl kustomize k3s/overlays/home-media"
+
 [tasks.k3s-render-remote]
 description = "Render the remote-development t3-code overlay"
 run = "kubectl kustomize k3s/overlays/remote-development"
@@ -334,6 +339,54 @@ bash scripts/apply-kustomize-overlay \
   "${HOME_KUBE_CONTEXT:-colima-homelab-k3s}" \
   home \
   apply
+'''
+
+[tasks.k3s-dry-run-home-media]
+description = "Server-side dry run of the home media overlay after an exact context check"
+run = '''
+export KUBECONFIG="${HOME_KUBECONFIG:-$HOME/.kube/config}"
+bash scripts/apply-kustomize-overlay \
+  k3s/overlays/home-media \
+  "${HOME_KUBE_CONTEXT:-colima-homelab-k3s}" \
+  home \
+  dry-run
+'''
+
+[tasks.k3s-deploy-home-media]
+description = "Apply the home media overlay and reconcile its VPN gate"
+run = '''
+export KUBECONFIG="${HOME_KUBECONFIG:-$HOME/.kube/config}"
+gate="$HOME/.local/bin/homelab-media-k3s-gate"
+if [[ ! -x "$gate" ]]; then
+  echo "Missing $gate; run mise //homelab:ansible-configure-mac first" >&2
+  exit 1
+fi
+bash scripts/apply-kustomize-overlay \
+  k3s/overlays/home-media \
+  "${HOME_KUBE_CONTEXT:-colima-homelab-k3s}" \
+  home \
+  apply
+"$gate"
+'''
+
+[tasks.media-k3s-provision]
+description = "Wire the K3s media apps together and complete the Jellyfin wizard"
+run = '''
+bash k3s/scripts/provision-media.sh
+'''
+
+[tasks.media-k3s-status]
+description = "Show K3s media workloads, services, and storage claims"
+run = '''
+export KUBECONFIG="${HOME_KUBECONFIG:-$HOME/.kube/config}"
+kubectl --context "${HOME_KUBE_CONTEXT:-colima-homelab-k3s}" \
+  --namespace media get deployments,pods,services,persistentvolumeclaims
+'''
+
+[tasks.media-k3s-backup]
+description = "Run a restic snapshot of the media app configs (also runs nightly via launchd)"
+run = '''
+bash k3s/overlays/home-media/backup-media-config.sh
 '''
 
 [tasks.k3s-deploy-remote]

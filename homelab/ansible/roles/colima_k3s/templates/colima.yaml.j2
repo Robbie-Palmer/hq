@@ -17,6 +17,12 @@ mounts:
   - location: {{ colima_k3s_data_path | to_json }}
     mountPoint: {{ colima_k3s_mount_path | to_json }}
     writable: true
+  - location: {{ colima_k3s_media_data_path | to_json }}
+    mountPoint: {{ colima_k3s_media_mount_path | to_json }}
+    writable: true
+  - location: {{ colima_k3s_media_disk_location | to_json }}
+    mountPoint: {{ colima_k3s_media_disk_mount_path | to_json }}
+    writable: true
 kubernetes:
   enabled: true
   version: {{ colima_k3s_version }}

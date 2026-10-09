@@ -125,17 +125,24 @@ that default VM.
 
 The pilot profile pins Colima 0.10.3, Lima 2.2.0, and K3s
 `v1.36.4+k3s1`. It has 2 CPUs, 4 GiB of memory, and a 60 GiB VM disk. It
-mounts `~/.local/share/homelab/k3s/t3-code` at `/srv/t3-code`. The mount is
-writable. Add narrower host-volume mounts with the workload that needs them;
-the pilot does not expose `/Volumes` to every pod. K3s encrypts Secret data at
-rest and registers the node with the `home` location and `agent-workspace`
-capability labels.
+mounts `~/.local/share/homelab/k3s/t3-code` at `/srv/t3-code`, the durable
+media configuration at `/srv/homelab-media`, and the Expansion disk at
+`/srv/expansion`. All three mounts are writable. Only pods with a matching
+persistent-volume claim receive the media paths. K3s encrypts Secret data at
+rest and registers the node with the `home`, `agent-workspace`, and
+`storage-media` labels.
+
+Before creating media directories, the role requires the Expansion disk's
+configured volume UUID. It also installs the media VPN gate and backup script
+under `~/.local/bin` with their launchd definitions. Neither job executes code
+from a repository checkout.
 
 The profile does not activate its Docker or Kubernetes context globally.
 Repository commands address the `colima-homelab-k3s` context explicitly. A
 LaunchAgent runs Colima in foreground mode and restarts it if it exits. The
-agent starts when the Mac user session starts. A Mac reboot test remains part
-of ADR 023 because a LaunchAgent cannot run before login.
+agent starts when the Mac user session starts, but its wrapper waits until the
+default route uses a VPN tunnel before it starts K3s. A Mac reboot test remains
+part of ADR 020 because a LaunchAgent cannot run before login.
 
 Changing the profile config, wrapper, or plist restarts only the isolated
 pilot. The role is temporary. Delete it after nix-darwin or another checked-in
@@ -147,7 +154,7 @@ K3s documents that server nodes accept
 [`--node-label`](https://docs.k3s.io/cli/agent#node-labels-and-taints-for-agents)
 at registration.
 
-## ADR 022 acceptance run
+## ADR 019 acceptance run
 
 Run these commands from a clean checkout on the Mac mini:
 
@@ -165,7 +172,7 @@ volume guard and the runtime limit. Its timeout fixture ignores inherited
 `SIGALRM`, proving that the parent watchdog terminates the export. The test
 neither unmounts the photo disk nor starts a real export.
 
-Before changing ADR 022 to Accepted, run the two verification playbooks in
+Before changing ADR 019 to Accepted, run the two verification playbooks in
 verbose mode and inspect the output for account identifiers, tokens, and
 credentials:
 

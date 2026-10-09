@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{{ media_k3s_gate_launchd_label }}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>{{ media_k3s_gate_script_path }}</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartInterval</key>
+    <integer>10</integer>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>{{ ansible_facts.env.HOME }}</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>{{ ansible_facts.env.HOME }}/Library/Logs/homelab/media-k3s-gate.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{ ansible_facts.env.HOME }}/Library/Logs/homelab/media-k3s-gate.log</string>
+</dict>
+</plist>

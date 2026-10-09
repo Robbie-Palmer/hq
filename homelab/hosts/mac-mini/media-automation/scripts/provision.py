@@ -36,6 +36,14 @@ INDEXER_BASE_URLS = {
 SONARR_CATEGORY = "tv-sonarr"
 RADARR_CATEGORY = "radarr"
 
+# Trakt watchlist as the acquisition queue; see ADR 021. The username must be
+# the canonical dashed slug from the profile URL - Trakt answers 200 [] for a
+# misspelled one, which looks exactly like a broken connection.
+TRAKT_USERNAME = os.environ.get("TRAKT_USERNAME", "robbie-palmer-1cefe3")
+TRAKT_LIST_NAME = "Trakt Watchlist"
+SONARR_PROFILE = "WEB-1080p"
+RADARR_PROFILE = "HD Bluray + WEB"
+
 # Container-internal endpoints on the private Compose network. TLS would
 # require an internal CA to issue certificates for hostnames like "sonarr",
 # so plain HTTP is intentional (Sonar S5332 suppressed at each definition).
@@ -92,6 +100,9 @@ class Api:
     def post(self, path, payload=None):
         return self.request("POST", path, payload)
 
+    def put(self, path, payload=None):
+        return self.request("PUT", path, payload)
+
 
 def ensure_recyclarr_config():
     """Write the Recyclarr config with current API keys if it doesn't exist.
@@ -139,22 +150,32 @@ def ensure_recyclarr_config():
 
 
 def run_initial_recyclarr_sync():
-    """Trigger one sync immediately instead of waiting for the cron tick."""
+    """Trigger one sync immediately instead of waiting for the cron tick.
+
+    The runtime commands come from the environment so the same logic drives
+    the Compose stack and the K3s stack (see provision.sh variants).
+    """
+    import shlex
     import subprocess
+    wait_cmd = shlex.split(os.environ.get(
+        "RECYCLARR_WAIT_CMD", "docker inspect -f {{.State.Running}} recyclarr"))
+    sync_cmd = shlex.split(os.environ.get(
+        "RECYCLARR_SYNC_CMD", "docker exec recyclarr recyclarr sync"))
     deadline = time.time() + 120
     while time.time() < deadline:
-        state = subprocess.run(
-            ["docker", "inspect", "-f", "{{.State.Running}}", "recyclarr"],
-            capture_output=True, text=True,
-        ).stdout.strip()
-        if state == "true":
+        try:
+            state = subprocess.run(
+                wait_cmd, capture_output=True, text=True, timeout=30,
+            ).stdout.strip()
+        except subprocess.TimeoutExpired:
+            state = ""
+        if state in ("true", "Running"):
             break
         time.sleep(4)
     else:
-        raise SystemExit("recyclarr container never started; check docker logs recyclarr")
+        raise SystemExit("recyclarr never reported running; check its logs")
     result = subprocess.run(
-        ["docker", "exec", "recyclarr", "recyclarr", "sync"],
-        capture_output=True, text=True, timeout=600,
+        sync_cmd, capture_output=True, text=True, timeout=600,
     )
     output = (result.stdout + result.stderr).strip().splitlines()
     for line in output[-12:]:
@@ -196,8 +217,8 @@ def qbit_login_once(username, password):
                 return None
             set_cookie = resp.headers.get("Set-Cookie", "")
     except urllib.error.HTTPError as exc:
-        if exc.code == 403:
-            return None  # temporary IP ban; caller falls back to the logged password
+        if exc.code in (401, 403):
+            return None  # wrong password or temporary IP ban; caller falls back to the logged password
         raise RuntimeError(f"HTTP {exc.code}") from exc
     name = f"QBT_SID_{urllib.parse.urlparse(QBIT).port}="
     if name not in set_cookie:
@@ -210,15 +231,22 @@ def qbit_temp_password_from_logs():
     """Read the first-boot temporary WebUI password from container logs.
 
     Retries briefly: on a cold start the password line can land in the log
-    a few seconds after the container reports running.
+    a few seconds after the container reports running. The log command comes
+    from the environment so Compose and K3s both work.
     """
+    import shlex
     import subprocess
+    log_cmd = shlex.split(os.environ.get("QBIT_LOG_CMD", "docker logs qbittorrent"))
     deadline = time.time() + 30
     while True:
-        logs = subprocess.run(
-            ["docker", "logs", "qbittorrent"], capture_output=True, text=True,
-        )
-        for line in (logs.stdout + logs.stderr).splitlines():
+        try:
+            logs = subprocess.run(
+                log_cmd, capture_output=True, text=True, timeout=30,
+            )
+            output = logs.stdout + logs.stderr
+        except subprocess.TimeoutExpired:
+            output = ""
+        for line in output.splitlines():
             if "temporary password" in line.lower():
                 return line.rsplit(":", 1)[-1].strip()
         if time.time() >= deadline:
@@ -282,10 +310,27 @@ def qbittorrent_fields(password, category_field, category):
     ]
 
 
+# Imports copy rather than hardlink (/downloads and /media are separate
+# mounts, so a cross-device link always fails), and every indexer in the
+# provisioned set is public, with no seed-ratio obligation. Remove the
+# torrent and its data from qBittorrent once an import completes, or the
+# raw download doubles the space of everything in the library.
+REMOVE_COMPLETED = True
+
+
 def ensure_download_client(app, category_field, category):
     existing = {dc.get("name") for dc in app.get("/api/v3/downloadclient")}
     if "qbittorrent" in existing:
-        print("  download client 'qbittorrent' already present")
+        client = next(dc for dc in app.get("/api/v3/downloadclient")
+                      if dc.get("name") == "qbittorrent")
+        if (client.get("removeCompleted") != REMOVE_COMPLETED
+                or client.get("removeCompletedDownloads") != REMOVE_COMPLETED):
+            client["removeCompleted"] = REMOVE_COMPLETED
+            client["removeCompletedDownloads"] = REMOVE_COMPLETED
+            app.put(f"/api/v3/downloadclient/{client['id']}", client)
+            print("  download client 'qbittorrent' updated (remove completed imports)")
+        else:
+            print("  download client 'qbittorrent' already present")
         return
     schema = next(
         dc for dc in app.get("/api/v3/downloadclient/schema")
@@ -297,8 +342,8 @@ def ensure_download_client(app, category_field, category):
         "enable": True,
         "protocol": "torrent",
         "priority": 1,
-        "removeCompletedDownloads": False,
-        "removeCompleted": False,
+        "removeCompletedDownloads": REMOVE_COMPLETED,
+        "removeCompleted": REMOVE_COMPLETED,
     })
     schema["fields"] = qbittorrent_fields(
         os.environ["QBITTORRENT_PASSWORD"], category_field, category)
@@ -415,6 +460,68 @@ def ensure_indexers(prowlarr):
         print(f"  note: manual sync unavailable ({last_error}); runs on schedule")
 
 
+
+
+def ensure_trakt_list(app, app_name, root_folder, profile_name):
+    """Verify the Trakt watchlist import list over the account's watchlist.
+
+    Creating the list through the API requires the OAuth grant to already
+    exist (Sonarr and Radarr validate accessToken/authUser on write), and
+    that grant is an interactive 'Authenticate with Trakt' click per app -
+    the one manual step of a fresh bootstrap (ADR 021, README caveats). So
+    this reports state and prints the exact click-path; after the user
+    creates and authorizes the list once, re-runs confirm it.
+    """
+    existing = [
+        lst for lst in app.get("/api/v3/importlist")
+        if lst.get("implementation") == "TraktUserImport"
+    ]
+    if existing:
+        lst = existing[0]
+        fields = {f["name"]: f.get("value") for f in lst.get("fields", [])}
+        if fields.get("accessToken"):
+            print(f"  {app_name}: '{lst['name']}' present and authorized")
+        else:
+            print(f"  {app_name}: '{lst['name']}' present; awaiting Trakt authorization")
+            print(f"  {app_name}: open Settings > Lists > {lst['name']} and click "
+                  "'Authenticate with Trakt'")
+        username = fields.get("username")
+        if username != TRAKT_USERNAME:
+            print(f"  {app_name}: WARNING list username is {username!r}, expected "
+                  f"the profile-slug {TRAKT_USERNAME!r}; the underscore variant "
+                  "fetches an empty watchlist (ADR 021)")
+        return
+
+    print(f"  {app_name}: no Trakt list yet - create it once by hand (OAuth "
+          "cannot be scripted):")
+    print(f"    Settings > Lists > + Add List > Trakt User:")
+    print(f"      name:               {TRAKT_LIST_NAME}")
+    print(f"      username:           {TRAKT_USERNAME}  (profile URL slug, dashes)")
+    print(f"      list type:          Watchlist")
+    print(f"      root folder:        {root_folder}")
+    print(f"      quality profile:    {profile_name}")
+    print(f"      monitor / search:   everything, search on add")
+    print(f"      then click 'Authenticate with Trakt' and Save")
+
+
+def ensure_recycle_bin(app):
+    """Point the app's recycle bin at the downloads volume (idempotent).
+
+    Without it the *arr apps delete replaced/duplicate files permanently, so
+    an import or quality-upgrade collision silently destroys data (observed
+    during the k3s migration). Files land in /downloads/.recycle instead and
+    can be restored by hand.
+    """
+    path = "/downloads/.recycle"
+    config = app.get("/api/v3/config/mediamanagement")
+    if config.get("recycleBin") == path:
+        print(f"  recycle bin already set to {path}")
+        return
+    config["recycleBin"] = path
+    app.put("/api/v3/config/mediamanagement", config)
+    print(f"  recycle bin set to {path}")
+
+
 def wait_for_synced_indexers(app, name, minimum=1, timeout=120):
     deadline = time.time() + timeout
     count = len(app.get("/api/v3/indexer"))
@@ -444,14 +551,17 @@ def main():
     print("Sonarr:")
     ensure_download_client(sonarr, "tvCategory", SONARR_CATEGORY)
     ensure_root_folder(sonarr, "/media/TV")
+    ensure_recycle_bin(sonarr)
     print("Radarr:")
     ensure_download_client(radarr, "movieCategory", RADARR_CATEGORY)
     ensure_root_folder(radarr, "/media/Movies")
+    ensure_recycle_bin(radarr)
 
     print("Prowlarr:")
     ensure_indexers(prowlarr)
 
     ensure_recyclarr_config()
+    run_initial_recyclarr_sync()
 
     print("Indexer sync:")
     sonarr_ok = wait_for_synced_indexers(sonarr, "Sonarr")
@@ -462,7 +572,9 @@ def main():
     else:
         print("Provisioning complete.")
 
-    run_initial_recyclarr_sync()
+    print("Trakt watchlists (ADR 021):")
+    ensure_trakt_list(sonarr, "Sonarr", "/media/TV", SONARR_PROFILE)
+    ensure_trakt_list(radarr, "Radarr", "/media/Movies", RADARR_PROFILE)
 
 
 if __name__ == "__main__":

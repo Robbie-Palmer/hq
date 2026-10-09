@@ -88,6 +88,20 @@
       mode: "0700"
     - path: "{{ colima_k3s_data_path }}"
       mode: "0700"
+    - path: "{{ colima_k3s_media_data_path }}"
+      mode: "0750"
+    - path: "{{ colima_k3s_media_data_path }}/jellyfin"
+      mode: "0750"
+    - path: "{{ colima_k3s_media_data_path }}/prowlarr"
+      mode: "0750"
+    - path: "{{ colima_k3s_media_data_path }}/sonarr"
+      mode: "0750"
+    - path: "{{ colima_k3s_media_data_path }}/radarr"
+      mode: "0750"
+    - path: "{{ colima_k3s_media_data_path }}/qbittorrent"
+      mode: "0750"
+    - path: "{{ colima_k3s_media_data_path }}/data/recyclarr"
+      mode: "0750"
     - path: "{{ ansible_facts.env.HOME }}/.local/bin"
       mode: "0755"
     - path: "{{ ansible_facts.env.HOME }}/Library/LaunchAgents"
@@ -96,6 +110,53 @@
       mode: "0700"
   loop_control:
     label: "{{ item.path }}"
+
+- name: Inspect the media disk
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/diskutil
+      - info
+      - -plist
+      - "{{ colima_k3s_media_disk_location }}"
+  check_mode: false
+  changed_when: false
+  failed_when: false
+  register: colima_k3s_media_disk_info
+
+- name: Read the mounted media disk UUID
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/plutil
+      - -extract
+      - VolumeUUID
+      - raw
+      - "-"
+    stdin: "{{ colima_k3s_media_disk_info.stdout }}"
+  check_mode: false
+  changed_when: false
+  failed_when: false
+  register: colima_k3s_mounted_media_disk_uuid
+  when: colima_k3s_media_disk_info.rc == 0
+
+- name: Require the expected media disk
+  ansible.builtin.assert:
+    that:
+      - colima_k3s_media_disk_info.rc == 0
+      - colima_k3s_mounted_media_disk_uuid.rc | default(1) == 0
+      - colima_k3s_mounted_media_disk_uuid.stdout | default('') == colima_k3s_media_disk_uuid
+    fail_msg: The expected media disk is not mounted at {{ colima_k3s_media_disk_location }}.
+
+- name: Create media disk directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0700"
+  loop:
+    - "{{ colima_k3s_media_disk_location }}/Downloads"
+    - "{{ colima_k3s_media_disk_location }}/Downloads/.recycle"
+    - "{{ colima_k3s_media_disk_location }}/Media"
+    - "{{ colima_k3s_media_disk_location }}/Media/Movies"
+    - "{{ colima_k3s_media_disk_location }}/Media/TV"
 
 - name: Inspect the isolated Colima K3s profile configuration
   ansible.builtin.stat:
@@ -217,6 +278,37 @@
     mode: "0600"
     validate: /usr/bin/plutil -lint %s
   notify: Restart the managed Colima K3s profile
+
+- name: Install the media K3s VPN gate
+  ansible.builtin.copy:
+    src: "{{ role_path }}/../../../k3s/overlays/home-media/media-vpn-gate.sh"
+    dest: "{{ media_k3s_gate_script_path }}"
+    mode: "0700"
+    validate: /bin/bash -n %s
+  notify: Reload the media K3s launchd jobs
+
+- name: Install the media K3s backup script
+  ansible.builtin.copy:
+    src: "{{ role_path }}/../../../k3s/overlays/home-media/backup-media-config.sh"
+    dest: "{{ media_k3s_backup_script_path }}"
+    mode: "0700"
+    validate: /bin/bash -n %s
+  notify: Reload the media K3s launchd jobs
+
+- name: Install the media K3s launchd definitions
+  ansible.builtin.template:
+    src: "{{ item.template }}"
+    dest: "{{ ansible_facts.env.HOME }}/Library/LaunchAgents/{{ item.label }}.plist"
+    mode: "0600"
+    validate: /usr/bin/plutil -lint %s
+  loop:
+    - template: homelab.media-k3s.plist.j2
+      label: "{{ media_k3s_gate_launchd_label }}"
+    - template: homelab.media-k3s-backup.plist.j2
+      label: "{{ media_k3s_backup_launchd_label }}"
+  loop_control:
+    label: "{{ item.label }}"
+  notify: Reload the media K3s launchd jobs
 
 - name: Inspect the Colima K3s launchd job
   ansible.builtin.command:
