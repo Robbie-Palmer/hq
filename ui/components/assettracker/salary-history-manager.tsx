@@ -57,8 +57,21 @@ function EmploymentCell({ record }: Readonly<{ record: SalaryHistoryRecord }>) {
   );
 }
 
+function grossPayDescription(record: SalaryHistoryRecord): string {
+  let description = `Actual ${record.payFrequency} gross pay`;
+  if (record.grossPay == null) {
+    description = "Take-home after tax and pension";
+  } else if (record.amountKind === "annualSalary") {
+    description = "Annual gross salary rate";
+  } else if (record.payFrequency === "irregular") {
+    description = "One-off gross bonus";
+  }
+  return description;
+}
+
 function GrossPayCell({ record }: Readonly<{ record: SalaryHistoryRecord }>) {
   const annualised = annualisedGrossPay(record);
+  const description = grossPayDescription(record);
   return (
     <td className="px-3 py-3 tabular-nums">
       <span className="block font-medium">
@@ -66,15 +79,7 @@ function GrossPayCell({ record }: Readonly<{ record: SalaryHistoryRecord }>) {
           ? moneyOrUnknown(record, record.takeHomePay)
           : formatMoney(record, record.grossPay)}
       </span>
-      <span className="block text-xs text-muted-foreground">
-        {record.grossPay == null
-          ? "Take-home after tax and pension"
-          : record.amountKind === "annualSalary"
-            ? "Annual gross salary rate"
-            : record.payFrequency === "irregular"
-              ? "One-off gross bonus"
-              : `Actual ${record.payFrequency} gross pay`}
-      </span>
+      <span className="block text-xs text-muted-foreground">{description}</span>
       {record.workFraction != null && (
         <span className="block text-xs text-muted-foreground">
           {(record.workFraction * 100).toLocaleString("en-GB")}% of full-time

@@ -278,12 +278,12 @@ function salaryFactsFromForm(
 ): SalaryRecordFacts {
   const effectiveStart = normaliseDate(formText(data, "effectiveStart"));
   const effectiveEndInput = formText(data, "effectiveEnd");
-  const effectiveEnd =
-    entryKind === "bonus"
-      ? effectiveStart
-      : effectiveEndInput === ""
-        ? undefined
-        : normaliseDate(effectiveEndInput);
+  let effectiveEnd: string | undefined;
+  if (entryKind === "bonus") {
+    effectiveEnd = effectiveStart;
+  } else if (effectiveEndInput !== "") {
+    effectiveEnd = normaliseDate(effectiveEndInput);
+  }
   const workFractionPercent = optionalNumber(data, "workFraction");
   const person = formText(data, "person");
   const employer = formText(data, "employer");
@@ -492,6 +492,13 @@ function RegularPayFields({
   record?: SalaryHistoryRecord;
 }>) {
   const isGross = knownPay === "gross";
+  let payLabel = "Take-home pay after tax and pension";
+  if (isGross) {
+    payLabel =
+      entryKind === "raise"
+        ? "New gross salary before tax and pension"
+        : "Gross pay before tax and pension";
+  }
   return (
     <>
       <PayBasisField value={payBasis} onChange={onPayBasisChange} />
@@ -517,13 +524,7 @@ function RegularPayFields({
         </select>
       </label>
       <Field
-        label={
-          isGross && entryKind === "raise"
-            ? "New gross salary before tax and pension"
-            : isGross
-              ? "Gross pay before tax and pension"
-              : "Take-home pay after tax and pension"
-        }
+        label={payLabel}
         name={isGross ? "grossPay" : "takeHomePay"}
         type="number"
         defaultValue={isGross ? record?.grossPay : record?.takeHomePay}

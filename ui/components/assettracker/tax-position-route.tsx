@@ -75,7 +75,7 @@ function TaxSetupSelectors({
   return (
     <>
       <label className="space-y-1.5 text-xs font-medium">
-        Tax jurisdiction
+        <span>Tax jurisdiction</span>
         <select
           className="h-9 w-full rounded-md border bg-background px-3 text-sm"
           value={row.jurisdiction}
@@ -95,7 +95,7 @@ function TaxSetupSelectors({
         </select>
       </label>
       <label className="space-y-1.5 text-xs font-medium">
-        UK residence
+        <span>UK residence</span>
         <select
           className="h-9 w-full rounded-md border bg-background px-3 text-sm"
           value={row.residence}

@@ -1,6 +1,6 @@
 "use client";
 
-import { type ComponentProps, type FormEvent, useState } from "react";
+import { type ComponentProps, type SubmitEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { todayIsoDate } from "@/lib/assettracker";
@@ -30,7 +30,7 @@ function useMortgageTermDraft(account: AccountDetailView) {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
     setSaved(false);

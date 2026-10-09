@@ -43,12 +43,12 @@ function AllowanceTaper({
     0,
   );
   const pastEnd = taper.adjustedNetIncomePence >= taper.endsAtPence;
-  const status =
-    beforeStart > 0
-      ? `${formatMinorCurrency(beforeStart)} below the start`
-      : pastEnd
-        ? "Personal Allowance fully withdrawn"
-        : `${formatMinorCurrency(taper.usedPence)} into the range`;
+  let status = `${formatMinorCurrency(taper.usedPence)} into the range`;
+  if (beforeStart > 0) {
+    status = `${formatMinorCurrency(beforeStart)} below the start`;
+  } else if (pastEnd) {
+    status = "Personal Allowance fully withdrawn";
+  }
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">

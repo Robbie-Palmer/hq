@@ -472,6 +472,7 @@ function CostRowEditor({
   index,
   planner,
 }: Readonly<{ cost: CostRow; index: number; planner: Planner }>) {
+  const costLabel = cost.name || `cost ${index + 1}`;
   return (
     <div className="grid gap-2 p-3 sm:grid-cols-[minmax(10rem,1fr)_9rem_8rem_7rem_2.5rem] sm:items-center">
       <CostInputs cost={cost} index={index} update={planner.updateCost} />
@@ -484,7 +485,7 @@ function CostRowEditor({
         type="button"
         variant="ghost"
         size="icon-sm"
-        aria-label={`Remove ${cost.name || `cost ${index + 1}`}`}
+        aria-label={`Remove ${costLabel}`}
         disabled={planner.costs.length === 1}
         onClick={() => planner.removeCost(index)}
       >

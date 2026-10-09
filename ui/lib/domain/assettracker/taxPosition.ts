@@ -116,6 +116,12 @@ function inRange(date: string, from: string, to: string): boolean {
   return date >= from && date <= to;
 }
 
+function dateWithinRange(date: string, from: string, to: string): string {
+  if (date < from) return from;
+  if (date > to) return to;
+  return date;
+}
+
 function currentIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -225,7 +231,7 @@ function inferredEmploymentIncome(
   asOfDate: string,
 ): TaxPositionData["income"] {
   const { from, to } = taxYearDates(taxYear);
-  const throughDate = asOfDate < from ? from : asOfDate > to ? to : asOfDate;
+  const throughDate = dateWithinRange(asOfDate, from, to);
   const projectedPence = recurringTaxableEmploymentIncomePence(
     data,
     memberId,
@@ -290,7 +296,7 @@ function inferredPensionContributions(
   asOfDate: string,
 ): TaxPositionData["contributions"] {
   const { from, to } = taxYearDates(taxYear);
-  const throughDate = asOfDate < from ? from : asOfDate > to ? to : asOfDate;
+  const throughDate = dateWithinRange(asOfDate, from, to);
   return data.recurringFlows.flatMap((flow) => {
     if (
       (flow.compensationKind !== "employeePension" &&

@@ -39,7 +39,11 @@ describe("DecisionsRoute", () => {
     expect(screen.getByText("Job move workspace")).toBeVisible();
   });
 
-  it("explains how to create the first decision record", async () => {
+  it.each([
+    ["Recorded", "No decision records yet"],
+    ["Job moves", "Job move workspace"],
+    ["Scenarios", "Scenario workspace"],
+  ])("opens the %s workspace", async (tab, expectedText) => {
     mockUseAssetTracker.mockReturnValue({
       accountDetails: [],
       baseCurrency: "GBP",
@@ -48,37 +52,9 @@ describe("DecisionsRoute", () => {
     } as unknown as ReturnType<typeof useAssetTracker>);
 
     render(<DecisionsRoute />);
-    await userEvent.click(screen.getByRole("tab", { name: "Recorded" }));
+    await userEvent.click(screen.getByRole("tab", { name: tab }));
 
-    expect(screen.getByText("No decision records yet")).toBeVisible();
-  });
-
-  it("opens the job-move workspace", async () => {
-    mockUseAssetTracker.mockReturnValue({
-      accountDetails: [],
-      baseCurrency: "GBP",
-      decisionRecords: [],
-      mortgageScenarios: [],
-    } as unknown as ReturnType<typeof useAssetTracker>);
-
-    render(<DecisionsRoute />);
-    await userEvent.click(screen.getByRole("tab", { name: "Job moves" }));
-
-    expect(screen.getByText("Job move workspace")).toBeVisible();
-  });
-
-  it("opens the itemised-scenario workspace", async () => {
-    mockUseAssetTracker.mockReturnValue({
-      accountDetails: [],
-      baseCurrency: "GBP",
-      decisionRecords: [],
-      mortgageScenarios: [],
-    } as unknown as ReturnType<typeof useAssetTracker>);
-
-    render(<DecisionsRoute />);
-    await userEvent.click(screen.getByRole("tab", { name: "Scenarios" }));
-
-    expect(screen.getByText("Scenario workspace")).toBeVisible();
+    expect(screen.getByText(expectedText)).toBeVisible();
   });
 
   it("shows a mortgage decision with its linked source facts", async () => {
