@@ -128,7 +128,8 @@ for a benchtop swarm demonstration; it is not proposed as a spacecraft communica
 - SGP4, time conversion, and coordinate-frame conversion remain simulation dependencies; the
   portable core and firmware contain none of them.
 - The reference firmware does not provide a physical safe-state actuator or completion evidence.
-- Multi-hop discovery and forwarding are out of scope for this revival.
+- Route discovery is out of scope. The simulation laboratory forwards packets only over static,
+  trace-configured routes; firmware adapters do not forward.
 
 These limits keep memory use and behavior deterministic. Changing one should begin with a requirement
 and an architecture decision rather than an incidental code edit.
