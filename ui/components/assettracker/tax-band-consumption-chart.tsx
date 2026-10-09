@@ -159,6 +159,66 @@ function BandBar({
   );
 }
 
+function ScenarioSummary({
+  scenario,
+}: Readonly<{ scenario: TaxBandScenario }>) {
+  return (
+    <dl className="mt-3 grid grid-cols-2 gap-3 text-xs sm:grid-cols-3">
+      <div>
+        <dt className="text-muted-foreground">Adjusted net income</dt>
+        <dd className="mt-0.5 font-medium tabular-nums">
+          {formatMinorCurrency(
+            scenario.allowanceTaper?.adjustedNetIncomePence ??
+              scenario.taxableIncomePence,
+          )}
+        </dd>
+      </div>
+      <div>
+        <dt className="text-muted-foreground">Personal Allowance</dt>
+        <dd className="mt-0.5 font-medium tabular-nums">
+          {formatMinorCurrency(scenario.personalAllowancePence)}
+        </dd>
+      </div>
+      <div>
+        <dt className="text-muted-foreground">After Personal Allowance</dt>
+        <dd className="mt-0.5 font-medium tabular-nums">
+          {formatMinorCurrency(scenario.taxableIncomePence)}
+        </dd>
+      </div>
+    </dl>
+  );
+}
+
+function ScenarioBands({ scenario }: Readonly<{ scenario: TaxBandScenario }>) {
+  const taperBandIndex = scenario.bands.length - 2;
+  return (
+    <div className="mt-4 space-y-4">
+      <BandBar
+        rateText="0% allowance"
+        band={{
+          id: "personal-allowance",
+          label: "Personal Allowance",
+          rateBasisPoints: 0,
+          widthPence: scenario.personalAllowancePence,
+          usedPence: scenario.personalAllowanceUsedPence,
+          ...scenario.personalAllowanceByIncome,
+          capitalGainsPence: 0,
+        }}
+      />
+      {scenario.bands.map((band, index) =>
+        index !== taperBandIndex || scenario.allowanceTaper == null ? (
+          <BandBar key={band.id} band={band} />
+        ) : (
+          <Fragment key={band.id}>
+            <BandBar band={capBandAtTaper(band, scenario, taperBandIndex)} />
+            <AllowanceTaper taper={scenario.allowanceTaper} />
+          </Fragment>
+        ),
+      )}
+    </div>
+  );
+}
+
 function ScenarioPlot({
   description,
   scenario,
@@ -176,55 +236,8 @@ function ScenarioPlot({
       {showExplanations && (
         <p className="mt-1 text-xs text-muted-foreground">{description}</p>
       )}
-      <dl className="mt-3 grid grid-cols-2 gap-3 text-xs sm:grid-cols-3">
-        <div>
-          <dt className="text-muted-foreground">Adjusted net income</dt>
-          <dd className="mt-0.5 font-medium tabular-nums">
-            {formatMinorCurrency(
-              scenario.allowanceTaper?.adjustedNetIncomePence ??
-                scenario.taxableIncomePence,
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">Personal Allowance</dt>
-          <dd className="mt-0.5 font-medium tabular-nums">
-            {formatMinorCurrency(scenario.personalAllowancePence)}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">After Personal Allowance</dt>
-          <dd className="mt-0.5 font-medium tabular-nums">
-            {formatMinorCurrency(scenario.taxableIncomePence)}
-          </dd>
-        </div>
-      </dl>
-      <div className="mt-4 space-y-4">
-        <BandBar
-          rateText="0% allowance"
-          band={{
-            id: "personal-allowance",
-            label: "Personal Allowance",
-            rateBasisPoints: 0,
-            widthPence: scenario.personalAllowancePence,
-            usedPence: scenario.personalAllowanceUsedPence,
-            ...scenario.personalAllowanceByIncome,
-            capitalGainsPence: 0,
-          }}
-        />
-        {scenario.bands.map((band, index) => {
-          const taperBandIndex = scenario.bands.length - 2;
-          if (index !== taperBandIndex || scenario.allowanceTaper == null) {
-            return <BandBar key={band.id} band={band} />;
-          }
-          return (
-            <Fragment key={band.id}>
-              <BandBar band={capBandAtTaper(band, scenario, taperBandIndex)} />
-              <AllowanceTaper taper={scenario.allowanceTaper} />
-            </Fragment>
-          );
-        })}
-      </div>
+      <ScenarioSummary scenario={scenario} />
+      <ScenarioBands scenario={scenario} />
     </section>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type ComponentProps, type FormEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { todayIsoDate } from "@/lib/assettracker";
@@ -11,9 +11,7 @@ import {
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
 
-export function MortgageTermsEditor({
-  account,
-}: Readonly<{ account: AccountDetailView }>) {
+function useMortgageTermDraft(account: AccountDetailView) {
   const { setMortgageTerms } = useAssetTracker();
   const today = todayIsoDate();
   const [firstPaymentDate, setFirstPaymentDate] = useState(
@@ -53,83 +51,121 @@ export function MortgageTermsEditor({
     }
   }
 
+  return {
+    error,
+    firstPaymentDate,
+    interestRatePercent,
+    remainingTermYears,
+    saved,
+    saving,
+    setFirstPaymentDate,
+    setInterestRatePercent,
+    setRemainingTermYears,
+    submit,
+  };
+}
+
+function MortgageTermInput({
+  id,
+  label,
+  onChange,
+  placeholder,
+  value,
+  ...numberProps
+}: Readonly<{
+  id: string;
+  label: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  value: string;
+}> &
+  Pick<
+    ComponentProps<typeof Input>,
+    "inputMode" | "max" | "min" | "step" | "type"
+  >) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-medium" htmlFor={id}>
+        {label}
+      </label>
+      <Input
+        id={id}
+        required
+        placeholder={placeholder}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        {...numberProps}
+      />
+    </div>
+  );
+}
+
+function MortgageTermsIntro() {
+  return (
+    <div>
+      <h3 className="text-sm font-medium">Mortgage modelling</h3>
+      <p className="text-xs text-muted-foreground">
+        The calculator needs the current interest rate, next payment date, and
+        remaining term. It uses the latest recorded balance.
+      </p>
+    </div>
+  );
+}
+
+export function MortgageTermsEditor({
+  account,
+}: Readonly<{ account: AccountDetailView }>) {
+  const draft = useMortgageTermDraft(account);
+
   return (
     <section className="space-y-3 rounded-lg border p-4">
-      <div>
-        <h3 className="text-sm font-medium">Mortgage modelling</h3>
-        <p className="text-xs text-muted-foreground">
-          The calculator needs the current interest rate, next payment date, and
-          remaining term. It uses the latest recorded balance.
-        </p>
-      </div>
+      <MortgageTermsIntro />
       <form
         className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
-        onSubmit={submit}
+        onSubmit={draft.submit}
       >
-        <div className="space-y-1.5">
-          <label
-            className="text-xs font-medium"
-            htmlFor={`mortgage-interest-rate-${account.id}`}
-          >
-            Current interest rate (%)
-          </label>
-          <Input
-            id={`mortgage-interest-rate-${account.id}`}
-            type="number"
-            inputMode="decimal"
-            min="0.01"
-            max="100"
-            step="0.01"
-            required
-            placeholder="e.g. 4.25"
-            value={interestRatePercent}
-            onChange={(event) => setInterestRatePercent(event.target.value)}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label
-            className="text-xs font-medium"
-            htmlFor={`mortgage-next-payment-${account.id}`}
-          >
-            Next payment date
-          </label>
-          <Input
-            id={`mortgage-next-payment-${account.id}`}
-            type="date"
-            required
-            value={firstPaymentDate}
-            onChange={(event) => setFirstPaymentDate(event.target.value)}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label
-            className="text-xs font-medium"
-            htmlFor={`mortgage-remaining-term-${account.id}`}
-          >
-            Remaining term in years
-          </label>
-          <Input
-            id={`mortgage-remaining-term-${account.id}`}
-            type="number"
-            inputMode="decimal"
-            min="0.1"
-            step="0.1"
-            required
-            placeholder="e.g. 18.5"
-            value={remainingTermYears}
-            onChange={(event) => setRemainingTermYears(event.target.value)}
-          />
-        </div>
+        <MortgageTermInput
+          id={`mortgage-interest-rate-${account.id}`}
+          label="Current interest rate (%)"
+          type="number"
+          inputMode="decimal"
+          min="0.01"
+          max="100"
+          step="0.01"
+          placeholder="e.g. 4.25"
+          value={draft.interestRatePercent}
+          onChange={draft.setInterestRatePercent}
+        />
+        <MortgageTermInput
+          id={`mortgage-next-payment-${account.id}`}
+          label="Next payment date"
+          type="date"
+          value={draft.firstPaymentDate}
+          onChange={draft.setFirstPaymentDate}
+        />
+        <MortgageTermInput
+          id={`mortgage-remaining-term-${account.id}`}
+          label="Remaining term in years"
+          type="number"
+          inputMode="decimal"
+          min="0.1"
+          step="0.1"
+          placeholder="e.g. 18.5"
+          value={draft.remainingTermYears}
+          onChange={draft.setRemainingTermYears}
+        />
         <div className="flex items-center gap-3 sm:col-span-2 lg:col-span-3">
-          <Button type="submit" size="sm" disabled={saving}>
+          <Button type="submit" size="sm" disabled={draft.saving}>
             Save mortgage terms
           </Button>
-          {saved && (
+          {draft.saved && (
             <p className="text-xs text-muted-foreground">Terms saved.</p>
           )}
         </div>
       </form>
-      {error != null && <p className="text-sm text-destructive">{error}</p>}
+      {draft.error != null && (
+        <p className="text-sm text-destructive">{draft.error}</p>
+      )}
     </section>
   );
 }

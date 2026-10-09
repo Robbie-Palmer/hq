@@ -39,6 +39,11 @@ const componentLabels = {
 } as const;
 
 type TaxSetupRow = TaxProfileSetup & { annualTaxableIncome: string };
+type TaxSetupUpdate = <K extends keyof TaxSetupRow>(
+  memberId: string,
+  key: K,
+  value: TaxSetupRow[K],
+) => void;
 
 function suggestedIncome(
   member: Household["members"][number],
@@ -63,7 +68,154 @@ function suggestedIncome(
   return annual == null ? "" : String(Math.round(annual));
 }
 
-function TaxSetupForm() {
+function TaxSetupSelectors({
+  row,
+  update,
+}: Readonly<{ row: TaxSetupRow; update: TaxSetupUpdate }>) {
+  return (
+    <>
+      <label className="space-y-1.5 text-xs font-medium">
+        Tax jurisdiction
+        <select
+          className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+          value={row.jurisdiction}
+          onChange={(event) =>
+            update(
+              row.memberId,
+              "jurisdiction",
+              event.target.value as TaxSetupRow["jurisdiction"],
+            )
+          }
+        >
+          <option value="england-and-northern-ireland">
+            England or Northern Ireland
+          </option>
+          <option value="scotland">Scotland</option>
+          <option value="wales">Wales</option>
+        </select>
+      </label>
+      <label className="space-y-1.5 text-xs font-medium">
+        UK residence
+        <select
+          className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+          value={row.residence}
+          onChange={(event) =>
+            update(
+              row.memberId,
+              "residence",
+              event.target.value as TaxSetupRow["residence"],
+            )
+          }
+        >
+          <option value="full-year-uk">Full tax year</option>
+          <option value="partial-year">Part of the tax year</option>
+          <option value="non-uk">Not UK resident</option>
+        </select>
+      </label>
+    </>
+  );
+}
+
+function TaxSetupIncomeFields({
+  row,
+  update,
+}: Readonly<{ row: TaxSetupRow; update: TaxSetupUpdate }>) {
+  return (
+    <>
+      <label
+        className="space-y-1.5 text-xs font-medium"
+        htmlFor={`tax-ni-category-${row.memberId}`}
+      >
+        NI category
+        <Input
+          id={`tax-ni-category-${row.memberId}`}
+          value={row.nationalInsuranceCategory}
+          onChange={(event) =>
+            update(
+              row.memberId,
+              "nationalInsuranceCategory",
+              event.target.value,
+            )
+          }
+        />
+      </label>
+      <div className="space-y-1.5">
+        <label
+          className="block text-xs font-medium"
+          htmlFor={`tax-income-${row.memberId}`}
+        >
+          Projected taxable employment income (£)
+        </label>
+        <Input
+          id={`tax-income-${row.memberId}`}
+          type="number"
+          min="0"
+          step="1"
+          required
+          value={row.annualTaxableIncome}
+          onChange={(event) =>
+            update(row.memberId, "annualTaxableIncome", event.target.value)
+          }
+        />
+        <span className="block text-xs font-normal text-muted-foreground">
+          Prefilled from current recurring gross pay after salary sacrifice. An
+          open-ended salary record is used only when no current flow exists.
+        </span>
+      </div>
+    </>
+  );
+}
+
+const taxSetupOptions = [
+  ["hasTaxableBenefits", "Taxable benefits"],
+  ["isCompanyDirector", "Company director"],
+  ["flexiblyAccessedPension", "Flexibly accessed pension"],
+] as const;
+
+function TaxSetupOptions({
+  row,
+  update,
+}: Readonly<{ row: TaxSetupRow; update: TaxSetupUpdate }>) {
+  return (
+    <div className="flex flex-wrap gap-4 text-sm">
+      {taxSetupOptions.map(([key, label]) => (
+        <label key={key} className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={row[key]}
+            onChange={(event) =>
+              update(row.memberId, key, event.target.checked)
+            }
+          />
+          {label}
+        </label>
+      ))}
+    </div>
+  );
+}
+
+function TaxSetupMember({
+  displayName,
+  row,
+  update,
+}: Readonly<{
+  displayName: string;
+  row: TaxSetupRow;
+  update: TaxSetupUpdate;
+}>) {
+  return (
+    <fieldset className="space-y-4 rounded-lg border p-4">
+      <legend className="px-1 text-sm font-medium">{displayName}</legend>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <TaxSetupSelectors row={row} update={update} />
+        <TaxSetupIncomeFields row={row} update={update} />
+      </div>
+      <TaxSetupOptions row={row} update={update} />
+    </fieldset>
+  );
+}
+
+function useTaxSetupForm() {
   const tracker = useAssetTracker();
   const configured = new Set(
     tracker.taxPosition?.profiles.map(({ memberId }) => memberId) ?? [],
@@ -84,19 +236,12 @@ function TaxSetupForm() {
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  if (missingMembers.length === 0) return null;
-
-  const update = <K extends keyof TaxSetupRow>(
-    memberId: string,
-    key: K,
-    value: TaxSetupRow[K],
-  ) =>
+  const update: TaxSetupUpdate = (memberId, key, value) =>
     setRows((current) =>
       current.map((row) =>
         row.memberId === memberId ? { ...row, [key]: value } : row,
       ),
     );
-
   async function save() {
     setSaving(true);
     setError(null);
@@ -116,6 +261,20 @@ function TaxSetupForm() {
       setSaving(false);
     }
   }
+  return {
+    error,
+    missingMembers,
+    rows,
+    save,
+    saving,
+    taxYear: tracker.taxEstimate.taxYear,
+    update,
+  };
+}
+
+function TaxSetupForm() {
+  const form = useTaxSetupForm();
+  if (form.missingMembers.length === 0) return null;
 
   return (
     <Card>
@@ -124,144 +283,36 @@ function TaxSetupForm() {
         <CardDescription>
           The current estimate uses the standard UK profile and income inferred
           from your saved salary or recurring gross pay. Review and save these
-          assumptions for {tracker.taxEstimate.taxYear}.
+          assumptions for {form.taxYear}.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        {rows.map((row) => {
-          const member = missingMembers.find(({ id }) => id === row.memberId);
-          return (
-            <fieldset
-              key={row.memberId}
-              className="space-y-4 rounded-lg border p-4"
-            >
-              <legend className="px-1 text-sm font-medium">
-                {member?.displayName ?? row.memberId}
-              </legend>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <label className="space-y-1.5 text-xs font-medium">
-                  Tax jurisdiction
-                  <select
-                    className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                    value={row.jurisdiction}
-                    onChange={(event) =>
-                      update(
-                        row.memberId,
-                        "jurisdiction",
-                        event.target.value as TaxSetupRow["jurisdiction"],
-                      )
-                    }
-                  >
-                    <option value="england-and-northern-ireland">
-                      England or Northern Ireland
-                    </option>
-                    <option value="scotland">Scotland</option>
-                    <option value="wales">Wales</option>
-                  </select>
-                </label>
-                <label className="space-y-1.5 text-xs font-medium">
-                  UK residence
-                  <select
-                    className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                    value={row.residence}
-                    onChange={(event) =>
-                      update(
-                        row.memberId,
-                        "residence",
-                        event.target.value as TaxSetupRow["residence"],
-                      )
-                    }
-                  >
-                    <option value="full-year-uk">Full tax year</option>
-                    <option value="partial-year">Part of the tax year</option>
-                    <option value="non-uk">Not UK resident</option>
-                  </select>
-                </label>
-                <label
-                  className="space-y-1.5 text-xs font-medium"
-                  htmlFor={`tax-ni-category-${row.memberId}`}
-                >
-                  NI category
-                  <Input
-                    id={`tax-ni-category-${row.memberId}`}
-                    value={row.nationalInsuranceCategory}
-                    onChange={(event) =>
-                      update(
-                        row.memberId,
-                        "nationalInsuranceCategory",
-                        event.target.value,
-                      )
-                    }
-                  />
-                </label>
-                <div className="space-y-1.5">
-                  <label
-                    className="block text-xs font-medium"
-                    htmlFor={`tax-income-${row.memberId}`}
-                  >
-                    Projected taxable employment income (£)
-                  </label>
-                  <Input
-                    id={`tax-income-${row.memberId}`}
-                    type="number"
-                    min="0"
-                    step="1"
-                    required
-                    value={row.annualTaxableIncome}
-                    onChange={(event) =>
-                      update(
-                        row.memberId,
-                        "annualTaxableIncome",
-                        event.target.value,
-                      )
-                    }
-                  />
-                  <span className="block text-xs font-normal text-muted-foreground">
-                    Prefilled from current recurring gross pay after salary
-                    sacrifice. An open-ended salary record is used only when no
-                    current flow exists.
-                  </span>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-4 text-sm">
-                {[
-                  ["hasTaxableBenefits", "Taxable benefits"],
-                  ["isCompanyDirector", "Company director"],
-                  ["flexiblyAccessedPension", "Flexibly accessed pension"],
-                ].map(([key, label]) => (
-                  <label key={key} className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(row[key as keyof TaxSetupRow])}
-                      onChange={(event) =>
-                        update(
-                          row.memberId,
-                          key as
-                            | "hasTaxableBenefits"
-                            | "isCompanyDirector"
-                            | "flexiblyAccessedPension",
-                          event.target.checked,
-                        )
-                      }
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          );
-        })}
+        {form.rows.map((row) => (
+          <TaxSetupMember
+            key={row.memberId}
+            row={row}
+            update={form.update}
+            displayName={
+              form.missingMembers.find(({ id }) => id === row.memberId)
+                ?.displayName ?? row.memberId
+            }
+          />
+        ))}
         <Button
           type="button"
           disabled={
-            saving ||
-            rows.some(({ annualTaxableIncome }) => annualTaxableIncome === "")
+            form.saving ||
+            form.rows.some(
+              ({ annualTaxableIncome }) => annualTaxableIncome === "",
+            )
           }
-          onClick={() => void save()}
+          onClick={() => void form.save()}
         >
           Save tax assumptions
         </Button>
-        {error != null && <p className="text-sm text-destructive">{error}</p>}
+        {form.error != null && (
+          <p className="text-sm text-destructive">{form.error}</p>
+        )}
       </CardContent>
     </Card>
   );

@@ -412,7 +412,71 @@ const payBasisOptions: readonly (readonly [PayBasis, string])[] = [
   ["irregular", "An irregular payment"],
 ];
 
-function PayFields({
+function BonusPayFields({
+  knownPay,
+  onKnownPayChange,
+}: Readonly<{
+  knownPay: KnownPay;
+  onKnownPayChange: (value: KnownPay) => void;
+}>) {
+  const isGross = knownPay === "gross";
+  return (
+    <>
+      <input type="hidden" name="amountKind" value="periodPay" />
+      <input type="hidden" name="payFrequency" value="irregular" />
+      <label className="space-y-1.5 text-sm">
+        <span className="font-medium">Bonus figure you know</span>
+        <select
+          value={knownPay}
+          onChange={(event) => onKnownPayChange(event.target.value as KnownPay)}
+          className="h-10 w-full rounded-md border bg-background px-3"
+        >
+          <option value="gross">Gross bonus before deductions</option>
+          <option value="take-home">Bonus received after deductions</option>
+        </select>
+      </label>
+      <Field
+        label={
+          isGross
+            ? "Gross bonus before deductions"
+            : "Bonus received after deductions"
+        }
+        name={isGross ? "grossPay" : "takeHomePay"}
+        type="number"
+        required
+      />
+      <p className="text-xs text-muted-foreground sm:col-span-2">
+        {isGross
+          ? "This is added once to that employment's gross pay for the tax year. It is not multiplied into a monthly or annual salary."
+          : "This is saved once as an observed payment. Tax cannot be reconstructed without the gross bonus."}
+      </p>
+    </>
+  );
+}
+
+function PayBasisField({
+  onChange,
+  value,
+}: Readonly<{ onChange: (value: PayBasis) => void; value: PayBasis }>) {
+  return (
+    <label className="space-y-1.5 text-sm">
+      <span className="font-medium">Figure covers</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value as PayBasis)}
+        className="h-10 w-full rounded-md border bg-background px-3"
+      >
+        {payBasisOptions.map(([option, label]) => (
+          <option key={option} value={option}>
+            {label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function RegularPayFields({
   entryKind,
   knownPay,
   onKnownPayChange,
@@ -427,63 +491,10 @@ function PayFields({
   payBasis: PayBasis;
   record?: SalaryHistoryRecord;
 }>) {
-  if (entryKind === "bonus") {
-    return (
-      <>
-        <input type="hidden" name="amountKind" value="periodPay" />
-        <input type="hidden" name="payFrequency" value="irregular" />
-        <label className="space-y-1.5 text-sm">
-          <span className="font-medium">Bonus figure you know</span>
-          <select
-            value={knownPay}
-            onChange={(event) =>
-              onKnownPayChange(event.target.value as KnownPay)
-            }
-            className="h-10 w-full rounded-md border bg-background px-3"
-          >
-            <option value="gross">Gross bonus before deductions</option>
-            <option value="take-home">Bonus received after deductions</option>
-          </select>
-        </label>
-        {knownPay === "gross" ? (
-          <Field
-            label="Gross bonus before deductions"
-            name="grossPay"
-            type="number"
-            required
-          />
-        ) : (
-          <Field
-            label="Bonus received after deductions"
-            name="takeHomePay"
-            type="number"
-            required
-          />
-        )}
-        <p className="text-xs text-muted-foreground sm:col-span-2">
-          {knownPay === "gross"
-            ? "This is added once to that employment's gross pay for the tax year. It is not multiplied into a monthly or annual salary."
-            : "This is saved once as an observed payment. Tax cannot be reconstructed without the gross bonus."}
-        </p>
-      </>
-    );
-  }
+  const isGross = knownPay === "gross";
   return (
     <>
-      <label className="space-y-1.5 text-sm">
-        <span className="font-medium">Figure covers</span>
-        <select
-          value={payBasis}
-          onChange={(event) => onPayBasisChange(event.target.value as PayBasis)}
-          className="h-10 w-full rounded-md border bg-background px-3"
-        >
-          {payBasisOptions.map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <PayBasisField value={payBasis} onChange={onPayBasisChange} />
       <input
         type="hidden"
         name="amountKind"
@@ -505,28 +516,52 @@ function PayFields({
           <option value="take-home">Take-home pay after tax and pension</option>
         </select>
       </label>
-      {knownPay === "gross" ? (
-        <Field
-          label={
-            entryKind === "raise"
-              ? "New gross salary before tax and pension"
-              : "Gross pay before tax and pension"
-          }
-          name="grossPay"
-          type="number"
-          defaultValue={record?.grossPay}
-          required
-        />
-      ) : (
-        <Field
-          label="Take-home pay after tax and pension"
-          name="takeHomePay"
-          type="number"
-          defaultValue={record?.takeHomePay}
-          required
-        />
-      )}
+      <Field
+        label={
+          isGross && entryKind === "raise"
+            ? "New gross salary before tax and pension"
+            : isGross
+              ? "Gross pay before tax and pension"
+              : "Take-home pay after tax and pension"
+        }
+        name={isGross ? "grossPay" : "takeHomePay"}
+        type="number"
+        defaultValue={isGross ? record?.grossPay : record?.takeHomePay}
+        required
+      />
     </>
+  );
+}
+
+function PayFields({
+  entryKind,
+  knownPay,
+  onKnownPayChange,
+  onPayBasisChange,
+  payBasis,
+  record,
+}: Readonly<{
+  entryKind: SalaryEntryKind;
+  knownPay: KnownPay;
+  onKnownPayChange: (value: KnownPay) => void;
+  onPayBasisChange: (value: PayBasis) => void;
+  payBasis: PayBasis;
+  record?: SalaryHistoryRecord;
+}>) {
+  if (entryKind === "bonus") {
+    return (
+      <BonusPayFields knownPay={knownPay} onKnownPayChange={onKnownPayChange} />
+    );
+  }
+  return (
+    <RegularPayFields
+      entryKind={entryKind}
+      knownPay={knownPay}
+      onKnownPayChange={onKnownPayChange}
+      onPayBasisChange={onPayBasisChange}
+      payBasis={payBasis}
+      record={record}
+    />
   );
 }
 
@@ -657,37 +692,46 @@ function TaxDeductionFields({
   );
 }
 
-function ExistingEmploymentFields({
+function EmploymentSelector({
   employmentOptions,
-  entryKind,
   onEmploymentChange,
   selectedEmployment,
 }: Readonly<{
   employmentOptions: readonly SalaryHistoryRecord[];
-  entryKind: "raise" | "bonus";
   onEmploymentChange: (id: string) => void;
   selectedEmployment?: SalaryHistoryRecord;
 }>) {
   return (
+    <label className="space-y-1.5 text-sm sm:col-span-2">
+      <span className="font-medium">Employment</span>
+      <select
+        value={selectedEmployment?.id ?? ""}
+        onChange={(event) => onEmploymentChange(event.target.value)}
+        required
+        className="h-10 w-full rounded-md border bg-background px-3"
+      >
+        {employmentOptions.length === 0 && (
+          <option value="">Add a salary period first</option>
+        )}
+        {employmentOptions.map((employment) => (
+          <option key={employment.id} value={employment.id}>
+            {employment.person} · {employment.employer}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function EmploymentHiddenInputs({
+  includeTaxFacts,
+  selectedEmployment,
+}: Readonly<{
+  includeTaxFacts: boolean;
+  selectedEmployment?: SalaryHistoryRecord;
+}>) {
+  return (
     <>
-      <label className="space-y-1.5 text-sm sm:col-span-2">
-        <span className="font-medium">Employment</span>
-        <select
-          value={selectedEmployment?.id ?? ""}
-          onChange={(event) => onEmploymentChange(event.target.value)}
-          required
-          className="h-10 w-full rounded-md border bg-background px-3"
-        >
-          {employmentOptions.length === 0 && (
-            <option value="">Add a salary period first</option>
-          )}
-          {employmentOptions.map((employment) => (
-            <option key={employment.id} value={employment.id}>
-              {employment.person} · {employment.employer}
-            </option>
-          ))}
-        </select>
-      </label>
       <input
         type="hidden"
         name="person"
@@ -703,7 +747,7 @@ function ExistingEmploymentFields({
         name="employmentId"
         value={selectedEmployment?.employmentId ?? ""}
       />
-      {entryKind === "bonus" && (
+      {includeTaxFacts && (
         <>
           <input
             type="hidden"
@@ -719,6 +763,15 @@ function ExistingEmploymentFields({
           />
         </>
       )}
+    </>
+  );
+}
+
+function EmploymentEffectiveDates({
+  entryKind,
+}: Readonly<{ entryKind: "raise" | "bonus" }>) {
+  return (
+    <>
       <DateField
         label={entryKind === "raise" ? "New rate starts" : "Payment date"}
         name="effectiveStart"
@@ -734,6 +787,96 @@ function ExistingEmploymentFields({
         </>
       )}
     </>
+  );
+}
+
+function ExistingEmploymentFields({
+  employmentOptions,
+  entryKind,
+  onEmploymentChange,
+  selectedEmployment,
+}: Readonly<{
+  employmentOptions: readonly SalaryHistoryRecord[];
+  entryKind: "raise" | "bonus";
+  onEmploymentChange: (id: string) => void;
+  selectedEmployment?: SalaryHistoryRecord;
+}>) {
+  return (
+    <>
+      <EmploymentSelector
+        employmentOptions={employmentOptions}
+        onEmploymentChange={onEmploymentChange}
+        selectedEmployment={selectedEmployment}
+      />
+      <EmploymentHiddenInputs
+        includeTaxFacts={entryKind === "bonus"}
+        selectedEmployment={selectedEmployment}
+      />
+      <EmploymentEffectiveDates entryKind={entryKind} />
+    </>
+  );
+}
+
+function EntryKindField({
+  entryKind,
+  onEntryKindChange,
+}: Readonly<{
+  entryKind: SalaryEntryKind;
+  onEntryKindChange: (kind: SalaryEntryKind) => void;
+}>) {
+  return (
+    <label className="space-y-1.5 text-sm sm:col-span-2">
+      <span className="font-medium">What are you recording?</span>
+      <select
+        value={entryKind}
+        onChange={(event) =>
+          onEntryKindChange(event.target.value as SalaryEntryKind)
+        }
+        className="h-10 w-full rounded-md border bg-background px-3"
+      >
+        <option value="salary">A job or salary period</option>
+        <option value="raise">A pay rise or promotion</option>
+        <option value="bonus">A one-off bonus</option>
+      </select>
+    </label>
+  );
+}
+
+function MoreSalaryDetails({
+  knownPay,
+  record,
+}: Readonly<{
+  knownPay: KnownPay;
+  record?: SalaryHistoryRecord;
+}>) {
+  return (
+    <details className="rounded-md border p-3 sm:col-span-2">
+      <summary className="cursor-pointer text-sm font-medium">
+        More details, if you know them
+      </summary>
+      <p className="mt-2 text-xs text-muted-foreground">
+        These fields improve tax and real-terms comparisons. They are not needed
+        to save the salary record.
+      </p>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <AdditionalPayFields knownPay={knownPay} record={record} />
+        <TaxDeductionFields record={record} />
+        <div className="sm:col-span-2">
+          <PensionFields
+            label="Employee pension"
+            prefix="employee"
+            value={record?.employeePension}
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <PensionFields
+            label="Employer pension"
+            prefix="employer"
+            value={record?.employerPension}
+          />
+        </div>
+      </div>
+    </details>
   );
 }
 
@@ -766,20 +909,10 @@ function SalaryFormFields({
   return (
     <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 sm:grid-cols-2">
       {record == null && (
-        <label className="space-y-1.5 text-sm sm:col-span-2">
-          <span className="font-medium">What are you recording?</span>
-          <select
-            value={entryKind}
-            onChange={(event) =>
-              onEntryKindChange(event.target.value as SalaryEntryKind)
-            }
-            className="h-10 w-full rounded-md border bg-background px-3"
-          >
-            <option value="salary">A job or salary period</option>
-            <option value="raise">A pay rise or promotion</option>
-            <option value="bonus">A one-off bonus</option>
-          </select>
-        </label>
+        <EntryKindField
+          entryKind={entryKind}
+          onEntryKindChange={onEntryKindChange}
+        />
       )}
       {record != null || entryKind === "salary" ? (
         <EmploymentFields record={record} defaultPerson={defaultPerson} />
@@ -800,33 +933,7 @@ function SalaryFormFields({
         record={entryKind === "raise" ? selectedEmployment : record}
       />
       {entryKind !== "bonus" && (
-        <details className="rounded-md border p-3 sm:col-span-2">
-          <summary className="cursor-pointer text-sm font-medium">
-            More details, if you know them
-          </summary>
-          <p className="mt-2 text-xs text-muted-foreground">
-            These fields improve tax and real-terms comparisons. They are not
-            needed to save the salary record.
-          </p>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <AdditionalPayFields knownPay={knownPay} record={inherited} />
-            <TaxDeductionFields record={inherited} />
-            <div className="sm:col-span-2">
-              <PensionFields
-                label="Employee pension"
-                prefix="employee"
-                value={inherited?.employeePension}
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <PensionFields
-                label="Employer pension"
-                prefix="employer"
-                value={inherited?.employerPension}
-              />
-            </div>
-          </div>
-        </details>
+        <MoreSalaryDetails knownPay={knownPay} record={inherited} />
       )}
     </div>
   );

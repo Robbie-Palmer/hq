@@ -493,22 +493,6 @@
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
-    "component": "NetWorthDataTable",
-    "maximums": {
-      "lines": 82
-    },
-    "path": "components/assettracker/net-worth-chart.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
-    "component": "PortfolioContributionChart",
-    "maximums": {
-      "lines": 74
-    },
-    "path": "components/assettracker/portfolio-contribution-chart.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
     "component": "PortfolioFiProjectionChart",
     "maximums": {
       "lines": 92

@@ -161,7 +161,7 @@ function MortgageModelExplanation({
   );
 }
 
-export function MortgageCalculator() {
+function useMortgageCalculatorState() {
   const {
     accountDetails = [],
     baseCurrency,
@@ -234,6 +234,37 @@ export function MortgageCalculator() {
     }
   }
 
+  function loadScenario(scenario: (typeof mortgageScenarios)[number]) {
+    setEditedAssumptions(scenario.assumptions);
+    setEditedSource(scenario.source);
+    setScenarioName(scenario.name);
+    setSaveState("idle");
+  }
+
+  return {
+    assumptions,
+    existingMortgage,
+    loadScenario,
+    money,
+    mortgage,
+    mortgageAccount,
+    mortgageScenarios,
+    rateAvailable,
+    recordedMortgagePayment,
+    result,
+    save,
+    saveState,
+    scenarioName,
+    setEditedAssumptions,
+    setSaveState,
+    setScenarioName,
+    sourceLabel,
+  };
+}
+
+export function MortgageCalculator() {
+  const state = useMortgageCalculatorState();
+
   return (
     <Card className="min-w-0">
       <CardHeader>
@@ -244,56 +275,60 @@ export function MortgageCalculator() {
       </CardHeader>
       <CardContent className="space-y-5 px-4 sm:px-6">
         <MortgageSetupNotices
-          mortgage={mortgage}
-          mortgageAccount={mortgageAccount}
-          rateAvailable={rateAvailable}
+          mortgage={state.mortgage}
+          mortgageAccount={state.mortgageAccount}
+          rateAvailable={state.rateAvailable}
         />
         <div className="rounded-md border p-3 text-sm">
           <p className="text-xs text-muted-foreground">Starting facts</p>
-          <p className="mt-1 font-medium">{sourceLabel}</p>
+          <p className="mt-1 font-medium">{state.sourceLabel}</p>
         </div>
         <MortgageCalculatorHighlights
-          existingMortgage={existingMortgage}
-          rateAvailable={rateAvailable}
-          result={result}
-          money={money}
+          existingMortgage={state.existingMortgage}
+          rateAvailable={state.rateAvailable}
+          result={state.result}
+          money={state.money}
         />
         <MortgageModelExplanation
-          assumptions={assumptions}
-          existingMortgage={existingMortgage}
-          mortgageBalance={result.selected.openingLoan}
-          money={money}
-          rateAvailable={rateAvailable}
-          recordedMortgagePayment={recordedMortgagePayment}
+          assumptions={state.assumptions}
+          existingMortgage={state.existingMortgage}
+          mortgageBalance={state.result.selected.openingLoan}
+          money={state.money}
+          rateAvailable={state.rateAvailable}
+          recordedMortgagePayment={state.recordedMortgagePayment}
         />
-        {result.selected.fundingShortfall > 0 && (
+        {state.result.selected.fundingShortfall > 0 && (
           <p className="rounded-md border border-destructive/50 p-3 text-sm text-destructive">
-            This option needs {money(result.selected.fundingShortfall)} more
-            upfront funding.
+            This option needs{" "}
+            {state.money(state.result.selected.fundingShortfall)} more upfront
+            funding.
           </p>
         )}
         <div>
           <h3 className="mb-2 text-sm font-medium">
-            {existingMortgage ? "LTV comparison" : "Deposit comparison"}
+            {state.existingMortgage ? "LTV comparison" : "Deposit comparison"}
           </h3>
           <MortgageDepositComparison
-            existingMortgage={existingMortgage}
-            rateAvailable={rateAvailable}
-            result={result}
-            money={money}
+            existingMortgage={state.existingMortgage}
+            rateAvailable={state.rateAvailable}
+            result={state.result}
+            money={state.money}
           />
         </div>
         <MortgageCalculatorControls
-          assumptions={assumptions}
+          assumptions={state.assumptions}
           onChange={(next) => {
-            setEditedAssumptions(next);
-            setSaveState("idle");
+            state.setEditedAssumptions(next);
+            state.setSaveState("idle");
           }}
         />
-        {rateAvailable && (
+        {state.rateAvailable && (
           <>
-            <MortgageRateStress result={result} money={money} />
-            <MortgageScheduleDetails result={result} money={money} />
+            <MortgageRateStress result={state.result} money={state.money} />
+            <MortgageScheduleDetails
+              result={state.result}
+              money={state.money}
+            />
           </>
         )}
 
@@ -308,56 +343,55 @@ export function MortgageCalculator() {
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
               aria-label="Scenario name"
-              value={scenarioName}
+              value={state.scenarioName}
               onChange={(event) => {
-                setScenarioName(event.target.value);
-                setSaveState("idle");
+                state.setScenarioName(event.target.value);
+                state.setSaveState("idle");
               }}
             />
             <Button
               type="button"
               variant="outline"
-              disabled={saveState === "saving" || scenarioName.trim() === ""}
-              onClick={() => void save(false)}
+              disabled={
+                state.saveState === "saving" || state.scenarioName.trim() === ""
+              }
+              onClick={() => void state.save(false)}
             >
               Save scenario
             </Button>
             <Button
               type="button"
-              disabled={saveState === "saving" || scenarioName.trim() === ""}
-              onClick={() => void save(true)}
+              disabled={
+                state.saveState === "saving" || state.scenarioName.trim() === ""
+              }
+              onClick={() => void state.save(true)}
             >
               Record decision
             </Button>
           </div>
-          {saveState === "saved" && (
+          {state.saveState === "saved" && (
             <p className="text-xs text-muted-foreground">
               Saved in this browser.
             </p>
           )}
-          {saveState === "error" && (
+          {state.saveState === "error" && (
             <p className="text-xs text-destructive">
               The scenario could not be saved.
             </p>
           )}
-          {mortgageScenarios.length > 0 && (
+          {state.mortgageScenarios.length > 0 && (
             <div>
               <p className="mb-2 text-xs font-medium text-muted-foreground">
                 Saved scenarios
               </p>
               <div className="flex flex-wrap gap-2">
-                {mortgageScenarios.map((scenario) => (
+                {state.mortgageScenarios.map((scenario) => (
                   <Button
                     key={scenario.id}
                     type="button"
                     size="sm"
                     variant="outline"
-                    onClick={() => {
-                      setEditedAssumptions(scenario.assumptions);
-                      setEditedSource(scenario.source);
-                      setScenarioName(scenario.name);
-                      setSaveState("idle");
-                    }}
+                    onClick={() => state.loadScenario(scenario)}
                   >
                     {scenario.name}
                   </Button>

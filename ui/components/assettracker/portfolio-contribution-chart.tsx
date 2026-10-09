@@ -25,6 +25,39 @@ const CHART_CONFIG = {
   },
 } satisfies ChartConfig;
 
+function ContributionHistoryData({
+  currency,
+  data,
+}: Readonly<{
+  currency: Currency;
+  data: readonly PortfolioContributionDataPoint[];
+}>) {
+  return (
+    <details className="group text-xs text-muted-foreground">
+      <summary className="cursor-pointer">View contribution data</summary>
+      <div className="mt-2 hidden max-h-80 overflow-auto rounded-md border group-open:block">
+        <table className="w-full text-left">
+          <caption>Cumulative contributed capital over time</caption>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Net contributed capital</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((point) => (
+              <tr key={point.date}>
+                <td>{point.date}</td>
+                <td>{formatCurrency(point.contributedCapital, currency)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  );
+}
+
 export function PortfolioContributionChart({
   data,
   currency = DEFAULT_BASE_CURRENCY,
@@ -74,32 +107,7 @@ export function PortfolioContributionChart({
                 </LineChart>
               </ResponsiveContainer>
             </ChartContainer>
-            <details className="group text-xs text-muted-foreground">
-              <summary className="cursor-pointer">
-                View contribution data
-              </summary>
-              <div className="mt-2 hidden max-h-80 overflow-auto rounded-md border group-open:block">
-                <table className="w-full text-left">
-                  <caption>Cumulative contributed capital over time</caption>
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Net contributed capital</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.map((point) => (
-                      <tr key={point.date}>
-                        <td>{point.date}</td>
-                        <td>
-                          {formatCurrency(point.contributedCapital, currency)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </details>
+            <ContributionHistoryData currency={currency} data={data} />
           </>
         )}
       </CardContent>

@@ -47,6 +47,47 @@ export function MortgageCalculatorHighlights({
   );
 }
 
+function MortgageDepositRow({
+  money,
+  option,
+  rateAvailable,
+  selectedDeposit,
+}: Readonly<{
+  money: FormatMoney;
+  option: MortgageCalculatorResult["depositOptions"][number];
+  rateAvailable: boolean;
+  selectedDeposit: number;
+}>) {
+  return (
+    <tr
+      className={
+        option.depositAmount === selectedDeposit
+          ? "border-t bg-muted/30 font-medium"
+          : "border-t"
+      }
+    >
+      <th className="whitespace-nowrap px-3 py-2 text-left">
+        {money(option.depositAmount)} ({percentage(option.depositPercentage)})
+      </th>
+      <td className="whitespace-nowrap px-3 py-2 text-right">
+        {percentage(option.loanToValue)}
+      </td>
+      <td className="whitespace-nowrap px-3 py-2 text-right">
+        {money(option.retainedLiquidity)}
+      </td>
+      <td className="whitespace-nowrap px-3 py-2 text-right">
+        {rateAvailable ? money(option.initialMonthlyPayment) : "Rate needed"}
+      </td>
+      <td className="whitespace-nowrap px-3 py-2 text-right">
+        {rateAvailable ? money(option.totalInterest) : "Rate needed"}
+      </td>
+      <td className="whitespace-nowrap px-3 py-2 text-right">
+        {option.payoffDate}
+      </td>
+    </tr>
+  );
+}
+
 export function MortgageDepositComparison({
   existingMortgage,
   rateAvailable,
@@ -82,36 +123,13 @@ export function MortgageDepositComparison({
         </thead>
         <tbody>
           {result.depositOptions.map((option) => (
-            <tr
+            <MortgageDepositRow
               key={option.depositAmount}
-              className={
-                option.depositAmount === result.selected.depositAmount
-                  ? "border-t bg-muted/30 font-medium"
-                  : "border-t"
-              }
-            >
-              <th className="whitespace-nowrap px-3 py-2 text-left">
-                {money(option.depositAmount)} (
-                {percentage(option.depositPercentage)})
-              </th>
-              <td className="whitespace-nowrap px-3 py-2 text-right">
-                {percentage(option.loanToValue)}
-              </td>
-              <td className="whitespace-nowrap px-3 py-2 text-right">
-                {money(option.retainedLiquidity)}
-              </td>
-              <td className="whitespace-nowrap px-3 py-2 text-right">
-                {rateAvailable
-                  ? money(option.initialMonthlyPayment)
-                  : "Rate needed"}
-              </td>
-              <td className="whitespace-nowrap px-3 py-2 text-right">
-                {rateAvailable ? money(option.totalInterest) : "Rate needed"}
-              </td>
-              <td className="whitespace-nowrap px-3 py-2 text-right">
-                {option.payoffDate}
-              </td>
-            </tr>
+              money={money}
+              option={option}
+              rateAvailable={rateAvailable}
+              selectedDeposit={result.selected.depositAmount}
+            />
           ))}
         </tbody>
       </table>
