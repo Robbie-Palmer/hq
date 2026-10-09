@@ -190,6 +190,13 @@
       "when": 1791307742060,
       "tag": "0026_kitchen_state_details",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1791531798628,
+      "tag": "0027_enable_pg_trgm_recipe_search",
+      "breakpoints": true
     }
   ]
 }

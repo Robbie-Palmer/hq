@@ -1,0 +1,202 @@
+---
+title: "ADR 028: pg_trgm Indexes for Recipe Search"
+date: "2026-10-08"
+status: "Accepted"
+tech_stack: ["pg_trgm"]
+---
+
+# Summary
+
+Enable PostgreSQL's `pg_trgm` extension and add GIN trigram indexes to recipe titles,
+descriptions, and bodies. The recipe dataset will grow to thousands of scraped recipes, and every
+recipe must remain searchable without changing the existing authorization or substring-matching
+contract.
+
+Do not enable pgvector, PostGIS, TimescaleDB, or `pg_mooncake` yet. Adopt pgvector as part of a
+semantic-search feature that also chooses the embedding model, data contract, backfill, and quality
+evaluation. The model does not need to exist before pgvector is installed. They belong in the same
+change.
+
+# Context
+
+[ADR 004](/projects/recipe-site/adrs/004-backend-platform-for-authenticated-features) chose Neon
+Postgres partly because its extension catalog leaves room for vector, geographic, and advanced
+search workloads. Installing one still requires a feature that uses it.
+
+The production and preview projects run PostgreSQL 17. Terraform provisions those projects, while
+[ADR 017](/projects/recipe-site/adrs/017-fresh-migration-baseline-and-isolated-preview-database-project)
+makes committed Drizzle migrations authoritative for database objects. Production applies those
+migrations through a direct Neon connection. Pull Request previews rebuild an empty database from
+the same history. The integration suite uses the standard `postgres:17-alpine` image, which builds
+and installs PostgreSQL's contrib extensions.
+
+Neon's current catalog lists the following versions for PostgreSQL 17:
+
+| Candidate     | Neon PG17 version | Possible recipe-site use                          | Decision evidence                                                        |
+| ------------- | ----------------- | ------------------------------------------------- | ------------------------------------------------------------------------ |
+| `pg_trgm`     | 1.6               | indexed substring and future typo-tolerant search | Thousands of imported recipes must be searched across three text fields  |
+| pgvector      | 0.8.0             | semantic discovery or embedding recommendations   | Adopt with the model and embedding lifecycle, which are not designed yet |
+| PostGIS       | 3.5.7             | nearby shops, producers, or geographic search     | No geographic field, map, radius query, or location product contract     |
+| TimescaleDB   | 2.17.1            | high-volume cooking or telemetry time series      | Current cooking insights use ordinary relational aggregates              |
+| `pg_mooncake` | 0.1.3             | columnar analytics over a large event corpus      | No in-database analytical workload; Neon marks it experimental           |
+
+The `recipes.search` agent capability searches the title, description, and serialized Cooklang
+body. It escapes user input, wraps it in `%` wildcards, limits results to 25, and applies the
+caller's current recipe visibility rules. Ordinary B-tree indexes cannot accelerate that
+leading-wildcard `ILIKE` query. PostgreSQL documents GIN and GiST `pg_trgm` operator classes for
+`LIKE` and `ILIKE`, including patterns that are not left-anchored.
+
+The initial searchable corpus has been small enough for a sequential scan. The planned import
+changes that assumption. Thousands of scraped recipes will make work proportional to the visible
+corpus for every search unless PostgreSQL can use a pattern index. The extension now has a named
+query, a quantified order of magnitude, and a migration that installs its indexes.
+
+GIN fits the current query better than GiST. Search asks whether each field contains a pattern and
+then orders matching recipes by update time. It does not ask for nearest-neighbour distance order,
+where GiST would have an advantage. Searches shorter than three characters may not yield an
+extractable trigram and can still scan the index or table. They remain correct.
+
+# Decision
+
+Install `pg_trgm` in the recipe database and add separate GIN indexes with `gin_trgm_ops` for:
+
+* `recipe.title`;
+* `recipe.description`; and
+* `recipe.body`.
+
+Keep the existing `ILIKE` query and result ordering. The indexes improve the current capability
+without adding fuzzy matches, changing ranking, or weakening `readableRecipeFilter`. A later
+typo-tolerant feature may use `similarity`, word-similarity operators, or a different ranking
+contract, but it must carry relevance tests because that would change which recipes the capability
+returns.
+
+Three indexes let PostgreSQL combine field matches with bitmap operations and preserve the current
+OR semantics. They also make their storage costs visible separately. After the first large corpus
+import, record `pg_relation_size` for each index and representative `EXPLAIN (ANALYZE, BUFFERS)`
+plans. If body search costs more storage or write time than it saves, revise the search document or
+drop that index in a later migration. Do not quietly stop searching ingredients and instructions.
+
+## Deferred extensions
+
+A semantic-search change should choose pgvector and the embedding lifecycle together. That change
+needs a model and version identifier, the text or structured fields embedded, update and deletion
+behavior, a resumable backfill, privacy rules, and an evaluation corpus. Installing pgvector is a
+small part of that feature. The lack of a current model means the feature has not chosen its data
+contract yet. It does not mean the model must somehow predate the extension.
+
+Reassess PostGIS when a feature stores geographic coordinates and performs spatial predicates. The
+pantry's `location` value means cupboard, fridge, freezer, or another storage area, so it is not a
+geographic use.
+
+Product analytics already goes to PostHog, and server-computed cooking insights query a
+transactional dataset. Reassess an analytical extension when ordinary PostgreSQL or PostHog misses
+a named workload target. Neon's TimescaleDB build currently excludes compression, while
+`pg_mooncake` is experimental and Neon recommends a separate project for it.
+
+## Cost boundary
+
+Neon's current plans include supported PostgreSQL extensions without an extension add-on. The
+three GIN indexes still use database storage, add work to recipe inserts and edits, and consume
+compute when they build or clean pending entries. Bulk imports should expect lower write throughput
+than an unindexed table.
+
+The production Terraform currently limits the recipe project to 100 CU-hours, 5 GiB of transfer,
+and 512 MiB of logical database storage. Those repository limits remain the working budget. Index
+sizes and import time must be measured after the representative corpus arrives. The application
+should alert before search indexes push the database near its storage quota.
+
+pgvector would also incur vector storage, index-build compute, and embedding-generation cost.
+PostGIS and analytical extensions would add their own index, compute, or object-storage costs.
+Their absence of an add-on fee is not a reason to install them early.
+
+## Migration and upgrade rules
+
+Migration `0027_enable_pg_trgm_recipe_search` installs the extension before creating dependent
+indexes:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+```
+
+Do not enable extensions manually in the Neon console. Production and previews must receive them
+through committed migrations. The integration suite applies the same migration to PostgreSQL 17
+and asserts that `pg_trgm` 1.6 and all three GIN indexes exist.
+
+Neon can change the default extension version as it updates its catalog. Query
+`pg_available_extensions` and `pg_extension` during rollout verification and record the installed
+version. When a feature needs a newer version, add a reviewed migration with `ALTER EXTENSION ...
+UPDATE` after Neon makes that version available and the preview rebuild passes. Neon may require a
+compute restart before a new version becomes available, which briefly interrupts connections.
+
+## Removal and recovery rules
+
+The indexes do not change stored recipe data, so application rollback does not require dropping
+them. Prefer a corrective forward migration after a deployment problem.
+
+Remove `pg_trgm` in two deployments:
+
+1. Replace or remove the indexed search and drop the three trigram indexes. Deploy code that no
+   longer expects them.
+2. After the old Worker version can no longer run, use a later migration with
+   `DROP EXTENSION pg_trgm RESTRICT`.
+
+Never use `DROP EXTENSION ... CASCADE` in an application migration. `RESTRICT` makes PostgreSQL
+refuse removal while dependent objects remain. A rollback mistake then fails instead of deleting
+indexes or future extension-backed data unexpectedly.
+
+# Alternatives
+
+## Keep sequential scans until production slows down
+
+This avoids index storage and write cost during the first import. It was rejected because the
+planned corpus is already in the thousands, the exact leading-wildcard query is known, and the
+extension can support it without changing results. Shipping the migration with the searchable
+corpus also lets previews and integration tests exercise the final query shape before production
+contains the data.
+
+## Use PostgreSQL full-text search
+
+Full-text search tokenizes documents and supports linguistic queries and relevance ranking. It is a
+good future candidate for natural-language discovery. It does not preserve the current substring
+contract for partial ingredient names, titles, or Cooklang text. Adopting it now would change search
+behavior as well as storage.
+
+## Enable pgvector with no semantic-search design
+
+The extension can be installed before an embedding model exists, but an empty vector extension
+does not answer a user query. It was deferred so the eventual change can choose the model,
+embedding schema, index type, backfill, and evaluation together. The model and pgvector should land
+in the same change.
+
+## Add every likely extension now
+
+Installing pgvector, PostGIS, and analytical extensions together would make future experiments
+quicker. It would also create unowned database capabilities with no schema, tests, cost estimate,
+or removal trigger. `pg_trgm` is the only candidate attached to a current query and a planned data
+volume.
+
+# Consequences
+
+* Substring searches over the imported corpus can use GIN indexes while keeping current visibility
+  checks and result semantics.
+* Recipe inserts and edits maintain three additional indexes. Bulk imports consume more CPU and may
+  flush GIN pending lists.
+* Title, description, and body indexes consume part of the 512 MiB database budget. Their sizes
+  become an explicit post-import measurement.
+* One committed migration enables the extension in production, previews, and integration tests.
+* Semantic search remains a coherent future change. It can install pgvector at the same time it
+  introduces the embedding model and lifecycle.
+* Spatial and analytical extensions remain disabled because no current feature uses them.
+
+# References
+
+* [PostgreSQL `pg_trgm` index support](https://www.postgresql.org/docs/17/pgtrgm.html#PGTRGM-INDEX)
+* [PostgreSQL GIN indexes](https://www.postgresql.org/docs/17/gin.html)
+* [Neon supported PostgreSQL extensions and versions](https://neon.com/docs/extensions/pg-extensions)
+* [Neon `pg_trgm` guide](https://neon.com/docs/extensions/pg_trgm)
+* [Neon pgvector guide](https://neon.com/docs/extensions/pgvector)
+* [Neon PostGIS guide](https://neon.com/docs/extensions/postgis)
+* [Neon TimescaleDB guide](https://neon.com/docs/extensions/timescaledb)
+* [Neon `pg_mooncake` guide](https://neon.com/docs/extensions/pg_mooncake)
+* [Neon pricing](https://neon.com/pricing)
+* [PostgreSQL `DROP EXTENSION`](https://www.postgresql.org/docs/current/sql-dropextension.html)
