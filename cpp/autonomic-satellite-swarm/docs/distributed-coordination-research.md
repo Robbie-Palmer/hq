@@ -338,13 +338,18 @@ Authenticate identities and messages, reject replay across epochs, define offlin
 apply authorization by command type. Then inject forged, conflicting, and resource-exhaustion
 traffic. Security work done earlier would protect protocol behavior whose meaning is still changing.
 
-## The first implementation slice
+## Implemented laboratory
 
-The first network-laboratory step is now implemented. The deterministic trace can drop, delay, or
-duplicate a selected delivery, change directed links for asymmetric partitions, and reset a node.
-Every applied fault is visible in the result. The browser's assignment-loss scenario shows the
-leader recording an assignee while the winning node waits and then returns to idle because its
-assignment never arrived.
+The network laboratory now runs the portable controller with seeded loss, delay, duplication, and
+reordering. Scenario frames model asymmetric partitions, stale contact plans, node crash and reset,
+receive-buffer pressure, and incompatible protocol versions. The versioned output records each
+random draw, delivery result, lifecycle change, resource sample, input seed, configuration ID, and
+source revision. The browser's assignment-loss scenario remains the small interactive case.
+
+The native batch command gives every controller configuration the same seeds. It retains raw safety,
+liveness, assignment-latency, delivery, byte, buffer, and estimated-energy measures, then calculates
+95% confidence intervals. Each configuration keeps its worst run as a replayable regression trace.
+The energy calculation is an explicit byte-cost estimate until hardware measurements replace it.
 
 Stable mission identity and executable invariant checks are now implemented against the existing
 temporary-leader controller. A mission key combines the origin node, its boot epoch, and a sequence
@@ -355,6 +360,6 @@ delayed request has no expiry, so either can start work after the intended bound
 The [coordination semantics and invariant baseline](invariant-baseline.md) states the fault,
 membership, clock, deadline, and duplicate-execution assumptions. It classifies local health,
 repeatable work, exclusive ownership, telemetry, and bulk data instead of assigning one guarantee to
-all traffic. Categorized deterministic checks keep safety, liveness, and cost separate. The next
+all traffic. Categorized deterministic checks keep safety, liveness, and cost separate. A later
 slice added a [bounded telemetry queue](telemetry.md) whose records use stable mission keys. A future
 protocol still needs to earn stronger quorum, convergent-state, or delay-tolerant routing claims.

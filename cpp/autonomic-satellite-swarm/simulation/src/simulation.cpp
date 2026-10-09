@@ -1,6 +1,7 @@
 #include "satellite_swarm/simulation.hpp"
 
 #include "satellite_swarm/historical_orbital_scorer.hpp"
+#include "satellite_swarm/wire_codec.hpp"
 
 #include <array>
 #include <cstddef>
@@ -18,9 +19,22 @@ class SimulationTransport;
 
 class SimulationBus {
 public:
-  explicit SimulationBus(std::vector<SimulationEvent>& events) : events_(events) {
+  SimulationBus(std::vector<SimulationEvent>& events, const SimulationTrace& trace)
+      : events_(events), seeded_faults_(trace.seeded_delivery_faults),
+        record_delivery_decisions_(trace.record_delivery_decisions),
+        record_resource_samples_(trace.record_resource_samples),
+        random_state_(trace.provenance.seed) {
+    if (random_state_ == 0U) {
+      random_state_ = 0x9e3779b97f4a7c15ULL;
+    }
     for (auto& sender_links : links_) {
       sender_links.fill(true);
+    }
+    for (const NodeConfiguration& node : trace.nodes) {
+      const auto index = static_cast<std::size_t>(node.node_id);
+      protocol_versions_[index] = node.protocol_version;
+      buffer_capacities_[index] = node.receive_buffer_capacity;
+      running_[index] = true;
     }
   }
 
@@ -30,6 +44,13 @@ public:
   void endFrame() const;
   void broadcast(NodeId sender, const Message& message);
   void reset(NodeId node_id);
+  void crash(NodeId node_id);
+  void setBufferCapacity(NodeId node_id, uint16_t capacity);
+  void recordResourceSamples();
+  bool running(NodeId node_id) const { return running_[node_id]; }
+  uint16_t protocolVersion(NodeId node_id) const { return protocol_versions_[node_id]; }
+  uint16_t bufferCapacity(NodeId node_id) const { return buffer_capacities_[node_id]; }
+  uint16_t bufferOccupancy(NodeId node_id) const;
 
 private:
   struct PendingDelivery {
@@ -47,16 +68,32 @@ private:
   using DeliveryFaultIterator = std::vector<DeliveryFault>::iterator;
 
   void deliver(NodeId sender, NodeId recipient, const Message& message);
+  void deliverNow(NodeId sender, NodeId recipient, const Message& message,
+                  SimulationEventType event_type = SimulationEventType::MessageDelivered);
   void recordDeliveryEvent(SimulationEventType type, NodeId sender, NodeId recipient,
                            const Message& message, uint32_t deliver_at_ms = 0U,
                            MessageDropReason drop_reason = MessageDropReason::Scripted);
   DeliveryFaultIterator matchingFault(NodeId sender, NodeId recipient, MessageType message_type);
+  uint32_t nextRandomPermyriad();
+  DeliveryDecisionType seededDecision(uint32_t sample) const;
+  void recordDecision(NodeId sender, NodeId recipient, const Message& message, uint32_t sample,
+                      DeliveryDecisionType decision, uint32_t deliver_at_ms = 0U);
 
   std::vector<SimulationTransport*> transports_;
   std::vector<SimulationEvent>& events_;
   std::array<std::array<bool, kMaximumNodes>, kMaximumNodes> links_{};
+  std::array<uint16_t, kMaximumNodes> protocol_versions_{};
+  std::array<uint16_t, kMaximumNodes> buffer_capacities_{};
+  std::array<bool, kMaximumNodes> running_{};
+  std::array<uint64_t, kMaximumNodes> bytes_sent_{};
+  std::array<uint64_t, kMaximumNodes> bytes_received_{};
+  std::array<uint64_t, kMaximumNodes> bytes_dropped_{};
   std::vector<DeliveryFault> delivery_faults_;
   std::vector<PendingDelivery> pending_deliveries_;
+  SeededDeliveryFaults seeded_faults_{};
+  bool record_delivery_decisions_ = false;
+  bool record_resource_samples_ = false;
+  uint64_t random_state_ = 0U;
   uint32_t now_ms_ = 0U;
 };
 
@@ -80,8 +117,15 @@ public:
     return true;
   }
 
-  void deliver(const Message& message) { inbox_.push_back(message); }
+  bool deliver(const Message& message, uint16_t capacity) {
+    if (inbox_.size() >= static_cast<std::size_t>(capacity)) {
+      return false;
+    }
+    inbox_.push_back(message);
+    return true;
+  }
   void reset() { inbox_.clear(); }
+  uint16_t occupancy() const { return static_cast<uint16_t>(inbox_.size()); }
 
 private:
   NodeId node_id_;
@@ -104,6 +148,17 @@ void SimulationBus::beginFrame(const SimulationFrame& frame) {
     event.connected = update.connected;
     events_.push_back(event);
   }
+  for (const ContactUpdate& update : frame.contact_updates) {
+    links_[update.sender][update.recipient] = update.connected;
+    SimulationEvent event;
+    event.type = SimulationEventType::ContactObserved;
+    event.now_ms = now_ms_;
+    event.node_id = update.sender;
+    event.recipient_node = update.recipient;
+    event.planned_connected = update.planned_connected;
+    event.connected = update.connected;
+    events_.push_back(event);
+  }
 }
 
 void SimulationBus::endFrame() const {
@@ -114,6 +169,27 @@ void SimulationBus::endFrame() const {
 
 void SimulationBus::reset(NodeId node_id) {
   transports_.at(static_cast<std::size_t>(node_id))->reset();
+  running_[node_id] = true;
+}
+
+void SimulationBus::crash(NodeId node_id) {
+  transports_.at(static_cast<std::size_t>(node_id))->reset();
+  running_[node_id] = false;
+}
+
+void SimulationBus::setBufferCapacity(NodeId node_id, uint16_t capacity) {
+  buffer_capacities_[node_id] = capacity;
+  SimulationEvent event;
+  event.type = SimulationEventType::StoragePressureChanged;
+  event.now_ms = now_ms_;
+  event.node_id = node_id;
+  event.buffer_occupancy = bufferOccupancy(node_id);
+  event.buffer_capacity = capacity;
+  events_.push_back(event);
+}
+
+uint16_t SimulationBus::bufferOccupancy(NodeId node_id) const {
+  return transports_.at(static_cast<std::size_t>(node_id))->occupancy();
 }
 
 void SimulationBus::recordDeliveryEvent(SimulationEventType type, NodeId sender, NodeId recipient,
@@ -128,6 +204,64 @@ void SimulationBus::recordDeliveryEvent(SimulationEventType type, NodeId sender,
   event.deliver_at_ms = deliver_at_ms;
   event.drop_reason = drop_reason;
   events_.push_back(event);
+}
+
+uint32_t SimulationBus::nextRandomPermyriad() {
+  random_state_ ^= random_state_ >> 12U;
+  random_state_ ^= random_state_ << 25U;
+  random_state_ ^= random_state_ >> 27U;
+  const uint64_t value = random_state_ * 2685821657736338717ULL;
+  return static_cast<uint32_t>(value % 10000U);
+}
+
+DeliveryDecisionType SimulationBus::seededDecision(uint32_t sample) const {
+  uint32_t boundary = seeded_faults_.loss_permyriad;
+  if (sample < boundary) {
+    return DeliveryDecisionType::Drop;
+  }
+  boundary += seeded_faults_.delay_permyriad;
+  if (sample < boundary) {
+    return DeliveryDecisionType::Delay;
+  }
+  boundary += seeded_faults_.duplicate_permyriad;
+  if (sample < boundary) {
+    return DeliveryDecisionType::Duplicate;
+  }
+  boundary += seeded_faults_.reorder_permyriad;
+  return sample < boundary ? DeliveryDecisionType::Reorder : DeliveryDecisionType::Deliver;
+}
+
+void SimulationBus::recordDecision(NodeId sender, NodeId recipient, const Message& message,
+                                   uint32_t sample, DeliveryDecisionType decision,
+                                   uint32_t deliver_at_ms) {
+  if (!record_delivery_decisions_) {
+    return;
+  }
+  SimulationEvent event;
+  event.type = SimulationEventType::DeliveryDecision;
+  event.now_ms = now_ms_;
+  event.node_id = sender;
+  event.recipient_node = recipient;
+  event.message = message;
+  event.random_value = sample;
+  event.delivery_decision = decision;
+  event.deliver_at_ms = deliver_at_ms;
+  events_.push_back(event);
+}
+
+void SimulationBus::deliverNow(NodeId sender, NodeId recipient, const Message& message,
+                               SimulationEventType event_type) {
+  if (!transports_.at(static_cast<std::size_t>(recipient))
+           ->deliver(message, buffer_capacities_[recipient])) {
+    bytes_dropped_[recipient] += WireCodec::kPacketSize;
+    recordDeliveryEvent(SimulationEventType::MessageDropped, sender, recipient, message, 0U,
+                        MessageDropReason::StoragePressure);
+    return;
+  }
+  bytes_received_[recipient] += WireCodec::kPacketSize;
+  if (record_delivery_decisions_ || event_type == SimulationEventType::DelayedMessageDelivered) {
+    recordDeliveryEvent(event_type, sender, recipient, message);
+  }
 }
 
 SimulationBus::DeliveryFaultIterator SimulationBus::matchingFault(NodeId sender, NodeId recipient,
@@ -150,19 +284,67 @@ void SimulationBus::deliver(NodeId sender, NodeId recipient, const Message& mess
     delivery_faults_.erase(fault);
   }
 
+  if (!running_[sender] || !running_[recipient]) {
+    bytes_dropped_[recipient] += WireCodec::kPacketSize;
+    recordDeliveryEvent(SimulationEventType::MessageDropped, sender, recipient, message, 0U,
+                        MessageDropReason::NodeCrashed);
+    return;
+  }
   if (!links_[sender][recipient]) {
+    bytes_dropped_[recipient] += WireCodec::kPacketSize;
     recordDeliveryEvent(SimulationEventType::MessageDropped, sender, recipient, message, 0U,
                         MessageDropReason::LinkUnavailable);
     return;
   }
+  if (protocol_versions_[sender] != protocol_versions_[recipient]) {
+    bytes_dropped_[recipient] += WireCodec::kPacketSize;
+    recordDeliveryEvent(SimulationEventType::MessageDropped, sender, recipient, message, 0U,
+                        MessageDropReason::IncompatibleProtocol);
+    return;
+  }
 
+  DeliveryDecisionType decision = DeliveryDecisionType::Deliver;
+  uint32_t sample = 0U;
+  if (!has_fault && seeded_faults_.enabled) {
+    sample = nextRandomPermyriad();
+    decision = seededDecision(sample);
+  }
+
+  if (!has_fault && decision == DeliveryDecisionType::Deliver) {
+    recordDecision(sender, recipient, message, sample, decision);
+    deliverNow(sender, recipient, message);
+    return;
+  }
   if (!has_fault) {
-    transports_.at(static_cast<std::size_t>(recipient))->deliver(message);
+    const uint32_t delay_span = seeded_faults_.maximum_delay_ms - seeded_faults_.minimum_delay_ms;
+    const uint32_t delay =
+        seeded_faults_.minimum_delay_ms + (delay_span == 0U ? 0U : sample % (delay_span + 1U));
+    if (decision == DeliveryDecisionType::Drop) {
+      recordDecision(sender, recipient, message, sample, decision);
+      bytes_dropped_[recipient] += WireCodec::kPacketSize;
+      recordDeliveryEvent(SimulationEventType::MessageDropped, sender, recipient, message);
+      return;
+    }
+    if (decision == DeliveryDecisionType::Delay || decision == DeliveryDecisionType::Reorder) {
+      const uint32_t effective_delay =
+          decision == DeliveryDecisionType::Reorder ? seeded_faults_.maximum_delay_ms : delay;
+      const uint32_t deliver_at_ms = now_ms_ + effective_delay;
+      recordDecision(sender, recipient, message, sample, decision, deliver_at_ms);
+      pending_deliveries_.emplace_back(deliver_at_ms, sender, recipient, message);
+      recordDeliveryEvent(SimulationEventType::MessageDelayed, sender, recipient, message,
+                          deliver_at_ms);
+      return;
+    }
+    recordDecision(sender, recipient, message, sample, decision);
+    deliverNow(sender, recipient, message);
+    deliverNow(sender, recipient, message);
+    recordDeliveryEvent(SimulationEventType::MessageDuplicated, sender, recipient, message);
     return;
   }
 
   switch (selected.type) {
   case DeliveryFaultType::Drop:
+    bytes_dropped_[recipient] += WireCodec::kPacketSize;
     recordDeliveryEvent(SimulationEventType::MessageDropped, sender, recipient, message);
     break;
   case DeliveryFaultType::Delay: {
@@ -173,8 +355,8 @@ void SimulationBus::deliver(NodeId sender, NodeId recipient, const Message& mess
     break;
   }
   case DeliveryFaultType::Duplicate:
-    transports_.at(static_cast<std::size_t>(recipient))->deliver(message);
-    transports_.at(static_cast<std::size_t>(recipient))->deliver(message);
+    deliverNow(sender, recipient, message);
+    deliverNow(sender, recipient, message);
     recordDeliveryEvent(SimulationEventType::MessageDuplicated, sender, recipient, message);
     break;
   }
@@ -191,13 +373,15 @@ void SimulationBus::releasePending() {
       continue;
     }
 
-    if (links_[pending->sender][pending->recipient]) {
-      transports_.at(static_cast<std::size_t>(pending->recipient))->deliver(pending->message);
-      recordDeliveryEvent(SimulationEventType::DelayedMessageDelivered, pending->sender,
-                          pending->recipient, pending->message);
+    if (running_[pending->recipient] && links_[pending->sender][pending->recipient]) {
+      deliverNow(pending->sender, pending->recipient, pending->message,
+                 SimulationEventType::DelayedMessageDelivered);
     } else {
+      bytes_dropped_[pending->recipient] += WireCodec::kPacketSize;
       recordDeliveryEvent(SimulationEventType::MessageDropped, pending->sender, pending->recipient,
-                          pending->message, 0U, MessageDropReason::LinkUnavailable);
+                          pending->message, 0U,
+                          running_[pending->recipient] ? MessageDropReason::LinkUnavailable
+                                                       : MessageDropReason::NodeCrashed);
     }
     pending = pending_deliveries_.erase(pending);
   }
@@ -210,12 +394,33 @@ void SimulationBus::broadcast(NodeId sender, const Message& message) {
   event.node_id = sender;
   event.message = message;
   events_.push_back(event);
+  bytes_sent_[sender] += WireCodec::kPacketSize;
 
   for (std::size_t recipient = 0U; recipient < transports_.size(); ++recipient) {
     const auto recipient_id = static_cast<NodeId>(recipient);
     if (recipient_id != sender) {
       deliver(sender, recipient_id, message);
     }
+  }
+}
+
+void SimulationBus::recordResourceSamples() {
+  if (!record_resource_samples_) {
+    return;
+  }
+  for (std::size_t index = 0U; index < transports_.size(); ++index) {
+    SimulationEvent event;
+    event.type = SimulationEventType::ResourceSample;
+    event.now_ms = now_ms_;
+    event.node_id = static_cast<NodeId>(index);
+    event.buffer_occupancy = transports_[index]->occupancy();
+    event.buffer_capacity = buffer_capacities_[index];
+    event.bytes_sent = bytes_sent_[index];
+    event.bytes_received = bytes_received_[index];
+    event.bytes_dropped = bytes_dropped_[index];
+    event.estimated_energy_millijoules = static_cast<double>(bytes_sent_[index]) * 0.08 +
+                                         static_cast<double>(bytes_received_[index]) * 0.04;
+    events_.push_back(event);
   }
 }
 
@@ -324,11 +529,24 @@ void validateFrame(const SimulationFrame& frame, std::size_t node_count) {
       throw std::invalid_argument("simulation link update cannot target its sender");
     }
   }
+  for (const ContactUpdate& update : frame.contact_updates) {
+    validateNodeId(update.sender, node_count);
+    validateNodeId(update.recipient, node_count);
+    if (update.sender == update.recipient) {
+      throw std::invalid_argument("simulation contact update cannot target its sender");
+    }
+  }
+  for (const StoragePressureUpdate& update : frame.storage_pressure_updates) {
+    validateNodeId(update.node_id, node_count);
+  }
   for (const DeliveryFault& fault : frame.delivery_faults) {
     validateDeliveryFault(fault, node_count);
   }
   for (const NodeReset& reset : frame.node_resets) {
     validateNodeId(reset.node_id, node_count);
+  }
+  for (const NodeCrash& crash : frame.node_crashes) {
+    validateNodeId(crash.node_id, node_count);
   }
   for (const MissionCommand& command : frame.mission_commands) {
     validateNodeId(command.leader, node_count);
@@ -362,6 +580,20 @@ void validateTrace(const SimulationTrace& trace) {
     if (!isKnown(node.safe_state_request_result)) {
       throw std::invalid_argument("simulation node has an invalid safe-state request result");
     }
+    if (node.protocol_version == 0U) {
+      throw std::invalid_argument("simulation node protocol versions must be nonzero");
+    }
+  }
+
+  const SeededDeliveryFaults& faults = trace.seeded_delivery_faults;
+  const uint32_t total_probability = static_cast<uint32_t>(faults.loss_permyriad) +
+                                     static_cast<uint32_t>(faults.delay_permyriad) +
+                                     static_cast<uint32_t>(faults.duplicate_permyriad) +
+                                     static_cast<uint32_t>(faults.reorder_permyriad);
+  if (total_probability > 10000U || faults.minimum_delay_ms == 0U ||
+      faults.maximum_delay_ms < faults.minimum_delay_ms ||
+      faults.maximum_delay_ms > static_cast<uint32_t>(std::numeric_limits<int32_t>::max())) {
+    throw std::invalid_argument("simulation seeded delivery fault configuration is invalid");
   }
 
   uint32_t previous_time = 0U;
@@ -380,7 +612,8 @@ void validateTrace(const SimulationTrace& trace) {
 }
 
 void recordStateChange(std::vector<SimulationEvent>& events, uint32_t now_ms, NodeId node_id,
-                       ControllerState previous, ControllerState current) {
+                       ControllerState previous, ControllerState current,
+                       MissionKey mission_key = MissionKey()) {
   if (previous == current) {
     return;
   }
@@ -390,6 +623,7 @@ void recordStateChange(std::vector<SimulationEvent>& events, uint32_t now_ms, No
   event.node_id = node_id;
   event.previous_state = previous;
   event.current_state = current;
+  event.mission_key = mission_key;
   events.push_back(event);
 }
 
@@ -419,7 +653,8 @@ void applyOrbitUpdates(const SimulationFrame& frame,
 }
 
 NodeObservation observe(const SwarmController& controller,
-                        const std::optional<PropagationResult>& orbit) {
+                        const std::optional<PropagationResult>& orbit,
+                        const SimulationBus& bus) {
   NodeObservation observation;
   observation.node_id = controller.nodeId();
   observation.state = controller.state();
@@ -431,6 +666,10 @@ NodeObservation observe(const SwarmController& controller,
   observation.communication_failures = controller.consecutiveCommunicationFailures();
   observation.telemetry_drops = controller.droppedTelemetryEvents();
   observation.orbit = orbit;
+  observation.running = bus.running(controller.nodeId());
+  observation.protocol_version = bus.protocolVersion(controller.nodeId());
+  observation.buffer_occupancy = bus.bufferOccupancy(controller.nodeId());
+  observation.buffer_capacity = bus.bufferCapacity(controller.nodeId());
   return observation;
 }
 
@@ -440,7 +679,7 @@ SimulationResult runSimulationTrace(const SimulationTrace& trace) {
   validateTrace(trace);
 
   SimulationResult result;
-  SimulationBus bus(result.events);
+  SimulationBus bus(result.events, trace);
   HistoricalOrbitalScorer scorer;
   ControllerConfig controller_config = trace.controller;
   controller_config.node_capacity = static_cast<uint8_t>(trace.nodes.size());
@@ -490,6 +729,21 @@ SimulationResult runSimulationTrace(const SimulationTrace& trace) {
       }
     }
     applyOrbitUpdates(frame, controllers, orbits);
+    for (const StoragePressureUpdate& update : frame.storage_pressure_updates) {
+      bus.setBufferCapacity(update.node_id, update.receive_buffer_capacity);
+    }
+    for (const NodeCrash& crash : frame.node_crashes) {
+      const auto index = static_cast<std::size_t>(crash.node_id);
+      bus.crash(crash.node_id);
+      SimulationEvent event;
+      event.type = SimulationEventType::NodeCrashed;
+      event.now_ms = frame.now_ms;
+      event.node_id = crash.node_id;
+      event.running = false;
+      event.previous_state = controllers[index]->state();
+      event.current_state = controllers[index]->state();
+      result.events.push_back(event);
+    }
     for (const NodeReset& reset : frame.node_resets) {
       const auto index = static_cast<std::size_t>(reset.node_id);
       const ControllerState previous = controllers[index]->state();
@@ -510,6 +764,7 @@ SimulationResult runSimulationTrace(const SimulationTrace& trace) {
       event.type = SimulationEventType::NodeReset;
       event.now_ms = frame.now_ms;
       event.node_id = reset.node_id;
+      event.running = true;
       event.previous_state = previous;
       event.current_state = controllers[index]->state();
       result.events.push_back(event);
@@ -525,11 +780,14 @@ SimulationResult runSimulationTrace(const SimulationTrace& trace) {
       const std::size_t event_index = result.events.size() - 1U;
       SwarmController& controller = *controllers.at(static_cast<std::size_t>(completion.node_id));
       const ControllerState previous = controller.state();
-      result.events[event_index].accepted = previous == ControllerState::Active;
-      controller.completeMission(frame.now_ms);
-      drainTelemetry(result.events, controller);
-      recordStateChange(result.events, frame.now_ms, completion.node_id, previous,
-                        controller.state());
+      result.events[event_index].accepted =
+          bus.running(completion.node_id) && previous == ControllerState::Active;
+      if (bus.running(completion.node_id)) {
+        controller.completeMission(frame.now_ms);
+        drainTelemetry(result.events, controller);
+        recordStateChange(result.events, frame.now_ms, completion.node_id, previous,
+                          controller.state(), controller.currentMissionKey());
+      }
     }
     for (const MissionCommand& command : frame.mission_commands) {
       SimulationEvent event;
@@ -542,26 +800,34 @@ SimulationResult runSimulationTrace(const SimulationTrace& trace) {
       SwarmController& controller = *controllers.at(static_cast<std::size_t>(command.leader));
       const ControllerState previous = controller.state();
       result.events[event_index].accepted =
+          bus.running(command.leader) &&
           controller.initiateMission(command.objective, frame.now_ms);
-      drainTelemetry(result.events, controller);
-      recordStateChange(result.events, frame.now_ms, command.leader, previous, controller.state());
+      if (bus.running(command.leader)) {
+        drainTelemetry(result.events, controller);
+        recordStateChange(result.events, frame.now_ms, command.leader, previous, controller.state(),
+                          controller.currentMissionKey());
+      }
     }
 
     for (const std::unique_ptr<SwarmController>& controller : controllers) {
+      if (!bus.running(controller->nodeId())) {
+        continue;
+      }
       const ControllerState previous = controller->state();
       controller->update(frame.now_ms);
       drainTelemetry(result.events, *controller);
       recordStateChange(result.events, frame.now_ms, controller->nodeId(), previous,
-                        controller->state());
+                        controller->state(), controller->currentMissionKey());
     }
     bus.endFrame();
+    bus.recordResourceSamples();
 
     FrameObservation observation;
     observation.now_ms = frame.now_ms;
     observation.nodes.reserve(controllers.size());
     for (const std::unique_ptr<SwarmController>& controller : controllers) {
       const auto index = static_cast<std::size_t>(controller->nodeId());
-      observation.nodes.push_back(observe(*controller, orbits[index]));
+      observation.nodes.push_back(observe(*controller, orbits[index], bus));
     }
     result.frames.push_back(std::move(observation));
   }

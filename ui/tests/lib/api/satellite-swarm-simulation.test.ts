@@ -7,7 +7,7 @@ import {
 
 const validRecord = {
   schemaVersion: 7,
-  traceVersion: 5,
+  traceVersion: 6,
   scenario: "test",
   source: "portable C++ SimulationTrace",
   sourceRevision: "0123456789abcdef0123456789abcdef01234567",

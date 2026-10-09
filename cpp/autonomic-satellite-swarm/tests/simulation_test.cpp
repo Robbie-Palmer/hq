@@ -472,7 +472,7 @@ TEST_CASE("fair-allocation evidence is derived from six equal-score mission tele
   CHECK(assignment_counts == std::array<uint8_t, 3U>{2U, 2U, 2U});
   const std::string json = serializeFairAllocationEvidence(result);
   CHECK(json.find(R"("schemaVersion": 1)") != std::string::npos);
-  CHECK(json.find(R"("traceVersion": 5)") != std::string::npos);
+  CHECK(json.find(R"("traceVersion": 6)") != std::string::npos);
 }
 
 TEST_CASE("trace time supports one unsigned clock rollover") {

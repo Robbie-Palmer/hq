@@ -6,12 +6,14 @@ arduino-cli = "1.5.1"
 [tasks.configure]
 description = "Configure the host build"
 run = '''
+source_revision=${SATELLITE_SWARM_SOURCE_REVISION:-$(git rev-parse HEAD)}
 if [ "$(uname -s)" = Linux ]; then
   compiler_root=$(mise where conda:gxx)
   export PATH="$compiler_root/bin:$PATH"
-  cmake --preset dev -DCMAKE_AR="$compiler_root/bin/x86_64-conda-linux-gnu-ar"
+  cmake --preset dev -DCMAKE_AR="$compiler_root/bin/x86_64-conda-linux-gnu-ar" \
+    -DSATELLITE_SWARM_SOURCE_REVISION="$source_revision"
 else
-  cmake --preset dev
+  cmake --preset dev -DSATELLITE_SWARM_SOURCE_REVISION="$source_revision"
 fi
 '''
 
@@ -52,6 +54,16 @@ run = "./build/dev/autonomic-satellite-swarm-simulation --json"
 description = "Print telemetry evidence from six equal-score missions"
 depends = ["build"]
 run = "./build/dev/autonomic-satellite-swarm-simulation --fairness-json"
+
+[tasks."simulate:laboratory"]
+description = "Run one replayable seeded network-laboratory scenario"
+depends = ["build"]
+run = "./build/dev/autonomic-satellite-swarm-simulation --laboratory-json"
+
+[tasks."simulate:batch"]
+description = "Run paired-seed network-laboratory experiments"
+depends = ["build"]
+run = "./build/dev/autonomic-satellite-swarm-simulation --batch-json"
 
 [tasks."browser:fixture:check"]
 description = "Check that the committed browser fixture matches the native trace runner"

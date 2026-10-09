@@ -60,6 +60,8 @@ mise run test:invariants
 mise run simulate
 mise run simulate:json
 mise run simulate:fairness
+mise run simulate:laboratory
+mise run simulate:batch
 ```
 
 The simulation should assign the southern-latitude mission to one propagated node:
@@ -83,6 +85,16 @@ dropped.
 `simulate:fairness` runs six missions where all three nodes score 100. It prints assignment evidence
 derived from the leader's bounded telemetry. The expected order is `0, 1, 2, 0, 1, 2`, with two
 missions per node and no dropped records.
+
+`simulate:laboratory` runs the controller against one seeded network scenario. Its versioned JSON
+records the source revision, configuration, seed, delivery choices, planned and observed contacts,
+node lifecycle, buffer pressure, resource samples, and raw safety, liveness, delivery, byte, and
+energy measures. Reusing the seed reproduces the same delivery schedule. Pass a retained failure's
+seed with `mise run simulate:laboratory 17`.
+
+`simulate:batch` compares controller configurations with the same 32 seeds. It emits every raw run,
+95% confidence intervals, and the worst replayable trace for each configuration. The energy values
+are estimates derived from documented per-byte coefficients.
 
 Build the browser module and compare its default output with the native fixture:
 
