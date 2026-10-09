@@ -42,3 +42,98 @@ Before this platform, creating new analysis applications was a slow, repetitive 
 * **Polyglot Support**: Enabled seamless interoperability between R (Shiny) and Python, allowing access to the full breadth of bioinformatics and ML libraries in both ecosystems.
 * **No-Code Interface**: Intuitive GUI for complex statistical analysis, machine learning inference, and multi-omic interoperability.
 * **Professional DevOps**: Standardized CI/CD pipelines and deployment practices for stability and speed.
+
+# Historical component view
+
+This view reconstructs the responsibilities recorded for this project's 2021
+work. The public record supports these capabilities, but this repository
+contains no original platform implementation or deployment
+configuration. Boxes describe logical components; their separation into
+processes or services is unknown. No planned capabilities are shown.
+
+<Mermaid
+  chart={`flowchart TB
+Researcher["Researcher<br/>External user"]
+
+subgraph Platform["Historical Sonrai platform · logical responsibilities"]
+Interface["No-code interface<br/>Reported"]
+Data["Data services<br/>Reconstructed responsibility"]
+subgraph Execution["Polyglot execution · reported"]
+  R["R / Shiny"]
+  Python["Python"]
+end
+Inference["Model inference<br/>Reported capability"]
+Visualisation["Visualisation · Plotly<br/>Reported technology"]
+end
+
+Researcher -.->|"choose analysis"| Interface
+Interface -.->|"analysis request"| Execution
+Data -.->|"analysis data"| Execution
+Execution -.->|"inference inputs"| Inference
+Execution -.->|"analysis results"| Visualisation
+Inference -.->|"predictions"| Visualisation
+
+classDef reconstructed stroke-dasharray:5 5
+class Data reconstructed
+`}
+  className="w-full justify-start overflow-x-auto sm:justify-center [&>svg]:min-w-[34rem]"
+/>
+
+Solid platform boxes name reported capabilities or technologies. The dashed
+data-services box marks an inferred responsibility. Every dotted arrow is a reconstructed
+logical handoff, not a verified API or network connection. On narrow screens,
+scroll the diagram horizontally or use the reading guide below.
+
+## Reading the view
+
+1. A researcher chooses an analysis through the no-code interface. The project
+   account reports GUI access to statistical analysis, exploratory data analysis,
+   and machine learning inference.
+2. The interface requests work from the Python and R execution capabilities.
+   The account identifies R with Shiny and describes interoperability with Python.
+   It does not establish how the languages exchanged data, whether they shared a
+   process, or how a workflow selected its runtime.
+3. Data services represent the responsibility of making analysis data available
+   to that execution. Multi-omic interoperability implies this responsibility,
+   but the public evidence does not identify a storage engine, schema, ingestion
+   service, or data-access API. The box does not establish a separate service.
+4. Execution can produce analysis results or support model inference. Inference
+   produces predictions for inspection. The account reports inference capability;
+   its runtime, model formats, and serving mechanism remain unknown. Drawing it
+   separately does not imply a dedicated model server or a training pipeline.
+5. Visualisation presents analysis results and predictions to the researcher.
+   Plotly appears in the recorded technology stack. Its placement, connections
+   to each language, and integration with the no-code interface are reconstructed.
+
+## Evidence and reconstruction limits
+
+The [original project account](https://github.com/Robbie-Palmer/hq/blob/56e92979361772109c8832ad247f925d3016cedc/ui/content/projects/bioinformatics-platform/index.mdx)
+records the no-code interface, R/Shiny and Python interoperability, inference,
+Plotly, and standardised application delivery. It is a retrospective account of
+completed work, not implementation evidence for individual connections.
+
+The related [Pathology Viewer](/projects/pathology-viewer) account describes
+extending the platform beyond tabular data and exchanging data with other
+bioinformatics tools. It supports the need for data access across applications,
+but does not recover the platform's data-service design. The
+[multi-omic data management article](/blog/2022-02-28-enabling-multi-omic-data-management)
+explains data-management choices in general; it does not establish which storage
+architecture this platform used.
+
+The linked [Sonrai product page](https://sonraianalytics.com/powered-by-sonrai-discovery/)
+describes today's product. Its claims cannot establish what the 2021 system
+implemented. Deployment hosts, queues, runtime isolation, model training, and
+specific persistence or orchestration products are therefore outside this view.
+
+## Ownership, trust, and disclosure
+
+The platform boundary identifies work undertaken at Sonrai Analytics. This
+portfolio preserves a public description; it does not own or operate that
+platform. The researcher sits outside the logical platform boundary. The diagram
+does not establish authentication, authorisation, tenant isolation, or where
+research data crossed a network or organisational boundary.
+
+Only public capability descriptions and named technologies appear here. Customer
+datasets, patient records, private endpoints, credentials, and proprietary
+implementation details are excluded. Unknown security and deployment boundaries
+remain unknown rather than becoming implied guarantees.
