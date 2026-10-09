@@ -16,77 +16,28 @@ status: "completed"
 role: "philips"
 ---
 
-# Vision
+# Overview
 
-The goal was to accelerate the manual review process for tissue macrodissection by providing pathologists with AI-generated suggestions. Unlike later projects focused on full automation, this system was designed to augment human workflows, identifying regions of interest on H\&E stained Whole Slide Images (WSIs) for manual extraction.
+Macrodissection is the selection and removal of tissue for genetic testing. This project aimed to help pathologists find suitable tumor regions faster by highlighting them on digital slide images.
 
-# Problem Statement
+# Workflow
 
-Pathologists spend significant time manually scanning slides to identify viable tumor regions for genetic analysis. This process is slow and repetitive. We needed a system that could pre-screen slides using an ensemble of Deep Learning models and present the results to the pathologist for rapid verification, specifically working with the proprietary Philips file format.
-
-# Methodology
-
-* **Platform Engineering**: I was responsible for the infrastructure to run, scale, and integrate the data science team's models.
-* **Ensemble Orchestration**: Built the pipeline to aggregate predictions from multiple models (tumor detection, necrosis avoidance, etc.) into a cohesive overlay.
-* **Proprietary Format Support**: Engineered the ingestion layer to performantly read and process Philips' proprietary WSI format.
-* **Human-in-the-Loop**: Designed the workflow to present AI suggestions for pathologist verification before manual extraction, with the aim of reducing review time per slide.
-
-# Historical data flow
-
-This view reconstructs the design described in the [original project account](https://github.com/Robbie-Palmer/personal-site/blob/56e92979/ui/content/projects/ai-assisted-macrodissection/index.mdx).
-That account reports building the ingestion and ensemble pipeline and designing the human review workflow.
-It does not establish the runtime's current availability or clinical validation.
+The pipeline read slide images, ran models to identify tumor and dead tissue, and combined their predictions into suggested regions. Pathologists would review these suggestions to guide manual tissue extraction.
 
 <Mermaid
   chart={`flowchart TD
-  slide["External input: H&E whole-slide image<br/>Philips proprietary format"]
-  subgraph runtime["Historical runtime: reported built"]
-      ingest["Slide ingestion"]
-      ensemble["Model ensemble<br/>Tumor detection, necrosis avoidance"]
-      aggregate["Prediction aggregation"]
-      ingest -->|Slide image data| ensemble
-      ensemble -->|Model predictions| aggregate
-  end
-  review["Pathologist review<br/>Designed human workflow"]
-  guidance["Guidance for manual tissue extraction<br/>Intended downstream handoff"]
-  slide -->|WSI file| ingest
-  aggregate -->|AI suggestion overlay| review
-  review -.->|Human-reviewed region selection| guidance
+slide["Digital tissue slide"] --> ingest["Read slide image"]
+ingest --> models["AI tissue models"]
+models --> overlay["Suggested tissue regions"]
+overlay --> review["Pathologist review"]
+review --> extraction["Manual tissue extraction"]
 `}
 />
 
-Solid arrows describe the reported processing flow and delivery of suggestions to the designed review step.
-The dashed arrow marks the intended handoff to manual extraction; the account does not document its implementation.
-The boxes group responsibilities; service deployment boundaries are undocumented.
+# My role
 
-## Flow in words
+I built the infrastructure to run the data science team's models, read Philips' proprietary slide format, and combine predictions into an overlay for pathologist review.
 
-1. A whole-slide image of H\&E-stained tissue enters the runtime in Philips' proprietary format. Slide acquisition sits outside this view.
-2. The ingestion layer reads the image data for the model ensemble. The account does not specify tiling, preprocessing, or intermediate formats.
-3. The ensemble runs models such as tumor detection and necrosis avoidance. The aggregation pipeline combines their predictions into an AI suggestion overlay.
-4. The designed workflow presents that overlay to a pathologist for verification. Suggestions remain subject to human review.
-5. The intended output is a human-reviewed region selection to guide manual tissue extraction. The handoff format and extraction procedure are not documented.
+# Outcome
 
-## Ownership and trust boundaries
-
-My responsibility was the platform infrastructure, proprietary-format ingestion, and integration of the data science team's models.
-The models came from that team. Pathologist verification was the decision boundary before the intended extraction handoff.
-Physical extraction sits outside the runtime shown here.
-
-These are responsibility and decision boundaries. The available account does not establish network isolation,
-access controls, patient-data handling, or the deployment environment. This public reconstruction contains no
-patient slides, model weights, proprietary format internals, or internal system identifiers.
-
-## Reconstruction limits
-
-The evidence is a retrospective project account. It supplies no runtime source code, deployment records, or clinical study.
-Python, Keras, and RabbitMQ are recorded in the project stack, but the account does not explain queue placement,
-worker topology, model versions, aggregation rules, or the review interface. Those details are omitted from the diagram.
-
-The project is recorded as completed historical work. The review and extraction steps retain their design status here;
-there is no documented current deployment, validation result, or measured time saving in the cited account.
-This view ends at guidance for manual extraction and makes no claim about robotic cutting or automated extraction.
-
-# Impact
-
-The platform work gave me experience integrating deep learning models into a pathology workflow and handling WSI scale, formats, and artifacts. That experience informed my later work on automated dissection systems. The public account does not quantify review-time savings or clinical outcomes.
+This work informed my later automated dissection projects, particularly how to handle large slide images, proprietary formats, and image artifacts.
