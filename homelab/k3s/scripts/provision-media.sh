@@ -21,9 +21,17 @@ esac
 
 CONTEXT="${MEDIA_KUBE_CONTEXT:-colima-homelab-k3s}"
 NAMESPACE="${MEDIA_NAMESPACE:-media}"
-MEDIA_DATA_DIR="${MEDIA_DATA_DIR:-$HOME/.local/share/homelab/k3s/media}"
+EXPECTED_MEDIA_DATA_DIR="$HOME/.local/share/homelab/k3s/media"
+MEDIA_DATA_DIR="${MEDIA_DATA_DIR:-$EXPECTED_MEDIA_DATA_DIR}"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ENV_FILE="${MEDIA_DATA_DIR}/.env"
+
+if [[ "$MEDIA_DATA_DIR" != "$EXPECTED_MEDIA_DATA_DIR" ]]; then
+  printf '%s\n' \
+    "refusing to provision: MEDIA_DATA_DIR must be $EXPECTED_MEDIA_DATA_DIR" \
+    "because the K3s persistent volumes use that fixed host path" >&2
+  exit 1
+fi
 
 command -v kubectl >/dev/null || { echo "Missing kubectl" >&2; exit 1; }
 command -v openssl >/dev/null || { echo "Missing openssl" >&2; exit 1; }
@@ -129,9 +137,10 @@ else
   $KUBECTL wait --for=condition=available --timeout=300s deployment/jellyfin
 fi
 
-export PROWLARR_API_KEY="$(wait_for_key prowlarr "Prowlarr")"
-export SONARR_API_KEY="$(wait_for_key sonarr "Sonarr")"
-export RADARR_API_KEY="$(wait_for_key radarr "Radarr")"
+PROWLARR_API_KEY="$(wait_for_key prowlarr "Prowlarr")"
+SONARR_API_KEY="$(wait_for_key sonarr "Sonarr")"
+RADARR_API_KEY="$(wait_for_key radarr "Radarr")"
+export PROWLARR_API_KEY SONARR_API_KEY RADARR_API_KEY
 
 python3 "$REPO_DIR/hosts/mac-mini/media-automation/scripts/provision.py"
 

@@ -36,20 +36,62 @@ MEDIA_BACKUP_VOLUME_UUID="${MEDIA_BACKUP_VOLUME_UUID:-808A2851-4126-3A7B-B23F-9E
 RESTIC_REPOSITORY="${RESTIC_REPOSITORY:-$MEDIA_BACKUP_MOUNT_PATH/Backups/media-k3s}"
 RESTIC_PASSWORD_FILE="${RESTIC_PASSWORD_FILE:-$HOME/.local/share/homelab/k3s/media-backup.restic-pw}"
 LOCK_DIR="${TMPDIR:-/tmp}/homelab-media-backup.lock"
+LOCK_OWNER="$LOCK_DIR/owner"
 # Stable path so restores are predictable; wiped and rebuilt every run.
 STAGE_ROOT="$HOME/.local/share/homelab/k3s/media-db-snapshots"
 LOG_TS="+%F %T"
 
 log() { echo "$(date "$LOG_TS") $*"; }
 
-cleanup() { rmdir "$LOCK_DIR" 2>/dev/null || true; }
-trap cleanup EXIT
+process_start_identity() {
+  ps -p "$1" -o lstart= 2>/dev/null | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+}
 
-if [[ -d "$LOCK_DIR" ]]; then
-  log "another backup run holds the lock; exiting"
-  exit 0
+LOCK_START="$(process_start_identity "$$")"
+
+write_lock_owner() {
+  printf '%s\n%s\n' "$$" "$LOCK_START" > "$LOCK_OWNER"
+}
+
+cleanup() {
+  local owner_pid owner_start
+  owner_pid="$(sed -n '1p' "$LOCK_OWNER" 2>/dev/null || true)"
+  owner_start="$(sed -n '2p' "$LOCK_OWNER" 2>/dev/null || true)"
+  if [[ "$owner_pid" == "$$" && "$owner_start" == "$LOCK_START" ]]; then
+    rm -f "$LOCK_OWNER"
+    rmdir "$LOCK_DIR" 2>/dev/null || true
+  fi
+}
+
+if mkdir "$LOCK_DIR" 2>/dev/null; then
+  write_lock_owner
+else
+  owner_pid="$(sed -n '1p' "$LOCK_OWNER" 2>/dev/null || true)"
+  owner_start="$(sed -n '2p' "$LOCK_OWNER" 2>/dev/null || true)"
+  current_start=""
+  if [[ "$owner_pid" =~ ^[0-9]+$ && -n "$owner_start" ]]; then
+    current_start="$(process_start_identity "$owner_pid" || true)"
+  fi
+  if [[ -z "$owner_pid" || -z "$owner_start" || "$current_start" == "$owner_start" ]]; then
+    log "another backup run holds the lock; exiting"
+    exit 0
+  fi
+
+  stale_lock="$LOCK_DIR.stale.$$"
+  if [[ -e "$stale_lock" ]] || ! mv "$LOCK_DIR" "$stale_lock" 2>/dev/null; then
+    log "another backup run holds the lock; exiting"
+    exit 0
+  fi
+  if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+    rm -rf "$stale_lock"
+    log "another backup run holds the lock; exiting"
+    exit 0
+  fi
+  rm -rf "$stale_lock"
+  write_lock_owner
+  log "recovered stale backup lock owned by PID $owner_pid"
 fi
-mkdir "$LOCK_DIR"
+trap cleanup EXIT
 
 mounted_volume_uuid="$(
   /usr/sbin/diskutil info -plist "$MEDIA_BACKUP_MOUNT_PATH" 2>/dev/null \
@@ -69,7 +111,13 @@ case "$STAGE_ROOT" in
   *) log "refusing to back up: unsafe staging path '$STAGE_ROOT'"; exit 1 ;;
 esac
 
-RESTIC_BIN="$(ls -t "$HOME"/.local/share/mise/installs/aqua-restic-restic/*/restic 2>/dev/null | head -1)"
+RESTIC_BIN=""
+shopt -s nullglob
+restic_candidates=("$HOME"/.local/share/mise/installs/aqua-restic-restic/*/restic)
+shopt -u nullglob
+for candidate in "${restic_candidates[@]}"; do
+  [[ -x "$candidate" ]] && RESTIC_BIN="$candidate"
+done
 if [[ -z "$RESTIC_BIN" ]] && command -v restic >/dev/null 2>&1; then
   RESTIC_BIN="$(command -v restic)"
 fi
@@ -86,7 +134,7 @@ if [[ ! -f "$RESTIC_PASSWORD_FILE" ]]; then
   log "store a copy of that file outside this machine; without it the snapshots are unrecoverable"
 fi
 
-if ! "$RESTIC_BIN" snapshots --json >/dev/null 2>&1; then
+if [[ ! -f "$RESTIC_REPOSITORY/config" ]]; then
   log "initializing restic repository at $RESTIC_REPOSITORY"
   "$RESTIC_BIN" init
 fi

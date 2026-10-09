@@ -163,9 +163,12 @@ def run_initial_recyclarr_sync():
         "RECYCLARR_SYNC_CMD", "docker exec recyclarr recyclarr sync"))
     deadline = time.time() + 120
     while time.time() < deadline:
-        state = subprocess.run(
-            wait_cmd, capture_output=True, text=True,
-        ).stdout.strip()
+        try:
+            state = subprocess.run(
+                wait_cmd, capture_output=True, text=True, timeout=30,
+            ).stdout.strip()
+        except subprocess.TimeoutExpired:
+            state = ""
         if state in ("true", "Running"):
             break
         time.sleep(4)
@@ -236,8 +239,14 @@ def qbit_temp_password_from_logs():
     log_cmd = shlex.split(os.environ.get("QBIT_LOG_CMD", "docker logs qbittorrent"))
     deadline = time.time() + 30
     while True:
-        logs = subprocess.run(log_cmd, capture_output=True, text=True)
-        for line in (logs.stdout + logs.stderr).splitlines():
+        try:
+            logs = subprocess.run(
+                log_cmd, capture_output=True, text=True, timeout=30,
+            )
+            output = logs.stdout + logs.stderr
+        except subprocess.TimeoutExpired:
+            output = ""
+        for line in output.splitlines():
             if "temporary password" in line.lower():
                 return line.rsplit(":", 1)[-1].strip()
         if time.time() >= deadline:

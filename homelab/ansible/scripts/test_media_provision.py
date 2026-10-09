@@ -1,6 +1,8 @@
 import importlib.util
 import pathlib
+import subprocess
 import unittest
+from unittest import mock
 
 
 PROVISION_PATH = (
@@ -76,6 +78,28 @@ class MediaProvisionTests(unittest.TestCase):
                 "recycleBin": "/downloads/.recycle",
             })],
         )
+
+    def test_recyclarr_wait_timeout_remains_within_polling_deadline(self):
+        with (
+            mock.patch(
+                "subprocess.run",
+                side_effect=subprocess.TimeoutExpired(["wait"], 30),
+            ),
+            mock.patch.object(media_provision.time, "time", side_effect=[0, 0, 121]),
+            mock.patch.object(media_provision.time, "sleep"),
+        ):
+            with self.assertRaisesRegex(SystemExit, "never reported running"):
+                media_provision.run_initial_recyclarr_sync()
+
+    def test_qbittorrent_log_timeout_remains_within_polling_deadline(self):
+        with (
+            mock.patch(
+                "subprocess.run",
+                side_effect=subprocess.TimeoutExpired(["logs"], 30),
+            ),
+            mock.patch.object(media_provision.time, "time", side_effect=[0, 31]),
+        ):
+            self.assertIsNone(media_provision.qbit_temp_password_from_logs())
 
 
 if __name__ == "__main__":
