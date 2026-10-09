@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-test_dir="$(mktemp -d "${TMPDIR:-/tmp}/sync-doppler-github-envs-test.XXXXXX")"
-calls_file="$test_dir/calls"
-trap 'find "$test_dir" -depth -delete 2>/dev/null || true' EXIT INT TERM
+TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/sync-doppler-github-envs-test.XXXXXX")"
+CALLS_FILE="$TEST_DIR/calls"
+trap 'find "$TEST_DIR" -depth -delete 2>/dev/null || true' EXIT INT TERM
 
 doppler() {
   jq -n '{
@@ -34,10 +34,11 @@ gh() {
   local resource="$1"
   local operation="$2"
   shift 2
+  local name="${1:-}"
 
   case "$resource $operation" in
     "secret set" | "variable set" | "secret delete" | "variable delete")
-      printf '%s %s %s\n' "$resource" "$operation" "$1" >>"$calls_file"
+      printf '%s %s %s\n' "$resource" "$operation" "$name" >>"$CALLS_FILE"
       ;;
     "secret list")
       printf '%s\n' '[{"name":"OLD_SECRET"}]'
@@ -53,7 +54,7 @@ gh() {
 }
 
 export -f doppler gh
-export calls_file
+export CALLS_FILE
 
 scripts/sync-doppler-github-envs.sh production-work-graph >/dev/null
 
@@ -68,13 +69,13 @@ expected_calls=(
 )
 
 for expected_call in "${expected_calls[@]}"; do
-  if ! grep -Fxq -- "$expected_call" "$calls_file"; then
+  if ! grep -Fxq -- "$expected_call" "$CALLS_FILE"; then
     printf 'Missing expected call: %s\n' "$expected_call" >&2
     exit 1
   fi
 done
 
-if grep -Eq '^(secret|variable) set GITHUB_' "$calls_file"; then
+if grep -Eq '^(secret|variable) set GITHUB_' "$CALLS_FILE"; then
   echo "GitHub-reserved secret name was not aliased" >&2
   exit 1
 fi
