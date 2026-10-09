@@ -1044,7 +1044,14 @@ describe("GitHub delivery consumption", () => {
   it("does not correlate related links and recovers unmatched deliveries after explicit linking", async () => {
     await linkImplementation("related");
     expect(await consumer.consume(githubDelivery())).toBe("unmatched");
+    expect(await consumer.consume(githubDelivery("workflow_run", 2))).toBe("unmatched");
+    expect(await consumer.consume(githubDelivery("deployment_status", 3))).toBe("unmatched");
     await repository.putWorkItemPullRequest({ workItemId: "github-work", repository: githubRepository, number: 7, role: "implementation" });
+    // Linking is the only repair trigger here. No second provider event is sent.
+    expect(await repository.listWorkItemDeliveryEvidence({ workItemId: "github-work" })).toHaveLength(3);
+    expect(await disposition(githubDelivery())).toBe("processed");
+    expect(await disposition(githubDelivery("workflow_run", 2))).toBe("processed");
+    expect(await disposition(githubDelivery("deployment_status", 3))).toBe("processed");
     expect(await consumer.consume(githubDelivery())).toBe("processed");
   });
 
@@ -1055,6 +1062,24 @@ describe("GitHub delivery consumption", () => {
     await repository.refreshPullRequest({ ...snapshot, number: 8, url: "https://github.com/example/site/pull/8" });
     await repository.putWorkItemPullRequest({ workItemId: "github-work", repository: githubRepository, number: 8, role: "implementation" });
     expect(await consumer.consume(githubDelivery("workflow_run", 2))).toBe("unmatched");
+  });
+
+  it("rolls back the implementation link when reconciliation fails", async () => {
+    await linkImplementation("related");
+    await consumer.consume(githubDelivery());
+    const before = await repository.listEvents();
+    const fail = vi.spyOn(WorkGraphRepository.prototype, "recordEvidenceObservation")
+      .mockRejectedValueOnce(new Error("Evidence write unavailable"));
+    try {
+      await expect(repository.putWorkItemPullRequest({ workItemId: "github-work", repository: githubRepository, number: 7, role: "implementation" }))
+        .rejects.toThrow("Evidence write unavailable");
+      const [link] = await db.select().from(schema.workItemPullRequest);
+      expect(link?.role).toBe("related");
+      expect(await disposition(githubDelivery())).toBe("unmatched");
+      expect(await repository.listEvents()).toEqual(before);
+    } finally {
+      fail.mockRestore();
+    }
   });
 
   it("retains head CI provenance when the accepted head is also the merged commit", async () => {

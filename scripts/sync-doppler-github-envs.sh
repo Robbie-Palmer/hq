@@ -48,9 +48,11 @@ load_config_entries() {
         )
       ))
     | map({
-        name: .key,
+        name: (if $source == "work-graph/prd_work_graph" and (.key | startswith("GITHUB_"))
+          then "OBSERVER_" + (.key | ltrimstr("GITHUB_")) else .key end),
         value: .value.computed,
-        visibility: .value.computedVisibility,
+        visibility: (if $source == "work-graph/prd_work_graph" and (.key | startswith("GITHUB_"))
+          then "masked" else .value.computedVisibility end),
         source: $source
       })
   ' <<<"$secrets_json"

@@ -59,6 +59,7 @@ import {
   type WorkItemSelectionScope,
 } from "work-graph-domain";
 import type { Db, DbTransaction } from "./connection";
+import { correlateWaitingDeliveries } from "./github-correlation";
 import { claimableWorkItemWhere } from "./queries/claimable-work-item";
 import {
   graphCycleQuery,
@@ -2037,6 +2038,12 @@ export class WorkGraphRepository {
           role: normalized.role,
         },
       });
+      if (normalized.role === "implementation") {
+        const scopedRepository = new WorkGraphRepository(transaction);
+        await correlateWaitingDeliveries(transaction, snapshot, (observation) =>
+          scopedRepository.recordEvidenceObservation(observation, { projectCurrent: false }),
+        );
+      }
       return normalized;
     });
   }

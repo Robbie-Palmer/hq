@@ -39,6 +39,12 @@ environment from the repository root:
 scripts/sync-doppler-github-envs.sh production-work-graph
 ```
 
+GitHub reserves the `GITHUB_` prefix for Actions secrets. For this Doppler
+config, the sync script maps `GITHUB_*` keys to masked `OBSERVER_*` GitHub
+secrets. Doppler and Worker binding names stay unchanged. The deployment step
+maps those secrets back to runtime environment names and keeps the webhook
+secret out of the migration and API steps.
+
 Install the App only after Terraform has created the hostname and queues,
 database migrations have completed, and the Worker deployment has passed its
 smoke request. Before activating the webhook, inspect
@@ -84,9 +90,9 @@ Repeated delivery IDs with different payload digests are rejected.
 
 Correlation requires an explicit `implementation` PR link and an exact
 repository and head or merge SHA. Merge events retry retained facts for those
-commits, including deployments received before their merge event. After adding
-a missing implementation link, redeliver the PR event or use reconciliation to
-retry unmatched observations. Shared commits that match several PRs remain
+commits, including deployments received before their merge event. Adding an
+implementation link also reconciles matching retained facts in the link's
+transaction, without requiring another webhook. Shared commits that match several PRs remain
 unmatched. Branch names, titles, and arrival times never establish a link.
 
 Provider timestamps control current projections. For equal timestamps, workflow
