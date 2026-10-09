@@ -66,6 +66,14 @@ secrets, and deploys the queue producer and bounded consumer configuration.
 It requires `WORK_GRAPH_HYPERDRIVE_ID`. Work Graph API CD deploys this Worker
 after the database migration and API smoke test. Infrastructure provisioning
 does not deploy the consumer independently.
+
+GitHub Actions uses the dedicated `OBSERVER_CLOUDFLARE_API_TOKEN` secret for
+this deploy step. Its source of truth is the masked value with the same name in
+`work-graph/prd_work_graph`. The Cloudflare token is limited to the Work Graph
+account with `Workers Scripts:Edit`, `Queues:Edit`, and `Hyperdrive:Read`; it
+has no zone permissions. The API Worker deploy continues to use its separate
+credential.
+
 The App ID and private key stay out of the ingress Worker. A later
 reconciliation Worker can read them from the same Doppler config.
 
@@ -112,6 +120,12 @@ two updates. Retry them from GitHub after the Worker is live.
 Rotate the App private key separately. Add the new key in GitHub, replace
 `GITHUB_APP_PRIVATE_KEY` in Doppler, deploy every consumer of the key, verify a
 reconciliation call, then revoke the old key.
+
+To rotate the observer deploy credential, create a new Cloudflare token with
+the same account and permissions, replace `OBSERVER_CLOUDFLARE_API_TOKEN` in
+`work-graph/prd_work_graph`, run the environment sync script, and verify a
+production deployment. Revoke the old token only after that deployment has
+updated the Worker and its queue consumer successfully.
 
 Inspect the primary queue and DLQ before retrying an incident. A repeated
 delivery ID is expected and becomes the database idempotency key in the
