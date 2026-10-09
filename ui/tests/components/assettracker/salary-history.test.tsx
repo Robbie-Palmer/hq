@@ -82,17 +82,23 @@ describe("salary history controls", () => {
 
     await user.click(screen.getByRole("button", { name: "Add manually" }));
     await user.type(screen.getByLabelText("Employer"), "Fieldwork Co-op");
-    await user.type(screen.getByLabelText("Employment ID"), "sam-fieldwork");
+    await user.click(screen.getByText("More details, if you know them"));
     await user.selectOptions(
       screen.getByLabelText("Tax jurisdiction"),
       "England",
     );
-    fireEvent.change(screen.getByLabelText("Effective start"), {
+    fireEvent.change(screen.getByLabelText("Start date"), {
       target: { value: "2023-04-01" },
     });
-    await user.selectOptions(screen.getByLabelText("Amount type"), "periodPay");
-    await user.type(screen.getByLabelText("Work fraction (%)"), "80");
-    await user.type(screen.getByLabelText("Gross pay before pension"), "3200");
+    await user.selectOptions(screen.getByLabelText("Figure covers"), "monthly");
+    await user.type(
+      screen.getByLabelText("Hours compared with full-time (optional %)"),
+      "80",
+    );
+    await user.type(
+      screen.getByLabelText("Gross pay before tax and pension"),
+      "3200",
+    );
     await user.type(screen.getByLabelText("Base salary"), "3000");
     await user.type(screen.getByLabelText("Variable pay or bonus"), "200");
     const employeePension = screen.getByRole("group", {
@@ -116,7 +122,7 @@ describe("salary history controls", () => {
         facts: expect.objectContaining({
           person: "Alex",
           employer: "Fieldwork Co-op",
-          employmentId: "sam-fieldwork",
+          employmentId: "alex-fieldwork-co-op",
           effectiveStart: "2023-04-01",
           amountKind: "periodPay",
           workFraction: 0.8,
@@ -133,6 +139,265 @@ describe("salary history controls", () => {
           },
         }),
         correctsId: undefined,
+      }),
+    );
+  });
+
+  it("saves a take-home-only salary record without tax details", async () => {
+    const user = userEvent.setup();
+    render(<SalaryRecordDrawer />);
+
+    await user.click(screen.getByRole("button", { name: "Add manually" }));
+    await user.type(screen.getByLabelText("Employer"), "First job");
+    fireEvent.change(screen.getByLabelText("Start date"), {
+      target: { value: "30/06/2016" },
+    });
+    await user.selectOptions(
+      screen.getByLabelText("Pay figure you know"),
+      "take-home",
+    );
+    await user.type(
+      screen.getByLabelText("Take-home pay after tax and pension"),
+      "1250",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Save salary record" }),
+    );
+
+    await waitFor(() =>
+      expect(saveSalaryRecord).toHaveBeenCalledWith({
+        facts: expect.objectContaining({
+          person: "Alex",
+          employer: "First job",
+          employmentId: "alex-first-job",
+          effectiveStart: "2016-06-30",
+          payFrequency: "monthly",
+          amountKind: "periodPay",
+          grossPay: undefined,
+          takeHomePay: 1_250,
+        }),
+        correctsId: undefined,
+      }),
+    );
+  });
+
+  it("records a pay rise against an existing employment", async () => {
+    const current: SalaryHistoryRecord = {
+      id: "salary-current",
+      person: "Alex",
+      employer: "Fieldwork Co-op",
+      employmentId: "alex-fieldwork-co-op",
+      currency: "GBP",
+      jurisdiction: "England",
+      effectiveStart: "2023-04-01",
+      payFrequency: "annual",
+      amountKind: "annualSalary",
+      grossPay: 50_000,
+      source: { kind: "manual" },
+      acceptedAt: "2025-01-01T00:00:00.000Z",
+    };
+    mockUseAssetTracker.mockReturnValue({
+      household: {
+        members: [{ id: "alex", displayName: "Alex" }],
+        activeScope: { kind: "household" },
+      },
+      currentSalaryHistory: [current],
+      saveSalaryRecord,
+      importSalaryHistory,
+    } as unknown as ReturnType<typeof useAssetTracker>);
+    const user = userEvent.setup();
+    render(<SalaryRecordDrawer />);
+
+    await user.click(screen.getByRole("button", { name: "Add manually" }));
+    await user.selectOptions(
+      screen.getByLabelText("What are you recording?"),
+      "raise",
+    );
+    await user.type(screen.getByLabelText("New rate starts"), "01/07/2025");
+    const gross = screen.getByLabelText(
+      "New gross salary before tax and pension",
+    );
+    await user.clear(gross);
+    await user.type(gross, "55000");
+    await user.click(
+      screen.getByRole("button", { name: "Save salary record" }),
+    );
+
+    await waitFor(() =>
+      expect(saveSalaryRecord).toHaveBeenCalledWith({
+        facts: expect.objectContaining({
+          employer: "Fieldwork Co-op",
+          employmentId: "alex-fieldwork-co-op",
+          effectiveStart: "2025-07-01",
+          grossPay: 55_000,
+        }),
+        correctsId: undefined,
+        replacesRateId: "salary-current",
+      }),
+    );
+  });
+
+  it("keeps employers separate when a correction inherited a stale employment ID", async () => {
+    const oldEmployer: SalaryHistoryRecord = {
+      id: "salary-old-employer",
+      person: "Alex",
+      employer: "Old Company",
+      employmentId: "alex-old-company",
+      currency: "GBP",
+      jurisdiction: "England",
+      effectiveStart: "2023-04-01",
+      effectiveEnd: "2024-06-30",
+      payFrequency: "annual",
+      amountKind: "annualSalary",
+      grossPay: 50_000,
+      source: { kind: "manual" },
+      acceptedAt: "2025-01-01T00:00:00.000Z",
+    };
+    const newEmployer: SalaryHistoryRecord = {
+      ...oldEmployer,
+      id: "salary-new-employer",
+      employer: "New Company",
+      effectiveStart: "2024-07-01",
+      effectiveEnd: undefined,
+      grossPay: 60_000,
+      acceptedAt: "2025-01-02T00:00:00.000Z",
+    };
+    mockUseAssetTracker.mockReturnValue({
+      household: {
+        members: [{ id: "alex", displayName: "Alex" }],
+        activeScope: { kind: "household" },
+      },
+      currentSalaryHistory: [oldEmployer, newEmployer],
+      saveSalaryRecord,
+      importSalaryHistory,
+    } as unknown as ReturnType<typeof useAssetTracker>);
+    const user = userEvent.setup();
+    render(<SalaryRecordDrawer />);
+
+    await user.click(screen.getByRole("button", { name: "Add manually" }));
+    await user.selectOptions(
+      screen.getByLabelText("What are you recording?"),
+      "raise",
+    );
+    const employment = screen.getByLabelText("Employment");
+    expect(
+      within(employment).getByRole("option", { name: "Alex · New Company" }),
+    ).toBeVisible();
+    expect(
+      within(employment).getByRole("option", { name: "Alex · Old Company" }),
+    ).toBeVisible();
+    await user.selectOptions(employment, "salary-new-employer");
+    await user.type(screen.getByLabelText("New rate starts"), "01/07/2025");
+    const gross = screen.getByLabelText(
+      "New gross salary before tax and pension",
+    );
+    await user.clear(gross);
+    await user.type(gross, "65000");
+    await user.click(
+      screen.getByRole("button", { name: "Save salary record" }),
+    );
+
+    await waitFor(() =>
+      expect(saveSalaryRecord).toHaveBeenCalledWith({
+        facts: expect.objectContaining({
+          employer: "New Company",
+          employmentId: "alex-new-company",
+          grossPay: 65_000,
+        }),
+        correctsId: undefined,
+        replacesRateId: "salary-new-employer",
+      }),
+    );
+  });
+
+  it("records a one-off bonus without annualising it", async () => {
+    const current: SalaryHistoryRecord = {
+      id: "salary-current",
+      person: "Alex",
+      employer: "Fieldwork Co-op",
+      employmentId: "alex-fieldwork-co-op",
+      currency: "GBP",
+      jurisdiction: "England",
+      effectiveStart: "2023-04-01",
+      payFrequency: "annual",
+      amountKind: "annualSalary",
+      grossPay: 50_000,
+      source: { kind: "manual" },
+      acceptedAt: "2025-01-01T00:00:00.000Z",
+    };
+    mockUseAssetTracker.mockReturnValue({
+      household: {
+        members: [{ id: "alex", displayName: "Alex" }],
+        activeScope: { kind: "household" },
+      },
+      currentSalaryHistory: [current],
+      saveSalaryRecord,
+      importSalaryHistory,
+    } as unknown as ReturnType<typeof useAssetTracker>);
+    const user = userEvent.setup();
+    render(<SalaryRecordDrawer />);
+
+    await user.click(screen.getByRole("button", { name: "Add manually" }));
+    await user.selectOptions(
+      screen.getByLabelText("What are you recording?"),
+      "bonus",
+    );
+    await user.type(screen.getByLabelText("Payment date"), "20/12/2025");
+    await user.type(
+      screen.getByLabelText("Gross bonus before deductions"),
+      "5000",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Save salary record" }),
+    );
+
+    await waitFor(() =>
+      expect(saveSalaryRecord).toHaveBeenCalledWith({
+        facts: expect.objectContaining({
+          employer: "Fieldwork Co-op",
+          effectiveStart: "2025-12-20",
+          effectiveEnd: "2025-12-20",
+          amountKind: "periodPay",
+          payFrequency: "irregular",
+          grossPay: 5_000,
+          variablePay: 5_000,
+        }),
+        correctsId: undefined,
+      }),
+    );
+  });
+
+  it("starts a new employment identity when a correction changes employer", async () => {
+    const record: SalaryHistoryRecord = {
+      id: "salary-original",
+      person: "Alex",
+      employer: "Old Company",
+      employmentId: "alex-old-company",
+      currency: "GBP",
+      jurisdiction: "England",
+      effectiveStart: "2024-07-01",
+      payFrequency: "annual",
+      amountKind: "annualSalary",
+      grossPay: 60_000,
+      source: { kind: "manual" },
+      acceptedAt: "2025-01-01T00:00:00.000Z",
+    };
+    const user = userEvent.setup();
+    render(<SalaryRecordDrawer record={record} />);
+
+    await user.click(screen.getByRole("button", { name: "Correct" }));
+    const employer = screen.getByLabelText("Employer");
+    await user.clear(employer);
+    await user.type(employer, "New Company");
+    await user.click(screen.getByRole("button", { name: "Accept correction" }));
+
+    await waitFor(() =>
+      expect(saveSalaryRecord).toHaveBeenCalledWith({
+        facts: expect.objectContaining({
+          employer: "New Company",
+          employmentId: "alex-new-company",
+        }),
+        correctsId: "salary-original",
       }),
     );
   });
@@ -161,11 +426,12 @@ describe("salary history controls", () => {
     render(<SalaryRecordDrawer record={record} />);
 
     await user.click(screen.getByRole("button", { name: "Correct" }));
+    await user.click(screen.getByText("More details, if you know them"));
     const jurisdiction = screen.getByLabelText("Tax jurisdiction");
     expect(jurisdiction).toBeRequired();
-    expect(jurisdiction).toHaveValue("");
+    expect(jurisdiction).toHaveValue("England");
     await user.selectOptions(jurisdiction, "Scotland");
-    const gross = screen.getByLabelText("Gross pay before pension");
+    const gross = screen.getByLabelText("Gross pay before tax and pension");
     await user.clear(gross);
     await user.type(gross, "72000");
     await user.click(screen.getByRole("button", { name: "Accept correction" }));

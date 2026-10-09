@@ -15,12 +15,6 @@ function numberValue(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function optionalNumber(value: string): number | undefined {
-  if (value.trim() === "") return undefined;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
 type PolicyChange = (
   accountId: string,
   update: Partial<EmergencyFundAccountPolicy>,
@@ -34,10 +28,8 @@ function SourceTableHeader() {
     "Usable now",
     "Kind",
     "Access days",
-    "Capital at risk",
+    "Potential loss (%)",
     "Fee",
-    "Protection limit",
-    "Source URL",
   ];
   return (
     <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
@@ -110,45 +102,6 @@ function SourceIdentity({
   );
 }
 
-function ProtectionInputs({
-  account,
-  policy,
-  onChange,
-}: Readonly<{
-  account: AccountDetailView;
-  policy: EmergencyFundAccountPolicy;
-  onChange: PolicyChange;
-}>) {
-  return (
-    <>
-      <td className="px-3 py-2">
-        <PolicyNumberInput
-          account={account}
-          label="Protection limit"
-          value={policy.protectionLimit ?? ""}
-          onChange={(value) =>
-            onChange(account.id, { protectionLimit: optionalNumber(value) })
-          }
-        />
-      </td>
-      <td className="px-3 py-2">
-        <Input
-          className="w-56"
-          aria-label={`Protection source for ${account.name}`}
-          type="url"
-          placeholder="https://…"
-          value={policy.protectionSourceUrl ?? ""}
-          onChange={(event) =>
-            onChange(account.id, {
-              protectionSourceUrl: event.target.value.trim() || undefined,
-            })
-          }
-        />
-      </td>
-    </>
-  );
-}
-
 function SourcePolicyInputs({
   account,
   policy,
@@ -175,7 +128,7 @@ function SourcePolicyInputs({
       <td className="px-3 py-2">
         <PolicyNumberInput
           account={account}
-          label="Capital risk"
+          label="Potential loss percentage"
           max={100}
           value={policy.capitalRiskRate * 100}
           onChange={(value) =>
@@ -230,7 +183,6 @@ function SourceRow({
         policy={policy}
         onChange={onChange}
       />
-      <ProtectionInputs account={account} policy={policy} onChange={onChange} />
     </tr>
   );
 }

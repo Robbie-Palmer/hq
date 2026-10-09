@@ -4,6 +4,7 @@ import {
   applySaveSalaryRecord,
   currentSalaryHistory,
   type SalaryHistoryRecord,
+  SalaryRecordFactsSchema,
 } from "@/lib/domain/assettracker/salaryHistory";
 
 function salaryRecord(
@@ -33,6 +34,30 @@ function salaryRecord(
 }
 
 describe("salary history", () => {
+  it("accepts a take-home-only historical record", () => {
+    const [record] = applySaveSalaryRecord(
+      [],
+      {
+        facts: {
+          person: "Alex Example",
+          employer: "First job",
+          employmentId: "alex-first-job",
+          currency: "GBP",
+          jurisdiction: "England",
+          effectiveStart: "2015-04-01",
+          payFrequency: "monthly",
+          amountKind: "periodPay",
+          takeHomePay: 1_250,
+        },
+      },
+      "salary-take-home",
+      "2026-10-08T10:00:00.000Z",
+    );
+
+    expect(record?.grossPay).toBeUndefined();
+    expect(record?.takeHomePay).toBe(1_250);
+  });
+
   it("does not duplicate a repeated file import", () => {
     const record = salaryRecord();
     const first = applyImportSalaryHistory([], { records: [record] });
@@ -80,6 +105,80 @@ describe("salary history", () => {
     expect(corrected[0]).toEqual(original);
     expect(currentSalaryHistory(corrected)).toMatchObject([
       { id: "salary-correction", grossPay: 50_000, correctsId: original.id },
+    ]);
+  });
+
+  it("closes the prior salary rate when a pay rise is added", () => {
+    const previous = salaryRecord({
+      effectiveStart: "2024-01-01",
+      effectiveEnd: undefined,
+    });
+    const changed = applySaveSalaryRecord(
+      [previous],
+      {
+        replacesRateId: previous.id,
+        facts: {
+          ...SalaryRecordFactsSchema.parse(previous),
+          effectiveStart: "2025-07-01",
+          effectiveEnd: undefined,
+          grossPay: 55_000,
+        },
+      },
+      "salary-pay-rise",
+      "2026-10-04T11:00:00.000Z",
+    );
+
+    expect(currentSalaryHistory(changed)).toMatchObject([
+      {
+        id: "salary-pay-rise-closed-prior",
+        effectiveStart: "2024-01-01",
+        effectiveEnd: "2025-06-30",
+        grossPay: 48_000,
+        correctsId: previous.id,
+      },
+      {
+        id: "salary-pay-rise",
+        effectiveStart: "2025-07-01",
+        effectiveEnd: undefined,
+        grossPay: 55_000,
+      },
+    ]);
+  });
+
+  it("repairs a stale employment ID when adding the next pay rise", () => {
+    const previous = salaryRecord({
+      employer: "New Company",
+      employmentId: "alex-old-company",
+      effectiveStart: "2024-07-01",
+      effectiveEnd: undefined,
+    });
+    const changed = applySaveSalaryRecord(
+      [previous],
+      {
+        replacesRateId: previous.id,
+        facts: {
+          ...SalaryRecordFactsSchema.parse(previous),
+          employmentId: "alex-example-new-company",
+          effectiveStart: "2025-07-01",
+          grossPay: 55_000,
+        },
+      },
+      "salary-pay-rise",
+      "2026-10-04T11:00:00.000Z",
+    );
+
+    expect(currentSalaryHistory(changed)).toMatchObject([
+      {
+        id: "salary-pay-rise-closed-prior",
+        employer: "New Company",
+        employmentId: "alex-example-new-company",
+        effectiveEnd: "2025-06-30",
+      },
+      {
+        id: "salary-pay-rise",
+        employer: "New Company",
+        employmentId: "alex-example-new-company",
+      },
     ]);
   });
 

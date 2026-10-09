@@ -67,6 +67,12 @@ import {
   RecurringFlowDefinitionShape,
   validateRecurringFlowDefinition,
 } from "./recurringFlow";
+import {
+  defaultTaxProfile,
+  EMPTY_TAX_POSITION,
+  TaxPositionDataSchema,
+  TaxProfileSetupSchema,
+} from "./taxPosition";
 
 /**
  * Commands are the write-side of the tracker: zod-validated inputs applied
@@ -358,6 +364,19 @@ export type AddCashFlowDecisionInput = z.input<
   typeof AddCashFlowDecisionInputSchema
 >;
 
+const UpdateDecisionStageInputSchema = AddDecisionStageInputSchema.extend({
+  id: z.string().trim().min(1).optional(),
+});
+
+export const UpdateCashFlowDecisionInputSchema =
+  AddCashFlowDecisionInputSchema.omit({ stages: true }).extend({
+    id: z.string().trim().min(1),
+    stages: z.array(UpdateDecisionStageInputSchema).min(1),
+  });
+export type UpdateCashFlowDecisionInput = z.input<
+  typeof UpdateCashFlowDecisionInputSchema
+>;
+
 export const SetCashFlowDecisionStatusInputSchema = z.object({
   id: z.string().trim().min(1),
   status: z.enum(["considering", "selected", "declined"]),
@@ -443,6 +462,31 @@ export const SetAccountLiquidityInputSchema = z.object({
 export type SetAccountLiquidityInput = z.infer<
   typeof SetAccountLiquidityInputSchema
 >;
+
+export const SetMortgageTermsInputSchema = z
+  .object({
+    accountId: AccountIdSchema,
+    firstPaymentDate: IsoDateSchema,
+    remainingTermMonths: z.number().int().positive(),
+    annualInterestRate: z.number().min(0).max(1).optional(),
+    interestRateEffectiveFrom: IsoDateSchema.optional(),
+  })
+  .refine(
+    ({ annualInterestRate, interestRateEffectiveFrom }) =>
+      (annualInterestRate == null) === (interestRateEffectiveFrom == null),
+    { message: "A mortgage rate needs an effective date" },
+  );
+export type SetMortgageTermsInput = z.infer<typeof SetMortgageTermsInputSchema>;
+
+export const SaveTaxSetupInputSchema = z.object({
+  taxYear: z.string().regex(/^\d{4}-\d{2}$/),
+  people: z.array(
+    TaxProfileSetupSchema.extend({
+      annualTaxableIncomePence: z.number().int().nonnegative(),
+    }),
+  ),
+});
+export type SaveTaxSetupInput = z.infer<typeof SaveTaxSetupInputSchema>;
 
 export const MaterializeFlowInputSchema = z.object({
   flowId: z.string().min(1),
@@ -1358,6 +1402,100 @@ export function applyAddCashFlowDecision(
   };
 }
 
+export function applyUpdateCashFlowDecision(
+  data: AssetTrackerData,
+  input: UpdateCashFlowDecisionInput,
+  asOfDate: string,
+): AssetTrackerData {
+  const parsed = UpdateCashFlowDecisionInputSchema.parse(input);
+  const current = data.futureCashFlows.find(({ id }) => id === parsed.id);
+  if (current?.kind !== "decision") {
+    throw new AssetTrackerCommandError(
+      "FUTURE_CASH_FLOW_NOT_FOUND",
+      `No cash-flow decision found with ID ${parsed.id}`,
+    );
+  }
+  requirePlanningCase(data, parsed.planningCaseId);
+  const referencedIds = new Set(data.futureCashFlows.map(({ id }) => id));
+  for (const referencedId of [
+    ...parsed.dependencyIds,
+    ...parsed.alternativeToIds,
+  ]) {
+    if (!referencedIds.has(referencedId)) {
+      throw new AssetTrackerCommandError(
+        "FUTURE_CASH_FLOW_NOT_FOUND",
+        `No future cash flow found with ID ${referencedId}`,
+      );
+    }
+  }
+  const currentStages = new Map(
+    current.stages.map((stage) => [stage.id, stage]),
+  );
+  const retainedStageIds = new Set(
+    parsed.stages.flatMap((stage) =>
+      stage.id != null && currentStages.has(stage.id) ? [stage.id] : [],
+    ),
+  );
+  const stageIds = new Set<string>();
+  const stages = parsed.stages.map((stage, index) => {
+    const account = requireEligibleFutureCashFlowAccount(
+      data,
+      stage.fromAccountId,
+    );
+    if (account.currency !== parsed.currency) {
+      throw new AssetTrackerCommandError(
+        "INVALID_FUTURE_CASH_FLOW",
+        "A decision must use the currency of its source account",
+      );
+    }
+    const actuals = currentStages.get(stage.id ?? "")?.actuals ?? [];
+    const paid = actuals.reduce(
+      (total, actual) =>
+        total +
+        (actual.direction === "payment" ? actual.amount : -actual.amount),
+      0,
+    );
+    if (stage.expectedDate <= asOfDate && paid < stage.expectedAmount) {
+      throw new AssetTrackerCommandError(
+        "INVALID_FUTURE_CASH_FLOW",
+        "Unpaid decision stages must have a future expected date",
+      );
+    }
+    const id =
+      stage.id != null &&
+      retainedStageIds.has(stage.id) &&
+      !stageIds.has(stage.id)
+        ? stage.id
+        : uniqueId(
+            new Set([...stageIds, ...retainedStageIds]),
+            stage.id ?? `cash-flow-${index + 1}`,
+          );
+    stageIds.add(id);
+    return {
+      ...stage,
+      id,
+      actuals,
+    };
+  });
+  const updated = CashFlowDecisionSchema.parse({
+    ...parsed,
+    kind: "decision",
+    status: current.status,
+    stages,
+  });
+  return {
+    ...data,
+    futureCashFlows: data.futureCashFlows.map((record) =>
+      record.id === current.id ? updated : record,
+    ),
+    ownership: addFutureCashFlowOwnership(
+      data,
+      current.id,
+      stages[0]?.fromAccountId ?? current.stages[0]?.fromAccountId ?? "",
+    ),
+  };
+}
+
 export function applySetCashFlowDecisionStatus(
   data: AssetTrackerData,
   input: SetCashFlowDecisionStatusInput,
@@ -1763,6 +1901,121 @@ export function applySetAccountLiquidity(
       : candidate,
   );
   return { ...data, accounts };
+}
+
+export function applySetMortgageTerms(
+  data: AssetTrackerData,
+  input: SetMortgageTermsInput,
+): AssetTrackerData {
+  const parsed = SetMortgageTermsInputSchema.parse(input);
+  const account = requireAccount(data, parsed.accountId);
+  if (account.assetType !== "mortgage") {
+    throw new AssetTrackerCommandError(
+      "INVALID_ACCOUNT_NAME",
+      "Mortgage terms can only be saved on a mortgage account",
+    );
+  }
+  const previous = account.mortgageTerms;
+  const mortgageTerms = MortgageTermsSchema.parse({
+    firstPaymentDate: parsed.firstPaymentDate,
+    remainingTermMonths: parsed.remainingTermMonths,
+    overpaymentAllowance: previous?.overpaymentAllowance,
+    fees: previous?.fees ?? [],
+    overpayments: previous?.overpayments ?? [],
+    termChanges: previous?.termChanges ?? [],
+  });
+  const expectedReturnChanges =
+    parsed.annualInterestRate == null ||
+    parsed.interestRateEffectiveFrom == null
+      ? account.expectedReturnChanges
+      : [
+          ...(account.expectedReturnChanges ?? []).filter(
+            ({ date }) => date !== parsed.interestRateEffectiveFrom,
+          ),
+          {
+            date: parsed.interestRateEffectiveFrom,
+            rate: parsed.annualInterestRate,
+          },
+        ].toSorted((left, right) => left.date.localeCompare(right.date));
+  return {
+    ...data,
+    accounts: data.accounts.map((candidate) =>
+      candidate.id === account.id
+        ? {
+            ...candidate,
+            mortgageTerms,
+            expectedReturnChanges,
+          }
+        : candidate,
+    ),
+  };
+}
+
+export function applySaveTaxSetup(
+  data: AssetTrackerData,
+  input: SaveTaxSetupInput,
+): AssetTrackerData {
+  const parsed = SaveTaxSetupInputSchema.parse(input);
+  const memberIds = new Set(data.household.members.map(({ id }) => id));
+  for (const person of parsed.people) {
+    if (!memberIds.has(person.memberId)) {
+      throw new AssetTrackerCommandError(
+        "INVALID_ACCOUNT_NAME",
+        "Tax setup refers to a household member that no longer exists",
+      );
+    }
+  }
+  const existing = data.taxPosition ?? {
+    ...EMPTY_TAX_POSITION,
+    taxYear: parsed.taxYear,
+  };
+  const configuredIds = new Set(parsed.people.map(({ memberId }) => memberId));
+  const yearEnd = `${Number(parsed.taxYear.slice(0, 4)) + 1}-04-05`;
+  const profiles = [
+    ...existing.profiles.filter(({ memberId }) => !configuredIds.has(memberId)),
+    ...parsed.people.map(
+      ({ annualTaxableIncomePence: _income, ...profile }) => ({
+        ...defaultTaxProfile(profile.memberId),
+        ...profile,
+        evidence: {
+          kind: "assumption" as const,
+          sourceRecordId: `tax-profile-${profile.memberId}-${parsed.taxYear}`,
+          detail: "Tax setup entered in Asset Tracker",
+        },
+      }),
+    ),
+  ];
+  const setupIncomeIds = new Set(
+    parsed.people.map(
+      ({ memberId }) => `tax-setup-employment-${memberId}-${parsed.taxYear}`,
+    ),
+  );
+  const income = [
+    ...existing.income.filter(({ id }) => !setupIncomeIds.has(id)),
+    ...parsed.people.map(({ memberId, annualTaxableIncomePence }) => ({
+      id: `tax-setup-employment-${memberId}-${parsed.taxYear}`,
+      memberId,
+      employmentId: `tax-setup-${memberId}`,
+      date: yearEnd,
+      kind: "employment" as const,
+      amountPence: annualTaxableIncomePence,
+      evidence: {
+        kind: "assumption" as const,
+        sourceRecordId: `tax-income-${memberId}-${parsed.taxYear}`,
+        detail:
+          "Projected annual taxable employment income entered in tax setup",
+      },
+    })),
+  ];
+  return {
+    ...data,
+    taxPosition: TaxPositionDataSchema.parse({
+      ...existing,
+      taxYear: parsed.taxYear,
+      profiles,
+      income,
+    }),
+  };
 }
 
 export function applySetInflation(

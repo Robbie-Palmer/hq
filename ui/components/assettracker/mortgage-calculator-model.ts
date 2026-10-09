@@ -5,7 +5,10 @@ import type {
   MortgageCalculatorAssumptions,
   MortgageScenarioSource,
 } from "@/lib/domain/assettracker";
-import { advanceMortgageTerms } from "@/lib/domain/assettracker";
+import {
+  advanceMortgageTerms,
+  effectiveExpectedReturn,
+} from "@/lib/domain/assettracker";
 
 export type MortgageCalculatorModel = {
   assumptions: MortgageCalculatorAssumptions;
@@ -68,8 +71,9 @@ export function buildMortgageCalculatorModel(input: {
   const propertyValue = Math.max(property.latestBalance, 1);
   const mortgageBalance = Math.abs(mortgage.latestBalance);
   const depositAmount = Math.max(propertyValue - mortgageBalance, 0);
+  const currentRate = effectiveExpectedReturn(mortgage, terms.firstPaymentDate);
   const nextRateChange = (mortgage.expectedReturnChanges ?? [])
-    .filter((change) => change.date >= terms.firstPaymentDate)
+    .filter((change) => change.date > terms.firstPaymentDate)
     .toSorted((a, b) => a.date.localeCompare(b.date))[0];
   const refinanceFee =
     terms.fees.find((fee) => fee.date === nextRateChange?.date)?.amount ?? 0;
@@ -85,7 +89,7 @@ export function buildMortgageCalculatorModel(input: {
       availableFunds:
         depositAmount + Math.max(position?.withdrawalCapital ?? 0, 0),
       depositAmount,
-      initialAnnualRate: Math.max(mortgage.expectedAnnualReturn, 0),
+      initialAnnualRate: Math.max(currentRate, 0),
       termMonths: terms.remainingTermMonths,
       repaymentType: "repayment",
       accrualStartDate: mortgage.latestSnapshotDate,
@@ -93,10 +97,7 @@ export function buildMortgageCalculatorModel(input: {
       ...(nextRateChange == null
         ? {}
         : { fixedPeriodEnd: nextRateChange.date }),
-      followOnAnnualRate: Math.max(
-        nextRateChange?.rate ?? mortgage.expectedAnnualReturn,
-        0,
-      ),
+      followOnAnnualRate: Math.max(nextRateChange?.rate ?? currentRate, 0),
       refinanceFee,
       purchaseFees: 0,
       taxes: 0,

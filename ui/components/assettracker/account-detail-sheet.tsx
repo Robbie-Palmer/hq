@@ -45,6 +45,7 @@ import { EquityProjection } from "./equity-projection";
 import { ExpectedReturnEditor } from "./expected-return-editor";
 import { LogBalanceDrawer } from "./log-balance-drawer";
 import { MortgageSchedule } from "./mortgage-schedule";
+import { MortgageTermsEditor } from "./mortgage-terms-editor";
 import { PropertyComparables } from "./property-comparables";
 import { PropertyValueHistory } from "./property-value-history";
 import { RecordTransferDrawer } from "./record-transfer-drawer";
@@ -148,6 +149,9 @@ export function AccountDetailSheet({
             account.mortgageTerms != null && (
               <MortgageSchedule account={account} />
             )}
+          {account.assetType === "mortgage" && (
+            <MortgageTermsEditor account={account} />
+          )}
           {account.assetType === "property" && linkedMortgages.length > 0 && (
             <EquityProjection
               property={account}

@@ -198,10 +198,12 @@ function scheduleFor(
 
 function depositOptions(assumptions: MortgageCalculatorAssumptions): number[] {
   const step = assumptions.purchasePrice * 0.05;
+  const sixtyPercentLtvDeposit = assumptions.purchasePrice * 0.4;
   return [
     assumptions.depositAmount - step,
     assumptions.depositAmount,
     assumptions.depositAmount + step,
+    sixtyPercentLtvDeposit,
   ]
     .map((amount) =>
       Math.min(Math.max(roundMoney(amount), 0), assumptions.purchasePrice),

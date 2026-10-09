@@ -53,16 +53,22 @@ export function HousingPositionSummary({
     ["Recorded home value", position.homeValue],
     ["Mortgage balance", position.mortgageBalance],
     ["Total home equity", position.homeEquity],
-    ["Current withdrawal capital", position.withdrawalCapital],
+    ["Non-housing portfolio", position.withdrawalCapital],
   ] as const;
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      {values.map(([label, value]) => (
-        <div className="rounded-md border p-3" key={label}>
-          <p className="text-xs text-muted-foreground">{label}</p>
-          <p className="mt-1 font-semibold">{money(value)}</p>
-        </div>
-      ))}
+    <div className="space-y-2">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {values.map(([label, value]) => (
+          <div className="rounded-md border p-3" key={label}>
+            <p className="text-xs text-muted-foreground">{label}</p>
+            <p className="mt-1 font-semibold">{money(value)}</p>
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        The non-housing portfolio is cash and investments, less non-mortgage
+        debts. It excludes the house and mortgage shown separately.
+      </p>
     </div>
   );
 }

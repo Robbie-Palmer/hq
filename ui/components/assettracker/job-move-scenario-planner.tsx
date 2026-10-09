@@ -888,8 +888,8 @@ function Comparison({ scenario }: Readonly<{ scenario: JobMoveScenario }>) {
     scenario.employmentStatus === "unemployed" ? 10 : 5,
   );
   const comparison = useMemo(
-    () => tracker.compareJobMoveScenario(scenario.id, horizonYears * 12),
-    [horizonYears, scenario.id, tracker.compareJobMoveScenario],
+    () => tracker.compareJobMoveScenario(scenario, horizonYears * 12),
+    [horizonYears, scenario, tracker.compareJobMoveScenario],
   );
   const horizon = comparison.timeline.at(-1);
   if (horizon == null) {
@@ -937,6 +937,34 @@ function Comparison({ scenario }: Readonly<{ scenario: JobMoveScenario }>) {
 
 function useJobMoveScenarioControls() {
   const tracker = useAssetTracker();
+  const defaultScenario = useMemo<JobMoveScenario>(() => {
+    const transitionDate =
+      tracker.valuationDate ?? format(new Date(), "yyyy-MM-dd");
+    const timestamp = `${transitionDate}T00:00:00Z`;
+    return {
+      id: "default-job-loss",
+      name: "Lose my job",
+      employmentStatus: "unemployed",
+      transitionDate,
+      baseGrossPay: 0,
+      variableGrossPay: 0,
+      payFrequency: "monthly",
+      currency: tracker.baseCurrency,
+      jurisdiction: "England",
+      employeePensionRate: 0,
+      employeePensionMethod: "salarySacrifice",
+      employerPensionRate: 0,
+      replacedRecurringFlowIds: tracker.recurringFlows
+        .filter(
+          (flow) =>
+            flow.compensationKind != null ||
+            /salary|pay|pension/i.test(flow.name),
+        )
+        .map(({ id }) => id),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+  }, [tracker.baseCurrency, tracker.recurringFlows, tracker.valuationDate]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState(
     tracker.jobMoveScenarios[0]?.id ?? "",
@@ -948,7 +976,8 @@ function useJobMoveScenarioControls() {
       : (tracker.jobMoveScenarios.find(({ id }) => id === editingId) ?? null);
   const selected =
     tracker.jobMoveScenarios.find(({ id }) => id === selectedId) ??
-    tracker.jobMoveScenarios[0];
+    tracker.jobMoveScenarios[0] ??
+    defaultScenario;
   const run = async (action: () => Promise<void>) => {
     setActionError(null);
     try {
@@ -961,6 +990,7 @@ function useJobMoveScenarioControls() {
     actionError,
     editing,
     editingId,
+    defaultScenario,
     run,
     selected,
     selectedId,
@@ -1083,9 +1113,16 @@ function ScenarioCards({
 }: Readonly<{ controls: ReturnType<typeof useJobMoveScenarioControls> }>) {
   if (controls.tracker.jobMoveScenarios.length === 0) {
     return controls.editingId == null ? (
-      <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-        No hypothetical job moves yet.
-      </p>
+      <article className="rounded-md border border-primary p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="font-medium">{controls.defaultScenario.name}</p>
+          <Badge variant="outline">Default scenario</Badge>
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Current employment income stops from{" "}
+          {controls.defaultScenario.transitionDate}.
+        </p>
+      </article>
     ) : null;
   }
   return (

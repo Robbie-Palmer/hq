@@ -87,6 +87,10 @@ function importButtonLabel(recordCount: number): string {
   return `${recordCount} ${noun}`;
 }
 
+function formatGrossPay(grossPay: number | undefined): string {
+  return grossPay?.toLocaleString("en-GB") ?? "Not provided";
+}
+
 export function SalaryHistoryImportDrawer() {
   const { importSalaryHistory } = useAssetTracker();
   const [open, setOpen] = useState(false);
@@ -301,7 +305,7 @@ export function SalaryHistoryImportDrawer() {
                                 </td>
                                 <td className="px-3 py-2 tabular-nums">
                                   {record.currency}{" "}
-                                  {record.grossPay.toLocaleString("en-GB")}
+                                  {formatGrossPay(record.grossPay)}
                                 </td>
                                 <td className="px-3 py-2 tabular-nums">
                                   {annualised == null

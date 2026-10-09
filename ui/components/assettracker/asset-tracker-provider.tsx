@@ -15,6 +15,7 @@ import { pricePaidArchive } from "@/content/assettracker/propertyComparables";
 import { housePriceIndexArchive } from "@/content/assettracker/propertyIndexHistory";
 import {
   type AssetTrackerApi,
+  AssetTrackerStorageError,
   createLocalAssetTrackerApi,
 } from "@/lib/api/assettracker";
 import {
@@ -106,11 +107,16 @@ import {
   type SaveJobMoveScenarioInput,
   type SaveMortgageScenarioInput,
   type SaveSalaryRecordInput,
+  type SaveTaxSetupInput,
   type SetAccountLiquidityInput,
   type SetExpectedReturnInput,
+  type SetMortgageTermsInput,
   SUPPORTED_CURRENCIES,
   scopeAssetTrackerData,
+  suggestedAnnualEmploymentIncomePence,
+  type TaxPositionData,
   type Transfer,
+  type UpdateCashFlowDecisionInput,
   type ValuationIssue,
 } from "@/lib/domain/assettracker";
 
@@ -147,13 +153,15 @@ interface AssetTrackerContextValue {
   currentSalaryHistory: SalaryHistoryRecord[];
   jobMoveScenarios: JobMoveScenario[];
   compareJobMoveScenario(
-    scenarioId: string,
+    scenario: string | JobMoveScenario,
     horizonMonths: number,
   ): JobMoveScenarioComparison;
   flowSankeyData: FlowSankeyData;
   financialIndependence: PortfolioFinancialIndependence;
   housingPlanningPosition: HousingPlanningPosition | null;
   taxEstimate: HouseholdTaxEstimate;
+  taxPosition?: TaxPositionData;
+  taxSetupIncomeSuggestions: Record<string, number | null>;
   /** Annualised portfolio growth, excluding recorded external money in/out */
   portfolioReturn: number | null;
   positionSummary: PortfolioPositionSummary | null;
@@ -197,11 +205,13 @@ interface AssetTrackerContextValue {
   importIncomeHistory(input: ImportIncomeHistoryInput): Promise<void>;
   importSalaryHistory(input: ImportSalaryHistoryInput): Promise<void>;
   saveSalaryRecord(input: SaveSalaryRecordInput): Promise<void>;
+  saveTaxSetup(input: SaveTaxSetupInput): Promise<void>;
   clearIncomeHistory(): Promise<void>;
   addRecurringFlow(input: AddRecurringFlowInput): Promise<void>;
   createPlanningCase(input: CreatePlanningCaseInput): Promise<void>;
   addCommitment(input: AddCommitmentInput): Promise<void>;
   addCashFlowDecision(input: AddCashFlowDecisionInput): Promise<void>;
+  updateCashFlowDecision(input: UpdateCashFlowDecisionInput): Promise<void>;
   setCashFlowDecisionStatus(
     id: string,
     status: "considering" | "selected" | "declined",
@@ -224,6 +234,7 @@ interface AssetTrackerContextValue {
   materializeFlow(flowId: string): Promise<void>;
   setExpectedReturn(input: SetExpectedReturnInput): Promise<void>;
   setAccountLiquidity(input: SetAccountLiquidityInput): Promise<void>;
+  setMortgageTerms(input: SetMortgageTermsInput): Promise<void>;
   setInflation(rate: number): Promise<void>;
   setBaseCurrency(currency: Currency): Promise<void>;
   setWithdrawalRate(rate: number): Promise<void>;
@@ -349,10 +360,12 @@ function useLocalAssetTrackerData() {
         setLocalDataStatus("ready");
         setLocalDataError(null);
       } catch (error) {
-        setLocalDataStatus("error");
-        setLocalDataError(
-          "Asset Tracker could not save the last change in this browser. The change was not applied. Check that browser storage is available, then try again.",
-        );
+        if (error instanceof AssetTrackerStorageError) {
+          setLocalDataStatus("error");
+          setLocalDataError(
+            "Asset Tracker could not save the last change in this browser. The change was not applied. Check that browser storage is available, then try again.",
+          );
+        }
         throw error;
       }
     },
@@ -422,10 +435,13 @@ function jobMoveComparison(
   emergencyFundAnalysis: EmergencyFundAnalysis | null,
   valuationDate: string,
 ) {
-  return (scenarioId: string, horizonMonths: number) => {
-    const scenario = repository.jobMoveScenarios.find(
-      (candidate) => candidate.id === scenarioId,
-    );
+  return (scenarioInput: string | JobMoveScenario, horizonMonths: number) => {
+    const scenario =
+      typeof scenarioInput === "string"
+        ? repository.jobMoveScenarios.find(
+            (candidate) => candidate.id === scenarioInput,
+          )
+        : scenarioInput;
     if (scenario == null) throw new Error("Job-move scenario not found");
     return compareJobMoveScenario({
       repository,
@@ -532,6 +548,13 @@ function useAssetTrackerViews(data: AssetTrackerData) {
         valuationDate,
       ),
       taxEstimate,
+      taxPosition: data.taxPosition,
+      taxSetupIncomeSuggestions: Object.fromEntries(
+        data.household.members.map(({ id }) => [
+          id,
+          suggestedAnnualEmploymentIncomePence(data, id, taxEstimate.taxYear),
+        ]),
+      ),
       portfolioReturn: getPortfolioAnnualReturn(repository),
       positionSummary: getPortfolioPositionSummary(repository),
       inflation: repository.settings.expectedAnnualInflation,
@@ -606,6 +629,7 @@ export function AssetTrackerProvider({
       importSalaryHistory: (input) =>
         mutate((api) => api.importSalaryHistory(input)),
       saveSalaryRecord: (input) => mutate((api) => api.saveSalaryRecord(input)),
+      saveTaxSetup: (input) => mutate((api) => api.saveTaxSetup(input)),
       clearIncomeHistory: () => mutate((api) => api.clearIncomeHistory()),
       addRecurringFlow: (input) => mutate((api) => api.addRecurringFlow(input)),
       createPlanningCase: (input) =>
@@ -613,6 +637,8 @@ export function AssetTrackerProvider({
       addCommitment: (input) => mutate((api) => api.addCommitment(input)),
       addCashFlowDecision: (input) =>
         mutate((api) => api.addCashFlowDecision(input)),
+      updateCashFlowDecision: (input) =>
+        mutate((api) => api.updateCashFlowDecision(input)),
       setCashFlowDecisionStatus: (id, status) =>
         mutate((api) => api.setCashFlowDecisionStatus({ id, status })),
       setCommitmentStatus: (id, status) =>
@@ -643,6 +669,7 @@ export function AssetTrackerProvider({
         mutate((api) => api.setExpectedReturn(input)),
       setAccountLiquidity: (input) =>
         mutate((api) => api.setAccountLiquidity(input)),
+      setMortgageTerms: (input) => mutate((api) => api.setMortgageTerms(input)),
       setInflation: (rate) => mutate((api) => api.setInflation({ rate })),
       setBaseCurrency: (currency) =>
         mutate((api) => api.setBaseCurrency({ currency })),

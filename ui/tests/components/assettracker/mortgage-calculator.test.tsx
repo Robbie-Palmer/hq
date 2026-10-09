@@ -91,6 +91,10 @@ describe("MortgageCalculator", () => {
       screen.getByRole("table", { name: "Mortgage deposit comparison" }),
     ).toBeVisible();
     expect(screen.getByText("Mortgage and Home at 2026-01-01")).toBeVisible();
+    expect(screen.getByText("60.0%")).toBeVisible();
+    expect(screen.getAllByText("Investments retained").length).toBeGreaterThan(
+      0,
+    );
     expect(screen.getByLabelText("Property price")).not.toBeVisible();
 
     await userEvent.click(screen.getByText("Adjust mortgage assumptions"));
@@ -192,6 +196,72 @@ describe("MortgageCalculator", () => {
         fixedPeriodEnd: "2031-07-15",
       }),
     );
+  });
+
+  it("uses the rate in force for the first modelled payment", () => {
+    const model = buildMortgageCalculatorModel({
+      asOfDate: "2026-01-01",
+      mortgage: account({
+        id: "mortgage",
+        assetType: "mortgage",
+        latestBalance: -100_000,
+        expectedAnnualReturn: 0,
+        expectedReturnChanges: [{ date: "2026-01-15", rate: 0.0512 }],
+        mortgageTerms: {
+          firstPaymentDate: "2026-02-01",
+          remainingTermMonths: 240,
+          fees: [],
+          overpayments: [],
+          termChanges: [],
+        },
+      }),
+      property: account({
+        id: "home",
+        assetType: "property",
+        latestBalance: 200_000,
+      }),
+      position: null,
+    });
+
+    expect(model.assumptions.initialAnnualRate).toBe(0.0512);
+    expect(model.assumptions.fixedPeriodEnd).toBeUndefined();
+  });
+
+  it("points an imported mortgage at the missing account terms", () => {
+    const context = mockUseAssetTracker();
+    mockUseAssetTracker.mockReturnValue({
+      ...context,
+      accountDetails: context.accountDetails.map((item) =>
+        item.id === "mortgage" ? { ...item, mortgageTerms: undefined } : item,
+      ),
+    } as ReturnType<typeof useAssetTracker>);
+
+    render(<MortgageCalculator />);
+
+    expect(screen.getByText("Finish setting up Mortgage")).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Enter mortgage terms" }),
+    ).toHaveAttribute("href", "/assettracker/accounts?account=mortgage");
+  });
+
+  it("does not present a zero-rate repayment as a real payment", () => {
+    const context = mockUseAssetTracker();
+    mockUseAssetTracker.mockReturnValue({
+      ...context,
+      accountDetails: context.accountDetails.map((item) =>
+        item.id === "mortgage"
+          ? { ...item, expectedAnnualReturn: 0, expectedReturnChanges: [] }
+          : item,
+      ),
+    } as ReturnType<typeof useAssetTracker>);
+
+    render(<MortgageCalculator />);
+
+    expect(
+      screen.getByText("Add Mortgage's current interest rate"),
+    ).toBeVisible();
+    expect(screen.getAllByText("Rate needed").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Rate stress")).not.toBeInTheDocument();
   });
 
   it("keeps required assumptions valid while inputs are cleared", async () => {

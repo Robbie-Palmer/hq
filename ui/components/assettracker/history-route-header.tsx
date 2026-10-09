@@ -5,17 +5,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  type Currency,
-  CurrencySchema,
-  SUPPORTED_CURRENCIES,
-} from "@/lib/domain/assettracker";
+import { type Currency, CurrencySchema } from "@/lib/domain/assettracker";
 import { AccountHistoryImportDrawer } from "./account-history-import-drawer";
 
 export function HistoryRouteHeader({
+  availableCurrencies,
   currency,
   onCurrencyChange,
 }: Readonly<{
+  availableCurrencies: Currency[];
   currency: Currency;
   onCurrencyChange: (currency: Currency) => void;
 }>) {
@@ -28,27 +26,33 @@ export function HistoryRouteHeader({
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-muted-foreground">Show net worth in</span>
-        <Select
-          value={currency}
-          onValueChange={(value) =>
-            onCurrencyChange(CurrencySchema.parse(value))
-          }
-        >
-          <SelectTrigger
-            className="w-24"
-            aria-label="Historical target currency"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {SUPPORTED_CURRENCIES.map((item) => (
-              <SelectItem key={item} value={item}>
-                {item}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {availableCurrencies.length > 0 && (
+          <>
+            <span className="text-sm text-muted-foreground">
+              Show net worth in
+            </span>
+            <Select
+              value={currency}
+              onValueChange={(value) =>
+                onCurrencyChange(CurrencySchema.parse(value))
+              }
+            >
+              <SelectTrigger
+                className="w-24"
+                aria-label="Historical target currency"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {availableCurrencies.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {item}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
+        )}
         <AccountHistoryImportDrawer />
       </div>
     </div>

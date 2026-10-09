@@ -50,13 +50,7 @@ export const DEFAULT_EXPECTED_INFLATION = 0.025;
 export const DEFAULT_WITHDRAWAL_RATE = 0.04;
 export const DEFAULT_VALUATION_MAX_AGE_DAYS = 7;
 
-/** A safe, user-facing failure caused by invalid persisted or imported data. */
-export class AssetTrackerDataError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "AssetTrackerDataError";
-  }
-}
+export { AssetTrackerDataError } from "./assetTrackerError";
 
 export const AssetTrackerSettingsSchema = z.object({
   /** Used to express projected values and rates in today's money */

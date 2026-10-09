@@ -594,6 +594,7 @@ function amountDiagnostics(
   if (
     record.baseSalary != null &&
     record.variablePay != null &&
+    record.grossPay != null &&
     record.baseSalary + record.variablePay > record.grossPay
   ) {
     diagnostics.push({
@@ -603,7 +604,11 @@ function amountDiagnostics(
         "Base salary plus variable pay exceeds gross pay. Check whether the amounts use the same annual or pay-period basis.",
     });
   }
-  if (record.taxablePay != null && record.taxablePay > record.grossPay) {
+  if (
+    record.taxablePay != null &&
+    record.grossPay != null &&
+    record.taxablePay > record.grossPay
+  ) {
     diagnostics.push({
       severity: "warning",
       row,

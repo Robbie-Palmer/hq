@@ -13,9 +13,13 @@ function rateAdjustmentLabel(rateAdjustment: number): string {
 }
 
 export function MortgageCalculatorHighlights({
+  existingMortgage,
+  rateAvailable,
   result,
   money,
 }: Readonly<{
+  existingMortgage: boolean;
+  rateAvailable: boolean;
   result: MortgageCalculatorResult;
   money: FormatMoney;
 }>) {
@@ -25,8 +29,14 @@ export function MortgageCalculatorHighlights({
       {[
         ["Mortgage", money(selected.openingLoan)],
         ["Loan to value", percentage(selected.loanToValue)],
-        ["First payment", money(selected.initialMonthlyPayment)],
-        ["Cash retained", money(selected.retainedLiquidity)],
+        [
+          "Modelled monthly payment",
+          rateAvailable ? money(selected.initialMonthlyPayment) : "Rate needed",
+        ],
+        [
+          existingMortgage ? "Investments retained" : "Cash retained",
+          money(selected.retainedLiquidity),
+        ],
       ].map(([label, value]) => (
         <div key={label} className="rounded-md border p-3">
           <p className="text-xs text-muted-foreground">{label}</p>
@@ -37,10 +47,55 @@ export function MortgageCalculatorHighlights({
   );
 }
 
+function MortgageDepositRow({
+  money,
+  option,
+  rateAvailable,
+  selectedDeposit,
+}: Readonly<{
+  money: FormatMoney;
+  option: MortgageCalculatorResult["depositOptions"][number];
+  rateAvailable: boolean;
+  selectedDeposit: number;
+}>) {
+  return (
+    <tr
+      className={
+        option.depositAmount === selectedDeposit
+          ? "border-t bg-muted/30 font-medium"
+          : "border-t"
+      }
+    >
+      <th className="whitespace-nowrap px-3 py-2 text-left">
+        {money(option.depositAmount)} ({percentage(option.depositPercentage)})
+      </th>
+      <td className="whitespace-nowrap px-3 py-2 text-right">
+        {percentage(option.loanToValue)}
+      </td>
+      <td className="whitespace-nowrap px-3 py-2 text-right">
+        {money(option.retainedLiquidity)}
+      </td>
+      <td className="whitespace-nowrap px-3 py-2 text-right">
+        {rateAvailable ? money(option.initialMonthlyPayment) : "Rate needed"}
+      </td>
+      <td className="whitespace-nowrap px-3 py-2 text-right">
+        {rateAvailable ? money(option.totalInterest) : "Rate needed"}
+      </td>
+      <td className="whitespace-nowrap px-3 py-2 text-right">
+        {option.payoffDate}
+      </td>
+    </tr>
+  );
+}
+
 export function MortgageDepositComparison({
+  existingMortgage,
+  rateAvailable,
   result,
   money,
 }: Readonly<{
+  existingMortgage: boolean;
+  rateAvailable: boolean;
   result: MortgageCalculatorResult;
   money: FormatMoney;
 }>) {
@@ -52,44 +107,29 @@ export function MortgageDepositComparison({
       >
         <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
           <tr>
-            <th className="px-3 py-2 font-medium">Deposit</th>
+            <th className="px-3 py-2 font-medium">
+              {existingMortgage ? "Home equity" : "Deposit"}
+            </th>
             <th className="px-3 py-2 text-right font-medium">LTV</th>
-            <th className="px-3 py-2 text-right font-medium">Cash retained</th>
-            <th className="px-3 py-2 text-right font-medium">First payment</th>
+            <th className="px-3 py-2 text-right font-medium">
+              {existingMortgage ? "Investments retained" : "Cash retained"}
+            </th>
+            <th className="px-3 py-2 text-right font-medium">
+              Modelled payment
+            </th>
             <th className="px-3 py-2 text-right font-medium">Total interest</th>
             <th className="px-3 py-2 text-right font-medium">Payoff</th>
           </tr>
         </thead>
         <tbody>
           {result.depositOptions.map((option) => (
-            <tr
+            <MortgageDepositRow
               key={option.depositAmount}
-              className={
-                option.depositAmount === result.selected.depositAmount
-                  ? "border-t bg-muted/30 font-medium"
-                  : "border-t"
-              }
-            >
-              <th className="whitespace-nowrap px-3 py-2 text-left">
-                {money(option.depositAmount)} (
-                {percentage(option.depositPercentage)})
-              </th>
-              <td className="whitespace-nowrap px-3 py-2 text-right">
-                {percentage(option.loanToValue)}
-              </td>
-              <td className="whitespace-nowrap px-3 py-2 text-right">
-                {money(option.retainedLiquidity)}
-              </td>
-              <td className="whitespace-nowrap px-3 py-2 text-right">
-                {money(option.initialMonthlyPayment)}
-              </td>
-              <td className="whitespace-nowrap px-3 py-2 text-right">
-                {money(option.totalInterest)}
-              </td>
-              <td className="whitespace-nowrap px-3 py-2 text-right">
-                {option.payoffDate}
-              </td>
-            </tr>
+              money={money}
+              option={option}
+              rateAvailable={rateAvailable}
+              selectedDeposit={result.selected.depositAmount}
+            />
           ))}
         </tbody>
       </table>

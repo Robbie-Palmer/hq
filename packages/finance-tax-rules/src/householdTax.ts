@@ -3,6 +3,7 @@ import type { Jurisdiction, PensionContributionMethod } from "./schema";
 
 export type TaxEvidence = {
   kind: "observed" | "assumption";
+  timing?: "to-date" | "year-end";
   sourceRecordId: string;
   detail: string;
 };
@@ -101,6 +102,14 @@ export type TaxBandScenario = {
   };
   taxableIncomePence: number;
   taxableGainPence: number;
+  allowanceTaper: {
+    adjustedNetIncomePence: number;
+    standardPersonalAllowancePence: number;
+    startsAtPence: number;
+    endsAtPence: number;
+    usedPence: number;
+    effectiveMarginalRateBasisPoints: number;
+  } | null;
   bands: TaxBandConsumption[];
 };
 
@@ -160,6 +169,9 @@ const roundTax = (amountPence: number, rateBasisPoints: number) =>
 
 const sum = (values: readonly number[]) =>
   values.reduce((total, value) => total + value, 0);
+
+const countsToDate = ({ kind, timing }: TaxEvidence) =>
+  kind === "observed" || timing === "to-date";
 
 const jurisdictionLabel = (jurisdiction: Jurisdiction): string =>
   ({
@@ -459,6 +471,10 @@ function buildBandScenario({
   savingsPence: number;
   annualExemptAmountPence: number;
 }): TaxBandScenario {
+  const adjustedNetIncomePence = Math.max(
+    0,
+    employmentPence + savingsPence + dividendPence - reliefAtSourcePence,
+  );
   const personalAllowance = calculatePersonalAllowance(
     employmentPence,
     savingsPence,
@@ -527,6 +543,44 @@ function buildBandScenario({
     bandIndex,
   );
 
+  const allowanceTaper = (() => {
+    if (incomeRule == null) return null;
+    const startsAtPence =
+      incomeRule.personalAllowanceTaper.adjustedNetIncomeStartsAtPence;
+    const endsAtPence =
+      startsAtPence +
+      Math.ceil(
+        (incomeRule.standardPersonalAllowancePence *
+          incomeRule.personalAllowanceTaper.perExcessIncomePence) /
+          incomeRule.personalAllowanceTaper.allowanceReductionPence,
+      );
+    const taxableAtStart = startsAtPence - incomeRule.standardPersonalAllowancePence;
+    let cumulativeWidth = 0;
+    const taperBand = incomeRule.bands.find((band) => {
+      if (band.widthPence == null) return true;
+      cumulativeWidth += band.widthPence;
+      return taxableAtStart < cumulativeWidth;
+    });
+    const baseRate = taperBand?.rateBasisPoints ?? 0;
+    const allowanceLossRate =
+      incomeRule.personalAllowanceTaper.allowanceReductionPence /
+      incomeRule.personalAllowanceTaper.perExcessIncomePence;
+    return {
+      adjustedNetIncomePence,
+      standardPersonalAllowancePence:
+        incomeRule.standardPersonalAllowancePence,
+      startsAtPence,
+      endsAtPence,
+      usedPence: Math.min(
+        Math.max(adjustedNetIncomePence - startsAtPence, 0),
+        endsAtPence - startsAtPence,
+      ),
+      effectiveMarginalRateBasisPoints: Math.round(
+        baseRate * (1 + allowanceLossRate),
+      ),
+    };
+  })();
+
   return {
     personalAllowancePence: personalAllowance,
     personalAllowanceUsedPence:
@@ -537,6 +591,7 @@ function buildBandScenario({
       taxableAmounts.savingsPence +
       taxableAmounts.dividendsPence,
     taxableGainPence: taxableAmounts.capitalGainsPence,
+    allowanceTaper,
     bands,
   };
 }
@@ -824,24 +879,24 @@ function calculatePerson(
   );
   const observedEmploymentPence = sum(
     employment
-      .filter(({ evidence }) => evidence.kind === "observed")
+      .filter(({ evidence }) => countsToDate(evidence))
       .map(({ amountPence }) => amountPence),
   );
   const observedSavingsPence = sum(
     savings
-      .filter(({ evidence }) => evidence.kind === "observed")
+      .filter(({ evidence }) => countsToDate(evidence))
       .map(({ amountPence }) => amountPence),
   );
   const observedDividendPence = sum(
     dividends
-      .filter(({ evidence }) => evidence.kind === "observed")
+      .filter(({ evidence }) => countsToDate(evidence))
       .map(({ amountPence }) => amountPence),
   );
   const observedReliefAtSourcePence = sum(
     pensionContributions
       .filter(
         ({ evidence, pensionMethod }) =>
-          evidence.kind === "observed" && pensionMethod === "relief-at-source",
+          countsToDate(evidence) && pensionMethod === "relief-at-source",
       )
       .map(({ amountPence }) => amountPence),
   );
@@ -849,7 +904,7 @@ function calculatePerson(
     0,
     sum(
       taxableDisposals
-        .filter(({ evidence }) => evidence.kind === "observed")
+        .filter(({ evidence }) => countsToDate(evidence))
         .map(
           ({ proceedsPence, allowableCostPence, lossesAppliedPence }) =>
             proceedsPence - allowableCostPence - lossesAppliedPence,
@@ -905,7 +960,7 @@ function calculatePerson(
   );
   const observedPensionContributions = sum(
     pensionContributions
-      .filter(({ evidence }) => evidence.kind === "observed")
+      .filter(({ evidence }) => countsToDate(evidence))
       .map(({ amountPence }) => amountPence),
   );
   const employerPensionContributions = sum(
@@ -927,7 +982,7 @@ function calculatePerson(
   );
   const observedIsaContributions = sum(
     isaContributions
-      .filter(({ evidence }) => evidence.kind === "observed")
+      .filter(({ evidence }) => countsToDate(evidence))
       .map(({ amountPence }) => amountPence),
   );
   flagExceededContributionAllowances({

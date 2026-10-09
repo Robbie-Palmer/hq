@@ -43,6 +43,7 @@ import {
   applySaveJobMoveScenario,
   applySaveMortgageScenario,
   applySaveSalaryRecord,
+  applySaveTaxSetup,
   applySetAccountLiquidity,
   applySetAccountOwnership,
   applySetActiveHouseholdScope,
@@ -51,8 +52,10 @@ import {
   applySetCommitmentStatus,
   applySetExpectedReturn,
   applySetInflation,
+  applySetMortgageTerms,
   applySetNetWorthTarget,
   applySetWithdrawalRate,
+  applyUpdateCashFlowDecision,
   applyVersionForecastAssumptionSet,
   buildRepository,
   type ClearAccountHistoryInput,
@@ -82,6 +85,7 @@ import {
   type SaveJobMoveScenarioInput,
   type SaveMortgageScenarioInput,
   type SaveSalaryRecordInput,
+  type SaveTaxSetupInput,
   type SetAccountLiquidityInput,
   type SetAccountOwnershipInput,
   type SetBaseCurrencyInput,
@@ -89,8 +93,10 @@ import {
   type SetCommitmentStatusInput,
   type SetExpectedReturnInput,
   type SetInflationInput,
+  type SetMortgageTermsInput,
   type SetNetWorthTargetInput,
   type SetWithdrawalRateInput,
+  type UpdateCashFlowDecisionInput,
   type VersionForecastAssumptionSetInput,
 } from "@/lib/domain/assettracker";
 
@@ -123,12 +129,16 @@ export interface AssetTrackerApi {
     input: ImportSalaryHistoryInput,
   ): Promise<AssetTrackerData>;
   saveSalaryRecord(input: SaveSalaryRecordInput): Promise<AssetTrackerData>;
+  saveTaxSetup(input: SaveTaxSetupInput): Promise<AssetTrackerData>;
   clearIncomeHistory(): Promise<AssetTrackerData>;
   addRecurringFlow(input: AddRecurringFlowInput): Promise<AssetTrackerData>;
   createPlanningCase(input: CreatePlanningCaseInput): Promise<AssetTrackerData>;
   addCommitment(input: AddCommitmentInput): Promise<AssetTrackerData>;
   addCashFlowDecision(
     input: AddCashFlowDecisionInput,
+  ): Promise<AssetTrackerData>;
+  updateCashFlowDecision(
+    input: UpdateCashFlowDecisionInput,
   ): Promise<AssetTrackerData>;
   setCashFlowDecisionStatus(
     input: SetCashFlowDecisionStatusInput,
@@ -168,6 +178,7 @@ export interface AssetTrackerApi {
   setAccountLiquidity(
     input: SetAccountLiquidityInput,
   ): Promise<AssetTrackerData>;
+  setMortgageTerms(input: SetMortgageTermsInput): Promise<AssetTrackerData>;
   setBaseCurrency(input: SetBaseCurrencyInput): Promise<AssetTrackerData>;
   setInflation(input: SetInflationInput): Promise<AssetTrackerData>;
   setNetWorthTarget(input: SetNetWorthTargetInput): Promise<AssetTrackerData>;
@@ -208,6 +219,13 @@ export type AssetTrackerLoadResult = {
 };
 
 export const ASSET_TRACKER_STORAGE_KEY = "assettracker:data:v1";
+
+export class AssetTrackerStorageError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "AssetTrackerStorageError";
+  }
+}
 
 const NO_PENSION_CONTRIBUTION_MARKER =
   "assetTrackerConfirmedNoPensionContribution";
@@ -294,7 +312,14 @@ function parseStored(raw: string): AssetTrackerData {
 export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
   const currentDate = () => todayIsoDate();
   function readStored(): AssetTrackerData | null {
-    const raw = storage.getItem(ASSET_TRACKER_STORAGE_KEY);
+    let raw: string | null;
+    try {
+      raw = storage.getItem(ASSET_TRACKER_STORAGE_KEY);
+    } catch (cause) {
+      throw new AssetTrackerStorageError("Browser storage could not be read", {
+        cause,
+      });
+    }
     if (raw == null) return null;
     return parseStored(raw);
   }
@@ -302,10 +327,19 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
   function write(data: AssetTrackerData): AssetTrackerData {
     const parsed = AssetTrackerDataSchema.parse(data);
     buildRepository(parsed);
-    storage.setItem(
-      ASSET_TRACKER_STORAGE_KEY,
-      JSON.stringify(storageCompatibleData(parsed)),
-    );
+    try {
+      storage.setItem(
+        ASSET_TRACKER_STORAGE_KEY,
+        JSON.stringify(storageCompatibleData(parsed)),
+      );
+    } catch (cause) {
+      throw new AssetTrackerStorageError(
+        "Browser storage could not be written",
+        {
+          cause,
+        },
+      );
+    }
     return parsed;
   }
 
@@ -387,6 +421,9 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
         });
       });
     },
+    saveTaxSetup(input) {
+      return promiseFromSync(() => write(applySaveTaxSetup(current(), input)));
+    },
     clearIncomeHistory() {
       return promiseFromSync(() => write(applyClearIncomeHistory(current())));
     },
@@ -408,6 +445,11 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
     addCashFlowDecision(input) {
       return promiseFromSync(() =>
         write(applyAddCashFlowDecision(current(), input, currentDate())),
+      );
+    },
+    updateCashFlowDecision(input) {
+      return promiseFromSync(() =>
+        write(applyUpdateCashFlowDecision(current(), input, currentDate())),
       );
     },
     setCashFlowDecisionStatus(input) {
@@ -490,6 +532,11 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
     setAccountLiquidity(input) {
       return promiseFromSync(() =>
         write(applySetAccountLiquidity(current(), input)),
+      );
+    },
+    setMortgageTerms(input) {
+      return promiseFromSync(() =>
+        write(applySetMortgageTerms(current(), input)),
       );
     },
     setBaseCurrency(input) {

@@ -529,7 +529,7 @@ describe("Asset Tracker demo-data adapter", () => {
     expect(
       emergencyFundAnalysis.sources
         .filter(({ included }) => included)
-        .every(({ protectedBalance }) => protectedBalance != null),
+        .every(({ protectedBalance }) => protectedBalance === null),
     ).toBe(true);
   });
 

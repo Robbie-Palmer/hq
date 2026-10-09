@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +17,8 @@ import {
   calculateMortgageOptions,
   type MortgageCalculatorAssumptions,
   type MortgageScenarioSource,
+  monthlyAmount,
+  type RecurringFlow,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
 import { MortgageCalculatorControls } from "./mortgage-calculator-controls";
@@ -43,24 +46,143 @@ function describeSource(
   return `${names.join(" and ")}${snapshot}`;
 }
 
-export function MortgageCalculator() {
+function completeMortgage(
+  account: AccountDetailView | undefined,
+): AccountDetailView | undefined {
+  return account?.mortgageTerms == null ? undefined : account;
+}
+
+function startingSourceLabel(input: {
+  accountDetails: AccountDetailView[];
+  defaultLabel: string;
+  editedSource: MortgageScenarioSource | null;
+  mortgageAccount: AccountDetailView | undefined;
+}): string {
+  if (input.editedSource != null) {
+    return describeSource(input.editedSource, input.accountDetails);
+  }
+  if (
+    input.mortgageAccount != null &&
+    input.mortgageAccount.mortgageTerms == null
+  ) {
+    return `Example assumptions until ${input.mortgageAccount.name} is set up`;
+  }
+  return input.defaultLabel;
+}
+
+function MortgageSetupNotices({
+  mortgage,
+  mortgageAccount,
+  rateAvailable,
+}: Readonly<{
+  mortgage: AccountDetailView | undefined;
+  mortgageAccount: AccountDetailView | undefined;
+  rateAvailable: boolean;
+}>) {
+  return (
+    <>
+      {mortgageAccount != null && mortgageAccount.mortgageTerms == null && (
+        <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-4 text-sm">
+          <p className="font-medium">
+            Finish setting up {mortgageAccount.name}
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            Add its next payment date and remaining term before using its
+            balance in mortgage modelling. The account&apos;s interest rate and
+            linked property are already available.
+          </p>
+          <Button asChild className="mt-3" size="sm" variant="outline">
+            <Link href={`/assettracker/accounts?account=${mortgageAccount.id}`}>
+              Enter mortgage terms
+            </Link>
+          </Button>
+        </div>
+      )}
+      {mortgage != null && !rateAvailable && (
+        <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-4 text-sm">
+          <p className="font-medium">
+            Add {mortgage.name}&apos;s current interest rate
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            The account currently has a 0% rate, so a repayment figure would
+            only divide the balance across the remaining months. Payments and
+            interest stay hidden until you enter the real rate.
+          </p>
+          <Button asChild className="mt-3" size="sm" variant="outline">
+            <Link href={`/assettracker/accounts?account=${mortgage.id}`}>
+              Enter mortgage rate
+            </Link>
+          </Button>
+        </div>
+      )}
+    </>
+  );
+}
+
+function MortgageModelExplanation({
+  assumptions,
+  existingMortgage,
+  mortgageBalance,
+  money,
+  rateAvailable,
+  recordedMortgagePayment,
+}: Readonly<{
+  assumptions: MortgageCalculatorAssumptions;
+  existingMortgage: boolean;
+  mortgageBalance: number;
+  money: (value: number) => string;
+  rateAvailable: boolean;
+  recordedMortgagePayment: RecurringFlow | undefined;
+}>) {
+  if (!existingMortgage) return null;
+  return (
+    <>
+      {rateAvailable && (
+        <p className="text-sm text-muted-foreground">
+          The modelled payment uses the {money(mortgageBalance)} balance,{" "}
+          {(assumptions.initialAnnualRate * 100).toFixed(2)}% interest, and{" "}
+          {Number((assumptions.termMonths / 12).toFixed(1))} years remaining.
+          {recordedMortgagePayment != null && (
+            <>
+              {" "}
+              Your saved cash-flow payment is{" "}
+              {money(monthlyAmount(recordedMortgagePayment, -mortgageBalance))}{" "}
+              per month.
+            </>
+          )}
+        </p>
+      )}
+      <p className="text-sm text-muted-foreground">
+        Investments retained is your current withdrawal capital after any extra
+        mortgage repayment in the selected LTV option. Your existing home equity
+        is not deducted again. The comparison includes a 60% LTV option.
+      </p>
+    </>
+  );
+}
+
+function useMortgageCalculatorState() {
   const {
     accountDetails = [],
     baseCurrency,
     housingPlanningPosition,
     mortgageScenarios = [],
+    recurringFlows = [],
     saveMortgageScenario,
   } = useAssetTracker();
-  const mortgage = accountDetails.find(
+  const mortgageAccount = accountDetails.find(
     (account) =>
       account.assetType === "mortgage" &&
       account.isOpen &&
-      account.latestBalance != null &&
-      account.mortgageTerms != null,
+      account.latestBalance != null,
   );
   const property = accountDetails.find(
-    (account) => account.id === mortgage?.linkedAccountId,
+    (account) => account.id === mortgageAccount?.linkedAccountId,
   );
+  const recordedMortgagePayment = recurringFlows.find(
+    (flow) => flow.toAccountId === mortgageAccount?.id,
+  );
+  const mortgage = completeMortgage(mortgageAccount);
   const defaults = useMemo(
     () =>
       buildMortgageCalculatorModel({
@@ -81,10 +203,15 @@ export function MortgageCalculator() {
   >("idle");
   const assumptions = editedAssumptions ?? defaults.assumptions;
   const source = editedSource ?? defaults.source;
-  const sourceLabel =
-    editedSource == null
-      ? defaults.sourceLabel
-      : describeSource(editedSource, accountDetails);
+  const existingMortgage =
+    source.mortgageAccountId != null && source.propertyAccountId != null;
+  const rateAvailable = !existingMortgage || assumptions.initialAnnualRate > 0;
+  const sourceLabel = startingSourceLabel({
+    accountDetails,
+    defaultLabel: defaults.sourceLabel,
+    editedSource,
+    mortgageAccount,
+  });
   const result = useMemo(
     () => calculateMortgageOptions(assumptions),
     [assumptions],
@@ -107,6 +234,37 @@ export function MortgageCalculator() {
     }
   }
 
+  function loadScenario(scenario: (typeof mortgageScenarios)[number]) {
+    setEditedAssumptions(scenario.assumptions);
+    setEditedSource(scenario.source);
+    setScenarioName(scenario.name);
+    setSaveState("idle");
+  }
+
+  return {
+    assumptions,
+    existingMortgage,
+    loadScenario,
+    money,
+    mortgage,
+    mortgageAccount,
+    mortgageScenarios,
+    rateAvailable,
+    recordedMortgagePayment,
+    result,
+    save,
+    saveState,
+    scenarioName,
+    setEditedAssumptions,
+    setSaveState,
+    setScenarioName,
+    sourceLabel,
+  };
+}
+
+export function MortgageCalculator() {
+  const state = useMortgageCalculatorState();
+
   return (
     <Card className="min-w-0">
       <CardHeader>
@@ -116,30 +274,63 @@ export function MortgageCalculator() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5 px-4 sm:px-6">
+        <MortgageSetupNotices
+          mortgage={state.mortgage}
+          mortgageAccount={state.mortgageAccount}
+          rateAvailable={state.rateAvailable}
+        />
         <div className="rounded-md border p-3 text-sm">
           <p className="text-xs text-muted-foreground">Starting facts</p>
-          <p className="mt-1 font-medium">{sourceLabel}</p>
+          <p className="mt-1 font-medium">{state.sourceLabel}</p>
         </div>
-        <MortgageCalculatorHighlights result={result} money={money} />
-        {result.selected.fundingShortfall > 0 && (
+        <MortgageCalculatorHighlights
+          existingMortgage={state.existingMortgage}
+          rateAvailable={state.rateAvailable}
+          result={state.result}
+          money={state.money}
+        />
+        <MortgageModelExplanation
+          assumptions={state.assumptions}
+          existingMortgage={state.existingMortgage}
+          mortgageBalance={state.result.selected.openingLoan}
+          money={state.money}
+          rateAvailable={state.rateAvailable}
+          recordedMortgagePayment={state.recordedMortgagePayment}
+        />
+        {state.result.selected.fundingShortfall > 0 && (
           <p className="rounded-md border border-destructive/50 p-3 text-sm text-destructive">
-            This option needs {money(result.selected.fundingShortfall)} more
-            upfront funding.
+            This option needs{" "}
+            {state.money(state.result.selected.fundingShortfall)} more upfront
+            funding.
           </p>
         )}
         <div>
-          <h3 className="mb-2 text-sm font-medium">Deposit comparison</h3>
-          <MortgageDepositComparison result={result} money={money} />
+          <h3 className="mb-2 text-sm font-medium">
+            {state.existingMortgage ? "LTV comparison" : "Deposit comparison"}
+          </h3>
+          <MortgageDepositComparison
+            existingMortgage={state.existingMortgage}
+            rateAvailable={state.rateAvailable}
+            result={state.result}
+            money={state.money}
+          />
         </div>
         <MortgageCalculatorControls
-          assumptions={assumptions}
+          assumptions={state.assumptions}
           onChange={(next) => {
-            setEditedAssumptions(next);
-            setSaveState("idle");
+            state.setEditedAssumptions(next);
+            state.setSaveState("idle");
           }}
         />
-        <MortgageRateStress result={result} money={money} />
-        <MortgageScheduleDetails result={result} money={money} />
+        {state.rateAvailable && (
+          <>
+            <MortgageRateStress result={state.result} money={state.money} />
+            <MortgageScheduleDetails
+              result={state.result}
+              money={state.money}
+            />
+          </>
+        )}
 
         <div className="space-y-3 rounded-md border p-4">
           <div>
@@ -152,56 +343,55 @@ export function MortgageCalculator() {
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
               aria-label="Scenario name"
-              value={scenarioName}
+              value={state.scenarioName}
               onChange={(event) => {
-                setScenarioName(event.target.value);
-                setSaveState("idle");
+                state.setScenarioName(event.target.value);
+                state.setSaveState("idle");
               }}
             />
             <Button
               type="button"
               variant="outline"
-              disabled={saveState === "saving" || scenarioName.trim() === ""}
-              onClick={() => void save(false)}
+              disabled={
+                state.saveState === "saving" || state.scenarioName.trim() === ""
+              }
+              onClick={() => void state.save(false)}
             >
               Save scenario
             </Button>
             <Button
               type="button"
-              disabled={saveState === "saving" || scenarioName.trim() === ""}
-              onClick={() => void save(true)}
+              disabled={
+                state.saveState === "saving" || state.scenarioName.trim() === ""
+              }
+              onClick={() => void state.save(true)}
             >
               Record decision
             </Button>
           </div>
-          {saveState === "saved" && (
+          {state.saveState === "saved" && (
             <p className="text-xs text-muted-foreground">
               Saved in this browser.
             </p>
           )}
-          {saveState === "error" && (
+          {state.saveState === "error" && (
             <p className="text-xs text-destructive">
               The scenario could not be saved.
             </p>
           )}
-          {mortgageScenarios.length > 0 && (
+          {state.mortgageScenarios.length > 0 && (
             <div>
               <p className="mb-2 text-xs font-medium text-muted-foreground">
                 Saved scenarios
               </p>
               <div className="flex flex-wrap gap-2">
-                {mortgageScenarios.map((scenario) => (
+                {state.mortgageScenarios.map((scenario) => (
                   <Button
                     key={scenario.id}
                     type="button"
                     size="sm"
                     variant="outline"
-                    onClick={() => {
-                      setEditedAssumptions(scenario.assumptions);
-                      setEditedSource(scenario.source);
-                      setScenarioName(scenario.name);
-                      setSaveState("idle");
-                    }}
+                    onClick={() => state.loadScenario(scenario)}
                   >
                     {scenario.name}
                   </Button>

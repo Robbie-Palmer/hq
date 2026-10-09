@@ -14,6 +14,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  annualisedGrossPay,
+  defaultTaxProfile,
+  formatAssetTrackerError,
+  type Household,
+  type SalaryHistoryRecord,
+  type TaxProfileSetup,
+} from "@/lib/domain/assettracker";
 import { formatMinorCurrency } from "@/lib/generic/money";
 import { useAssetTracker } from "./asset-tracker-provider";
 import {
@@ -28,6 +37,298 @@ const componentLabels = {
   nationalInsurance: "Employee National Insurance",
   capitalGainsTax: "Capital Gains Tax",
 } as const;
+
+type TaxSetupRow = TaxProfileSetup & { annualTaxableIncome: string };
+type AssetTracker = ReturnType<typeof useAssetTracker>;
+type TaxSetupUpdate = <K extends keyof TaxSetupRow>(
+  memberId: string,
+  key: K,
+  value: TaxSetupRow[K],
+) => void;
+
+function suggestedIncome(
+  member: Household["members"][number],
+  members: Household["members"],
+  salaryHistory: SalaryHistoryRecord[],
+  recurringIncomePence: number | null,
+): string {
+  if (recurringIncomePence != null) {
+    return String(Math.round(recurringIncomePence / 100));
+  }
+  const named = salaryHistory.filter(
+    ({ person }) => person.toLowerCase() === member.displayName.toLowerCase(),
+  );
+  const candidates = (
+    named.length > 0 || members.length > 1 ? named : salaryHistory
+  )
+    .filter(({ effectiveEnd }) => effectiveEnd == null)
+    .toReversed();
+  const annual = candidates
+    .map(annualisedGrossPay)
+    .find((amount) => amount != null);
+  return annual == null ? "" : String(Math.round(annual));
+}
+
+function TaxSetupSelectors({
+  row,
+  update,
+}: Readonly<{ row: TaxSetupRow; update: TaxSetupUpdate }>) {
+  return (
+    <>
+      <label className="space-y-1.5 text-xs font-medium">
+        <span>Tax jurisdiction</span>
+        <select
+          className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+          value={row.jurisdiction}
+          onChange={(event) =>
+            update(
+              row.memberId,
+              "jurisdiction",
+              event.target.value as TaxSetupRow["jurisdiction"],
+            )
+          }
+        >
+          <option value="england-and-northern-ireland">
+            England or Northern Ireland
+          </option>
+          <option value="scotland">Scotland</option>
+          <option value="wales">Wales</option>
+        </select>
+      </label>
+      <label className="space-y-1.5 text-xs font-medium">
+        <span>UK residence</span>
+        <select
+          className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+          value={row.residence}
+          onChange={(event) =>
+            update(
+              row.memberId,
+              "residence",
+              event.target.value as TaxSetupRow["residence"],
+            )
+          }
+        >
+          <option value="full-year-uk">Full tax year</option>
+          <option value="partial-year">Part of the tax year</option>
+          <option value="non-uk">Not UK resident</option>
+        </select>
+      </label>
+    </>
+  );
+}
+
+function TaxSetupIncomeFields({
+  row,
+  update,
+}: Readonly<{ row: TaxSetupRow; update: TaxSetupUpdate }>) {
+  return (
+    <>
+      <label
+        className="space-y-1.5 text-xs font-medium"
+        htmlFor={`tax-ni-category-${row.memberId}`}
+      >
+        NI category
+        <Input
+          id={`tax-ni-category-${row.memberId}`}
+          value={row.nationalInsuranceCategory}
+          onChange={(event) =>
+            update(
+              row.memberId,
+              "nationalInsuranceCategory",
+              event.target.value,
+            )
+          }
+        />
+      </label>
+      <div className="space-y-1.5">
+        <label
+          className="block text-xs font-medium"
+          htmlFor={`tax-income-${row.memberId}`}
+        >
+          Projected taxable employment income (£)
+        </label>
+        <Input
+          id={`tax-income-${row.memberId}`}
+          type="number"
+          min="0"
+          step="1"
+          required
+          value={row.annualTaxableIncome}
+          onChange={(event) =>
+            update(row.memberId, "annualTaxableIncome", event.target.value)
+          }
+        />
+        <span className="block text-xs font-normal text-muted-foreground">
+          Prefilled from current recurring gross pay after salary sacrifice. An
+          open-ended salary record is used only when no current flow exists.
+        </span>
+      </div>
+    </>
+  );
+}
+
+const taxSetupOptions = [
+  ["hasTaxableBenefits", "Taxable benefits"],
+  ["isCompanyDirector", "Company director"],
+  ["flexiblyAccessedPension", "Flexibly accessed pension"],
+] as const;
+
+function TaxSetupOptions({
+  row,
+  update,
+}: Readonly<{ row: TaxSetupRow; update: TaxSetupUpdate }>) {
+  return (
+    <div className="flex flex-wrap gap-4 text-sm">
+      {taxSetupOptions.map(([key, label]) => (
+        <label key={key} className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={row[key]}
+            onChange={(event) =>
+              update(row.memberId, key, event.target.checked)
+            }
+          />
+          {label}
+        </label>
+      ))}
+    </div>
+  );
+}
+
+function TaxSetupMember({
+  displayName,
+  row,
+  update,
+}: Readonly<{
+  displayName: string;
+  row: TaxSetupRow;
+  update: TaxSetupUpdate;
+}>) {
+  return (
+    <fieldset className="space-y-4 rounded-lg border p-4">
+      <legend className="px-1 text-sm font-medium">{displayName}</legend>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <TaxSetupSelectors row={row} update={update} />
+        <TaxSetupIncomeFields row={row} update={update} />
+      </div>
+      <TaxSetupOptions row={row} update={update} />
+    </fieldset>
+  );
+}
+
+function useTaxSetupForm(tracker: AssetTracker) {
+  const configured = new Set(
+    tracker.taxPosition?.profiles.map(({ memberId }) => memberId) ?? [],
+  );
+  const missingMembers = tracker.household.members.filter(
+    ({ id }) => !configured.has(id),
+  );
+  const [rows, setRows] = useState<TaxSetupRow[]>(() =>
+    missingMembers.map((member) => ({
+      ...defaultTaxProfile(member.id),
+      annualTaxableIncome: suggestedIncome(
+        member,
+        tracker.household.members,
+        tracker.currentSalaryHistory ?? [],
+        tracker.taxSetupIncomeSuggestions?.[member.id] ?? null,
+      ),
+    })),
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const update: TaxSetupUpdate = (memberId, key, value) =>
+    setRows((current) =>
+      current.map((row) =>
+        row.memberId === memberId ? { ...row, [key]: value } : row,
+      ),
+    );
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      await tracker.saveTaxSetup({
+        taxYear: tracker.taxEstimate.taxYear,
+        people: rows.map(({ annualTaxableIncome, ...profile }) => ({
+          ...profile,
+          annualTaxableIncomePence: Math.round(
+            Number(annualTaxableIncome) * 100,
+          ),
+        })),
+      });
+    } catch (cause) {
+      setError(formatAssetTrackerError(cause));
+    } finally {
+      setSaving(false);
+    }
+  }
+  return {
+    error,
+    missingMembers,
+    rows,
+    save,
+    saving,
+    taxYear: tracker.taxEstimate.taxYear,
+    update,
+  };
+}
+
+function TaxSetupFormFields({ tracker }: Readonly<{ tracker: AssetTracker }>) {
+  const form = useTaxSetupForm(tracker);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Review tax assumptions</CardTitle>
+        <CardDescription>
+          The current estimate uses the standard UK profile and income inferred
+          from your saved salary or recurring gross pay. Review and save these
+          assumptions for {form.taxYear}.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {form.rows.map((row) => (
+          <TaxSetupMember
+            key={row.memberId}
+            row={row}
+            update={form.update}
+            displayName={
+              form.missingMembers.find(({ id }) => id === row.memberId)
+                ?.displayName ?? row.memberId
+            }
+          />
+        ))}
+        <Button
+          type="button"
+          disabled={
+            form.saving ||
+            form.rows.some(
+              ({ annualTaxableIncome }) => annualTaxableIncome === "",
+            )
+          }
+          onClick={() => void form.save()}
+        >
+          Save tax assumptions
+        </Button>
+        {form.error != null && (
+          <p className="text-sm text-destructive">{form.error}</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function TaxSetupForm() {
+  const tracker = useAssetTracker();
+  const configured = new Set(
+    tracker.taxPosition?.profiles.map(({ memberId }) => memberId) ?? [],
+  );
+  const missingMemberIds = tracker.household.members
+    .filter(({ id }) => !configured.has(id))
+    .map(({ id }) => id);
+  if (missingMemberIds.length === 0) return null;
+  return (
+    <TaxSetupFormFields key={missingMemberIds.join(":")} tracker={tracker} />
+  );
+}
 
 function UnsupportedNotice({
   cases,
@@ -76,7 +377,7 @@ function TaxSummary({
   totalPence: number | null;
 }>) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       <SummaryCard
         label="Tax year"
         value={estimate.taxYear.replace("-", "/")}
@@ -88,12 +389,8 @@ function TaxSummary({
         }
       />
       <SummaryCard
-        label="Observed source records"
+        label="Imported records"
         value={estimate.lineage.observedRecordIds.length}
-      />
-      <SummaryCard
-        label="User assumptions"
-        value={estimate.lineage.assumptionRecordIds.length}
       />
     </div>
   );
@@ -316,6 +613,7 @@ export function TaxPositionRoute() {
         showExplanations={showExplanations}
       />
       {!scopedAvailable && <UnsupportedNotice cases={scopedUnsupported} />}
+      <TaxSetupForm />
       <TaxSummary
         estimate={taxEstimate}
         estimateLabel={scopedEstimateLabel}

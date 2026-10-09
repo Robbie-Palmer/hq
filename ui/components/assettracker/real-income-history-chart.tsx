@@ -121,6 +121,42 @@ function IncomeHistoryEmptyState({
   );
 }
 
+function IncomeHistoryData({
+  currency,
+  data,
+}: Readonly<{ currency: Currency; data: readonly RealIncomeHistoryPoint[] }>) {
+  return (
+    <details className="group text-xs text-muted-foreground">
+      <summary className="cursor-pointer">View income data</summary>
+      <div className="mt-2 hidden max-h-80 overflow-auto rounded-md border group-open:block">
+        <table className="w-full text-left">
+          <caption>Nominal and CPIH-adjusted income by period</caption>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Nominal income</th>
+              <th>CPIH-adjusted income</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((point) => (
+              <tr key={point.date}>
+                <td>{point.date}</td>
+                <td>{formatCurrency(point.nominalIncome, currency)}</td>
+                <td>
+                  {point.adjustedIncome == null
+                    ? "Unavailable"
+                    : formatCurrency(point.adjustedIncome, currency)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  );
+}
+
 export function RealIncomeHistoryChart({
   incomeHistory,
   currency = DEFAULT_BASE_CURRENCY,
@@ -194,29 +230,7 @@ export function RealIncomeHistoryChart({
               <LegendItem color={NOMINAL_COLOR}>Nominal income</LegendItem>
               <LegendItem color={REAL_COLOR}>CPIH-adjusted income</LegendItem>
             </div>
-            <table className="sr-only">
-              <caption>Nominal and CPIH-adjusted income by period</caption>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Nominal income</th>
-                  <th>CPIH-adjusted income</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.map((point) => (
-                  <tr key={point.date}>
-                    <td>{point.date}</td>
-                    <td>{formatCurrency(point.nominalIncome, currency)}</td>
-                    <td>
-                      {point.adjustedIncome == null
-                        ? "Unavailable"
-                        : formatCurrency(point.adjustedIncome, currency)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <IncomeHistoryData currency={currency} data={data} />
           </>
         )}
         <InflationDatasetDisclosure

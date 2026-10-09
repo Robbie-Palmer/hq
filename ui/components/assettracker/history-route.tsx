@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { Currency } from "@/lib/domain/assettracker";
 import { AssetAllocationHistoryChart } from "./asset-allocation-history-chart";
 import { useAssetTracker } from "./asset-tracker-provider";
 import { HistoricalCurrencyDisclosure } from "./historical-currency-disclosure";
@@ -20,14 +21,28 @@ export function HistoryRoute() {
     salaryHistory,
   } = useAssetTracker();
   const [historyCurrency, setHistoryCurrency] = useState(baseCurrency);
+  const availableCurrencies = useMemo(
+    () =>
+      Object.entries(netWorthDataByCurrency)
+        .filter(([, points]) => points.some(({ total }) => total != null))
+        .map(([currency]) => currency as Currency),
+    [netWorthDataByCurrency],
+  );
 
-  useEffect(() => setHistoryCurrency(baseCurrency), [baseCurrency]);
+  useEffect(() => {
+    setHistoryCurrency(
+      availableCurrencies.includes(baseCurrency)
+        ? baseCurrency
+        : (availableCurrencies[0] ?? baseCurrency),
+    );
+  }, [availableCurrencies, baseCurrency]);
 
   const netWorthData = netWorthDataByCurrency[historyCurrency];
 
   return (
     <div className="space-y-8">
       <HistoryRouteHeader
+        availableCurrencies={availableCurrencies}
         currency={historyCurrency}
         onCurrencyChange={setHistoryCurrency}
       />

@@ -6,6 +6,7 @@ import { useAssetTracker } from "./asset-tracker-provider";
 import { DecisionScenarioComparison } from "./decision-scenario-comparison";
 import { ForecastAssumptionManager } from "./forecast-assumption-manager";
 import { FutureCashFlowManager } from "./future-cash-flow-manager";
+import { ItemisedScenarioPlanner } from "./itemised-scenario-planner";
 import { JobMoveScenarioPlanner } from "./job-move-scenario-planner";
 
 function sourceDescription(sourceAccounts: string, snapshotDate?: string) {
@@ -110,10 +111,11 @@ function RecordedDecisions() {
 
 export function DecisionsRoute() {
   return (
-    <Tabs defaultValue="compare" className="space-y-5">
+    <Tabs defaultValue="jobs" className="space-y-5">
       <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
         <TabsTrigger value="compare">Compare</TabsTrigger>
         <TabsTrigger value="jobs">Job moves</TabsTrigger>
+        <TabsTrigger value="scenarios">Scenarios</TabsTrigger>
         <TabsTrigger value="inputs">Forecast inputs</TabsTrigger>
         <TabsTrigger value="recorded">Recorded</TabsTrigger>
       </TabsList>
@@ -122,6 +124,9 @@ export function DecisionsRoute() {
       </TabsContent>
       <TabsContent value="jobs" className="mt-0">
         <JobMoveScenarioPlanner />
+      </TabsContent>
+      <TabsContent value="scenarios" className="mt-0">
+        <ItemisedScenarioPlanner />
       </TabsContent>
       <TabsContent value="inputs" className="mt-0 space-y-6">
         <ForecastAssumptionManager />

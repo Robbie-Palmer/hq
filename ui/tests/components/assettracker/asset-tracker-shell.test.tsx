@@ -31,6 +31,33 @@ function MutationProbe() {
   );
 }
 
+function RejectedSalaryProbe() {
+  const { saveSalaryRecord } = useAssetTracker();
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        void saveSalaryRecord({
+          replacesRateId: "missing-salary",
+          facts: {
+            person: "Alex",
+            employer: "Example Ltd",
+            employmentId: "alex-example",
+            currency: "GBP",
+            jurisdiction: "England",
+            effectiveStart: "2026-01-01",
+            payFrequency: "annual",
+            amountKind: "annualSalary",
+            grossPay: 50_000,
+          },
+        }).catch(() => {});
+      }}
+    >
+      Save invalid salary
+    </button>
+  );
+}
+
 describe("AssetTrackerLayoutClient", () => {
   beforeEach(() => {
     mocks.pathname = "/assettracker";
@@ -142,5 +169,22 @@ describe("AssetTrackerLayoutClient", () => {
     expect(
       await screen.findByRole("button", { name: "Save a change" }),
     ).toBeVisible();
+  });
+
+  it("keeps the page available when a salary command is rejected", async () => {
+    const user = userEvent.setup();
+    render(
+      <AssetTrackerLayoutClient>
+        <RejectedSalaryProbe />
+      </AssetTrackerLayoutClient>,
+    );
+    const saveButton = await screen.findByRole("button", {
+      name: "Save invalid salary",
+    });
+
+    await user.click(saveButton);
+
+    expect(saveButton).toBeVisible();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });

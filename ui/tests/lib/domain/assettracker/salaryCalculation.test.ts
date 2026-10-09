@@ -84,6 +84,25 @@ describe("salary history calculations", () => {
     });
   });
 
+  it("preserves take-home history when gross pay is unknown", () => {
+    const [calculation] = calculateSalaryHistory(
+      [
+        salaryRecord({
+          amountKind: "periodPay",
+          grossPay: undefined,
+          takeHomePay: 1_250,
+        }),
+      ],
+      "2026-04-05",
+    );
+
+    expect(calculation?.result).toMatchObject({
+      available: false,
+      reasons: [expect.objectContaining({ code: "missing-gross-pay" })],
+    });
+    expect(calculation?.observations.takeHomePayPence).toBe(1_500_000);
+  });
+
   it("splits a record at an in-year National Insurance change", () => {
     const calculations = calculateSalaryHistory(
       [
@@ -166,6 +185,95 @@ describe("salary history calculations", () => {
       takeHomePayPence: 4_200_000,
     });
     expect(calculation?.notes[0]).toContain("annualised across 12 periods");
+  });
+
+  it("adds a one-off bonus once to its employment and tax year", () => {
+    const calculations = calculateSalaryHistory(
+      [
+        salaryRecord({
+          employeePension: { arrangement: "none", basis: "unknown" },
+          employerPension: { arrangement: "none", basis: "unknown" },
+        }),
+        salaryRecord({
+          id: "bonus-2025",
+          effectiveStart: "2025-12-20",
+          effectiveEnd: "2025-12-20",
+          amountKind: "periodPay",
+          payFrequency: "irregular",
+          grossPay: 5_000,
+          variablePay: 5_000,
+        }),
+      ],
+      "2026-04-05",
+    );
+
+    expect(calculations).toHaveLength(1);
+    const [calculation] = calculations;
+    expect(
+      calculation?.result.available &&
+        calculation.result.components.contractualGrossPayPence,
+    ).toBe(6_500_000);
+    expect(calculation?.notes).toContain(
+      "Includes £5,000.00 of one-off pay recorded in this tax year.",
+    );
+  });
+
+  it("shows a gross bonus that falls outside its regular salary period", () => {
+    const calculations = calculateSalaryHistory(
+      [
+        salaryRecord({ effectiveEnd: "2025-09-30" }),
+        salaryRecord({
+          id: "late-bonus",
+          effectiveStart: "2025-12-20",
+          effectiveEnd: "2025-12-20",
+          amountKind: "periodPay",
+          payFrequency: "irregular",
+          grossPay: 5_000,
+          variablePay: 5_000,
+        }),
+      ],
+      "2026-04-05",
+    );
+
+    expect(calculations.map(({ recordId }) => recordId)).toEqual([
+      "salary-2025",
+      "late-bonus",
+    ]);
+    expect(calculations[1]?.result).toMatchObject({
+      available: false,
+      reasons: [expect.objectContaining({ code: "unsupported-pay-frequency" })],
+    });
+  });
+
+  it("shows take-home-only bonuses separately from regular salary", () => {
+    const calculations = calculateSalaryHistory(
+      [
+        salaryRecord(),
+        salaryRecord({
+          id: "take-home-bonus",
+          effectiveStart: "2025-12-20",
+          effectiveEnd: "2025-12-20",
+          amountKind: "periodPay",
+          payFrequency: "irregular",
+          grossPay: undefined,
+          takeHomePay: 1_500,
+        }),
+      ],
+      "2026-04-05",
+    );
+
+    expect(calculations.map(({ recordId }) => recordId)).toEqual([
+      "salary-2025",
+      "take-home-bonus",
+    ]);
+    expect(calculations[1]?.result).toMatchObject({
+      available: false,
+      reasons: expect.arrayContaining([
+        expect.objectContaining({ code: "missing-gross-pay" }),
+        expect.objectContaining({ code: "unsupported-pay-frequency" }),
+      ]),
+    });
+    expect(calculations[1]?.observations.takeHomePayPence).toBe(150_000);
   });
 
   it("flags overlapping employments and preserves an observed tax code", () => {
