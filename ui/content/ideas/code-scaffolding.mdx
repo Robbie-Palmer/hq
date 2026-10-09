@@ -1,0 +1,34 @@
+---
+title: "Code Scaffolding"
+description: "Generating repeatable source, configuration, documentation, and project structure from declared inputs."
+source_url: "https://en.wikipedia.org/wiki/Scaffold_(programming)"
+related_ideas:
+  - "domain-driven-design"
+  - "ontology-engineering"
+---
+
+Code scaffolding automates the creation of a conventional software structure. A scaffold may create
+an application, add a component to an existing system, or generate routine code such as routes,
+tests, configuration, and data access. The generated result is ordinary source that can be reviewed
+and changed.
+
+Project scaffolding establishes a starting structure. Component scaffolding extends a structure that
+already exists. In a monorepo, one logical project can require both: a single operation may create
+code, infrastructure declarations, documentation, and decision-record locations in several parts of
+the repository.
+
+Scaffolding can be a one-time expansion or a continuing relationship with a template. A one-time
+generator stops owning its output after creation. A lifecycle-aware generator records its inputs and
+template revision so later versions can propose updates. That continuing ownership needs clear path
+boundaries because several generators may contribute to the same repository.
+
+A useful scaffold makes its contract visible. It defines validated inputs, the paths it owns, how a
+repeat behaves, how updates preserve local edits, and which checks prove the result works. Shared
+manifests need special care: several scaffolds appending text to one file can create duplicates or
+erase each other's changes. Glob-based discovery or a structural migration is usually safer than
+letting every scaffold regenerate the whole file.
+
+Scaffolding reduces setup time and makes conventions executable. It can also reproduce a poor
+structure quickly, hide decisions in templates, or leave generated code that nobody understands.
+The generated diff should remain small enough to inspect, and the template should encode settled
+defaults rather than unresolved architecture.

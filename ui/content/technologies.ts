@@ -262,6 +262,15 @@ Diff operations can set an edit-distance or time limit. The function returns no 
     type: "tool",
   },
   {
+    name: "Copier",
+    added: "2026-10-08",
+    description:
+      "Project template engine with recorded answers and version-aware updates",
+    website: "https://copier.readthedocs.io/",
+    type: "tool",
+    ideas: ["code-scaffolding"],
+  },
+  {
     name: "C#",
     added: "2026-01-04",
     description: "A statically typed, object-oriented language running on .NET",

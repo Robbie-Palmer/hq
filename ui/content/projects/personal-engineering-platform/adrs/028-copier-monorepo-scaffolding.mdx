@@ -1,0 +1,81 @@
+---
+title: "ADR 028: Copier for monorepo project scaffolding"
+date: "2026-10-08"
+status: "Accepted"
+tech_stack: ["Copier"]
+---
+
+## Context
+
+The platform needs to turn a project's declared layers and capabilities into
+working structures inside the shared monorepo. One logical project may add a
+TypeScript application, Python package, Terraform declaration, Kubernetes
+workload, project page, and decision-record location in different parts of the
+repository.
+
+Generation is not only a first-run concern. Platform defaults change, while
+projects add local code to the generated result. The scaffolding engine must
+record its inputs and template revision, propose later updates, and expose
+conflicts instead of overwriting local changes. Repository declarations remain
+authoritative, and mise remains the command interface used by people, agents,
+and CI.
+
+A local trial rendered two project instances into one existing Git repository.
+Each instance wrote files across TypeScript, Terraform, and knowledge-graph
+paths with a separate answers file. Updating one instance to a later template
+revision changed only its recorded answers and owned files.
+
+## Decision
+
+Adopt [Copier](https://copier.readthedocs.io/) as the platform's engine for
+[code scaffolding](/ideas/code-scaffolding) and template-driven updates inside
+the monorepo.
+
+Render project templates with the monorepo root as the destination so one
+operation can create files in several technology and documentation trees.
+Record each logical project independently at
+`.copier/projects/<project>.yml`. Use a versioned template revision and that
+answers file for subsequent updates, following Copier's
+[update workflow](https://copier.readthedocs.io/en/stable/updating/).
+
+Templates own project-specific paths that they create. Prefer workspace globs
+and filesystem discovery where tools support them. Use a separate structural
+repository operation for shared registries that require explicit membership,
+such as mise configuration roots. A project template must not regenerate a
+whole shared manifest or claim a Terraform root whose state lifecycle belongs
+to several projects.
+
+Expose create, update, and dry-run tasks through mise. Produce the proposed
+change in a disposable worktree, reject unresolved conflict markers or reject
+files, run the affected checks, and present the Git diff for review. Persist
+secret references when needed, never secret values, in Copier answers.
+
+## Alternatives
+
+A bespoke repository generator could parse every shared manifest and implement
+its own receipt and migration model. Structural edits are still needed for a
+small number of shared registries, but rebuilding template rendering, recorded
+answers, version selection, and three-way updates would add platform code
+without improving the common path.
+
+Cookiecutter can create comparable initial structures and replay recorded
+inputs. It does not provide Copier's template-update merge, which is required
+for keeping generated projects aligned as platform defaults change.
+
+One-time templates with no continuing ownership would be simpler. They would
+leave every later platform change to a handwritten migration and would not
+record which defaults created a project.
+
+## Consequences
+
+One declared project can create and update related files across the monorepo
+without becoming a separate repository. Separate answers files let several
+project instances share one destination while retaining their own template
+history.
+
+Template ownership must remain sparse and explicit. Shared files still require
+discovery conventions or tested structural operations, and local edits can
+produce conflicts that need human or agent resolution. Copier templates and
+revisions become supply-chain inputs, so the platform must allowlist their
+source, pin the selected revision, and review any task or migration code before
+trusting it.

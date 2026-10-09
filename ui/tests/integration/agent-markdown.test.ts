@@ -94,7 +94,7 @@ describe("agent markdown generation", () => {
     expect(htmlPages).toContain("paradigm-shift.html");
     expect(htmlPages).toContain("incommensurability.html");
     expect(htmlPages).toContain("postpositivism.html");
-    expect(htmlPages).toHaveLength(37);
+    expect(htmlPages).toHaveLength(38);
     for (const htmlPage of htmlPages) {
       const mdPage = htmlPage.replace(/\.html$/, ".md");
       expect(fs.existsSync(path.join(OUT_DIR, "ideas", mdPage))).toBe(true);
