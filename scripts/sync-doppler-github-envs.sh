@@ -75,6 +75,18 @@ sync_env() {
       <(printf '%s\n' "$config_entries_json"))
   done
 
+  if [[ "$github_env" == "production-work-graph" ]]; then
+    entries_json=$(jq -c '
+      map(
+        if (.name | startswith("GITHUB_")) then
+          .name = ("WORK_GRAPH_" + .name)
+        else
+          .
+        end
+      )
+    ' <<<"$entries_json")
+  fi
+
   local duplicate_names
   duplicate_names=$(jq -r '
     group_by(.name)

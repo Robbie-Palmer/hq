@@ -15,6 +15,7 @@ on:
       - "**/*.jsx"
       - "**/*.mjs"
       - "**/*.cjs"
+      - "scripts/sync-doppler-github-envs*.sh"
       - ".github/workflows/lint-ci.yml"
       - ".mise.toml"
       - ".markdownlint.json"
@@ -57,6 +58,9 @@ jobs:
 
       - name: Lint GitHub Actions workflows
         run: mise run //:lint:actions
+
+      - name: Test GitHub environment sync
+        run: mise run //:sync-doppler-github-envs:test
 
       - name: Check spelling
         run: mise run //:lint:typos

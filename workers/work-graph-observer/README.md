@@ -37,6 +37,11 @@ environment from the repository root:
 scripts/sync-doppler-github-envs.sh production-work-graph
 ```
 
+The sync publishes Doppler keys beginning with `GITHUB_` under
+`WORK_GRAPH_GITHUB_` aliases because GitHub reserves the original prefix for
+Actions. The deployment workflow maps those aliases back to the runtime names
+expected by the Worker.
+
 Install the App only after Terraform has created the hostname and queues and
 the Worker deployment has passed its smoke request. Until the webhook consumer
 ships, the Worker retries accepted deliveries three times and moves them to
