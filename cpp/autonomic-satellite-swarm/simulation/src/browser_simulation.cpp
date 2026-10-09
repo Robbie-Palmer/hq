@@ -75,6 +75,14 @@ const char* eventName(SimulationEventType type) {
     return "message-delivered";
   case SimulationEventType::DeliveryDecision:
     return "delivery-decision";
+  case SimulationEventType::PacketQueued:
+    return "packet-queued";
+  case SimulationEventType::TransmissionStarted:
+    return "transmission-started";
+  case SimulationEventType::TransmissionCompleted:
+    return "transmission-completed";
+  case SimulationEventType::PacketForwarded:
+    return "packet-forwarded";
   case SimulationEventType::DelayedMessageDelivered:
     return "delayed-message-delivered";
   case SimulationEventType::LinkChanged:

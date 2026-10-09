@@ -28,6 +28,7 @@ struct NetworkLaboratoryConfig {
   bool include_storage_pressure = true;
   bool include_mixed_protocol_versions = true;
   SeededDeliveryFaults delivery_faults{true, 800U, 900U, 500U, 500U, 10U, 40U};
+  PacketNetworkConfig packet_network{true, 14400U, 2U, 8U, 0.08, 0.04};
 };
 
 struct ExperimentVariant {
@@ -46,7 +47,10 @@ struct RunMetrics {
   uint64_t bytes_sent = 0U;
   uint64_t bytes_received = 0U;
   uint64_t bytes_dropped = 0U;
+  uint64_t useful_bytes_delivered = 0U;
   uint16_t peak_buffer_occupancy = 0U;
+  uint16_t peak_transmit_queue_occupancy = 0U;
+  uint64_t airtime_microseconds = 0U;
   double estimated_energy_millijoules = 0.0;
   double energy_per_delivered_byte_millijoules = 0.0;
 };

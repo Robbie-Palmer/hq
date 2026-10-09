@@ -479,10 +479,10 @@ describe("SatelliteSwarmSimulation", () => {
     render(<SatelliteSwarmSimulation data={timedData} />);
 
     await user.click(screen.getByRole("button", { name: "Next frame" }));
-    expect(screen.getByText(/trace v5 · 1m 00s · 100×/)).toBeVisible();
+    expect(screen.getByText(/trace v6 · 1m 00s · 100×/)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Next frame" }));
-    expect(screen.getByText(/trace v5 · 1h 01m 01s · 100×/)).toBeVisible();
+    expect(screen.getByText(/trace v6 · 1h 01m 01s · 100×/)).toBeVisible();
   });
 
   it("advances and stops autoplay at the final orbit frame", () => {
@@ -492,7 +492,7 @@ describe("SatelliteSwarmSimulation", () => {
     act(() => screen.getByRole("button", { name: "Play replay" }).click());
     act(() => vi.advanceTimersByTime(1_000));
 
-    expect(screen.getByText(/trace v5 · 100 ms · 100×/)).toBeVisible();
+    expect(screen.getByText(/trace v6 · 100 ms · 100×/)).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Replay mission" }),
     ).toBeEnabled();

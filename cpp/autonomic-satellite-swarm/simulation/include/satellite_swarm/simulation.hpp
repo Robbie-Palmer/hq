@@ -28,6 +28,7 @@ struct NodeConfiguration {
   SafeStateResult safe_state_request_result = SafeStateResult::Rejected;
   uint16_t protocol_version = 1U;
   uint16_t receive_buffer_capacity = 64U;
+  uint16_t transmit_queue_capacity = 64U;
 };
 
 struct TraceProvenance {
@@ -45,6 +46,21 @@ struct SeededDeliveryFaults {
   uint16_t reorder_permyriad = 0U;
   uint32_t minimum_delay_ms = 1U;
   uint32_t maximum_delay_ms = 1U;
+};
+
+struct PacketNetworkConfig {
+  bool enabled = false;
+  uint32_t bitrate_bits_per_second = 14400U;
+  uint32_t propagation_delay_ms = 0U;
+  uint8_t maximum_hops = 8U;
+  double transmit_energy_millijoules_per_byte = 0.08;
+  double receive_energy_millijoules_per_byte = 0.04;
+};
+
+struct RouteEntry {
+  NodeId sender = 0U;
+  NodeId destination = 0U;
+  NodeId next_hop = 0U;
 };
 
 struct SatelliteUpdate {
@@ -87,7 +103,9 @@ enum class MessageDropReason : uint8_t {
   LinkUnavailable,
   NodeCrashed,
   StoragePressure,
-  IncompatibleProtocol
+  IncompatibleProtocol,
+  TransmitQueueFull,
+  RoutingLoop
 };
 
 // A directive applies once to the next matching sender-to-recipient delivery in its frame.
@@ -152,6 +170,8 @@ struct SimulationTrace {
   uint8_t version = kSimulationTraceVersion;
   TraceProvenance provenance{};
   SeededDeliveryFaults seeded_delivery_faults{};
+  PacketNetworkConfig packet_network{};
+  std::vector<RouteEntry> routes;
   bool record_delivery_decisions = false;
   bool record_resource_samples = false;
   ControllerConfig controller{};
@@ -170,6 +190,10 @@ enum class SimulationEventType : uint8_t {
   MessageDuplicated,
   MessageDelivered,
   DeliveryDecision,
+  PacketQueued,
+  TransmissionStarted,
+  TransmissionCompleted,
+  PacketForwarded,
   DelayedMessageDelivered,
   LinkChanged,
   ContactObserved,
@@ -190,14 +214,23 @@ struct SimulationEvent {
   bool connected = true;
   bool planned_connected = true;
   bool running = true;
+  uint64_t packet_id = 0U;
+  NodeId final_recipient_node = kBroadcastNode;
   uint32_t deliver_at_ms = 0U;
+  uint32_t transmission_end_ms = 0U;
   uint32_t random_value = 0U;
   DeliveryDecisionType delivery_decision = DeliveryDecisionType::Deliver;
+  uint16_t packet_size = 0U;
   uint16_t buffer_occupancy = 0U;
   uint16_t buffer_capacity = 0U;
+  uint16_t peak_buffer_occupancy = 0U;
+  uint16_t transmit_queue_occupancy = 0U;
+  uint16_t transmit_queue_capacity = 0U;
+  uint16_t peak_transmit_queue_occupancy = 0U;
   uint64_t bytes_sent = 0U;
   uint64_t bytes_received = 0U;
   uint64_t bytes_dropped = 0U;
+  uint64_t airtime_microseconds = 0U;
   double estimated_energy_millijoules = 0.0;
   MessageDropReason drop_reason = MessageDropReason::Scripted;
   Coordinate objective{};
@@ -223,6 +256,8 @@ struct NodeObservation {
   uint16_t protocol_version = 1U;
   uint16_t buffer_occupancy = 0U;
   uint16_t buffer_capacity = 0U;
+  uint16_t transmit_queue_occupancy = 0U;
+  uint16_t transmit_queue_capacity = 0U;
 };
 
 struct FrameObservation {

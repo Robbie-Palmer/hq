@@ -74,11 +74,19 @@ delivery directive can drop, delay, or duplicate one matching message. The labor
 loss, delay, duplication, and reordering from a seeded schedule. It records every draw and applied
 choice, so the scenario, configuration, source revision, and seed reproduce the run.
 
-The transport models asymmetric links, stale contact plans, incompatible protocol versions, and
-bounded receive buffers. Per-frame resource samples record cumulative bytes and an estimated radio
-energy cost. The native batch runner gives each controller configuration the same seeds, reports raw
-results and 95% confidence intervals, and retains the worst trace for regression. The estimate is a
-scenario parameter, not calibrated hardware evidence.
+The laboratory's packet mode passes every controller message through `WireCodec`, then places the
+18-byte packet in a bounded per-node transmit queue. A deterministic shared half-duplex medium
+serves one sender at a time. The configured bitrate determines airtime, and a propagation-delay
+event completes each hop. Static routes can forward a packet across multiple links; one stable
+packet ID follows it through the trace, and a hop limit terminates routing loops. Link availability,
+node lifecycle, protocol compatibility, and seeded delivery faults are checked on every hop.
+
+The transport also models asymmetric links, stale contact plans, incompatible protocol versions,
+and bounded receive buffers. Per-frame resource samples record cumulative wire bytes, transmit and
+receive queue occupancy, exact simulated airtime, and an estimated radio energy cost. The native
+batch runner gives each controller configuration the same seeds, reports raw results and 95%
+confidence intervals, and retains the worst trace for regression. The energy coefficients are
+scenario parameters, not calibrated hardware evidence.
 
 The command-line and browser demonstrations use this same simulation library. An Emscripten target
 exposes the browser serializer through a versioned C ABI, and a module worker invokes it without

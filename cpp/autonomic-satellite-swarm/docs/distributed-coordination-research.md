@@ -341,15 +341,22 @@ traffic. Security work done earlier would protect protocol behavior whose meanin
 ## Implemented laboratory
 
 The network laboratory now runs the portable controller with seeded loss, delay, duplication, and
-reordering. Scenario frames model asymmetric partitions, stale contact plans, node crash and reset,
-receive-buffer pressure, and incompatible protocol versions. The versioned output records each
-random draw, delivery result, lifecycle change, resource sample, input seed, configuration ID, and
-source revision. The browser's assignment-loss scenario remains the small interactive case.
+reordering. It serializes each controller message with the production `WireCodec` and moves the
+resulting 18-byte packet through bounded transmit queues. A deterministic shared half-duplex medium
+derives airtime from the configured bitrate. Static routes exercise multi-hop forwarding, with a
+stable packet ID and bounded hop count making each path replayable.
+
+Scenario frames model asymmetric partitions, stale contact plans, node crash and reset, transmit
+and receive pressure, and incompatible protocol versions. The versioned output records each random
+draw, queue decision, transmission, forwarding hop, delivery result, lifecycle change, resource
+sample, input seed, configuration ID, and source revision. The browser's assignment-loss scenario
+remains the small interactive case.
 
 The native batch command gives every controller configuration the same seeds. It retains raw safety,
-liveness, assignment-latency, delivery, byte, buffer, and estimated-energy measures, then calculates
-95% confidence intervals. Each configuration keeps its worst run as a replayable regression trace.
-The energy calculation is an explicit byte-cost estimate until hardware measurements replace it.
+liveness, assignment-latency, delivery, byte, queue, airtime, and estimated-energy measures, then
+calculates 95% confidence intervals. Each configuration keeps its worst run as a replayable
+regression trace. The energy calculation is an explicit byte-cost estimate until hardware
+measurements replace it.
 
 Stable mission identity and executable invariant checks are now implemented against the existing
 temporary-leader controller. A mission key combines the origin node, its boot epoch, and a sequence

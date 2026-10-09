@@ -1,9 +1,11 @@
 #include "satellite_swarm/network_laboratory.hpp"
+#include "satellite_swarm/wire_codec.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace satellite_swarm;
@@ -30,6 +32,29 @@ SimulationTrace twoNodeTrace(const SeededDeliveryFaults& faults) {
   return trace;
 }
 
+SimulationTrace packetNetworkTrace() {
+  SimulationTrace trace;
+  trace.provenance = {"packet-network-unit", "test", "packet-network", 23U};
+  trace.packet_network = {true, 14400U, 0U, 8U, 0.08, 0.04};
+  trace.record_delivery_decisions = true;
+  trace.record_resource_samples = true;
+  trace.controller.response_window_ms = 100U;
+  trace.nodes = {
+      {0U, SatelliteSnapshot()},
+      {1U, SatelliteSnapshot()},
+      {2U, SatelliteSnapshot()},
+  };
+  for (uint32_t now_ms = 0U; now_ms <= 200U; now_ms += 10U) {
+    SimulationFrame frame;
+    frame.now_ms = now_ms;
+    if (now_ms == 0U) {
+      frame.mission_commands.push_back({0U, Coordinate(0.0F, -90.0F)});
+    }
+    trace.frames.push_back(frame);
+  }
+  return trace;
+}
+
 bool hasDecision(const SimulationResult& result, DeliveryDecisionType decision) {
   for (const SimulationEvent& event : result.events) {
     if (event.type == SimulationEventType::DeliveryDecision &&
@@ -38,6 +63,16 @@ bool hasDecision(const SimulationResult& result, DeliveryDecisionType decision) 
     }
   }
   return false;
+}
+
+NodeObservation activeObservation(NodeId node_id, MissionKey mission_key, NodeId assigned_node) {
+  NodeObservation observation;
+  observation.node_id = node_id;
+  observation.state = ControllerState::Active;
+  observation.boot_epoch = 1U;
+  observation.mission_key = mission_key;
+  observation.assigned_node = assigned_node;
+  return observation;
 }
 
 } // namespace
@@ -63,6 +98,202 @@ TEST_CASE("seeded delivery choices replay loss, delay, duplication, and reorderi
         runSimulationTrace(twoNodeTrace({true, 0U, 0U, 0U, 10000U, 10U, 20U}));
     CHECK(hasDecision(result, DeliveryDecisionType::Reorder));
   }
+}
+
+TEST_CASE("the packet network serializes wire packets on one deterministic shared medium") {
+  const SimulationTrace trace = packetNetworkTrace();
+  const SimulationResult result = runSimulationTrace(trace);
+
+  std::vector<const SimulationEvent*> transmissions;
+  for (const SimulationEvent& event : result.events) {
+    if (event.type == SimulationEventType::TransmissionStarted) {
+      transmissions.push_back(&event);
+      CHECK(event.packet_id != 0U);
+      CHECK(event.packet_size == WireCodec::kPacketSize);
+      CHECK(event.airtime_microseconds == 10000U);
+      CHECK(event.transmission_end_ms == event.now_ms + 10U);
+    }
+  }
+
+  REQUIRE(transmissions.size() >= 2U);
+  CHECK(transmissions.front()->node_id == 0U);
+  for (std::size_t index = 1U; index < transmissions.size(); ++index) {
+    CHECK(transmissions[index]->now_ms >= transmissions[index - 1U]->transmission_end_ms);
+  }
+  const RunMetrics metrics = measureRun(trace, result);
+  CHECK(metrics.peak_buffer_occupancy >= 1U);
+  CHECK(metrics.peak_transmit_queue_occupancy >= 1U);
+  CHECK(metrics.useful_bytes_delivered > 0U);
+  CHECK(metrics.energy_per_delivered_byte_millijoules > 0.0);
+}
+
+TEST_CASE("a frame link change applies before a transmission completing on the same tick") {
+  SimulationTrace trace = twoNodeTrace(SeededDeliveryFaults());
+  trace.packet_network.enabled = true;
+  trace.packet_network.propagation_delay_ms = 0U;
+  trace.frames[1].link_updates.push_back({0U, 1U, false});
+
+  const SimulationResult result = runSimulationTrace(trace);
+
+  bool completion_drop = false;
+  for (const SimulationEvent& event : result.events) {
+    completion_drop = completion_drop ||
+                      (event.type == SimulationEventType::MessageDropped && event.now_ms == 10U &&
+                       event.node_id == 0U && event.recipient_node == 1U &&
+                       event.drop_reason == MessageDropReason::LinkUnavailable);
+  }
+  CHECK(completion_drop);
+}
+
+TEST_CASE("packet transmission completion remains ordered across clock rollover") {
+  SimulationTrace trace;
+  trace.packet_network.enabled = true;
+  trace.record_delivery_decisions = true;
+  trace.nodes = {{0U, SatelliteSnapshot()}, {1U, SatelliteSnapshot()}};
+  SimulationFrame start;
+  start.now_ms = std::numeric_limits<uint32_t>::max() - 5U;
+  start.mission_commands.push_back({0U, Coordinate(0.0F, -90.0F)});
+  trace.frames.push_back(start);
+  SimulationFrame finish;
+  finish.now_ms = 4U;
+  trace.frames.push_back(finish);
+
+  const SimulationResult result = runSimulationTrace(trace);
+
+  bool completed = false;
+  bool delivered = false;
+  for (const SimulationEvent& event : result.events) {
+    completed = completed ||
+                (event.type == SimulationEventType::TransmissionCompleted && event.now_ms == 4U);
+    delivered =
+        delivered || (event.type == SimulationEventType::MessageDelivered && event.now_ms == 4U);
+  }
+  CHECK(completed);
+  CHECK(delivered);
+}
+
+TEST_CASE("a receiver crash wins over a packet arriving on the same tick") {
+  SimulationTrace trace = twoNodeTrace(SeededDeliveryFaults());
+  trace.packet_network.enabled = true;
+  trace.packet_network.propagation_delay_ms = 10U;
+  trace.frames[2].node_crashes.push_back({1U});
+
+  const SimulationResult result = runSimulationTrace(trace);
+
+  bool arrival_drop = false;
+  for (const SimulationEvent& event : result.events) {
+    arrival_drop = arrival_drop || (event.type == SimulationEventType::MessageDropped &&
+                                    event.now_ms == 20U && event.recipient_node == 1U &&
+                                    event.drop_reason == MessageDropReason::NodeCrashed);
+  }
+  CHECK(arrival_drop);
+}
+
+TEST_CASE("a receiver crash wins over a transmission completing on the same tick") {
+  SimulationTrace trace = twoNodeTrace(SeededDeliveryFaults());
+  trace.packet_network.enabled = true;
+  trace.frames[1].node_crashes.push_back({1U});
+
+  const SimulationResult result = runSimulationTrace(trace);
+
+  bool completion_drop = false;
+  for (const SimulationEvent& event : result.events) {
+    completion_drop = completion_drop || (event.type == SimulationEventType::MessageDropped &&
+                                          event.now_ms == 10U && event.recipient_node == 1U &&
+                                          event.drop_reason == MessageDropReason::NodeCrashed);
+  }
+  CHECK(completion_drop);
+}
+
+TEST_CASE("a sender crash clears its active transmission and queued packets") {
+  SimulationTrace trace = packetNetworkTrace();
+  trace.frames[1].node_crashes.push_back({0U});
+
+  const SimulationResult result = runSimulationTrace(trace);
+
+  uint32_t crash_drops = 0U;
+  for (const SimulationEvent& event : result.events) {
+    if (event.type == SimulationEventType::MessageDropped && event.now_ms == 10U &&
+        event.node_id == 0U && event.drop_reason == MessageDropReason::NodeCrashed) {
+      ++crash_drops;
+    }
+  }
+  CHECK(crash_drops == 2U);
+}
+
+TEST_CASE("packet delivery choices replay every seeded fault branch") {
+  const std::vector<std::pair<SeededDeliveryFaults, DeliveryDecisionType>> cases = {
+      {{true, 10000U, 0U, 0U, 0U, 10U, 20U}, DeliveryDecisionType::Drop},
+      {{true, 0U, 10000U, 0U, 0U, 10U, 20U}, DeliveryDecisionType::Delay},
+      {{true, 0U, 0U, 10000U, 0U, 10U, 20U}, DeliveryDecisionType::Duplicate},
+      {{true, 0U, 0U, 0U, 10000U, 10U, 20U}, DeliveryDecisionType::Reorder},
+  };
+
+  for (const auto& [faults, expected] : cases) {
+    SimulationTrace trace = packetNetworkTrace();
+    trace.seeded_delivery_faults = faults;
+    CHECK(hasDecision(runSimulationTrace(trace), expected));
+  }
+}
+
+TEST_CASE("bounded transmit queues reject excess packets before radio service") {
+  SimulationTrace trace = packetNetworkTrace();
+  trace.nodes[0].transmit_queue_capacity = 1U;
+  const SimulationResult result = runSimulationTrace(trace);
+
+  bool queue_drop = false;
+  for (const SimulationEvent& event : result.events) {
+    queue_drop =
+        queue_drop || (event.type == SimulationEventType::MessageDropped && event.node_id == 0U &&
+                       event.drop_reason == MessageDropReason::TransmitQueueFull &&
+                       event.packet_size == WireCodec::kPacketSize);
+  }
+  CHECK(queue_drop);
+  CHECK(result.frames.front().nodes[0].transmit_queue_capacity == 1U);
+}
+
+TEST_CASE("an explicit route forwards the same packet through the configured next hop") {
+  SimulationTrace trace = packetNetworkTrace();
+  trace.routes.push_back({0U, 2U, 1U});
+  const SimulationResult result = runSimulationTrace(trace);
+
+  uint64_t forwarded_packet = 0U;
+  bool forwarded = false;
+  bool second_hop = false;
+  bool delivered = false;
+  for (const SimulationEvent& event : result.events) {
+    if (event.type == SimulationEventType::PacketForwarded && event.node_id == 0U &&
+        event.recipient_node == 1U && event.final_recipient_node == 2U) {
+      forwarded_packet = event.packet_id;
+      forwarded = true;
+    } else if (forwarded_packet != 0U && event.packet_id == forwarded_packet &&
+               event.type == SimulationEventType::TransmissionStarted && event.node_id == 1U &&
+               event.recipient_node == 2U) {
+      second_hop = true;
+    } else if (forwarded_packet != 0U && event.packet_id == forwarded_packet &&
+               event.type == SimulationEventType::MessageDelivered && event.recipient_node == 2U) {
+      delivered = true;
+    }
+  }
+
+  CHECK(forwarded);
+  CHECK(second_hop);
+  CHECK(delivered);
+}
+
+TEST_CASE("the packet hop limit terminates a forwarding loop") {
+  SimulationTrace trace = packetNetworkTrace();
+  trace.packet_network.maximum_hops = 2U;
+  trace.routes = {{0U, 2U, 1U}, {1U, 2U, 0U}};
+  const SimulationResult result = runSimulationTrace(trace);
+
+  bool loop_drop = false;
+  for (const SimulationEvent& event : result.events) {
+    loop_drop = loop_drop || (event.type == SimulationEventType::MessageDropped &&
+                              event.final_recipient_node == 2U &&
+                              event.drop_reason == MessageDropReason::RoutingLoop);
+  }
+  CHECK(loop_drop);
 }
 
 TEST_CASE("the laboratory records topology, lifecycle, pressure, compatibility, and resources") {
@@ -138,6 +369,8 @@ TEST_CASE("the same seed produces the same evidence and paired batches retain fa
   CHECK(json.find(R"("pairedSeeds":true)") != std::string::npos);
   CHECK(json.find(R"("rawRuns")") != std::string::npos);
   CHECK(json.find(R"("worstFailures")") != std::string::npos);
+  CHECK(json.find(R"("traceVersion":6)") != std::string::npos);
+  CHECK(json.find(R"("maximumAttempts":6)") != std::string::npos);
   CHECK(json.find(R"("lower")") != std::string::npos);
 }
 
@@ -151,6 +384,10 @@ TEST_CASE("a laboratory trace serializes provenance and replayable evidence") {
   CHECK(json.find(R"("traceVersion":6)") != std::string::npos);
   CHECK(json.find(R"("codeRevision":"0123456789abcdef")") != std::string::npos);
   CHECK(json.find(R"("seed":99)") != std::string::npos);
+  CHECK(json.find(R"("packetNetwork":{"enabled":true)") != std::string::npos);
+  CHECK(json.find(R"("minimumDelayMs":10)") != std::string::npos);
+  CHECK(json.find(R"("controller":{"responseWindowMs":100)") != std::string::npos);
+  CHECK(json.find(R"("routes":[{"sender":0,"destination":2,"nextHop":1})") != std::string::npos);
   CHECK(json.find(R"("delivery-decision")") != std::string::npos);
   CHECK(json.find(R"("contact-observed")") != std::string::npos);
   CHECK(json.find(R"("resource-sample")") != std::string::npos);
@@ -166,6 +403,7 @@ TEST_CASE("optional laboratory faults can all be disabled") {
   config.include_storage_pressure = false;
   config.include_mixed_protocol_versions = false;
   config.delivery_faults.enabled = false;
+  config.packet_network.enabled = false;
 
   const LaboratoryRun run = runNetworkLaboratory(config, 5U, {"plain", ControllerConfig()});
   for (const NodeConfiguration& node : run.trace.nodes) {
@@ -176,6 +414,11 @@ TEST_CASE("optional laboratory faults can all be disabled") {
     CHECK(event.type != SimulationEventType::NodeCrashed);
     CHECK(event.type != SimulationEventType::StoragePressureChanged);
   }
+  const std::string json = serializeLaboratoryRun(config, run);
+  CHECK(json.find(R"("includeStaleContacts":false)") != std::string::npos);
+  CHECK(json.find(R"("includePartition":false)") != std::string::npos);
+  CHECK(json.find(R"("seededDeliveryFaults":{"enabled":false)") != std::string::npos);
+  CHECK(json.find(R"("packetNetwork":{"enabled":false)") != std::string::npos);
 }
 
 TEST_CASE("laboratory and batch inputs reject incomplete contracts") {
@@ -197,6 +440,18 @@ TEST_CASE("laboratory and batch inputs reject incomplete contracts") {
     config.duration_ms = 305U;
     CHECK_THROWS_AS(makeNetworkLaboratoryTrace(config, 1U), std::invalid_argument);
   }
+  SECTION("missing provenance") {
+    config.code_revision.clear();
+    CHECK_THROWS_AS(makeNetworkLaboratoryTrace(config, 1U), std::invalid_argument);
+  }
+  SECTION("missing scenario ID") {
+    config.scenario_id.clear();
+    CHECK_THROWS_AS(makeNetworkLaboratoryTrace(config, 1U), std::invalid_argument);
+  }
+  SECTION("missing configuration ID") {
+    config.configuration_id.clear();
+    CHECK_THROWS_AS(makeNetworkLaboratoryTrace(config, 1U), std::invalid_argument);
+  }
   SECTION("missing variant ID") {
     CHECK_THROWS_AS(runNetworkLaboratory(config, 1U, ExperimentVariant()), std::invalid_argument);
   }
@@ -205,6 +460,16 @@ TEST_CASE("laboratory and batch inputs reject incomplete contracts") {
   }
   SECTION("missing seeds") {
     CHECK_THROWS_AS(runPairedBatch(config, {{"baseline", ControllerConfig()}}, {}),
+                    std::invalid_argument);
+  }
+  SECTION("duplicate variant IDs") {
+    CHECK_THROWS_AS(
+        runPairedBatch(config, {{"baseline", ControllerConfig()}, {"baseline", ControllerConfig()}},
+                       {1U}),
+        std::invalid_argument);
+  }
+  SECTION("empty paired variant ID") {
+    CHECK_THROWS_AS(runPairedBatch(config, {{"", ControllerConfig()}}, {1U}),
                     std::invalid_argument);
   }
 }
@@ -233,6 +498,81 @@ TEST_CASE("extended simulation faults reject malformed inputs") {
     trace.nodes[1].protocol_version = 0U;
     CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
   }
+  SECTION("zero packet bitrate") {
+    SimulationTrace trace = packetNetworkTrace();
+    trace.packet_network.bitrate_bits_per_second = 0U;
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+  SECTION("zero packet hop limit") {
+    SimulationTrace trace = packetNetworkTrace();
+    trace.packet_network.maximum_hops = 0U;
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+  SECTION("ambiguous packet propagation") {
+    SimulationTrace trace = packetNetworkTrace();
+    trace.packet_network.propagation_delay_ms =
+        static_cast<uint32_t>(std::numeric_limits<int32_t>::max()) + 1U;
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+  SECTION("negative transmit energy") {
+    SimulationTrace trace = packetNetworkTrace();
+    trace.packet_network.transmit_energy_millijoules_per_byte = -1.0;
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+  SECTION("non-finite transmit energy") {
+    SimulationTrace trace = packetNetworkTrace();
+    trace.packet_network.transmit_energy_millijoules_per_byte =
+        std::numeric_limits<double>::infinity();
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+  SECTION("negative receive energy") {
+    SimulationTrace trace = packetNetworkTrace();
+    trace.packet_network.receive_energy_millijoules_per_byte = -1.0;
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+  SECTION("non-finite receive energy") {
+    SimulationTrace trace = packetNetworkTrace();
+    trace.packet_network.receive_energy_millijoules_per_byte =
+        std::numeric_limits<double>::infinity();
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+  SECTION("ambiguous combined packet delay") {
+    SimulationTrace trace = packetNetworkTrace();
+    trace.packet_network.propagation_delay_ms =
+        static_cast<uint32_t>(std::numeric_limits<int32_t>::max()) - 10U;
+    trace.seeded_delivery_faults.enabled = true;
+    trace.seeded_delivery_faults.delay_permyriad = 1U;
+    trace.seeded_delivery_faults.maximum_delay_ms = 10U;
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+  SECTION("loss-only faults do not extend the packet event horizon") {
+    SimulationTrace trace = packetNetworkTrace();
+    trace.packet_network.propagation_delay_ms =
+        static_cast<uint32_t>(std::numeric_limits<int32_t>::max()) - 10U;
+    trace.seeded_delivery_faults = {true, 1U, 0U, 0U, 0U, 10U, 40U};
+    CHECK_NOTHROW(runSimulationTrace(trace));
+  }
+  SECTION("self-directed route hop") {
+    SimulationTrace trace = packetNetworkTrace();
+    trace.routes.push_back({0U, 2U, 0U});
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+  SECTION("self-directed route destination") {
+    SimulationTrace trace = packetNetworkTrace();
+    trace.routes.push_back({0U, 0U, 1U});
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+  SECTION("duplicate route") {
+    SimulationTrace trace = packetNetworkTrace();
+    trace.routes = {{0U, 2U, 1U}, {0U, 2U, 2U}};
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+  SECTION("scripted and packet faults cannot share one trace") {
+    SimulationTrace trace = packetNetworkTrace();
+    trace.frames.front().delivery_faults.push_back(
+        {0U, 1U, MessageType::MissionRequest, DeliveryFaultType::Drop, 0U});
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
   SECTION("contact targets sender") {
     SimulationTrace trace = twoNodeTrace(SeededDeliveryFaults());
     trace.frames.front().contact_updates.push_back({0U, 0U, true, true});
@@ -246,6 +586,16 @@ TEST_CASE("extended simulation faults reject malformed inputs") {
   SECTION("crash references unknown node") {
     SimulationTrace trace = twoNodeTrace(SeededDeliveryFaults());
     trace.frames.front().node_crashes.push_back({9U});
+    CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
+  }
+}
+
+TEST_CASE("delivery fault validation recognizes every supported message type") {
+  for (const MessageType type :
+       {MessageType::Candidacy, MessageType::Acknowledgement, MessageType::MissionAssignment}) {
+    SimulationTrace trace = twoNodeTrace(SeededDeliveryFaults());
+    trace.frames.front().mission_commands.clear();
+    trace.frames.front().delivery_faults.push_back({0U, 1U, type, DeliveryFaultType::Drop, 0U});
     CHECK_THROWS_AS(runSimulationTrace(trace), std::invalid_argument);
   }
 }
@@ -354,8 +704,8 @@ TEST_CASE("run measurement keeps unsafe and empty outcomes separate") {
   SimulationResult result;
   FrameObservation frame;
   frame.nodes = {
-      {0U, ControllerState::Active, SatelliteSnapshot(), 1U, MissionKey(0U, 1U, 1U), 0U},
-      {1U, ControllerState::Active, SatelliteSnapshot(), 1U, MissionKey(0U, 1U, 1U), 1U},
+      activeObservation(0U, MissionKey(0U, 1U, 1U), 0U),
+      activeObservation(1U, MissionKey(0U, 1U, 1U), 1U),
   };
   result.frames.push_back(frame);
   SimulationEvent command;
@@ -386,8 +736,8 @@ TEST_CASE("run measurement identifies malformed active claims without a command 
   SimulationResult result;
   FrameObservation frame;
   frame.nodes = {
-      {0U, ControllerState::Active, SatelliteSnapshot(), 1U, MissionKey(), 0U},
-      {1U, ControllerState::Active, SatelliteSnapshot(), 1U, MissionKey(0U, 1U, 2U), 0U},
+      activeObservation(0U, MissionKey(), 0U),
+      activeObservation(1U, MissionKey(0U, 1U, 2U), 0U),
   };
   result.frames.push_back(frame);
   SimulationEvent active;
@@ -401,6 +751,41 @@ TEST_CASE("run measurement identifies malformed active claims without a command 
   CHECK(metrics.safety_violations == 2U);
   CHECK(metrics.missions_completed == 1U);
   CHECK(metrics.mean_assignment_latency_ms == 0.0);
+}
+
+TEST_CASE("run measurement deduplicates packet and mission evidence") {
+  SimulationTrace trace;
+  trace.nodes = {{0U, SatelliteSnapshot()}};
+  SimulationResult result;
+  FrameObservation frame;
+  NodeObservation stopped = activeObservation(0U, MissionKey(0U, 1U, 1U), 0U);
+  stopped.running = false;
+  frame.nodes.push_back(stopped);
+  result.frames.push_back(frame);
+
+  SimulationEvent rejected;
+  rejected.type = SimulationEventType::MissionCommand;
+  rejected.accepted = false;
+  result.events.push_back(rejected);
+  for (uint8_t index = 0U; index < 2U; ++index) {
+    SimulationEvent active;
+    active.type = SimulationEventType::StateChanged;
+    active.current_state = ControllerState::Active;
+    active.mission_key = MissionKey(0U, 1U, 1U);
+    result.events.push_back(active);
+
+    SimulationEvent delivered;
+    delivered.type = SimulationEventType::MessageDelivered;
+    delivered.packet_id = 7U;
+    delivered.packet_size = static_cast<uint16_t>(WireCodec::kPacketSize);
+    result.events.push_back(delivered);
+  }
+
+  const RunMetrics metrics = measureRun(trace, result);
+  CHECK(metrics.missions_started == 0U);
+  CHECK(metrics.missions_completed == 1U);
+  CHECK(metrics.deliveries == 2U);
+  CHECK(metrics.useful_bytes_delivered == WireCodec::kPacketSize);
 }
 
 TEST_CASE("laboratory serialization names every evidence branch") {
@@ -435,11 +820,20 @@ TEST_CASE("laboratory serialization names every evidence branch") {
     event.type = type;
     run.result.events.push_back(event);
   }
-  for (uint8_t value = 0U; value <= static_cast<uint8_t>(MessageDropReason::IncompatibleProtocol);
-       ++value) {
+  for (uint8_t value = 0U; value <= static_cast<uint8_t>(MessageDropReason::RoutingLoop); ++value) {
     SimulationEvent event;
     event.type = SimulationEventType::MessageDropped;
     event.drop_reason = static_cast<MessageDropReason>(value);
+    run.result.events.push_back(event);
+  }
+  for (const SimulationEventType type :
+       {SimulationEventType::PacketQueued, SimulationEventType::TransmissionStarted,
+        SimulationEventType::TransmissionCompleted, SimulationEventType::PacketForwarded}) {
+    SimulationEvent event;
+    event.type = type;
+    event.packet_id = 1U;
+    event.packet_size = static_cast<uint16_t>(WireCodec::kPacketSize);
+    event.transmission_end_ms = type == SimulationEventType::PacketQueued ? 0U : 10U;
     run.result.events.push_back(event);
   }
   SimulationEvent contact;
