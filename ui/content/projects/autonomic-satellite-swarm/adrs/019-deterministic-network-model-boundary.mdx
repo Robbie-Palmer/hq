@@ -1,0 +1,187 @@
+---
+title: "ADR 019: Deterministic Network Model Boundary"
+status: "Proposed"
+date: "2026-09-26"
+---
+
+# Context
+
+The current `SimulationBus` can drop, delay, or duplicate a selected message and can change each
+directed link. It delivers whole domain messages without serialization time, finite queues,
+contention, forwarding, or radio cost. That is enough to replay protocol failures, but it cannot
+answer whether a queue, medium-access rule, route, or shared-radio budget changes the outcome.
+
+The next model must continue to run the real portable C++ controller. It must also preserve paired
+scenario seeds, exact replay, native batch experiments, the WebAssembly demonstration, and the
+provenance of every reported result. Browser support does not require a network simulator to run in
+WebAssembly. It requires the browser to replay evidence produced under the same versioned contract.
+
+[OMNeT++ 6.4](https://omnetpp.org/download-items/omnetpp/omnetpp-640.html) and
+[INET 4.7](https://inet.omnetpp.org/Download.html) are maintained releases. Their tagged sources are
+available in the [OMNeT++](https://github.com/omnetpp/omnetpp/tree/omnetpp-6.4.0) and
+[INET](https://github.com/inet-framework/inet/tree/v4.7.0) repositories. OMNeT++ supplies the
+discrete-event kernel, repeatable random streams, batch execution, event logs, and support for
+linking an external C++ library. INET adds queues, wireless media, mobility, routing, and
+[radio energy models](https://inet.omnetpp.org/docs/users-guide/ch-power.html). INET 4.7 also adds
+satellite and GNSS track mobility. That does not make its radio or orbit models valid for this
+project without calibration.
+
+OMNeT++ is distributed under its
+[Academic Public License](https://omnetpp.org/intro/license.html), which restricts free use to
+academic and non-profit work. INET is
+[LGPL-3.0](https://github.com/inet-framework/inet/blob/v4.7.0/LICENSE.md). A headless OMNeT++ core
+download is 76 MB before INET and build outputs, and the platform packages are about 400 MB. Adding
+them to every pull-request job would carry a material cold-install and build cost.
+
+[ns-3.47](https://www.nsnam.org/releases/ns-3-47/) is the strongest maintained alternative. Its
+[tagged source](https://gitlab.com/nsnam/ns-3-dev/-/tree/ns-3.47) and model library cover queues,
+Wi-Fi contention and interference, routing, mobility, and
+[radio energy](https://www.nsnam.org/docs/models/html/energy.html). It uses deterministic seeds and
+run substreams, and its scheduler gives same-time events a stable insertion order. It is primarily
+[GPL-2.0-only](https://gitlab.com/nsnam/ns-3-dev/-/blob/ns-3.47/LICENSE), while this repository is
+AGPL-3.0. Linking and distributing the two together must not be assumed to be compatible. The
+current [OMNeT++ platform guide](https://docs.omnetpp.org/6.4/installguide/ch-intro) and
+[ns-3 installation guide](https://www.nsnam.org/docs/installation/html/index.html) document native
+platforms, with no supported WebAssembly target. The browser critical path cannot depend on either
+tool.
+
+The choices have different evidence boundaries:
+
+| Option                     | Network fidelity                                                                 | Controller and replay fit                                                                                                 | Cost and constraint                                                                                      |
+| -------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Extend the owned runner    | Only the queues, links, forwarding, and costs implemented here                   | Runs the portable controller in native and WebAssembly builds; one trace can materialize every random choice              | Small CI change, but this project must test and state every model assumption                             |
+| OMNeT++ with INET          | Mature packet, queue, wireless, mobility, routing, and energy components         | Can host a C++ adapter and supports seeded batches; normalized traces are still needed for exact replay and browser use   | Large native toolchain; Academic Public License requires a use and distribution review                   |
+| ns-3                       | Mature packet, queue, Wi-Fi, routing, mobility, and energy components            | C++ integration and deterministic runs are practical; normalized traces are still needed for exact replay and browser use | Native-only dependency; GPL-2.0-only code requires a compatibility review before linking or distribution |
+| Precomputed network traces | Can import results from either simulator without linking it into this repository | Cheap to replay in native and WebAssembly builds                                                                          | Open-loop traces cannot model traffic that the controller creates in response to earlier deliveries      |
+
+# Decision, proposed
+
+Keep the owned deterministic event runner as the reference network model for the next experiment.
+Extend it only to the packet behavior needed by the stated research question. Do not vendor, link,
+or add OMNeT++/INET or ns-3 to required CI yet.
+
+The first packet model will add:
+
+* explicit encoded packets rather than C++ `Message` objects at the network boundary;
+* bounded per-interface queues with recorded admission, service, and drop reasons;
+* configured bitrate, packet transmission duration, propagation delay, and directed link state;
+* a deterministic half-duplex shared-medium rule with recorded contention outcomes;
+* explicit next-hop forwarding for experiments that need more than one hop; and
+* byte, airtime, queue occupancy, delivery, and configured energy-cost counters.
+
+Do not add a general IP stack, a detailed physical layer, or a named radio model without an
+experiment that depends on it. A configured energy cost accounts for the scenario's declared
+inputs. It does not validate a battery or radio.
+
+## Controller and event exchange
+
+Keep `SwarmController`, its clock, and its ports independent of the network model. The adapter
+exchange has four steps:
+
+1. `Transport::send` encodes the domain message with the versioned wire codec and submits a
+   `TransmitRequest` containing simulation time, sender, recipients, packet bytes, and a stable
+   packet ID. Its Boolean result means only that the local interface admitted the packet.
+2. The network model emits ordered queue, transmission, forwarding, reception, and drop events.
+   Every event names the packet ID, link or queue, time, outcome reason, and cumulative resource
+   counters.
+3. A successful reception passes the original bytes through the production decoder before adding
+   the resulting message to the recipient transport inbox. The runner then calls the controller at
+   that event time. Explicit scheduled wakeups drive controller timers. Wall time never does.
+4. Scenario inputs and controller telemetry join those network events in one versioned result
+   trace. The result records the scenario digest, source revision, model name and version,
+   configuration digest, master seed, named random-stream assignments, and runner platform.
+
+Use a total event order of simulation time, event class, node or link identity, packet ID, then
+insertion sequence. New event classes must define their place in that order. A stochastic choice
+uses a named random stream derived from the scenario seed. The runner records the chosen value or
+outcome in the trace. Exact replay consumes those recorded choices and performs no random draws.
+
+Native and WebAssembly executions of the owned model must keep byte-for-byte parity after
+normalizing provenance fields that necessarily describe the build. A batch compares strategies
+with the same scenario and named seed assignments. It stores raw safety, liveness, delivery, queue,
+airtime, byte, and energy-accounting measures rather than only an aggregate score.
+
+## External simulator gate
+
+Revisit an external packet simulator only when all of these conditions hold:
+
+1. A named experiment depends on a protocol, medium-access mechanism, interference effect, or
+   validated radio model that the focused runner cannot represent without becoming a second
+   general-purpose network simulator.
+2. The experiment identifies the source and calibration of every physical or energy parameter. An
+   available INET or ns-3 component alone is not validation.
+3. A license review approves the intended local use, CI execution, artifact publication, and
+   distribution boundary. Until then, the external simulator remains a separately installed
+   process and no code from it is vendored into this repository.
+4. A spike pins the simulator and model revisions, runs one controller-generated traffic scenario
+   twice with identical normalized exchange traces, maps paired scenario seeds without hidden
+   random streams, and replays the result through the native and WebAssembly consumers.
+5. The spike measures cold installation, build time, representative run time, peak memory, cache
+   size, and result size. Required pull-request CI gets only a bounded smoke scenario. Larger seed
+   campaigns run separately and publish their full provenance.
+
+When the gate passes, use a versioned subprocess exchange rather than an in-process library by
+default. The controller process sends `TransmitRequest` records and receives ordered network-event
+records, so traffic remains closed-loop. Persist the complete exchange as the replay trace. A later
+ADR must choose the simulator, accept its license and CI costs, and define any exception to this
+process boundary.
+
+## Feasibility check
+
+The existing build already produces `satellite_swarm::coordination` as a separate C++20 library.
+`SwarmController` depends on the abstract `Transport` port and a caller-supplied monotonic time, so
+an event adapter does not need to fork controller logic. I ran the current native trace command
+twice during this investigation. Both runs produced the same 11,005-byte output byte for byte.
+
+The [OMNeT++ manual](https://doc.omnetpp.org/omnetpp/manual/) confirms that a model can link an
+external C++ library, select fixed seed sets, run through its headless batch environment, and record
+event logs. The source boundary is technically plausible. This check does not accept the
+license, dependency weight, cross-platform trace stability, or model validity. Those are the
+unresolved parts that keep OMNeT++/INET behind the gate. ns-3 has the same boundary shape and the
+same unresolved licensing and browser constraints.
+
+# Alternatives
+
+## Adopt OMNeT++ and INET now
+
+This would avoid writing general queue, routing, and wireless models and would give experiments a
+well-developed batch environment. The first required experiments need controlled queues,
+contention, delay, loss, asymmetric links, and counters, not a complete protocol or physical-layer
+library. Immediate adoption would also put an unmeasured native toolchain and a restricted license
+ahead of the native and WebAssembly evidence contract.
+
+## Adopt ns-3 now
+
+ns-3 has comparable network coverage, a current release, and a fully headless workflow. It still
+adds a second build system and native execution environment. The GPL-2.0-only and AGPL-3.0 boundary
+must be settled before in-process integration or distribution, and adoption would not remove the
+need for a project-specific replay contract.
+
+## Vendor a simulator or selected models
+
+Vendoring would make pinning obvious but transfer updates, security fixes, build maintenance, and
+license obligations into this repository. Copying selected model code would also make it easier to
+claim fidelity that the project has not calibrated. Pin an external release at the process boundary
+instead.
+
+## Import only precomputed delivery traces
+
+This is suitable when another tool generates contacts or an exogenous error schedule. It is not
+enough for queue and contention experiments because a controller's received packet changes its next
+transmission. Retain trace import, but use the closed-loop subprocess exchange when network and
+controller behavior affect each other.
+
+# Consequences
+
+The next network experiment can keep native and WebAssembly parity, use the real wire codec and
+controller, and explain every queue, delivery, and resource result. CI remains small while the
+research questions are still served by a focused model.
+
+The project now owns another deterministic scheduler, queue model, and contention rule. Tests must
+cover tie ordering, queue overflow, simultaneous transmissions, asymmetric links, multi-hop loops,
+clock rollover at the controller boundary, and trace replay. Results apply only to the configured
+abstractions. They do not validate a spacecraft radio, channel, battery, or routing protocol.
+
+OMNeT++/INET and ns-3 remain available when a specific model earns their cost. Deferring them means
+the project cannot cite either simulator as evidence until the external gate passes and a later ADR
+adopts one.
