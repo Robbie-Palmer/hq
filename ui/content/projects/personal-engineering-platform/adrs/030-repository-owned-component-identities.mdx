@@ -1,0 +1,206 @@
+---
+title: "ADR 030: Repository-owned component identities and standard external coordinates"
+date: "2026-10-09"
+status: "Accepted"
+---
+
+## Context
+
+[ADR 000](/projects/personal-engineering-platform/adrs/000-temporal-platform-layers)
+gives platform layers, slots, selections, and project adoptions stable, dated
+records. [ADR 012](/projects/personal-engineering-platform/adrs/012-platform-decision-provenance)
+traces those records to their decisions and evidence. The model does not yet
+identify the components, APIs, workloads, resources, packages, artifacts, and
+deployments that make up one logical project.
+
+The monorepo needs identity independent of paths. A project such as Recipe Site
+spans the `ui`, `workers`, `packages`, and `infra` trees while retaining one
+project identity and decision history. A source path is useful provenance, but
+it is not a durable identifier. Moving a component between technology
+directories must not create a different component.
+
+The relevant external standards describe narrower concerns:
+
+* [Package URL](https://github.com/package-url/purl-spec) identifies a package
+  using its package type, namespace, name, version, qualifiers, and subpath.
+  It does not identify an unpublished application, API, database, or logical
+  infrastructure resource.
+* [CycloneDX 1.7](https://cyclonedx.org/docs/1.7/json/) describes components,
+  services, dependencies, and other supply-chain inventory. Its `bom-ref` is
+  required to be unique within one BOM. BOM-Link can address another versioned
+  BOM, but that document identity is still an exchange boundary rather than a
+  repository catalog identity.
+* [SPDX 3.0.1](https://spdx.github.io/spdx-spec/v3.0.1/model/Core/Classes/Element/)
+  represents BOM elements and relationships. Every element has an `spdxId`
+  URI, and SPDX can carry external package identifiers. Its model focuses on
+  software inventory, licensing, and supply-chain exchange rather than dated
+  platform policy or project adoption.
+* An [OCI descriptor](https://github.com/opencontainers/image-spec/blob/main/descriptor.md)
+  identifies immutable content by media type, digest, and size, with an
+  optional artifact type. Registry tags are mutable pointers, while the
+  descriptor digest is the content identity.
+* Kubernetes [gives each persisted object](https://kubernetes.io/docs/concepts/overview/working-with-objects/names/)
+  a name within its API resource and namespace plus a server-generated UID for
+  that occurrence. A replacement object can reuse the name but receives a
+  different UID. Its
+  [recommended application labels](https://kubernetes.io/docs/concepts/overview/working-with-objects/common-labels/)
+  describe runtime grouping, not source ownership.
+
+No one format covers both the repository's logical architecture and these
+package, artifact, inventory, and runtime identities. Making an export format
+authoritative would either discard platform semantics or require private
+extensions for most of the source model.
+
+## Decision
+
+Keep a small, versioned component catalog in repository-owned declarations.
+The catalog is authoritative for logical identity and relations. Package URL,
+CycloneDX, SPDX, OCI, and runtime metadata provide typed external coordinates
+or derived exports.
+
+### Canonical identities
+
+Use readable, typed identifiers whose meaning does not depend on a file path or
+Git repository:
+
+| Record                  | Identifier form                       | Example                                    |
+| ----------------------- | ------------------------------------- | ------------------------------------------ |
+| Project                 | `project:<project>`                   | `project:recipe-site`                      |
+| Project-owned component | `component:<project>/<component>`     | `component:recipe-site/web`                |
+| API contract            | `api:<project>/<api>`                 | `api:recipe-site/http`                     |
+| Logical workload        | `workload:<project>/<workload>`       | `workload:recipe-site/api`                 |
+| Logical resource        | `resource:<project>/<resource>`       | `resource:recipe-site/production-database` |
+| Environment             | `environment:<project>/<environment>` | `environment:recipe-site/production`       |
+| Platform capability     | `capability:<capability>`             | `capability:database.relational-host`      |
+| Technology product      | `technology:<technology>`             | `technology:postgresql`                    |
+
+Project and local-name segments use the repository's lowercase slug rules.
+Display names may change without changing an ID. Source paths are attributes,
+so a move from `workers/` to another technology tree leaves the component ID
+intact.
+
+Each declaration has `schema_version`, `id`, `kind`, `name`, and its owning
+project where applicable. Add only the fields needed for these contracts:
+
+* `source_paths` locates the authoritative source and generated structures;
+* `relations` contains typed references such as `part_of`, `depends_on`,
+  `provides`, `uses`, `deployed_as`, and `produces`;
+* `decision_refs` points to the ADRs or PDRs that establish the record;
+* `aliases` retains replaced internal IDs; and
+* `external_ids` carries typed coordinates such as a Package URL or provider
+  resource reference without promoting them to the canonical identity.
+
+The catalog schema owns the allowed record kinds, relation types, and their
+direction. It must not become another package inventory. Lockfiles and SBOMs
+remain authoritative for dependency versions.
+
+### External identity boundaries
+
+Apply each standard only where its identity has the right lifecycle:
+
+| Concern                                                                        | Authoritative identity                                                                      | Mapping rule                                                                                                                                                                         |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Logical project, component, API, workload, resource, capability, or technology | Repository catalog ID                                                                       | Export a deterministic URI under `https://robbiepalmer.me/id/` when a format requires a URI.                                                                                         |
+| Package release                                                                | Canonical Package URL including the ecosystem version                                       | Store the PURL as an external ID. Do not invent a PURL for an application or infrastructure resource.                                                                                |
+| Published artifact                                                             | OCI repository plus immutable descriptor digest                                             | Preserve `mediaType`, `digest`, `size`, and `artifactType`. Treat tags as aliases or promotion pointers.                                                                             |
+| CycloneDX inventory                                                            | Versioned BOM serial number and local `bom-ref` values                                      | Use the catalog URI as `bom-ref` for logical records and the canonical PURL for versioned packages. Generate components, services, and dependency edges from catalog and build data. |
+| SPDX inventory                                                                 | Versioned SPDX document and element `spdxId` values                                         | Use the catalog URI as `spdxId` for logical records and Package URL as a package external identifier. Generate license and package relationships from build data.                    |
+| Kubernetes object                                                              | API group, resource, namespace, name, and observed UID                                      | Use the UID for one runtime occurrence. Apply recommended `app.kubernetes.io` labels and carry the catalog ID in `catalog.robbiepalmer.me/id`.                                       |
+| Deployment observation                                                         | Logical workload and environment, artifact digest, provider reference, and observation time | A rollout creates a new observation. It does not change the workload or component identity.                                                                                          |
+| Decision and adoption evidence                                                 | Existing ADR, PDR, platform selection, and adoption references                              | Keep their dated repository records. Artifact attestations may refer to the resulting OCI digest but do not replace decision provenance.                                             |
+
+Reserve `https://robbiepalmer.me/id/` for serialized identifier URIs,
+`catalog.robbiepalmer.me/` for Kubernetes annotations, and
+`me.robbiepalmer.catalog.*` for OCI annotations. Generators derive these
+mappings from the repository ID, so they need no separate hand-maintained
+identifiers.
+For example, `component:recipe-site/web` maps to
+`https://robbiepalmer.me/id/component/recipe-site/web`.
+
+### Worked crosswalk
+
+The following representative records cover one project across application,
+data, infrastructure, and package boundaries:
+
+| Thing                           | Repository identity and relations                                                                                                                         | External representation                                                                                             |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Recipe Site web application     | `component:recipe-site/web`; `part_of project:recipe-site`; source path `ui`                                                                              | CycloneDX application component with the catalog URI as `bom-ref`; no PURL unless a build publishes it as a package |
+| Recipe Site HTTP API            | `component:recipe-site/api`; `provides api:recipe-site/http`; source path `workers/recipe-api`                                                            | OpenAPI remains the API contract; CycloneDX may export the deployed API as a service                                |
+| Recipe Site production database | `resource:recipe-site/production-database`; `component:recipe-site/api uses resource:recipe-site/production-database`; technology `technology:postgresql` | Provider resource reference as an external ID; Kubernetes UID only if a Kubernetes object represents it             |
+| Recipe Site web host            | `resource:recipe-site/production-web-host`; the web workload `uses` it; source path for its Terraform declaration                                         | Provider resource reference as an external ID; source path and Terraform address remain provenance, not identity    |
+| Selected Zod package            | Logical selection retains `technology:zod`; installed release is `pkg:npm/zod@4.6.5`                                                                      | The PURL appears in CycloneDX or SPDX package inventory and relates back to the selected technology                 |
+
+The technology selection and installed package are deliberately separate. A
+selection answers which product fills a platform slot. A PURL answers which
+ecosystem package release a build consumed.
+
+### Versioning, aliases, and validation
+
+Version the catalog schema independently of its records. Ordinary metadata and
+relation changes use Git history and keep the same identity. Package versions,
+OCI digests, BOM serial numbers, deployment observations, and Kubernetes UIDs
+retain their own native version or occurrence semantics.
+
+An ID is never reassigned. A genuine ID correction adds the old value to the
+replacement record's aliases. Alias targets must resolve to one canonical ID,
+must preserve record kind, and must not form chains or cycles. Consumers resolve
+an alias at input boundaries and emit only the canonical ID.
+
+Validation must reject duplicate IDs or aliases, unresolved references,
+cross-project ownership without an explicit relation, invalid relation
+endpoints, containment cycles, alias chains, malformed or non-canonical PURLs,
+and incomplete OCI descriptors. A validator may report dependency cycles, but
+the catalog does not reject them by definition. Runtime observations must
+distinguish a logical name from the provider's occurrence identity.
+
+### Migration
+
+Derive initial project IDs from the existing project slugs and technology IDs
+from the current technology slugs. Keep current layer, slot, policy, selection,
+adoption, and override IDs unchanged. They are platform-policy records rather
+than component records.
+
+Add component declarations incrementally when scaffolding or automation needs
+them. The first migration should cover one project with a web component, API,
+database resource, infrastructure resource, and package dependency, using the
+crosswalk above as a conformance fixture. Do not rename source trees or create
+parallel hand-maintained catalog files merely to complete the migration.
+
+## Alternatives
+
+Using Package URL for every record would provide a familiar URI syntax. It
+would misclassify applications, APIs, capabilities, and infrastructure as
+packages and make ecosystem-specific package rules part of project identity.
+
+Using CycloneDX or SPDX as the authored catalog would provide a rich graph and
+existing validators. Both are exchange models centred on BOM elements and
+software supply-chain inventory. The platform would still need extensions for
+project ownership, source paths, dated defaults, adoption, and overrides, so
+private extensions would still dominate the authored model.
+
+Using provider IDs, Kubernetes UIDs, or OCI digests as canonical IDs would make
+source identity depend on one deployment or artifact occurrence. Replacing a
+database, recreating a Kubernetes object, or rebuilding an image would then
+appear to replace the logical component.
+
+Assigning opaque UUIDs to every authored record would survive renames without
+aliases. It would make declarations, diffs, and agent instructions harder to
+read while still requiring slugs for paths and commands. Typed slugs with
+validated aliases fit a single-owner repository better.
+
+## Consequences
+
+Copier templates and project profiles can refer to one logical project while
+writing multiple technology and knowledge-graph paths. Moving those paths does
+not change downstream catalog relationships.
+
+Package scanners, SBOM generators, registries, deployment systems, and
+Kubernetes keep their native identifiers. Export adapters have an explicit
+rule for joining those identifiers to the repository catalog without making an
+SBOM or runtime cluster the source of truth.
+
+The platform must maintain a small schema, relation vocabulary, alias resolver,
+and export mappings. Standards will evolve independently, so adapters need
+versioned conformance fixtures. The authored model stays smaller than any one
+export because it excludes dependency inventories, generated artifact graphs,
+and runtime observations.
