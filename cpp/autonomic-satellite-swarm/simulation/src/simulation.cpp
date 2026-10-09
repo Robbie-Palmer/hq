@@ -142,6 +142,7 @@ private:
   bool record_resource_samples_ = false;
   uint64_t random_state_ = 0U;
   uint64_t next_packet_id_ = 1U;
+  std::size_t next_medium_sender_ = 0U;
   uint32_t now_ms_ = 0U;
 };
 
@@ -578,10 +579,12 @@ void SimulationBus::startTransmissionIfIdle() {
   if (active_transmission_.has_value()) {
     return;
   }
-  for (std::size_t sender = 0U; sender < transports_.size(); ++sender) {
+  for (std::size_t offset = 0U; offset < transports_.size(); ++offset) {
+    const std::size_t sender = (next_medium_sender_ + offset) % transports_.size();
     if (transmit_queues_[sender].empty()) {
       continue;
     }
+    next_medium_sender_ = (sender + 1U) % transports_.size();
     SimulatedPacket packet = transmit_queues_[sender].front();
     transmit_queues_[sender].pop_front();
     ActiveTransmission transmission;

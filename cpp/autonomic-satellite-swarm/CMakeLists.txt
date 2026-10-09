@@ -86,6 +86,9 @@ if(SATELLITE_SWARM_BUILD_SIMULATION)
 
   add_executable(autonomic-satellite-swarm-simulation examples/simulation/main.cpp)
   target_link_libraries(autonomic-satellite-swarm-simulation PRIVATE satellite_swarm::simulation)
+  if(SATELLITE_SWARM_SOURCE_REVISION STREQUAL "")
+    set(SATELLITE_SWARM_SOURCE_REVISION "unknown")
+  endif()
   target_compile_definitions(
     autonomic-satellite-swarm-simulation
     PRIVATE SATELLITE_SWARM_SOURCE_REVISION="${SATELLITE_SWARM_SOURCE_REVISION}")

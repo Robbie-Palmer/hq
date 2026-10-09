@@ -111,10 +111,15 @@ std::string jsonString(const std::string& value) {
   std::ostringstream output;
   output << '"';
   for (const char character : value) {
+    const auto byte = static_cast<unsigned char>(character);
     if (character == '"' || character == '\\') {
-      output << '\\';
+      output << '\\' << character;
+    } else if (byte < 0x20U) {
+      static constexpr char kHex[] = "0123456789abcdef";
+      output << "\\u00" << kHex[byte >> 4U] << kHex[byte & 0x0FU];
+    } else {
+      output << character;
     }
-    output << character;
   }
   output << '"';
   return output.str();

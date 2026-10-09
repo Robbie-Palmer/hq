@@ -127,6 +127,28 @@ TEST_CASE("the packet network serializes wire packets on one deterministic share
   CHECK(metrics.energy_per_delivered_byte_millijoules > 0.0);
 }
 
+TEST_CASE("shared-medium arbitration rotates among backlogged senders") {
+  SimulationTrace trace = packetNetworkTrace();
+  trace.frames.front().mission_commands = {
+      {0U, Coordinate(0.0F, -90.0F)},
+      {1U, Coordinate(0.0F, -90.0F)},
+      {2U, Coordinate(0.0F, -90.0F)},
+  };
+
+  const SimulationResult result = runSimulationTrace(trace);
+  std::vector<NodeId> senders;
+  for (const SimulationEvent& event : result.events) {
+    if (event.type == SimulationEventType::TransmissionStarted) {
+      senders.push_back(event.node_id);
+    }
+  }
+
+  REQUIRE(senders.size() >= 3U);
+  CHECK(senders[0] == 0U);
+  CHECK(senders[1] == 1U);
+  CHECK(senders[2] == 2U);
+}
+
 TEST_CASE("a frame link change applies before a transmission completing on the same tick") {
   SimulationTrace trace = twoNodeTrace(SeededDeliveryFaults());
   trace.packet_network.enabled = true;
@@ -790,7 +812,7 @@ TEST_CASE("run measurement deduplicates packet and mission evidence") {
 
 TEST_CASE("laboratory serialization names every evidence branch") {
   NetworkLaboratoryConfig config;
-  config.scenario_id = "quoted-\"scenario\\id";
+  config.scenario_id = "quoted-\"scenario\\id\n\t\x01";
   LaboratoryRun run;
   run.variant_id = "synthetic";
   run.trace.provenance = {config.scenario_id, "test", "synthetic", 8U};
@@ -869,7 +891,7 @@ TEST_CASE("laboratory serialization names every evidence branch") {
   run.result.events.push_back(unknown_reason);
 
   const std::string json = serializeLaboratoryRun(config, run);
-  CHECK(json.find(R"(quoted-\"scenario\\id)") != std::string::npos);
+  CHECK(json.find(R"(quoted-\"scenario\\id\u000a\u0009\u0001)") != std::string::npos);
   CHECK(json.find(R"("decision":"reorder")") != std::string::npos);
   CHECK(json.find(R"("reason":"storage-pressure")") != std::string::npos);
   CHECK(json.find(R"("type":"node-crashed")") != std::string::npos);
