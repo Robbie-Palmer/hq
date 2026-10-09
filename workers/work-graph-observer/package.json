@@ -17,5 +17,9 @@
     "typescript": "^5",
     "vitest": "^5.0.0",
     "wrangler": "^4.137.0"
+  },
+  "dependencies": {
+    "work-graph-db": "workspace:*",
+    "work-graph-domain": "workspace:*"
   }
 }

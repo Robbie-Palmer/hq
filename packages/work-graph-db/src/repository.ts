@@ -948,7 +948,7 @@ const translateForeignKeyError = (
 };
 
 export class WorkGraphRepository {
-  constructor(private readonly db: Db) {}
+  constructor(private readonly db: Db | DbTransaction) {}
 
   async listKnowledgeScopes(
     input: ListKnowledgeScopesInput = {},
@@ -2079,6 +2079,7 @@ export class WorkGraphRepository {
 
   async recordEvidenceObservation(
     input: DeliveryEvidenceObservation,
+    options: { readonly projectCurrent?: boolean } = {},
   ): Promise<DeliveryEvidenceObservation> {
     const normalized = normalizeEvidenceObservation(input);
     return this.db.transaction(async (transaction) => {
@@ -2142,6 +2143,7 @@ export class WorkGraphRepository {
         );
       }
 
+      if (options.projectCurrent === false) return returned;
       await transaction
         .insert(currentDeliveryEvidence)
         .values({

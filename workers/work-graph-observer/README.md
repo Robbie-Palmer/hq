@@ -4,6 +4,8 @@ This Worker is the only public ingress for Work Graph. It accepts
 `POST /webhooks/github`, verifies GitHub's HMAC over the raw request body,
 checks the App installation and repository against explicit allowlists, and
 queues the unchanged JSON payload with its delivery ID and SHA-256 digest.
+The queue consumer uses the Work Graph database through Hyperdrive to record
+delivery dispositions, refresh PR snapshots, and append correlated evidence.
 
 The Access-protected `work-graph.robbiepalmer.me` hostname remains separate.
 The observer has no route or binding that can call the Work Graph API.
@@ -37,11 +39,12 @@ environment from the repository root:
 scripts/sync-doppler-github-envs.sh production-work-graph
 ```
 
-Install the App only after Terraform has created the hostname and queues and
-the Worker deployment has passed its smoke request. Until the webhook consumer
-ships, the Worker retries accepted deliveries three times and moves them to
-`work-graph-github-deliveries-dlq`. Keep the App inactive during that gap. The
-consumer rollout must replay or drain the DLQ before activating the webhook.
+Install the App only after Terraform has created the hostname and queues,
+database migrations have completed, and the Worker deployment has passed its
+smoke request. Before activating the webhook, inspect
+`work-graph-github-deliveries-dlq` for deliveries retained by the old retry-only
+consumer. Redeliver them from GitHub with their original delivery IDs. Confirm
+their database dispositions before removing the corresponding DLQ messages.
 
 ## Deploy and verify
 
@@ -54,6 +57,9 @@ mise run //workers/work-graph-observer:deploy
 
 The deploy task loads runtime values from Doppler, installs the three Worker
 secrets, and deploys the queue producer and bounded consumer configuration.
+It requires `WORK_GRAPH_HYPERDRIVE_ID`. Work Graph API CD deploys this Worker
+after the database migration and API smoke test. Infrastructure provisioning
+does not deploy the consumer independently.
 The App ID and private key stay out of the ingress Worker. A later
 reconciliation Worker can read them from the same Doppler config.
 
@@ -63,6 +69,34 @@ or oversized bodies return `400` or `413`, and repositories or installations
 outside policy return `403`.
 
 ## Rotation and recovery
+
+The consumer acknowledges each message only after its database transaction
+commits. A failed message retries independently, up to the queue's three-retry
+limit, then moves to the DLQ. Logs contain the delivery ID and disposition,
+without payloads or database error details.
+
+`external_deliveries` keeps the immutable delivery ID and digest.
+`github_delivery_processing` records `processed`, `ignored`, `unmatched`, or
+`failed`, with a sanitized failure code. It retains normalized unmatched facts
+for diagnosis and later correlation. Incomplete workflow runs are ignored.
+Failed writes roll back PR and evidence changes together and can be retried.
+Repeated delivery IDs with different payload digests are rejected.
+
+Correlation requires an explicit `implementation` PR link and an exact
+repository and head or merge SHA. Merge events retry retained facts for those
+commits, including deployments received before their merge event. After adding
+a missing implementation link, redeliver the PR event or use reconciliation to
+retry unmatched observations. Shared commits that match several PRs remain
+unmatched. Branch names, titles, and arrival times never establish a link.
+
+Provider timestamps control current projections. For equal timestamps, workflow
+attempt numbers and deployment status IDs determine order; merged PR evidence
+takes precedence over an unmerged snapshot. CI reruns share the workflow
+run identity, so a newer failed attempt supersedes an older successful attempt.
+PR snapshots preserve the accepted head and merge commit separately. Open PRs'
+speculative merge SHAs are never treated as merged commits. Evidence ingestion
+does not release, cancel, block, claim, or renew work and leaves completion
+policy evaluation to its existing operation.
 
 To rotate the webhook secret, set the new value in GitHub and Doppler during
 one maintenance window, redeploy the Worker, then redeliver a recent event.

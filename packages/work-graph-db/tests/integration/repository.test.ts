@@ -6,6 +6,8 @@ import {
   type WorkItemDependency,
 } from "work-graph-domain";
 import { eq, sql } from "drizzle-orm";
+import { normalizeGitHubDelivery, type GitHubDelivery } from "work-graph-domain";
+import { githubDelivery, headSha, mergeSha, repository as githubRepository } from "../../../work-graph-domain/tests/fixtures/github";
 import {
   classifyRetryableDatabaseFailure,
   closeDb,
@@ -13,6 +15,7 @@ import {
   isRetryableDatabaseTimeout,
   schema,
   WorkGraphRepository,
+  GitHubDeliveryConsumer,
 } from "../../src/index";
 
 const databaseURL = process.env.DATABASE_URL;
@@ -210,7 +213,7 @@ beforeAll(async () => {
     order by enumsortorder
   `);
 
-  expect(migrationCount?.count).toBe(16);
+  expect(migrationCount?.count).toBe(17);
   expect(tables.map(({ table_name }) => table_name)).toEqual([
     "attention_requests",
     "attention_resolutions",
@@ -220,6 +223,7 @@ beforeAll(async () => {
     "delivery_evidence_observations",
     "events",
     "external_deliveries",
+    "github_delivery_processing",
     "graph_mutation_locks",
     "idempotency_keys",
     "knowledge_scope_relationships",
@@ -869,6 +873,7 @@ beforeEach(async () => {
     await transaction.delete(schema.deliveryEvidenceObservation);
     await transaction.execute(sql`alter table ${schema.deliveryEvidenceObservation} enable trigger delivery_evidence_observations_immutable`);
     await transaction.execute(sql`alter table ${schema.externalDelivery} disable trigger external_deliveries_immutable`);
+    await transaction.delete(schema.githubDeliveryProcessing);
     await transaction.delete(schema.externalDelivery);
     await transaction.execute(sql`alter table ${schema.externalDelivery} enable trigger external_deliveries_immutable`);
     await transaction.delete(schema.workItemArchitectureDecision);
@@ -882,6 +887,185 @@ beforeEach(async () => {
     await transaction.delete(schema.workItemDependency);
     await transaction.delete(schema.workItemHierarchy);
     await transaction.delete(schema.workItem);
+  });
+});
+
+describe("GitHub delivery consumption", () => {
+  const consumer = new GitHubDeliveryConsumer(db);
+  async function linkImplementation(role: "implementation" | "related" = "implementation") {
+    await repository.createWorkItem({ id: "github-work", title: "Ship" });
+    const snapshot = normalizeGitHubDelivery(githubDelivery())?.pullRequest;
+    if (!snapshot) throw new Error("Missing PR fixture");
+    await repository.refreshPullRequest({ ...snapshot, state: "open", acceptedHeadSha: null, mergeCommitSha: null, observedAt: "2026-10-01T10:00:00.000Z" });
+    await repository.putWorkItemPullRequest({ workItemId: "github-work", repository: githubRepository, number: 7, role });
+  }
+  async function disposition(delivery: GitHubDelivery) {
+    const [row] = await db.select().from(schema.githubDeliveryProcessing).where(eq(schema.githubDeliveryProcessing.deliveryId, delivery.deliveryId));
+    return row?.disposition;
+  }
+
+  it("correlates head CI, merge, and deployment when deployment arrives first without changing lifecycle authority", async () => {
+    await linkImplementation();
+    await repository.createWorkItem({ id: "dependent", title: "Wait for release" });
+    await repository.addDependency({ dependentWorkItemId: "dependent", blockerWorkItemId: "github-work" });
+    const active = await repository.claimWorkItem({ workItemId: "github-work", workerId: "worker", leaseId: recordId(900), leaseDurationSeconds: 900 });
+    const before = await repository.listEvents();
+    const deployment = githubDelivery("deployment_status", 3);
+    expect(await consumer.consume(deployment)).toBe("unmatched");
+    expect(await consumer.consume(githubDelivery("workflow_run", 2))).toBe("processed");
+    expect(await consumer.consume(githubDelivery())).toBe("processed");
+    expect(await disposition(deployment)).toBe("processed");
+    const facts = await repository.listWorkItemDeliveryEvidence({ workItemId: "github-work" });
+    expect(facts).toHaveLength(3);
+    expect(facts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "ci", commitSha: headSha, correlationKind: "pull_request_head" }),
+      expect.objectContaining({ kind: "pull_request", commitSha: mergeSha, correlationKind: "pull_request_merge" }),
+      expect.objectContaining({ kind: "deployment", commitSha: mergeSha, correlationKind: "pull_request_merge" }),
+    ]));
+    expect(await repository.getCurrentLease("github-work")).toEqual(active);
+    expect(await repository.getCurrentLease("dependent")).toBeNull();
+    expect(await repository.getWorkItem("github-work")).toMatchObject({ lifecycle: "open", stage: "in_progress" });
+    expect(await repository.getWorkItem("dependent")).toMatchObject({ lifecycle: "open", stage: "blocked" });
+    expect((await repository.listEvents()).filter((item) => item.type !== "pull_request.refreshed"))
+      .toEqual(before.filter((item) => item.type !== "pull_request.refreshed"));
+  });
+
+  it("deduplicates concurrent queue redelivery and equivalent facts with a new delivery ID", async () => {
+    await linkImplementation();
+    const delivery = githubDelivery();
+    expect(await Promise.all([consumer.consume(delivery), consumer.consume(delivery)])).toEqual(["processed", "processed"]);
+    expect(await consumer.consume(githubDelivery("pull_request", 4))).toBe("processed");
+    expect(await repository.listWorkItemDeliveryEvidence({ workItemId: "github-work" })).toHaveLength(1);
+    await expect(consumer.consume({ ...delivery, payloadDigest: "f".repeat(64) })).rejects.toMatchObject({ code: "external_delivery_reused" });
+    expect(await disposition(delivery)).toBe("processed");
+  });
+
+  it("ignores incomplete workflows and stores sanitized failure dispositions", async () => {
+    const ignored = githubDelivery("workflow_run", 2);
+    ignored.payload.action = "requested";
+    expect(await consumer.consume(ignored)).toBe("ignored");
+    expect(await consumer.consume(ignored)).toBe("ignored");
+    const malformed = githubDelivery();
+    malformed.payload.pull_request = null;
+    await expect(consumer.consume(malformed)).rejects.toThrow();
+    expect(await disposition(malformed)).toBe("failed");
+    const [failed] = await db.select().from(schema.githubDeliveryProcessing).where(eq(schema.githubDeliveryProcessing.deliveryId, malformed.deliveryId));
+    expect(failed).toMatchObject({ observation: null, failureCode: "invalid_observation" });
+  });
+
+  it("rolls back projections and retries after a database failure", async () => {
+    await linkImplementation();
+    await db.execute(sql`create function test_reject_github_evidence() returns trigger language plpgsql as $$ begin raise exception 'private database details'; end $$`);
+    await db.execute(sql`create trigger test_reject_github_evidence before insert on delivery_evidence_observations for each row execute function test_reject_github_evidence()`);
+    try {
+      await expect(consumer.consume(githubDelivery())).rejects.toThrow();
+      expect(await disposition(githubDelivery())).toBe("failed");
+      const [pr] = await db.select().from(schema.pullRequest);
+      expect(pr?.state).toBe("open");
+      const [failure] = await db.select().from(schema.githubDeliveryProcessing);
+      expect(failure?.failureCode).toBe("processing_failed");
+    } finally {
+      await db.execute(sql`drop trigger test_reject_github_evidence on delivery_evidence_observations`);
+      await db.execute(sql`drop function test_reject_github_evidence()`);
+    }
+    expect(await consumer.consume(githubDelivery())).toBe("processed");
+    expect(await repository.listWorkItemDeliveryEvidence({ workItemId: "github-work" })).toHaveLength(1);
+  });
+
+  it("keeps newer projections when old PR and deployment events arrive late", async () => {
+    await linkImplementation();
+    await consumer.consume(githubDelivery());
+    await consumer.consume(githubDelivery("deployment_status", 3));
+    const oldPr = githubDelivery("pull_request", 4);
+    Object.assign(oldPr.payload.pull_request as object, { merged: false, state: "open", updated_at: "2026-10-01T11:00:00.000Z" });
+    await consumer.consume(oldPr);
+    const oldDeployment = githubDelivery("deployment_status", 5);
+    Object.assign(oldDeployment.payload.deployment_status as object, { state: "pending", created_at: "2026-10-01T11:00:00.000Z" });
+    await consumer.consume(oldDeployment);
+    const [pr] = await db.select().from(schema.pullRequest);
+    expect(pr).toMatchObject({ state: "merged", acceptedHeadSha: headSha, mergeCommitSha: mergeSha });
+    const current = await repository.listCurrentDeliveryEvidence();
+    expect(current.filter((item) => item.kind === "deployment")[0]?.state).toBe("success");
+  });
+
+  it("does not infer links from branches, titles, mismatched repositories, or SHAs", async () => {
+    await linkImplementation();
+    const unrelated = githubDelivery("workflow_run", 2);
+    Object.assign(unrelated.payload.workflow_run as object, { head_sha: "c".repeat(40), head_branch: "github-work", name: "github-work" });
+    expect(await consumer.consume(unrelated)).toBe("unmatched");
+    const otherRepository = { ...githubDelivery("deployment_status", 3), repository: "other/site" };
+    otherRepository.payload.repository = { full_name: "other/site" };
+    expect(await consumer.consume(otherRepository)).toBe("unmatched");
+    await consumer.consume(githubDelivery());
+    expect(await disposition(unrelated)).toBe("unmatched");
+    expect(await disposition(otherRepository)).toBe("unmatched");
+  });
+
+  it("orders same-second PR, CI attempt, and deployment status observations independently of arrival", async () => {
+    await linkImplementation();
+    await consumer.consume(githubDelivery());
+    const open = githubDelivery("pull_request", 4);
+    Object.assign(open.payload.pull_request as object, { merged: false, state: "open" });
+    await consumer.consume(open);
+    const newerRun = githubDelivery("workflow_run", 2);
+    Object.assign(newerRun.payload.workflow_run as object, { run_attempt: 2, conclusion: "failure" });
+    await consumer.consume(newerRun);
+    await consumer.consume(githubDelivery("workflow_run", 5));
+    const deployment = githubDelivery("deployment_status", 3);
+    await consumer.consume(deployment);
+    const olderStatus = githubDelivery("deployment_status", 6);
+    Object.assign(olderStatus.payload.deployment_status as object, { id: 20, state: "pending" });
+    await consumer.consume(olderStatus);
+    const current = await repository.listCurrentDeliveryEvidence();
+    expect(current.find((item) => item.kind === "pull_request")?.state).toBe("success");
+    expect(current.find((item) => item.kind === "ci")?.state).toBe("failure");
+    expect(current.find((item) => item.kind === "deployment")?.state).toBe("success");
+    // A newer occurrence of the same state can reuse the immutable fact while
+    // advancing its provider sequence, including a distinct status source URL.
+    const failure = githubDelivery("deployment_status", 7);
+    Object.assign(failure.payload.deployment_status as object, { id: 22, state: "failure" });
+    await consumer.consume(failure);
+    const success = githubDelivery("deployment_status", 8);
+    Object.assign(success.payload.deployment_status as object, { id: 23, url: "https://api.github.com/repos/example/site/deployments/20/statuses/23" });
+    await consumer.consume(success);
+    expect((await repository.listCurrentDeliveryEvidence()).find((item) => item.kind === "deployment")?.state).toBe("success");
+  });
+
+  it("rejects incompatible facts that reuse the same provider observation identity", async () => {
+    await linkImplementation();
+    await consumer.consume(githubDelivery("workflow_run", 2));
+    const conflicting = githubDelivery("workflow_run", 3);
+    Object.assign(conflicting.payload.workflow_run as object, { head_sha: mergeSha });
+    await expect(consumer.consume(conflicting)).rejects.toThrow("Malformed GitHub observation");
+    expect(await disposition(conflicting)).toBe("failed");
+    expect((await repository.listCurrentDeliveryEvidence())[0]?.commitSha).toBe(headSha);
+  });
+
+  it("does not correlate related links and recovers unmatched deliveries after explicit linking", async () => {
+    await linkImplementation("related");
+    expect(await consumer.consume(githubDelivery())).toBe("unmatched");
+    await repository.putWorkItemPullRequest({ workItemId: "github-work", repository: githubRepository, number: 7, role: "implementation" });
+    expect(await consumer.consume(githubDelivery())).toBe("processed");
+  });
+
+  it("keeps an ambiguous shared commit unmatched", async () => {
+    await linkImplementation();
+    const snapshot = normalizeGitHubDelivery(githubDelivery())?.pullRequest;
+    if (!snapshot) throw new Error("Missing fixture");
+    await repository.refreshPullRequest({ ...snapshot, number: 8, url: "https://github.com/example/site/pull/8" });
+    await repository.putWorkItemPullRequest({ workItemId: "github-work", repository: githubRepository, number: 8, role: "implementation" });
+    expect(await consumer.consume(githubDelivery("workflow_run", 2))).toBe("unmatched");
+  });
+
+  it("retains head CI provenance when the accepted head is also the merged commit", async () => {
+    await linkImplementation();
+    const merge = githubDelivery();
+    Object.assign(merge.payload.pull_request as object, { merge_commit_sha: headSha });
+    await consumer.consume(merge);
+    await consumer.consume(githubDelivery("workflow_run", 2));
+    const current = await repository.listCurrentDeliveryEvidence();
+    expect(current.find((item) => item.kind === "ci")?.correlationKind).toBe("pull_request_head");
+    expect(current.find((item) => item.kind === "pull_request")?.correlationKind).toBe("pull_request_merge");
   });
 });
 
