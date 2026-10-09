@@ -544,6 +544,18 @@ export const recipe = pgTable(
   (table) => [
     index("recipe_parent_recipe_idx").on(table.parentRecipeId),
     index("recipe_user_id_idx").on(table.userId),
+    index("recipe_title_trgm_idx").using(
+      "gin",
+      table.title.op("gin_trgm_ops"),
+    ),
+    index("recipe_description_trgm_idx").using(
+      "gin",
+      table.description.op("gin_trgm_ops"),
+    ),
+    index("recipe_body_trgm_idx").using(
+      "gin",
+      table.body.op("gin_trgm_ops"),
+    ),
     index("recipe_public_feed_idx").on(
       table.visibility,
       table.createdAt.desc(),

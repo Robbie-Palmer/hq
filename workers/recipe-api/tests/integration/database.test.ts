@@ -218,7 +218,7 @@ beforeAll(async () => {
     )
     order by slug
   `;
-  expect(migrationCount?.count).toBe(27);
+  expect(migrationCount?.count).toBe(28);
   expect(tableCount?.count).toBe(55);
   expect(catalogRows).toEqual([
     { category: "dairy", name: "almond milk", slug: "almond-milk" },
@@ -310,6 +310,39 @@ afterAll(async () => {
 });
 
 describe("recipe API PostgreSQL integration", () => {
+  it("installs the trigram extension and recipe search indexes", async () => {
+    const [extension] = await client<
+      { extname: string; extversion: string }[]
+    >`
+      select extname, extversion
+      from pg_extension
+      where extname = 'pg_trgm'
+    `;
+    const indexes = await client<{ indexdef: string; indexname: string }[]>`
+      select indexname, indexdef
+      from pg_indexes
+      where schemaname = 'public'
+        and tablename = 'recipe'
+        and indexname in (
+          'recipe_title_trgm_idx',
+          'recipe_description_trgm_idx',
+          'recipe_body_trgm_idx'
+        )
+      order by indexname
+    `;
+
+    expect(extension).toEqual({ extname: "pg_trgm", extversion: "1.6" });
+    expect(indexes.map(({ indexname }) => indexname)).toEqual([
+      "recipe_body_trgm_idx",
+      "recipe_description_trgm_idx",
+      "recipe_title_trgm_idx",
+    ]);
+    for (const { indexdef } of indexes) {
+      expect(indexdef).toContain("USING gin");
+      expect(indexdef).toContain("gin_trgm_ops");
+    }
+  });
+
   it("updates the canonical email atomically", async () => {
     const cook = await createUser("Email Cook", "first@example.test");
     const otherCook = await createUser(

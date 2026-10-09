@@ -919,6 +919,14 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     ideas: ["write-ahead-log"],
   },
   {
+    name: "pg_trgm",
+    added: "2026-10-08",
+    description:
+      "PostgreSQL extension for trigram similarity and indexed pattern matching",
+    website: "https://www.postgresql.org/docs/current/pgtrgm.html",
+    type: "library",
+  },
+  {
     name: "Prisma",
     added: "2026-01-04",
     description: "A TypeScript and Node.js ORM",
