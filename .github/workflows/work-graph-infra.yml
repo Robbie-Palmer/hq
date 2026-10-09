@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - "infra/work-graph/**"
-      - "workers/work-graph-observer/**"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - ".github/workflows/work-graph-infra.yml"
@@ -73,25 +72,3 @@ jobs:
       - name: Remove Terraform plan
         if: ${{ always() }}
         run: rm -f .planfile
-
-  deploy-observer:
-    needs: terraform
-    runs-on: ubuntu-latest
-    environment:
-      name: production-work-graph
-    env:
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      GITHUB_ALLOWED_INSTALLATION_IDS: ${{ secrets.GITHUB_ALLOWED_INSTALLATION_IDS }}
-      GITHUB_ALLOWED_REPOSITORIES: ${{ secrets.GITHUB_ALLOWED_REPOSITORIES }}
-      GITHUB_WEBHOOK_SECRET: ${{ secrets.GITHUB_WEBHOOK_SECRET }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: $/.github/actions/setup-mise
-
-      - name: Deploy signed webhook ingress
-        if: ${{ env.GITHUB_WEBHOOK_SECRET != '' }}
-        run: mise run //workers/work-graph-observer:deploy

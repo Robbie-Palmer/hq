@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  bigint,
   check,
   foreignKey,
   index,
@@ -29,6 +30,7 @@ import {
   PULL_REQUEST_STATES,
   WORK_ITEM_CONTEXT_KINDS,
   WORK_ITEM_LIFECYCLES,
+  type GitHubObservation,
 } from "work-graph-domain";
 
 export const workItemContextKindEnum = pgEnum(
@@ -379,6 +381,30 @@ export const externalDelivery = pgTable(
   ],
 );
 
+export const githubDeliveryProcessing = pgTable(
+  "github_delivery_processing",
+  {
+    deliveryId: text().primaryKey(),
+    provider: text().notNull().default("github"),
+    repository: text().notNull(),
+    commitSha: text(),
+    disposition: text().$type<"processed" | "ignored" | "unmatched" | "failed">().notNull(),
+    observation: jsonb().$type<GitHubObservation>(),
+    failureCode: text(),
+    updatedAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "github_delivery_processing_delivery_fk",
+      columns: [table.provider, table.deliveryId],
+      foreignColumns: [externalDelivery.provider, externalDelivery.externalId],
+    }).onDelete("restrict"),
+    index("github_delivery_processing_unmatched_idx").on(table.repository, table.disposition, table.commitSha),
+    check("github_delivery_processing_disposition_check", sql`${table.disposition} in ('processed', 'ignored', 'unmatched', 'failed')`),
+    check("github_delivery_processing_provider_check", sql`${table.provider} = 'github'`),
+  ],
+);
+
 export const deliveryEvidenceObservation = pgTable(
   "delivery_evidence_observations",
   {
@@ -435,6 +461,7 @@ export const currentDeliveryEvidence = pgTable(
       .references(() => deliveryEvidenceObservation.id, { onDelete: "restrict" }),
     providerObservedAt: timestamp({ withTimezone: true }).notNull(),
     projectedAt: timestamp({ withTimezone: true }).notNull(),
+    providerSequence: bigint({ mode: "number" }),
   },
   (table) => [
     primaryKey({

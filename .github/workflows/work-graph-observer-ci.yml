@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - "workers/work-graph-observer/**"
+      - "packages/work-graph-db/**"
+      - "packages/work-graph-domain/**"
+      - "scripts/sync-doppler-github-envs.sh"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - ".github/actions/setup-mise/**"

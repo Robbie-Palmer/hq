@@ -22,7 +22,7 @@ fi
 
 if [[ "$dry_run" != true && "${WORK_GRAPH_OBSERVER_DOPPLER_WRAPPED:-}" != "1" ]]; then
   missing=false
-  for name in CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_TOKEN GITHUB_ALLOWED_INSTALLATION_IDS GITHUB_ALLOWED_REPOSITORIES GITHUB_WEBHOOK_SECRET; do
+  for name in CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_TOKEN WORK_GRAPH_HYPERDRIVE_ID GITHUB_ALLOWED_INSTALLATION_IDS GITHUB_ALLOWED_REPOSITORIES GITHUB_WEBHOOK_SECRET; do
     if [[ -z "${!name:-}" ]]; then
       missing=true
     fi
@@ -41,10 +41,27 @@ if [[ "$dry_run" != true && "${WORK_GRAPH_OBSERVER_DOPPLER_WRAPPED:-}" != "1" ]]
   fi
 fi
 
+hyperdrive_id="${WORK_GRAPH_HYPERDRIVE_ID:-00000000000000000000000000000000}"
+if [[ ! "$hyperdrive_id" =~ ^[0-9a-f]{32}$ ]] ||
+  [[ "$dry_run" != true && "$hyperdrive_id" == "00000000000000000000000000000000" ]]; then
+  echo "Cannot deploy the observer without a valid WORK_GRAPH_HYPERDRIVE_ID." >&2
+  exit 1
+fi
+generated_config="$(mktemp "$worker_dir/.wrangler.observer.XXXXXX.toml")"
+bundle_dir=""
+secret_file=""
+cleanup() {
+  unlink "$generated_config" 2>/dev/null || true
+  [[ -z "$secret_file" ]] || unlink "$secret_file" 2>/dev/null || true
+  [[ -z "$bundle_dir" ]] || find "$bundle_dir" -depth -delete 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+sed "s/00000000000000000000000000000000/$hyperdrive_id/" "$worker_dir/wrangler.toml" >"$generated_config"
+chmod 600 "$generated_config"
+
 if [[ "$dry_run" == true ]]; then
   bundle_dir="$(mktemp -d "${TMPDIR:-/tmp}/work-graph-observer-bundle.XXXXXX")"
-  trap 'find "$bundle_dir" -depth -delete 2>/dev/null || true' EXIT INT TERM
-  (cd "$worker_dir" && "$wrangler" deploy --dry-run --outdir "$bundle_dir")
+  (cd "$worker_dir" && "$wrangler" deploy --config "$generated_config" --dry-run --outdir "$bundle_dir")
   exit
 fi
 
@@ -55,10 +72,6 @@ fi
 : "${GITHUB_ALLOWED_REPOSITORIES:?GITHUB_ALLOWED_REPOSITORIES is required}"
 
 secret_file="$(mktemp "${TMPDIR:-/tmp}/work-graph-observer-secrets.XXXXXX.json")"
-cleanup() {
-  unlink "$secret_file" 2>/dev/null || true
-}
-trap cleanup EXIT INT TERM
 
 jq -n '{
   GITHUB_WEBHOOK_SECRET: env.GITHUB_WEBHOOK_SECRET,
@@ -67,5 +80,5 @@ jq -n '{
 }' >"$secret_file"
 chmod 600 "$secret_file"
 
-(cd "$worker_dir" && "$wrangler" secret bulk "$secret_file")
-(cd "$worker_dir" && "$wrangler" deploy)
+(cd "$worker_dir" && "$wrangler" secret bulk "$secret_file" --config "$generated_config")
+(cd "$worker_dir" && "$wrangler" deploy --config "$generated_config")

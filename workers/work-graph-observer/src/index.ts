@@ -1,3 +1,7 @@
+import { closeDb, createDb, GitHubDeliveryConsumer } from "work-graph-db";
+import type { GitHubDelivery } from "work-graph-domain";
+export type { GitHubDelivery } from "work-graph-domain";
+
 const encoder = new TextEncoder();
 const MAX_BODY_BYTES = 1_048_576;
 const DELIVERY_ID_PATTERN =
@@ -9,17 +13,8 @@ const SUPPORTED_EVENTS = new Set([
   "workflow_run",
 ]);
 
-export interface GitHubDelivery {
-  readonly deliveryId: string;
-  readonly event: string;
-  readonly installationId: number;
-  readonly payload: Record<string, unknown>;
-  readonly payloadDigest: string;
-  readonly receivedAt: string;
-  readonly repository: string;
-}
-
 export interface ObserverBindings {
+  readonly HYPERDRIVE: Hyperdrive;
   readonly DELIVERIES: Queue<GitHubDelivery>;
   readonly GITHUB_ALLOWED_INSTALLATION_IDS: string;
   readonly GITHUB_ALLOWED_REPOSITORIES: string;
@@ -267,9 +262,22 @@ export async function handleWebhook(
 
 export default {
   fetch: handleWebhook,
-  queue(batch) {
-    // Preserve deliveries until the consumer ticket installs normalization.
-    // Cloudflare moves them to the configured DLQ after the bounded retries.
-    batch.retryAll();
+  async queue(batch, env) {
+    const db = createDb(env.HYPERDRIVE.connectionString, { maxConnections: 1 });
+    try {
+      const consumer = new GitHubDeliveryConsumer(db);
+      for (const message of batch.messages) {
+        try {
+          const disposition = await consumer.consume(message.body); // NOSONAR: Serialize messages on the single database connection.
+          console.log(JSON.stringify({ deliveryId: message.body.deliveryId, disposition }));
+          message.ack();
+        } catch {
+          console.error(JSON.stringify({ deliveryId: message.body.deliveryId, disposition: "failed" }));
+          message.retry();
+        }
+      }
+    } finally {
+      await closeDb(db);
+    }
   },
 } satisfies ExportedHandler<ObserverBindings, GitHubDelivery>;

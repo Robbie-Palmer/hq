@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import worker, {
+import {
   handleWebhook,
   type GitHubDelivery,
   type ObserverBindings,
@@ -13,6 +13,7 @@ const repository = "Robbie-Palmer/hq";
 const installationId = 42;
 const queue = { send: vi.fn() };
 const env: ObserverBindings = {
+  HYPERDRIVE: { connectionString: "postgres://test" } as Hyperdrive,
   DELIVERIES: queue as unknown as Queue<GitHubDelivery>,
   GITHUB_ALLOWED_INSTALLATION_IDS: JSON.stringify([installationId]),
   GITHUB_ALLOWED_REPOSITORIES: JSON.stringify([repository]),
@@ -183,16 +184,6 @@ describe("Work Graph GitHub observer", () => {
 
     expect(response.status).toBe(503);
     expect(queue.send).not.toHaveBeenCalled();
-  });
-
-  it("retries consumer batches until Cloudflare moves them to the DLQ", () => {
-    const retryAll = vi.fn();
-
-    worker.queue?.(
-      { retryAll } as unknown as MessageBatch<GitHubDelivery>,
-    );
-
-    expect(retryAll).toHaveBeenCalledOnce();
   });
 
   it("keeps the GitHub App private and read-only", async () => {

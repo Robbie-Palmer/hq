@@ -10,3 +10,4 @@ export * from "./priority";
 export * from "./readiness";
 export * from "./vocabulary";
 export * from "./analytics";
+export * from "./github-delivery";

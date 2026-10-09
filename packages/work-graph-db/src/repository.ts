@@ -59,6 +59,7 @@ import {
   type WorkItemSelectionScope,
 } from "work-graph-domain";
 import type { Db, DbTransaction } from "./connection";
+import { correlateWaitingDeliveries } from "./github-correlation";
 import { claimableWorkItemWhere } from "./queries/claimable-work-item";
 import {
   graphCycleQuery,
@@ -948,7 +949,7 @@ const translateForeignKeyError = (
 };
 
 export class WorkGraphRepository {
-  constructor(private readonly db: Db) {}
+  constructor(private readonly db: Db | DbTransaction) {}
 
   async listKnowledgeScopes(
     input: ListKnowledgeScopesInput = {},
@@ -2037,6 +2038,12 @@ export class WorkGraphRepository {
           role: normalized.role,
         },
       });
+      if (normalized.role === "implementation") {
+        const scopedRepository = new WorkGraphRepository(transaction);
+        await correlateWaitingDeliveries(transaction, snapshot, (observation) =>
+          scopedRepository.recordEvidenceObservation(observation, { projectCurrent: false }),
+        );
+      }
       return normalized;
     });
   }
@@ -2079,6 +2086,7 @@ export class WorkGraphRepository {
 
   async recordEvidenceObservation(
     input: DeliveryEvidenceObservation,
+    options: { readonly projectCurrent?: boolean } = {},
   ): Promise<DeliveryEvidenceObservation> {
     const normalized = normalizeEvidenceObservation(input);
     return this.db.transaction(async (transaction) => {
@@ -2142,6 +2150,7 @@ export class WorkGraphRepository {
         );
       }
 
+      if (options.projectCurrent === false) return returned;
       await transaction
         .insert(currentDeliveryEvidence)
         .values({
