@@ -42,6 +42,9 @@ set -eu
 if [[ "$2" == "list" ]]; then
   echo '[]'
 else
+  if [[ "$3" == "OBSERVER_CLOUDFLARE_API_TOKEN" ]]; then
+    [[ "\${7-}" == "fixture-deploy-token" ]]
+  fi
   printf '%s %s %s\\n' "$1" "$2" "$3" >> "$SYNC_TEST_DIRECTORY/calls"
 fi
 `,
