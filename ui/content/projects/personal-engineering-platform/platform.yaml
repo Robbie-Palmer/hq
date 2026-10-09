@@ -75,6 +75,10 @@ slots:
     title: "Task and tool-version interface"
     description: "The project-level command interface used locally and in CI."
     rationale: "Mise, Make, Task, and language-specific scripts can pin tools and expose repeatable project tasks."
+  - slug: "project.scaffolding-engine"
+    title: "Project scaffolding engine"
+    description: "The template engine that creates and updates project-owned structures inside the source boundary."
+    rationale: "Copier, one-time template engines, and bespoke generators provide different ownership, update, and conflict models."
   - slug: "project.primary-language"
     title: "Primary language"
     description: "The language that determines the project's language-tooling layer."
@@ -431,6 +435,12 @@ policies:
     mode: "required"
     effective_from: "2026-09-15T00:00:00Z"
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
+  - id: "base-scaffolding-engine-2026-10-08"
+    layer: "base"
+    slot: "project.scaffolding-engine"
+    mode: "required"
+    effective_from: "2026-10-08T00:00:00Z"
+    decision: "personal-engineering-platform:028-copier-monorepo-scaffolding"
   - id: "base-primary-language-2026-09-12"
     layer: "base"
     slot: "project.primary-language"
@@ -1028,6 +1038,14 @@ selections:
     decision: "personal-engineering-platform:006-repository-delivery-baseline"
     origin_projects: ["personal-knowledge-graph"]
     evidence_adrs: ["personal-knowledge-graph:004-mise"]
+  - id: "project-scaffolding-engine-copier-2026-10-08"
+    slot: "project.scaffolding-engine"
+    technology: "Copier"
+    status: "Accepted"
+    effective_from: "2026-10-08T00:00:00Z"
+    decision: "personal-engineering-platform:028-copier-monorepo-scaffolding"
+    origin_projects: ["personal-engineering-platform"]
+    evidence_adrs: ["personal-engineering-platform:028-copier-monorepo-scaffolding"]
   - id: "project-primary-language-typescript-2026-09-12"
     slot: "project.primary-language"
     technology: "TypeScript"

@@ -35,7 +35,7 @@ describe("Domain Content Validation (Integration)", () => {
     expect(repo.adrs.size).toBeGreaterThan(0);
     expect(repo.roles.size).toBeGreaterThan(0);
     expect(repo.technologies.size).toBeGreaterThan(0);
-    expect(repo.ideas.size).toBe(37);
+    expect(repo.ideas.size).toBe(38);
     expect(repo.referentialIntegrityErrors).toEqual([]);
   });
 

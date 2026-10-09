@@ -1,0 +1,66 @@
+---
+title: "ADR 029: Backstage as the project catalog and scaffolding interface"
+date: "2026-10-08"
+status: "Rejected"
+---
+
+## Context
+
+[ADR 013](/projects/personal-engineering-platform/adrs/013-build-runtime-standards)
+made repository declarations authoritative and left software-catalog
+integration unselected. The platform now needs to create and update project
+structures inside one personal monorepo. It already has a Git review trail,
+mise tasks, an agent-callable Work Graph, and a knowledge graph derived from
+repository content.
+
+Backstage combines a
+[software catalog](https://backstage.io/docs/features/software-catalog/) with
+[software templates](https://backstage.io/docs/features/software-templates/).
+It can provide forms, catalog search, permissions, plugin actions, and task
+history. Supplying those features requires a running backend, authentication,
+durable database state, catalog ingestion, and another operational lifecycle.
+
+Those services do not resolve the current hard boundaries: which generated
+paths a template owns, how several project instances share one repository, how
+shared manifests are edited, and how local changes survive later updates.
+
+## Decision
+
+Reject Backstage as the platform's project catalog, scaffolding interface, and
+workflow control plane.
+
+Keep project and component declarations in the repository. Use the knowledge
+graph as the derived catalog, mise as the command interface, Git diffs as the
+review and audit record, and the scaffolding engine selected in
+[ADR 028](/projects/personal-engineering-platform/adrs/028-copier-monorepo-scaffolding)
+for template rendering and updates.
+
+Backstage schemas and template concepts may inform repository-owned contracts,
+but the platform will not run its server, database, catalog ingestion, or
+scaffolder for the current single-owner workflow. Reconsider this decision only
+if a multi-user self-service portal creates a demonstrated need for delegated
+permissions, catalog discovery, or durable workflow history that the repository
+tools cannot meet.
+
+## Alternatives
+
+Adopting only the Backstage scaffolder would provide its parameter forms and
+task API while avoiding some catalog use. It would still require the backend,
+database, authentication boundary, and custom actions around the actual
+generator.
+
+Adopting only the catalog would provide a dedicated discovery interface. The
+knowledge graph already derives project, decision, and technology views from
+the authoritative repository, so another catalog would duplicate ingestion and
+operational state for one owner.
+
+## Consequences
+
+The platform has no separate developer-portal service to deploy, secure,
+upgrade, back up, or reconcile with Git. Project creation remains callable by
+agents and reviewable as ordinary repository changes.
+
+There is no web form, Backstage plugin ecosystem, or central task-history UI.
+If more users need self-service access, the platform must either add a smaller
+interface over its repository contract or revisit this rejection with evidence
+that Backstage's operating cost is justified.
