@@ -2,7 +2,7 @@
 
 import { addDays, addYears, format, parseISO } from "date-fns";
 import { PlusIcon, Trash2Icon } from "lucide-react";
-import { type SubmitEvent, useEffect, useMemo, useState } from "react";
+import { type SubmitEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -92,6 +92,7 @@ function useItemisedScenarioPlanner() {
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentDate, setPaymentDate] = useState(todayIsoDate);
   const [recordingPayment, setRecordingPayment] = useState(false);
+  const loadedScenarioId = useRef<string | null>(null);
 
   useEffect(() => {
     if (createdName == null) return;
@@ -105,19 +106,37 @@ function useItemisedScenarioPlanner() {
 
   useEffect(() => {
     if (existing == null) return;
-    setName(existing.name);
-    setAccountId(existing.stages[0]?.fromAccountId ?? defaultAccountId);
-    setCosts(
-      existing.stages.map((stage) => ({
-        id: stage.id,
-        name: stage.name ?? "Cost",
-        amount: String(stage.expectedAmount),
-        date: stage.expectedDate,
-        actuals: stage.actuals,
-      })),
+    if (loadedScenarioId.current !== existing.id) {
+      loadedScenarioId.current = existing.id;
+      setName(existing.name);
+      setAccountId(existing.stages[0]?.fromAccountId ?? defaultAccountId);
+      setCosts(
+        existing.stages.map((stage) => ({
+          id: stage.id,
+          name: stage.name ?? "Cost",
+          amount: String(stage.expectedAmount),
+          date: stage.expectedDate,
+          actuals: stage.actuals,
+        })),
+      );
+      setSaved(false);
+      setError(null);
+      return;
+    }
+    const actualsByStage = new Map(
+      existing.stages.map((stage) => [stage.id, stage.actuals]),
     );
-    setSaved(false);
-    setError(null);
+    setCosts((current) => {
+      let changed = false;
+      const next = current.map((cost) => {
+        if (cost.id == null) return cost;
+        const actuals = actualsByStage.get(cost.id);
+        if (actuals == null || actuals === cost.actuals) return cost;
+        changed = true;
+        return { ...cost, actuals };
+      });
+      return changed ? next : current;
+    });
   }, [defaultAccountId, existing]);
 
   const account = eligibleAccounts.find(({ id }) => id === accountId);
@@ -157,6 +176,7 @@ function useItemisedScenarioPlanner() {
     markChanged();
   };
   const startNewScenario = () => {
+    loadedScenarioId.current = null;
     setSelectedId(NEW_SCENARIO);
     setName("");
     setAccountId(defaultAccountId);
@@ -282,7 +302,11 @@ function ScenarioHeader({ planner }: Readonly<{ planner: Planner }>) {
         <div className="flex gap-2">
           <Select
             value={planner.selectedId}
-            onValueChange={planner.setSelectedId}
+            onValueChange={(value) =>
+              value === NEW_SCENARIO
+                ? planner.startNewScenario()
+                : planner.setSelectedId(value)
+            }
           >
             <SelectTrigger aria-label="Scenario" className="w-48">
               <SelectValue placeholder="New scenario" />

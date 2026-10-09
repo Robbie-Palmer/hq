@@ -39,6 +39,7 @@ const componentLabels = {
 } as const;
 
 type TaxSetupRow = TaxProfileSetup & { annualTaxableIncome: string };
+type AssetTracker = ReturnType<typeof useAssetTracker>;
 type TaxSetupUpdate = <K extends keyof TaxSetupRow>(
   memberId: string,
   key: K,
@@ -215,8 +216,7 @@ function TaxSetupMember({
   );
 }
 
-function useTaxSetupForm() {
-  const tracker = useAssetTracker();
+function useTaxSetupForm(tracker: AssetTracker) {
   const configured = new Set(
     tracker.taxPosition?.profiles.map(({ memberId }) => memberId) ?? [],
   );
@@ -272,10 +272,8 @@ function useTaxSetupForm() {
   };
 }
 
-function TaxSetupForm() {
-  const form = useTaxSetupForm();
-  if (form.missingMembers.length === 0) return null;
-
+function TaxSetupFormFields({ tracker }: Readonly<{ tracker: AssetTracker }>) {
+  const form = useTaxSetupForm(tracker);
   return (
     <Card>
       <CardHeader>
@@ -315,6 +313,20 @@ function TaxSetupForm() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function TaxSetupForm() {
+  const tracker = useAssetTracker();
+  const configured = new Set(
+    tracker.taxPosition?.profiles.map(({ memberId }) => memberId) ?? [],
+  );
+  const missingMemberIds = tracker.household.members
+    .filter(({ id }) => !configured.has(id))
+    .map(({ id }) => id);
+  if (missingMemberIds.length === 0) return null;
+  return (
+    <TaxSetupFormFields key={missingMemberIds.join(":")} tracker={tracker} />
   );
 }
 

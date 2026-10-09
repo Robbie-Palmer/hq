@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { useAssetTracker } from "@/components/assettracker/asset-tracker-provider";
@@ -178,5 +178,113 @@ describe("ItemisedScenarioPlanner", () => {
       amount: 500,
       direction: "payment",
     });
+  });
+
+  it("preserves unsaved edits when recorded payments refresh", async () => {
+    const scenario = {
+      id: "event",
+      name: "Large event",
+      kind: "decision" as const,
+      status: "considering" as const,
+      labels: ["itemised-scenario"],
+      currency: "GBP" as const,
+      reversibility: "partly-reversible" as const,
+      dependencyIds: [],
+      alternativeToIds: [],
+      stages: [
+        {
+          id: "venue",
+          name: "Venue",
+          fromAccountId: "current",
+          expectedDate: "2027-10-08",
+          minimumAmount: 2_000,
+          expectedAmount: 2_000,
+          maximumAmount: 2_000,
+          actuals: [],
+        },
+      ],
+    };
+    const tracker = mockTracker({ futureCashFlows: [scenario] });
+    const { rerender } = render(<ItemisedScenarioPlanner />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Scenario name" }), {
+      target: { value: "Edited event" },
+    });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Venue amount" }), {
+      target: { value: "2500" },
+    });
+
+    mockUseAssetTracker.mockReturnValue({
+      ...tracker,
+      futureCashFlows: [
+        {
+          ...scenario,
+          stages: [
+            {
+              ...scenario.stages[0],
+              actuals: [
+                {
+                  id: "payment-1",
+                  date: "2026-10-09",
+                  amount: 500,
+                  direction: "payment" as const,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    } as ReturnType<typeof useAssetTracker>);
+    rerender(<ItemisedScenarioPlanner />);
+
+    expect(screen.getByRole("textbox", { name: "Scenario name" })).toHaveValue(
+      "Edited event",
+    );
+    expect(
+      screen.getByRole("spinbutton", { name: "Venue amount" }),
+    ).toHaveValue(2500);
+    await waitFor(() => expect(screen.getByText("£500")).toBeVisible());
+  });
+
+  it("resets the draft when New scenario is selected", async () => {
+    mockTracker({
+      futureCashFlows: [
+        {
+          id: "event",
+          name: "Large event",
+          kind: "decision",
+          status: "considering",
+          labels: ["itemised-scenario"],
+          currency: "GBP",
+          reversibility: "partly-reversible",
+          dependencyIds: [],
+          alternativeToIds: [],
+          stages: [
+            {
+              id: "venue",
+              name: "Venue",
+              fromAccountId: "current",
+              expectedDate: "2027-10-08",
+              minimumAmount: 2_000,
+              expectedAmount: 2_000,
+              maximumAmount: 2_000,
+              actuals: [],
+            },
+          ],
+        },
+      ],
+    });
+    render(<ItemisedScenarioPlanner />);
+
+    const scenarioSelect = document.querySelector("select");
+    expect(scenarioSelect).not.toBeNull();
+    if (scenarioSelect == null) return;
+    fireEvent.change(scenarioSelect, { target: { value: "__new__" } });
+
+    expect(screen.getByRole("textbox", { name: "Scenario name" })).toHaveValue(
+      "",
+    );
+    expect(screen.getByRole("textbox", { name: "Cost 1 name" })).toHaveValue(
+      "",
+    );
   });
 });

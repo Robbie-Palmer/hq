@@ -365,9 +365,6 @@ function useLocalAssetTrackerData() {
           setLocalDataError(
             "Asset Tracker could not save the last change in this browser. The change was not applied. Check that browser storage is available, then try again.",
           );
-        } else {
-          setLocalDataStatus("ready");
-          setLocalDataError(null);
         }
         throw error;
       }

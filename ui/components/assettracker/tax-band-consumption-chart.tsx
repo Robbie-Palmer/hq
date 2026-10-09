@@ -112,6 +112,31 @@ function capBandAtTaper(
   };
 }
 
+function bandAfterTaper(
+  band: TaxBandConsumption,
+  beforeTaper: TaxBandConsumption,
+): TaxBandConsumption {
+  const remainingAmounts = Object.fromEntries(
+    categories.map(({ key }) => [
+      key,
+      Math.max(0, band[key] - beforeTaper[key]),
+    ]),
+  ) as Pick<
+    TaxBandConsumption,
+    "employmentPence" | "savingsPence" | "dividendsPence" | "capitalGainsPence"
+  >;
+  return {
+    ...band,
+    ...remainingAmounts,
+    label: `${band.label} after taper`,
+    widthPence:
+      band.widthPence == null
+        ? null
+        : Math.max(0, band.widthPence - (beforeTaper.widthPence ?? 0)),
+    usedPence: Math.max(0, band.usedPence - beforeTaper.usedPence),
+  };
+}
+
 function BandBar({
   band,
   rateText = rateLabel(band.rateBasisPoints),
@@ -205,16 +230,19 @@ function ScenarioBands({ scenario }: Readonly<{ scenario: TaxBandScenario }>) {
           capitalGainsPence: 0,
         }}
       />
-      {scenario.bands.map((band, index) =>
-        index !== taperBandIndex || scenario.allowanceTaper == null ? (
-          <BandBar key={band.id} band={band} />
-        ) : (
+      {scenario.bands.map((band, index) => {
+        if (index !== taperBandIndex || scenario.allowanceTaper == null) {
+          return <BandBar key={band.id} band={band} />;
+        }
+        const beforeTaper = capBandAtTaper(band, scenario, taperBandIndex);
+        return (
           <Fragment key={band.id}>
-            <BandBar band={capBandAtTaper(band, scenario, taperBandIndex)} />
+            <BandBar band={beforeTaper} />
             <AllowanceTaper taper={scenario.allowanceTaper} />
+            <BandBar band={bandAfterTaper(band, beforeTaper)} />
           </Fragment>
-        ),
-      )}
+        );
+      })}
     </div>
   );
 }

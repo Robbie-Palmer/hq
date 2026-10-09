@@ -147,6 +147,20 @@ describe("Asset Tracker feature routes", () => {
     expect(currencySelect).toHaveTextContent("GBP");
   });
 
+  it("falls back to a currency with plottable history", () => {
+    const current = mockUseAssetTracker();
+    mockUseAssetTracker.mockReturnValue({
+      ...current,
+      baseCurrency: "USD",
+    } as ReturnType<typeof useAssetTracker>);
+
+    render(<HistoryRoute />);
+
+    expect(
+      screen.getByRole("combobox", { name: "Historical target currency" }),
+    ).toHaveTextContent("GBP");
+  });
+
   it("composes the cash-flow route", () => {
     render(<CashFlowRoute />);
 
@@ -215,6 +229,7 @@ describe("Asset Tracker feature routes", () => {
     expect(
       screen.getAllByText(/effective 60% Income Tax/).length,
     ).toBeGreaterThan(0);
+    expect(screen.getAllByText(/after taper/).length).toBeGreaterThan(0);
     expect(
       screen.queryByText(/Applied the Personal Allowance/),
     ).not.toBeInTheDocument();
@@ -286,5 +301,38 @@ describe("Asset Tracker feature routes", () => {
       screen.getByLabelText("Projected taxable employment income (£)"),
     ).toHaveValue(96_000);
     expect(screen.queryByText("No total shown")).not.toBeInTheDocument();
+  });
+
+  it("refreshes tax setup when household membership changes", () => {
+    const current = mockUseAssetTracker();
+    const saveTaxSetup = vi.fn().mockResolvedValue(undefined);
+    const tracker = {
+      ...current,
+      household: {
+        members: [{ id: "alex", displayName: "Alex" }],
+        activeScope: { kind: "household" as const },
+      },
+      taxPosition: undefined,
+      taxSetupIncomeSuggestions: { alex: 6_000_000, sam: 4_000_000 },
+      saveTaxSetup,
+    } as ReturnType<typeof useAssetTracker>;
+    mockUseAssetTracker.mockReturnValue(tracker);
+    const { rerender } = render(<TaxPositionRoute />);
+    expect(screen.getByRole("group", { name: "Alex" })).toBeVisible();
+
+    mockUseAssetTracker.mockReturnValue({
+      ...tracker,
+      household: {
+        ...tracker.household,
+        members: [
+          { id: "alex", displayName: "Alex" },
+          { id: "sam", displayName: "Sam" },
+        ],
+      },
+    });
+    rerender(<TaxPositionRoute />);
+
+    expect(screen.getByRole("group", { name: "Alex" })).toBeVisible();
+    expect(screen.getByRole("group", { name: "Sam" })).toBeVisible();
   });
 });

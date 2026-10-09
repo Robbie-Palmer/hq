@@ -1431,6 +1431,11 @@ export function applyUpdateCashFlowDecision(
   const currentStages = new Map(
     current.stages.map((stage) => [stage.id, stage]),
   );
+  const retainedStageIds = new Set(
+    parsed.stages.flatMap((stage) =>
+      stage.id != null && currentStages.has(stage.id) ? [stage.id] : [],
+    ),
+  );
   const stageIds = new Set<string>();
   const stages = parsed.stages.map((stage, index) => {
     const account = requireEligibleFutureCashFlowAccount(
@@ -1456,7 +1461,15 @@ export function applyUpdateCashFlowDecision(
         "Unpaid decision stages must have a future expected date",
       );
     }
-    const id = uniqueId(stageIds, stage.id ?? `cash-flow-${index + 1}`);
+    const id =
+      stage.id != null &&
+      retainedStageIds.has(stage.id) &&
+      !stageIds.has(stage.id)
+        ? stage.id
+        : uniqueId(
+            new Set([...stageIds, ...retainedStageIds]),
+            stage.id ?? `cash-flow-${index + 1}`,
+          );
     stageIds.add(id);
     return {
       ...stage,

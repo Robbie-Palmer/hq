@@ -149,7 +149,7 @@ export function MortgageTermsEditor({
           type="number"
           inputMode="decimal"
           min="0.1"
-          step="0.1"
+          step="any"
           placeholder="e.g. 18.5"
           value={draft.remainingTermYears}
           onChange={draft.setRemainingTermYears}

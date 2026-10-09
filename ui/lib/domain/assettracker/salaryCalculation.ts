@@ -745,12 +745,64 @@ function oneOffGrossPayForSegment(
     .filter(
       (candidate) =>
         isOneOffPay(candidate) &&
+        candidate.grossPay != null &&
         candidate.person === record.person &&
         candidate.employmentId === record.employmentId &&
         candidate.effectiveStart >= segment.from &&
         candidate.effectiveStart <= segment.to,
     )
     .reduce((total, candidate) => total + (candidate.grossPay ?? 0), 0);
+}
+
+function oneOffMatchesRegularSegment(
+  oneOff: SalaryHistoryRecord,
+  regularRecords: readonly SalaryHistoryRecord[],
+  asOf: string,
+): boolean {
+  return regularRecords.some(
+    (record) =>
+      record.person === oneOff.person &&
+      record.employmentId === oneOff.employmentId &&
+      recordTaxYearSegments(record, asOf)
+        .flatMap(splitAtRuleChanges)
+        .some(
+          (segment) =>
+            oneOff.effectiveStart >= segment.from &&
+            oneOff.effectiveStart <= segment.to,
+        ),
+  );
+}
+
+function standaloneOneOffRecords(
+  records: readonly SalaryHistoryRecord[],
+  asOf: string,
+): SalaryHistoryRecord[] {
+  const regularRecords = records.filter((record) => !isOneOffPay(record));
+  return records.filter(
+    (record) =>
+      isOneOffPay(record) &&
+      (record.grossPay == null ||
+        !oneOffMatchesRegularSegment(record, regularRecords, asOf)),
+  );
+}
+
+function calculateStandaloneOneOffs<T>(
+  records: readonly SalaryHistoryRecord[],
+  asOf: string,
+  calculate: (
+    record: SalaryHistoryRecord,
+    segment: { taxYear: string; from: string; to: string },
+    multipleEmployment: boolean,
+    oneOffGrossPay: number,
+  ) => T,
+): T[] {
+  return standaloneOneOffRecords(records, asOf).flatMap((record) =>
+    recordTaxYearSegments(record, asOf)
+      .flatMap(splitAtRuleChanges)
+      .map((segment) =>
+        calculate(record, segment, hasMultipleEmployment(record, records), 0),
+      ),
+  );
 }
 
 function overlaps(
@@ -779,7 +831,7 @@ export function calculateSalaryHistory(
   records: readonly SalaryHistoryRecord[],
   asOf = new Date().toISOString().slice(0, 10),
 ): SalaryPeriodCalculation[] {
-  return records
+  const regularCalculations = records
     .filter((record) => !isOneOffPay(record))
     .flatMap((record) =>
       recordTaxYearSegments(record, asOf)
@@ -793,13 +845,19 @@ export function calculateSalaryHistory(
           ),
         ),
     );
+  const standaloneCalculations = calculateStandaloneOneOffs(
+    records,
+    asOf,
+    calculateSegment,
+  );
+  return [...regularCalculations, ...standaloneCalculations];
 }
 
 export function calculateNoPensionSalaryHistory(
   records: readonly SalaryHistoryRecord[],
   asOf = new Date().toISOString().slice(0, 10),
 ): NoPensionSalaryPeriodCalculation[] {
-  return records
+  const regularCalculations = records
     .filter((record) => !isOneOffPay(record))
     .flatMap((record) =>
       recordTaxYearSegments(record, asOf)
@@ -813,4 +871,10 @@ export function calculateNoPensionSalaryHistory(
           ),
         ),
     );
+  const standaloneCalculations = calculateStandaloneOneOffs(
+    records,
+    asOf,
+    calculateNoPensionSegment,
+  );
+  return [...regularCalculations, ...standaloneCalculations];
 }

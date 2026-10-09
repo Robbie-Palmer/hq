@@ -1566,6 +1566,63 @@ describe("future cash-flow planning", () => {
     });
   });
 
+  it("reserves retained stage IDs when inserting an earlier cost", () => {
+    const added = applyAddCashFlowDecision(
+      baseData(),
+      {
+        name: "Wedding",
+        labels: ["itemised-scenario"],
+        currency: "GBP",
+        stages: [
+          {
+            name: "Venue",
+            fromAccountId: "savings",
+            expectedDate: "2099-05-01",
+            minimumAmount: 10_000,
+            expectedAmount: 10_000,
+            maximumAmount: 10_000,
+          },
+        ],
+      },
+      TEST_AS_OF_DATE,
+    );
+
+    const updated = applyUpdateCashFlowDecision(
+      added,
+      {
+        id: "wedding",
+        name: "Wedding",
+        labels: ["itemised-scenario"],
+        currency: "GBP",
+        stages: [
+          {
+            name: "Deposit",
+            fromAccountId: "savings",
+            expectedDate: "2099-04-01",
+            minimumAmount: 1_000,
+            expectedAmount: 1_000,
+            maximumAmount: 1_000,
+          },
+          {
+            id: "cash-flow-1",
+            name: "Venue",
+            fromAccountId: "savings",
+            expectedDate: "2099-05-01",
+            minimumAmount: 10_000,
+            expectedAmount: 10_000,
+            maximumAmount: 10_000,
+          },
+        ],
+      },
+      TEST_AS_OF_DATE,
+    );
+
+    expect(updated.futureCashFlows[0]?.stages.map(({ id }) => id)).toEqual([
+      "cash-flow-1-2",
+      "cash-flow-1",
+    ]);
+  });
+
   it("reduces remaining commitment value by payments and restores it with refunds", () => {
     const added = applyAddCommitment(
       baseData(),
