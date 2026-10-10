@@ -95,9 +95,15 @@ const protectedMutationSignals = [
 ];
 const routineSignal =
   /\b(?:typo|copy edit|broken link|link fix|rename|small prose|single page)\b/iu;
+const documentationActionSignal =
+  /^(?:add|author|create|document|draft|edit|fix|publish|rewrite|update|write)\b/iu;
+const documentationArtifactSignals = [
+  /\b(?:article|copy|documentation|docs?|guide)\b/iu,
+  /\b(?:idea page|ideas|markdown|mdx|page)\b/iu,
+  /\b(?:pitch deck|prose|readme|runbook)\b/iu,
+];
 const documentationOnlyTitleSignals = [
   /^(?:documentation|docs?|readme|runbook|writing)\b/iu,
-  /^(?:add|author|create|document|draft|edit|fix|publish|rewrite|update|write)\b.*\b(?:article|copy|documentation|docs?|guide|idea page|ideas|markdown|mdx|page|pitch deck|prose|readme|runbook)\b/iu,
   /^preserve\b.*\bdesign\b/iu,
   /^define\b.*\bquestions\b/iu,
 ];
@@ -105,8 +111,11 @@ const documentationOnlyTitleSignals = [
 export function isDocumentationOnlyTicket(
   selection: WorkGraphSelection,
 ): boolean {
-  return documentationOnlyTitleSignals.some((signal) =>
-    signal.test(selection.ticket.title),
+  const { title } = selection.ticket;
+  return (
+    documentationOnlyTitleSignals.some((signal) => signal.test(title)) ||
+    (documentationActionSignal.test(title) &&
+      documentationArtifactSignals.some((signal) => signal.test(title)))
   );
 }
 
@@ -138,10 +147,6 @@ function codexModelPolicy(complexity: Complexity): {
         effort: "xhigh",
       };
     case "complex":
-      return {
-        models: ["gpt-5.6-sol"],
-        effort: "high",
-      };
     case "standard":
       return {
         models: ["gpt-5.6-sol"],
