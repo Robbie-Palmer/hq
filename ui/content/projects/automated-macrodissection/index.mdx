@@ -41,8 +41,75 @@ The consequences of failure are severe: a wasted biopsy often means the patient 
   * **Tumor Purity**: guaranteeing a minimum percentage of tumor cells within the extracted region.
   * **Contamination Avoidance**: strictly avoiding necrosis (which degrades DNA quality) and non-tumor structures like lymph nodes.
 
+# Historical data flow
+
+This view reconstructs the design described in the [project account recorded in this repository](https://github.com/Robbie-Palmer/personal-site/blob/bbe491c0ec54f2b0b3287170400345c6fd83b412/ui/content/projects/automated-macrodissection/index.mdx).
+The account reports model development, artifact handling, and region optimisation. It describes cutting-coordinate
+generation as design work for future hardware integration. The diagram shows logical stages. Deployment details
+and working robotic operation remain unverified.
+
+<Mermaid
+  chart={`flowchart TB
+Slide["H&E whole-slide image<br/>External laboratory input"]
+Rules["Tissue and machine constraints<br/>Cutting resolution, minimum area,<br/>tumor purity, excluded tissue"]
+
+subgraph software["Sonrai project software scope, reconstructed"]
+Models["Tissue models and artifact handling<br/>Reported development"]
+Regions["Region optimisation<br/>Reported development"]
+Paths["Path and cutting-coordinate generation<br/>Design described"]
+Models -->|"Tissue predictions and artifact information"| Regions
+Regions -->|"Selected tissue regions"| Paths
+end
+
+subgraph hardware["External hardware boundary, integration planned"]
+Cutter["Dissection hardware<br/>Physical cutting not verified here"]
+end
+
+Slide -->|"Slide image"| Models
+Rules -->|"Selection constraints"| Regions
+Rules -->|"Minimum cutting resolution"| Paths
+Paths -.->|"Proposed cutting coordinates"| Cutter
+`}
+/>
+
+Solid arrows describe the reconstructed software data flow. The dashed arrow is the proposed handoff to external
+hardware. Status labels distinguish reported development from design work and planned integration.
+
+## Text equivalent
+
+1. A laboratory whole-slide image enters the tissue-model ensemble and artifact-handling stage. The project
+   account describes tissue distinctions including tumor, immune infiltration, necrosis, and lymph nodes, with
+   handling for pen marks, stickers, folds, and freezing damage. The model-output representation is not recorded.
+2. Tissue predictions and artifact information feed region optimisation. Selection balances minimum extractable
+   area, minimum tumor-cell percentage, exclusion of necrosis and lymph nodes, and the hardware's cutting
+   resolution. The account uses area to express the tissue-quantity requirement; it does not document a measured
+   tissue-mass calculation or the numerical thresholds.
+3. Selected regions feed the path-generation design, which aims to express them as physical cutting coordinates
+   subject to the machine's minimum resolution. The retained account does not establish the coordinate format,
+   image-to-device registration, calibration, or path-generation algorithm.
+4. Cutting coordinates would cross from project software into an external dissection device. That integration was
+   future work in the account. Device acceptance, physical cutting, and downstream genetic testing are outside
+   the software flow reconstructed here.
+
+## Evidence and reconstruction limits
+
+The software scope reflects work described under my Sonrai Analytics role. It does not assign ownership of
+laboratory operations or device control to that software. The hardware boundary separates computational output
+from a physical action; the record does not establish an approval step, device safety controls, authentication,
+or a feedback protocol across that boundary.
+
+The repository preserves a retrospective project narrative. The original implementation, model weights,
+validation results, and device interface specification are unavailable here. The diagram therefore omits service topology, storage,
+solver choice, rejection behaviour when constraints cannot be met, and any claim of clinical validation. It
+publishes data categories only, with no patient slides, identifiers, specimen coordinates, or proprietary device
+commands.
+
+[Queen's University Belfast's July 2020 announcement](https://www.qub.ac.uk/schools/mdbs/News/Queenspartof7millionconsortiumtoimproveoutcomesforpatientswithearlystagecancer.html)
+documents the wider ACTIONED collaboration with Roche and Sonrai Analytics. It supplies partnership context,
+but does not verify this pipeline's algorithms or a completed hardware integration.
+
 # Impact
 
 * **Foundation for Future AI**: Established a library of composable deep learning models for H\&E WSI analysis, along with a robust data annotation platform and MLOps workflows that generalized to future projects.
 * **Strategic Partnership**: The success of this work solidified a continued **\~£1M partnership** between Sonrai Analytics, Roche, and Queen's University Belfast.
-* **Proof of Control**: Demonstrated that AI could move beyond digital diagnostics into controlling physical laboratory workflows, closing the loop between digital pathology and precision medicine.
+* **Hardware preparation**: Designed the translation from tissue selection to cutting coordinates for future dissection hardware integration. The retained evidence does not establish completed robotic operation.
