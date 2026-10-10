@@ -98,6 +98,7 @@ export type AssetTrackerCommandErrorCode =
   | "FORECAST_ASSUMPTION_SET_NOT_FOUND"
   | "INVALID_FORECAST_ASSUMPTION"
   | "INVALID_RECURRING_FLOW_CONVERSION"
+  | "HOUSEHOLD_MEMBER_NOT_FOUND"
   | "JOB_MOVE_SCENARIO_NOT_FOUND"
   | "DUPLICATE_INCOME_DATE"
   | "RECEIVED_AMOUNT_REQUIRED"
@@ -133,6 +134,8 @@ export const CreateAccountInputSchema = z.object({
   mortgageTerms: MortgageTermsSchema.optional(),
   openingBalance: z.number().optional(),
   openingDate: IsoDateSchema.optional(),
+  /** Owner used for the account and its opening balance. */
+  ownership: OwnershipSchema.optional(),
 });
 export type CreateAccountInput = z.infer<typeof CreateAccountInputSchema>;
 
@@ -619,6 +622,9 @@ export function applyCreateAccount(
   defaultDate: string,
 ): { data: AssetTrackerData; account: Account } {
   const parsed = CreateAccountInputSchema.parse(input);
+  if (parsed.ownership != null) {
+    assertOwnershipMembers(data.household, parsed.ownership);
+  }
   if (parsed.linkedAccountId != null) {
     requireAccount(data, parsed.linkedAccountId);
   }
@@ -646,8 +652,35 @@ export function applyCreateAccount(
           },
         ]
       : data.snapshots;
+  const nextData = {
+    ...data,
+    accounts: [...data.accounts, account],
+    snapshots,
+  };
+  const accountOwnership = parsed.ownership;
+  const dataWithOwnership =
+    accountOwnership == null
+      ? nextData
+      : {
+          ...nextData,
+          ownership: {
+            ...data.ownership,
+            accounts: {
+              ...data.ownership.accounts,
+              [account.id]: accountOwnership,
+            },
+            snapshots:
+              parsed.openingBalance == null
+                ? data.ownership.snapshots
+                : {
+                    ...data.ownership.snapshots,
+                    [snapshotOwnershipKey(account.id, openingDate)]:
+                      accountOwnership,
+                  },
+          },
+        };
   return {
-    data: { ...data, accounts: [...data.accounts, account], snapshots },
+    data: dataWithOwnership,
     account,
   };
 }
@@ -2144,6 +2177,15 @@ function validateJobMoveScenarioReferences(
   data: AssetTrackerData,
   input: SaveJobMoveScenarioInput["scenario"],
 ) {
+  if (
+    input.householdMemberId != null &&
+    !data.household.members.some(({ id }) => id === input.householdMemberId)
+  ) {
+    throw new AssetTrackerCommandError(
+      "HOUSEHOLD_MEMBER_NOT_FOUND",
+      `No household member found with ID ${input.householdMemberId}`,
+    );
+  }
   if (input.destinationAccountId != null) {
     requireAccount(data, input.destinationAccountId);
   }

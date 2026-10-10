@@ -29,9 +29,11 @@ import {
   type AssetType,
   CurrencySchema,
   defaultLiquidityForAssetType,
+  equalSharedOwnership,
   formatAssetTrackerError,
   isLiability,
   type LiquidityTier,
+  personalOwnership,
   SUPPORTED_CURRENCIES,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
@@ -49,7 +51,8 @@ const LIQUIDITY_OPTIONS = Object.entries(LIQUIDITY_TIER_LABELS) as [
 const NO_LINK = "none";
 
 export function AddAccountDrawer() {
-  const { accounts, baseCurrency, createAccount } = useAssetTracker();
+  const { accounts, baseCurrency, createAccount, household } =
+    useAssetTracker();
   const propertyAccounts = accounts.filter(
     (account) => account.assetType === "property" && account.isOpen,
   );
@@ -66,6 +69,11 @@ export function AddAccountDrawer() {
   const [openingDate, setOpeningDate] = useState(todayIsoDate());
   const [firstPaymentDate, setFirstPaymentDate] = useState(todayIsoDate());
   const [remainingTermYears, setRemainingTermYears] = useState("");
+  const defaultOwner =
+    household.activeScope.kind === "member"
+      ? household.activeScope.memberId
+      : (household.members[0]?.id ?? "primary");
+  const [owner, setOwner] = useState(defaultOwner);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -81,6 +89,7 @@ export function AddAccountDrawer() {
     setOpeningDate(todayIsoDate());
     setFirstPaymentDate(todayIsoDate());
     setRemainingTermYears("");
+    setOwner(defaultOwner);
     setError(null);
   }
 
@@ -115,6 +124,10 @@ export function AddAccountDrawer() {
         openingBalance:
           openingBalance === "" ? undefined : Number(openingBalance),
         openingDate,
+        ownership:
+          owner === "shared"
+            ? equalSharedOwnership(household.members)
+            : personalOwnership(owner),
       });
       setOpen(false);
       resetForm();
@@ -126,7 +139,13 @@ export function AddAccountDrawer() {
   }
 
   return (
-    <Drawer open={open} onOpenChange={setOpen}>
+    <Drawer
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (nextOpen) setOwner(defaultOwner);
+      }}
+    >
       <DrawerTrigger asChild>
         <Button variant="outline">
           <PlusIcon />
@@ -223,6 +242,33 @@ export function AddAccountDrawer() {
               </Select>
             </div>
           </div>
+          {household.members.length > 1 && (
+            <div className="flex flex-col gap-1.5">
+              <label
+                htmlFor="add-account-owner"
+                className="text-sm font-medium"
+              >
+                Owner
+              </label>
+              <Select value={owner} onValueChange={setOwner}>
+                <SelectTrigger id="add-account-owner" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {household.members.map((member) => (
+                    <SelectItem key={member.id} value={member.id}>
+                      {member.displayName}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="shared">Shared equally</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Income, balances, and forecasts can then be viewed for this
+                person or for the whole household.
+              </p>
+            </div>
+          )}
           {!isLiability(assetType) && (
             <div className="flex flex-col gap-1.5">
               <label

@@ -200,6 +200,72 @@ describe("job-move scenarios", () => {
     );
   });
 
+  it("keeps another household member's income in a job-loss scenario", () => {
+    const householdData = AssetTrackerDataSchema.parse({
+      ...data(),
+      household: {
+        members: [
+          { id: "primary", displayName: "Alex" },
+          { id: "partner", displayName: "Sam" },
+        ],
+        activeScope: { kind: "household" },
+      },
+      recurringFlows: [
+        ...data().recurringFlows,
+        {
+          id: "partner-salary",
+          name: "Partner salary",
+          toAccountId: "current",
+          amount: 2_500,
+          currency: "GBP",
+          compensationKind: "takeHomeIncome",
+          frequency: "monthly",
+          startDate: "2025-01-01",
+        },
+      ],
+      ownership: {
+        ...data().ownership,
+        recurringFlows: {
+          "current-salary": { kind: "personal", memberId: "primary" },
+          "partner-salary": { kind: "personal", memberId: "partner" },
+        },
+      },
+    });
+    const scenario: JobMoveScenario = {
+      ...employedScenario(),
+      id: "primary-job-loss",
+      name: "Alex loses job",
+      householdMemberId: "primary",
+      employmentStatus: "unemployed",
+      roleStartDate: undefined,
+      employer: undefined,
+      baseGrossPay: 0,
+      variableGrossPay: 0,
+      employeePensionRate: 0,
+      employerPensionRate: 0,
+      annualTakeHomeOverride: undefined,
+      destinationAccountId: undefined,
+      pensionAccountId: undefined,
+    };
+    const result = compareJobMoveScenario({
+      repository: buildRepository(householdData),
+      scenario,
+      horizonMonths: 12,
+      startDate: "2026-01-01",
+      annualExpenditure: 24_000,
+      annualCurrentExpenditure: 24_000,
+      financialIndependenceTarget: null,
+      emergencyFundAnalysis: null,
+      baselineCompensation: {
+        annualTakeHomeIncome: 66_000,
+        annualEmployeePensionContribution: 0,
+        annualEmployerPensionContribution: 0,
+      },
+    });
+
+    expect(result.compensation.scenarioAnnualTakeHomePay).toBe(30_000);
+  });
+
   it("tracks configured emergency-fund accounts throughout the forecast", () => {
     const emergencyFundAnalysis: EmergencyFundAnalysis = {
       monthlyEssentialNeed: 1_000,

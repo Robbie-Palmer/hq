@@ -711,6 +711,12 @@ describe("browser household ownership", () => {
     expect(reassigned.ownership.holdingObservations.holding).toEqual(
       personalOwnership("primary"),
     );
+    expect(reassigned.ownership.transfers.transfer).toEqual(
+      personalOwnership("primary"),
+    );
+    expect(cashReassigned.ownership.recurringFlows.salary).toEqual(
+      personalOwnership("primary"),
+    );
     expect(cashReassigned.ownership.plannedExpenditures.holiday).toEqual(
       personalOwnership("primary"),
     );

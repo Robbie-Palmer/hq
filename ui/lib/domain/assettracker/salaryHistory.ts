@@ -147,6 +147,13 @@ export const SaveSalaryRecordInputSchema = z.object({
 });
 export type SaveSalaryRecordInput = z.infer<typeof SaveSalaryRecordInputSchema>;
 
+export const DeleteSalaryRecordInputSchema = z.object({
+  id: z.string().min(1),
+});
+export type DeleteSalaryRecordInput = z.infer<
+  typeof DeleteSalaryRecordInputSchema
+>;
+
 const PERIODS_PER_YEAR: Record<SalaryPayFrequency, number | null> = {
   weekly: 52,
   fortnightly: 26,
@@ -285,4 +292,29 @@ export function applySaveSalaryRecord(
     correctsId: parsed.correctsId,
   });
   return [...nextRecords, next];
+}
+
+/**
+ * Removes one manually accepted salary change. Pay rises can create a paired
+ * `-closed-prior` fact that closes the previous rate; deleting either visible
+ * row removes that pair so the earlier rate is restored as it was.
+ */
+export function applyDeleteSalaryRecord(
+  records: readonly SalaryHistoryRecord[],
+  input: DeleteSalaryRecordInput,
+): SalaryHistoryRecord[] {
+  const { id } = DeleteSalaryRecordInputSchema.parse(input);
+  if (!records.some((record) => record.id === id)) {
+    throw new AssetTrackerDataError("The salary record no longer exists");
+  }
+
+  const closedPriorSuffix = "-closed-prior";
+  const changeId = id.endsWith(closedPriorSuffix)
+    ? id.slice(0, -closedPriorSuffix.length)
+    : id;
+  const pairedClosedPriorId = `${changeId}${closedPriorSuffix}`;
+
+  return records.filter(
+    (record) => record.id !== changeId && record.id !== pairedClosedPriorId,
+  );
 }

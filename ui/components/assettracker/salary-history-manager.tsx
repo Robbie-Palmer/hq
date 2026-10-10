@@ -1,6 +1,9 @@
 "use client";
 
+import { Trash2Icon } from "lucide-react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -10,12 +13,82 @@ import {
 } from "@/components/ui/card";
 import {
   annualisedGrossPay,
+  formatAssetTrackerError,
   type PensionContribution,
   type SalaryHistoryRecord,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
 import { SalaryHistoryImportDrawer } from "./salary-history-import-drawer";
 import { SalaryRecordDrawer } from "./salary-record-drawer";
+
+function SalaryRecordActions({
+  record,
+}: Readonly<{ record: SalaryHistoryRecord }>) {
+  const { deleteSalaryRecord } = useAssetTracker();
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleDelete() {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      await deleteSalaryRecord({ id: record.id });
+    } catch (caught) {
+      setError(formatAssetTrackerError(caught));
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-end gap-1">
+        <SalaryRecordDrawer record={record} />
+        {confirming ? (
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={deleting}
+              onClick={() => setConfirming(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              aria-label={`Confirm deletion of salary record for ${record.employer} from ${record.effectiveStart}`}
+              disabled={deleting}
+              onClick={handleDelete}
+            >
+              Delete
+            </Button>
+          </>
+        ) : (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Delete salary record for ${record.employer} from ${record.effectiveStart}`}
+            onClick={() => setConfirming(true)}
+          >
+            <Trash2Icon />
+          </Button>
+        )}
+      </div>
+      {error != null && (
+        <p
+          className="max-w-48 text-right text-xs text-destructive"
+          role="alert"
+        >
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function formatMoney(record: SalaryHistoryRecord, amount: number): string {
   return new Intl.NumberFormat("en-GB", {
@@ -150,7 +223,7 @@ function DesktopSalaryRow({
       </td>
       {allowCorrection && (
         <td className="px-3 py-2 text-right">
-          <SalaryRecordDrawer record={record} />
+          <SalaryRecordActions record={record} />
         </td>
       )}
     </tr>
@@ -179,7 +252,7 @@ function SalaryTable({
                   <p className="font-medium">{record.person}</p>
                   <p className="text-muted-foreground">{record.employer}</p>
                 </div>
-                {allowCorrection && <SalaryRecordDrawer record={record} />}
+                {allowCorrection && <SalaryRecordActions record={record} />}
               </div>
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div>
