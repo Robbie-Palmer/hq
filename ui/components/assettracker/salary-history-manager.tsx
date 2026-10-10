@@ -21,6 +21,60 @@ import { useAssetTracker } from "./asset-tracker-provider";
 import { SalaryHistoryImportDrawer } from "./salary-history-import-drawer";
 import { SalaryRecordDrawer } from "./salary-record-drawer";
 
+function SalaryDeleteControls({
+  confirming,
+  deleting,
+  onCancel,
+  onConfirm,
+  onStart,
+  record,
+}: Readonly<{
+  confirming: boolean;
+  deleting: boolean;
+  onCancel(): void;
+  onConfirm(): void;
+  onStart(): void;
+  record: SalaryHistoryRecord;
+}>) {
+  return (
+    <>
+      {confirming ? (
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={deleting}
+            onClick={onCancel}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            aria-label={`Confirm deletion of salary record for ${record.employer} from ${record.effectiveStart}`}
+            disabled={deleting}
+            onClick={onConfirm}
+          >
+            Delete
+          </Button>
+        </>
+      ) : (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Delete salary record for ${record.employer} from ${record.effectiveStart}`}
+          onClick={onStart}
+        >
+          <Trash2Icon />
+        </Button>
+      )}
+    </>
+  );
+}
+
 function SalaryRecordActions({
   record,
 }: Readonly<{ record: SalaryHistoryRecord }>) {
@@ -28,7 +82,6 @@ function SalaryRecordActions({
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   async function handleDelete() {
     if (deleting) return;
     setDeleting(true);
@@ -39,44 +92,18 @@ function SalaryRecordActions({
       setDeleting(false);
     }
   }
-
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-end gap-1">
         <SalaryRecordDrawer record={record} />
-        {confirming ? (
-          <>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={deleting}
-              onClick={() => setConfirming(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              aria-label={`Confirm deletion of salary record for ${record.employer} from ${record.effectiveStart}`}
-              disabled={deleting}
-              onClick={handleDelete}
-            >
-              Delete
-            </Button>
-          </>
-        ) : (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Delete salary record for ${record.employer} from ${record.effectiveStart}`}
-            onClick={() => setConfirming(true)}
-          >
-            <Trash2Icon />
-          </Button>
-        )}
+        <SalaryDeleteControls
+          confirming={confirming}
+          deleting={deleting}
+          onCancel={() => setConfirming(false)}
+          onConfirm={handleDelete}
+          onStart={() => setConfirming(true)}
+          record={record}
+        />
       </div>
       {error != null && (
         <p

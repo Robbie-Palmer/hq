@@ -241,6 +241,34 @@ function useScenarioForm(
   };
 }
 
+function HouseholdMemberField({
+  members,
+  selectMember,
+  value,
+}: Readonly<{
+  members: Tracker["household"]["members"];
+  selectMember(memberId: string): void;
+  value: string;
+}>) {
+  return (
+    <Field id="job-household-member" label="Whose employment changes?">
+      <select
+        id="job-household-member"
+        required
+        className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+        value={value}
+        onChange={(event) => selectMember(event.target.value)}
+      >
+        {members.map((member) => (
+          <option key={member.id} value={member.id}>
+            {member.displayName}
+          </option>
+        ))}
+      </select>
+    </Field>
+  );
+}
+
 function ScenarioIdentityFields({
   draft,
   members,
@@ -262,21 +290,11 @@ function ScenarioIdentityFields({
           onChange={(event) => update("name", event.target.value)}
         />
       </Field>
-      <Field id="job-household-member" label="Whose employment changes?">
-        <select
-          id="job-household-member"
-          required
-          className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-          value={draft.householdMemberId}
-          onChange={(event) => selectMember(event.target.value)}
-        >
-          {members.map((member) => (
-            <option key={member.id} value={member.id}>
-              {member.displayName}
-            </option>
-          ))}
-        </select>
-      </Field>
+      <HouseholdMemberField
+        members={members}
+        selectMember={selectMember}
+        value={draft.householdMemberId}
+      />
       <Field id="job-employment-status" label="Outcome">
         <select
           id="job-employment-status"
@@ -997,15 +1015,81 @@ function timingPoint(
   return comparison.timeline.at(-1);
 }
 
-function JobLossTimingComparison({
-  alternativeDate,
-  horizonYears,
-  primaryComparison,
-  primaryDate,
-  scenario,
-  setAlternativeDate,
-  setPrimaryDate,
+function JobLossTimingHeader({ onPreset }: Readonly<{ onPreset(): void }>) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-2">
+      <div>
+        <h5 className="text-xs font-medium">Compare job-loss timing</h5>
+        <p className="text-xs text-muted-foreground">
+          Both options are measured on the same end date, so the difference
+          comes from how long household income continues before the job ends.
+        </p>
+      </div>
+      <Button type="button" size="sm" variant="outline" onClick={onPreset}>
+        Compare 1 month vs 3 months
+      </Button>
+    </div>
+  );
+}
+
+function JobLossDateField({
+  id,
+  label,
+  onChange,
+  value,
 }: Readonly<{
+  id: string;
+  label: string;
+  onChange(value: string): void;
+  value: string;
+}>) {
+  return (
+    <Field id={id} label={label}>
+      <Input
+        id={id}
+        type="date"
+        value={value}
+        onChange={(event) => {
+          if (event.target.value !== "") onChange(event.target.value);
+        }}
+      />
+    </Field>
+  );
+}
+
+function JobLossTimingCard({
+  currency,
+  date,
+  point,
+}: Readonly<{
+  currency: (typeof SUPPORTED_CURRENCIES)[number];
+  date: string;
+  point: ComparisonPoint;
+}>) {
+  return (
+    <div className="rounded-md bg-background p-3 text-xs">
+      <p className="font-medium">
+        Job loss {format(parseISO(date), "d MMM yyyy")}
+      </p>
+      <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
+        <dt className="text-muted-foreground">Net worth</dt>
+        <dd className="text-right">
+          {formatCurrency(point.scenario.totalBalance, currency)}
+        </dd>
+        <dt className="text-muted-foreground">Liquid assets</dt>
+        <dd className="text-right">
+          {formatCurrency(point.scenario.liquidBalance, currency)}
+        </dd>
+        <dt className="text-muted-foreground">Total runway</dt>
+        <dd className="text-right">
+          {point.scenario.totalMonths.toFixed(1)} months
+        </dd>
+      </dl>
+    </div>
+  );
+}
+
+type JobLossTimingComparisonProps = Readonly<{
   alternativeDate: string;
   horizonYears: number;
   primaryComparison: JobMoveScenarioComparison;
@@ -1013,7 +1097,17 @@ function JobLossTimingComparison({
   scenario: JobMoveScenario;
   setAlternativeDate(value: string): void;
   setPrimaryDate(value: string): void;
-}>) {
+}>;
+
+function useJobLossTimingModel({
+  alternativeDate,
+  horizonYears,
+  primaryComparison,
+  primaryDate,
+  scenario,
+  setAlternativeDate,
+  setPrimaryDate,
+}: JobLossTimingComparisonProps) {
   const tracker = useAssetTracker();
   const commonEndDate = addMonths(parseISO(primaryDate), horizonYears * 12);
   const alternativeHorizonMonths = Math.max(
@@ -1033,114 +1127,88 @@ function JobLossTimingComparison({
       tracker.compareJobMoveScenario,
     ],
   );
-  const primary = timingPoint(primaryComparison);
-  const alternative = timingPoint(alternativeComparison);
   const valuationDate = jobLossAnchorDate(tracker.valuationDate);
-  const setOneVersusThreeMonths = () => {
+  const usePreset = () => {
     setPrimaryDate(format(addMonths(parseISO(valuationDate), 1), "yyyy-MM-dd"));
     setAlternativeDate(
       format(addMonths(parseISO(valuationDate), 3), "yyyy-MM-dd"),
     );
   };
+  return {
+    alternative: timingPoint(alternativeComparison),
+    currency: tracker.baseCurrency,
+    primary: timingPoint(primaryComparison),
+    usePreset,
+  };
+}
+
+function JobLossTimingComparison({
+  alternativeDate,
+  horizonYears,
+  primaryComparison,
+  primaryDate,
+  scenario,
+  setAlternativeDate,
+  setPrimaryDate,
+}: JobLossTimingComparisonProps) {
+  const model = useJobLossTimingModel({
+    alternativeDate,
+    horizonYears,
+    primaryComparison,
+    primaryDate,
+    scenario,
+    setAlternativeDate,
+    setPrimaryDate,
+  });
 
   return (
     <section className="space-y-3 rounded-md border bg-muted/20 p-3">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h5 className="text-xs font-medium">Compare job-loss timing</h5>
-          <p className="text-xs text-muted-foreground">
-            Both options are measured on the same end date, so the difference
-            comes from how long household income continues before the job ends.
-          </p>
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={setOneVersusThreeMonths}
-        >
-          Compare 1 month vs 3 months
-        </Button>
-      </div>
+      <JobLossTimingHeader onPreset={model.usePreset} />
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field id="job-loss-primary-date" label="Expected job loss date">
-          <Input
-            id="job-loss-primary-date"
-            type="date"
-            value={primaryDate}
-            onChange={(event) => {
-              if (event.target.value !== "") {
-                setPrimaryDate(event.target.value);
-              }
-            }}
-          />
-        </Field>
-        <Field id="job-loss-alternative-date" label="Compare with job loss on">
-          <Input
-            id="job-loss-alternative-date"
-            type="date"
-            value={alternativeDate}
-            onChange={(event) => {
-              if (event.target.value !== "") {
-                setAlternativeDate(event.target.value);
-              }
-            }}
-          />
-        </Field>
+        <JobLossDateField
+          id="job-loss-primary-date"
+          label="Expected job loss date"
+          onChange={setPrimaryDate}
+          value={primaryDate}
+        />
+        <JobLossDateField
+          id="job-loss-alternative-date"
+          label="Compare with job loss on"
+          onChange={setAlternativeDate}
+          value={alternativeDate}
+        />
       </div>
-      {primary != null && alternative != null && (
+      {model.primary != null && model.alternative != null && (
         <div className="grid gap-3 sm:grid-cols-2">
-          {[
-            { date: primaryDate, point: primary },
-            { date: alternativeDate, point: alternative },
-          ].map(({ date, point }) => (
-            <div key={date} className="rounded-md bg-background p-3 text-xs">
-              <p className="font-medium">
-                Job loss {format(parseISO(date), "d MMM yyyy")}
-              </p>
-              <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
-                <dt className="text-muted-foreground">Net worth</dt>
-                <dd className="text-right">
-                  {formatCurrency(
-                    point.scenario.totalBalance,
-                    tracker.baseCurrency,
-                  )}
-                </dd>
-                <dt className="text-muted-foreground">Liquid assets</dt>
-                <dd className="text-right">
-                  {formatCurrency(
-                    point.scenario.liquidBalance,
-                    tracker.baseCurrency,
-                  )}
-                </dd>
-                <dt className="text-muted-foreground">Total runway</dt>
-                <dd className="text-right">
-                  {point.scenario.totalMonths.toFixed(1)} months
-                </dd>
-              </dl>
-            </div>
-          ))}
+          <JobLossTimingCard
+            currency={model.currency}
+            date={primaryDate}
+            point={model.primary}
+          />
+          <JobLossTimingCard
+            currency={model.currency}
+            date={alternativeDate}
+            point={model.alternative}
+          />
         </div>
       )}
     </section>
   );
 }
 
-function Comparison({ scenario }: Readonly<{ scenario: JobMoveScenario }>) {
+function useComparisonModel(scenario: JobMoveScenario) {
   const tracker = useAssetTracker();
   const [horizonYears, setHorizonYears] = useState(
     scenario.employmentStatus === "unemployed" ? 10 : 5,
   );
   const [primaryDate, setPrimaryDate] = useState(scenario.transitionDate);
   const valuationDate = jobLossAnchorDate(tracker.valuationDate);
+  const threeMonthsDate = format(
+    addMonths(parseISO(valuationDate), 3),
+    "yyyy-MM-dd",
+  );
   const initialAlternativeDate = format(
-    addMonths(
-      parseISO(valuationDate),
-      primaryDate ===
-        format(addMonths(parseISO(valuationDate), 3), "yyyy-MM-dd")
-        ? 1
-        : 3,
-    ),
+    addMonths(parseISO(valuationDate), primaryDate === threeMonthsDate ? 1 : 3),
     "yyyy-MM-dd",
   );
   const [alternativeDate, setAlternativeDate] = useState(
@@ -1154,6 +1222,23 @@ function Comparison({ scenario }: Readonly<{ scenario: JobMoveScenario }>) {
     () => tracker.compareJobMoveScenario(scenarioAtDate, horizonYears * 12),
     [horizonYears, scenarioAtDate, tracker.compareJobMoveScenario],
   );
+  return {
+    alternativeDate,
+    comparison,
+    horizonYears,
+    primaryDate,
+    scenarioAtDate,
+    setAlternativeDate,
+    setHorizonYears,
+    setPrimaryDate,
+    tracker,
+  };
+}
+
+function Comparison({ scenario }: Readonly<{ scenario: JobMoveScenario }>) {
+  const model = useComparisonModel(scenario);
+  const { comparison, horizonYears, primaryDate, scenarioAtDate, tracker } =
+    model;
   const horizon = comparison.timeline.at(-1);
   if (horizon == null) {
     return (
@@ -1167,18 +1252,18 @@ function Comparison({ scenario }: Readonly<{ scenario: JobMoveScenario }>) {
     <div className="space-y-4 rounded-lg border p-4">
       <ComparisonHeader
         horizonYears={horizonYears}
-        setHorizonYears={setHorizonYears}
+        setHorizonYears={model.setHorizonYears}
         transitionDate={primaryDate}
       />
       {scenario.employmentStatus === "unemployed" && (
         <JobLossTimingComparison
-          alternativeDate={alternativeDate}
+          alternativeDate={model.alternativeDate}
           horizonYears={horizonYears}
           primaryComparison={comparison}
           primaryDate={primaryDate}
           scenario={scenario}
-          setAlternativeDate={setAlternativeDate}
-          setPrimaryDate={setPrimaryDate}
+          setAlternativeDate={model.setAlternativeDate}
+          setPrimaryDate={model.setPrimaryDate}
         />
       )}
       <ComparisonCards
