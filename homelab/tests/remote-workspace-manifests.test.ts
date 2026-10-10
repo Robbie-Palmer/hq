@@ -161,6 +161,7 @@ test("the agent coordinator enforces the pilot budget and skips documentation", 
     id: `ticket-${String(index + 1).padStart(2, "0")}`,
     title: `Ticket ${index + 1}`,
     stage: "ready",
+    expedited: false,
   }));
   const ticketAt = (index: number) => {
     const ticket = tickets[index];
@@ -211,9 +212,14 @@ if [ "$tool" = work-graph ]; then
       ;;
   esac
 elif [ "$tool" = pnpm ]; then
-  ticket_id=$(jq -r '.ticket.id' <<<"$T3_WORK_GRAPH_SELECTION")
-  printf '%s\\n' "$ticket_id" >>"$FAKE_LAUNCHES_FILE"
-  jq -n --arg ticket_id "$ticket_id" '{threadId: ("thread-" + $ticket_id)}'
+  if [ "\${T3_WORK_GRAPH_CLASSIFY_ONLY:-false}" = true ]; then
+    jq '{documentationTicketIds: [.[] | select(.title == "Publish ideas for sampling bias") | .id]}' \
+      <<<"$T3_WORK_GRAPH_TICKETS"
+  else
+    ticket_id=$(jq -r '.ticket.id' <<<"$T3_WORK_GRAPH_SELECTION")
+    printf '%s\\n' "$ticket_id" >>"$FAKE_LAUNCHES_FILE"
+    jq -n --arg ticket_id "$ticket_id" '{threadId: ("thread-" + $ticket_id)}'
+  fi
 else
   exit 2
 fi
@@ -507,6 +513,49 @@ test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", ()
   }
 });
 
+test("the Codex provider login preserves a valid maintenance-lock symlink", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "codex-provider-"));
+  const testHome = join(temporaryDirectory, "home");
+  const binDirectory = join(temporaryDirectory, "bin");
+  const primaryHome = join(testHome, ".codex");
+  const shadowHome = join(testHome, ".codex-t3", "codex2");
+  const maintenanceLock = join(primaryHome, ".sqlite-maintenance.lock");
+
+  try {
+    mkdirSync(join(testHome, ".t3", "userdata"), { recursive: true });
+    mkdirSync(primaryHome, { recursive: true });
+    mkdirSync(binDirectory, { recursive: true });
+    writeFileSync(
+      join(testHome, ".t3", "userdata", "settings.json"),
+      '{"providerInstances":{}}\n',
+    );
+    writeFileSync(maintenanceLock, "active lock\n");
+    writeFileSync(join(binDirectory, "codex"), "#!/usr/bin/env bash\nexit 0\n");
+    chmodSync(join(binDirectory, "codex"), 0o755);
+
+    run(
+      process.execPath,
+      [
+        fileURLToPath(new URL("../scripts/codex-add-provider.mjs", import.meta.url)),
+        "codex2",
+        "--browser-auth",
+      ],
+      undefined,
+      {
+        ...process.env,
+        HOME: testHome,
+        PATH: `${binDirectory}:${process.env.PATH ?? ""}`,
+      },
+    );
+
+    const shadowLock = join(shadowHome, ".sqlite-maintenance.lock");
+    assert.equal(lstatSync(shadowLock).isSymbolicLink(), true);
+    assert.equal(readFileSync(shadowLock, "utf8"), "active lock\n");
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
+});
+
 test("the observability collector attributes quota, backup, and Kubernetes state to operator", () => {
   const temporaryDirectory = mkdtempSync(join(tmpdir(), "remote-observability-"));
   const binaryDirectory = join(temporaryDirectory, "bin");
@@ -570,15 +619,15 @@ printf '%s\\n' \\
     writeFileSync(
       coordinatorHealthPath,
       `${JSON.stringify({
-        status: "draining",
+        status: "pilot_exhausted",
         maxTickets: 3,
         maxTotalAdmissions: 12,
         maxLaunchesPerCycle: 1,
-        totalAdmissions: 8,
-        remainingAdmissions: 4,
-        trackedCount: 7,
+        totalAdmissions: 12,
+        remainingAdmissions: 0,
+        trackedCount: 3,
         needsAttentionCount: 2,
-        admission: { open: true },
+        admission: { open: false },
         reconciledAt: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
       })}\n`,
     );
@@ -633,7 +682,7 @@ printf '%s\\n' \\
     );
     assert.match(
       metrics,
-      /^remote_development\.operator\.agent_coordinator_tracked:7\|g$/m,
+      /^remote_development\.operator\.agent_coordinator_tracked:3\|g$/m,
     );
     assert.match(
       metrics,

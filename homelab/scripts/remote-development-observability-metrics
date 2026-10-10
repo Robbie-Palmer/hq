@@ -115,7 +115,11 @@ if [ "${agent_coordinator_enabled}" = 1 ] \
           and (now - (.reconciledAt | fromdateiso8601)) >= 0
           and (now - (.reconciledAt | fromdateiso8601)) <= 180
       )
-      | [.trackedCount, .needsAttentionCount, (if .admission.open then 1 else 0 end)]
+      | [
+          .trackedCount,
+          .needsAttentionCount,
+          (if .status == "pilot_exhausted" or .admission.open then 1 else 0 end)
+        ]
       | @tsv
     ' "${AGENT_COORDINATOR_HEALTH_FILE}" 2>/dev/null \
       || true

@@ -46,13 +46,14 @@ const RuntimeModeSchema = z.enum([
   "auto",
   "full-access",
 ]);
+const WorkGraphTicketSchema = z.looseObject({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  expedited: z.boolean(),
+  expediteReason: z.string().nullable().optional(),
+});
 const WorkGraphSelectionSchema = z.object({
-  ticket: z.looseObject({
-    id: z.string().min(1),
-    title: z.string().min(1),
-    expedited: z.boolean(),
-    expediteReason: z.string().nullable().optional(),
-  }),
+  ticket: WorkGraphTicketSchema,
   context: z.array(
     z.looseObject({
       kind: z.string().min(1),
@@ -98,8 +99,8 @@ const routineSignal =
 const documentationActionSignal =
   /^(?:add|author|create|document|draft|edit|fix|publish|rewrite|update|write)\b/iu;
 const documentationArtifactSignals = [
-  /\b(?:article|copy|documentation|docs?|guide)\b/iu,
-  /\b(?:idea page|ideas|markdown|mdx|page)\b/iu,
+  /\b(?:article|copy edit|documentation|docs?|guide)\b/iu,
+  /\b(?:idea page|ideas|markdown|mdx)\b/iu,
   /\b(?:pitch deck|prose|readme|runbook)\b/iu,
 ];
 const documentationOnlyTitleSignals = [
@@ -117,6 +118,14 @@ export function isDocumentationOnlyTicket(
     (documentationActionSignal.test(title) &&
       documentationArtifactSignals.some((signal) => signal.test(title)))
   );
+}
+
+export function classifyDocumentationTicketIds(tickets: unknown): string[] {
+  return z
+    .array(WorkGraphTicketSchema)
+    .parse(tickets)
+    .filter((ticket) => isDocumentationOnlyTicket({ ticket, context: [] }))
+    .map(({ id }) => id);
 }
 
 function selectionText(selection: WorkGraphSelection): string {
@@ -362,15 +371,23 @@ function validatedOption(
 }
 
 async function main(): Promise<void> {
-  const accessToken = requiredEnvironment("T3_ACCESS_TOKEN");
-  const baseBranch = requiredEnvironment("T3_WORK_GRAPH_BASE_BRANCH");
-  const origin = requiredEnvironment("T3_WORK_GRAPH_ORIGIN");
-  const projectRoot = requiredEnvironment("T3_WORK_GRAPH_PROJECT_ROOT");
+  if (process.env.T3_WORK_GRAPH_CLASSIFY_ONLY === "true") {
+    const documentationTicketIds = classifyDocumentationTicketIds(
+      JSON.parse(requiredEnvironment("T3_WORK_GRAPH_TICKETS")),
+    );
+    process.stdout.write(`${JSON.stringify({ documentationTicketIds })}\n`);
+    return;
+  }
+
   const selection = WorkGraphSelectionSchema.parse(
     JSON.parse(requiredEnvironment("T3_WORK_GRAPH_SELECTION")),
   );
   const route = deriveTicketRoute(selection);
   assertTicketRouteSupported(selection.ticket.id, route);
+  const accessToken = requiredEnvironment("T3_ACCESS_TOKEN");
+  const baseBranch = requiredEnvironment("T3_WORK_GRAPH_BASE_BRANCH");
+  const origin = requiredEnvironment("T3_WORK_GRAPH_ORIGIN");
+  const projectRoot = requiredEnvironment("T3_WORK_GRAPH_PROJECT_ROOT");
 
   const client = T3Client.create({
     accessToken,

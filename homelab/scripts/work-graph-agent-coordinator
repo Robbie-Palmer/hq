@@ -308,20 +308,22 @@ work_graph() {
   mise exec -- work-graph "$@"
 }
 
-is_documentation_ticket() {
-  local title=$1
-  local documentation_pattern
-  documentation_pattern='^(documentation|docs?|readme|runbook|writing)([[:space:]:-]|$)|^(add|author|create|document|draft|edit|fix|publish|rewrite|update|write)[[:space:]].*(article|copy|documentation|docs?|guide|idea page|ideas|markdown|mdx|page|pitch deck|prose|readme|runbook)([[:space:]:-]|$)|^preserve[[:space:]].*[[:space:]]design([[:space:]:-]|$)|^define[[:space:]].*[[:space:]]questions([[:space:]:-]|$)'
+classify_documentation_ticket_ids() {
+  local tickets=$1
   if [ "${exclude_documentation}" != true ]; then
-    return 1
+    printf '[]\n'
+    return
   fi
-  shopt -s nocasematch
-  if [[ ${title} =~ ${documentation_pattern} ]]; then
-    shopt -u nocasematch
-    return 0
-  fi
-  shopt -u nocasematch
-  return 1
+  T3_WORK_GRAPH_CLASSIFY_ONLY=true \
+  T3_WORK_GRAPH_TICKETS="${tickets}" \
+    mise exec -- pnpm exec tsx scripts/launch-work-graph-agent.ts \
+    | jq -ec '.documentationTicketIds'
+}
+
+is_documentation_ticket_id() {
+  local ticket_id=$1
+  jq -e --arg ticket_id "${ticket_id}" 'index($ticket_id) != null' \
+    <<<"${documentation_ticket_ids}" >/dev/null
 }
 
 total_admission_available() {
@@ -604,6 +606,7 @@ reconcile() {
   local tracked_count
   local queue
   local ready
+  local documentation_ticket_ids
   local launch_attempts=0
   local launch_deferred_logged=false
   local excluded_documentation_count=0
@@ -631,6 +634,7 @@ reconcile() {
   reconciled_at=$(now_iso)
   queue=$(work_graph queue --all --limit 100)
   jq -e '.items | type == "array"' <<<"${queue}" >/dev/null
+  documentation_ticket_ids=$(classify_documentation_ticket_ids "$(jq -c '.items' <<<"${queue}")")
   mapfile -t tracked_ids < <(jq -r '.tickets | keys[]' "${state_file}")
   for ticket_id in "${tracked_ids[@]}"; do
     ticket_json=$(jq -c --arg ticket_id "${ticket_id}" \
@@ -648,7 +652,7 @@ reconcile() {
         ;;
       *)
         record_observation "${ticket_id}" "${title}" "${stage}" "${reconciled_at}"
-        if is_documentation_ticket "${title}"; then
+        if is_documentation_ticket_id "${ticket_id}"; then
           excluded_documentation_count=$((excluded_documentation_count + 1))
           echo "did not relaunch documentation ticket ${ticket_id}: ${title}"
         elif { [ "${stage}" = ready ] || [ "${stage}" = stale ]; } \
@@ -670,7 +674,7 @@ reconcile() {
         continue
       fi
       title=$(jq -er '.title' <<<"${ticket_json}")
-      if is_documentation_ticket "${title}"; then
+      if is_documentation_ticket_id "${ticket_id}"; then
         excluded_documentation_count=$((excluded_documentation_count + 1))
         echo "excluded documentation ticket ${ticket_id}: ${title}"
         continue

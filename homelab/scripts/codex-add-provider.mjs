@@ -220,7 +220,14 @@ if (options.runLogin) {
       process.env.CODEX_HOME = previousCodexHome;
     }
   }
-  rmSync(join(shadowHome, ".sqlite-maintenance.lock"), { force: true });
+  const maintenanceLock = join(shadowHome, ".sqlite-maintenance.lock");
+  try {
+    if (!lstatSync(maintenanceLock).isSymbolicLink()) {
+      rmSync(maintenanceLock, { force: true });
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
 } else {
   const deviceFlag = options.loginMode === "device" ? " --device-auth" : "";
   console.log(`Skipped login. Authenticate later with:`);

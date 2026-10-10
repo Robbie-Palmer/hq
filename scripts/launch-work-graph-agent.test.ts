@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   assertTicketRouteSupported,
   buildWorkerPrompt,
+  classifyDocumentationTicketIds,
   deriveTicketRoute,
   isDocumentationOnlyTicket,
   refreshRoutingProviders,
@@ -168,6 +169,24 @@ describe("Work Graph ticket routing", () => {
         }),
       ),
     ).toBe(false);
+  });
+
+  it.each([
+    "Add the recipe detail page",
+    "Fix the login page redirect",
+    "Add a copy button to code blocks",
+  ])("keeps implementation ticket %s eligible", (title) => {
+    expect(isDocumentationOnlyTicket(ticket({ title }))).toBe(false);
+  });
+
+  it("classifies a coordinator ticket batch with the shared rules", () => {
+    const tickets = [
+      ticket({ id: "docs", title: "Update README.md" }).ticket,
+      ticket({ id: "page", title: "Fix the login page redirect" }).ticket,
+      ticket({ id: "code", title: "Implement the parser" }).ticket,
+    ];
+
+    expect(classifyDocumentationTicketIds(tickets)).toEqual(["docs"]);
   });
 
   it("rejects a documentation route before creating a T3 thread", () => {
