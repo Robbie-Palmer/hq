@@ -27,8 +27,12 @@ for (const width of [375, 1280]) {
         const overflowingLabels = labels.filter((label) => {
           const node = label.closest<SVGGElement>(".node");
           if (node === null) return true;
+          const shape = node.querySelector<SVGGraphicsElement>(
+            ":scope > rect, :scope > polygon, :scope > circle, :scope > ellipse, :scope > path",
+          );
+          if (shape === null) return true;
           const labelBounds = label.getBoundingClientRect();
-          const nodeBounds = node.getBoundingClientRect();
+          const nodeBounds = shape.getBoundingClientRect();
           return (
             labelBounds.left < nodeBounds.left - 1 ||
             labelBounds.right > nodeBounds.right + 1 ||
