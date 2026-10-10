@@ -1,0 +1,376 @@
+---
+title: "Inbox Signal"
+description: "A human-supervised system for reducing email noise, recovering useful records, and turning an inbox stream into durable personal knowledge"
+date: "2026-10-10"
+status: "idea"
+initiatives:
+  - "digital-twins-for-everyday-life"
+tech_stack:
+  - "TypeScript"
+  - "Python"
+  - "PostgreSQL"
+  - "Neon"
+  - "Cloudflare R2"
+  - "DVC"
+  - "Playwright"
+  - "Better Auth"
+ideas:
+  - "human-in-the-loop"
+  - "intelligent-document-processing"
+  - "ontology-engineering"
+---
+
+# Vision
+
+Turn email into a manageable stream of signals about what interests me, what
+other people and organisations believe interests me, and the financial,
+shopping, work, and account activity around me. Reduce the noise without losing
+the records and relationships worth keeping.
+
+My main Outlook account is more than fifteen years old. It mixes personal
+correspondence with newsletters, receipts, donations, employer documents,
+recruiter messages, account alerts, and forgotten subscriptions. Gmail contains
+Google account mail plus some billing and shopping history. A newer Proton
+account has almost no history yet.
+
+The immediate problem is inbox control. I want to label messages, remove mail I
+no longer need, unsubscribe from unwanted senders, and retain the documents and
+facts that will matter later. The longer-term opportunity is a personal record
+of employers, purchases, donations, accounts, subscriptions, documents, and the
+relationships between them.
+
+This should not require an agent to reread thousands of messages with a large
+model on every run. Deterministic code should do most of the work. Models should
+handle uncertain classification and extraction, with a person approving changes
+before the system writes them back to a mailbox.
+
+# Product thesis
+
+Email already contains much of the administration of a person's life. The
+information remains trapped in provider-specific folders, HTML templates,
+attachments, and search interfaces.
+
+Provider inboxes centre a human GUI and a narrow set of operations. They work
+well for reading or writing one message and creating simple rules. They offer
+limited ways to inspect fifteen years of mail as data, apply reproducible logic,
+coordinate safe bulk changes, or give an agent tightly constrained authority.
+A separate workflow can combine deterministic processing with increasingly
+capable agents while exposing only the actions approved for each task.
+
+The proposed system separates four jobs:
+
+1. Provider adapters synchronize messages and translate common actions into
+   Gmail labels, Outlook categories or folders, and standard IMAP or JMAP
+   operations.
+2. Deterministic parsers identify list headers, senders, message types,
+   attachments, dates, identifiers, and known document formats.
+3. Classifiers and extraction models work only on the cases where rules do not
+   provide enough evidence.
+4. A review queue shows the evidence for each proposed action and records what I
+   approve, reject, or change.
+
+The review decisions then become evaluation evidence. They should improve the
+rules and models without silently granting them more authority.
+
+# Planned system
+
+The system starts with the existing Outlook, Gmail, and Proton accounts. Moving
+to a new mailbox provider is optional and should not block the cleanup. A custom
+domain can provide a durable address and per-service aliases later, whether the
+mailbox is hosted by Fastmail, Proton, another managed provider, or a smaller
+self-operated arrangement.
+
+<Mermaid
+  chart={`flowchart LR
+Providers["Mail providers<br/>Outlook, Gmail, Proton,<br/>and a custom domain"]
+Adapters["Provider adapters<br/>Sync tokens, raw messages,<br/>and provider write APIs"]
+Archive["Private R2 archive<br/>Raw MIME, attachments,<br/>and content hashes"]
+Records[("Neon PostgreSQL<br/>Metadata, relationships,<br/>policies, and audit log")]
+Rules["Deterministic processing<br/>Headers, sender rules,<br/>document parsers"]
+Models["Bounded model processing<br/>Classification, extraction,<br/>and entity resolution"]
+Review["Human review<br/>Approve, reject, edit,<br/>or defer proposals"]
+Actions["Action executor<br/>Tag, move, trash,<br/>purge, or unsubscribe"]
+Browser["Browser fallback<br/>Allowlisted unsubscribe<br/>flows only"]
+Evaluation["DVC evaluation sample<br/>Stratified real cases,<br/>outcomes, and metrics"]
+
+Providers --> Adapters
+Adapters --> Archive
+Adapters --> Records
+Archive --> Rules
+Rules --> Records
+Rules -->|"uncertain cases"| Models
+Models --> Records
+Records --> Review
+Review -->|"approved manifest"| Actions
+Actions --> Providers
+Actions -->|"no safe protocol action"| Browser
+Review -->|"decision telemetry"| Evaluation
+Records -->|"sample frame"| Evaluation
+Evaluation -.->|"tested improvements"| Rules
+Evaluation -.->|"tested improvements"| Models
+`}
+  className="w-full justify-start overflow-x-auto [&>svg]:min-w-[54rem]"
+/>
+
+PostgreSQL is the live source of truth for synchronization state, provider
+identifiers, normalized metadata, policies, proposals, approvals, and action
+outcomes. R2 stores large private objects such as raw MIME and attachments. Raw
+mail needs an explicit encryption and retention policy before ingestion begins.
+
+DVC does not track the live mailbox or action queue. It versions a stratified
+sample selected from real usage telemetry for offline experiments. The sample
+should refresh when sender mix, message types, model failures, or review outcomes
+show that the evaluation set no longer represents the work.
+
+# Deterministic unsubscribe handling
+
+Browser automation should be the last unsubscribe mechanism, not the default.
+Many legitimate mailing lists already declare machine-readable actions:
+
+1. Prefer one-click unsubscribe only when `List-Unsubscribe` contains an HTTPS
+   URI, `List-Unsubscribe-Post` declares `List-Unsubscribe=One-Click`, and a
+   valid DKIM signature covers both headers. Submit an HTTPS POST with the
+   `List-Unsubscribe=One-Click` form body. Fall through to another mechanism
+   when any [RFC 8058](https://www.rfc-editor.org/rfc/rfc8058) requirement is
+   missing. Ordinary list handling still follows
+   [RFC 2369](https://www.rfc-editor.org/rfc/rfc2369).
+2. Use a declared `mailto:` unsubscribe address when one-click HTTPS is not
+   available and the generated message can be inspected before sending.
+3. Use a sender-specific deterministic adapter for recurring services whose
+   account APIs or preference URLs are known.
+4. Open an allowlisted browser flow only when the message offers no safer
+   protocol action.
+
+The parser can discover and validate these mechanisms without spending model
+tokens. It should reject links whose host does not match an approved destination
+or whose message looks like spam or phishing. Visiting an unsubscribe link in
+spam can confirm that an address is active, so those messages should be blocked
+or deleted instead.
+
+An approved browser task receives one sender, one expected domain, and one
+allowed outcome. It stops for authentication, payment, personal questions, or a
+redirect outside the allowlist. The executor stores enough evidence to show
+what it submitted and whether the site confirmed the unsubscribe.
+
+# Controlled mailbox writes
+
+The internal action model cannot pretend that every provider has Gmail-style
+labels. It needs canonical operations with provider-specific implementations:
+
+* apply or remove a tag;
+* move a message to a mailbox or folder;
+* move a message to trash;
+* permanently purge a message;
+* archive or restore a message; and
+* execute an approved unsubscribe mechanism.
+
+Every action receives an idempotency key, the source message version, the rule
+or model evidence, and the approval that authorized it. The executor verifies
+the provider result before marking the action complete.
+
+Ordinary deletion first moves mail to trash and records a recovery deadline.
+Permanent purge is a separate batch action. That separation makes aggressive
+cleanup practical without allowing one poor rule to erase years of mail in a
+single run. Retained copies in R2 have their own deletion policy so that
+"deleted from the mailbox" does not quietly mean "stored forever elsewhere."
+
+# Agent identity and authority
+
+This repository already has the right control plane for agent access. The
+[Recipe Site Agent Auth decision](/projects/recipe-site/adrs/019-agent-auth)
+gives each agent its own keypair, identity, named capability grants,
+short-lived audience-bound JWTs, audit history, and independent revocation. The
+mail project should reuse the existing `agent-auth` and `agent-auth-mcp`
+packages.
+
+Better Auth has already applied this pattern to email in its official
+[Gmail proxy example](https://github.com/better-auth/agent-auth/tree/main/examples/gmail-proxy).
+The example exposes capabilities for listing and reading messages, sending,
+moving messages or threads to trash, changing labels, managing drafts, and
+reading mailbox metadata. It keeps Google's OAuth tokens on the server and uses
+Agent Auth grants for the agent-facing boundary. Write capabilities can require
+stronger WebAuthn approval.
+
+That example shows the integration path exists. Inbox Signal still needs a
+smaller capability model because direct access to every Gmail operation would
+grant more authority than the cleanup workflow needs. Initial capabilities
+should describe tasks rather than provider endpoints:
+
+| Capability                 | Authority                                                                 |
+| -------------------------- | ------------------------------------------------------------------------- |
+| `mail.inventory.read`      | Read bounded message metadata for approved accounts and date ranges       |
+| `mail.message.read`        | Read approved body formats and attachments for selected messages          |
+| `mail.actions.propose`     | Create a reviewable action manifest without changing a mailbox            |
+| `mail.actions.execute`     | Execute only the action IDs and providers in an approved manifest         |
+| `mail.unsubscribe.execute` | Run an approved RFC or browser unsubscribe for one sender and destination |
+
+Provider credentials remain server-side. Agent Auth identifies the agent and
+limits which application capability it may call. The application then checks
+the delegated user's current access, provider account, manifest approval,
+message version, action type, and expiry before using Gmail, Microsoft Graph,
+JMAP, or IMAP credentials.
+
+```text
+allowed = valid agent proof
+       ∩ active capability grant and constraints
+       ∩ delegated user's current mailbox access
+       ∩ approved and unexpired action manifest
+       ∩ current message version and retention policy
+```
+
+The Agent Auth grant should approve a bounded class of work. It does not replace
+the review queue for destructive actions. An agent may retain a durable grant to
+inventory message metadata while each trash, purge, or unsubscribe batch still
+refers to a manifest that I approved.
+
+# From messages to personal knowledge
+
+Messages supply evidence for the graph. The graph promotes extracted entities
+such as people, employers, recruiters, merchants, charities, accounts,
+subscriptions, purchases, donations, applications, and documents. Each fact or
+relationship points back to the message, attachment, parser version, and review
+decision that supports it.
+
+PostgreSQL can represent this with entity, relationship, assertion, and evidence
+tables before a dedicated graph database is justified. The graph should remain
+correctable. Merging two merchants or splitting two people with the same name
+must preserve the original evidence and the history of the correction.
+
+The project extends the earlier
+[Commercial Knowledge Graph](/projects/commercial-knowledge-graph). That work
+explored turning email and receipt images into structured commercial history.
+This version revisits the idea with my own mail, puts human approval and data
+ownership at the centre, and includes mailbox maintenance as a first-class job.
+
+# Evaluation and learning
+
+Production telemetry should measure the work without copying the whole private
+mailbox into an experiment repository. Useful signals include:
+
+* message type and sender strata;
+* which rules fired and how often;
+* classifier confidence and abstentions;
+* proposed actions accepted, rejected, or edited;
+* incorrect deletions recovered during the trash window;
+* unsubscribe method, completion, and later recurrence; and
+* review time per message or batch.
+
+A sampling job can build a bounded evaluation set from these strata. Sensitive
+examples stay in the private R2-backed DVC remote. Stable sample membership,
+redaction, ground truth, pipeline parameters, outputs, and metrics make changes
+to rules or models reproducible.
+
+Experiments should answer concrete questions. Does a sender rule remove enough
+model calls to justify its maintenance? Does a new classifier reduce review time
+without increasing incorrect trash proposals? Which document classes need
+layout-aware extraction? A model that looks better on a generic email dataset
+but performs worse on the reviewed mailbox sample does not ship.
+
+# Mailbox and domain strategy
+
+A managed custom-domain mailbox is an optional convenience. The architecture
+can run without one. Fastmail's JMAP API and masked addresses would make
+automation easier, but the annual cost has to beat a cheaper setup that uses
+the existing accounts and custom tooling.
+
+The first experiment can cost nothing beyond services already in use:
+
+* keep Outlook, Gmail, and Proton as their own mailboxes;
+* use Cloudflare Email Routing on a dedicated subdomain for new per-service
+  aliases;
+* forward those aliases to an existing inbox while recording which address each
+  service received; and
+* postpone the primary custom-domain mailbox decision until the workflow proves
+  useful.
+
+Cloudflare routing is useful for controlled inbound aliases and optional Worker
+processing. It is not a complete personal mailbox with normal sent-mail and
+reply behavior. Using a subdomain also keeps an experimental Worker out of the
+delivery path for important human correspondence.
+
+# Prior art to investigate
+
+The project should borrow working mechanisms before inventing new ones:
+
+* [Inbox Zero](https://github.com/elie222/inbox-zero) is the closest broad
+  open-source reference. It covers Gmail and Microsoft accounts, rules, bulk
+  actions, and unsubscribe workflows. Its AGPL licensing fits this repository,
+  though code reuse still needs a dependency and security review.
+* Better Auth's
+  [Gmail proxy](https://github.com/better-auth/agent-auth/tree/main/examples/gmail-proxy)
+  is the closest authentication and authorization reference. It connects
+  per-agent capability grants to server-held Gmail OAuth credentials.
+* [Agent Email](https://github.com/lordbagel42/agent-email) uses the same Agent
+  Auth protocol with Cloudflare Email Routing for disposable inbound addresses.
+  Its mailbox purpose differs, but its delegated approval and revocation flow is
+  relevant.
+* [paperless-ngx](https://github.com/paperless-ngx/paperless-ngx) already solves
+  much of document ingestion, OCR, tagging, and correspondence. Integration may
+  be better than rebuilding its document-management features.
+* [email-cleaner](https://github.com/darcodev/email-cleaner),
+  [gmail-cleanup](https://github.com/bgorzelic/gmail-cleanup), and
+  [GMClean](https://github.com/h-khalid-h/GMClean) provide smaller examples of
+  preview-first cleanup, provider APIs, and standards-based unsubscribe flows.
+* Clean Email, Mailstrom, and Leave Me Alone provide product references for bulk
+  review and subscription management, but require trusting another service with
+  mailbox access.
+
+The likely contribution is not another email classifier. It is the combination
+of provider-independent actions, deterministic unsubscribe handling, private
+document recovery, reproducible evaluation, evidence-backed personal knowledge,
+and authority that remains with the mailbox owner.
+
+# First useful release
+
+1. Approve encryption and retention policies for raw mail and attachments,
+   then import a read-only Outlook sample and preserve provider IDs, threads,
+   raw headers, MIME parts, and attachments.
+2. Produce an inventory by sender, domain, age, size, attachment type, and
+   declared unsubscribe mechanism.
+3. Add deterministic rules and a review queue that exports an approved action
+   manifest without executing it.
+4. Reuse the repository's Agent Auth packages for delegated inventory and
+   proposal capabilities, with provider tokens kept behind the service.
+5. Apply tags and folder moves through the Outlook API, with idempotency and
+   result verification.
+6. Add trash actions with a recovery window, followed by separately approved
+   permanent purge.
+7. Add RFC-based unsubscribe execution, then browser fallback for the remaining
+   legitimate senders.
+8. Connect Gmail and Proton through the same canonical action model.
+9. Build the first telemetry-stratified DVC evaluation sample from review
+   outcomes and run classification experiments against it.
+10. Extract retained documents and facts into an evidence-backed knowledge
+    graph.
+11. Trial custom-domain aliases before deciding whether a managed mailbox earns
+    its annual cost.
+
+# Success
+
+The project succeeds when the inbox stays manageable, important records become
+easier to find, approved cleanup takes minutes rather than weekends, and model
+usage falls as deterministic coverage improves. It should be possible to explain
+every write, undo reversible mistakes, and reproduce why an experimental model
+was promoted.
+
+It fails if maintaining the system becomes another inbox, if browser agents burn
+tokens on work an email header could have completed, or if extracting knowledge
+creates a second permanent copy of data I intended to delete.
+
+# Open decisions
+
+* Whether a managed custom-domain mailbox saves enough time to justify its fee
+* Whether raw mail is encrypted before R2 storage or processed in trusted hosted
+  services
+* Which retained document classes deserve long-term storage
+* How long trash, raw archive, telemetry, and evaluation samples should live
+* Whether paperless-ngx becomes the document store or remains a reference
+* Which Inbox Zero components are worth adapting rather than rebuilding
+
+# Non-goals
+
+* Giving an unsupervised agent broad authority over every mailbox
+* Sending ordinary correspondence or impersonating the mailbox owner
+* Using a large model for actions exposed by standard headers or stable rules
+* Treating all historical email as knowledge worth retaining
+* Self-hosting an internet mail server before the cleanup workflow proves value
