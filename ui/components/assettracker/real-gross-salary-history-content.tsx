@@ -12,7 +12,6 @@ import { RealNoPensionNetSalaryChart } from "./real-no-pension-net-salary-chart"
 import { NoPensionNetSalaryTable } from "./real-no-pension-net-salary-table";
 import {
   type SalaryTrajectoryDateDomain,
-  type SalaryTrajectoryRange,
   salaryTrajectoryDateDomain,
 } from "./salary-trajectory-chart";
 import type { RealGrossSalaryHistoryView } from "./use-real-gross-salary-history";
@@ -82,8 +81,8 @@ function GrossSalarySection({
   availableDateDomain: SalaryTrajectoryDateDomain;
   dateDomain: SalaryTrajectoryDateDomain;
   label: string;
-  onRangeChange(range: SalaryTrajectoryRange): void;
-  range: SalaryTrajectoryRange;
+  onRangeChange(range: SalaryTrajectoryDateDomain): void;
+  range: SalaryTrajectoryDateDomain;
   view: RealGrossSalaryHistoryView;
 }>) {
   return (
@@ -166,7 +165,7 @@ function SalarySections({
     view.noPensionChartData,
   );
   const [range, setRange] =
-    useState<SalaryTrajectoryRange>(availableDateDomain);
+    useState<SalaryTrajectoryDateDomain>(availableDateDomain);
 
   return (
     <>

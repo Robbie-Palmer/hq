@@ -40,8 +40,6 @@ export type SalaryTrajectoryMilestone = {
 
 export type SalaryTrajectoryDateDomain = readonly [number, number];
 
-export type SalaryTrajectoryRange = SalaryTrajectoryDateDomain;
-
 const ONE_DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1_000;
 const SALARY_DATE_TICK_COUNT = 4;
 
@@ -80,8 +78,8 @@ type SalaryTrajectoryChartProps = Readonly<{
   milestones?: readonly SalaryTrajectoryMilestone[];
   nominalLabel: string;
   realLabel: string;
-  range?: SalaryTrajectoryRange;
-  onRangeChange?(range: SalaryTrajectoryRange): void;
+  range?: SalaryTrajectoryDateDomain;
+  onRangeChange?(range: SalaryTrajectoryDateDomain): void;
   showRangeSlider?: boolean;
   showRecordedPeaks?: boolean;
 }>;
@@ -471,8 +469,8 @@ function SalaryDateRangeControl({
   range,
 }: Readonly<{
   availableDateDomain: SalaryTrajectoryDateDomain;
-  onRangeChange(range: SalaryTrajectoryRange): void;
-  range: SalaryTrajectoryRange;
+  onRangeChange(range: SalaryTrajectoryDateDomain): void;
+  range: SalaryTrajectoryDateDomain;
 }>) {
   const startLabel = formatHistoryDateLabel(range[0]);
   const endLabel = formatHistoryDateLabel(range[1]);
@@ -562,10 +560,10 @@ function SalaryChartControls({
   hidden: ReadonlySet<SalarySeries>;
   labels: Readonly<Record<SalarySeries, string>>;
   milestoneCount: number;
-  onRangeChange?(range: SalaryTrajectoryRange): void;
+  onRangeChange?(range: SalaryTrajectoryDateDomain): void;
   onToggleMilestones(): void;
   onToggleSeries(series: SalarySeries): void;
-  range?: SalaryTrajectoryRange;
+  range?: SalaryTrajectoryDateDomain;
   showMilestones: boolean;
   showRangeSlider: boolean;
 }>) {

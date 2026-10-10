@@ -7,7 +7,6 @@ import {
   SalaryTrajectoryChart,
   type SalaryTrajectoryDateDomain,
   type SalaryTrajectoryMilestone,
-  type SalaryTrajectoryRange,
 } from "./salary-trajectory-chart";
 
 function logoForEmployer(employer: string): string | undefined {
@@ -37,8 +36,8 @@ export function RealGrossSalaryChart({
   hasRealValues: boolean;
   label: string;
   milestones: readonly Omit<SalaryTrajectoryMilestone, "logoPath">[];
-  onRangeChange(range: SalaryTrajectoryRange): void;
-  range: SalaryTrajectoryRange;
+  onRangeChange(range: SalaryTrajectoryDateDomain): void;
+  range: SalaryTrajectoryDateDomain;
 }>) {
   return (
     <SalaryTrajectoryChart

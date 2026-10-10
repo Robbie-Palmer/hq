@@ -17,6 +17,11 @@ function Slider({
   ...props
 }: SliderProps) {
   const values = props.value ?? props.defaultValue ?? [props.min ?? 0];
+  const thumbs = values.map((_, index) => ({
+    key: thumbLabels[index] ?? `slider-thumb-${index + 1}`,
+    label: thumbLabels[index],
+    valueText: thumbValueTexts[index],
+  }));
 
   return (
     <SliderPrimitive.Root
@@ -36,12 +41,12 @@ function Slider({
           className="absolute h-full bg-primary"
         />
       </SliderPrimitive.Track>
-      {values.map((_, index) => (
+      {thumbs.map((thumb) => (
         <SliderPrimitive.Thumb
-          key={index}
+          key={thumb.key}
           data-slot="slider-thumb"
-          aria-label={thumbLabels[index]}
-          aria-valuetext={thumbValueTexts[index]}
+          aria-label={thumb.label}
+          aria-valuetext={thumb.valueText}
           className="block size-5 shrink-0 rounded-full border-2 border-primary bg-background shadow-sm transition-[color,box-shadow] hover:ring-4 hover:ring-primary/15 focus-visible:ring-4 focus-visible:ring-ring/40 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
         />
       ))}

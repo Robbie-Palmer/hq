@@ -87,8 +87,8 @@ function SalaryRecordActions({
     setDeleting(true);
     try {
       await deleteSalaryRecord({ id: record.id });
-    } catch (caught) {
-      setError(formatAssetTrackerError(caught));
+    } catch (error_) {
+      setError(formatAssetTrackerError(error_));
       setDeleting(false);
     }
   }
