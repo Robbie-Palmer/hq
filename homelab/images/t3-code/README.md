@@ -4,7 +4,7 @@ This image packages the headless t3-code server and its supported coding-agent
 CLIs, mise, Doppler, and the native libraries required by headless browser
 tests. Every base image uses a tag and immutable digest. npm and mise install
 from committed lockfiles with artifact integrity data. The deployment uses the
-release tag `0.0.38-agent-tools-16`. Increment that release suffix for every
+release tag `0.0.38-agent-tools-17`. Increment that release suffix for every
 image change.
 After the first registry publish, replacing the tag in the manifests with its
 registry digest adds another immutability check.

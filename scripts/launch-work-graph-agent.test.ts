@@ -1,8 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
+  assertTicketRouteSupported,
   buildWorkerPrompt,
+  classifyDocumentationTicketIds,
   deriveTicketRoute,
+  isDocumentationOnlyTicket,
+  refreshRoutingProviders,
   selectCodexProvider,
   selectModel,
 } from "./launch-work-graph-agent.js";
@@ -62,14 +66,16 @@ describe("Work Graph ticket routing", () => {
 
     expect(prompt).toContain("claim and execute ticket ticket-1");
     expect(prompt).toContain("Follow its context and the repository instructions");
+    expect(prompt).toContain("do not run mise trust again");
     expect(prompt).not.toMatch(/safe|authori[sz]ed|ask|approval/iu);
   });
 
   it("uses a routine route and human-on-the-loop runtime for a bounded edit", () => {
     expect(deriveTicketRoute(ticket())).toMatchObject({
       complexity: "routine",
+      workKind: "implementation",
       preferredModels: ["gpt-5.6-sol"],
-      reasoningEffort: "high",
+      reasoningEffort: "medium",
       runtimeMode: "full-access",
       serviceTier: "default",
     });
@@ -92,7 +98,7 @@ describe("Work Graph ticket routing", () => {
     });
   });
 
-  it("raises model strength without forcing approvals for architecture work", () => {
+  it("raises Sol reasoning without selecting Astra for architecture work", () => {
     expect(
       deriveTicketRoute(
         ticket({
@@ -109,13 +115,13 @@ describe("Work Graph ticket routing", () => {
       ),
     ).toMatchObject({
       complexity: "critical",
-      preferredModels: ["gpt-6-astra", "gpt-5.6-sol"],
+      preferredModels: ["gpt-5.6-sol"],
       reasoningEffort: "xhigh",
       runtimeMode: "full-access",
     });
   });
 
-  it("requires approvals only for a concrete protected mutation", () => {
+  it("sandboxes a concrete protected mutation without approving every read", () => {
     expect(
       deriveTicketRoute(
         ticket({
@@ -131,9 +137,80 @@ describe("Work Graph ticket routing", () => {
         }),
       ),
     ).toMatchObject({
-      runtimeMode: "approval-required",
+      runtimeMode: "auto-accept-edits",
       serviceTier: "priority",
     });
+  });
+
+  it.each([
+    "Publish ideas for sampling bias",
+    "Preserve automated macrodissection design",
+    "Define the telemetry questions",
+    "Update the deployment runbook",
+  ])("excludes documentation ticket %s", (title) => {
+    expect(isDocumentationOnlyTicket(ticket({ title }))).toBe(true);
+    expect(deriveTicketRoute(ticket({ title }))).toMatchObject({
+      workKind: "documentation",
+      preferredModels: ["gpt-5.6-sol"],
+    });
+  });
+
+  it("does not exclude implementation work that mentions documentation", () => {
+    expect(
+      isDocumentationOnlyTicket(
+        ticket({
+          title: "Implement documentation provenance checks",
+          context: [
+            {
+              kind: "acceptance_criteria",
+              content: "Reject stale documentation during the build.",
+            },
+          ],
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it.each([
+    "Add the recipe detail page",
+    "Fix the login page redirect",
+    "Add a copy button to code blocks",
+  ])("keeps implementation ticket %s eligible", (title) => {
+    expect(isDocumentationOnlyTicket(ticket({ title }))).toBe(false);
+  });
+
+  it("classifies a coordinator ticket batch with the shared rules", () => {
+    const tickets = [
+      ticket({ id: "docs", title: "Update README.md" }).ticket,
+      ticket({ id: "page", title: "Fix the login page redirect" }).ticket,
+      ticket({ id: "code", title: "Implement the parser" }).ticket,
+    ];
+
+    expect(classifyDocumentationTicketIds(tickets)).toEqual(["docs"]);
+  });
+
+  it("rejects a documentation route before creating a T3 thread", () => {
+    const documentationRoute = deriveTicketRoute(
+      ticket({ title: "Update the deployment runbook" }),
+    );
+    expect(() =>
+      assertTicketRouteSupported("ticket-1", documentationRoute),
+    ).toThrow("Documentation ticket ticket-1 is excluded");
+
+    expect(() =>
+      assertTicketRouteSupported("ticket-1", deriveTicketRoute(ticket())),
+    ).not.toThrow();
+  });
+
+  it("refreshes provider status before routing", async () => {
+    const providers = [provider("codex")];
+    const refreshProviders = vi.fn().mockResolvedValue({ providers });
+
+    await expect(
+      refreshRoutingProviders({ server: { refreshProviders } }),
+    ).resolves.toEqual(providers);
+    expect(refreshProviders).toHaveBeenCalledOnce();
+    expect(refreshProviders).toHaveBeenCalledWith({ refreshModels: false });
   });
 
   it("spreads new tickets deterministically across ready Codex profiles", () => {

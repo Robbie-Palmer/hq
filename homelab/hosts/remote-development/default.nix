@@ -1,5 +1,6 @@
 {
   config,
+  lib,
   pkgs,
   ...
 }:
@@ -20,6 +21,7 @@ let
   cacheBlockHardLimitKiB = "31457280";
   cacheInodeHardLimit = "2000000";
   projectQuotaLayoutVersion = "2";
+  agentCoordinatorEnabled = false;
   observabilitySecretsDirectory = "/var/lib/remote-development-observability";
   operatorKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIj4+tNshoonWcOZFnSV0YcXgKuGqfcmn5HyIvLCfdQe robbiepalmer@live.co.uk";
   workspaceBackupInventory = builtins.fromJSON (
@@ -59,9 +61,17 @@ let
     BACKUP_STATUS_FILE=/var/lib/remote-development-backup/status.json
     BACKUP_MAXIMUM_AGE_SECONDS=${toString workspaceBackupInventory.schedule.maximumAgeSeconds}
     KUBE_STATE_METRICS_URL=http://127.0.0.1:18080/api/v1/namespaces/observability/services/http:kube-state-metrics:8080/proxy/metrics
+    AGENT_COORDINATOR_ENABLED=${if agentCoordinatorEnabled then "1" else "0"}
+    AGENT_COORDINATOR_HEALTH_FILE=${operatorDataPath}/home/.t3/work-graph-coordinator/health.json
   '';
   observabilityMetrics = pkgs.writeShellScriptBin "remote-development-observability-metrics" (
     builtins.readFile ../../scripts/remote-development-observability-metrics
+  );
+  agentCoordinator = pkgs.writeText "work-graph-agent-coordinator" (
+    builtins.readFile ../../scripts/work-graph-agent-coordinator
+  );
+  agentCoordinatorRunner = pkgs.writeShellScriptBin "run-work-graph-agent-coordinator" (
+    builtins.readFile ../../scripts/run-work-graph-agent-coordinator
   );
   netdataLibbpf = pkgs.fetchFromGitHub {
     owner = "netdata";
@@ -144,7 +154,10 @@ in
       enable = true;
       checkReversePath = "loose";
       allowedUDPPorts = [ config.services.tailscale.port ];
-      trustedInterfaces = [ "tailscale0" ];
+      trustedInterfaces = [
+        "cni0"
+        "tailscale0"
+      ];
     };
   };
 
@@ -680,6 +693,37 @@ in
       "remote-development-k3s-local-links.service"
       "remote-development-project-quotas.service"
     ];
+  };
+
+  systemd.services.remote-development-agent-coordinator = {
+    description = "Keep the Work Graph agent coordinator running";
+    after = [ "k3s.service" ];
+    requires = [ "k3s.service" ];
+    wantedBy = lib.optionals agentCoordinatorEnabled [ "multi-user.target" ];
+    path = [
+      pkgs.coreutils
+      pkgs.jq
+      pkgs.k3s
+    ];
+    environment = {
+      WORK_GRAPH_COORDINATOR_SCRIPT = "${agentCoordinator}";
+      WORK_GRAPH_COORDINATOR_MAX_TICKETS = "3";
+      WORK_GRAPH_COORDINATOR_MAX_TOTAL_ADMISSIONS = "12";
+      WORK_GRAPH_COORDINATOR_MAX_LAUNCHES_PER_CYCLE = "1";
+      WORK_GRAPH_COORDINATOR_EXCLUDE_DOCUMENTATION = "true";
+      WORK_GRAPH_COORDINATOR_MEMORY_LIMIT_PERCENT = "70";
+      WORK_GRAPH_COORDINATOR_MEMORY_PRESSURE_LIMIT = "5";
+      WORK_GRAPH_COORDINATOR_IO_PRESSURE_LIMIT = "10";
+      WORK_GRAPH_COORDINATOR_POLL_SECONDS = "30";
+      WORK_GRAPH_COORDINATOR_RELAUNCH_AFTER_SECONDS = "3600";
+    };
+    serviceConfig = {
+      ExecStart = "${agentCoordinatorRunner}/bin/run-work-graph-agent-coordinator";
+      Restart = "always";
+      RestartSec = "10s";
+      TimeoutStartSec = "0";
+      TimeoutStopSec = "30s";
+    };
   };
 
   systemd.services.t3-code-tailscale-serve = {

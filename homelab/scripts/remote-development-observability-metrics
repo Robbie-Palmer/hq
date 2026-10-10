@@ -18,6 +18,8 @@ required_values=(
   BACKUP_STATUS_FILE
   BACKUP_MAXIMUM_AGE_SECONDS
   KUBE_STATE_METRICS_URL
+  AGENT_COORDINATOR_ENABLED
+  AGENT_COORDINATOR_HEALTH_FILE
 )
 for name in "${required_values[@]}"; do
   if [ -z "${!name:-}" ]; then
@@ -27,6 +29,10 @@ for name in "${required_values[@]}"; do
 done
 if [[ ! ${WORKSPACE_ID} =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
   echo "WORKSPACE_ID must be a stable non-personal identifier" >&2
+  exit 1
+fi
+if [ "${AGENT_COORDINATOR_ENABLED}" != 0 ] && [ "${AGENT_COORDINATOR_ENABLED}" != 1 ]; then
+  echo "AGENT_COORDINATOR_ENABLED must be 0 or 1" >&2
   exit 1
 fi
 
@@ -81,6 +87,50 @@ if systemctl is-active --quiet k3s.service; then
   k3s_up=1
 fi
 
+agent_coordinator_up=0
+agent_coordinator_enabled=${AGENT_COORDINATOR_ENABLED}
+agent_coordinator_tracked=0
+agent_coordinator_needs_attention=0
+agent_coordinator_admission_open=0
+if [ "${agent_coordinator_enabled}" = 1 ] \
+  && systemctl is-active --quiet remote-development-agent-coordinator.service \
+  && [ -r "${AGENT_COORDINATOR_HEALTH_FILE}" ]; then
+  coordinator_summary=$(
+    jq --raw-output --exit-status '
+      select(
+        (.status == "running" or .status == "draining" or .status == "pilot_exhausted")
+          and .maxTickets == 3
+          and .maxTotalAdmissions == 12
+          and .maxLaunchesPerCycle == 1
+          and .totalAdmissions >= 0
+          and .totalAdmissions <= .maxTotalAdmissions
+          and .remainingAdmissions == (.maxTotalAdmissions - .totalAdmissions)
+          and .trackedCount >= 0
+          and .trackedCount <= 10
+          and (
+            ((.status == "running" or .status == "pilot_exhausted") and .trackedCount <= .maxTickets)
+            or (.status == "draining" and .trackedCount > .maxTickets)
+          )
+          and (.admission.open | type == "boolean")
+          and (now - (.reconciledAt | fromdateiso8601)) >= 0
+          and (now - (.reconciledAt | fromdateiso8601)) <= 180
+      )
+      | [
+          .trackedCount,
+          .needsAttentionCount,
+          (if .status == "pilot_exhausted" or .admission.open then 1 else 0 end)
+        ]
+      | @tsv
+    ' "${AGENT_COORDINATOR_HEALTH_FILE}" 2>/dev/null \
+      || true
+  )
+  if [ -n "${coordinator_summary}" ]; then
+    read -r agent_coordinator_tracked agent_coordinator_needs_attention agent_coordinator_admission_open \
+      <<<"${coordinator_summary}"
+    agent_coordinator_up=1
+  fi
+fi
+
 kube_state_metrics_up=0
 oom_killed=0
 evicted=0
@@ -129,6 +179,11 @@ metrics=$(printf '%s\n' \
   "${metric_prefix}.backup_age_seconds:${backup_age_seconds}|g" \
   "${metric_prefix}.backup_fresh:${backup_fresh}|g" \
   "${metric_prefix}.k3s_up:${k3s_up}|g" \
+  "${metric_prefix}.agent_coordinator_enabled:${agent_coordinator_enabled}|g" \
+  "${metric_prefix}.agent_coordinator_up:${agent_coordinator_up}|g" \
+  "${metric_prefix}.agent_coordinator_tracked:${agent_coordinator_tracked}|g" \
+  "${metric_prefix}.agent_coordinator_needs_attention:${agent_coordinator_needs_attention}|g" \
+  "${metric_prefix}.agent_coordinator_admission_open:${agent_coordinator_admission_open}|g" \
   "${metric_prefix}.kube_state_metrics_up:${kube_state_metrics_up}|g" \
   "${metric_prefix}.oom_killed:${oom_killed}|g" \
   "${metric_prefix}.evicted:${evicted}|g" \

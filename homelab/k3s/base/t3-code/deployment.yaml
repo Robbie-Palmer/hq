@@ -27,7 +27,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: prepare-data-directories
-          image: ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-16
+          image: ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-17
           command:
             - /bin/sh
             - -eu
@@ -44,6 +44,10 @@ spec:
               /data/home/.cache/ms-playwright
               /data/home/.cache/puppeteer
               /data/workspaces
+              && if [ -e /data/home/.codex-personal/.sqlite-maintenance.lock ]
+              && [ ! -L /data/home/.codex-personal/.sqlite-maintenance.lock ];
+              then rm -f /data/home/.codex-personal/.sqlite-maintenance.lock;
+              fi
               && node /usr/local/lib/t3-code/bootstrap-settings.mjs
           securityContext:
             allowPrivilegeEscalation: false
@@ -70,7 +74,7 @@ spec:
               mountPath: /tmp
       containers:
         - name: t3-code
-          image: ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-16
+          image: ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-17
           imagePullPolicy: IfNotPresent
           env:
             - name: HOME

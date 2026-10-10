@@ -7,6 +7,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -143,7 +144,6 @@ if (existsSync(base.primaryHome)) {
     }
     try {
       lstatSync(link);
-      continue;
     } catch {
       symlinkSync(join(base.primaryHome, entryName), link);
     }
@@ -219,6 +219,14 @@ if (options.runLogin) {
     } else {
       process.env.CODEX_HOME = previousCodexHome;
     }
+  }
+  const maintenanceLock = join(shadowHome, ".sqlite-maintenance.lock");
+  try {
+    if (!lstatSync(maintenanceLock).isSymbolicLink()) {
+      rmSync(maintenanceLock, { force: true });
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
   }
 } else {
   const deviceFlag = options.loginMode === "device" ? " --device-auth" : "";

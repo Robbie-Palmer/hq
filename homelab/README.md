@@ -207,6 +207,32 @@ matching Kubernetes NodePort to the operator pod. Stop the application when
 QA finishes so another agent can reuse the slot. These ports do not provide
 the pod with outbound access to other tailnet devices.
 
+### Pair T3 Code over Tailscale
+
+The operator T3 server is available only through Tailscale Serve. To add it to
+a T3 Code desktop client, create a short-lived pairing link inside the running
+pod:
+
+```bash
+ssh root@remote-development
+pod=$(k3s kubectl --namespace t3-code get pod \
+  --selector=app.kubernetes.io/name=t3-code \
+  --field-selector=status.phase=Running \
+  --output=jsonpath='{.items[0].metadata.name}')
+k3s kubectl --namespace t3-code exec "${pod}" \
+  --container t3-code -- \
+  t3 auth pairing create \
+    --base-dir /data/home/.t3 \
+    --ttl 10m \
+    --label tailscale-desktop \
+    --base-url https://remote-development.<tailnet-name>.ts.net
+```
+
+Paste the printed pairing link into T3 Code's environment pairing screen. The
+one-time token becomes a revocable client session, and the desktop stores that
+connection in its encrypted connection catalog. The server and agent traffic
+remain on the tailnet. This setup does not require a T3 account or T3 Connect.
+
 ### Memory pressure
 
 The host uses a zstd-compressed zram swap device capped at 25 percent of RAM,
@@ -342,6 +368,68 @@ cluster.
 
 External alert setup and host-replacement steps are in the
 [remote development observability runbook](docs/remote-development-observability.md).
+
+### Work Graph agent coordinator
+
+The coordinator is paused while its first pilot is reviewed.
+`agentCoordinatorEnabled` in `hosts/remote-development/default.nix` must remain
+`false` until that review is complete. A NixOS deployment keeps the service
+disabled, so a host reboot cannot restart ticket intake.
+
+When enabled, `remote-development-agent-coordinator.service` runs a bounded
+pilot. It can admit 12 distinct tickets in total and own at most three
+unresolved tickets at once. Releasing or cancelling a ticket frees a concurrent
+slot but does not restore the pilot budget. Once the twelfth ticket is
+admitted, the coordinator continues to observe its tracked tickets but does
+not take another one. Resetting the persisted admission counter and enabling
+the service are separate, deliberate operator actions.
+
+A ticket keeps its concurrent slot while it is active, blocked, stale, or
+waiting for human input. When a human resolves a blocking attention request,
+the coordinator can start a new thread for that same ticket without consuming
+another admission.
+
+The service polls every 30 seconds and starts at most one thread per poll. It
+injects the work through the T3 server running in the operator pod. Before a
+launch it requires container memory use below 70 percent, ten-second full
+memory pressure below 5 percent, and ten-second full I/O pressure below 10
+percent. A closed admission gate leaves the ticket in Work Graph for a later
+poll. Existing ownership above the new ceiling drains naturally without
+killing threads.
+
+The coordinator waits one hour before retrying a ticket that still appears
+ready or stale after a launch. Its ownership and launch records survive
+service and pod restarts in
+`/srv/remote-development/t3-code/home/.t3/work-graph-coordinator/state.json`.
+The file contains ticket and T3 thread IDs, timestamps, stages, and bounded
+error labels. It contains no credentials or prompts.
+
+Documentation tickets are excluded before the coordinator records ownership.
+The launcher applies the same check before it creates a thread. Automatic
+routing uses GPT-5.6 Sol for every admitted ticket and varies reasoning effort
+with complexity. It never selects Astra. Tickets that describe a protected
+external mutation use workspace-write sandboxing, so ordinary reads and file
+edits proceed without approval while commands outside the workspace still need
+human approval. The synchronous T3 setup trusts `.mise.toml`; worker prompts
+tell agents not to repeat that command.
+
+The coordinator runs the launcher from the clean `main` worktree. On startup
+it installs locked repository dependencies and the checked-in Work Graph CLI
+if the rebuildable tool cache is empty. Update that worktree before deploying a
+coordinator change. Check its service and safe status without reading agent
+credentials:
+
+```bash
+ssh root@remote-development systemctl status remote-development-agent-coordinator.service
+ssh root@remote-development \
+  jq . /srv/remote-development/t3-code/home/.t3/work-graph-coordinator/health.json
+```
+
+`mise run //homelab:remote-health` accepts the declared paused state. When the
+service is enabled, the check requires a reconciliation less than three minutes
+old and validates the three-ticket concurrency ceiling and 12-ticket pilot
+budget. Netdata records whether the service is enabled before it evaluates
+service or admission alerts.
 
 ### Updates, rollback, and backups
 
