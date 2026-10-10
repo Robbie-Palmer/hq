@@ -1,0 +1,130 @@
+---
+title: "ADR 020: Project-Owned Deterministic Experiment Kernel"
+status: "Proposed"
+date: "2026-10-09"
+---
+
+# Context
+
+[ADR 007](/projects/autonomic-satellite-swarm/adrs/007-portable-core-and-hardware-adapters)
+keeps the coordination controller independent of its hardware adapters, and
+[ADR 011](/projects/autonomic-satellite-swarm/adrs/011-host-first-verification) makes host execution
+the main verification path. [ADR
+013](/projects/autonomic-satellite-swarm/adrs/013-browser-simulation-with-cesiumjs-and-webassembly)
+then requires the native and WebAssembly runners to produce the same versioned trace from fixed
+inputs. [ADR
+017](/projects/autonomic-satellite-swarm/adrs/017-deterministic-sgp4-orbit-simulation) and [ADR
+018](/projects/autonomic-satellite-swarm/adrs/018-deterministic-impulsive-maneuver-model) add orbital
+models to that simulation layer. [ADR
+019](/projects/autonomic-satellite-swarm/adrs/019-deterministic-network-model-boundary) proposes
+keeping the focused network model in the same runner. Before these models expand, the project needs
+to decide whether it owns the experiment kernel or adopts an existing spacecraft simulation
+framework.
+
+[Basilisk 2.12.0](https://avslab.github.io/basilisk/) is the strongest spacecraft-specific
+candidate. It offers orbit and attitude dynamics, message-based model composition, repeatable Monte
+Carlo runs, and hardware-in-the-loop support under the ISC license. Its supported architecture is a
+Python package whose C, C++, and Rust modules are exposed through generated interfaces. Official
+[prebuilt packages](https://avslab.github.io/basilisk/Install.html) target Windows, macOS, and Linux.
+Basilisk supports independently distributed extensions and a more tightly coupled
+[external-module build](https://avslab.github.io/basilisk/develop/Build/buildExtModules.html). The
+latter shares Basilisk's build, Python package, messaging package, and native ABI, so every upgrade
+requires a rebuild and regression test of the combined installation.
+
+[NASA Trick](https://nasa.github.io/trick/tutorial/ATutIntroduction) is a maintained general
+simulation framework with scheduling, integration, checkpointing, data recording, real-time
+execution, and hardware-in-the-loop use cases. A Trick simulation combines C or C++ models with a
+simulation definition and Python input, then uses generated glue and Trick's build system. It
+supports Linux and macOS and uses the
+[NASA Open Source Agreement 1.3](https://github.com/nasa/trick/blob/master/LICENSE), which would need
+an explicit redistribution review before vendoring.
+
+The present browser target compiles the project-owned C++ simulation directly with Emscripten,
+disables the filesystem, and links it into a worker. Basilisk does not list WebAssembly as a
+supported platform, and its documented extension forms execute inside the Python-hosted Basilisk
+process. Trick likewise documents host executables and generated Python integration rather than a
+WebAssembly target. Replacing the current worker with either framework would therefore require an
+unsupported port, a Python runtime in the browser, or a remote simulation service. The first two
+would expand the browser payload and build surface substantially. The remote service would remove
+offline execution and make native-to-browser byte parity depend on another process and protocol.
+This is a concrete blocker to using either framework as the current native and WebAssembly kernel.
+
+# Decision, proposed
+
+Keep a project-owned deterministic experiment kernel as the authority for coordination experiments.
+It will run the real portable controller, order events, inject network and node faults, manage
+seeded randomness, call environmental models, and emit the canonical `SimulationTrace`. Native and
+WebAssembly builds will compile the same C++ kernel and consume the same checked-in scenario.
+
+Keep dynamics and environment models behind narrow simulation-layer interfaces. The portable
+controller and both firmware targets must remain unaware of SGP4, maneuver propagation, spacecraft
+frameworks, and browser concerns. Every canonical trace must identify its scenario schema, source
+revision, model revisions, configuration, fixed epochs, and random seeds. Units, coordinate frames,
+and event-order rules belong at the model boundary rather than in the renderer.
+
+Use external frameworks only through optional, offline adapters for independent comparison,
+high-fidelity follow-up experiments, or hardware-in-the-loop work. Such an adapter may translate a
+versioned project scenario into Basilisk or another framework and emit a separate comparison
+artifact. It must not silently replace values in the canonical trace, become a browser runtime
+dependency, fetch changing inputs during a run, or enter the firmware dependency graph.
+
+Do not vendor Basilisk or Trick, adopt either framework's scheduler, or introduce live co-simulation
+at this stage. A focused numerical library may still be consumed when one model justifies it, but
+its source revision, license, validation vectors, platform support, and upgrade policy require the
+model-specific ADR. Framework source must not be copied into the repository as an informal source
+of algorithms.
+
+# Alternatives
+
+| Option                                                          | Benefit                                                                                                   | Cost or constraint                                                                                                                                     | Outcome                                     |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| Own the small experiment kernel                                 | One event order and trace contract across native and WebAssembly; direct reuse of the portable controller | The project owns scheduling, fault semantics, provenance, and model validation                                                                         | Proposed                                    |
+| Consume Basilisk as the primary runtime                         | Mature spacecraft dynamics, messaging, Monte Carlo, and hardware-in-the-loop capabilities                 | Python and generated native interfaces become part of the runtime; no supported WebAssembly package is documented                                      | Rejected for the canonical kernel           |
+| Vendor Basilisk or use an integrated external-module build      | Pins the complete implementation and permits deep customization                                           | Takes ownership of a large build and dependency graph while retaining Python, native ABI, and upgrade coupling; still lacks a supported browser target | Rejected                                    |
+| Maintain a Basilisk extension or scenario adapter               | Reuses Basilisk without modifying its source and supports independent higher-fidelity checks              | Runs as a separate host-side artifact and can drift from the canonical scenario contract                                                               | Allowed for validation, outside the kernel  |
+| Live co-simulate the owned controller and an external framework | Preserves the controller boundary while delegating dynamics                                               | Requires a clock, ordering, transport, timeout, and replay protocol across processes; complicates offline browser parity                               | Deferred until a fidelity need justifies it |
+| Adopt NASA Trick                                                | Supplies a mature scheduler, state management, recording, and real-time facilities                        | Replaces the current build and execution model, lacks a documented WebAssembly target, and adds a separate license review                              | Rejected for the current scope              |
+
+# Acceptance criteria
+
+Keep this ADR Proposed until the first orbital-model implementation satisfies all of the following:
+
+* Define and test a narrow dynamics boundary that can be replaced by a test double without changing
+  the portable controller.
+* Record scenario, source, model, configuration, epoch, and seed provenance in the canonical trace.
+* Preserve offline native-to-WebAssembly trace parity without adding Python, a simulator service, or
+  a general simulation framework to the browser path.
+* Validate each adopted dynamics model against published reference vectors or an independently
+  generated, pinned comparison artifact with a stated error bound.
+* Record the native runtime, WebAssembly size, trace size, and build-time change introduced by the
+  first model.
+* Pin and review the source, license, notices, platform support, and update procedure for every
+  focused third-party numerical dependency.
+* Confirm through the existing build matrix that neither firmware target contains simulation-only
+  code or dependencies.
+
+# Revisit triggers
+
+Reopen the framework choice when one of these conditions holds:
+
+* six-degree-of-freedom attitude, sensors, actuators, estimation, or environmental models become a
+  larger maintenance burden than the coordination experiment;
+* repeatable Monte Carlo campaigns or hardware-in-the-loop execution become a primary deliverable;
+* the browser becomes a thin client for a versioned remote simulation service;
+* Basilisk or another suitable framework publishes a maintained WebAssembly runtime that can meet
+  the offline and parity requirements; or
+* a measured adapter experiment shows that framework adoption removes more project code and
+  validation work than it adds in build, provenance, and integration cost.
+
+# Consequences
+
+The native CLI and browser continue to present one inspectable account of controller inputs,
+failures, decisions, and motion. Scenario replay remains offline, and simulation dependencies do
+not leak into firmware. External spacecraft tools can still challenge the project's models without
+becoming the source of truth.
+
+The project accepts responsibility for its event scheduler, fault model, scenario schema, trace
+provenance, and every simplified dynamics boundary. Independent validation is required before a
+model supports a claim. The owned kernel remains an experiment harness for coordination behavior;
+it does not acquire the fidelity, verification pedigree, or hardware-in-the-loop capabilities of a
+full spacecraft simulator.

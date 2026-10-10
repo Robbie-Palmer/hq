@@ -1,0 +1,159 @@
+---
+title: "ADR 022: Host- and Bench-First Hardware-in-the-Loop Boundary"
+status: "Proposed"
+date: "2026-10-09"
+---
+
+# Context
+
+[ADR 007](/projects/autonomic-satellite-swarm/adrs/007-portable-core-and-hardware-adapters)
+keeps the coordination controller behind transport, health, and scoring interfaces. The C++
+interfaces layer also defines `SafeStateActuator`, which `SwarmController` consumes, and
+`TelemetrySink`, which `TelemetryTransmitter` consumes. The controller receives an explicit
+monotonic tick instead of reading a platform clock.
+[ADR 011](/projects/autonomic-satellite-swarm/adrs/011-host-first-verification) makes deterministic
+host tests the primary verification path, while [ADR
+020](/projects/autonomic-satellite-swarm/adrs/020-project-owned-deterministic-experiment-kernel)
+keeps the canonical native and WebAssembly experiment independent of a general spacecraft
+simulation framework. The project must now decide where flight-software simulation and
+hardware-in-the-loop testing belong without weakening those boundaries.
+
+[NASA Operational Simulator for Small Satellites
+(NOS3)](https://nos3.readthedocs.io/en/latest/Architecture.html) is the strongest integrated
+candidate. Its current architecture runs a flight-software container, component-simulator
+containers, a 42 dynamics container, and a ground-system container on Docker networks. NOS Engine
+coordinates simulated time and exchanges I2C, SPI, CAN, and UART traffic between flight software
+and component models. A hardware library gives flight software the same calls for modeled and real
+devices. Component models can also receive fault and control commands through an out-of-band
+command bus.
+
+[NOS3 1.7.5](https://github.com/nasa/nos3/releases/tag/v1_07_05) was released in June 2026. The
+repository includes cFS, F Prime, 42, ground systems, hardware libraries, component simulators, and
+tooling as Git submodules. NOS3 therefore supplies much more than a library dependency: adopting it
+also adopts a container topology, time service, build and configuration conventions, and a large
+set of independently versioned components. It is distributed under the [NASA Open Source
+Agreement 1.3](https://github.com/nasa/nos3/blob/main/LICENSE), so redistribution or vendoring
+would require a license review.
+
+The documented installation paths use either a Linux virtual machine managed by Vagrant and
+VirtualBox or a Linux host with Docker. The [installation
+guide](https://nos3.readthedocs.io/en/latest/Scenario_Install.html) recommends 64 GB or more of disk
+and 16 GB of memory for the virtual-machine path, and a recursive clone initializes the full
+submodule graph. Those requirements are reasonable for a dedicated integration environment, but
+not for the default browser, firmware, or fast host-test jobs. NOS3 also [does not emulate the
+target processor](https://nos3.readthedocs.io/en/latest/Scenario_Flight_Build.html); hardware timing,
+electrical behavior, radio behavior, and target instruction execution still need a physical bench
+or another specialized tool.
+
+[cFS](https://github.com/nasa/cFS) and [F Prime](https://github.com/nasa/fprime) are maintained,
+Apache-2.0 flight-software frameworks. Their application and component test facilities are useful
+when one becomes the mission framework, but neither alone supplies NOS3's device-bus models,
+dynamics, coordinated simulated time, and ground-system environment. Choosing a flight-software
+framework is also a separate decision from choosing the external simulation environment.
+
+The existing controller can cross either boundary without source changes. A flight wrapper can
+map its scheduler or NOS Engine tick to `now_ms`, its software bus or hardware library to
+`Transport`, device state to `HealthMonitor`, a mission-specific command path to
+`SafeStateActuator`. A `TelemetryTransmitter` can publish buffered controller events through
+`TelemetrySink`. This is the minimum useful seam. The project has not yet selected a flight
+computer, flight-software framework, radio, device bus, or physical safe-state action. Building a
+NOS3 component now would therefore verify an invented device contract rather than the intended
+spacecraft.
+
+# Decision, proposed
+
+Keep the project-owned deterministic host harness and board-level bench adapters as the current
+verification baseline. Do not vendor NOS3, add it to the normal repository build, or make it a
+dependency of the portable controller, firmware, browser worker, or canonical experiment trace.
+
+Preserve a flight-facing adapter boundary immediately outside the portable controller. The adapter
+owns scheduling, clock conversion, software-bus or device-bus transport, health acquisition,
+telemetry publication, and safe-state actuation. It passes one monotonic millisecond time domain to
+the controller and implements the existing C++ interfaces. Simulator-specific code must
+remain behind that adapter. The same flight-facing device contract must be usable by a simulated
+device model and by the selected bench hardware.
+
+After the flight computer, framework, and device protocols are selected, evaluate NOS3 through a
+separate integration spike. Prefer a mission overlay or adapter pinned to a NOS3 release, source
+revision, container images, submodule revisions, and scenario configuration. Do not copy NOS3
+source into the portable core. A cFS application or F Prime component may wrap the unchanged
+controller if that framework is selected, but framework ownership and lifecycle rules require a
+separate ADR.
+
+Treat NOS3 as an external test environment rather than the source of canonical replay. A fixed
+scenario may drive both the project-owned host harness and NOS3, but each retains its own event and
+time semantics. NOS3 evidence must record the source and image revisions, component configuration,
+time mode, fault script, seed, and ground-system inputs. Any normalized comparison is a derived
+artifact and must not replace the canonical `SimulationTrace`.
+
+Inject simulated device faults through the component-model command boundary, not through hidden
+changes to the controller. Every fault campaign must use a checked-in or content-addressed script
+and emit a timestamped record of accepted commands and observed effects. Multi-process scheduling
+or container timing must not be described as byte-for-byte deterministic unless a repeatability
+test demonstrates that property.
+
+Keep NOS3 jobs outside the default fast checks. If adopted, run them in a pinned, separately
+provisioned integration job or dedicated runner and publish their environment manifest with the
+results. Continue to use a physical bench as the authority for target timing, electrical behavior,
+radio behavior, real safe-state actuation, and processor-specific claims.
+
+# Alternatives
+
+| Option                                                 | Benefit                                                                                           | Cost or constraint                                                                                                                   | Outcome                                     |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| Keep host and bench verification, with an adapter seam | Preserves fast deterministic checks and the existing portable core while leaving a route to NOS3  | The project must define and test the flight-facing device contract                                                                   | Proposed                                    |
+| Adopt the full NOS3 stack now                          | Supplies cFS and F Prime integration, component models, dynamics, fault injection, and operations | No target hardware or device contract exists; setup, submodule, container, and license costs would precede a useful integration      | Rejected for the current phase              |
+| Repackage the controller as a cFS app now              | Exercises cFS scheduling, messages, events, and tables early                                      | Commits to a flight framework before the mission platform decision and still needs simulated device models                           | Deferred                                    |
+| Repackage the controller as an F Prime component now   | Exercises typed ports, deployment, and component tests early                                      | Commits to a different flight framework before the platform decision and still needs a device environment                            | Deferred                                    |
+| Link NOS Engine or NOS3 hardware models into the core  | Gives the controller direct access to simulated buses and time                                    | Leaks simulator APIs and lifecycle into portable, browser, and firmware code                                                         | Rejected                                    |
+| Live co-simulate the canonical kernel with NOS3        | Combines project-owned coordination replay with richer spacecraft models                          | Requires a cross-process clock, ordering, transport, timeout, recovery, and evidence protocol before either side has a stable target | Deferred until a measured need justifies it |
+| Build only project-owned HIL tooling                   | Minimizes external setup and can closely match the selected bench                                 | Would duplicate mature device simulation and operations tooling once a supported mission target exists                               | Retained for current bench work, not final  |
+
+# Acceptance criteria
+
+Keep this ADR Proposed until the first flight-software simulation or HIL integration satisfies all
+of the following:
+
+* Select and document the flight computer, flight-software framework, scheduler, radio, device-bus
+  protocols, health inputs, telemetry path, and physical safe-state action.
+* Define a versioned flight-facing adapter contract and map its time, transport, health, telemetry,
+  and safe-state operations to the existing C++ interfaces.
+* Build the same portable controller sources in the host harness and the selected flight wrapper,
+  with no simulator conditionals in the controller.
+* Run one fixed fault scenario through a simulated device boundary and record every fault command,
+  time transition, controller observation, and resulting action.
+* Run the equivalent device contract against bench hardware and document which simulated
+  assumptions the bench confirms or contradicts.
+* Pin the NOS3 release and source revision, every submodule revision, container image digest,
+  scenario configuration, seed, and time mode used to produce evidence.
+* Complete license and notice review before redistributing NOS3, a modified NOS3 image, or any
+  bundled submodule.
+* Measure provisioning time, runtime, peak memory, disk use, and flake rate before adding a NOS3
+  job to continuous integration. Keep it separate from the fast host and browser checks.
+* Confirm that NOS3, cFS, F Prime, 42, ground-system, and simulator dependencies are absent from the
+  browser worker and from firmware targets that do not select them.
+* Label host, simulated-flight, and bench evidence separately. Make no processor-timing,
+  electrical, radio, or flight-qualification claim from NOS3 execution alone.
+
+# Revisit triggers
+
+Reopen this decision when the project selects a flight computer and flight-software framework;
+needs repeatable device-bus faults that the host harness cannot represent; begins multi-spacecraft
+operations or operator training; has scarce access to representative hardware; or can demonstrate
+that a pinned NOS3 environment is maintainable in the project's continuous-integration budget.
+Also revisit it if NOS3 adds target-processor emulation or a lighter supported integration mode
+that materially changes the setup and evidence costs.
+
+# Consequences
+
+The controller stays portable and the normal verification loop remains small, offline, and
+deterministic. Host experiments, simulated-flight tests, and physical bench tests have explicit,
+different evidence roles. The project can later consume NOS3's device models, coordinated time,
+fault injection, dynamics, and operations tooling without making them part of the browser or
+firmware architecture.
+
+The project postpones useful NOS3 integration work and must maintain its own bench adapters in the
+meantime. Once hardware is selected, it will need a flight wrapper, one or more component models,
+environment pinning, license review, and a dedicated integration job. The physical bench remains
+necessary because NOS3 does not establish target processor, electrical, radio, or actuator
+behavior.
