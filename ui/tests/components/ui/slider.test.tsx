@@ -18,6 +18,12 @@ afterAll(() => {
 });
 
 describe("Slider", () => {
+  it("renders a default value without optional thumb labels", () => {
+    render(<Slider min={0} max={10} defaultValue={[5]} />);
+
+    expect(screen.getByRole("slider")).toHaveAttribute("aria-valuenow", "5");
+  });
+
   it("labels each thumb and moves the focused value by one step", () => {
     const onValueChange = vi.fn();
     render(
