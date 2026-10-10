@@ -1,13 +1,14 @@
 import {
   chmodSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readFileSync,
   renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 const homePath = process.env.HOME ?? "/data/home";
 const codexHomePath = join(homePath, ".codex");
@@ -30,6 +31,33 @@ function isRecord(value) {
 
 function recordOrEmpty(value) {
   return isRecord(value) ? value : {};
+}
+
+function removeConflictingMaintenanceLock(shadowHomePath) {
+  const resolvedHome = resolve(homePath);
+  const resolvedShadowHome = resolve(shadowHomePath);
+  if (
+    resolvedShadowHome === resolve(codexHomePath) ||
+    !resolvedShadowHome.startsWith(`${resolvedHome}/`)
+  ) {
+    console.warn(`Refusing to reconcile Codex shadow home outside ${resolvedHome}`);
+    return;
+  }
+
+  const lockPath = join(resolvedShadowHome, ".sqlite-maintenance.lock");
+  let entry;
+  try {
+    entry = lstatSync(lockPath);
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return;
+    }
+    throw error;
+  }
+  if (!entry.isSymbolicLink()) {
+    rmSync(lockPath, { force: true });
+    console.warn(`Removed conflicting Codex shadow-home lock ${lockPath}`);
+  }
 }
 
 function atomicWrite(path, contents) {
@@ -222,6 +250,16 @@ settings.providerInstances = {
     },
   },
 };
+
+for (const instance of Object.values(settings.providerInstances)) {
+  if (!isRecord(instance) || instance.driver !== "codex") {
+    continue;
+  }
+  const config = recordOrEmpty(instance.config);
+  if (typeof config.shadowHomePath === "string") {
+    removeConflictingMaintenanceLock(config.shadowHomePath);
+  }
+}
 
 settings.defaultModelSelection = {
   instanceId: "codex",

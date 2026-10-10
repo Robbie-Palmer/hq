@@ -2,11 +2,14 @@ import assert from "node:assert/strict";
 import { type SpawnSyncReturns, spawnSync } from "node:child_process";
 import {
   chmodSync,
+  existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -139,11 +142,238 @@ function run(
   return { stdout: result.stdout, stderr: result.stderr };
 }
 
+test("the agent coordinator enforces the pilot budget and skips documentation", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "agent-coordinator-"));
+  const binDirectory = join(temporaryDirectory, "bin");
+  const stateDirectory = join(temporaryDirectory, "state");
+  const worktree = join(temporaryDirectory, "worktree");
+  const graphPath = join(temporaryDirectory, "graph.json");
+  const launchesPath = join(temporaryDirectory, "launches.jsonl");
+  const contextRetryPath = join(temporaryDirectory, "context-retried");
+  const memoryCurrentPath = join(temporaryDirectory, "memory.current");
+  const memoryMaxPath = join(temporaryDirectory, "memory.max");
+  const memoryPressurePath = join(temporaryDirectory, "memory.pressure");
+  const ioPressurePath = join(temporaryDirectory, "io.pressure");
+  const coordinator = fileURLToPath(
+    new URL("../scripts/work-graph-agent-coordinator", import.meta.url),
+  );
+  const tickets = Array.from({ length: 12 }, (_, index) => ({
+    id: `ticket-${String(index + 1).padStart(2, "0")}`,
+    title: `Ticket ${index + 1}`,
+    stage: "ready",
+  }));
+  const ticketAt = (index: number) => {
+    const ticket = tickets[index];
+    assert.ok(ticket);
+    return ticket;
+  };
+  ticketAt(1).title = "Publish ideas for sampling bias";
+
+  try {
+    mkdirSync(binDirectory, { recursive: true });
+    mkdirSync(worktree, { recursive: true });
+    writeFileSync(graphPath, `${JSON.stringify({ items: tickets })}\n`);
+    writeFileSync(memoryCurrentPath, "80\n");
+    writeFileSync(memoryMaxPath, "100\n");
+    writeFileSync(memoryPressurePath, "full avg10=0.00 avg60=0.00 avg300=0.00 total=0\n");
+    writeFileSync(ioPressurePath, "full avg10=0.00 avg60=0.00 avg300=0.00 total=0\n");
+    writeFileSync(
+      join(binDirectory, "mise"),
+      `#!/usr/bin/env bash
+set -euo pipefail
+test "$1" = exec
+test "$2" = --
+tool=$3
+shift 3
+if [ "$tool" = work-graph ]; then
+  command=$1
+  shift
+  case "$command" in
+    queue)
+      jq . "$FAKE_GRAPH_FILE"
+      ;;
+    ready)
+      jq '{items: [.items[] | select(.stage == "ready")]}' "$FAKE_GRAPH_FILE"
+      ;;
+    show)
+      jq --arg id "$1" -e '.items[] | select(.id == $id)' "$FAKE_GRAPH_FILE"
+      ;;
+    context)
+      test "$1" = show
+      if [ "$2" = ticket-01 ] && [ ! -e "$FAKE_CONTEXT_RETRY_FILE" ]; then
+        touch "$FAKE_CONTEXT_RETRY_FILE"
+        exit 0
+      fi
+      jq -n '{items: [{kind: "brief", content: "Do the work."}]}'
+      ;;
+    *)
+      exit 2
+      ;;
+  esac
+elif [ "$tool" = pnpm ]; then
+  ticket_id=$(jq -r '.ticket.id' <<<"$T3_WORK_GRAPH_SELECTION")
+  printf '%s\\n' "$ticket_id" >>"$FAKE_LAUNCHES_FILE"
+  jq -n --arg ticket_id "$ticket_id" '{threadId: ("thread-" + $ticket_id)}'
+else
+  exit 2
+fi
+`,
+    );
+    writeFileSync(
+      join(binDirectory, "t3"),
+      "#!/usr/bin/env bash\nprintf 'test-access-token\\n'\n",
+    );
+    writeFileSync(join(binDirectory, "pnpm"), "#!/usr/bin/env bash\nexit 2\n");
+    for (const command of ["mise", "t3", "pnpm"]) {
+      chmodSync(join(binDirectory, command), 0o755);
+    }
+
+    const environment = {
+      ...process.env,
+      PATH: `${binDirectory}:${process.env.PATH ?? ""}`,
+      FAKE_GRAPH_FILE: graphPath,
+      FAKE_LAUNCHES_FILE: launchesPath,
+      FAKE_CONTEXT_RETRY_FILE: contextRetryPath,
+      T3_WORK_GRAPH_BASE_BRANCH: "main",
+      T3_WORK_GRAPH_ORIGIN: "http://127.0.0.1:3773",
+      WORK_GRAPH_COORDINATOR_MAX_TICKETS: "3",
+      WORK_GRAPH_COORDINATOR_MAX_TOTAL_ADMISSIONS: "4",
+      WORK_GRAPH_COORDINATOR_MAX_LAUNCHES_PER_CYCLE: "1",
+      WORK_GRAPH_COORDINATOR_EXCLUDE_DOCUMENTATION: "true",
+      WORK_GRAPH_COORDINATOR_MEMORY_CURRENT_FILE: memoryCurrentPath,
+      WORK_GRAPH_COORDINATOR_MEMORY_MAX_FILE: memoryMaxPath,
+      WORK_GRAPH_COORDINATOR_MEMORY_PRESSURE_FILE: memoryPressurePath,
+      WORK_GRAPH_COORDINATOR_IO_PRESSURE_FILE: ioPressurePath,
+      WORK_GRAPH_COORDINATOR_PROJECT_ROOT: "/test/project",
+      WORK_GRAPH_COORDINATOR_RELAUNCH_AFTER_SECONDS: "3600",
+      WORK_GRAPH_COORDINATOR_RUN_ONCE: "true",
+      WORK_GRAPH_COORDINATOR_SKIP_BOOTSTRAP: "true",
+      WORK_GRAPH_COORDINATOR_SKIP_PROVIDER_REFRESH: "true",
+      WORK_GRAPH_COORDINATOR_STATE_DIRECTORY: stateDirectory,
+      WORK_GRAPH_COORDINATOR_WORKTREE: worktree,
+    };
+
+    run("bash", [coordinator], undefined, environment);
+    const pressuredHealth = JSON.parse(
+      readFileSync(join(stateDirectory, "health.json"), "utf8"),
+    ) as { admission: { open: boolean; reason: string }; trackedCount: number };
+    assert.equal(pressuredHealth.trackedCount, 0);
+    assert.equal(pressuredHealth.admission.open, false);
+    assert.equal(pressuredHealth.admission.reason, "memory_usage");
+
+    writeFileSync(memoryCurrentPath, "50\n");
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      run("bash", [coordinator], undefined, environment);
+    }
+    const firstState = JSON.parse(
+      readFileSync(join(stateDirectory, "state.json"), "utf8"),
+    ) as { tickets: Record<string, unknown>; totalAdmissions: number };
+    assert.equal(Object.keys(firstState.tickets).length, 3);
+    assert.equal(firstState.totalAdmissions, 3);
+    assert.equal(firstState.tickets["ticket-02"], undefined);
+    assert.equal(
+      readFileSync(launchesPath, "utf8").trim().split("\n").length,
+      3,
+    );
+    assert.equal(readFileSync(contextRetryPath, "utf8"), "");
+
+    ticketAt(0).stage = "released";
+    ticketAt(2).stage = "needs_attention";
+    writeFileSync(graphPath, `${JSON.stringify({ items: tickets })}\n`);
+    run("bash", [coordinator], undefined, environment);
+
+    const secondState = JSON.parse(
+      readFileSync(join(stateDirectory, "state.json"), "utf8"),
+    ) as { tickets: Record<string, { stage: string }> };
+    const health = JSON.parse(
+      readFileSync(join(stateDirectory, "health.json"), "utf8"),
+    ) as {
+      admission: { open: boolean };
+      excludedDocumentationCount: number;
+      maxTotalAdmissions: number;
+      maxTickets: number;
+      maxLaunchesPerCycle: number;
+      needsAttentionCount: number;
+      remainingAdmissions: number;
+      status: string;
+      totalAdmissions: number;
+      trackedCount: number;
+    };
+    assert.equal(Object.keys(secondState.tickets).length, 3);
+    assert.equal(secondState.tickets["ticket-01"], undefined);
+    assert.equal(secondState.tickets["ticket-03"]?.stage, "needs_attention");
+    assert.notEqual(secondState.tickets["ticket-05"], undefined);
+    assert.equal(
+      readFileSync(launchesPath, "utf8").trim().split("\n").length,
+      4,
+    );
+    assert.equal(health.maxTickets, 3);
+    assert.equal(health.maxTotalAdmissions, 4);
+    assert.equal(health.maxLaunchesPerCycle, 1);
+    assert.equal(health.excludedDocumentationCount, 1);
+    assert.equal(health.needsAttentionCount, 1);
+    assert.equal(health.trackedCount, 3);
+    assert.equal(health.totalAdmissions, 4);
+    assert.equal(health.remainingAdmissions, 0);
+    assert.equal(health.status, "pilot_exhausted");
+    assert.equal(health.admission.open, false);
+
+    ticketAt(3).stage = "released";
+    writeFileSync(graphPath, `${JSON.stringify({ items: tickets })}\n`);
+    run("bash", [coordinator], undefined, environment);
+    const exhaustedState = JSON.parse(
+      readFileSync(join(stateDirectory, "state.json"), "utf8"),
+    ) as { tickets: Record<string, unknown>; totalAdmissions: number };
+    assert.equal(exhaustedState.totalAdmissions, 4);
+    assert.equal(Object.keys(exhaustedState.tickets).length, 2);
+    assert.equal(exhaustedState.tickets["ticket-06"], undefined);
+    assert.equal(
+      readFileSync(launchesPath, "utf8").trim().split("\n").length,
+      4,
+    );
+
+    writeFileSync(
+      join(stateDirectory, "state.json"),
+      `${JSON.stringify({
+        schemaVersion: 1,
+        maxTickets: 3,
+        createdAt: "2026-10-09T00:00:00Z",
+        updatedAt: "2026-10-09T00:00:00Z",
+        tickets: {},
+      })}\n`,
+    );
+    run("bash", [coordinator], undefined, environment);
+    const migratedState = JSON.parse(
+      readFileSync(join(stateDirectory, "state.json"), "utf8"),
+    ) as {
+      maxTotalAdmissions: number;
+      schemaVersion: number;
+      tickets: Record<string, unknown>;
+      totalAdmissions: number;
+    };
+    assert.equal(migratedState.schemaVersion, 2);
+    assert.equal(migratedState.maxTotalAdmissions, 4);
+    assert.equal(migratedState.totalAdmissions, 4);
+    assert.equal(Object.keys(migratedState.tickets).length, 0);
+    assert.equal(
+      readFileSync(launchesPath, "utf8").trim().split("\n").length,
+      4,
+    );
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
+});
+
 test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", () => {
   const temporaryDirectory = mkdtempSync(join(tmpdir(), "t3-bootstrap-"));
   const testHome = join(temporaryDirectory, "home");
   const t3Home = join(testHome, ".t3");
   const codexHome = join(testHome, ".codex");
+  const codex2Home = join(testHome, ".codex-personal");
+  const codex2MaintenanceLock = join(
+    codex2Home,
+    ".sqlite-maintenance.lock",
+  );
   const settingsPath = join(t3Home, "userdata/settings.json");
   const configPath = join(codexHome, "config.toml");
   const catalogPath = join(codexHome, "model-catalog.json");
@@ -151,6 +381,8 @@ test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", ()
   try {
     mkdirSync(join(t3Home, "userdata"), { recursive: true });
     mkdirSync(codexHome, { recursive: true });
+    mkdirSync(codex2Home, { recursive: true });
+    writeFileSync(codex2MaintenanceLock, "stale shadow lock\n");
     writeFileSync(
       settingsPath,
       `${JSON.stringify({
@@ -198,11 +430,19 @@ test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", ()
     const firstConfig = readFileSync(configPath, "utf8");
     const firstSettings = readFileSync(settingsPath, "utf8");
     const firstCatalog = readFileSync(catalogPath, "utf8");
+    assert.equal(existsSync(codex2MaintenanceLock), false);
+    const primaryMaintenanceLock = join(
+      codexHome,
+      ".sqlite-maintenance.lock",
+    );
+    writeFileSync(primaryMaintenanceLock, "");
+    symlinkSync(primaryMaintenanceLock, codex2MaintenanceLock);
     run(process.execPath, [scriptPath], undefined, environment);
 
     assert.equal(readFileSync(configPath, "utf8"), firstConfig);
     assert.equal(readFileSync(settingsPath, "utf8"), firstSettings);
     assert.equal(readFileSync(catalogPath, "utf8"), firstCatalog);
+    assert.equal(lstatSync(codex2MaintenanceLock).isSymbolicLink(), true);
     assert.match(firstConfig, /^model = "gpt-5\.6-sol"$/m);
     assert.match(firstConfig, /^model_reasoning_effort = "high"$/m);
     assert.match(
@@ -272,6 +512,10 @@ test("the observability collector attributes quota, backup, and Kubernetes state
   const binaryDirectory = join(temporaryDirectory, "bin");
   const configPath = join(temporaryDirectory, "metrics.env");
   const statusPath = join(temporaryDirectory, "status.json");
+  const coordinatorHealthPath = join(
+    temporaryDirectory,
+    "agent-coordinator-health.json",
+  );
   const outputPath = join(temporaryDirectory, "statsd.txt");
 
   try {
@@ -314,12 +558,29 @@ printf '%s\\n' \\
         `BACKUP_STATUS_FILE=${statusPath}`,
         "BACKUP_MAXIMUM_AGE_SECONDS=129600",
         "KUBE_STATE_METRICS_URL=http://127.0.0.1:18080/api/v1/namespaces/observability/services/http:kube-state-metrics:8080/proxy/metrics",
+        "AGENT_COORDINATOR_ENABLED=1",
+        `AGENT_COORDINATOR_HEALTH_FILE=${coordinatorHealthPath}`,
         "",
       ].join("\n"),
     );
     writeFileSync(
       statusPath,
       `${JSON.stringify({ lastSuccessUnix: Math.floor(Date.now() / 1000) - 60 })}\n`,
+    );
+    writeFileSync(
+      coordinatorHealthPath,
+      `${JSON.stringify({
+        status: "draining",
+        maxTickets: 3,
+        maxTotalAdmissions: 12,
+        maxLaunchesPerCycle: 1,
+        totalAdmissions: 8,
+        remainingAdmissions: 4,
+        trackedCount: 7,
+        needsAttentionCount: 2,
+        admission: { open: true },
+        reconciledAt: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+      })}\n`,
     );
 
     run(
@@ -361,6 +622,26 @@ printf '%s\\n' \\
     assert.match(
       metrics,
       /^remote_development\.operator\.k3s_up:1\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.agent_coordinator_enabled:1\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.agent_coordinator_up:1\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.agent_coordinator_tracked:7\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.agent_coordinator_needs_attention:2\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.agent_coordinator_admission_open:1\|g$/m,
     );
     assert.match(
       metrics,
@@ -1260,7 +1541,6 @@ test("the remote overlay runs a pinned and bounded kube-state-metrics exporter",
     name: "metrics",
     protocol: "TCP",
   });
-
   const clusterRole = resource(resources, "ClusterRole", "kube-state-metrics");
   assert.deepEqual(valueAt(clusterRole, ["rules"]), [
     {
@@ -1281,6 +1561,13 @@ test("the remote overlay runs a pinned and bounded kube-state-metrics exporter",
 test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   const hostDefinition = readFileSync(
     new URL("../hosts/remote-development/default.nix", import.meta.url),
+    "utf8",
+  );
+  const agentCoordinatorRunner = readFileSync(
+    new URL(
+      "../scripts/run-work-graph-agent-coordinator",
+      import.meta.url,
+    ),
     "utf8",
   );
 
@@ -1318,6 +1605,10 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   assert.ok(hostDefinition.includes('cacheInodeHardLimit = "2000000"'));
   assert.ok(hostDefinition.includes('containerLogMaxFiles = 3'));
   assert.ok(hostDefinition.includes('containerLogMaxSize = "20Mi"'));
+  assert.match(
+    hostDefinition,
+    /trustedInterfaces = \[\s*"cni0"\s*"tailscale0"\s*\];/,
+  );
   assert.ok(hostDefinition.includes("--request POST"));
   assert.ok(hostDefinition.includes('--data ""'));
   const netdataNotificationConfig = readFileSync(
@@ -1346,6 +1637,47 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   assert.ok(
     hostDefinition.includes(
       "systemd.services.remote-development-kubernetes-api-proxy",
+    ),
+  );
+  assert.ok(
+    hostDefinition.includes(
+      "systemd.services.remote-development-agent-coordinator",
+    ),
+  );
+  assert.ok(
+    hostDefinition.includes(
+      `ExecStart = "\${agentCoordinatorRunner}/bin/run-work-graph-agent-coordinator"`,
+    ),
+  );
+  assert.ok(!hostDefinition.includes("pod_record=$("));
+  assert.ok(agentCoordinatorRunner.includes("pod_record=$("));
+  assert.ok(agentCoordinatorRunner.includes("k3s kubectl --namespace t3-code exec"));
+  assert.match(
+    hostDefinition,
+    /systemd\.services\.remote-development-data-layout = \{[\s\S]*?wantedBy = \[ "multi-user\.target" \];[\s\S]*?systemd\.services\.remote-development-agent-coordinator = \{[\s\S]*?wantedBy = lib\.optionals agentCoordinatorEnabled \[ "multi-user\.target" \];/,
+  );
+  assert.ok(
+    hostDefinition.includes('WORK_GRAPH_COORDINATOR_MAX_TICKETS = "3"'),
+  );
+  assert.ok(hostDefinition.includes("agentCoordinatorEnabled = false"));
+  assert.ok(
+    hostDefinition.includes(
+      'WORK_GRAPH_COORDINATOR_MAX_TOTAL_ADMISSIONS = "12"',
+    ),
+  );
+  assert.ok(
+    hostDefinition.includes(
+      'WORK_GRAPH_COORDINATOR_EXCLUDE_DOCUMENTATION = "true"',
+    ),
+  );
+  assert.ok(
+    hostDefinition.includes(
+      'WORK_GRAPH_COORDINATOR_MAX_LAUNCHES_PER_CYCLE = "1"',
+    ),
+  );
+  assert.ok(
+    hostDefinition.includes(
+      'WORK_GRAPH_COORDINATOR_MEMORY_LIMIT_PERCENT = "70"',
     ),
   );
   assert.ok(hostDefinition.includes('legacy=${dataMount}/k3s'));

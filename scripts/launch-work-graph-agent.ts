@@ -66,9 +66,11 @@ const WorkGraphSelectionSchema = z.object({
 type WorkGraphSelection = z.infer<typeof WorkGraphSelectionSchema>;
 type RuntimeMode = z.infer<typeof RuntimeModeSchema>;
 type Complexity = "routine" | "standard" | "complex" | "critical";
+type WorkKind = "implementation" | "documentation";
 
 export interface TicketRoute {
   complexity: Complexity;
+  workKind: WorkKind;
   preferredModels: readonly string[];
   reasoningEffort: string;
   runtimeMode: RuntimeMode;
@@ -93,6 +95,20 @@ const protectedMutationSignals = [
 ];
 const routineSignal =
   /\b(?:typo|copy edit|broken link|link fix|rename|small prose|single page)\b/iu;
+const documentationOnlyTitleSignals = [
+  /^(?:documentation|docs?|readme|runbook|writing)\b/iu,
+  /^(?:add|author|create|document|draft|edit|fix|publish|rewrite|update|write)\b.*\b(?:article|copy|documentation|docs?|guide|idea page|ideas|markdown|mdx|page|pitch deck|prose|readme|runbook)\b/iu,
+  /^preserve\b.*\bdesign\b/iu,
+  /^define\b.*\bquestions\b/iu,
+];
+
+export function isDocumentationOnlyTicket(
+  selection: WorkGraphSelection,
+): boolean {
+  return documentationOnlyTitleSignals.some((signal) =>
+    signal.test(selection.ticket.title),
+  );
+}
 
 function selectionText(selection: WorkGraphSelection): string {
   return [
@@ -118,25 +134,32 @@ function codexModelPolicy(complexity: Complexity): {
   switch (complexity) {
     case "critical":
       return {
-        models: ["gpt-6-astra", "gpt-5.6-sol"],
+        models: ["gpt-5.6-sol"],
         effort: "xhigh",
       };
     case "complex":
       return {
-        models: ["gpt-6-astra", "gpt-5.6-sol"],
+        models: ["gpt-5.6-sol"],
         effort: "high",
       };
     case "standard":
-    case "routine":
       return {
         models: ["gpt-5.6-sol"],
         effort: "high",
+      };
+    case "routine":
+      return {
+        models: ["gpt-5.6-sol"],
+        effort: "medium",
       };
   }
 }
 
 export function deriveTicketRoute(selection: WorkGraphSelection): TicketRoute {
   const text = selectionText(selection);
+  const workKind: WorkKind = isDocumentationOnlyTicket(selection)
+    ? "documentation"
+    : "implementation";
   const reasons: string[] = [];
   let score = 0;
 
@@ -182,16 +205,45 @@ export function deriveTicketRoute(selection: WorkGraphSelection): TicketRoute {
 
   return {
     complexity,
+    workKind,
     preferredModels: policy.models,
     reasoningEffort: policy.effort,
-    runtimeMode: protectedMutation ? "approval-required" : "full-access",
+    runtimeMode: protectedMutation ? "auto-accept-edits" : "full-access",
     serviceTier: selection.ticket.expedited ? "priority" : "default",
     reasons: reasons.length === 0 ? ["bounded ticket context"] : reasons,
   };
 }
 
 export function buildWorkerPrompt(ticketId: string): string {
-  return `Using the Work Graph CLI, claim and execute ticket ${ticketId}. Follow its context and the repository instructions through the SDLC. If it is no longer claimable, stop and report that here.`;
+  return `Using the Work Graph CLI, claim and execute ticket ${ticketId}. Follow its context and the repository instructions through the SDLC. T3 has already run the worktree setup and trusted the repository's mise configuration, so do not run mise trust again. If the ticket is no longer claimable, stop and report that here.`;
+}
+
+export function assertTicketRouteSupported(
+  ticketId: string,
+  route: TicketRoute,
+): void {
+  if (route.workKind === "documentation") {
+    throw new Error(
+      `Documentation ticket ${ticketId} is excluded until the writing skill and review gate are ready`,
+    );
+  }
+}
+
+interface ProviderRefreshClient {
+  server: {
+    refreshProviders(input: {
+      refreshModels: boolean;
+    }): Promise<{ providers: unknown }>;
+  };
+}
+
+export async function refreshRoutingProviders(
+  client: ProviderRefreshClient,
+): Promise<RoutingProvider[]> {
+  const refreshed = await client.server.refreshProviders({
+    refreshModels: false,
+  });
+  return z.array(RoutingProviderSchema).parse(refreshed.providers);
 }
 
 function requiredEnvironment(name: string): string {
@@ -313,6 +365,7 @@ async function main(): Promise<void> {
     JSON.parse(requiredEnvironment("T3_WORK_GRAPH_SELECTION")),
   );
   const route = deriveTicketRoute(selection);
+  assertTicketRouteSupported(selection.ticket.id, route);
 
   const client = T3Client.create({
     accessToken,
@@ -326,9 +379,7 @@ async function main(): Promise<void> {
       throw new Error(`T3 Code has no project for ${projectRoot}`);
     }
 
-    const providers = z
-      .array(RoutingProviderSchema)
-      .parse(await client.server.providers());
+    const providers = await refreshRoutingProviders(client);
     const model = selectModel(
       providers,
       route,

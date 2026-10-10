@@ -3,7 +3,7 @@
   "scripts": [
     {
       "name": "Trust mise configuration",
-      "command": "mise trust .mise.toml",
+      "command": "mise trust --yes .mise.toml",
       "icon": "configure",
       "runOnWorktreeCreate": true,
       "async": false

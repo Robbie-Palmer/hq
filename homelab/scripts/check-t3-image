@@ -118,12 +118,22 @@ docker run --rm \
       "{\"providerInstances\":{\"codex-personal\":{\"accentColor\":\"#123456\",\"config\":{\"launchArgs\":\"--legacy\"}}}}" \
       > /data/home/.t3/userdata/settings.json
     mkdir -p /data/home/.codex
+    mkdir -p /data/home/.codex-personal
+    printf "%s\n" "stale shadow lock" \
+      > /data/home/.codex-personal/.sqlite-maintenance.lock
     printf "%s\n" \
       "{\"models\":[{\"slug\":\"gpt-6-astra\",\"default_reasoning_level\":\"medium\",\"priority\":0},{\"slug\":\"gpt-5.6-sol\",\"default_reasoning_level\":\"low\",\"priority\":4}]}" \
       > /data/home/.codex/models_cache.json
     printf "%s\n" "personality = \"pragmatic\"" \
       > /data/home/.codex/config.toml
     node /usr/local/lib/t3-code/bootstrap-settings.mjs
+    test ! -e /data/home/.codex-personal/.sqlite-maintenance.lock
+    : > /data/home/.codex/.sqlite-maintenance.lock
+    ln -s \
+      /data/home/.codex/.sqlite-maintenance.lock \
+      /data/home/.codex-personal/.sqlite-maintenance.lock
+    node /usr/local/lib/t3-code/bootstrap-settings.mjs
+    test -L /data/home/.codex-personal/.sqlite-maintenance.lock
     node -e '\''
       const fs = require("node:fs");
       const settings = require("/data/home/.t3/userdata/settings.json");

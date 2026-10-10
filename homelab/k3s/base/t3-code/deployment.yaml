@@ -44,6 +44,10 @@ spec:
               /data/home/.cache/ms-playwright
               /data/home/.cache/puppeteer
               /data/workspaces
+              && if [ -e /data/home/.codex-personal/.sqlite-maintenance.lock ]
+              && [ ! -L /data/home/.codex-personal/.sqlite-maintenance.lock ];
+              then rm -f /data/home/.codex-personal/.sqlite-maintenance.lock;
+              fi
               && node /usr/local/lib/t3-code/bootstrap-settings.mjs
           securityContext:
             allowPrivilegeEscalation: false

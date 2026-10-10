@@ -97,6 +97,26 @@ systemctl is-active --quiet tailscaled.service
 systemctl is-active --quiet k3s.service
 systemctl is-active --quiet netdata.service
 systemctl is-active --quiet remote-development-kubernetes-api-proxy.service
+coordinator_enabled=false
+if systemctl is-enabled --quiet remote-development-agent-coordinator.service; then
+  coordinator_enabled=true
+  for _ in $(seq 1 30); do
+    if systemctl is-active --quiet remote-development-agent-coordinator.service; then
+      break
+    fi
+    sleep 2
+  done
+  systemctl is-active --quiet remote-development-agent-coordinator.service
+else
+  coordinator_unit_state=$(systemctl is-enabled remote-development-agent-coordinator.service 2>/dev/null || true)
+  case "${coordinator_unit_state}" in
+    disabled|masked|masked-runtime|static) ;;
+    *)
+      echo "unexpected agent coordinator unit state: ${coordinator_unit_state}" >&2
+      exit 1
+      ;;
+  esac
+fi
 systemctl is-enabled --quiet remote-development-workspace-backup.timer
 systemctl is-active --quiet remote-development-workspace-backup.timer
 systemctl is-enabled --quiet remote-development-observability-metrics.timer
@@ -306,6 +326,53 @@ k3s kubectl --namespace t3-code exec deployment/t3-code --container t3-code -- \
     test "$(stat -c %a /data/home/.codex/agent-auth/recipes)" = 700
   '
 echo "operator recipe-agent MCP server is configured"
+coordinator_health=/srv/remote-development/t3-code/home/.t3/work-graph-coordinator/health.json
+if [ "${coordinator_enabled}" = true ]; then
+  for _ in $(seq 1 60); do
+    if [ -r "${coordinator_health}" ] \
+      && jq --exit-status '
+        .schemaVersion == 1
+          and (.status == "running" or .status == "draining" or .status == "pilot_exhausted")
+          and .maxTickets == 3
+          and .maxTotalAdmissions == 12
+          and .maxLaunchesPerCycle == 1
+          and .trackedCount >= 0
+          and .trackedCount <= 10
+          and .totalAdmissions >= 0
+          and .totalAdmissions <= .maxTotalAdmissions
+          and .remainingAdmissions == (.maxTotalAdmissions - .totalAdmissions)
+          and (
+            ((.status == "running" or .status == "pilot_exhausted") and .trackedCount <= .maxTickets)
+            or (.status == "draining" and .trackedCount > .maxTickets)
+          )
+          and .needsAttentionCount >= 0
+          and .needsAttentionCount <= .trackedCount
+          and (.admission.open | type == "boolean")
+          and (.admission.reason | type == "string" and length > 0)
+          and (.admission.memoryUsagePercent | type == "number")
+          and (.admission.memoryPressureAvg10 | type == "number")
+          and (.admission.ioPressureAvg10 | type == "number")
+          and (now - (.reconciledAt | fromdateiso8601)) >= 0
+          and (now - (.reconciledAt | fromdateiso8601)) <= 180
+      ' "${coordinator_health}" >/dev/null; then
+      break
+    fi
+    sleep 2
+  done
+  jq --exit-status '
+    (.status == "running" or .status == "draining" or .status == "pilot_exhausted")
+      and .maxTickets == 3
+      and .maxTotalAdmissions == 12
+      and .trackedCount <= 10
+      and (now - (.reconciledAt | fromdateiso8601)) <= 180
+  ' "${coordinator_health}" >/dev/null
+  test "$(stat --format=%a "${coordinator_health}")" = 600
+  coordinator_status=$(jq -r '.status' "${coordinator_health}")
+  coordinator_tracked=$(jq -r '.trackedCount' "${coordinator_health}")
+  echo "Work Graph agent coordinator is healthy (${coordinator_status}, ${coordinator_tracked} tracked)"
+else
+  echo "Work Graph agent coordinator is intentionally paused"
+fi
 k3s kubectl get namespaces --output=json \
   | jq -e 'all(.items[]; .metadata.name != "t3-code-pilot")' >/dev/null
 REMOTE

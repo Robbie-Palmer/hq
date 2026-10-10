@@ -7,6 +7,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -143,7 +144,6 @@ if (existsSync(base.primaryHome)) {
     }
     try {
       lstatSync(link);
-      continue;
     } catch {
       symlinkSync(join(base.primaryHome, entryName), link);
     }
@@ -220,6 +220,7 @@ if (options.runLogin) {
       process.env.CODEX_HOME = previousCodexHome;
     }
   }
+  rmSync(join(shadowHome, ".sqlite-maintenance.lock"), { force: true });
 } else {
   const deviceFlag = options.loginMode === "device" ? " --device-auth" : "";
   console.log(`Skipped login. Authenticate later with:`);

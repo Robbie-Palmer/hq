@@ -54,3 +54,14 @@ The reconciliation task is idempotent. It upserts the check by slug, attaches
 the named Slack integration, and stores the returned ping URL without printing
 it. Run all three tasks again after replacing the host. The credential task
 sends the first heartbeat so the check can leave its new state.
+
+Netdata also checks `remote-development-agent-coordinator.service` and the
+coordinator's last reconciliation timestamp when the NixOS configuration
+enables it. A declared pause suppresses the service and admission alarms. An
+enabled service is unhealthy if its status file is more than three minutes
+old, malformed, violates its three-ticket concurrency ceiling, or exceeds its
+12-ticket pilot budget. The
+`operator_agent_coordinator` chart records owned tickets and the subset waiting
+for human input. The service chart records whether the resource admission gate
+is open, and Netdata warns when it stays closed for ten minutes. These metrics
+contain no ticket titles or agent output.
