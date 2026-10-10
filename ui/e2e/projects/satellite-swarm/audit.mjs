@@ -217,7 +217,7 @@ async function auditProfile(browser, profile) {
     if (!(await pauseReplay.isVisible())) {
       await page.getByRole("button", { name: "Play replay" }).click();
     }
-    await page.getByText("trace v5 · 120 ms · 100×", { exact: true }).waitFor();
+    await page.getByText("trace v6 · 120 ms · 100×", { exact: true }).waitFor();
     const rendering = await frameSamplePromise;
 
     await Promise.all(responseTasks);

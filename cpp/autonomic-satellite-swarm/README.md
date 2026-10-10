@@ -32,8 +32,10 @@ explicit.
   the platform accepts it, polls accepted work until success or failure, and stays latched for every
   outcome.
 - Repeated failure to receive acknowledgements can trigger the historical "death by default" rule.
-- Deterministic trace inputs can drop, delay, or duplicate deliveries, change directed links, and
-  reset a node so protocol failures can be replayed exactly.
+- Deterministic trace inputs can drop, delay, duplicate, or reorder packets, change directed links,
+  and reset a node so protocol failures can be replayed exactly. The network laboratory serializes
+  the real 18-byte wire format through bounded transmit queues, a bitrate-limited shared medium,
+  and optional static multi-hop routes.
 - Missions use `{origin node, boot epoch, mission sequence}` keys, so messages from different nodes
   cannot alias the same mission. Preventing aliases across leader resets also requires each node to
   durably advance its boot epoch before restarting its mission sequence.
@@ -60,6 +62,8 @@ mise run test:invariants
 mise run simulate
 mise run simulate:json
 mise run simulate:fairness
+mise run simulate:laboratory
+mise run simulate:batch
 ```
 
 The simulation should assign the southern-latitude mission to one propagated node:
@@ -83,6 +87,16 @@ dropped.
 `simulate:fairness` runs six missions where all three nodes score 100. It prints assignment evidence
 derived from the leader's bounded telemetry. The expected order is `0, 1, 2, 0, 1, 2`, with two
 missions per node and no dropped records.
+
+`simulate:laboratory` runs the controller against one seeded network scenario. Its versioned JSON
+records the source revision, configuration, seed, delivery choices, planned and observed contacts,
+node lifecycle, transmit and receive pressure, packet forwarding, radio airtime, resource samples,
+and raw safety, liveness, delivery, byte, and energy measures. Reusing the seed reproduces the same
+delivery schedule. Pass a retained failure's seed with `mise run simulate:laboratory 17`.
+
+`simulate:batch` compares controller configurations with the same 32 seeds. It emits every raw run,
+95% confidence intervals, and the worst replayable trace for each configuration. The energy values
+are estimates derived from documented per-byte coefficients.
 
 Build the browser module and compare its default output with the native fixture:
 

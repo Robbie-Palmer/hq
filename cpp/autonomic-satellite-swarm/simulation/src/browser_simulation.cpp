@@ -71,12 +71,32 @@ const char* eventName(SimulationEventType type) {
     return "message-delayed";
   case SimulationEventType::MessageDuplicated:
     return "message-duplicated";
+  case SimulationEventType::MessageDelivered:
+    return "message-delivered";
+  case SimulationEventType::DeliveryDecision:
+    return "delivery-decision";
+  case SimulationEventType::PacketQueued:
+    return "packet-queued";
+  case SimulationEventType::TransmissionStarted:
+    return "transmission-started";
+  case SimulationEventType::TransmissionCompleted:
+    return "transmission-completed";
+  case SimulationEventType::PacketForwarded:
+    return "packet-forwarded";
   case SimulationEventType::DelayedMessageDelivered:
     return "delayed-message-delivered";
   case SimulationEventType::LinkChanged:
     return "link-changed";
+  case SimulationEventType::ContactObserved:
+    return "contact-observed";
+  case SimulationEventType::StoragePressureChanged:
+    return "storage-pressure-changed";
+  case SimulationEventType::NodeCrashed:
+    return "node-crashed";
   case SimulationEventType::NodeReset:
     return "node-reset";
+  case SimulationEventType::ResourceSample:
+    return "resource-sample";
   case SimulationEventType::StateChanged:
     return "state-changed";
   case SimulationEventType::ControllerTelemetry:

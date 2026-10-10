@@ -57,6 +57,7 @@ gcovr \
   --filter 'simulation/' \
   --filter 'browser/src/' \
   --filter 'examples/simulation/' \
+  --exclude-unreachable-branches \
   --sonarqube coverage/sonarqube.xml \
   --print-summary \
   --fail-under-line 80 \
