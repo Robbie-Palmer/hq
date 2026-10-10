@@ -16,21 +16,28 @@ status: "completed"
 role: "philips"
 ---
 
-# Vision
+# Overview
 
-The goal was to accelerate the manual review process for tissue macrodissection by providing pathologists with AI-generated suggestions. Unlike later projects focused on full automation, this system was designed to augment human workflows, identifying regions of interest on H\&E stained Whole Slide Images (WSIs) for manual extraction.
+Macrodissection is the selection and removal of tissue for genetic testing. This project aimed to help pathologists find suitable tumor regions faster by highlighting them on digital slide images.
 
-# Problem Statement
+# Workflow
 
-Pathologists spend significant time manually scanning slides to identify viable tumor regions for genetic analysis. This process is slow and repetitive. We needed a system that could pre-screen slides using an ensemble of Deep Learning models and present the results to the pathologist for rapid verification, specifically working with the proprietary Philips file format.
+The pipeline read slide images, ran models to identify tumor and dead tissue, and combined their predictions into suggested regions. Pathologists would review these suggestions to guide manual tissue extraction.
 
-# Methodology
+<Mermaid
+  chart={`flowchart TD
+slide["Digital tissue slide"] --> ingest["Read slide image"]
+ingest --> models["AI tissue models"]
+models --> overlay["Suggested tissue regions"]
+overlay --> review["Pathologist review"]
+review --> extraction["Manual tissue extraction"]
+`}
+/>
 
-* **Platform Engineering**: I was responsible for the infrastructure to run, scale, and integrate the data science team's models.
-* **Ensemble Orchestration**: Built the pipeline to aggregate predictions from multiple models (tumor detection, necrosis avoidance, etc.) into a cohesive overlay.
-* **Proprietary Format Support**: Engineered the ingestion layer to performantly read and process Philips' proprietary WSI format.
-* **Human-in-the-Loop**: Designed the workflow to present AI suggestions as a starting point, essentially using DL to "pre-fill" the pathologist's task, drastically reducing the time required per slide.
+# My role
 
-# Impact
+I built the infrastructure to run the data science team's models, read Philips' proprietary slide format, and combine predictions into an overlay for pathologist review.
 
-This project proved that Deep Learning could be effectively integrated into existing enterprise pathology workflows. It laid the groundwork for understanding the complexities of WSI analysis, scale, formats, and artifacts, which informed my later work on fully automated dissection systems.
+# Outcome
+
+This work informed my later automated dissection projects, particularly how to handle large slide images, proprietary formats, and image artifacts.
