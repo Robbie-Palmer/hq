@@ -127,9 +127,13 @@ show that the evaluation set no longer represents the work.
 Browser automation should be the last unsubscribe mechanism, not the default.
 Many legitimate mailing lists already declare machine-readable actions:
 
-1. Prefer one-click HTTPS unsubscribe when the message supplies both the
-   [`List-Unsubscribe`](https://www.rfc-editor.org/rfc/rfc2369) and
-   [`List-Unsubscribe-Post`](https://www.rfc-editor.org/rfc/rfc8058) headers.
+1. Prefer one-click unsubscribe only when `List-Unsubscribe` contains an HTTPS
+   URI, `List-Unsubscribe-Post` declares `List-Unsubscribe=One-Click`, and a
+   valid DKIM signature covers both headers. Submit an HTTPS POST with the
+   `List-Unsubscribe=One-Click` form body. Fall through to another mechanism
+   when any [RFC 8058](https://www.rfc-editor.org/rfc/rfc8058) requirement is
+   missing. Ordinary list handling still follows
+   [RFC 2369](https://www.rfc-editor.org/rfc/rfc2369).
 2. Use a declared `mailto:` unsubscribe address when one-click HTTPS is not
    available and the generated message can be inspected before sending.
 3. Use a sender-specific deterministic adapter for recurring services whose
@@ -187,7 +191,7 @@ reading mailbox metadata. It keeps Google's OAuth tokens on the server and uses
 Agent Auth grants for the agent-facing boundary. Write capabilities can require
 stronger WebAuthn approval.
 
-That example proves the integration path exists. Inbox Signal still needs a
+That example shows the integration path exists. Inbox Signal still needs a
 smaller capability model because direct access to every Gmail operation would
 grant more authority than the cleanup workflow needs. Initial capabilities
 should describe tasks rather than provider endpoints:
@@ -318,8 +322,9 @@ and authority that remains with the mailbox owner.
 
 # First useful release
 
-1. Import a read-only Outlook sample and preserve provider IDs, threads, raw
-   headers, MIME parts, and attachments.
+1. Approve encryption and retention policies for raw mail and attachments,
+   then import a read-only Outlook sample and preserve provider IDs, threads,
+   raw headers, MIME parts, and attachments.
 2. Produce an inventory by sender, domain, age, size, attachment type, and
    declared unsubscribe mechanism.
 3. Add deterministic rules and a review queue that exports an approved action
