@@ -24,6 +24,10 @@ it("maps observer Doppler keys to non-reserved masked GitHub secrets", async () 
         computed: "fixture-id",
         computedVisibility: "masked",
       },
+      OBSERVER_CLOUDFLARE_API_TOKEN: {
+        computed: "fixture-deploy-token",
+        computedVisibility: "masked",
+      },
     };
     await writeFile(join(directory, "fixture.json"), JSON.stringify(fixture));
     await writeFile(
@@ -38,6 +42,9 @@ set -eu
 if [[ "$2" == "list" ]]; then
   echo '[]'
 else
+  if [[ "$3" == "OBSERVER_CLOUDFLARE_API_TOKEN" ]]; then
+    [[ "\${7-}" == "fixture-deploy-token" ]]
+  fi
   printf '%s %s %s\\n' "$1" "$2" "$3" >> "$SYNC_TEST_DIRECTORY/calls"
 fi
 `,
@@ -67,7 +74,9 @@ fi
       expect(calls).not.toContain(`variable set OBSERVER_${suffix}`);
     }
     expect(calls).toContain("secret set WORK_GRAPH_HYPERDRIVE_ID");
+    expect(calls).toContain("secret set OBSERVER_CLOUDFLARE_API_TOKEN");
     expect(calls).not.toContain("fixture-only");
+    expect(calls).not.toContain("fixture-deploy-token");
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
