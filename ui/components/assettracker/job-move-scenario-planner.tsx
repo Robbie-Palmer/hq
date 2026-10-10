@@ -1,17 +1,25 @@
 "use client";
 
-import { format, parseISO } from "date-fns";
+import {
+  addMonths,
+  differenceInCalendarMonths,
+  format,
+  parseISO,
+} from "date-fns";
 import { CopyIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import { type ReactNode, type SubmitEvent, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { formatCurrency } from "@/lib/assettracker";
+import { formatCurrency, todayIsoDate } from "@/lib/assettracker";
 import {
   formatAssetTrackerError,
   type JobMoveScenario,
   type JobMoveScenarioComparison,
   type JobMoveScenarioInput,
+  ownershipLabel,
+  ownershipShare,
+  personalOwnership,
   type SalaryPayFrequency,
   SUPPORTED_CURRENCIES,
 } from "@/lib/domain/assettracker";
@@ -20,8 +28,14 @@ import { JobMoveScenarioCharts } from "./job-move-scenario-charts";
 
 const HORIZONS = [1, 3, 5, 10] as const;
 
+function jobLossAnchorDate(valuationDate: string | null): string {
+  const today = todayIsoDate();
+  return valuationDate != null && valuationDate > today ? valuationDate : today;
+}
+
 type Draft = {
   name: string;
+  householdMemberId: string;
   employmentStatus: "employed" | "unemployed";
   transitionDate: string;
   roleStartDate: string;
@@ -56,9 +70,37 @@ function Field({
   );
 }
 
-function scenarioDraft(scenario: JobMoveScenario): Draft {
+type Tracker = ReturnType<typeof useAssetTracker>;
+
+function recurringFlowOwnership(tracker: Tracker, flowId: string) {
+  return (
+    tracker.recurringFlowOwnership[flowId] ??
+    personalOwnership(tracker.household.members[0]?.id ?? "primary")
+  );
+}
+
+function compensationFlowIdsForMember(
+  tracker: Tracker,
+  memberId: string,
+): string[] {
+  return tracker.recurringFlows
+    .filter(
+      (flow) =>
+        ownershipShare(recurringFlowOwnership(tracker, flow.id), memberId) >
+          0 &&
+        (flow.compensationKind != null ||
+          /salary|pay|pension/i.test(flow.name)),
+    )
+    .map(({ id }) => id);
+}
+
+function scenarioDraft(
+  scenario: JobMoveScenario,
+  defaultMemberId: string,
+): Draft {
   return {
     name: scenario.name,
+    householdMemberId: scenario.householdMemberId ?? defaultMemberId,
     employmentStatus: scenario.employmentStatus,
     transitionDate: scenario.transitionDate,
     roleStartDate: scenario.roleStartDate ?? "",
@@ -114,21 +156,21 @@ function useScenarioForm(
   onSaved: (id?: string) => void,
 ) {
   const tracker = useAssetTracker();
+  const defaultMemberId =
+    tracker.household.activeScope.kind === "member"
+      ? tracker.household.activeScope.memberId
+      : (tracker.household.members[0]?.id ?? "");
   const openAccounts = tracker.accountDetails.filter(({ isOpen }) => isOpen);
   const defaultIncomeAccount =
     openAccounts.find(({ assetType }) => assetType === "cash")?.id ?? "";
   const defaultPensionAccount =
     openAccounts.find(({ name }) => /pension/i.test(name))?.id ?? "";
-  const defaultFlowIds = tracker.recurringFlows
-    .filter(
-      (flow) =>
-        flow.compensationKind != null || /salary|pay|pension/i.test(flow.name),
-    )
-    .map(({ id }) => id);
+  const defaultFlowIds = compensationFlowIdsForMember(tracker, defaultMemberId);
   const [draft, setDraft] = useState<Draft>(() =>
     editing == null
       ? {
           name: "",
+          householdMemberId: defaultMemberId,
           employmentStatus: "employed",
           transitionDate: tracker.valuationDate ?? "",
           roleStartDate: tracker.valuationDate ?? "",
@@ -145,7 +187,7 @@ function useScenarioForm(
           pensionAccountId: defaultPensionAccount,
           replacedRecurringFlowIds: defaultFlowIds,
         }
-      : scenarioDraft(editing),
+      : scenarioDraft(editing, defaultMemberId),
   );
   const [state, setState] = useState<"idle" | "saving">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -160,6 +202,12 @@ function useScenarioForm(
             (candidate) => candidate !== id,
           ),
     );
+  const selectMember = (memberId: string) =>
+    setDraft((current) => ({
+      ...current,
+      householdMemberId: memberId,
+      replacedRecurringFlowIds: compensationFlowIdsForMember(tracker, memberId),
+    }));
   const submit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     setState("saving");
@@ -186,16 +234,52 @@ function useScenarioForm(
     openAccounts,
     state,
     submit,
+    selectMember,
     toggleFlow,
     tracker,
     update,
   };
 }
 
+function HouseholdMemberField({
+  members,
+  selectMember,
+  value,
+}: Readonly<{
+  members: Tracker["household"]["members"];
+  selectMember(memberId: string): void;
+  value: string;
+}>) {
+  return (
+    <Field id="job-household-member" label="Whose employment changes?">
+      <select
+        id="job-household-member"
+        required
+        className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+        value={value}
+        onChange={(event) => selectMember(event.target.value)}
+      >
+        {members.map((member) => (
+          <option key={member.id} value={member.id}>
+            {member.displayName}
+          </option>
+        ))}
+      </select>
+    </Field>
+  );
+}
+
 function ScenarioIdentityFields({
   draft,
+  members,
+  selectMember,
   update,
-}: Readonly<{ draft: Draft; update: DraftUpdate }>) {
+}: Readonly<{
+  draft: Draft;
+  members: Tracker["household"]["members"];
+  selectMember(memberId: string): void;
+  update: DraftUpdate;
+}>) {
   return (
     <>
       <Field id="job-scenario-name" label="Scenario name">
@@ -206,6 +290,11 @@ function ScenarioIdentityFields({
           onChange={(event) => update("name", event.target.value)}
         />
       </Field>
+      <HouseholdMemberField
+        members={members}
+        selectMember={selectMember}
+        value={draft.householdMemberId}
+      />
       <Field id="job-employment-status" label="Outcome">
         <select
           id="job-employment-status"
@@ -506,12 +595,21 @@ function AccountFields({
 function FlowSelection({
   draft,
   flows,
+  tracker,
   toggleFlow,
 }: Readonly<{
   draft: Draft;
   flows: ReturnType<typeof useAssetTracker>["recurringFlows"];
+  tracker: Tracker;
   toggleFlow(id: string, checked: boolean): void;
 }>) {
+  const memberFlows = flows.filter(
+    (flow) =>
+      ownershipShare(
+        recurringFlowOwnership(tracker, flow.id),
+        draft.householdMemberId,
+      ) > 0,
+  );
   return (
     <fieldset className="space-y-2">
       <legend className="text-xs font-medium">
@@ -522,14 +620,26 @@ function FlowSelection({
         can continue unchanged.
       </p>
       <div className="grid gap-2 sm:grid-cols-2">
-        {flows.map((flow) => (
+        {memberFlows.map((flow) => (
           <label key={flow.id} className="flex items-center gap-2 text-xs">
             <input
               type="checkbox"
+              aria-label={`${flow.name} · ${ownershipLabel(
+                recurringFlowOwnership(tracker, flow.id),
+                tracker.household.members,
+              )}`}
               checked={draft.replacedRecurringFlowIds.includes(flow.id)}
               onChange={(event) => toggleFlow(flow.id, event.target.checked)}
             />
-            {flow.name}
+            <span>
+              {flow.name}
+              <span className="text-muted-foreground">
+                {` · ${ownershipLabel(
+                  recurringFlowOwnership(tracker, flow.id),
+                  tracker.household.members,
+                )}`}
+              </span>
+            </span>
           </label>
         ))}
       </div>
@@ -601,7 +711,12 @@ function ScenarioForm({
     <form onSubmit={model.submit} className="space-y-4 rounded-lg border p-4">
       <ScenarioFormHeader editing={editing != null} />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <ScenarioIdentityFields draft={model.draft} update={model.update} />
+        <ScenarioIdentityFields
+          draft={model.draft}
+          members={model.tracker.household.members}
+          selectMember={model.selectMember}
+          update={model.update}
+        />
         {model.draft.employmentStatus === "employed" && (
           <>
             <RolePayFields draft={model.draft} update={model.update} />
@@ -617,6 +732,7 @@ function ScenarioForm({
       <FlowSelection
         draft={model.draft}
         flows={model.tracker.recurringFlows}
+        tracker={model.tracker}
         toggleFlow={model.toggleFlow}
       />
       <ScenarioFormNotes
@@ -647,8 +763,16 @@ function payFrequencyLabel(frequency: SalaryPayFrequency) {
 function assumptionRows(
   scenario: JobMoveScenario,
   flowNames: ReadonlyMap<string, string>,
+  memberNames: ReadonlyMap<string, string>,
 ) {
   const rows: Array<[string, string]> = [
+    [
+      "Household member",
+      scenario.householdMemberId == null
+        ? "Not assigned (legacy scenario)"
+        : (memberNames.get(scenario.householdMemberId) ??
+          scenario.householdMemberId),
+    ],
     ["Current income stops from", scenario.transitionDate],
     [
       "Current-role flows replaced",
@@ -703,7 +827,10 @@ function AssumptionSummary({
   const flowNames = new Map(
     tracker.recurringFlows.map(({ id, name }) => [id, name]),
   );
-  const rows = assumptionRows(scenario, flowNames);
+  const memberNames = new Map(
+    tracker.household.members.map(({ id, displayName }) => [id, displayName]),
+  );
+  const rows = assumptionRows(scenario, flowNames, memberNames);
   return (
     <details className="rounded-md border p-3">
       <summary className="cursor-pointer text-xs font-medium">
@@ -882,15 +1009,236 @@ function ComparisonHeader({
   );
 }
 
-function Comparison({ scenario }: Readonly<{ scenario: JobMoveScenario }>) {
+function timingPoint(
+  comparison: JobMoveScenarioComparison,
+): ComparisonPoint | undefined {
+  return comparison.timeline.at(-1);
+}
+
+function JobLossTimingHeader({ onPreset }: Readonly<{ onPreset(): void }>) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-2">
+      <div>
+        <h5 className="text-xs font-medium">Compare job-loss timing</h5>
+        <p className="text-xs text-muted-foreground">
+          Both options are measured on the same end date, so the difference
+          comes from how long household income continues before the job ends.
+        </p>
+      </div>
+      <Button type="button" size="sm" variant="outline" onClick={onPreset}>
+        Compare 1 month vs 3 months
+      </Button>
+    </div>
+  );
+}
+
+function JobLossDateField({
+  id,
+  label,
+  onChange,
+  value,
+}: Readonly<{
+  id: string;
+  label: string;
+  onChange(value: string): void;
+  value: string;
+}>) {
+  return (
+    <Field id={id} label={label}>
+      <Input
+        id={id}
+        type="date"
+        value={value}
+        onChange={(event) => {
+          if (event.target.value !== "") onChange(event.target.value);
+        }}
+      />
+    </Field>
+  );
+}
+
+function JobLossTimingCard({
+  currency,
+  date,
+  point,
+}: Readonly<{
+  currency: (typeof SUPPORTED_CURRENCIES)[number];
+  date: string;
+  point: ComparisonPoint;
+}>) {
+  return (
+    <div className="rounded-md bg-background p-3 text-xs">
+      <p className="font-medium">
+        Job loss {format(parseISO(date), "d MMM yyyy")}
+      </p>
+      <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
+        <dt className="text-muted-foreground">Net worth</dt>
+        <dd className="text-right">
+          {formatCurrency(point.scenario.totalBalance, currency)}
+        </dd>
+        <dt className="text-muted-foreground">Liquid assets</dt>
+        <dd className="text-right">
+          {formatCurrency(point.scenario.liquidBalance, currency)}
+        </dd>
+        <dt className="text-muted-foreground">Total runway</dt>
+        <dd className="text-right">
+          {point.scenario.totalMonths.toFixed(1)} months
+        </dd>
+      </dl>
+    </div>
+  );
+}
+
+type JobLossTimingComparisonProps = Readonly<{
+  alternativeDate: string;
+  horizonYears: number;
+  primaryComparison: JobMoveScenarioComparison;
+  primaryDate: string;
+  scenario: JobMoveScenario;
+  setAlternativeDate(value: string): void;
+  setPrimaryDate(value: string): void;
+}>;
+
+function useJobLossTimingModel({
+  alternativeDate,
+  horizonYears,
+  primaryComparison,
+  primaryDate,
+  scenario,
+  setAlternativeDate,
+  setPrimaryDate,
+}: JobLossTimingComparisonProps) {
+  const tracker = useAssetTracker();
+  const commonEndDate = addMonths(parseISO(primaryDate), horizonYears * 12);
+  const alternativeHorizonMonths = Math.max(
+    1,
+    differenceInCalendarMonths(commonEndDate, parseISO(alternativeDate)),
+  );
+  const alternativeComparison = useMemo(
+    () =>
+      tracker.compareJobMoveScenario(
+        { ...scenario, transitionDate: alternativeDate },
+        alternativeHorizonMonths,
+      ),
+    [
+      alternativeDate,
+      alternativeHorizonMonths,
+      scenario,
+      tracker.compareJobMoveScenario,
+    ],
+  );
+  const valuationDate = jobLossAnchorDate(tracker.valuationDate);
+  const usePreset = () => {
+    setPrimaryDate(format(addMonths(parseISO(valuationDate), 1), "yyyy-MM-dd"));
+    setAlternativeDate(
+      format(addMonths(parseISO(valuationDate), 3), "yyyy-MM-dd"),
+    );
+  };
+  return {
+    alternative: timingPoint(alternativeComparison),
+    currency: tracker.baseCurrency,
+    primary: timingPoint(primaryComparison),
+    usePreset,
+  };
+}
+
+function JobLossTimingComparison({
+  alternativeDate,
+  horizonYears,
+  primaryComparison,
+  primaryDate,
+  scenario,
+  setAlternativeDate,
+  setPrimaryDate,
+}: JobLossTimingComparisonProps) {
+  const model = useJobLossTimingModel({
+    alternativeDate,
+    horizonYears,
+    primaryComparison,
+    primaryDate,
+    scenario,
+    setAlternativeDate,
+    setPrimaryDate,
+  });
+
+  return (
+    <section className="space-y-3 rounded-md border bg-muted/20 p-3">
+      <JobLossTimingHeader onPreset={model.usePreset} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <JobLossDateField
+          id="job-loss-primary-date"
+          label="Expected job loss date"
+          onChange={setPrimaryDate}
+          value={primaryDate}
+        />
+        <JobLossDateField
+          id="job-loss-alternative-date"
+          label="Compare with job loss on"
+          onChange={setAlternativeDate}
+          value={alternativeDate}
+        />
+      </div>
+      {model.primary != null && model.alternative != null && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <JobLossTimingCard
+            currency={model.currency}
+            date={primaryDate}
+            point={model.primary}
+          />
+          <JobLossTimingCard
+            currency={model.currency}
+            date={alternativeDate}
+            point={model.alternative}
+          />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function useComparisonModel(scenario: JobMoveScenario) {
   const tracker = useAssetTracker();
   const [horizonYears, setHorizonYears] = useState(
     scenario.employmentStatus === "unemployed" ? 10 : 5,
   );
-  const comparison = useMemo(
-    () => tracker.compareJobMoveScenario(scenario, horizonYears * 12),
-    [horizonYears, scenario, tracker.compareJobMoveScenario],
+  const [primaryDate, setPrimaryDate] = useState(scenario.transitionDate);
+  const valuationDate = jobLossAnchorDate(tracker.valuationDate);
+  const threeMonthsDate = format(
+    addMonths(parseISO(valuationDate), 3),
+    "yyyy-MM-dd",
   );
+  const initialAlternativeDate = format(
+    addMonths(parseISO(valuationDate), primaryDate === threeMonthsDate ? 1 : 3),
+    "yyyy-MM-dd",
+  );
+  const [alternativeDate, setAlternativeDate] = useState(
+    initialAlternativeDate,
+  );
+  const scenarioAtDate = useMemo(
+    () => ({ ...scenario, transitionDate: primaryDate }),
+    [primaryDate, scenario],
+  );
+  const comparison = useMemo(
+    () => tracker.compareJobMoveScenario(scenarioAtDate, horizonYears * 12),
+    [horizonYears, scenarioAtDate, tracker.compareJobMoveScenario],
+  );
+  return {
+    alternativeDate,
+    comparison,
+    horizonYears,
+    primaryDate,
+    scenarioAtDate,
+    setAlternativeDate,
+    setHorizonYears,
+    setPrimaryDate,
+    tracker,
+  };
+}
+
+function Comparison({ scenario }: Readonly<{ scenario: JobMoveScenario }>) {
+  const model = useComparisonModel(scenario);
+  const { comparison, horizonYears, primaryDate, scenarioAtDate, tracker } =
+    model;
   const horizon = comparison.timeline.at(-1);
   if (horizon == null) {
     return (
@@ -904,9 +1252,20 @@ function Comparison({ scenario }: Readonly<{ scenario: JobMoveScenario }>) {
     <div className="space-y-4 rounded-lg border p-4">
       <ComparisonHeader
         horizonYears={horizonYears}
-        setHorizonYears={setHorizonYears}
-        transitionDate={scenario.transitionDate}
+        setHorizonYears={model.setHorizonYears}
+        transitionDate={primaryDate}
       />
+      {scenario.employmentStatus === "unemployed" && (
+        <JobLossTimingComparison
+          alternativeDate={model.alternativeDate}
+          horizonYears={horizonYears}
+          primaryComparison={comparison}
+          primaryDate={primaryDate}
+          scenario={scenario}
+          setAlternativeDate={model.setAlternativeDate}
+          setPrimaryDate={model.setPrimaryDate}
+        />
+      )}
       <ComparisonCards
         comparison={comparison}
         currency={tracker.baseCurrency}
@@ -921,7 +1280,7 @@ function Comparison({ scenario }: Readonly<{ scenario: JobMoveScenario }>) {
         goes first, then other liquid accounts, then illiquid assets. The charts
         combine balances across the current household view.
       </p>
-      <AssumptionSummary scenario={scenario} />
+      <AssumptionSummary scenario={scenarioAtDate} />
       <ComparisonDetails comparison={comparison} />
       {comparison.warnings.map((warning) => (
         <p
@@ -938,12 +1297,20 @@ function Comparison({ scenario }: Readonly<{ scenario: JobMoveScenario }>) {
 function useJobMoveScenarioControls() {
   const tracker = useAssetTracker();
   const defaultScenario = useMemo<JobMoveScenario>(() => {
-    const transitionDate =
-      tracker.valuationDate ?? format(new Date(), "yyyy-MM-dd");
+    const valuationDate = jobLossAnchorDate(tracker.valuationDate);
+    const transitionDate = format(
+      addMonths(parseISO(valuationDate), 1),
+      "yyyy-MM-dd",
+    );
+    const householdMemberId =
+      tracker.household.activeScope.kind === "member"
+        ? tracker.household.activeScope.memberId
+        : tracker.household.members[0]?.id;
     const timestamp = `${transitionDate}T00:00:00Z`;
     return {
       id: "default-job-loss",
       name: "Lose my job",
+      householdMemberId,
       employmentStatus: "unemployed",
       transitionDate,
       baseGrossPay: 0,
@@ -954,17 +1321,14 @@ function useJobMoveScenarioControls() {
       employeePensionRate: 0,
       employeePensionMethod: "salarySacrifice",
       employerPensionRate: 0,
-      replacedRecurringFlowIds: tracker.recurringFlows
-        .filter(
-          (flow) =>
-            flow.compensationKind != null ||
-            /salary|pay|pension/i.test(flow.name),
-        )
-        .map(({ id }) => id),
+      replacedRecurringFlowIds:
+        householdMemberId == null
+          ? []
+          : compensationFlowIdsForMember(tracker, householdMemberId),
       createdAt: timestamp,
       updatedAt: timestamp,
     };
-  }, [tracker.baseCurrency, tracker.recurringFlows, tracker.valuationDate]);
+  }, [tracker]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState(
     tracker.jobMoveScenarios[0]?.id ?? "",

@@ -29,9 +29,11 @@ import {
   type AssetType,
   CurrencySchema,
   defaultLiquidityForAssetType,
+  equalSharedOwnership,
   formatAssetTrackerError,
   isLiability,
   type LiquidityTier,
+  personalOwnership,
   SUPPORTED_CURRENCIES,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
@@ -48,8 +50,95 @@ const LIQUIDITY_OPTIONS = Object.entries(LIQUIDITY_TIER_LABELS) as [
 
 const NO_LINK = "none";
 
+type HouseholdMembers = ReturnType<
+  typeof useAssetTracker
+>["household"]["members"];
+
+function AccountOwnerField({
+  members,
+  owner,
+  setOwner,
+}: Readonly<{
+  members: HouseholdMembers;
+  owner: string;
+  setOwner(value: string): void;
+}>) {
+  if (members.length < 2) return null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor="add-account-owner" className="text-sm font-medium">
+        Owner
+      </label>
+      <Select value={owner} onValueChange={setOwner}>
+        <SelectTrigger id="add-account-owner" className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {members.map((member) => (
+            <SelectItem key={member.id} value={member.id}>
+              {member.displayName}
+            </SelectItem>
+          ))}
+          <SelectItem value="shared">Shared equally</SelectItem>
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        Income, balances, and forecasts can then be viewed for this person or
+        for the whole household.
+      </p>
+    </div>
+  );
+}
+
+function OpeningBalanceFields({
+  assetType,
+  openingBalance,
+  openingDate,
+  setOpeningBalance,
+  setOpeningDate,
+}: Readonly<{
+  assetType: AssetType;
+  openingBalance: string;
+  openingDate: string;
+  setOpeningBalance(value: string): void;
+  setOpeningDate(value: string): void;
+}>) {
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="add-account-balance" className="text-sm font-medium">
+          Opening balance
+        </label>
+        <Input
+          id="add-account-balance"
+          type="number"
+          inputMode="decimal"
+          step="0.01"
+          placeholder={isLiability(assetType) ? "e.g. -1500" : "Optional"}
+          value={openingBalance}
+          onChange={(event) => setOpeningBalance(event.target.value)}
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="add-account-date" className="text-sm font-medium">
+          As of
+        </label>
+        <Input
+          id="add-account-date"
+          type="date"
+          required
+          max={todayIsoDate()}
+          value={openingDate}
+          onChange={(event) => setOpeningDate(event.target.value)}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function AddAccountDrawer() {
-  const { accounts, baseCurrency, createAccount } = useAssetTracker();
+  const { accounts, baseCurrency, createAccount, household } =
+    useAssetTracker();
   const propertyAccounts = accounts.filter(
     (account) => account.assetType === "property" && account.isOpen,
   );
@@ -66,6 +155,11 @@ export function AddAccountDrawer() {
   const [openingDate, setOpeningDate] = useState(todayIsoDate());
   const [firstPaymentDate, setFirstPaymentDate] = useState(todayIsoDate());
   const [remainingTermYears, setRemainingTermYears] = useState("");
+  const defaultOwner =
+    household.activeScope.kind === "member"
+      ? household.activeScope.memberId
+      : (household.members[0]?.id ?? "primary");
+  const [owner, setOwner] = useState(defaultOwner);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -81,6 +175,7 @@ export function AddAccountDrawer() {
     setOpeningDate(todayIsoDate());
     setFirstPaymentDate(todayIsoDate());
     setRemainingTermYears("");
+    setOwner(defaultOwner);
     setError(null);
   }
 
@@ -115,6 +210,10 @@ export function AddAccountDrawer() {
         openingBalance:
           openingBalance === "" ? undefined : Number(openingBalance),
         openingDate,
+        ownership:
+          owner === "shared"
+            ? equalSharedOwnership(household.members)
+            : personalOwnership(owner),
       });
       setOpen(false);
       resetForm();
@@ -126,7 +225,13 @@ export function AddAccountDrawer() {
   }
 
   return (
-    <Drawer open={open} onOpenChange={setOpen}>
+    <Drawer
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (nextOpen) setOwner(defaultOwner);
+      }}
+    >
       <DrawerTrigger asChild>
         <Button variant="outline">
           <PlusIcon />
@@ -223,6 +328,11 @@ export function AddAccountDrawer() {
               </Select>
             </div>
           </div>
+          <AccountOwnerField
+            members={household.members}
+            owner={owner}
+            setOwner={setOwner}
+          />
           {!isLiability(assetType) && (
             <div className="flex flex-col gap-1.5">
               <label
@@ -330,38 +440,13 @@ export function AddAccountDrawer() {
               </div>
             </div>
           )}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label
-                htmlFor="add-account-balance"
-                className="text-sm font-medium"
-              >
-                Opening balance
-              </label>
-              <Input
-                id="add-account-balance"
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                placeholder={isLiability(assetType) ? "e.g. -1500" : "Optional"}
-                value={openingBalance}
-                onChange={(e) => setOpeningBalance(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="add-account-date" className="text-sm font-medium">
-                As of
-              </label>
-              <Input
-                id="add-account-date"
-                type="date"
-                required
-                max={todayIsoDate()}
-                value={openingDate}
-                onChange={(e) => setOpeningDate(e.target.value)}
-              />
-            </div>
-          </div>
+          <OpeningBalanceFields
+            assetType={assetType}
+            openingBalance={openingBalance}
+            openingDate={openingDate}
+            setOpeningBalance={setOpeningBalance}
+            setOpeningDate={setOpeningDate}
+          />
           {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex gap-2 pt-2">
             <Button type="submit" className="flex-1" disabled={submitting}>

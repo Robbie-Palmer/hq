@@ -210,7 +210,7 @@ export function HouseholdScopeControl() {
               </h3>
               <p className="text-xs text-muted-foreground">
                 Changing an account also updates its balances, contributions,
-                holdings, and planned spending.
+                holdings, and linked income or spending flows.
               </p>
             </div>
             {householdAccounts.length === 0 ? (

@@ -685,6 +685,16 @@ function validateJobMoveScenarioReferences(
       );
     }
     scenarioIds.add(scenario.id);
+    if (
+      scenario.householdMemberId != null &&
+      !data.household.members.some(
+        ({ id }) => id === scenario.householdMemberId,
+      )
+    ) {
+      throw new AssetTrackerDataError(
+        `Job-move scenario "${scenario.name}" references unknown household member "${scenario.householdMemberId}"`,
+      );
+    }
     assertKnownAccount(
       accounts,
       scenario.destinationAccountId,

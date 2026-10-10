@@ -41,7 +41,10 @@ import {
   ForecastAssumptionSchema,
 } from "@/lib/domain/assettracker/forecastAssumption";
 import { futureCashFlowForecastItems } from "@/lib/domain/assettracker/futureCashFlow";
-import { defaultHouseholdFields } from "@/lib/domain/assettracker/household";
+import {
+  defaultHouseholdFields,
+  snapshotOwnershipKey,
+} from "@/lib/domain/assettracker/household";
 import { flowOccurrenceDates } from "@/lib/domain/assettracker/recurringFlow";
 
 const TEST_AS_OF_DATE = "2026-01-01";
@@ -171,6 +174,27 @@ describe("applyCreateAccount", () => {
       date: "2024-03-01",
       balance: 5000,
     });
+  });
+
+  it("records an account owner with its opening balance", () => {
+    const { data, account } = applyCreateAccount(baseData(), {
+      name: "Partner savings",
+      provider: "Bank",
+      currency: "GBP",
+      assetType: "cash",
+      expectedAnnualReturn: 0.03,
+      openingBalance: 2_500,
+      openingDate: "2025-12-01",
+      ownership: { kind: "personal", memberId: "primary" },
+    });
+
+    expect(data.ownership.accounts[account.id]).toEqual({
+      kind: "personal",
+      memberId: "primary",
+    });
+    expect(
+      data.ownership.snapshots[snapshotOwnershipKey(account.id, "2025-12-01")],
+    ).toEqual({ kind: "personal", memberId: "primary" });
   });
 
   it("links a mortgage to an existing account", () => {

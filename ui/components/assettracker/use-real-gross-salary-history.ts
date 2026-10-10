@@ -55,6 +55,11 @@ export function useRealGrossSalaryHistory(
     amountKind,
     selectedReferenceDate,
   );
+  const chartData = grossSalaryChartData(points, selectedReferenceDate);
+  const noPensionChartData = noPensionNetChartData(
+    noPensionPoints,
+    selectedReferenceDate,
+  );
 
   function selectIndex(value: string) {
     const next = InflationIndexSchema.parse(value);
@@ -72,14 +77,16 @@ export function useRealGrossSalaryHistory(
 
   return {
     amountKind,
-    chartData: grossSalaryChartData(points, selectedReferenceDate),
+    chartData,
     hasRealValues: points.some((point) => point.realGross != null),
     hasSalaryHistory: currentRecords.length > 0,
     inflationIndex,
-    noPensionChartData: noPensionNetChartData(
-      noPensionPoints,
-      selectedReferenceDate,
+    milestones: points.flatMap((point) =>
+      point.continuity === "first" || point.continuity === "employment-change"
+        ? [{ date: point.effectiveStart, employer: point.employer }]
+        : [],
     ),
+    noPensionChartData,
     noPensionPoints,
     noPensionUnavailableCount: noPensionPoints.filter(
       (point) => point.nominalNet == null || point.realNet == null,

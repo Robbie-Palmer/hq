@@ -63,6 +63,7 @@ afterAll(() => {
 describe("salary history controls", () => {
   const saveSalaryRecord = vi.fn().mockResolvedValue(undefined);
   const importSalaryHistory = vi.fn().mockResolvedValue(undefined);
+  const deleteSalaryRecord = vi.fn().mockResolvedValue(undefined);
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -73,6 +74,7 @@ describe("salary history controls", () => {
       },
       saveSalaryRecord,
       importSalaryHistory,
+      deleteSalaryRecord,
     } as unknown as ReturnType<typeof useAssetTracker>);
   });
 
@@ -204,6 +206,7 @@ describe("salary history controls", () => {
       currentSalaryHistory: [current],
       saveSalaryRecord,
       importSalaryHistory,
+      deleteSalaryRecord,
     } as unknown as ReturnType<typeof useAssetTracker>);
     const user = userEvent.setup();
     render(<SalaryRecordDrawer />);
@@ -576,6 +579,7 @@ describe("salary history controls", () => {
       currentSalaryHistory: [corrected, periodPay],
       saveSalaryRecord,
       importSalaryHistory,
+      deleteSalaryRecord,
     } as unknown as ReturnType<typeof useAssetTracker>);
 
     render(<SalaryHistoryManager />);
@@ -589,6 +593,18 @@ describe("salary history controls", () => {
 
     await userEvent.click(screen.getByText("Prior accepted facts"));
     expect(screen.getAllByText("salary.csv, row 7")).not.toHaveLength(0);
+
+    const [deleteButton] = screen.getAllByRole("button", {
+      name: "Delete salary record for Cirrus Systems from 2024-04-01",
+    });
+    if (deleteButton == null) throw new Error("Expected a delete button");
+    await userEvent.click(deleteButton);
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "Confirm deletion of salary record for Cirrus Systems from 2024-04-01",
+      }),
+    );
+    expect(deleteSalaryRecord).toHaveBeenCalledWith({ id: corrected.id });
   });
 
   it("shows a sourced estimate and observed reconciliation", async () => {

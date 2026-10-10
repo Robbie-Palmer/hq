@@ -370,6 +370,8 @@ export function applySetAccountOwnership(
     },
     snapshots: { ...data.ownership.snapshots },
     capitalFlows: { ...data.ownership.capitalFlows },
+    transfers: { ...data.ownership.transfers },
+    recurringFlows: { ...data.ownership.recurringFlows },
     holdingObservations: { ...data.ownership.holdingObservations },
     plannedExpenditures: { ...data.ownership.plannedExpenditures },
     futureCashFlows: { ...data.ownership.futureCashFlows },
@@ -384,6 +386,18 @@ export function applySetAccountOwnership(
     ({ accountId }) => accountId === parsed.accountId,
   )) {
     ownership.capitalFlows[capitalFlowOwnershipKey(row)] = parsed.ownership;
+  }
+  for (const row of data.transfers.filter(
+    ({ fromAccountId, toAccountId }) =>
+      (toAccountId ?? fromAccountId) === parsed.accountId,
+  )) {
+    ownership.transfers[row.id] = parsed.ownership;
+  }
+  for (const row of data.recurringFlows.filter(
+    ({ fromAccountId, toAccountId }) =>
+      (toAccountId ?? fromAccountId) === parsed.accountId,
+  )) {
+    ownership.recurringFlows[row.id] = parsed.ownership;
   }
   for (const row of (data.holdingObservations ?? []).filter(
     ({ accountId }) => accountId === parsed.accountId,
@@ -530,6 +544,12 @@ export function scopeAssetTrackerData(
   });
   const keptRecurringFlowIds = new Set(recurringFlows.map(({ id }) => id));
   const jobMoveScenarios = (data.jobMoveScenarios ?? []).flatMap((scenario) => {
+    if (
+      scenario.householdMemberId != null &&
+      scenario.householdMemberId !== scope.memberId
+    ) {
+      return [];
+    }
     const referencesKeptAccounts =
       (scenario.destinationAccountId == null ||
         keptAccountIds.has(scenario.destinationAccountId)) &&

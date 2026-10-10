@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { InflationDatasetDisclosure } from "./inflation-dataset-disclosure";
 import { RealGrossSalaryChart } from "./real-gross-salary-history-chart";
 import {
@@ -68,12 +71,18 @@ function DatasetNotes({
 }
 
 function GrossSalarySection({
+  availableDateDomain,
   dateDomain,
   label,
+  onRangeChange,
+  range,
   view,
 }: Readonly<{
+  availableDateDomain: SalaryTrajectoryDateDomain;
   dateDomain: SalaryTrajectoryDateDomain;
   label: string;
+  onRangeChange(range: SalaryTrajectoryDateDomain): void;
+  range: SalaryTrajectoryDateDomain;
   view: RealGrossSalaryHistoryView;
 }>) {
   return (
@@ -87,10 +96,14 @@ function GrossSalarySection({
         </p>
       </div>
       <RealGrossSalaryChart
+        availableDateDomain={availableDateDomain}
         chartData={view.chartData}
         dateDomain={dateDomain}
         hasRealValues={view.hasRealValues}
         label={`Nominal and inflation-adjusted ${label} for ${view.person}`}
+        milestones={view.milestones}
+        onRangeChange={onRangeChange}
+        range={range}
       />
       <SalaryTrajectoryTable points={view.points} />
     </section>
@@ -140,33 +153,54 @@ function NoPensionSalarySection({
   );
 }
 
+function SalarySections({
+  label,
+  view,
+}: Readonly<{
+  label: string;
+  view: RealGrossSalaryHistoryView;
+}>) {
+  const availableDateDomain = salaryTrajectoryDateDomain(
+    view.chartData,
+    view.noPensionChartData,
+  );
+  const [range, setRange] =
+    useState<SalaryTrajectoryDateDomain>(availableDateDomain);
+
+  return (
+    <>
+      <GrossSalarySection
+        availableDateDomain={availableDateDomain}
+        dateDomain={range}
+        label={label}
+        onRangeChange={setRange}
+        range={range}
+        view={view}
+      />
+      <NoPensionSalarySection dateDomain={range} label={label} view={view} />
+    </>
+  );
+}
+
 export function RealGrossSalaryContent({
   view,
 }: Readonly<{ view: RealGrossSalaryHistoryView }>) {
   const label =
     SALARY_AMOUNT_LABELS[view.amountKind].toLocaleLowerCase("en-GB");
-  const dateDomain = salaryTrajectoryDateDomain(
-    view.chartData,
-    view.noPensionChartData,
-  );
+  const chartKey = [
+    view.person,
+    view.amountKind,
+    view.inflationIndex,
+    view.selectedReferenceDate,
+    ...view.chartData.map((point) => `${point.id}:${point.date}`),
+  ].join(":");
   return (
     <>
       <RealGrossSalaryControls {...view} />
       {view.points.length === 0 ? (
         <NoMatchingSalary view={view} />
       ) : (
-        <>
-          <GrossSalarySection
-            dateDomain={dateDomain}
-            label={label}
-            view={view}
-          />
-          <NoPensionSalarySection
-            dateDomain={dateDomain}
-            label={label}
-            view={view}
-          />
-        </>
+        <SalarySections key={chartKey} label={label} view={view} />
       )}
       <DatasetNotes view={view} />
     </>
