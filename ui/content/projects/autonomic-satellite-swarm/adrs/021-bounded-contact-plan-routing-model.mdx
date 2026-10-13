@@ -1,0 +1,158 @@
+---
+title: "ADR 021: Bounded Contact-Plan Routing Model"
+status: "Proposed"
+date: "2026-10-09"
+---
+
+# Context
+
+The current simulation runner can inject selected delivery faults and directed-link changes. [ADR
+019](/projects/autonomic-satellite-swarm/adrs/019-deterministic-network-model-boundary) proposes a
+focused packet model with queues, links, forwarding, and resource counters. To compare
+operation-specific data-delivery policies, a later model will also need scheduled contact windows,
+bounded storage, store-carry-forward routing, and evidence explaining why each item arrived,
+expired, or was discarded.
+
+[ADR 020](/projects/autonomic-satellite-swarm/adrs/020-project-owned-deterministic-experiment-kernel)
+proposes a project-owned deterministic C++ kernel for the canonical native and WebAssembly trace.
+This ADR decides how much Delay-Tolerant Networking behavior belongs in that kernel and where a
+standards-conforming Bundle Protocol implementation should enter the test system.
+
+[Bundle Protocol version 7](https://www.rfc-editor.org/rfc/rfc9171.html) defines a
+store-carry-forward overlay protocol, bundle lifetime, forwarding, delivery, deletion, and status
+reports. It does not define the routing algorithm. BPv7 also moved custody transfer out of the base
+protocol to bundle-in-bundle encapsulation. A simulation that stores and forwards an application
+item is therefore not automatically a BPv7 implementation, and a local retention decision must not
+be reported as BP custody transfer.
+
+[Schedule-Aware Bundle Routing](https://ccsds.org/Pubs/734x3b1.pdf), or SABR, defines routing over a
+stable topology whose connectivity changes according to a schedule. That matches the satellite
+experiment better than opportunistic routing based only on current neighbours, but full SABR and
+BPv7 conformance would add protocol and operational behavior beyond the coordination question.
+
+## Existing implementations
+
+[DTNSim](https://github.com/lggaray/dtnsim) models contact plans, storage, custody, and several
+routing strategies on OMNeT++ 5.5.1. Its documentation calls the project a beta and describes an
+ION 3.5.0 integration. The main branch last changed in May 2021 and has no license file. Under
+[GitHub's licensing guidance](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository),
+a public repository without a license does not grant permission to copy, modify, or distribute its
+code. The version coupling, age, and missing license rule out vendoring or linking DTNSim.
+
+[ION 4.2.0](https://github.com/nasa-jpl/ION-DTN/releases/tag/ion-open-source-4.2.0) is a current
+NASA/JPL BPv7 implementation whose default dynamic router uses contact plans and Contact Graph
+Routing. It is an operational DTN stack rather than a discrete-event simulator. ION officially
+supports Linux and Solaris, with best-effort support for several other host platforms. Its process,
+persistent storage, convergence layers, and platform services do not fit the current WebAssembly
+worker, but they make ION a useful host-side interoperability and routing reference.
+
+[HDTN 3.0.0](https://github.com/nasa/HDTN/releases/tag/v3.0.0) is an Apache-2.0 C++ implementation
+with BPv7, ingress, storage, routing, egress, and security modules. Its
+[contact-plan format](https://github.com/nasa/HDTN/blob/main/module/router/contact_plans/contactPlan.json)
+records source, destination, start time, end time, rate, and one-way light time. HDTN is built as a
+set of native processes with Boost, ZeroMQ, OpenSSL, and persistent storage. It is suitable for
+throughput and protocol integration tests, not as the canonical browser model.
+
+[dtn7-rs](https://github.com/dtn7/dtn7-rs) is an actively maintained, MIT or Apache-2.0 BPv7 daemon
+and library with external routing interfaces. Its built-in routing choices cover opportunistic and
+static strategies rather than scheduled contact-graph routing. It could test BPv7 encoding or
+daemon interoperability, but it does not replace the contact-plan experiment model.
+
+The external formats confirm that trace exchange is practical. HDTN represents a directed contact
+with `source`, `dest`, `startTime`, `endTime`, `rateBitsPerSec`, and `owlt`. ION represents the same
+window with contact records and records one-way light time separately as a range. A versioned
+project fixture can preserve those fields without adopting either runtime. Time units, epochs,
+traffic generation, storage policy, and result events still require explicit adapter rules.
+
+# Decision, proposed
+
+Add a bounded contact-plan routing model to the project-owned C++ experiment kernel. The model will
+support coordination research in native and WebAssembly runs. It will not encode BPv7 bundles or
+claim BP, SABR, or Contact Graph Routing conformance.
+
+Define a versioned contact-plan scenario with a fixed epoch and integer elapsed times. Each directed
+contact records a stable identifier, source, destination, start, end, bit rate, and one-way light
+time. Scenario validation must reject unknown nodes, non-positive capacity, inverted windows,
+integer overflow, and ambiguous duplicate identifiers. Adapters must convert time and rate units
+explicitly rather than relying on host defaults.
+
+Represent application data as immutable transfer items with a stable identifier, source,
+destination, creation time, expiry time, payload size, and policy class. Call them transfer items in
+the model and trace. Do not call them BP bundles unless a standards-conforming BP implementation
+created them.
+
+Give each node a byte-limited store. Admission, ordering, eviction, expiry, retransmission, and
+interrupted-contact behavior must be named policies with deterministic tie-breaks. Start with
+whole-item forwarding. Fragmentation, reassembly, convergence-layer reliability, BP security, and
+bundle-in-bundle custody remain outside the bounded model.
+
+Make routing a replaceable simulation policy. Provide direct delivery and an earliest-arrival
+contact-plan baseline before comparing replication or resource-aware strategies. A routing
+decision must identify the candidate contacts, chosen next hop, projected arrival time, and reject
+reason. Route calculation must not read the wall clock or depend on iteration order.
+
+Extend the canonical trace with events for item creation, storage admission, eviction, expiry,
+route selection, transfer start, interruption, forwarding, application delivery, and deletion.
+Record per-node storage occupancy, contact capacity and utilization, bytes transmitted, bytes
+delivered, latency, drop reason, and configured transmit, receive, and storage-energy estimates.
+Keep estimated energy labelled as a configured model rather than a hardware measurement.
+
+Define a separate, versioned interchange fixture containing the contact plan, traffic demands,
+storage limits, routing selection, and fixed fault schedule. Offline adapters may translate this
+fixture into pinned ION or HDTN configurations and normalize their route and delivery results into
+a comparison artifact. External results must not overwrite the canonical `SimulationTrace`, and
+external processes must not become browser or firmware dependencies.
+
+# Alternatives
+
+| Option                                 | Benefit                                                                                                    | Cost or constraint                                                                                                                    | Outcome                                                   |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Own a bounded contact-plan model       | Preserves deterministic native and WebAssembly replay and exposes policy decisions in the existing trace   | The project owns simplified routing, storage, and measurement semantics                                                               | Proposed                                                  |
+| Adopt DTNSim                           | Includes contact plans, storage, custody, and several routing algorithms                                   | Coupled to OMNeT++ 5.5.1 and old ION behavior; dormant main branch; no redistribution license                                         | Rejected                                                  |
+| Run ION or HDTN as the canonical model | Uses maintained BPv7 and contact-plan implementations                                                      | Adds native processes, persistent state, large dependency graphs, and platform-specific timing; cannot run in the current worker      | Rejected for canonical replay                             |
+| Exchange fixtures with ION or HDTN     | Tests routes and protocol outcomes against maintained implementations without changing the browser runtime | Needs adapters, pinned environments, result normalization, and tolerance rules                                                        | Allowed for validation and interoperability               |
+| Embed a BPv7 library                   | Reuses wire encoding and protocol processing                                                               | Does not supply a deterministic contact scheduler or experiment trace and would add protocol code before interoperability is required | Deferred                                                  |
+| Live co-simulate with a DTN daemon     | Exercises the owned controller against a real stack                                                        | Requires cross-process clocks, transport, storage cleanup, timeout rules, and replay control                                          | Deferred until protocol integration becomes a deliverable |
+
+# Acceptance criteria
+
+Keep this ADR Proposed until a first contact-plan experiment satisfies all of the following:
+
+* Version and validate the contact-plan, transfer-item, storage-policy, and routing-policy inputs.
+* Replay the same scenario and fixed fault schedule byte-for-byte in native and WebAssembly builds.
+* Cover directed contacts, multi-hop delivery, overlapping opportunities, interrupted transfers,
+  expiry, full storage, deterministic eviction, unreachable destinations, and equal-cost routes.
+* Emit enough evidence to reconstruct every storage, route, forwarding, delivery, and deletion
+  decision from the trace.
+* Report delivery ratio, latency, bytes transmitted and delivered, peak storage, contact
+  utilization, and configured energy estimates in the batch runner.
+* Translate one checked-in contact plan to both HDTN and ION without losing source, destination,
+  start, end, rate, or one-way light time. Record all epoch and unit conversions.
+* Compare the earliest-arrival baseline with published SABR examples or a pinned ION run under a
+  stated route and arrival-time tolerance.
+* Confirm that the UI and documentation call the owned data object a transfer item and make no BPv7,
+  SABR, custody, security, or flight-qualification claim.
+* Record native runtime, WebAssembly size, trace size, and peak memory changes for the first bounded
+  and multi-hop scenarios.
+* Keep ION, HDTN, DTNSim, dtn7-rs, and their transitive dependencies out of both firmware builds and
+  the browser worker.
+
+# Revisit triggers
+
+Reopen this decision when the project must exchange real BPv7 traffic, test BPSec or convergence
+layers, model fragmentation and reassembly, exercise bundle-in-bundle custody, reproduce an ION or
+HDTN operational defect, or run hardware-in-the-loop DTN nodes. Also reopen it if pinned comparison
+runs repeatedly disagree with the bounded model outside the accepted route or timing tolerance.
+
+# Consequences
+
+The laboratory can compare direct, scheduled, replicated, and resource-aware delivery strategies
+with the same seeds, controller code, batch metrics, and browser trace. Contact plans remain portable
+enough for ION and HDTN adapters, while protocol implementations can change independently of the
+canonical experiment.
+
+The model will omit many behaviors that make operational DTN stacks difficult: wire encoding,
+fragmentation, convergence-layer reliability, persistent recovery, security, clock uncertainty,
+and protocol administration. Every result must state those omissions. Independent ION or HDTN
+checks become necessary before the project makes a claim about standards-compatible routing or
+delivery.
