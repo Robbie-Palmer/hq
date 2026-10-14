@@ -566,11 +566,25 @@ test("the observability collector attributes quota, backup, and Kubernetes state
     "agent-coordinator-health.json",
   );
   const outputPath = join(temporaryDirectory, "statsd.txt");
+  const collectorStatePath = join(temporaryDirectory, "collector-state");
 
   try {
     mkdirSync(binaryDirectory);
     const commands: Record<string, string> = {
       curl: `#!/usr/bin/env bash
+if [[ "$*" == *"127.0.0.1:13133"* ]]; then
+  printf 'ok\n'
+  exit 0
+fi
+if [[ "$*" == *"127.0.0.1:8888"* ]]; then
+  cat <<'METRICS'
+otelcol_exporter_send_failed_spans_total{exporter="otlphttp/posthog"} 2
+otelcol_exporter_enqueue_failed_log_records_total{exporter="otlphttp/posthog"} 1
+otelcol_exporter_queue_size{exporter="otlphttp/posthog"} 4
+otelcol_processor_filter_spans_filtered_total{processor="filter/t3code"} 12
+METRICS
+  exit 0
+fi
 cat <<'METRICS'
 kube_pod_container_status_last_terminated_reason{namespace="t3-code",reason="OOMKilled"} 1
 kube_pod_status_reason{namespace="t3-code",reason="Evicted"} 0
@@ -607,6 +621,9 @@ printf '%s\\n' \\
         `BACKUP_STATUS_FILE=${statusPath}`,
         "BACKUP_MAXIMUM_AGE_SECONDS=129600",
         "KUBE_STATE_METRICS_URL=http://127.0.0.1:18080/api/v1/namespaces/observability/services/http:kube-state-metrics:8080/proxy/metrics",
+        "OTELCOL_HEALTH_URL=http://127.0.0.1:13133/",
+        "OTELCOL_METRICS_URL=http://127.0.0.1:8888/metrics",
+        `OTELCOL_STATE_FILE=${collectorStatePath}`,
         "AGENT_COORDINATOR_ENABLED=1",
         `AGENT_COORDINATOR_HEALTH_FILE=${coordinatorHealthPath}`,
         "",
@@ -696,6 +713,19 @@ printf '%s\\n' \\
       metrics,
       /^remote_development\.operator\.kube_state_metrics_up:1\|g$/m,
     );
+    assert.match(metrics, /^remote_development\.operator\.otelcol_up:1\|g$/m);
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.otelcol_pipeline_failures:3\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.otelcol_export_queue_size:4\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.otelcol_policy_dropped_records:12\|g$/m,
+    );
     assert.match(
       metrics,
       /^remote_development\.operator\.oom_killed:1\|g$/m,
@@ -706,6 +736,50 @@ printf '%s\\n' \\
     );
   } finally {
     rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
+});
+
+test("the T3 Code collector is host-bound and default-deny before PostHog export", () => {
+  const imagePackage = JSON.parse(
+    readFileSync(new URL("../images/t3-code/package.json", import.meta.url), "utf8"),
+  ) as { dependencies: Record<string, string> };
+  const collectorPath = new URL(
+    "../hosts/remote-development/opentelemetry-collector.yaml",
+    import.meta.url,
+  );
+  const collectorText = readFileSync(collectorPath, "utf8");
+  const documents = parseAllDocuments(collectorText);
+  assert.deepEqual(documents[0]?.errors, []);
+  const collector = documents[0]?.toJS() as Record<string, unknown>;
+
+  assert.equal(imagePackage.dependencies.t3, "0.0.44");
+  assert.equal(
+    valueAt(collector, ["receivers", "otlp/t3code", "protocols", "http", "endpoint"]),
+    "10.42.0.1:4318",
+  );
+  assert.equal(
+    valueAt(collector, ["exporters", "otlp/netdata", "endpoint"]),
+    "127.0.0.1:4317",
+  );
+  assert.equal(
+    valueAt(collector, ["exporters", "otlphttp/posthog", "endpoint"]),
+    "https://eu.i.posthog.com/i",
+  );
+  assert.match(collectorText, /keep_keys\(attributes/);
+  assert.match(collectorText, /set\(body, "T3 Code warning or error/);
+  assert.match(collectorText, /severity_number < SEVERITY_NUMBER_WARN/);
+  assert.match(collectorText, /spanevent:\n\s+- 'true'/);
+  for (const forbiddenAttribute of [
+    "provider.instance_id",
+    "provider.thread_id",
+    "provider.turn_id",
+    "terminal.cwd",
+    "terminal.id",
+  ]) {
+    assert.ok(
+      !collectorText.includes(`"${forbiddenAttribute}"`),
+      `${forbiddenAttribute} must not be allowlisted`,
+    );
   }
 });
 
@@ -1218,6 +1292,23 @@ test("the remote overlay isolates durable data from rebuildable caches", () => {
     "env",
   ]);
   assert.ok(Array.isArray(operatorEnvironment));
+  for (const [name, value] of Object.entries({
+    OTEL_RESOURCE_ATTRIBUTES:
+      "deployment.environment.name=remote-development,workspace.id=operator",
+    T3CODE_OTLP_EXPORT_INTERVAL_MS: "10000",
+    T3CODE_OTLP_LOGS_URL: "http://10.42.0.1:4318/v1/logs",
+    T3CODE_OTLP_METRICS_URL: "http://10.42.0.1:4318/v1/metrics",
+    T3CODE_OTLP_PROTOCOL: "http/protobuf",
+    T3CODE_OTLP_TRACES_URL: "http://10.42.0.1:4318/v1/traces",
+  })) {
+    assert.deepEqual(
+      operatorEnvironment.find(
+        (entry) =>
+          typeof entry === "object" && entry !== null && entry.name === name,
+      ),
+      { name, value },
+    );
+  }
   for (const name of [
     "CF_ACCESS_CLIENT_ID",
     "CF_ACCESS_CLIENT_SECRET",

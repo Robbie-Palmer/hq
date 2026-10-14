@@ -1,0 +1,134 @@
+extensions:
+  file_storage:
+    directory: ${env:OTELCOL_STORAGE_DIRECTORY}
+    create_directory: true
+  health_check:
+    endpoint: 127.0.0.1:13133
+
+receivers:
+  otlp/t3code:
+    protocols:
+      http:
+        endpoint: 10.42.0.1:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 96
+    spike_limit_mib: 24
+
+  filter/t3code:
+    error_mode: propagate
+    traces:
+      span:
+        - 'not (IsMatch(name, "^provider\\.") or name == "terminal.startSession" or name == "terminal.closeSession")'
+      spanevent:
+        - 'true'
+    metrics:
+      metric:
+        - 'not IsMatch(name, "^t3_(provider|terminal)_")'
+    logs:
+      log_record:
+        - 'severity_number < SEVERITY_NUMBER_WARN'
+
+  transform/t3code:
+    error_mode: propagate
+    trace_statements:
+      - context: resource
+        statements:
+          - 'keep_keys(attributes, ["service.name", "service.namespace", "service.runtime", "service.mode", "deployment.environment.name", "workspace.id"])'
+          - 'set(attributes["workspace.id"], "operator")'
+          - 'set(attributes["deployment.environment.name"], "remote-development")'
+      - context: span
+        statements:
+          - 'keep_keys(attributes, ["provider.operation", "provider.kind", "provider.runtime_mode", "provider.resume_cursor.source", "provider.resume_cursor.present", "provider.cwd.source", "provider.interaction_mode", "provider.attachment_count", "terminal.event_type", "error.type"])'
+          - 'set(status.message, "")'
+    metric_statements:
+      - context: resource
+        statements:
+          - 'keep_keys(attributes, ["service.name", "service.namespace", "service.runtime", "service.mode", "deployment.environment.name", "workspace.id"])'
+          - 'set(attributes["workspace.id"], "operator")'
+          - 'set(attributes["deployment.environment.name"], "remote-development")'
+      - context: datapoint
+        statements:
+          - 'keep_keys(attributes, ["provider", "modelFamily", "operation", "outcome", "lifecycle", "scope", "method", "runtime_mode", "event_type"])'
+    log_statements:
+      - context: resource
+        statements:
+          - 'keep_keys(attributes, ["service.name", "service.namespace", "service.runtime", "service.mode", "deployment.environment.name", "workspace.id"])'
+          - 'set(attributes["workspace.id"], "operator")'
+          - 'set(attributes["deployment.environment.name"], "remote-development")'
+      - context: log
+        statements:
+          - 'set(body, "T3 Code warning or error; details retained only on the workspace host")'
+          - 'keep_keys(attributes, ["error.type"])'
+
+  batch:
+    send_batch_size: 512
+    timeout: 5s
+
+exporters:
+  otlp/netdata:
+    endpoint: 127.0.0.1:4317
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      storage: file_storage
+
+  otlphttp/posthog:
+    endpoint: https://eu.i.posthog.com/i
+    headers:
+      Authorization: Bearer ${env:POSTHOG_PROJECT_TOKEN}
+    sending_queue:
+      enabled: true
+      storage: file_storage
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 5m
+
+service:
+  extensions:
+    - file_storage
+    - health_check
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 127.0.0.1
+                port: 8888
+  pipelines:
+    metrics/t3code:
+      receivers:
+        - otlp/t3code
+      processors:
+        - memory_limiter
+        - filter/t3code
+        - transform/t3code
+        - batch
+      exporters:
+        - otlp/netdata
+    traces/t3code:
+      receivers:
+        - otlp/t3code
+      processors:
+        - memory_limiter
+        - filter/t3code
+        - transform/t3code
+        - batch
+      exporters:
+        - otlphttp/posthog
+    logs/t3code:
+      receivers:
+        - otlp/t3code
+      processors:
+        - memory_limiter
+        - filter/t3code
+        - transform/t3code
+        - batch
+      exporters:
+        - otlphttp/posthog
