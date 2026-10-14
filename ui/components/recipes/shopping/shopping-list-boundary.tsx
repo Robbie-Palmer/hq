@@ -144,16 +144,11 @@ export function useShoppingListScope(): ShoppingListScope {
   return scope;
 }
 
-export function ShoppingListBoundary({
-  children,
-}: Readonly<{ children: ReactNode }>) {
-  const { data: session } = authClient.useSession();
-  const userId = session?.user.id ?? "pending";
+function useShoppingListSync(
+  userId: string,
+  serverList: StoredShoppingList | undefined,
+): { installedId: string | undefined; saveFailed: boolean } {
   const queryClient = useQueryClient();
-  const current = useQuery({
-    ...shoppingListQuery(userId),
-    enabled: Boolean(session),
-  });
   const [installedId, setInstalledId] = useState<string>();
   const installedIdRef = useRef<string | undefined>(undefined);
   const savedSnapshot = useRef<string | undefined>(undefined);
@@ -165,15 +160,15 @@ export function ShoppingListBoundary({
 
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
   useEffect(() => {
-    if (!current.data) return;
-    const serialized = JSON.stringify(current.data.snapshot);
+    if (!serverList) return;
+    const serialized = JSON.stringify(serverList.snapshot);
 
     if (!installedId) {
       const cached = shoppingListContents();
       const cachedIdentity = getShoppingListCacheIdentity();
       const cacheBelongsToList =
         cachedIdentity.listId === undefined ||
-        cachedIdentity.listId === current.data.id;
+        cachedIdentity.listId === serverList.id;
       const hasCachedContents =
         cached.recipes.length > 0 ||
         cached.checked.length > 0 ||
@@ -183,38 +178,38 @@ export function ShoppingListBoundary({
           ? mergeLocalShoppingListChanges(
               EMPTY_SHOPPING_LIST,
               cached,
-              current.data.snapshot,
+              serverList.snapshot,
             )
-          : current.data.snapshot;
+          : serverList.snapshot;
       const shouldRecoverCache = JSON.stringify(next) !== serialized;
       savedSnapshot.current = serialized;
-      savedRevision.current = current.data.revision;
-      savedList.current = current.data;
-      installedIdRef.current = current.data.id;
+      savedRevision.current = serverList.revision;
+      savedList.current = serverList;
+      installedIdRef.current = serverList.id;
       installShoppingListSnapshot(
         next,
-        current.data.id,
+        serverList.id,
         "install",
         !shouldRecoverCache,
-        current.data.revision,
+        serverList.revision,
       );
       pendingCacheRecovery.current = shouldRecoverCache
-        ? current.data.id
+        ? serverList.id
         : undefined;
-      setInstalledId(current.data.id);
+      setInstalledId(serverList.id);
       return;
     }
     if (
-      current.data.id === installedId &&
-      current.data.revision === savedRevision.current
+      serverList.id === installedId &&
+      serverList.revision === savedRevision.current
     ) {
       return;
     }
 
-    const isInstalledList = current.data.id === installedId;
+    const isInstalledList = serverList.id === installedId;
     if (
       isInstalledList &&
-      supersededRevisions.current.has(current.data.revision)
+      supersededRevisions.current.has(serverList.revision)
     ) {
       restoreSavedShoppingList(queryClient, userId, savedList.current);
       return;
@@ -234,23 +229,23 @@ export function ShoppingListBoundary({
         ? mergeLocalShoppingListChanges(
             parseSavedSnapshot(baseline),
             local,
-            current.data.snapshot,
+            serverList.snapshot,
           )
-        : current.data.snapshot;
+        : serverList.snapshot;
     const hasRebasedChanges = JSON.stringify(next) !== serialized;
     savedSnapshot.current = serialized;
-    savedRevision.current = current.data.revision;
-    savedList.current = current.data;
-    installedIdRef.current = current.data.id;
+    savedRevision.current = serverList.revision;
+    savedList.current = serverList;
+    installedIdRef.current = serverList.id;
     installShoppingListSnapshot(
       next,
-      current.data.id,
+      serverList.id,
       hasRebasedChanges ? "local" : "install",
       true,
-      current.data.revision,
+      serverList.revision,
     );
-    setInstalledId(current.data.id);
-  }, [current.data, installedId, queryClient, userId]);
+    setInstalledId(serverList.id);
+  }, [installedId, queryClient, serverList, userId]);
 
   const hasInstalledList = Boolean(installedId);
   useLayoutEffect(() => {
@@ -339,6 +334,20 @@ export function ShoppingListBoundary({
       unsubscribe();
     };
   }, [hasInstalledList, queryClient, userId]);
+
+  return { installedId, saveFailed };
+}
+
+export function ShoppingListBoundary({
+  children,
+}: Readonly<{ children: ReactNode }>) {
+  const { data: session } = authClient.useSession();
+  const userId = session?.user.id ?? "pending";
+  const current = useQuery({
+    ...shoppingListQuery(userId),
+    enabled: Boolean(session),
+  });
+  const { installedId, saveFailed } = useShoppingListSync(userId, current.data);
 
   if (current.isError && !current.data) {
     return (
