@@ -15,8 +15,10 @@ import {
 } from "@/components/ui/select";
 import { formatCurrency, todayIsoDate } from "@/lib/assettracker";
 import {
+  type ActualCashFlowDirection,
   accountLiquidity,
   type FutureCashFlow,
+  type FutureCashFlowDirection,
   formatAssetTrackerError,
   isLiability,
 } from "@/lib/domain/assettracker";
@@ -113,10 +115,18 @@ function useFutureCashFlowManager() {
   const [caseName, setCaseName] = useState("");
   const [caseTargetDate, setCaseTargetDate] = useState("");
   const [kind, setKind] = useState<"commitment" | "decision">("commitment");
+  const [direction, setDirection] =
+    useState<FutureCashFlowDirection>("payment");
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [minimumAmount, setMinimumAmount] = useState("");
   const [maximumAmount, setMaximumAmount] = useState("");
+  const [grossAmount, setGrossAmount] = useState("");
+  const [taxAmount, setTaxAmount] = useState("");
+  const [feeAmount, setFeeAmount] = useState("");
+  const [deductionAmount, setDeductionAmount] = useState("");
+  const [breakdownSource, setBreakdownSource] = useState("");
+  const [calculationLineage, setCalculationLineage] = useState("");
   const [date, setDate] = useState(tomorrowIsoDate);
   const [earliestDate, setEarliestDate] = useState("");
   const [latestDate, setLatestDate] = useState("");
@@ -137,12 +147,12 @@ function useFutureCashFlowManager() {
   const [actualFor, setActualFor] = useState<{
     recordId: string;
     stageId: string;
+    direction: FutureCashFlowDirection;
   } | null>(null);
   const [actualAmount, setActualAmount] = useState("");
   const [actualDate, setActualDate] = useState(todayIsoDate);
-  const [actualDirection, setActualDirection] = useState<"payment" | "refund">(
-    "payment",
-  );
+  const [actualDirection, setActualDirection] =
+    useState<ActualCashFlowDirection>("payment");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const selectedAccountId = eligibleAccounts.some(({ id }) => id === accountId)
@@ -193,7 +203,31 @@ function useFutureCashFlowManager() {
       labels: labels(labelText),
       currency: selectedAccount.currency,
     };
+    const amountBreakdown =
+      optional(grossAmount) == null
+        ? undefined
+        : {
+            grossAmount: Number(grossAmount),
+            taxAmount: numberOr(taxAmount, 0),
+            feeAmount: numberOr(feeAmount, 0),
+            deductions:
+              numberOr(deductionAmount, 0) === 0
+                ? []
+                : [
+                    {
+                      label: "Other deductions",
+                      amount: Number(deductionAmount),
+                    },
+                  ],
+            netAmount: expectedAmount,
+            sourceNotes: optional(breakdownSource),
+            calculationLineage: labels(calculationLineage),
+          };
     await run(async () => {
+      const endpoint =
+        direction === "payment"
+          ? { direction, fromAccountId: selectedAccountId }
+          : { direction, toAccountId: selectedAccountId };
       if (kind === "commitment") {
         await tracker.addCommitment({
           ...common,
@@ -201,9 +235,10 @@ function useFutureCashFlowManager() {
           refundable,
           stages: [
             {
-              fromAccountId: selectedAccountId,
+              ...endpoint,
               dueDate: date,
               amount: expectedAmount,
+              ...(amountBreakdown == null ? {} : { amountBreakdown }),
             },
           ],
         });
@@ -217,13 +252,14 @@ function useFutureCashFlowManager() {
           alternativeToIds: selectedIds(alternativeId),
           stages: [
             {
-              fromAccountId: selectedAccountId,
+              ...endpoint,
               earliestDate: optional(earliestDate),
               expectedDate: date,
               latestDate: optional(latestDate),
               minimumAmount: numberOr(minimumAmount, expectedAmount),
               expectedAmount,
               maximumAmount: numberOr(maximumAmount, expectedAmount),
+              ...(amountBreakdown == null ? {} : { amountBreakdown }),
             },
           ],
         });
@@ -232,6 +268,12 @@ function useFutureCashFlowManager() {
       setAmount("");
       setMinimumAmount("");
       setMaximumAmount("");
+      setGrossAmount("");
+      setTaxAmount("");
+      setFeeAmount("");
+      setDeductionAmount("");
+      setBreakdownSource("");
+      setCalculationLineage("");
       setDate(tomorrowIsoDate());
       setEarliestDate("");
       setLatestDate("");
@@ -256,7 +298,9 @@ function useFutureCashFlowManager() {
       });
       setActualFor(null);
       setActualAmount("");
-      setActualDirection("payment");
+      setActualDirection(
+        actualFor.direction === "payment" ? "payment" : "receipt",
+      );
     });
   }
   return {
@@ -268,6 +312,8 @@ function useFutureCashFlowManager() {
     setCaseTargetDate,
     kind,
     setKind,
+    direction,
+    setDirection,
     name,
     setName,
     amount,
@@ -276,6 +322,18 @@ function useFutureCashFlowManager() {
     setMinimumAmount,
     maximumAmount,
     setMaximumAmount,
+    grossAmount,
+    setGrossAmount,
+    taxAmount,
+    setTaxAmount,
+    feeAmount,
+    setFeeAmount,
+    deductionAmount,
+    setDeductionAmount,
+    breakdownSource,
+    setBreakdownSource,
+    calculationLineage,
+    setCalculationLineage,
     date,
     setDate,
     earliestDate,
@@ -483,16 +541,32 @@ function StageRow({
   if (!stage) return null;
   const netActual = stage.actuals.reduce(
     (total, actual) =>
-      total + (actual.direction === "payment" ? actual.amount : -actual.amount),
+      total +
+      (actual.direction === "payment" || actual.direction === "receipt"
+        ? actual.amount
+        : -actual.amount),
     0,
   );
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
       <span>{stage.name ?? `Stage ${stageIndex + 1}`}</span>
+      <Badge variant="outline">
+        {stage.direction === "payment" ? "Payment" : "Receipt"}
+      </Badge>
       <span>{stageDate(record, stageIndex)}</span>
       <span className="font-mono text-foreground">
         {formatCurrency(stageAmount(record, stageIndex), record.currency)}
       </span>
+      {stage.amountBreakdown != null && (
+        <span>
+          gross{" "}
+          {formatCurrency(stage.amountBreakdown.grossAmount, record.currency)}
+          {"; tax "}
+          {formatCurrency(stage.amountBreakdown.taxAmount, record.currency)}
+          {"; fees "}
+          {formatCurrency(stage.amountBreakdown.feeAmount, record.currency)}
+        </span>
+      )}
       {"minimumAmount" in stage && (
         <span>
           range {formatCurrency(stage.minimumAmount, record.currency)}–
@@ -529,9 +603,16 @@ function StageList({
           key={stage.id}
           record={record}
           stageIndex={stageIndex}
-          onRecord={() =>
-            model.setActualFor({ recordId: record.id, stageId: stage.id })
-          }
+          onRecord={() => {
+            model.setActualFor({
+              recordId: record.id,
+              stageId: stage.id,
+              direction: stage.direction,
+            });
+            model.setActualDirection(
+              stage.direction === "payment" ? "payment" : "receipt",
+            );
+          }}
         />
       ))}
     </div>
@@ -608,15 +689,24 @@ function ActualDirectionField({
       <Select
         value={model.actualDirection}
         onValueChange={(value) =>
-          model.setActualDirection(value as "payment" | "refund")
+          model.setActualDirection(value as ActualCashFlowDirection)
         }
       >
         <SelectTrigger id={`actual-direction-${record.id}`} className="w-full">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="payment">Payment</SelectItem>
-          <SelectItem value="refund">Refund</SelectItem>
+          {model.actualFor?.direction === "receipt" ? (
+            <>
+              <SelectItem value="receipt">Receipt</SelectItem>
+              <SelectItem value="return">Returned receipt</SelectItem>
+            </>
+          ) : (
+            <>
+              <SelectItem value="payment">Payment</SelectItem>
+              <SelectItem value="refund">Refund</SelectItem>
+            </>
+          )}
         </SelectContent>
       </Select>
     </FormField>
@@ -703,6 +793,22 @@ function FlowPrimaryFields({ model }: Readonly<{ model: FlowManager }>) {
           </SelectContent>
         </Select>
       </FormField>
+      <FormField id="future-flow-direction" label="Direction">
+        <Select
+          value={model.direction}
+          onValueChange={(value) =>
+            model.setDirection(value as FutureCashFlowDirection)
+          }
+        >
+          <SelectTrigger id="future-flow-direction" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="payment">Payment</SelectItem>
+            <SelectItem value="receipt">Receipt</SelectItem>
+          </SelectContent>
+        </Select>
+      </FormField>
       <FormField id="future-flow-name" label="Name">
         <Input
           id="future-flow-name"
@@ -745,7 +851,10 @@ function FlowPrimaryFields({ model }: Readonly<{ model: FlowManager }>) {
 function FlowContextFields({ model }: Readonly<{ model: FlowManager }>) {
   return (
     <>
-      <FormField id="future-flow-account" label="Pay from">
+      <FormField
+        id="future-flow-account"
+        label={model.direction === "payment" ? "Pay from" : "Receive into"}
+      >
         <Select
           value={model.selectedAccountId}
           onValueChange={model.setAccountId}
@@ -819,14 +928,16 @@ function CommitmentFields({ model }: Readonly<{ model: FlowManager }>) {
           </SelectContent>
         </Select>
       </FormField>
-      <label className="flex h-9 items-center gap-2 text-xs font-medium">
-        <input
-          type="checkbox"
-          checked={model.refundable}
-          onChange={(event) => model.setRefundable(event.target.checked)}
-        />
-        <span>Refundable</span>
-      </label>
+      {model.direction === "payment" && (
+        <label className="flex h-9 items-center gap-2 text-xs font-medium">
+          <input
+            type="checkbox"
+            checked={model.refundable}
+            onChange={(event) => model.setRefundable(event.target.checked)}
+          />
+          <span>Refundable</span>
+        </label>
+      )}
     </div>
   );
 }
@@ -991,6 +1102,81 @@ function DecisionFields({ model }: Readonly<{ model: FlowManager }>) {
   );
 }
 
+function AmountBreakdownFields({ model }: Readonly<{ model: FlowManager }>) {
+  return (
+    <fieldset className="grid gap-2 rounded-md border p-3 sm:grid-cols-2 lg:grid-cols-4">
+      <legend className="px-1 text-xs font-medium">
+        Gross-to-net breakdown (optional)
+      </legend>
+      <FormField id="future-flow-gross" label="Gross amount">
+        <Input
+          id="future-flow-gross"
+          type="number"
+          min="0.01"
+          step="0.01"
+          placeholder="Leave blank for net only"
+          value={model.grossAmount}
+          onChange={(event) => model.setGrossAmount(event.target.value)}
+        />
+      </FormField>
+      <FormField id="future-flow-tax" label="Tax">
+        <Input
+          id="future-flow-tax"
+          type="number"
+          min="0"
+          step="0.01"
+          value={model.taxAmount}
+          onChange={(event) => model.setTaxAmount(event.target.value)}
+        />
+      </FormField>
+      <FormField id="future-flow-fees" label="Fees">
+        <Input
+          id="future-flow-fees"
+          type="number"
+          min="0"
+          step="0.01"
+          value={model.feeAmount}
+          onChange={(event) => model.setFeeAmount(event.target.value)}
+        />
+      </FormField>
+      <FormField id="future-flow-deductions" label="Other deductions">
+        <Input
+          id="future-flow-deductions"
+          type="number"
+          min="0"
+          step="0.01"
+          value={model.deductionAmount}
+          onChange={(event) => model.setDeductionAmount(event.target.value)}
+        />
+      </FormField>
+      <FormField
+        id="future-flow-breakdown-source"
+        label="Source notes"
+        className="sm:col-span-2"
+      >
+        <Input
+          id="future-flow-breakdown-source"
+          placeholder="e.g. employer estimate dated 14 Oct"
+          value={model.breakdownSource}
+          onChange={(event) => model.setBreakdownSource(event.target.value)}
+        />
+      </FormField>
+      <FormField
+        id="future-flow-lineage"
+        label="Calculation lineage (comma separated)"
+        className="sm:col-span-2"
+      >
+        <Input
+          id="future-flow-lineage"
+          placeholder="policy version, calculator version"
+          value={model.calculationLineage}
+          onChange={(event) => model.setCalculationLineage(event.target.value)}
+        />
+      </FormField>
+    </fieldset>
+  );
+}
+
 function AddFutureCashFlowForm({ model }: Readonly<{ model: FlowManager }>) {
   if (model.eligibleAccounts.length === 0) {
     return (
@@ -1011,6 +1197,7 @@ function AddFutureCashFlowForm({ model }: Readonly<{ model: FlowManager }>) {
       ) : (
         <DecisionFields model={model} />
       )}
+      <AmountBreakdownFields model={model} />
       <Button type="submit" className="w-fit" disabled={model.submitting}>
         Add {model.kind}
       </Button>

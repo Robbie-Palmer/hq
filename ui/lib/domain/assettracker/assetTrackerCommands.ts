@@ -33,6 +33,8 @@ import {
 } from "./forecastAssumption";
 import {
   type ActualCashFlow,
+  ActualCashFlowDirectionSchema,
+  CashFlowAmountBreakdownSchema,
   type CashFlowDecision,
   CashFlowDecisionSchema,
   type Commitment,
@@ -40,7 +42,9 @@ import {
   type FutureCashFlow,
   FutureCashFlowSchema,
   futureCashFlowAccountIds,
+  futureCashFlowStageAccountId,
   PlanningCaseSchema,
+  settledCashFlowAmount,
 } from "./futureCashFlow";
 import {
   assertOwnershipMembers,
@@ -290,12 +294,25 @@ export type CreatePlanningCaseInput = z.input<
   typeof CreatePlanningCaseInputSchema
 >;
 
-const AddCommitmentStageInputSchema = z.object({
+const CommitmentStageInputShape = {
   name: z.string().trim().min(1).optional(),
-  fromAccountId: AccountIdSchema,
   dueDate: IsoDateSchema,
   amount: z.number().positive("Amount must be positive"),
-});
+  amountBreakdown: CashFlowAmountBreakdownSchema.optional(),
+};
+
+const AddCommitmentStageInputSchema = z.union([
+  z.object({
+    ...CommitmentStageInputShape,
+    direction: z.literal("payment").default("payment"),
+    fromAccountId: AccountIdSchema,
+  }),
+  z.object({
+    ...CommitmentStageInputShape,
+    direction: z.literal("receipt"),
+    toAccountId: AccountIdSchema,
+  }),
+]);
 
 export const AddCommitmentInputSchema = z.object({
   name: z.string().trim().min(1, "Give the commitment a name"),
@@ -311,38 +328,68 @@ export const AddCommitmentInputSchema = z.object({
 });
 export type AddCommitmentInput = z.input<typeof AddCommitmentInputSchema>;
 
-const AddDecisionStageInputSchema = z
-  .object({
-    name: z.string().trim().min(1).optional(),
-    fromAccountId: AccountIdSchema,
-    earliestDate: IsoDateSchema.optional(),
-    expectedDate: IsoDateSchema,
-    latestDate: IsoDateSchema.optional(),
-    minimumAmount: z.number().nonnegative(),
-    expectedAmount: z.number().positive("Expected amount must be positive"),
-    maximumAmount: z.number().positive("Maximum amount must be positive"),
-  })
-  .superRefine((stage, context) => {
-    if (
-      stage.minimumAmount > stage.expectedAmount ||
-      stage.expectedAmount > stage.maximumAmount
-    ) {
-      context.addIssue({
-        code: "custom",
-        message:
-          "Decision amounts must run from minimum to expected to maximum",
-      });
-    }
-    if (
-      (stage.earliestDate != null && stage.earliestDate > stage.expectedDate) ||
-      (stage.latestDate != null && stage.expectedDate > stage.latestDate)
-    ) {
-      context.addIssue({
-        code: "custom",
-        message: "Decision dates must run from earliest to expected to latest",
-      });
-    }
-  });
+const DecisionStageInputShape = {
+  name: z.string().trim().min(1).optional(),
+  earliestDate: IsoDateSchema.optional(),
+  expectedDate: IsoDateSchema,
+  latestDate: IsoDateSchema.optional(),
+  minimumAmount: z.number().nonnegative(),
+  expectedAmount: z.number().positive("Expected amount must be positive"),
+  maximumAmount: z.number().positive("Maximum amount must be positive"),
+  amountBreakdown: CashFlowAmountBreakdownSchema.optional(),
+};
+
+function validateDecisionStageInput(
+  stage: {
+    earliestDate?: string;
+    expectedDate: string;
+    latestDate?: string;
+    minimumAmount: number;
+    expectedAmount: number;
+    maximumAmount: number;
+  },
+  context: z.RefinementCtx,
+) {
+  if (
+    stage.minimumAmount > stage.expectedAmount ||
+    stage.expectedAmount > stage.maximumAmount
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "Decision amounts must run from minimum to expected to maximum",
+    });
+  }
+  if (
+    (stage.earliestDate != null && stage.earliestDate > stage.expectedDate) ||
+    (stage.latestDate != null && stage.expectedDate > stage.latestDate)
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "Decision dates must run from earliest to expected to latest",
+    });
+  }
+}
+
+function decisionStageInputSchema() {
+  return z.union([
+    z
+      .object({
+        ...DecisionStageInputShape,
+        direction: z.literal("payment").default("payment"),
+        fromAccountId: AccountIdSchema,
+      })
+      .superRefine(validateDecisionStageInput),
+    z
+      .object({
+        ...DecisionStageInputShape,
+        direction: z.literal("receipt"),
+        toAccountId: AccountIdSchema,
+      })
+      .superRefine(validateDecisionStageInput),
+  ]);
+}
+
+const AddDecisionStageInputSchema = decisionStageInputSchema();
 
 export const AddCashFlowDecisionInputSchema = z.object({
   name: z.string().trim().min(1, "Give the decision a name"),
@@ -364,9 +411,24 @@ export type AddCashFlowDecisionInput = z.input<
   typeof AddCashFlowDecisionInputSchema
 >;
 
-const UpdateDecisionStageInputSchema = AddDecisionStageInputSchema.extend({
-  id: z.string().trim().min(1).optional(),
-});
+const UpdateDecisionStageInputSchema = z.union([
+  z
+    .object({
+      ...DecisionStageInputShape,
+      id: z.string().trim().min(1).optional(),
+      direction: z.literal("payment").default("payment"),
+      fromAccountId: AccountIdSchema,
+    })
+    .superRefine(validateDecisionStageInput),
+  z
+    .object({
+      ...DecisionStageInputShape,
+      id: z.string().trim().min(1).optional(),
+      direction: z.literal("receipt"),
+      toAccountId: AccountIdSchema,
+    })
+    .superRefine(validateDecisionStageInput),
+]);
 
 export const UpdateCashFlowDecisionInputSchema =
   AddCashFlowDecisionInputSchema.omit({ stages: true }).extend({
@@ -398,7 +460,7 @@ export const RecordActualCashFlowInputSchema = z.object({
   stageId: z.string().trim().min(1),
   date: IsoDateSchema,
   amount: z.number().positive("Amount must be positive"),
-  direction: z.enum(["payment", "refund"]),
+  direction: ActualCashFlowDirectionSchema,
 });
 export type RecordActualCashFlowInput = z.infer<
   typeof RecordActualCashFlowInputSchema
@@ -1224,7 +1286,7 @@ function requireEligibleFutureCashFlowAccount(
   if (account.closedAt != null) {
     throw new AssetTrackerCommandError(
       "INVALID_FUTURE_CASH_FLOW",
-      "Future cash flows must come from an open account",
+      "Future cash flows must use an open account",
     );
   }
   if (
@@ -1233,10 +1295,20 @@ function requireEligibleFutureCashFlowAccount(
   ) {
     throw new AssetTrackerCommandError(
       "INVALID_FUTURE_CASH_FLOW",
-      "Future cash flows must come from cash or a liquid investment",
+      "Future cash flows must use cash or a liquid investment",
     );
   }
   return account;
+}
+
+function stageEndpointAccountId(
+  stage:
+    | { direction: "payment"; fromAccountId: AccountId }
+    | { direction: "receipt"; toAccountId: AccountId },
+): AccountId {
+  return stage.direction === "payment"
+    ? stage.fromAccountId
+    : stage.toAccountId;
 }
 
 function futureCashFlowOwnership(data: AssetTrackerData, accountId: AccountId) {
@@ -1287,12 +1359,12 @@ export function applyAddCommitment(
   for (const stage of parsed.stages) {
     const account = requireEligibleFutureCashFlowAccount(
       data,
-      stage.fromAccountId,
+      stageEndpointAccountId(stage),
     );
     if (account.currency !== parsed.currency) {
       throw new AssetTrackerCommandError(
         "INVALID_FUTURE_CASH_FLOW",
-        "A commitment must use the currency of its source account",
+        `A commitment must use the currency of its ${stage.direction === "payment" ? "source" : "destination"} account`,
       );
     }
     if (stage.dueDate <= asOfDate) {
@@ -1319,7 +1391,7 @@ export function applyAddCommitment(
     kind: "commitment",
     status: "active",
     stages: parsed.stages.map((stage, index) => ({
-      id: `payment-${index + 1}`,
+      id: `${stage.direction}-${index + 1}`,
       ...stage,
       actuals: [],
     })),
@@ -1330,7 +1402,9 @@ export function applyAddCommitment(
     ownership: addFutureCashFlowOwnership(
       data,
       id,
-      commitment.stages[0]?.fromAccountId ?? firstStage.fromAccountId,
+      commitment.stages[0] == null
+        ? stageEndpointAccountId(firstStage)
+        : futureCashFlowStageAccountId(commitment.stages[0]),
     ),
   };
 }
@@ -1357,12 +1431,12 @@ export function applyAddCashFlowDecision(
   for (const stage of parsed.stages) {
     const account = requireEligibleFutureCashFlowAccount(
       data,
-      stage.fromAccountId,
+      stageEndpointAccountId(stage),
     );
     if (account.currency !== parsed.currency) {
       throw new AssetTrackerCommandError(
         "INVALID_FUTURE_CASH_FLOW",
-        "A decision must use the currency of its source account",
+        `A decision must use the currency of its ${stage.direction === "payment" ? "source" : "destination"} account`,
       );
     }
     if (stage.expectedDate <= asOfDate) {
@@ -1397,7 +1471,9 @@ export function applyAddCashFlowDecision(
     ownership: addFutureCashFlowOwnership(
       data,
       id,
-      decision.stages[0]?.fromAccountId ?? firstStage.fromAccountId,
+      decision.stages[0] == null
+        ? stageEndpointAccountId(firstStage)
+        : futureCashFlowStageAccountId(decision.stages[0]),
     ),
   };
 }
@@ -1440,22 +1516,17 @@ export function applyUpdateCashFlowDecision(
   const stages = parsed.stages.map((stage, index) => {
     const account = requireEligibleFutureCashFlowAccount(
       data,
-      stage.fromAccountId,
+      stageEndpointAccountId(stage),
     );
     if (account.currency !== parsed.currency) {
       throw new AssetTrackerCommandError(
         "INVALID_FUTURE_CASH_FLOW",
-        "A decision must use the currency of its source account",
+        `A decision must use the currency of its ${stage.direction === "payment" ? "source" : "destination"} account`,
       );
     }
     const actuals = currentStages.get(stage.id ?? "")?.actuals ?? [];
-    const paid = actuals.reduce(
-      (total, actual) =>
-        total +
-        (actual.direction === "payment" ? actual.amount : -actual.amount),
-      0,
-    );
-    if (stage.expectedDate <= asOfDate && paid < stage.expectedAmount) {
+    const settled = settledCashFlowAmount(actuals);
+    if (stage.expectedDate <= asOfDate && settled < stage.expectedAmount) {
       throw new AssetTrackerCommandError(
         "INVALID_FUTURE_CASH_FLOW",
         "Unpaid decision stages must have a future expected date",
@@ -1491,7 +1562,11 @@ export function applyUpdateCashFlowDecision(
     ownership: addFutureCashFlowOwnership(
       data,
       current.id,
-      stages[0]?.fromAccountId ?? current.stages[0]?.fromAccountId ?? "",
+      stages[0] == null
+        ? current.stages[0] == null
+          ? ""
+          : futureCashFlowStageAccountId(current.stages[0])
+        : stageEndpointAccountId(stages[0]),
     ),
   };
 }
@@ -1590,15 +1665,24 @@ export function applyRecordActualCashFlow(
       "This commitment is not marked as refundable",
     );
   }
-  const netPayments = stage.actuals.reduce(
-    (total, actual) =>
-      total + (actual.direction === "payment" ? actual.amount : -actual.amount),
-    0,
-  );
-  if (parsed.direction === "refund" && parsed.amount > netPayments) {
+  const expectedActualDirections =
+    stage.direction === "payment"
+      ? new Set(["payment", "refund"])
+      : new Set(["receipt", "return"]);
+  if (!expectedActualDirections.has(parsed.direction)) {
     throw new AssetTrackerCommandError(
       "INVALID_FUTURE_CASH_FLOW",
-      "A refund cannot exceed the net amount already paid",
+      `A ${stage.direction} stage cannot record an actual ${parsed.direction}`,
+    );
+  }
+  const netSettled = settledCashFlowAmount(stage.actuals);
+  if (
+    (parsed.direction === "refund" || parsed.direction === "return") &&
+    parsed.amount > netSettled
+  ) {
+    throw new AssetTrackerCommandError(
+      "INVALID_FUTURE_CASH_FLOW",
+      `A ${parsed.direction} cannot exceed the net amount already ${stage.direction === "payment" ? "paid" : "received"}`,
     );
   }
   const takenActualIds = new Set(

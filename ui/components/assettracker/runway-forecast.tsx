@@ -169,6 +169,7 @@ export function RunwayChartTooltip({
                 {cashFlow.name} · {format(parseISO(cashFlow.date), "d MMM")}
               </span>
               <span className="font-mono tabular-nums">
+                {cashFlow.direction === "receipt" ? "+" : "−"}
                 {formatCurrency(cashFlow.amount, cashFlow.currency)}
               </span>
             </div>
@@ -220,12 +221,14 @@ function BreakdownRows({
     ["External income", breakdown.externalIncome],
     ["Account transfers", breakdown.accountTransfers],
     ["Debt payments", breakdown.debtPayments],
-    ["Committed cash flows", breakdown.committedCashFlows],
+    ["Committed payments", breakdown.committedCashFlows],
+    ["Committed receipts", breakdown.committedReceipts],
   ] as const;
   const ranges = [
     ["Explicit income change", breakdown.explicitIncomeChange],
     ["Explicit expenditure change", breakdown.explicitExpenditureChange],
-    ["Possible decisions", breakdown.possibleDecisions],
+    ["Possible decision payments", breakdown.possibleDecisions],
+    ["Possible decision receipts", breakdown.possibleDecisionReceipts],
   ] as const;
   return (
     <dl className="grid gap-1 text-xs sm:grid-cols-2">
@@ -246,10 +249,19 @@ function BreakdownRows({
         </div>
       ))}
       <div className="flex justify-between gap-3">
-        <dt className="text-muted-foreground">Selected decisions</dt>
+        <dt className="text-muted-foreground">Selected decision payments</dt>
         <dd className="font-mono tabular-nums">
           {formatCurrency(
             Math.round(breakdown.selectedDecisionCashFlows),
+            currency,
+          )}
+        </dd>
+      </div>
+      <div className="flex justify-between gap-3">
+        <dt className="text-muted-foreground">Selected decision receipts</dt>
+        <dd className="font-mono tabular-nums">
+          {formatCurrency(
+            Math.round(breakdown.selectedDecisionReceipts),
             currency,
           )}
         </dd>
@@ -414,7 +426,7 @@ export function RunwayForecast() {
                     strokeDasharray="4 3"
                     strokeWidth={1.5}
                     label={{
-                      value: formatCurrency(cashFlow.amount, cashFlow.currency),
+                      value: `${cashFlow.direction === "receipt" ? "+" : "−"}${formatCurrency(cashFlow.amount, cashFlow.currency)}`,
                       position: "insideTopRight",
                       fill: FUTURE_CASH_FLOW_COLOR,
                       fontSize: 10,

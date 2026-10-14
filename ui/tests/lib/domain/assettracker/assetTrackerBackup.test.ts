@@ -107,6 +107,96 @@ describe("Asset Tracker household backups", () => {
     expect(rawExport.backup.data).toEqual(data);
   });
 
+  it("preserves receipt direction and defaults legacy stages to payments", () => {
+    const data = AssetTrackerDataSchema.parse({
+      accounts: [
+        {
+          id: "cash",
+          name: "Cash",
+          provider: "Bank",
+          currency: "GBP",
+          assetType: "cash",
+          expectedAnnualReturn: 0,
+          createdAt: "2026-01-01",
+        },
+      ],
+      snapshots: [{ accountId: "cash", date: "2026-01-01", balance: 1_000 }],
+      futureCashFlows: [
+        {
+          id: "settlement",
+          name: "Settlement",
+          kind: "commitment",
+          status: "active",
+          changeability: "fixed",
+          refundable: false,
+          labels: [],
+          currency: "GBP",
+          stages: [
+            {
+              id: "receipt-1",
+              direction: "receipt",
+              toAccountId: "cash",
+              dueDate: "2027-01-01",
+              amount: 8_000,
+              amountBreakdown: {
+                grossAmount: 10_000,
+                taxAmount: 1_500,
+                feeAmount: 500,
+                netAmount: 8_000,
+                sourceNotes: "Employer statement",
+                calculationLineage: ["tax-rules-2026"],
+              },
+              actuals: [],
+            },
+          ],
+        },
+      ],
+    });
+    const restored = parseAssetTrackerBackup(
+      JSON.parse(JSON.stringify(createAssetTrackerBackup(data, createdAt))),
+    );
+    const legacy = AssetTrackerDataSchema.parse({
+      accounts: data.accounts,
+      snapshots: data.snapshots,
+      futureCashFlows: [
+        {
+          id: "legacy-payment",
+          name: "Legacy payment",
+          kind: "commitment",
+          status: "active",
+          changeability: "fixed",
+          refundable: false,
+          labels: [],
+          currency: "GBP",
+          stages: [
+            {
+              id: "payment-1",
+              fromAccountId: "cash",
+              dueDate: "2027-01-01",
+              amount: 500,
+              actuals: [],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(restored.data.futureCashFlows[0]?.stages[0]).toMatchObject({
+      direction: "receipt",
+      toAccountId: "cash",
+      amountBreakdown: {
+        grossAmount: 10_000,
+        taxAmount: 1_500,
+        feeAmount: 500,
+        netAmount: 8_000,
+      },
+    });
+    expect(legacy.futureCashFlows[0]?.stages[0]).toMatchObject({
+      direction: "payment",
+      fromAccountId: "cash",
+    });
+  });
+
   it("rejects malformed files and orphaned references", () => {
     expect(() => parseAssetTrackerBackup({ hello: "world" })).toThrow(
       /not a supported Asset Tracker backup/,

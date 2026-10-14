@@ -404,6 +404,7 @@ describe("emergency-fund planning", () => {
           stages: [
             {
               id: "repair",
+              direction: "payment",
               fromAccountId: "cash",
               expectedDate: "2026-11-01",
               minimumAmount: 1_500,

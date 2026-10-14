@@ -3,7 +3,11 @@ import { normalizeSlug } from "../../generic/slugs";
 import type { AssetTrackerData } from "./assetTrackerData";
 import { capitalFlowKind } from "./capitalFlow";
 import type { ForecastAssumptionSet } from "./forecastAssumption";
-import type { FutureCashFlow } from "./futureCashFlow";
+import {
+  type CashFlowAmountBreakdown,
+  type FutureCashFlow,
+  futureCashFlowStageAccountId,
+} from "./futureCashFlow";
 
 export const DEFAULT_HOUSEHOLD_MEMBER_ID = "primary";
 
@@ -222,7 +226,11 @@ type MigratableData = {
   plannedExpenditures: Array<{ id: string; fromAccountId: string }>;
   futureCashFlows: Array<{
     id: string;
-    stages: Array<{ fromAccountId: string }>;
+    stages: Array<{
+      direction?: "payment" | "receipt";
+      fromAccountId?: string;
+      toAccountId?: string;
+    }>;
   }>;
   holdingObservations?: Array<{ id: string; accountId: string }>;
 };
@@ -267,7 +275,12 @@ export function migrateHouseholdOwnership<T extends MigratableData>(
   }
   const futureCashFlows = { ...data.ownership.futureCashFlows };
   for (const row of data.futureCashFlows) {
-    futureCashFlows[row.id] ??= ownerFor(row.stages[0]?.fromAccountId);
+    const firstStage = row.stages[0];
+    futureCashFlows[row.id] ??= ownerFor(
+      firstStage?.direction === "receipt"
+        ? firstStage.toAccountId
+        : firstStage?.fromAccountId,
+    );
   }
   const holdingObservations = { ...data.ownership.holdingObservations };
   for (const row of data.holdingObservations ?? []) {
@@ -396,7 +409,9 @@ export function applySetAccountOwnership(
     ownership.plannedExpenditures[row.id] = parsed.ownership;
   }
   for (const row of data.futureCashFlows.filter(
-    (record) => record.stages[0]?.fromAccountId === parsed.accountId,
+    (record) =>
+      record.stages[0] != null &&
+      futureCashFlowStageAccountId(record.stages[0]) === parsed.accountId,
   )) {
     ownership.futureCashFlows[row.id] = parsed.ownership;
   }
@@ -444,6 +459,24 @@ export function validateHouseholdOwnership(data: AssetTrackerData): void {
 
 function scale(value: number, share: number): number {
   return Math.round(value * share * 100) / 100;
+}
+
+function scaleCashFlowAmountBreakdown(
+  breakdown: CashFlowAmountBreakdown | undefined,
+  share: number,
+): CashFlowAmountBreakdown | undefined {
+  if (breakdown == null) return undefined;
+  return {
+    ...breakdown,
+    grossAmount: scale(breakdown.grossAmount, share),
+    taxAmount: scale(breakdown.taxAmount, share),
+    feeAmount: scale(breakdown.feeAmount, share),
+    netAmount: scale(breakdown.netAmount, share),
+    deductions: breakdown.deductions.map((deduction) => ({
+      ...deduction,
+      amount: scale(deduction.amount, share),
+    })),
+  };
 }
 
 export function scopeAssetTrackerData(
@@ -551,8 +584,8 @@ export function scopeAssetTrackerData(
   });
   const scopedFutureCashFlows = data.futureCashFlows.flatMap(
     (record): FutureCashFlow[] => {
-      const stages = record.stages.filter(({ fromAccountId }) =>
-        keptAccountIds.has(fromAccountId),
+      const stages = record.stages.filter((stage) =>
+        keptAccountIds.has(futureCashFlowStageAccountId(stage)),
       );
       const fraction = share(data.ownership.futureCashFlows[record.id]);
       if (stages.length === 0 || fraction <= 0) return [];
@@ -561,10 +594,16 @@ export function scopeAssetTrackerData(
           {
             ...record,
             stages: record.stages
-              .filter(({ fromAccountId }) => keptAccountIds.has(fromAccountId))
+              .filter((stage) =>
+                keptAccountIds.has(futureCashFlowStageAccountId(stage)),
+              )
               .map((stage) => ({
                 ...stage,
                 amount: scale(stage.amount, fraction),
+                amountBreakdown: scaleCashFlowAmountBreakdown(
+                  stage.amountBreakdown,
+                  fraction,
+                ),
                 actuals: stage.actuals.map((actual) => ({
                   ...actual,
                   amount: scale(actual.amount, fraction),
@@ -577,12 +616,18 @@ export function scopeAssetTrackerData(
         {
           ...record,
           stages: record.stages
-            .filter(({ fromAccountId }) => keptAccountIds.has(fromAccountId))
+            .filter((stage) =>
+              keptAccountIds.has(futureCashFlowStageAccountId(stage)),
+            )
             .map((stage) => ({
               ...stage,
               minimumAmount: scale(stage.minimumAmount, fraction),
               expectedAmount: scale(stage.expectedAmount, fraction),
               maximumAmount: scale(stage.maximumAmount, fraction),
+              amountBreakdown: scaleCashFlowAmountBreakdown(
+                stage.amountBreakdown,
+                fraction,
+              ),
               actuals: stage.actuals.map((actual) => ({
                 ...actual,
                 amount: scale(actual.amount, fraction),

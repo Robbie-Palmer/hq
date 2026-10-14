@@ -187,8 +187,11 @@ const EMPTY_MONTHLY_BREAKDOWN = {
   debtPayments: 0,
   ordinaryRecurringOutflowsCoveredByBaseline: 0,
   committedCashFlows: 0,
+  committedReceipts: 0,
   selectedDecisionCashFlows: 0,
+  selectedDecisionReceipts: 0,
   possibleDecisions: { minimum: 0, expected: 0, maximum: 0 },
+  possibleDecisionReceipts: { minimum: 0, expected: 0, maximum: 0 },
   spendingDrawdown: { cash: 0, liquid: 0, illiquid: 0, unfunded: 0 },
 };
 const EMPTY_FI: PortfolioFinancialIndependence = {
@@ -730,6 +733,7 @@ describe("PortfolioGoal", () => {
           stages: [
             {
               id: "payment-1",
+              direction: "payment",
               fromAccountId: "current",
               amount: 7_200,
               dueDate: "2027-01-15",
@@ -848,6 +852,7 @@ describe("RunwayForecast", () => {
       name: "Japan holiday",
       amount: 7_200,
       date: "2027-01-15",
+      direction: "payment" as const,
       fromAccountId: "current",
     };
     const point = {
@@ -893,7 +898,7 @@ describe("RunwayForecast", () => {
     expect(screen.getByText("15 years, 8 months, 0 days")).toBeVisible();
     expect(screen.getByText("Future cash flows applied")).toBeVisible();
     expect(screen.getByText("Japan holiday · 15 Jan")).toBeVisible();
-    expect(screen.getByText("€7,200")).toBeVisible();
+    expect(screen.getByText("−€7,200")).toBeVisible();
   });
 
   it("adds a dated commitment from the selected account", async () => {
@@ -935,12 +940,77 @@ describe("RunwayForecast", () => {
       stages: [
         {
           amount: 12_000,
+          direction: "payment",
           dueDate: format(addDays(parseISO(todayIsoDate()), 1), "yyyy-MM-dd"),
           fromAccountId: "current",
         },
       ],
     });
   });
+
+  it("adds a receipt with an explicit destination and gross-to-net lineage", async () => {
+    const user = userEvent.setup();
+    const addCommitment = vi.fn().mockResolvedValue(undefined);
+    mockAssetTracker({
+      accounts: [
+        {
+          id: "current",
+          name: "Current account",
+          provider: "Bank",
+          currency: "GBP",
+          assetType: "cash",
+          liquidity: "cash",
+          expectedAnnualReturn: 0,
+          isOpen: true,
+          latestBalance: 10_000,
+          latestSnapshotDate: "2026-07-01",
+          cagr: null,
+        },
+      ],
+      addCommitment,
+    });
+    render(<FutureCashFlowManager />);
+
+    await user.click(screen.getByRole("combobox", { name: "Direction" }));
+    await user.click(screen.getByRole("option", { name: "Receipt" }));
+    await user.type(screen.getByLabelText("Name"), "Employment settlement");
+    await user.type(screen.getByLabelText("Amount"), "8000");
+    await user.type(screen.getByLabelText("Gross amount"), "10000");
+    await user.type(screen.getByLabelText("Tax"), "1500");
+    await user.type(screen.getByLabelText("Fees"), "250");
+    await user.type(screen.getByLabelText("Other deductions"), "250");
+    await user.type(screen.getByLabelText("Source notes"), "Employer estimate");
+    await user.type(
+      screen.getByLabelText("Calculation lineage (comma separated)"),
+      "settlement-v1, tax-2026",
+    );
+    await user.click(screen.getByRole("button", { name: "Add commitment" }));
+
+    expect(
+      screen.getByRole("combobox", { name: "Receive into" }),
+    ).toBeVisible();
+    expect(addCommitment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Employment settlement",
+        stages: [
+          expect.objectContaining({
+            direction: "receipt",
+            toAccountId: "current",
+            amount: 8_000,
+            amountBreakdown: {
+              grossAmount: 10_000,
+              taxAmount: 1_500,
+              feeAmount: 250,
+              deductions: [{ label: "Other deductions", amount: 250 }],
+              netAmount: 8_000,
+              sourceNotes: "Employer estimate",
+              calculationLineage: ["settlement-v1", "tax-2026"],
+            },
+          }),
+        ],
+      }),
+    );
+  }, 15_000);
 
   it("falls back when the selected payment account is no longer eligible", () => {
     const currentAccount = {
@@ -990,6 +1060,7 @@ describe("DecisionScenarioComparison", () => {
       stages: [
         {
           id: "build",
+          direction: "payment" as const,
           fromAccountId: "current",
           expectedDate: "2027-07-01",
           minimumAmount: 35_000,
@@ -1585,6 +1656,7 @@ describe("FutureCashFlowManager", () => {
           stages: [
             {
               id: "payment-1",
+              direction: "payment",
               fromAccountId: "current",
               dueDate: "2027-01-01",
               amount: 1_000,
@@ -1605,6 +1677,7 @@ describe("FutureCashFlowManager", () => {
           stages: [
             {
               id: "cash-flow-1",
+              direction: "payment",
               fromAccountId: "current",
               expectedDate: "2027-02-01",
               minimumAmount: 100,
@@ -1678,6 +1751,7 @@ describe("FutureCashFlowManager", () => {
       alternativeToIds: ["other-option"],
       stages: [
         {
+          direction: "payment",
           fromAccountId: "current",
           earliestDate: "2027-04-01",
           expectedDate: "2027-05-01",
@@ -1713,6 +1787,7 @@ describe("FutureCashFlowManager", () => {
             {
               id: "payment-1",
               name: "Deposit",
+              direction: "payment",
               fromAccountId: "current",
               dueDate: "2027-01-01",
               amount: 1_000,
@@ -1741,6 +1816,7 @@ describe("FutureCashFlowManager", () => {
           stages: [
             {
               id: "cash-flow-1",
+              direction: "payment",
               fromAccountId: "current",
               expectedDate: "2027-02-01",
               minimumAmount: 500,

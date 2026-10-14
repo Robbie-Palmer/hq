@@ -18,35 +18,176 @@ export const PlanningCaseSchema = z.object({
 });
 export type PlanningCase = z.infer<typeof PlanningCaseSchema>;
 
+export const FutureCashFlowDirectionSchema = z.enum(["payment", "receipt"]);
+export type FutureCashFlowDirection = z.infer<
+  typeof FutureCashFlowDirectionSchema
+>;
+
+export const ActualCashFlowDirectionSchema = z.enum([
+  "payment",
+  "refund",
+  "receipt",
+  "return",
+]);
+export type ActualCashFlowDirection = z.infer<
+  typeof ActualCashFlowDirectionSchema
+>;
+
 export const ActualCashFlowSchema = z.object({
   id: z.string().trim().min(1),
   date: z.iso.date(),
   amount: z.number().positive(),
-  direction: z.enum(["payment", "refund"]),
+  direction: ActualCashFlowDirectionSchema,
 });
 export type ActualCashFlow = z.infer<typeof ActualCashFlowSchema>;
 
-const StageBaseSchema = z.object({
+const CashFlowDeductionSchema = z.object({
+  label: z.string().trim().min(1),
+  amount: z.number().nonnegative(),
+});
+
+export const CashFlowAmountBreakdownSchema = z
+  .object({
+    grossAmount: z.number().positive(),
+    taxAmount: z.number().nonnegative().default(0),
+    feeAmount: z.number().nonnegative().default(0),
+    deductions: z.array(CashFlowDeductionSchema).default([]),
+    netAmount: z.number().positive(),
+    sourceNotes: OptionalTextSchema,
+    calculationLineage: z.array(z.string().trim().min(1)).default([]),
+  })
+  .superRefine((breakdown, context) => {
+    const calculatedNet =
+      breakdown.grossAmount -
+      breakdown.taxAmount -
+      breakdown.feeAmount -
+      breakdown.deductions.reduce((total, item) => total + item.amount, 0);
+    if (Math.abs(calculatedNet - breakdown.netAmount) > 0.005) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "Gross amount less tax, fees, and deductions must equal net cash",
+      });
+    }
+  });
+export type CashFlowAmountBreakdown = z.infer<
+  typeof CashFlowAmountBreakdownSchema
+>;
+
+const StageCommonShape = {
   id: z.string().trim().min(1),
   name: OptionalTextSchema,
-  fromAccountId: AccountIdSchema,
   actuals: z.array(ActualCashFlowSchema).default([]),
-});
+  amountBreakdown: CashFlowAmountBreakdownSchema.optional(),
+};
 
-export const CommitmentStageSchema = StageBaseSchema.extend({
+const PaymentEndpointShape = {
+  direction: z.literal("payment").default("payment"),
+  fromAccountId: AccountIdSchema,
+};
+
+const ReceiptEndpointShape = {
+  direction: z.literal("receipt"),
+  toAccountId: AccountIdSchema,
+};
+
+function validateActualDirections(
+  direction: FutureCashFlowDirection,
+  actuals: readonly ActualCashFlow[],
+  context: z.RefinementCtx,
+) {
+  const valid =
+    direction === "payment"
+      ? new Set<ActualCashFlowDirection>(["payment", "refund"])
+      : new Set<ActualCashFlowDirection>(["receipt", "return"]);
+  for (const actual of actuals) {
+    if (!valid.has(actual.direction)) {
+      context.addIssue({
+        code: "custom",
+        message: `Actual ${actual.direction} does not match a ${direction} stage`,
+      });
+    }
+  }
+}
+
+function validateBreakdown(
+  expectedNet: number,
+  breakdown: CashFlowAmountBreakdown | undefined,
+  context: z.RefinementCtx,
+) {
+  if (
+    breakdown != null &&
+    Math.abs(breakdown.netAmount - expectedNet) > 0.005
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "The amount breakdown net cash must equal the stage amount",
+    });
+  }
+}
+
+const CommitmentAmountShape = {
   dueDate: z.iso.date(),
   amount: z.number().positive(),
-});
+};
+
+const PaymentCommitmentStageSchema = z
+  .object({
+    ...StageCommonShape,
+    ...PaymentEndpointShape,
+    ...CommitmentAmountShape,
+  })
+  .superRefine((stage, context) => {
+    validateActualDirections(stage.direction, stage.actuals, context);
+    validateBreakdown(stage.amount, stage.amountBreakdown, context);
+  });
+
+const ReceiptCommitmentStageSchema = z
+  .object({
+    ...StageCommonShape,
+    ...ReceiptEndpointShape,
+    ...CommitmentAmountShape,
+  })
+  .superRefine((stage, context) => {
+    validateActualDirections(stage.direction, stage.actuals, context);
+    validateBreakdown(stage.amount, stage.amountBreakdown, context);
+  });
+
+export const CommitmentStageSchema = z.union([
+  PaymentCommitmentStageSchema,
+  ReceiptCommitmentStageSchema,
+]);
 export type CommitmentStage = z.infer<typeof CommitmentStageSchema>;
 
-export const DecisionStageSchema = StageBaseSchema.extend({
+const DecisionAmountShape = {
   earliestDate: z.iso.date().optional(),
   expectedDate: z.iso.date(),
   latestDate: z.iso.date().optional(),
   minimumAmount: z.number().nonnegative(),
   expectedAmount: z.number().positive(),
   maximumAmount: z.number().positive(),
-}).superRefine((stage, context) => {
+};
+
+const PaymentDecisionStageBaseSchema = z.object({
+  ...StageCommonShape,
+  ...PaymentEndpointShape,
+  ...DecisionAmountShape,
+});
+
+const ReceiptDecisionStageBaseSchema = z.object({
+  ...StageCommonShape,
+  ...ReceiptEndpointShape,
+  ...DecisionAmountShape,
+});
+
+type DecisionStageCandidate =
+  | z.infer<typeof PaymentDecisionStageBaseSchema>
+  | z.infer<typeof ReceiptDecisionStageBaseSchema>;
+
+function validateDecisionStage(
+  stage: DecisionStageCandidate,
+  context: z.RefinementCtx,
+) {
   if (
     stage.minimumAmount > stage.expectedAmount ||
     stage.expectedAmount > stage.maximumAmount
@@ -65,7 +206,21 @@ export const DecisionStageSchema = StageBaseSchema.extend({
       message: "Decision dates must run from earliest to expected to latest",
     });
   }
-});
+  validateActualDirections(stage.direction, stage.actuals, context);
+  validateBreakdown(stage.expectedAmount, stage.amountBreakdown, context);
+}
+
+const PaymentDecisionStageSchema = PaymentDecisionStageBaseSchema.superRefine(
+  validateDecisionStage,
+);
+const ReceiptDecisionStageSchema = ReceiptDecisionStageBaseSchema.superRefine(
+  validateDecisionStage,
+);
+
+export const DecisionStageSchema = z.union([
+  PaymentDecisionStageSchema,
+  ReceiptDecisionStageSchema,
+]);
 export type DecisionStage = z.infer<typeof DecisionStageSchema>;
 
 const FutureCashFlowBaseShape = {
@@ -112,7 +267,7 @@ export const FutureCashFlowSchema = z.discriminatedUnion("kind", [
 ]);
 export type FutureCashFlow = z.infer<typeof FutureCashFlowSchema>;
 
-export type ForecastCashFlow = {
+type ForecastCashFlowBase = {
   id: string;
   futureCashFlowId: string;
   stageId: string;
@@ -120,10 +275,15 @@ export type ForecastCashFlow = {
   date: string;
   amount: number;
   currency: FutureCashFlow["currency"];
-  fromAccountId: string;
   kind: FutureCashFlow["kind"];
   planningCaseId?: string;
 };
+
+export type ForecastCashFlow = ForecastCashFlowBase &
+  (
+    | { direction: "payment"; fromAccountId: string }
+    | { direction: "receipt"; toAccountId: string }
+  );
 
 export type DecisionForecastSelection = {
   decisionIds: readonly string[];
@@ -131,10 +291,15 @@ export type DecisionForecastSelection = {
   timing: "earliest" | "expected" | "latest";
 };
 
-function netPaid(actuals: readonly ActualCashFlow[]): number {
+export function settledCashFlowAmount(
+  actuals: readonly ActualCashFlow[],
+): number {
   return actuals.reduce(
     (total, actual) =>
-      total + (actual.direction === "payment" ? actual.amount : -actual.amount),
+      total +
+      (actual.direction === "payment" || actual.direction === "receipt"
+        ? actual.amount
+        : -actual.amount),
     0,
   );
 }
@@ -143,8 +308,16 @@ function selectedDecisionAmount(
   stage: DecisionStage,
   selection: DecisionForecastSelection | undefined,
 ): number {
-  if (selection?.amount === "minimum") return stage.minimumAmount;
-  if (selection?.amount === "maximum") return stage.maximumAmount;
+  if (selection?.amount === "minimum") {
+    return stage.direction === "receipt"
+      ? stage.maximumAmount
+      : stage.minimumAmount;
+  }
+  if (selection?.amount === "maximum") {
+    return stage.direction === "receipt"
+      ? stage.minimumAmount
+      : stage.maximumAmount;
+  }
   return stage.expectedAmount;
 }
 
@@ -153,10 +326,14 @@ function selectedDecisionDate(
   selection: DecisionForecastSelection | undefined,
 ): string {
   if (selection?.timing === "earliest") {
-    return stage.earliestDate ?? stage.expectedDate;
+    return stage.direction === "receipt"
+      ? (stage.latestDate ?? stage.expectedDate)
+      : (stage.earliestDate ?? stage.expectedDate);
   }
   if (selection?.timing === "latest") {
-    return stage.latestDate ?? stage.expectedDate;
+    return stage.direction === "receipt"
+      ? (stage.earliestDate ?? stage.expectedDate)
+      : (stage.latestDate ?? stage.expectedDate);
   }
   return stage.expectedDate;
 }
@@ -167,7 +344,8 @@ function decisionForecastItems(
 ): ForecastCashFlow[] {
   return record.stages.flatMap((stage) => {
     const remaining = Math.max(
-      selectedDecisionAmount(stage, selection) - netPaid(stage.actuals),
+      selectedDecisionAmount(stage, selection) -
+        settledCashFlowAmount(stage.actuals),
       0,
     );
     return remaining === 0
@@ -194,7 +372,10 @@ export function futureCashFlowForecastItems(
       if (record.kind === "commitment") {
         if (record.status !== "active") return [];
         return record.stages.flatMap((stage) => {
-          const remaining = Math.max(stage.amount - netPaid(stage.actuals), 0);
+          const remaining = Math.max(
+            stage.amount - settledCashFlowAmount(stage.actuals),
+            0,
+          );
           return remaining === 0
             ? []
             : [forecastItem(record, stage, stage.dueDate, remaining)];
@@ -216,7 +397,7 @@ function forecastItem(
   date: string,
   amount: number,
 ): ForecastCashFlow {
-  return {
+  const base = {
     id: `${record.id}:${stage.id}`,
     futureCashFlowId: record.id,
     stageId: stage.id,
@@ -224,12 +405,26 @@ function forecastItem(
     date,
     amount,
     currency: record.currency,
-    fromAccountId: stage.fromAccountId,
     kind: record.kind,
     ...(record.planningCaseId == null
       ? {}
       : { planningCaseId: record.planningCaseId }),
   };
+  return stage.direction === "payment"
+    ? { ...base, direction: "payment", fromAccountId: stage.fromAccountId }
+    : { ...base, direction: "receipt", toAccountId: stage.toAccountId };
+}
+
+export function futureCashFlowStageAccountId(
+  stage: CommitmentStage | DecisionStage,
+): string {
+  return stage.direction === "payment"
+    ? stage.fromAccountId
+    : stage.toAccountId;
+}
+
+export function forecastCashFlowAccountId(flow: ForecastCashFlow): string {
+  return flow.direction === "payment" ? flow.fromAccountId : flow.toAccountId;
 }
 
 export function legacyPlannedExpenditureToCommitment(
@@ -248,6 +443,7 @@ export function legacyPlannedExpenditureToCommitment(
     stages: [
       {
         id: "payment-1",
+        direction: "payment",
         fromAccountId: expenditure.fromAccountId,
         dueDate: expenditure.date,
         amount: expenditure.amount,
@@ -258,7 +454,5 @@ export function legacyPlannedExpenditureToCommitment(
 }
 
 export function futureCashFlowAccountIds(record: FutureCashFlow): string[] {
-  return Array.from(
-    new Set(record.stages.map(({ fromAccountId }) => fromAccountId)),
-  );
+  return Array.from(new Set(record.stages.map(futureCashFlowStageAccountId)));
 }
