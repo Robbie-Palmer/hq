@@ -19,9 +19,17 @@ project_kinds:
   - id: "infrastructure"
     description: "Provisioning code with an explicit state and operational owner."
     task_profile: "standard"
-  - id: "operations"
-    description: "Homelab hosts, cluster workloads, backups, and operator tooling."
+  - id: "platform"
+    description: "Shared runtime, delivery, or developer capabilities consumed by multiple projects."
     task_profile: "standard"
+
+projects:
+  - id: "personal-engineering-platform"
+    kind: "platform"
+    catalog_record: "system:personal-engineering-platform/platform"
+  - id: "recipe-site"
+    kind: "application"
+    catalog_record: "system:recipe-site/application"
 
 component_kinds:
   - id: "ui"
@@ -58,6 +66,8 @@ knowledge_graph:
   product_decisions: "ui/content/projects/{project}/pdrs/{sequence}-{slug}.mdx"
 
 shared_manifests:
+  - path: "ui/content/projects/personal-engineering-platform/repository-layout.yaml"
+    allowed_edits: ["projects"]
   - path: ".mise.toml"
     allowed_edits: ["monorepo.config_roots"]
   - path: "pnpm-workspace.yaml"

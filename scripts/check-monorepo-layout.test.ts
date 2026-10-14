@@ -22,7 +22,7 @@ describe("monorepo layout contract", () => {
     contract.shared_manifests[0].allowed_edits.push("tools");
 
     expect(validateLayoutContract(contract)).toContain(
-      "Shared manifest edits must remain limited to mise config roots, pnpm packages, and platform catalog records",
+      "Shared manifest edits must remain limited to project registrations, mise config roots, pnpm packages, and platform catalog records",
     );
   });
 
@@ -39,6 +39,9 @@ describe("monorepo layout contract", () => {
     const contract = structuredClone(await loadLayoutContract(repositoryRoot));
     contract.schema_version = 2;
     contract.project_kinds[0].task_profile = "custom";
+    const recipeSite = contract.projects.find(({ id }) => id === "recipe-site");
+    if (!recipeSite) throw new Error("Missing recipe-site test registration");
+    recipeSite.kind = "unknown";
     contract.component_kinds[0].directory = "../ui";
     contract.task_contract.required.pop();
     contract.knowledge_graph.project_index = "projects/index.mdx";
@@ -49,8 +52,22 @@ describe("monorepo layout contract", () => {
         "Component path '../ui' must be repository-relative",
         "The project index path is missing a required placeholder",
         "Project kind 'application' must use task profile 'standard'",
+        "Project 'recipe-site' uses unknown project kind 'unknown'",
         "The task contract must contain install, format, lint, typecheck-or-compile, test, build, and clean",
       ]),
+    );
+  });
+
+  it("rejects a project registration without its catalog system", async () => {
+    const contract = structuredClone(await loadLayoutContract(repositoryRoot));
+    const recipeSite = contract.projects.find(({ id }) => id === "recipe-site");
+    if (!recipeSite) throw new Error("Missing recipe-site test registration");
+    recipeSite.catalog_record = "system:recipe-site/missing";
+
+    await expect(
+      validateRepositoryLayout(repositoryRoot, contract),
+    ).resolves.toContain(
+      "Registered project 'recipe-site' references missing catalog record 'system:recipe-site/missing'",
     );
   });
 });

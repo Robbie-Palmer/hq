@@ -1,6 +1,9 @@
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { pathExists } from "node-base/fs";
+import { duplicateValues, setsEqual } from "ts-base/collections";
+import { compareStrings } from "ts-base/strings";
 import { parse } from "yaml";
 
 const CONTRACT_PATH =
@@ -30,6 +33,7 @@ const REQUIRED_TASKS = new Set([
   "clean",
 ]);
 const SHARED_MANIFEST_BOUNDARY = new Map([
+  [CONTRACT_PATH, ["projects"]],
   [".mise.toml", ["monorepo.config_roots"]],
   ["pnpm-workspace.yaml", ["packages"]],
   [PLATFORM_MANIFEST_PATH, ["catalog.records"]],
@@ -45,6 +49,11 @@ interface ComponentKind extends NamedRecord {
   directory: string;
 }
 
+interface ProjectRegistration extends NamedRecord {
+  kind: string;
+  catalog_record: string;
+}
+
 interface SharedManifest {
   path: string;
   allowed_edits: string[];
@@ -53,6 +62,7 @@ interface SharedManifest {
 interface LayoutContract {
   schema_version: number;
   project_kinds: NamedRecord[];
+  projects: ProjectRegistration[];
   component_kinds: ComponentKind[];
   task_contract: { id: string; required: string[] };
   knowledge_graph: {
@@ -68,6 +78,13 @@ interface LayoutContract {
     approved_npm_lockfiles: string[];
     local_mise_roots: string[];
   };
+}
+
+interface CatalogRecordDeclaration {
+  id?: string;
+  kind?: string;
+  project?: string;
+  source_paths?: string[];
 }
 
 function asLayoutContract(value: unknown): LayoutContract {
@@ -127,6 +144,34 @@ function validateComponentPaths(components: ComponentKind[]): string[] {
   return issues;
 }
 
+function validateProjectRegistrationContract(
+  contract: LayoutContract,
+): string[] {
+  const projects = contract.projects ?? [];
+  const projectKinds = new Set(
+    (contract.project_kinds ?? []).map(({ id }) => id),
+  );
+  const issues = validateNamedRecords("project registration", projects);
+  for (const project of projects) {
+    if (!projectKinds.has(project.kind)) {
+      issues.push(
+        `Project '${project.id}' uses unknown project kind '${project.kind}'`,
+      );
+    }
+    if (!project.catalog_record.startsWith(`system:${project.id}/`)) {
+      issues.push(
+        `Project '${project.id}' must reference one of its system catalog records`,
+      );
+    }
+  }
+  issues.push(
+    ...duplicateValues(projects.map(({ catalog_record }) => catalog_record)).map(
+      (duplicate) => `Duplicate project catalog record '${duplicate}'`,
+    ),
+  );
+  return issues;
+}
+
 function validateKnowledgeGraphTemplates(
   knowledgeGraph: LayoutContract["knowledge_graph"],
 ): string[] {
@@ -162,7 +207,7 @@ function validateKnowledgeGraphTemplates(
 
 function validateTaskContract(tasks: string[]): string[] {
   const issues: string[] = [];
-  if (!compareSets(tasks, REQUIRED_TASKS)) {
+  if (!setsEqual(tasks, REQUIRED_TASKS)) {
     issues.push(
       "The task contract must contain install, format, lint, typecheck-or-compile, test, build, and clean",
     );
@@ -184,32 +229,13 @@ function validateSharedManifestBoundary(
   const boundaryMatches =
     declaredBoundary.size === SHARED_MANIFEST_BOUNDARY.size &&
     [...SHARED_MANIFEST_BOUNDARY].every(([manifestPath, allowedEdits]) =>
-      compareSets(declaredBoundary.get(manifestPath) ?? [], allowedEdits),
+      setsEqual(declaredBoundary.get(manifestPath) ?? [], allowedEdits),
     );
   return boundaryMatches
     ? []
     : [
-        "Shared manifest edits must remain limited to mise config roots, pnpm packages, and platform catalog records",
+        "Shared manifest edits must remain limited to project registrations, mise config roots, pnpm packages, and platform catalog records",
       ];
-}
-
-function duplicateValues(values: string[]): string[] {
-  const seen = new Set<string>();
-  const duplicates = new Set<string>();
-  for (const value of values) {
-    if (seen.has(value)) duplicates.add(value);
-    seen.add(value);
-  }
-  return [...duplicates].sort((left, right) => left.localeCompare(right));
-}
-
-function compareSets(actual: Iterable<string>, expected: Iterable<string>): boolean {
-  const actualSet = new Set(actual);
-  const expectedSet = new Set(expected);
-  return (
-    actualSet.size === expectedSet.size &&
-    [...actualSet].every((value) => expectedSet.has(value))
-  );
 }
 
 export function validateLayoutContract(contract: LayoutContract): string[] {
@@ -219,6 +245,7 @@ export function validateLayoutContract(contract: LayoutContract): string[] {
   }
   issues.push(
     ...validateNamedRecords("project kind", contract.project_kinds),
+    ...validateProjectRegistrationContract(contract),
     ...validateNamedRecords("component kind", contract.component_kinds),
     ...validateComponentPaths(contract.component_kinds ?? []),
     ...validateKnowledgeGraphTemplates(contract.knowledge_graph),
@@ -236,15 +263,6 @@ export function validateLayoutContract(contract: LayoutContract): string[] {
     ...validateSharedManifestBoundary(contract.shared_manifests ?? []),
   );
   return issues;
-}
-
-async function exists(target: string): Promise<boolean> {
-  try {
-    await stat(target);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 async function findFiles(
@@ -271,7 +289,7 @@ async function findFiles(
   );
   return discovered
     .flat()
-    .sort((left, right) => left.localeCompare(right));
+    .sort(compareStrings);
 }
 
 function extractMiseConfigRoots(source: string): string[] {
@@ -345,11 +363,11 @@ async function validateNodeWorkspace(
   }
 
   const pnpmLocks = await findFiles(repositoryRoot, "pnpm-lock.yaml");
-  if (!compareSets(pnpmLocks, [policy.node_lockfile])) {
+  if (!setsEqual(pnpmLocks, [policy.node_lockfile])) {
     issues.push(`pnpm lockfiles must be limited to '${policy.node_lockfile}'`);
   }
   const npmLocks = await findFiles(repositoryRoot, "package-lock.json");
-  if (!compareSets(npmLocks, policy.approved_npm_lockfiles)) {
+  if (!setsEqual(npmLocks, policy.approved_npm_lockfiles)) {
     issues.push("package-lock.json files must match the approved list");
   }
   return issues;
@@ -361,7 +379,7 @@ async function validatePythonLocks(repositoryRoot: string): Promise<string[]> {
     manifests.map(async (manifest) => {
       const projectDirectory = path.dirname(manifest);
       const lockfile = path.join(repositoryRoot, projectDirectory, "uv.lock");
-      return (await exists(lockfile))
+      return (await pathExists(lockfile))
         ? null
         : `Python project '${projectDirectory}' has no uv.lock`;
     }),
@@ -375,7 +393,7 @@ async function validateDecisionDirectory(
   decisionDirectory: string,
 ): Promise<string[]> {
   const decisionsRoot = path.join(projectRoot, decisionDirectory);
-  if (!(await exists(decisionsRoot))) return [];
+  if (!(await pathExists(decisionsRoot))) return [];
   return (await readdir(decisionsRoot, { withFileTypes: true }))
     .filter(
       (decision) =>
@@ -396,7 +414,7 @@ async function validateKnowledgeGraph(repositoryRoot: string): Promise<string[]>
       .map(async (project) => {
         const projectRoot = path.join(projectsRoot, project.name);
         const [hasIndex, decisionIssues] = await Promise.all([
-          exists(path.join(projectRoot, "index.mdx")),
+          pathExists(path.join(projectRoot, "index.mdx")),
           Promise.all(
             ["adrs", "pdrs"].map((decisionDirectory) =>
               validateDecisionDirectory(
@@ -416,13 +434,20 @@ async function validateKnowledgeGraph(repositoryRoot: string): Promise<string[]>
   return projectIssues.flat();
 }
 
-async function validateCatalogSourcePaths(
+async function loadCatalogRecords(
   repositoryRoot: string,
-): Promise<string[]> {
+): Promise<CatalogRecordDeclaration[]> {
   const manifest = parse(
     await readFile(path.join(repositoryRoot, PLATFORM_MANIFEST_PATH), "utf8"),
-  ) as { catalog?: { records?: Array<{ id?: string; source_paths?: string[] }> } };
-  const sources = (manifest.catalog?.records ?? []).flatMap((record) =>
+  ) as { catalog?: { records?: CatalogRecordDeclaration[] } };
+  return manifest.catalog?.records ?? [];
+}
+
+async function validateCatalogSourcePaths(
+  repositoryRoot: string,
+  records: CatalogRecordDeclaration[],
+): Promise<string[]> {
+  const sources = records.flatMap((record) =>
     (record.source_paths ?? []).map((sourcePath) => ({
       recordId: record.id ?? "unknown",
       sourcePath,
@@ -430,7 +455,7 @@ async function validateCatalogSourcePaths(
   );
   const issues = await Promise.all(
     sources.map(async ({ recordId, sourcePath }) =>
-      (await exists(path.join(repositoryRoot, sourcePath)))
+      (await pathExists(path.join(repositoryRoot, sourcePath)))
         ? null
         : `Catalog record '${recordId}' references missing path '${sourcePath}'`,
     ),
@@ -438,11 +463,58 @@ async function validateCatalogSourcePaths(
   return issues.filter((issue): issue is string => issue !== null);
 }
 
+async function validateRegisteredProjects(
+  repositoryRoot: string,
+  contract: LayoutContract,
+  catalogRecords: CatalogRecordDeclaration[],
+): Promise<string[]> {
+  const recordsById = new Map(
+    catalogRecords.map((record) => [record.id, record]),
+  );
+  const issues = await Promise.all(
+    (contract.projects ?? []).map(async (project) => {
+      const projectIssues: string[] = [];
+      const projectIndex = contract.knowledge_graph.project_index.replace(
+        "{project}",
+        project.id,
+      );
+      if (!(await pathExists(path.join(repositoryRoot, projectIndex)))) {
+        projectIssues.push(
+          `Registered project '${project.id}' has no project index`,
+        );
+      }
+      const catalogRecord = recordsById.get(project.catalog_record);
+      if (!catalogRecord) {
+        projectIssues.push(
+          `Registered project '${project.id}' references missing catalog record '${project.catalog_record}'`,
+        );
+        return projectIssues;
+      }
+      if (
+        catalogRecord.kind !== "system" ||
+        catalogRecord.project !== `project:${project.id}`
+      ) {
+        projectIssues.push(
+          `Catalog record '${project.catalog_record}' must be a system owned by project:${project.id}`,
+        );
+      }
+      if ((catalogRecord.source_paths ?? []).length === 0) {
+        projectIssues.push(
+          `Catalog record '${project.catalog_record}' must map the project to at least one source path`,
+        );
+      }
+      return projectIssues;
+    }),
+  );
+  return issues.flat();
+}
+
 export async function validateRepositoryLayout(
   repositoryRoot: string,
   contract: LayoutContract,
 ): Promise<string[]> {
   const issues = validateLayoutContract(contract);
+  const catalogRecords = await loadCatalogRecords(repositoryRoot);
   const [componentIssues, manifestIssues, ...checks] = await Promise.all([
     Promise.all(
       (contract.component_kinds ?? []).map(async (component) => {
@@ -450,14 +522,14 @@ export async function validateRepositoryLayout(
           .split("{")[0]
           .replace(/\/$/, "");
         return stablePrefix &&
-          !(await exists(path.join(repositoryRoot, stablePrefix)))
+          !(await pathExists(path.join(repositoryRoot, stablePrefix)))
           ? `Component directory root '${stablePrefix}' does not exist`
           : null;
       }),
     ),
     Promise.all(
       (contract.shared_manifests ?? []).map(async (manifest) =>
-        (await exists(path.join(repositoryRoot, manifest.path)))
+        (await pathExists(path.join(repositoryRoot, manifest.path)))
           ? null
           : `Shared manifest '${manifest.path}' does not exist`,
       ),
@@ -466,14 +538,15 @@ export async function validateRepositoryLayout(
     validateNodeWorkspace(repositoryRoot, contract),
     validatePythonLocks(repositoryRoot),
     validateKnowledgeGraph(repositoryRoot),
-    validateCatalogSourcePaths(repositoryRoot),
+    validateCatalogSourcePaths(repositoryRoot, catalogRecords),
+    validateRegisteredProjects(repositoryRoot, contract, catalogRecords),
   ]);
   issues.push(
     ...componentIssues.filter((issue): issue is string => issue !== null),
     ...manifestIssues.filter((issue): issue is string => issue !== null),
     ...checks.flat(),
   );
-  return issues.sort((left, right) => left.localeCompare(right));
+  return issues.sort(compareStrings);
 }
 
 async function main(): Promise<void> {

@@ -31,8 +31,15 @@ knowledge-graph locations, workspace rules, and shared manifests.
 
 A logical project chooses one primary kind: `application`, `service`,
 `library`, `data-pipeline`, `embedded-system`, `infrastructure`, or
-`operations`. The kind describes its main outcome. It does not restrict the
+`platform`. The kind describes its main outcome. It does not restrict the
 component technologies it may use.
+
+An application primarily serves a person through an interactive product. A
+service primarily serves other software through an independently operated API,
+worker, or automation boundary. A platform supplies shared runtime, delivery,
+or developer capabilities to several projects. A platform as a service is one
+form of platform. The taxonomy treats operations as a responsibility carried
+by every deployed project.
 
 Project IDs remain `project:<project>`. Components use
 `component:<project>/<component>` even when their source lives in separate
@@ -46,6 +53,12 @@ owner maintains its code, tests, generated output, tasks, decisions, and
 migrations. A platform-owned infrastructure root may provision resources for
 multiple products, but catalog records still assign each logical resource to
 the product that uses it.
+
+Each Copier-managed project registers its ID, primary kind, and owning system
+catalog record in the layout contract's `projects` field. The system record in
+`platform.yaml` maps the project to one or more source paths. Validation rejects
+unknown kinds, duplicate registrations, missing project indexes, missing system
+records, and system records owned by another project.
 
 ### Technology directories
 
@@ -111,8 +124,9 @@ index, decision directories, and the component paths it created. It may make
 structural edits only to these shared fields:
 
 * `.mise.toml` `monorepo.config_roots`;
-* `pnpm-workspace.yaml` `packages`; and
-* `platform.yaml` `catalog.records`.
+* `pnpm-workspace.yaml` `packages`;
+* `platform.yaml` `catalog.records`; and
+* `repository-layout.yaml` `projects`.
 
 The operation must parse and rewrite the named field, preserve unrelated
 content, reject an unexpected old state, and show the resulting Git diff. It
@@ -130,7 +144,8 @@ to the declared shared-manifest boundary.
 Adopt the contract without moving every existing path at once:
 
 1. Keep current technology roots and catalog IDs. Add catalog declarations as
-   generation or delivery begins to depend on them.
+   generation or delivery begins to depend on them, then register the project
+   in the layout contract.
 2. Add the standard task names to existing components. Record a reason where a
    task does not apply, then make the validator enforce the declarations.
 3. Keep TypeScript dependencies in the root pnpm lockfile. Keep the two listed
