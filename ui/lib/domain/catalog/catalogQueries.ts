@@ -264,7 +264,9 @@ export function buildCatalogDocument(
       }),
     ),
   );
-  records.sort((left, right) => left.id.localeCompare(right.id));
+  records.sort((left, right) =>
+    left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
+  );
   validateCatalogView(records);
   return {
     schemaVersion: manifest.schemaVersion,

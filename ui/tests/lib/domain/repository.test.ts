@@ -349,6 +349,37 @@ Content`;
   });
 
   describe("loadPlatformManifest", () => {
+    const manifestWithoutCatalog = `
+schema_version: 1
+project: platform
+layers:
+  - slug: base
+    title: Base
+    description: Shared defaults
+slots:
+  - slug: project.language
+    title: Language
+    description: Primary implementation language
+    rationale: Several languages can implement the project
+policies:
+  - id: language-policy
+    layer: base
+    slot: project.language
+    mode: required
+    effective_from: 2026-09-15T00:00:00Z
+    decision: platform:001-language
+selections:
+  - id: typescript-selection
+    slot: project.language
+    kind: technology
+    technology: TypeScript
+    value: Public source
+    status: Accepted
+    effective_from: 2026-09-15T00:00:00Z
+    decision: platform:001-language
+    evidence_adrs: [platform:001-language]
+`;
+
     it("keeps an explicit technology kind authoritative", () => {
       vi.mocked(fs.readFileSync).mockReturnValue(`
 schema_version: 1
@@ -410,6 +441,23 @@ selections:
           ],
         },
       });
+    });
+
+    it("defaults an omitted catalog and rejects a malformed one", () => {
+      vi.mocked(fs.readFileSync).mockReturnValue(manifestWithoutCatalog);
+
+      expect(loadPlatformManifest()?.catalog.records).toEqual([]);
+
+      for (const catalog of ["invalid", "[]"]) {
+        vi.mocked(fs.readFileSync).mockReturnValue(
+          manifestWithoutCatalog.replace(
+            "project: platform",
+            `project: platform\ncatalog: ${catalog}`,
+          ),
+        );
+
+        expect(() => loadPlatformManifest()).toThrow();
+      }
     });
   });
 

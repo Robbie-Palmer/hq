@@ -1032,36 +1032,41 @@ export function loadPlatformManifest(): PlatformManifest | undefined {
   const records = (value: unknown): Record<string, unknown>[] =>
     Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
   const catalogData =
-    data.catalog &&
+    data.catalog !== null &&
     typeof data.catalog === "object" &&
     !Array.isArray(data.catalog)
       ? (data.catalog as Record<string, unknown>)
-      : {};
+      : undefined;
+  const catalogInput =
+    catalogData === undefined
+      ? data.catalog
+      : {
+          records: records(catalogData.records).map((record) => ({
+            ...record,
+            sourcePaths: record.source_paths ?? [],
+            decisionRefs: record.decision_refs ?? [],
+            externalIds: records(record.external_ids).map((externalId) => ({
+              ...externalId,
+              apiGroup: externalId.api_group,
+            })),
+            oci:
+              record.oci &&
+              typeof record.oci === "object" &&
+              !Array.isArray(record.oci)
+                ? {
+                    ...(record.oci as Record<string, unknown>),
+                    mediaType: (record.oci as Record<string, unknown>)
+                      .media_type,
+                    artifactType: (record.oci as Record<string, unknown>)
+                      .artifact_type,
+                  }
+                : undefined,
+          })),
+        };
   const manifest = {
     schemaVersion: data.schema_version,
     project: data.project,
-    catalog: {
-      records: records(catalogData.records).map((record) => ({
-        ...record,
-        sourcePaths: record.source_paths ?? [],
-        decisionRefs: record.decision_refs ?? [],
-        externalIds: records(record.external_ids).map((externalId) => ({
-          ...externalId,
-          apiGroup: externalId.api_group,
-        })),
-        oci:
-          record.oci &&
-          typeof record.oci === "object" &&
-          !Array.isArray(record.oci)
-            ? {
-                ...(record.oci as Record<string, unknown>),
-                mediaType: (record.oci as Record<string, unknown>).media_type,
-                artifactType: (record.oci as Record<string, unknown>)
-                  .artifact_type,
-              }
-            : undefined,
-      })),
-    },
+    catalog: catalogInput,
     layers: records(data.layers).map((layer) => ({
       ...layer,
       activatedBy: layer.activated_by
