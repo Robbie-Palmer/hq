@@ -31,6 +31,20 @@ Pathologists spend significant time manually scanning slides to identify viable 
 * **Proprietary Format Support**: Engineered the ingestion layer to performantly read and process Philips' proprietary WSI format.
 * **Human-in-the-Loop**: Designed the workflow to present AI suggestions as a starting point, essentially using DL to "pre-fill" the pathologist's task, drastically reducing the time required per slide.
 
+# Workflow
+
+The workflow combined slide ingestion and model predictions into suggestions for pathologist review before manual extraction.
+
+<Mermaid
+  chart={`flowchart TD
+slide["Digital tissue slide"] --> ingest["Read slide image"]
+ingest --> models["AI tissue models"]
+models --> overlay["Suggested tissue regions"]
+overlay --> review["Pathologist review"]
+review --> extraction["Manual tissue extraction"]
+`}
+/>
+
 # Impact
 
 This project proved that Deep Learning could be effectively integrated into existing enterprise pathology workflows. It laid the groundwork for understanding the complexities of WSI analysis, scale, formats, and artifacts, which informed my later work on fully automated dissection systems.
