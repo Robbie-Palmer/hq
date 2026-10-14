@@ -111,7 +111,10 @@ function validateComponentPaths(components: ComponentKind[]): string[] {
     ) {
       issues.push(`Component path '${component.directory}' must be repository-relative`);
     }
-    const placeholders = component.directory.match(/{[^}]+}/g) ?? [];
+    const placeholders = component.directory
+      .split("{")
+      .slice(1)
+      .map((segment) => `{${segment.split("}")[0]}}`);
     if (placeholders.some((placeholder) => placeholder !== "{component}")) {
       issues.push(`Component path '${component.directory}' has an unknown placeholder`);
     }
@@ -197,7 +200,7 @@ function duplicateValues(values: string[]): string[] {
     if (seen.has(value)) duplicates.add(value);
     seen.add(value);
   }
-  return [...duplicates].sort();
+  return [...duplicates].sort((left, right) => left.localeCompare(right));
 }
 
 function compareSets(actual: Iterable<string>, expected: Iterable<string>): boolean {
@@ -252,27 +255,28 @@ async function findFiles(
   const entries = await readdir(path.join(root, relativeDirectory), {
     withFileTypes: true,
   });
-  const files: string[] = [];
-  for (const entry of entries) {
-    const relativePath = path.posix.join(relativeDirectory, entry.name);
-    if (entry.isFile() && entry.name === fileName) {
-      files.push(relativePath);
-      continue;
-    }
-    if (
-      entry.isDirectory() &&
-      !IGNORED_DIRECTORY_NAMES.has(entry.name) &&
-      !IGNORED_DIRECTORY_PATHS.has(relativePath)
-    ) {
-      files.push(...(await findFiles(root, fileName, relativePath)));
-    }
-  }
-  return files.sort();
+  const discovered = await Promise.all(
+    entries.map(async (entry): Promise<string[]> => {
+      const relativePath = path.posix.join(relativeDirectory, entry.name);
+      if (entry.isFile() && entry.name === fileName) return [relativePath];
+      if (
+        entry.isDirectory() &&
+        !IGNORED_DIRECTORY_NAMES.has(entry.name) &&
+        !IGNORED_DIRECTORY_PATHS.has(relativePath)
+      ) {
+        return findFiles(root, fileName, relativePath);
+      }
+      return [];
+    }),
+  );
+  return discovered
+    .flat()
+    .sort((left, right) => left.localeCompare(right));
 }
 
 function extractMiseConfigRoots(source: string): string[] {
-  const monorepo = source.match(/\[monorepo\]([\s\S]*?)(?:\n\[|$)/)?.[1];
-  const list = monorepo?.match(/config_roots\s*=\s*\[([\s\S]*?)\]/)?.[1];
+  const monorepo = /\[monorepo\]([\s\S]*?)(?:\n\[|$)/.exec(source)?.[1];
+  const list = /config_roots\s*=\s*\[([\s\S]*?)\]/.exec(monorepo ?? "")?.[1];
   if (!list) return [];
   return [...list.matchAll(/"([^"]+)"/g)].map((match) => match[1]);
 }
@@ -352,14 +356,17 @@ async function validateNodeWorkspace(
 }
 
 async function validatePythonLocks(repositoryRoot: string): Promise<string[]> {
-  const issues: string[] = [];
-  for (const manifest of await findFiles(repositoryRoot, "pyproject.toml")) {
-    const lockfile = path.join(repositoryRoot, path.dirname(manifest), "uv.lock");
-    if (!(await exists(lockfile))) {
-      issues.push(`Python project '${path.dirname(manifest)}' has no uv.lock`);
-    }
-  }
-  return issues;
+  const manifests = await findFiles(repositoryRoot, "pyproject.toml");
+  const issues = await Promise.all(
+    manifests.map(async (manifest) => {
+      const projectDirectory = path.dirname(manifest);
+      const lockfile = path.join(repositoryRoot, projectDirectory, "uv.lock");
+      return (await exists(lockfile))
+        ? null
+        : `Python project '${projectDirectory}' has no uv.lock`;
+    }),
+  );
+  return issues.filter((issue): issue is string => issue !== null);
 }
 
 async function validateDecisionDirectory(
@@ -381,25 +388,32 @@ async function validateDecisionDirectory(
 }
 
 async function validateKnowledgeGraph(repositoryRoot: string): Promise<string[]> {
-  const issues: string[] = [];
   const projectsRoot = path.join(repositoryRoot, "ui/content/projects");
   const projects = await readdir(projectsRoot, { withFileTypes: true });
-  for (const project of projects.filter((entry) => entry.isDirectory())) {
-    const projectRoot = path.join(projectsRoot, project.name);
-    if (!(await exists(path.join(projectRoot, "index.mdx")))) {
-      issues.push(`Project '${project.name}' has no index.mdx`);
-    }
-    for (const decisionDirectory of ["adrs", "pdrs"]) {
-      issues.push(
-        ...(await validateDecisionDirectory(
-          projectRoot,
-          project.name,
-          decisionDirectory,
-        )),
-      );
-    }
-  }
-  return issues;
+  const projectIssues = await Promise.all(
+    projects
+      .filter((entry) => entry.isDirectory())
+      .map(async (project) => {
+        const projectRoot = path.join(projectsRoot, project.name);
+        const [hasIndex, decisionIssues] = await Promise.all([
+          exists(path.join(projectRoot, "index.mdx")),
+          Promise.all(
+            ["adrs", "pdrs"].map((decisionDirectory) =>
+              validateDecisionDirectory(
+                projectRoot,
+                project.name,
+                decisionDirectory,
+              ),
+            ),
+          ),
+        ]);
+        return [
+          ...(hasIndex ? [] : [`Project '${project.name}' has no index.mdx`]),
+          ...decisionIssues.flat(),
+        ];
+      }),
+  );
+  return projectIssues.flat();
 }
 
 async function validateCatalogSourcePaths(
@@ -408,17 +422,20 @@ async function validateCatalogSourcePaths(
   const manifest = parse(
     await readFile(path.join(repositoryRoot, PLATFORM_MANIFEST_PATH), "utf8"),
   ) as { catalog?: { records?: Array<{ id?: string; source_paths?: string[] }> } };
-  const issues: string[] = [];
-  for (const record of manifest.catalog?.records ?? []) {
-    for (const sourcePath of record.source_paths ?? []) {
-      if (!(await exists(path.join(repositoryRoot, sourcePath)))) {
-        issues.push(
-          `Catalog record '${record.id ?? "unknown"}' references missing path '${sourcePath}'`,
-        );
-      }
-    }
-  }
-  return issues;
+  const sources = (manifest.catalog?.records ?? []).flatMap((record) =>
+    (record.source_paths ?? []).map((sourcePath) => ({
+      recordId: record.id ?? "unknown",
+      sourcePath,
+    })),
+  );
+  const issues = await Promise.all(
+    sources.map(async ({ recordId, sourcePath }) =>
+      (await exists(path.join(repositoryRoot, sourcePath)))
+        ? null
+        : `Catalog record '${recordId}' references missing path '${sourcePath}'`,
+    ),
+  );
+  return issues.filter((issue): issue is string => issue !== null);
 }
 
 export async function validateRepositoryLayout(
@@ -426,28 +443,37 @@ export async function validateRepositoryLayout(
   contract: LayoutContract,
 ): Promise<string[]> {
   const issues = validateLayoutContract(contract);
-
-  for (const component of contract.component_kinds ?? []) {
-    const stablePrefix = component.directory.split("{")[0].replace(/\/$/, "");
-    if (stablePrefix && !(await exists(path.join(repositoryRoot, stablePrefix)))) {
-      issues.push(`Component directory root '${stablePrefix}' does not exist`);
-    }
-  }
-  for (const manifest of contract.shared_manifests ?? []) {
-    if (!(await exists(path.join(repositoryRoot, manifest.path)))) {
-      issues.push(`Shared manifest '${manifest.path}' does not exist`);
-    }
-  }
-
-  const checks = await Promise.all([
+  const [componentIssues, manifestIssues, ...checks] = await Promise.all([
+    Promise.all(
+      (contract.component_kinds ?? []).map(async (component) => {
+        const stablePrefix = component.directory
+          .split("{")[0]
+          .replace(/\/$/, "");
+        return stablePrefix &&
+          !(await exists(path.join(repositoryRoot, stablePrefix)))
+          ? `Component directory root '${stablePrefix}' does not exist`
+          : null;
+      }),
+    ),
+    Promise.all(
+      (contract.shared_manifests ?? []).map(async (manifest) =>
+        (await exists(path.join(repositoryRoot, manifest.path)))
+          ? null
+          : `Shared manifest '${manifest.path}' does not exist`,
+      ),
+    ),
     validateMiseRoots(repositoryRoot, contract),
     validateNodeWorkspace(repositoryRoot, contract),
     validatePythonLocks(repositoryRoot),
     validateKnowledgeGraph(repositoryRoot),
     validateCatalogSourcePaths(repositoryRoot),
   ]);
-  issues.push(...checks.flat());
-  return issues.sort();
+  issues.push(
+    ...componentIssues.filter((issue): issue is string => issue !== null),
+    ...manifestIssues.filter((issue): issue is string => issue !== null),
+    ...checks.flat(),
+  );
+  return issues.sort((left, right) => left.localeCompare(right));
 }
 
 async function main(): Promise<void> {
