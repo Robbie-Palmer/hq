@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   AssetTrackerDataSchema,
+  activeSpendingBaseline,
+  annualCurrentSpending,
   applySaveSpendingBaseline,
   buildRepository,
   compareDecisionScenarios,
   createAssetTrackerBackup,
   getPortfolioFinancialIndependence,
   parseAssetTrackerBackup,
+  SaveSpendingBaselineInputSchema,
 } from "@/lib/domain/assettracker";
 
 const householdOwnership = {
@@ -50,6 +53,38 @@ function currentBalanceHousehold() {
 }
 
 describe("explicit spending baselines", () => {
+  it("validates reconciliation dates and baseline helpers", () => {
+    const baseline = currentBalanceHousehold().spendingBaselines?.[0];
+    expect(baseline).toBeDefined();
+    if (baseline == null) return;
+
+    expect(annualCurrentSpending(baseline)).toBe(42_000);
+    const secondVersion = {
+      ...baseline,
+      id: "household-spending-v2",
+      version: 2,
+    };
+    expect(
+      activeSpendingBaseline([baseline, secondVersion], "2026-01-01")?.id,
+    ).toBe(secondVersion.id);
+    expect(activeSpendingBaseline([baseline], "2025-12-31")).toBeNull();
+    expect(
+      SaveSpendingBaselineInputSchema.safeParse({
+        effectiveDate: "2026-03-31",
+        annualEssentialSpending: 24_000,
+        annualDiscretionarySpending: 15_000,
+        annualDebtCashFlow: 3_000,
+        currency: "GBP",
+        ownership: householdOwnership,
+        source: {
+          kind: "reconciled",
+          periodStartDate: "2026-04-01",
+          periodEndDate: "2026-03-31",
+        },
+      }).success,
+    ).toBe(false);
+  });
+
   it("runs runway and decision forecasts from a current balance with no history", () => {
     const repository = buildRepository(currentBalanceHousehold());
     const result = getPortfolioFinancialIndependence(repository, "2026-01-01");
