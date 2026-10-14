@@ -132,6 +132,28 @@ const EMPTY_SHOPPING_LIST: ShoppingListContents = {
   extras: [],
 };
 
+function recoverCachedShoppingList(
+  serverList: StoredShoppingList,
+): ShoppingListContents {
+  const cached = shoppingListContents();
+  const { listId } = getShoppingListCacheIdentity();
+  if (listId !== undefined && listId !== serverList.id) {
+    return serverList.snapshot;
+  }
+  if (
+    cached.recipes.length === 0 &&
+    cached.checked.length === 0 &&
+    cached.extras.length === 0
+  ) {
+    return serverList.snapshot;
+  }
+  return mergeLocalShoppingListChanges(
+    EMPTY_SHOPPING_LIST,
+    cached,
+    serverList.snapshot,
+  );
+}
+
 const ShoppingListScopeContext = createContext<ShoppingListScope | null>(null);
 
 export function useShoppingListScope(): ShoppingListScope {
@@ -158,29 +180,13 @@ function useShoppingListSync(
   const pendingCacheRecovery = useRef<string | undefined>(undefined);
   const [saveFailed, setSaveFailed] = useState(false);
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: The existing rebase effect keeps its explicit conflict cases; cache recovery is isolated above.
   useEffect(() => {
     if (!serverList) return;
     const serialized = JSON.stringify(serverList.snapshot);
 
     if (!installedId) {
-      const cached = shoppingListContents();
-      const cachedIdentity = getShoppingListCacheIdentity();
-      const cacheBelongsToList =
-        cachedIdentity.listId === undefined ||
-        cachedIdentity.listId === serverList.id;
-      const hasCachedContents =
-        cached.recipes.length > 0 ||
-        cached.checked.length > 0 ||
-        cached.extras.length > 0;
-      const next =
-        cacheBelongsToList && hasCachedContents
-          ? mergeLocalShoppingListChanges(
-              EMPTY_SHOPPING_LIST,
-              cached,
-              serverList.snapshot,
-            )
-          : serverList.snapshot;
+      const next = recoverCachedShoppingList(serverList);
       const shouldRecoverCache = JSON.stringify(next) !== serialized;
       savedSnapshot.current = serialized;
       savedRevision.current = serverList.revision;
