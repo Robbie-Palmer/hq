@@ -1554,20 +1554,15 @@ export function applyUpdateCashFlowDecision(
     status: current.status,
     stages,
   });
+  const firstStage = updated.stages[0];
+  const ownershipAccountId =
+    firstStage == null ? "" : futureCashFlowStageAccountId(firstStage);
   return {
     ...data,
     futureCashFlows: data.futureCashFlows.map((record) =>
       record.id === current.id ? updated : record,
     ),
-    ownership: addFutureCashFlowOwnership(
-      data,
-      current.id,
-      stages[0] == null
-        ? current.stages[0] == null
-          ? ""
-          : futureCashFlowStageAccountId(current.stages[0])
-        : stageEndpointAccountId(stages[0]),
-    ),
+    ownership: addFutureCashFlowOwnership(data, current.id, ownershipAccountId),
   };
 }
 
