@@ -223,6 +223,7 @@ function useFutureCashFlowManager() {
             sourceNotes: optional(breakdownSource),
             calculationLineage: labels(calculationLineage),
           };
+    const commitmentRefundable = direction === "payment" ? refundable : false;
     await run(async () => {
       const endpoint =
         direction === "payment"
@@ -232,7 +233,7 @@ function useFutureCashFlowManager() {
         await tracker.addCommitment({
           ...common,
           changeability,
-          refundable,
+          refundable: commitmentRefundable,
           stages: [
             {
               ...endpoint,

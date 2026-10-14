@@ -971,6 +971,7 @@ describe("RunwayForecast", () => {
     });
     render(<FutureCashFlowManager />);
 
+    await user.click(screen.getByRole("checkbox", { name: "Refundable" }));
     await user.click(screen.getByRole("combobox", { name: "Direction" }));
     await user.click(screen.getByRole("option", { name: "Receipt" }));
     await user.type(screen.getByLabelText("Name"), "Employment settlement");
@@ -992,6 +993,7 @@ describe("RunwayForecast", () => {
     expect(addCommitment).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "Employment settlement",
+        refundable: false,
         stages: [
           expect.objectContaining({
             direction: "receipt",
