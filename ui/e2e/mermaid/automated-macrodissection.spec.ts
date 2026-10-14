@@ -16,8 +16,9 @@ for (const width of [375, 1280]) {
       const svg = diagram.locator("svg");
       await expect(svg).toBeVisible();
       await expect(svg).toContainText("Tissue models and artifact handling");
+      await expect(svg).toContainText("Polygon generation");
       await expect(svg).toContainText("Region optimisation");
-      await expect(svg).toContainText("Proposed cutting coordinates");
+      await expect(svg).toContainText("Cutting coordinates");
       await expect(svg).toContainText("Dissection hardware");
 
       const layout = await diagram.evaluate((container) => {
