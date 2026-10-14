@@ -66,6 +66,7 @@ if(SATELLITE_SWARM_BUILD_SIMULATION)
     satellite_swarm_simulation
     simulation/src/browser_simulation.cpp
     simulation/src/fair_allocation_simulation.cpp
+    simulation/src/network_laboratory.cpp
     simulation/src/orbit.cpp
     simulation/src/simulation.cpp)
   add_library(satellite_swarm::simulation ALIAS satellite_swarm_simulation)
@@ -85,6 +86,12 @@ if(SATELLITE_SWARM_BUILD_SIMULATION)
 
   add_executable(autonomic-satellite-swarm-simulation examples/simulation/main.cpp)
   target_link_libraries(autonomic-satellite-swarm-simulation PRIVATE satellite_swarm::simulation)
+  if(SATELLITE_SWARM_SOURCE_REVISION STREQUAL "")
+    set(SATELLITE_SWARM_SOURCE_REVISION "unknown")
+  endif()
+  target_compile_definitions(
+    autonomic-satellite-swarm-simulation
+    PRIVATE SATELLITE_SWARM_SOURCE_REVISION="${SATELLITE_SWARM_SOURCE_REVISION}")
 
   if(SATELLITE_SWARM_ENABLE_COVERAGE)
     target_compile_options(satellite_swarm_simulation PRIVATE --coverage -O0 -g)
@@ -100,6 +107,30 @@ if(SATELLITE_SWARM_BUILD_SIMULATION)
       NAME satellite_swarm_fair_allocation
       COMMAND autonomic-satellite-swarm-simulation --fairness-json)
     add_test(
+      NAME satellite_swarm_network_laboratory
+      COMMAND autonomic-satellite-swarm-simulation --laboratory-json 17)
+    add_test(
+      NAME satellite_swarm_network_laboratory_default_seed
+      COMMAND autonomic-satellite-swarm-simulation --laboratory-json)
+    add_test(
+      NAME satellite_swarm_network_laboratory_batch
+      COMMAND autonomic-satellite-swarm-simulation --batch-json)
+    add_test(
+      NAME satellite_swarm_invalid_laboratory_seed
+      COMMAND autonomic-satellite-swarm-simulation --laboratory-json 0)
+    add_test(
+      NAME satellite_swarm_nonnumeric_laboratory_seed
+      COMMAND autonomic-satellite-swarm-simulation --laboratory-json nope)
+    add_test(
+      NAME satellite_swarm_partially_numeric_laboratory_seed
+      COMMAND autonomic-satellite-swarm-simulation --laboratory-json 17x)
+    add_test(
+      NAME satellite_swarm_batch_rejects_seed
+      COMMAND autonomic-satellite-swarm-simulation --batch-json 17)
+    add_test(
+      NAME satellite_swarm_rejects_excess_arguments
+      COMMAND autonomic-satellite-swarm-simulation --laboratory-json 17 extra)
+    add_test(
       NAME satellite_swarm_invalid_arguments
       COMMAND autonomic-satellite-swarm-simulation --unsupported)
     set_tests_properties(
@@ -110,6 +141,24 @@ if(SATELLITE_SWARM_BUILD_SIMULATION)
       satellite_swarm_fair_allocation
       PROPERTIES PASS_REGULAR_EXPRESSION
                  "\"policy\": \"mission-keyed-cyclic-equal-score\".*\"assignmentCounts\"")
+    set_tests_properties(
+      satellite_swarm_network_laboratory
+      PROPERTIES PASS_REGULAR_EXPRESSION
+                 "\"traceVersion\":6.*\"seed\":17.*\"resource-sample\"")
+    set_tests_properties(
+      satellite_swarm_network_laboratory_default_seed
+      PROPERTIES PASS_REGULAR_EXPRESSION "\"seed\":1.*\"metrics\"")
+    set_tests_properties(
+      satellite_swarm_network_laboratory_batch
+      PROPERTIES PASS_REGULAR_EXPRESSION
+                 "\"pairedSeeds\":true.*\"worstFailures\"")
+    set_tests_properties(
+      satellite_swarm_invalid_laboratory_seed
+      satellite_swarm_nonnumeric_laboratory_seed
+      satellite_swarm_partially_numeric_laboratory_seed
+      satellite_swarm_batch_rejects_seed
+      satellite_swarm_rejects_excess_arguments
+      PROPERTIES WILL_FAIL TRUE)
     set_tests_properties(satellite_swarm_invalid_arguments PROPERTIES WILL_FAIL TRUE)
   endif()
 endif()
@@ -186,6 +235,7 @@ if(BUILD_TESTING)
       satellite_swarm_tests
       PRIVATE browser/src/browser_api.cpp
               tests/browser_api_test.cpp
+              tests/network_laboratory_test.cpp
               tests/simulation_test.cpp)
     target_include_directories(
       satellite_swarm_tests

@@ -68,20 +68,33 @@ mission's origin node, that node's boot epoch, and a sequence within the epoch.
 ### Deterministic simulation
 
 The simulation layer runs the portable controllers from a versioned sequence of fixed-time frames.
-Each frame applies directed-link changes, explicit delivery faults, health and satellite updates,
-safe-state status changes, node resets, and mission completions before mission commands and
-controller updates. A delivery directive can drop, delay, or duplicate the next matching
-sender-to-recipient message. Each simulated node can reject or accept its safe-state request, and a
-later frame can move accepted work from pending to success or failure. The runner records each
-applied fault alongside messages and state changes, then captures every node's state, score,
-satellite snapshot, and optional rich orbit result. The browser scenario uses a simulation-only
-SGP4 adapter to propagate checked-in TLEs into TEME and Earth-fixed state vectors. One Earth-fixed
-result supplies both the controller snapshot and the serialized Cesium position. The command-line
-demonstration uses this runner. An Emscripten target exposes
-the same browser serializer through a versioned C ABI, and a module worker invokes it without moving
-coordination rules into TypeScript. Native and WebAssembly results are compared byte for byte for
-the default scenario and a repeated equal-score allocation run. A reset increments the simulated
-node's boot epoch before constructing its replacement controller.
+Each frame applies directed links and observed contacts, explicit delivery faults, health and
+satellite updates, buffer limits, node crashes or resets, safe-state status, and mission inputs. A
+delivery directive can drop, delay, or duplicate one matching message. The laboratory can also draw
+loss, delay, duplication, and reordering from a seeded schedule. It records every draw and applied
+choice, so the scenario, configuration, source revision, and seed reproduce the run.
+
+The laboratory's packet mode passes every controller message through `WireCodec`, then places the
+18-byte packet in a bounded per-node transmit queue. A deterministic shared half-duplex medium
+serves one sender at a time. The configured bitrate determines airtime, and a propagation-delay
+event completes each hop. Static routes can forward a packet across multiple links; one stable
+packet ID follows it through the trace, and a hop limit terminates routing loops. Link availability,
+node lifecycle, protocol compatibility, and seeded delivery faults are checked on every hop.
+
+The transport also models asymmetric links, stale contact plans, incompatible protocol versions,
+and bounded receive buffers. Per-frame resource samples record cumulative wire bytes, transmit and
+receive queue occupancy, exact simulated airtime, and an estimated radio energy cost. The native
+batch runner gives each controller configuration the same seeds, reports raw results and 95%
+confidence intervals, and retains the worst trace for regression. The energy coefficients are
+scenario parameters, not calibrated hardware evidence.
+
+The command-line and browser demonstrations use this same simulation library. An Emscripten target
+exposes the browser serializer through a versioned C ABI, and a module worker invokes it without
+moving coordination rules into TypeScript. Native and WebAssembly results are compared byte for
+byte for the default scenario and a repeated equal-score allocation run. The browser scenario uses
+a simulation-only SGP4 adapter to propagate checked-in TLEs into TEME and Earth-fixed state vectors.
+One Earth-fixed result supplies both the controller snapshot and the serialized Cesium position. A
+reset increments the simulated node's boot epoch before constructing its replacement controller.
 
 ### Hardware adapters
 
@@ -115,7 +128,8 @@ for a benchtop swarm demonstration; it is not proposed as a spacecraft communica
 - SGP4, time conversion, and coordinate-frame conversion remain simulation dependencies; the
   portable core and firmware contain none of them.
 - The reference firmware does not provide a physical safe-state actuator or completion evidence.
-- Multi-hop discovery and forwarding are out of scope for this revival.
+- Route discovery is out of scope. The simulation laboratory forwards packets only over static,
+  trace-configured routes; firmware adapters do not forward.
 
 These limits keep memory use and behavior deterministic. Changing one should begin with a requirement
 and an architecture decision rather than an incidental code edit.

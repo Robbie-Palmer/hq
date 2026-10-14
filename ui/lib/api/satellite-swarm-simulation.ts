@@ -290,7 +290,7 @@ const simulationSchema = z.object({
   schemaVersion: z.literal(7),
   source: z.literal("portable C++ SimulationTrace"),
   sourceRevision: z.string().regex(/^[0-9a-f]{40}$/),
-  traceVersion: z.literal(5),
+  traceVersion: z.literal(6),
 });
 
 export type SatelliteSwarmSimulation = z.infer<typeof simulationSchema>;

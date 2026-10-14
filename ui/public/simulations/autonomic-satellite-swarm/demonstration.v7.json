@@ -1,6 +1,6 @@
 {
   "schemaVersion": 7,
-  "traceVersion": 5,
+  "traceVersion": 6,
   "scenario": "three-node-objective-pass",
   "source": "portable C++ SimulationTrace",
   "positionModel": "SGP4 propagation from checked-in TLEs",

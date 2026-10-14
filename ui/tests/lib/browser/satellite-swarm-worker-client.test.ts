@@ -38,7 +38,7 @@ const validResult = {
   scenarioEpochUnixMilliseconds: 962650219734,
   schemaVersion: 7,
   source: "portable C++ SimulationTrace",
-  traceVersion: 5,
+  traceVersion: 6,
 };
 
 type WorkerListener = (event: MessageEvent<unknown> | ErrorEvent) => void;
