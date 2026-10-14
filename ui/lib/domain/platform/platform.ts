@@ -1,5 +1,9 @@
 import { z } from "zod";
 import {
+  CATALOG_SCHEMA_VERSION,
+  CatalogManifestSchema,
+} from "../catalog/catalog";
+import {
   ADRRefSchema,
   ProjectSlugSchema,
   TechnologySlugSchema,
@@ -129,7 +133,11 @@ export const DefaultSelectionSchema = z.union([
 ]);
 
 const PlatformManifestFieldsSchema = z.object({
+  schemaVersion: z
+    .literal(CATALOG_SCHEMA_VERSION)
+    .default(CATALOG_SCHEMA_VERSION),
   project: ProjectSlugSchema,
+  catalog: CatalogManifestSchema.default({ records: [] }),
   layers: z.array(PlatformLayerSchema).min(1),
   slots: z.array(DefaultSlotSchema).min(1),
   policies: z.array(LayerSlotPolicySchema).min(1),

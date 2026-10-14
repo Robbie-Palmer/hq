@@ -5,6 +5,7 @@ export {
 } from "@/lib/repository";
 export * from "./adr";
 export * from "./blog";
+export * from "./catalog";
 export * from "./idea";
 export * from "./initiative";
 export * from "./platform";

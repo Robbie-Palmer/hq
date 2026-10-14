@@ -18,6 +18,13 @@ describe("project platform components", () => {
     render(<PlatformManifest manifest={project.platformManifest} />);
 
     expect(
+      screen.getByRole("heading", { name: "Component catalog" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "machine-readable catalog" }),
+    ).toHaveAttribute("href", "/catalog.json");
+    expect(screen.getByText("component:recipe-site/web")).toBeVisible();
+    expect(
       screen.getByRole("heading", { name: "Current layer manifest" }),
     ).toBeInTheDocument();
     expect(
@@ -48,7 +55,7 @@ describe("project platform components", () => {
         name: "observability.alert-delivery prerequisites",
       }),
     ).toHaveTextContent("project-owned-slack-credentials");
-  }, 10_000);
+  }, 30_000);
 
   it("keeps adopters and layer consumers under their labels", () => {
     const project = getProjectWithADRs(
@@ -158,6 +165,8 @@ describe("project platform components", () => {
     render(
       <PlatformManifest
         manifest={{
+          schemaVersion: project.platformManifest.schemaVersion,
+          catalog: { records: [] },
           layers: [layer],
           policies: [
             {

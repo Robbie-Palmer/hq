@@ -22,16 +22,50 @@ function adrHref(adrRef: string): string {
   return `/projects/${project}/adrs/${adr}`;
 }
 
+function ComponentCatalog({ manifest }: Readonly<{ manifest: Manifest }>) {
+  return (
+    <section aria-labelledby="component-catalog-heading">
+      <h2 id="component-catalog-heading" className="text-2xl font-semibold">
+        Component catalog
+      </h2>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Schema version {manifest.schemaVersion}. Repository declarations are
+        authoritative; projects, technologies, decisions, and policy records
+        join these declarations in the derived{" "}
+        <Link href="/catalog.json" className="underline underline-offset-4">
+          machine-readable catalog
+        </Link>
+        .
+      </p>
+      <ul className="mt-4 divide-y rounded-lg border">
+        {manifest.catalog.records.map((record) => (
+          <li
+            key={record.id}
+            className="flex flex-wrap items-baseline gap-2 p-3 text-sm"
+          >
+            <span className="font-medium">{record.name}</span>
+            <code className="break-all text-xs text-muted-foreground">
+              {record.id}
+            </code>
+            <span className="ml-auto">
+              <Badge variant="outline">{record.kind}</Badge>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function PlatformManifest({
   manifest,
 }: Readonly<{ manifest: Manifest }>) {
   const instant = new Date().toISOString();
   return (
-    <section className="space-y-8" aria-labelledby="platform-manifest-heading">
+    <section className="space-y-8" aria-label="Platform manifest">
+      <ComponentCatalog manifest={manifest} />
       <div>
-        <h2 id="platform-manifest-heading" className="text-2xl font-semibold">
-          Current layer manifest
-        </h2>
+        <h2 className="text-2xl font-semibold">Current layer manifest</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           {manifest.layers.map((layer) => {
             const policies = manifest.policies.filter(

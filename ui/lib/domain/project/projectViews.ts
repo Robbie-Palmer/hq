@@ -5,6 +5,7 @@ import type {
   LayerSlotPolicy,
   LayerSlug,
   PlatformLayer,
+  PlatformManifest,
 } from "../platform/platform";
 import type {
   EffectivePolicySource,
@@ -113,6 +114,8 @@ export type ProjectWithADRsView = {
     adoptionRationale?: string;
   }>;
   platformManifest?: {
+    schemaVersion: number;
+    catalog: PlatformManifest["catalog"];
     layers: PlatformLayer[];
     policies: LayerSlotPolicy[];
     slots: Array<
