@@ -24,6 +24,12 @@ function projectId(slug: string): CatalogId {
   return `project:${slug}` as CatalogId;
 }
 
+function compareCatalogIds(left: CatalogId, right: CatalogId): number {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
 function derivedRecord(record: CatalogRecord): CatalogViewRecord {
   const parsed = CatalogRecordSchema.parse(record);
   return {
@@ -264,9 +270,7 @@ export function buildCatalogDocument(
       }),
     ),
   );
-  records.sort((left, right) =>
-    left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
-  );
+  records.sort((left, right) => compareCatalogIds(left.id, right.id));
   validateCatalogView(records);
   return {
     schemaVersion: manifest.schemaVersion,
