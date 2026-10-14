@@ -223,6 +223,8 @@ function BreakdownRows({
     ["Debt payments", breakdown.debtPayments],
     ["Committed payments", breakdown.committedCashFlows],
     ["Committed receipts", breakdown.committedReceipts],
+    ["Selected decision payments", breakdown.selectedDecisionCashFlows],
+    ["Selected decision receipts", breakdown.selectedDecisionReceipts],
   ] as const;
   const ranges = [
     ["Explicit income change", breakdown.explicitIncomeChange],
@@ -248,24 +250,6 @@ function BreakdownRows({
           </dd>
         </div>
       ))}
-      <div className="flex justify-between gap-3">
-        <dt className="text-muted-foreground">Selected decision payments</dt>
-        <dd className="font-mono tabular-nums">
-          {formatCurrency(
-            Math.round(breakdown.selectedDecisionCashFlows),
-            currency,
-          )}
-        </dd>
-      </div>
-      <div className="flex justify-between gap-3">
-        <dt className="text-muted-foreground">Selected decision receipts</dt>
-        <dd className="font-mono tabular-nums">
-          {formatCurrency(
-            Math.round(breakdown.selectedDecisionReceipts),
-            currency,
-          )}
-        </dd>
-      </div>
     </dl>
   );
 }

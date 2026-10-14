@@ -528,14 +528,12 @@ function RecordHeader({
   );
 }
 
-function StageRow({
+function StageFinancialDetails({
   record,
   stageIndex,
-  onRecord,
 }: Readonly<{
   record: FutureCashFlow;
   stageIndex: number;
-  onRecord(): void;
 }>) {
   const stage = record.stages[stageIndex];
   if (!stage) return null;
@@ -548,12 +546,7 @@ function StageRow({
     0,
   );
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-      <span>{stage.name ?? `Stage ${stageIndex + 1}`}</span>
-      <Badge variant="outline">
-        {stage.direction === "payment" ? "Payment" : "Receipt"}
-      </Badge>
-      <span>{stageDate(record, stageIndex)}</span>
+    <>
       <span className="font-mono text-foreground">
         {formatCurrency(stageAmount(record, stageIndex), record.currency)}
       </span>
@@ -576,6 +569,29 @@ function StageRow({
       {netActual !== 0 && (
         <span>actual {formatCurrency(netActual, record.currency)}</span>
       )}
+    </>
+  );
+}
+
+function StageRow({
+  record,
+  stageIndex,
+  onRecord,
+}: Readonly<{
+  record: FutureCashFlow;
+  stageIndex: number;
+  onRecord(): void;
+}>) {
+  const stage = record.stages[stageIndex];
+  if (!stage) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+      <span>{stage.name ?? `Stage ${stageIndex + 1}`}</span>
+      <Badge variant="outline">
+        {stage.direction === "payment" ? "Payment" : "Receipt"}
+      </Badge>
+      <span>{stageDate(record, stageIndex)}</span>
+      <StageFinancialDetails record={record} stageIndex={stageIndex} />
       <Button
         type="button"
         variant="link"
@@ -774,7 +790,7 @@ function FutureCashFlowList({ model }: Readonly<{ model: FlowManager }>) {
   );
 }
 
-function FlowPrimaryFields({ model }: Readonly<{ model: FlowManager }>) {
+function FlowClassificationFields({ model }: Readonly<{ model: FlowManager }>) {
   return (
     <>
       <FormField id="future-flow-type" label="Type">
@@ -809,6 +825,14 @@ function FlowPrimaryFields({ model }: Readonly<{ model: FlowManager }>) {
           </SelectContent>
         </Select>
       </FormField>
+    </>
+  );
+}
+
+function FlowPrimaryFields({ model }: Readonly<{ model: FlowManager }>) {
+  return (
+    <>
+      <FlowClassificationFields model={model} />
       <FormField id="future-flow-name" label="Name">
         <Input
           id="future-flow-name"
@@ -1102,53 +1126,75 @@ function DecisionFields({ model }: Readonly<{ model: FlowManager }>) {
   );
 }
 
-function AmountBreakdownFields({ model }: Readonly<{ model: FlowManager }>) {
+function BreakdownNumberField({
+  id,
+  label,
+  min,
+  placeholder,
+  value,
+  onChange,
+}: Readonly<{
+  id: string;
+  label: string;
+  min: string;
+  placeholder?: string;
+  value: string;
+  onChange(value: string): void;
+}>) {
   return (
-    <fieldset className="grid gap-2 rounded-md border p-3 sm:grid-cols-2 lg:grid-cols-4">
-      <legend className="px-1 text-xs font-medium">
-        Gross-to-net breakdown (optional)
-      </legend>
-      <FormField id="future-flow-gross" label="Gross amount">
-        <Input
-          id="future-flow-gross"
-          type="number"
-          min="0.01"
-          step="0.01"
-          placeholder="Leave blank for net only"
-          value={model.grossAmount}
-          onChange={(event) => model.setGrossAmount(event.target.value)}
-        />
-      </FormField>
-      <FormField id="future-flow-tax" label="Tax">
-        <Input
-          id="future-flow-tax"
-          type="number"
-          min="0"
-          step="0.01"
-          value={model.taxAmount}
-          onChange={(event) => model.setTaxAmount(event.target.value)}
-        />
-      </FormField>
-      <FormField id="future-flow-fees" label="Fees">
-        <Input
-          id="future-flow-fees"
-          type="number"
-          min="0"
-          step="0.01"
-          value={model.feeAmount}
-          onChange={(event) => model.setFeeAmount(event.target.value)}
-        />
-      </FormField>
-      <FormField id="future-flow-deductions" label="Other deductions">
-        <Input
-          id="future-flow-deductions"
-          type="number"
-          min="0"
-          step="0.01"
-          value={model.deductionAmount}
-          onChange={(event) => model.setDeductionAmount(event.target.value)}
-        />
-      </FormField>
+    <FormField id={id} label={label}>
+      <Input
+        id={id}
+        type="number"
+        min={min}
+        step="0.01"
+        placeholder={placeholder}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </FormField>
+  );
+}
+
+function AmountBreakdownValues({ model }: Readonly<{ model: FlowManager }>) {
+  return (
+    <>
+      <BreakdownNumberField
+        id="future-flow-gross"
+        label="Gross amount"
+        min="0.01"
+        placeholder="Leave blank for net only"
+        value={model.grossAmount}
+        onChange={model.setGrossAmount}
+      />
+      <BreakdownNumberField
+        id="future-flow-tax"
+        label="Tax"
+        min="0"
+        value={model.taxAmount}
+        onChange={model.setTaxAmount}
+      />
+      <BreakdownNumberField
+        id="future-flow-fees"
+        label="Fees"
+        min="0"
+        value={model.feeAmount}
+        onChange={model.setFeeAmount}
+      />
+      <BreakdownNumberField
+        id="future-flow-deductions"
+        label="Other deductions"
+        min="0"
+        value={model.deductionAmount}
+        onChange={model.setDeductionAmount}
+      />
+    </>
+  );
+}
+
+function AmountBreakdownMetadata({ model }: Readonly<{ model: FlowManager }>) {
+  return (
+    <>
       <FormField
         id="future-flow-breakdown-source"
         label="Source notes"
@@ -1173,6 +1219,18 @@ function AmountBreakdownFields({ model }: Readonly<{ model: FlowManager }>) {
           onChange={(event) => model.setCalculationLineage(event.target.value)}
         />
       </FormField>
+    </>
+  );
+}
+
+function AmountBreakdownFields({ model }: Readonly<{ model: FlowManager }>) {
+  return (
+    <fieldset className="grid gap-2 rounded-md border p-3 sm:grid-cols-2 lg:grid-cols-4">
+      <legend className="px-1 text-xs font-medium">
+        Gross-to-net breakdown (optional)
+      </legend>
+      <AmountBreakdownValues model={model} />
+      <AmountBreakdownMetadata model={model} />
     </fieldset>
   );
 }
