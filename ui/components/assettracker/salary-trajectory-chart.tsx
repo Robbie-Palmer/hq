@@ -1,5 +1,7 @@
 "use client";
 
+import { BriefcaseBusinessIcon } from "lucide-react";
+import Image from "next/image";
 import { type ComponentProps, useState } from "react";
 import { Line, LineChart, ResponsiveContainer } from "recharts";
 import {
@@ -7,6 +9,7 @@ import {
   ChartContainer,
   ChartTooltipContent,
 } from "@/components/ui/chart";
+import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/generic/styles";
 import {
   ChartPeakReferenceLine,
@@ -27,6 +30,12 @@ export type SalaryTrajectoryChartDatum = {
   real?: number;
   assumedNominal?: number;
   assumedReal?: number;
+};
+
+export type SalaryTrajectoryMilestone = {
+  date: string;
+  employer: string;
+  logoPath?: string;
 };
 
 export type SalaryTrajectoryDateDomain = readonly [number, number];
@@ -62,11 +71,16 @@ type SalarySeries = "nominal" | "real";
 
 type SalaryTrajectoryChartProps = Readonly<{
   assumptionCopy: string;
+  availableDateDomain?: SalaryTrajectoryDateDomain;
   chartData: readonly SalaryTrajectoryChartDatum[];
   dateDomain: SalaryTrajectoryDateDomain;
   label: string;
+  milestones?: readonly SalaryTrajectoryMilestone[];
   nominalLabel: string;
   realLabel: string;
+  range?: SalaryTrajectoryDateDomain;
+  onRangeChange?(range: SalaryTrajectoryDateDomain): void;
+  showRangeSlider?: boolean;
   showRecordedPeaks?: boolean;
 }>;
 
@@ -78,6 +92,8 @@ type SalaryChartCanvasProps = Readonly<{
   hidden: ReadonlySet<SalarySeries>;
   label: string;
   labels: Readonly<Record<SalarySeries, string>>;
+  milestones: readonly SalaryTrajectoryMilestone[];
+  showMilestones: boolean;
   showRecordedPeaks: boolean;
 }>;
 
@@ -263,7 +279,7 @@ function timestampSalaryChartData(
   }));
 }
 
-function SalaryChartCanvas({
+function SalaryChartPlot({
   chartData,
   dateDomain,
   hasAssumption,
@@ -272,9 +288,10 @@ function SalaryChartCanvas({
   label,
   labels,
   showRecordedPeaks,
-}: SalaryChartCanvasProps) {
-  const timestampedChartData = timestampSalaryChartData(chartData);
-
+  visibleChartData,
+}: Omit<SalaryChartCanvasProps, "milestones" | "showMilestones"> & {
+  visibleChartData: readonly SalaryTrajectoryChartDatum[];
+}) {
   return (
     <ChartContainer
       config={chartConfig(labels)}
@@ -284,8 +301,8 @@ function SalaryChartCanvas({
     >
       <ResponsiveContainer width="100%" height={340}>
         <LineChart
-          data={timestampedChartData}
-          margin={{ top: 10, right: 18, left: 0, bottom: 5 }}
+          data={timestampSalaryChartData(chartData)}
+          margin={{ top: 64, right: 18, left: 0, bottom: 5 }}
         >
           <CurrencyHistoryChartAxes
             currency="GBP"
@@ -296,7 +313,7 @@ function SalaryChartCanvas({
           />
           {showRecordedPeaks && (
             <PeakSalaryLines
-              chartData={chartData}
+              chartData={visibleChartData}
               hasRealValues={hasRealValues}
               hidden={hidden}
             />
@@ -321,34 +338,30 @@ function SalaryChartCanvas({
   );
 }
 
-export function SalaryTrajectoryChart({
-  assumptionCopy,
+function SalaryChartCanvas({
   chartData,
   dateDomain,
+  hasAssumption,
+  hasRealValues,
+  hidden,
   label,
-  nominalLabel,
-  realLabel,
-  showRecordedPeaks = false,
-}: SalaryTrajectoryChartProps) {
-  const [hidden, setHidden] = useState<ReadonlySet<SalarySeries>>(new Set());
-  const hasRealValues = chartData.some(
-    (point) => point.real != null || point.assumedReal != null,
-  );
-  const hasAssumption = chartData.some((point) => point.assumedNominal != null);
-  const labels = { nominal: nominalLabel, real: realLabel };
-
-  function toggleSeries(series: SalarySeries) {
-    setHidden((current) => {
-      const next = new Set(current);
-      if (next.has(series)) next.delete(series);
-      else next.add(series);
-      return next;
-    });
-  }
+  labels,
+  milestones,
+  showMilestones,
+  showRecordedPeaks,
+}: SalaryChartCanvasProps) {
+  const visibleChartData = chartData.filter((point) => {
+    const timestamp = Date.parse(point.date);
+    return timestamp >= dateDomain[0] && timestamp <= dateDomain[1];
+  });
+  const visibleMilestones = milestones.filter((milestone) => {
+    const timestamp = Date.parse(milestone.date);
+    return timestamp >= dateDomain[0] && timestamp <= dateDomain[1];
+  });
 
   return (
-    <>
-      <SalaryChartCanvas
+    <div className="relative">
+      <SalaryChartPlot
         chartData={chartData}
         dateDomain={dateDomain}
         hasAssumption={hasAssumption}
@@ -357,22 +370,299 @@ export function SalaryTrajectoryChart({
         label={label}
         labels={labels}
         showRecordedPeaks={showRecordedPeaks}
+        visibleChartData={visibleChartData}
       />
-      <Legend
-        hasRealValues={hasRealValues}
-        hidden={hidden}
-        labels={labels}
-        onToggle={toggleSeries}
-      />
-      {hasAssumption && (
-        <p className="flex items-center justify-center gap-2 text-center text-xs text-muted-foreground">
-          <span
-            aria-hidden="true"
-            className="w-7 border-t-2 border-dashed border-muted-foreground"
-          />
-          <span>{assumptionCopy}</span>
-        </p>
+      {showMilestones && visibleMilestones.length > 0 && (
+        <SalaryMilestones
+          dateDomain={dateDomain}
+          milestones={visibleMilestones}
+        />
       )}
+    </div>
+  );
+}
+
+type PositionedMilestone = SalaryTrajectoryMilestone & {
+  lane: number;
+  position: number;
+  timestamp: number;
+};
+
+function SalaryMilestoneMarker({
+  milestone,
+}: Readonly<{ milestone: PositionedMilestone }>) {
+  const dateLabel = formatHistoryDateLabel(milestone.timestamp);
+  return (
+    <div
+      className="absolute bottom-0 -translate-x-1/2"
+      style={{
+        left: `${milestone.position}%`,
+        top: `${milestone.lane * 30}px`,
+      }}
+      role="img"
+      aria-label={`${milestone.employer}, job started ${dateLabel}`}
+      title={`${milestone.employer} · ${dateLabel}`}
+    >
+      <span className="pointer-events-auto flex size-7 items-center justify-center overflow-hidden rounded-full border bg-background shadow-sm">
+        {milestone.logoPath == null ? (
+          <BriefcaseBusinessIcon className="size-3.5 text-muted-foreground" />
+        ) : (
+          <Image
+            src={milestone.logoPath}
+            alt=""
+            width={20}
+            height={20}
+            className="size-5 object-contain"
+          />
+        )}
+      </span>
+      <span className="absolute top-7 bottom-0 left-1/2 border-l border-dashed border-foreground/30" />
+    </div>
+  );
+}
+
+function SalaryMilestones({
+  dateDomain,
+  milestones,
+}: Readonly<{
+  dateDomain: SalaryTrajectoryDateDomain;
+  milestones: readonly SalaryTrajectoryMilestone[];
+}>) {
+  const [start, end] = dateDomain;
+  const duration = Math.max(end - start, 1);
+  const positioned = milestones.map((milestone, index) => {
+    const timestamp = Date.parse(milestone.date);
+    const position = Math.min(
+      100,
+      Math.max(0, ((timestamp - start) / duration) * 100),
+    );
+    const previous = index === 0 ? undefined : milestones[index - 1];
+    const previousPosition =
+      previous == null
+        ? Number.NEGATIVE_INFINITY
+        : ((Date.parse(previous.date) - start) / duration) * 100;
+    return {
+      ...milestone,
+      position,
+      lane: position - previousPosition < 3.5 ? 1 : 0,
+      timestamp,
+    };
+  });
+  return (
+    <div
+      className="pointer-events-none absolute top-1 right-5 left-14"
+      style={{ bottom: 40 }}
+    >
+      {positioned.map((milestone) => (
+        <SalaryMilestoneMarker
+          key={`${milestone.date}:${milestone.employer}`}
+          milestone={milestone}
+        />
+      ))}
+    </div>
+  );
+}
+
+function SalaryDateRangeControl({
+  availableDateDomain,
+  onRangeChange,
+  range,
+}: Readonly<{
+  availableDateDomain: SalaryTrajectoryDateDomain;
+  onRangeChange(range: SalaryTrajectoryDateDomain): void;
+  range: SalaryTrajectoryDateDomain;
+}>) {
+  const startLabel = formatHistoryDateLabel(range[0]);
+  const endLabel = formatHistoryDateLabel(range[1]);
+
+  return (
+    <fieldset
+      aria-label="Salary history date range"
+      className="min-w-0 space-y-2 rounded-lg border bg-muted/25 px-4 py-3"
+    >
+      <div className="flex items-center justify-between gap-4 text-xs font-medium tabular-nums">
+        <time dateTime={new Date(range[0]).toISOString()}>{startLabel}</time>
+        <time dateTime={new Date(range[1]).toISOString()}>{endLabel}</time>
+      </div>
+      <Slider
+        min={availableDateDomain[0]}
+        max={availableDateDomain[1]}
+        minStepsBetweenThumbs={1}
+        step={ONE_DAY_IN_MILLISECONDS}
+        value={[...range]}
+        thumbLabels={["Salary range start", "Salary range end"]}
+        thumbValueTexts={[startLabel, endLabel]}
+        onValueChange={(values) => {
+          const [start, end] = values;
+          if (start == null || end == null) return;
+          onRangeChange([start, end]);
+        }}
+      />
+      <p className="text-center text-xs text-muted-foreground">
+        Drag either handle to choose exact dates. Arrow keys move a focused
+        handle by one day.
+      </p>
+    </fieldset>
+  );
+}
+
+function MilestoneToggle({
+  shown,
+  onToggle,
+}: Readonly<{ shown: boolean; onToggle(): void }>) {
+  return (
+    <button
+      type="button"
+      aria-pressed={shown}
+      className={cn(
+        "flex min-h-11 items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-medium transition-opacity hover:bg-accent",
+        !shown && "opacity-40 line-through",
+      )}
+      onClick={onToggle}
+    >
+      <BriefcaseBusinessIcon className="size-3.5" aria-hidden="true" />
+      Job changes
+    </button>
+  );
+}
+
+function SalaryAssumptionNote({ copy }: Readonly<{ copy: string }>) {
+  return (
+    <p className="flex items-center justify-center gap-2 text-center text-xs text-muted-foreground">
+      <span
+        aria-hidden="true"
+        className="w-7 border-t-2 border-dashed border-muted-foreground"
+      />
+      <span>{copy}</span>
+    </p>
+  );
+}
+
+function SalaryChartControls({
+  assumptionCopy,
+  availableDateDomain,
+  hasAssumption,
+  hasRealValues,
+  hidden,
+  labels,
+  milestoneCount,
+  onRangeChange,
+  onToggleMilestones,
+  onToggleSeries,
+  range,
+  showMilestones,
+  showRangeSlider,
+}: Readonly<{
+  assumptionCopy: string;
+  availableDateDomain?: SalaryTrajectoryDateDomain;
+  hasAssumption: boolean;
+  hasRealValues: boolean;
+  hidden: ReadonlySet<SalarySeries>;
+  labels: Readonly<Record<SalarySeries, string>>;
+  milestoneCount: number;
+  onRangeChange?(range: SalaryTrajectoryDateDomain): void;
+  onToggleMilestones(): void;
+  onToggleSeries(series: SalarySeries): void;
+  range?: SalaryTrajectoryDateDomain;
+  showMilestones: boolean;
+  showRangeSlider: boolean;
+}>) {
+  return (
+    <>
+      {showRangeSlider &&
+        availableDateDomain != null &&
+        range != null &&
+        onRangeChange != null && (
+          <SalaryDateRangeControl
+            availableDateDomain={availableDateDomain}
+            onRangeChange={onRangeChange}
+            range={range}
+          />
+        )}
+      <div className="flex flex-wrap items-center justify-center gap-1.5">
+        <Legend
+          hasRealValues={hasRealValues}
+          hidden={hidden}
+          labels={labels}
+          onToggle={onToggleSeries}
+        />
+        {milestoneCount > 0 && (
+          <MilestoneToggle
+            shown={showMilestones}
+            onToggle={onToggleMilestones}
+          />
+        )}
+      </div>
+      {hasAssumption && <SalaryAssumptionNote copy={assumptionCopy} />}
+    </>
+  );
+}
+
+function useSalaryChartDisplay() {
+  const [hidden, setHidden] = useState<ReadonlySet<SalarySeries>>(new Set());
+  const [showMilestones, setShowMilestones] = useState(true);
+  const toggleSeries = (series: SalarySeries) => {
+    setHidden((current) => {
+      const next = new Set(current);
+      if (next.has(series)) next.delete(series);
+      else next.add(series);
+      return next;
+    });
+  };
+  const toggleMilestones = () => setShowMilestones((current) => !current);
+  return { hidden, showMilestones, toggleMilestones, toggleSeries };
+}
+
+export function SalaryTrajectoryChart({
+  assumptionCopy,
+  availableDateDomain,
+  chartData,
+  dateDomain,
+  label,
+  milestones = [],
+  nominalLabel,
+  onRangeChange,
+  range,
+  realLabel,
+  showRangeSlider = false,
+  showRecordedPeaks = false,
+}: SalaryTrajectoryChartProps) {
+  const display = useSalaryChartDisplay();
+  const hasRealValues = chartData.some(
+    (point) => point.real != null || point.assumedReal != null,
+  );
+  const hasAssumption = chartData.some((point) => point.assumedNominal != null);
+  const labels = { nominal: nominalLabel, real: realLabel };
+
+  return (
+    <>
+      <SalaryChartCanvas
+        chartData={chartData}
+        dateDomain={dateDomain}
+        hasAssumption={hasAssumption}
+        hasRealValues={hasRealValues}
+        hidden={display.hidden}
+        label={label}
+        labels={labels}
+        milestones={milestones}
+        showMilestones={display.showMilestones}
+        showRecordedPeaks={showRecordedPeaks}
+      />
+      <SalaryChartControls
+        assumptionCopy={assumptionCopy}
+        availableDateDomain={availableDateDomain}
+        hasAssumption={hasAssumption}
+        hasRealValues={hasRealValues}
+        hidden={display.hidden}
+        labels={labels}
+        milestoneCount={milestones.length}
+        onRangeChange={onRangeChange}
+        onToggleMilestones={display.toggleMilestones}
+        onToggleSeries={display.toggleSeries}
+        range={range}
+        showMilestones={display.showMilestones}
+        showRangeSlider={showRangeSlider}
+      />
     </>
   );
 }

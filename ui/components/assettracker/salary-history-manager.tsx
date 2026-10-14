@@ -1,6 +1,9 @@
 "use client";
 
+import { Trash2Icon } from "lucide-react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -10,12 +13,109 @@ import {
 } from "@/components/ui/card";
 import {
   annualisedGrossPay,
+  formatAssetTrackerError,
   type PensionContribution,
   type SalaryHistoryRecord,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
 import { SalaryHistoryImportDrawer } from "./salary-history-import-drawer";
 import { SalaryRecordDrawer } from "./salary-record-drawer";
+
+function SalaryDeleteControls({
+  confirming,
+  deleting,
+  onCancel,
+  onConfirm,
+  onStart,
+  record,
+}: Readonly<{
+  confirming: boolean;
+  deleting: boolean;
+  onCancel(): void;
+  onConfirm(): void;
+  onStart(): void;
+  record: SalaryHistoryRecord;
+}>) {
+  return (
+    <>
+      {confirming ? (
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={deleting}
+            onClick={onCancel}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            aria-label={`Confirm deletion of salary record for ${record.employer} from ${record.effectiveStart}`}
+            disabled={deleting}
+            onClick={onConfirm}
+          >
+            Delete
+          </Button>
+        </>
+      ) : (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Delete salary record for ${record.employer} from ${record.effectiveStart}`}
+          onClick={onStart}
+        >
+          <Trash2Icon />
+        </Button>
+      )}
+    </>
+  );
+}
+
+function SalaryRecordActions({
+  record,
+}: Readonly<{ record: SalaryHistoryRecord }>) {
+  const { deleteSalaryRecord } = useAssetTracker();
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function handleDelete() {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      await deleteSalaryRecord({ id: record.id });
+    } catch (error_) {
+      setError(formatAssetTrackerError(error_));
+      setDeleting(false);
+    }
+  }
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-end gap-1">
+        <SalaryRecordDrawer record={record} />
+        <SalaryDeleteControls
+          confirming={confirming}
+          deleting={deleting}
+          onCancel={() => setConfirming(false)}
+          onConfirm={handleDelete}
+          onStart={() => setConfirming(true)}
+          record={record}
+        />
+      </div>
+      {error != null && (
+        <p
+          className="max-w-48 text-right text-xs text-destructive"
+          role="alert"
+        >
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function formatMoney(record: SalaryHistoryRecord, amount: number): string {
   return new Intl.NumberFormat("en-GB", {
@@ -150,7 +250,7 @@ function DesktopSalaryRow({
       </td>
       {allowCorrection && (
         <td className="px-3 py-2 text-right">
-          <SalaryRecordDrawer record={record} />
+          <SalaryRecordActions record={record} />
         </td>
       )}
     </tr>
@@ -179,7 +279,7 @@ function SalaryTable({
                   <p className="font-medium">{record.person}</p>
                   <p className="text-muted-foreground">{record.employer}</p>
                 </div>
-                {allowCorrection && <SalaryRecordDrawer record={record} />}
+                {allowCorrection && <SalaryRecordActions record={record} />}
               </div>
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div>

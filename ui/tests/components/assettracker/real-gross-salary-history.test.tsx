@@ -133,6 +133,23 @@ vi.mock("recharts", () => ({
   YAxis: () => null,
 }));
 
+vi.mock("@/components/ui/slider", () => ({
+  Slider: ({
+    onValueChange,
+    value,
+  }: {
+    onValueChange?: (value: number[]) => void;
+    value: readonly number[];
+  }) => (
+    <button
+      type="button"
+      onClick={() => onValueChange?.([Date.parse("2020-01-15"), value[1] ?? 0])}
+    >
+      Use exact date range
+    </button>
+  ),
+}));
+
 function salaryRecord(
   overrides: Partial<SalaryHistoryRecord> = {},
 ): SalaryHistoryRecord {
@@ -184,6 +201,9 @@ describe("RealGrossSalaryHistory", () => {
     expect(screen.getByLabelText("Salary reference month")).toHaveValue(
       latestCpihRelease.source.coverageThrough,
     );
+    expect(
+      screen.getByRole("group", { name: "Salary history date range" }),
+    ).toBeVisible();
     expect(screen.getByText("£60,000")).toBeVisible();
     expect(
       screen.getAllByText(
@@ -284,6 +304,33 @@ describe("RealGrossSalaryHistory", () => {
       "data-axis-ticks",
       axes[0]?.getAttribute("data-axis-ticks"),
     );
+  });
+
+  it("uses a continuous date range for both salary plots", () => {
+    render(
+      <RealGrossSalaryHistory
+        salaryHistory={[
+          salaryRecord({
+            id: "salary-2015",
+            effectiveStart: "2015-04-01",
+            effectiveEnd: "2024-03-31",
+            grossPay: 30_000,
+          }),
+          salaryRecord({ effectiveEnd: undefined }),
+        ]}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Use exact date range" }),
+    );
+
+    const expectedStart = Date.parse("2020-01-15");
+    for (const axis of screen.getAllByTestId("salary-x-axis")) {
+      expect(JSON.parse(axis.dataset.axisDomain ?? "[]")[0]).toBe(
+        expectedStart,
+      );
+    }
   });
 
   it("interpolates known facts and toggles chart series from the legend", () => {
