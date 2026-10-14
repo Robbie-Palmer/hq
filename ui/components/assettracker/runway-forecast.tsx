@@ -11,6 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { Badge } from "@/components/ui/badge";
 import {
   type ChartConfig,
   ChartContainer,
@@ -217,7 +218,7 @@ function BreakdownRows({
   currency: Currency;
 }>) {
   const amounts = [
-    ["Historical expenditure baseline", breakdown.baselineExpenditure],
+    ["Spending baseline", breakdown.baselineExpenditure],
     ["External income", breakdown.externalIncome],
     ["Account transfers", breakdown.accountTransfers],
     ["Debt payments", breakdown.debtPayments],
@@ -262,7 +263,7 @@ function BaselineCoverageNote({
   return (
     <p className="text-xs text-muted-foreground">
       {formatCurrency(Math.round(amount), currency)} of ordinary recurring
-      outflows is already represented by the historical baseline and is not
+      outflows is already represented by the spending baseline and is not
       counted again.
     </p>
   );
@@ -295,8 +296,18 @@ function MonthlyBreakdown({
 export function RunwayForecast() {
   const { baseCurrency, financialIndependence, futureCashFlows } =
     useAssetTracker();
-  const { runwayForecast, representativeAnnualExpenditure } =
-    financialIndependence;
+  const {
+    essentialOnlyRunwayForecast,
+    representativeAnnualExpenditure,
+    spendingBasis,
+  } = financialIndependence;
+  const [spendingMode, setSpendingMode] = useState<"current" | "essential">(
+    "current",
+  );
+  const runwayForecast =
+    spendingMode === "essential" && essentialOnlyRunwayForecast.length > 0
+      ? essentialOnlyRunwayForecast
+      : financialIndependence.runwayForecast;
   const [horizonYears, setHorizonYears] = useState(5);
   const [selectedDate, setSelectedDate] = useState(
     () =>
@@ -344,9 +355,20 @@ export function RunwayForecast() {
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h3 id="runway-forecast-heading" className="text-sm font-medium">
-            Expected runway over time
-          </h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 id="runway-forecast-heading" className="text-sm font-medium">
+              Expected runway over time
+            </h3>
+            <Badge
+              variant={
+                spendingBasis.kind === "manual" ? "secondary" : "outline"
+              }
+            >
+              {spendingBasis.kind === "manual"
+                ? "Manual spending"
+                : "Reconciled spending"}
+            </Badge>
+          </div>
           <p className="text-xs text-muted-foreground">
             Uses today&apos;s money, expected account returns, active expected
             flows, and{" "}
@@ -357,22 +379,44 @@ export function RunwayForecast() {
             expected dates.
           </p>
         </div>
-        <Select value={String(horizonYears)} onValueChange={handleHorizon}>
-          <SelectTrigger
-            aria-label="Runway forecast horizon"
-            size="sm"
-            className="w-28"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {HORIZON_OPTIONS.map((years) => (
-              <SelectItem key={years} value={String(years)}>
-                {years} {years === 1 ? "year" : "years"}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-wrap gap-2">
+          {essentialOnlyRunwayForecast.length > 0 && (
+            <Select
+              value={spendingMode}
+              onValueChange={(value) =>
+                setSpendingMode(value as "current" | "essential")
+              }
+            >
+              <SelectTrigger
+                aria-label="Runway spending mode"
+                size="sm"
+                className="w-36"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="current">Current spending</SelectItem>
+                <SelectItem value="essential">Essentials only</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+          <Select value={String(horizonYears)} onValueChange={handleHorizon}>
+            <SelectTrigger
+              aria-label="Runway forecast horizon"
+              size="sm"
+              className="w-28"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {HORIZON_OPTIONS.map((years) => (
+                <SelectItem key={years} value={String(years)}>
+                  {years} {years === 1 ? "year" : "years"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {chartData.length > 1 ? (
@@ -529,7 +573,8 @@ export function RunwayForecast() {
         </>
       ) : (
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-          Add reconciled income and balances to forecast runway.
+          Add a spending baseline and current account balances to forecast
+          runway.
         </p>
       )}
 

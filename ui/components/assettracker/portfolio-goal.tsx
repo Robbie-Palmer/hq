@@ -23,6 +23,7 @@ import { IncomeExpenditureChart } from "./income-expenditure-chart";
 import { IncomeHistoryImportDrawer } from "./income-history-import-drawer";
 import { PortfolioFiProjectionChart } from "./portfolio-fi-projection-chart";
 import { RunwayForecast } from "./runway-forecast";
+import { SpendingBaselineManager } from "./spending-baseline-manager";
 
 function signedCurrency(value: number, currency: Currency): string {
   if (value === 0) return formatCurrency(0, currency);
@@ -173,6 +174,7 @@ export function PortfolioGoal({
         {showIncomeTools && <IncomeHistoryImportDrawer />}
       </CardHeader>
       <CardContent className="flex min-w-0 flex-col gap-5 px-4 sm:px-6">
+        <SpendingBaselineManager />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div className="rounded-md border p-3">
             <p className="text-xs text-muted-foreground">

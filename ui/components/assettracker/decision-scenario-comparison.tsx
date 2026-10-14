@@ -312,9 +312,25 @@ export function DecisionScenarioComparison() {
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h3 id="decision-comparison-heading" className="text-sm font-medium">
-            Compare decisions with committed-only plans
-          </h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3
+              id="decision-comparison-heading"
+              className="text-sm font-medium"
+            >
+              Compare decisions with committed-only plans
+            </h3>
+            <Badge
+              variant={
+                model.financialIndependence.spendingBasis.kind === "manual"
+                  ? "secondary"
+                  : "outline"
+              }
+            >
+              {model.financialIndependence.spendingBasis.kind === "manual"
+                ? "Manual spending"
+                : "Reconciled spending"}
+            </Badge>
+          </div>
           <p className="text-xs text-muted-foreground">
             Commitments form the baseline. Selected choices and their
             dependencies are overlays, not affordability scores.

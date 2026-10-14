@@ -31,6 +31,10 @@ import {
   buildRunwayForecast,
   type RunwayForecastPoint,
 } from "./runwayForecast";
+import {
+  activeSpendingBaseline,
+  type SpendingBaseline,
+} from "./spendingBaseline";
 
 const DAYS_PER_YEAR = 365.2425;
 export const FI_PROJECTION_MAX_YEARS = 100;
@@ -64,8 +68,12 @@ export type PortfolioReconciliationPeriod = {
 
 export type PortfolioFinancialIndependence = {
   periods: PortfolioReconciliationPeriod[];
+  /** Spending derived from balance-sheet history, even when a saved baseline is selected. */
+  reconciledAnnualExpenditure: number | null;
+  reconciledAnnualCurrentExpenditure: number | null;
   representativeAnnualExpenditure: number | null;
   representativeAnnualCurrentExpenditure: number | null;
+  spendingBasis: SpendingForecastBasis;
   /** Scheduled mortgage cash needed in the next 12 payments. */
   mortgageCashFlow: MortgageCashFlowSummary | null;
   /** Current household cash requirement while scheduled mortgages remain. */
@@ -85,6 +93,7 @@ export type PortfolioFinancialIndependence = {
   emergencyFundMonths: number | null;
   runway: FinancialRunway;
   runwayForecast: RunwayForecastPoint[];
+  essentialOnlyRunwayForecast: RunwayForecastPoint[];
   target: number | null;
   progress: number | null;
   /** Expected annual portfolio return after inflation, weighted by balance. */
@@ -92,6 +101,26 @@ export type PortfolioFinancialIndependence = {
   projection: PortfolioFiProjectionPoint[];
   projectedFiDate: string | null;
   yearsToFi: number | null;
+};
+
+export type SpendingForecastBasis = {
+  kind: "manual" | "reconciled";
+  baselineId: string | null;
+  version: number | null;
+  effectiveDate: string | null;
+  currency: string;
+  annualEssentialSpending: number | null;
+  annualDiscretionarySpending: number | null;
+  annualDebtCashFlow: number | null;
+  sourceNotes?: string;
+};
+
+type SelectedSpending = {
+  annualExpenditure: number | null;
+  annualCurrentExpenditure: number | null;
+  annualEssentialSpending: number | null;
+  baseline: SpendingBaseline | null;
+  basis: SpendingForecastBasis;
 };
 
 export type FinancialRunwayPool = {
@@ -210,6 +239,130 @@ function mortgageAdjustedExpenditure(
     annualCashFlowWhileMortgage:
       annualExpenditureAfterMortgage + (mortgage?.annualRequiredCashFlow ?? 0),
     annualExpenditureAfterMortgage,
+  };
+}
+
+function selectedMortgageAdjustedExpenditure(
+  spending: SelectedSpending,
+  mortgage: MortgageCashFlowSummary | null,
+): {
+  annualCashFlowWhileMortgage: number | null;
+  annualExpenditureAfterMortgage: number | null;
+} {
+  if (spending.baseline == null) {
+    return mortgageAdjustedExpenditure(spending.annualExpenditure, mortgage);
+  }
+  return {
+    annualCashFlowWhileMortgage: spending.annualCurrentExpenditure,
+    annualExpenditureAfterMortgage:
+      spending.annualExpenditure == null
+        ? null
+        : Math.max(
+            spending.annualExpenditure - (mortgage?.annualEconomicCost ?? 0),
+            0,
+          ),
+  };
+}
+
+function buildEssentialOnlyRunwayForecast(
+  repository: AssetTrackerRepository,
+  spending: SelectedSpending,
+  startDate: string,
+): RunwayForecastPoint[] {
+  if (spending.annualEssentialSpending == null) return [];
+  return buildRunwayForecast({
+    repository,
+    annualExpenditure: spending.annualEssentialSpending,
+    annualCurrentExpenditure:
+      spending.annualEssentialSpending +
+      (spending.basis.annualDebtCashFlow ?? 0),
+    startDate,
+  });
+}
+
+function selectSpending(
+  repository: AssetTrackerRepository,
+  asOfDate: string,
+  reconciledAnnualExpenditure: number | null,
+  reconciledAnnualCurrentExpenditure: number | null,
+): SelectedSpending {
+  const baseline = activeSpendingBaseline(
+    repository.spendingBaselines,
+    asOfDate,
+  );
+  if (baseline == null) {
+    return {
+      annualExpenditure: reconciledAnnualExpenditure,
+      annualCurrentExpenditure: reconciledAnnualCurrentExpenditure,
+      annualEssentialSpending: null,
+      baseline: null,
+      basis: {
+        kind: "reconciled",
+        baselineId: null,
+        version: null,
+        effectiveDate: null,
+        currency: repository.settings.baseCurrency,
+        annualEssentialSpending: null,
+        annualDiscretionarySpending: reconciledAnnualExpenditure,
+        annualDebtCashFlow:
+          reconciledAnnualExpenditure == null ||
+          reconciledAnnualCurrentExpenditure == null
+            ? null
+            : Math.max(
+                reconciledAnnualCurrentExpenditure -
+                  reconciledAnnualExpenditure,
+                0,
+              ),
+      },
+    };
+  }
+  const converted = [
+    baseline.annualEssentialSpending,
+    baseline.annualDiscretionarySpending,
+    baseline.annualDebtCashFlow,
+  ].map((amount) =>
+    convertMoneyAtDate(
+      repository,
+      { amount, currency: baseline.currency },
+      asOfDate,
+    ),
+  );
+  const [essential, discretionary, debt] = converted;
+  if (essential == null || discretionary == null || debt == null) {
+    return {
+      annualExpenditure: null,
+      annualCurrentExpenditure: null,
+      annualEssentialSpending: null,
+      baseline,
+      basis: {
+        kind: baseline.source.kind,
+        baselineId: baseline.id,
+        version: baseline.version,
+        effectiveDate: baseline.effectiveDate,
+        currency: repository.settings.baseCurrency,
+        annualEssentialSpending: null,
+        annualDiscretionarySpending: null,
+        annualDebtCashFlow: null,
+        sourceNotes: baseline.sourceNotes,
+      },
+    };
+  }
+  return {
+    annualExpenditure: essential + discretionary,
+    annualCurrentExpenditure: essential + discretionary + debt,
+    annualEssentialSpending: essential,
+    baseline,
+    basis: {
+      kind: baseline.source.kind,
+      baselineId: baseline.id,
+      version: baseline.version,
+      effectiveDate: baseline.effectiveDate,
+      currency: repository.settings.baseCurrency,
+      annualEssentialSpending: essential,
+      annualDiscretionarySpending: discretionary,
+      annualDebtCashFlow: debt,
+      sourceNotes: baseline.sourceNotes,
+    },
   };
 }
 
@@ -583,12 +736,19 @@ export function getPortfolioFinancialIndependence(
   asOfDate: string,
 ): PortfolioFinancialIndependence {
   const periods = reconcilePortfolio(repository);
-  const annualExpenditure = representativeAnnualExpenditure(periods);
-  const annualCurrentExpenditure =
+  const reconciledAnnualExpenditure = representativeAnnualExpenditure(periods);
+  const reconciledAnnualCurrentExpenditure =
     representativeAnnualCurrentExpenditure(periods);
+  const selectedSpending = selectSpending(
+    repository,
+    asOfDate,
+    reconciledAnnualExpenditure,
+    reconciledAnnualCurrentExpenditure,
+  );
+  const { annualExpenditure, annualCurrentExpenditure } = selectedSpending;
   const mortgageCashFlow = portfolioMortgageCashFlow(repository, asOfDate);
   const { annualCashFlowWhileMortgage, annualExpenditureAfterMortgage } =
-    mortgageAdjustedExpenditure(annualExpenditure, mortgageCashFlow);
+    selectedMortgageAdjustedExpenditure(selectedSpending, mortgageCashFlow);
   const historicalAnnualSavings = representativeAnnualSavings(periods);
   const totalIncome = periods.reduce((sum, period) => sum + period.income, 0);
   const totalSavings = periods.reduce(
@@ -687,8 +847,11 @@ export function getPortfolioFinancialIndependence(
       : { projection: [], projectedFiDate: null, yearsToFi: null };
   return {
     periods,
+    reconciledAnnualExpenditure,
+    reconciledAnnualCurrentExpenditure,
     representativeAnnualExpenditure: annualExpenditure,
     representativeAnnualCurrentExpenditure: annualCurrentExpenditure,
+    spendingBasis: selectedSpending.basis,
     mortgageCashFlow,
     annualCashFlowWhileMortgage,
     annualExpenditureAfterMortgage,
@@ -715,6 +878,11 @@ export function getPortfolioFinancialIndependence(
       annualCurrentExpenditure,
       startDate,
     }),
+    essentialOnlyRunwayForecast: buildEssentialOnlyRunwayForecast(
+      repository,
+      selectedSpending,
+      startDate,
+    ),
     target,
     progress:
       target == null || target <= 0 || !valuationAvailable

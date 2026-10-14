@@ -8,6 +8,7 @@ import {
   type FutureCashFlow,
   futureCashFlowStageAccountId,
 } from "./futureCashFlow";
+import type { SpendingBaseline } from "./spendingBaseline";
 
 export const DEFAULT_HOUSEHOLD_MEMBER_ID = "primary";
 
@@ -469,6 +470,9 @@ export function validateHouseholdOwnership(data: AssetTrackerData): void {
   )) {
     assertOwnershipMembers(data.household, assumption.ownership);
   }
+  for (const baseline of data.spendingBaselines ?? []) {
+    assertOwnershipMembers(data.household, baseline.ownership);
+  }
 }
 
 function scale(value: number, share: number): number {
@@ -699,6 +703,27 @@ export function scopeAssetTrackerData(
       }),
     }),
   );
+  const spendingBaselines = (data.spendingBaselines ?? []).flatMap(
+    (baseline): SpendingBaseline[] => {
+      const fraction = share(baseline.ownership);
+      if (fraction <= 0) return [];
+      return [
+        {
+          ...baseline,
+          annualEssentialSpending: scale(
+            baseline.annualEssentialSpending,
+            fraction,
+          ),
+          annualDiscretionarySpending: scale(
+            baseline.annualDiscretionarySpending,
+            fraction,
+          ),
+          annualDebtCashFlow: scale(baseline.annualDebtCashFlow, fraction),
+          ownership: personalOwnership(scope.memberId),
+        },
+      ];
+    },
+  );
   const emergencyFundPlans = (data.emergencyFundPlans ?? []).map((plan) => ({
     ...plan,
     accountPolicies: plan.accountPolicies.filter(({ accountId }) =>
@@ -763,6 +788,7 @@ export function scopeAssetTrackerData(
     plannedExpenditures,
     futureCashFlows,
     forecastAssumptionSets,
+    spendingBaselines,
     emergencyFundPlans,
     mortgageScenarios,
     decisionRecords,

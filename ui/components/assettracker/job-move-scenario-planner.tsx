@@ -977,16 +977,27 @@ function ComparisonDetails({
 function ComparisonHeader({
   horizonYears,
   setHorizonYears,
+  spendingLabel,
   transitionDate,
 }: Readonly<{
   horizonYears: number;
   setHorizonYears(value: number): void;
+  spendingLabel: string;
   transitionDate: string;
 }>) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h4 className="text-sm font-medium">Baseline comparison</h4>
+        <div className="flex flex-wrap items-center gap-2">
+          <h4 className="text-sm font-medium">Baseline comparison</h4>
+          <Badge
+            variant={
+              spendingLabel.startsWith("Manual") ? "secondary" : "outline"
+            }
+          >
+            {spendingLabel}
+          </Badge>
+        </div>
         <p className="text-xs text-muted-foreground">
           The selected horizon starts when current income stops on{" "}
           {format(parseISO(transitionDate), "d MMM yyyy")}. Both paths use the
@@ -1253,6 +1264,13 @@ function Comparison({ scenario }: Readonly<{ scenario: JobMoveScenario }>) {
       <ComparisonHeader
         horizonYears={horizonYears}
         setHorizonYears={model.setHorizonYears}
+        spendingLabel={
+          scenario.annualSpendingOverride != null
+            ? "Overridden spending"
+            : tracker.financialIndependence?.spendingBasis.kind === "manual"
+              ? "Manual spending"
+              : "Reconciled spending"
+        }
         transitionDate={primaryDate}
       />
       {scenario.employmentStatus === "unemployed" && (
