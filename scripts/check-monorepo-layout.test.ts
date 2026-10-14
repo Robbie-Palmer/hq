@@ -2,6 +2,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   loadLayoutContract,
+  parseLayoutContract,
   validateLayoutContract,
   validateRepositoryLayout,
 } from "./check-monorepo-layout.js";
@@ -24,6 +25,27 @@ describe("monorepo layout contract", () => {
     expect(validateLayoutContract(contract)).toContain(
       "Shared manifest edits must remain limited to project registrations, mise config roots, pnpm packages, and platform catalog records",
     );
+  });
+
+  it("rejects duplicate shared-manifest paths", async () => {
+    const contract = structuredClone(await loadLayoutContract(repositoryRoot));
+    contract.shared_manifests.unshift({
+      path: ".mise.toml",
+      allowed_edits: ["tasks"],
+    });
+
+    expect(validateLayoutContract(contract)).toContain(
+      "Shared manifest edits must remain limited to project registrations, mise config roots, pnpm packages, and platform catalog records",
+    );
+  });
+
+  it("reports malformed contract fields before validation", () => {
+    expect(() =>
+      parseLayoutContract({
+        schema_version: 1,
+        projects: [{ id: "broken", kind: "service" }],
+      }),
+    ).toThrow(/projects\.0\.catalog_record/);
   });
 
   it("rejects duplicate component kinds", async () => {
