@@ -1690,6 +1690,102 @@ describe("future cash-flow planning", () => {
       }).futureCashFlows[0],
     ).toMatchObject({ status: "cancelled" });
   });
+
+  it("reconciles staged receipts and returned cash without double counting", () => {
+    const added = applyAddCommitment(
+      baseData(),
+      {
+        name: "Settlement proceeds",
+        labels: ["redundancy"],
+        currency: "GBP",
+        stages: [
+          {
+            name: "Tax-free portion",
+            direction: "receipt",
+            toAccountId: "savings",
+            dueDate: "2099-03-01",
+            amount: 10_000,
+            amountBreakdown: {
+              grossAmount: 12_500,
+              taxAmount: 2_000,
+              feeAmount: 250,
+              deductions: [{ label: "Benefits adjustment", amount: 250 }],
+              netAmount: 10_000,
+              sourceNotes: "Employer estimate",
+              calculationLineage: ["settlement-v1", "tax-rules-2099"],
+            },
+          },
+          {
+            name: "Notice pay",
+            direction: "receipt",
+            toAccountId: "savings",
+            dueDate: "2099-04-01",
+            amount: 5_000,
+          },
+        ],
+      },
+      TEST_AS_OF_DATE,
+    );
+    const received = applyRecordActualCashFlow(
+      added,
+      {
+        futureCashFlowId: "settlement-proceeds",
+        stageId: "receipt-1",
+        date: TEST_AS_OF_DATE,
+        amount: 4_000,
+        direction: "receipt",
+      },
+      TEST_AS_OF_DATE,
+    );
+    const returned = applyRecordActualCashFlow(
+      received,
+      {
+        futureCashFlowId: "settlement-proceeds",
+        stageId: "receipt-1",
+        date: TEST_AS_OF_DATE,
+        amount: 500,
+        direction: "return",
+      },
+      TEST_AS_OF_DATE,
+    );
+
+    expect(futureCashFlowForecastItems(returned.futureCashFlows)).toEqual([
+      expect.objectContaining({
+        stageId: "receipt-1",
+        direction: "receipt",
+        toAccountId: "savings",
+        amount: 6_500,
+      }),
+      expect.objectContaining({
+        stageId: "receipt-2",
+        direction: "receipt",
+        amount: 5_000,
+      }),
+    ]);
+    expect(returned.futureCashFlows[0]?.stages[0]).toMatchObject({
+      amountBreakdown: {
+        grossAmount: 12_500,
+        taxAmount: 2_000,
+        feeAmount: 250,
+        netAmount: 10_000,
+        sourceNotes: "Employer estimate",
+        calculationLineage: ["settlement-v1", "tax-rules-2099"],
+      },
+    });
+    expect(() =>
+      applyRecordActualCashFlow(
+        returned,
+        {
+          futureCashFlowId: "settlement-proceeds",
+          stageId: "receipt-1",
+          date: TEST_AS_OF_DATE,
+          amount: 3_501,
+          direction: "return",
+        },
+        TEST_AS_OF_DATE,
+      ),
+    ).toThrow(/return cannot exceed/);
+  });
 });
 
 describe("forecast assumption sets", () => {

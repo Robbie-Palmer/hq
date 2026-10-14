@@ -240,6 +240,87 @@ describe("browser household ownership", () => {
     ).toEqual(shared);
   });
 
+  it("uses a receipt destination for ownership and scales its cash breakdown", () => {
+    const migrated = AssetTrackerDataSchema.parse(oldSinglePersonData());
+    const household = {
+      members: [
+        { id: "primary", displayName: "Alex" },
+        { id: "sam", displayName: "Sam" },
+      ],
+      activeScope: { kind: "member" as const, memberId: "sam" },
+    };
+    const shared = equalSharedOwnership(household.members);
+    const data = AssetTrackerDataSchema.parse({
+      ...migrated,
+      household,
+      futureCashFlows: [
+        {
+          id: "redundancy-payment",
+          name: "Redundancy payment",
+          kind: "commitment",
+          currency: "GBP",
+          stages: [
+            {
+              id: "receipt-1",
+              direction: "receipt",
+              toAccountId: "cash",
+              dueDate: "2025-12-01",
+              amount: 1_000,
+              amountBreakdown: {
+                grossAmount: 1_300,
+                taxAmount: 200,
+                feeAmount: 50,
+                deductions: [{ label: "Other", amount: 50 }],
+                netAmount: 1_000,
+                sourceNotes: "Employer estimate",
+                calculationLineage: ["estimate-v1"],
+              },
+              actuals: [
+                {
+                  id: "receipt-actual",
+                  date: "2025-11-30",
+                  amount: 200,
+                  direction: "receipt",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      ownership: {
+        ...migrated.ownership,
+        accounts: { cash: shared },
+        futureCashFlows: { "redundancy-payment": shared },
+      },
+    });
+
+    const scoped = scopeAssetTrackerData(data);
+    const receipt = scoped.futureCashFlows[0]?.stages[0];
+    expect(receipt).toMatchObject({
+      direction: "receipt",
+      toAccountId: "cash",
+      amount: 500,
+      amountBreakdown: {
+        grossAmount: 650,
+        taxAmount: 100,
+        feeAmount: 25,
+        deductions: [{ label: "Other", amount: 25 }],
+        netAmount: 500,
+        sourceNotes: "Employer estimate",
+        calculationLineage: ["estimate-v1"],
+      },
+      actuals: [{ amount: 100, direction: "receipt" }],
+    });
+
+    const reassigned = applySetAccountOwnership(data, {
+      accountId: "cash",
+      ownership: personalOwnership("sam"),
+    });
+    expect(reassigned.ownership.futureCashFlows["redundancy-payment"]).toEqual(
+      personalOwnership("sam"),
+    );
+  });
+
   it("removes scoped references to accounts and future cash flows that were dropped", () => {
     const migrated = AssetTrackerDataSchema.parse(oldSinglePersonData());
     const data = AssetTrackerDataSchema.parse({

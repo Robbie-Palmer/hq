@@ -15,7 +15,9 @@ import type { EmergencyFundPlan } from "./emergencyFund";
 import type { ForecastAssumptionSet } from "./forecastAssumption";
 import {
   type FutureCashFlow,
+  forecastCashFlowAccountId,
   futureCashFlowForecastItems,
+  futureCashFlowStageAccountId,
   type PlanningCase,
 } from "./futureCashFlow";
 import { validateHouseholdOwnership } from "./household";
@@ -330,14 +332,15 @@ function validateFutureCashFlowStages(
   const stageIds = new Set<string>();
   const actualIds = new Set<string>();
   for (const stage of record.stages) {
+    const accountId = futureCashFlowStageAccountId(stage);
     assertKnownAccount(
       accounts,
-      stage.fromAccountId,
+      accountId,
       `Future cash flow "${record.name}"`,
     );
-    if (accounts.get(stage.fromAccountId)?.currency !== record.currency) {
+    if (accounts.get(accountId)?.currency !== record.currency) {
       throw new AssetTrackerDataError(
-        `Future cash flow "${record.name}" must use the currency of account "${stage.fromAccountId}"`,
+        `Future cash flow "${record.name}" must use the currency of account "${accountId}"`,
       );
     }
     if (stageIds.has(stage.id)) {
@@ -417,15 +420,16 @@ function validateForecastAccounts(
   accounts: ReadonlyMap<AccountId, Account>,
 ): void {
   for (const forecast of futureCashFlowForecastItems(records)) {
-    const source = accounts.get(forecast.fromAccountId);
+    const accountId = forecastCashFlowAccountId(forecast);
+    const account = accounts.get(accountId);
     if (
-      source != null &&
-      (source.closedAt != null ||
-        isLiability(source.assetType) ||
-        accountLiquidity(source) === "illiquid")
+      account != null &&
+      (account.closedAt != null ||
+        isLiability(account.assetType) ||
+        accountLiquidity(account) === "illiquid")
     ) {
       throw new AssetTrackerDataError(
-        `Future cash flow "${forecast.name}" references ineligible account "${forecast.fromAccountId}"`,
+        `Future cash flow "${forecast.name}" references ineligible account "${accountId}"`,
       );
     }
   }

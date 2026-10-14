@@ -97,6 +97,7 @@ describe("ItemisedScenarioPlanner", () => {
             {
               id: "cash-flow-1",
               name: "Venue",
+              direction: "payment",
               fromAccountId: "current",
               expectedDate: "2027-10-08",
               minimumAmount: 10_000,
@@ -150,6 +151,7 @@ describe("ItemisedScenarioPlanner", () => {
             {
               id: "deposit",
               name: "Venue deposit",
+              direction: "payment",
               fromAccountId: "current",
               expectedDate: "2027-10-08",
               minimumAmount: 2_000,
@@ -195,6 +197,7 @@ describe("ItemisedScenarioPlanner", () => {
         {
           id: "venue",
           name: "Venue",
+          direction: "payment" as const,
           fromAccountId: "current",
           expectedDate: "2027-10-08",
           minimumAmount: 2_000,
@@ -262,6 +265,7 @@ describe("ItemisedScenarioPlanner", () => {
             {
               id: "venue",
               name: "Venue",
+              direction: "payment",
               fromAccountId: "current",
               expectedDate: "2027-10-08",
               minimumAmount: 2_000,

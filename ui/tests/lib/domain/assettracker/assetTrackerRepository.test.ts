@@ -98,6 +98,7 @@ describe("buildRepository", () => {
         stages: [
           {
             id: "payment-1",
+            direction: "payment",
             fromAccountId: "savings-1",
             dueDate: "2099-01-01",
             amount: 1_000,
