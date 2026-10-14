@@ -301,6 +301,31 @@ function DecisionSelection({
   );
 }
 
+function DecisionComparisonHeader({
+  model,
+}: Readonly<{ model: ReturnType<typeof useDecisionComparisonModel> }>) {
+  const manual = model.financialIndependence.spendingBasis.kind === "manual";
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 id="decision-comparison-heading" className="text-sm font-medium">
+            Compare decisions with committed-only plans
+          </h3>
+          <Badge variant={manual ? "secondary" : "outline"}>
+            {manual ? "Manual spending" : "Reconciled spending"}
+          </Badge>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Commitments form the baseline. Selected choices and their dependencies
+          are overlays, not affordability scores.
+        </p>
+      </div>
+      <ComparisonControls {...model} />
+    </div>
+  );
+}
+
 export function DecisionScenarioComparison() {
   const model = useDecisionComparisonModel();
   if (model.decisions.length === 0) return null;
@@ -310,34 +335,7 @@ export function DecisionScenarioComparison() {
       aria-labelledby="decision-comparison-heading"
       id="scenario-comparison"
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h3
-              id="decision-comparison-heading"
-              className="text-sm font-medium"
-            >
-              Compare decisions with committed-only plans
-            </h3>
-            <Badge
-              variant={
-                model.financialIndependence.spendingBasis.kind === "manual"
-                  ? "secondary"
-                  : "outline"
-              }
-            >
-              {model.financialIndependence.spendingBasis.kind === "manual"
-                ? "Manual spending"
-                : "Reconciled spending"}
-            </Badge>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Commitments form the baseline. Selected choices and their
-            dependencies are overlays, not affordability scores.
-          </p>
-        </div>
-        <ComparisonControls {...model} />
-      </div>
+      <DecisionComparisonHeader model={model} />
       <DecisionSelection model={model} />
       {model.comparesAlternatives && (
         <p className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">

@@ -1242,8 +1242,20 @@ function useComparisonModel(scenario: JobMoveScenario) {
     setAlternativeDate,
     setHorizonYears,
     setPrimaryDate,
+    spendingLabel: comparisonSpendingLabel(
+      scenario,
+      tracker.financialIndependence?.spendingBasis.kind,
+    ),
     tracker,
   };
+}
+
+function comparisonSpendingLabel(
+  scenario: JobMoveScenario,
+  spendingKind: "manual" | "reconciled" | undefined,
+): string {
+  if (scenario.annualSpendingOverride != null) return "Overridden spending";
+  return spendingKind === "manual" ? "Manual spending" : "Reconciled spending";
 }
 
 function Comparison({ scenario }: Readonly<{ scenario: JobMoveScenario }>) {
@@ -1264,13 +1276,7 @@ function Comparison({ scenario }: Readonly<{ scenario: JobMoveScenario }>) {
       <ComparisonHeader
         horizonYears={horizonYears}
         setHorizonYears={model.setHorizonYears}
-        spendingLabel={
-          scenario.annualSpendingOverride != null
-            ? "Overridden spending"
-            : tracker.financialIndependence?.spendingBasis.kind === "manual"
-              ? "Manual spending"
-              : "Reconciled spending"
-        }
+        spendingLabel={model.spendingLabel}
         transitionDate={primaryDate}
       />
       {scenario.employmentStatus === "unemployed" && (
