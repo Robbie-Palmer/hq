@@ -34,15 +34,60 @@ The consequences of failure are severe: a wasted biopsy often means the patient 
 
 * **Deep Pathological Ontology**: Developed a comprehensive tissue ontology beyond just "tumor vs. normal," training an ensemble of models to distinguish nuances like immune infiltration, necrosis, and lymph nodes.
 * **Robust Artifact Handling**: Engineered the system to handle common real-world noise, such as pen marks, stickers, and tissue artifacts (folds, freezing damage) which confuse standard models.
-* **Hardware Readiness**: Designed the path generation system to translate model inference into physical cutting coordinates, preparing for future integration with dissection hardware (e.g. Roche).
+* **Hardware Readiness**: Built the path generation system to translate selected tissue regions into physical cutting coordinates, preparing for future integration with dissection hardware (e.g. Roche).
 * **Constraint Optimization**: The AI didn't just segment regions; it solved an optimization problem to find regions that met multiple competing constraints:
   * **Machine Precision**: Respecting the minimum physical resolution the standard hardware could cut.
   * **Tissue Quantity**: Ensuring the total area extracted met the minimum mass required for the assay.
   * **Tumor Purity**: guaranteeing a minimum percentage of tumor cells within the extracted region.
   * **Contamination Avoidance**: strictly avoiding necrosis (which degrades DNA quality) and non-tumor structures like lymph nodes.
 
+# How it works
+
+The software selects tissue for genetic analysis from a digitised pathology slide and generates cutting
+coordinates for a dissection device. Models output cell coordinates, cell classifications, and segmentation
+masks. Downstream code turns those outputs into polygons, selects regions that meet the assay's requirements
+and the cutting machine's physical limits, and generates cutting paths.
+
+<Mermaid
+  chart={`flowchart TB
+Slide["H&E whole-slide image<br/>External laboratory input"]
+Rules["Tissue and machine constraints<br/>Cutting resolution, minimum area,<br/>tumor purity, excluded tissue"]
+
+subgraph software["Sonrai Analytics software"]
+Models["Tissue models and artifact handling"]
+Polygons["Polygon generation"]
+Regions["Region optimisation"]
+Paths["Path and cutting-coordinate generation"]
+Models -->|"Cell coordinates, classifications,<br/>and segmentation masks"| Polygons
+Polygons -->|"Tissue polygons"| Regions
+Regions -->|"Selected tissue regions"| Paths
+end
+
+subgraph hardware["External hardware boundary, integration planned"]
+Cutter["Dissection hardware"]
+end
+
+Slide -->|"Slide image"| Models
+Rules -->|"Selection constraints"| Regions
+Rules -->|"Minimum cutting resolution"| Paths
+Paths -.->|"Cutting coordinates"| Cutter
+`}
+/>
+
+1. A laboratory supplies a whole-slide image of tissue stained with hematoxylin and eosin, or H&E. The tissue
+   models distinguish tumor, immune infiltration, necrosis, and lymph nodes. They output cell coordinates,
+   classifications, and segmentation masks. Artifact handling accounts for pen marks, stickers, folds, and
+   freezing damage.
+2. Downstream code creates polygons from the model outputs. Region optimisation selects polygons with enough tissue
+   and a sufficient proportion of tumor cells, excludes necrosis and lymph nodes, and respects the hardware's
+   minimum cutting resolution.
+3. Selected regions feed path generation, which translates their boundaries into physical cutting
+   coordinates subject to the machine's resolution.
+4. The software delivered cutting coordinates. The dashed arrow shows the planned handoff to external
+   dissection hardware for physical tissue extraction, followed by genetic testing in the laboratory.
+
 # Impact
 
 * **Foundation for Future AI**: Established a library of composable deep learning models for H\&E WSI analysis, along with a robust data annotation platform and MLOps workflows that generalized to future projects.
 * **Strategic Partnership**: The success of this work solidified a continued **\~£1M partnership** between Sonrai Analytics, Roche, and Queen's University Belfast.
-* **Proof of Control**: Demonstrated that AI could move beyond digital diagnostics into controlling physical laboratory workflows, closing the loop between digital pathology and precision medicine.
+* **Hardware preparation**: Generated cutting coordinates from selected tissue regions for future dissection hardware integration.
