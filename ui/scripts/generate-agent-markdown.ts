@@ -326,6 +326,9 @@ function buildProjectPage(
 type PlatformPrerequisite = NonNullable<
   ProjectWithADRs["platformManifest"]
 >["policies"][number]["prerequisites"][number];
+type CatalogRelation = NonNullable<
+  ProjectWithADRs["platformManifest"]
+>["catalog"]["records"][number]["relations"][number];
 
 function platformPrerequisiteLabel(
   prerequisite: PlatformPrerequisite,
@@ -335,6 +338,14 @@ function platformPrerequisiteLabel(
     return `${prerequisite.slot} = ${prerequisite.technology}`;
   }
   return prerequisite.slot;
+}
+
+function inlineCode(value: string): string {
+  return `\`${value}\``;
+}
+
+function catalogRelationLabel(relation: CatalogRelation): string {
+  return `${relation.type} ${inlineCode(relation.target)}`;
 }
 
 function buildPlatformManifestSection(project: ProjectWithADRs): string[] {
@@ -352,12 +363,16 @@ function buildPlatformManifestSection(project: ProjectWithADRs): string[] {
       `- Kind: ${record.kind}`,
       ...(record.project ? [`- Project: \`${record.project}\``] : []),
       ...(record.sourcePaths.length > 0
-        ? [`- Source paths: ${record.sourcePaths.map((path) => `\`${path}\``).join(", ")}`]
+        ? [
+            `- Source paths: ${record.sourcePaths
+              .map(inlineCode)
+              .join(", ")}`,
+          ]
         : []),
       ...(record.relations.length > 0
         ? [
             `- Relations: ${record.relations
-              .map((relation) => `${relation.type} \`${relation.target}\``)
+              .map(catalogRelationLabel)
               .join(", ")}`,
           ]
         : []),

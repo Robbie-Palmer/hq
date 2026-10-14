@@ -57,7 +57,7 @@ export const CatalogRelationSchema = z.object({
 const PackageUrlSchema = z
   .string()
   .regex(
-    /^pkg:[a-z][a-z0-9.+-]*\/[A-Za-z0-9._~%+-]+(?:\/[A-Za-z0-9._~%+-]+)*@[A-Za-z0-9._~%:+-]+(?:\?[A-Za-z0-9._~%=&+-]+)?(?:#[A-Za-z0-9._~%/+.-]+)?$/,
+    /^pkg:[a-z][a-z0-9.+-]*\/[A-Za-z0-9._~%+-]+(?:\/[A-Za-z0-9._~%+-]+)*@[A-Za-z0-9._~%:+-]+(?:\?[A-Za-z0-9._~%=&+-]+)?(?:#[A-Za-z0-9._~%/+-]+)?$/,
     "Expected a canonical, versioned Package URL",
   )
   .refine(
@@ -129,9 +129,7 @@ const CatalogRecordFieldsSchema = z.object({
         .string()
         .min(1)
         .refine(
-          (value) =>
-            !value.startsWith("/") &&
-            !value.split("/").some((segment) => segment === ".."),
+          (value) => !value.startsWith("/") && !value.split("/").includes(".."),
           "Source paths must be repository-relative and cannot traverse parents",
         ),
     )

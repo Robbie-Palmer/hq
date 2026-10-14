@@ -149,7 +149,7 @@ function platformRecords(repository: DomainRepository): CatalogViewRecord[] {
 
   for (const [projectSlug, uses] of repository.platform.projectLayerUses) {
     for (const use of uses) {
-      const adoptedKey = use.adopted.replaceAll(/[^0-9]/g, "");
+      const adoptedKey = use.adopted.replaceAll(/\D/g, "");
       const decisionRefs = use.decision ? [use.decision] : [];
       records.push(
         derivedRecord({
@@ -254,8 +254,8 @@ export function buildCatalogDocument(
     const record = evidenceRecord(repository, adrRef);
     if (record) records.push(record);
   }
-  records.push(...platformRecords(repository));
   records.push(
+    ...platformRecords(repository),
     ...manifest.catalog.records.map(
       (record): CatalogViewRecord => ({
         ...record,
