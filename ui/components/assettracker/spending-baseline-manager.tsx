@@ -193,8 +193,8 @@ function useSpendingBaselineModel() {
         source: { kind: "manual" },
         sourceNotes: sourceNotes.trim() || undefined,
       });
-    } catch (caught) {
-      setError(formatAssetTrackerError(caught));
+    } catch (error_) {
+      setError(formatAssetTrackerError(error_));
     } finally {
       setSaving(false);
     }
@@ -230,8 +230,8 @@ function useSpendingBaselineModel() {
         },
         sourceNotes: "Median of the latest usable balance-sheet periods",
       });
-    } catch (caught) {
-      setError(formatAssetTrackerError(caught));
+    } catch (error_) {
+      setError(formatAssetTrackerError(error_));
     } finally {
       setSaving(false);
     }
