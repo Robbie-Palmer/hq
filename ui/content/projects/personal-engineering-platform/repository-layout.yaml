@@ -1,0 +1,75 @@
+schema_version: 1
+
+project_kinds:
+  - id: "application"
+    description: "A user-facing product with one or more deployable components."
+    task_profile: "standard"
+  - id: "service"
+    description: "An independently operated API, worker, or automation service."
+    task_profile: "standard"
+  - id: "library"
+    description: "Reusable code distributed through a language workspace or package registry."
+    task_profile: "standard"
+  - id: "data-pipeline"
+    description: "A reproducible ingestion, training, evaluation, or artifact-production workflow."
+    task_profile: "standard"
+  - id: "embedded-system"
+    description: "Portable C++ logic plus host, simulator, browser, or firmware adapters."
+    task_profile: "standard"
+  - id: "infrastructure"
+    description: "Provisioning code with an explicit state and operational owner."
+    task_profile: "standard"
+  - id: "operations"
+    description: "Homelab hosts, cluster workloads, backups, and operator tooling."
+    task_profile: "standard"
+
+component_kinds:
+  - id: "ui"
+    directory: "ui"
+  - id: "worker"
+    directory: "workers/{component}"
+  - id: "typescript-package"
+    directory: "packages/{component}"
+  - id: "python-pipeline"
+    directory: "ml-pipelines/{component}"
+  - id: "cpp-project"
+    directory: "cpp/{component}"
+  - id: "terraform-root"
+    directory: "infra/{component}"
+  - id: "kubernetes-component"
+    directory: "homelab/k3s/components/{component}"
+  - id: "homelab-system"
+    directory: "homelab"
+
+task_contract:
+  id: "standard"
+  required:
+    - "install"
+    - "format"
+    - "lint"
+    - "typecheck-or-compile"
+    - "test"
+    - "build"
+    - "clean"
+
+knowledge_graph:
+  project_index: "ui/content/projects/{project}/index.mdx"
+  architecture_decisions: "ui/content/projects/{project}/adrs/{sequence}-{slug}.mdx"
+  product_decisions: "ui/content/projects/{project}/pdrs/{sequence}-{slug}.mdx"
+
+shared_manifests:
+  - path: ".mise.toml"
+    allowed_edits: ["monorepo.config_roots"]
+  - path: "pnpm-workspace.yaml"
+    allowed_edits: ["packages"]
+  - path: "ui/content/projects/personal-engineering-platform/platform.yaml"
+    allowed_edits: ["catalog.records"]
+
+workspace_policy:
+  node_workspace: "pnpm-workspace.yaml"
+  node_lockfile: "pnpm-lock.yaml"
+  standalone_node_roots: ["homelab/images/t3-code"]
+  approved_npm_lockfiles:
+    - "homelab/images/t3-code/package-lock.json"
+    - "packages/agent-auth-mcp/package-lock.json"
+  local_mise_roots: ["homelab/images/t3-code"]

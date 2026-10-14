@@ -1,0 +1,179 @@
+---
+title: "ADR 032: Monorepo project and package layout"
+date: "2026-10-14"
+status: "Accepted"
+---
+
+## Context
+
+[ADR 028](/projects/personal-engineering-platform/adrs/028-copier-monorepo-scaffolding)
+selects Copier for project creation and updates. [ADR 030](/projects/personal-engineering-platform/adrs/030-repository-owned-component-identities)
+gives logical projects and components stable identities that do not depend on
+their paths. The generator still needs a bounded repository contract. Without
+one, a template cannot tell where code belongs, which manifest it may edit, or
+which checks a generated component must expose.
+
+This repository has TypeScript applications and packages, Cloudflare Workers,
+Python pipelines, a C++ system, Terraform state roots, Kubernetes manifests,
+and homelab operations. One logical project can combine those forms. A
+directory-per-product layout would either split a language workspace or copy
+tooling into product trees.
+
+## Decision
+
+Keep technology-owned top-level directories and identify products independently
+of paths. The versioned contract in
+`ui/content/projects/personal-engineering-platform/repository-layout.yaml`
+defines the approved project kinds, component path templates, task vocabulary,
+knowledge-graph locations, workspace rules, and shared manifests.
+
+### Identity, names, and ownership
+
+A logical project chooses one primary kind: `application`, `service`,
+`library`, `data-pipeline`, `embedded-system`, `infrastructure`, or
+`operations`. The kind describes its main outcome. It does not restrict the
+component technologies it may use.
+
+Project IDs remain `project:<project>`. Components use
+`component:<project>/<component>` even when their source lives in separate
+directories. Project and component names are lowercase ASCII slugs with words
+separated by hyphens. Moving source does not change an ID. A rename needs the
+catalog alias defined by ADR 030.
+
+Every component has one owning project. Shared code also has one owner and an
+explicitly reusable interface. Two products do not co-own a directory. The
+owner maintains its code, tests, generated output, tasks, decisions, and
+migrations. A platform-owned infrastructure root may provision resources for
+multiple products, but catalog records still assign each logical resource to
+the product that uses it.
+
+### Technology directories
+
+Place browser application code in `ui`, deployable Cloudflare code in
+`workers/<component>`, reusable TypeScript in `packages/<component>`, Python
+pipelines in `ml-pipelines/<component>`, and C++ systems in
+`cpp/<component>`. Terraform state roots live at `infra/<component>`.
+Kubernetes components live below `homelab/k3s/components/<component>`, with
+reusable bases and environment overlays kept in their existing Kustomize
+trees. Host definitions and operator tooling remain under `homelab`.
+
+The project index lives at `ui/content/projects/<project>/index.mdx`.
+Architecture and product decisions live in its `adrs` and `pdrs` directories
+with monotonic three-digit prefixes. Those records belong to the logical
+project, not to one component path. Agent instructions sit at the narrowest
+directory whose rules they govern. Repository-wide rules stay in the root
+`AGENTS.md`; a component adds its own file only when its commands or safety
+boundary differ.
+
+### Dependencies and shared code
+
+Applications and Workers may import a package through that package's public
+exports. Packages must not import source from `ui`, `workers`, or another
+package's private files. Workers must not import another Worker's source.
+Python and C++ components use their native package or library boundaries.
+Cross-language dependencies use an API, a versioned artifact, or generated
+bindings owned by the consumer. Components must not use relative imports that
+cross component roots.
+
+Move code into a shared package only after two components need the same stable
+contract or the platform owns the concern. Product-specific helpers stay with
+their product. A shared package cannot become a miscellaneous utilities
+directory.
+
+### Tasks, lockfiles, generated code, and tests
+
+Each generated component exposes applicable mise tasks named `install`,
+`format`, `lint`, `typecheck` or `compile`, `test`, `build`, and `clean`.
+Tasks that do not apply need a declaration with a reason rather than a fake
+no-op. A project-level `check` task composes the relevant non-mutating checks.
+People, agents, and CI call mise; the task may delegate to pnpm, uv, CMake,
+Terraform, Kustomize, Nix, or another native tool.
+
+The language tool owns dependency resolution and its lockfile. The pnpm
+workspace has one root `pnpm-lock.yaml`. Published or independently installed
+npm tools may keep an npm lockfile only when the layout contract lists them.
+Python components keep `uv.lock` beside `pyproject.toml`. C++ components pin
+dependencies in their CMake or package-manager files. Each Terraform state root
+owns its provider lockfile, and each Nix flake owns its `flake.lock`.
+Generators may invoke the owning tool, but they do not synthesize lockfile
+contents.
+
+Tests live with the component, either beside source or in its `tests`
+directory. Generated source stays inside the consuming component under
+`generated/` or the native tool's established location. The generator records
+the source and command. It also provides a check that fails when committed
+output is stale. Build output and caches remain ignored.
+
+### Generator write boundary
+
+A project instance owns its `.copier/projects/<project>.yml` receipt, project
+index, decision directories, and the component paths it created. It may make
+structural edits only to these shared fields:
+
+* `.mise.toml` `monorepo.config_roots`;
+* `pnpm-workspace.yaml` `packages`; and
+* `platform.yaml` `catalog.records`.
+
+The operation must parse and rewrite the named field, preserve unrelated
+content, reject an unexpected old state, and show the resulting Git diff. It
+must not rewrite a whole shared manifest from a template. Other root files
+need a separate, versioned migration.
+
+Run `mise //:layout:check` to check the contract and current repository.
+The check rejects missing or unregistered mise roots, Node packages outside
+their declared workspace, unapproved nested lockfiles, missing project
+indexes, invalid decision filenames, missing catalog source paths, and changes
+to the declared shared-manifest boundary.
+
+### Migration
+
+Adopt the contract without moving every existing path at once:
+
+1. Keep current technology roots and catalog IDs. Add catalog declarations as
+   generation or delivery begins to depend on them.
+2. Add the standard task names to existing components. Record a reason where a
+   task does not apply, then make the validator enforce the declarations.
+3. Keep TypeScript dependencies in the root pnpm lockfile. Keep the two listed
+   npm lockfiles until a later decision removes or reconfirms their separate
+   packaging need.
+4. Keep each current uv, Terraform, CMake, Kustomize, and Nix boundary intact.
+   Add missing native lockfiles through the owning tool rather than by hand.
+5. Bring existing project indexes, ADRs, PDRs, and component catalog records
+   under generated-project validation before Copier reconciles their files.
+
+Do not add Nx, Turborepo, Bazel, Pants, or another root workspace system. Mise
+already provides the cross-language task graph, while pnpm, uv, CMake,
+Terraform, Kustomize, and Nix own their native workspaces. Another tool would
+duplicate membership and task metadata without solving Copier ownership. Revisit
+this only if measured build scale requires remote caching or a cross-language
+dependency graph that mise cannot provide.
+
+## Alternatives
+
+A product-owned top-level directory could keep one project's code and
+decisions together. It would split native language workspaces and repeat their
+configuration. Stable catalog IDs and the project index provide product
+cohesion without giving up technology-owned tooling.
+
+Nx would provide generators, a project graph, and computation caching for the
+TypeScript workspace. It would not own uv, Terraform, CMake, Nix, or
+Kubernetes, and the scaffolding spike found no current transformation that
+justifies a second root task and membership system.
+
+A free-form layout with only catalog source paths would permit current shapes
+but give generators no safe destination or task contract. Catalog paths record
+where a component is. This layout contract restricts where generators may
+create components and which shared files they may change.
+
+## Consequences
+
+One logical project can span UI, Worker, package, pipeline, infrastructure, and
+operations paths while keeping one ID, index, and decision history. Native
+tools retain their workspace and lockfile authority, and mise remains the
+single command interface.
+
+The repository must maintain a small layout manifest and validator. Existing
+components will need task and lockfile cleanup before every rule can become a
+blocking check. Technology-owned directories also make a product less obvious
+from the filesystem alone, so project creation must add the catalog record and
+project index.
