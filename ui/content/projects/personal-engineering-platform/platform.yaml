@@ -1,4 +1,126 @@
+schema_version: 1
 project: "personal-engineering-platform"
+catalog:
+  records:
+    - id: "system:recipe-site/application"
+      kind: "system"
+      name: "Recipe Site application"
+      project: "project:recipe-site"
+      source_paths: ["ui", "workers/recipe-api"]
+      relations:
+        - type: "part_of"
+          target: "project:recipe-site"
+      decision_refs: ["personal-engineering-platform:030-repository-owned-component-identities"]
+    - id: "component:recipe-site/web"
+      kind: "component"
+      name: "Recipe Site web application"
+      project: "project:recipe-site"
+      source_paths: ["ui"]
+      relations:
+        - type: "part_of"
+          target: "system:recipe-site/application"
+        - type: "deployed_as"
+          target: "workload:recipe-site/web"
+        - type: "uses"
+          target: "package:recipe-site/zod"
+      decision_refs: ["personal-engineering-platform:030-repository-owned-component-identities"]
+    - id: "component:recipe-site/api"
+      kind: "component"
+      name: "Recipe Site API"
+      project: "project:recipe-site"
+      source_paths: ["workers/recipe-api"]
+      relations:
+        - type: "part_of"
+          target: "system:recipe-site/application"
+        - type: "provides"
+          target: "api:recipe-site/http"
+        - type: "uses"
+          target: "resource:recipe-site/production-database"
+        - type: "deployed_as"
+          target: "workload:recipe-site/api"
+      decision_refs: ["personal-engineering-platform:030-repository-owned-component-identities"]
+    - id: "api:recipe-site/http"
+      kind: "api"
+      name: "Recipe Site HTTP API"
+      project: "project:recipe-site"
+      source_paths: ["workers/recipe-api/openapi.json"]
+      relations:
+        - type: "part_of"
+          target: "system:recipe-site/application"
+      decision_refs: ["personal-engineering-platform:014-hono-openapi"]
+    - id: "workload:recipe-site/web"
+      kind: "workload"
+      name: "Recipe Site web workload"
+      project: "project:recipe-site"
+      source_paths: ["ui"]
+      relations:
+        - type: "part_of"
+          target: "system:recipe-site/application"
+        - type: "uses"
+          target: "resource:recipe-site/production-web-host"
+      decision_refs: ["personal-engineering-platform:030-repository-owned-component-identities"]
+    - id: "workload:recipe-site/api"
+      kind: "workload"
+      name: "Recipe Site API workload"
+      project: "project:recipe-site"
+      source_paths: ["workers/recipe-api"]
+      relations:
+        - type: "part_of"
+          target: "system:recipe-site/application"
+        - type: "uses"
+          target: "resource:recipe-site/production-database"
+      decision_refs: ["personal-engineering-platform:030-repository-owned-component-identities"]
+    - id: "resource:recipe-site/production-database"
+      kind: "resource"
+      name: "Recipe Site production database"
+      project: "project:recipe-site"
+      source_paths: ["infra/public-platform"]
+      relations:
+        - type: "part_of"
+          target: "project:recipe-site"
+        - type: "uses"
+          target: "technology:postgresql"
+      decision_refs: ["personal-engineering-platform:017-relational-data-stack"]
+      external_ids:
+        - kind: "provider"
+          value: "terraform:neon_project.recipes"
+    - id: "resource:recipe-site/production-web-host"
+      kind: "resource"
+      name: "Recipe Site production web host"
+      project: "project:recipe-site"
+      source_paths: ["infra/public-platform"]
+      relations:
+        - type: "part_of"
+          target: "project:recipe-site"
+        - type: "uses"
+          target: "technology:cloudflare-pages"
+      decision_refs: ["personal-engineering-platform:030-repository-owned-component-identities"]
+      external_ids:
+        - kind: "provider"
+          value: "terraform:cloudflare_pages_project.personal_site"
+    - id: "environment:recipe-site/production"
+      kind: "environment"
+      name: "Recipe Site production"
+      project: "project:recipe-site"
+      relations:
+        - type: "part_of"
+          target: "project:recipe-site"
+      decision_refs: ["personal-engineering-platform:030-repository-owned-component-identities"]
+    - id: "package:recipe-site/zod"
+      kind: "package"
+      name: "Zod 4.6.5"
+      project: "project:recipe-site"
+      source_paths: ["pnpm-lock.yaml"]
+      version: "4.6.5"
+      relations:
+        - type: "part_of"
+          target: "project:recipe-site"
+        - type: "uses"
+          target: "technology:zod"
+      decision_refs: ["personal-engineering-platform:030-repository-owned-component-identities"]
+      external_ids:
+        - kind: "package-url"
+          value: "pkg:npm/zod@4.6.5"
 layers:
   - slug: "base"
     title: "Base"

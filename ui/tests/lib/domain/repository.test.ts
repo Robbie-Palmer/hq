@@ -351,7 +351,19 @@ Content`;
   describe("loadPlatformManifest", () => {
     it("keeps an explicit technology kind authoritative", () => {
       vi.mocked(fs.readFileSync).mockReturnValue(`
+schema_version: 1
 project: platform
+catalog:
+  records:
+    - id: component:platform/web
+      kind: component
+      name: Platform web
+      project: project:platform
+      source_paths: [ui]
+      decision_refs: [platform:001-language]
+      relations:
+        - type: part_of
+          target: project:platform
 layers:
   - slug: base
     title: Base
@@ -385,6 +397,18 @@ selections:
       expect(manifest?.selections[0]).toMatchObject({
         kind: "technology",
         technology: "typescript",
+      });
+      expect(manifest).toMatchObject({
+        schemaVersion: 1,
+        catalog: {
+          records: [
+            {
+              id: "component:platform/web",
+              sourcePaths: ["ui"],
+              decisionRefs: ["platform:001-language"],
+            },
+          ],
+        },
       });
     });
   });

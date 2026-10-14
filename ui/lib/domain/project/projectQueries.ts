@@ -279,6 +279,8 @@ export function getProjectWithADRs(
   const platformManifest =
     manifest?.project === slug
       ? {
+          schemaVersion: manifest.schemaVersion,
+          catalog: manifest.catalog,
           layers: manifest.layers,
           policies: manifest.policies,
           slots: manifest.slots.map((slot) => ({

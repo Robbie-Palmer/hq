@@ -1,0 +1,77 @@
+---
+title: "ADR 031: Derive the technology and component catalog from repository declarations"
+date: "2026-10-14"
+status: "Accepted"
+---
+
+## Context
+
+[ADR 030](/projects/personal-engineering-platform/adrs/030-repository-owned-component-identities)
+defines stable identities for logical projects, components, APIs, workloads,
+resources, environments, capabilities, and technologies. It also keeps package
+releases and OCI artifacts in their native identity systems. Those rules need
+an executable schema before Copier templates or project profiles can create
+and update catalog records safely.
+
+The repository already has authoritative project pages, technology entries,
+ADRs, platform defaults, adoptions, and overrides. Copying them into a separate
+catalog manifest would create two editable sources for the same facts. The
+platform manifest is already the source for layers, slots, policies, and
+selections, so it is the right place for the smaller set of component records
+that cannot be derived from existing content.
+
+## Decision
+
+Version the platform manifest schema and add component declarations to it.
+Keep project, technology, decision, evidence, slot, capability, adoption, and
+override records derived from their existing repository sources. A component
+declaration stores only its stable typed ID, kind, name, owner, source paths,
+relations, decision references, aliases, and external coordinates.
+
+Validate the authored graph when the repository loads. Reject duplicate IDs or
+aliases, alias kind changes, parent traversal in source paths, broken catalog
+and ADR references, containment cycles, project-owned IDs that disagree with
+their owner, non-canonical versioned Package URLs, and incomplete OCI
+descriptors. Dependency cycles remain legal because two runtime components may
+depend on each other even though containment may not be circular.
+
+Publish a deterministic derived view at `/catalog.json`. It combines the
+authored component declarations with the existing project, technology,
+decision, platform-policy, adoption, and override records. The view retains the
+complete parsed platform manifest, so generating the catalog does not discard
+dated layers, policies, selections, or provenance. Human-readable project
+pages and their Markdown twins render the authored records from the same
+manifest.
+
+Use Recipe Site as the first conformance fixture. Its declaration covers the
+web and API components, HTTP contract, web and API workloads, production
+database and web host, production environment, and the versioned Zod package.
+Later project generation can add records without changing the IDs or paths of
+existing declarations.
+
+## Alternatives
+
+A separate catalog manifest would isolate component records from platform
+policy. It would also add another file that generators must update atomically
+and make the platform page incomplete as an authoring source.
+
+Making the derived JSON writable would give automation one uniform format. It
+would duplicate projects, technologies, and decisions that already have
+purpose-built authoring formats, then require reconciliation when either copy
+changed.
+
+Using the content graph alone would cover projects, technologies, and ADRs but
+would not model APIs, workloads, infrastructure resources, package releases,
+or OCI descriptors with their required identity rules.
+
+## Consequences
+
+Copier and future project-profile code can create a bounded set of declarations
+and rely on repository validation before applying a change. Catalog consumers
+get one deterministic JSON document without becoming an authoring authority.
+
+The platform manifest now contains component records as well as policy. Its
+schema and validation code must remain backward-compatible with dated platform
+records, and changes to catalog IDs need explicit aliases. The initial fixture
+does not claim to inventory every project. New declarations should appear only
+when generation, delivery, or discovery needs them.

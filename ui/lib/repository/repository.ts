@@ -23,6 +23,7 @@ import {
   type BlogRelations,
   type BlogSlug,
 } from "../domain/blog/blogPost";
+import { findBrokenCatalogReferences } from "../domain/catalog/catalog";
 import {
   type Idea,
   type IdeaRelations,
@@ -1030,8 +1031,37 @@ export function loadPlatformManifest(): PlatformManifest | undefined {
       : {};
   const records = (value: unknown): Record<string, unknown>[] =>
     Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
+  const catalogData =
+    data.catalog &&
+    typeof data.catalog === "object" &&
+    !Array.isArray(data.catalog)
+      ? (data.catalog as Record<string, unknown>)
+      : {};
   const manifest = {
+    schemaVersion: data.schema_version,
     project: data.project,
+    catalog: {
+      records: records(catalogData.records).map((record) => ({
+        ...record,
+        sourcePaths: record.source_paths ?? [],
+        decisionRefs: record.decision_refs ?? [],
+        externalIds: records(record.external_ids).map((externalId) => ({
+          ...externalId,
+          apiGroup: externalId.api_group,
+        })),
+        oci:
+          record.oci &&
+          typeof record.oci === "object" &&
+          !Array.isArray(record.oci)
+            ? {
+                ...(record.oci as Record<string, unknown>),
+                mediaType: (record.oci as Record<string, unknown>).media_type,
+                artifactType: (record.oci as Record<string, unknown>)
+                  .artifact_type,
+              }
+            : undefined,
+      })),
+    },
     layers: records(data.layers).map((layer) => ({
       ...layer,
       activatedBy: layer.activated_by
@@ -1598,6 +1628,52 @@ function validatePlatformReferences(
   validatePlatformOverrides(input, manifest, slotSlugs, errors, checkTech);
 }
 
+function validateCatalogReferences(
+  input: ValidationInput,
+  manifest: PlatformManifest,
+  errors: ReferentialIntegrityError[],
+): void {
+  const derivedIds = new Set<string>();
+  for (const projectSlug of input.projects.keys()) {
+    derivedIds.add(`project:${projectSlug}`);
+  }
+  for (const technologySlug of input.technologies.keys()) {
+    derivedIds.add(`technology:${technologySlug}`);
+  }
+  for (const slot of manifest.slots) {
+    derivedIds.add(`slot:${slot.slug}`);
+    derivedIds.add(`capability:${slot.slug}`);
+  }
+  for (const adrRef of input.adrs.keys()) {
+    derivedIds.add(`decision:${adrRef}`);
+    derivedIds.add(`evidence:${adrRef}`);
+  }
+  for (const record of manifest.catalog.records) {
+    for (const decisionRef of record.decisionRefs) {
+      if (input.adrs.has(decisionRef)) continue;
+      errors.push({
+        type: "missing_reference",
+        entity: `CatalogRecord[${record.id}]`,
+        field: "decisionRefs",
+        value: decisionRef,
+        message: `Catalog record '${record.id}' references missing decision '${decisionRef}'`,
+      });
+    }
+  }
+  for (const issue of findBrokenCatalogReferences(
+    manifest.catalog,
+    derivedIds,
+  )) {
+    errors.push({
+      type: "missing_reference",
+      entity: `CatalogRecord[${issue.recordId}]`,
+      field: issue.field,
+      value: issue.target,
+      message: `Catalog record '${issue.recordId}' references missing catalog ID '${issue.target}'`,
+    });
+  }
+}
+
 function validateADRProductDecisionLinks(
   input: ValidationInput,
   relations: ADRRelations,
@@ -1991,7 +2067,10 @@ export function validateReferentialIntegrity(
   });
 
   const manifest = input.platformManifest;
-  if (manifest) validatePlatformReferences(input, manifest, errors, checkTech);
+  if (manifest) {
+    validatePlatformReferences(input, manifest, errors, checkTech);
+    validateCatalogReferences(input, manifest, errors);
+  }
 
   return errors;
 }

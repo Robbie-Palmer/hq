@@ -22,7 +22,9 @@ import {
 
 function sameDayManifest(linkReplacement = true): PlatformManifest {
   return {
+    schemaVersion: 1,
     project: "platform",
+    catalog: { records: [] },
     layers: [{ slug: "base", title: "Base", description: "Shared defaults" }],
     slots: [
       {

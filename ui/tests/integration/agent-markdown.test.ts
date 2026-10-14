@@ -141,6 +141,11 @@ describe("agent markdown generation", () => {
   it("includes the platform manifest and selection history in its project twin", () => {
     const platform = read("projects/personal-engineering-platform.md");
     expect(platform).toContain("## Current layer manifest");
+    expect(platform).toContain("## Component catalog");
+    expect(platform).toContain("Schema version 1");
+    expect(platform).toContain("https://robbiepalmer.me/catalog.json");
+    expect(platform).toContain("`component:recipe-site/web`");
+    expect(read("llms.txt")).toContain("https://robbiepalmer.me/catalog.json");
     expect(platform).toContain("### Backend API");
     expect(platform).toContain("backend-api.runtime: preferred");
     expect(platform).toContain("delivery.preview-environment: preferred");

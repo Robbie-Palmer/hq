@@ -340,6 +340,30 @@ function platformPrerequisiteLabel(
 function buildPlatformManifestSection(project: ProjectWithADRs): string[] {
   const manifest = project.platformManifest;
   if (!manifest) return [];
+  const catalog = [
+    "## Component catalog",
+    "",
+    `Schema version ${manifest.schemaVersion}. The complete derived catalog is available at ${siteConfig.url}/catalog.json.`,
+    "",
+    ...manifest.catalog.records.flatMap((record) => [
+      `### ${record.name}`,
+      "",
+      `- ID: \`${record.id}\``,
+      `- Kind: ${record.kind}`,
+      ...(record.project ? [`- Project: \`${record.project}\``] : []),
+      ...(record.sourcePaths.length > 0
+        ? [`- Source paths: ${record.sourcePaths.map((path) => `\`${path}\``).join(", ")}`]
+        : []),
+      ...(record.relations.length > 0
+        ? [
+            `- Relations: ${record.relations
+              .map((relation) => `${relation.type} \`${relation.target}\``)
+              .join(", ")}`,
+          ]
+        : []),
+      "",
+    ]),
+  ];
   const instant = new Date().toISOString();
   const layers = manifest.layers.flatMap((layer) => {
     const policies = manifest.policies.filter(
@@ -436,6 +460,7 @@ function buildPlatformManifestSection(project: ProjectWithADRs): string[] {
   ]);
   return [
     "",
+    ...catalog,
     "## Current layer manifest",
     "",
     ...layers,
@@ -1073,6 +1098,7 @@ function buildLlmsTxt(
     `- [About](${markdownUrl("/")}): site overview and contact links`,
     `- [Experience](${markdownUrl("/experience")}): career history, roles, responsibilities, and technologies`,
     `- [Projects](${markdownUrl("/projects")}): all projects plus the building philosophy that guides them`,
+    `- [Component catalog](${siteConfig.url}/catalog.json): derived project, technology, decision, platform-policy, and component records`,
     `- [Ideas](${markdownUrl("/ideas")}): recurring laws, methods, and mental models`,
     `- [Satellite swarm](${markdownUrl("/satellite-swarm")}): a deterministic C++ WebAssembly mission on a CesiumJS globe`,
     `- [PostHog application](${markdownUrl("/posthog")}): a speculative application backed by working systems and shipped code`,

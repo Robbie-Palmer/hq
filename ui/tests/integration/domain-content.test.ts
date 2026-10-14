@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { extractGraphData } from "@/lib/api/graph-data";
+import { buildCatalogDocument } from "@/lib/domain/catalog";
 import {
   type DomainRepository,
   getADRSlugsForProject,
@@ -37,6 +38,46 @@ describe("Domain Content Validation (Integration)", () => {
     expect(repo.technologies.size).toBeGreaterThan(0);
     expect(repo.ideas.size).toBe(38);
     expect(repo.referentialIntegrityErrors).toEqual([]);
+  });
+
+  it("derives a stable catalog without duplicating repository declarations", () => {
+    const catalog = buildCatalogDocument(repo);
+
+    expect(catalog?.schemaVersion).toBe(1);
+    expect(catalog?.source).toBe(
+      "ui/content/projects/personal-engineering-platform/platform.yaml",
+    );
+    expect(catalog?.records.map((record) => record.id)).toEqual(
+      catalog?.records
+        .map((record) => record.id)
+        .toSorted((left, right) => left.localeCompare(right)),
+    );
+    const recordIds = catalog?.records.map((record) => record.id) ?? [];
+    expect(new Set(recordIds).size).toBe(recordIds.length);
+    expect(catalog?.records).toContainEqual(
+      expect.objectContaining({
+        id: "component:recipe-site/web",
+        source: "declared",
+      }),
+    );
+    expect(catalog?.records).toContainEqual(
+      expect.objectContaining({
+        id: "project:recipe-site",
+        source: "derived",
+      }),
+    );
+    expect(catalog?.records).toContainEqual(
+      expect.objectContaining({
+        id: "technology:copier",
+        source: "derived",
+      }),
+    );
+    expect(catalog?.platformManifest.selections).toEqual(
+      repo.platform.manifest?.selections,
+    );
+    expect(JSON.stringify(buildCatalogDocument(repo))).toBe(
+      JSON.stringify(catalog),
+    );
   });
 
   it("should connect technologies to the ideas they build on or expose", () => {
