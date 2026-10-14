@@ -113,6 +113,7 @@ function forecastData(): AssetTrackerData {
         stages: [
           {
             id: "payment-1",
+            direction: "payment",
             fromAccountId: "current",
             amount: 6_000,
             dueDate: "2026-01-15",
@@ -158,6 +159,152 @@ describe("buildRunwayForecast", () => {
     expect(projection[1]?.cashMonths).toBe(2.25);
     expect(projection[1]?.liquidMonths).toBe(12.5);
     expect(projection[1]?.totalMonths).toBe(25.15);
+  });
+
+  it("combines incoming and outgoing events without changing the baseline path", () => {
+    const data = forecastData();
+    data.recurringFlows = [];
+    data.plannedExpenditures = [];
+    data.futureCashFlows = [
+      {
+        id: "payoff",
+        name: "Employment settlement",
+        kind: "commitment",
+        status: "active",
+        changeability: "fixed",
+        refundable: false,
+        labels: [],
+        currency: "GBP",
+        stages: [
+          {
+            id: "receipt-1",
+            direction: "receipt",
+            toAccountId: "current",
+            amount: 2_000,
+            dueDate: "2026-01-15",
+            actuals: [],
+          },
+        ],
+      },
+      {
+        id: "training",
+        name: "Training course",
+        kind: "decision",
+        status: "selected",
+        reversibility: "partly-reversible",
+        dependencyIds: [],
+        alternativeToIds: [],
+        labels: [],
+        currency: "GBP",
+        stages: [
+          {
+            id: "payment-1",
+            direction: "payment",
+            fromAccountId: "current",
+            expectedDate: "2026-01-20",
+            minimumAmount: 500,
+            expectedAmount: 500,
+            maximumAmount: 500,
+            actuals: [],
+          },
+        ],
+      },
+    ];
+
+    const projection = buildRunwayForecast({
+      repository: buildRepository(data),
+      annualExpenditure: 12_000,
+      annualCurrentExpenditure: 12_000,
+      startDate: "2026-01-01",
+      months: 1,
+    });
+
+    expect(projection[1]).toMatchObject({
+      cashBalance: 10_500,
+      totalBalance: 55_500,
+      monthlyBreakdown: {
+        committedReceipts: 2_000,
+        selectedDecisionCashFlows: 500,
+        committedCashFlows: 0,
+        selectedDecisionReceipts: 0,
+      },
+    });
+  });
+
+  it("converts a receipt using its destination account currency", () => {
+    const data = forecastData();
+    data.recurringFlows = [];
+    data.plannedExpenditures = [];
+    data.accounts.push({
+      id: "usd-cash",
+      name: "US dollar cash",
+      provider: "Bank",
+      currency: "USD",
+      assetType: "cash",
+      liquidity: "cash",
+      expectedAnnualReturn: 0,
+      createdAt: "2025-01-01",
+    });
+    data.snapshots.push({
+      accountId: "usd-cash",
+      date: "2026-01-01",
+      balance: 1_000,
+    });
+    data.exchangeRateObservations = [
+      {
+        id: "usd-gbp",
+        fromCurrency: "USD",
+        toCurrency: "GBP",
+        rate: 0.8,
+        validAt: "2026-01-01",
+        acceptedAt: "2026-01-01T12:00:00Z",
+        source: { kind: "manual", id: "test" },
+      },
+    ];
+    data.futureCashFlows = [
+      {
+        id: "refund",
+        name: "US tax refund",
+        kind: "commitment",
+        status: "active",
+        changeability: "fixed",
+        refundable: false,
+        labels: [],
+        currency: "USD",
+        stages: [
+          {
+            id: "receipt-1",
+            direction: "receipt",
+            toAccountId: "usd-cash",
+            amount: 100,
+            dueDate: "2026-01-15",
+            actuals: [],
+          },
+        ],
+      },
+    ];
+
+    const baselineData = structuredClone(data);
+    baselineData.futureCashFlows = [];
+    const projection = buildRunwayForecast({
+      repository: buildRepository(data),
+      annualExpenditure: 12_000,
+      annualCurrentExpenditure: 12_000,
+      startDate: "2026-01-01",
+      months: 1,
+    });
+    const baseline = buildRunwayForecast({
+      repository: buildRepository(baselineData),
+      annualExpenditure: 12_000,
+      annualCurrentExpenditure: 12_000,
+      startDate: "2026-01-01",
+      months: 1,
+    });
+
+    expect(
+      (projection[1]?.totalBalance ?? 0) - (baseline[1]?.totalBalance ?? 0),
+    ).toBeCloseTo(80, 2);
+    expect(projection[1]?.monthlyBreakdown.committedReceipts).toBe(80);
   });
 
   it("returns no forecast until spending can be reconciled", () => {
@@ -351,6 +498,7 @@ describe("buildRunwayForecast", () => {
         stages: [
           {
             id: "payment-1",
+            direction: "payment",
             fromAccountId: "current",
             dueDate: "2026-01-15",
             amount: 600,
@@ -371,6 +519,7 @@ describe("buildRunwayForecast", () => {
         stages: [
           {
             id: "payment-1",
+            direction: "payment",
             fromAccountId: "current",
             dueDate: "2026-01-20",
             amount: 700,
@@ -391,6 +540,7 @@ describe("buildRunwayForecast", () => {
         stages: [
           {
             id: "cash-flow-1",
+            direction: "payment",
             fromAccountId: "current",
             expectedDate: "2026-01-18",
             minimumAmount: 200,

@@ -57,6 +57,7 @@ import {
   type DecisionScenarioComparison,
   type DecisionScenarioComparisonInput,
   type DeleteCapitalFlowInput,
+  type DeleteSalaryRecordInput,
   type DeleteSnapshotInput,
   deriveEmergencyFundFacts,
   type EmergencyFundAnalysis,
@@ -130,6 +131,7 @@ interface AssetTrackerContextValue {
   assetAllocationHistory: AssetAllocationDataPoint[];
   transfers: Transfer[];
   recurringFlows: RecurringFlow[];
+  recurringFlowOwnership: Record<string, Ownership>;
   plannedExpenditures: PlannedExpenditure[];
   planningCases: PlanningCase[];
   futureCashFlows: FutureCashFlow[];
@@ -205,6 +207,7 @@ interface AssetTrackerContextValue {
   importIncomeHistory(input: ImportIncomeHistoryInput): Promise<void>;
   importSalaryHistory(input: ImportSalaryHistoryInput): Promise<void>;
   saveSalaryRecord(input: SaveSalaryRecordInput): Promise<void>;
+  deleteSalaryRecord(input: DeleteSalaryRecordInput): Promise<void>;
   saveTaxSetup(input: SaveTaxSetupInput): Promise<void>;
   clearIncomeHistory(): Promise<void>;
   addRecurringFlow(input: AddRecurringFlowInput): Promise<void>;
@@ -504,6 +507,13 @@ function useAssetTrackerViews(data: AssetTrackerData) {
       assetAllocationHistory: getAssetAllocationTimeSeries(repository),
       transfers: repository.transfers,
       recurringFlows: repository.recurringFlows,
+      recurringFlowOwnership: Object.fromEntries(
+        repository.recurringFlows.map(({ id }) => [
+          id,
+          data.ownership.recurringFlows[id] ??
+            personalOwnership(data.household.members[0]?.id ?? "primary"),
+        ]),
+      ),
       plannedExpenditures: repository.plannedExpenditures,
       planningCases: repository.planningCases,
       futureCashFlows: repository.futureCashFlows,
@@ -629,6 +639,8 @@ export function AssetTrackerProvider({
       importSalaryHistory: (input) =>
         mutate((api) => api.importSalaryHistory(input)),
       saveSalaryRecord: (input) => mutate((api) => api.saveSalaryRecord(input)),
+      deleteSalaryRecord: (input) =>
+        mutate((api) => api.deleteSalaryRecord(input)),
       saveTaxSetup: (input) => mutate((api) => api.saveTaxSetup(input)),
       clearIncomeHistory: () => mutate((api) => api.clearIncomeHistory()),
       addRecurringFlow: (input) => mutate((api) => api.addRecurringFlow(input)),

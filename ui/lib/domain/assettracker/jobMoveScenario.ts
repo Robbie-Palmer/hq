@@ -31,6 +31,8 @@ const PensionMethodSchema = z.enum(["salarySacrifice", "netPay"]);
 
 const JobMoveScenarioBaseSchema = z.object({
   name: z.string().trim().min(1, "Scenario name is required"),
+  /** Household member whose employment income changes in this scenario. */
+  householdMemberId: z.string().trim().min(1).optional(),
   employmentStatus: z.enum(["employed", "unemployed"]),
   /** First day the current-role forecast no longer applies. */
   transitionDate: z.iso.date(),

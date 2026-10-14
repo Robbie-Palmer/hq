@@ -15,7 +15,9 @@ import {
   type DecisionForecastSelection,
   type DecisionStage,
   type ForecastCashFlow,
+  forecastCashFlowAccountId,
   futureCashFlowForecastItems,
+  futureCashFlowStageAccountId,
 } from "./futureCashFlow";
 import {
   convertAccountAmountAtDate,
@@ -59,8 +61,11 @@ export type MonthlyForecastBreakdown = {
   debtPayments: number;
   ordinaryRecurringOutflowsCoveredByBaseline: number;
   committedCashFlows: number;
+  committedReceipts: number;
   selectedDecisionCashFlows: number;
+  selectedDecisionReceipts: number;
   possibleDecisions: ForecastAmountRange;
+  possibleDecisionReceipts: ForecastAmountRange;
   spendingDrawdown: SpendingDrawdown;
 };
 
@@ -276,8 +281,11 @@ function applyFutureCashFlows(
     if (cashFlow.date <= afterDate || cashFlow.date > throughDate) {
       continue;
     }
-    const source = byId.get(cashFlow.fromAccountId);
-    if (source) source.balance -= cashFlow.amount;
+    const account = byId.get(forecastCashFlowAccountId(cashFlow));
+    if (account) {
+      account.balance +=
+        cashFlow.direction === "receipt" ? cashFlow.amount : -cashFlow.amount;
+    }
   }
 }
 
@@ -392,7 +400,7 @@ function convertProjectionCashFlows(
   )) {
     const amount = convertAccountAmountAtDate(
       repository,
-      cashFlow.fromAccountId,
+      forecastCashFlowAccountId(cashFlow),
       cashFlow.amount,
       valuationDate,
     );
@@ -479,13 +487,25 @@ function selectedCashFlowBreakdown(
   throughDate: string,
 ) {
   let committedCashFlows = 0;
+  let committedReceipts = 0;
   let selectedDecisionCashFlows = 0;
+  let selectedDecisionReceipts = 0;
   for (const cashFlow of cashFlows) {
     if (cashFlow.date <= afterDate || cashFlow.date > throughDate) continue;
-    if (cashFlow.kind === "commitment") committedCashFlows += cashFlow.amount;
-    else selectedDecisionCashFlows += cashFlow.amount;
+    if (cashFlow.kind === "commitment") {
+      if (cashFlow.direction === "payment") {
+        committedCashFlows += cashFlow.amount;
+      } else committedReceipts += cashFlow.amount;
+    } else if (cashFlow.direction === "payment") {
+      selectedDecisionCashFlows += cashFlow.amount;
+    } else selectedDecisionReceipts += cashFlow.amount;
   }
-  return { committedCashFlows, selectedDecisionCashFlows };
+  return {
+    committedCashFlows,
+    committedReceipts,
+    selectedDecisionCashFlows,
+    selectedDecisionReceipts,
+  };
 }
 
 function convertDecisionStageRange(
@@ -495,19 +515,19 @@ function convertDecisionStageRange(
 ): ForecastAmountRange | null {
   const minimum = convertAccountAmountAtDate(
     repository,
-    stage.fromAccountId,
+    futureCashFlowStageAccountId(stage),
     stage.minimumAmount,
     valuationDate,
   );
   const expected = convertAccountAmountAtDate(
     repository,
-    stage.fromAccountId,
+    futureCashFlowStageAccountId(stage),
     stage.expectedAmount,
     valuationDate,
   );
   const maximum = convertAccountAmountAtDate(
     repository,
-    stage.fromAccountId,
+    futureCashFlowStageAccountId(stage),
     stage.maximumAmount,
     valuationDate,
   );
@@ -516,24 +536,60 @@ function convertDecisionStageRange(
     : { minimum, expected, maximum };
 }
 
+function dateIsInForecastWindow(
+  date: string,
+  afterDate: string,
+  throughDate: string,
+): boolean {
+  return date > afterDate && date <= throughDate;
+}
+
+type PossibleDecisionBreakdown = {
+  possibleDecisions: ForecastAmountRange;
+  possibleDecisionReceipts: ForecastAmountRange;
+};
+
+function addPossibleDecisionRange(
+  breakdown: PossibleDecisionBreakdown,
+  stage: DecisionStage,
+  range: ForecastAmountRange | null,
+): PossibleDecisionBreakdown {
+  if (range == null) return breakdown;
+  return stage.direction === "payment"
+    ? {
+        ...breakdown,
+        possibleDecisions: addRange(breakdown.possibleDecisions, range),
+      }
+    : {
+        ...breakdown,
+        possibleDecisionReceipts: addRange(
+          breakdown.possibleDecisionReceipts,
+          range,
+        ),
+      };
+}
+
 function possibleDecisionBreakdown(
   repository: AssetTrackerRepository,
   afterDate: string,
   throughDate: string,
   valuationDate: string,
-): ForecastAmountRange {
-  let possibleDecisions = ZERO_RANGE;
+): PossibleDecisionBreakdown {
+  let breakdown = {
+    possibleDecisions: ZERO_RANGE,
+    possibleDecisionReceipts: ZERO_RANGE,
+  };
   for (const record of repository.futureCashFlows) {
     if (record.kind !== "decision" || record.status !== "considering") continue;
     for (const stage of record.stages) {
-      if (stage.expectedDate <= afterDate || stage.expectedDate > throughDate) {
+      if (!dateIsInForecastWindow(stage.expectedDate, afterDate, throughDate)) {
         continue;
       }
       const range = convertDecisionStageRange(repository, stage, valuationDate);
-      if (range != null) possibleDecisions = addRange(possibleDecisions, range);
+      breakdown = addPossibleDecisionRange(breakdown, stage, range);
     }
   }
-  return possibleDecisions;
+  return breakdown;
 }
 
 function futureCashFlowBreakdown(
@@ -545,7 +601,7 @@ function futureCashFlowBreakdown(
 ) {
   return {
     ...selectedCashFlowBreakdown(cashFlows, afterDate, throughDate),
-    possibleDecisions: possibleDecisionBreakdown(
+    ...possibleDecisionBreakdown(
       repository,
       afterDate,
       throughDate,
@@ -636,8 +692,11 @@ function projectBalances(input: {
         debtPayments: 0,
         ordinaryRecurringOutflowsCoveredByBaseline: 0,
         committedCashFlows: 0,
+        committedReceipts: 0,
         selectedDecisionCashFlows: 0,
+        selectedDecisionReceipts: 0,
         possibleDecisions: ZERO_RANGE,
+        possibleDecisionReceipts: ZERO_RANGE,
         spendingDrawdown: ZERO_SPENDING_DRAWDOWN,
       },
     },

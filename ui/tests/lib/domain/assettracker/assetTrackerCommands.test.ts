@@ -41,7 +41,10 @@ import {
   ForecastAssumptionSchema,
 } from "@/lib/domain/assettracker/forecastAssumption";
 import { futureCashFlowForecastItems } from "@/lib/domain/assettracker/futureCashFlow";
-import { defaultHouseholdFields } from "@/lib/domain/assettracker/household";
+import {
+  defaultHouseholdFields,
+  snapshotOwnershipKey,
+} from "@/lib/domain/assettracker/household";
 import { flowOccurrenceDates } from "@/lib/domain/assettracker/recurringFlow";
 
 const TEST_AS_OF_DATE = "2026-01-01";
@@ -171,6 +174,27 @@ describe("applyCreateAccount", () => {
       date: "2024-03-01",
       balance: 5000,
     });
+  });
+
+  it("records an account owner with its opening balance", () => {
+    const { data, account } = applyCreateAccount(baseData(), {
+      name: "Partner savings",
+      provider: "Bank",
+      currency: "GBP",
+      assetType: "cash",
+      expectedAnnualReturn: 0.03,
+      openingBalance: 2_500,
+      openingDate: "2025-12-01",
+      ownership: { kind: "personal", memberId: "primary" },
+    });
+
+    expect(data.ownership.accounts[account.id]).toEqual({
+      kind: "personal",
+      memberId: "primary",
+    });
+    expect(
+      data.ownership.snapshots[snapshotOwnershipKey(account.id, "2025-12-01")],
+    ).toEqual({ kind: "personal", memberId: "primary" });
   });
 
   it("links a mortgage to an existing account", () => {
@@ -1689,6 +1713,102 @@ describe("future cash-flow planning", () => {
         status: "cancelled",
       }).futureCashFlows[0],
     ).toMatchObject({ status: "cancelled" });
+  });
+
+  it("reconciles staged receipts and returned cash without double counting", () => {
+    const added = applyAddCommitment(
+      baseData(),
+      {
+        name: "Settlement proceeds",
+        labels: ["redundancy"],
+        currency: "GBP",
+        stages: [
+          {
+            name: "Tax-free portion",
+            direction: "receipt",
+            toAccountId: "savings",
+            dueDate: "2099-03-01",
+            amount: 10_000,
+            amountBreakdown: {
+              grossAmount: 12_500,
+              taxAmount: 2_000,
+              feeAmount: 250,
+              deductions: [{ label: "Benefits adjustment", amount: 250 }],
+              netAmount: 10_000,
+              sourceNotes: "Employer estimate",
+              calculationLineage: ["settlement-v1", "tax-rules-2099"],
+            },
+          },
+          {
+            name: "Notice pay",
+            direction: "receipt",
+            toAccountId: "savings",
+            dueDate: "2099-04-01",
+            amount: 5_000,
+          },
+        ],
+      },
+      TEST_AS_OF_DATE,
+    );
+    const received = applyRecordActualCashFlow(
+      added,
+      {
+        futureCashFlowId: "settlement-proceeds",
+        stageId: "receipt-1",
+        date: TEST_AS_OF_DATE,
+        amount: 4_000,
+        direction: "receipt",
+      },
+      TEST_AS_OF_DATE,
+    );
+    const returned = applyRecordActualCashFlow(
+      received,
+      {
+        futureCashFlowId: "settlement-proceeds",
+        stageId: "receipt-1",
+        date: TEST_AS_OF_DATE,
+        amount: 500,
+        direction: "return",
+      },
+      TEST_AS_OF_DATE,
+    );
+
+    expect(futureCashFlowForecastItems(returned.futureCashFlows)).toEqual([
+      expect.objectContaining({
+        stageId: "receipt-1",
+        direction: "receipt",
+        toAccountId: "savings",
+        amount: 6_500,
+      }),
+      expect.objectContaining({
+        stageId: "receipt-2",
+        direction: "receipt",
+        amount: 5_000,
+      }),
+    ]);
+    expect(returned.futureCashFlows[0]?.stages[0]).toMatchObject({
+      amountBreakdown: {
+        grossAmount: 12_500,
+        taxAmount: 2_000,
+        feeAmount: 250,
+        netAmount: 10_000,
+        sourceNotes: "Employer estimate",
+        calculationLineage: ["settlement-v1", "tax-rules-2099"],
+      },
+    });
+    expect(() =>
+      applyRecordActualCashFlow(
+        returned,
+        {
+          futureCashFlowId: "settlement-proceeds",
+          stageId: "receipt-1",
+          date: TEST_AS_OF_DATE,
+          amount: 3_501,
+          direction: "return",
+        },
+        TEST_AS_OF_DATE,
+      ),
+    ).toThrow(/return cannot exceed/);
   });
 });
 

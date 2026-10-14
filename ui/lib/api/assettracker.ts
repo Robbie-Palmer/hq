@@ -29,6 +29,7 @@ import {
   applyDeleteJobMoveScenario,
   applyDeletePlannedExpenditure,
   applyDeleteRecurringFlow,
+  applyDeleteSalaryRecord,
   applyDeleteSnapshot,
   applyDuplicateJobMoveScenario,
   applyImportAccountHistory,
@@ -68,6 +69,7 @@ import {
   type DeleteFutureCashFlowInput,
   type DeletePlannedExpenditureInput,
   type DeleteRecurringFlowInput,
+  type DeleteSalaryRecordInput,
   type DeleteSnapshotInput,
   getEmptyData,
   type HouseholdScope,
@@ -129,6 +131,7 @@ export interface AssetTrackerApi {
     input: ImportSalaryHistoryInput,
   ): Promise<AssetTrackerData>;
   saveSalaryRecord(input: SaveSalaryRecordInput): Promise<AssetTrackerData>;
+  deleteSalaryRecord(input: DeleteSalaryRecordInput): Promise<AssetTrackerData>;
   saveTaxSetup(input: SaveTaxSetupInput): Promise<AssetTrackerData>;
   clearIncomeHistory(): Promise<AssetTrackerData>;
   addRecurringFlow(input: AddRecurringFlowInput): Promise<AssetTrackerData>;
@@ -418,6 +421,15 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
             `salary-${globalThis.crypto.randomUUID()}`,
             new Date().toISOString(),
           ),
+        });
+      });
+    },
+    deleteSalaryRecord(input) {
+      return promiseFromSync(() => {
+        const data = current();
+        return write({
+          ...data,
+          salaryHistory: applyDeleteSalaryRecord(data.salaryHistory, input),
         });
       });
     },

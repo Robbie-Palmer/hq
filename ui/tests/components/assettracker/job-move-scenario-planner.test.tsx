@@ -1,8 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { addMonths, format, parseISO } from "date-fns";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAssetTracker } from "@/components/assettracker/asset-tracker-provider";
 import { JobMoveScenarioPlanner } from "@/components/assettracker/job-move-scenario-planner";
+import { todayIsoDate } from "@/lib/assettracker";
 
 vi.mock("@/components/assettracker/asset-tracker-provider", () => ({
   useAssetTracker: vi.fn(),
@@ -33,6 +35,17 @@ function trackerValue() {
     ],
     baseCurrency: "GBP",
     valuationDate: "2026-01-01",
+    household: {
+      members: [
+        { id: "primary", displayName: "Alex" },
+        { id: "partner", displayName: "Sam" },
+      ],
+      activeScope: { kind: "household" },
+    },
+    recurringFlowOwnership: {
+      salary: { kind: "personal", memberId: "primary" },
+      "partner-salary": { kind: "personal", memberId: "partner" },
+    },
     recurringFlows: [
       {
         id: "salary",
@@ -44,11 +57,22 @@ function trackerValue() {
         startDate: "2025-01-01",
         compensationKind: "takeHomeIncome",
       },
+      {
+        id: "partner-salary",
+        name: "Partner salary",
+        toAccountId: "current",
+        amount: 2_500,
+        currency: "GBP",
+        frequency: "monthly",
+        startDate: "2025-01-01",
+        compensationKind: "takeHomeIncome",
+      },
     ],
     jobMoveScenarios: [
       {
         id: "offer",
         name: "Product lead offer",
+        householdMemberId: "primary",
         employmentStatus: "employed",
         transitionDate: "2026-02-01",
         roleStartDate: "2026-03-01",
@@ -225,11 +249,43 @@ describe("JobMoveScenarioPlanner", () => {
         id: undefined,
         scenario: expect.objectContaining({
           name: "Career break",
+          householdMemberId: "primary",
           employmentStatus: "unemployed",
           transitionDate: "2026-06-01",
           roleStartDate: undefined,
           annualTakeHomeOverride: undefined,
           replacedRecurringFlowIds: ["salary"],
+        }),
+      }),
+    );
+  });
+
+  it("replaces only the selected household member's job flows", async () => {
+    const user = userEvent.setup();
+    render(<JobMoveScenarioPlanner />);
+
+    await user.click(screen.getByRole("button", { name: "Add scenario" }));
+    await user.selectOptions(
+      screen.getByLabelText("Whose employment changes?"),
+      "partner",
+    );
+    expect(
+      screen.getByRole("checkbox", { name: /Partner salary · Sam/ }),
+    ).toBeChecked();
+    expect(
+      screen.queryByRole("checkbox", { name: /^Salary · Alex/ }),
+    ).toBeNull();
+
+    await user.type(screen.getByLabelText("Scenario name"), "Sam job loss");
+    await user.selectOptions(screen.getByLabelText("Outcome"), "unemployed");
+    await user.click(screen.getByRole("button", { name: "Save scenario" }));
+
+    await waitFor(() =>
+      expect(saveJobMoveScenario).toHaveBeenCalledWith({
+        id: undefined,
+        scenario: expect.objectContaining({
+          householdMemberId: "partner",
+          replacedRecurringFlowIds: ["partner-salary"],
         }),
       }),
     );
@@ -362,5 +418,11 @@ describe("JobMoveScenarioPlanner", () => {
     expect(screen.getByText("Lose my job")).toBeVisible();
     expect(screen.getByText("Default scenario")).toBeVisible();
     expect(screen.getByText("Baseline comparison")).toBeVisible();
+    expect(screen.getByLabelText("Expected job loss date")).toHaveValue(
+      format(addMonths(parseISO(todayIsoDate()), 1), "yyyy-MM-dd"),
+    );
+    expect(
+      screen.getByRole("button", { name: "Compare 1 month vs 3 months" }),
+    ).toBeVisible();
   });
 });

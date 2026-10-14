@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyDeleteSalaryRecord,
   applyImportSalaryHistory,
   applySaveSalaryRecord,
   currentSalaryHistory,
@@ -143,6 +144,50 @@ describe("salary history", () => {
         grossPay: 55_000,
       },
     ]);
+  });
+
+  it("deletes a pay rise and its paired closing fact", () => {
+    const previous = salaryRecord({
+      effectiveStart: "2024-01-01",
+      effectiveEnd: undefined,
+    });
+    const changed = applySaveSalaryRecord(
+      [previous],
+      {
+        replacesRateId: previous.id,
+        facts: {
+          ...SalaryRecordFactsSchema.parse(previous),
+          effectiveStart: "2025-07-01",
+          grossPay: 55_000,
+        },
+      },
+      "salary-pay-rise",
+      "2026-10-04T11:00:00.000Z",
+    );
+
+    expect(applyDeleteSalaryRecord(changed, { id: "salary-pay-rise" })).toEqual(
+      [previous],
+    );
+    expect(
+      applyDeleteSalaryRecord(changed, {
+        id: "salary-pay-rise-closed-prior",
+      }),
+    ).toEqual([previous]);
+  });
+
+  it("restores an earlier fact when its correction is deleted", () => {
+    const original = salaryRecord();
+    const corrected = applySaveSalaryRecord(
+      [original],
+      { facts: { ...original, grossPay: 50_000 }, correctsId: original.id },
+      "salary-correction",
+      "2026-10-04T11:00:00.000Z",
+    );
+
+    const restored = applyDeleteSalaryRecord(corrected, {
+      id: "salary-correction",
+    });
+    expect(currentSalaryHistory(restored)).toEqual([original]);
   });
 
   it("repairs a stale employment ID when adding the next pay rise", () => {

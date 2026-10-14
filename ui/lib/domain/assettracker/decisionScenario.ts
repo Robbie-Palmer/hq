@@ -9,7 +9,9 @@ import type { Currency } from "./currency";
 import type { EmergencyFundAnalysis } from "./emergencyFund";
 import {
   type CashFlowDecision,
+  forecastCashFlowAccountId,
   futureCashFlowForecastItems,
+  futureCashFlowStageAccountId,
 } from "./futureCashFlow";
 import {
   buildRunwayScenarioProjection,
@@ -81,7 +83,7 @@ export type DecisionScenarioAction = {
   id: string;
   date: string;
   cadence: "once" | "monthly";
-  kind: "payment" | "saving" | "asset-sale";
+  kind: "payment" | "receipt" | "saving" | "asset-sale";
   name: string;
   accountName: string;
   amount: number;
@@ -328,14 +330,29 @@ function actions(
   const savingGapByAccount = new Map<string, number>();
   const result: DecisionScenarioAction[] = [];
   for (const item of forecastItems) {
-    const account = repository.accounts.get(item.fromAccountId);
+    const accountId = forecastCashFlowAccountId(item);
+    const account = repository.accounts.get(accountId);
     if (account == null) continue;
+    if (item.direction === "receipt") {
+      result.push({
+        id: item.id,
+        date: item.date,
+        cadence: "once",
+        kind: "receipt",
+        name: item.name,
+        accountName: account.name,
+        amount: item.amount,
+        currency: item.currency,
+        countsAsExpenditure: false,
+      });
+      continue;
+    }
     const method = account.assetType === "cash" ? "payment" : "asset-sale";
     const scheduled = (scheduledByAccount.get(account.id) ?? 0) + item.amount;
     scheduledByAccount.set(account.id, scheduled);
     const baselinePoint = pointOnOrAfter(baseline, item.date);
     const available = Math.max(
-      baselinePoint?.accountBalances[item.fromAccountId] ?? 0,
+      baselinePoint?.accountBalances[accountId] ?? 0,
       0,
     );
     const savingGap = Math.max(scheduled - available, 0);
@@ -395,7 +412,10 @@ function fundingMechanics(
   return repository.futureCashFlows.flatMap((record) => {
     if (record.kind !== "decision" || !selected.has(record.id)) return [];
     return record.stages.flatMap((stage) => {
-      const account = repository.accounts.get(stage.fromAccountId);
+      if (stage.direction === "receipt") return [];
+      const account = repository.accounts.get(
+        futureCashFlowStageAccountId(stage),
+      );
       if (account == null) return [];
       return [
         {

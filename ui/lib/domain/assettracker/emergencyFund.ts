@@ -7,7 +7,10 @@ import {
   isLiability,
 } from "./account";
 import type { AssetTrackerRepository } from "./assetTrackerRepository";
-import { futureCashFlowForecastItems } from "./futureCashFlow";
+import {
+  forecastCashFlowAccountId,
+  futureCashFlowForecastItems,
+} from "./futureCashFlow";
 import {
   convertAccountAmountAtDate,
   convertMoneyAtDate,
@@ -428,6 +431,20 @@ type DecisionCostSchedule = {
   unconvertedIds: Map<number, string[]>;
 };
 
+function forecastMonth(
+  date: string,
+  startDate: string,
+  durationMonths: number,
+): number | null {
+  const start = parseISO(startDate);
+  for (let month = 1; month <= durationMonths; month++) {
+    const through = format(addMonths(start, month), "yyyy-MM-dd");
+    const after = format(addMonths(start, month - 1), "yyyy-MM-dd");
+    if (date > after && date <= through) return month;
+  }
+  return null;
+}
+
 function selectedDecisionCostsByMonth(
   repository: AssetTrackerRepository,
   startDate: string,
@@ -435,27 +452,23 @@ function selectedDecisionCostsByMonth(
 ): DecisionCostSchedule {
   const costs = new Map<number, number>();
   const unconvertedIds = new Map<number, string[]>();
-  const start = parseISO(startDate);
   for (const item of futureCashFlowForecastItems(repository.futureCashFlows)) {
     if (item.kind !== "decision") continue;
-    for (let month = 1; month <= durationMonths; month++) {
-      const through = format(addMonths(start, month), "yyyy-MM-dd");
-      const after = format(addMonths(start, month - 1), "yyyy-MM-dd");
-      if (item.date <= after || item.date > through) continue;
-      const amount = convertAccountAmountAtDate(
-        repository,
-        item.fromAccountId,
-        item.amount,
-        item.date,
-      );
-      if (amount == null) {
-        const ids = unconvertedIds.get(month) ?? [];
-        unconvertedIds.set(month, [...ids, item.id]);
-        break;
-      }
-      costs.set(month, (costs.get(month) ?? 0) + amount);
-      break;
+    const month = forecastMonth(item.date, startDate, durationMonths);
+    if (month == null) continue;
+    const amount = convertAccountAmountAtDate(
+      repository,
+      forecastCashFlowAccountId(item),
+      item.amount,
+      item.date,
+    );
+    if (amount == null) {
+      const ids = unconvertedIds.get(month) ?? [];
+      unconvertedIds.set(month, [...ids, item.id]);
+      continue;
     }
+    const signedAmount = item.direction === "payment" ? amount : -amount;
+    costs.set(month, (costs.get(month) ?? 0) + signedAmount);
   }
   return { costs, unconvertedIds };
 }

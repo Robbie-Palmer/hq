@@ -71,6 +71,7 @@ function scenarioData(): AssetTrackerData {
         stages: [
           {
             id: "survey-payment",
+            direction: "payment",
             fromAccountId: "current",
             dueDate: "2026-01-15",
             amount: 1_000,
@@ -94,6 +95,7 @@ function scenarioData(): AssetTrackerData {
         stages: [
           {
             id: "foundation-payment",
+            direction: "payment",
             fromAccountId: "current",
             earliestDate: "2026-02-15",
             expectedDate: "2026-03-15",
@@ -121,6 +123,7 @@ function scenarioData(): AssetTrackerData {
         stages: [
           {
             id: "extension-payment",
+            direction: "payment",
             fromAccountId: "current",
             earliestDate: "2026-05-15",
             expectedDate: "2026-06-15",
@@ -149,6 +152,7 @@ function scenarioData(): AssetTrackerData {
           {
             id: "loft-payment",
             name: "Build and fit-out",
+            direction: "payment",
             fromAccountId: "isa",
             expectedDate: "2026-05-20",
             minimumAmount: 2_000,
@@ -304,6 +308,75 @@ describe("decision scenario comparison", () => {
         convertsToBaseCurrency: false,
       }),
     ]);
+  });
+
+  it("keeps a ranged receipt out of baseline and reverses cost-path bounds", () => {
+    const data = scenarioData();
+    data.futureCashFlows.push({
+      id: "settlement",
+      name: "Employment settlement",
+      kind: "decision",
+      status: "considering",
+      reversibility: "irreversible",
+      dependencyIds: [],
+      alternativeToIds: [],
+      labels: ["redundancy"],
+      currency: "GBP",
+      stages: [
+        {
+          id: "receipt-1",
+          direction: "receipt",
+          toAccountId: "current",
+          earliestDate: "2026-04-15",
+          expectedDate: "2026-05-15",
+          latestDate: "2026-06-15",
+          minimumAmount: 2_000,
+          expectedAmount: 3_000,
+          maximumAmount: 4_000,
+          actuals: [],
+        },
+      ],
+    });
+    const repository = buildRepository(data);
+    const input = {
+      decisionIds: ["settlement"],
+      horizonMonths: 12,
+      reserveMonths: null,
+      startDate: "2026-01-01",
+      annualExpenditure: 12_000,
+      annualCurrentExpenditure: 12_000,
+      financialIndependenceTarget: null,
+      emergencyFundAnalysis: null,
+    };
+
+    const result = compareDecisionScenarios(repository, input);
+    const noSelection = compareDecisionScenarios(repository, {
+      ...input,
+      decisionIds: [],
+    });
+    const horizon = result.timeline.at(-1);
+
+    expect(horizon?.baseline.totalBalance).toBeCloseTo(
+      noSelection.timeline.at(-1)?.expected.totalBalance ?? 0,
+      6,
+    );
+    expect(horizon?.cumulativeEffect.total).toBeCloseTo(3_000, 6);
+    expect(horizon?.lowCost.totalBalance).toBeGreaterThan(
+      horizon?.expected.totalBalance ?? 0,
+    );
+    expect(horizon?.expected.totalBalance).toBeGreaterThan(
+      horizon?.highCost.totalBalance ?? 0,
+    );
+    expect(result.actions).toContainEqual(
+      expect.objectContaining({
+        kind: "receipt",
+        name: "Employment settlement",
+        accountName: "Current account",
+        amount: 3_000,
+        countsAsExpenditure: false,
+      }),
+    );
+    expect(result.fundingMechanics).toEqual([]);
   });
 
   it("returns no timeline when reconciled spending is unavailable", () => {

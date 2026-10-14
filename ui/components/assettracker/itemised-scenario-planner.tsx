@@ -20,6 +20,7 @@ import {
   type Currency,
   formatAssetTrackerError,
   isLiability,
+  settledCashFlowAmount,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
 
@@ -43,11 +44,7 @@ function emptyRows(): CostRow[] {
 }
 
 function amountPaid(actuals: readonly ActualCashFlow[]): number {
-  return actuals.reduce(
-    (total, actual) =>
-      total + (actual.direction === "payment" ? actual.amount : -actual.amount),
-    0,
-  );
+  return settledCashFlowAmount(actuals);
 }
 
 function itemisedScenarios(
@@ -56,7 +53,8 @@ function itemisedScenarios(
   return records.filter(
     (record): record is CashFlowDecision =>
       record.kind === "decision" &&
-      record.labels.includes(ITEMISED_SCENARIO_LABEL),
+      record.labels.includes(ITEMISED_SCENARIO_LABEL) &&
+      record.stages.every((stage) => stage.direction === "payment"),
   );
 }
 
@@ -109,7 +107,12 @@ function useItemisedScenarioPlanner() {
     if (loadedScenarioId.current !== existing.id) {
       loadedScenarioId.current = existing.id;
       setName(existing.name);
-      setAccountId(existing.stages[0]?.fromAccountId ?? defaultAccountId);
+      const firstStage = existing.stages[0];
+      setAccountId(
+        firstStage?.direction === "payment"
+          ? firstStage.fromAccountId
+          : defaultAccountId,
+      );
       setCosts(
         existing.stages.map((stage) => ({
           id: stage.id,
