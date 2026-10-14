@@ -10,7 +10,7 @@ import type {
 import type { ProductDecisionEvidenceLink } from "@/lib/domain/product-decision/productDecision";
 import type { ProjectSlug } from "@/lib/domain/project/project";
 import type { RoleSlug } from "@/lib/domain/role/jobRole";
-import type { ProductDecisionSlug } from "@/lib/domain/slugs";
+import type { ProductDecisionRef } from "@/lib/domain/slugs";
 import type { TechnologySlug } from "@/lib/domain/technology/technology";
 import { type ContentGraph, makeNodeId, type NodeId } from "./types";
 
@@ -36,16 +36,16 @@ export interface RelationData {
   platformManifest?: PlatformManifest;
   projectLayerUses: Map<ProjectSlug, ProjectLayerUse[]>;
   adrOverridesDefault: Map<ADRRef, DefaultOverride>;
-  productDecisionAffectedProjects: Map<ProductDecisionSlug, ProjectSlug[]>;
-  productDecisionIdeas: Map<ProductDecisionSlug, IdeaSlug[]>;
-  productDecisionInformedByADRs: Map<ProductDecisionSlug, ADRRef[]>;
+  productDecisionAffectedProjects: Map<ProductDecisionRef, ProjectSlug[]>;
+  productDecisionIdeas: Map<ProductDecisionRef, IdeaSlug[]>;
+  productDecisionInformedByADRs: Map<ProductDecisionRef, ADRRef[]>;
   productDecisionEvidence: Map<
-    ProductDecisionSlug,
+    ProductDecisionRef,
     ProductDecisionEvidenceLink[]
   >;
-  productDecisionSupersedes: Map<ProductDecisionSlug, ProductDecisionSlug>;
-  adrImplementsProductDecisions: Map<ADRRef, ProductDecisionSlug[]>;
-  blogProductDecisions: Map<BlogSlug, ProductDecisionSlug[]>;
+  productDecisionSupersedes: Map<ProductDecisionRef, ProductDecisionRef>;
+  adrImplementsProductDecisions: Map<ADRRef, ProductDecisionRef[]>;
+  blogProductDecisions: Map<BlogSlug, ProductDecisionRef[]>;
 }
 
 export function createEmptyRelationData(): RelationData {

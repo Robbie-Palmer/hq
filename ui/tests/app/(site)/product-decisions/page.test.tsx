@@ -1,10 +1,13 @@
 import { render, screen, within } from "@testing-library/react";
 import type { Mock } from "vitest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import ProductDecisionIndex, {
+  metadata,
+} from "@/app/(site)/product-decisions/page";
 import ProductDecisionPage, {
   generateMetadata,
   generateStaticParams,
-} from "@/app/(site)/product-decisions/[[...slug]]/page";
+} from "@/app/(site)/projects/[slug]/pdrs/[pdr]/page";
 import {
   getAllProductDecisions,
   getProductDecision,
@@ -27,13 +30,16 @@ vi.mock("@/components/markdown", () => ({
 
 const decision = {
   slug: "002-new-policy",
+  projectSlug: "project-one",
+  projectTitle: "Project One",
+  pdrRef: "project-one:002-new-policy",
   title: "PDR 002: New policy",
   date: "2026-10-08",
   status: "Accepted",
   authoredStatus: "Accepted",
   decisionDate: "2026-10-08",
-  supersedes: "001-old-policy",
-  supersededBy: "003-next-policy",
+  supersedes: "project-one:001-old-policy",
+  supersededBy: "project-one:003-next-policy",
   content: "## Decision\n\nAdopt the new policy.",
   readingTime: "2 min read",
   backlinks: {
@@ -67,21 +73,17 @@ describe("product decision pages", () => {
   });
 
   it("renders the empty index and index metadata", async () => {
-    render(
-      await ProductDecisionPage({ params: Promise.resolve({ slug: [] }) }),
-    );
+    render(ProductDecisionIndex());
     expect(
       screen.getByRole("heading", { name: "Product decisions" }),
     ).toBeInTheDocument();
     expect(
       screen.getByText("No product decisions have been published yet."),
     ).toBeInTheDocument();
-    await expect(
-      generateMetadata({ params: Promise.resolve({}) }),
-    ).resolves.toEqual({
+    expect(metadata).toEqual({
       title: "Product decisions",
       description:
-        "Durable choices about product behaviour, scope, and policy.",
+        "Project decisions about product behaviour, scope, and policy.",
       alternates: { canonical: "/product-decisions" },
     });
   });
@@ -89,15 +91,12 @@ describe("product decision pages", () => {
   it("generates routes and renders decision cards", async () => {
     (getAllProductDecisions as Mock).mockReturnValue([decision]);
     expect(generateStaticParams()).toEqual([
-      { slug: [] },
-      { slug: ["002-new-policy"] },
+      { slug: "project-one", pdr: "002-new-policy" },
     ]);
-    render(
-      await ProductDecisionPage({ params: Promise.resolve({ slug: [] }) }),
-    );
+    render(ProductDecisionIndex());
     expect(
       screen.getByRole("link", { name: /PDR 002: New policy/ }),
-    ).toHaveAttribute("href", "/product-decisions/002-new-policy");
+    ).toHaveAttribute("href", "/projects/project-one/pdrs/002-new-policy");
     expect(screen.getByText(/Opened 2026-10-08/)).toBeInTheDocument();
   });
 
@@ -107,17 +106,20 @@ describe("product decision pages", () => {
       .mockReturnValueOnce(null);
     await expect(
       generateMetadata({
-        params: Promise.resolve({ slug: ["002-new-policy"] }),
+        params: Promise.resolve({ slug: "project-one", pdr: "002-new-policy" }),
       }),
     ).resolves.toEqual({
       title: "PDR 002: New policy - Product decision",
       description: "Product Decision Record: PDR 002: New policy",
       alternates: {
-        canonical: "https://robbiepalmer.me/product-decisions/002-new-policy",
+        canonical:
+          "https://robbiepalmer.me/projects/project-one/pdrs/002-new-policy",
       },
     });
     await expect(
-      generateMetadata({ params: Promise.resolve({ slug: ["missing"] }) }),
+      generateMetadata({
+        params: Promise.resolve({ slug: "project-one", pdr: "999-missing" }),
+      }),
     ).resolves.toEqual({ title: "Product decision not found" });
   });
 
@@ -125,7 +127,7 @@ describe("product decision pages", () => {
     (getProductDecision as Mock).mockReturnValue(decision);
     render(
       await ProductDecisionPage({
-        params: Promise.resolve({ slug: ["002-new-policy"] }),
+        params: Promise.resolve({ slug: "project-one", pdr: "002-new-policy" }),
       }),
     );
     expect(
@@ -133,11 +135,17 @@ describe("product decision pages", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/Adopt the new policy/)).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "001-old-policy" }),
-    ).toHaveAttribute("href", "/product-decisions/001-old-policy");
+      within(screen.getByRole("navigation", { name: "Breadcrumb" })).getByRole(
+        "link",
+        { name: "Project One" },
+      ),
+    ).toHaveAttribute("href", "/projects/project-one");
     expect(
-      screen.getByRole("link", { name: "003-next-policy" }),
-    ).toHaveAttribute("href", "/product-decisions/003-next-policy");
+      screen.getByRole("link", { name: "project-one:001-old-policy" }),
+    ).toHaveAttribute("href", "/projects/project-one/pdrs/001-old-policy");
+    expect(
+      screen.getByRole("link", { name: "project-one:003-next-policy" }),
+    ).toHaveAttribute("href", "/projects/project-one/pdrs/003-next-policy");
 
     const related = screen.getByRole("region", { name: "Related records" });
     const expectedLinks = [
@@ -161,14 +169,19 @@ describe("product decision pages", () => {
     ).toHaveAttribute("target", "_blank");
   });
 
-  it("uses the not-found boundary for unknown and nested routes", async () => {
+  it("uses the not-found boundary for unknown project and decision routes", async () => {
     (getProductDecision as Mock).mockReturnValue(null);
     await expect(
-      ProductDecisionPage({ params: Promise.resolve({ slug: ["missing"] }) }),
+      ProductDecisionPage({
+        params: Promise.resolve({ slug: "project-one", pdr: "999-missing" }),
+      }),
     ).rejects.toThrow("not found");
     await expect(
       ProductDecisionPage({
-        params: Promise.resolve({ slug: ["002-new-policy", "extra"] }),
+        params: Promise.resolve({
+          slug: "missing-project",
+          pdr: "002-new-policy",
+        }),
       }),
     ).rejects.toThrow("not found");
     expect(notFoundMock).toHaveBeenCalledTimes(2);

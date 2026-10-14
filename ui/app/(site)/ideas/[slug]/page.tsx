@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/card";
 import { getAllIdeaSlugs, getIdea } from "@/lib/api/ideas";
 import { siteConfig } from "@/lib/config/site-config";
+import { productDecisionPath } from "@/lib/domain/product-decision";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -77,8 +78,8 @@ function ProductDecisionReferences({
       <div className="grid gap-3 md:grid-cols-2">
         {decisions.map((decision) => (
           <RelatedCard
-            key={decision.slug}
-            href={`/product-decisions/${decision.slug}`}
+            key={decision.pdrRef}
+            href={productDecisionPath(decision.pdrRef)}
             title={decision.title}
             description={decision.status}
           />

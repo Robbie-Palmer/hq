@@ -10,6 +10,8 @@ interface ProjectTabsProps {
   overview: React.ReactNode;
   adrs: React.ReactNode;
   adrCount: number;
+  pdrs?: React.ReactNode;
+  pdrCount?: number;
 }
 
 export function ProjectTabs({
@@ -18,6 +20,8 @@ export function ProjectTabs({
   overview,
   adrs,
   adrCount,
+  pdrs,
+  pdrCount = 0,
 }: Readonly<ProjectTabsProps>) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -27,6 +31,7 @@ export function ProjectTabs({
     ...(pitch ? ["pitch"] : []),
     "overview",
     ...(adrCount > 0 ? ["adrs"] : []),
+    ...(pdrCount > 0 ? ["pdrs"] : []),
   ]);
   const defaultTab = pitch ? "pitch" : "overview";
   const currentTab =
@@ -74,6 +79,14 @@ export function ProjectTabs({
             </Badge>
           </TabsTrigger>
         )}
+        {pdrCount > 0 && (
+          <TabsTrigger value="pdrs" className="flex-1 sm:flex-none">
+            Product decisions
+            <Badge variant="secondary" className="ml-2 text-xs">
+              {pdrCount}
+            </Badge>
+          </TabsTrigger>
+        )}
       </TabsList>
 
       {pitch && (
@@ -98,6 +111,11 @@ export function ProjectTabs({
           className="animate-in fade-in-50 duration-500 mt-4"
         >
           {adrs}
+        </TabsContent>
+      )}
+      {pdrCount > 0 && (
+        <TabsContent value="pdrs" className="mt-4">
+          {pdrs}
         </TabsContent>
       )}
     </Tabs>

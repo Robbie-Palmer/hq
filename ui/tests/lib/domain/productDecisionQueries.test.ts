@@ -10,10 +10,16 @@ import { buildContentGraph, createEmptyRelationData } from "@/lib/repository";
 function makeRepository(): DomainRepository {
   const firstDecision = {
     slug: "001-first-decision",
+    pdrRef: "project-one:001-first-decision",
+    projectSlug: "project-one",
+    date: "2026-10-01",
     title: "PDR 001: First decision",
   };
   const secondDecision = {
     slug: "002-second-decision",
+    pdrRef: "project-one:002-second-decision",
+    projectSlug: "project-one",
+    date: "2026-10-02",
     title: "PDR 002: Second decision",
   };
   const project = { slug: "project-one", title: "Project One" };
@@ -30,27 +36,27 @@ function makeRepository(): DomainRepository {
   };
   const blog = { slug: "policy-explained", title: "Policy explained" };
   const relations = createEmptyRelationData();
-  relations.productDecisionAffectedProjects.set(secondDecision.slug, [
+  relations.productDecisionAffectedProjects.set(secondDecision.pdrRef, [
     project.slug,
     "missing-project",
   ]);
-  relations.productDecisionIdeas.set(secondDecision.slug, [
+  relations.productDecisionIdeas.set(secondDecision.pdrRef, [
     idea.slug,
     "missing-idea",
   ]);
-  relations.productDecisionInformedByADRs.set(secondDecision.slug, [
+  relations.productDecisionInformedByADRs.set(secondDecision.pdrRef, [
     informedByADR.adrRef,
     "project-one:missing",
   ]);
   relations.adrImplementsProductDecisions.set(implementingADR.adrRef, [
-    secondDecision.slug,
+    secondDecision.pdrRef,
   ]);
   relations.adrImplementsProductDecisions.set("project-one:missing", [
-    secondDecision.slug,
+    secondDecision.pdrRef,
   ]);
-  relations.blogProductDecisions.set(blog.slug, [secondDecision.slug]);
-  relations.blogProductDecisions.set("missing-blog", [secondDecision.slug]);
-  relations.productDecisionEvidence.set(secondDecision.slug, [
+  relations.blogProductDecisions.set(blog.slug, [secondDecision.pdrRef]);
+  relations.blogProductDecisions.set("missing-blog", [secondDecision.pdrRef]);
+  relations.productDecisionEvidence.set(secondDecision.pdrRef, [
     { title: "Research report", url: "https://example.com/report" },
   ]);
   const graph = buildContentGraph({
@@ -62,8 +68,8 @@ function makeRepository(): DomainRepository {
 
   return {
     productDecisions: new Map([
-      [firstDecision.slug, firstDecision],
-      [secondDecision.slug, secondDecision],
+      [firstDecision.pdrRef, firstDecision],
+      [secondDecision.pdrRef, secondDecision],
     ]),
     projects: new Map([[project.slug, project]]),
     ideas: new Map([[idea.slug, idea]]),
@@ -83,16 +89,18 @@ describe("product decision queries", () => {
       "002-second-decision",
       "001-first-decision",
     ]);
-    expect(getProductDecision(repository, "002-second-decision")?.title).toBe(
-      "PDR 002: Second decision",
-    );
-    expect(getProductDecision(repository, "999-missing")).toBeNull();
+    expect(
+      getProductDecision(repository, "project-one:002-second-decision")?.title,
+    ).toBe("PDR 002: Second decision");
+    expect(
+      getProductDecision(repository, "project-one:999-missing"),
+    ).toBeNull();
   });
 
   it("resolves backlinks and drops missing entities", () => {
     const backlinks = getProductDecisionBacklinks(
       makeRepository(),
-      "002-second-decision",
+      "project-one:002-second-decision",
     );
     expect(backlinks.projects.map(({ slug }) => slug)).toEqual(["project-one"]);
     expect(backlinks.ideas.map(({ slug }) => slug)).toEqual(["clear-policy"]);
@@ -112,7 +120,7 @@ describe("product decision queries", () => {
 
   it("returns empty backlinks for an unknown decision", () => {
     expect(
-      getProductDecisionBacklinks(makeRepository(), "999-missing"),
+      getProductDecisionBacklinks(makeRepository(), "project-one:999-missing"),
     ).toEqual({
       projects: [],
       ideas: [],

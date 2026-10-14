@@ -8,7 +8,7 @@ import type {
 } from "@/lib/domain/platform/platform";
 import type { ProjectSlug } from "@/lib/domain/project/project";
 import type { RoleSlug } from "@/lib/domain/role/jobRole";
-import type { ProductDecisionSlug } from "@/lib/domain/slugs";
+import type { ProductDecisionRef } from "@/lib/domain/slugs";
 import type { TechnologySlug } from "@/lib/domain/technology/technology";
 import {
   type ContentGraph,
@@ -258,14 +258,14 @@ export function getIdeasForADR(
 
 export function getIdeasForProductDecision(
   graph: ContentGraph,
-  slug: ProductDecisionSlug,
+  slug: ProductDecisionRef,
 ): Set<IdeaSlug> {
   return getIdeasFor(graph, "product-decision", slug);
 }
 
 export function getProjectsForProductDecision(
   graph: ContentGraph,
-  slug: ProductDecisionSlug,
+  slug: ProductDecisionRef,
 ): Set<ProjectSlug> {
   return graph.edges.productDecisionAffectedProjects.get(slug) ?? new Set();
 }
@@ -273,20 +273,20 @@ export function getProjectsForProductDecision(
 export function getProductDecisionsForProject(
   graph: ContentGraph,
   slug: ProjectSlug,
-): Set<ProductDecisionSlug> {
+): Set<ProductDecisionRef> {
   return graph.reverse.projectProductDecisions.get(slug) ?? new Set();
 }
 
 export function getADRsImplementingProductDecision(
   graph: ContentGraph,
-  slug: ProductDecisionSlug,
+  slug: ProductDecisionRef,
 ): Set<ADRRef> {
   return graph.reverse.productDecisionImplementedByADRs.get(slug) ?? new Set();
 }
 
 export function getBlogsForProductDecision(
   graph: ContentGraph,
-  slug: ProductDecisionSlug,
+  slug: ProductDecisionRef,
 ): Set<BlogSlug> {
   return graph.reverse.productDecisionBlogs.get(slug) ?? new Set();
 }
@@ -305,7 +305,7 @@ export function getContentReferencingIdeaByType(
   projects: ProjectSlug[];
   adrs: ADRRef[];
   blogs: BlogSlug[];
-  productDecisions: ProductDecisionSlug[];
+  productDecisions: ProductDecisionRef[];
 } {
   const nodeIds = getContentReferencingIdea(graph, slug);
   return {

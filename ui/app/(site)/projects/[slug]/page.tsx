@@ -11,6 +11,7 @@ import { EmbeddedPitchDeckContent } from "@/components/projects/pitch-deck/embed
 import { LazyProjectPitchDeck } from "@/components/projects/pitch-deck/lazy-project-pitch-deck";
 import { PlatformManifest } from "@/components/projects/platform-manifest";
 import { PlatformSummary } from "@/components/projects/platform-summary";
+import { ProductDecisionList } from "@/components/projects/product-decision-list";
 import {
   InitiativeProjectNavigation,
   ProjectInitiativeContext,
@@ -24,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { getIdeasForProject } from "@/lib/api/ideas";
 import { getInitiativesForProject } from "@/lib/api/initiatives";
+import { getProductDecisionsForProject } from "@/lib/api/product-decisions";
 import {
   getAllProjectAliases,
   getAllProjectSlugs,
@@ -105,6 +107,7 @@ export default async function ProjectPage({ params }: Readonly<PageProps>) {
 
   const initiatives = getInitiativesForProject(project.slug);
   const ideas = getIdeasForProject(project.slug);
+  const productDecisions = getProductDecisionsForProject(project.slug);
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-5xl">
@@ -241,11 +244,15 @@ export default async function ProjectPage({ params }: Readonly<PageProps>) {
         )}
 
         {/* Content Tabs */}
-        {project.pitch || project.adrs.length > 0 ? (
+        {project.pitch ||
+        project.adrs.length > 0 ||
+        productDecisions.length > 0 ? (
           <Suspense fallback={<ProjectTabsSkeleton />}>
             <ProjectTabs
               projectSlug={project.slug}
               adrCount={project.adrs.length}
+              pdrCount={productDecisions.length}
+              pdrs={<ProductDecisionList decisions={productDecisions} />}
               pitch={
                 project.pitch ? (
                   <LazyProjectPitchDeck

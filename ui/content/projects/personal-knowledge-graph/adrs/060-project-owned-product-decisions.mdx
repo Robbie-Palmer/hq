@@ -1,0 +1,41 @@
+---
+title: "ADR 060: Project-owned product decisions"
+date: "2026-10-14"
+status: "Accepted"
+supersedes: "personal-knowledge-graph:059-product-decision-records"
+---
+
+## Context
+
+[ADR 059](/projects/personal-knowledge-graph/adrs/059-product-decision-records)
+introduced Product Decision Records with global identities and storage. Owner
+review of the first record established that product decisions belong to a
+project, just as architecture decisions do. Shared policy has an owner too:
+operational evidence requirements belong to Personal Engineering Platform,
+while Personal Knowledge Graph publishes them.
+
+## Decision
+
+Store PDRs in `ui/content/projects/<project>/pdrs/`. Number them monotonically
+within their owning project, never reusing a number. Derive ownership from the
+directory and use `<project>:<number>-<slug>` as the canonical reference. Two
+projects may use the same local number and slug without sharing an identity.
+
+Publish each record at `/projects/<project>/pdrs/<slug>` with a Markdown twin,
+project breadcrumb, and a link from the project's product decisions tab.
+`/product-decisions` remains a cross-project index, not an ownership boundary.
+Reject standalone files in the former global directory.
+
+Retain the earlier distinction between product intent and architecture, the
+lifecycle dates and immutable history, evidence links, idea links, and directional
+ADR relations. `affected_projects` is optional and names additional consumers;
+it does not establish ownership. `supersedes`, `implements_product_decisions`,
+and blog `product_decisions` use qualified PDR references. Accepted successors
+derive the earlier record's Superseded status without changing its file.
+
+## Consequences
+
+Project pages own their product and architecture histories. Shared choices have
+one owner and explicit consumers. References, graph keys, routes, and generated
+Markdown must retain the project qualifier. No global PDR has been published,
+so there is no published detail URL to migrate.

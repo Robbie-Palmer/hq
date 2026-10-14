@@ -164,21 +164,23 @@ describe("buildContentGraph", () => {
 
   it("builds forward and reverse product-decision edges", () => {
     const relations = createEmptyRelationData();
-    relations.productDecisionAffectedProjects.set("001-publication", ["site"]);
-    relations.productDecisionIdeas.set("001-publication", [
+    relations.productDecisionAffectedProjects.set("site:001-publication", [
+      "site",
+    ]);
+    relations.productDecisionIdeas.set("site:001-publication", [
       "context-engineering",
     ]);
-    relations.productDecisionInformedByADRs.set("001-publication", [
+    relations.productDecisionInformedByADRs.set("site:001-publication", [
       "site:001-static-generation",
     ]);
-    relations.productDecisionEvidence.set("001-publication", [
+    relations.productDecisionEvidence.set("site:001-publication", [
       { title: "Reader study", url: "https://example.com/study" },
     ]);
     relations.adrImplementsProductDecisions.set("site:002-markdown", [
-      "001-publication",
+      "site:001-publication",
     ]);
     relations.blogProductDecisions.set("shipping-markdown", [
-      "001-publication",
+      "site:001-publication",
     ]);
 
     const graph = buildContentGraph({
@@ -188,23 +190,23 @@ describe("buildContentGraph", () => {
       relations,
     });
 
-    expect(getProjectsForProductDecision(graph, "001-publication")).toEqual(
-      new Set(["site"]),
-    );
     expect(
-      getADRsImplementingProductDecision(graph, "001-publication"),
+      getProjectsForProductDecision(graph, "site:001-publication"),
+    ).toEqual(new Set(["site"]));
+    expect(
+      getADRsImplementingProductDecision(graph, "site:001-publication"),
     ).toEqual(new Set(["site:002-markdown"]));
-    expect(getBlogsForProductDecision(graph, "001-publication")).toEqual(
+    expect(getBlogsForProductDecision(graph, "site:001-publication")).toEqual(
       new Set(["shipping-markdown"]),
     );
     expect(
       graph.reverse.adrInformedProductDecisions.get(
         "site:001-static-generation",
       ),
-    ).toEqual(new Set(["001-publication"]));
-    expect(graph.edges.productDecisionEvidence.get("001-publication")).toEqual([
-      { title: "Reader study", url: "https://example.com/study" },
-    ]);
+    ).toEqual(new Set(["site:001-publication"]));
+    expect(
+      graph.edges.productDecisionEvidence.get("site:001-publication"),
+    ).toEqual([{ title: "Reader study", url: "https://example.com/study" }]);
   });
 
   it("builds inherits-from edges", () => {

@@ -41,9 +41,11 @@ import {
 } from "@/lib/api/projects";
 import {
   getAllProductDecisions,
+  getProductDecisionsForProject,
   getProductDecision,
 } from "@/lib/api/product-decisions";
 import type { RecipeCardView } from "@/lib/api/recipes";
+import { productDecisionPath } from "@/lib/domain/product-decision";
 import { siteConfig } from "@/lib/config/site-config";
 import {
   posthogApplication,
@@ -306,6 +308,15 @@ function buildProjectPage(
           }),
         ]
       : [];
+  const decisions = getProductDecisionsForProject(project.slug);
+  const pdrSection = decisions.length > 0
+    ? [
+        "", "## Product decisions", "",
+        ...decisions.map((decision) =>
+          `- [${decision.title}](${markdownUrl(productDecisionPath(decision.pdrRef))}) · ${decision.status}`,
+        ),
+      ]
+    : [];
   const platformSection = buildPlatformManifestSection(project);
   return {
     htmlPath: `/projects/${project.slug}`,
@@ -318,6 +329,7 @@ function buildProjectPage(
       ...platformSection,
       ...initiativeSection,
       ...adrSection,
+      ...pdrSection,
     ].join("\n"),
     facts: projectFacts(project),
   };
@@ -618,9 +630,10 @@ function buildBlogIndexPage(
 
 function buildProductDecisionPages(): GeneratedPage[] {
   return getAllProductDecisions().map((record) => {
-    const decision = getProductDecision(record.slug);
-    if (!decision) throw new Error(`Product decision not found: ${record.slug}`);
+    const decision = getProductDecision(record.pdrRef);
+    if (!decision) throw new Error(`Product decision not found: ${record.pdrRef}`);
     const facts: [string, string][] = [
+      ["Project", decision.projectTitle],
       ["Status", decision.status],
       ["Opened", decision.date],
     ];
@@ -629,8 +642,11 @@ function buildProductDecisionPages(): GeneratedPage[] {
     if (decision.supersedes) {
       facts.push([
         "Supersedes",
-        markdownUrl(routePath("product-decisions", decision.supersedes)),
+        markdownUrl(productDecisionPath(decision.supersedes)),
       ]);
+    }
+    if (decision.supersededBy) {
+      facts.push(["Superseded by", markdownUrl(productDecisionPath(decision.supersededBy))]);
     }
     const links = [
       ...decision.backlinks.projects.map(
@@ -658,8 +674,8 @@ function buildProductDecisionPages(): GeneratedPage[] {
       ),
     ];
     return {
-      htmlPath: `/product-decisions/${decision.slug}`,
-      filePath: `product-decisions/${decision.slug}.md`,
+      htmlPath: productDecisionPath(decision.pdrRef),
+      filePath: `${productDecisionPath(decision.pdrRef).slice(1)}.md`,
       title: decision.title,
       description: "",
       facts,
@@ -685,7 +701,7 @@ function buildProductDecisionIndexPage(
         : decisions
             .map(
               (decision) =>
-                `- [${decision.title}](${markdownUrl(routePath("product-decisions", decision.slug))}) · ${decision.status}`,
+                `- [${decision.title}](${markdownUrl(productDecisionPath(decision.pdrRef))}) · ${decision.status}`,
             )
             .join("\n"),
   };
@@ -1009,7 +1025,7 @@ function buildIdeaPages(
         ),
         ...references.productDecisions.map(
           (decision) =>
-            `- Product decision: [${decision.title}](${markdownUrl(routePath("product-decisions", decision.slug))})`,
+            `- Product decision: [${decision.title}](${markdownUrl(productDecisionPath(decision.pdrRef))})`,
         ),
       );
     }
@@ -1198,7 +1214,6 @@ function buildRoutesJson(): string {
         "/ideas",
         "/ideas/*",
         "/product-decisions",
-        "/product-decisions/*",
       ],
       exclude: ["/_next/*", "/company-logos/*", "/tech-icons/*"],
     },

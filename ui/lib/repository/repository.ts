@@ -65,6 +65,7 @@ import {
   type RoleSlug,
 } from "../domain/role/jobRole";
 import {
+  type ProductDecisionRef,
   type ProductDecisionSlug,
   ProductDecisionSlugSchema,
   ProjectSlugSchema,
@@ -107,7 +108,6 @@ const BLOG_DIR = path.join(CONTENT_DIR, "blog");
 const INITIATIVES_DIR = path.join(CONTENT_DIR, "initiatives");
 const IDEAS_DIR = path.join(CONTENT_DIR, "ideas");
 const PROJECTS_DIR = path.join(CONTENT_DIR, "projects");
-const PRODUCT_DECISIONS_DIR = path.join(CONTENT_DIR, "product-decisions");
 const BUILDING_PHILOSOPHY_PATH = path.join(
   PROJECTS_DIR,
   "building-philosophy.mdx",
@@ -709,11 +709,12 @@ interface ADRLoadResult {
 }
 
 interface ProductDecisionLoadResult {
-  entities: Map<ProductDecisionSlug, ProductDecision>;
-  relations: Map<ProductDecisionSlug, ProductDecisionRelations>;
+  entities: Map<ProductDecisionRef, ProductDecision>;
+  relations: Map<ProductDecisionRef, ProductDecisionRelations>;
 }
 
 function loadProductDecisionFile(
+  projectSlug: ProjectSlug,
   filename: string,
   sequenceNumbers: Map<string, ProductDecisionSlug>,
 ): { entity: ProductDecision; relations: ProductDecisionRelations } {
@@ -734,7 +735,7 @@ function loadProductDecisionFile(
   sequenceNumbers.set(sequence, slug);
 
   const fileContent = fs.readFileSync(
-    path.join(PRODUCT_DECISIONS_DIR, filename),
+    path.join(PROJECTS_DIR, projectSlug, "pdrs", filename),
     "utf-8",
   );
   const { data, content } = parseFrontmatter(fileContent);
@@ -758,6 +759,8 @@ function loadProductDecisionFile(
   }
   return {
     entity: ProductDecisionSchema.parse({
+      pdrRef: `${projectSlug}:${slug}`,
+      projectSlug,
       slug,
       title: record.title,
       date: record.date,
@@ -770,6 +773,7 @@ function loadProductDecisionFile(
       readingTime: readingTime(content).text,
     }),
     relations: {
+      project: projectSlug,
       evidence: record.evidence,
       ideas: record.ideas,
       affectedProjects: record.affected_projects,
@@ -779,7 +783,7 @@ function loadProductDecisionFile(
 }
 
 function deriveProductDecisionStatuses(
-  entities: Map<ProductDecisionSlug, ProductDecision>,
+  entities: Map<ProductDecisionRef, ProductDecision>,
 ): void {
   for (const decision of entities.values()) {
     if (
@@ -794,20 +798,37 @@ function deriveProductDecisionStatuses(
 }
 
 export function loadProductDecisions(): ProductDecisionLoadResult {
-  const entities = new Map<ProductDecisionSlug, ProductDecision>();
-  const relations = new Map<ProductDecisionSlug, ProductDecisionRelations>();
-  if (!fs.existsSync(PRODUCT_DECISIONS_DIR)) return { entities, relations };
+  const entities = new Map<ProductDecisionRef, ProductDecision>();
+  const relations = new Map<ProductDecisionRef, ProductDecisionRelations>();
+  const legacyDirectory = path.join(CONTENT_DIR, "product-decisions");
+  if (
+    fs.existsSync(legacyDirectory) &&
+    fs.readdirSync(legacyDirectory).some((file) => file.endsWith(".mdx"))
+  ) {
+    throw new Error(
+      "Product decisions must belong to a project's pdrs directory",
+    );
+  }
+  if (!fs.existsSync(PROJECTS_DIR)) return { entities, relations };
 
-  const files = fs
-    .readdirSync(PRODUCT_DECISIONS_DIR)
-    .filter((file) => file.endsWith(".mdx"))
-    .sort((left, right) => left.localeCompare(right, "en"));
-  const sequenceNumbers = new Map<string, ProductDecisionSlug>();
-
-  for (const filename of files) {
-    const result = loadProductDecisionFile(filename, sequenceNumbers);
-    entities.set(result.entity.slug, result.entity);
-    relations.set(result.entity.slug, result.relations);
+  for (const project of fs.readdirSync(PROJECTS_DIR, { withFileTypes: true })) {
+    if (!project.isDirectory()) continue;
+    const directory = path.join(PROJECTS_DIR, project.name, "pdrs");
+    if (!fs.existsSync(directory)) continue;
+    const files = fs
+      .readdirSync(directory)
+      .filter((file) => file.endsWith(".mdx"))
+      .sort((left, right) => left.localeCompare(right, "en"));
+    const sequenceNumbers = new Map<string, ProductDecisionSlug>();
+    for (const filename of files) {
+      const result = loadProductDecisionFile(
+        project.name,
+        filename,
+        sequenceNumbers,
+      );
+      entities.set(result.entity.pdrRef, result.entity);
+      relations.set(result.entity.pdrRef, result.relations);
+    }
   }
 
   deriveProductDecisionStatuses(entities);
@@ -1101,8 +1122,8 @@ interface ValidationInput {
   roleRelations: Map<RoleSlug, RoleRelations>;
   adrAliases?: Map<ADRRef, ADRRef>;
   platformManifest?: PlatformManifest;
-  productDecisions?: Map<ProductDecisionSlug, ProductDecision>;
-  productDecisionRelations?: Map<ProductDecisionSlug, ProductDecisionRelations>;
+  productDecisions?: Map<ProductDecisionRef, ProductDecision>;
+  productDecisionRelations?: Map<ProductDecisionRef, ProductDecisionRelations>;
 }
 
 type TechnologyReferenceCheck = (
@@ -1619,9 +1640,9 @@ function validateADRProductDecisionLinks(
 
 function validateProductDecisionSupersession(
   decision: ProductDecision,
-  slug: ProductDecisionSlug,
-  productDecisions: Map<ProductDecisionSlug, ProductDecision>,
-  supersededBy: Map<ProductDecisionSlug, ProductDecisionSlug>,
+  slug: ProductDecisionRef,
+  productDecisions: Map<ProductDecisionRef, ProductDecision>,
+  supersededBy: Map<ProductDecisionRef, ProductDecisionRef>,
   errors: ReferentialIntegrityError[],
 ): void {
   if (decision.supersedes === slug) {
@@ -1667,7 +1688,7 @@ function validateProductDecisionSupersession(
       supersededBy.set(decision.supersedes, slug);
     }
   }
-  const seen = new Set<ProductDecisionSlug>([slug]);
+  const seen = new Set<ProductDecisionRef>([slug]);
   let current = decision.supersedes;
   while (current) {
     if (seen.has(current)) {
@@ -1957,8 +1978,17 @@ export function validateReferentialIntegrity(
   });
 
   const productDecisions = input.productDecisions;
-  const supersededBy = new Map<ProductDecisionSlug, ProductDecisionSlug>();
+  const supersededBy = new Map<ProductDecisionRef, ProductDecisionRef>();
   productDecisions?.forEach((decision, slug) => {
+    if (!input.projects.has(decision.projectSlug)) {
+      errors.push({
+        type: "missing_reference",
+        entity: `ProductDecision[${slug}]`,
+        field: "project",
+        value: decision.projectSlug,
+        message: `Product decision '${slug}' has missing owner '${decision.projectSlug}'`,
+      });
+    }
     validateProductDecisionSupersession(
       decision,
       slug,
@@ -2004,7 +2034,7 @@ export interface DomainRepository {
   projects: Map<ProjectSlug, Project>;
   projectAliases: Map<ProjectSlug, ProjectSlug>;
   adrs: Map<ADRRef, ADR>;
-  productDecisions: Map<ProductDecisionSlug, ProductDecision>;
+  productDecisions: Map<ProductDecisionRef, ProductDecision>;
   adrAliases: Map<ADRRef, ADRRef>;
   roles: Map<RoleSlug, JobRole>;
   graph: ContentGraph;
@@ -2032,10 +2062,9 @@ function addProductDecisionRelationData(
   loaders: LoaderResults,
 ): void {
   for (const [slug, decisionRels] of loaders.productDecisions.relations) {
-    relations.productDecisionAffectedProjects.set(
-      slug,
-      decisionRels.affectedProjects,
-    );
+    relations.productDecisionAffectedProjects.set(slug, [
+      ...new Set([decisionRels.project, ...decisionRels.affectedProjects]),
+    ]);
     relations.productDecisionIdeas.set(slug, decisionRels.ideas);
     relations.productDecisionInformedByADRs.set(
       slug,

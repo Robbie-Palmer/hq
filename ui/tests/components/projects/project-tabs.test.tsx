@@ -54,6 +54,24 @@ describe("ProjectTabs", () => {
     expect(screen.getByText("Pitch content")).toBeVisible();
   });
 
+  it("links the product decision tab to its owning project", async () => {
+    const user = userEvent.setup();
+    render(
+      <ProjectTabs
+        projectSlug="platform"
+        adrCount={0}
+        adrs={null}
+        overview={<p>Overview</p>}
+        pdrCount={1}
+        pdrs={<p>Product policy</p>}
+      />,
+    );
+    await user.click(screen.getByRole("tab", { name: /Product decisions/ }));
+    expect(replaceMock).toHaveBeenCalledWith("/projects/platform?tab=pdrs", {
+      scroll: false,
+    });
+  });
+
   it("uses the canonical projects URL when selecting the philosophy tab", async () => {
     const user = userEvent.setup();
     render(
