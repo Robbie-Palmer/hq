@@ -17,8 +17,8 @@ import { ApiError } from "@/lib/api/http";
 import type { StoredShoppingList } from "@/lib/api/shopping-lists";
 import {
   addExtra,
+  addRecipe,
   getShoppingListSnapshot,
-  setPlannedMeal,
   toggleChecked,
 } from "@/lib/shopping/shoppingListStore";
 import { __resetShoppingListForTests } from "@/tests/support/recipe-state";
@@ -99,7 +99,7 @@ let statefulChildMounts = 0;
 
 function StatefulStartNewButton() {
   const startNew = useStartNewShoppingList();
-  const [view, setView] = useState("plan");
+  const [view, setView] = useState("summary");
   const [mountNumber] = useState(() => {
     statefulChildMounts += 1;
     return statefulChildMounts;
@@ -133,13 +133,18 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
     });
   });
 
-  it("installs the server list, keeps the local meal plan separate, and saves edits", async () => {
+  it("migrates an unscoped browser list into the server snapshot", async () => {
     mocks.saveCurrentShoppingList.mockResolvedValue({
       ...storedList,
       revision: "1",
+      snapshot: {
+        ...emptySnapshot,
+        recipes: [{ slug: "tomato-soup" }],
+        extras: [{ id: "extra-milk", text: "Milk", checked: false }],
+      },
     });
-    localStorage.setItem("recipe-shopping-plan-resource", "user-1");
-    setPlannedMeal("fri", "dinner", "tomato-soup");
+    addRecipe("tomato-soup");
+    addExtra("Milk");
     const { queryClient } = renderWithQueryClient(
       <ShoppingListBoundary>
         <p>List ready</p>
@@ -148,24 +153,22 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
 
     expect(await screen.findByText("List ready")).toBeInTheDocument();
     await waitForInstalledList();
-    expect(getShoppingListSnapshot().plan).toEqual([
-      { day: "fri", slot: "dinner", slug: "tomato-soup" },
-    ]);
+    expect(getShoppingListSnapshot()).toMatchObject({
+      recipes: [{ slug: "tomato-soup" }],
+      extras: [expect.objectContaining({ text: "Milk" })],
+    });
 
-    act(() => addExtra("Milk"));
     await waitFor(
       () =>
         expect(mocks.saveCurrentShoppingList).toHaveBeenCalledWith(
           storedList.id,
           storedList.revision,
           expect.objectContaining({
+            recipes: [{ slug: "tomato-soup" }],
             extras: [expect.objectContaining({ text: "Milk" })],
           }),
         ),
       { timeout: 5_000 },
-    );
-    expect(mocks.saveCurrentShoppingList.mock.calls[0]?.[2]).not.toHaveProperty(
-      "plan",
     );
     expect(
       queryClient.getQueryData<StoredShoppingList>([
@@ -504,9 +507,18 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
     );
   });
 
-  it("clears a local meal plan owned by another shopping-list scope", async () => {
-    localStorage.setItem("recipe-shopping-plan-resource", "other-user");
-    setPlannedMeal("fri", "dinner", "private-recipe");
+  it("ignores browser storage owned by another shopping list", async () => {
+    localStorage.setItem(
+      "recipe-shopping-list:v1",
+      JSON.stringify({
+        recipes: [{ slug: "private-recipe" }],
+        checked: [],
+        extras: [],
+        listId: "other-list",
+        revision: "3",
+      }),
+    );
+    __resetShoppingListForTests();
 
     renderWithQueryClient(
       <ShoppingListBoundary>
@@ -515,10 +527,11 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
     );
 
     await screen.findByText("List ready");
-    expect(getShoppingListSnapshot().plan).toEqual([]);
+    expect(getShoppingListSnapshot()).toEqual(emptySnapshot);
+    expect(mocks.saveCurrentShoppingList).not.toHaveBeenCalled();
   });
 
-  it("loads the server list when local plan storage is unavailable", async () => {
+  it("loads the server list when browser storage is unavailable", async () => {
     const getItem = vi
       .spyOn(Storage.prototype, "getItem")
       .mockImplementationOnce(() => {
@@ -537,14 +550,14 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
     );
 
     expect(await screen.findByText("List ready")).toBeInTheDocument();
-    expect(getShoppingListSnapshot().plan).toEqual([]);
+    expect(getShoppingListSnapshot()).toEqual(emptySnapshot);
     getItem.mockRestore();
     setItem.mockRestore();
   });
 
-  it("keeps failed edits local and shows that they are unsaved", async () => {
-    mocks.saveCurrentShoppingList.mockRejectedValue(new Error("conflict"));
-    renderWithQueryClient(
+  it("recovers a failed save from browser storage after remount", async () => {
+    mocks.saveCurrentShoppingList.mockRejectedValueOnce(new Error("offline"));
+    const firstView = renderWithQueryClient(
       <ShoppingListBoundary>
         <p>List ready</p>
       </ShoppingListBoundary>,
@@ -563,6 +576,35 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
     expect(getShoppingListSnapshot().extras).toEqual([
       expect.objectContaining({ text: "Milk" }),
     ]);
+
+    const cached = getShoppingListSnapshot();
+    firstView.unmount();
+    __resetShoppingListForTests();
+    mocks.saveCurrentShoppingList.mockResolvedValue({
+      ...storedList,
+      revision: "1",
+      snapshot: cached,
+    });
+
+    renderWithQueryClient(
+      <ShoppingListBoundary>
+        <p>List recovered</p>
+      </ShoppingListBoundary>,
+    );
+
+    expect(await screen.findByText("List recovered")).toBeInTheDocument();
+    await waitFor(
+      () =>
+        expect(mocks.saveCurrentShoppingList).toHaveBeenNthCalledWith(
+          2,
+          storedList.id,
+          storedList.revision,
+          expect.objectContaining({
+            extras: [expect.objectContaining({ text: "Milk" })],
+          }),
+        ),
+      { timeout: 5_000 },
+    );
   });
 
   it("clears immediately, then archives the loaded list", async () => {
@@ -585,7 +627,6 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
 
     expect(getShoppingListSnapshot()).toEqual({
       recipes: [],
-      plan: [],
       checked: [],
       extras: [],
     });
@@ -617,7 +658,6 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
     await waitFor(() =>
       expect(getShoppingListSnapshot()).toEqual({
         recipes: [],
-        plan: [],
         checked: [],
         extras: [],
       }),

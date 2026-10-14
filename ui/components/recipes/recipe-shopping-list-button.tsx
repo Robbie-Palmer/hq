@@ -9,10 +9,7 @@ import { isApiError } from "@/lib/api/http";
 import { saveCurrentShoppingList } from "@/lib/api/shopping-lists";
 import { recipeQueryKeys } from "@/lib/query/recipe-query-keys";
 import { shoppingListQuery } from "@/lib/query/shopping-list-queries";
-import {
-  getShoppingListSnapshot,
-  installShoppingListSnapshot,
-} from "@/lib/shopping/shoppingListStore";
+import { installShoppingListSnapshot } from "@/lib/shopping/shoppingListStore";
 
 export function RecipeShoppingListButton({
   recipeSlug,
@@ -63,11 +60,11 @@ export function RecipeShoppingListButton({
     onSuccess: ({ updated, changed }, { add }) => {
       queryClient.setQueryData(queryKey, updated);
       installShoppingListSnapshot(
-        {
-          ...updated.snapshot,
-          plan: getShoppingListSnapshot().plan,
-        },
+        updated.snapshot,
         updated.id,
+        "install",
+        true,
+        updated.revision,
       );
       if (add && changed) {
         captureRecipeProductActivity("shopping_recipe_added", {

@@ -17,10 +17,7 @@ import {
 } from "@/lib/api/shopping-lists";
 import { recipeQueryKeys } from "@/lib/query/recipe-query-keys";
 import { shoppingListQuery } from "@/lib/query/shopping-list-queries";
-import {
-  getShoppingListSnapshot,
-  installShoppingListSnapshot,
-} from "@/lib/shopping/shoppingListStore";
+import { installShoppingListSnapshot } from "@/lib/shopping/shoppingListStore";
 
 export type RecipeListShoppingRecipe = {
   slug: string;
@@ -104,11 +101,11 @@ function installUpdatedShoppingList(
 ) {
   queryClient.setQueryData(queryKey, updated);
   installShoppingListSnapshot(
-    {
-      ...updated.snapshot,
-      plan: getShoppingListSnapshot().plan,
-    },
+    updated.snapshot,
     updated.id,
+    "install",
+    true,
+    updated.revision,
   );
 }
 
