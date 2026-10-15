@@ -36,6 +36,10 @@ function numberValue(value: string): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : Number.NaN;
 }
 
+function inputAmount(value: number): string {
+  return String(Math.round((value + Number.EPSILON) * 100) / 100);
+}
+
 function initialBaselineAmount(
   baseline: SpendingBaseline | undefined,
   field:
@@ -44,7 +48,7 @@ function initialBaselineAmount(
     | "annualDebtCashFlow",
 ): string {
   if (baseline == null) return "";
-  return String(baseline[field] / 12);
+  return inputAmount(baseline[field] / 12);
 }
 
 function ownerValue(ownership: Ownership | undefined): string {
@@ -205,7 +209,7 @@ function useSpendingBaselineModel() {
     dirtyFields.current.add("debt");
     const multiplier = next === "annual" ? 12 : 1 / 12;
     const convert = (value: string) =>
-      value.trim() === "" ? "" : String(Number(value) * multiplier);
+      value.trim() === "" ? "" : inputAmount(Number(value) * multiplier);
     setEssential(convert(essential));
     setDiscretionary(convert(discretionary));
     setDebt(convert(debt));

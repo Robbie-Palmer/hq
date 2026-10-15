@@ -723,7 +723,7 @@ describe("SpendingBaselineManager", () => {
       status: "active" as const,
       effectiveDate: "2026-06-30",
       annualEssentialSpending: 24_000,
-      annualDiscretionarySpending: 12_000,
+      annualDiscretionarySpending: 5_398,
       annualDebtCashFlow: 6_000,
       currency: "GBP" as const,
       ownership: { kind: "personal" as const, memberId: "alex" },
@@ -741,7 +741,7 @@ describe("SpendingBaselineManager", () => {
     await waitFor(() =>
       expect(screen.getByLabelText("Essential spending")).toHaveValue(1500),
     );
-    expect(screen.getByLabelText("Discretionary spending")).toHaveValue(1000);
+    expect(screen.getByLabelText("Discretionary spending")).toHaveValue(449.83);
     expect(screen.getByLabelText("Debt cash flow")).toHaveValue(500);
     expect(
       screen.getByRole("combobox", { name: "Spending baseline owner" }),
