@@ -167,21 +167,28 @@ export function PortfolioGoal({
   }
 
   return (
-    <Card className="min-w-0">
-      <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1.5">
-          <CardTitle>Financial independence</CardTitle>
-          <CardDescription>
-            Derived from income, complete account balances, and signed capital
-            flows. Capital sources keep personal saving, debt principal, and
-            external contributions distinct.
-          </CardDescription>
-        </div>
-        {showIncomeTools && <IncomeHistoryImportDrawer />}
-      </CardHeader>
-      <CardContent className="flex min-w-0 flex-col gap-5 px-4 sm:px-6">
+    <Card
+      className={showIncomeTools ? "min-w-0" : "min-w-0 border-0 shadow-none"}
+    >
+      {showIncomeTools && (
+        <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1.5">
+            <CardTitle>Financial independence</CardTitle>
+            <CardDescription>
+              Based on balances, income, and capital flows.
+            </CardDescription>
+          </div>
+          <IncomeHistoryImportDrawer />
+        </CardHeader>
+      )}
+      <CardContent
+        className={`flex min-w-0 flex-col gap-5 ${showIncomeTools ? "px-4 sm:px-6" : "px-0"}`}
+      >
         <SpendingBaselineManager />
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div
+          id="fi-results"
+          className="grid scroll-mt-4 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+        >
           <div className="rounded-md border p-3">
             <p className="text-xs text-muted-foreground">
               Representative annual expenditure

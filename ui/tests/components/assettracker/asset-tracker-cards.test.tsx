@@ -518,7 +518,7 @@ describe("SpendingBaselineManager", () => {
       ),
       "Household budget",
     );
-    await user.click(screen.getByRole("button", { name: "Save baseline" }));
+    await user.click(screen.getByRole("button", { name: "Use this budget" }));
 
     expect(saveSpendingBaseline).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -538,6 +538,12 @@ describe("SpendingBaselineManager", () => {
         sourceNotes: "Household budget",
       }),
     );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Your FI results now use £36,000/yr",
+    );
+    expect(
+      screen.getByRole("link", { name: "View updated results" }),
+    ).toHaveAttribute("href", "#fi-results");
   });
 
   it("accepts annual entry without multiplying the amounts", async () => {
@@ -553,7 +559,7 @@ describe("SpendingBaselineManager", () => {
     await user.type(screen.getByLabelText("Essential spending"), "24000");
     await user.type(screen.getByLabelText("Discretionary spending"), "12000");
     await user.type(screen.getByLabelText("Debt cash flow"), "6000");
-    await user.click(screen.getByRole("button", { name: "Save baseline" }));
+    await user.click(screen.getByRole("button", { name: "Use this budget" }));
 
     expect(saveSpendingBaseline).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -598,9 +604,7 @@ describe("SpendingBaselineManager", () => {
 
     render(<SpendingBaselineManager />);
     await user.type(screen.getByLabelText("Essential spending"), "2000");
-    await user.click(
-      screen.getByRole("button", { name: "Use reconciled history" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Use history" }));
 
     expect(saveSpendingBaseline).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -685,10 +689,12 @@ describe("SpendingBaselineManager", () => {
 
     render(<SpendingBaselineManager />);
     expect(screen.getAllByText("Manual")[0]).toBeVisible();
-    expect(screen.getByText("History £39,000/yr")).toBeVisible();
-    await user.click(
-      screen.getByRole("button", { name: "Use reconciled history" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Use history" }));
+    expect(
+      screen.getByRole("heading", { name: "Start from history" }),
+    ).toBeVisible();
+    expect(screen.getByText("£39,000/yr")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Use history" }));
 
     expect(saveSpendingBaseline).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -741,7 +747,7 @@ describe("SpendingBaselineManager", () => {
       screen.getByRole("combobox", { name: "Spending baseline owner" }),
     ).toHaveTextContent("Alex");
 
-    await user.click(screen.getByRole("button", { name: "Save new version" }));
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
     expect(saveSpendingBaseline).toHaveBeenCalledWith(
       expect.objectContaining({
         ownership: { kind: "personal", memberId: "alex" },

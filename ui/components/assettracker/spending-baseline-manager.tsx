@@ -1,5 +1,6 @@
 "use client";
 
+import { CheckCircle2Icon, ChevronDownIcon } from "lucide-react";
 import { type SubmitEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,72 +59,41 @@ function hydrateIfClean(
   if (!dirtyFields.has(field)) hydrate();
 }
 
-function baselineSaveLabel(
-  saving: boolean,
-  hasActiveBaseline: boolean,
-): string {
-  if (saving) return "Saving…";
-  return hasActiveBaseline ? "Save new version" : "Save baseline";
-}
-
-function AnnualComparison({
-  label,
-  selected,
-  reconciled,
-  currency,
-}: Readonly<{
-  label: string;
-  selected: number | null;
-  reconciled: number | null;
-  currency: Currency;
-}>) {
-  return (
-    <div className="rounded-md bg-muted/40 p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 font-medium">
-        {selected == null
-          ? "Unavailable"
-          : `${formatCurrency(Math.round(selected), currency)}/yr`}
-      </p>
-      {reconciled != null && (
-        <p className="mt-1 text-xs text-muted-foreground">
-          History {formatCurrency(Math.round(reconciled), currency)}/yr
-        </p>
-      )}
-    </div>
-  );
-}
-
 function VersionHistory({
   baselines,
 }: Readonly<{ baselines: SpendingBaseline[] }>) {
   if (baselines.length === 0) return null;
   return (
-    <div className="space-y-2">
-      <h4 className="text-xs font-medium">Saved versions</h4>
-      <ul className="divide-y rounded-md border px-3">
+    <details className="group rounded-md border">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-medium marker:content-none [&::-webkit-details-marker]:hidden">
+        <span>
+          Version history{" "}
+          <span className="text-muted-foreground">({baselines.length})</span>
+        </span>
+        <ChevronDownIcon className="size-4 transition-transform group-open:rotate-180" />
+      </summary>
+      <ul className="divide-y border-t px-3">
         {baselines.map((baseline) => (
           <li
             key={baseline.id}
-            className="flex flex-wrap items-center gap-2 py-2 text-xs"
+            className="grid gap-1 py-3 text-xs sm:grid-cols-[auto_auto_1fr_auto] sm:items-center sm:gap-2"
           >
-            <span className="font-medium">v{baseline.version}</span>
-            <Badge variant="outline">{sourceLabel(baseline)}</Badge>
-            <span>{baseline.effectiveDate}</span>
+            <div className="flex items-center gap-2">
+              <span className="font-medium">v{baseline.version}</span>
+              <Badge variant="outline">{sourceLabel(baseline)}</Badge>
+            </div>
             <span className="text-muted-foreground">
+              {baseline.effectiveDate}
+            </span>
+            <span>
               {formatCurrency(
                 Math.round(annualOrdinarySpending(baseline)),
                 baseline.currency,
               )}
-              /yr ordinary,{" "}
-              {formatCurrency(
-                Math.round(baseline.annualDebtCashFlow),
-                baseline.currency,
-              )}
-              /yr debt
+              /yr
             </span>
             <Badge
-              className="ml-auto"
+              className="w-fit sm:justify-self-end"
               variant={baseline.status === "active" ? "secondary" : "outline"}
             >
               {baseline.status === "active" ? "Active" : "Superseded"}
@@ -131,7 +101,7 @@ function VersionHistory({
           </li>
         ))}
       </ul>
-    </div>
+    </details>
   );
 }
 
@@ -159,7 +129,17 @@ function useSpendingBaselineModel() {
   const [owner, setOwner] = useState(() => ownerValue(active?.ownership));
   const [sourceNotes, setSourceNotes] = useState(active?.sourceNotes ?? "");
   const [saving, setSaving] = useState(false);
+  const [savingAction, setSavingAction] = useState<"manual" | "history" | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const historyAvailable =
+    tracker.financialIndependence.reconciledAnnualExpenditure != null;
+  const [mode, setMode] = useState<"summary" | "history" | "manual">(() => {
+    if (active != null) return "summary";
+    return historyAvailable ? "history" : "manual";
+  });
   const dirtyFields = useRef(new Set<string>());
   const baselines = useMemo(
     () =>
@@ -215,6 +195,7 @@ function useSpendingBaselineModel() {
   ) {
     dirtyFields.current.add(field);
     setValue(value);
+    setNotice(null);
   }
 
   function changePeriod(next: "monthly" | "annual") {
@@ -242,7 +223,9 @@ function useSpendingBaselineModel() {
       values;
     const multiplier = period === "monthly" ? 12 : 1;
     setSaving(true);
+    setSavingAction("manual");
     setError(null);
+    setNotice(null);
     try {
       await tracker.saveSpendingBaseline({
         annualEssentialSpending: essentialAmount * multiplier,
@@ -255,10 +238,17 @@ function useSpendingBaselineModel() {
         sourceNotes: sourceNotes.trim() || undefined,
       });
       dirtyFields.current.clear();
+      const annualOrdinary =
+        (essentialAmount + discretionaryAmount) * multiplier;
+      setNotice(
+        `Baseline saved. Your FI results now use ${formatCurrency(Math.round(annualOrdinary), currency)}/yr of ordinary spending.`,
+      );
+      setMode("summary");
     } catch (error_) {
       setError(formatAssetTrackerError(error_));
     } finally {
       setSaving(false);
+      setSavingAction(null);
     }
   }
 
@@ -287,7 +277,9 @@ function useSpendingBaselineModel() {
       return;
     }
     setSaving(true);
+    setSavingAction("history");
     setError(null);
+    setNotice(null);
     try {
       await tracker.saveSpendingBaseline({
         annualEssentialSpending: retainedEssential,
@@ -305,10 +297,15 @@ function useSpendingBaselineModel() {
           "Reconciled ordinary total; essential split confirmed manually",
       });
       dirtyFields.current.clear();
+      setNotice(
+        `History applied. Your FI results now use ${formatCurrency(Math.round(ordinary), tracker.baseCurrency)}/yr of ordinary spending.`,
+      );
+      setMode("summary");
     } catch (error_) {
       setError(formatAssetTrackerError(error_));
     } finally {
       setSaving(false);
+      setSavingAction(null);
     }
   }
 
@@ -325,7 +322,12 @@ function useSpendingBaselineModel() {
     owner,
     sourceNotes,
     saving,
+    savingAction,
     error,
+    notice,
+    historyAvailable,
+    mode,
+    setMode,
     changePeriod,
     setEssential: (value: string) => edit("essential", setEssential, value),
     setDiscretionary: (value: string) =>
@@ -352,8 +354,7 @@ function MemberScopeMessage() {
     <section className="rounded-lg border p-4 sm:p-6">
       <h3 className="font-semibold">Spending baseline</h3>
       <p className="mt-1 text-sm text-muted-foreground">
-        Switch the account scope to Household to review or replace the versioned
-        spending baseline.
+        Switch to Household to set the spending used by forecasts.
       </p>
     </section>
   );
@@ -361,6 +362,12 @@ function MemberScopeMessage() {
 
 function BaselineHeader({ model }: Readonly<{ model: SpendingBaselineModel }>) {
   const { spendingBasis } = model.financialIndependence;
+  const badgeLabel =
+    model.active == null
+      ? model.historyAvailable
+        ? "Using history"
+        : "Not set"
+      : sourceLabel(model.active);
   return (
     <div className="flex flex-wrap items-start justify-between gap-2">
       <div>
@@ -369,16 +376,14 @@ function BaselineHeader({ model }: Readonly<{ model: SpendingBaselineModel }>) {
           <Badge
             variant={spendingBasis.kind === "manual" ? "secondary" : "outline"}
           >
-            {spendingBasis.kind === "manual" ? "Manual" : "Reconciled"}
+            {badgeLabel}
           </Badge>
           {spendingBasis.version != null && (
             <Badge variant="outline">v{spendingBasis.version}</Badge>
           )}
         </div>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-          Forecasts use this record until you save another version. Ordinary
-          spending excludes debt principal. Transfers, commitments, and scenario
-          changes stay separate.
+          Set the spending used for your FI target and forecasts.
         </p>
       </div>
       {spendingBasis.effectiveDate != null && (
@@ -413,55 +418,93 @@ function reconciledDebtCashFlow(model: SpendingBaselineModel): number | null {
     : Math.max(current - ordinary, 0);
 }
 
-function BaselineComparisonGrid({
-  model,
-}: Readonly<{ model: SpendingBaselineModel }>) {
-  const finance = model.financialIndependence;
+function StatusNotice({ model }: Readonly<{ model: SpendingBaselineModel }>) {
+  if (model.notice == null) return null;
   return (
-    <div className="grid gap-3 sm:grid-cols-3">
-      <AnnualComparison
-        label="Ordinary spending"
-        selected={selectedOrdinarySpending(model)}
-        reconciled={finance.reconciledAnnualExpenditure}
-        currency={model.baseCurrency}
-      />
-      <AnnualComparison
-        label="Debt cash flow"
-        selected={finance.spendingBasis.annualDebtCashFlow}
-        reconciled={reconciledDebtCashFlow(model)}
-        currency={model.baseCurrency}
-      />
-      <AnnualComparison
-        label="Current cash requirement"
-        selected={finance.representativeAnnualCurrentExpenditure}
-        reconciled={finance.reconciledAnnualCurrentExpenditure}
-        currency={model.baseCurrency}
-      />
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex flex-col gap-3 rounded-md border bg-muted/40 p-3 sm:flex-row sm:items-center"
+    >
+      <div className="flex min-w-0 items-start gap-2">
+        <CheckCircle2Icon className="mt-0.5 size-4 shrink-0" />
+        <p className="text-sm">{model.notice}</p>
+      </div>
+      <Button className="w-full sm:ml-auto sm:w-auto" variant="outline" asChild>
+        <a href="#fi-results">View updated results</a>
+      </Button>
     </div>
   );
 }
 
-function ReconciledHistoryPrompt({
+function BaselineSummary({
   model,
 }: Readonly<{ model: SpendingBaselineModel }>) {
-  if (model.financialIndependence.reconciledAnnualExpenditure == null) {
-    return null;
-  }
+  const ordinary = selectedOrdinarySpending(model);
+  const debt = model.financialIndependence.spendingBasis.annualDebtCashFlow;
+  const history = model.financialIndependence.reconciledAnnualExpenditure;
+  const difference =
+    ordinary != null && history != null ? ordinary - history : null;
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-md border border-dashed p-3">
-      <p className="min-w-0 flex-1 text-sm text-muted-foreground">
-        History provides the ordinary total, but not its essential split.
-        Confirm essential spending in the form, then save a reconciled version.
-        Any previous baseline stays in version history.
+    <div className="space-y-4 rounded-md bg-muted/40 p-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <p className="text-xs text-muted-foreground">Ordinary spending</p>
+          <p className="mt-1 text-2xl font-semibold">
+            {ordinary == null
+              ? "Unavailable"
+              : `${formatCurrency(Math.round(ordinary), model.baseCurrency)}/yr`}
+          </p>
+          {ordinary != null && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {formatCurrency(Math.round(ordinary / 12), model.baseCurrency)}
+              /month
+            </p>
+          )}
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Debt cash flow</p>
+          <p className="mt-1 text-lg font-semibold">
+            {debt == null
+              ? "Unavailable"
+              : `${formatCurrency(Math.round(debt), model.baseCurrency)}/yr`}
+          </p>
+          {difference != null && difference !== 0 && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {formatCurrency(
+                Math.round(Math.abs(difference)),
+                model.baseCurrency,
+              )}
+              /yr {difference > 0 ? "above" : "below"} reconciled history
+            </p>
+          )}
+        </div>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        This sets your FI target, runway, and portfolio projection below.
       </p>
-      <Button
-        type="button"
-        variant="outline"
-        disabled={model.saving}
-        onClick={() => void model.adoptReconciledHistory()}
-      >
-        Use reconciled history
-      </Button>
+      <div className="grid gap-2 sm:flex sm:flex-wrap">
+        <Button
+          className="w-full sm:w-auto"
+          onClick={() => model.setMode("manual")}
+        >
+          Edit amounts
+        </Button>
+        {model.historyAvailable && (
+          <Button
+            className="w-full sm:w-auto"
+            variant="outline"
+            onClick={() => model.setMode("history")}
+          >
+            {model.active?.source.kind === "reconciled"
+              ? "Refresh from history"
+              : "Use history"}
+          </Button>
+        )}
+        <Button className="w-full sm:w-auto" variant="ghost" asChild>
+          <a href="#fi-results">View FI results</a>
+        </Button>
+      </div>
     </div>
   );
 }
@@ -522,6 +565,7 @@ function BaselineInputField({
   type = "text",
   className = "",
   placeholder,
+  ariaLabel,
 }: Readonly<{
   id: string;
   label: string;
@@ -530,6 +574,7 @@ function BaselineInputField({
   type?: "text" | "date" | "number";
   className?: string;
   placeholder?: string;
+  ariaLabel?: string;
 }>) {
   return (
     <label
@@ -539,7 +584,7 @@ function BaselineInputField({
       <span>{label}</span>
       <Input
         id={id}
-        aria-label={label}
+        aria-label={ariaLabel ?? label}
         type={type}
         min={type === "number" ? "0" : undefined}
         step={type === "number" ? "any" : undefined}
@@ -555,7 +600,7 @@ function BaselineInputField({
 function OwnershipField({ model }: Readonly<{ model: SpendingBaselineModel }>) {
   return (
     <div className="space-y-1.5 text-xs font-medium">
-      <label htmlFor="spending-baseline-owner">Household ownership</label>
+      <label htmlFor="spending-baseline-owner">Applies to</label>
       <Select value={model.owner} onValueChange={model.setOwner}>
         <SelectTrigger
           id="spending-baseline-owner"
@@ -577,61 +622,194 @@ function OwnershipField({ model }: Readonly<{ model: SpendingBaselineModel }>) {
   );
 }
 
-function BaselineForm({ model }: Readonly<{ model: SpendingBaselineModel }>) {
+function FlowSwitcher({ model }: Readonly<{ model: SpendingBaselineModel }>) {
+  if (!model.historyAvailable) return null;
   return (
-    <form className="space-y-4" onSubmit={model.save}>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <Button
+      className="w-full sm:w-auto"
+      type="button"
+      variant="ghost"
+      onClick={() =>
+        model.setMode(model.mode === "history" ? "manual" : "history")
+      }
+    >
+      {model.mode === "history"
+        ? "Enter my own amounts"
+        : "Use history instead"}
+    </Button>
+  );
+}
+
+function ErrorMessage({ model }: Readonly<{ model: SpendingBaselineModel }>) {
+  if (model.error == null) return null;
+  return (
+    <p role="alert" className="text-sm text-destructive">
+      {model.error}
+    </p>
+  );
+}
+
+function HistoryFlow({ model }: Readonly<{ model: SpendingBaselineModel }>) {
+  const ordinary = model.financialIndependence.reconciledAnnualExpenditure;
+  const debt = reconciledDebtCashFlow(model);
+  if (ordinary == null) return null;
+  return (
+    <div className="space-y-4 rounded-md border p-4">
+      <div>
+        <h4 className="font-medium">Start from history</h4>
+        <p className="mt-1 text-2xl font-semibold">
+          {formatCurrency(Math.round(ordinary), model.baseCurrency)}/yr
+        </p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Reconciled from balances and income. Debt cash flow is{" "}
+          {debt == null
+            ? "unavailable"
+            : `${formatCurrency(Math.round(debt), model.baseCurrency)}/yr`}
+          .
+        </p>
+      </div>
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2">
         <PeriodField model={model} />
+        <BaselineInputField
+          id="spending-baseline-essential"
+          label={`Essential spending per ${model.period === "monthly" ? "month" : "year"}`}
+          ariaLabel="Essential spending"
+          type="number"
+          value={model.essential}
+          onChange={model.setEssential}
+        />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        The remaining ordinary spending will be discretionary.
+      </p>
+      <ErrorMessage model={model} />
+      <div className="grid gap-2 sm:flex sm:flex-wrap">
+        <Button
+          className="w-full sm:w-auto"
+          type="button"
+          disabled={model.saving}
+          onClick={() => void model.adoptReconciledHistory()}
+        >
+          {model.savingAction === "history"
+            ? "Applying history…"
+            : "Use history"}
+        </Button>
+        <FlowSwitcher model={model} />
+      </div>
+    </div>
+  );
+}
+
+function MoreBaselineDetails({
+  model,
+}: Readonly<{ model: SpendingBaselineModel }>) {
+  return (
+    <details className="group rounded-md border">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-medium marker:content-none [&::-webkit-details-marker]:hidden">
+        Currency, date, owner, and source
+        <ChevronDownIcon className="size-4 transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="grid gap-3 border-t p-3 sm:grid-cols-2 lg:grid-cols-3">
         <CurrencyField model={model} />
         <BaselineInputField
           id="spending-baseline-effective-date"
-          label="Spending baseline effective date"
+          label="Effective date"
+          ariaLabel="Spending baseline effective date"
           type="date"
           value={model.effectiveDate}
           onChange={model.setEffectiveDate}
         />
+        <OwnershipField model={model} />
+        <BaselineInputField
+          id="spending-baseline-source-notes"
+          label="Source notes"
+          ariaLabel="Spending baseline source notes"
+          value={model.sourceNotes}
+          onChange={model.setSourceNotes}
+          className="sm:col-span-2 lg:col-span-3"
+          placeholder="Budget, statement, estimate, or other source"
+        />
+      </div>
+    </details>
+  );
+}
+
+function ManualBaselineForm({
+  model,
+}: Readonly<{ model: SpendingBaselineModel }>) {
+  const [essentialAmount = Number.NaN, discretionaryAmount = Number.NaN] = [
+    model.essential,
+    model.discretionary,
+  ].map(numberValue);
+  const preview = [essentialAmount, discretionaryAmount].every(Number.isFinite)
+    ? (essentialAmount + discretionaryAmount) *
+      (model.period === "monthly" ? 12 : 1)
+    : null;
+  return (
+    <form className="space-y-4 rounded-md border p-4" onSubmit={model.save}>
+      <div>
+        <h4 className="font-medium">Enter a budget</h4>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Use the amounts you expect the household to keep spending.
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <PeriodField model={model} />
         <BaselineInputField
           id="spending-baseline-essential"
-          label="Essential spending"
+          label={`Essential per ${model.period === "monthly" ? "month" : "year"}`}
+          ariaLabel="Essential spending"
           type="number"
           value={model.essential}
           onChange={model.setEssential}
         />
         <BaselineInputField
           id="spending-baseline-discretionary"
-          label="Discretionary spending"
+          label={`Discretionary per ${model.period === "monthly" ? "month" : "year"}`}
+          ariaLabel="Discretionary spending"
           type="number"
           value={model.discretionary}
           onChange={model.setDiscretionary}
         />
         <BaselineInputField
           id="spending-baseline-debt"
-          label="Debt cash flow"
+          label={`Debt cash flow per ${model.period === "monthly" ? "month" : "year"}`}
+          ariaLabel="Debt cash flow"
           type="number"
           value={model.debt}
           onChange={model.setDebt}
         />
-        <OwnershipField model={model} />
-        <BaselineInputField
-          id="spending-baseline-source-notes"
-          label="Spending baseline source notes"
-          value={model.sourceNotes}
-          onChange={model.setSourceNotes}
-          className="sm:col-span-2"
-          placeholder="Budget, statement, estimate, or other source"
-        />
       </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={model.saving}>
-          {baselineSaveLabel(model.saving, model.active != null)}
+      {preview != null && (
+        <div className="rounded-md bg-muted/40 p-3">
+          <p className="text-xs text-muted-foreground">Forecast spending</p>
+          <p className="mt-1 font-semibold">
+            {formatCurrency(Math.round(preview), model.currency)}/yr
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Saving this updates the FI target, runway, and projection.
+          </p>
+        </div>
+      )}
+      <MoreBaselineDetails model={model} />
+      <p className="text-xs text-muted-foreground">
+        Debt cash flow covers principal and other debt repayments. Interest and
+        fees belong in ordinary spending.
+      </p>
+      <ErrorMessage model={model} />
+      <div className="grid gap-2 sm:flex sm:flex-wrap">
+        <Button
+          className="w-full sm:w-auto"
+          type="submit"
+          disabled={model.saving}
+        >
+          {model.savingAction === "manual"
+            ? "Saving…"
+            : model.active == null
+              ? "Use this budget"
+              : "Save changes"}
         </Button>
-        <p className="text-xs text-muted-foreground">
-          Put interest and fees in ordinary spending. Put principal and other
-          debt repayment in debt cash flow.
-        </p>
-        {model.error && (
-          <p className="text-sm text-destructive">{model.error}</p>
-        )}
+        <FlowSwitcher model={model} />
       </div>
     </form>
   );
@@ -643,11 +821,12 @@ export function SpendingBaselineManager() {
     return <MemberScopeMessage />;
   }
   return (
-    <section className="space-y-4 rounded-lg border p-4 sm:p-6">
+    <section className="min-w-0 space-y-4 rounded-lg border p-4 sm:p-6">
       <BaselineHeader model={model} />
-      <BaselineComparisonGrid model={model} />
-      <ReconciledHistoryPrompt model={model} />
-      <BaselineForm model={model} />
+      <StatusNotice model={model} />
+      {model.mode === "summary" && <BaselineSummary model={model} />}
+      {model.mode === "history" && <HistoryFlow model={model} />}
+      {model.mode === "manual" && <ManualBaselineForm model={model} />}
       <VersionHistory baselines={model.baselines} />
     </section>
   );
