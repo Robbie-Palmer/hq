@@ -87,6 +87,13 @@ export const OperationalRequirementSchema = z.enum([
   "project-owned-slack-credentials",
   "git-repository",
   "external-blob-remote",
+  "durable-session-store",
+  "same-origin-auth-routes",
+  "secure-http-only-cookie",
+  "environment-specific-redirect-uri",
+  "provider-registration",
+  "server-side-authorization",
+  "credential-rotation",
 ]);
 
 export const OperationalPrerequisiteSchema = z.object({
@@ -107,6 +114,12 @@ export const LayerSlotPolicySchema = TemporalPeriodSchema.extend({
   prerequisites: z.array(SlotPrerequisiteSchema).default([]),
 });
 
+export const ConfigurationRequirementSchema = z.object({
+  name: z.string().regex(/^[A-Z][A-Z0-9_]*$/),
+  owner: DefaultSlotSlugSchema,
+  sensitive: z.boolean(),
+});
+
 const DefaultSelectionFieldsSchema = TemporalPeriodSchema.extend({
   id: z.string().min(1),
   slot: DefaultSlotSlugSchema,
@@ -115,6 +128,8 @@ const DefaultSelectionFieldsSchema = TemporalPeriodSchema.extend({
   originProjects: z.array(ProjectSlugSchema).default([]),
   evidenceADRs: z.array(ADRRefSchema).min(1),
   supersedes: z.string().min(1).optional(),
+  configurationRequirements: z.array(ConfigurationRequirementSchema).optional(),
+  manualSetup: z.array(z.string().min(1)).optional(),
 });
 
 const TechnologyDefaultSelectionSchema = DefaultSelectionFieldsSchema.extend({
@@ -224,6 +239,29 @@ function validateLayerReferences(
   }
 }
 
+function validateSelectionConfiguration(
+  selection: PlatformManifestInput["selections"][number],
+  slots: ReadonlyMap<string, PlatformManifestInput["slots"][number]>,
+  context: z.RefinementCtx,
+): void {
+  const configurationNames = new Set<string>();
+  for (const requirement of selection.configurationRequirements ?? []) {
+    if (configurationNames.has(requirement.name)) {
+      addManifestIssue(
+        context,
+        `Selection '${selection.id}' repeats configuration requirement '${requirement.name}'`,
+      );
+    }
+    configurationNames.add(requirement.name);
+    if (!slots.has(requirement.owner)) {
+      addManifestIssue(
+        context,
+        `Selection '${selection.id}' assigns configuration '${requirement.name}' to unknown owner slot '${requirement.owner}'`,
+      );
+    }
+  }
+}
+
 function validateSelectionReferences(
   manifest: PlatformManifestInput,
   slots: ReadonlyMap<string, PlatformManifestInput["slots"][number]>,
@@ -243,6 +281,7 @@ function validateSelectionReferences(
         `Selection '${selection.id}' kind '${selection.kind}' does not match slot '${selection.slot}' kind '${slot.kind}'`,
       );
     }
+    validateSelectionConfiguration(selection, slots, context);
     if (!selection.supersedes) continue;
     const previous = selections.get(selection.supersedes);
     if (previous?.slot !== selection.slot) {
