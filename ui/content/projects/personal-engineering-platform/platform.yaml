@@ -11,11 +11,21 @@ catalog:
         - "scripts/check-monorepo-layout.ts"
         - "packages/browser-base"
         - "packages/node-base"
+        - "packages/project-economics-domain"
         - "packages/ts-base"
         - "ui/content/projects/personal-engineering-platform"
       relations:
         - type: "part_of"
           target: "project:personal-engineering-platform"
+      decision_refs: ["personal-engineering-platform:032-monorepo-project-package-layout"]
+    - id: "component:personal-engineering-platform/project-economics-domain"
+      kind: "component"
+      name: "Project economics domain"
+      project: "project:personal-engineering-platform"
+      source_paths: ["packages/project-economics-domain"]
+      relations:
+        - type: "part_of"
+          target: "system:personal-engineering-platform/platform"
       decision_refs: ["personal-engineering-platform:032-monorepo-project-package-layout"]
     - id: "system:recipe-site/application"
       kind: "system"
