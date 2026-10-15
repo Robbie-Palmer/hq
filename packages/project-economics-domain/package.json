@@ -9,6 +9,7 @@
     "./costs": "./src/costs.ts",
     "./model": "./src/model.ts",
     "./repositories": "./src/repositories.ts",
+    "./shared-cost-attribution": "./src/shared-cost-attribution.ts",
     "./telemetry": "./src/telemetry.ts"
   },
   "scripts": {
