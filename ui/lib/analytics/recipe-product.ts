@@ -8,7 +8,6 @@ export type RecipeProductActivity =
   | "cook_mode_started"
   | "recipe_cooked"
   | "kitchen_ingredient_added"
-  | "meal_planned"
   | "recipe_viewed"
   | "shopping_item_checked"
   | "shopping_trip_completed"

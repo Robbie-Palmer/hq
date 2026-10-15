@@ -4,13 +4,12 @@ import {
   addRecipe,
   clearChecked,
   clearList,
-  clearMealPlan,
+  getShoppingListCacheIdentity,
   getShoppingListSnapshot,
   installShoppingListSnapshot,
   markShoppingTripCompleted,
   removeExtra,
   removeRecipe,
-  setPlannedMeal,
   setRecipeServings,
   subscribeShoppingList,
   toggleChecked,
@@ -94,43 +93,6 @@ describe("shoppingListStore", () => {
     expect(getShoppingListSnapshot().recipes).toEqual([
       { slug: "risotto", servings: 3 },
     ]);
-    expect(getShoppingListSnapshot().plan).toEqual([]);
-  });
-
-  it("adds scheduled meals and auto-adds the recipe to the shopping pool", () => {
-    setPlannedMeal("mon", "dinner", "risotto");
-    expect(getShoppingListSnapshot()).toMatchObject({
-      recipes: [{ slug: "risotto" }],
-      plan: [{ day: "mon", slot: "dinner", slug: "risotto" }],
-    });
-  });
-
-  it("replaces one calendar slot without duplicating recipes", () => {
-    setPlannedMeal("mon", "dinner", "risotto");
-    setPlannedMeal("mon", "dinner", "paella");
-    expect(getShoppingListSnapshot().recipes).toEqual([
-      { slug: "risotto" },
-      { slug: "paella" },
-    ]);
-    expect(getShoppingListSnapshot().plan).toEqual([
-      { day: "mon", slot: "dinner", slug: "paella" },
-    ]);
-  });
-
-  it("clears a slot while keeping the recipe in the shopping pool", () => {
-    setPlannedMeal("mon", "dinner", "risotto");
-    setPlannedMeal("mon", "dinner", null);
-    expect(getShoppingListSnapshot().recipes).toEqual([{ slug: "risotto" }]);
-    expect(getShoppingListSnapshot().plan).toEqual([]);
-  });
-
-  it("clears only the calendar plan", () => {
-    setPlannedMeal("mon", "dinner", "risotto");
-    addExtra("foil");
-    clearMealPlan();
-    expect(getShoppingListSnapshot().recipes).toEqual([{ slug: "risotto" }]);
-    expect(getShoppingListSnapshot().plan).toEqual([]);
-    expect(getShoppingListSnapshot().extras).toHaveLength(1);
   });
 
   it("installs a single shared storage listener regardless of subscriber count", () => {
@@ -158,10 +120,8 @@ describe("shoppingListStore", () => {
   it("removes a recipe by slug", () => {
     addRecipe("a");
     addRecipe("b");
-    setPlannedMeal("mon", "dinner", "a");
     removeRecipe("a");
     expect(getShoppingListSnapshot().recipes).toEqual([{ slug: "b" }]);
-    expect(getShoppingListSnapshot().plan).toEqual([]);
   });
 
   it("clearChecked unticks ingredients and extras but keeps them", () => {
@@ -192,7 +152,6 @@ describe("shoppingListStore", () => {
     clearList();
     expect(getShoppingListSnapshot()).toEqual({
       recipes: [],
-      plan: [],
       checked: [],
       extras: [],
     });
@@ -212,17 +171,19 @@ describe("shoppingListStore", () => {
         key: STORAGE_KEY,
         newValue: JSON.stringify({
           recipes: [{ slug: "x" }, { slug: "y" }],
-          plan: [{ day: "tue", slot: "lunch", slug: "z" }],
           checked: [],
           extras: [],
           listId: "list-1",
+          revision: "4",
         }),
       }),
     );
-    expect(getShoppingListSnapshot().recipes).toHaveLength(3);
-    expect(getShoppingListSnapshot().recipes).toContainEqual({ slug: "z" });
-    expect(getShoppingListSnapshot().plan).toHaveLength(1);
-    expect(seen).toContainEqual({ count: 3, source: "storage" });
+    expect(getShoppingListSnapshot().recipes).toHaveLength(2);
+    expect(getShoppingListCacheIdentity()).toEqual({
+      listId: "list-1",
+      revision: "4",
+    });
+    expect(seen).toContainEqual({ count: 2, source: "storage" });
     unsub();
   });
 
@@ -235,7 +196,6 @@ describe("shoppingListStore", () => {
         key: STORAGE_KEY,
         newValue: JSON.stringify({
           recipes: [{ slug: "foreign" }],
-          plan: [],
           checked: [],
           extras: [],
           listId: "list-2",
@@ -257,7 +217,6 @@ describe("shoppingListStore", () => {
         key: STORAGE_KEY,
         newValue: JSON.stringify({
           recipes: [{ slug: "other" }],
-          plan: [],
           checked: [],
           extras: [],
           listId: "list-2",

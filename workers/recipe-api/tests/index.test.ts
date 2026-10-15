@@ -5388,6 +5388,65 @@ describe("shopping list flows", () => {
     });
   });
 
+  it("shares canonical list state with members but not outsiders", async () => {
+    seedHousehold();
+
+    const initialResponse = await app.request(
+      "/shopping-lists/current",
+      {},
+      env,
+    );
+    const initial = (await initialResponse.json()) as {
+      id: string;
+      revision: string;
+    };
+    const updateResponse = await app.request(
+      "/shopping-lists/current",
+      {
+        method: "PUT",
+        headers: mutationHeaders,
+        body: JSON.stringify({
+          listId: initial.id,
+          revision: initial.revision,
+          snapshot,
+        }),
+      },
+      env,
+    );
+    expect(updateResponse.status).toBe(200);
+
+    authzMock.session = sessionFor({
+      id: "member-user",
+      email: "member@example.test",
+      name: "Member",
+    });
+    const memberResponse = await app.request(
+      "/shopping-lists/current",
+      {},
+      env,
+    );
+    expect(await memberResponse.json()).toMatchObject({
+      id: initial.id,
+      resourceId: HOUSEHOLD_ID,
+      snapshot,
+    });
+
+    authzMock.session = sessionFor({
+      id: "outsider-user",
+      email: "outsider@example.test",
+      name: "Outsider",
+    });
+    const outsiderResponse = await app.request(
+      "/shopping-lists/current",
+      {},
+      env,
+    );
+    expect(await outsiderResponse.json()).toMatchObject({
+      scope: { type: "personal" },
+      snapshot: { recipes: [], checked: [], extras: [] },
+    });
+  });
+
   it("shares a household list through the recipient's notifications", async () => {
     seedHousehold();
     authzMock.session = sessionFor({

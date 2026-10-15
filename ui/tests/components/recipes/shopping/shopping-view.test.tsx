@@ -33,7 +33,6 @@ vi.mock("@/components/recipes/shopping/share-shopping-list", () => ({
 vi.mock("@/hooks/use-shopping-list", () => ({
   useShoppingList: () => ({
     recipes: [],
-    plan: [],
     extras: mocks.extras,
   }),
 }));

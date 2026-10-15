@@ -46,7 +46,7 @@ function ShoppingViewContent({
   recipes: ShoppingRecipe[];
 }>) {
   const { diet, matchRecipe } = useDiet();
-  const { recipes: selected, plan, extras } = useShoppingList();
+  const { recipes: selected, extras } = useShoppingList();
   const [showHidden, setShowHidden] = useState(false);
   const startNewList = useStartNewShoppingList();
   const scope = useShoppingListScope();
@@ -81,7 +81,7 @@ function ShoppingViewContent({
   const count = selected.length;
   const recipeNoun = count === 1 ? "recipe" : "recipes";
   const itemNoun = extras.length === 1 ? "item" : "items";
-  const hasListContent = count > 0 || plan.length > 0 || extras.length > 0;
+  const hasListContent = count > 0 || extras.length > 0;
   let summary =
     "Add items directly, or choose recipes and we'll gather their ingredients.";
   if (count > 0) {

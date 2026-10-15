@@ -1411,14 +1411,6 @@
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
-    "component": "ShoppingListBoundary",
-    "maximums": {
-      "lines": 195
-    },
-    "path": "components/recipes/shopping/shopping-list-boundary.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
     "component": "ExtrasSection",
     "maximums": {
       "lines": 176,
